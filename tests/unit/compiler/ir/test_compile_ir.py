@@ -3,7 +3,7 @@ import pytest
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import version_check
 from vyper.ir import compile_ir
-from vyper.ir.compile_ir import CONST, CONST_ADD, CONST_MAX, CONSTREF
+from vyper.evm.assembler import CONST, CONST_ADD, CONST_MAX, CONSTREF, _resolve_constants
 from vyper.ir.s_expressions import parse_s_exp
 
 fail_list = [
@@ -80,12 +80,12 @@ def test_pc_debugger():
 
 def test_const_add():
     asm = [CONST("a", 1), CONST("b", 2), CONST_ADD("c", "a", "b"), CONST_ADD("d", "c", 10)]
-    const_map = compile_ir._resolve_constants(asm, {})
+    const_map = _resolve_constants(asm, {})
     assert const_map[CONSTREF("c")] == 3
     assert const_map[CONSTREF("d")] == 13
 
 def test_const_max():
     asm = [CONST("a", 1), CONST("b", 2), CONST_MAX("c", "a", "b"), CONST_MAX("d", "c", 10)]
-    const_map = compile_ir._resolve_constants(asm, {})
+    const_map = _resolve_constants(asm, {})
     assert const_map[CONSTREF("c")] == 2
     assert const_map[CONSTREF("d")] == 10

@@ -7,7 +7,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
 from vyper.exceptions import CompilerPanic
-from vyper.ir.compile_ir import AssemblyInstruction
+from vyper.evm.assembler import AssemblyInstruction
 from vyper.venom.analysis import MemSSA
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLabel, IRLiteral

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 from vyper.exceptions import CompilerPanic, StackTooDeep
-from vyper.ir.compile_ir import (
+from vyper.evm.assembler import (
     DATA_ITEM,
     PUSH,
     PUSH_OFST,
@@ -12,8 +12,8 @@ from vyper.ir.compile_ir import (
     DataHeader,
     Label,
     TaggedInstruction,
-    optimize_assembly,
 )
+from vyper.evm.optimizer import optimize_assembly
 from vyper.utils import MemoryPositions, OrderedSet, wrap256
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import (
