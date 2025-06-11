@@ -8,7 +8,6 @@ module: ( DOCSTRING
         | import
         | struct_def
         | interface_def
-        | constant_def
         | variable_def
         | enum_def // TODO deprecate at some point in favor of flag
         | flag_def
@@ -34,17 +33,11 @@ import: _IMPORT DOT* _import_path [import_alias]
       | _import_from _IMPORT ( WILDCARD | _import_name [import_alias] )
       | _import_from _IMPORT "(" import_list ")"
 
-// Constant definitions
+// Variable definitions (including constants)
 // NOTE: Temporary until decorators used
-constant: "constant" "(" type ")"
-constant_private: NAME ":" constant
-constant_with_getter: NAME ":" "public" "(" constant ")"
-constant_def: (constant_private | constant_with_getter) "=" expr
-
+variable_annotation: ("public" | "reentrant" | "immutable" | "transient" | "constant") "(" (variable_annotation | type) ")"
+variable_def: NAME ":" (variable_annotation | type) ["=" expr]
 variable: NAME ":" type
-// NOTE: Temporary until decorators used
-variable_annotation: ("public" | "reentrant" | "immutable" | "transient") "(" (variable_annotation | type) ")"
-variable_def: NAME ":" (variable_annotation | type)
 
 // A decorator "wraps" a method, modifying it's context.
 // NOTE: One or more can be applied (some combos might conflict)

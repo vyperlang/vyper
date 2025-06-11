@@ -1,3 +1,5 @@
+from typing import Optional
+
 import vyper.codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
@@ -9,6 +11,7 @@ from vyper.codegen.core import (
     IRnode,
     add_ofst,
     clamp_le,
+    data_location_to_address_space,
     get_dyn_array_count,
     get_element_ptr,
     get_type_for_exact_size,
@@ -356,7 +359,9 @@ def _is_terminated(code):
 
 
 # codegen a list of statements
-def parse_body(code, context, ensure_terminated=False):
+def parse_body(
+    code: list[vy_ast.VyperNode], context: Context, ensure_terminated: bool = False
+) -> IRnode:
     ir_node = ["seq"]
     for stmt in code:
         ir = parse_stmt(stmt, context)
@@ -369,3 +374,36 @@ def parse_body(code, context, ensure_terminated=False):
     # force zerovalent, even last statement
     ir_node.append("pass")  # CMC 2022-01-16 is this necessary?
     return IRnode.from_list(ir_node)
+
+
+def generate_variable_initializations(module_ast: vy_ast.Module, context: Context) -> IRnode:
+    """
+    Generate initialization IR for storage variables with default values.
+    Returns an IRnode sequence containing all initialization statements.
+    """
+    assert context.is_ctor_context, "Variable initialization must happen in constructor context"
+
+    init_stmts = []
+
+    for node in module_ast.body:
+        if isinstance(node, vy_ast.VariableDecl) and node.value is not None:
+            # skip constants - they are compile-time only
+            if node.is_constant:
+                continue
+
+            # generate assignment: self.var = value
+            varinfo = node.target._metadata["varinfo"]
+            location = data_location_to_address_space(varinfo.location, context.is_ctor_context)
+
+            lhs = IRnode.from_list(
+                varinfo.position.position,
+                typ=varinfo.typ,
+                location=location,
+                annotation=f"self.{node.target.id}",
+            )
+
+            rhs = Expr(node.value, context).ir_node
+            init_stmt = make_setter(lhs, rhs)
+            init_stmts.append(init_stmt)
+
+    return IRnode.from_list(["seq"] + init_stmts)

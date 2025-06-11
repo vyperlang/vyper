@@ -610,7 +610,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             assignments = self.ast.get_descendants(
                 vy_ast.Assign, filters={"target.id": node.target.id}
             )
-            if not assignments:
+            # immutables with initialization values don't require assignment
+            if not assignments and node.value is None:
                 # Special error message for common wrong usages via `self.<immutable name>`
                 wrong_self_attribute = self.ast.get_descendants(
                     vy_ast.Attribute, {"value.id": "self", "attr": node.target.id}
@@ -688,7 +689,17 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             return _finalize()
 
-        assert node.value is None  # checked in VariableDecl.validate()
+        # allow initialization for storage variables
+        if node.value is not None:
+            # validate the initialization expression
+            ExprVisitor().visit(node.value, type_)  # performs validate_expected_type
+
+            # ensure the initialization expression is constant
+            if not check_modifiability(node.value, Modifiability.CONSTANT):
+                raise StateAccessViolation(
+                    "Storage variable initializer must be a literal", node.value
+                )
+
         if node.is_immutable:
             _validate_self_namespace()
             return _finalize()

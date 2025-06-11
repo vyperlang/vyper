@@ -1,3 +1,4 @@
+from vyper import ast as vy_ast
 from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.context import Context, VariableRecord
 from vyper.codegen.core import get_element_ptr, make_setter, needs_clamp
@@ -180,6 +181,13 @@ def generate_ir_for_external_function(code, compilation_target):
     body += handle_base_args
 
     body += nonreentrant_pre
+
+    # if this is a constructor, inject storage variable initializations
+    if func_t.is_constructor:
+        from vyper.codegen.stmt import generate_variable_initializations
+
+        init_ir = generate_variable_initializations(compilation_target._module, context)
+        body.append(init_ir)
 
     body += [parse_body(code.body, context, ensure_terminated=True)]
 
