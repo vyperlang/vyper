@@ -47,11 +47,6 @@ class ContractMutation:
     final_layout: dict
 
 
-@dataclass
-class MutationResult:
-    success: bool
-    layout: dict
-
 # sanity check a storage layout
 # check that variables don't overlap and that each var starts
 # where the previous one ends (doesn't account for hash ptrs)
@@ -70,84 +65,59 @@ def validate_storage_layout(layout_dict):
 
 
 @st.composite
-def _select_section(draw, layout):
-    if not ENABLE_TRANSIENT:
-        return layout["storage_layout"]
-    section = draw(st.sampled_from(["storage_layout", "transient_storage_layout"]))
-    if section not in layout or not layout[section]:
-        section = "transient_storage_layout" if section == "storage_layout" else "storage_layout"
-    return layout[section]
-
-
-@st.composite
-def drop_random_item(draw, layout) -> MutationResult:
-    result = layout
-    section = draw(_select_section(layout))
-
-    if len(section) == 0:
-        return MutationResult(False, result)
-
-    keys = st.sampled_from(list(section.keys()))
-    item_name = draw(keys)
-    del section[item_name]
-
-    return MutationResult(success=True, layout=result)
-
-
-@st.composite
-def mutate_slot_address(draw, layout) -> MutationResult:
-    result = layout
-    section = draw(_select_section(layout))
-
-    if len(section) < 2:
-        return MutationResult(False, result)
-
-    items = list(section.keys())
-    item_to_change = draw(st.sampled_from(items[:-1]))
-    last_slot = section[items[-1]]["slot"]
-    assert last_slot > 0
-    strategy = st.integers(0, last_slot)
-    new_slot = draw(strategy)
-    while section[item_to_change]["slot"] == new_slot:
-        new_slot = draw(strategy)
-    section[item_to_change]["slot"] = new_slot
-
-    return MutationResult(success=True, layout=result)
-
-
-@st.composite
-def mutate_slot_size(draw, layout) -> MutationResult:
-    result = layout
-    section = draw(_select_section(layout))
-
-    if len(section) < 2:
-        return MutationResult(False, result)
-
-    items = list(section.keys())
-    item_to_change = draw(st.sampled_from(items[:-1]))
-    last_slot = section[items[-1]]["slot"]
-    strategy = st.integers(-last_slot, last_slot)
-    delta = draw(strategy)
-    while delta == 0:
-        delta = draw(strategy)
-    section[item_to_change]["n_slots"] = section[item_to_change]["n_slots"] + delta
-
-    return MutationResult(success=True, layout=result)
-
-
-@st.composite
 def mutate_layout(draw, layout):
-    mutation_strategies = [drop_random_item, mutate_slot_address, mutate_slot_size]
-
-    mutation = draw(st.sampled_from(mutation_strategies))
-
-    result = layout
-
-    mutation_result = draw(mutation(result))
-    should_raise = mutation_result.success
-    result = mutation_result.layout
-
-    return should_raise, result
+    # Choose mutation type: "d" = drop, "ma" = mutate address, "ms" = mutate size
+    mutation_type = draw(st.sampled_from(["d", "ma", "ms"]))
+    
+    # Select section
+    if not ENABLE_TRANSIENT:
+        section = layout["storage_layout"]
+    else:
+        section_name = draw(st.sampled_from(["storage_layout", "transient_storage_layout"]))
+        if section_name not in layout or not layout[section_name]:
+            section_name = "transient_storage_layout" if section_name == "storage_layout" else "storage_layout"
+        section = layout[section_name]
+    
+    if mutation_type == "d":
+        # Drop random item
+        if len(section) == 0:
+            return False, layout
+        
+        item_name = draw(st.sampled_from(list(section.keys())))
+        del section[item_name]
+        return True, layout
+    
+    elif mutation_type == "ma":
+        # Mutate slot address
+        if len(section) < 2:
+            return False, layout
+        
+        items = list(section.keys())
+        item_to_change = draw(st.sampled_from(items[:-1]))
+        last_slot = section[items[-1]]["slot"]
+        assert last_slot > 0
+        
+        new_slot = draw(st.integers(0, last_slot).filter(
+            lambda x: x != section[item_to_change]["slot"]
+        ))
+        section[item_to_change]["slot"] = new_slot
+        return True, layout
+    
+    elif mutation_type == "ms":
+        # Mutate slot size
+        if len(section) < 2:
+            return False, layout
+        
+        items = list(section.keys())
+        item_to_change = draw(st.sampled_from(items[:-1]))
+        last_slot = section[items[-1]]["slot"]
+        
+        delta = draw(st.integers(-last_slot, last_slot).filter(lambda x: x != 0))
+        section[item_to_change]["n_slots"] = section[item_to_change]["n_slots"] + delta
+        return True, layout
+    
+    else:
+        raise RuntimeError("unreachable")
 
 
 @st.composite
