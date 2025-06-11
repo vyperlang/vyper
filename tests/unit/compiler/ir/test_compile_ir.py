@@ -3,7 +3,7 @@ import pytest
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import version_check
 from vyper.ir import compile_ir
-from vyper.ir.compile_ir import CONSTREF, CONST, CONST_ADD
+from vyper.ir.compile_ir import CONST, CONST_ADD, CONSTREF
 from vyper.ir.s_expressions import parse_s_exp
 
 fail_list = [
@@ -77,13 +77,9 @@ def test_pc_debugger():
 
     assert line_number_map["pc_breakpoints"][0] == offset
 
+
 def test_const_add():
-    asm = [
-        CONST("a", 1),
-        CONST("b", 2),
-        CONST_ADD("c", "a", "b"),
-        CONST_ADD("d", "c", 10),
-    ]
+    asm = [CONST("a", 1), CONST("b", 2), CONST_ADD("c", "a", "b"), CONST_ADD("d", "c", 10)]
     const_map = compile_ir._resolve_constants(asm, {})
     assert const_map[CONSTREF("c")] == 3
     assert const_map[CONSTREF("d")] == 13
