@@ -1,8 +1,3 @@
-#####################################
-# assembly data structures and utils
-#####################################
-
-
 from dataclasses import dataclass
 from typing import Any, TypeVar
 

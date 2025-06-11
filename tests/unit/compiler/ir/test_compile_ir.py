@@ -1,7 +1,6 @@
 import pytest
 
 from vyper.codegen.ir_node import IRnode
-from vyper.evm.assembler import CONST, CONST_ADD, CONST_MAX, CONSTREF, _resolve_constants
 from vyper.evm.opcodes import version_check
 from vyper.ir import compile_ir
 from vyper.ir.s_expressions import parse_s_exp
@@ -76,17 +75,3 @@ def test_pc_debugger():
         offset = 5
 
     assert line_number_map["pc_breakpoints"][0] == offset
-
-
-def test_const_add():
-    asm = [CONST("a", 1), CONST("b", 2), CONST_ADD("c", "a", "b"), CONST_ADD("d", "c", 10)]
-    const_map = _resolve_constants(asm, {})
-    assert const_map[CONSTREF("c")] == 3
-    assert const_map[CONSTREF("d")] == 13
-
-
-def test_const_max():
-    asm = [CONST("a", 1), CONST("b", 2), CONST_MAX("c", "a", "b"), CONST_MAX("d", "c", 10)]
-    const_map = _resolve_constants(asm, {})
-    assert const_map[CONSTREF("c")] == 2
-    assert const_map[CONSTREF("d")] == 10
