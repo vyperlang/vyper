@@ -944,7 +944,7 @@ def run(x: Bytes[{buffer_size}]) -> Bytes[{buffer_size}]:
 
     res = c.run(data)
 
-    expected = bytes(256)
+    expected = b"\x00" * 256
     assert res == expected
 
     _test_ctor_decode(env, "Bytes[256]", data, expected)
