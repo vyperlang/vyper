@@ -207,10 +207,8 @@ def _deepcopy_ast(ast_node: python_ast.AST):
 
 
 # Adds location info to all python ast nodes.
-# Additionally, replace python ast node instances that are singletons,
-# which are reused between python_ast.parse() invocations, with a copy
-# so that we are using fresh objects. Otherwise, the location info for
-# singleton ast nodes of the same type will be identical.
+# Additionally, it replaces python ast nodes that are singletons 
+# with a copy that the location info will be unique.
 class LocationVisitor(python_ast.NodeTransformer):
     _source_code: str
     _parents: list[python_ast.AST]
