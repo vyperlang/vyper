@@ -1,9 +1,8 @@
-import pytest
-
 """
 Test vyper implementation of bubble sort. Good functional test as it
 stresses the code generator and optimizer a little.
 """
+
 
 def test_bubble_sort(get_contract):
     code = """
