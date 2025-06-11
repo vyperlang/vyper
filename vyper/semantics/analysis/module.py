@@ -694,10 +694,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             # validate the initialization expression
             ExprVisitor().visit(node.value, type_)  # performs validate_expected_type
 
-            # ensure the initialization expression is constant
-            if not check_modifiability(node.value, Modifiability.CONSTANT):
+            # ensure the initialization expression is constant or runtime constant
+            # (allows literals, constants, msg.sender, self, etc.)
+            if not check_modifiability(node.value, Modifiability.RUNTIME_CONSTANT):
                 raise StateAccessViolation(
-                    "Storage variable initializer must be a literal", node.value
+                    "Storage variable initializer must be a literal or runtime constant"
+                    " (e.g. msg.sender)",
+                    node.value,
                 )
 
         if node.is_immutable:

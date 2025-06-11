@@ -454,3 +454,127 @@ def get_x() -> uint256:
     # Test adjustment that would exceed bounds
     c3 = get_contract(code, 60)
     assert c3.get_x() == 100  # unchanged because 100 + 60 > 150
+
+
+def test_msg_sender_initialization(env, get_contract, tx_failed):
+    """Test that msg.sender can be used in variable initialization"""
+    code = """
+owner: address = msg.sender
+backup_owner: address = msg.sender
+
+@external
+@view
+def get_owner() -> address:
+    return self.owner
+
+@external
+@view
+def get_backup_owner() -> address:
+    return self.backup_owner
+
+@external
+def set_owner(new_owner: address):
+    assert msg.sender == self.owner, "Only owner can change owner"
+    self.owner = new_owner
+    """
+
+    c = get_contract(code)
+
+    # Check that owner and backup_owner were initialized to deployer
+    assert c.get_owner() == env.deployer
+    assert c.get_backup_owner() == env.deployer
+
+    # Test that owner can be changed by the current owner
+    new_owner = env.accounts[1]
+    c.set_owner(new_owner)
+    assert c.get_owner() == new_owner
+    assert c.get_backup_owner() == env.deployer  # unchanged
+
+    # Test that non-owner cannot change owner
+    with tx_failed():
+        env.set_balance(env.accounts[2], 10**18)
+        c.set_owner(env.accounts[2], sender=env.accounts[2])
+
+
+def test_msg_sender_with_constructor_override(env, get_contract):
+    """Test msg.sender initialization with constructor override"""
+    code = """
+owner: address = msg.sender
+admin: address = msg.sender
+
+@deploy
+def __init__(admin_address: address):
+    # Override admin but keep owner as msg.sender
+    self.admin = admin_address
+
+@external
+@view
+def get_owner() -> address:
+    return self.owner
+
+@external
+@view
+def get_admin() -> address:
+    return self.admin
+    """
+
+    admin_addr = env.accounts[1]
+    c = get_contract(code, admin_addr)
+
+    # Owner should be the deployer (msg.sender during initialization)
+    assert c.get_owner() == env.deployer
+    # Admin should be overridden by constructor
+    assert c.get_admin() == admin_addr
+
+
+def test_runtime_constants_initialization(env, get_contract):
+    """Test that runtime constants (block, tx, msg, chain) can be used in initializers"""
+    code = """
+# All of these are runtime constants and should be allowed
+deployer: address = msg.sender
+origin: address = tx.origin
+deploy_block: uint256 = block.number
+deploy_timestamp: uint256 = block.timestamp
+chain_id: uint256 = chain.id
+
+@external
+@view
+def get_deployer() -> address:
+    return self.deployer
+
+@external
+@view
+def get_origin() -> address:
+    return self.origin
+
+@external
+@view
+def get_deploy_block() -> uint256:
+    return self.deploy_block
+
+@external
+@view
+def get_deploy_timestamp() -> uint256:
+    return self.deploy_timestamp
+
+@external
+@view
+def get_chain_id() -> uint256:
+    return self.chain_id
+    """
+
+    # Record environment values at deployment
+    c = get_contract(code)
+
+    # Check all values were initialized correctly
+    assert c.get_deployer() == env.deployer
+    assert c.get_origin() == env.deployer  # In tests, origin == sender
+
+    # Block number should match current environment
+    assert c.get_deploy_block() == env.block_number
+
+    # Timestamp should match current environment
+    assert c.get_deploy_timestamp() == env.timestamp
+
+    # Chain ID should be the default (1)
+    assert c.get_chain_id() == env.DEFAULT_CHAIN_ID

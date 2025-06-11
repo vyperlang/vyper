@@ -36,36 +36,8 @@ x: uint256 = self.y
         ),
         (
             """
-# Cannot use mutable expressions
-x: address = msg.sender
-    """,
-            StateAccessViolation,
-        ),
-        (
-            """
-# Cannot use block properties
-x: uint256 = block.timestamp
-    """,
-            StateAccessViolation,
-        ),
-        (
-            """
-# Cannot use tx properties
-x: address = tx.origin
-    """,
-            StateAccessViolation,
-        ),
-        (
-            """
-# Cannot use msg properties
-x: uint256 = msg.value
-    """,
-            StateAccessViolation,
-        ),
-        (
-            """
-# Cannot use complex expressions that aren't constant-foldable
-x: uint256 = 2 ** block.number
+# Cannot use self in initializer
+x: address = self
     """,
             StateAccessViolation,
         ),
@@ -152,5 +124,32 @@ def test_circular_reference_in_constants():
 A: constant(uint256) = B
 B: constant(uint256) = A
     """
-    with pytest.raises(UndeclaredDefinition):
+    # This will raise VyperException with multiple UndeclaredDefinition errors
+    from vyper.exceptions import VyperException
+
+    with pytest.raises((UndeclaredDefinition, VyperException)):
+        compile_code(bad_code)
+
+
+def test_initializer_cannot_use_pure_function_calls():
+    """Cannot call even pure functions in initializers"""
+    bad_code = """
+@internal
+@pure
+def helper() -> uint256:
+    return 42
+
+x: uint256 = self.helper()
+    """
+    with pytest.raises(StateAccessViolation):
+        compile_code(bad_code)
+
+
+def test_initializer_cannot_reference_other_vars():
+    """Cannot reference other storage variables regardless of order"""
+    bad_code = """
+y: uint256 = 100
+x: uint256 = self.y  # Cannot reference self.y even though it's declared first
+    """
+    with pytest.raises(StateAccessViolation):
         compile_code(bad_code)
