@@ -14,7 +14,6 @@ from vyper.codegen.ir_node import IRnode
 from vyper.codegen.memory_allocator import MemoryAllocator
 from vyper.codegen.stmt import generate_variable_initializations
 from vyper.compiler.settings import _is_debug_mode
-from vyper.exceptions import CompilerPanic
 from vyper.semantics.types.module import ModuleT
 from vyper.utils import MemoryPositions, OrderedSet, method_id_int
 
@@ -527,9 +526,8 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
         init_ir = generate_variable_initializations(module_t._module, context)
         deploy_code.append(init_ir)
 
-        if immutables_len != 0:  # pragma: nocover
-            raise CompilerPanic("unreachable")
-        deploy_code.append(["deploy", 0, runtime, 0])
+        init_mem_used = context.memory_allocator.next_mem
+        deploy_code.append(["deploy", init_mem_used, runtime, immutables_len])
 
     # compile all remaining internal functions so that _ir_info is populated
     # (whether or not it makes it into the final IR artifact)

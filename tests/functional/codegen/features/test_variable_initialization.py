@@ -624,3 +624,20 @@ def get_owner() -> address:
 
     # should be overridden to deployer
     assert c.get_owner() == env.deployer
+
+
+def test_immutable_self_initialization(get_contract, env):
+    """Test that immutables can be initialized with self"""
+    code = """
+CONTRACT_ADDRESS: immutable(address) = self
+
+@external
+@view
+def get_contract_address() -> address:
+    return CONTRACT_ADDRESS
+    """
+
+    c = get_contract(code)
+
+    # immutable should be set to the contract's address
+    assert c.get_contract_address() == c.address
