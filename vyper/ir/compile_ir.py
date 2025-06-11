@@ -110,6 +110,22 @@ class CONST:
             return False
         return self.name == other.name and self.value == other.value
 
+class CONST_ADD:
+    def __init__(self, name: str, op1: str | int, op2: str | int):
+        assert isinstance(name, str)
+        assert isinstance(op1, (str, int))
+        assert isinstance(op2, (str, int))
+        self.name = name
+        self.op1 = op1
+        self.op2 = op2
+
+    def __repr__(self):
+        return f"CONST_ADD {self.name} {self.op1} {self.op2}"
+    
+    def __eq__(self, other):
+        if not isinstance(other, CONST_ADD):
+            return False
+        return self.name == other.name and self.op1 == other.op1 and self.op2 == other.op2
 
 class PUSHLABEL:
     def __init__(self, label: Label):
@@ -1302,6 +1318,48 @@ def assembly_to_evm(assembly: list[AssemblyInstruction]) -> tuple[bytes, dict[st
     bytecode = _assembly_to_evm(assembly, symbol_map, const_map)
     return bytecode, source_map
 
+def _resolve_constants(assembly: list[AssemblyInstruction], const_map: dict[CONSTREF, int]) -> dict[CONSTREF, int]:
+    for item in assembly:
+        if isinstance(item, CONST):
+            _add_to_symbol_map(const_map, CONSTREF(item.name), item.value)
+
+    while True:
+        changed = False
+        for item in assembly:
+            if isinstance(item, CONST_ADD):
+                # Skip if this constant is already resolved
+                if CONSTREF(item.name) in const_map:
+                    continue
+                
+                # Get values for both operands
+                op1_val = None
+                op2_val = None
+                
+                # Try to resolve op1
+                if isinstance(item.op1, str):
+                    op1_ref = CONSTREF(item.op1)
+                    if op1_ref in const_map:
+                        op1_val = const_map[op1_ref]
+                elif isinstance(item.op1, int):
+                    op1_val = item.op1
+                
+                # Try to resolve op2
+                if isinstance(item.op2, str):
+                    op2_ref = CONSTREF(item.op2)
+                    if op2_ref in const_map:
+                        op2_val = const_map[op2_ref]
+                elif isinstance(item.op2, int):
+                    op2_val = item.op2
+                
+                # If both operands are resolved, add the result
+                if op1_val is not None and op2_val is not None:
+                    _add_to_symbol_map(const_map, CONSTREF(item.name), op1_val + op2_val)
+                    changed = True
+        
+        if not changed:
+            break
+
+    return const_map
 
 # resolve symbols in assembly
 def resolve_symbols(
@@ -1328,11 +1386,9 @@ def resolve_symbols(
 
     pc: int = 0
 
-    # resolve constants
-    for item in assembly:
-        if isinstance(item, CONST):
-            # should this be merged into the symbol map?
-            _add_to_symbol_map(const_map, CONSTREF(item.name), item.value)
+    const_map = _resolve_constants(assembly, const_map)
+    print("\n".join(str(item) for item in assembly))
+    print(const_map)
 
     # resolve labels (i.e. JUMPDEST locations) to actual code locations,
     # and simultaneously build the source map.
