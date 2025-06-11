@@ -162,7 +162,17 @@ class _ExprAnalyser:
             if not include_type_exprs:
                 invalid = next((i for i in ret if isinstance(i, TYPE_T)), None)
                 if invalid is not None:
-                    raise InvalidReference(f"not a variable or literal: '{invalid.typedef}'", node)
+                    # Allow flag types when they're being used for member access (e.g., Action.BUY)
+                    # Flag members are compile-time constants and should be allowed in pure functions
+                    from vyper.semantics.types.user import FlagT
+
+                    is_flag_for_member_access = isinstance(
+                        invalid.typedef, FlagT
+                    ) and invalid.typedef.is_member_access(node)
+                    if not is_flag_for_member_access:
+                        raise InvalidReference(
+                            f"not a variable or literal: '{invalid.typedef}'", node
+                        )
 
             if all(isinstance(i, IntegerT) for i in ret):
                 # for numeric types, sort according by number of bits descending
