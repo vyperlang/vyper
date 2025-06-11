@@ -1,4 +1,5 @@
-from vyper.evm.assembler.core import CONST, CONST_ADD, CONST_MAX, CONSTREF, _resolve_constants
+from vyper.evm.assembler.core import _resolve_constants
+from vyper.evm.assembler.symbols import CONST, CONSTREF, CONST_ADD, CONST_MAX
 
 
 def test_const_add():
