@@ -9,6 +9,7 @@ PUSH_OFFSET = 0x5F
 DUP_OFFSET = 0x7F
 SWAP_OFFSET = 0x8F
 
+T = TypeVar("T")
 
 def num_to_bytearray(x):
     o = []
@@ -43,8 +44,6 @@ class DataHeader:
         return f"DATA {self.label.label}"
 
 
-# this could be fused with Label, the only difference is if
-# it gets looked up from const_map or symbol_map.
 class CONSTREF:
     def __init__(self, label: str):
         assert isinstance(label, str)
@@ -92,18 +91,18 @@ class BaseConstOp:
             return False
         return self.name == other.name and self.op1 == other.op1 and self.op2 == other.op2
 
-    def _resolve_operand(self, operand: str | int, const_map: dict[CONSTREF, int]) -> int | None:
+    def _resolve_operand(self, operand: str | int, symbol_map: dict[T, int]) -> int | None:
         if isinstance(operand, str):
             op_ref = CONSTREF(operand)
-            if op_ref in const_map:
-                return const_map[op_ref]
+            if op_ref in symbol_map:
+                return symbol_map[op_ref]
         elif isinstance(operand, int):
             return operand
         return None
 
-    def calculate(self, const_map: dict[CONSTREF, int]) -> int | None:
-        op1_val = self._resolve_operand(self.op1, const_map)
-        op2_val = self._resolve_operand(self.op2, const_map)
+    def calculate(self, symbol_map: dict[CONSTREF, int]) -> int | None:
+        op1_val = self._resolve_operand(self.op1, symbol_map)
+        op2_val = self._resolve_operand(self.op2, symbol_map)
 
         if op1_val is not None and op2_val is not None:
             return self._apply_operation(op1_val, op2_val)
@@ -238,9 +237,6 @@ AssemblyInstruction = (
     str | TaggedInstruction | int | PUSHLABEL | Label | PUSH_OFST | DATA_ITEM | DataHeader | CONST
 )
 
-T = TypeVar("T")
-
-
 def _add_to_symbol_map(symbol_map: dict[T, int], item: T, value: int):
     if item in symbol_map:  # pragma: nocover
         raise CompilerPanic(f"duplicate label: {item}")
@@ -248,30 +244,27 @@ def _add_to_symbol_map(symbol_map: dict[T, int], item: T, value: int):
 
 
 def _resolve_constants(
-    assembly: list[AssemblyInstruction], const_map: dict[CONSTREF, int]
-) -> dict[CONSTREF, int]:
+    assembly: list[AssemblyInstruction], symbol_map: dict[T, int]
+):
     for item in assembly:
         if isinstance(item, CONST):
-            _add_to_symbol_map(const_map, CONSTREF(item.name), item.value)
+            _add_to_symbol_map(symbol_map, CONSTREF(item.name), item.value)
 
     while True:
         changed = False
         for item in assembly:
             if isinstance(item, (CONST_ADD, CONST_MAX)):
                 # Skip if this constant is already resolved
-                if CONSTREF(item.name) in const_map:
+                if CONSTREF(item.name) in symbol_map:
                     continue
 
                 # Calculate the value if possible
-                if (value := item.calculate(const_map)) is not None:
-                    _add_to_symbol_map(const_map, CONSTREF(item.name), value)
+                if (value := item.calculate(symbol_map)) is not None:
+                    _add_to_symbol_map(symbol_map, CONSTREF(item.name), value)
                     changed = True
 
         if not changed:
             break
-
-    return const_map
-
 
 def resolve_symbols(
     assembly: list[AssemblyInstruction],
@@ -281,7 +274,6 @@ def resolve_symbols(
 
     Returns:
         symbol_map: dict from labels to values
-        const_map: dict from CONSTREFs to values
         source_map: source map dict that gets output for the user
     """
     source_map: dict[str, Any] = {
@@ -293,13 +285,10 @@ def resolve_symbols(
     }
 
     symbol_map: dict[Label, int] = {}
-    const_map: dict[CONSTREF, int] = {}
 
     pc: int = 0
 
-    const_map = _resolve_constants(assembly, const_map)
-    print("\n".join(str(item) for item in assembly))
-    print(const_map)
+    _resolve_constants(assembly, symbol_map)
 
     # resolve labels (i.e. JUMPDEST locations) to actual code locations,
     # and simultaneously build the source map.
@@ -348,7 +337,7 @@ def resolve_symbols(
             if isinstance(item.label, Label):
                 pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
             elif isinstance(item.label, CONSTREF):
-                const = const_map[item.label]
+                const = symbol_map[item.label]
                 val = const + item.ofst
                 pc += calc_push_size(val)
             else:  # pragma: nocover
@@ -373,7 +362,7 @@ def resolve_symbols(
     # magic -- probably the assembler should actually add this label
     _add_to_symbol_map(symbol_map, Label("code_end"), pc)
 
-    return symbol_map, const_map, source_map
+    return symbol_map, source_map
 
 
 # Calculate the size of PUSH instruction
@@ -470,15 +459,14 @@ def assembly_to_evm(assembly: list[AssemblyInstruction]) -> tuple[bytes, dict[st
         source_map: source map dict that gets output for the user
     """
     # This API might seem a bit strange, but it's backwards compatible
-    symbol_map, const_map, source_map = resolve_symbols(assembly)
-    bytecode = _assembly_to_evm(assembly, symbol_map, const_map)
+    symbol_map, source_map = resolve_symbols(assembly)
+    bytecode = _assembly_to_evm(assembly, symbol_map)
     return bytecode, source_map
 
 
 def _assembly_to_evm(
     assembly: list[AssemblyInstruction],
     symbol_map: dict[Label, int],
-    const_map: dict[CONSTREF, int],
 ) -> bytes:
     """
     Assembles assembly into EVM bytecode
@@ -486,7 +474,6 @@ def _assembly_to_evm(
     Parameters:
         assembly: list of asm instructions
         symbol_map: dict from labels to resolved locations in the code
-        const_map: dict from constrefs to their values
 
     Returns: bytes representing the bytecode
     """
@@ -521,7 +508,7 @@ def _assembly_to_evm(
                 bytecode = _compile_push_instruction(PUSH_N(ofst, SYMBOL_SIZE))
             else:
                 assert isinstance(item.label, CONSTREF)
-                ofst = const_map[item.label] + item.ofst
+                ofst = symbol_map[item.label] + item.ofst
                 bytecode = _compile_push_instruction(PUSH(ofst))
 
             ret.extend(bytecode)
