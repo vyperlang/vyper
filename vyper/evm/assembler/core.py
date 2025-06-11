@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Any
 
-from vyper.evm.assembler.symbols import CONST, CONST_ADD, CONST_MAX, CONSTREF, Label, SymbolKey
+from vyper.evm.assembler.symbols import CONST, CONSTREF, BaseConstOp, Label, SymbolKey
 from vyper.evm.opcodes import get_opcodes, version_check
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
@@ -151,7 +151,7 @@ def _resolve_constants(assembly: list[AssemblyInstruction], symbol_map: dict[Sym
     while True:
         changed = False
         for item in assembly:
-            if isinstance(item, (CONST_ADD, CONST_MAX)):
+            if isinstance(item, BaseConstOp):
                 # Skip if this constant is already resolved
                 if CONSTREF(item.name) in symbol_map:
                     continue

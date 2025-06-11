@@ -94,6 +94,14 @@ class CONST_ADD(BaseConstOp):
         return op1_val + op2_val
 
 
+class CONST_SUB(BaseConstOp):
+    def __repr__(self):
+        return f"CONST_SUB {self.name} {self.op1} {self.op2}"
+
+    def _apply_operation(self, op1_val: int, op2_val: int) -> int:
+        return op1_val - op2_val
+
+
 class CONST_MAX(BaseConstOp):
     def __repr__(self):
         return f"CONST_MAX {self.name} {self.op1} {self.op2}"
