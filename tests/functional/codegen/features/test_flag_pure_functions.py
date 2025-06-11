@@ -12,7 +12,7 @@ def get_buy_action() -> Action:
     return Action.BUY
 
 @pure
-@external  
+@external
 def get_sell_action() -> Action:
     return Action.SELL
 
@@ -97,7 +97,7 @@ struct Point:
 def get_action_and_point() -> (Action, Point):
     return Action.BUY, Point(x=10, y=20)
 
-@pure  
+@pure
 @external
 def pure_math(a: uint256, b: uint256) -> uint256:
     return a + b

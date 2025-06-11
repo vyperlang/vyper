@@ -163,7 +163,7 @@ class _ExprAnalyser:
                 invalid = next((i for i in ret if isinstance(i, TYPE_T)), None)
                 if invalid is not None:
                     # Allow flag types when they're being used for member access (e.g., Action.BUY)
-                    # Flag members are compile-time constants and should be allowed in pure functions
+                    # Flag members are compile-time constants and allowed in pure functions
                     from vyper.semantics.types.user import FlagT
 
                     is_flag_for_member_access = isinstance(
