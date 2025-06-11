@@ -8,7 +8,7 @@ import cbor2
 
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
-from vyper.evm.assembler import (
+from vyper.evm.assembler.core import (
     CONST,
     CONSTREF,
     DATA_ITEM,
@@ -25,8 +25,8 @@ from vyper.evm.assembler import (
     get_data_segment_lengths,
     mkdebug,
 )
+from vyper.evm.assembler.optimizer import optimize_assembly
 from vyper.evm.opcodes import get_opcodes
-from vyper.evm.optimizer import optimize_assembly
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import MemoryPositions
 from vyper.version import version_tuple

@@ -11,6 +11,7 @@ SWAP_OFFSET = 0x8F
 
 T = TypeVar("T")
 
+
 def num_to_bytearray(x):
     o = []
     while x > 0:
@@ -237,15 +238,14 @@ AssemblyInstruction = (
     str | TaggedInstruction | int | PUSHLABEL | Label | PUSH_OFST | DATA_ITEM | DataHeader | CONST
 )
 
+
 def _add_to_symbol_map(symbol_map: dict[T, int], item: T, value: int):
     if item in symbol_map:  # pragma: nocover
         raise CompilerPanic(f"duplicate label: {item}")
     symbol_map[item] = value
 
 
-def _resolve_constants(
-    assembly: list[AssemblyInstruction], symbol_map: dict[T, int]
-):
+def _resolve_constants(assembly: list[AssemblyInstruction], symbol_map: dict[T, int]):
     for item in assembly:
         if isinstance(item, CONST):
             _add_to_symbol_map(symbol_map, CONSTREF(item.name), item.value)
@@ -265,6 +265,7 @@ def _resolve_constants(
 
         if not changed:
             break
+
 
 def resolve_symbols(
     assembly: list[AssemblyInstruction],
@@ -464,10 +465,7 @@ def assembly_to_evm(assembly: list[AssemblyInstruction]) -> tuple[bytes, dict[st
     return bytecode, source_map
 
 
-def _assembly_to_evm(
-    assembly: list[AssemblyInstruction],
-    symbol_map: dict[Label, int],
-) -> bytes:
+def _assembly_to_evm(assembly: list[AssemblyInstruction], symbol_map: dict[Label, int]) -> bytes:
     """
     Assembles assembly into EVM bytecode
 

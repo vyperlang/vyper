@@ -1,6 +1,6 @@
-from vyper.evm.assembler import DATA_ITEM, PUSHLABEL, DataHeader, Label, is_symbol
+from vyper.evm.assembler.core import DATA_ITEM, PUSHLABEL, DataHeader, Label, is_symbol
+from vyper.evm.constants import COMMUTATIVE_OPS
 from vyper.exceptions import CompilerPanic
-from vyper.ir.optimizer import COMMUTATIVE_OPS
 
 _TERMINAL_OPS = ("JUMP", "RETURN", "REVERT", "STOP", "INVALID")
 

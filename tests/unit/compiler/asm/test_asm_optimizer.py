@@ -3,8 +3,8 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings
-from vyper.evm.assembler import PUSHLABEL, Label
-from vyper.evm.optimizer import _merge_jumpdests
+from vyper.evm.assembler.core import PUSHLABEL, Label
+from vyper.evm.assembler.optimizer import _merge_jumpdests
 
 codes = [
     """
