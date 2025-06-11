@@ -1,4 +1,3 @@
-
 #####################################
 # assembly data structures and utils
 #####################################
@@ -185,6 +184,7 @@ class DATA_ITEM:
         elif isinstance(self.data, Label):
             return f"DATALABEL {self.data.label}"
 
+
 # a string (assembly instruction) but with additional metadata from the source code
 class TaggedInstruction(str):
     def __new__(cls, sstr, *args, **kwargs):
@@ -213,6 +213,7 @@ def PUSH_N(x, n):
         x //= 256
     assert x == 0
     return [f"PUSH{len(o)}"] + o
+
 
 def JUMP(label: Label):
     return [PUSHLABEL(label), "JUMP"]
@@ -379,6 +380,7 @@ def resolve_symbols(
 
     return symbol_map, const_map, source_map
 
+
 # Calculate the size of PUSH instruction
 def calc_push_size(val: int):
     # stupid implementation. this is "slow", but its correctness is
@@ -441,7 +443,6 @@ def get_data_segment_lengths(assembly: list[AssemblyInstruction]) -> list[int]:
     return ret
 
 
-
 def _compile_data_item(item: DATA_ITEM, symbol_map: dict[Label, int]) -> bytes:
     if isinstance(item.data, bytes):
         return item.data
@@ -464,6 +465,7 @@ def _compile_push_instruction(assembly: list[AssemblyInstruction]) -> bytes:
         ret.append(item)
     return bytes(ret)
 
+
 def assembly_to_evm(assembly: list[AssemblyInstruction]) -> tuple[bytes, dict[str, Any]]:
     """
     Generate bytecode and source map from assembly
@@ -476,6 +478,7 @@ def assembly_to_evm(assembly: list[AssemblyInstruction]) -> tuple[bytes, dict[st
     symbol_map, const_map, source_map = resolve_symbols(assembly)
     bytecode = _assembly_to_evm(assembly, symbol_map, const_map)
     return bytecode, source_map
+
 
 def _assembly_to_evm(
     assembly: list[AssemblyInstruction],

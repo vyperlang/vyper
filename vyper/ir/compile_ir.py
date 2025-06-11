@@ -2,20 +2,35 @@ from __future__ import annotations
 
 import contextlib
 import copy
-from dataclasses import dataclass
-from typing import Any, Optional, TypeVar
+from typing import Any, Optional
 
 import cbor2
 
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
-from vyper.evm.opcodes import get_opcodes, version_check
+from vyper.evm.assembler import (
+    CONST,
+    CONSTREF,
+    DATA_ITEM,
+    JUMP,
+    JUMPI,
+    PUSH,
+    PUSH_OFST,
+    PUSHLABEL,
+    AssemblyInstruction,
+    DataHeader,
+    Label,
+    TaggedInstruction,
+    assembly_to_evm,
+    get_data_segment_lengths,
+    mkdebug,
+)
+from vyper.evm.opcodes import get_opcodes
 from vyper.evm.optimizer import optimize_assembly
 from vyper.exceptions import CodegenPanic, CompilerPanic
-from vyper.evm.assembler import CONST, CONSTREF, DATA_ITEM, JUMP, JUMPI, PUSH, PUSH_OFST, PUSHLABEL, AssemblyInstruction, DataHeader, Label, TaggedInstruction, assembly_to_evm, get_data_segment_lengths, is_symbol, mkdebug
-from vyper.ir.optimizer import COMMUTATIVE_OPS
-from vyper.utils import MemoryPositions, OrderedSet
+from vyper.utils import MemoryPositions
 from vyper.version import version_tuple
+
 
 def generate_cbor_metadata(
     compiler_metadata: Any,
@@ -59,8 +74,6 @@ def _runtime_code_offsets(ctor_mem_size, runtime_codelen):
     runtime_code_start = runtime_code_end - runtime_codelen
 
     return runtime_code_start, runtime_code_end
-
-
 
 
 # temporary optimization to handle stack items for return sequences
@@ -132,6 +145,7 @@ def compile_to_assembly(
     if optimize != OptimizationLevel.NONE:
         optimize_assembly(res)
     return res
+
 
 class _IRnodeLowerer:
     # map from variable names to height in stack
@@ -759,9 +773,3 @@ class _IRnodeLowerer:
             self.global_revert_label = self.mksymbol("revert")
         # use a shared failure block for common case of assert(x).
         return JUMPI(self.global_revert_label)
-
-
-
-
-
-
