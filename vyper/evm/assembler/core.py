@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, TypeVar
+from typing import Any
 
 from vyper.evm.opcodes import get_opcodes, version_check
 from vyper.exceptions import CompilerPanic
@@ -8,8 +8,6 @@ from vyper.utils import OrderedSet
 PUSH_OFFSET = 0x5F
 DUP_OFFSET = 0x7F
 SWAP_OFFSET = 0x8F
-
-T = TypeVar("T")
 
 
 def num_to_bytearray(x):
@@ -62,6 +60,9 @@ class CONSTREF:
         return hash(self.label)
 
 
+SymbolKey = Label | CONSTREF
+
+
 class CONST:
     def __init__(self, name: str, value: int):
         assert isinstance(name, str)
@@ -92,7 +93,7 @@ class BaseConstOp:
             return False
         return self.name == other.name and self.op1 == other.op1 and self.op2 == other.op2
 
-    def _resolve_operand(self, operand: str | int, symbol_map: dict[T, int]) -> int | None:
+    def _resolve_operand(self, operand: str | int, symbol_map: dict[SymbolKey, int]) -> int | None:
         if isinstance(operand, str):
             op_ref = CONSTREF(operand)
             if op_ref in symbol_map:
@@ -101,7 +102,7 @@ class BaseConstOp:
             return operand
         return None
 
-    def calculate(self, symbol_map: dict[CONSTREF, int]) -> int | None:
+    def calculate(self, symbol_map: dict[SymbolKey, int]) -> int | None:
         op1_val = self._resolve_operand(self.op1, symbol_map)
         op2_val = self._resolve_operand(self.op2, symbol_map)
 
@@ -239,13 +240,13 @@ AssemblyInstruction = (
 )
 
 
-def _add_to_symbol_map(symbol_map: dict[T, int], item: T, value: int):
+def _add_to_symbol_map(symbol_map: dict[SymbolKey, int], item: SymbolKey, value: int):
     if item in symbol_map:  # pragma: nocover
         raise CompilerPanic(f"duplicate label: {item}")
     symbol_map[item] = value
 
 
-def _resolve_constants(assembly: list[AssemblyInstruction], symbol_map: dict[T, int]):
+def _resolve_constants(assembly: list[AssemblyInstruction], symbol_map: dict[SymbolKey, int]):
     for item in assembly:
         if isinstance(item, CONST):
             _add_to_symbol_map(symbol_map, CONSTREF(item.name), item.value)
@@ -269,7 +270,7 @@ def _resolve_constants(assembly: list[AssemblyInstruction], symbol_map: dict[T, 
 
 def resolve_symbols(
     assembly: list[AssemblyInstruction],
-) -> tuple[dict[Label, int], dict[CONSTREF, int], dict[str, Any]]:
+) -> tuple[dict[SymbolKey, int], dict[str, Any]]:
     """
     Construct symbol map from assembly list
 
@@ -285,7 +286,7 @@ def resolve_symbols(
         "error_map": {},
     }
 
-    symbol_map: dict[Label, int] = {}
+    symbol_map: dict[SymbolKey, int] = {}
 
     pc: int = 0
 
@@ -428,7 +429,7 @@ def get_data_segment_lengths(assembly: list[AssemblyInstruction]) -> list[int]:
     return ret
 
 
-def _compile_data_item(item: DATA_ITEM, symbol_map: dict[Label, int]) -> bytes:
+def _compile_data_item(item: DATA_ITEM, symbol_map: dict[SymbolKey, int]) -> bytes:
     if isinstance(item.data, bytes):
         return item.data
     if isinstance(item.data, Label):
@@ -465,7 +466,9 @@ def assembly_to_evm(assembly: list[AssemblyInstruction]) -> tuple[bytes, dict[st
     return bytecode, source_map
 
 
-def _assembly_to_evm(assembly: list[AssemblyInstruction], symbol_map: dict[Label, int]) -> bytes:
+def _assembly_to_evm(
+    assembly: list[AssemblyInstruction], symbol_map: dict[SymbolKey, int]
+) -> bytes:
     """
     Assembles assembly into EVM bytecode
 
