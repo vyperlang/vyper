@@ -111,7 +111,7 @@ class CONST:
         return self.name == other.name and self.value == other.value
 
 
-class CONST_ADD:
+class BaseConstOp:
     def __init__(self, name: str, op1: str | int, op2: str | int):
         assert isinstance(name, str)
         assert isinstance(op1, (str, int))
@@ -120,40 +120,46 @@ class CONST_ADD:
         self.op1 = op1
         self.op2 = op2
 
-    def __repr__(self):
-        return f"CONST_ADD {self.name} {self.op1} {self.op2}"
-
     def __eq__(self, other):
-        if not isinstance(other, CONST_ADD):
+        if not isinstance(other, type(self)):
             return False
         return self.name == other.name and self.op1 == other.op1 and self.op2 == other.op2
 
-    def calculate(self, const_map: dict[CONSTREF, int]) -> int | None:
-        # Get values for both operands
-        op1_val = None
-        op2_val = None
-
-        # Try to resolve op1
-        if isinstance(self.op1, str):
-            op1_ref = CONSTREF(self.op1)
-            if op1_ref in const_map:
-                op1_val = const_map[op1_ref]
-        elif isinstance(self.op1, int):
-            op1_val = self.op1
-
-        # Try to resolve op2
-        if isinstance(self.op2, str):
-            op2_ref = CONSTREF(self.op2)
-            if op2_ref in const_map:
-                op2_val = const_map[op2_ref]
-        elif isinstance(self.op2, int):
-            op2_val = self.op2
-
-        # If both operands are resolved, return their sum
-        if op1_val is not None and op2_val is not None:
-            return op1_val + op2_val
-
+    def _resolve_operand(self, operand: str | int, const_map: dict[CONSTREF, int]) -> int | None:
+        if isinstance(operand, str):
+            op_ref = CONSTREF(operand)
+            if op_ref in const_map:
+                return const_map[op_ref]
+        elif isinstance(operand, int):
+            return operand
         return None
+
+    def calculate(self, const_map: dict[CONSTREF, int]) -> int | None:
+        op1_val = self._resolve_operand(self.op1, const_map)
+        op2_val = self._resolve_operand(self.op2, const_map)
+
+        if op1_val is not None and op2_val is not None:
+            return self._apply_operation(op1_val, op2_val)
+        return None
+
+    def _apply_operation(self, op1_val: int, op2_val: int) -> int:
+        raise NotImplementedError("Subclasses must implement _apply_operation")
+
+
+class CONST_ADD(BaseConstOp):
+    def __repr__(self):
+        return f"CONST_ADD {self.name} {self.op1} {self.op2}"
+
+    def _apply_operation(self, op1_val: int, op2_val: int) -> int:
+        return op1_val + op2_val
+
+
+class CONST_MAX(BaseConstOp):
+    def __repr__(self):
+        return f"CONST_MAX {self.name} {self.op1} {self.op2}"
+
+    def _apply_operation(self, op1_val: int, op2_val: int) -> int:
+        return max(op1_val, op2_val)
 
 
 class PUSHLABEL:
@@ -1358,7 +1364,7 @@ def _resolve_constants(
     while True:
         changed = False
         for item in assembly:
-            if isinstance(item, CONST_ADD):
+            if isinstance(item, (CONST_ADD, CONST_MAX)):
                 # Skip if this constant is already resolved
                 if CONSTREF(item.name) in const_map:
                     continue
