@@ -563,7 +563,7 @@ def f(x: Bytes[{buffer_size}]):
 def test_abi_decode_nonstrict_head(env, get_contract):
     # data isn't strictly encoded - head is 0x21 instead of 0x20
     # but the head + length is still within runtime bounds of the parent buffer
-    buffer_size = 32 * 6
+    buffer_size = 32 * 5
     typ = "DynArray[uint256, 3]"
     code = f"""
 @external
