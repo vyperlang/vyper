@@ -175,7 +175,7 @@ def annotate_python_ast(
     resolved_path: Optional[str] = None,
 ) -> python_ast.AST:
     """
-    Annotate and optimize a Python AST in preparation conversion to a Vyper AST.
+    Annotate and optimize a Python AST in preparation for conversion to a Vyper AST.
 
     Parameters
     ----------
@@ -190,8 +190,8 @@ def annotate_python_ast(
     -------
         The annotated and optimized AST.
     """
-    singleton_visitor = SingletonVisitor(vyper_source)
-    singleton_visitor.start(parsed_ast)
+    location_visitor = LocationVisitor(vyper_source)
+    location_visitor.start(parsed_ast)
     annotating_visitor = AnnotatingVisitor(
         vyper_source, pre_parser, source_id, module_path=module_path, resolved_path=resolved_path
     )
@@ -205,9 +205,12 @@ def _deepcopy_ast(ast_node: python_ast.AST):
     return pickle.loads(pickle.dumps(ast_node))
 
 
-# Replace python AST node instances that are singletons, which are reused between
-# parse() invocations, with a copy so that we are using fresh objects.
-class SingletonVisitor(python_ast.NodeTransformer):
+# Adds location info to all python ast nodes.
+# Additionally, replace python ast node instances that are singletons, 
+# which are reused between python_ast.parse() invocations, with a copy 
+# so that we are using fresh objects. Otherwise, the location info for 
+# singleton ast nodes of the same type will be identical.
+class LocationVisitor(python_ast.NodeTransformer):
     _source_code: str
 
     def __init__(self, source_code: str):
