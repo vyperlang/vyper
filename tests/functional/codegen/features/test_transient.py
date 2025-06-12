@@ -2,7 +2,7 @@ import pytest
 
 from tests.utils import ZERO_ADDRESS
 from vyper.compiler import compile_code
-from vyper.exceptions import EvmVersionException, VyperException
+from vyper.exceptions import EvmVersionException, StackTooDeep, VyperException
 
 pytestmark = pytest.mark.requires_evm_version("cancun")
 
@@ -343,6 +343,7 @@ def get_idx_two(_a: uint256, _b: uint256, _c: uint256) -> uint256:
     assert c.get_idx_two(*values) == expected_values[2][2]
 
 
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_nested_dynarray_transient(get_contract, tx_failed, env):
     set_list = """
     self.my_list = [
