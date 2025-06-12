@@ -50,3 +50,12 @@ vyper/vyper_git_commithash.txt
 
 # mac
 .DS_Store
+
+# dev scratch stuff
+CLAUDE.local.md
+.agents/
+scratch/
+tmp/
+trees/
+worktrees/
+repros/
