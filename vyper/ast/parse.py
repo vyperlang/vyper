@@ -243,12 +243,14 @@ class LocationVisitor(python_ast.NodeTransformer):
         # one that python defines to have line/col info.
         # https://github.com/python/cpython/blob/62729d79206014886f5d/Lib/ast.py#L228
         for field in LINE_INFO_FIELDS:
-            val = getattr(node, field, None)
-            if val is None:
-                assert self._parents
+            if self._parents:
                 parent = self._parents[-1]
-                val = getattr(parent, field)
-            setattr(node, field, val)
+                val = getattr(node, field, None)
+                if val is None:
+                    val = getattr(parent, field)
+                setattr(node, field, val)
+            else:
+                assert hasattr(node, field), node
 
         self._parents.append(node)
 
