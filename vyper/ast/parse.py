@@ -1,4 +1,5 @@
 import ast as python_ast
+import copy
 import pickle
 import tokenize
 from decimal import Decimal
@@ -10,6 +11,38 @@ from vyper.ast.pre_parser import PreParser
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 from vyper.utils import sha256sum
 from vyper.warnings import Deprecation, vyper_warn
+
+PYTHON_AST_SINGLETONS = (
+    # Unary Operators
+    python_ast.USub,  # -x
+    python_ast.Not,  # not x
+    python_ast.Invert,  # ~x
+    # Binary Operators
+    python_ast.Add,  # x + y
+    python_ast.Sub,  # x - y
+    python_ast.Mult,  # x * y
+    python_ast.Div,  # x / y
+    python_ast.FloorDiv,  # x // y
+    python_ast.Mod,  # x % y
+    python_ast.Pow,  # x ** y
+    python_ast.LShift,  # x << y
+    python_ast.RShift,  # x >> y
+    python_ast.BitOr,  # x | y
+    python_ast.BitXor,  # x ^ y
+    python_ast.BitAnd,  # x & y
+    # Comparison Operators
+    python_ast.Eq,  # x == y
+    python_ast.NotEq,  # x != y
+    python_ast.Lt,  # x < y
+    python_ast.LtE,  # x <= y
+    python_ast.Gt,  # x > y
+    python_ast.GtE,  # x >= y
+    python_ast.In,  # x in y
+    python_ast.NotIn,  # x not in y
+    # Boolean Operators
+    python_ast.And,  # x and y
+    python_ast.Or,  # x or y
+)
 
 
 def parse_to_ast(
@@ -97,11 +130,6 @@ def _parse_to_ast(
 
         raise new_e from None
 
-    # some python AST node instances are singletons and are reused between
-    # parse() invocations. copy the python AST so that we are using fresh
-    # objects.
-    py_ast = _deepcopy_ast(py_ast)
-
     # Add dummy function node to ensure local variables are treated as `AnnAssign`
     # instead of state variables (`VariableDecl`)
     if add_fn_node:
@@ -148,7 +176,7 @@ def annotate_python_ast(
     resolved_path: Optional[str] = None,
 ) -> python_ast.AST:
     """
-    Annotate and optimize a Python AST in preparation conversion to a Vyper AST.
+    Annotate and optimize a Python AST in preparation for conversion to a Vyper AST.
 
     Parameters
     ----------
@@ -163,10 +191,12 @@ def annotate_python_ast(
     -------
         The annotated and optimized AST.
     """
-    visitor = AnnotatingVisitor(
+    location_visitor = LocationVisitor(vyper_source)
+    location_visitor.start(parsed_ast)
+    annotating_visitor = AnnotatingVisitor(
         vyper_source, pre_parser, source_id, module_path=module_path, resolved_path=resolved_path
     )
-    visitor.start(parsed_ast)
+    annotating_visitor.start(parsed_ast)
 
     return parsed_ast
 
@@ -174,6 +204,61 @@ def annotate_python_ast(
 def _deepcopy_ast(ast_node: python_ast.AST):
     # pickle roundtrip is faster than copy.deepcopy() here.
     return pickle.loads(pickle.dumps(ast_node))
+
+
+# Adds location info to all python ast nodes.
+# Additionally, it replaces python ast nodes that are singletons
+# with a copy that the location info will be unique.
+class LocationVisitor(python_ast.NodeTransformer):
+    _source_code: str
+    _parents: list[python_ast.AST]
+
+    def __init__(self, source_code: str):
+        self._source_code = source_code
+        self._parents = []
+
+    @cached_property
+    def source_lines(self):
+        return self._source_code.splitlines(keepends=True)
+
+    def start(self, node: python_ast.Module):
+        assert isinstance(node, python_ast.Module)
+        node.lineno = 1
+        node.col_offset = 0
+        node.end_lineno = max(1, len(self.source_lines))
+
+        if len(self.source_lines) > 0:
+            node.end_col_offset = len(self.source_lines[-1])
+        else:
+            node.end_col_offset = 0
+
+        self.visit(node)
+
+    def generic_visit(self, node):
+        if isinstance(node, PYTHON_AST_SINGLETONS):
+            node = copy.copy(node)
+
+        # adapted from cpython Lib/ast.py. adds line/col info to ast,
+        # but unlike Lib/ast.py, adjusts *all* ast nodes, not just the
+        # one that python defines to have line/col info.
+        # https://github.com/python/cpython/blob/62729d79206014886f5d/Lib/ast.py#L228
+        for field in LINE_INFO_FIELDS:
+            if self._parents:
+                parent = self._parents[-1]
+                val = getattr(node, field, None)
+                if val is None:
+                    val = getattr(parent, field)
+                setattr(node, field, val)
+            else:
+                assert hasattr(node, field), node
+
+        self._parents.append(node)
+
+        node = super().generic_visit(node)
+
+        self._parents.pop()
+
+        return node
 
 
 class AnnotatingVisitor(python_ast.NodeTransformer):
@@ -211,42 +296,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return ret
 
     def start(self, node: python_ast.Module):
-        self._fix_missing_locations(node)
         self.visit(node)
-
-    def _fix_missing_locations(self, ast_node: python_ast.Module):
-        """
-        adapted from cpython Lib/ast.py. adds line/col info to ast,
-        but unlike Lib/ast.py, adjusts *all* ast nodes, not just the
-        one that python defines to have line/col info.
-        https://github.com/python/cpython/blob/62729d79206014886f5d/Lib/ast.py#L228
-        """
-        assert isinstance(ast_node, python_ast.Module)
-        ast_node.lineno = 1
-        ast_node.col_offset = 0
-        ast_node.end_lineno = max(1, len(self.source_lines))
-
-        if len(self.source_lines) > 0:
-            ast_node.end_col_offset = len(self.source_lines[-1])
-        else:
-            ast_node.end_col_offset = 0
-
-        def _fix(node, parent=None):
-            for field in LINE_INFO_FIELDS:
-                if parent is not None:
-                    val = getattr(node, field, None)
-                    # special case for USub - heisenbug when coverage is
-                    # enabled in the test suite.
-                    if val is None or isinstance(node, python_ast.USub):
-                        val = getattr(parent, field)
-                    setattr(node, field, val)
-                else:
-                    assert hasattr(node, field), node
-
-            for child in python_ast.iter_child_nodes(node):
-                _fix(child, node)
-
-        _fix(ast_node)
 
     def generic_visit(self, node):
         """
