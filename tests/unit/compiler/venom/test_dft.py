@@ -7,12 +7,7 @@ from vyper.venom.passes import DFTPass
 
 
 @pytest.mark.parametrize(
-    "store_op,terminator",
-    [
-        ("sstore", "stop"),
-        ("mstore", "return 0, 32"),
-        ("tstore", "stop"),
-    ],
+    "store_op,terminator", [("sstore", "stop"), ("mstore", "return 0, 32"), ("tstore", "stop")]
 )
 def test_write_after_write_dependency(store_op, terminator):
     """
@@ -24,8 +19,8 @@ def test_write_after_write_dependency(store_op, terminator):
     source = f"""
     function test {{
         test:
-            %x = param
-            %y = param
+            %x = source
+            %y = source
 
             ; first write to location 0
             {store_op} 0, %x
@@ -182,9 +177,9 @@ def test_complex_dataflow_with_effects(store_op, terminator):
     source = f"""
     function test {{
         test:
-            %x = param
-            %y = param
-            %z = param
+            %x = source
+            %y = source
+            %z = source
 
             ; first write
             {store_op} 0, %x
