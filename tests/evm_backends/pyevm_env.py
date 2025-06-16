@@ -138,7 +138,7 @@ class PyEvmEnv(BaseEnv):
                     gas=gas,
                     is_static=not is_modifying,
                 ),
-                transaction_context=self._make_tx_context(sender, gas_price),
+                transaction_context=self._make_tx_context(_addr(sender), gas_price),
             )
         except VMError as e:
             # py-evm raises when user is out-of-funds instead of returning a failed computation
