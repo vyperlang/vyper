@@ -327,7 +327,7 @@ The ``@raw_return`` decorator has the following restrictions:
 
     * It can only be used on ``@external`` functions
     * The function must have a ``Bytes[N]`` return type
-    * It cannot be used on ``@deploy`` (constructor) functions
+    * It cannot be used on ``@deploy`` (constructor) functions (you can however use it in the ``__default__()`` function)
     * It cannot be used on ``@internal`` functions
 
 When a function is marked with ``@raw_return``, the compiler directly returns the bytes value using the EVM ``RETURN`` opcode, bypassing the normal ABI-encoding that would wrap the bytes in a ``(bytes)`` tuple.
