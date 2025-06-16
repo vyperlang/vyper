@@ -106,7 +106,7 @@ def test_multiple_make_ssa_error():
 def test_make_ssa_error():
     code = """
     main:
-        %cond = param
+        %cond = source
         %v = 0
         jnz %cond, @then, @else
     then:
