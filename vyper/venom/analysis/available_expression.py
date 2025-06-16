@@ -338,6 +338,9 @@ class AvailableExpressionAnalysis(IRAnalysis):
             return self._get_operand(inst.operands[0], available_exprs)
         if inst.opcode == "param":
             return op
+        # source is a magic opcode for tests
+        if inst.opcode == "source":
+            return op
 
         assert inst in self.inst_to_expr, f"operand source was not handled, ({op}, {inst})"
         return self.inst_to_expr[inst]
