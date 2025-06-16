@@ -47,6 +47,21 @@ External functions (marked with the ``@external`` decorator) are a part of the c
 
 A Vyper contract cannot call directly between two external functions. If you must do this, you can use an :ref:`interface <interfaces>`.
 
+External functions can use the ``@raw_return`` decorator to return raw bytes without ABI-encoding:
+
+.. code-block:: vyper
+
+    @external
+    @raw_return
+    def proxy_call(target: address) -> Bytes[128]:
+        # Forward a call and return the raw response without ABI-encoding
+        return raw_call(
+            target,
+            msg.data,
+            is_delegate_call=True,
+            max_outsize=128
+        )
+
 .. note::
     For external functions with default arguments like ``def my_function(x: uint256, b: uint256 = 1)`` the Vyper compiler will generate ``N+1`` overloaded function selectors based on ``N`` default arguments. Consequently, the ABI signature for a function (this includes interface functions) excludes optional arguments when their default values are used in the function call.
 
@@ -289,7 +304,30 @@ Decorator                       Description
 ``@view``                       Function does not alter contract state
 ``@payable``                    Function is able to receive Ether
 ``@nonreentrant``               Function cannot be called back into during an external call
+``@raw_return``                 Function returns raw bytes without ABI-encoding (external functions only)
 =============================== ===========================================================
+
+Raw Return
+----------
+
+The ``@raw_return`` decorator allows a function to return raw bytes without ABI-encoding. This is particularly useful for proxy contracts and other helper contracts where you want to forward the exact output bytes from another contract call without adding an additional layer of ABI-encoding.
+
+.. code-block:: vyper
+
+    @external
+    @raw_return
+    def forward_call(target: address) -> Bytes[1024]:
+        # Returns the raw bytes from the external call without ABI-encoding
+        return raw_call(target, msg.data, max_outsize=1024, is_delegate_call=True)
+
+The ``@raw_return`` decorator has the following restrictions:
+
+    * It can only be used on ``@external`` functions
+    * The function must have a ``Bytes[N]`` return type
+    * It cannot be used on ``@deploy`` (constructor) functions
+    * It cannot be used on internal functions
+
+When a function is marked with ``@raw_return``, the compiler directly returns the bytes value using the EVM ``RETURN`` opcode, bypassing the normal ABI-encoding that would wrap the bytes in a ``(bytes)`` tuple.
 
 ``if`` statements
 =================
