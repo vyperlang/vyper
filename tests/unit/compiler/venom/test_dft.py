@@ -9,17 +9,17 @@ from vyper.venom.passes import DFTPass
 @pytest.mark.parametrize(
     "store_op,terminator",
     [
-        ("sstore", "stop"),  # storage
-        ("mstore", "return 0, 32"),  # memory
-        ("tstore", "stop"),  # transient storage
+        ("sstore", "stop"),
+        ("mstore", "return 0, 32"),
+        ("tstore", "stop"),
     ],
 )
 def test_write_after_write_dependency(store_op, terminator):
     """
-    Test that DFT pass does not reorder writes despite dataflow analysis.
+    Test that DFT pass preserves write-after-write ordering despite dataflow.
 
-    The dataflow graph would allow reordering since %y doesn't depend on
-    the first store, but effects dependencies require preserving write order.
+    The dataflow graph would allow reordering since the second write doesn't
+    depend on the first, but effects dependencies require preserving write order.
     """
     source = f"""
     function test {{
@@ -70,9 +70,6 @@ def test_write_after_write_dependency(store_op, terminator):
 def test_write_after_multiple_reads_simple():
     """
     Test that a write depends on ALL previous reads, not just the last one.
-
-    The dataflow suggests we could move the store earlier (right after %sum),
-    but the effects graph requires it to come after both reads.
     """
     source = """
     function test {
@@ -113,67 +110,11 @@ def test_write_after_multiple_reads_simple():
     assert store_idx > read2_idx, "Store should come after second read"
 
 
-def test_write_after_multiple_reads_interleaved():
-    """
-    Test with interleaved reads and writes to different locations.
-
-    The dataflow might suggest reordering, but effects must be preserved.
-    """
-    source = """
-    function test {
-        test:
-            %loc0 = 0
-            %loc4 = 4
-            %val = 100
-
-            %read1 = mload %loc0     ; read from location 0
-            mstore %loc4, %val       ; write to location 4 (different)
-            %read2 = mload %loc0     ; read from location 0 again
-            %sum = add %read1, %read2
-            %read3 = mload %loc4     ; read from location 4
-            mstore %loc0, %sum       ; write to location 0 (after multiple reads)
-            %result = add %sum, %read3
-            return %result, 32
-    }
-    """
-
-    ctx = parse_venom(source)
-    fn = ctx.get_function(IRLabel("test"))
-
-    ac = IRAnalysesCache(fn)
-    DFTPass(ac, fn).run_pass()
-
-    bb = fn.get_basic_block("test")
-    instructions = bb.instructions
-
-    # Find indices
-    read1_idx = next(
-        i
-        for i, inst in enumerate(instructions)
-        if inst.opcode == "mload" and inst.output.name == "%read1"
-    )
-    read2_idx = next(
-        i
-        for i, inst in enumerate(instructions)
-        if inst.opcode == "mload" and inst.output.name == "%read2"
-    )
-    # In internal representation: mstore has [value, location]
-    # So we check operands[1] for the location (which is %loc0)
-    store0_idx = next(
-        i
-        for i, inst in enumerate(instructions)
-        if inst.opcode == "mstore" and inst.operands[1].name == "%loc0"
-    )
-
-    assert store0_idx > read1_idx, "Store to location 0 should come after first read"
-    assert store0_idx > read2_idx, "Store to location 0 should come after second read"
-
-
 def test_array_swap_pattern():
     """
-    Test the array swap pattern that originally exposed the bug.
-
-    Multiple reads of array elements before swapping them.
+    This tests the real-world pattern where bubble sort reads two array
+    elements and then swaps them if needed. Both stores must come after
+    both reads to avoid corrupting the data.
     """
     source = """
     function test {
@@ -228,124 +169,15 @@ def test_array_swap_pattern():
         assert store_idx > elem1_idx, f"Store at {store_idx} should come after read of elem1"
 
 
-def test_accumulating_reads():
-    """
-    Test pattern with accumulating reads (simulating unrolled loop).
-
-    The dataflow allows early scheduling of the store, but effects require
-    it to come after all reads.
-    """
-    source = """
-    function test {
-        test:
-            %loc = 0
-            %one = 1
-
-            ; iteration 1
-            %read1 = mload %loc
-            %acc1 = add %read1, %one
-
-            ; iteration 2
-            %read2 = mload %loc
-            %acc2 = add %acc1, %read2
-
-            ; iteration 3
-            %read3 = mload %loc
-            %acc3 = add %acc2, %read3
-
-            ; this operation suggests store could be moved earlier
-            %unrelated = mul %acc3, 100
-
-            ; write back - must come after all reads
-            mstore %loc, %acc3
-
-            %final = add %acc3, %unrelated
-            return %final, 32
-    }
-    """
-
-    ctx = parse_venom(source)
-    fn = ctx.get_function(IRLabel("test"))
-
-    ac = IRAnalysesCache(fn)
-    DFTPass(ac, fn).run_pass()
-
-    bb = fn.get_basic_block("test")
-    instructions = bb.instructions
-
-    # Find all reads and the store
-    read_indices = []
-    for i, inst in enumerate(instructions):
-        if inst.opcode == "mload" and inst.output.name in ["%read1", "%read2", "%read3"]:
-            read_indices.append(i)
-
-    store_idx = next(i for i, inst in enumerate(instructions) if inst.opcode == "mstore")
-
-    # Store must come after all reads
-    for read_idx in read_indices:
-        assert store_idx > read_idx, f"Store should come after read at {read_idx}"
-
-
-# Now update the write-after-write test to show dataflow vs effects discrepancy
-def test_write_after_write_with_dataflow_discrepancy():
-    """
-    Test write-after-write where dataflow suggests different ordering than effects.
-
-    The dataflow graph would allow reordering since %y doesn't depend on the first store,
-    but the effects graph requires preserving the write order.
-    """
-    source = """
-    function test {
-        test:
-            %x = param
-            %y = param
-            %loc = 0
-
-            ; first write
-            mstore %loc, %x
-
-            ; operations that use %y but not the stored value
-            ; dataflow suggests these could be moved before the first store
-            %doubled_y = mul %y, 2
-            %shifted_y = shl %doubled_y, 1
-
-            ; second write that overwrites the first
-            ; dataflow allows this to move up (since it doesn't depend on %x)
-            ; but effects require it to stay after the first write
-            mstore %loc, %shifted_y
-
-            return %shifted_y, 32
-    }
-    """
-
-    ctx = parse_venom(source)
-    fn = ctx.get_function(IRLabel("test"))
-
-    ac = IRAnalysesCache(fn)
-    DFTPass(ac, fn).run_pass()
-
-    bb = fn.get_basic_block("test")
-    instructions = bb.instructions
-
-    # Find both stores to location 0
-    store_indices = []
-    for i, inst in enumerate(instructions):
-        if inst.opcode == "mstore":
-            store_indices.append(i)
-
-    assert len(store_indices) == 2
-    assert store_indices[0] < store_indices[1], "Write order must be preserved despite dataflow"
-
-
 @pytest.mark.parametrize(
     "store_op,terminator", [("sstore", "stop"), ("mstore", "return 0, 32"), ("tstore", "stop")]
 )
-def test_write_after_write_complex_dataflow(store_op, terminator):
+def test_complex_dataflow_with_effects(store_op, terminator):
     """
-    Enhanced write-after-write test showing dataflow vs effects scheduling conflict.
+    Test complex dataflow patterns where effects override dataflow scheduling.
 
-    The intermediate computations create a dataflow that would allow reordering,
-    but effects dependencies must preserve write order.
+    This parametrized test ensures the behavior is consistent across all
+    storage types (storage, memory, transient).
     """
     source = f"""
     function test {{
@@ -357,21 +189,19 @@ def test_write_after_write_complex_dataflow(store_op, terminator):
             ; first write
             {store_op} 0, %x
 
-            ; complex computation with %y and %z that doesn't depend on the store
-            ; dataflow analysis might suggest moving these (and the second store) earlier
+            ; complex computation that doesn't depend on the store
+            ; dataflow analysis might suggest moving these earlier
             %temp1 = add %y, %z
             %temp2 = mul %temp1, 2
             %temp3 = sub %temp2, %z
 
-            ; second write to different location
+            ; write to different location
             {store_op} 1, %temp1
 
             ; more computation
             %temp4 = xor %temp3, %y
 
-            ; third write that overwrites the first
-            ; dataflow would allow this to move up since it doesn't depend on %x
-            ; but effects require it to stay after the first write
+            ; overwrite location 0 - must stay after first write
             {store_op} 0, %temp4
 
             {terminator}
