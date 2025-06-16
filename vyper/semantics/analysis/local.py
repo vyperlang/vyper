@@ -170,14 +170,6 @@ def _validate_pure_access(node: vy_ast.Attribute | vy_ast.Name, typ: VyperType) 
     if isinstance(typ, TYPE_T):
         return
 
-    # special case: flag member access (e.g., Action.BUY) is allowed
-    # check this before calling get_expr_info to avoid issues with TYPE_T
-    from vyper.semantics.types.user import FlagT
-
-    if isinstance(typ, FlagT) and isinstance(node, vy_ast.Attribute):
-        # this is flag member access, which is a compile-time constant
-        return
-
     info = get_expr_info(node)
 
     env_vars = CONSTANT_ENVIRONMENT_VARS
@@ -187,7 +179,8 @@ def _validate_pure_access(node: vy_ast.Attribute | vy_ast.Name, typ: VyperType) 
             raise StateAccessViolation(
                 "not allowed to query environment variables in pure functions"
             )
-        parent_info = get_expr_info(node.value)
+        # allow type exprs in the value node
+        parent_info = get_expr_info(node.value, is_callable=True)
         if isinstance(parent_info.typ, AddressT) and node.attr in AddressT._type_members:
             raise StateAccessViolation("not allowed to query address members in pure functions")
 
