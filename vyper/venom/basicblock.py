@@ -21,7 +21,6 @@ BB_TERMINATORS = frozenset(
 VOLATILE_INSTRUCTIONS = frozenset(
     [
         "param",
-        "source",
         "call",
         "staticcall",
         "delegatecall",
