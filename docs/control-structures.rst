@@ -52,6 +52,7 @@ External functions can use the ``@raw_return`` decorator to return raw bytes wit
 .. code-block:: vyper
 
     @external
+    @payable
     @raw_return
     def proxy_call(target: address) -> Bytes[128]:
         # Forward a call and return the raw response without ABI-encoding
@@ -59,7 +60,8 @@ External functions can use the ``@raw_return`` decorator to return raw bytes wit
             target,
             msg.data,
             is_delegate_call=True,
-            max_outsize=128
+            max_outsize=128,
+            value=msg.value
         )
 
 .. note::
@@ -304,7 +306,7 @@ Decorator                       Description
 ``@view``                       Function does not alter contract state
 ``@payable``                    Function is able to receive Ether
 ``@nonreentrant``               Function cannot be called back into during an external call
-``@raw_return``                 Function returns raw bytes without ABI-encoding (external functions only)
+``@raw_return``                 Function returns raw bytes without ABI-encoding (``@external`` functions only)
 =============================== ===========================================================
 
 Raw Return
@@ -315,17 +317,18 @@ The ``@raw_return`` decorator allows a function to return raw bytes without ABI-
 .. code-block:: vyper
 
     @external
+    @payable
     @raw_return
     def forward_call(target: address) -> Bytes[1024]:
         # Returns the raw bytes from the external call without ABI-encoding
-        return raw_call(target, msg.data, max_outsize=1024, is_delegate_call=True)
+        return raw_call(target, msg.data, max_outsize=1024, value=msg.value, is_delegate_call=True)
 
 The ``@raw_return`` decorator has the following restrictions:
 
     * It can only be used on ``@external`` functions
     * The function must have a ``Bytes[N]`` return type
     * It cannot be used on ``@deploy`` (constructor) functions
-    * It cannot be used on internal functions
+    * It cannot be used on ``@internal`` functions
 
 When a function is marked with ``@raw_return``, the compiler directly returns the bytes value using the EVM ``RETURN`` opcode, bypassing the normal ABI-encoding that would wrap the bytes in a ``(bytes)`` tuple.
 
