@@ -13,35 +13,10 @@ from vyper.utils import sha256sum
 from vyper.warnings import Deprecation, vyper_warn
 
 PYTHON_AST_SINGLETONS = (
-    # Unary Operators
-    python_ast.USub,  # -x
-    python_ast.Not,  # not x
-    python_ast.Invert,  # ~x
-    # Binary Operators
-    python_ast.Add,  # x + y
-    python_ast.Sub,  # x - y
-    python_ast.Mult,  # x * y
-    python_ast.Div,  # x / y
-    python_ast.FloorDiv,  # x // y
-    python_ast.Mod,  # x % y
-    python_ast.Pow,  # x ** y
-    python_ast.LShift,  # x << y
-    python_ast.RShift,  # x >> y
-    python_ast.BitOr,  # x | y
-    python_ast.BitXor,  # x ^ y
-    python_ast.BitAnd,  # x & y
-    # Comparison Operators
-    python_ast.Eq,  # x == y
-    python_ast.NotEq,  # x != y
-    python_ast.Lt,  # x < y
-    python_ast.LtE,  # x <= y
-    python_ast.Gt,  # x > y
-    python_ast.GtE,  # x >= y
-    python_ast.In,  # x in y
-    python_ast.NotIn,  # x not in y
-    # Boolean Operators
-    python_ast.And,  # x and y
-    python_ast.Or,  # x or y
+    python_ast.cmpop,
+    python_ast.operator,
+    python_ast.unaryop,
+    python_ast.boolop,
 )
 
 
@@ -191,12 +166,14 @@ def annotate_python_ast(
     -------
         The annotated and optimized AST.
     """
+    # add location info to all the AST nodes and copy singletons
     location_visitor = LocationVisitor(vyper_source)
     location_visitor.start(parsed_ast)
+
     annotating_visitor = AnnotatingVisitor(
         vyper_source, pre_parser, source_id, module_path=module_path, resolved_path=resolved_path
     )
-    annotating_visitor.start(parsed_ast)
+    annotating_visitor.visit(parsed_ast)
 
     return parsed_ast
 
@@ -236,6 +213,10 @@ class LocationVisitor(python_ast.NodeTransformer):
 
     def generic_visit(self, node):
         if isinstance(node, PYTHON_AST_SINGLETONS):
+            # for performance reasons, these AST nodes are represented as
+            # singletons in the C parser. however, since we want to add
+            # different source annotations for each operator, we create
+            # a copy here.
             node = copy.copy(node)
 
         # adapted from cpython Lib/ast.py. adds line/col info to ast,
@@ -243,10 +224,11 @@ class LocationVisitor(python_ast.NodeTransformer):
         # one that python defines to have line/col info.
         # https://github.com/python/cpython/blob/62729d79206014886f5d/Lib/ast.py#L228
         for field in LINE_INFO_FIELDS:
-            if self._parents:
+            if len(self._parents) > 0:
                 parent = self._parents[-1]
                 val = getattr(node, field, None)
                 if val is None:
+                    # try to get the field from the parent
                     val = getattr(parent, field)
                 setattr(node, field, val)
             else:
@@ -254,9 +236,10 @@ class LocationVisitor(python_ast.NodeTransformer):
 
         self._parents.append(node)
 
-        node = super().generic_visit(node)
-
-        self._parents.pop()
+        try:
+            node = super().generic_visit(node)
+        finally:
+            self._parents.pop()
 
         return node
 
@@ -294,9 +277,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             ret[lineno + 1] = ofst
             ofst += len(line)
         return ret
-
-    def start(self, node: python_ast.Module):
-        self.visit(node)
 
     def generic_visit(self, node):
         """
