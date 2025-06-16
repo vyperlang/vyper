@@ -124,39 +124,6 @@ class PyEvmEnv(BaseEnv):
     def blob_hashes(self, value: list[bytes]):
         self._blob_hashes = value
 
-    def message_call(
-        self,
-        to: str,
-        sender: str | None = None,
-        data: bytes | str = b"",
-        value: int = 0,
-        gas: int | None = None,
-        gas_price: int = 0,
-        is_modifying: bool = True,
-    ):
-        if isinstance(data, str):
-            data = bytes.fromhex(data.removeprefix("0x"))
-        sender = _addr(sender or self.deployer)
-        try:
-            computation = self._state.computation_class.apply_message(
-                state=self._state,
-                message=Message(
-                    to=_addr(to),
-                    sender=sender,
-                    data=data,
-                    code=self.get_code(to),
-                    value=value,
-                    gas=self.gas_limit if gas is None else gas,
-                    is_static=not is_modifying,
-                ),
-                transaction_context=self._make_tx_context(sender, gas_price),
-            )
-        except VMError as e:
-            # py-evm raises when user is out-of-funds instead of returning a failed computation
-            raise EvmError(*e.args) from e
-
-        self._check_computation(computation)
-        return computation.output
 
     def _message_call(self, to, sender, data, value, gas, gas_price, is_modifying, blob_hashes):
         try:
