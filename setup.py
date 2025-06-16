@@ -96,6 +96,7 @@ setup(
         "packaging>=23.1",
         "lark>=1.0.0,<2",
         "wheel",
+        "immutables",
     ],
     setup_requires=["setuptools_scm>=7.1.0,<8.0.0"],
     extras_require=extras_require,
