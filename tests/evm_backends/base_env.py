@@ -224,6 +224,11 @@ class BaseEnv:
         raise NotImplementedError  # must be implemented by subclasses
 
     def set_balance(self, address: str, value: int):
+        if self.exporter:
+            self.exporter.trace_set_balance(address, value)
+        self._set_balance(address, value)
+
+    def _set_balance(self, address: str, value: int):
         raise NotImplementedError  # must be implemented by subclasses
 
     @property
@@ -310,6 +315,11 @@ class BaseEnv:
         raise NotImplementedError  # must be implemented by subclasses
 
     def clear_transient_storage(self) -> None:
+        if self.exporter:
+            self.exporter.trace_clear_transient_storage()
+        self._clear_transient_storage()
+
+    def _clear_transient_storage(self) -> None:
         raise NotImplementedError  # must be implemented by subclasses
 
     def get_code(self, address: str) -> bytes:

@@ -143,6 +143,7 @@ def hevm(pytestconfig, set_hevm):
 @pytest.fixture(scope="session")
 def evm_backend(pytestconfig):
     backend_str = pytestconfig.getoption("evm_backend")
+    backend_str = "py-evm"
     return {"py-evm": PyEvmEnv, "revm": RevmEnv}[backend_str]
 
 

@@ -51,7 +51,7 @@ class RevmEnv(BaseEnv):
     def get_balance(self, address: str) -> int:
         return self._evm.get_balance(address)
 
-    def set_balance(self, address: str, value: int):
+    def _set_balance(self, address: str, value: int):
         self._evm.set_balance(address, value)
 
     @property
@@ -109,7 +109,7 @@ class RevmEnv(BaseEnv):
             self._parse_error(e)
             raise EvmError(*e.args) from e
 
-    def clear_transient_storage(self) -> None:
+    def _clear_transient_storage(self) -> None:
         self._evm.reset_transient_storage()
 
     def get_code(self, address: str):

@@ -153,6 +153,22 @@ class TestExporter:
             }
         )
 
+    def trace_set_balance(self, address: str, value: int):
+        self.current_item.traces.append(
+            {
+                "trace_type": "set_balance",
+                "address": address,
+                "value": value,
+            }
+        )
+
+    def trace_clear_transient_storage(self):
+        self.current_item.traces.append(
+            {
+                "trace_type": "clear_transient_storage",
+            }
+        )
+
     def finalize_export(self):
         for bucket_path, items in self.data.items():
             out = bucket_path.with_suffix(".json")

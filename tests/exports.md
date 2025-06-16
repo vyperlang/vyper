@@ -54,6 +54,14 @@ The exported data is organized into JSON files that mirror the test directory st
           "is_modifying": <bool>
         },
         "call_succeeded": <bool>
+      },
+      {
+        "trace_type": "set_balance",
+        "address": "0x...",
+        "value": <uint>
+      },
+      {
+        "trace_type": "clear_transient_storage"
       }
     ]
   }
@@ -63,13 +71,18 @@ The exported data is organized into JSON files that mirror the test directory st
 - example of dependency `"tests/export/functional/examples/tokens/test_erc20.json/c_origin"`
   - thus traces from the item `c_origin` at `test_erc20.json` must be executed first
 - traces are listed in the order in which they must be executed
-- a trace can be either a "call" or a "deployment"  
+- a trace can be one of: "deployment", "call", "set_balance", or "clear_transient_storage"
 - addresses are dumped as strings, bytes are hex encoded and dumped as strings
 - `initcode` is `concat(bytecode, abi_encode(ctor_args))`
 - `calldata` is `abi_encode(ctor_args)`
 - `source_code` is the source of the compilation target, imported modules are accessible from `solc_json`
 - `deployment_type` denotes how the contract was deployed
   - this was added because some tests deploy directly from `ir` or from directly from `bytecode`
+- `set_balance` traces capture direct balance modifications to accounts (useful for test setup)
+- `clear_transient_storage` traces capture when transient storage is cleared between calls
+  - this was added because a test runs in 1 global transcation context and all calls within the test are run as `message_calls`
+  - as such, transient storage isn't clear after a call (nor are nonces increased etc.)
+
   
 ## How it works  
   

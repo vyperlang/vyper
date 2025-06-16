@@ -87,7 +87,7 @@ class PyEvmEnv(BaseEnv):
     def get_balance(self, address: str) -> int:
         return self._state.get_balance(_addr(address))
 
-    def set_balance(self, address: str, value: int):
+    def _set_balance(self, address: str, value: int):
         self._state.set_balance(_addr(address), value)
 
     @property
@@ -155,7 +155,7 @@ class PyEvmEnv(BaseEnv):
             context._blob_versioned_hashes = self._blob_hashes
         return context
 
-    def clear_transient_storage(self) -> None:
+    def _clear_transient_storage(self) -> None:
         try:
             self._state.clear_transient_storage()
         except AttributeError as e:
