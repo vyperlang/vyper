@@ -114,7 +114,7 @@ class DFTPass(IRPass):
                 if write_effect in last_write_effects:
                     self.eda[inst].add(last_write_effects[write_effect])
                 last_write_effects[write_effect] = inst
-                # clear read effects after a write
+                # clear previous read effects after a write
                 if write_effect in all_read_effects:
                     all_read_effects[write_effect] = []
 
