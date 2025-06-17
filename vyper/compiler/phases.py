@@ -26,7 +26,7 @@ from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
 from vyper.utils import ERC5202_PREFIX, sha256sum
 from vyper.venom import generate_assembly_experimental, generate_ir
-from vyper.warnings import VyperWarning, vyper_warn
+from vyper.warnings import vyper_warn
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
 
@@ -354,13 +354,6 @@ def generate_assembly(ir_nodes: IRnode, optimize: Optional[OptimizationLevel] = 
     optimize = optimize or OptimizationLevel.default()
     assembly = compile_ir.compile_to_assembly(ir_nodes, optimize=optimize)
 
-    if _find_nested_opcode(assembly, "DEBUG"):
-        vyper_warn(
-            VyperWarning(
-                "This code contains DEBUG opcodes! The DEBUG opcode will only work in "
-                "a supported EVM! It will FAIL on all other nodes!"
-            )
-        )
     return assembly
 
 

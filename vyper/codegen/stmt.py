@@ -19,7 +19,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
-from vyper.exceptions import CodegenPanic, StructureException, TypeCheckFailure, tag_exceptions
+from vyper.exceptions import CodegenPanic, TypeCheckFailure, tag_exceptions
 from vyper.semantics.types import DArrayT
 from vyper.semantics.types.shortcuts import UINT256_T
 
@@ -45,12 +45,6 @@ class Stmt:
 
     def parse_Pass(self):
         return IRnode.from_list("pass")
-
-    def parse_Name(self):
-        if self.stmt.id == "vdb":
-            return IRnode("debugger")
-        else:
-            raise StructureException(f"Unsupported statement type: {type(self.stmt)}", self.stmt)
 
     def parse_AnnAssign(self):
         ltyp = self.stmt.target._metadata["type"]
