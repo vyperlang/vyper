@@ -110,7 +110,7 @@ jobs:
       -opt-${{ matrix.opt-mode || 'gas' }}\
       ${{ matrix.debug && '-debug' || '' }}\
       ${{ matrix.experimental-codegen && '-experimental' || '' }}\
-      -${{ matrix.evm-version || 'cancun' }}\
+      -${{ matrix.evm-version || 'prague' }}\
       -${{ matrix.evm-backend || 'revm' }}"
     strategy:
       matrix:
@@ -119,7 +119,7 @@ jobs:
         python-version: [["3.11", "311"]]  # note: do not forget to replace 311 in the job names when upgrading!
         opt-mode: [gas, none, codesize]
         debug: [true, false]
-        evm-version: [cancun]  # note: when upgrading, check the "include" section below for conflicting jobs
+        evm-version: [prague]  # note: when upgrading, check the "include" section below for conflicting jobs
         experimental-codegen: [false]
         evm-backend: [revm]
 
@@ -129,6 +129,7 @@ jobs:
           - evm-version: london
           - evm-version: paris
           - evm-version: shanghai
+          - evm-version: cancun
 
           # test pre-cancun with opt-codesize and opt-none
           - evm-version: shanghai
@@ -142,6 +143,9 @@ jobs:
 
           - evm-backend: py-evm
             evm-version: cancun
+
+          - evm-backend: py-evm
+            evm-version: prague
 
           # test experimental pipeline
           - experimental-codegen: true
@@ -184,7 +188,7 @@ jobs:
         pytest
         -m "not fuzzing"
         --optimize ${{ matrix.opt-mode || 'gas' }}
-        --evm-version ${{ matrix.evm-version || 'cancun' }}
+        --evm-version ${{ matrix.evm-version || 'prague' }}
         --evm-backend ${{ matrix.evm-backend || 'revm' }}
         ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
         ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }}

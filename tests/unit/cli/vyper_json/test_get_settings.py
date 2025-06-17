@@ -27,7 +27,7 @@ def test_early_evm(evm_version_str):
         get_evm_version({"settings": {"evmVersion": evm_version_str}})
 
 
-@pytest.mark.parametrize("evm_version_str", ["london", "paris", "shanghai", "cancun"])
+@pytest.mark.parametrize("evm_version_str", ["london", "paris", "shanghai", "cancun", "prague"])
 def test_valid_evm(evm_version_str):
     assert evm_version_str == get_evm_version({"settings": {"evmVersion": evm_version_str}})
 
