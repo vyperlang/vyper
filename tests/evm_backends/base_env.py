@@ -61,7 +61,7 @@ class BaseEnv:
             ctor = ABIFunction(ctor_abi, contract_name=factory._name)
             initcode += ctor.prepare_calldata(*args, **kwargs)
 
-        deployed_at = self._deploy(initcode, value)
+        deployed_at = self._deploy(initcode, value=value)
         address = to_checksum_address(deployed_at)
         return factory.at(self, address)
 
@@ -181,7 +181,7 @@ class BaseEnv:
     def set_excess_blob_gas(self, param):
         raise NotImplementedError  # must be implemented by subclasses
 
-    def _deploy(self, code: bytes, value: int, gas: int | None = None) -> str:
+    def _deploy(self, code: bytes, value: int = 0, gas: int | None = None) -> str:
         raise NotImplementedError  # must be implemented by subclasses
 
     @staticmethod

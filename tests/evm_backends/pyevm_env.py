@@ -189,7 +189,7 @@ class PyEvmEnv(BaseEnv):
     def set_excess_blob_gas(self, param):
         self._context._excess_blob_gas = param
 
-    def _deploy(self, code: bytes, value: int, gas: int = None) -> str:
+    def _deploy(self, code: bytes, value: int = 0, gas: int = None) -> str:
         sender = _addr(self.deployer)
         target_address = self._generate_contract_address(sender)
 
