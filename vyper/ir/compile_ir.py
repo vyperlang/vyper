@@ -768,9 +768,6 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         raise CodegenPanic("exit_to not implemented yet!")
 
     # inject debug opcode.
-    elif code.value == "debugger":
-        return mkdebug(pc_debugger=False, ast_source=code.ast_source)
-    # inject debug opcode.
     elif code.value == "pc_debugger":
         return mkdebug(pc_debugger=True, ast_source=code.ast_source)
     else:  # pragma: no cover
