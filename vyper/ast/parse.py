@@ -166,14 +166,10 @@ def annotate_python_ast(
     -------
         The annotated and optimized AST.
     """
-    # add location info to all the AST nodes and copy singletons
-    location_visitor = LocationVisitor(vyper_source)
-    location_visitor.start(parsed_ast)
-
-    annotating_visitor = AnnotatingVisitor(
+    visitor = AnnotatingVisitor(
         vyper_source, pre_parser, source_id, module_path=module_path, resolved_path=resolved_path
     )
-    annotating_visitor.visit(parsed_ast)
+    visitor.visit(parsed_ast)
 
     return parsed_ast
 
@@ -183,35 +179,49 @@ def _deepcopy_ast(ast_node: python_ast.AST):
     return pickle.loads(pickle.dumps(ast_node))
 
 
-# Adds location info to all python ast nodes.
-# Additionally, it replaces python ast nodes that are singletons
-# with a copy that the location info will be unique.
-class LocationVisitor(python_ast.NodeTransformer):
+class AnnotatingVisitor(python_ast.NodeTransformer):
     _source_code: str
+    _pre_parser: PreParser
     _parents: list[python_ast.AST]
 
-    def __init__(self, source_code: str):
+    def __init__(
+        self,
+        source_code: str,
+        pre_parser: PreParser,
+        source_id: int,
+        module_path: Optional[str] = None,
+        resolved_path: Optional[str] = None,
+    ):
+        self._source_id = source_id
+        self._module_path = module_path
+        self._resolved_path = resolved_path
         self._source_code = source_code
+        self._pre_parser = pre_parser
         self._parents = []
+
+        self.counter: int = 0
 
     @cached_property
     def source_lines(self):
         return self._source_code.splitlines(keepends=True)
 
-    def start(self, node: python_ast.Module):
-        assert isinstance(node, python_ast.Module)
-        node.lineno = 1
-        node.col_offset = 0
-        node.end_lineno = max(1, len(self.source_lines))
-
-        if len(self.source_lines) > 0:
-            node.end_col_offset = len(self.source_lines[-1])
-        else:
-            node.end_col_offset = 0
-
-        self.visit(node)
+    @cached_property
+    def line_offsets(self):
+        ofst = 0
+        # ensure line_offsets has at least 1 entry for 0-line source
+        ret = {1: ofst}
+        for lineno, line in enumerate(self.source_lines):
+            ret[lineno + 1] = ofst
+            ofst += len(line)
+        return ret
 
     def generic_visit(self, node):
+        """
+        Adds location info to all python ast nodes and replaces python ast nodes
+        that are singletons with a copy so that the location info will be unique,
+        before annotating the nodes with information that simplifies Vyper node
+        generation.
+        """
         if isinstance(node, PYTHON_AST_SINGLETONS):
             # for performance reasons, these AST nodes are represented as
             # singletons in the C parser. however, since we want to add
@@ -234,54 +244,6 @@ class LocationVisitor(python_ast.NodeTransformer):
             else:
                 assert hasattr(node, field), node
 
-        self._parents.append(node)
-
-        try:
-            node = super().generic_visit(node)
-        finally:
-            self._parents.pop()
-
-        return node
-
-
-class AnnotatingVisitor(python_ast.NodeTransformer):
-    _source_code: str
-    _pre_parser: PreParser
-
-    def __init__(
-        self,
-        source_code: str,
-        pre_parser: PreParser,
-        source_id: int,
-        module_path: Optional[str] = None,
-        resolved_path: Optional[str] = None,
-    ):
-        self._source_id = source_id
-        self._module_path = module_path
-        self._resolved_path = resolved_path
-        self._source_code = source_code
-        self._pre_parser = pre_parser
-
-        self.counter: int = 0
-
-    @cached_property
-    def source_lines(self):
-        return self._source_code.splitlines(keepends=True)
-
-    @cached_property
-    def line_offsets(self):
-        ofst = 0
-        # ensure line_offsets has at least 1 entry for 0-line source
-        ret = {1: ofst}
-        for lineno, line in enumerate(self.source_lines):
-            ret[lineno + 1] = ofst
-            ofst += len(line)
-        return ret
-
-    def generic_visit(self, node):
-        """
-        Annotate a node with information that simplifies Vyper node generation.
-        """
         # Decorate every node with the original source code to allow pretty-printing errors
         node.full_source_code = self._source_code
         node.node_id = self.counter
@@ -308,7 +270,14 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         node.src = f"{start_pos}:{end_pos-start_pos}:{self._source_id}"
         node.node_source_code = self._source_code[start_pos:end_pos]
 
-        return super().generic_visit(node)
+        self._parents.append(node)
+
+        try:
+            node = super().generic_visit(node)
+        finally:
+            self._parents.pop()
+
+        return node
 
     def _visit_docstring(self, node):
         """
@@ -331,6 +300,15 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return node
 
     def visit_Module(self, node):
+        node.lineno = 1
+        node.col_offset = 0
+        node.end_lineno = max(1, len(self.source_lines))
+
+        if len(self.source_lines) > 0:
+            node.end_col_offset = len(self.source_lines[-1])
+        else:
+            node.end_col_offset = 0
+
         # TODO: is this the best place for these? maybe they can be on
         # CompilerData instead.
         node.path = self._module_path
