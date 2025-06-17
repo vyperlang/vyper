@@ -73,7 +73,6 @@ def _encode_dyn_array_helper(dst, ir_node, context):
     # TODO handle this upstream somewhere
     if ir_node.value == "multi":
         buf = context.new_internal_variable(dst.typ)
-        buf = IRnode.from_list(buf, typ=dst.typ, location=MEMORY)
         _bufsz = dst.typ.abi_type.size_bound()
         return [
             "seq",
@@ -159,17 +158,17 @@ def abi_encoding_matches_vyper(typ):
 # the abi_encode routine will push the output len onto the stack,
 # otherwise it will return 0 items to the stack.
 def abi_encode(dst, ir_node, context, bufsz, returns_len=False):
-    # TODO change dst to be an IRnode so it has type info to begin with.
-    # setting the typ of dst to ir_node.typ is a footgun.
+    # cast dst to the type of the input so that make_setter works
     dst = IRnode.from_list(dst, typ=ir_node.typ, location=MEMORY)
+
     abi_t = dst.typ.abi_type
     size_bound = abi_t.size_bound()
 
     assert isinstance(bufsz, int)
-    if bufsz < size_bound:
+    if bufsz < size_bound:  # pragma: nocover
         raise CompilerPanic("buffer provided to abi_encode not large enough")
 
-    if size_bound < dst.typ.memory_bytes_required:
+    if size_bound < dst.typ.memory_bytes_required:  # pragma: nocover
         raise CompilerPanic("Bad ABI size calc")
 
     annotation = f"abi_encode {ir_node.typ}"
@@ -208,7 +207,7 @@ def abi_encode(dst, ir_node, context, bufsz, returns_len=False):
                 ir_ret.extend(encode_ir)
                 static_ofst += e.typ.abi_type.embedded_static_size()
 
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"unencodable type: {ir_node.typ}")
 
         # declare IR variables.
@@ -221,7 +220,7 @@ def abi_encode(dst, ir_node, context, bufsz, returns_len=False):
                 ir_ret.append(calc_len)
             elif abi_t.is_complex_type():
                 ir_ret.append("dyn_ofst")
-            else:
+            else:  # pragma: nocover
                 raise CompilerPanic(f"unknown type {ir_node.typ}")
 
         if abi_t.is_dynamic() and abi_t.is_complex_type():

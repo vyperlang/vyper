@@ -1,3 +1,5 @@
+#pragma version >0.3.10
+
 # Open Auction
 
 # Auction params
@@ -19,7 +21,7 @@ pendingReturns: public(HashMap[address, uint256])
 # Create a simple auction with `_auction_start` and
 # `_bidding_time` seconds bidding time on behalf of the
 # beneficiary address `_beneficiary`.
-@external
+@deploy
 def __init__(_beneficiary: address, _auction_start: uint256, _bidding_time: uint256):
     self.beneficiary = _beneficiary
     self.auctionStart = _auction_start  # auction start time can be in the past, present or future

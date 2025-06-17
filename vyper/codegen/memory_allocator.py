@@ -1,6 +1,6 @@
 from typing import List
 
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import CompilerPanic, MemoryAllocationException
 from vyper.utils import MemoryPositions
 
 
@@ -28,7 +28,7 @@ class FreeMemory:
         int
             Position of the newly allocated memory
         """
-        if size >= self.size:
+        if size >= self.size:  # pragma: nocover
             raise CompilerPanic("Attempted to allocate more memory than available")
         position = self.position
         self.position += size
@@ -38,13 +38,15 @@ class FreeMemory:
 
 class MemoryAllocator:
     """
-    Low-level memory alloctor. Used to allocate and de-allocate memory slots.
+    Low-level memory allocator. Used to allocate and de-allocate memory slots.
 
     This object should not be accessed directly. Memory allocation happens via
     declaring variables within `Context`.
     """
 
     next_mem: int
+
+    _ALLOCATION_LIMIT: int = 2**64
 
     def __init__(self, start_position: int = MemoryPositions.RESERVED_MEMORY):
         """
@@ -86,8 +88,11 @@ class MemoryAllocator:
         int
             Start offset of the newly allocated memory.
         """
-        if size % 32 != 0:
+        if size % 32 != 0:  # pragma: nocover
             raise CompilerPanic(f"tried to allocate {size} bytes, only multiples of 32 supported.")
+        if size < 0:  # pragma: nocover
+            # sanity check
+            raise CompilerPanic(f"tried to allocate {size} bytes")
 
         # check for deallocated memory prior to expanding
         for i, free_memory in enumerate(self.deallocated_mem):
@@ -110,6 +115,14 @@ class MemoryAllocator:
         before_value = self.next_mem
         self.next_mem += size
         self.size_of_mem = max(self.size_of_mem, self.next_mem)
+
+        if self.size_of_mem >= self._ALLOCATION_LIMIT:
+            # this should not be caught
+            raise MemoryAllocationException(
+                f"Tried to allocate {self.size_of_mem} bytes! "
+                f"(limit is {self._ALLOCATION_LIMIT} (2**64) bytes)"
+            )
+
         return before_value
 
     def deallocate_memory(self, pos: int, size: int) -> None:

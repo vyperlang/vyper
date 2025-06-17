@@ -12,7 +12,7 @@ Getting Started
 
 In order to use Brownie for testing you must first `initialize a new project <https://eth-brownie.readthedocs.io/en/stable/init.html>`_. Create a new directory for the project, and from within that directory type:
 
-::
+.. code:: shell
 
     $ brownie init
 
@@ -24,12 +24,14 @@ Writing a Basic Test
 Assume the following simple contract ``Storage.vy``. It has a single integer variable and a function to set that value.
 
 .. literalinclude:: ../examples/storage/storage.vy
-    :language: python
+    :caption: storage.vy
+    :language: vyper
     :linenos:
 
 We create a test file ``tests/test_storage.py`` where we write our tests in pytest style.
 
 .. code-block:: python
+    :caption: test_storage.py
     :linenos:
 
     import pytest
@@ -70,9 +72,10 @@ In this example we are using two fixtures which are provided by Brownie:
 Testing Events
 ==============
 
-For the remaining examples, we expand our simple storage contract to include an event and two conditions for a failed transaction: ``AdvancedStorage.vy``
+For the remaining examples, we expand our simple storage contract to include an event and two conditions for a failed transaction: ``advanced_storage.vy``
 
 .. literalinclude:: ../examples/storage/advanced_storage.vy
+    :caption: advanced_storage.vy
     :linenos:
     :language: python
 

@@ -21,7 +21,16 @@ Once you are ready to deploy your contract to a public test net or the main net,
   vyper -f abi yourFileName.vy
   # returns ABI
 
-* Use the remote compiler provided by the `Remix IDE <https://remix.ethereum.org>`_ to compile and deploy your contract on your net of choice. Remix also provides a JavaScript VM to test deploy your contract.
+* Use `Titanoboa <https://github.com/vyperlang/titanoboa/?tab=readme-ov-file#network-mode>`_:
 
-.. note::
-   While the vyper version of the Remix IDE compiler is updated on a regular basis it might be a bit behind the latest version found in the master branch of the repository. Make sure the byte code matches the output from your local compiler.
+.. code-block:: python
+
+    import boa
+    boa.set_network_env(<RPC URL>)
+    from eth_account import Account
+    # in a real codebase, always load private keys safely from an encrypted store!
+    boa.env.add_account(Account(<a private key>))
+    deployer = boa.load_partial("yourFileName.vy")
+    deployer.deploy()
+
+* Use the development environment provided at https://try.vyperlang.org to compile and deploy your contract on your net of choice. try.vyperlang.org comes "batteries-included", with Titanoboa pre-installed, and browser signer integration as well.

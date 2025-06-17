@@ -1,0 +1,53 @@
+# Events
+
+event Transfer:
+    sender: indexed(address)
+    receiver: indexed(address)
+    token_id: indexed(uint256)
+
+event Approval:
+    owner: indexed(address)
+    approved: indexed(address)
+    token_id: indexed(uint256)
+
+event ApprovalForAll:
+    owner: indexed(address)
+    operator: indexed(address)
+    approved: bool
+
+# Functions
+
+@view
+def supportsInterface(interface_id: bytes4) -> bool:
+    ...
+
+@view
+def balanceOf(_owner: address) -> uint256:
+    ...
+
+@view
+def ownerOf(_tokenId: uint256) -> address:
+    ...
+
+@view
+def getApproved(_tokenId: uint256) -> address:
+    ...
+
+@view
+def isApprovedForAll(_owner: address, _operator: address) -> bool:
+    ...
+
+@payable
+def transferFrom(_from: address, _to: address, _tokenId: uint256):
+    ...
+
+@payable
+def safeTransferFrom(_from: address, _to: address, _tokenId: uint256, _data: Bytes[1024] = b""):
+    ...
+
+@payable
+def approve(_approved: address, _tokenId: uint256):
+    ...
+
+def setApprovalForAll(_operator: address, _approved: bool):
+    ...

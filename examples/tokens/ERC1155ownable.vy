@@ -1,10 +1,16 @@
-# @version >=0.3.4
+#pragma version >0.3.10
+
+###########################################################################
+## THIS IS EXAMPLE CODE, NOT MEANT TO BE USED IN PRODUCTION! CAVEAT EMPTOR!
+###########################################################################
+
 """
-@dev Implementation of ERC-1155 non-fungible token standard ownable, with approval, OPENSEA compatible (name, symbol)
+@dev example implementation of ERC-1155 non-fungible token standard ownable, with approval, OPENSEA compatible (name, symbol)
 @author Dr. Pixel (github: @Doc-Pixel)
 """
+
 ############### imports ###############
-from vyper.interfaces import ERC165
+from ethereum.ercs import IERC165
 
 ############### variables ###############
 # maximum items in a batch call. Set to 128, to be determined what the practical limits are.
@@ -63,7 +69,7 @@ event unPaused:
 
 event OwnershipTransferred:
     # Emits smart contract ownership transfer from current to new owner
-    previouwOwner: address 
+    previousOwner: address
     newOwner: address
 
 event TransferSingle:
@@ -94,7 +100,7 @@ event URI:
     id: indexed(uint256)
 
 ############### interfaces ###############
-implements: ERC165
+implements: IERC165
 
 interface IERC1155Receiver:
     def onERC1155Received(
@@ -117,7 +123,7 @@ interface IERC1155MetadataURI:
 
 ############### functions ###############
 
-@external
+@deploy
 def __init__(name: String[128], symbol: String[16], uri: String[MAX_URI_LENGTH], contractUri: String[MAX_URI_LENGTH]):
     """
     @dev contract initialization on deployment
@@ -144,7 +150,7 @@ def pause():
     assert self.owner == msg.sender, "Ownable: caller is not the owner"
     assert not self.paused, "the contract is already paused"
     self.paused = True
-    log Paused(msg.sender)
+    log Paused(account=msg.sender)
 
 @external
 def unpause():
@@ -156,7 +162,7 @@ def unpause():
     assert self.owner == msg.sender, "Ownable: caller is not the owner"
     assert self.paused, "the contract is not paused"
     self.paused = False
-    log unPaused(msg.sender)
+    log unPaused(account=msg.sender)
 
 ## ownership ##
 @external
@@ -173,7 +179,7 @@ def transferOwnership(newOwner: address):
     assert newOwner != empty(address), "Transfer to the zero address not allowed. Use renounceOwnership() instead."
     oldOwner: address = self.owner
     self.owner = newOwner
-    log OwnershipTransferred(oldOwner, newOwner)
+    log OwnershipTransferred(previousOwner=oldOwner, newOwner=newOwner)
 
 @external
 def renounceOwnership():
@@ -185,7 +191,7 @@ def renounceOwnership():
     assert self.owner == msg.sender, "Ownable: caller is not the owner"
     oldOwner: address = self.owner
     self.owner = empty(address)
-    log OwnershipTransferred(oldOwner, empty(address))
+    log OwnershipTransferred(previousOwner=oldOwner, newOwner=empty(address))
 
 @external
 @view
@@ -200,7 +206,7 @@ def balanceOfBatch(accounts: DynArray[address, BATCH_SIZE], ids: DynArray[uint25
     assert len(accounts) == len(ids), "ERC1155: accounts and ids length mismatch"
     batchBalances: DynArray[uint256, BATCH_SIZE] = []
     j: uint256 = 0
-    for i in ids:
+    for i: uint256 in ids:
         batchBalances.append(self.balanceOf[accounts[j]][i])
         j += 1
     return batchBalances
@@ -214,14 +220,13 @@ def mint(receiver: address, id: uint256, amount:uint256):
     @param receiver the account that will receive the minted token
     @param id the ID of the token
     @param amount of tokens for this ID
-    @param data the data associated with this mint. Usually stays empty
     """
     assert not self.paused, "The contract has been paused"
     assert self.owner == msg.sender, "Only the contract owner can mint"
     assert receiver != empty(address), "Can not mint to ZERO ADDRESS"
     operator: address = msg.sender
     self.balanceOf[receiver][id] += amount
-    log TransferSingle(operator, empty(address), receiver, id, amount)
+    log TransferSingle(operator=operator, fromAddress=empty(address), to=receiver, id=id, value=amount)
 
 
 @external
@@ -232,7 +237,6 @@ def mintBatch(receiver: address, ids: DynArray[uint256, BATCH_SIZE], amounts: Dy
     @param receiver the account that will receive the minted token
     @param ids array of ids for the tokens
     @param amounts amounts of tokens for each ID in the ids array
-    @param data the data associated with this mint. Usually stays empty
     """
     assert not self.paused, "The contract has been paused"
     assert self.owner == msg.sender, "Only the contract owner can mint"
@@ -240,12 +244,12 @@ def mintBatch(receiver: address, ids: DynArray[uint256, BATCH_SIZE], amounts: Dy
     assert len(ids) == len(amounts), "ERC1155: ids and amounts length mismatch"
     operator: address = msg.sender
     
-    for i in range(BATCH_SIZE):
+    for i: uint256 in range(BATCH_SIZE):
         if i >= len(ids):
             break
         self.balanceOf[receiver][ids[i]] += amounts[i]
     
-    log TransferBatch(operator, empty(address), receiver, ids, amounts)
+    log TransferBatch(operator=operator, fromAddress=empty(address), to=receiver, ids=ids, values=amounts)
 
 ## burn ##
 @external
@@ -259,7 +263,7 @@ def burn(id: uint256, amount: uint256):
     assert not self.paused, "The contract has been paused"
     assert self.balanceOf[msg.sender][id] > 0 , "caller does not own this ID"
     self.balanceOf[msg.sender][id] -= amount
-    log TransferSingle(msg.sender, msg.sender, empty(address), id, amount)
+    log TransferSingle(operator=msg.sender, fromAddress=msg.sender, to=empty(address), id=id, value=amount)
     
 @external
 def burnBatch(ids: DynArray[uint256, BATCH_SIZE], amounts: DynArray[uint256, BATCH_SIZE]):
@@ -274,12 +278,12 @@ def burnBatch(ids: DynArray[uint256, BATCH_SIZE], amounts: DynArray[uint256, BAT
     assert len(ids) == len(amounts), "ERC1155: ids and amounts length mismatch"
     operator: address = msg.sender 
     
-    for i in range(BATCH_SIZE):
+    for i: uint256 in range(BATCH_SIZE):
         if i >= len(ids):
             break
         self.balanceOf[msg.sender][ids[i]] -= amounts[i]
     
-    log TransferBatch(msg.sender, msg.sender, empty(address), ids, amounts)
+    log TransferBatch(operator=msg.sender, fromAddress=msg.sender, to=empty(address), ids=ids, values=amounts)
 
 ## approval ##
 @external
@@ -294,7 +298,7 @@ def setApprovalForAll(owner: address, operator: address, approved: bool):
     assert not self.paused, "The contract has been paused"
     assert owner != operator, "ERC1155: setting approval status for self"
     self.isApprovedForAll[owner][operator] = approved
-    log ApprovalForAll(owner, operator, approved)
+    log ApprovalForAll(account=owner, operator=operator, approved=approved)
 
 @external
 def safeTransferFrom(sender: address, receiver: address, id: uint256, amount: uint256, bytes: bytes32):
@@ -313,7 +317,7 @@ def safeTransferFrom(sender: address, receiver: address, id: uint256, amount: ui
     operator: address = msg.sender
     self.balanceOf[sender][id] -= amount
     self.balanceOf[receiver][id] += amount
-    log TransferSingle(operator, sender, receiver, id, amount)
+    log TransferSingle(operator=operator, fromAddress=sender, to=receiver, id=id, value=amount)
 
 @external
 def safeBatchTransferFrom(sender: address, receiver: address, ids: DynArray[uint256, BATCH_SIZE], amounts: DynArray[uint256, BATCH_SIZE], _bytes: bytes32):
@@ -330,7 +334,7 @@ def safeBatchTransferFrom(sender: address, receiver: address, ids: DynArray[uint
     assert sender == msg.sender or self.isApprovedForAll[sender][msg.sender], "Caller is neither owner nor approved operator for this ID"
     assert len(ids) == len(amounts), "ERC1155: ids and amounts length mismatch"
     operator: address = msg.sender
-    for i in range(BATCH_SIZE):
+    for i: uint256 in range(BATCH_SIZE):
         if i >= len(ids):
             break
         id: uint256 = ids[i]
@@ -338,7 +342,7 @@ def safeBatchTransferFrom(sender: address, receiver: address, ids: DynArray[uint
         self.balanceOf[sender][id] -= amount
         self.balanceOf[receiver][id] += amount
     
-    log TransferBatch(operator, sender, receiver, ids, amounts)
+    log TransferBatch(operator=operator, fromAddress=sender, to=receiver, ids=ids, values=amounts)
 
 # URI #
 @external
@@ -351,7 +355,7 @@ def setURI(uri: String[MAX_URI_LENGTH]):
     assert self.baseuri != uri, "new and current URI are identical"
     assert msg.sender == self.owner, "Only the contract owner can update the URI"
     self.baseuri = uri
-    log URI(uri, 0)
+    log URI(value=uri, id=0)
 
 @external
 def toggleDynUri(status: bool):
@@ -387,9 +391,9 @@ def setContractURI(contractUri: String[MAX_URI_LENGTH]):
     assert self.contractURI != contractUri, "new and current URI are identical"
     assert msg.sender == self.owner, "Only the contract owner can update the URI"
     self.contractURI = contractUri
-    log URI(contractUri, 0)
+    log URI(value=contractUri, id=0)
 
-@pure
+@view
 @external
 def supportsInterface(interfaceId: bytes4) -> bool:
     """

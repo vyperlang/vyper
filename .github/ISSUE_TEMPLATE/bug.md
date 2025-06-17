@@ -1,6 +1,7 @@
 ---
 name: Bug Report
 about: Any general feedback or bug reports about the Vyper Compiler. No new features proposals.
+labels: ["needs triage"]
 ---
 
 ### Version Information

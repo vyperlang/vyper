@@ -5,7 +5,7 @@ Contributing
 
 Help is always appreciated!
 
-To get started, you can try `installing Vyper <https://vyper.readthedocs.io/en/latest/installing-vyper.html>`_ in order to familiarize
+To get started, you can try `installing Vyper <installing-vyper.html>`_ in order to familiarize
 yourself with the components of Vyper and the build process. Also, it may be
 useful to become well-versed at writing smart-contracts in Vyper.
 
@@ -75,4 +75,4 @@ If you are making a larger change, please consult first with the `Vyper (Smart C
 
 Although we do CI testing, please make sure that the tests pass for supported Python version and ensure that it builds locally before submitting a pull request.
 
-Thank you for your help! ​
+Thank you for your help!
