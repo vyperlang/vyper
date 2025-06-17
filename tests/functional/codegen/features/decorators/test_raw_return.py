@@ -3,7 +3,7 @@ from eth.codecs import abi
 
 from vyper.compiler import compile_code
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import StructureException
+from vyper.exceptions import FunctionDeclarationException, StructureException
 from vyper.utils import method_id
 
 
@@ -169,8 +169,8 @@ def test_interfaces_fail(bad_code, exc):
         compile_code(bad_code)
 
 
-def test_raw_return_interface(env, get_contract, make_input_bundle):
-    # interface with @raw_return decorator
+def test_raw_return_not_allowed_in_interface(make_input_bundle):
+    # interface with @raw_return decorator should fail
     iface = """
 @external
 @raw_return
@@ -188,11 +188,11 @@ def foo() -> Bytes[32]:
     return b''
     """
     input_bundle = make_input_bundle({"iface.vyi": iface})
-    c = get_contract(main, input_bundle=input_bundle)
 
-    # does abi-decoding
-    res = c.foo()
-    assert res == b""
+    with pytest.raises(FunctionDeclarationException) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "`@raw_return` not allowed in interfaces"
 
 
 # test raw_return from storage, transient, constant and immutable
