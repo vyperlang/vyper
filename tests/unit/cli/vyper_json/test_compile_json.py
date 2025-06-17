@@ -439,6 +439,7 @@ def call_foo(amount: uint256, account: address) -> uint256:
     }
     output_json = compile_json(code)
     venom = output_json["contracts"]["foo.vy"]["foo"]["venom"]
+    # ensure that quotes are formatted properly in the output
     assert 'subgraph "internal 0 _foo(uint256,address)_runtime"' in venom["cfg_runtime"]
 
 
