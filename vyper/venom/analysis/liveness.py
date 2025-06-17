@@ -3,7 +3,7 @@ from collections import deque
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, IRAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 
 
 class LivenessAnalysis(IRAnalysis):
@@ -11,11 +11,22 @@ class LivenessAnalysis(IRAnalysis):
     Compute liveness information for each instruction in the function.
     """
 
-    def analyze(self):
-        cfg = self.analyses_cache.request_analysis(CFGAnalysis)
-        self._reset_liveness()
+    cfg: CFGAnalysis
 
-        worklist = deque(cfg.dfs_walk)
+    _out_vars: dict[IRBasicBlock, OrderedSet[IRVariable]]
+    inst_to_liveness: dict[IRInstruction, OrderedSet[IRVariable]]
+
+    def analyze(self):
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+
+        self._out_vars = {}
+        self.inst_to_liveness = {}
+        for bb in self.function.get_basic_blocks():
+            self._out_vars[bb] = OrderedSet()
+            for inst in bb.instructions:
+                self.inst_to_liveness[inst] = OrderedSet()
+
+        worklist = deque(self.cfg.dfs_post_walk)
 
         while len(worklist) > 0:
             changed = False
@@ -26,21 +37,15 @@ class LivenessAnalysis(IRAnalysis):
             # recompute liveness for basic blocks pointing into
             # this basic block
             if changed:
-                worklist.extend(bb.cfg_in)
-
-    def _reset_liveness(self) -> None:
-        for bb in self.function.get_basic_blocks():
-            bb.out_vars = OrderedSet()
-            for inst in bb.instructions:
-                inst.liveness = OrderedSet()
+                worklist.extend(self.cfg.cfg_in(bb))
 
     def _calculate_liveness(self, bb: IRBasicBlock) -> bool:
         """
         Compute liveness of each instruction in the basic block.
         Returns True if liveness changed
         """
-        orig_liveness = bb.instructions[0].liveness.copy()
-        liveness = bb.out_vars.copy()
+        orig_liveness = self.inst_to_liveness[bb.instructions[0]].copy()
+        liveness = self._out_vars[bb].copy()
         for instruction in reversed(bb.instructions):
             ins = instruction.get_input_variables()
             outs = instruction.get_outputs()
@@ -51,26 +56,43 @@ class LivenessAnalysis(IRAnalysis):
                 liveness.update(ins)
                 liveness.dropmany(outs)
 
-            instruction.liveness = liveness
+            self.inst_to_liveness[instruction] = liveness
 
-        return orig_liveness != bb.instructions[0].liveness
+        return orig_liveness != self.inst_to_liveness[bb.instructions[0]]
 
     def _calculate_out_vars(self, bb: IRBasicBlock) -> bool:
         """
         Compute out_vars of basic block.
         Returns True if out_vars changed
         """
-        out_vars = bb.out_vars.copy()
-        bb.out_vars = OrderedSet()
-        for out_bb in bb.cfg_out:
+        out_vars = self._out_vars[bb].copy()
+        self._out_vars[bb] = OrderedSet()
+        for out_bb in self.cfg.cfg_out(bb):
             target_vars = self.input_vars_from(bb, out_bb)
-            bb.out_vars.update(target_vars)
-        return out_vars != bb.out_vars
+            self._out_vars[bb].update(target_vars)
+        return out_vars != self._out_vars[bb]
+
+    def liveness_in_vars(self, bb):
+        for inst in bb.instructions:
+            if inst.opcode != "phi":
+                return self.inst_to_liveness[inst]
+        return OrderedSet()
+
+    def out_vars(self, bb: IRBasicBlock) -> OrderedSet[IRVariable]:
+        """
+        Return variables that are live at exit of basic block
+        """
+        return self._out_vars[bb]
+
+    def live_vars_at(self, inst: IRInstruction) -> OrderedSet[IRVariable]:
+        """
+        Get the variables that are live at (right before) a given instruction
+        """
+        return self.inst_to_liveness[inst]
 
     # calculate the input variables into self from source
     def input_vars_from(self, source: IRBasicBlock, target: IRBasicBlock) -> OrderedSet[IRVariable]:
-        liveness = target.instructions[0].liveness.copy()
-        assert isinstance(liveness, OrderedSet)
+        liveness = self.inst_to_liveness[target.instructions[0]].copy()
 
         for inst in target.instructions:
             if inst.opcode == "phi":
@@ -95,3 +117,8 @@ class LivenessAnalysis(IRAnalysis):
                             liveness.remove(var)
 
         return liveness
+
+    def invalidate(self):
+        # delete properties so they can't accidentally be used
+        del self._out_vars
+        del self.inst_to_liveness

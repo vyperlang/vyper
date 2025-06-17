@@ -36,7 +36,7 @@ class FlowWorkItem:
 
 
 WorkListItem = Union[FlowWorkItem, SSAWorkListItem]
-LatticeItem = Union[LatticeEnum, IRLiteral]
+LatticeItem = Union[LatticeEnum, IRLiteral, IRLabel]
 Lattice = dict[IRVariable, LatticeItem]
 
 
@@ -51,27 +51,32 @@ class SCCP(IRPass):
 
     fn: IRFunction
     dfg: DFGAnalysis
+    cfg: CFGAnalysis
     lattice: Lattice
     work_list: list[WorkListItem]
     cfg_in_exec: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
 
     cfg_dirty: bool
 
-    def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
+    def __init__(
+        self, analyses_cache: IRAnalysesCache, function: IRFunction, /, remove_allocas=True
+    ):
         super().__init__(analyses_cache, function)
+        self.remove_allocas = remove_allocas
+
         self.lattice = {}
         self.work_list: list[WorkListItem] = []
-        self.cfg_dirty = False
 
     def run_pass(self):
         self.fn = self.function
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.cfg_dirty = False
 
         self._calculate_sccp(self.fn.entry)
         self._propagate_constants()
         if self.cfg_dirty:
-            self.analyses_cache.force_analysis(CFGAnalysis)
-            self.fn.remove_unreachable_blocks()
+            self.analyses_cache.invalidate_analysis(CFGAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
@@ -130,9 +135,6 @@ class SCCP(IRPass):
                     continue
                 self._visit_expr(inst)
 
-        if len(end.cfg_out) == 1:
-            self.work_list.append(FlowWorkItem(end, end.cfg_out.first()))
-
     def _handle_SSA_work_item(self, work_item: SSAWorkListItem):
         """
         This method handles a SSAWorkListItem.
@@ -149,13 +151,14 @@ class SCCP(IRPass):
         return lat
 
     def _set_lattice(self, op: IROperand, value: LatticeItem):
-        assert isinstance(op, IRVariable), "Can't set lattice for non-variable"
+        assert isinstance(op, IRVariable), f"Not a variable: {op}"
         self.lattice[op] = value
 
-    def _eval_from_lattice(self, op: IROperand) -> IRLiteral | LatticeEnum:
-        if isinstance(op, IRLiteral):
+    def _eval_from_lattice(self, op: IROperand) -> LatticeItem:
+        if isinstance(op, (IRLiteral, IRLabel)):
             return op
 
+        assert isinstance(op, IRVariable), f"Not a variable: {op}"
         return self._lookup_from_lattice(op)
 
     def _visit_phi(self, inst: IRInstruction):
@@ -168,8 +171,7 @@ class SCCP(IRPass):
             in_vars.append(self._lookup_from_lattice(var))
         value = reduce(_meet, in_vars, LatticeEnum.TOP)  # type: ignore
 
-        if inst.output not in self.lattice:
-            return
+        assert inst.output in self.lattice, "unreachable"  # sanity
 
         if value != self._lookup_from_lattice(inst.output):
             self._set_lattice(inst.output, value)
@@ -177,8 +179,13 @@ class SCCP(IRPass):
 
     def _visit_expr(self, inst: IRInstruction):
         opcode = inst.opcode
-        if opcode in ["store", "alloca", "palloca"]:
-            assert inst.output is not None, "Got store/alloca without output"
+
+        store_opcodes: tuple[str, ...] = ("store",)
+        if self.remove_allocas:
+            store_opcodes += ("alloca", "palloca", "calloca")
+
+        if opcode in store_opcodes:
+            assert inst.output is not None, inst
             out = self._eval_from_lattice(inst.operands[0])
             self._set_lattice(inst.output, out)
             self._add_ssa_work_items(inst)
@@ -190,15 +197,17 @@ class SCCP(IRPass):
 
             assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
             if lat == LatticeEnum.BOTTOM:
-                for out_bb in inst.parent.cfg_out:
+                for out_bb in self.cfg.cfg_out(inst.parent):
                     self.work_list.append(FlowWorkItem(inst.parent, out_bb))
             else:
-                if _meet(lat, IRLiteral(0)) == LatticeEnum.BOTTOM:
-                    target = self.fn.get_basic_block(inst.operands[1].name)
-                    self.work_list.append(FlowWorkItem(inst.parent, target))
-                if _meet(lat, IRLiteral(1)) == LatticeEnum.BOTTOM:
+                assert isinstance(lat, IRLiteral)  # sanity
+                if lat.value == 0:
+                    # jnz False branch
                     target = self.fn.get_basic_block(inst.operands[2].name)
-                    self.work_list.append(FlowWorkItem(inst.parent, target))
+                else:
+                    # jnz True branch (any nonzero condition)
+                    target = self.fn.get_basic_block(inst.operands[1].name)
+                self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "djmp":
             lat = self._eval_from_lattice(inst.operands[0])
             assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
@@ -245,6 +254,7 @@ class SCCP(IRPass):
             elif isinstance(op, IRVariable):
                 eval_result = self.lattice[op]
             else:
+                assert isinstance(op, IRLiteral)  # clarity
                 eval_result = op
 
             # The value from the lattice should have evaluated to BOTTOM

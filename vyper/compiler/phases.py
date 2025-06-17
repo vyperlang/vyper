@@ -1,6 +1,4 @@
 import copy
-import json
-import warnings
 from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Any, Optional
@@ -10,8 +8,14 @@ from vyper import ast as vy_ast
 from vyper.ast import natspec
 from vyper.codegen import module
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
-from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings, merge_settings
+from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle, JSONInput
+from vyper.compiler.settings import (
+    OptimizationLevel,
+    Settings,
+    anchor_settings,
+    merge_settings,
+    should_run_legacy_optimizer,
+)
 from vyper.ir import compile_ir, optimizer
 from vyper.ir.compile_ir import reset_symbols
 from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
@@ -20,8 +24,9 @@ from vyper.semantics.analysis.imports import resolve_imports
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
-from vyper.utils import ERC5202_PREFIX, sha256sum, vyper_warn
+from vyper.utils import ERC5202_PREFIX, sha256sum
 from vyper.venom import generate_assembly_experimental, generate_ir
+from vyper.warnings import VyperWarning, vyper_warn
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
 
@@ -62,7 +67,7 @@ class CompilerData:
         input_bundle: InputBundle = None,
         settings: Settings = None,
         integrity_sum: str = None,
-        storage_layout: StorageLayout = None,
+        storage_layout: JSONInput = None,
         show_gas_estimates: bool = False,
         no_bytecode_metadata: bool = False,
     ) -> None:
@@ -98,9 +103,6 @@ class CompilerData:
         self.input_bundle = input_bundle or FilesystemInputBundle([Path(".")])
         self.expected_integrity_sum = integrity_sum
 
-        # ast cache, hitchhike onto the input_bundle object
-        self.input_bundle._cache._ast_of: dict[int, vy_ast.Module] = {}  # type: ignore
-
     @cached_property
     def source_code(self):
         return self.file_input.source_code
@@ -114,16 +116,22 @@ class CompilerData:
         return self.file_input.path
 
     @cached_property
-    def _generate_ast(self):
+    def vyper_module(self):
         is_vyi = self.contract_path.suffix == ".vyi"
 
-        settings, ast = vy_ast.parse_to_ast_with_settings(
+        ast = vy_ast.parse_to_ast(
             self.source_code,
             self.source_id,
             module_path=self.contract_path.as_posix(),
             resolved_path=self.file_input.resolved_path.as_posix(),
             is_interface=is_vyi,
         )
+
+        return ast
+
+    @cached_property
+    def settings(self):
+        settings = self.vyper_module.settings
 
         if self.original_settings:
             og_settings = self.original_settings
@@ -140,21 +148,11 @@ class CompilerData:
         if settings.experimental_codegen is None:
             settings.experimental_codegen = False
 
-        return settings, ast
-
-    @cached_property
-    def settings(self):
-        settings, _ = self._generate_ast
         return settings
-
-    @cached_property
-    def vyper_module(self):
-        _, ast = self._generate_ast
-        return ast
 
     def _compute_integrity_sum(self, imports_integrity_sum: str) -> str:
         if self.storage_layout_override is not None:
-            layout_sum = sha256sum(json.dumps(self.storage_layout_override))
+            layout_sum = self.storage_layout_override.sha256sum
             return sha256sum(layout_sum + imports_integrity_sum)
         return imports_integrity_sum
 
@@ -217,7 +215,10 @@ class CompilerData:
     @cached_property
     def storage_layout(self) -> StorageLayout:
         module_ast = self.compilation_target
-        set_data_positions(module_ast, self.storage_layout_override)
+        storage_layout = None
+        if self.storage_layout_override is not None:
+            storage_layout = self.storage_layout_override.data
+        set_data_positions(module_ast, storage_layout)
 
         return generate_layout_export(module_ast)
 
@@ -256,8 +257,8 @@ class CompilerData:
     @cached_property
     def venom_functions(self):
         deploy_ir, runtime_ir = self._ir_output
-        deploy_venom = generate_ir(deploy_ir, self.settings.optimize)
-        runtime_venom = generate_ir(runtime_ir, self.settings.optimize)
+        deploy_venom = generate_ir(deploy_ir, self.settings)
+        runtime_venom = generate_ir(runtime_ir, self.settings)
         return deploy_venom, runtime_venom
 
     @cached_property
@@ -328,9 +329,11 @@ def generate_ir_nodes(global_ctx: ModuleT, settings: Settings) -> tuple[IRnode, 
 
     with anchor_settings(settings):
         ir_nodes, ir_runtime = module.generate_ir_for_module(global_ctx)
-    if settings.optimize != OptimizationLevel.NONE:
+
+    if should_run_legacy_optimizer(settings):
         ir_nodes = optimizer.optimize(ir_nodes)
         ir_runtime = optimizer.optimize(ir_runtime)
+
     return ir_nodes, ir_runtime
 
 
@@ -352,10 +355,11 @@ def generate_assembly(ir_nodes: IRnode, optimize: Optional[OptimizationLevel] = 
     assembly = compile_ir.compile_to_assembly(ir_nodes, optimize=optimize)
 
     if _find_nested_opcode(assembly, "DEBUG"):
-        warnings.warn(
-            "This code contains DEBUG opcodes! The DEBUG opcode will only work in "
-            "a supported EVM! It will FAIL on all other nodes!",
-            stacklevel=2,
+        vyper_warn(
+            VyperWarning(
+                "This code contains DEBUG opcodes! The DEBUG opcode will only work in "
+                "a supported EVM! It will FAIL on all other nodes!"
+            )
         )
     return assembly
 

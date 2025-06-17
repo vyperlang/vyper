@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import argparse
+import functools
+import inspect
 import json
 import os
 import sys
-import warnings
 from pathlib import Path
 from typing import Any, Optional
 
@@ -16,6 +17,7 @@ from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
 from vyper.typing import ContractPath, OutputFormats
 from vyper.utils import uniq
+from vyper.warnings import warnings_filter
 
 format_options_help = """Format to print, one or more of (comma-separated):
 bytecode (default) - Deployable bytecode
@@ -48,6 +50,7 @@ asm                - Output the EVM assembly of the deployable bytecode
 integrity          - Output the integrity hash of the source code
 archive            - Output the build as an archive file
 solc_json          - Output the build in solc json format
+settings           - Output the settings for a given build in json format
 """
 
 combined_json_outputs = [
@@ -61,6 +64,7 @@ combined_json_outputs = [
     "method_identifiers",
     "userdoc",
     "devdoc",
+    "settings_dict",
 ]
 
 
@@ -97,8 +101,6 @@ def _cli_helper(f, output_formats, compiled):
 
 
 def _parse_args(argv):
-    warnings.simplefilter("always")
-
     if "--standard-json" in argv:
         argv.remove("--standard-json")
         vyper_json._parse_args(argv)
@@ -179,12 +181,16 @@ def _parse_args(argv):
     parser.add_argument("-o", help="Set the output path", dest="output_path")
     parser.add_argument(
         "--experimental-codegen",
-        "--venom",
+        "--venom-experimental",
         help="The compiler uses the new IR codegen. This is an experimental feature.",
         action="store_true",
         dest="experimental_codegen",
     )
     parser.add_argument("--enable-decimals", help="Enable decimals", action="store_true")
+
+    parser.add_argument(
+        "-W", help="Control warnings", dest="warnings_control", choices=["error", "none"]
+    )
 
     args = parser.parse_args(argv)
 
@@ -216,6 +222,7 @@ def _parse_args(argv):
 
     settings = Settings()
 
+    # TODO: refactor to something like Settings.from_args()
     if args.no_optimize:
         settings.optimize = OptimizationLevel.NONE
     elif args.optimize is not None:
@@ -247,6 +254,7 @@ def _parse_args(argv):
         settings,
         args.storage_layout,
         args.no_bytecode_metadata,
+        args.warnings_control,
     )
 
     mode = "w"
@@ -290,6 +298,21 @@ def get_search_paths(paths: list[str] = None, include_sys_path=True) -> list[Pat
     return search_paths
 
 
+def _apply_warnings_filter(func):
+    @functools.wraps(func)
+    def inner(*args, **kwargs):
+        # find "warnings_control" argument
+        ba = inspect.signature(func).bind(*args, **kwargs)
+        ba.apply_defaults()
+
+        warnings_control = ba.arguments["warnings_control"]
+        with warnings_filter(warnings_control):
+            return func(*args, **kwargs)
+
+    return inner
+
+
+@_apply_warnings_filter
 def compile_files(
     input_files: list[str],
     output_formats: OutputFormats,
@@ -299,6 +322,7 @@ def compile_files(
     settings: Optional[Settings] = None,
     storage_layout_paths: list[str] = None,
     no_bytecode_metadata: bool = False,
+    warnings_control: Optional[str] = None,
 ) -> dict:
     search_paths = get_search_paths(paths, include_sys_path)
     input_bundle = FilesystemInputBundle(search_paths)
@@ -321,6 +345,7 @@ def compile_files(
         "ast": "ast_dict",
         "annotated_ast": "annotated_ast_dict",
         "ir_json": "ir_dict",
+        "settings": "settings_dict",
     }
     final_formats = [translate_map.get(i, i) for i in output_formats]
 
@@ -360,8 +385,7 @@ def compile_files(
         storage_layout_override = None
         if storage_layout_paths:
             storage_file_path = storage_layout_paths.pop(0)
-            with open(storage_file_path) as sfh:
-                storage_layout_override = json.load(sfh)
+            storage_layout_override = input_bundle.load_json_file(storage_file_path)
 
         output = vyper.compile_from_file_input(
             file,

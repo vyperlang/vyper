@@ -11,7 +11,9 @@ import traceback
 import warnings
 from typing import Generic, Iterable, Iterator, List, Set, TypeVar, Union
 
-from vyper.exceptions import CompilerPanic, DecimalOverrideException, VyperException
+from Crypto.Hash import keccak
+
+from vyper.exceptions import CompilerPanic, DecimalOverrideException
 
 _T = TypeVar("_T")
 
@@ -67,13 +69,17 @@ class OrderedSet(Generic[_T]):
     def remove(self, item: _T) -> None:
         del self._data[item]
 
-    def drop(self, item: _T):
+    def discard(self, item: _T):
         # friendly version of remove
         self._data.pop(item, None)
 
+    # consider renaming to "discardmany"
     def dropmany(self, iterable):
         for item in iterable:
             self._data.pop(item, None)
+
+    def clear(self):
+        self._data.clear()
 
     def difference(self, other):
         ret = self.copy()
@@ -216,14 +222,8 @@ class DecimalContextOverride(decimal.Context):
 decimal.setcontext(DecimalContextOverride(prec=78))
 
 
-try:
-    from Crypto.Hash import keccak  # type: ignore
-
-    keccak256 = lambda x: keccak.new(digest_bits=256, data=x).digest()  # noqa: E731
-except ImportError:
-    import sha3 as _sha3
-
-    keccak256 = lambda x: _sha3.sha3_256(x).digest()  # noqa: E731
+def keccak256(x):
+    return keccak.new(digest_bits=256, data=x).digest()
 
 
 @functools.lru_cache(maxsize=512)
@@ -303,14 +303,6 @@ def trace(n=5, out=sys.stderr):
     for x in list(traceback.format_stack())[-n:]:
         print(x.strip(), file=out)
     print("END TRACE", file=out)
-
-
-# print a warning
-def vyper_warn(msg, node=None):
-    if node is not None:
-        # use VyperException for its formatting abilities
-        msg = str(VyperException(msg, node))
-    warnings.warn(msg, stacklevel=2)
 
 
 # converts a signature like Func(bool,uint256,address) to its 4 byte method ID
@@ -499,7 +491,10 @@ VALID_IR_MACROS = {
 
 
 EIP_170_LIMIT = 0x6000  # 24kb
+EIP_3860_LIMIT = EIP_170_LIMIT * 2
 ERC5202_PREFIX = b"\xFE\x71\x00"  # default prefix from ERC-5202
+
+assert EIP_3860_LIMIT == 49152  # directly from the EIP
 
 SHA3_BASE = 30
 SHA3_PER_WORD = 6
@@ -693,3 +688,17 @@ def safe_relpath(path):
         # on Windows, if path and curdir are on different drives, an exception
         # can be thrown
         return path
+
+
+def all2(iterator):
+    """
+    This function checks if all elements in the given `iterable` are truthy,
+    similar to Python's built-in `all()` function. However, `all2` differs
+    in the case where there are no elements in the iterable. `all()` returns
+    `True` for the empty iterable, but `all2()` returns False.
+    """
+    try:
+        s = next(iterator)
+    except StopIteration:
+        return False
+    return bool(s) and all(iterator)

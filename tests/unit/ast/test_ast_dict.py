@@ -63,6 +63,7 @@ a: int128
         "is_constant": False,
         "is_immutable": False,
         "is_public": False,
+        "is_reentrant": False,
         "is_transient": False,
         "lineno": 2,
         "node_id": 1,
@@ -117,6 +118,18 @@ def foo() -> uint256:
     }
 
 
+def test_import_builtin_ast():
+    code = """
+from ethereum.ercs import IERC20
+import math
+    """
+    dict_out = compiler.compile_code(code, output_formats=["annotated_ast_dict"])
+    ast_dict = dict_out["annotated_ast_dict"]
+    imports = ast_dict["imports"]
+    import_paths = [import_dict["path"] for import_dict in imports]
+    assert import_paths == ["vyper/builtins/interfaces/IERC20.vyi", "vyper/builtins/stdlib/math.vy"]
+
+
 def test_dict_to_ast():
     code = """
 @external
@@ -161,6 +174,9 @@ def test_output_type_info(make_input_bundle, chdir_tmp_path):
     # test type info is output in the ast dict
     # test different, complex types, and test import info is also output
     lib1 = """
+# add a pragma to see if it gets added properly to the module's settings object
+#pragma enable-decimals
+
 struct Foo:
     x: uint256
 
@@ -242,6 +258,7 @@ def foo():
     # TODO: would be nice to refactor this into bunch of small test cases
     assert main_ast == {
         "ast_type": "Module",
+        "settings": {},
         "body": [
             {
                 "alias": None,
@@ -413,6 +430,7 @@ def foo():
     # clearer
     assert lib1_ast == {
         "ast_type": "Module",
+        "settings": {"enable_decimals": True},
         "body": [
             {
                 "ast_type": "StructDef",
@@ -538,6 +556,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 56,
                 "target": {
@@ -560,6 +579,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 61,
                 "target": {
@@ -599,6 +619,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 69,
                 "target": {
@@ -626,6 +647,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 81,
                 "target": {
@@ -663,6 +685,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 86,
                 "target": {
@@ -695,6 +718,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 99,
                 "target": {
@@ -744,6 +768,7 @@ def foo():
                 "is_constant": False,
                 "is_immutable": False,
                 "is_public": False,
+                "is_reentrant": False,
                 "is_transient": False,
                 "node_id": 107,
                 "target": {

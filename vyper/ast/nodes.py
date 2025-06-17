@@ -7,11 +7,10 @@ import math
 import operator
 import pickle
 import sys
-import warnings
 from typing import Any, Optional, Union
 
 from vyper.ast.metadata import NodeMetadata
-from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
+from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS, Settings
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
@@ -23,7 +22,6 @@ from vyper.exceptions import (
     TypeMismatch,
     UnfoldableNode,
     VariableDeclarationException,
-    VyperException,
     ZeroDivisionException,
 )
 from vyper.utils import (
@@ -34,6 +32,7 @@ from vyper.utils import (
     quantize,
     sha256sum,
 )
+from vyper.warnings import EnumUsage, vyper_warn
 
 NODE_BASE_ATTRIBUTES = (
     "_children",
@@ -133,13 +132,9 @@ def get_node(
 
     node = vy_class(parent=parent, **ast_struct)
 
-    # TODO: Putting this after node creation to pretty print, remove after enum deprecation
     if enum_warn:
-        # TODO: hack to pretty print, logic should be factored out of exception
-        pretty_printed_node = str(VyperException("", node))
-        warnings.warn(
-            f"enum will be deprecated in a future release, use flag instead. {pretty_printed_node}",
-            stacklevel=2,
+        vyper_warn(
+            EnumUsage("enum will be deprecated in a future release, use flag instead.", node)
         )
 
     node.validate()
@@ -233,6 +228,7 @@ class VyperNode:
     _public_slots = [i for i in __slots__ if not i.startswith("_")]
     _only_empty_fields: tuple = ()
     _translated_fields: dict = {}
+    _special_decoders: dict = {}
 
     def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
         # this function is performance-sensitive
@@ -267,7 +263,9 @@ class VyperNode:
                 field_name = self._translated_fields[field_name]
 
             if field_name in self.get_fields():
-                if isinstance(value, list):
+                if field_name in self._special_decoders:
+                    value = self._special_decoders[field_name](value)
+                elif isinstance(value, list):
                     value = [_to_node(i, self) for i in value]
                 else:
                     value = _to_node(value, self)
@@ -280,7 +278,8 @@ class VyperNode:
                     kwargs,
                 )
 
-        # add to children of parent last to ensure an accurate hash is generated
+        # add to children of parent last so that child traversal order
+        # matches ast order
         if parent is not None:
             parent._children.append(self)
 
@@ -448,6 +447,8 @@ class VyperNode:
             value = getattr(self, key, None)
             if isinstance(value, list):
                 ast_dict[key] = [_to_dict(i) for i in value]
+            elif isinstance(value, Settings):
+                ast_dict[key] = value.as_dict()
             else:
                 ast_dict[key] = _to_dict(value)
 
@@ -622,7 +623,12 @@ class TopLevel(VyperNode):
 
 class Module(TopLevel):
     # metadata
-    __slots__ = ("path", "resolved_path", "source_id", "is_interface")
+    __slots__ = ("path", "resolved_path", "source_id", "is_interface", "settings")
+    """
+    settings: Settings
+        settings result from parsing the compiler pragmas in the file.
+    """
+    _special_decoders = {"settings": Settings.from_dict}
 
     def to_dict(self):
         return dict(source_sha256sum=self.source_sha256sum, **super().to_dict())
@@ -1373,6 +1379,7 @@ class VariableDecl(VyperNode):
         "is_public",
         "is_immutable",
         "is_transient",
+        "is_reentrant",
         "_expanded_getter",
     )
 
@@ -1383,6 +1390,7 @@ class VariableDecl(VyperNode):
         self.is_public = False
         self.is_immutable = False
         self.is_transient = False
+        self.is_reentrant = False
         self._expanded_getter = None
 
         def _check_args(annotation, call_name):
@@ -1395,10 +1403,21 @@ class VariableDecl(VyperNode):
         # `foo: public(constant(uint256))`
         # pretend we were parsing actual Vyper AST. annotation would be
         # TYPE | PUBLIC "(" TYPE | ((IMMUTABLE | CONSTANT) "(" TYPE ")") ")"
-        if self.annotation.get("func.id") == "public":
-            _check_args(self.annotation, "public")
-            self.is_public = True
+
+        # unwrap reentrant and public. they can be in any order
+        seen = []
+        for _ in range(2):
+            func_id = self.annotation.get("func.id")
+            if func_id in seen:
+                _raise_syntax_exc(
+                    f"Used variable annotation `{func_id}` multiple times", self.annotation
+                )
+            if func_id not in ("public", "reentrant"):
+                break
+            _check_args(self.annotation, func_id)
+            setattr(self, f"is_{func_id}", True)
             # unwrap one layer
+            seen.append(func_id)
             self.annotation = self.annotation.args[0]
 
         func_id = self.annotation.get("func.id")
@@ -1424,6 +1443,11 @@ class VariableDecl(VyperNode):
     def validate(self):
         if self.is_constant and self.value is None:
             raise VariableDeclarationException("Constant must be declared with a value", self)
+
+        if self.is_reentrant and not self.is_public:
+            raise VariableDeclarationException(
+                "Only public variables can be marked `reentrant`!", self
+            )
 
         if not self.is_constant and self.value is not None:
             raise VariableDeclarationException(

@@ -14,8 +14,6 @@ module: ( DOCSTRING
         | flag_def
         | event_def
         | function_def
-        | immutable_def
-        | transient_def
         | exports_decl
         | _NEWLINE )*
 
@@ -43,19 +41,10 @@ constant_private: NAME ":" constant
 constant_with_getter: NAME ":" "public" "(" constant ")"
 constant_def: (constant_private | constant_with_getter) "=" expr
 
-// immutable definitions
-// NOTE: Temporary until decorators used
-immutable: "immutable" "(" type ")"
-immutable_def: NAME ":" immutable
-
-// transient definitions
-transient: "transient" "(" type ")"
-transient_def: NAME ":" transient
-
 variable: NAME ":" type
 // NOTE: Temporary until decorators used
-variable_with_getter: NAME ":" "public" "(" (type | immutable | transient) ")"
-variable_def: variable | variable_with_getter
+variable_annotation: ("public" | "reentrant" | "immutable" | "transient") "(" (variable_annotation | type) ")"
+variable_def: NAME ":" (variable_annotation | type)
 
 // A decorator "wraps" a method, modifying it's context.
 // NOTE: One or more can be applied (some combos might conflict)
