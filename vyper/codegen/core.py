@@ -18,7 +18,6 @@ from vyper.semantics.types import (
     AddressT,
     BoolT,
     BytesM_T,
-    BytesT,
     DArrayT,
     DecimalT,
     HashMapT,
@@ -26,6 +25,7 @@ from vyper.semantics.types import (
     InterfaceT,
     StructT,
     TupleT,
+    VyperType,
     _BytestringT,
 )
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
@@ -71,6 +71,26 @@ def is_array_like(typ):
     return ret
 
 
+class _InternalBufferT(VyperType):
+    _invalid_locations = tuple(DataLocation)
+
+    def __init__(self, buf_size: int):
+        assert buf_size >= 0
+        self.buf_size: int = ceil32(buf_size)
+
+        super().__init__(members=None)
+
+    @property
+    def size_in_bytes(self):
+        return self.buf_size
+
+    def get_size_in(self, location: DataLocation) -> int:  # pragma: nocover
+        # get_size_in should only be called by semantic analysis. by the
+        # time we get to codegen, this should never be called. (if this
+        # assumption changes in the future, we can lift the restriction).
+        raise CompilerPanic("internal buffer should only be used in memory!")
+
+
 def get_type_for_exact_size(n_bytes):
     """Create a type which will take up exactly n_bytes. Used for allocating internal buffers.
 
@@ -79,7 +99,7 @@ def get_type_for_exact_size(n_bytes):
     Returns:
       type: A type which can be passed to context.new_variable
     """
-    return BytesT(n_bytes - 32 * DYNAMIC_ARRAY_OVERHEAD)
+    return _InternalBufferT(n_bytes)
 
 
 # propagate revert message when calls to external contracts fail
@@ -165,12 +185,12 @@ def make_byte_array_copier(dst, src):
 
     _check_assign_bytes(dst, src)
 
-    # TODO: remove this branch, copy_bytes and get_bytearray_length should handle
-    if src.value == "~empty" or src.typ.maxlen == 0:
-        # set length word to 0.
-        return STORE(dst, 0)
-
     with src.cache_when_complex("src") as (b1, src):
+        if src.typ.maxlen == 0 or src.is_empty_intrinsic:
+            # set dst length to zero, preserving side effects of `src`.
+            ret = STORE(dst, 0)
+            return b1.resolve(ret)
+
         if src.typ.maxlen <= 32 and not copy_opcode_available(dst, src):
             # if there is no batch copy opcode available,
             # it's cheaper to run two load/stores instead of copy_bytes
@@ -188,8 +208,66 @@ def make_byte_array_copier(dst, src):
         # batch copy the bytearray (including length word) using copy_bytes
         len_ = add_ofst(get_bytearray_length(src), 32)
         max_bytes = src.typ.maxlen + 32
+
+        if _prefer_copy_maxbound_heuristic(dst, src, item_size=1):
+            len_ = max_bytes
+
+        # batch copy the entire dynarray, including length word
         ret = copy_bytes(dst, src, len_, max_bytes)
         return b1.resolve(ret)
+
+
+# heuristic to choose
+def _prefer_copy_maxbound_heuristic(dst, src, item_size):
+    if dst.location != MEMORY:
+        return False
+
+    # a heuristic - it's cheaper to just copy the extra buffer bytes
+    # than calculate the number of bytes
+    # copy(dst, src, 32 + itemsize*load(src))
+    # DUP<src> MLOAD PUSH1 ITEMSIZE MUL PUSH1 32 ADD (3 * 4 + 8 = 20 gas | 8 bytes)
+    # or if ITEM_SIZE == 1:
+    # DUP<src> MLOAD                    PUSH1 32 ADD (3 * 4 = 12 gas | 5 bytes)
+    # =>
+    # copy(dst, src, bound)
+    # PUSH1 BOUND (3 gas | 2 bytes)
+    # (32 + itemsize*(load(src))) costs 3 * 4 [+ 8] - 3 gas over just `bound`
+    length_calc_cost = 4 * 3 - 3
+    length_calc_cost += 8 * (item_size != 1)  # PUSH MUL
+
+    # NOTE: there is an opportunity for more optimization if this
+    # is one in a sequence of copies, since doing copy(dst, src, maxbound)
+    # allows us to fuse copies together, further saving gas (each copy
+    # costs at least 15 gas).
+
+    if _opt_codesize():
+        # if we are optimizing for codesize, we are ok with a higher
+        # gas cost before switching to copy(dst, src, <precise length>).
+        # +45 is based on vibes -- it says we are willing to burn 45
+        # gas (additional 15 words in the copy operation) at runtime to
+        # save these 5-8 bytes (depending on if itemsize is 1 or not)
+        # (DUP<src> MLOAD PUSH1 ITEMSIZE MUL PUSH1 32 ADD)
+        length_calc_cost += 45
+
+    src_bound = src.typ.memory_bytes_required
+    # 3 gas per word, minus the cost of the length word
+    # (since it is always copied, we don't include it in the marginal
+    # cost difference)
+    copy_cost = ceil32(src_bound - 32) * 3 // 32
+    if src.location in (CALLDATA, MEMORY) and copy_cost <= length_calc_cost:
+        return True
+    # threshold is 6 words of data (+ 1 length word that we need to copy anyway)
+    # dload(src) costs additional 14-20 gas depending on if `src` is a literal
+    # or not.
+    # (dload(src) expands to `codecopy(0, add(CODE_END, src), 32); mload(0)`,
+    # and we have already accounted for an `mload(ptr)`).
+    # PUSH1 32 DUP2 PUSH CODE_END ADD PUSH0 CODECOPY (3 * 4 + 2 + 6 = 20 gas)
+    # or if src is a literal:
+    # PUSH1 32 PUSH OFFSET            PUSH0 CODECOPY (3 * 2 + 2 + 6 = 14 gas)
+    # for simplicity, skip the 14 case.
+    if src.location == DATA and copy_cost <= (20 + length_calc_cost):
+        return True
+    return False
 
 
 def bytes_data_ptr(ptr):
@@ -210,7 +288,7 @@ def _dynarray_make_setter(dst, src, hi=None):
     assert isinstance(src.typ, DArrayT)
     assert isinstance(dst.typ, DArrayT)
 
-    if src.value == "~empty":
+    if src.is_empty_intrinsic:
         return IRnode.from_list(STORE(dst, 0))
 
     # copy contents of src dynarray to dst.
@@ -287,6 +365,9 @@ def _dynarray_make_setter(dst, src, hi=None):
                 n_bytes = add_ofst(_mul(count, element_size), 32)
                 max_bytes = 32 + src.typ.count * element_size
 
+                if _prefer_copy_maxbound_heuristic(dst, src, element_size):
+                    n_bytes = max_bytes
+
                 # batch copy the entire dynarray, including length word
                 ret.append(copy_bytes(dst, src, n_bytes, max_bytes))
 
@@ -316,10 +397,12 @@ def copy_bytes(dst, src, length, length_bound):
 
         # correctness: do not clobber dst
         if length_bound == 0:
-            return IRnode.from_list(["seq"], annotation=annotation)
+            ret = IRnode.from_list(["seq"], annotation=annotation)
+            return b1.resolve(b2.resolve(b3.resolve(ret)))
         # performance: if we know that length is 0, do not copy anything
         if length.value == 0:
-            return IRnode.from_list(["seq"], annotation=annotation)
+            ret = IRnode.from_list(["seq"], annotation=annotation)
+            return b1.resolve(b2.resolve(b3.resolve(ret)))
 
         assert src.is_pointer and dst.is_pointer
 
@@ -383,7 +466,7 @@ def get_bytearray_length(arg):
 
     # TODO: it would be nice to merge the implementations of get_bytearray_length and
     # get_dynarray_count
-    if arg.value == "~empty":
+    if arg.is_empty_intrinsic:
         return IRnode.from_list(0, typ=typ)
 
     return IRnode.from_list(LOAD(arg), typ=typ)
@@ -398,7 +481,7 @@ def get_dyn_array_count(arg):
     if arg.value == "multi":
         return IRnode.from_list(len(arg.args), typ=typ)
 
-    if arg.value == "~empty":
+    if arg.is_empty_intrinsic:
         # empty(DynArray[...])
         return IRnode.from_list(0, typ=typ)
 
@@ -512,7 +595,7 @@ def _get_element_ptr_tuplelike(parent, key, hi=None):
         annotation = None
 
     # generated by empty() + make_setter
-    if parent.value == "~empty":
+    if parent.is_empty_intrinsic:
         return IRnode.from_list("~empty", typ=subtype)
 
     if parent.value == "multi":
@@ -561,7 +644,7 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
 
     subtype = parent.typ.value_type
 
-    if parent.value == "~empty":
+    if parent.is_empty_intrinsic:
         if array_bounds_check:
             # this case was previously missing a bounds check. codegen
             # is a bit complicated when bounds check is required, so
@@ -691,7 +774,7 @@ def unwrap_location(orig):
         return IRnode.from_list(LOAD(orig), typ=orig.typ)
     else:
         # CMC 2022-03-24 TODO refactor so this branch can be removed
-        if orig.value == "~empty":
+        if orig.is_empty_intrinsic:
             # must be word type
             return IRnode.from_list(0, typ=orig.typ)
         return orig
@@ -747,13 +830,14 @@ def dummy_node_for_type(typ):
     return IRnode("fake_node", typ=typ)
 
 
-def _check_assign_bytes(left, right):
-    if right.typ.maxlen > left.typ.maxlen:  # pragma: nocover
+def _check_assign_bytes(left, right):  # pragma: nocover
+    if right.typ.maxlen > left.typ.maxlen:
         raise TypeMismatch(f"Cannot cast from {right.typ} to {left.typ}")
 
     # stricter check for zeroing a byte array.
     # TODO: these should be TypeCheckFailure instead of TypeMismatch
-    if right.value == "~empty" and right.typ.maxlen != left.typ.maxlen:  # pragma: nocover
+    rlen = right.typ.maxlen
+    if right.is_empty_intrinsic and rlen != 0 and rlen != left.typ.maxlen:
         raise TypeMismatch(f"Cannot cast from empty({right.typ}) to {left.typ}")
 
 
@@ -784,7 +868,7 @@ def _check_assign_list(left, right):
             FAIL()
 
         # stricter check for zeroing
-        if right.value == "~empty" and right.typ.count != left.typ.count:  # pragma: nocover
+        if right.is_empty_intrinsic and right.typ.count != left.typ.count:  # pragma: nocover
             raise TypeCheckFailure(
                 f"Bad type for clearing bytes: expected {left.typ} but got {right.typ}"
             )
@@ -1035,7 +1119,7 @@ def copy_opcode_available(left, right):
 
 
 def _complex_make_setter(left, right, hi=None):
-    if right.value == "~empty" and left.location == MEMORY:
+    if right.is_empty_intrinsic and left.location == MEMORY:
         # optimized memzero
         return mzero(left, left.typ.memory_bytes_required)
 
@@ -1049,7 +1133,18 @@ def _complex_make_setter(left, right, hi=None):
         assert is_tuple_like(left.typ)
         keys = left.typ.tuple_keys()
 
-    if left.is_pointer and right.is_pointer and right.encoding == Encoding.VYPER:
+    # performance: if there is any dynamic data, there might be
+    # unused space between the end of the dynarray and the end of the buffer.
+    # for instance DynArray[uint256, 100] with runtime length of 5.
+    # in these cases, we recurse to dynarray make_setter which has its own
+    # heuristic for when to copy all data.
+
+    # use abi_type.is_dynamic since it is identical to the query "do any children
+    # have dynamic size"
+    has_dynamic_data = right.typ.abi_type.is_dynamic()
+    simple_encoding = right.encoding == Encoding.VYPER
+
+    if left.is_pointer and right.is_pointer and simple_encoding and not has_dynamic_data:
         # both left and right are pointers, see if we want to batch copy
         # instead of unrolling the loop.
         assert left.encoding == Encoding.VYPER

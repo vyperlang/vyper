@@ -10,85 +10,6 @@ Vyper provides a collection of built-in functions available in the global namesp
 Bitwise Operations
 ==================
 
-.. py:function:: bitwise_and(x: uint256, y: uint256) -> uint256
-
-    Perform a "bitwise and" operation. Each bit of the output is 1 if the corresponding bit of ``x`` AND of ``y`` is 1, otherwise it is 0.
-
-    .. code-block:: vyper
-
-        @external
-        @view
-        def foo(x: uint256, y: uint256) -> uint256:
-            return bitwise_and(x, y)
-
-    .. code-block:: vyper
-
-        >>> ExampleContract.foo(31337, 8008135)
-        12353
-
-.. note::
-
-  This function has been deprecated from version 0.3.4 onwards. Please use the ``&`` operator instead.
-
-.. py:function:: bitwise_not(x: uint256) -> uint256
-
-    Return the bitwise complement of ``x`` - the number you get by switching each 1 for a 0 and each 0 for a 1.
-
-    .. code-block:: vyper
-
-        @external
-        @view
-        def foo(x: uint256) -> uint256:
-            return bitwise_not(x)
-
-    .. code-block:: vyper
-
-        >>> ExampleContract.foo(0)
-        115792089237316195423570985008687907853269984665640564039457584007913129639935
-
-.. note::
-
-  This function has been deprecated from version 0.3.4 onwards. Please use the ``~`` operator instead.
-
-.. py:function:: bitwise_or(x: uint256, y: uint256) -> uint256
-
-    Perform a "bitwise or" operation. Each bit of the output is 0 if the corresponding bit of ``x`` AND of ``y`` is 0, otherwise it is 1.
-
-    .. code-block:: vyper
-
-        @external
-        @view
-        def foo(x: uint256, y: uint256) -> uint256:
-            return bitwise_or(x, y)
-
-    .. code-block:: vyper
-
-        >>> ExampleContract.foo(31337, 8008135)
-        8027119
-
-.. note::
-
-  This function has been deprecated from version 0.3.4 onwards. Please use the ``|`` operator instead.
-
-.. py:function:: bitwise_xor(x: uint256, y: uint256) -> uint256
-
-    Perform a "bitwise exclusive or" operation. Each bit of the output is the same as the corresponding bit in ``x`` if that bit in ``y`` is 0, and it is the complement of the bit in ``x`` if that bit in ``y`` is 1.
-
-    .. code-block:: vyper
-
-        @external
-        @view
-        def foo(x: uint256, y: uint256) -> uint256:
-            return bitwise_xor(x, y)
-
-    .. code-block:: vyper
-
-        >>> ExampleContract.foo(31337, 8008135)
-        8014766
-
-.. note::
-
-  This function has been deprecated from version 0.3.4 onwards. Please use the ``^`` operator instead.
 
 .. py:function:: shift(x: int256 | uint256, _shift: integer) -> uint256
 
@@ -109,6 +30,10 @@ Bitwise Operations
 .. note::
 
   This function has been deprecated from version 0.3.8 onwards. Please use the ``<<`` and ``>>`` operators instead.
+
+.. note::
+
+    The functions ``bitwise_and``, ``bitwise_or``, ``bitwise_xor`` and ``bitwise_not`` have been deprecated from version 0.3.4., and removed in version 0.4.2. Please use their operator versions instead: ``&``, ``|``, ``^``, ``~``.
 
 
 Chain Interaction

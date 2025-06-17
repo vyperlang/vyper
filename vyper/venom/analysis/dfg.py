@@ -27,11 +27,17 @@ class DFGAnalysis(IRAnalysis):
         return [inst for inst in self.get_uses(op) if inst.parent == bb]
 
     # the instruction which produces this variable.
-    def get_producing_instruction(self, op: IRVariable) -> Optional[IRInstruction]:
+    def get_producing_instruction(self, op: IROperand) -> Optional[IRInstruction]:
+        if not isinstance(op, IRVariable):
+            return None
         return self._dfg_outputs.get(op)
 
     def set_producing_instruction(self, op: IRVariable, inst: IRInstruction):
+        # should this check if inst.output is already in dfg_outputs?
         self._dfg_outputs[op] = inst
+
+    def remove_producing_instruction(self, op: IRVariable):
+        del self._dfg_outputs[op]
 
     def add_use(self, op: IRVariable, inst: IRInstruction):
         uses = self._dfg_inputs.setdefault(op, OrderedSet())
@@ -98,6 +104,9 @@ class DFGAnalysis(IRAnalysis):
 
     def invalidate(self):
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+
+        del self._dfg_inputs
+        del self._dfg_outputs
 
     def __repr__(self) -> str:
         return self.as_graph()

@@ -6,7 +6,7 @@ from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple
 from vyper.ast.validation import validate_call_args
 from vyper.codegen.abi_encoder import abi_encode
-from vyper.codegen.context import Context, VariableRecord
+from vyper.codegen.context import Context
 from vyper.codegen.core import (
     LOAD,
     STORE,
@@ -52,9 +52,10 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
     UnfoldableNode,
+    UnimplementedException,
     ZeroDivisionException,
 )
-from vyper.semantics.analysis.base import Modifiability, VarInfo
+from vyper.semantics.analysis.base import Modifiability, StateMutability
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -311,13 +312,17 @@ class Slice(BuiltinFunctionT):
         start_literal = start_expr.value if isinstance(start_expr, vy_ast.Int) else None
         length_literal = length_expr.value if isinstance(length_expr, vy_ast.Int) else None
 
-        if not is_adhoc_slice:
-            if length_literal is not None:
-                if length_literal < 1:
-                    raise ArgumentException("Length cannot be less than 1", length_expr)
+        # validation
 
-                if length_literal > arg_type.length:
-                    raise ArgumentException(f"slice out of bounds for {arg_type}", length_expr)
+        if length_literal is not None:
+            if length_literal < 1:
+                raise ArgumentException("Length cannot be less than 1", length_expr)
+
+        if not is_adhoc_slice:
+            # arg_type.length is only valid when `not is_adhoc_slice`.
+
+            if length_literal is not None and length_literal > arg_type.length:
+                raise ArgumentException(f"slice out of bounds for {arg_type}", length_expr)
 
             if start_literal is not None:
                 if start_literal > arg_type.length:
@@ -351,7 +356,7 @@ class Slice(BuiltinFunctionT):
         if src.location is None:
             # it's not a pointer; force it to be one since
             # copy_bytes works on pointers.
-            assert is_bytes32, src
+            assert is_bytes32 or src.is_empty_intrinsic, src
             src = ensure_in_memory(src, context)
         elif potential_overlap(src, start) or potential_overlap(src, length):
             src = create_memory_copy(src, context)
@@ -556,10 +561,6 @@ class Concat(BuiltinFunctionT):
             dst_data = add_ofst(bytes_data_ptr(dst), ofst)
 
             if isinstance(arg.typ, _BytestringT):
-                # Ignore empty strings
-                if arg.typ.maxlen == 0:
-                    continue
-
                 with arg.cache_when_complex("arg") as (b1, arg):
                     argdata = bytes_data_ptr(arg)
 
@@ -1053,6 +1054,18 @@ class RawCall(BuiltinFunctionT):
         data_type = get_possible_types_from_node(node.args[1]).pop()
         return [self._inputs[0][1], data_type]
 
+    # get the mutability, which is determined at a specific call site
+    def get_mutability_at_call_site(self, node: vy_ast.Call):
+        kw = {k.arg: k.value for k in node.keywords}
+
+        is_static = kw.get("is_static_call", None)
+        is_static = is_static.get_folded_value() if is_static else False
+
+        if is_static:
+            return StateMutability.VIEW
+
+        return StateMutability.NONPAYABLE
+
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         to, data = args
@@ -1187,15 +1200,12 @@ class SelfDestruct(BuiltinFunctionT):
     _id = "selfdestruct"
     _inputs = [("to", AddressT())]
     _is_terminus = True
-    _warned = False
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        if not self._warned:
-            vyper_warn(
-                "`selfdestruct` is deprecated! The opcode is no longer recommended for use.", expr
-            )
-            self._warned = True
+        vyper_warn(
+            "`selfdestruct` is deprecated! The opcode is no longer recommended for use.", expr
+        )
 
         context.check_is_not_constant("selfdestruct", expr)
         return IRnode.from_list(ensure_eval_once("selfdestruct", ["selfdestruct", args[0]]))
@@ -1205,6 +1215,7 @@ class BlockHash(BuiltinFunctionT):
     _id = "blockhash"
     _inputs = [("block_num", UINT256_T)]
     _return_type = BYTES32_T
+    mutability = StateMutability.VIEW
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, contact):
@@ -1218,6 +1229,7 @@ class BlobHash(BuiltinFunctionT):
     _id = "blobhash"
     _inputs = [("index", UINT256_T)]
     _return_type = BYTES32_T
+    mutability = StateMutability.VIEW
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, contact):
@@ -1295,117 +1307,13 @@ class RawLog(BuiltinFunctionT):
         return IRnode.from_list(["with", "_sub", input_buf, ensure_eval_once("raw_log", log_ir)])
 
 
-class BitwiseAnd(BuiltinFunctionT):
-    _id = "bitwise_and"
-    _inputs = [("x", UINT256_T), ("y", UINT256_T)]
-    _return_type = UINT256_T
-    _warned = False
-
-    def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn("`bitwise_and()` is deprecated! Please use the & operator instead.", node)
-            self.__class__._warned = True
-
-        validate_call_args(node, 2)
-        values = [i.get_folded_value() for i in node.args]
-        for val in values:
-            if not isinstance(val, vy_ast.Int):
-                raise UnfoldableNode
-
-        value = values[0].value & values[1].value
-        return vy_ast.Int.from_node(node, value=value)
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(["and", args[0], args[1]], typ=UINT256_T)
-
-
-class BitwiseOr(BuiltinFunctionT):
-    _id = "bitwise_or"
-    _inputs = [("x", UINT256_T), ("y", UINT256_T)]
-    _return_type = UINT256_T
-    _warned = False
-
-    def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.", node)
-            self.__class__._warned = True
-
-        validate_call_args(node, 2)
-        values = [i.get_folded_value() for i in node.args]
-        for val in values:
-            if not isinstance(val, vy_ast.Int):
-                raise UnfoldableNode
-
-        value = values[0].value | values[1].value
-        return vy_ast.Int.from_node(node, value=value)
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(["or", args[0], args[1]], typ=UINT256_T)
-
-
-class BitwiseXor(BuiltinFunctionT):
-    _id = "bitwise_xor"
-    _inputs = [("x", UINT256_T), ("y", UINT256_T)]
-    _return_type = UINT256_T
-    _warned = False
-
-    def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn("`bitwise_xor()` is deprecated! Please use the ^ operator instead.", node)
-            self.__class__._warned = True
-
-        validate_call_args(node, 2)
-        values = [i.get_folded_value() for i in node.args]
-        for val in values:
-            if not isinstance(val, vy_ast.Int):
-                raise UnfoldableNode
-
-        value = values[0].value ^ values[1].value
-        return vy_ast.Int.from_node(node, value=value)
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(["xor", args[0], args[1]], typ=UINT256_T)
-
-
-class BitwiseNot(BuiltinFunctionT):
-    _id = "bitwise_not"
-    _inputs = [("x", UINT256_T)]
-    _return_type = UINT256_T
-    _warned = False
-
-    def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn("`bitwise_not()` is deprecated! Please use the ~ operator instead.", node)
-            self.__class__._warned = True
-
-        validate_call_args(node, 1)
-        value = node.args[0].get_folded_value()
-        if not isinstance(value, vy_ast.Int):
-            raise UnfoldableNode
-
-        value = value.value
-
-        value = (2**256 - 1) - value
-        return vy_ast.Int.from_node(node, value=value)
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(["not", args[0]], typ=UINT256_T)
-
-
 class Shift(BuiltinFunctionT):
     _id = "shift"
     _inputs = [("x", (UINT256_T, INT256_T)), ("_shift_bits", IntegerT.any())]
     _return_type = UINT256_T
-    _warned = False
 
     def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn("`shift()` is deprecated! Please use the << or >> operator instead.", node)
-            self.__class__._warned = True
+        vyper_warn("`shift()` is deprecated! Please use the << or >> operator instead.", node)
 
         validate_call_args(node, 2)
         args = [i.get_folded_value() for i in node.args]
@@ -1694,6 +1602,14 @@ class RawCreate(_CreateBase):
         initcode = args[0]
         ctor_args = args[1:]
 
+        if any(potential_overlap(initcode, other) for other in ctor_args + [value, salt]):
+            # value or salt could be expressions which trample the initcode
+            # buffer. cf. test_raw_create_memory_overlap
+            # note that potential_overlap is overly conservative, since it
+            # checks for the existence of calls (which are not applicable
+            # here, since `initcode` is guaranteed to be in memory).
+            initcode = create_memory_copy(initcode, context)
+
         # encode the varargs
         to_encode = ir_tuple_from_args(ctor_args)
         type_size_bound = to_encode.typ.abi_type.size_bound()
@@ -1766,14 +1682,10 @@ class CreateMinimalProxyTo(_CreateBase):
 
 
 class CreateForwarderTo(CreateMinimalProxyTo):
-    _warned = False
-
     def build_IR(self, expr, context):
-        if not self._warned:
-            vyper_warn(
-                "`create_forwarder_to` is a deprecated alias of `create_minimal_proxy_to`!", expr
-            )
-            self._warned = True
+        vyper_warn(
+            "`create_forwarder_to` is a deprecated alias of `create_minimal_proxy_to`!", expr
+        )
 
         return super().build_IR(expr, context)
 
@@ -2164,59 +2076,10 @@ class Sqrt(BuiltinFunctionT):
     _inputs = [("d", DecimalT())]
     _return_type = DecimalT()
 
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        # TODO fix cyclic dependency with codegen/stmt.py
-        from ._utils import generate_inline_function
-
-        arg = args[0]
-        # TODO: reify decimal and integer sqrt paths (see isqrt)
-        with arg.cache_when_complex("x") as (b1, arg):
-            sqrt_code = """
-assert x >= 0.0
-z: decimal = 0.0
-
-if x == 0.0:
-    z = 0.0
-else:
-    z = x / 2.0 + 0.5
-    y: decimal = x
-
-    for i: uint256 in range(256):
-        if z == y:
-            break
-        y = z
-        z = (x / z + z) / 2.0
-
-    if y < z:
-        z = y
-            """
-
-            x_type = DecimalT()
-            placeholder_copy = ["pass"]
-            # Steal current position if variable is already allocated.
-            if arg.value == "mload":
-                new_var_pos = arg.args[0]
-            # Other locations need to be copied.
-            else:
-                new_var_pos = context.new_internal_variable(x_type)
-                placeholder_copy = ["mstore", new_var_pos, arg]
-            # Create input variables.
-            variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=False)}
-            # Dictionary to update new (i.e. typecheck) namespace
-            variables_2 = {"x": VarInfo(DecimalT())}
-            # Generate inline IR.
-            new_ctx, sqrt_ir = generate_inline_function(
-                code=sqrt_code,
-                variables=variables,
-                variables_2=variables_2,
-                memory_allocator=context.memory_allocator,
-            )
-            z_ir = new_ctx.vars["z"].as_ir_node()
-            ret = IRnode.from_list(
-                ["seq", placeholder_copy, sqrt_ir, z_ir], typ=DecimalT(), location=MEMORY
-            )
-            return b1.resolve(ret)
+    def fetch_call_return(self, node):
+        message = "The `sqrt` builtin was removed. Instead import module "
+        message += "`math` and use `math.sqrt()`"
+        raise UnimplementedException(message, node)
 
 
 class ISqrt(BuiltinFunctionT):
@@ -2599,24 +2462,18 @@ class ABIDecode(BuiltinFunctionT):
 
 
 class OldABIEncode(ABIEncode):
-    _warned = False
     _id = "_abi_encode"
 
     def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn(f"`{self._id}()` is deprecated! Please use `{super()._id}()` instead.", node)
-            self.__class__._warned = True
+        vyper_warn(f"`{self._id}()` is deprecated! Please use `{super()._id}()` instead.", node)
         super()._try_fold(node)
 
 
 class OldABIDecode(ABIDecode):
-    _warned = False
     _id = "_abi_decode"
 
     def _try_fold(self, node):
-        if not self.__class__._warned:
-            vyper_warn(f"`{self._id}()` is deprecated! Please use `{super()._id}()` instead.", node)
-            self.__class__._warned = True
+        vyper_warn(f"`{self._id}()` is deprecated! Please use `{super()._id}()` instead.", node)
         super()._try_fold(node)
 
 
@@ -2693,10 +2550,6 @@ DISPATCH_TABLE = {
     "raw_call": RawCall(),
     "blockhash": BlockHash(),
     "blobhash": BlobHash(),
-    "bitwise_and": BitwiseAnd(),
-    "bitwise_or": BitwiseOr(),
-    "bitwise_xor": BitwiseXor(),
-    "bitwise_not": BitwiseNot(),
     "uint256_addmod": AddMod(),
     "uint256_mulmod": MulMod(),
     "unsafe_add": UnsafeAdd(),
@@ -2705,8 +2558,8 @@ DISPATCH_TABLE = {
     "unsafe_div": UnsafeDiv(),
     "pow_mod256": PowMod256(),
     "uint2str": Uint2Str(),
-    "isqrt": ISqrt(),
     "sqrt": Sqrt(),
+    "isqrt": ISqrt(),
     "shift": Shift(),
     "create_minimal_proxy_to": CreateMinimalProxyTo(),
     "create_forwarder_to": CreateForwarderTo(),
