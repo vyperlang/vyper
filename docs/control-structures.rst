@@ -333,10 +333,10 @@ The ``@raw_return`` decorator has the following restrictions:
 When a function is marked with ``@raw_return``, the compiler directly returns the bytes value using the EVM ``RETURN`` opcode, bypassing the normal ABI-encoding that would wrap the bytes in a ``(bytes)`` tuple.
 
 .. note::
-    Functions with ``@raw_return`` cannot be called via interfaces - you must use ``raw_call`` to interact with them. This is because the return data is not ABI-encoded and cannot be decoded using standard interface calls.
+    The ``@raw_return`` decorator cannot be used in interface definitions (``.vyi`` files). Note that to call a ``@raw_return`` function from another contract, you should use ``raw_call`` instead of an interface call, since the return data may not be ABI-encoded.
 
 .. warning::
-    When using ``@raw_return``, ensure all return paths in your function expect raw bytes. Having multiple return statements where some expect ABI-encoded data and others don't can lead to decoding errors.
+    When using ``@raw_return``, ensure all return paths in your function use raw bytes. Having multiple return statements where some use ABI-encoded data and others don't can lead to decoding errors.
 
 ``if`` statements
 =================
