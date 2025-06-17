@@ -568,6 +568,5 @@ def get(idx: uint256) -> uint256:
 
     # check sorted
     results = [c.get(i) for i in range(4)]
-    print(f"After sorting: {results}")
 
     assert results == [1, 2, 5, 8]
