@@ -411,3 +411,33 @@ def test_labels_with_addresses():
     
     other_bb = main_fn.get_basic_block("other_block")
     assert other_bb.label.address is None
+
+def test_labels_with_addresses_used_in_function():
+    source = """
+    my_global: 0x1000
+
+    function main {
+        main: @0x20
+            %1 = 1
+            jmp @other_block
+        other_block:
+            %3 = add %1, @my_global
+    }
+    """
+    ctx = parse_venom(source)
+    
+    assert "my_global" in ctx.global_labels
+    assert ctx.global_labels["my_global"] == 0x1000
+    
+    main_fn = ctx.get_function(IRLabel("main"))
+    assert main_fn is not None
+    
+    main_bb = main_fn.get_basic_block("main")
+    assert main_bb.label.address == 0x20
+    
+    other_bb = main_fn.get_basic_block("other_block")
+    assert other_bb.label.address is None
+
+    add_inst = other_bb.instructions[0]
+    assert add_inst.opcode == "add"
+    assert add_inst.operands[0].value == "my_global"
