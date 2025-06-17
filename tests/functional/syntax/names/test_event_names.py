@@ -26,7 +26,7 @@ event int128:
 @external
 def foo(i: int128) -> int128:
     temp_var : int128 = i
-    log int128(temp_var)
+    log int128(variable=temp_var)
     return temp_var
     """,
         NamespaceCollision,
@@ -39,7 +39,7 @@ event decimal:
 @external
 def foo(i: int128) -> int128:
     temp_var : int128 = i
-    log decimal(temp_var)
+    log decimal(variable=temp_var)
     return temp_var
     """,
         NamespaceCollision,
@@ -52,7 +52,7 @@ event wei:
 @external
 def foo(i: int128) -> int128:
     temp_var : int128 = i
-    log wei(temp_var)
+    log wei(variable=temp_var)
     return temp_var
     """,
         StructureException,
@@ -65,7 +65,7 @@ event false:
 @external
 def foo(i: int128) -> int128:
     temp_var : int128 = i
-    log false(temp_var)
+    log false(variable=temp_var)
     return temp_var
     """,
         StructureException,
@@ -102,7 +102,7 @@ event Assigned:
 @external
 def foo(i: int128) -> int128:
     variable : int128 = i
-    log Assigned(variable)
+    log Assigned(variable=variable)
     return variable
     """,
     """
@@ -122,7 +122,7 @@ event Assigned1:
 @external
 def foo(i: int128) -> int128:
     variable : int128 = i
-    log Assigned1(variable)
+    log Assigned1(variable=variable)
     return variable
     """,
 ]

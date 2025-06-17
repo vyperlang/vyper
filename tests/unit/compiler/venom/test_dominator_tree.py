@@ -2,12 +2,11 @@ from typing import Optional
 
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
-from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.analysis.dominators import DominatorTreeAnalysis
+from vyper.venom.analysis import DominatorTreeAnalysis, IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
-from vyper.venom.passes.make_ssa import MakeSSA
+from vyper.venom.passes import MakeSSA
 
 
 def _add_bb(

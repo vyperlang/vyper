@@ -152,7 +152,7 @@ Type Annotations
 Tests
 =====
 
-We use the `pytest <https://docs.pytest.org/en/latest/>`_ framework for testing, and :ref:`eth-tester<testing-contracts-ethtester>` for our local development chain.
+We use the `pytest <https://docs.pytest.org/en/latest/>`_ framework for testing.
 
 Best Practices
 --------------

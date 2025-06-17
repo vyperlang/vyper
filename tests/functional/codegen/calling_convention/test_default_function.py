@@ -28,7 +28,7 @@ event Sent:
 @external
 @payable
 def __default__():
-    log Sent(msg.sender)
+    log Sent(sender=msg.sender)
     """
     c = get_contract(code)
     env.set_balance(env.deployer, 10**18)
@@ -46,13 +46,13 @@ event Sent:
 @external
 @payable
 def fooBar(a: int128 = 12345) -> int128:
-    log Sent(empty(address))
+    log Sent(sender=empty(address))
     return a
 
 @external
 @payable
 def __default__():
-    log Sent(msg.sender)
+    log Sent(sender=msg.sender)
     """
     c = get_contract(code)
     env.set_balance(env.deployer, 10**18)
@@ -69,7 +69,7 @@ event Sent:
 
 @external
 def __default__():
-    log Sent(msg.sender)
+    log Sent(sender=msg.sender)
     """
     c = get_contract(code)
     env.set_balance(env.deployer, 10**17)
@@ -103,7 +103,7 @@ event Sent:
     sender: indexed(address)
 
 def __default__():
-    log Sent(msg.sender)
+    log Sent(sender=msg.sender)
     """
     assert_compile_failed(lambda: get_contract(code))
 
@@ -119,12 +119,12 @@ event Sent:
 @payable
 # function selector: 0x00000000
 def blockHashAskewLimitary(v: uint256) -> uint256:
-    log Sent(2)
+    log Sent(sig=2)
     return 7
 
 @external
 def __default__():
-    log Sent(1)
+    log Sent(sig=1)
     """
     c = get_contract(code)
 
@@ -165,12 +165,12 @@ event Sent:
 @payable
 # function selector: 0x00000000
 def wycpnbqcyf() -> uint256:
-    log Sent(2)
+    log Sent(sig=2)
     return 7
 
 @external
 def __default__():
-    log Sent(1)
+    log Sent(sig=1)
     """
     c = get_contract(code)
 
@@ -205,12 +205,12 @@ event Sent:
 @payable
 # function selector: 0xd88e0b00
 def fow() -> uint256:
-    log Sent(2)
+    log Sent(sig=2)
     return 7
 
 @external
 def __default__():
-    log Sent(1)
+    log Sent(sig=1)
     """
     c = get_contract(code)
 

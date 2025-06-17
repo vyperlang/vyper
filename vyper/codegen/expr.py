@@ -18,7 +18,10 @@ from vyper.codegen.core import (
     is_flag_type,
     is_numeric_type,
     is_tuple_like,
+    make_setter,
     pop_dyn_array,
+    potential_overlap,
+    read_write_overlap,
     sar,
     shl,
     shr,
@@ -38,6 +41,7 @@ from vyper.exceptions import (
     UnimplementedException,
     tag_exceptions,
 )
+from vyper.semantics.analysis.utils import get_expr_writes
 from vyper.semantics.types import (
     AddressT,
     BoolT,
@@ -47,6 +51,7 @@ from vyper.semantics.types import (
     FlagT,
     HashMapT,
     InterfaceT,
+    ModuleT,
     SArrayT,
     StringT,
     StructT,
@@ -56,13 +61,8 @@ from vyper.semantics.types import (
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
-from vyper.utils import (
-    DECIMAL_DIVISOR,
-    bytes_to_int,
-    is_checksum_encoded,
-    string_to_bytes,
-    vyper_warn,
-)
+from vyper.utils import DECIMAL_DIVISOR, bytes_to_int, is_checksum_encoded
+from vyper.warnings import VyperWarning, vyper_warn
 
 ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
@@ -83,6 +83,9 @@ class Expr:
             fn = getattr(self, fn_name)
             self.ir_node = fn()
             assert isinstance(self.ir_node, IRnode), self.ir_node
+
+        writes = set(access.variable for access in get_expr_writes(self.expr))
+        self.ir_node._writes = writes
 
         self.ir_node.annotation = self.expr.get("node_source_code")
         self.ir_node.ast_source = self.expr
@@ -127,19 +130,24 @@ class Expr:
 
     # String literals
     def parse_Str(self):
-        bytez, bytez_length = string_to_bytes(self.expr.value)
-        typ = StringT(bytez_length)
-        return self._make_bytelike(typ, bytez, bytez_length)
+        bytez = self.expr.value.encode("utf-8")
+        return self._make_bytelike(self.context, StringT, bytez)
 
     # Byte literals
     def parse_Bytes(self):
-        bytez = self.expr.value
-        bytez_length = len(self.expr.value)
-        typ = BytesT(bytez_length)
-        return self._make_bytelike(typ, bytez, bytez_length)
+        return self._make_bytelike(self.context, BytesT, self.expr.value)
 
-    def _make_bytelike(self, btype, bytez, bytez_length):
-        placeholder = self.context.new_internal_variable(btype)
+    def parse_HexBytes(self):
+        # HexBytes already has value as bytes
+        assert isinstance(self.expr.value, bytes)
+        return self._make_bytelike(self.context, BytesT, self.expr.value)
+
+    @classmethod
+    def _make_bytelike(cls, context, typeclass, bytez):
+        bytez_length = len(bytez)
+        btype = typeclass(bytez_length)
+
+        placeholder = context.new_internal_variable(btype)
         seq = []
         seq.append(["mstore", placeholder, bytez_length])
         for i in range(0, len(bytez), 32):
@@ -150,12 +158,15 @@ class Expr:
                     bytes_to_int((bytez + b"\x00" * 31)[i : i + 32]),
                 ]
             )
-        return IRnode.from_list(
+
+        ret = IRnode.from_list(
             ["seq"] + seq + [placeholder],
             typ=btype,
             location=MEMORY,
             annotation=f"Create {btype}: {bytez}",
         )
+        ret.is_source_bytes_literal = True
+        return ret
 
     # True, False, None constants
     def parse_NameConstant(self):
@@ -165,17 +176,24 @@ class Expr:
 
     # Variable names
     def parse_Name(self):
-        if self.expr.id == "self":
+        varname = self.expr.id
+
+        if varname == "self":
             return IRnode.from_list(["address"], typ=AddressT())
-        elif self.expr.id in self.context.vars:
-            return self.context.lookup_var(self.expr.id).as_ir_node()
 
-        elif (varinfo := self.expr._expr_info.var_info) is not None:
-            if varinfo.is_constant:
-                return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
+        varinfo = self.expr._expr_info.var_info
+        assert varinfo is not None
 
-            assert varinfo.is_immutable, "not an immutable!"
+        # local variable
+        if varname in self.context.vars:
+            ret = self.context.lookup_var(varname).as_ir_node()
+            ret._referenced_variables = {varinfo}
+            return ret
 
+        if varinfo.is_constant:
+            return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
+
+        if varinfo.is_immutable:
             mutable = self.context.is_ctor_context
 
             location = data_location_to_address_space(
@@ -186,11 +204,13 @@ class Expr:
                 varinfo.position.position,
                 typ=varinfo.typ,
                 location=location,
-                annotation=self.expr.id,
+                annotation=varname,
                 mutable=mutable,
             )
             ret._referenced_variables = {varinfo}
             return ret
+
+        raise CompilerPanic("unreachable")  # pragma: nocover
 
     # x.y or x[5]
     def parse_Attribute(self):
@@ -253,19 +273,20 @@ class Expr:
                 return IRnode.from_list(["~calldata"], typ=BytesT(0))
             elif key == "msg.value" and self.context.is_payable:
                 return IRnode.from_list(["callvalue"], typ=UINT256_T)
-            elif key == "msg.gas":
+            elif key in ("msg.gas", "msg.mana"):
+                # NOTE: `msg.mana` is an alias for `msg.gas`
                 return IRnode.from_list(["gas"], typ=UINT256_T)
             elif key == "block.prevrandao":
                 if not version_check(begin="paris"):
                     warning = "tried to use block.prevrandao in pre-Paris "
                     warning += "environment! Suggest using block.difficulty instead."
-                    vyper_warn(warning, self.expr)
+                    vyper_warn(VyperWarning(warning, self.expr))
                 return IRnode.from_list(["prevrandao"], typ=BYTES32_T)
             elif key == "block.difficulty":
                 if version_check(begin="paris"):
                     warning = "tried to use block.difficulty in post-Paris "
                     warning += "environment! Suggest using block.prevrandao instead."
-                    vyper_warn(warning, self.expr)
+                    vyper_warn(VyperWarning(warning, self.expr))
                 return IRnode.from_list(["difficulty"], typ=UINT256_T)
             elif key == "block.timestamp":
                 return IRnode.from_list(["timestamp"], typ=UINT256_T)
@@ -341,6 +362,8 @@ class Expr:
 
         elif is_array_like(sub.typ):
             index = Expr.parse_value_expr(self.expr.slice, self.context)
+            if read_write_overlap(sub, index):
+                raise CompilerPanic("risky overlap")
 
         elif is_tuple_like(sub.typ):
             # should we annotate expr.slice in the frontend with the
@@ -370,14 +393,14 @@ class Expr:
         is_shift_op = isinstance(op, (vy_ast.LShift, vy_ast.RShift))
 
         if is_shift_op:
-            assert is_numeric_type(left.typ)
+            assert is_numeric_type(left.typ) or is_bytes_m_type(left.typ)
             assert is_numeric_type(right.typ)
         else:
             # Sanity check - ensure that we aren't dealing with different types
             # This should be unreachable due to the type check pass
             if left.typ != right.typ:
                 raise TypeCheckFailure(f"unreachable: {left.typ} != {right.typ}")
-            assert is_numeric_type(left.typ) or is_flag_type(left.typ)
+            assert is_numeric_type(left.typ) or is_flag_type(left.typ) or is_bytes_m_type(left.typ)
 
         out_typ = left.typ
 
@@ -390,16 +413,20 @@ class Expr:
 
         if isinstance(op, vy_ast.LShift):
             new_typ = left.typ
-            if new_typ.bits != 256:
+            if is_numeric_type(new_typ) and new_typ.bits != 256:
                 # TODO implement me. ["and", 2**bits - 1, shl(right, left)]
+                raise TypeCheckFailure("unreachable")
+            if is_bytes_m_type(new_typ) and new_typ.m_bits != 256:
                 raise TypeCheckFailure("unreachable")
             return IRnode.from_list(shl(right, left), typ=new_typ)
         if isinstance(op, vy_ast.RShift):
             new_typ = left.typ
-            if new_typ.bits != 256:
+            if is_numeric_type(new_typ) and new_typ.bits != 256:
                 # TODO implement me. promote_signed_int(op(right, left), bits)
                 raise TypeCheckFailure("unreachable")
-            op = shr if not left.typ.is_signed else sar
+            if is_bytes_m_type(new_typ) and new_typ.m_bits != 256:
+                raise TypeCheckFailure("unreachable")
+            op = shr if (is_bytes_m_type(left.typ) or not left.typ.is_signed) else sar
             return IRnode.from_list(op(right, left), typ=new_typ)
 
         # flags can only do bit ops, not arithmetic.
@@ -635,10 +662,10 @@ class Expr:
                 mask = (2**n_members) - 1
                 return IRnode.from_list(["xor", mask, operand], typ=operand.typ)
 
-            if operand.typ == UINT256_T:
+            if operand.typ in (UINT256_T, BYTES32_T):
                 return IRnode.from_list(["not", operand], typ=operand.typ)
 
-            # block `~` for all other integer types, since reasoning
+            # block `~` for all other types, since reasoning
             # about dirty bits is not entirely trivial. maybe revisit
             # this at a later date.
             raise UnimplementedException(f"~ is not supported for {operand.typ}", self.expr)
@@ -655,7 +682,8 @@ class Expr:
         # TODO fix cyclic import
         from vyper.builtins._signatures import BuiltinFunctionT
 
-        func_t = self.expr.func._metadata["type"]
+        func = self.expr.func
+        func_t = func._metadata["type"]
 
         if isinstance(func_t, BuiltinFunctionT):
             return func_t.build_IR(self.expr, self.context)
@@ -666,8 +694,14 @@ class Expr:
             return self.handle_struct_literal()
 
         # Interface constructor. Bar(<address>).
-        if is_type_t(func_t, InterfaceT):
+        if is_type_t(func_t, InterfaceT) or func.get("attr") == "__at__":
             assert not self.is_stmt  # sanity check typechecker
+
+            # magic: do sanity checks for module.__at__
+            if func.get("attr") == "__at__":
+                assert isinstance(func_t, MemberFunctionT)
+                assert isinstance(func.value._metadata["type"], ModuleT)
+
             (arg0,) = self.expr.args
             arg_ir = Expr(arg0, self.context).ir_node
 
@@ -677,24 +711,35 @@ class Expr:
             return arg_ir
 
         if isinstance(func_t, MemberFunctionT):
-            darray = Expr(self.expr.func.value, self.context).ir_node
+            # TODO consider moving these to builtins or a dedicated file
+            darray = Expr(func.value, self.context).ir_node
             assert isinstance(darray.typ, DArrayT)
             args = [Expr(x, self.context).ir_node for x in self.expr.args]
-            if self.expr.func.attr == "pop":
-                # TODO consider moving this to builtins
-                darray = Expr(self.expr.func.value, self.context).ir_node
+            if func.attr == "pop":
+                darray = Expr(func.value, self.context).ir_node
                 assert len(self.expr.args) == 0
                 return_item = not self.is_stmt
                 return pop_dyn_array(darray, return_popped_item=return_item)
-            elif self.expr.func.attr == "append":
+            elif func.attr == "append":
                 (arg,) = args
                 check_assign(
                     dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
                 )
-                return append_dyn_array(darray, arg)
+
+                ret = ["seq"]
+                if potential_overlap(darray, arg):
+                    tmp = self.context.new_internal_variable(arg.typ)
+                    ret.append(make_setter(tmp, arg))
+                    arg = tmp
+
+                ret.append(append_dyn_array(darray, arg))
+                return IRnode.from_list(ret)
+
+            raise CompilerPanic("unreachable!")  # pragma: nocover
 
         assert isinstance(func_t, ContractFunctionT)
         assert func_t.is_internal or func_t.is_constructor
+
         return self_call.ir_for_self_call(self.expr, self.context)
 
     @classmethod

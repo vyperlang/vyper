@@ -230,7 +230,8 @@ Decimals
 
 **Keyword:** ``decimal``
 
-A decimal is a type to store a decimal fixed point value.
+A decimal is a type to store a decimal fixed point value. As of v0.4.0, decimals must be enabled with the CLI flag ``--enable-decimals``.
+
 
 Values
 ******
@@ -358,11 +359,12 @@ A byte array with a max size.
 The syntax being ``Bytes[maxLen]``, where ``maxLen`` is an integer which denotes the maximum number of bytes.
 On the ABI level the Fixed-size bytes array is annotated as ``bytes``.
 
-Bytes literals may be given as bytes strings.
+Bytes literals may be given as bytes strings or as hex strings.
 
 .. code-block:: vyper
 
     bytes_string: Bytes[100] = b"\x01"
+    bytes_string: Bytes[100] = x"01"
 
 .. index:: !string
 
@@ -562,7 +564,7 @@ Dynamic arrays represent bounded arrays whose length can be modified at runtime,
 
     .. code-block:: vyper
 
-        for item in self.my_array:
+        for item: uint256 in self.my_array:
             self.my_array[0] = item
 
 In the ABI, they are represented as ``_Type[]``. For instance, ``DynArray[int128, 3]`` gets represented as ``int128[]``, and ``DynArray[DynArray[int128, 3], 3]`` gets represented as ``int128[][]``.

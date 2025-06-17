@@ -1,9 +1,10 @@
 import base64
-import warnings
 from collections import deque
 from pathlib import PurePath
+from typing import Iterable
 
-from vyper.ast import ast_to_dict
+import vyper.ast as vy_ast
+from vyper.ast.utils import ast_to_dict
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.output_bundle import SolcJSONWriter, VyperArchiveWriter
 from vyper.compiler.phases import CompilerData
@@ -11,10 +12,10 @@ from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
 from vyper.exceptions import VyperException
 from vyper.ir import compile_ir
-from vyper.semantics.types.function import FunctionVisibility, StateMutability
+from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
-from vyper.utils import vyper_warn
-from vyper.warnings import ContractSizeLimitWarning
+from vyper.utils import safe_relpath
+from vyper.warnings import ContractSizeLimit, vyper_warn
 
 
 def build_ast_dict(compiler_data: CompilerData) -> dict:
@@ -25,10 +26,27 @@ def build_ast_dict(compiler_data: CompilerData) -> dict:
     return ast_dict
 
 
+def _get_reachable_imports(compiler_data: CompilerData) -> Iterable[vy_ast.Module]:
+    import_analysis = compiler_data.resolved_imports
+
+    # get all reachable imports including recursion
+    # (NOTE: does not include imported json interfaces.)
+    imported_modules = list(import_analysis.compiler_inputs.values())
+    imported_modules = [mod for mod in imported_modules if isinstance(mod, vy_ast.Module)]
+    if import_analysis.toplevel_module in imported_modules:
+        # this shouldn't actually happen, but remove in case our
+        # assumption is violated in the future
+        imported_modules.remove(import_analysis.toplevel_module)
+
+    return imported_modules
+
+
 def build_annotated_ast_dict(compiler_data: CompilerData) -> dict:
+    imported_modules = _get_reachable_imports(compiler_data)
     annotated_ast_dict = {
         "contract_name": str(compiler_data.contract_path),
         "ast": ast_to_dict(compiler_data.annotated_vyper_module),
+        "imports": [ast_to_dict(ast) for ast in imported_modules],
     }
     return annotated_ast_dict
 
@@ -41,31 +59,37 @@ def build_userdoc(compiler_data: CompilerData) -> dict:
     return compiler_data.natspec.userdoc
 
 
-def build_solc_json(compiler_data: CompilerData) -> str:
-    # request bytecode to ensure the input compiles through all the
-    # compilation passes, emit warnings if there are any issues
-    # (this allows use cases like sending a bug reproduction while
-    # still alerting the user in the common case that they didn't
-    # mean to have a bug)
+def _request_bytecode_for_bundle(compiler_data: CompilerData, pretty_output_type: str) -> None:
+    """
+    request bytecode to ensure the input compiles through all the
+    compilation passes, emit warnings if there are any issues
+    (this allows use cases like sending a bug reproduction while
+    still alerting the user in the common case that they didn't
+    mean to have a bug). called for its side effects.
+
+    params:
+        compiler_data: CompilerData
+        pretty_output_type: str, human readable type of the output
+    """
+    # must be able to parse + resolve imports
+    _ = compiler_data.resolved_imports
     try:
         _ = compiler_data.bytecode
     except VyperException as e:
-        vyper_warn(
-            f"Exceptions encountered during code generation (but producing output anyway): {e}"
-        )
+        msg = "Exceptions encountered during code generation"
+        msg += f" (but producing {pretty_output_type} anyway): {e}"
+        vyper_warn(msg)
+
+
+def build_solc_json(compiler_data: CompilerData) -> str:
+    _request_bytecode_for_bundle(compiler_data, pretty_output_type="output")
     writer = SolcJSONWriter(compiler_data)
     writer.write()
     return writer.output()
 
 
 def build_archive(compiler_data: CompilerData) -> bytes:
-    # ditto
-    try:
-        _ = compiler_data.bytecode
-    except VyperException as e:
-        vyper_warn(
-            f"Exceptions encountered during code generation (but producing archive anyway): {e}"
-        )
+    _request_bytecode_for_bundle(compiler_data, pretty_output_type="archive")
     writer = VyperArchiveWriter(compiler_data)
     writer.write()
     return writer.output()
@@ -76,15 +100,14 @@ def build_archive_b64(compiler_data: CompilerData) -> str:
 
 
 def build_integrity(compiler_data: CompilerData) -> str:
-    return compiler_data.compilation_target._metadata["type"].integrity_sum
+    return compiler_data.integrity_sum
 
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
     interface = compiler_data.annotated_vyper_module._metadata["type"].interface
     stem = PurePath(compiler_data.contract_path).stem
-    # capitalize words separated by '_'
-    # ex: test_interface.vy -> TestInterface
-    name = "".join([x.capitalize() for x in stem.split("_")])
+
+    name = stem.title().replace("_", "")
     out = f"\n# External Interfaces\ninterface {name}:\n"
 
     for func in interface.functions.values():
@@ -102,22 +125,41 @@ def build_interface_output(compiler_data: CompilerData) -> str:
     interface = compiler_data.annotated_vyper_module._metadata["type"].interface
     out = ""
 
-    if interface.events:
-        out = "# Events\n\n"
+    if len(interface.structs) > 0:
+        out += "# Structs\n\n"
+        for struct in interface.structs.values():
+            out += f"struct {struct.name}:\n"
+            for member_name, member_type in struct.members.items():
+                out += f"    {member_name}: {member_type}\n"
+            out += "\n\n"
+
+    if len(interface.flags) > 0:
+        out += "# Flags\n\n"
+        for flag in interface.flags.values():
+            out += f"flag {flag.name}:\n"
+            for flag_value in flag._flag_members:
+                out += f"    {flag_value}\n"
+            out += "\n\n"
+
+    if len(interface.events) > 0:
+        out += "# Events\n\n"
         for event in interface.events.values():
             encoded_args = "\n    ".join(f"{name}: {typ}" for name, typ in event.arguments.items())
-            out = f"{out}event {event.name}:\n    {encoded_args if event.arguments else 'pass'}\n"
+            out += f"event {event.name}:\n    {encoded_args if event.arguments else 'pass'}\n\n\n"
 
-    if interface.functions:
-        out = f"{out}\n# Functions\n\n"
+    if len(interface.functions) > 0:
+        out += "# Functions\n\n"
         for func in interface.functions.values():
             if func.visibility == FunctionVisibility.INTERNAL or func.name == "__init__":
                 continue
             if func.mutability != StateMutability.NONPAYABLE:
-                out = f"{out}@{func.mutability.value}\n"
+                out += f"@{func.mutability.value}\n"
             args = ", ".join([f"{arg.name}: {arg.typ}" for arg in func.arguments])
             return_value = f" -> {func.return_type}" if func.return_type is not None else ""
-            out = f"{out}@external\ndef {func.name}({args}){return_value}:\n    ...\n\n"
+            out += f"@external\ndef {func.name}({args}){return_value}:\n    ...\n\n\n"
+
+    out = out.rstrip("\n")
+    out += "\n"
 
     return out
 
@@ -168,18 +210,36 @@ def build_ir_runtime_dict_output(compiler_data: CompilerData) -> dict:
     return _ir_to_dict(compiler_data.ir_runtime)
 
 
-def build_metadata_output(compiler_data: CompilerData) -> dict:
-    sigs = compiler_data.function_signatures
+def build_settings_output(compiler_data: CompilerData) -> dict:
+    return compiler_data.settings.as_dict()
 
-    def _var_rec_dict(variable_record):
-        ret = vars(variable_record).copy()
-        ret["typ"] = str(ret["typ"])
-        if ret["data_offset"] is None:
-            del ret["data_offset"]
-        for k in ("blockscopes", "defined_at", "encoding"):
-            del ret[k]
-        ret["location"] = ret["location"].name
-        return ret
+
+def build_metadata_output(compiler_data: CompilerData) -> dict:
+    # need ir info to be computed
+    _ = compiler_data.function_signatures
+    module_t = compiler_data.annotated_vyper_module._metadata["type"]
+    sigs = dict[str, ContractFunctionT]()
+
+    def _fn_identifier(fn_t):
+        fn_id = fn_t._function_id
+        return f"{fn_t.name} ({fn_id})"
+
+    exposed_fns = module_t.exposed_functions.copy()
+    if module_t.init_function is not None:
+        exposed_fns.append(module_t.init_function)
+
+    for fn_t in exposed_fns:
+        assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
+        for rif_t in fn_t.reachable_internal_functions:
+            k = _fn_identifier(rif_t)
+            if k in sigs:
+                # sanity check that keys are injective with functions
+                assert sigs[k] == rif_t, (k, sigs[k], rif_t)
+            sigs[k] = rif_t
+
+        fn_id = _fn_identifier(fn_t)
+        assert fn_id not in sigs
+        sigs[fn_id] = fn_t
 
     def _to_dict(func_t):
         ret = vars(func_t).copy()
@@ -201,6 +261,10 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         ret["frame_info"] = vars(func_t._ir_info.frame_info).copy()
         del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
 
+        ret["module_path"] = safe_relpath(func_t.decl_node.module_node.resolved_path)
+        ret["source_id"] = func_t.decl_node.module_node.source_id
+        ret["function_id"] = func_t._function_id
+
         keep_keys = {
             "name",
             "return_type",
@@ -212,6 +276,9 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             "visibility",
             "_ir_identifier",
             "nonreentrant_key",
+            "module_path",
+            "source_id",
+            "function_id",
         }
         ret = {k: v for k, v in ret.items() if k in keep_keys}
         return ret
@@ -228,9 +295,13 @@ def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
 
 def build_abi_output(compiler_data: CompilerData) -> list:
     module_t = compiler_data.annotated_vyper_module._metadata["type"]
-    _ = compiler_data.ir_runtime  # ensure _ir_info is generated
+    if not compiler_data.annotated_vyper_module.is_interface:
+        _ = compiler_data.ir_runtime  # ensure _ir_info is generated
 
     abi = module_t.interface.to_toplevel_abi_dict()
+    if module_t.init_function:
+        abi += module_t.init_function.to_toplevel_abi_dict()
+
     if compiler_data.show_gas_estimates:
         # Add gas estimates for each function to ABI
         gas_estimates = build_gas_estimates(compiler_data.function_signatures)
@@ -320,15 +391,13 @@ def _build_source_map_output(compiler_data, bytecode, pc_maps):
 
 
 def build_source_map_output(compiler_data: CompilerData) -> dict:
-    bytecode, pc_maps = compile_ir.assembly_to_evm(
-        compiler_data.assembly, insert_compiler_metadata=False
-    )
+    bytecode, pc_maps = compile_ir.assembly_to_evm(compiler_data.assembly, compiler_metadata=None)
     return _build_source_map_output(compiler_data, bytecode, pc_maps)
 
 
 def build_source_map_runtime_output(compiler_data: CompilerData) -> dict:
     bytecode, pc_maps = compile_ir.assembly_to_evm(
-        compiler_data.assembly_runtime, insert_compiler_metadata=False
+        compiler_data.assembly_runtime, compiler_metadata=None
     )
     return _build_source_map_output(compiler_data, bytecode, pc_maps)
 
@@ -377,13 +446,14 @@ EIP170_CONTRACT_SIZE_LIMIT: int = 2**14 + 2**13
 
 def build_bytecode_runtime_output(compiler_data: CompilerData) -> str:
     compiled_bytecode_runtime_length = len(compiler_data.bytecode_runtime)
+    # NOTE: we should actually add the size of the immutables section to this.
     if compiled_bytecode_runtime_length > EIP170_CONTRACT_SIZE_LIMIT:
-        warnings.warn(
-            f"Length of compiled bytecode is bigger than Ethereum contract size limit "
-            "(see EIP-170: https://eips.ethereum.org/EIPS/eip-170): "
-            f"{compiled_bytecode_runtime_length}b > {EIP170_CONTRACT_SIZE_LIMIT}b",
-            ContractSizeLimitWarning,
-            stacklevel=2,
+        vyper_warn(
+            ContractSizeLimit(
+                f"Length of compiled bytecode is bigger than Ethereum contract size limit "
+                "(see EIP-170: https://eips.ethereum.org/EIPS/eip-170): "
+                f"{compiled_bytecode_runtime_length}b > {EIP170_CONTRACT_SIZE_LIMIT}b"
+            )
         )
     return f"0x{compiler_data.bytecode_runtime.hex()}"
 

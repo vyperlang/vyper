@@ -9,9 +9,9 @@ from vyper.compiler import compile_code
 from vyper.exceptions import ArgumentException, CallViolation
 
 
+@pytest.mark.hevm
 def test_selfcall_code(get_contract):
     selfcall_code = """
-@internal
 def _foo() -> int128:
     return 3
 
@@ -26,9 +26,9 @@ def bar() -> int128:
     print("Passed no-argument self-call test")
 
 
+@pytest.mark.hevm
 def test_selfcall_code_2(get_contract, keccak):
     selfcall_code_2 = """
-@internal
 def _double(x: int128) -> int128:
     return x * 2
 
@@ -36,7 +36,6 @@ def _double(x: int128) -> int128:
 def returnten() -> int128:
     return self._double(5)
 
-@internal
 def _hashy(x: bytes32) -> bytes32:
     return keccak256(x)
 
@@ -53,6 +52,7 @@ def return_hash_of_rzpadded_cow() -> bytes32:
 
 
 # test that side-effecting self calls do not get optimized out
+@pytest.mark.hevm
 def test_selfcall_optimizer(get_contract):
     code = """
 counter: uint256
@@ -70,6 +70,7 @@ def foo() -> (uint256, uint256):
     assert c.foo() == (0, 1)
 
 
+@pytest.mark.hevm
 def test_selfcall_code_3(get_contract, keccak):
     selfcall_code_3 = """
 @internal
@@ -96,6 +97,7 @@ def returnten() -> uint256:
     print("Passed single variable-size argument self-call test")
 
 
+@pytest.mark.hevm
 def test_selfcall_code_4(get_contract):
     selfcall_code_4 = """
 @internal
@@ -140,6 +142,7 @@ def return_goose2() -> Bytes[10]:
     print("Passed multi-argument self-call test")
 
 
+@pytest.mark.hevm("--max-iterations", "10")
 def test_selfcall_code_5(get_contract):
     selfcall_code_5 = """
 counter: int128
@@ -160,6 +163,7 @@ def returnten() -> int128:
     print("Passed self-call statement test")
 
 
+@pytest.mark.hevm
 def test_selfcall_code_6(get_contract):
     selfcall_code_6 = """
 excls: Bytes[32]
@@ -188,6 +192,7 @@ def return_mongoose_revolution_32_excls() -> Bytes[201]:
     print("Passed composite self-call test")
 
 
+@pytest.mark.hevm
 def test_list_call(get_contract):
     code = """
 @internal
@@ -226,6 +231,7 @@ def bar3() -> int128:
     assert c.bar3() == 66
 
 
+@pytest.mark.hevm
 def test_list_storage_call(get_contract):
     code = """
 y: int128[2]
@@ -257,6 +263,7 @@ def bar1() -> int128:
     assert c.bar1() == 99
 
 
+@pytest.mark.hevm
 def test_multi_arg_list_call(get_contract):
     code = """
 @internal
@@ -329,6 +336,7 @@ def bar6() -> int128:
     assert c.bar5() == 88
 
 
+@pytest.mark.hevm
 def test_multi_mixed_arg_list_call(get_contract):
     code = """
 @internal
@@ -352,6 +360,7 @@ def bar() -> (int128, decimal):
     assert c.bar() == (66, decimal_to_int("66.77"))
 
 
+@pytest.mark.hevm
 def test_internal_function_multiple_lists_as_args(get_contract):
     code = """
 @internal
@@ -376,6 +385,7 @@ def bar2() -> int128:
     assert c.bar2() == 1
 
 
+@pytest.mark.hevm
 def test_multi_mixed_arg_list_bytes_call(get_contract):
     code = """
 @internal
@@ -481,6 +491,7 @@ def foo(x: uint256, y: uint256):
 ]
 
 
+# TODO: maybe these belong in tests/functional/syntax/
 @pytest.mark.parametrize("failing_contract_code", FAILING_CONTRACTS_ARGUMENT_EXCEPTION)
 def test_selfcall_wrong_arg_count(failing_contract_code, assert_compile_failed):
     assert_compile_failed(lambda: compile_code(failing_contract_code), ArgumentException)
@@ -538,6 +549,7 @@ def test_selfcall_kwarg_raises(failing_contract_code, decorator, assert_compile_
         _ = compile_code(failing_contract_code.format(decorator))
 
 
+@pytest.mark.hevm
 @pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])
 def test_struct_return_1(get_contract, i, ln, s):
     contract = f"""
@@ -561,6 +573,7 @@ def test() -> (int128, String[{ln}], Bytes[{ln}]):
     assert c.test() == (i, s, bytes(s, "utf-8"))
 
 
+@pytest.mark.hevm
 def test_dynamically_sized_struct_as_arg(get_contract):
     contract = """
 struct X:
@@ -582,6 +595,7 @@ def bar() -> Bytes[6]:
     assert c.bar() == b"hello"
 
 
+@pytest.mark.hevm
 def test_dynamically_sized_struct_as_arg_2(get_contract):
     contract = """
 struct X:
@@ -603,6 +617,7 @@ def bar() -> String[6]:
     assert c.bar() == "hello"
 
 
+@pytest.mark.hevm
 def test_dynamically_sized_struct_member_as_arg(get_contract):
     contract = """
 struct X:
@@ -624,6 +639,52 @@ def bar() -> Bytes[6]:
     assert c.bar() == b"hello"
 
 
+@pytest.mark.hevm
+def test_make_setter_internal_call(get_contract):
+    # cf. GH #3503
+    code = """
+a:DynArray[uint256,2]
+
+@external
+def foo() -> DynArray[uint256,2]:
+    # Initial value
+    self.a = [1, 2]
+    self.a = [self.bar(1), self.bar(0)]
+    return self.a
+
+@internal
+def bar(i: uint256) -> uint256:
+    return self.a[i]
+    """
+    c = get_contract(code)
+
+    assert c.foo() == [2, 1]
+
+
+@pytest.mark.hevm
+def test_make_setter_internal_call2(get_contract):
+    # cf. GH #3503
+    code = """
+a: DynArray[uint256, 10]
+
+@external
+def foo() -> DynArray[uint256, 10]:
+    self.a = [1, 2, self.boo(), 4]
+    return self.a # returns [11, 12, 3, 4]
+
+@internal
+def boo() -> uint256:
+    self.a = [11, 12, 13, 14, 15, 16]
+    self.a = []
+    # it should now be impossible to read any of [11, 12, 13, 14, 15, 16]
+    return 3
+    """
+    c = get_contract(code)
+
+    assert c.foo() == [1, 2, 3, 4]
+
+
+@pytest.mark.hevm
 def test_dynamically_sized_struct_member_as_arg_2(get_contract):
     contract = """
 struct X:

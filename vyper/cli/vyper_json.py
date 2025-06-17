@@ -8,11 +8,12 @@ from pathlib import Path, PurePath
 from typing import Any, Callable, Hashable, Optional
 
 import vyper
-from vyper.compiler.input_bundle import FileInput, JSONInputBundle
+from vyper.compiler.input_bundle import FileInput, JSONInput, JSONInputBundle, _normpath
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import JSONError
 from vyper.utils import OrderedSet, keccak256
+from vyper.warnings import Deprecation, vyper_warn
 
 TRANSLATE_MAP = {
     "abi": "abi",
@@ -32,7 +33,13 @@ TRANSLATE_MAP = {
     "metadata": "metadata",
     "layout": "layout",
     "userdoc": "userdoc",
+    "bb": "bb",
+    "bb_runtime": "bb_runtime",
+    "cfg": "cfg",
+    "cfg_runtime": "cfg_runtime",
 }
+
+VENOM_KEYS = ("bb", "bb_runtime", "cfg", "cfg_runtime")
 
 
 def _parse_cli_args():
@@ -206,6 +213,35 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
     return ret
 
 
+def get_storage_layout_overrides(input_dict: dict) -> dict[PurePath, JSONInput]:
+    storage_layout_overrides: dict[PurePath, JSONInput] = {}
+
+    for path, value in input_dict.get("storage_layout_overrides", {}).items():
+        if path not in input_dict["sources"]:
+            raise JSONError(f"unknown target for storage layout override: {path}")
+
+        if not isinstance(value, dict) and len(value.items()) != 1:
+            raise JSONError(f"invalid storage layout override: {value}")
+        override_path, override_data = next(iter(value.items()))
+        override_path = _normpath(override_path)
+        storage_layout_input = JSONInput(
+            contents=json.dumps(override_data),
+            data=override_data,
+            source_id=-1,
+            path=override_path,
+            resolved_path=override_path,
+        )
+
+        path = PurePath(path)
+        if path in storage_layout_overrides:
+            raise JSONError(
+                f"duplicate key {path} in storage layout override: {storage_layout_overrides}"
+            )
+        storage_layout_overrides[path] = storage_layout_input
+
+    return storage_layout_overrides
+
+
 # get unique output formats for each contract, given the input_dict
 # NOTE: would maybe be nice to raise on duplicated output formats
 def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
@@ -221,8 +257,15 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
             outputs.remove(key)
             outputs.update([i for i in TRANSLATE_MAP if i.startswith(key)])
 
+        should_output_venom = any(
+            input_dict["settings"].get(alias, False)
+            for alias in ("venomExperimental", "experimentalCodegen")
+        )
+
         if "*" in outputs:
             outputs = TRANSLATE_MAP.values()
+            if not should_output_venom:
+                outputs = [k for k in outputs if k not in VENOM_KEYS]
         else:
             try:
                 outputs = [TRANSLATE_MAP[i] for i in outputs]
@@ -230,6 +273,12 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
                 raise JSONError(f"Invalid outputSelection - {e}")
 
         outputs = sorted(list(outputs))
+
+        if not should_output_venom and any(k in outputs for k in VENOM_KEYS):
+            selected_venom_keys = [k for k in outputs if k in VENOM_KEYS]
+            raise JSONError(
+                f"requested {selected_venom_keys} but experimentalCodegen not selected!"
+            )
 
         if path == "*":
             output_paths = [PurePath(path) for path in input_dict["sources"].keys()]
@@ -249,21 +298,23 @@ def get_search_paths(input_dict: dict) -> list[PurePath]:
     return [PurePath(p) for p in ret]
 
 
-def compile_from_input_dict(
-    input_dict: dict, exc_handler: Callable = exc_handler_raises
-) -> tuple[dict, dict]:
-    if input_dict["language"] != "Vyper":
-        raise JSONError(f"Invalid language '{input_dict['language']}' - Only Vyper is supported.")
-
+def get_settings(input_dict: dict) -> Settings:
     evm_version = get_evm_version(input_dict)
 
     optimize = input_dict["settings"].get("optimize")
-    experimental_codegen = input_dict["settings"].get("experimentalCodegen", False)
+
+    experimental_codegen = input_dict["settings"].get("experimentalCodegen")
+    if experimental_codegen is None:
+        experimental_codegen = input_dict["settings"].get("venomExperimental")
+    elif input_dict["settings"].get("venomExperimental") is not None:
+        raise JSONError("both experimentalCodegen and venomExperimental cannot be set")
+
     if isinstance(optimize, bool):
         # bool optimization level for backwards compatibility
-        warnings.warn(
-            "optimize: <bool> is deprecated! please use one of 'gas', 'codesize', 'none'.",
-            stacklevel=2,
+        vyper_warn(
+            Deprecation(
+                "optimize: <bool> is deprecated! please use one of 'gas', 'codesize', 'none'."
+            )
         )
         optimize = OptimizationLevel.default() if optimize else OptimizationLevel.NONE
     elif isinstance(optimize, str):
@@ -271,15 +322,34 @@ def compile_from_input_dict(
     else:
         assert optimize is None
 
-    settings = Settings(
-        evm_version=evm_version, optimize=optimize, experimental_codegen=experimental_codegen
+    debug = input_dict["settings"].get("debug", None)
+
+    # TODO: maybe change these to camelCase for consistency
+    enable_decimals = input_dict["settings"].get("enable_decimals", None)
+
+    return Settings(
+        evm_version=evm_version,
+        optimize=optimize,
+        experimental_codegen=experimental_codegen,
+        debug=debug,
+        enable_decimals=enable_decimals,
     )
+
+
+def compile_from_input_dict(
+    input_dict: dict, exc_handler: Callable = exc_handler_raises
+) -> tuple[dict, dict]:
+    if input_dict["language"] != "Vyper":
+        raise JSONError(f"Invalid language '{input_dict['language']}' - Only Vyper is supported.")
+
+    settings = get_settings(input_dict)
 
     no_bytecode_metadata = not input_dict["settings"].get("bytecodeMetadata", True)
 
     integrity = input_dict.get("integrity")
 
     sources = get_inputs(input_dict)
+    storage_layout_overrides = get_storage_layout_overrides(input_dict)
     output_formats = get_output_formats(input_dict)
     compilation_targets = list(output_formats.keys())
     search_paths = get_search_paths(input_dict)
@@ -289,6 +359,7 @@ def compile_from_input_dict(
     res, warnings_dict = {}, {}
     warnings.simplefilter("always")
     for contract_path in compilation_targets:
+        storage_layout_override = storage_layout_overrides.get(contract_path)
         with warnings.catch_warnings(record=True) as caught_warnings:
             try:
                 # use load_file to get a unique source_id
@@ -298,6 +369,7 @@ def compile_from_input_dict(
                     file,
                     input_bundle=input_bundle,
                     output_formats=output_formats[contract_path],
+                    storage_layout_override=storage_layout_override,
                     integrity_sum=integrity,
                     settings=settings,
                     no_bytecode_metadata=no_bytecode_metadata,
@@ -337,6 +409,9 @@ def format_to_output_dict(compiler_data: dict) -> dict:
             if key in data:
                 output_contracts[key] = data[key]
 
+        if "layout" in data:
+            output_contracts["layout"] = data["layout"]
+
         if "method_identifiers" in data:
             output_contracts["evm"] = {"methodIdentifiers": data["method_identifiers"]}
 
@@ -359,6 +434,18 @@ def format_to_output_dict(compiler_data: dict) -> dict:
                 evm["opcodes"] = data["opcodes_runtime"]
             if "source_map_runtime" in data:
                 evm["sourceMap"] = data["source_map_runtime"]
+
+        if any(i in data for i in VENOM_KEYS):
+            venom = {}
+            if "bb" in data:
+                venom["bb"] = repr(data["bb"])
+            if "bb_runtime" in data:
+                venom["bb_runtime"] = repr(data["bb_runtime"])
+            if "cfg" in data:
+                venom["cfg"] = data["cfg"]
+            if "cfg_runtime" in data:
+                venom["cfg_runtime"] = data["cfg_runtime"]
+            output_contracts["venom"] = venom
 
     return output_dict
 

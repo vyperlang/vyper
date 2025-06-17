@@ -1,3 +1,6 @@
+import copy
+import dataclasses
+
 from vyper.codegen.core import _freshname, eval_once_check, make_setter
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.address_space import MEMORY
@@ -59,16 +62,35 @@ def ir_for_self_call(stmt_expr, context):
     # allocate space for the return buffer
     # TODO allocate in stmt and/or expr.py
     if func_t.return_type is not None:
-        return_buffer = IRnode.from_list(
-            context.new_internal_variable(func_t.return_type),
-            annotation=f"{return_label}_return_buf",
-        )
+        return_buffer = context.new_internal_variable(func_t.return_type)
+        return_buffer.annotation = f"{return_label}_return_buf"
     else:
         return_buffer = None
 
     # note: dst_tuple_t != args_tuple_t
     dst_tuple_t = TupleT(tuple(func_t.argument_types))
-    args_dst = IRnode(func_t._ir_info.frame_info.frame_start, typ=dst_tuple_t, location=MEMORY)
+    if context.settings.experimental_codegen:
+        arg_items = ["multi"]
+        frame_info = func_t._ir_info.frame_info
+
+        for var in frame_info.frame_vars.values():
+            var = copy.copy(var)
+            alloca = var.alloca
+            assert alloca is not None
+            assert isinstance(var.pos, str)  # help mypy
+            if not var.pos.startswith("$palloca"):
+                continue
+            newname = var.pos.replace("$palloca", "$calloca")
+            var.pos = newname
+            alloca = dataclasses.replace(alloca, _callsite=return_label)
+            irnode = var.as_ir_node()
+            irnode.passthrough_metadata["alloca"] = alloca
+            irnode.passthrough_metadata["callsite_func"] = func_t
+            arg_items.append(irnode)
+        args_dst = IRnode.from_list(arg_items, typ=dst_tuple_t)
+    else:
+        # legacy
+        args_dst = IRnode(func_t._ir_info.frame_info.frame_start, typ=dst_tuple_t, location=MEMORY)
 
     # if one of the arguments is a self call, the argument
     # buffer could get borked. to prevent against that,
@@ -110,4 +132,7 @@ def ir_for_self_call(stmt_expr, context):
         add_gas_estimate=func_t._ir_info.gas_estimate,
     )
     o.is_self_call = True
+    o.invoked_function_ir = func_t._ir_info.func_ir
+    o.passthrough_metadata["func_t"] = func_t
+    o.passthrough_metadata["args_ir"] = args_ir
     return o

@@ -1,8 +1,7 @@
-from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.analysis import CFGAnalysis, IRAnalysesCache
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRBasicBlock, IRLabel
-from vyper.venom.passes.normalization import NormalizationPass
+from vyper.venom.passes import NormalizationPass
 
 
 def test_multi_entry_block_1():
@@ -35,15 +34,16 @@ def test_multi_entry_block_1():
     finish_bb.append_instruction("stop")
 
     ac = IRAnalysesCache(fn)
-    ac.request_analysis(CFGAnalysis)
-    assert not fn.normalized, "CFG should not be normalized"
+    cfg = ac.request_analysis(CFGAnalysis)
+    assert not cfg.is_normalized(), "CFG should not be normalized"
 
     NormalizationPass(ac, fn).run_pass()
 
-    assert fn.normalized, "CFG should be normalized"
+    cfg = ac.request_analysis(CFGAnalysis)
+    assert cfg.is_normalized(), "CFG should be normalized"
 
     finish_bb = fn.get_basic_block(finish_label.value)
-    cfg_in = list(finish_bb.cfg_in)
+    cfg_in = list(cfg.cfg_in(finish_bb))
     assert cfg_in[0].label.value == "target", "Should contain target"
     assert cfg_in[1].label.value == "__global_split_finish", "Should contain __global_split_finish"
     assert cfg_in[2].label.value == "block_1_split_finish", "Should contain block_1_split_finish"
@@ -89,15 +89,16 @@ def test_multi_entry_block_2():
     finish_bb.append_instruction("stop")
 
     ac = IRAnalysesCache(fn)
-    ac.request_analysis(CFGAnalysis)
-    assert not fn.normalized, "CFG should not be normalized"
+    cfg = ac.request_analysis(CFGAnalysis)
+    assert not cfg.is_normalized(), "CFG should not be normalized"
 
     NormalizationPass(ac, fn).run_pass()
 
-    assert fn.normalized, "CFG should be normalized"
+    cfg = ac.request_analysis(CFGAnalysis)
+    assert cfg.is_normalized(), "CFG should be normalized"
 
     finish_bb = fn.get_basic_block(finish_label.value)
-    cfg_in = list(finish_bb.cfg_in)
+    cfg_in = list(cfg.cfg_in(finish_bb))
     assert cfg_in[0].label.value == "target", "Should contain target"
     assert cfg_in[1].label.value == "__global_split_finish", "Should contain __global_split_finish"
     assert cfg_in[2].label.value == "block_1_split_finish", "Should contain block_1_split_finish"
@@ -133,14 +134,16 @@ def test_multi_entry_block_with_dynamic_jump():
     finish_bb.append_instruction("stop")
 
     ac = IRAnalysesCache(fn)
-    ac.request_analysis(CFGAnalysis)
-    assert not fn.normalized, "CFG should not be normalized"
+    cfg = ac.request_analysis(CFGAnalysis)
+    assert not cfg.is_normalized(), "CFG should not be normalized"
 
     NormalizationPass(ac, fn).run_pass()
-    assert fn.normalized, "CFG should be normalized"
+
+    cfg = ac.request_analysis(CFGAnalysis)
+    assert cfg.is_normalized(), "CFG should be normalized"
 
     finish_bb = fn.get_basic_block(finish_label.value)
-    cfg_in = list(finish_bb.cfg_in)
+    cfg_in = list(cfg.cfg_in(finish_bb))
     assert cfg_in[0].label.value == "target", "Should contain target"
     assert cfg_in[1].label.value == "__global_split_finish", "Should contain __global_split_finish"
     assert cfg_in[2].label.value == "block_1_split_finish", "Should contain block_1_split_finish"

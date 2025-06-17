@@ -131,6 +131,18 @@ token: IERC20
 def topup(amount: uint256):
     assert extcall self.token.transferFrom(msg.sender, self, amount)
     """,
+        """
+@external
+@view
+def foo(_topic: bytes32):
+    raw_log([_topic], b"")
+    """,
+        """
+@external
+@pure
+def foo(_topic: bytes32):
+    raw_log([_topic], b"")
+    """,
     ],
 )
 def test_statefulness_violations(bad_code):
