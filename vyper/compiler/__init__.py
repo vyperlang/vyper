@@ -3,7 +3,7 @@ from typing import Callable, Dict, Optional
 
 import vyper.codegen.core as codegen
 import vyper.compiler.output as output
-from vyper.compiler.input_bundle import FileInput, InputBundle, PathLike
+from vyper.compiler.input_bundle import FileInput, InputBundle, JSONInput, PathLike
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings, anchor_settings, get_global_settings
 from vyper.typing import OutputFormats, StorageLayout
@@ -33,6 +33,7 @@ OUTPUT_FORMATS = {
     "ir_runtime_dict": output.build_ir_runtime_dict_output,
     "method_identifiers": output.build_method_identifiers_output,
     "metadata": output.build_metadata_output,
+    "settings_dict": output.build_settings_output,
     # requires assembly
     "abi": output.build_abi_output,
     "asm": output.build_asm_output,
@@ -63,7 +64,7 @@ def compile_from_file_input(
     settings: Settings = None,
     integrity_sum: str = None,
     output_formats: Optional[OutputFormats] = None,
-    storage_layout_override: Optional[StorageLayout] = None,
+    storage_layout_override: Optional[JSONInput] = None,
     no_bytecode_metadata: bool = False,
     show_gas_estimates: bool = False,
     exc_handler: Optional[Callable] = None,

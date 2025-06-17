@@ -17,7 +17,7 @@ def test_simple_case():
     """
     pre = """
     _global:
-        %1 = param
+        %1 = source
         %2 = 32
         %3 = 64
         %4 = add %2, %3
@@ -27,7 +27,7 @@ def test_simple_case():
 
     post = """
     _global:
-        %1 = param
+        %1 = source
         %2 = 32
         %3 = 64
         %4 = add 32, 64
@@ -127,7 +127,7 @@ def test_cont_jump_case():
     """
     pre = """
     main:
-        %1 = param
+        %1 = source
         %2 = 32
         %3 = 64
         %4 = add %3, %2
@@ -142,7 +142,7 @@ def test_cont_jump_case():
 
     post = """
     main:
-        %1 = param
+        %1 = source
         %2 = 32
         %3 = 64
         %4 = add 64, 32
@@ -150,6 +150,9 @@ def test_cont_jump_case():
     then:
         %5 = add 10, 96
         sink 106
+    else:  # unreachable
+        %6 = add %1, 96
+        sink %6
     """
 
     passes = _check_pre_post(pre, post)
@@ -171,7 +174,7 @@ def test_cont_phi_case():
 
     pre = """
     main:
-        %1 = param
+        %1 = source
         %2 = 32
         %3 = 64
         %4 = add %3, %2
@@ -189,7 +192,7 @@ def test_cont_phi_case():
 
     post = """
     main:
-        %1 = param
+        %1 = source
         %2 = 32
         %3 = 64
         %4 = add 64, 32
@@ -197,8 +200,11 @@ def test_cont_phi_case():
     then:
         %5:1 = add 10, 96
         jmp @join
+    else:  # unreachable
+        %5:2 = add %1, 96
+        jmp @join
     join:
-        %5 = %5:1
+        %5 = phi @then, %5:1, @else, %5:2
         sink 106
     """
 
@@ -249,8 +255,11 @@ def test_cont_phi_const_case():
     then:
         %5:1 = add 10, 96
         jmp @join
+    else:  # unreachable
+        %5:2 = add 1, 96
+        jmp @join
     join:
-        %5 = %5:1
+        %5 = phi @then, %5:1, @else, %5:2
         sink 106
     """
 
@@ -293,7 +302,7 @@ def test_phi_reduction_without_basic_block_removal():
         %2 = 2
         jmp @join
     join:
-        %3 = %2
+        %3 = phi @main, %1, @then, %2
         sink 2
     """
 
