@@ -110,3 +110,20 @@ def test_compare_type_mismatch(op):
     old_node = vyper_ast.body[0].value
     with pytest.raises(UnfoldableNode):
         old_node.get_folded_value()
+
+
+@pytest.mark.parametrize("op", ["==", "!="])
+def test_compare_eq_bytes(get_contract, op):
+    left, right = "0xA1AAB33F", "0xa1aab33f"
+    source = f"""
+@external
+def foo(a: bytes4, b: bytes4) -> bool:
+    return a {op} b
+    """
+    contract = get_contract(source)
+
+    vyper_ast = parse_and_fold(f"{left} {op} {right}")
+    old_node = vyper_ast.body[0].value
+    new_node = old_node.get_folded_value()
+
+    assert contract.foo(left, right) == new_node.value

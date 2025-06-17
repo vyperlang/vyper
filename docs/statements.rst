@@ -15,7 +15,7 @@ The ``break`` statement terminates the nearest enclosing ``for`` loop.
 
 .. code-block:: vyper
 
-    for i in [1, 2, 3, 4, 5]:
+    for i: uint256 in [1, 2, 3, 4, 5]:
         if i == a:
             break
 
@@ -28,7 +28,7 @@ The ``continue`` statement begins the next cycle of the nearest enclosing ``for`
 
 .. code-block:: vyper
 
-    for i in [1, 2, 3, 4, 5]:
+    for i: uint256 in [1, 2, 3, 4, 5]:
         if i != a:
             continue
         ...
@@ -76,6 +76,9 @@ The ``log`` statement is used to log an event:
 The event must have been previously declared.
 
 See :ref:`Event Logging<event-logging>` for more information on events.
+
+.. warning::
+    The evaluation order of arguments passed to ``log`` is undefined. The compiler may evaluate them in any order. Therefore, arguments with side effects should be evaluated in separate statements before the ``log`` call to ensure predictable behavior.
 
 Assertions and Exceptions
 =========================

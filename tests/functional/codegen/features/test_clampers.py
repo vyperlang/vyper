@@ -5,7 +5,6 @@ from eth.codecs import abi
 from eth_utils import keccak
 
 from tests.utils import ZERO_ADDRESS, decimal_to_int
-from vyper.exceptions import StackTooDeep
 from vyper.utils import int_bounds
 
 
@@ -429,7 +428,7 @@ def foo(b: int128[6][1][2]) -> int128[6][1][2]:
 
     c = get_contract(code)
     with tx_failed():
-        _make_tx(env, c.address, "foo(int128[6][1][2]])", values)
+        _make_tx(env, c.address, "foo(int128[6][1][2])", values)
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
@@ -453,7 +452,7 @@ def test_int128_dynarray_clamper_failing(env, tx_failed, get_contract, bad_value
     # ensure the invalid value is detected at all locations in the array
     code = """
 @external
-def foo(b: int128[5]) -> int128[5]:
+def foo(b: DynArray[int128, 5]) -> DynArray[int128, 5]:
     return b
     """
 
@@ -502,7 +501,6 @@ def foo(b: DynArray[int128, 10]) -> DynArray[int128, 10]:
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
-@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_multidimension_dynarray_clamper_passing(get_contract, value):
     code = """
 @external

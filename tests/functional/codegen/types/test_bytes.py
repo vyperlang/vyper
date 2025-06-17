@@ -1,5 +1,6 @@
 import pytest
 
+from vyper.compiler import compile_code
 from vyper.exceptions import TypeMismatch
 
 
@@ -257,6 +258,42 @@ def test2(l: bytes{m} = {vyper_literal}) -> bool:
     assert c.test() is True
     assert c.test2() is True
     assert c.test2(vyper_literal) is True
+
+
+@pytest.mark.parametrize("m,val", [(2, "ab"), (3, "ab"), (4, "abcd")])
+def test_native_hex_literals(get_contract, m, val):
+    vyper_literal = bytes.fromhex(val)
+    code = f"""
+@external
+def test() -> bool:
+    l: Bytes[{m}] = x"{val}"
+    return l == {vyper_literal}
+
+@external
+def test2(l: Bytes[{m}] = x"{val}") -> bool:
+    return l == {vyper_literal}
+    """
+    print(code)
+
+    c = get_contract(code)
+
+    assert c.test() is True
+    assert c.test2() is True
+    assert c.test2(vyper_literal) is True
+
+
+def test_hex_literal_parser_edge_case():
+    # see GH issue 4405 example 2
+    code = """
+interface FooBar:
+    def test(a: Bytes[2], b: String[4]): payable
+
+@deploy
+def __init__(ext: FooBar):
+    extcall ext.test(x'6161', x'6161')  #ext.test(b'\x61\61', '6161') gets called
+    """
+    with pytest.raises(TypeMismatch):
+        compile_code(code)
 
 
 def test_zero_padding_with_private(get_contract):

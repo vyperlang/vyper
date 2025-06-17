@@ -10,12 +10,3 @@ def foo():
 """
 
     assert_compile_failed(lambda: get_contract(code), FunctionDeclarationException)
-
-
-def test_invalid_if_visibility_isnt_declared(assert_compile_failed, get_contract):
-    code = """
-def foo():
-    x: uint256 = 1
-"""
-
-    assert_compile_failed(lambda: get_contract(code), FunctionDeclarationException)

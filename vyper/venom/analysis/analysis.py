@@ -1,6 +1,9 @@
-from typing import Type
+from __future__ import annotations
 
-from vyper.venom.function import IRFunction
+from typing import TYPE_CHECKING, Type, TypeVar
+
+if TYPE_CHECKING:
+    from vyper.venom.function import IRFunction
 
 
 class IRAnalysis:
@@ -8,10 +11,10 @@ class IRAnalysis:
     Base class for all Venom IR analyses.
     """
 
-    function: "IRFunction"
-    analyses_cache: "IRAnalysesCache"
+    function: IRFunction
+    analyses_cache: IRAnalysesCache
 
-    def __init__(self, analyses_cache: "IRAnalysesCache", function: IRFunction):
+    def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         self.analyses_cache = analyses_cache
         self.function = function
 
@@ -29,6 +32,9 @@ class IRAnalysis:
         pass
 
 
+T = TypeVar("T", bound=IRAnalysis)
+
+
 class IRAnalysesCache:
     """
     A cache for IR analyses.
@@ -41,18 +47,23 @@ class IRAnalysesCache:
         self.analyses_cache = {}
         self.function = function
 
-    def request_analysis(self, analysis_cls: Type[IRAnalysis], *args, **kwargs):
+    # python3.12:
+    #   def request_analysis[T](self, analysis_cls: Type[T], *args, **kwargs) -> T:
+    def request_analysis(self, analysis_cls: Type[T], *args, **kwargs) -> T:
         """
         Request a specific analysis to be run on the IR. The result is cached and
         returned if the analysis has already been run.
         """
         assert issubclass(analysis_cls, IRAnalysis), f"{analysis_cls} is not an IRAnalysis"
         if analysis_cls in self.analyses_cache:
-            return self.analyses_cache[analysis_cls]
+            ret = self.analyses_cache[analysis_cls]
+            assert isinstance(ret, analysis_cls)  # help mypy
+            return ret
+
         analysis = analysis_cls(self, self.function)
+        self.analyses_cache[analysis_cls] = analysis
         analysis.analyze(*args, **kwargs)
 
-        self.analyses_cache[analysis_cls] = analysis
         return analysis
 
     def invalidate_analysis(self, analysis_cls: Type[IRAnalysis]):
@@ -72,4 +83,5 @@ class IRAnalysesCache:
         assert issubclass(analysis_cls, IRAnalysis), f"{analysis_cls} is not an IRAnalysis"
         if analysis_cls in self.analyses_cache:
             self.invalidate_analysis(analysis_cls)
+
         return self.request_analysis(analysis_cls, *args, **kwargs)

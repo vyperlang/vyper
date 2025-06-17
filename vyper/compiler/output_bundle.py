@@ -1,19 +1,17 @@
 import importlib
 import io
 import json
-import os
 import zipfile
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import PurePath
 from typing import Optional
 
-from vyper.compiler.input_bundle import CompilerInput, _NotFound
+from vyper.compiler.input_bundle import CompilerInput, JSONInput, _NotFound
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.analysis.module import _is_builtin
-from vyper.utils import get_long_version
+from vyper.utils import get_long_version, safe_relpath
 
 # data structures and routines for constructing "output bundles",
 # basically reproducible builds of a vyper contract, with varying
@@ -50,19 +48,23 @@ class OutputBundle:
         return self.compiler_data.compilation_target._metadata["type"]
 
     @cached_property
-    def _imports(self):
-        return self.compilation_target.reachable_imports
+    def source_codes(self) -> dict[str, CompilerInput]:
+        # return the `CompilerInput`s for this output bundle, as a dict
+        # where the keys are the anonymized paths.
+        # does not include builtins.
+        import_analysis = self.compiler_data.resolved_imports
 
-    @cached_property
-    def compiler_inputs(self) -> dict[str, CompilerInput]:
-        inputs: list[CompilerInput] = [
-            t.compiler_input for t in self._imports if not _is_builtin(t.qualified_module_name)
-        ]
+        inputs: list[CompilerInput] = import_analysis.compiler_inputs.copy()
+        inputs = [inp for inp in inputs if not inp.from_builtin]
+
+        # file input for the top level module; it's not in
+        # import_analysis._compiler_inputs
+        assert self.compiler_data.file_input not in inputs  # sanity
         inputs.append(self.compiler_data.file_input)
 
         sources = {}
         for c in inputs:
-            path = os.path.relpath(c.resolved_path)
+            path = safe_relpath(c.resolved_path)
             # note: there should be a 1:1 correspondence between
             # resolved_path and source_id, but for clarity use resolved_path
             # since it corresponds more directly to search path semantics.
@@ -73,7 +75,7 @@ class OutputBundle:
     @cached_property
     def compilation_target_path(self):
         p = PurePath(self.compiler_data.file_input.resolved_path)
-        p = os.path.relpath(p)
+        p = safe_relpath(p)
         return _anonymize(p)
 
     @cached_property
@@ -98,7 +100,7 @@ class OutputBundle:
         # preserve order of original search paths
         tmp = {sp: 0 for sp in search_paths}
 
-        for c in self.compiler_inputs.values():
+        for c in self.source_codes.values():
             ok = False
             # recover the search path that was used for this CompilerInput.
             # note that it is not sufficient to thread the "search path that
@@ -121,7 +123,7 @@ class OutputBundle:
         sps = [sp for sp, count in tmp.items() if count > 0]
         assert len(sps) > 0
 
-        return [_anonymize(os.path.relpath(sp)) for sp in sps]
+        return [_anonymize(safe_relpath(sp)) for sp in sps]
 
 
 class OutputBundleWriter:
@@ -134,6 +136,11 @@ class OutputBundleWriter:
 
     def write_sources(self, sources: dict[str, CompilerInput]):
         raise NotImplementedError(f"write_sources: {self.__class__}")
+
+    def write_storage_layout_overrides(
+        self, compilation_target_path: str, storage_layout_override: JSONInput
+    ):
+        raise NotImplementedError(f"write_storage_layout_overrides: {self.__class__}")
 
     def write_search_paths(self, search_paths: list[str]):
         raise NotImplementedError(f"write_search_paths: {self.__class__}")
@@ -159,8 +166,12 @@ class OutputBundleWriter:
         self.write_compilation_target([self.bundle.compilation_target_path])
         self.write_search_paths(self.bundle.used_search_paths)
         self.write_settings(self.compiler_data.original_settings)
-        self.write_integrity(self.bundle.compilation_target.integrity_sum)
-        self.write_sources(self.bundle.compiler_inputs)
+        self.write_integrity(self.compiler_data.integrity_sum)
+        self.write_sources(self.bundle.source_codes)
+        if self.compiler_data.storage_layout_override is not None:
+            self.write_storage_layout_overrides(
+                self.bundle.compilation_target_path, self.compiler_data.storage_layout_override
+            )
 
 
 class SolcJSONWriter(OutputBundleWriter):
@@ -175,6 +186,15 @@ class SolcJSONWriter(OutputBundleWriter):
             out[path] = {"content": c.contents, "sha256sum": c.sha256sum}
 
         self._output["sources"].update(out)
+
+    def write_storage_layout_overrides(
+        self, compilation_target_path: str, storage_layout_override: JSONInput
+    ):
+        # TODO: generalize to multiple files
+        ret = {}
+        path = _anonymize(str(storage_layout_override.path))
+        ret[compilation_target_path] = {path: storage_layout_override.data}
+        self._output["storage_layout_overrides"] = ret
 
     def write_search_paths(self, search_paths: list[str]):
         self._output["settings"]["search_paths"] = search_paths
@@ -194,7 +214,7 @@ class SolcJSONWriter(OutputBundleWriter):
 
     def write_compilation_target(self, targets: list[str]):
         for target in targets:
-            self._output["settings"]["outputSelection"][target] = "*"
+            self._output["settings"]["outputSelection"][target] = ["*"]
 
     def write_version(self, version):
         self._output["compiler_version"] = version
@@ -237,6 +257,15 @@ class VyperArchiveWriter(OutputBundleWriter):
     def write_sources(self, sources: dict[str, CompilerInput]):
         for path, c in sources.items():
             self.archive.writestr(_anonymize(path), c.contents)
+
+    def write_storage_layout_overrides(
+        self, compilation_target_path: str, storage_layout_override: JSONInput
+    ):
+        path = _anonymize(str(storage_layout_override.path))
+        self.archive.writestr(path, storage_layout_override.contents)
+        self.archive.writestr(
+            "MANIFEST/storage_layout.json", json.dumps({compilation_target_path: path})
+        )
 
     def write_search_paths(self, search_paths: list[str]):
         self.archive.writestr("MANIFEST/searchpaths", "\n".join(search_paths))

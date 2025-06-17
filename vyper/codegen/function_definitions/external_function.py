@@ -84,7 +84,7 @@ def _generate_kwarg_handlers(
 
         # ensure calldata is at least of minimum length
         args_abi_t = calldata_args_t.abi_type
-        calldata_min_size = args_abi_t.min_size() + 4
+        calldata_min_size = args_abi_t.static_size() + 4
 
         # TODO optimize make_setter by using
         # TupleT(list(arg.typ for arg in calldata_kwargs + default_kwargs))

@@ -440,3 +440,26 @@ exports: lib1.__interface__
     # call `c.__default__()`
     env.message_call(c.address)
     assert c.counter() == 6
+
+
+def test_inline_interface_export(make_input_bundle, get_contract):
+    lib1 = """
+interface IAsset:
+    def asset() -> address: view
+
+implements: IAsset
+
+@external
+@view
+def asset() -> address:
+    return self
+    """
+    main = """
+import lib1
+
+exports: lib1.IAsset
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    c = get_contract(main, input_bundle=input_bundle)
+
+    assert c.asset() == c.address

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 import argparse
+import functools
+import inspect
 import json
 import os
 import sys
-import warnings
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Optional, Set, TypeVar
+from typing import Any, Optional
 
 import vyper
 import vyper.codegen.ir_node as ir_node
@@ -15,10 +16,10 @@ from vyper.cli.compile_archive import NotZipInput, compile_from_zip
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
 from vyper.typing import ContractPath, OutputFormats
+from vyper.utils import uniq
+from vyper.warnings import warnings_filter
 
-T = TypeVar("T")
-
-format_options_help = """Format to print, one or more of:
+format_options_help = """Format to print, one or more of (comma-separated):
 bytecode (default) - Deployable bytecode
 bytecode_runtime   - Bytecode at runtime
 blueprint_bytecode - Deployment bytecode for an ERC-5202 compatible blueprint
@@ -34,6 +35,8 @@ combined_json      - All of the above format options combined as single JSON out
 layout             - Storage layout of a Vyper contract
 ast                - AST (not yet annotated) in JSON format
 annotated_ast      - Annotated AST in JSON format
+cfg                - Control flow graph of deployable bytecode
+cfg_runtime        - Control flow graph of runtime bytecode
 interface          - Vyper interface of a contract
 external_interface - External interface of a contract, used for outside contract calls
 opcodes            - List of opcodes as a string
@@ -41,9 +44,13 @@ opcodes_runtime    - List of runtime opcodes as a string
 ir                 - Intermediate representation in list format
 ir_json            - Intermediate representation in JSON format
 ir_runtime         - Intermediate representation of runtime bytecode in list format
+bb                 - Basic blocks of Venom IR for deployable bytecode
+bb_runtime         - Basic blocks of Venom IR for runtime bytecode
 asm                - Output the EVM assembly of the deployable bytecode
+integrity          - Output the integrity hash of the source code
 archive            - Output the build as an archive file
 solc_json          - Output the build in solc json format
+settings           - Output the settings for a given build in json format
 """
 
 combined_json_outputs = [
@@ -57,6 +64,7 @@ combined_json_outputs = [
     "method_identifiers",
     "userdoc",
     "devdoc",
+    "settings_dict",
 ]
 
 
@@ -93,8 +101,6 @@ def _cli_helper(f, output_formats, compiled):
 
 
 def _parse_args(argv):
-    warnings.simplefilter("always")
-
     if "--standard-json" in argv:
         argv.remove("--standard-json")
         vyper_json._parse_args(argv)
@@ -120,8 +126,7 @@ def _parse_args(argv):
     )
     parser.add_argument(
         "--evm-version",
-        help=f"Select desired EVM version (default {evm.DEFAULT_EVM_VERSION}). "
-        "note: cancun support is EXPERIMENTAL",
+        help=f"Select desired EVM version (default {evm.DEFAULT_EVM_VERSION})",
         choices=list(evm.EVM_VERSIONS),
         dest="evm_version",
     )
@@ -163,18 +168,28 @@ def _parse_args(argv):
         "--hex-ir", help="Represent integers as hex values in the IR", action="store_true"
     )
     parser.add_argument(
-        "--path", "-p", help="Set the root path for contract imports", action="append", dest="paths"
+        "--path",
+        "-p",
+        help="Add a path to the compiler's search path",
+        action="append",
+        dest="paths",
     )
+    parser.add_argument(
+        "--disable-sys-path", help="Disable the use of sys.path", action="store_true"
+    )
+
     parser.add_argument("-o", help="Set the output path", dest="output_path")
     parser.add_argument(
         "--experimental-codegen",
-        help="The compiler use the new IR codegen. This is an experimental feature.",
+        "--venom-experimental",
+        help="The compiler uses the new IR codegen. This is an experimental feature.",
         action="store_true",
         dest="experimental_codegen",
     )
     parser.add_argument("--enable-decimals", help="Enable decimals", action="store_true")
+
     parser.add_argument(
-        "--disable-sys-path", help="Disable the use of sys.path", action="store_true"
+        "-W", help="Control warnings", dest="warnings_control", choices=["error", "none"]
     )
 
     args = parser.parse_args(argv)
@@ -207,6 +222,7 @@ def _parse_args(argv):
 
     settings = Settings()
 
+    # TODO: refactor to something like Settings.from_args()
     if args.no_optimize:
         settings.optimize = OptimizationLevel.NONE
     elif args.optimize is not None:
@@ -238,6 +254,7 @@ def _parse_args(argv):
         settings,
         args.storage_layout,
         args.no_bytecode_metadata,
+        args.warnings_control,
     )
 
     mode = "w"
@@ -251,20 +268,6 @@ def _parse_args(argv):
         # https://stackoverflow.com/a/54073813
         with os.fdopen(sys.stdout.fileno(), mode, closefd=False) as f:
             _cli_helper(f, output_formats, compiled)
-
-
-def uniq(seq: Iterable[T]) -> Iterator[T]:
-    """
-    Yield unique items in ``seq`` in order.
-    """
-    seen: Set[T] = set()
-
-    for x in seq:
-        if x in seen:
-            continue
-
-        seen.add(x)
-        yield x
 
 
 def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
@@ -295,6 +298,21 @@ def get_search_paths(paths: list[str] = None, include_sys_path=True) -> list[Pat
     return search_paths
 
 
+def _apply_warnings_filter(func):
+    @functools.wraps(func)
+    def inner(*args, **kwargs):
+        # find "warnings_control" argument
+        ba = inspect.signature(func).bind(*args, **kwargs)
+        ba.apply_defaults()
+
+        warnings_control = ba.arguments["warnings_control"]
+        with warnings_filter(warnings_control):
+            return func(*args, **kwargs)
+
+    return inner
+
+
+@_apply_warnings_filter
 def compile_files(
     input_files: list[str],
     output_formats: OutputFormats,
@@ -304,6 +322,7 @@ def compile_files(
     settings: Optional[Settings] = None,
     storage_layout_paths: list[str] = None,
     no_bytecode_metadata: bool = False,
+    warnings_control: Optional[str] = None,
 ) -> dict:
     search_paths = get_search_paths(paths, include_sys_path)
     input_bundle = FilesystemInputBundle(search_paths)
@@ -326,6 +345,7 @@ def compile_files(
         "ast": "ast_dict",
         "annotated_ast": "annotated_ast_dict",
         "ir_json": "ir_dict",
+        "settings": "settings_dict",
     }
     final_formats = [translate_map.get(i, i) for i in output_formats]
 
@@ -349,7 +369,7 @@ def compile_files(
             # we allow this instead of requiring a different mode (like
             # `--zip`) so that verifier pipelines do not need a different
             # workflow for archive files and single-file contracts.
-            output = compile_from_zip(file_name, output_formats, settings, no_bytecode_metadata)
+            output = compile_from_zip(file_name, final_formats, settings, no_bytecode_metadata)
             ret[file_path] = output
             continue
         except NotZipInput:
@@ -365,8 +385,7 @@ def compile_files(
         storage_layout_override = None
         if storage_layout_paths:
             storage_file_path = storage_layout_paths.pop(0)
-            with open(storage_file_path) as sfh:
-                storage_layout_override = json.load(sfh)
+            storage_layout_override = input_bundle.load_json_file(storage_file_path)
 
         output = vyper.compile_from_file_input(
             file,

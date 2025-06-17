@@ -80,6 +80,25 @@ def test() -> Bytes[1]:
     (
         """
 @external
+def test() -> Bytes[2]:
+    a: Bytes[2] = x"abc"  # non-hex nibbles
+    return a
+    """,
+        SyntaxException,
+    ),
+    (
+        """
+@external
+def test() -> Bytes[10]:
+    # GH issue 4405 example 1
+    a: Bytes[10] = x x x x x x"61"  # messed up hex prefix
+    return a
+    """,
+        SyntaxException,
+    ),
+    (
+        """
+@external
 def foo():
     a: Bytes = b"abc"
     """,
@@ -96,6 +115,24 @@ def test_bytes_fail(bad_code):
     else:
         with pytest.raises(TypeMismatch):
             compiler.compile_code(bad_code)
+
+
+@pytest.mark.xfail
+def test_hexbytes_offset():
+    good_code = """
+    event X:
+    a: Bytes[2]
+
+@deploy
+def __init__():
+    # GH issue 4405, example 1
+    #
+    # log changes offset of HexString, and the hex_string_locations tracked
+    # location is incorrect when visiting ast
+    log X(a = x"6161")
+    """
+    # move this to valid list once it passes.
+    assert compiler.compile_code(good_code) is not None
 
 
 valid_list = [
