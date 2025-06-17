@@ -36,12 +36,6 @@ ENV/
 htmlcov/
 coverage.xml
 
-# sphinx
-docs/_build/
-docs/modules.rst
-docs/vyper.rst
-docs/vyper.*.rst
-
 # IDEs
 .idea/
 .vscode/
