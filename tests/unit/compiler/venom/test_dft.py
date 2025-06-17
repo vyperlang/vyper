@@ -1,15 +1,12 @@
-import pytest
-
-from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRLabel
-from vyper.venom.parser import parse_venom
-from vyper.venom.passes import DFTPass
 from tests.venom_utils import PrePostChecker
+from vyper.venom.passes import DFTPass
 
 _check_pre_post = PrePostChecker([DFTPass])
 
+
 def _check_no_change(pre):
     _check_pre_post(pre, pre)
+
 
 def test_dft():
     """
