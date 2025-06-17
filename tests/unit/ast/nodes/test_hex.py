@@ -31,9 +31,6 @@ def foo():
 foo: constant(bytes20) = 0x6b175474e89094c44da98b954eedeac495271d0F
     """,
     """
-foo: constant(bytes4) = 0x12_34_56
-    """,
-    """
 foo: constant(bytes4) = 0X12345678
     """,
 ]

@@ -500,6 +500,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         # deduce non base-10 types based on prefix
         if value.lower()[:2] == "0x":
+            # ignore underscores
+            value = value.replace("_", "")
             if len(value) % 2:
                 raise SyntaxException(
                     "Hex notation requires an even number of digits",
@@ -512,6 +514,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         elif value.lower()[:2] == "0b":
             node.ast_type = "Bytes"
+            # ignore underscores
+            value = value.replace("_", "")
             mod = (len(value) - 2) % 8
             if mod:
                 raise SyntaxException(
