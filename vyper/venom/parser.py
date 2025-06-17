@@ -26,7 +26,10 @@ VENOM_GRAMMAR = """
     # Allow multiple comment styles
     COMMENT: ";" /[^\\n]*/ | "//" /[^\\n]*/ | "#" /[^\\n]*/
 
-    start: function* data_segment?
+    start: (global_label | function)* data_segment?
+
+    # Global label definitions with optional address override
+    global_label: LABEL_IDENT ":" CONST
 
     # TODO: consider making entry block implicit, e.g.
     # `"{" instruction+ block* "}"`
@@ -36,7 +39,7 @@ VENOM_GRAMMAR = """
     data_section: "dbsection" LABEL_IDENT ":" data_item+
     data_item: "db" (HEXSTR | LABEL)
 
-    block: LABEL_IDENT ":" "\\n" statement*
+    block: LABEL_IDENT ":" ("@" CONST)? "\\n" statement*
 
     statement: (instruction | assignment) "\\n"
     assignment: VAR_IDENT "=" expr
@@ -106,21 +109,53 @@ class _DataSegment(_TypedItem):
     pass
 
 
+class _GlobalLabel(_TypedItem):
+    pass
+
+
 class VenomTransformer(Transformer):
     def start(self, children) -> IRContext:
         ctx = IRContext()
-        if len(children) > 0 and isinstance(children[-1], _DataSegment):
-            ctx.data_segment = children.pop().children
+        
+        # Separate global labels, functions, and data segments
+        global_labels = []
+        funcs = []
+        data_segment = None
+        
+        for child in children:
+            if isinstance(child, _GlobalLabel):
+                global_labels.append(child)
+            elif isinstance(child, _DataSegment):
+                data_segment = child
+            else:
+                funcs.append(child)
+        
+        # Process global labels
+        for global_label in global_labels:
+            name, address = global_label.children
+            ctx.add_global_label(name, address)
+        
+        # Process data segment
+        if data_segment:
+            ctx.data_segment = data_segment.children
 
-        funcs = children
+        # Process functions
         for fn_name, blocks in funcs:
             fn = ctx.create_function(fn_name)
             if ctx.entry_function is None:
                 ctx.entry_function = fn
             fn._basic_block_dict.clear()
 
-            for block_name, instructions in blocks:
-                bb = IRBasicBlock(IRLabel(block_name, True), fn)
+            for block_data in blocks:
+                if len(block_data) == 2:
+                    # No address override: (block_name, instructions)
+                    block_name, instructions = block_data
+                    bb = IRBasicBlock(IRLabel(block_name, True), fn)
+                else:
+                    # With address override: (block_name, address, instructions)
+                    block_name, address, instructions = block_data
+                    bb = IRBasicBlock(IRLabel(block_name, True, address), fn)
+                
                 fn.append_basic_block(bb)
 
                 for instruction in instructions:
@@ -132,7 +167,11 @@ class VenomTransformer(Transformer):
 
         return ctx
 
-    def function(self, children) -> tuple[str, list[tuple[str, list[IRInstruction]]]]:
+    def global_label(self, children) -> _GlobalLabel:
+        name, address_literal = children
+        return _GlobalLabel([name, address_literal.value])
+
+    def function(self, children) -> tuple[str, list]:
         name, *blocks = children
         return name, blocks
 
@@ -158,9 +197,19 @@ class VenomTransformer(Transformer):
         item = item.replace("_", "")
         return DataItem(bytes.fromhex(item))
 
-    def block(self, children) -> tuple[str, list[IRInstruction]]:
-        label, *instructions = children
-        return label, instructions
+    def block(self, children) -> tuple:
+        label = children[0]
+        
+        # Find where the instructions start
+        if len(children) >= 3 and isinstance(children[1], IRLiteral):
+            # With address override: label, address_literal, *instructions  
+            address_literal = children[1]
+            instructions = children[2:]
+            return (label, address_literal.value, instructions)
+        else:
+            # No address override: label, *instructions
+            instructions = children[1:]
+            return (label, instructions)
 
     def assignment(self, children) -> IRInstruction:
         to, value = children

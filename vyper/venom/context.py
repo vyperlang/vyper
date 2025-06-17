@@ -34,6 +34,7 @@ class IRContext:
     functions: dict[IRLabel, IRFunction]
     entry_function: Optional[IRFunction]
     constants: dict[str, int]  # globally defined constants
+    global_labels: dict[str, int]  # globally defined labels with addresses
     data_segment: list[DataSection]
     last_label: int
     last_variable: int
@@ -43,6 +44,7 @@ class IRContext:
         self.entry_function = None
         self.data_segment = []
         self.constants = {}
+        self.global_labels = {}
 
         self.last_label = 0
         self.last_variable = 0
@@ -101,6 +103,10 @@ class IRContext:
     def add_constant(self, name: str, value: int) -> None:
         assert name not in self.constants
         self.constants[name] = value
+
+    def add_global_label(self, name: str, address: int) -> None:
+        assert name not in self.global_labels
+        self.global_labels[name] = address
 
     def as_graph(self) -> str:
         s = ["digraph G {"]

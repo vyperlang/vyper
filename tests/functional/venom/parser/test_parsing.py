@@ -366,3 +366,48 @@ def test_phis():
 
     parsed_fn = next(iter(ctx.functions.values()))
     assert_bb_eq(parsed_fn.get_basic_block(expect_bb.label.name), expect_bb)
+
+
+def test_global_vars():
+    source = """
+
+    global_var: 10
+
+    function main {
+        main:
+            %1 = 1
+            %2 = 2
+            %3 = add %1, %2
+    }
+    """
+    ctx = parse_venom(source)
+
+    # assert_ctx_eq(ctx, expected_ctx)
+
+
+def test_labels_with_addresses():
+    source = """
+    my_global: 0x1000
+
+    function main {
+        main: @0x20
+            %1 = 1
+            jmp @other_block
+        other_block:
+            %2 = 2
+            %3 = add %1, %2
+    }
+    """
+    ctx = parse_venom(source)
+    
+    assert "my_global" in ctx.global_labels
+    assert ctx.global_labels["my_global"] == 0x1000
+    
+    main_fn = ctx.get_function(IRLabel("main"))
+    assert main_fn is not None
+    
+    main_bb = main_fn.get_basic_block("main")
+    assert main_bb.label.address == 0x20
+    
+    other_bb = main_fn.get_basic_block("other_block")
+    assert other_bb.label.address is None
