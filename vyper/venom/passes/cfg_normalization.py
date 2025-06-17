@@ -4,7 +4,7 @@ from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.passes.base_pass import IRPass
 
 
-class NormalizationPass(IRPass):
+class CFGNormalization(IRPass):
     """
     This pass splits basic blocks when there are multiple conditional predecessors.
     The code generator expect a normalized CFG, that has the property that
