@@ -117,10 +117,20 @@ def foo() -> uint256:
 @internal
 def faa() -> uint256:
     return 76
+
+@deploy
+def __init__():
+    self.library_from_ctor()
+
+@internal
+def library_from_ctor():
+    pass
         """
 
     code_b = """
 import A
+
+initializes: A
 
 @internal
 def foo() -> uint256:
@@ -131,6 +141,24 @@ def bar():
     self.foo()
     A.foo()
     assert 1 != 12
+    self.ctor_and_runtime()
+
+@internal
+def only_from_ctor():
+    self.ctor_recursive()
+
+@internal
+def ctor_recursive():
+    self.ctor_and_runtime()
+
+@internal
+def ctor_and_runtime():
+    pass
+
+@deploy
+def __init__():
+    self.only_from_ctor()
+    A.__init__()
         """
 
     input_bundle = make_input_bundle({"A.vy": code_a, "B.vy": code_b})
@@ -143,18 +171,30 @@ def bar():
 
     assert "foo (0)" in function_infos
     assert "foo (1)" in function_infos
-    assert "bar (2)" in function_infos
+    assert "ctor_and_runtime (2)" in function_infos
+    assert "bar (3)" in function_infos
+    assert "ctor_recursive (5)" in function_infos
+    assert "only_from_ctor (6)" in function_infos
+    assert "library_from_ctor (7)" in function_infos
     # faa is unreachable, should not be in metadata or bytecode
     assert not any("faa" in key for key in function_infos.keys())
 
     assert function_infos["foo (0)"]["function_id"] == 0
     assert function_infos["foo (1)"]["function_id"] == 1
-    assert function_infos["bar (2)"]["function_id"] == 2
+    assert function_infos["ctor_and_runtime (2)"]["function_id"] == 2
+    assert function_infos["bar (3)"]["function_id"] == 3
+    assert function_infos["__init__ (4)"]["function_id"] == 4
+    assert function_infos["ctor_recursive (5)"]["function_id"] == 5
+    assert function_infos["only_from_ctor (6)"]["function_id"] == 6
+    assert function_infos["library_from_ctor (7)"]["function_id"] == 7
+    assert function_infos["__init__ (8)"]["function_id"] == 8
 
     assert function_infos["foo (0)"]["module_path"] == "B.vy"
     assert function_infos["foo (1)"]["module_path"] == "A.vy"
-    assert function_infos["bar (2)"]["module_path"] == "B.vy"
+    assert function_infos["bar (3)"]["module_path"] == "B.vy"
+    assert function_infos["__init__ (4)"]["module_path"] == "B.vy"
+    assert function_infos["__init__ (8)"]["module_path"] == "A.vy"
 
     assert function_infos["foo (0)"]["source_id"] == input_bundle.load_file("B.vy").source_id
     assert function_infos["foo (1)"]["source_id"] == input_bundle.load_file("A.vy").source_id
-    assert function_infos["bar (2)"]["source_id"] == input_bundle.load_file("B.vy").source_id
+    assert function_infos["bar (3)"]["source_id"] == input_bundle.load_file("B.vy").source_id
