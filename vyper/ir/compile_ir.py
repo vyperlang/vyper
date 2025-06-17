@@ -59,8 +59,6 @@ def reset_symbols():
     _next_symbol = 0
 
 
-
-
 def is_symbol(i):
     return isinstance(i, str) and i.startswith("_sym_")
 
@@ -781,14 +779,6 @@ def note_line_num(line_number_map, pc, item):
             line_number_map["error_map"][pc] = item.error_msg
 
 
-
-def note_breakpoint(line_number_map, pc, item):
-    # Record line number attached to pc
-    if item == "DEBUG":
-        # Create line number breakpoint.
-        line_number_map["breakpoints"].add(item.lineno + 1)
-
-
 _TERMINAL_OPS = ("JUMP", "RETURN", "REVERT", "STOP", "INVALID")
 
 
@@ -1303,7 +1293,6 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
         if to_skip > 0:
             to_skip -= 1
             continue
-
 
         elif is_symbol(item):
             # push a symbol to stack

@@ -170,7 +170,6 @@ OPCODES: OpcodeMap = {
     "STATICCALL": (0xFA, 6, 1, 2100),
     "REVERT": (0xFD, 2, 0, 0),
     "INVALID": (0xFE, 0, 0, 0),
-    "DEBUG": (0xA5, 1, 0, 0),
     "BREAKPOINT": (0xA6, 0, 0, 0),
     "TLOAD": (0x5C, 1, 1, (None, None, None, 100, 100)),
     "TSTORE": (0x5D, 2, 0, (None, None, None, 100, 100)),
