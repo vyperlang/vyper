@@ -82,9 +82,6 @@ def resolve_symbols(
         elif item in ("JUMPI", "JUMPDEST"):
             source_map["pc_jump_map"][pc] = "-"
 
-        if item == "DEBUG":
-            continue  # "debug" opcode does not go into bytecode
-
         if isinstance(item, CONST):
             continue  # CONST declarations do not go into bytecode
 
@@ -146,16 +143,10 @@ def note_line_num(line_number_map, pc, item):
         if item.error_msg is not None:
             line_number_map["error_map"][pc] = item.error_msg
 
-    note_breakpoint(line_number_map, pc, item)
-
 
 # NOTE: this is dead code, we don't emit DEBUG anymore.
 def note_breakpoint(line_number_map, pc, item):
     # Record line number attached to pc
     if item == "DEBUG":
-        # Is PC debugger, create PC breakpoint.
-        if item.pc_debugger:
-            line_number_map["pc_breakpoints"].add(pc)
         # Create line number breakpoint.
-        else:
-            line_number_map["breakpoints"].add(item.lineno + 1)
+        line_number_map["breakpoints"].add(item.lineno + 1)
