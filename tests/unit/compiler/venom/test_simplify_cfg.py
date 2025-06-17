@@ -14,11 +14,11 @@ def test_phi_reduction_after_block_pruning():
     _global:
         jmp @then
     then:
-        %1 = param
+        %1 = source
         jmp @join
     else:
         ; dead block
-        %2 = param
+        %2 = source
         jmp @join
     join:
         %3 = phi @then, %1, @else, %2
@@ -26,7 +26,7 @@ def test_phi_reduction_after_block_pruning():
     """
     post = """
     _global:
-        %1 = param
+        %1 = source
         %3 = %1
         sink %3
     """
@@ -41,8 +41,8 @@ def test_block_merging():
     """
     pre = """
     _global:
-        %1 = param
-        %2 = param
+        %1 = source
+        %2 = source
         jmp @b
     a:
         ; demonstrate order of basic blocks
@@ -58,8 +58,8 @@ def test_block_merging():
     """
     post = """
     _global:
-        %1 = param
-        %2 = param
+        %1 = source
+        %2 = source
         %4 = %2
         sstore 1, %4
         %3 = %1
