@@ -59,10 +59,6 @@ def reset_symbols():
     _next_symbol = 0
 
 
-def mkdebug(pc_debugger, ast_source):
-    i = Instruction("DEBUG", ast_source)
-    i.pc_debugger = pc_debugger
-    return [i]
 
 
 def is_symbol(i):
@@ -194,8 +190,6 @@ class Instruction(str):
 
     def __init__(self, sstr, ast_source=None, error_msg=None):
         self.error_msg = error_msg
-        self.pc_debugger = False
-
         self.ast_source = ast_source
 
 
@@ -767,9 +761,6 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     elif code.value == "exit_to":
         raise CodegenPanic("exit_to not implemented yet!")
 
-    # inject debug opcode.
-    elif code.value == "pc_debugger":
-        return mkdebug(pc_debugger=True, ast_source=code.ast_source)
     else:  # pragma: no cover
         raise ValueError(f"Weird code element: {type(code)} {code}")
 
@@ -789,18 +780,13 @@ def note_line_num(line_number_map, pc, item):
         if item.error_msg is not None:
             line_number_map["error_map"][pc] = item.error_msg
 
-    note_breakpoint(line_number_map, pc, item)
 
 
 def note_breakpoint(line_number_map, pc, item):
     # Record line number attached to pc
     if item == "DEBUG":
-        # Is PC debugger, create PC breakpoint.
-        if item.pc_debugger:
-            line_number_map["pc_breakpoints"].add(pc)
         # Create line number breakpoint.
-        else:
-            line_number_map["breakpoints"].add(item.lineno + 1)
+        line_number_map["breakpoints"].add(item.lineno + 1)
 
 
 _TERMINAL_OPS = ("JUMP", "RETURN", "REVERT", "STOP", "INVALID")
@@ -1226,9 +1212,6 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
     # (i.e. JUMPDEST locations) to actual code locations
     for i, item in enumerate(assembly):
         note_line_num(line_number_map, pc, item)
-        if item == "DEBUG":
-            continue  # skip debug
-
         # update pc_jump_map
         if item == "JUMP":
             last = assembly[i - 1]
@@ -1321,8 +1304,6 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
             to_skip -= 1
             continue
 
-        if item in ("DEBUG",):
-            continue  # skippable opcodes
 
         elif is_symbol(item):
             # push a symbol to stack
