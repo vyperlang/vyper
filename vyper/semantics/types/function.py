@@ -340,6 +340,11 @@ class ContractFunctionT(VyperType):
         # guaranteed by parse_decorators and disallowing nonreentrant pragma
         assert decorators.reentrant_node is None  # sanity check
 
+        if decorators.raw_return_node is not None:
+            raise FunctionDeclarationException(
+                "`@raw_return` not allowed in interfaces", decorators.raw_return_node
+            )
+
         # it's redundant to specify visibility in vyi - always should be external
         function_visibility = decorators.visibility
         if function_visibility is None:
