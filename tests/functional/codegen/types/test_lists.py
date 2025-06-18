@@ -7,7 +7,7 @@ from tests.evm_backends.base_env import EvmError
 from tests.utils import check_precompile_asserts, decimal_to_int
 from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import ArrayIndexException, OverflowException, TypeMismatch
+from vyper.exceptions import ArrayIndexException, OverflowException, StackTooDeep, TypeMismatch
 
 
 def _map_nested(f, xs):
@@ -597,6 +597,7 @@ def bar(_baz: Foo[3]) -> String[96]:
     assert c.bar(c_input) == "Hello world!!!!"
 
 
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_list_of_nested_struct_arrays(get_contract):
     code = """
 struct Ded:

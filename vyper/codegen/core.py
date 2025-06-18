@@ -225,9 +225,13 @@ def _prefer_copy_maxbound_heuristic(dst, src, item_size):
     # a heuristic - it's cheaper to just copy the extra buffer bytes
     # than calculate the number of bytes
     # copy(dst, src, 32 + itemsize*load(src))
+    # DUP<src> MLOAD PUSH1 ITEMSIZE MUL PUSH1 32 ADD (3 * 4 + 8 = 20 gas | 8 bytes)
+    # or if ITEM_SIZE == 1:
+    # DUP<src> MLOAD                    PUSH1 32 ADD (3 * 4 = 12 gas | 5 bytes)
     # =>
     # copy(dst, src, bound)
-    # (32 + itemsize*(load(src))) costs 4*3 + 8 - 3 gas over just `bound`
+    # PUSH1 BOUND (3 gas | 2 bytes)
+    # (32 + itemsize*(load(src))) costs 3 * 4 [+ 8] - 3 gas over just `bound`
     length_calc_cost = 4 * 3 - 3
     length_calc_cost += 8 * (item_size != 1)  # PUSH MUL
 
@@ -257,6 +261,9 @@ def _prefer_copy_maxbound_heuristic(dst, src, item_size):
     # or not.
     # (dload(src) expands to `codecopy(0, add(CODE_END, src), 32); mload(0)`,
     # and we have already accounted for an `mload(ptr)`).
+    # PUSH1 32 DUP2 PUSH CODE_END ADD PUSH0 CODECOPY (3 * 4 + 2 + 6 = 20 gas)
+    # or if src is a literal:
+    # PUSH1 32 PUSH OFFSET            PUSH0 CODECOPY (3 * 2 + 2 + 6 = 14 gas)
     # for simplicity, skip the 14 case.
     if src.location == DATA and copy_cost <= (20 + length_calc_cost):
         return True
