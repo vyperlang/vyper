@@ -4,16 +4,18 @@ from typing import Any, List
 
 import vyper.ast as vy_ast
 from vyper.codegen import core, jumptable_utils
+from vyper.codegen.context import Constancy, Context
 from vyper.codegen.core import shr
 from vyper.codegen.function_definitions import (
     generate_ir_for_external_function,
     generate_ir_for_internal_function,
 )
 from vyper.codegen.ir_node import IRnode
+from vyper.codegen.memory_allocator import MemoryAllocator
+from vyper.codegen.stmt import generate_variable_initializations
 from vyper.compiler.settings import _is_debug_mode
-from vyper.exceptions import CompilerPanic
 from vyper.semantics.types.module import ModuleT
-from vyper.utils import OrderedSet, method_id_int
+from vyper.utils import MemoryPositions, OrderedSet, method_id_int
 
 
 # calculate globally reachable functions to see which
@@ -510,9 +512,22 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
         deploy_code.extend(ctor_internal_func_irs)
 
     else:
-        if immutables_len != 0:  # pragma: nocover
-            raise CompilerPanic("unreachable")
-        deploy_code.append(["deploy", 0, runtime, 0])
+        # Generate initialization code for variables even without explicit constructor
+        # Create a minimal constructor context
+        memory_allocator = MemoryAllocator(MemoryPositions.RESERVED_MEMORY)
+        context = Context(
+            vars_=None,
+            module_ctx=module_t,
+            memory_allocator=memory_allocator,
+            constancy=Constancy.Mutable,
+            is_ctor_context=True,
+        )
+
+        init_ir = generate_variable_initializations(module_t._module, context)
+        deploy_code.append(init_ir)
+
+        init_mem_used = context.memory_allocator.next_mem
+        deploy_code.append(["deploy", init_mem_used, runtime, immutables_len])
 
     # compile all remaining internal functions so that _ir_info is populated
     # (whether or not it makes it into the final IR artifact)
