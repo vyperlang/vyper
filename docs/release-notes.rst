@@ -16,6 +16,48 @@ Release Notes
     for advisory links:
     :'<,'>s/\v(https:\/\/github.com\/vyperlang\/vyper\/security\/advisories\/)([-A-Za-z0-9]+)/(`\2 <\1\2>`_)/g
 
+v0.4.3 (nickname TBD)
+******************************
+
+Date released: 2025-06-19
+=========================
+
+v0.4.3 introduces the ``@raw_return`` decorator which allows contracts to return bytes directly without ABI-encoding, which enables new proxy contract use cases. The default EVM version has been updated to Prague, and several improvements have been made to the Venom optimizer pipeline.
+
+Breaking changes
+----------------
+* feat[tool]!: make ``prague`` the default evm version (`#4633 <https://github.com/vyperlang/vyper/pull/4633>`_)
+
+Other new features and improvements
+-----------------------------------
+* feat[lang]: ``@raw_return`` decorator (`#4568 <https://github.com/vyperlang/vyper/pull/4568>`_)
+* fix[lang]: disallow ``@raw_return`` in interfaces (`#4700 <https://github.com/vyperlang/vyper/pull/4700>`_)
+
+Tooling / CLI
+-------------
+* fix[tool]: fix invalid quotes in ``-f cfg`` output (`#4672 <https://github.com/vyperlang/vyper/pull/4672>`_)
+* fix[tool]: add metadata for ctor functions (`#4668 <https://github.com/vyperlang/vyper/pull/4668>`_)
+
+
+Venom improvements
+------------------
+* fix[venom]: fix incorrect write reordering in ``DFTPass`` (`#4695 <https://github.com/vyperlang/vyper/pull/4695>`_)
+* feat[venom]: rewrite grammar to LALR(1) (`#4687 <https://github.com/vyperlang/vyper/pull/4687>`_)
+* fix[venom]: reduce single-use expansion (`#4667 <https://github.com/vyperlang/vyper/pull/4667>`_)
+* fix[venom]: fix function inliner ``clone`` function (`#4696 <https://github.com/vyperlang/vyper/pull/4696>`_)
+
+Docs
+----
+* feat[docs]: add docs for ``@raw_return`` decorator (`#4699 <https://github.com/vyperlang/vyper/pull/4699>`_)
+* fix[docs]: clarify ``n_slots`` requirement in custom layout file (`#4641 <https://github.com/vyperlang/vyper/pull/4641>`_)
+* fix[docs]: fix build status in README.md (`#4680 <https://github.com/vyperlang/vyper/pull/4680>`_)
+* chore[docs]: document the copy maxbound heuristic reasoning (`#4593 <https://github.com/vyperlang/vyper/pull/4593>`_)
+
+Test suite and CI improvements
+------------------------------
+* refactor[test]: rename venom ``param`` instruction in tests (`#4689 <https://github.com/vyperlang/vyper/pull/4689>`_)
+* chore[ci]: update gitignore (`#4690 <https://github.com/vyperlang/vyper/pull/4690>`_)
+
 v0.4.2 ("Lernaean Hydra")
 *************************
 
