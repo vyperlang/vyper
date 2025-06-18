@@ -23,6 +23,26 @@ def test_single_bb():
     assert_ctx_eq(parsed_ctx, expected_ctx)
 
 
+def test_hex_literal():
+    source = """
+    function main {
+        main:
+            mstore 0, 0x7  ; test odd-length literal
+            mstore 1, 0x03
+    }
+    """
+
+    parsed_ctx = parse_venom(source)
+
+    expected_ctx = IRContext()
+    expected_ctx.add_function(main_fn := IRFunction(IRLabel("main")))
+    main_bb = main_fn.get_basic_block("main")
+    main_bb.append_instruction("mstore", IRLiteral(7), IRLiteral(0))
+    main_bb.append_instruction("mstore", IRLiteral(3), IRLiteral(1))
+
+    assert_ctx_eq(parsed_ctx, expected_ctx)
+
+
 def test_multi_bb_single_fn():
     source = """
     function start {
@@ -55,7 +75,6 @@ def test_multi_bb_single_fn():
     has_callvalue_bb = IRBasicBlock(IRLabel("has_callvalue"), start_fn)
     start_fn.append_basic_block(has_callvalue_bb)
     has_callvalue_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
-    has_callvalue_bb.append_instruction("stop")
 
     assert_ctx_eq(parsed_ctx, expected_ctx)
 
@@ -132,7 +151,7 @@ def test_multi_function():
     expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
 
     entry_bb = entry_fn.get_basic_block("entry")
-    entry_bb.append_instruction("invoke", IRLabel("check_cv"))
+    entry_bb.append_invoke_instruction([IRLabel("check_cv")], returns=False)
     entry_bb.append_instruction("jmp", IRLabel("wow"))
 
     entry_fn.append_basic_block(wow_bb := IRBasicBlock(IRLabel("wow"), entry_fn))
@@ -152,7 +171,6 @@ def test_multi_function():
 
     check_fn.append_basic_block(value_bb := IRBasicBlock(IRLabel("has_value"), check_fn))
     value_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
-    value_bb.append_instruction("stop")
 
     assert_ctx_eq(parsed_ctx, expected_ctx)
 
@@ -195,7 +213,7 @@ def test_multi_function_and_data():
     expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
 
     entry_bb = entry_fn.get_basic_block("entry")
-    entry_bb.append_instruction("invoke", IRLabel("check_cv"))
+    entry_bb.append_invoke_instruction([IRLabel("check_cv")], returns=False)
     entry_bb.append_instruction("jmp", IRLabel("wow"))
 
     entry_fn.append_basic_block(wow_bb := IRBasicBlock(IRLabel("wow"), entry_fn))
@@ -215,7 +233,6 @@ def test_multi_function_and_data():
 
     check_fn.append_basic_block(value_bb := IRBasicBlock(IRLabel("has_value"), check_fn))
     value_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
-    value_bb.append_instruction("stop")
 
     expected_ctx.data_segment = [
         DataSection(
@@ -313,7 +330,6 @@ def test_phis():
         %50 = 0
         %51 = 0
         revert %51, %50
-        stop
         ; (__main_entry)
     }  ; close function __main_entry
     """

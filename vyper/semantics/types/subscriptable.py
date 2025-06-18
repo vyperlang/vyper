@@ -1,4 +1,3 @@
-import warnings
 from typing import Any, Dict, Optional, Tuple
 
 from vyper import ast as vy_ast
@@ -9,6 +8,7 @@ from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.primitives import IntegerT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.utils import get_index_value, type_from_annotation
+from vyper.warnings import VyperWarning, vyper_warn
 
 
 class _SubscriptableT(VyperType):
@@ -113,7 +113,7 @@ class _SequenceT(_SubscriptableT):
             raise InvalidType("Array length is invalid")
 
         if length >= 2**64:
-            warnings.warn("Use of large arrays can be unsafe!", stacklevel=2)
+            vyper_warn(VyperWarning("Use of large arrays can be unsafe!"))
 
         super().__init__(UINT256_T, value_type)
         self.length = length
@@ -330,6 +330,9 @@ class TupleT(VyperType):
 
     def __init__(self, member_types: Tuple[VyperType, ...]) -> None:
         super().__init__()
+        for mt in member_types:
+            if not mt._as_tuple_member:
+                raise StructureException(f"not a valid tuple member: {mt}")
         self.member_types = member_types
         self.key_type = UINT256_T  # API Compatibility
 

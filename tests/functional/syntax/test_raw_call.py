@@ -99,6 +99,25 @@ def foo(_addr: address):
     """,
         TypeMismatch,
     ),
+    (
+        """
+@pure
+@external
+def foo(a: address):
+    # test staticcall detection from pure function
+    x: Bytes[32] = raw_call(a, b'', max_outsize=32, is_static_call=True)
+    """,
+        StateAccessViolation,
+    ),
+    (
+        """
+@pure
+def foo(a: address):
+    # test staticcall detection from pure function with constant folding
+    x: Bytes[32] = raw_call(a, b'', max_outsize=32, is_static_call=True or False)
+    """,
+        StateAccessViolation,
+    ),
 ]
 
 
