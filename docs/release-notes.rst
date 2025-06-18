@@ -16,8 +16,8 @@ Release Notes
     for advisory links:
     :'<,'>s/\v(https:\/\/github.com\/vyperlang\/vyper\/security\/advisories\/)([-A-Za-z0-9]+)/(`\2 <\1\2>`_)/g
 
-v0.4.3 (nickname TBD)
-******************************
+v0.4.3 ("Buttermilk Racer")
+***************************
 
 Date released: 2025-06-19
 =========================
