@@ -22,7 +22,7 @@ v0.4.3 ("Buttermilk Racer")
 Date released: 2025-06-19
 =========================
 
-v0.4.3 introduces the ``@raw_return`` decorator which allows contracts to return bytes directly without ABI-encoding, which enables new proxy contract use cases. The default EVM version has been updated to Prague, and several improvements have been made to the Venom optimizer pipeline.
+v0.4.3 introduces the ``@raw_return`` decorator which allows contracts to return bytes directly without ABI-encoding, which enables new proxy contract use cases. The default EVM version has been updated to ``prague``, and several improvements have been made to the Venom optimizer pipeline.
 
 Breaking changes
 ----------------
@@ -37,7 +37,6 @@ Tooling / CLI
 -------------
 * fix[tool]: fix invalid quotes in ``-f cfg`` output (`#4672 <https://github.com/vyperlang/vyper/pull/4672>`_)
 * fix[tool]: add metadata for ctor functions (`#4668 <https://github.com/vyperlang/vyper/pull/4668>`_)
-
 
 Venom improvements
 ------------------
