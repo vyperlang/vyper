@@ -1,3 +1,4 @@
+from vyper.compiler.phases import generate_bytecode
 from vyper.venom.parser import parse_venom
 from vyper.venom.venom_to_assembly import VenomCompiler
 
@@ -33,4 +34,23 @@ def test_optimistic_swap_params():
     ctx = parse_venom(code)
 
     asm = VenomCompiler(ctx).generate_evm_assembly()
+    assert asm == ["SWAP2", "PUSH1", 117, "POP", "MSTORE", "MSTORE", "JUMP"]
+
+def test_global_vars():
+    code = """
+    global_var: 10
+
+    function foo {
+        main:
+            %1 = 1
+            %2 = 2
+            %3 = add %1, @global_var
+            ret %3
+    }
+    """
+    ctx = parse_venom(code)
+    asm = VenomCompiler(ctx).generate_evm_assembly()
+    bytecode, _ = generate_bytecode(asm)
+    print(f"0x{bytecode.hex()}")
+    print(asm)
     assert asm == ["SWAP2", "PUSH1", 117, "POP", "MSTORE", "MSTORE", "JUMP"]

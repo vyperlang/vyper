@@ -167,6 +167,10 @@ class VenomCompiler:
 
         asm: list[AssemblyInstruction] = []
 
+        # Add global variables to the assembly
+        for var_name, var_value in self.ctx.global_labels.items():
+            asm.append(Label(var_name))
+
         for fn in self.ctx.functions.values():
             ac = IRAnalysesCache(fn)
 
