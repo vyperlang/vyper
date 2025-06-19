@@ -20,7 +20,7 @@ Frameworks and tooling
 ----------------------
 
 - `Titanoboa – A Vyper interpreter with pretty tracebacks, forking, debugging features and more <https://github.com/vyperlang/titanoboa/>`_
-- `Moccasin - A smart contract development and testing framework for Vyper and Python <https://cyfrin.github.io/moccasin/>`_
+- `Moccasin - A smart contract development and testing framework for Vyper and Python, built on Titanoboa <https://cyfrin.github.io/moccasin/>`_
 - `ApeWorX – The Ethereum development framework for Python Developers, Data Scientists, and Security Professionals <https://www.apeworx.io/>`_
 - `VyperDeployer – A helper smart contract to compile and test Vyper contracts in Foundry <https://github.com/pcaversaccio/snekmate/blob/main/lib/utils/VyperDeployer.sol>`_
 - `🐍 snekmate – Vyper smart contract building blocks <https://github.com/pcaversaccio/snekmate>`_
