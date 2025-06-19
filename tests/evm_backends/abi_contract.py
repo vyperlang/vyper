@@ -12,6 +12,7 @@ from vyper.semantics.analysis.base import FunctionVisibility, StateMutability
 from vyper.utils import keccak256, method_id
 
 from .abi import abi_decode, abi_encode, is_abi_encodable
+from tests.utils import python_args_to_json
 
 if TYPE_CHECKING:
     from tests.evm_backends.base_env import BaseEnv, LogEntry
@@ -213,6 +214,12 @@ class ABIFunction:
             gas_price=gas_price,
             is_modifying=self.is_mutable,
         )
+        
+        # Capture the original Python arguments for export
+        if self.contract.env.exporter:
+            python_args = python_args_to_json(args, kwargs)
+            call_args["python_args"] = python_args
+            
         computation = self.contract.env.message_call(**call_args)
 
         match self.contract.marshal_to_python(computation, self.return_type):

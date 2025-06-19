@@ -11,6 +11,7 @@ from eth_utils import to_checksum_address
 
 from tests.evm_backends.abi import abi_decode
 from tests.evm_backends.abi_contract import ABIContract, ABIContractFactory, ABIFunction
+from tests.utils import python_args_to_json
 from tests.exports import TestExporter
 from vyper.ast.grammar import parse_vyper_source
 from vyper.compiler import InputBundle, Settings, compile_code
@@ -88,9 +89,12 @@ class BaseEnv:
             calldata = ctor.prepare_calldata(*args, **kwargs)
             initcode += calldata
 
+        common_trace_kwargs = {}
         if self.exporter:
             if export_metadata is None:
                 export_metadata = {"deployment_origin": DeploymentOrigin.RAW_BYTECODE}
+
+            python_args = python_args_to_json(args, kwargs)
 
             common_trace_kwargs = {
                 "deployer": self.deployer,
@@ -104,6 +108,7 @@ class BaseEnv:
                 "solc_json": export_metadata.get("solc_json"),
                 "raw_ir": export_metadata.get("raw_ir"),
                 "blueprint_initcode_prefix": export_metadata.get("blueprint_initcode_prefix"),
+                "python_args": python_args,
             }
 
         deployment_succeeded = False
@@ -269,21 +274,12 @@ class BaseEnv:
         gas_price: int = 0,
         is_modifying: bool = True,
         blob_hashes: Optional[list[bytes]] = None,
+        **kwargs,
     ):
         if isinstance(data, str):
             data = bytes.fromhex(data.removeprefix("0x"))
         sender = sender or self.deployer
         gas_to_use = self.gas_limit if gas is None else gas
-
-        trace_kwargs = dict(
-            to=to,
-            sender=sender,
-            calldata=data,
-            value=value,
-            gas=gas_to_use,
-            gas_price=gas_price,
-            is_modifying=is_modifying,
-        )
 
         result = None
         call_succeeded = False
@@ -295,8 +291,18 @@ class BaseEnv:
             call_succeeded = True
         finally:
             if self.exporter:
+                python_args = kwargs.pop("python_args", {"args": [], "kwargs": {}})
                 self.exporter.trace_call(
-                    output=result, call_succeeded=call_succeeded, **trace_kwargs
+                    output=result,
+                    call_succeeded=call_succeeded,
+                    to=to,
+                    sender=sender,
+                    calldata=data,
+                    value=value,
+                    gas=gas_to_use,
+                    gas_price=gas_price,
+                    is_modifying=is_modifying,
+                    python_args=python_args,
                 )
 
         return result
