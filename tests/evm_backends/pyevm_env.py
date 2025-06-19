@@ -124,7 +124,6 @@ class PyEvmEnv(BaseEnv):
     def blob_hashes(self, value: list[bytes]):
         self._blob_hashes = value
 
-
     def _message_call(self, to, sender, data, value, gas, gas_price, is_modifying, blob_hashes):
         try:
             computation = self._state.computation_class.apply_message(

@@ -142,32 +142,30 @@ class TestExporter:
         self.current_item.traces.append({"trace_type": "deployment", **kwargs})
 
     def trace_call(self, output: Optional[bytes], call_succeeded: bool, **kwargs):
+        python_args = kwargs.pop("python_args", None)
+        function_name = kwargs.pop("function_name", None)
+
         if "calldata" in kwargs:
             kwargs["calldata"] = kwargs["calldata"].hex()
+
         self.current_item.traces.append(
             {
                 "trace_type": "call",
                 "output": None if output is None else output.hex(),
                 "call_succeeded": call_succeeded,
-                **kwargs,
+                "call_args": kwargs,
+                "python_args": python_args,
+                "function_name": function_name,
             }
         )
 
     def trace_set_balance(self, address: str, value: int):
         self.current_item.traces.append(
-            {
-                "trace_type": "set_balance",
-                "address": address,
-                "value": value,
-            }
+            {"trace_type": "set_balance", "address": address, "value": value}
         )
 
     def trace_clear_transient_storage(self):
-        self.current_item.traces.append(
-            {
-                "trace_type": "clear_transient_storage",
-            }
-        )
+        self.current_item.traces.append({"trace_type": "clear_transient_storage"})
 
     def finalize_export(self):
         for bucket_path, items in self.data.items():

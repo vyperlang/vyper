@@ -11,8 +11,8 @@ from eth_utils import to_checksum_address
 
 from tests.evm_backends.abi import abi_decode
 from tests.evm_backends.abi_contract import ABIContract, ABIContractFactory, ABIFunction
-from tests.utils import python_args_to_json
 from tests.exports import TestExporter
+from tests.utils import python_args_to_json
 from vyper.ast.grammar import parse_vyper_source
 from vyper.compiler import InputBundle, Settings, compile_code
 from vyper.utils import ERC5202_PREFIX, method_id
@@ -109,6 +109,7 @@ class BaseEnv:
                 "raw_ir": export_metadata.get("raw_ir"),
                 "blueprint_initcode_prefix": export_metadata.get("blueprint_initcode_prefix"),
                 "python_args": python_args,
+                "function_name": "constructor",
             }
 
         deployment_succeeded = False
@@ -292,6 +293,7 @@ class BaseEnv:
         finally:
             if self.exporter:
                 python_args = kwargs.pop("python_args", {"args": [], "kwargs": {}})
+                function_name = kwargs.pop("function_name", None)
                 self.exporter.trace_call(
                     output=result,
                     call_succeeded=call_succeeded,
@@ -303,6 +305,7 @@ class BaseEnv:
                     gas_price=gas_price,
                     is_modifying=is_modifying,
                     python_args=python_args,
+                    function_name=function_name,
                 )
 
         return result

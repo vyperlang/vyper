@@ -56,7 +56,7 @@ def check_precompile_asserts(source_code):
 def python_args_to_json(args: tuple, kwargs: dict) -> dict[str, Any]:
     return {
         "args": [_to_json_serializable(arg) for arg in args],
-        "kwargs": {k: _to_json_serializable(v) for k, v in kwargs.items()}
+        "kwargs": {k: _to_json_serializable(v) for k, v in kwargs.items()},
     }
 
 
