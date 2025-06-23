@@ -122,10 +122,10 @@ class IRContext:
             s.append(IRFunction.__repr__(fn))
             s.append("\n")
 
-        if len(self.data_segment) > 0:
-            s.append("data readonly {")
-            for data_section in self.data_segment:
-                s.append(textwrap.indent(DataSection.__str__(data_section), "  "))
-            s.append("}")
+        # if len(self.data_segment) > 0:
+        #     s.append("data readonly {")
+        #     for data_section in self.data_segment:
+        #         s.append(textwrap.indent(DataSection.__str__(data_section), "  "))
+        #     s.append("}")
 
         return "\n".join(s)

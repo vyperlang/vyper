@@ -40,14 +40,18 @@ from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
-def convert_data_segment_to_function(ctx: IRContext, data_sections: list[DataSection]) -> None:    
+def convert_data_segment_to_function(ctx: IRContext, data_sections: list[DataSection]) -> None:
+    if len(data_sections) == 0:
+        return
+    
+    first_label = data_sections[0].label
+    fn = ctx.create_function(first_label.value)
+    fn.clear_basic_blocks()
+    
     for data_section in data_sections:
-        fn = ctx.create_function(data_section.label.value)
-        
-        fn.clear_basic_blocks()
         bb = IRBasicBlock(data_section.label, fn)
         fn.append_basic_block(bb)
-        
+
         for data_item in data_section.data_items:
             if isinstance(data_item.data, IRLabel):
                 bb.append_instruction("db", data_item.data)

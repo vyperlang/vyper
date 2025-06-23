@@ -184,7 +184,7 @@ class VenomCompiler:
 
             self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
 
-        asm.extend(_REVERT_POSTAMBLE) # FIXME FIXME FIXME   
+        # asm.extend(_REVERT_POSTAMBLE) # FIXME FIXME FIXME   
         if no_optimize is False:
             optimize_assembly(asm)
 
