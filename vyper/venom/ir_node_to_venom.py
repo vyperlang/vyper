@@ -144,6 +144,12 @@ def ir_node_to_venom(ir: IRnode, symbols: Optional[dict] = None) -> IRContext:
     symbols = symbols or {}
     _convert_ir_bb(fn, ir, symbols)
 
+    revert_fn = ctx.create_function("revert")
+    revert_fn.clear_basic_blocks()
+    revert_bb = IRBasicBlock(IRLabel("revert"), revert_fn)
+    revert_fn.append_basic_block(revert_bb)
+    revert_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
+
     for fn in ctx.functions.values():
         for bb in fn.get_basic_blocks():
             bb.ensure_well_formed()
@@ -541,14 +547,6 @@ def _convert_ir_bb(fn, ir, symbols):
         return IRLabel(ir.args[0].value, True)
     elif ir.value == "data":
         label = IRLabel(ir.args[0].value, True)
-        
-        # Create revert function first (if not already created)
-        if "revert" not in fn.ctx.functions:
-            revert_fn = fn.ctx.create_function("revert")
-            revert_fn.clear_basic_blocks()
-            revert_bb = IRBasicBlock(IRLabel("revert"), revert_fn)
-            revert_fn.append_basic_block(revert_bb)
-            revert_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
         
         data_fn = fn.ctx.create_function(label.value)
         data_fn.clear_basic_blocks()
