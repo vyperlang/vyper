@@ -10,6 +10,7 @@ from vyper.venom.basicblock import (
     IRLiteral,
     IROperand,
     IRVariable,
+    IRHexString,
 )
 from vyper.venom.context import DataItem, DataSection, IRContext
 from vyper.venom.function import IRFunction
@@ -43,10 +44,11 @@ VENOM_GRAMMAR = """
     expr: instruction | operand
 
     instruction: IDENT operands_list?
+               | DB operands_list
 
     operands_list: operand ("," operand)*
 
-    operand: VAR_IDENT | CONST | label_ref
+    operand: VAR_IDENT | CONST | label_ref | HEXSTR
 
     VAR_IDENT: "%" (DIGIT|LETTER|"_"|":")+
 
@@ -57,10 +59,11 @@ VENOM_GRAMMAR = """
 
     data_segment: "data" "readonly" "{" data_section* "}"
     data_section: label_name ":" NEWLINE+ data_item+
-    data_item: "db" (HEXSTR | label_ref) NEWLINE+
+    data_item: DB (HEXSTR | label_ref) NEWLINE+
 
     DOUBLE_QUOTE: "\\""
     IDENT: (DIGIT|LETTER|"_")+
+    DB: "db"
     HEXSTR: "x" DOUBLE_QUOTE (HEXDIGIT|"_")+ DOUBLE_QUOTE
     CONST: SIGNED_INT | "0x" HEXDIGIT+
 
@@ -233,8 +236,9 @@ class VenomTransformer(Transformer):
         return DataSection(label, data_items)
 
     def data_item(self, children) -> DataItem:
-        # children[0] is the data content, rest are NEWLINE tokens
-        item = children[0]
+        # children[0] is the DB "IDENT", children[1] is the data content, rest are NEWLINE tokens
+        assert children[0] == "db", f"Expected 'db', got {children[0]}"
+        item = children[1]
         if isinstance(item, IRLabel):
             return DataItem(item)
 
@@ -264,12 +268,19 @@ class VenomTransformer(Transformer):
         if len(children) == 1:
             # just the opcode (IDENT)
             opcode = str(children[0])
+            # Handle Lark tokens
+            if hasattr(children[0], 'value'):
+                opcode = children[0].value
             operands = []
-        else:
-            assert len(children) == 2
-            # IDENT and operands_list
+        elif len(children) == 2:
+            # Two cases: IDENT + operands_list OR "db" + operands_list
             opcode = str(children[0])
+            # Handle Lark tokens  
+            if hasattr(children[0], 'value'):
+                opcode = children[0].value
             operands = children[1]
+        else:
+            raise ValueError(f"Unexpected instruction children: {children}")
 
         # reverse operands, venom internally represents top of stack
         # as rightmost operand
@@ -278,7 +289,7 @@ class VenomTransformer(Transformer):
             # invoke <target> <stack arguments>
             operands = [operands[0]] + list(reversed(operands[1:]))
         # special cases: operands with labels look better un-reversed
-        elif opcode not in ("jmp", "jnz", "djmp", "phi"):
+        elif opcode not in ("jmp", "jnz", "djmp", "phi", "db"):
             operands.reverse()
         return IRInstruction(opcode, operands)
 
@@ -286,7 +297,14 @@ class VenomTransformer(Transformer):
         return children
 
     def operand(self, children) -> IROperand:
-        return children[0]
+        operand = children[0]
+        if isinstance(operand, str) and operand.startswith('x"'):
+            # Handle hex strings - convert to IRHexString
+            assert operand.endswith('"')
+            hex_content = operand.removeprefix('x"').removesuffix('"')
+            hex_content = hex_content.replace("_", "")
+            return IRHexString(bytes.fromhex(hex_content))
+        return operand
 
     def func_name(self, children) -> str:
         # func_name can be IDENT or ESCAPED_STRING
@@ -312,6 +330,9 @@ class VenomTransformer(Transformer):
         return IRLiteral(int(val))
 
     def IDENT(self, val) -> str:
+        return val.value
+
+    def DB(self, val) -> str:
         return val.value
 
     def HEXSTR(self, val) -> str:
