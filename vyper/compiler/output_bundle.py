@@ -100,6 +100,9 @@ class OutputBundle:
         # preserve order of original search paths
         tmp = {sp: 0 for sp in search_paths}
 
+        # whether all files are resolvable by search paths
+        well_formed = False
+
         for c in self.source_codes.values():
             ok = False
             # recover the search path that was used for this CompilerInput.
@@ -115,15 +118,20 @@ class OutputBundle:
                     tmp[sp] += 1
                     ok = True
 
-            # this shouldn't happen unless a file escapes its package,
-            # *or* if we have a bug
+            # this shouldn't happen unless a file escapes its package
             if not ok:
-                raise CompilerPanic(f"Invalid path: {c.resolved_path}")
+                well_formed = False
 
         sps = [sp for sp, count in tmp.items() if count > 0]
-        assert len(sps) > 0
 
-        return [_anonymize(safe_relpath(sp)) for sp in sps]
+        sps = [_anonymize(safe_relpath(sp)) for sp in sps]
+
+        # there is some file which escapes its package, so add a "." to the
+        # search paths so it will resolve
+        if not well_formed and "." not in sps:
+            sps.append(".")
+
+        return sps
 
 
 class OutputBundleWriter:
