@@ -88,7 +88,7 @@ def test_data_section():
     }
 
     data readonly {
-        dbsection selector_buckets:
+        selector_buckets:
             db @selector_bucket_0
             db @fallback
             db @selector_bucket_2
@@ -199,7 +199,7 @@ def test_multi_function_and_data():
     }
 
     data readonly {
-        dbsection selector_buckets:
+        selector_buckets:
             db @selector_bucket_0
             db @fallback
             db @selector_bucket_2

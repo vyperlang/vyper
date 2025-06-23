@@ -56,7 +56,7 @@ VENOM_GRAMMAR = """
     label_ref: "@" (IDENT | ESCAPED_STRING)
 
     data_segment: "data" "readonly" "{" data_section* "}"
-    data_section: "dbsection" label_name ":" NEWLINE+ data_item+
+    data_section: label_name ":" NEWLINE+ data_item+
     data_item: "db" (HEXSTR | label_ref) NEWLINE+
 
     DOUBLE_QUOTE: "\\""

@@ -24,7 +24,7 @@ class DataSection:
     data_items: list[DataItem] = field(default_factory=list)
 
     def __str__(self):
-        ret = [f"dbsection {self.label.value}:"]
+        ret = [f"{self.label.value}:"]
         for item in self.data_items:
             ret.append(f"  db {item}")
         return "\n".join(ret)
