@@ -48,7 +48,6 @@ def assert_ctx_eq(ctx1: IRContext, ctx2: IRContext):
 
     # check entry function is the same
     assert next(iter(ctx1.functions.keys())) == next(iter(ctx2.functions.keys()))
-    assert ctx1.data_segment == ctx2.data_segment, ctx2.data_segment
 
 
 class PrePostChecker:

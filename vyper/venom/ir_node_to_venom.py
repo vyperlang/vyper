@@ -16,6 +16,7 @@ from vyper.venom.basicblock import (
     IRLiteral,
     IROperand,
     IRVariable,
+    IRHexString,
 )
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction, IRParameter
@@ -540,14 +541,30 @@ def _convert_ir_bb(fn, ir, symbols):
         return IRLabel(ir.args[0].value, True)
     elif ir.value == "data":
         label = IRLabel(ir.args[0].value, True)
-        ctx.append_data_section(label)
+        
+        # Create revert function first (if not already created)
+        if "revert" not in fn.ctx.functions:
+            revert_fn = fn.ctx.create_function("revert")
+            revert_fn.clear_basic_blocks()
+            revert_bb = IRBasicBlock(IRLabel("revert"), revert_fn)
+            revert_fn.append_basic_block(revert_bb)
+            revert_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
+        
+        data_fn = fn.ctx.create_function(label.value)
+        data_fn.clear_basic_blocks()
+        data_bb = IRBasicBlock(label, data_fn)
+        data_fn.append_basic_block(data_bb)
+        
         for c in ir.args[1:]:
             if isinstance(c.value, bytes):
-                ctx.append_data_item(c.value)
+                hex_string = IRHexString(c.value)
+                data_bb.append_instruction("db", hex_string)
             elif isinstance(c, IRnode):
                 data = _convert_ir_bb(fn, c, symbols)
                 assert isinstance(data, IRLabel)  # help mypy
-                ctx.append_data_item(data)
+                data_bb.append_instruction("db", data)
+        
+        data_bb.append_instruction("stop")
     elif ir.value == "label":
         label = IRLabel(ir.args[0].value, True)
         bb = fn.get_basic_block()

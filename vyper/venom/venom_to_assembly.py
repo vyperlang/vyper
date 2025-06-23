@@ -184,23 +184,7 @@ class VenomCompiler:
 
             self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
 
-        asm.extend(_REVERT_POSTAMBLE)
-
-        # Append data segment
-        for data_section in self.ctx.data_segment:
-            label = data_section.label
-            asm_data_section: list[AssemblyInstruction] = []
-            asm_data_section.append(DataHeader(_as_asm_symbol(label)))
-            for item in data_section.data_items:
-                data = item.data
-                if isinstance(data, IRLabel):
-                    asm_data_section.append(DATA_ITEM(_as_asm_symbol(data)))
-                else:
-                    assert isinstance(data, bytes)
-                    asm_data_section.append(DATA_ITEM(data))
-
-            asm.extend(asm_data_section)
-
+        asm.extend(_REVERT_POSTAMBLE) # FIXME FIXME FIXME   
         if no_optimize is False:
             optimize_assembly(asm)
 
@@ -430,6 +414,10 @@ class VenomCompiler:
             operands = inst.operands[1:]
         elif opcode == "db":
             operands = []
+        elif opcode == "revert":
+            # Filter out literals from revert operands for stack reordering
+            # since literals are handled directly in _emit_input_operands
+            operands = [op for op in inst.operands if not isinstance(op, IRLiteral)]
         else:
             operands = inst.operands
 

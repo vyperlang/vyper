@@ -10,8 +10,8 @@ from vyper.evm.assembler.core import AssemblyInstruction
 from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import MemSSA
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRLabel, IRLiteral
-from vyper.venom.context import IRContext
+from vyper.venom.basicblock import IRBasicBlock, IRHexString, IRLabel, IRLiteral
+from vyper.venom.context import DataSection, IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.passes import (
@@ -40,6 +40,24 @@ from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
+def convert_data_segment_to_function(ctx: IRContext, data_sections: list[DataSection]) -> None:    
+    for data_section in data_sections:
+        fn = ctx.create_function(data_section.label.value)
+        
+        fn.clear_basic_blocks()
+        bb = IRBasicBlock(data_section.label, fn)
+        fn.append_basic_block(bb)
+        
+        for data_item in data_section.data_items:
+            if isinstance(data_item.data, IRLabel):
+                bb.append_instruction("db", data_item.data)
+            else:
+                # Convert bytes to IRHexString
+                assert isinstance(data_item.data, bytes)
+                hex_string = IRHexString(data_item.data)
+                bb.append_instruction("db", hex_string)
+        
+        bb.append_instruction("stop")
 
 def generate_assembly_experimental(
     venom_ctx: IRContext, optimize: OptimizationLevel = DEFAULT_OPT_LEVEL
@@ -144,6 +162,8 @@ def generate_venom(
     for section_name, data in data_sections.items():
         ctx.append_data_section(IRLabel(section_name))
         ctx.append_data_item(data)
+
+    convert_data_segment_to_function(ctx, ctx.data_segment)
 
     for constname, value in constants.items():
         ctx.add_constant(constname, value)

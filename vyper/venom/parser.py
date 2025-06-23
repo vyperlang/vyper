@@ -3,6 +3,7 @@ from typing import Optional
 
 from lark import Lark, Transformer
 
+from vyper.venom import convert_data_segment_to_function
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -145,11 +146,7 @@ class VenomTransformer(Transformer):
             name, address = global_label.children
             ctx.add_global_label(name, address)
         
-        # Process data segment
-        if data_segment:
-            ctx.data_segment = data_segment.children
-
-        # Process functions
+        # Process functions first
         for fn_name, items in funcs:
             fn = ctx.create_function(fn_name)
             if ctx.entry_function is None:
@@ -197,7 +194,12 @@ class VenomTransformer(Transformer):
                     assert isinstance(instruction, IRInstruction)  # help mypy
                     bb.insert_instruction(instruction)
 
-            _set_last_var(fn)
+        # Process data segment after functions by converting it to a regular function
+        if data_segment:
+            self._add_revert_postamble_function(ctx)
+            convert_data_segment_to_function(ctx, data_segment.children)
+
+        _set_last_var(fn)
         _set_last_label(ctx)
 
         return ctx
@@ -250,7 +252,14 @@ class VenomTransformer(Transformer):
         item = item.replace("_", "")
         return DataItem(bytes.fromhex(item))
 
-
+    def _add_revert_postamble_function(self, ctx: IRContext) -> None:
+        fn = ctx.create_function("revert")
+        
+        fn.clear_basic_blocks()
+        bb = IRBasicBlock(IRLabel("revert"), fn)
+        fn.append_basic_block(bb)
+        
+        bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
 
     def assignment(self, children) -> IRInstruction:
         to, value = children
