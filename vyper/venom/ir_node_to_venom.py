@@ -553,6 +553,7 @@ def _convert_ir_bb(fn, ir, symbols):
         data_fn = fn.ctx.create_function(label.value)
         data_fn.clear_basic_blocks()
         data_bb = IRBasicBlock(label, data_fn)
+        data_bb.is_volatile = True
         data_fn.append_basic_block(data_bb)
         
         for c in ir.args[1:]:
@@ -564,7 +565,7 @@ def _convert_ir_bb(fn, ir, symbols):
                 assert isinstance(data, IRLabel)  # help mypy
                 data_bb.append_instruction("db", data)
         
-        data_bb.append_instruction("stop")
+        # data_bb.append_instruction("stop")
     elif ir.value == "label":
         label = IRLabel(ir.args[0].value, True)
         bb = fn.get_basic_block()

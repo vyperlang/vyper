@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "sink"])
+BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "sink", "db"])
 
 VOLATILE_INSTRUCTIONS = frozenset(
     [
@@ -492,17 +492,21 @@ class IRBasicBlock:
     label: IRLabel
     parent: IRFunction
     instructions: list[IRInstruction]
+    is_volatile: bool = False
 
     def __init__(self, label: IRLabel, parent: IRFunction) -> None:
         assert isinstance(label, IRLabel), "label must be an IRLabel"
         self.label = label
         self.parent = parent
         self.instructions = []
+        self.is_volatile = False
 
     @property
     def out_bbs(self):
         assert self.is_terminated
         term = self.last_instruction
+        if term.opcode == "db":
+            return []
         out_labels = term.get_label_operands()
         fn = self.parent
         return [fn.get_basic_block(label.name) for label in out_labels]
@@ -523,8 +527,6 @@ class IRBasicBlock:
 
         Returns the output variable if the instruction supports one
         """
-        assert not self.is_terminated, self
-
         if ret is None:
             ret = self.parent.get_next_variable() if opcode not in NO_OUTPUT_INSTRUCTIONS else None
 
@@ -684,7 +686,7 @@ class IRBasicBlock:
     def __repr__(self) -> str:
         printer = ir_printer.get()
 
-        s = f"{repr(self.label)}:  ; OUT={[bb.label for bb in self.out_bbs]}\n"
+        s = f"{repr(self.label)}:\n"
         if printer and hasattr(printer, "_pre_block"):
             s += printer._pre_block(self)
         for inst in self.instructions:

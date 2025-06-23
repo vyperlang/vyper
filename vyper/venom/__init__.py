@@ -50,6 +50,7 @@ def convert_data_segment_to_function(ctx: IRContext, data_sections: list[DataSec
     
     for data_section in data_sections:
         bb = IRBasicBlock(data_section.label, fn)
+        bb.is_volatile = True
         fn.append_basic_block(bb)
 
         for data_item in data_section.data_items:
@@ -61,7 +62,6 @@ def convert_data_segment_to_function(ctx: IRContext, data_sections: list[DataSec
                 hex_string = IRHexString(data_item.data)
                 bb.append_instruction("db", hex_string)
         
-        bb.append_instruction("stop")
 
 def generate_assembly_experimental(
     venom_ctx: IRContext, optimize: OptimizationLevel = DEFAULT_OPT_LEVEL

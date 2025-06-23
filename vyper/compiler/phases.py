@@ -3,6 +3,7 @@ from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Any, Optional
 
+from vyper.venom.basicblock import IRBasicBlock, IRHexString, IRLabel, IRLiteral
 import vyper.codegen.core as codegen
 from vyper import ast as vy_ast
 from vyper.ast import natspec
@@ -260,18 +261,31 @@ class CompilerData:
 
     @cached_property
     def venom_deploytime(self):
-        data_sections = {"runtime_begin": self.bytecode_runtime}
-        if self.bytecode_metadata is not None:
-            data_sections["cbor_metadata"] = self.bytecode_metadata
-
         constants = {
             "runtime_codesize": len(self.bytecode_runtime),
             "immutables_len": self.compilation_target._metadata["type"].immutable_section_bytes,
         }
 
         venom_ctx = generate_venom(
-            self.ir_nodes, self.settings, constants=constants, data_sections=data_sections
+            self.ir_nodes, self.settings, constants=constants
         )
+
+        main_entry = venom_ctx.entry_function
+
+        revert_bb = IRBasicBlock(IRLabel("revert"), main_entry)
+        main_entry.append_basic_block(revert_bb)
+        revert_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
+
+        bb = IRBasicBlock(IRLabel("runtime_begin"), main_entry)
+        bb.is_volatile = True
+        main_entry.append_basic_block(bb)
+        bb.append_instruction("db", IRHexString(self.bytecode_runtime))
+        
+        bb = IRBasicBlock(IRLabel("cbor_metadata"), main_entry)
+        bb.is_volatile = True
+        main_entry.append_basic_block(bb)
+        bb.append_instruction("db", IRHexString(self.bytecode_metadata))
+
         return venom_ctx
 
     @cached_property
