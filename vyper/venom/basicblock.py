@@ -77,6 +77,7 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "jnz",
         "log",
         "nop",
+        "db",
     ]
 )
 
@@ -190,6 +191,22 @@ class IRVariable(IROperand):
     @property
     def plain_name(self) -> str:
         return self.name.strip("%")
+
+
+class IRHexString(IROperand):
+    """
+    IRHexString represents a hex string literal in IR, 
+    currently only used for db instructions
+    """
+
+    value: bytes
+
+    def __init__(self, value: bytes) -> None:
+        assert isinstance(value, bytes), value
+        super().__init__(value)
+
+    def __repr__(self) -> str:
+        return f'x"{self.value.hex()}"'
 
 
 class IRLabel(IROperand):

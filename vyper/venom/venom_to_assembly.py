@@ -25,6 +25,7 @@ from vyper.venom.basicblock import (
     IRLiteral,
     IROperand,
     IRVariable,
+    IRHexString,
 )
 from vyper.venom.context import IRContext, IRFunction
 from vyper.venom.passes import NormalizationPass
@@ -427,6 +428,8 @@ class VenomCompiler:
             log_topic_count = inst.operands[0].value
             assert log_topic_count in [0, 1, 2, 3, 4], "Invalid topic count"
             operands = inst.operands[1:]
+        elif opcode == "db":
+            operands = []
         else:
             operands = inst.operands
 
@@ -513,6 +516,15 @@ class VenomCompiler:
             pass
         elif opcode == "dbname":
             pass
+        elif opcode == "db":
+            # Handle inline db instruction - emit data directly to assembly
+            data_operand = inst.operands[0] 
+            if isinstance(data_operand, IRLabel):
+                assembly.append(DATA_ITEM(_as_asm_symbol(data_operand)))
+            elif isinstance(data_operand, IRHexString):
+                assembly.append(DATA_ITEM(data_operand.value))
+            else:
+                raise Exception(f"Unsupported db operand type: {type(data_operand)}")
         elif opcode == "jnz":
             # jump if not zero
             if_nonzero_label, if_zero_label = inst.get_label_operands()
