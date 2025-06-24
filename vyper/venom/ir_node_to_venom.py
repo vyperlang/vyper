@@ -144,11 +144,13 @@ def ir_node_to_venom(ir: IRnode, symbols: Optional[dict] = None) -> IRContext:
     symbols = symbols or {}
     _convert_ir_bb(fn, ir, symbols)
 
-    revert_fn = ctx.create_function("revert")
-    revert_fn.clear_basic_blocks()
-    revert_bb = IRBasicBlock(IRLabel("revert"), revert_fn)
-    revert_fn.append_basic_block(revert_bb)
-    revert_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
+    entry_fn = fn.ctx.entry_function
+    if not entry_fn.has_basic_block(IRLabel("revert")):
+        revert_fn = ctx.create_function("revert")
+        revert_fn.clear_basic_blocks()
+        revert_bb = IRBasicBlock(IRLabel("revert"), revert_fn)
+        revert_fn.append_basic_block(revert_bb)
+        revert_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
 
     for fn in ctx.functions.values():
         for bb in fn.get_basic_blocks():
@@ -548,22 +550,17 @@ def _convert_ir_bb(fn, ir, symbols):
     elif ir.value == "data":
         label = IRLabel(ir.args[0].value, True)
         
-        data_fn = fn.ctx.create_function(label.value)
-        data_fn.clear_basic_blocks()
-        data_bb = IRBasicBlock(label, data_fn)
-        data_bb.is_volatile = True
-        data_fn.append_basic_block(data_bb)
-        
+        ctx.append_data_section(label)
+
         for c in ir.args[1:]:
             if isinstance(c.value, bytes):
                 hex_string = IRHexString(c.value)
-                data_bb.append_instruction("db", hex_string)
+                ctx.append_data_item(hex_string)
             elif isinstance(c, IRnode):
                 data = _convert_ir_bb(fn, c, symbols)
                 assert isinstance(data, IRLabel)  # help mypy
-                data_bb.append_instruction("db", data)
+                ctx.append_data_item(data)
         
-        # data_bb.append_instruction("stop")
     elif ir.value == "label":
         label = IRLabel(ir.args[0].value, True)
         bb = fn.get_basic_block()
