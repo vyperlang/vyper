@@ -37,6 +37,14 @@ COMPARISON_OPERATOR_NODES = {
 BOOLEAN_OPERATOR_NODES = {"and": vy_ast.And, "or": vy_ast.Or}
 
 
+def _check_unique_nodes(nodes: list[vy_ast.VyperNode]):
+    line_infos = [(n.lineno, n.col_offset, n.end_lineno, n.end_col_offset) for n in nodes]
+    assert len(set(line_infos)) == len(nodes)
+
+    node_ids = [n.node_id for n in nodes]
+    assert len(set(node_ids)) == len(nodes)
+
+
 @pytest.mark.parametrize("op", BINARY_OPERATOR_NODES.keys())
 def test_binop_operators(op):
     source = f"""
@@ -51,16 +59,7 @@ def bar(a: uint256, b: uint256) -> uint256:
 
     vyper_ast = vy_ast.parse_to_ast(source)
 
-    operator_nodes = vyper_ast.get_descendants(BINARY_OPERATOR_NODES[op])
-    num_operator_nodes = len(operator_nodes)
-
-    line_infos = set(
-        (n.lineno, n.col_offset, n.end_lineno, n.end_col_offset) for n in operator_nodes
-    )
-    assert len(line_infos) == num_operator_nodes
-
-    node_ids = set(n.node_id for n in operator_nodes)
-    assert len(node_ids) == num_operator_nodes
+    _check_unique_nodes(vyper_ast.get_descendants(BINARY_OPERATOR_NODES[op]))
 
 
 @pytest.mark.parametrize("op", UNARY_OPERATOR_NODES.keys())
@@ -82,16 +81,7 @@ def bar(a: int256) -> int256:
 
     vyper_ast = vy_ast.parse_to_ast(source)
 
-    operator_nodes = vyper_ast.get_descendants(UNARY_OPERATOR_NODES[op])
-    num_operator_nodes = len(operator_nodes)
-
-    line_infos = set(
-        (n.lineno, n.col_offset, n.end_lineno, n.end_col_offset) for n in operator_nodes
-    )
-    assert len(line_infos) == num_operator_nodes
-
-    node_ids = set(n.node_id for n in operator_nodes)
-    assert len(node_ids) == num_operator_nodes
+    _check_unique_nodes(vyper_ast.get_descendants(UNARY_OPERATOR_NODES[op]))
 
 
 @pytest.mark.parametrize("op", COMPARISON_OPERATOR_NODES.keys())
@@ -108,16 +98,7 @@ def bar(a: uint256, b: uint256) -> bool:
 
     vyper_ast = vy_ast.parse_to_ast(source)
 
-    operator_nodes = vyper_ast.get_descendants(COMPARISON_OPERATOR_NODES[op])
-    num_operator_nodes = len(operator_nodes)
-
-    line_infos = set(
-        (n.lineno, n.col_offset, n.end_lineno, n.end_col_offset) for n in operator_nodes
-    )
-    assert len(line_infos) == num_operator_nodes
-
-    node_ids = set(n.node_id for n in operator_nodes)
-    assert len(node_ids) == num_operator_nodes
+    _check_unique_nodes(vyper_ast.get_descendants(COMPARISON_OPERATOR_NODES[op]))
 
 
 @pytest.mark.parametrize("op", BOOLEAN_OPERATOR_NODES.keys())
@@ -134,13 +115,4 @@ def bar(a: bool, b: bool) -> bool:
 
     vyper_ast = vy_ast.parse_to_ast(source)
 
-    operator_nodes = vyper_ast.get_descendants(BOOLEAN_OPERATOR_NODES[op])
-    num_operator_nodes = len(operator_nodes)
-
-    line_infos = set(
-        (n.lineno, n.col_offset, n.end_lineno, n.end_col_offset) for n in operator_nodes
-    )
-    assert len(line_infos) == num_operator_nodes
-
-    node_ids = set(n.node_id for n in operator_nodes)
-    assert len(node_ids) == num_operator_nodes
+    _check_unique_nodes(vyper_ast.get_descendants(BOOLEAN_OPERATOR_NODES[op]))
