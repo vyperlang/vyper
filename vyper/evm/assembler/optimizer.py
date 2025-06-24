@@ -1,4 +1,4 @@
-from vyper.evm.assembler.core import DATA_ITEM, PUSHLABEL, DataHeader, Label, is_symbol
+from vyper.evm.assembler.core import DATA_ITEM, JUMPDEST, PUSHLABEL, DataHeader, Label, is_symbol
 from vyper.evm.constants import COMMUTATIVE_OPS
 from vyper.exceptions import CompilerPanic
 
@@ -14,7 +14,7 @@ def _prune_unreachable_code(assembly):
         if assembly[i] in _TERMINAL_OPS:
             # find the next jumpdest or data section
             for j in range(i + 1, len(assembly)):
-                next_is_reachable = isinstance(assembly[j], (Label, DataHeader))
+                next_is_reachable = isinstance(assembly[j], (JUMPDEST, DataHeader))
                 if next_is_reachable:
                     break
             else:
