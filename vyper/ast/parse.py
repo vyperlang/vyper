@@ -244,7 +244,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             else:
                 assert hasattr(node, field), node
 
-        # Decorate every node with the original source code to allow pretty-printing errors
+        # decorate every node with the original source code to allow
+        # pretty-printing errors
         node.full_source_code = self._source_code
         node.node_id = self.counter
         self.counter += 1
@@ -270,8 +271,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         node.src = f"{start_pos}:{end_pos-start_pos}:{self._source_id}"
         node.node_source_code = self._source_code[start_pos:end_pos]
 
+        # keep track of the current path thru the AST
         self._parents.append(node)
-
         try:
             node = super().generic_visit(node)
         finally:
