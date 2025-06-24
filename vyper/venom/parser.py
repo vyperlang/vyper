@@ -3,7 +3,6 @@ from typing import Optional
 
 from lark import Lark, Transformer
 
-from vyper.venom import convert_data_segment_to_function
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
