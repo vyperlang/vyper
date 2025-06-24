@@ -332,11 +332,11 @@ def __default__() -> Bytes[RESPONSE_SZ]:
 
     proxy_override = {
         "implementation": {
-            "slot": int.from_bytes(implementation_slot),
+            "slot": int.from_bytes(implementation_slot, byteorder="big"),
             "type": "address",
             "n_slots": 1,
         },
-        "admin": {"slot": int.from_bytes(admin_slot), "type": "address", "n_slots": 1},
+        "admin": {"slot": int.from_bytes(admin_slot, byteorder="big"), "type": "address", "n_slots": 1},
     }
     impl_override = deepcopy(proxy_override)
     impl_override["counter"] = {"slot": 1, "type": "uint256", "n_slots": 1}
