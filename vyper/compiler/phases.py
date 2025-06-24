@@ -286,10 +286,6 @@ class CompilerData:
             self.ir_nodes, self.settings, constants=constants
         )
 
-        optimize = self.settings.optimize
-        assert optimize is not None  # help mypy
-        run_passes_on(venom_ctx, optimize)
-
         main_entry = venom_ctx.entry_function
 
         revert_bb = IRBasicBlock(IRLabel("revert"), main_entry)
@@ -308,6 +304,10 @@ class CompilerData:
         bb.append_instruction("db", IRHexString(self.bytecode_metadata))
 
         convert_data_segment_to_function(venom_ctx, venom_ctx.data_segment)
+
+        optimize = self.settings.optimize
+        assert optimize is not None  # help mypy
+        run_passes_on(venom_ctx, optimize)
 
         return venom_ctx
 
