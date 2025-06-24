@@ -293,6 +293,7 @@ class CompilerData:
         main_entry = venom_ctx.entry_function
 
         revert_bb = IRBasicBlock(IRLabel("revert"), main_entry)
+        revert_bb.is_volatile = True
         main_entry.append_basic_block(revert_bb)
         revert_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
 

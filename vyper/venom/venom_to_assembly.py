@@ -184,6 +184,10 @@ class VenomCompiler:
 
             self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
 
+            for bb in fn.get_basic_blocks():
+                if bb.is_volatile:
+                    self._generate_evm_for_basicblock_r(asm, bb, StackModel())
+
         # asm.extend(_REVERT_POSTAMBLE) # FIXME FIXME FIXME   
         if no_optimize is False:
             optimize_assembly(asm)
