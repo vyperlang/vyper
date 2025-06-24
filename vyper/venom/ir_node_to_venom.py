@@ -146,8 +146,6 @@ def generate_venom_from_ir(
         ctx.append_data_section(IRLabel(section_name))
         ctx.append_data_item(data)
 
-    convert_data_segment_to_function(ctx, ctx.data_segment)
-
     for constname, value in constants.items():
         ctx.add_constant(constname, value)
 
@@ -168,14 +166,6 @@ def ir_node_to_venom(ir: IRnode, symbols: Optional[dict] = None) -> IRContext:
 
     symbols = symbols or {}
     _convert_ir_bb(fn, ir, symbols)
-
-    entry_fn = fn.ctx.entry_function
-    if not entry_fn.has_basic_block(IRLabel("revert")):
-        revert_fn = ctx.create_function("revert")
-        revert_fn.clear_basic_blocks()
-        revert_bb = IRBasicBlock(IRLabel("revert"), revert_fn)
-        revert_fn.append_basic_block(revert_bb)
-        revert_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
 
     for fn in ctx.functions.values():
         for bb in fn.get_basic_blocks():

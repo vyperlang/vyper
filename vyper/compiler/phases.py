@@ -3,7 +3,7 @@ from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Any, Optional
 
-from vyper.venom.ir_node_to_venom import generate_venom_from_ir
+from vyper.venom.ir_node_to_venom import convert_data_segment_to_function, generate_venom_from_ir
 from vyper.venom.basicblock import IRBasicBlock, IRHexString, IRLabel, IRLiteral
 import vyper.codegen.core as codegen
 from vyper import ast as vy_ast
@@ -259,6 +259,16 @@ class CompilerData:
     def venom_runtime(self):
         runtime_venom = generate_venom_from_ir(self.ir_runtime, self.settings)
 
+        entry_fn = runtime_venom.entry_function
+        if not entry_fn.has_basic_block(IRLabel("revert")):
+            revert_fn = runtime_venom.create_function("revert")
+            revert_fn.clear_basic_blocks()
+            revert_bb = IRBasicBlock(IRLabel("revert"), revert_fn)
+            revert_fn.append_basic_block(revert_bb)
+            revert_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
+
+        convert_data_segment_to_function(runtime_venom, runtime_venom.data_segment)
+
         optimize = self.settings.optimize
         assert optimize is not None  # help mypy
         run_passes_on(runtime_venom, optimize)
@@ -295,6 +305,8 @@ class CompilerData:
         bb.is_volatile = True
         main_entry.append_basic_block(bb)
         bb.append_instruction("db", IRHexString(self.bytecode_metadata))
+
+        convert_data_segment_to_function(venom_ctx, venom_ctx.data_segment)
 
         return venom_ctx
 
