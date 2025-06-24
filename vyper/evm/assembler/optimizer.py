@@ -14,7 +14,7 @@ def _prune_unreachable_code(assembly):
         if assembly[i] in _TERMINAL_OPS:
             # find the next jumpdest or data section
             for j in range(i + 1, len(assembly)):
-                next_is_reachable = isinstance(assembly[j], (JUMPDEST, DataHeader))
+                next_is_reachable = isinstance(assembly[j], (JUMPDEST, DataHeader, Label, DATA_ITEM))
                 if next_is_reachable:
                     break
             else:
@@ -163,24 +163,36 @@ def _merge_iszero(assembly):
 def _prune_unused_jumpdests(assembly):
     changed = False
 
-    used_jumpdests: set[Label] = set()
+    used_as_jumpdests: set[Label] = set()
+    used_as_labels: set[Label] = set()
 
     # find all used jumpdests
-    for item in assembly:
+    for i, item in enumerate(assembly):
         if isinstance(item, PUSHLABEL):
-            used_jumpdests.add(item.label)
+            # only add if the next item is a jump instruction
+            if i + 1 < len(assembly) and assembly[i + 1] in ("JUMP", "JUMPI"):
+                used_as_jumpdests.add(item.label)
+            else:
+                used_as_labels.add(item.label)
 
         if isinstance(item, DATA_ITEM) and isinstance(item.data, Label):
             # add symbols used in data sections as they are likely
             # used for a jumptable.
-            used_jumpdests.add(item.data)
+            used_as_jumpdests.add(item.data)
 
     # delete jumpdests that aren't used
     i = 0
     while i < len(assembly):
-        if isinstance(assembly[i], JUMPDEST) and assembly[i].label not in used_jumpdests:
-            changed = True
-            del assembly[i]
+        if isinstance(assembly[i], JUMPDEST):
+            if assembly[i].label in used_as_jumpdests:
+                i += 1
+            elif assembly[i].label in used_as_labels:
+                changed = True
+                assembly[i] = assembly[i].label
+                i += 1
+            else:
+                changed = True
+                del assembly[i]
         else:
             i += 1
 

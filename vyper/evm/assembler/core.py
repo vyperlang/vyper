@@ -250,6 +250,9 @@ def resolve_symbols(
             # Don't increment pc as the symbol itself doesn't go into code
             _add_to_symbol_map(symbol_map, item.label, pc)
 
+        elif isinstance(item, Label):
+            _add_to_symbol_map(symbol_map, item, pc)
+
         elif isinstance(item, PUSHLABEL):
             pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
 
@@ -410,6 +413,8 @@ def _assembly_to_evm(
             continue  # CONST things do not show up in bytecode
         elif isinstance(item, DataHeader):
             continue  # DataHeader does not show up in bytecode
+        elif isinstance(item, Label):
+            continue  # Label does not show up in bytecode
 
         elif isinstance(item, PUSHLABEL):
             # push a symbol to stack
