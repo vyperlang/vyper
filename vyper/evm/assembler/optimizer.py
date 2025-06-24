@@ -178,7 +178,7 @@ def _prune_unused_jumpdests(assembly):
     # delete jumpdests that aren't used
     i = 0
     while i < len(assembly):
-        if is_symbol(assembly[i]) and assembly[i] not in used_jumpdests:
+        if isinstance(assembly[i], JUMPDEST) and assembly[i].label not in used_jumpdests:
             changed = True
             del assembly[i]
         else:
