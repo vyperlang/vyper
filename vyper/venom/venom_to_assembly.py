@@ -4,6 +4,7 @@ from typing import Any, Iterable
 
 from vyper.evm.assembler.core import (
     DATA_ITEM,
+    JUMPDEST,
     PUSH,
     PUSH_OFST,
     PUSHLABEL,
@@ -112,9 +113,6 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "invalid",
     ]
 )
-
-_REVERT_POSTAMBLE = [Label("revert"), *PUSH(0), "DUP1", "REVERT"]
-
 
 def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
     ret = []
@@ -326,7 +324,7 @@ class VenomCompiler:
         asm = []
 
         # assembly entry point into the block
-        asm.append(_as_asm_symbol(basicblock.label))
+        asm.append(JUMPDEST(_as_asm_symbol(basicblock.label)))
 
         fn = basicblock.parent
         if basicblock == fn.entry:

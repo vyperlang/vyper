@@ -19,6 +19,30 @@ def num_to_bytearray(x):
     return o
 
 
+class Label:
+    def __init__(self, label: str):
+        assert isinstance(label, str)
+        self.label = label
+
+    def __repr__(self):
+        return f"LABEL {self.label}"
+
+    def __eq__(self, other):
+        if not isinstance(other, Label):
+            return False
+        return self.label == other.label
+
+    def __hash__(self):
+        return hash(self.label)
+
+class JUMPDEST:
+    def __init__(self, label: Label):
+        assert isinstance(label, Label), label
+        self.label = label
+    
+    def __repr__(self):
+        return f"JUMPDEST {self.label.label}"
+
 @dataclass
 class DataHeader:
     label: Label
@@ -133,7 +157,7 @@ def is_ofst(assembly_item):
 
 
 AssemblyInstruction = (
-    str | TaggedInstruction | int | PUSHLABEL | Label | PUSH_OFST | DATA_ITEM | DataHeader | CONST
+    str | TaggedInstruction | int | PUSHLABEL | JUMPDEST | PUSH_OFST | DATA_ITEM | DataHeader | CONST
 )
 
 
@@ -218,8 +242,8 @@ def resolve_symbols(
             continue  # CONST declarations do not go into bytecode
 
         # update pc
-        if isinstance(item, Label):
-            _add_to_symbol_map(symbol_map, item, pc)
+        if isinstance(item, JUMPDEST):
+            _add_to_symbol_map(symbol_map, item.label, pc)
             pc += 1  # jumpdest
 
         elif isinstance(item, DataHeader):
@@ -393,7 +417,7 @@ def _assembly_to_evm(
             bytecode = _compile_push_instruction(PUSH_N(symbol_map[label], n=SYMBOL_SIZE))
             ret.extend(bytecode)
 
-        elif isinstance(item, Label):
+        elif isinstance(item, JUMPDEST):
             jumpdest_opcode = get_opcodes()["JUMPDEST"][0]
             assert jumpdest_opcode is not None  # help mypy
             ret.append(jumpdest_opcode)
