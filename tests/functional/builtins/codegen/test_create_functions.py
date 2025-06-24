@@ -6,7 +6,7 @@ from hexbytes import HexBytes
 import vyper.ir.compile_ir as compile_ir
 from tests.utils import ZERO_ADDRESS
 from vyper.compiler import compile_code
-from vyper.ir.compile_ir import DATA_ITEM, PUSH, PUSHLABEL, DataHeader, Label
+from vyper.ir.compile_ir import DATA_ITEM, PUSH, PUSHLABEL, Label
 from vyper.utils import EIP_170_LIMIT, ERC5202_PREFIX, checksum_encode, keccak256
 
 
@@ -302,7 +302,7 @@ def test(code_ofst: uint256) -> address:
         *PUSH(initcode_len),
         *PUSH(0),
         "RETURN",
-        DataHeader(Label("end")),
+        Label("end"),
         DATA_ITEM(b"\x00" * initcode_len),
     ]
     bytecode, _ = compile_ir.assembly_to_evm(asm)

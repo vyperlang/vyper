@@ -337,7 +337,7 @@ def _build_asm(asm_list):
     output_string = "__entry__:"
     in_push = 0
     for item in asm_list:
-        if isinstance(item, (compile_ir.Label, compile_ir.DataHeader)):
+        if isinstance(item, compile_ir.Label):
             output_string += f"\n\n{item}:"
             continue
 

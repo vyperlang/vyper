@@ -43,14 +43,6 @@ class JUMPDEST:
     def __repr__(self):
         return f"JUMPDEST {self.label.label}"
 
-@dataclass
-class DataHeader:
-    label: Label
-
-    def __repr__(self):
-        return f"DATA {self.label.label}"
-
-
 class PUSHLABEL:
     def __init__(self, label: Label):
         assert isinstance(label, Label), label
@@ -157,7 +149,7 @@ def is_ofst(assembly_item):
 
 
 AssemblyInstruction = (
-    str | TaggedInstruction | int | PUSHLABEL | JUMPDEST | PUSH_OFST | DATA_ITEM | DataHeader | CONST
+    str | TaggedInstruction | int | PUSHLABEL | JUMPDEST | PUSH_OFST | DATA_ITEM | CONST
 )
 
 
@@ -246,10 +238,6 @@ def resolve_symbols(
             _add_to_symbol_map(symbol_map, item.label, pc)
             pc += 1  # jumpdest
 
-        elif isinstance(item, DataHeader):
-            # Don't increment pc as the symbol itself doesn't go into code
-            _add_to_symbol_map(symbol_map, item.label, pc)
-
         elif isinstance(item, Label):
             _add_to_symbol_map(symbol_map, item, pc)
 
@@ -336,7 +324,7 @@ SYMBOL_SIZE = 2  # size of a PUSH instruction for a code symbol
 def get_data_segment_lengths(assembly: list[AssemblyInstruction]) -> list[int]:
     ret = []
     for item in assembly:
-        if isinstance(item, DataHeader):
+        if isinstance(item, Label):
             ret.append(0)
             continue
         if len(ret) == 0:
@@ -411,8 +399,6 @@ def _assembly_to_evm(
             continue  # skippable opcodes
         elif isinstance(item, CONST):
             continue  # CONST things do not show up in bytecode
-        elif isinstance(item, DataHeader):
-            continue  # DataHeader does not show up in bytecode
         elif isinstance(item, Label):
             continue  # Label does not show up in bytecode
 

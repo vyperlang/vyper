@@ -18,7 +18,6 @@ from vyper.evm.assembler.core import (
     PUSH_OFST,
     PUSHLABEL,
     AssemblyInstruction,
-    DataHeader,
     Label,
     TaggedInstruction,
     assembly_to_evm,
@@ -537,7 +536,7 @@ class _IRnodeLowerer:
 
             o.extend(["RETURN"])
 
-            self.data_segments.append([DataHeader(runtime_begin), DATA_ITEM(runtime_bytecode)])
+            self.data_segments.append([Label(runtime_begin), DATA_ITEM(runtime_bytecode)])
 
             if self.compiler_metadata is not None:
                 # we should issue the cbor-encoded metadata.
@@ -548,7 +547,7 @@ class _IRnodeLowerer:
                     immutables_len,
                 )
 
-                segment: list[AssemblyInstruction] = [DataHeader(Label("cbor_metadata"))]
+                segment: list[AssemblyInstruction] = [Label("cbor_metadata")]
                 segment.append(DATA_ITEM(bytecode_suffix))
                 self.data_segments.append(segment)
 
@@ -649,7 +648,7 @@ class _IRnodeLowerer:
         if code.value == "data":
             assert isinstance(code.args[0].value, str)  # help mypy
 
-            data_header = DataHeader(Label(code.args[0].value))
+            data_header = Label(code.args[0].value)
             data_items = []
 
             for c in code.args[1:]:

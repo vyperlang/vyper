@@ -9,7 +9,6 @@ from vyper.evm.assembler.core import (
     PUSH_OFST,
     PUSHLABEL,
     AssemblyInstruction,
-    DataHeader,
     Label,
     TaggedInstruction,
 )
