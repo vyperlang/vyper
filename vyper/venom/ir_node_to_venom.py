@@ -7,6 +7,7 @@ from typing import Optional
 
 from vyper.codegen.context import Alloca
 from vyper.codegen.ir_node import IRnode
+from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import get_opcodes
 from vyper.ir.compile_ir import _runtime_code_offsets
 from vyper.venom.basicblock import (
@@ -18,7 +19,7 @@ from vyper.venom.basicblock import (
     IRVariable,
     IRHexString,
 )
-from vyper.venom.context import IRContext
+from vyper.venom.context import DataSection, IRContext
 from vyper.venom.function import IRFunction, IRParameter
 
 ENABLE_NEW_CALL_CONV = True
@@ -127,6 +128,30 @@ def get_scratch_alloca_id() -> int:
     global _scratch_alloca_id
     _scratch_alloca_id += 1
     return _scratch_alloca_id
+
+
+def generate_venom_from_ir(
+    ir: IRnode,
+    settings: Settings,
+    constants: dict[str, int] = None,
+    data_sections: dict[str, bytes] = None,
+) -> IRContext:
+    # Convert "old" IR to "new" IR
+    constants = constants or {}
+    starting_symbols = {k: IRLiteral(v) for k, v in constants.items()}
+    ctx = ir_node_to_venom(ir, starting_symbols)
+
+    data_sections = data_sections or {}
+    for section_name, data in data_sections.items():
+        ctx.append_data_section(IRLabel(section_name))
+        ctx.append_data_item(data)
+
+    convert_data_segment_to_function(ctx, ctx.data_segment)
+
+    for constname, value in constants.items():
+        ctx.add_constant(constname, value)
+
+    return ctx
 
 
 # convert IRnode directly to venom
@@ -759,3 +784,27 @@ def _convert_ir_opcode(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> None
         if isinstance(arg, IRnode):
             inst_args.append(_convert_ir_bb(fn, arg, symbols))
     fn.get_basic_block().append_instruction(opcode, *inst_args)
+
+
+def convert_data_segment_to_function(ctx: IRContext, data_sections: list[DataSection]) -> None:
+    if len(data_sections) == 0:
+        return
+    
+    first_label = data_sections[0].label
+    fn = ctx.create_function(first_label.value)
+    fn.clear_basic_blocks()
+    
+    for data_section in data_sections:
+        bb = IRBasicBlock(data_section.label, fn)
+        bb.is_volatile = True
+        fn.append_basic_block(bb)
+
+        for data_item in data_section.data_items:
+            if isinstance(data_item.data, IRLabel):
+                bb.append_instruction("db", data_item.data)
+            else:
+                # Convert bytes to IRHexString
+                assert isinstance(data_item.data, bytes)
+                hex_string = IRHexString(data_item.data)
+                bb.append_instruction("db", hex_string)
+        

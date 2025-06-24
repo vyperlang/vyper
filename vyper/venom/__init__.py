@@ -13,7 +13,6 @@ from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRHexString, IRLabel, IRLiteral
 from vyper.venom.context import DataSection, IRContext
 from vyper.venom.function import IRFunction
-from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.passes import (
     CSE,
     SCCP,
@@ -40,35 +39,11 @@ from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
-def convert_data_segment_to_function(ctx: IRContext, data_sections: list[DataSection]) -> None:
-    if len(data_sections) == 0:
-        return
-    
-    first_label = data_sections[0].label
-    fn = ctx.create_function(first_label.value)
-    fn.clear_basic_blocks()
-    
-    for data_section in data_sections:
-        bb = IRBasicBlock(data_section.label, fn)
-        bb.is_volatile = True
-        fn.append_basic_block(bb)
-
-        for data_item in data_section.data_items:
-            if isinstance(data_item.data, IRLabel):
-                bb.append_instruction("db", data_item.data)
-            else:
-                # Convert bytes to IRHexString
-                assert isinstance(data_item.data, bytes)
-                hex_string = IRHexString(data_item.data)
-                bb.append_instruction("db", hex_string)
-        
-
 def generate_assembly_experimental(
     venom_ctx: IRContext, optimize: OptimizationLevel = DEFAULT_OPT_LEVEL
 ) -> list[AssemblyInstruction]:
     compiler = VenomCompiler(venom_ctx)
     return compiler.generate_evm_assembly(optimize == OptimizationLevel.NONE)
-
 
 def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache) -> None:
     # Run passes on Venom IR
@@ -151,29 +126,3 @@ def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
         _run_passes(fn, optimize, ir_analyses[fn])
 
 
-def generate_venom(
-    ir: IRnode,
-    settings: Settings,
-    constants: dict[str, int] = None,
-    data_sections: dict[str, bytes] = None,
-) -> IRContext:
-    # Convert "old" IR to "new" IR
-    constants = constants or {}
-    starting_symbols = {k: IRLiteral(v) for k, v in constants.items()}
-    ctx = ir_node_to_venom(ir, starting_symbols)
-
-    data_sections = data_sections or {}
-    for section_name, data in data_sections.items():
-        ctx.append_data_section(IRLabel(section_name))
-        ctx.append_data_item(data)
-
-    convert_data_segment_to_function(ctx, ctx.data_segment)
-
-    for constname, value in constants.items():
-        ctx.add_constant(constname, value)
-
-    optimize = settings.optimize
-    assert optimize is not None  # help mypy
-    run_passes_on(ctx, optimize)
-
-    return ctx

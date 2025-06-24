@@ -3,6 +3,7 @@ from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Any, Optional
 
+from vyper.venom.ir_node_to_venom import generate_venom_from_ir
 from vyper.venom.basicblock import IRBasicBlock, IRHexString, IRLabel, IRLiteral
 import vyper.codegen.core as codegen
 from vyper import ast as vy_ast
@@ -25,7 +26,7 @@ from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
 from vyper.utils import ERC5202_PREFIX, sha256sum
-from vyper.venom import generate_assembly_experimental, generate_venom
+from vyper.venom import generate_assembly_experimental, run_passes_on
 from vyper.warnings import VyperWarning, vyper_warn
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
@@ -256,7 +257,12 @@ class CompilerData:
 
     @cached_property
     def venom_runtime(self):
-        runtime_venom = generate_venom(self.ir_runtime, self.settings)
+        runtime_venom = generate_venom_from_ir(self.ir_runtime, self.settings)
+
+        optimize = self.settings.optimize
+        assert optimize is not None  # help mypy
+        run_passes_on(runtime_venom, optimize)
+
         return runtime_venom
 
     @cached_property
@@ -266,9 +272,13 @@ class CompilerData:
             "immutables_len": self.compilation_target._metadata["type"].immutable_section_bytes,
         }
 
-        venom_ctx = generate_venom(
+        venom_ctx = generate_venom_from_ir(
             self.ir_nodes, self.settings, constants=constants
         )
+
+        optimize = self.settings.optimize
+        assert optimize is not None  # help mypy
+        run_passes_on(venom_ctx, optimize)
 
         main_entry = venom_ctx.entry_function
 
