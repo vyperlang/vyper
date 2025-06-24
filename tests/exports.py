@@ -82,9 +82,9 @@ class TestExporter:
         key = (bucket, base)
 
         if will_execute:
-            cnt = self._counts.get(key, 0) + 1
-            self._counts[key] = cnt
-            unique = base if cnt == 1 else f"{base}{SEP}{cnt}"
+            count = self._counts.get(key, 0) + 1
+            self._counts[key] = count
+            unique = base if count == 1 else f"{base}{SEP}{count}"
             lst.append(TracedItem(unique, [], [], "fixture"))
             self._last_unique[key] = unique
         else:  # fixture was cached from some previous run
@@ -173,8 +173,8 @@ class TestExporter:
             out.parent.mkdir(parents=True, exist_ok=True)
 
             by_name = {
-                ti.name: {"deps": ti.deps, "traces": ti.traces, "item_type": ti.item_type}
-                for ti in items
+                item.name: {"deps": item.deps, "traces": item.traces, "item_type": item.item_type}
+                for item in items
             }
 
             with out.open("w", encoding="utf-8") as fp:

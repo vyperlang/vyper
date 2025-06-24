@@ -416,11 +416,11 @@ def pytest_fixture_setup(fixturedef: pytest.FixtureDef, request):
 
     # if cache is empty it means the fixture will execute
     will_execute = fixturedef.cached_result is None
-    suc = exporter.set_item(fixturedef, will_execute)
+    is_tracked = exporter.set_item(fixturedef, will_execute)
 
     yield
 
-    if not suc:
+    if not is_tracked:
         return
 
     exporter.finalize_item(fixturedef)
