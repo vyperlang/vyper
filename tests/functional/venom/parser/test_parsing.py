@@ -121,7 +121,6 @@ def test_data_section():
     data_bb.append_instruction("db", IRLabel("fallback"))
     data_bb.append_instruction("db", IRLabel("selector_bucket_5"))
     data_bb.append_instruction("db", IRLabel("selector_bucket_6"))
-    data_bb.append_instruction("stop")
 
     assert_ctx_eq(parsed_ctx, expected_ctx)
 
@@ -450,3 +449,35 @@ def test_labels_with_addresses_used_in_function():
     add_inst = other_bb.instructions[0]
     assert add_inst.opcode == "add"
     assert add_inst.operands[0].value == "my_global"
+
+
+def test_labels_with_tags():
+    source = """
+    function main {
+        start:
+            nop
+        revert: @0x100 [pinned]
+            revert 0, 0
+        special: [tag1, pinned, tag2]
+            nop
+        normal: @0x200
+            stop
+    }
+    """
+
+    parsed_ctx = parse_venom(source)
+    fn = list(parsed_ctx.functions.values())[0]
+    
+    start_bb = fn.get_basic_block("start")
+    assert not start_bb.is_pinned, "start block should not be volatile"
+    
+    revert_bb = fn.get_basic_block("revert")
+    assert revert_bb.is_pinned, "revert block should be volatile due to pinned tag"
+    assert revert_bb.label.address == 0x100, "revert block should have address 0x100"
+    
+    special_bb = fn.get_basic_block("special")
+    assert special_bb.is_pinned, "special block should be volatile due to pinned tag"
+    
+    normal_bb = fn.get_basic_block("normal")
+    assert not normal_bb.is_pinned, "normal block should not be volatile"
+    assert normal_bb.label.address == 0x200, "normal block should have address 0x200"
