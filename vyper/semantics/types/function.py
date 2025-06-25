@@ -32,6 +32,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
+from vyper.semantics.types.bytestrings import BytesT
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
@@ -97,6 +98,7 @@ class ContractFunctionT(VyperType):
         state_mutability: StateMutability,
         from_interface: bool = False,
         nonreentrant: bool = False,
+        do_raw_return: bool = False,
         ast_def: Optional[vy_ast.VyperNode] = None,
     ) -> None:
         super().__init__()
@@ -108,6 +110,7 @@ class ContractFunctionT(VyperType):
         self.visibility = function_visibility
         self.mutability = state_mutability
         self.nonreentrant = nonreentrant
+        self.do_raw_return = do_raw_return
         self.from_interface = from_interface
 
         # sanity check, nonreentrant used to be Optional[str]
@@ -337,6 +340,11 @@ class ContractFunctionT(VyperType):
         # guaranteed by parse_decorators and disallowing nonreentrant pragma
         assert decorators.reentrant_node is None  # sanity check
 
+        if decorators.raw_return_node is not None:
+            raise FunctionDeclarationException(
+                "`@raw_return` not allowed in interfaces", decorators.raw_return_node
+            )
+
         # it's redundant to specify visibility in vyi - always should be external
         function_visibility = decorators.visibility
         if function_visibility is None:
@@ -443,6 +451,17 @@ class ContractFunctionT(VyperType):
                 msg = "`@nonreentrant` decorator disallowed on `__init__`"
                 raise FunctionDeclarationException(msg, decorators.nonreentrant_node)
 
+        if decorators.raw_return:
+            if function_visibility != FunctionVisibility.EXTERNAL:
+                raise StructureException(
+                    "@raw_return is only allowed on external functions!", decorators.raw_return_node
+                )
+            if not isinstance(return_type, BytesT):
+                raise StructureException(
+                    "@raw_return is only allowed in conjunction with `Bytes[...]` return type!",
+                    decorators.raw_return_node,
+                )
+
         # compute nonreentrancy
         settings = funcdef.module_node.settings
         nonreentrant: bool
@@ -477,6 +496,7 @@ class ContractFunctionT(VyperType):
             decorators.state_mutability,
             from_interface=False,
             nonreentrant=nonreentrant,
+            do_raw_return=decorators.raw_return,
             ast_def=funcdef,
         )
 
@@ -753,6 +773,7 @@ class _ParsedDecorators:
     visibility_node: Optional[vy_ast.Name] = None
     state_mutability_node: Optional[vy_ast.Name] = None
     nonreentrant_node: Optional[vy_ast.Name] = None
+    raw_return_node: Optional[vy_ast.Name] = None
     reentrant_node: Optional[vy_ast.Name] = None
 
     def __init__(self, funcdef: vy_ast.FunctionDef):
@@ -816,6 +837,18 @@ class _ParsedDecorators:
 
         self.reentrant_node = decorator_node
 
+    def set_raw_return(self, decorator_node: vy_ast.Name):
+        if self.raw_return_node is not None:
+            raise StructureException(
+                "raw_return decorator is already set", self.raw_return_node, decorator_node
+            )
+
+        self.raw_return_node = decorator_node
+
+    @property
+    def raw_return(self) -> bool:
+        return self.raw_return_node is not None
+
 
 def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
     ret = _ParsedDecorators(funcdef)
@@ -836,6 +869,9 @@ def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
                 hint += "`@nonreentrant` decorator does not accept any "
                 hint += "arguments since vyper 0.4.0."
             raise StructureException(msg, decorator, hint=hint)
+
+        elif decorator.get("id") == "raw_return":
+            ret.set_raw_return(decorator)
 
         elif isinstance(decorator, vy_ast.Name):
             if FunctionVisibility.is_valid_value(decorator.id):

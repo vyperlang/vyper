@@ -26,13 +26,10 @@ def parse_to_ast(
     source_id: int = 0,
     module_path: Optional[str] = None,
     resolved_path: Optional[str] = None,
-    add_fn_node: Optional[str] = None,
     is_interface: bool = False,
 ) -> vy_ast.Module:
     try:
-        return _parse_to_ast(
-            vyper_source, source_id, module_path, resolved_path, add_fn_node, is_interface
-        )
+        return _parse_to_ast(vyper_source, source_id, module_path, resolved_path, is_interface)
     except SyntaxException as e:
         e.resolved_path = resolved_path
         raise e
@@ -43,7 +40,6 @@ def _parse_to_ast(
     source_id: int = 0,
     module_path: Optional[str] = None,
     resolved_path: Optional[str] = None,
-    add_fn_node: Optional[str] = None,
     is_interface: bool = False,
 ) -> vy_ast.Module:
     """
@@ -57,8 +53,6 @@ def _parse_to_ast(
         Source id to use in the `src` member of each node.
     contract_name: str, optional
         Name of contract.
-    add_fn_node: str, optional
-        If not None, adds a dummy Python AST FunctionDef wrapper node.
     source_id: int, optional
         The source ID generated for this source code.
         Corresponds to FileInput.source_id
@@ -105,14 +99,6 @@ def _parse_to_ast(
                 break
 
         raise new_e from None
-
-    # Add dummy function node to ensure local variables are treated as `AnnAssign`
-    # instead of state variables (`VariableDecl`)
-    if add_fn_node:
-        fn_node = python_ast.FunctionDef(add_fn_node, py_ast.body, [], [])
-        fn_node.body = py_ast.body
-        fn_node.args = python_ast.arguments(defaults=[])
-        py_ast.body = [fn_node]
 
     annotate_python_ast(
         py_ast,
