@@ -568,7 +568,7 @@ class VenomCompiler:
             assembly.extend(["ISZERO", PUSHLABEL(Label("revert")), "JUMPI"])
         elif opcode == "assert_unreachable":
             end_symbol = self.mklabel("reachable")
-            assembly.extend([PUSHLABEL(end_symbol), "JUMPI", "INVALID", end_symbol])
+            assembly.extend([PUSHLABEL(end_symbol), "JUMPI", "INVALID", JUMPDEST(end_symbol)])
         elif opcode == "iload":
             addr = inst.operands[0]
             mem_deploy_end = self.ctx.constants["mem_deploy_end"]
