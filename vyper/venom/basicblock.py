@@ -571,7 +571,6 @@ class IRBasicBlock:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
 
         if index is None:
-            assert not self.is_terminated, (self, instruction)
             index = len(self.instructions)
         instruction.parent = self
         fn = self.parent
