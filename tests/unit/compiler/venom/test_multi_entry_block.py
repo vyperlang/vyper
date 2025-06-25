@@ -1,7 +1,7 @@
 from tests.venom_utils import parse_venom
 from vyper.venom.analysis import CFGAnalysis, IRAnalysesCache
 from vyper.venom.check_venom import check_venom_ctx
-from vyper.venom.passes import CFGNormalization
+from vyper.venom.passes import CFGNormalization, MakeSSA
 
 
 def test_multi_entry_block_1():
@@ -171,8 +171,6 @@ def test_cfg_normalization_with_phi():
     ac = IRAnalysesCache(fn)
 
     # first run makeSSA to convert to SSA form
-    from vyper.venom.passes import MakeSSA
-
     MakeSSA(ac, fn).run_pass()
 
     # check that normalization is needed
