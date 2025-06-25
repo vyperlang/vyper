@@ -82,29 +82,69 @@ def classify_status(status: Status) -> uint256:
     assert c.classify_status(2) == 0  # INACTIVE
 
 
-def test_mixed_pure_function_features(get_contract):
-    """Test that other pure function features still work alongside flags"""
+def test_access_flag_from_another_module(get_contract, make_input_bundle):
+    """Test flag access even if the attribute comes from another module (eg lib1.flag.foo)"""
     code = """
+import lib1
+
+@pure
+@external
+def foo() -> lib1.Action:
+    return lib1.Action.BUY
+
+    """
+    lib1 = """
+flag Action:
+    BUY
+    SELL
+    """
+
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    c = get_contract(code, input_bundle=input_bundle)
+    assert c.foo() == 1  # BUY
+
+
+def test_internal_pure_accessing_flag(get_contract, make_input_bundle):
+    """Test flag accesses in internal pure functions"""
+    code = """
+import lib1
+
+@pure
+def bar() -> lib1.Action:
+    return lib1.Action.BUY
+
+@pure
+@external
+def foo() -> lib1.Action:
+    return self.bar()
+
+    """
+    lib1 = """
+flag Action:
+    BUY
+    SELL
+    """
+
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    c = get_contract(code, input_bundle=input_bundle)
+    assert c.foo() == 1  # BUY
+
+
+def test_flag_access_in_loop(get_contract, make_input_bundle):
+    """Test flag accesses in a for loop"""
+    code = """
+
 flag Action:
     BUY
     SELL
 
-struct Point:
-    x: uint256
-    y: uint256
-
 @pure
 @external
-def get_action_and_point() -> (Action, Point):
-    return Action.BUY, Point(x=10, y=20)
-
-@pure
-@external
-def pure_math(a: uint256, b: uint256) -> uint256:
-    return a + b
-    """
+def foo() -> uint256:
+    cnt: uint256 = 0
+    for i: uint256 in range(10):
+        cnt += convert(Action.SELL, uint256)
+    return cnt
+"""
     c = get_contract(code)
-    action, point = c.get_action_and_point()
-    assert action == 1  # BUY
-    assert point == (10, 20)
-    assert c.pure_math(5, 7) == 12
+    assert c.foo() == 10 * 2
