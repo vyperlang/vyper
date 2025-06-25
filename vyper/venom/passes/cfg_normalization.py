@@ -44,11 +44,10 @@ class CFGNormalization(IRPass):
             if inst.opcode != "phi":
                 continue
 
-            for i in range(0, len(inst.operands), 2):
-                if inst.operands[i] != in_bb.label:
+            for label, var in inst.phi_operands:
+                if label != in_bb.label:
                     continue
 
-                var = inst.operands[i + 1]
                 assert isinstance(var, IRVariable)  # help mypy
                 if var in var_replacements:
                     continue
@@ -87,6 +86,7 @@ class CFGNormalization(IRPass):
             if inst.opcode != "phi":
                 continue
 
+            # manually update operands since phi_operands is read-only
             for i in range(0, len(inst.operands), 2):
                 if inst.operands[i] == old_pred.label:
                     inst.operands[i] = new_pred.label
