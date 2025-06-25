@@ -12,7 +12,7 @@ from vyper.venom.basicblock import (
     IRVariable,
     IRHexString,
 )
-from vyper.venom.context import DataItem, DataSection, IRContext
+from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 
 VENOM_GRAMMAR = """
@@ -28,7 +28,7 @@ VENOM_GRAMMAR = """
     # Allow multiple comment styles
     COMMENT: ";" /[^\\n]*/ | "//" /[^\\n]*/ | "#" /[^\\n]*/
 
-    start: (global_label | function)* data_segment?
+    start: (global_label | function)*
 
     # Global label definitions with optional address override
     global_label: label_name ":" CONST
@@ -37,7 +37,10 @@ VENOM_GRAMMAR = """
 
     block_content: (label_decl | statement)*
 
-    label_decl: (IDENT | ESCAPED_STRING) ":" ("@" CONST)? NEWLINE+
+    label_decl: (IDENT | ESCAPED_STRING) ":" ("@" CONST)? ("[" tag_list "]")? NEWLINE+
+
+    tag_list: tag ("," tag)*
+    tag: IDENT
 
     statement: (assignment | instruction) NEWLINE+
     assignment: VAR_IDENT "=" expr
@@ -56,10 +59,6 @@ VENOM_GRAMMAR = """
     func_name: IDENT | ESCAPED_STRING
     label_name: IDENT | ESCAPED_STRING
     label_ref: "@" (IDENT | ESCAPED_STRING)
-
-    data_segment: "data" "readonly" "{" data_section* "}"
-    data_section: label_name ":" NEWLINE+ data_item+
-    data_item: DB (HEXSTR | label_ref) NEWLINE+
 
     DOUBLE_QUOTE: "\\""
     IDENT: (DIGIT|LETTER|"_")+
@@ -109,34 +108,30 @@ class _TypedItem:
         self.children = children
 
 
-class _DataSegment(_TypedItem):
-    pass
-
-
 class _GlobalLabel(_TypedItem):
     pass
+
+
 class _LabelDecl:
     """Represents a block declaration in the parse tree."""
 
-    def __init__(self, label: str, address: Optional[int] = None) -> None:
+    def __init__(self, label: str, address: Optional[int] = None, tags: Optional[list[str]] = None) -> None:
         self.label = label
         self.address = address
+        self.tags = tags or []
 
 
 class VenomTransformer(Transformer):
     def start(self, children) -> IRContext:
         ctx = IRContext()
         
-        # Separate global labels, functions, and data segments
+        # Separate global labels and functions
         global_labels = []
         funcs = []
-        data_segment = None
         
         for child in children:
             if isinstance(child, _GlobalLabel):
                 global_labels.append(child)
-            elif isinstance(child, _DataSegment):
-                data_segment = child
             else:
                 funcs.append(child)
         
@@ -145,7 +140,7 @@ class VenomTransformer(Transformer):
             name, address = global_label.children
             ctx.add_global_label(name, address)
         
-        # Process functions first
+        # Process functions
         for fn_name, items in funcs:
             fn = ctx.create_function(fn_name)
             if ctx.entry_function is None:
@@ -161,15 +156,17 @@ class VenomTransformer(Transformer):
             # the next label or end of function.
             current_block_label: Optional[str] = None
             current_block_address: Optional[int] = None
+            current_block_tags: list[str] = []
             current_block_instructions: list[IRInstruction] = []
-            blocks: list[tuple[str, Optional[int], list[IRInstruction]]] = []
+            blocks: list[tuple[str, Optional[int], list[IRInstruction], list[str]]] = []
 
             for item in items:
                 if isinstance(item, _LabelDecl):
                     if current_block_label is not None:
-                        blocks.append((current_block_label, current_block_address, current_block_instructions))
+                        blocks.append((current_block_label, current_block_address, current_block_instructions, current_block_tags))
                     current_block_label = item.label
                     current_block_address = item.address
+                    current_block_tags = item.tags
                     current_block_instructions = []
                 elif isinstance(item, IRInstruction):
                     if current_block_label is None:
@@ -177,15 +174,19 @@ class VenomTransformer(Transformer):
                     current_block_instructions.append(item)
 
             if current_block_label is not None:
-                blocks.append((current_block_label, current_block_address, current_block_instructions))
+                blocks.append((current_block_label, current_block_address, current_block_instructions, current_block_tags))
 
             for block_data in blocks:
-                # All blocks now have: (block_name, address, instructions)
-                block_name, address, instructions = block_data
+                # All blocks now have: (block_name, address, instructions, tags)
+                block_name, address, instructions, tags = block_data
                 if address is not None:
                     bb = IRBasicBlock(IRLabel(block_name, True, address), fn)
                 else:
                     bb = IRBasicBlock(IRLabel(block_name, True), fn)
+                
+                # Set is_volatile if "pinned" tag is present
+                if "pinned" in tags:
+                    bb.is_volatile = True
                 
                 fn.append_basic_block(bb)
 
@@ -193,12 +194,8 @@ class VenomTransformer(Transformer):
                     assert isinstance(instruction, IRInstruction)  # help mypy
                     bb.insert_instruction(instruction)
 
-        # Process data segment after functions by converting it to a regular function
-        if data_segment:
-            self._add_revert_postamble_function(ctx)
-            convert_data_segment_to_function(ctx, data_segment.children)
+            _set_last_var(fn)
 
-        _set_last_var(fn)
         _set_last_label(ctx)
 
         return ctx
@@ -216,49 +213,23 @@ class VenomTransformer(Transformer):
         return children
 
     def label_decl(self, children) -> _LabelDecl:
-        # children[0] is the label, optional address, then NEWLINE tokens
+        # children[0] is the label, optional address, optional tags, then NEWLINE tokens
         label = _unescape(str(children[0]))
         address = None
-        if len(children) > 1 and isinstance(children[1], IRLiteral):
-            address = children[1].value
-        return _LabelDecl(label, address)
+        tags = []
+        
+        # Process children after the label
+        for child in children[1:]:
+            if isinstance(child, IRLiteral):
+                address = child.value
+            elif isinstance(child, list):  # tag_list returns a list
+                tags = child
+        
+        return _LabelDecl(label, address, tags)
 
     def statement(self, children) -> IRInstruction:
         # children[0] is the instruction/assignment, rest are NEWLINE tokens
         return children[0]
-
-    def data_segment(self, children) -> _DataSegment:
-        return _DataSegment(children)
-
-    def data_section(self, children) -> DataSection:
-        label = IRLabel(children[0], True)
-        # skip NEWLINE tokens and collect DataItems
-        data_items = [child for child in children[1:] if isinstance(child, DataItem)]
-        return DataSection(label, data_items)
-
-    def data_item(self, children) -> DataItem:
-        # children[0] is the DB "IDENT", children[1] is the data content, rest are NEWLINE tokens
-        assert children[0] == "db", f"Expected 'db', got {children[0]}"
-        item = children[1]
-        if isinstance(item, IRLabel):
-            return DataItem(item)
-
-        # handle hex strings
-        assert isinstance(item, str)
-        assert item.startswith('x"')
-        assert item.endswith('"')
-        item = item.removeprefix('x"').removesuffix('"')
-        item = item.replace("_", "")
-        return DataItem(bytes.fromhex(item))
-
-    def _add_revert_postamble_function(self, ctx: IRContext) -> None:
-        fn = ctx.create_function("revert")
-        
-        fn.clear_basic_blocks()
-        bb = IRBasicBlock(IRLabel("revert"), fn)
-        fn.append_basic_block(bb)
-        
-        bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
 
     def assignment(self, children) -> IRInstruction:
         to, value = children
@@ -345,6 +316,12 @@ class VenomTransformer(Transformer):
 
     def HEXSTR(self, val) -> str:
         return val.value
+
+    def tag_list(self, children) -> list[str]:
+        return children
+
+    def tag(self, children) -> str:
+        return str(children[0])
 
 
 def parse_venom(source: str) -> IRContext:
