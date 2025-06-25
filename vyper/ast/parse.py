@@ -1,4 +1,5 @@
 import ast as python_ast
+import copy
 import pickle
 import tokenize
 from decimal import Decimal
@@ -11,19 +12,24 @@ from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 from vyper.utils import sha256sum
 from vyper.warnings import Deprecation, vyper_warn
 
+PYTHON_AST_SINGLETONS = (
+    python_ast.cmpop,
+    python_ast.operator,
+    python_ast.unaryop,
+    python_ast.boolop,
+    python_ast.expr_context,
+)
+
 
 def parse_to_ast(
     vyper_source: str,
     source_id: int = 0,
     module_path: Optional[str] = None,
     resolved_path: Optional[str] = None,
-    add_fn_node: Optional[str] = None,
     is_interface: bool = False,
 ) -> vy_ast.Module:
     try:
-        return _parse_to_ast(
-            vyper_source, source_id, module_path, resolved_path, add_fn_node, is_interface
-        )
+        return _parse_to_ast(vyper_source, source_id, module_path, resolved_path, is_interface)
     except SyntaxException as e:
         e.resolved_path = resolved_path
         raise e
@@ -34,7 +40,6 @@ def _parse_to_ast(
     source_id: int = 0,
     module_path: Optional[str] = None,
     resolved_path: Optional[str] = None,
-    add_fn_node: Optional[str] = None,
     is_interface: bool = False,
 ) -> vy_ast.Module:
     """
@@ -48,8 +53,6 @@ def _parse_to_ast(
         Source id to use in the `src` member of each node.
     contract_name: str, optional
         Name of contract.
-    add_fn_node: str, optional
-        If not None, adds a dummy Python AST FunctionDef wrapper node.
     source_id: int, optional
         The source ID generated for this source code.
         Corresponds to FileInput.source_id
@@ -97,19 +100,6 @@ def _parse_to_ast(
 
         raise new_e from None
 
-    # some python AST node instances are singletons and are reused between
-    # parse() invocations. copy the python AST so that we are using fresh
-    # objects.
-    py_ast = _deepcopy_ast(py_ast)
-
-    # Add dummy function node to ensure local variables are treated as `AnnAssign`
-    # instead of state variables (`VariableDecl`)
-    if add_fn_node:
-        fn_node = python_ast.FunctionDef(add_fn_node, py_ast.body, [], [])
-        fn_node.body = py_ast.body
-        fn_node.args = python_ast.arguments(defaults=[])
-        py_ast.body = [fn_node]
-
     annotate_python_ast(
         py_ast,
         vyper_source,
@@ -148,7 +138,7 @@ def annotate_python_ast(
     resolved_path: Optional[str] = None,
 ) -> python_ast.AST:
     """
-    Annotate and optimize a Python AST in preparation conversion to a Vyper AST.
+    Annotate and optimize a Python AST in preparation for conversion to a Vyper AST.
 
     Parameters
     ----------
@@ -166,7 +156,7 @@ def annotate_python_ast(
     visitor = AnnotatingVisitor(
         vyper_source, pre_parser, source_id, module_path=module_path, resolved_path=resolved_path
     )
-    visitor.start(parsed_ast)
+    visitor.visit(parsed_ast)
 
     return parsed_ast
 
@@ -179,6 +169,7 @@ def _deepcopy_ast(ast_node: python_ast.AST):
 class AnnotatingVisitor(python_ast.NodeTransformer):
     _source_code: str
     _pre_parser: PreParser
+    _parents: list[python_ast.AST]
 
     def __init__(
         self,
@@ -193,6 +184,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self._resolved_path = resolved_path
         self._source_code = source_code
         self._pre_parser = pre_parser
+        self._parents = []
 
         self.counter: int = 0
 
@@ -210,61 +202,43 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             ofst += len(line)
         return ret
 
-    def start(self, node: python_ast.Module):
-        self._fix_missing_locations(node)
-        self.visit(node)
-
-    def _fix_missing_locations(self, ast_node: python_ast.Module):
-        """
-        adapted from cpython Lib/ast.py. adds line/col info to ast,
-        but unlike Lib/ast.py, adjusts *all* ast nodes, not just the
-        one that python defines to have line/col info.
-        https://github.com/python/cpython/blob/62729d79206014886f5d/Lib/ast.py#L228
-        """
-        assert isinstance(ast_node, python_ast.Module)
-        ast_node.lineno = 1
-        ast_node.col_offset = 0
-        ast_node.end_lineno = max(1, len(self.source_lines))
-
-        if len(self.source_lines) > 0:
-            ast_node.end_col_offset = len(self.source_lines[-1])
-        else:
-            ast_node.end_col_offset = 0
-
-        def _fix(node, parent=None):
-            for field in LINE_INFO_FIELDS:
-                if parent is not None:
-                    val = getattr(node, field, None)
-                    # special case for USub - heisenbug when coverage is
-                    # enabled in the test suite.
-                    if val is None or isinstance(node, python_ast.USub):
-                        val = getattr(parent, field)
-                    setattr(node, field, val)
-                else:
-                    assert hasattr(node, field), node
-
-            for child in python_ast.iter_child_nodes(node):
-                _fix(child, node)
-
-        _fix(ast_node)
-
     def generic_visit(self, node):
         """
-        Annotate a node with information that simplifies Vyper node generation.
+        Adds location info to all python ast nodes and replaces python ast nodes
+        that are singletons with a copy so that the location info will be unique,
+        before annotating the nodes with information that simplifies Vyper node
+        generation.
         """
-        # Decorate every node with the original source code to allow pretty-printing errors
+        if isinstance(node, PYTHON_AST_SINGLETONS):
+            # for performance reasons, these AST nodes are represented as
+            # singletons in the C parser. however, since we want to add
+            # different source annotations for each operator, we create
+            # a copy here.
+            node = copy.copy(node)
+
+        # adapted from cpython Lib/ast.py. adds line/col info to ast,
+        # but unlike Lib/ast.py, adjusts *all* ast nodes, not just the
+        # one that python defines to have line/col info.
+        # https://github.com/python/cpython/blob/62729d79206014886f5d/Lib/ast.py#L228
+        for field in LINE_INFO_FIELDS:
+            if len(self._parents) > 0:
+                parent = self._parents[-1]
+                val = getattr(node, field, None)
+                if val is None:
+                    # try to get the field from the parent
+                    val = getattr(parent, field)
+                setattr(node, field, val)
+            else:
+                assert hasattr(node, field), node
+
+        # decorate every node with the original source code to allow
+        # pretty-printing errors
         node.full_source_code = self._source_code
         node.node_id = self.counter
         self.counter += 1
         node.ast_type = node.__class__.__name__
 
         adjustments = self._pre_parser.adjustments
-
-        # Load and Store behave differently inside of fix_missing_locations;
-        # we don't use them in the vyper AST so just skip adjusting the line
-        # info.
-        if isinstance(node, (python_ast.Load, python_ast.Store)):
-            return super().generic_visit(node)
 
         adj = adjustments.get((node.lineno, node.col_offset), 0)
         node.col_offset += adj
@@ -278,7 +252,14 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         node.src = f"{start_pos}:{end_pos-start_pos}:{self._source_id}"
         node.node_source_code = self._source_code[start_pos:end_pos]
 
-        return super().generic_visit(node)
+        # keep track of the current path thru the AST
+        self._parents.append(node)
+        try:
+            node = super().generic_visit(node)
+        finally:
+            self._parents.pop()
+
+        return node
 
     def _visit_docstring(self, node):
         """
@@ -301,6 +282,15 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return node
 
     def visit_Module(self, node):
+        node.lineno = 1
+        node.col_offset = 0
+        node.end_lineno = max(1, len(self.source_lines))
+
+        if len(self.source_lines) > 0:
+            node.end_col_offset = len(self.source_lines[-1])
+        else:
+            node.end_col_offset = 0
+
         # TODO: is this the best place for these? maybe they can be on
         # CompilerData instead.
         node.path = self._module_path
