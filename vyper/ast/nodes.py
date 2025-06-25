@@ -748,6 +748,10 @@ class ExprNode(VyperNode):
 
     def to_dict(self):
         ret = super().to_dict()
+
+        if self.has_folded_value and self.get_folded_value() != self:
+            ret["folded_value"] = self.get_folded_value().to_dict()
+
         if self._expr_info is None:
             return ret
 
