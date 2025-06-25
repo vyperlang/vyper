@@ -509,7 +509,7 @@ class VenomCompiler:
             pass
         elif opcode == "param":
             pass
-        elif opcode == "store":
+        elif opcode == "iden":
             pass
         elif opcode == "dbname":
             pass

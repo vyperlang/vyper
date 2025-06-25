@@ -13,14 +13,14 @@ def test_multi_entry_block_1():
     block_1_label = IRLabel("block_1", fn)
 
     bb = fn.get_basic_block()
-    op = bb.append_instruction("store", 10)
+    op = bb.append_instruction("iden", 10)
     acc = bb.append_instruction("add", op, op)
     bb.append_instruction("jnz", acc, finish_label, block_1_label)
 
     block_1 = IRBasicBlock(block_1_label, fn)
     fn.append_basic_block(block_1)
     acc = block_1.append_instruction("add", acc, op)
-    op = block_1.append_instruction("store", 10)
+    op = block_1.append_instruction("iden", 10)
     block_1.append_instruction("mstore", acc, op)
     block_1.append_instruction("jnz", acc, finish_label, target_label)
 
@@ -60,21 +60,21 @@ def test_multi_entry_block_2():
     block_2_label = IRLabel("block_2", fn)
 
     bb = fn.get_basic_block()
-    op = bb.append_instruction("store", 10)
+    op = bb.append_instruction("iden", 10)
     acc = bb.append_instruction("add", op, op)
     bb.append_instruction("jnz", acc, finish_label, block_1_label)
 
     block_1 = IRBasicBlock(block_1_label, fn)
     fn.append_basic_block(block_1)
     acc = block_1.append_instruction("add", acc, op)
-    op = block_1.append_instruction("store", 10)
+    op = block_1.append_instruction("iden", 10)
     block_1.append_instruction("mstore", acc, op)
     block_1.append_instruction("jnz", acc, target_label, finish_label)
 
     block_2 = IRBasicBlock(block_2_label, fn)
     fn.append_basic_block(block_2)
     acc = block_2.append_instruction("add", acc, op)
-    op = block_2.append_instruction("store", 10)
+    op = block_2.append_instruction("iden", 10)
     block_2.append_instruction("mstore", acc, op)
     # switch the order of the labels, for fun and profit
     block_2.append_instruction("jnz", acc, finish_label, target_label)
@@ -113,14 +113,14 @@ def test_multi_entry_block_with_dynamic_jump():
     block_1_label = IRLabel("block_1", fn)
 
     bb = fn.get_basic_block()
-    op = bb.append_instruction("store", 10)
+    op = bb.append_instruction("iden", 10)
     acc = bb.append_instruction("add", op, op)
     bb.append_instruction("djmp", acc, finish_label, block_1_label)
 
     block_1 = IRBasicBlock(block_1_label, fn)
     fn.append_basic_block(block_1)
     acc = block_1.append_instruction("add", acc, op)
-    op = block_1.append_instruction("store", 10)
+    op = block_1.append_instruction("iden", 10)
     block_1.append_instruction("mstore", acc, op)
     block_1.append_instruction("jnz", acc, finish_label, target_label)
 
