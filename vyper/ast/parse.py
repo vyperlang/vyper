@@ -17,6 +17,7 @@ PYTHON_AST_SINGLETONS = (
     python_ast.operator,
     python_ast.unaryop,
     python_ast.boolop,
+    python_ast.expr_context,
 )
 
 
@@ -252,12 +253,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         node.ast_type = node.__class__.__name__
 
         adjustments = self._pre_parser.adjustments
-
-        # Load and Store behave differently inside of fix_missing_locations;
-        # we don't use them in the vyper AST so just skip adjusting the line
-        # info.
-        if isinstance(node, (python_ast.Load, python_ast.Store)):
-            return super().generic_visit(node)
 
         adj = adjustments.get((node.lineno, node.col_offset), 0)
         node.col_offset += adj
