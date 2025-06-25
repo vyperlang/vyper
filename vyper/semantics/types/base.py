@@ -135,7 +135,7 @@ class VyperType:
             ret["typeclass"] = self.typeclass
 
         # use dict ctor to block duplicates
-        return dict(**self._addl_dict_fields(), **ret)
+        return dict(sorted(self._addl_dict_fields().items()), **ret)
 
     # for most types, this is a reasonable implementation, but it can
     # be overridden as needed.
