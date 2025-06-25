@@ -70,8 +70,8 @@ def _prep_hevm_venom_ctx(ctx, verbose=False):
 
         # requirements for venom_to_assembly
         LowerDloadPass(ac, fn).run_pass()
-        CFGNormalization(ac, fn).run_pass()
         SingleUseExpansion(ac, fn).run_pass()
+        CFGNormalization(ac, fn).run_pass()
 
     compiler = VenomCompiler([ctx])
     asm = compiler.generate_evm(no_optimize=False)
