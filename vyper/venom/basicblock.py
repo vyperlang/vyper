@@ -492,14 +492,17 @@ class IRBasicBlock:
     label: IRLabel
     parent: IRFunction
     instructions: list[IRInstruction]
-    is_volatile: bool = False
+
+    # is_pinned is used to indicate if the basic block is pinned and cannot
+    # be optimized out.
+    is_pinned: bool = False
 
     def __init__(self, label: IRLabel, parent: IRFunction) -> None:
         assert isinstance(label, IRLabel), "label must be an IRLabel"
         self.label = label
         self.parent = parent
         self.instructions = []
-        self.is_volatile = False
+        self.is_pinned = False
 
     @property
     def out_bbs(self):
@@ -686,7 +689,13 @@ class IRBasicBlock:
     def __repr__(self) -> str:
         printer = ir_printer.get()
 
-        s = f"{repr(self.label)}:\n"
+        s = f"{repr(self.label)}:"
+
+        if self.is_pinned:
+            s += " [pinned]\n"
+        else:
+            s += "\n"
+
         if printer and hasattr(printer, "_pre_block"):
             s += printer._pre_block(self)
         for inst in self.instructions:

@@ -182,7 +182,7 @@ class VenomCompiler:
             self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
 
             for bb in fn.get_basic_blocks():
-                if bb.is_volatile:
+                if bb.is_pinned:
                     self._generate_evm_for_basicblock_r(asm, bb, StackModel())
 
         if no_optimize is False:

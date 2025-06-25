@@ -96,7 +96,7 @@ class SimplifyCFGPass(IRPass):
         removed = set()
 
         for bb in list(self.function.get_basic_blocks()):
-            if not self.cfg.is_reachable(bb) and not bb.is_volatile:
+            if not self.cfg.is_reachable(bb) and not bb.is_pinned:
                 self.function.remove_basic_block(bb)
                 removed.add(bb)
 

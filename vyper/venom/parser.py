@@ -186,7 +186,7 @@ class VenomTransformer(Transformer):
                 
                 # Set is_volatile if "pinned" tag is present
                 if "pinned" in tags:
-                    bb.is_volatile = True
+                    bb.is_pinned = True
                 
                 fn.append_basic_block(bb)
 

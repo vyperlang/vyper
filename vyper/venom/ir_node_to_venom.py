@@ -786,7 +786,7 @@ def convert_data_segment_to_function(ctx: IRContext, data_sections: list[DataSec
     
     for data_section in data_sections:
         bb = IRBasicBlock(data_section.label, fn)
-        bb.is_volatile = True
+        bb.is_pinned = True
         fn.append_basic_block(bb)
 
         for data_item in data_section.data_items:

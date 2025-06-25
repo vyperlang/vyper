@@ -289,17 +289,17 @@ class CompilerData:
         main_entry = venom_ctx.entry_function
 
         revert_bb = IRBasicBlock(IRLabel("revert"), main_entry)
-        revert_bb.is_volatile = True
+        revert_bb.is_pinned = True
         main_entry.append_basic_block(revert_bb)
         revert_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
 
         bb = IRBasicBlock(IRLabel("runtime_begin"), main_entry)
-        bb.is_volatile = True
+        bb.is_pinned = True
         main_entry.append_basic_block(bb)
         bb.append_instruction("db", IRHexString(self.bytecode_runtime))
         
         bb = IRBasicBlock(IRLabel("cbor_metadata"), main_entry)
-        bb.is_volatile = True
+        bb.is_pinned = True
         main_entry.append_basic_block(bb)
         bb.append_instruction("db", IRHexString(self.bytecode_metadata))
 
