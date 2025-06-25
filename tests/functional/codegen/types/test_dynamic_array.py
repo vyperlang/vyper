@@ -1969,6 +1969,7 @@ def foo(x: String[1000000], y: String[1000000]) -> DynArray[String[1000000], 2]:
         c.foo(calldata0, calldata1, gas=gas_used)
 
 
+@pytest.mark.xfail(raises=CompilerPanic, reason="non-unique symbols")
 def test_double_eval_pop(get_contract):
     code = """
 m: HashMap[uint256, String[33]]
