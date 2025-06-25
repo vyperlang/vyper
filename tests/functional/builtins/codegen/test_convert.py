@@ -723,16 +723,27 @@ def foo(bar: {i_typ}) -> {o_typ}:
 
 
 @pytest.mark.parametrize(
-    "val,expected",
+    "val",
     [
-        ("a000", 0xA000),
-        ("0880", 0x0880),
-        ("deadbeef", 0xDEADBEEF),
-        ("cafebabe", 0xCAFEBABE),
-        ("0123456789abcdef", 0x0123456789ABCDEF),
+        "a000",
+        "0880",
+        "deadbeef",
+        "cafebabe",
+        "0123456789abcdef",
+        # test cases that would trigger sign extension
+        "80",
+        "8000",
+        "800000",
+        "80000000",
+        "8000000000000000",
+        "ff",
+        "ffff",
+        "ffffffff",
+        "ffffffffffffffff",
     ],
 )
-def test_convert_bytes_literal_int(get_contract, val, expected):
+def test_convert_bytes_literal_int(get_contract, val):
+    expected = int(val, 16)
     source = f"""
 @external
 def test() -> uint256:
