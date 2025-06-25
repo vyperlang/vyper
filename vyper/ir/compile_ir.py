@@ -536,7 +536,7 @@ class _IRnodeLowerer:
 
             o.extend(["RETURN"])
 
-            self.data_segments.append([Label(runtime_begin), DATA_ITEM(runtime_bytecode)])
+            self.data_segments.append([runtime_begin, DATA_ITEM(runtime_bytecode)])
 
             if self.compiler_metadata is not None:
                 # we should issue the cbor-encoded metadata.
