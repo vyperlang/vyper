@@ -128,3 +128,23 @@ flag Action:
     input_bundle = make_input_bundle({"lib1.vy": lib1})
     c = get_contract(code, input_bundle=input_bundle)
     assert c.foo() == 1  # BUY
+
+
+def test_flag_access_in_loop(get_contract, make_input_bundle):
+    """Test flag accesses in a for loop"""
+    code = """
+
+flag Action:
+    BUY
+    SELL
+
+@pure
+@external
+def foo() -> uint256:
+    cnt: uint256 = 0
+    for i: uint256 in range(10):
+        cnt += convert(Action.SELL, uint256)
+    return cnt
+"""
+    c = get_contract(code)
+    assert c.foo() == 10 * 2
