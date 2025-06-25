@@ -11,17 +11,17 @@ def test_multi_entry_block_1():
         %op = store 10
         %acc = add %op, %op
         jnz %acc, @finish, @block_1
-    
+
     block_1:
         %acc:1 = add %acc, %op
         %op:1 = store 10
         mstore %acc:1, %op:1
         jnz %acc:1, @finish, @target
-    
+
     target:
         %acc:2 = mul %acc:1, %acc:1
         jmp @finish
-    
+
     finish:
         stop
     }
@@ -56,17 +56,17 @@ def test_multi_entry_block_2():
         %op = store 10
         %acc = add %op, %op
         jnz %acc, @finish, @block_1
-    
+
     block_1:
         %acc:1 = add %acc, %op
         %op:1 = store 10
         mstore %acc:1, %op:1
         jnz %acc:1, @target, @finish
-    
+
     target:
         %acc:3 = mul %acc:1, %acc:1
         jmp @finish
-    
+
     finish:
         stop
     }
@@ -100,17 +100,17 @@ def test_multi_entry_block_with_dynamic_jump():
         %op = store 10
         %acc = add %op, %op
         djmp %acc, @finish, @block_1
-    
+
     block_1:
         %acc:1 = add %acc, %op
         %op:1 = store 10
         mstore %acc:1, %op:1
         jnz %acc:1, @finish, @target
-    
+
     target:
         %acc:2 = mul %acc:1, %acc:1
         jmp @finish
-    
+
     finish:
         stop
     }
@@ -149,17 +149,17 @@ def test_cfg_normalization_with_phi():
         %counter = store 10
         %x = store 1
         jnz %x, @loop_header, @exit
-    
+
     loop_header:
         %cond = lt %counter, 100
         jnz %cond, @loop_body, @exit
-    
+
     loop_body:
         %counter = add %counter, 1
         %should_continue = lt %counter, 50
         ; both branches go to blocks
         jnz %should_continue, @loop_header, @exit
-    
+
     exit:
         return %counter
     }
@@ -205,25 +205,25 @@ def test_phi_forwarding():
         %base = store 42
         %flag = store 1
         jnz %flag, @branch_a, @branch_b
-    
+
     branch_a:
         %a_val = add %base, 10
         jnz %a_val, @merge, @alternate
-    
+
     branch_b:
         %b_val = add %base, 20
         jnz %b_val, @merge, @alternate
-    
+
     merge:
         ; phi references %base which comes from the dominating entry block
         %result = phi @branch_a, %base, @branch_b, %base
         %cond = lt %result, 100
         jmp @exit
-        
+
     alternate:
         %alt_result = phi @branch_a, %a_val, @branch_b, %b_val
         jmp @exit
-    
+
     exit:
         %final = phi @merge, %result, @alternate, %alt_result
         return %final
@@ -258,18 +258,18 @@ def test_complex_phi_dependencies():
         %a = store 1
         %b = store 2
         jmp @loop
-    
+
     loop:
         %x = phi @entry, %a, @body, %y
         %y = phi @entry, %b, @body, %x_next
         %cond = lt %x, 10
         jnz %cond, @body, @exit
-    
+
     body:
         %x_next = add %x, %y
         %should_exit = gt %x_next, 20
         jnz %should_exit, @exit, @loop
-    
+
     exit:
         %final = add %x, %y
         return %final
