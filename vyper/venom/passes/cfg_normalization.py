@@ -45,9 +45,9 @@ class CFGNormalization(IRPass):
         pred_terminal = pred_bb.instructions[-1]
         pred_terminal.replace_label_operands({bb.label: split_label})
 
-        # variables referenced in the phi node from pred_bb might be defined either
-        # by a phi in pred_bb, or in a block that dominates pred_bb. these need
-        # forwarding through a store instruction in the split block.
+        # variables referenced in the phi node from pred_bb might be defined
+        # either by a phi in pred_bb, or in a block that dominates pred_bb.
+        # these need forwarding through a store instruction in the split block.
         var_replacements: dict[IRVariable, IRVariable] = {}
         for inst in self._get_phi_instructions(bb):
             for label, var in inst.phi_operands:
