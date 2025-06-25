@@ -1,3 +1,8 @@
+import pytest
+
+from vyper.exceptions import StateAccessViolation
+
+
 def test_values_should_be_increasing_ints(get_contract):
     code = """
 flag Action:
@@ -303,3 +308,16 @@ def get_key(f: Foobar, i: uint256) -> uint256:
     """
     c = get_contract(code)
     assert c.get_key(1, 777) == 777
+
+
+@pytest.mark.xfail(raises=StateAccessViolation)
+def test_flag_constant(get_contract):
+    code = """
+flag F:
+    FOO
+    BAR
+
+c: public(constant(F)) = F.FOO
+    """
+    c = get_contract(code)
+    assert c.c() == 1  # FOO
