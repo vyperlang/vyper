@@ -330,7 +330,8 @@ def get_data_segment_lengths(assembly: list[AssemblyInstruction]) -> list[int]:
         if len(ret) == 0:
             # haven't yet seen a data header
             continue
-        assert isinstance(item, DATA_ITEM)
+        if not isinstance(item, DATA_ITEM):
+            continue
         if is_symbol(item.data):
             ret[-1] += SYMBOL_SIZE
         elif isinstance(item.data, bytes):
