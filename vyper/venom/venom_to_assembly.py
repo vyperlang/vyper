@@ -542,7 +542,7 @@ class VenomCompiler:
             ), f"invoke target must be a label (is ${type(target)} ${target})"
             return_label = self.mklabel("return_label")
             assembly.extend(
-                [PUSHLABEL(return_label), PUSHLABEL(_as_asm_symbol(target)), "JUMP", return_label]
+                [PUSHLABEL(return_label), PUSHLABEL(_as_asm_symbol(target)), "JUMP", JUMPDEST(return_label)]
             )
         elif opcode == "ret":
             assembly.append("JUMP")

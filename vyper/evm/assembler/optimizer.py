@@ -169,8 +169,10 @@ def _prune_unused_jumpdests(assembly):
     # find all used jumpdests
     for i, item in enumerate(assembly):
         if isinstance(item, PUSHLABEL):
-            # only add if the next item is a jump instruction
-            if i + 1 < len(assembly) and assembly[i + 1] in ("JUMP", "JUMPI"):
+            # only add if the next item is a jump instruction, or a pushlabel
+            # which happens when pushing return labels for inline calls. 
+            # TODO: this is a hack and we should have a better way to handle this.
+            if i + 1 < len(assembly) and (assembly[i + 1] in ("JUMP", "JUMPI") or isinstance(assembly[i + 1], PUSHLABEL)):
                 used_as_jumpdests.add(item.label)
             else:
                 used_as_labels.add(item.label)

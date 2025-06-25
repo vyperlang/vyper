@@ -21,7 +21,7 @@ def num_to_bytearray(x):
 
 class Label:
     def __init__(self, label: str):
-        assert isinstance(label, str)
+        assert isinstance(label, str), f"invalid label {type(label)} {label}"
         self.label = label
 
     def __repr__(self):
@@ -322,10 +322,11 @@ SYMBOL_SIZE = 2  # size of a PUSH instruction for a code symbol
 
 # predict what length of an assembly [data] node will be in bytecode
 def get_data_segment_lengths(assembly: list[AssemblyInstruction]) -> list[int]:
-    ret = []
+    ret = [0]
     for item in assembly:
         if isinstance(item, Label):
-            ret.append(0)
+            if len(ret) > 0 and ret[-1] > 0:
+                ret.append(0)
             continue
         if len(ret) == 0:
             # haven't yet seen a data header
