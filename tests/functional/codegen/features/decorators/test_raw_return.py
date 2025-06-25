@@ -1,4 +1,4 @@
-from copy import deepcopy
+import copy
 
 import pytest
 from eth.codecs import abi
@@ -338,7 +338,7 @@ def __default__() -> Bytes[RESPONSE_SZ]:
         },
         "admin": {"slot": int.from_bytes(admin_slot, byteorder="big"), "type": "address", "n_slots": 1},
     }
-    impl_override = deepcopy(proxy_override)
+    impl_override = copy.deepcopy(proxy_override)
     impl_override["counter"] = {"slot": 1, "type": "uint256", "n_slots": 1}
 
     impl_v1_c = get_contract(impl_v1, storage_layout_override=json_input(impl_override))
