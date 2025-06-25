@@ -336,7 +336,11 @@ def __default__() -> Bytes[RESPONSE_SZ]:
             "type": "address",
             "n_slots": 1,
         },
-        "admin": {"slot": int.from_bytes(admin_slot, byteorder="big"), "type": "address", "n_slots": 1},
+        "admin": {
+            "slot": int.from_bytes(admin_slot, byteorder="big"),
+            "type": "address",
+            "n_slots": 1,
+        },
     }
     impl_override = copy.deepcopy(proxy_override)
     impl_override["counter"] = {"slot": 1, "type": "uint256", "n_slots": 1}
