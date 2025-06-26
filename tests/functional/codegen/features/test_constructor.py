@@ -300,7 +300,7 @@ def __init__():
     c = get_contract(code)
     assert c.I_UINT() == CONST_UINT
     assert c.I_ADDR() == CONST_ADDR
-    assert c.I_BYTES32() == bytes.fromhex(CONST_BYTES32[2:])
+    assert c.I_BYTES32() == bytes.fromhex(CONST_BYTES32.removeprefix("0x"))
 
 
 @pytest.mark.parametrize("should_fail", [True, False])
