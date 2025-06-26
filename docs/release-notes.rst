@@ -16,6 +16,183 @@ Release Notes
     for advisory links:
     :'<,'>s/\v(https:\/\/github.com\/vyperlang\/vyper\/security\/advisories\/)([-A-Za-z0-9]+)/(`\2 <\1\2>`_)/g
 
+v0.4.3 ("Buttermilk Racer")
+***************************
+
+Date released: 2025-06-19
+=========================
+
+v0.4.3 introduces the ``@raw_return`` decorator which allows contracts to return bytes directly without ABI-encoding, which enables new proxy contract use cases. The default EVM version has been updated to ``prague``, and several improvements have been made to the Venom optimizer pipeline.
+
+Breaking changes
+----------------
+* feat[tool]!: make ``prague`` the default evm version (`#4633 <https://github.com/vyperlang/vyper/pull/4633>`_)
+
+Other new features and improvements
+-----------------------------------
+* feat[lang]: ``@raw_return`` decorator (`#4568 <https://github.com/vyperlang/vyper/pull/4568>`_)
+* fix[lang]: disallow ``@raw_return`` in interfaces (`#4700 <https://github.com/vyperlang/vyper/pull/4700>`_)
+
+Tooling / CLI
+-------------
+* fix[tool]: fix invalid quotes in ``-f cfg`` output (`#4672 <https://github.com/vyperlang/vyper/pull/4672>`_)
+* fix[tool]: add metadata for ctor functions (`#4668 <https://github.com/vyperlang/vyper/pull/4668>`_)
+
+Venom improvements
+------------------
+* fix[venom]: fix incorrect write reordering in ``DFTPass`` (`#4695 <https://github.com/vyperlang/vyper/pull/4695>`_)
+* feat[venom]: rewrite grammar to LALR(1) (`#4687 <https://github.com/vyperlang/vyper/pull/4687>`_)
+* fix[venom]: reduce single-use expansion (`#4667 <https://github.com/vyperlang/vyper/pull/4667>`_)
+* fix[venom]: fix function inliner ``clone`` function (`#4696 <https://github.com/vyperlang/vyper/pull/4696>`_)
+
+Docs
+----
+* feat[docs]: add docs for ``@raw_return`` decorator (`#4699 <https://github.com/vyperlang/vyper/pull/4699>`_)
+* fix[docs]: clarify ``n_slots`` requirement in custom layout file (`#4641 <https://github.com/vyperlang/vyper/pull/4641>`_)
+* fix[docs]: fix build status in README.md (`#4680 <https://github.com/vyperlang/vyper/pull/4680>`_)
+* chore[docs]: document the copy maxbound heuristic reasoning (`#4593 <https://github.com/vyperlang/vyper/pull/4593>`_)
+
+Test suite and CI improvements
+------------------------------
+* refactor[test]: rename venom ``param`` instruction in tests (`#4689 <https://github.com/vyperlang/vyper/pull/4689>`_)
+* chore[ci]: update gitignore (`#4690 <https://github.com/vyperlang/vyper/pull/4690>`_)
+
+v0.4.2 ("Lernaean Hydra")
+*************************
+
+Date released: 2025-05-31
+=========================
+
+v0.4.2 includes a new ``raw_create()`` builtin which allows users to build more generic factories in Vyper. It also moves the ``sqrt()`` builtin to a pure Vyper module, involving a refactor which will allow more stdlib functionality to be written in Vyper in the future.
+
+Additionally, Venom has undergone more improvements, including a CSE elimination pass, dead-store elimination pass, as well as moving more items in the calling convention to the stack in the venom pipeline. Benchmark contracts are now typically 5% smaller.
+
+Two low severity GHSAs have been patched in this release.
+
+Breaking and notable changes
+---------------------------------
+* feat[lang]!: move sqrt to new stdlib ``math`` module (`#4520 <https://github.com/vyperlang/vyper/pull/4520>`_)
+* fix[lang]!: ban calling nonreentrant functions from nonreentrant functions (`#4574 <https://github.com/vyperlang/vyper/pull/4574>`_)
+* fix[lang]!: forbid calling ``__default__`` (`#4371 <https://github.com/vyperlang/vyper/pull/4371>`_)
+* feat[lang]!: remove deprecated bitwise builtins (`#4552 <https://github.com/vyperlang/vyper/pull/4552>`_)
+* feat[tool]!: rename ``--venom`` to ``--venom-experimental`` (`#4662 <https://github.com/vyperlang/vyper/pull/4662>`_)
+* refactor[tool]!: update storage layout format (`#4495 <https://github.com/vyperlang/vyper/pull/4495>`_)
+
+Other new features and improvements
+-----------------------------------
+* feat[lang]: nonreentrancy by default (`#4563 <https://github.com/vyperlang/vyper/pull/4563>`_)
+* feat[lang]: add ``raw_create()`` builtin (`#4204 <https://github.com/vyperlang/vyper/pull/4204>`_)
+* feat[lang]: remove one-warning limit from builtins (`#4542 <https://github.com/vyperlang/vyper/pull/4542>`_)
+* feat[lang]: enable bitwise ops for ``bytesM`` types (`#4538 <https://github.com/vyperlang/vyper/pull/4538>`_)
+* fix[lang]: extend ``as_wei_value`` to all numeric types (`#3498 <https://github.com/vyperlang/vyper/pull/3498>`_)
+* feat[lang]: bubble up create revertdata (`#4540 <https://github.com/vyperlang/vyper/pull/4540>`_)
+* fix[codegen]: fix overcopying of bytes in ``make_setter`` (`#4419 <https://github.com/vyperlang/vyper/pull/4419>`_)
+* fix[ux]: don't warn for logs with 0 positional args (`#4501 <https://github.com/vyperlang/vyper/pull/4501>`_)
+
+Tooling / CLI
+-------------
+* feat[tool]: add settings dict to ``combined_json`` output (`#4541 <https://github.com/vyperlang/vyper/pull/4541>`_)
+* fix[tool]: fix output bundle construction (`#4654 <https://github.com/vyperlang/vyper/pull/4654>`_)
+* feat[tool]: add venom artifacts into ``solc_json`` output (`#4637 <https://github.com/vyperlang/vyper/pull/4637>`_)
+
+Bugfixes
+--------
+* fix[codegen]: disallow ``slice()`` with length 0 for ad-hoc locations (`#4645 <https://github.com/vyperlang/vyper/pull/4645>`_)
+* fix[codegen]: fix bytes copying routines for 0-length case (`#4649 <https://github.com/vyperlang/vyper/pull/4649>`_)
+* fix[codegen]: fix removal of side effects in concat (`#4644 <https://github.com/vyperlang/vyper/pull/4644>`_)
+* fix[codegen]: interleaved effects eval for some builtins (`#4156 <https://github.com/vyperlang/vyper/pull/4156>`_)
+* fix[lang]: block modules in structs (`#4566 <https://github.com/vyperlang/vyper/pull/4566>`_)
+* fix[lang]: filter oob array access during folding (`#4571 <https://github.com/vyperlang/vyper/pull/4571>`_)
+* fix[lang]: disallow some builtins in ``pure`` functions (`#3157 <https://github.com/vyperlang/vyper/pull/3157>`_)
+* fix[lang]: only reserve builtins at the top level (`#4578 <https://github.com/vyperlang/vyper/pull/4578>`_)
+* fix[tool]: fix layout export with nonreentrancy pragma on (`#4621 <https://github.com/vyperlang/vyper/pull/4621>`_)
+* fix[lang]: disallow staticcall in pure context (`#4619 <https://github.com/vyperlang/vyper/pull/4619>`_)
+* fix[lang]: disallow duplicate getter annotations (`#4623 <https://github.com/vyperlang/vyper/pull/4623>`_)
+* fix[lang]: disable nonreentrant behavior of immutable and constant getters (`#4622 <https://github.com/vyperlang/vyper/pull/4622>`_)
+* fix[lang]: fix invalid memory read in ``raw_create`` (`#4624 <https://github.com/vyperlang/vyper/pull/4624>`_)
+* fix[parser]: block value assignment in for targets (`#4492 <https://github.com/vyperlang/vyper/pull/4492>`_)
+* fix[ux]: fold ``keccak`` and ``sha256`` of constant hexbytes (`#4536 <https://github.com/vyperlang/vyper/pull/4536>`_)
+* fix[ux]: typechecking for loop annotation of list variable (`#4550 <https://github.com/vyperlang/vyper/pull/4550>`_)
+
+Patched security advisories (GHSAs)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+* ``concat()`` builtin may elide side-effects for zero-length arguments (`GHSA-vgf2-gvx8-xwc3 <https://github.com/vyperlang/vyper/security/advisories/GHSA-vgf2-gvx8-xwc3>`_)
+* ``slice()`` may elide side-effects when output length is 0 (`GHSA-4w26-8p97-f4jp <https://github.com/vyperlang/vyper/security/advisories/GHSA-4w26-8p97-f4jp>`_)
+
+Venom improvements
+------------------
+* feat[venom]: add dead store elimination pass (`#4556 <https://github.com/vyperlang/vyper/pull/4556>`_)
+* feat[venom]: generalize DSE to more locations (`#4652 <https://github.com/vyperlang/vyper/pull/4652>`_)
+* feat[venom]: improve memmerge pass (`#4422 <https://github.com/vyperlang/vyper/pull/4422>`_)
+* feat[venom]: implement new calling convention (`#4482 <https://github.com/vyperlang/vyper/pull/4482>`_)
+* perf[venom]: improve CSE elimination speed (`#4607 <https://github.com/vyperlang/vyper/pull/4607>`_)
+* feat[venom]: disable legacy optimizer in venom pipeline (`#4411 <https://github.com/vyperlang/vyper/pull/4411>`_)
+* feat[venom]: mark loads as non-volatile (`#4388 <https://github.com/vyperlang/vyper/pull/4388>`_)
+* feat[venom]: improve ``dload``/``mstore`` merging (`#4570 <https://github.com/vyperlang/vyper/pull/4570>`_)
+* refactor[venom]: add dom walk property (`#4546 <https://github.com/vyperlang/vyper/pull/4546>`_)
+* feat[venom]: add memory SSA analysis (`#4555 <https://github.com/vyperlang/vyper/pull/4555>`_)
+* feat[venom]: improvements for iszero handling and memmerge (`#4469 <https://github.com/vyperlang/vyper/pull/4469>`_)
+* refactor[venom]: update more passes to use ``InstUpdater`` (`#4516 <https://github.com/vyperlang/vyper/pull/4516>`_)
+* fix[venom]: fix var defined check for unreachable blocks (`#4518 <https://github.com/vyperlang/vyper/pull/4518>`_)
+* feat[venom]: tune function inliner (`#4584 <https://github.com/vyperlang/vyper/pull/4584>`_)
+* feat[venom]: add assert optimizer (`#4585 <https://github.com/vyperlang/vyper/pull/4585>`_)
+* fix[venom]: revert-to-assert should invalidate dfg (`#4586 <https://github.com/vyperlang/vyper/pull/4586>`_)
+* feat[venom]: add common subexpression elimination (`#4241 <https://github.com/vyperlang/vyper/pull/4241>`_)
+* fix[venom]: fix ``.name`` invalidation in ``MakeSSA`` (`#4545 <https://github.com/vyperlang/vyper/pull/4545>`_)
+* refactor[venom]: add annotation to ``append_instruction`` (`#4583 <https://github.com/vyperlang/vyper/pull/4583>`_)
+* fix[venom]: fix handling of params in ``venom_to_assembly`` (`#4587 <https://github.com/vyperlang/vyper/pull/4587>`_)
+* refactor[venom]: extract liveness and cfg data structures (`#4595 <https://github.com/vyperlang/vyper/pull/4595>`_)
+* fix[venom]: fix ``DominatorTreeAnalysis.dominates()`` (`#4615 <https://github.com/vyperlang/vyper/pull/4615>`_)
+* fix[venom]: fix callsite phis after inlining (`#4666 <https://github.com/vyperlang/vyper/pull/4666>`_)
+* refactor[venom]: rename "store"-related passes (`#4627 <https://github.com/vyperlang/vyper/pull/4627>`_)
+* feat[venom]: add phi simplification pass (`#4628 <https://github.com/vyperlang/vyper/pull/4628>`_)
+* feat[venom]: add ``calloca`` instruction (`#4376 <https://github.com/vyperlang/vyper/pull/4376>`_)
+* feat[venom]: allow SCCP to run without removing allocas (`#4655 <https://github.com/vyperlang/vyper/pull/4655>`_)
+* feat[venom]: improve phi elimination pass (`#4635 <https://github.com/vyperlang/vyper/pull/4635>`_)
+* feat[venom]: allow labels to be assigned to variables (`#4514 <https://github.com/vyperlang/vyper/pull/4514>`_)
+* perf[venom]: optimize time spent in ``SimplifyCFG`` (`#4658 <https://github.com/vyperlang/vyper/pull/4658>`_)
+* feat[venom]: remove ``dload`` from list of volatile instructions (`#4659 <https://github.com/vyperlang/vyper/pull/4659>`_)
+* perf[venom]: improve performance of ``MakeSSA`` (`#4491 <https://github.com/vyperlang/vyper/pull/4491>`_)
+* feat[test]: add tests for venom dload lowering pass (`#4471 <https://github.com/vyperlang/vyper/pull/4471>`_)
+* feat[venom]: add varname freshener (`#4484 <https://github.com/vyperlang/vyper/pull/4484>`_)
+* refactor[test]: add more tests with hevm venom harness (`#4493 <https://github.com/vyperlang/vyper/pull/4493>`_)
+* feat[venom]: add basic semantic check machinery to venom (`#4483 <https://github.com/vyperlang/vyper/pull/4483>`_)
+* fix[venom]: fix sccp resolution of truthy ``jnz`` (`#4505 <https://github.com/vyperlang/vyper/pull/4505>`_)
+* feat[test]: add hevm to ``get_contract`` harness (`#4499 <https://github.com/vyperlang/vyper/pull/4499>`_)
+* feat[venom]: parse hex literals in text format  (`#4532 <https://github.com/vyperlang/vyper/pull/4532>`_)
+* refactor[venom]: simplify ``SimplifyCFG`` pass (`#4528 <https://github.com/vyperlang/vyper/pull/4528>`_)
+* refactor[venom]: use ``InstUpdater`` in more passes (`#4508 <https://github.com/vyperlang/vyper/pull/4508>`_)
+* feat[venom]: make ``revert`` a bb terminator (`#4529 <https://github.com/vyperlang/vyper/pull/4529>`_)
+
+Docs
+----
+* fix[docs]: update ``skip_contract_check`` docs (`#4511 <https://github.com/vyperlang/vyper/pull/4511>`_)
+* fix[docs]: fix venom examples (`#4475 <https://github.com/vyperlang/vyper/pull/4475>`_)
+* chore[docs]: remove dead link from internal documentation (`#4543 <https://github.com/vyperlang/vyper/pull/4543>`_)
+* feat[docs]: document order of evalution of arguments of ``log``  (`#4617 <https://github.com/vyperlang/vyper/pull/4617>`_)
+* fix[docs]: fix code block rst formatting (`#4618 <https://github.com/vyperlang/vyper/pull/4618>`_)
+
+Test suite and CI improvements
+------------------------------
+* feat[lang]: remove ``@external`` decorator from builtin interfaces (`#4562 <https://github.com/vyperlang/vyper/pull/4562>`_)
+* fix[test]: fix warnings in thirdparty tests (`#4547 <https://github.com/vyperlang/vyper/pull/4547>`_)
+* chore[tool]: widen version bounds for ``packaging`` (`#4590 <https://github.com/vyperlang/vyper/pull/4590>`_)
+* refactor[test]: remove ``selfdestruct`` from example contracts (`#4537 <https://github.com/vyperlang/vyper/pull/4537>`_)
+* fix[ci]: suppress hypothesis health check (`#4533 <https://github.com/vyperlang/vyper/pull/4533>`_)
+* feat[test]: add more example contracts (`#4500 <https://github.com/vyperlang/vyper/pull/4500>`_)
+* feat[test]: add negative hevm tests (`#4504 <https://github.com/vyperlang/vyper/pull/4504>`_)
+* chore[tool]: widen version bounds for ``asttokens`` (`#4592 <https://github.com/vyperlang/vyper/pull/4592>`_)
+* chore[test]: add test for struct member names (`#3527 <https://github.com/vyperlang/vyper/pull/3527>`_)
+
+Misc / Refactor
+---------------
+* refactor[parser]: refactor pragma parsing (`#4530 <https://github.com/vyperlang/vyper/pull/4530>`_)
+* refactor[parser]: put settings on Module AST node (`#4569 <https://github.com/vyperlang/vyper/pull/4569>`_)
+* chore[lang]: remove ``sha3`` and ``importlib_metadata`` imports (`#4588 <https://github.com/vyperlang/vyper/pull/4588>`_)
+* refactor[stdlib]: refactor ``math.sqrt`` implementation (`#4575 <https://github.com/vyperlang/vyper/pull/4575>`_)
+* refactor[codegen]: refactor ``get_type_for_exact_size()`` (`#4632 <https://github.com/vyperlang/vyper/pull/4632>`_)
+* refactor[lang]: refactor decorator parsing (`#4490 <https://github.com/vyperlang/vyper/pull/4490>`_)
+
 v0.4.1 ("Tokara Habu")
 **********************
 

@@ -1,6 +1,7 @@
 import contextlib
 import dataclasses as dc
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
 from pathlib import Path, PurePath
 from typing import Any, Iterator, Optional
 
@@ -9,11 +10,11 @@ import vyper.builtins.stdlib
 from vyper import ast as vy_ast
 from vyper.compiler.input_bundle import (
     BUILTIN,
-    ABIInput,
     CompilerInput,
     FileInput,
     FilesystemInputBundle,
     InputBundle,
+    JSONInput,
     PathLike,
 )
 from vyper.exceptions import (
@@ -24,7 +25,7 @@ from vyper.exceptions import (
     tag_exceptions,
 )
 from vyper.semantics.analysis.base import ImportInfo
-from vyper.utils import safe_relpath, sha256sum
+from vyper.utils import OrderedSet, safe_relpath, sha256sum
 
 """
 collect import statements and validate the import graph.
@@ -73,22 +74,45 @@ class _ImportGraph:
             self.pop_path(module_ast)
 
 
+def try_parse_abi(file_input: FileInput) -> CompilerInput:
+    try:
+        s = json.loads(file_input.source_code)
+        if isinstance(s, dict) and "abi" in s:
+            s = s["abi"]
+        return JSONInput(**asdict(file_input), data=s)
+    except (ValueError, TypeError):
+        return file_input
+
+
 class ImportAnalyzer:
-    def __init__(self, input_bundle: InputBundle, graph: _ImportGraph):
+    seen: OrderedSet[vy_ast.Module]
+    _compiler_inputs: dict[CompilerInput, vy_ast.Module]
+    toplevel_module: vy_ast.Module
+
+    def __init__(self, input_bundle: InputBundle, graph: _ImportGraph, module_ast: vy_ast.Module):
         self.input_bundle = input_bundle
         self.graph = graph
+        self.toplevel_module = module_ast
         self._ast_of: dict[int, vy_ast.Module] = {}
 
-        self.seen: set[vy_ast.Module] = set()
+        self.seen = OrderedSet()
+
+        # keep around compiler inputs so when we construct the output
+        # bundle, we have access to the compiler input for each module
+        self._compiler_inputs = {}
 
         self._integrity_sum = None
 
         # should be all system paths + topmost module path
         self.absolute_search_paths = input_bundle.search_paths.copy()
 
-    def resolve_imports(self, module_ast: vy_ast.Module):
-        self._resolve_imports_r(module_ast)
-        self._integrity_sum = self._calculate_integrity_sum_r(module_ast)
+    def resolve_imports(self):
+        self._resolve_imports_r(self.toplevel_module)
+        self._integrity_sum = self._calculate_integrity_sum_r(self.toplevel_module)
+
+    @property
+    def compiler_inputs(self) -> dict[CompilerInput, vy_ast.Module]:
+        return self._compiler_inputs
 
     def _calculate_integrity_sum_r(self, module_ast: vy_ast.Module):
         acc = [sha256sum(module_ast.full_source_code)]
@@ -152,6 +176,7 @@ class ImportAnalyzer:
         self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
     ) -> None:
         compiler_input, ast = self._load_import(node, level, qualified_module_name, alias)
+        self._compiler_inputs[compiler_input] = ast
         node._metadata["import_info"] = ImportInfo(
             alias, qualified_module_name, compiler_input, ast
         )
@@ -180,7 +205,7 @@ class ImportAnalyzer:
             assert isinstance(file, FileInput)  # mypy hint
 
             module_ast = self._ast_from_file(file)
-            self.resolve_imports(module_ast)
+            self._resolve_imports_r(module_ast)
 
             return file, module_ast
 
@@ -193,10 +218,7 @@ class ImportAnalyzer:
             file = self._load_file(path.with_suffix(".vyi"), level)
             assert isinstance(file, FileInput)  # mypy hint
             module_ast = self._ast_from_file(file)
-            self.resolve_imports(module_ast)
-
-            # language does not yet allow recursion for vyi files
-            # self.resolve_imports(module_ast)
+            self._resolve_imports_r(module_ast)
 
             return file, module_ast
 
@@ -205,8 +227,10 @@ class ImportAnalyzer:
 
         try:
             file = self._load_file(path.with_suffix(".json"), level)
-            assert isinstance(file, ABIInput)  # mypy hint
-            return file, file.abi
+            if isinstance(file, FileInput):
+                file = try_parse_abi(file)
+            assert isinstance(file, JSONInput)  # mypy hint
+            return file, file.data
         except FileNotFoundError:
             pass
 
@@ -351,7 +375,7 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy
 
 def resolve_imports(module_ast: vy_ast.Module, input_bundle: InputBundle):
     graph = _ImportGraph()
-    analyzer = ImportAnalyzer(input_bundle, graph)
-    analyzer.resolve_imports(module_ast)
+    analyzer = ImportAnalyzer(input_bundle, graph, module_ast)
+    analyzer.resolve_imports()
 
     return analyzer

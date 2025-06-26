@@ -10,7 +10,7 @@ from vyper.compiler.settings import VYPER_COLOR_OUTPUT, get_global_settings
 from vyper.evm.address_space import AddrSpace
 from vyper.evm.opcodes import get_ir_opcodes
 from vyper.exceptions import CodegenPanic, CompilerPanic
-from vyper.semantics.types import VyperType
+from vyper.semantics.types import VyperType, _BytestringT
 from vyper.utils import VALID_IR_MACROS, ceil32
 
 # Set default string representation for ints in IR output.
@@ -138,6 +138,10 @@ class IRnode:
     passthrough_metadata: dict[str, Any]
     func_ir: Any
     common_ir: Any
+
+    # for bytestrings, if we have `is_source_bytes_literal`, we can perform
+    # certain optimizations like eliding the copy.
+    is_source_bytes_literal: bool = False
 
     def __init__(
         self,
@@ -363,6 +367,21 @@ class IRnode:
     def gas(self):
         return self._gas + self.add_gas_estimate
 
+    @property
+    def is_empty_intrinsic(self):
+        if self.value == "~empty":
+            return True
+        if (
+            self.is_source_bytes_literal
+            and isinstance(self.typ, _BytestringT)
+            and self.typ.maxlen == 0
+        ):
+            # special optimization case for empty `b""` literal
+            return True
+        if self.value == "seq":
+            return len(self.args) == 1 and self.args[0].is_empty_intrinsic
+        return False
+
     # the IR should be cached and/or evaluated exactly once
     @property
     def is_complex_ir(self):
@@ -376,6 +395,7 @@ class IRnode:
             isinstance(self.value, str)
             and (self.value.lower() in VALID_IR_MACROS or self.value.upper() in get_ir_opcodes())
             and self.value.lower() not in do_not_cache
+            and not self.is_empty_intrinsic
         )
 
     # set an error message and push down to its children that don't have error_msg set
