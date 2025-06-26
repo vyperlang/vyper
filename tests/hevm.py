@@ -32,9 +32,9 @@ def _prep_hevm_venom_ctx(ctx, verbose=False):
     for fn in ctx.functions.values():
         for bb in fn.get_basic_blocks():
             for inst in bb.instructions:
-                # transform `param` instructions into "symbolic" values for
+                # transform `source` instructions into "symbolic" values for
                 # hevm via calldataload
-                if inst.opcode == "param":
+                if inst.opcode == "source":
                     # hevm limit: 256 bytes of symbolic calldata
                     assert num_calldataloads < 8
 
