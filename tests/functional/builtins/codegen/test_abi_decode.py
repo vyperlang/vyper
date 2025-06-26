@@ -680,6 +680,7 @@ def run(x: Bytes[{buffer_size}]):
         c.run(data)
 
     expected = []
+    # the array0 payload is 1B oob thus we read 1B from 0-initialized calldata past the user-provided buffer
     expected.append(_abi_payload_from_tuple((0x00, *_replicate(0x0300, 2)), 96))
     expected.append(_abi_payload_from_tuple(_replicate(0x01, 3), 96))
     expected.append(b"")
@@ -1146,7 +1147,7 @@ def run() -> {typ}:
     res = c.run()
 
     assert res == []
-    _test_ctor_decode(env, typ, _abi_payload_from_tuple((32, 0), 64), [])
+    _test_ctor_decode(env, typ, abi.encode("bytes[]", []), [])
 
 
 def test_abi_decode_extcall_complex_empty_dynarray(env, get_contract):
@@ -1241,7 +1242,7 @@ def run() -> {typ}:
     res = c.run()
     assert res == []
 
-    _test_ctor_decode(env, typ, _abi_payload_from_tuple((32, 0), 64), expected)
+    _test_ctor_decode(env, typ, abi.encode("bytes[]", []), expected)
 
 
 def test_abi_decode_top_level_head_oob(tx_failed, get_contract):
