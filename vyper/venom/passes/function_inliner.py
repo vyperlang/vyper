@@ -116,7 +116,7 @@ class FunctionInlinerPass(IRGlobalPass):
                             # and both b and c get inlined.
                             calloca_inst = callocas[alloca_id]
                             assert calloca_inst.output is not None
-                            inst.opcode = "iden"
+                            inst.opcode = "assign"
                             inst.operands = [calloca_inst.output]
                         else:
                             callocas[alloca_id] = inst
@@ -129,7 +129,7 @@ class FunctionInlinerPass(IRGlobalPass):
                             # this is our own palloca, not one that got
                             # inlined
                             continue
-                        inst.opcode = "iden"
+                        inst.opcode = "assign"
                         calloca_inst = callocas[alloca_id]
                         assert calloca_inst.output is not None  # help mypy
                         inst.operands = [calloca_inst.output]
@@ -180,7 +180,7 @@ class FunctionInlinerPass(IRGlobalPass):
             for inst in bb.instructions:
                 if inst.opcode == "param":
                     # NOTE: one of these params is the return pc.
-                    inst.opcode = "iden"
+                    inst.opcode = "assign"
                     # handle return pc specially - it's at top of stack.
                     ops = call_site.operands[1:] + [call_site.operands[0]]
                     val = ops[param_idx]
@@ -195,7 +195,7 @@ class FunctionInlinerPass(IRGlobalPass):
                         assert ENABLE_NEW_CALL_CONV
                         ret_value = inst.operands[0]
                         bb.insert_instruction(
-                            IRInstruction("iden", [ret_value], call_site.output), -1
+                            IRInstruction("assign", [ret_value], call_site.output), -1
                         )
                     inst.opcode = "jmp"
                     inst.operands = [call_site_return.label]

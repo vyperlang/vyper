@@ -31,7 +31,7 @@ class SingleUseExpansion(IRPass):
         i = 0
         while i < len(bb.instructions):
             inst = bb.instructions[i]
-            if inst.opcode in ("iden", "offset", "phi", "param"):
+            if inst.opcode in ("assign", "offset", "phi", "param"):
                 i += 1
                 continue
 
@@ -52,7 +52,7 @@ class SingleUseExpansion(IRPass):
                     continue
 
                 var = self.function.get_next_variable()
-                to_insert = IRInstruction("iden", [op], var)
+                to_insert = IRInstruction("assign", [op], var)
                 bb.insert_instruction(to_insert, index=i)
                 inst.operands[j] = var
                 i += 1

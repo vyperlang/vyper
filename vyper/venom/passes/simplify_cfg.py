@@ -132,7 +132,7 @@ class SimplifyCFGPass(IRPass):
 
             op_len = len(inst.operands)
             if op_len == 2:
-                inst.opcode = "iden"
+                inst.opcode = "assign"
                 inst.operands = [inst.operands[1]]
             elif op_len == 0:
                 inst.make_nop()

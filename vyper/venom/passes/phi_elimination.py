@@ -30,7 +30,7 @@ class PhiEliminationPass(IRPass):
             if src == inst:
                 return
             assert src.output is not None
-            self.updater.mk_iden(inst, src.output)
+            self.updater.mk_assign(inst, src.output)
 
     def _calculate_phi_origins(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -86,7 +86,7 @@ class PhiEliminationPass(IRPass):
                 return set([inst])
             return res
 
-        if inst.opcode == "iden" and isinstance(inst.operands[0], IRVariable):
+        if inst.opcode == "assign" and isinstance(inst.operands[0], IRVariable):
             # traverse assignment chain
             var = inst.operands[0]
             next_inst = self.dfg.get_producing_instruction(var)

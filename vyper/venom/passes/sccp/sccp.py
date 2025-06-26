@@ -180,7 +180,7 @@ class SCCP(IRPass):
     def _visit_expr(self, inst: IRInstruction):
         opcode = inst.opcode
 
-        store_opcodes: tuple[str, ...] = ("iden",)
+        store_opcodes: tuple[str, ...] = ("assign",)
         if self.remove_allocas:
             store_opcodes += ("alloca", "palloca", "calloca")
 

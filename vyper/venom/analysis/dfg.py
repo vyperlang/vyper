@@ -60,7 +60,7 @@ class DFGAnalysis(IRAnalysis):
     def _traverse_assign_chain(self, var: IRVariable) -> IRVariable:
         while True:
             inst = self.get_producing_instruction(var)
-            if inst is None or inst.opcode != "iden":
+            if inst is None or inst.opcode != "assign":
                 return var
             var = inst.operands[0]  # type: ignore
 
