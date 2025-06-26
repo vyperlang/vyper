@@ -4,8 +4,14 @@ Memory fuzzer for Venom IR.
 This fuzzer generates complex control flow with memory instructions to test
 memory optimization passes. It uses the IRBasicBlock API directly and
 can be plugged with any Venom passes.
+
+The fuzzer works in two phases:
+1. Generation Phase: Creates IR with symbolic variables that can be used before definition
+2. Resolution Phase: Replaces symbolic variables with real variables and inserts initialization
+
+This two-phase approach enables complex cross-block dataflow patterns that would be
+difficult to generate with a single pass.
 """
-from collections import defaultdict
 from dataclasses import dataclass
 from typing import Optional
 
@@ -14,6 +20,7 @@ import hypothesis.strategies as st
 import pytest
 
 from tests.evm_backends.base_env import EvmError
+from tests.venom_utils import assert_ctx_eq
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.venom import VenomCompiler
 from vyper.venom.analysis import IRAnalysesCache
@@ -30,6 +37,10 @@ from vyper.venom.passes import (
     SimplifyCFGPass,
     SingleUseExpansion,
 )
+
+# ============================================================================
+# Constants
+# ============================================================================
 
 MEMORY_OPS = ["mload", "mstore", "mcopy"]
 
@@ -51,6 +62,11 @@ MAX_MEMORY_SIZE = 256
 MAX_BASIC_BLOCKS = 50
 MAX_INSTRUCTIONS_PER_BLOCK = 50
 MAX_LOOP_ITERATIONS = 12
+
+
+# ============================================================================
+# Basic Block Types
+# ============================================================================
 
 
 @dataclass
@@ -76,7 +92,11 @@ class _JumpBB(_BBType):
 
 @dataclass
 class _BranchBB(_BBType):
-    """Basic block with conditional branch."""
+    """Basic block with conditional branch.
+
+    Convention: If there's a back edge, target1 is the back edge and
+    target2 is the forward edge. This ensures consistent loop structure.
+    """
 
     target1: IRBasicBlock
     target2: IRBasicBlock
@@ -87,22 +107,44 @@ class _BranchBB(_BBType):
         return self.counter_addr is not None
 
 
+# ============================================================================
+# Symbolic Variables
+# ============================================================================
+
+
 class SymbolicVar(IRVariable):
-    """Placeholder for a variable that will be resolved later"""
+    """Placeholder for a variable that will be resolved later.
+
+    Symbolic variables enable cross-block dataflow patterns by allowing
+    uses before definitions. During the resolution phase, each symbolic
+    variable is replaced with a real variable and initialized via calldataload
+    if it's used before being defined.
+    """
 
     pass
 
 
+# ============================================================================
+# Memory Fuzzer
+# ============================================================================
+
+
 class MemoryFuzzer:
-    """Generates random Venom IR with memory operations using IRBasicBlock API."""
+    """Generates random Venom IR with memory operations using IRBasicBlock API.
+
+    This fuzzer creates complex control flow patterns with memory operations
+    to stress-test memory optimization passes. It works in two phases:
+
+    1. Generation: Build IR with symbolic variables, allowing flexible dataflow
+    2. Resolution: Replace symbolic variables with real ones and add initialization
+    """
 
     def __init__(self):
         self.ctx = IRContext()
         self.function = None
         self.bb_counter = 0
-        self.calldata_offset = MAX_MEMORY_SIZE
+        self.calldata_offset = MAX_MEMORY_SIZE  # Start after memory seed data
         self.allocated_memory_slots = set()
-        # symbolic variable tracking
         self.symbolic_counter = 0
 
     def get_next_variable(self) -> IRVariable:
@@ -115,7 +157,7 @@ class MemoryFuzzer:
         self.symbolic_counter += 1
         return SymbolicVar(f"%sym_{self.symbolic_counter}")
 
-    def resolve_all_variables(self, cfg: dict[IRBasicBlock, _BBType]):
+    def resolve_all_variables(self, block_types: dict[IRBasicBlock, _BBType]):
         """After building all blocks, replace symbolic vars with real ones"""
         # Simple global mapping - each symbolic var gets one real var
         symbolic_mapping = {}
@@ -166,8 +208,7 @@ class MemoryFuzzer:
 
     def get_memory_address(self, draw, bb: IRBasicBlock) -> IRVariable | IRLiteral:
         """Get a memory address, biased towards interesting optimizer-relevant locations."""
-        # For now, only return literals to avoid cross-block availability issues
-        # TODO: Once we have proper availability tracking, we can use variables again
+        # Currently only returns literals to keep fuzzing patterns simple
 
         if self.allocated_memory_slots and draw(st.booleans()):
             # bias towards addresses near existing allocations to create aliasing opportunities
@@ -227,7 +268,12 @@ def memory_instruction(draw, fuzzer: MemoryFuzzer, bb: IRBasicBlock) -> None:
         bb.append_instruction("mcopy", dest, src, IRLiteral(length))
 
     else:
-        raise Exception("unreachable")
+        raise AssertionError(f"Unknown memory operation: {op}")
+
+
+# ============================================================================
+# Control Flow Generation
+# ============================================================================
 
 
 @st.composite
@@ -239,10 +285,10 @@ def control_flow_graph(draw, basic_blocks):
     3. Proper use of jump and branch instructions
     4. No back edges to entry block
     """
-    cfg: dict[IRBasicBlock, _BBType] = {}
+    block_types: dict[IRBasicBlock, _BBType] = {}
 
     # last block is always a return block - guarantees all other blocks have forward targets
-    cfg[basic_blocks[-1]] = _ReturnBB()
+    block_types[basic_blocks[-1]] = _ReturnBB()
 
     # cache forward targets for each block for performance
     forward_targets = {}
@@ -260,43 +306,42 @@ def control_flow_graph(draw, basic_blocks):
         source = draw(st.sampled_from(reachable_blocks))
 
         # we have already visited it
-        if source in cfg:
+        if source in block_types:
             continue
 
         target = draw(st.sampled_from(remaining_blocks))
 
-        # target is now reachable, but it may not be in cfg yet
+        # target is now reachable, but it may not be in block_types yet
         reachable_blocks.append(target)
         remaining_blocks.remove(target)
 
         if draw(st.booleans()):
-            cfg[source] = _JumpBB(target=target)
+            block_types[source] = _JumpBB(target=target)
         else:
             # For branches, allow any block as the other target except entry
             # (target is already guaranteed to be forward)
             other_target = draw(st.sampled_from(non_entry_blocks))
 
             is_back_edge = basic_blocks.index(other_target) <= basic_blocks.index(source)
-            # counter_addr = loop_counter_addr if is_back_edge else None
 
             # if other_target is the back edge, swap so back edge is always target1
             if is_back_edge:
                 other_target, target = target, other_target
-            cfg[source] = _BranchBB(target1=target, target2=other_target)
+            block_types[source] = _BranchBB(target1=target, target2=other_target)
 
     # classify remaining blocks that were not handled during spanning
     # tree construction.
 
     loop_counter_addr = MAX_MEMORY_SIZE
     for bb in basic_blocks:
-        if bb in cfg:
+        if bb in block_types:
             continue
 
         edge_type = draw(st.sampled_from(["jump", "branch"]))
 
         if edge_type == "jump":
             target = draw(st.sampled_from(forward_targets[bb]))
-            cfg[bb] = _JumpBB(target=target)
+            block_types[bb] = _JumpBB(target=target)
         else:  # branch
             # Choose targets, but never allow entry as a target
             target1 = draw(st.sampled_from(non_entry_blocks))
@@ -318,12 +363,12 @@ def control_flow_graph(draw, basic_blocks):
 
             counter_addr = loop_counter_addr if contains_back_edge else None
 
-            cfg[bb] = _BranchBB(target1=target1, target2=target2, counter_addr=counter_addr)
+            block_types[bb] = _BranchBB(target1=target1, target2=target2, counter_addr=counter_addr)
 
             if contains_back_edge:
                 loop_counter_addr += 32
 
-    return cfg
+    return block_types
 
 
 @st.composite
@@ -365,16 +410,21 @@ def precompile_call(draw, fuzzer: MemoryFuzzer, bb: IRBasicBlock) -> None:
         input_size = IRLiteral(213)  # blake2f requires specific input size
         output_size = IRLiteral(64)
     else:
-        # unreachable
-        raise Exception(f"Unknown precompile: {precompile_name}")
+        raise AssertionError(f"Unknown precompile: {precompile_name}")
 
     gas = fuzzer.fresh_symbolic()
     bb.append_instruction("gas", ret=gas)
     addr = IRLiteral(precompile_addr)
 
     success = fuzzer.fresh_symbolic()
-    bb.append_instruction(
-        "staticcall", gas, addr, input_ofst, input_size, output_ofst, output_size, ret=success
+    bb.append_instruction( "staticcall",
+        output_size,
+        output_ofst,
+        input_size,
+        input_ofst,
+        addr,
+        gas,
+        ret=success
     )
 
 
@@ -391,7 +441,12 @@ def basic_block_instructions(draw, fuzzer: MemoryFuzzer, bb: IRBasicBlock) -> No
         elif inst_type == "precompile":
             draw(precompile_call(fuzzer, bb))
         else:
-            raise Exception("unreachable")
+            raise AssertionError(f"Unknown instruction type: {inst_type}")
+
+
+# ============================================================================
+# Main Generation Function
+# ============================================================================
 
 
 @st.composite
@@ -405,11 +460,13 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
     """
     fuzzer = MemoryFuzzer()
 
+    # ---- Setup function and context ----
     func_name = IRLabel("_fuzz_function", is_symbol=True)
     fuzzer.function = IRFunction(func_name, fuzzer.ctx)
     fuzzer.ctx.functions[func_name] = fuzzer.function
     fuzzer.ctx.entry_function = fuzzer.function
 
+    # ---- Generate basic blocks ----
     num_blocks = draw(st.integers(min_value=1, max_value=MAX_BASIC_BLOCKS))
     basic_blocks = []
 
@@ -428,8 +485,10 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
 
     assert fuzzer.function.entry is basic_blocks[0]
 
-    cfg = draw(control_flow_graph(basic_blocks))
+    # ---- Generate control flow ----
+    block_types = draw(control_flow_graph(basic_blocks))
 
+    # ---- Initialize memory and loop counters ----
     entry_block = basic_blocks[0]
     entry_block.append_instruction(
         "calldatacopy", IRLiteral(0), IRLiteral(0), IRLiteral(MAX_MEMORY_SIZE)
@@ -437,7 +496,7 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
 
     # extract loop counter addresses and initialize them
     counter_addrs = set()
-    for bb_type in cfg.values():
+    for bb_type in block_types.values():
         if isinstance(bb_type, _BranchBB) and bb_type.counter_addr is not None:
             addr = bb_type.counter_addr
             assert addr not in counter_addrs, f"Duplicate counter address {addr}"
@@ -446,13 +505,13 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
     for addr in counter_addrs:
         entry_block.append_instruction("mstore", IRLiteral(0), IRLiteral(addr))
 
-    # generate instructions for each block
+    # ---- Generate instructions ----
     for bb in basic_blocks:
         draw(basic_block_instructions(fuzzer, bb))
 
-    # add terminators
+    # ---- Add terminators ----
     for bb in basic_blocks:
-        bb_type = cfg[bb]
+        bb_type = block_types[bb]
 
         if isinstance(bb_type, _ReturnBB):
             bb.append_instruction("return", IRLiteral(MAX_MEMORY_SIZE), IRLiteral(0))
@@ -488,16 +547,21 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
             bb.append_instruction("jnz", cond_result, bb_type.target1.label, bb_type.target2.label)
 
         else:
-            raise Exception()  # unreachable
+            raise AssertionError(f"Unknown basic block type: {type(bb_type)}")
 
-    # resolve all symbolic variables to real ones
-    fuzzer.resolve_all_variables(cfg)
+    # ---- Phase 2: Resolve symbolic variables ----
+    fuzzer.resolve_all_variables(block_types)
 
     # freshen variable names for easier debugging
     for fn in fuzzer.ctx.functions.values():
         fn.freshen_varnames()
 
     return fuzzer.ctx, fuzzer.calldata_offset
+
+
+# ============================================================================
+# Memory Pass Checker
+# ============================================================================
 
 
 class MemoryFuzzChecker:
@@ -514,9 +578,8 @@ class MemoryFuzzChecker:
             MakeSSA(ac, fn).run_pass()
             SingleUseExpansion(ac, fn).run_pass()
             CFGNormalization(ac, fn).run_pass()
-            fn.freshen_varnames()
 
-        hp.note(str(ctx))
+        # hp.note(str(ctx))
 
         compiler = VenomCompiler([ctx])
         asm = compiler.generate_evm()
@@ -554,8 +617,9 @@ class MemoryFuzzChecker:
         try:
             result = env.message_call(to=deployed_address, data=calldata)
             return True, result
-        except EvmError:
-            return False, b""
+        except EvmError as e:
+            # stub for future handling of programs that are actually expected to revert
+            raise
 
     def check_equivalence(self, ctx: IRContext, calldata: bytes, env) -> None:
         """Check equivalence between unoptimized and optimized execution."""
@@ -564,19 +628,47 @@ class MemoryFuzzChecker:
             ac = IRAnalysesCache(fn)
             MakeSSA(ac, fn).run_pass()
             AssignElimination(ac, fn).run_pass()
-        hp.note("UNOPTIMIZED: " + str(ctx))
+            fn.freshen_varnames()
 
         opt_ctx = self.run_passes(ctx)
+        for fn in opt_ctx.functions.values():
+            fn.freshen_varnames()
+
+        try:
+            assert_ctx_eq(ctx, opt_ctx)
+        except AssertionError as e:
+            equals = False
+            msg = e.args[0]
+        else:
+            equals = True
+
+        if equals:
+            hp.note("No optimization done")
+            return
+        hp.note("UNOPTIMIZED: " + str(ctx))
         hp.note("OPTIMIZED: " + str(opt_ctx))
+        hp.note("optimizations: " + str(msg))
 
         bytecode1 = self.compile_to_bytecode(ctx)
         bytecode2 = self.compile_to_bytecode(opt_ctx)
 
+        hp.note(f"MSG CALL {calldata.hex()}")
+
         succ1, out1 = self.execute_bytecode(bytecode1, calldata, env)
         succ2, out2 = self.execute_bytecode(bytecode2, calldata, env)
 
+        if not succ1 or not succ2:
+            hp.note("reverted")
+        else:
+            hp.note(f"OUT {out1.hex()}")
+
         assert succ1 == succ2, (succ1, out1, succ2, out2)
         assert out1 == out2, (succ1, out1, succ2, out2)
+
+
+# ============================================================================
+# Test Helpers
+# ============================================================================
 
 
 @st.composite
@@ -587,34 +679,19 @@ def venom_with_calldata(draw):
     return ctx, calldata
 
 
-# Test with memory-related passes
+# ============================================================================
+# Property-Based Tests
+# ============================================================================
+
+
 @pytest.mark.fuzzing
-# @pytest.mark.parametrize(
-#    "pass_list",
-#    [
-#        # Test individual memory passes
-#        [MemMergePass],
-#        [LoadElimination],
-#        [DeadStoreElimination],
-#        # Test combinations
-#        [LoadElimination, DeadStoreElimination],
-#        [DeadStoreElimination, LoadElimination],
-#        [LoadElimination, MemMergePass],
-#    ],
-# )
 @hp.given(venom_data=venom_with_calldata())
 @hp.settings(
-    max_examples=50,
+    max_examples=1000,
     suppress_health_check=(hp.HealthCheck.data_too_large, hp.HealthCheck.too_slow),
     deadline=None,
-    phases=(
-        hp.Phase.explicit,
-        hp.Phase.reuse,
-        hp.Phase.generate,
-        hp.Phase.target,
-        # Phase.shrink,  # can force long waiting for examples
-    ),
-    # verbosity=hp.Verbosity.debug,
+    phases=(hp.Phase.explicit, hp.Phase.reuse, hp.Phase.generate, hp.Phase.target),
+    verbosity=hp.Verbosity.verbose,
 )
 def test_memory_passes_fuzzing(venom_data, env):
     """
@@ -625,15 +702,13 @@ def test_memory_passes_fuzzing(venom_data, env):
     pass_list = [MemMergePass]
     ctx, calldata = venom_data
 
-    hp.note(f"Testing passes: {[p.__name__ for p in pass_list]}")
-
-    func = list(ctx.functions.values())[0]
-    hp.note(f"Generated function with {func.num_basic_blocks} basic blocks")
-    hp.note(f"Calldata size: {len(calldata)} bytes")
-    hp.note(str(ctx))
-
     checker = MemoryFuzzChecker(pass_list)
     checker.check_equivalence(ctx, calldata, env)
+
+
+# ============================================================================
+# Manual Testing
+# ============================================================================
 
 
 def generate_sample_ir() -> IRContext:
@@ -644,10 +719,6 @@ def generate_sample_ir() -> IRContext:
 
 if __name__ == "__main__":
     ctx = generate_sample_ir()
-
-    # func = list(ctx.functions.values())[0]
-    # print(func)
-
     checker = MemoryFuzzChecker([MemMergePass])
     checker.run_passes(ctx)
     print(ctx)
