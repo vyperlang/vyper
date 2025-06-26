@@ -39,11 +39,13 @@ from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
+
 def generate_assembly_experimental(
     venom_ctx: IRContext, optimize: OptimizationLevel = DEFAULT_OPT_LEVEL
 ) -> list[AssemblyInstruction]:
     compiler = VenomCompiler(venom_ctx)
     return compiler.generate_evm_assembly(optimize == OptimizationLevel.NONE)
+
 
 def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache) -> None:
     # Run passes on Venom IR
@@ -124,5 +126,3 @@ def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
 
     for fn in ctx.functions.values():
         _run_passes(fn, optimize, ir_analyses[fn])
-
-

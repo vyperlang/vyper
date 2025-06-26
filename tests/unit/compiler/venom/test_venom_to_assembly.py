@@ -1,4 +1,4 @@
-from vyper.evm.assembler.core import Label, PUSHLABEL
+from vyper.evm.assembler.core import PUSHLABEL, Label
 from vyper.venom.parser import parse_venom
 from vyper.venom.venom_to_assembly import VenomCompiler
 
@@ -36,6 +36,7 @@ def test_optimistic_swap_params():
     asm = VenomCompiler(ctx).generate_evm_assembly()
     assert asm == ["SWAP2", "PUSH1", 117, "POP", "MSTORE", "MSTORE", "JUMP"]
 
+
 def test_global_vars():
     code = """
     global_var: 10
@@ -50,4 +51,14 @@ def test_global_vars():
     """
     ctx = parse_venom(code)
     asm = VenomCompiler(ctx).generate_evm_assembly()
-    assert asm == [Label("global_var"), "PUSH1", 1, "PUSH1", 2, "POP", PUSHLABEL(Label("global_var")), "ADD", "JUMP"]
+    assert asm == [
+        Label("global_var"),
+        "PUSH1",
+        1,
+        "PUSH1",
+        2,
+        "POP",
+        PUSHLABEL(Label("global_var")),
+        "ADD",
+        "JUMP",
+    ]

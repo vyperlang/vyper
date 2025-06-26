@@ -12,12 +12,12 @@ from vyper.evm.opcodes import get_opcodes
 from vyper.ir.compile_ir import _runtime_code_offsets
 from vyper.venom.basicblock import (
     IRBasicBlock,
+    IRHexString,
     IRInstruction,
     IRLabel,
     IRLiteral,
     IROperand,
     IRVariable,
-    IRHexString,
 )
 from vyper.venom.context import DataSection, IRContext
 from vyper.venom.function import IRFunction, IRParameter
@@ -564,7 +564,7 @@ def _convert_ir_bb(fn, ir, symbols):
         return IRLabel(ir.args[0].value, True)
     elif ir.value == "data":
         label = IRLabel(ir.args[0].value, True)
-        
+
         ctx.append_data_section(label)
 
         for c in ir.args[1:]:
@@ -575,7 +575,7 @@ def _convert_ir_bb(fn, ir, symbols):
                 data = _convert_ir_bb(fn, c, symbols)
                 assert isinstance(data, IRLabel)  # help mypy
                 ctx.append_data_item(data)
-        
+
     elif ir.value == "label":
         label = IRLabel(ir.args[0].value, True)
         bb = fn.get_basic_block()
@@ -779,11 +779,11 @@ def _convert_ir_opcode(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> None
 def convert_data_segment_to_function(ctx: IRContext, data_sections: list[DataSection]) -> None:
     if len(data_sections) == 0:
         return
-    
+
     first_label = data_sections[0].label
     fn = ctx.create_function(first_label.value)
     fn.clear_basic_blocks()
-    
+
     for data_section in data_sections:
         bb = IRBasicBlock(data_section.label, fn)
         bb.is_pinned = True
@@ -797,4 +797,3 @@ def convert_data_segment_to_function(ctx: IRContext, data_sections: list[DataSec
                 assert isinstance(data_item.data, bytes)
                 hex_string = IRHexString(data_item.data)
                 bb.append_instruction("db", hex_string)
-        

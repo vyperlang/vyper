@@ -1,5 +1,12 @@
-from vyper.evm.assembler.core import DATA_ITEM, JUMPDEST, PUSHLABEL, PUSHLABELJUMPDEST, Label, is_symbol
 from vyper.evm.assembler.constants import COMMUTATIVE_OPS
+from vyper.evm.assembler.core import (
+    DATA_ITEM,
+    JUMPDEST,
+    PUSHLABEL,
+    PUSHLABELJUMPDEST,
+    Label,
+    is_symbol,
+)
 from vyper.exceptions import CompilerPanic
 
 _TERMINAL_OPS = ("JUMP", "RETURN", "REVERT", "STOP", "INVALID")
@@ -104,7 +111,10 @@ def _merge_jumpdests(assembly):
                 # replace all instances of PUSHLABELJUMPDEST x with PUSHLABELJUMPDEST y
                 new_symbol = assembly[i + 1].label
                 for j in range(len(assembly)):
-                    if isinstance(assembly[j], PUSHLABELJUMPDEST) and assembly[j].label == current_symbol:
+                    if (
+                        isinstance(assembly[j], PUSHLABELJUMPDEST)
+                        and assembly[j].label == current_symbol
+                    ):
                         assembly[j].label = new_symbol
                         changed = True
 

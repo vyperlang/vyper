@@ -5,12 +5,12 @@ from lark import Lark, Transformer
 
 from vyper.venom.basicblock import (
     IRBasicBlock,
+    IRHexString,
     IRInstruction,
     IRLabel,
     IRLiteral,
     IROperand,
     IRVariable,
-    IRHexString,
 )
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
@@ -115,7 +115,9 @@ class _GlobalLabel(_TypedItem):
 class _LabelDecl:
     """Represents a block declaration in the parse tree."""
 
-    def __init__(self, label: str, address: Optional[int] = None, tags: Optional[list[str]] = None) -> None:
+    def __init__(
+        self, label: str, address: Optional[int] = None, tags: Optional[list[str]] = None
+    ) -> None:
         self.label = label
         self.address = address
         self.tags = tags or []
@@ -124,22 +126,22 @@ class _LabelDecl:
 class VenomTransformer(Transformer):
     def start(self, children) -> IRContext:
         ctx = IRContext()
-        
+
         # Separate global labels and functions
         global_labels = []
         funcs = []
-        
+
         for child in children:
             if isinstance(child, _GlobalLabel):
                 global_labels.append(child)
             else:
                 funcs.append(child)
-        
+
         # Process global labels
         for global_label in global_labels:
             name, address = global_label.children
             ctx.add_global_label(name, address)
-        
+
         # Process functions
         for fn_name, items in funcs:
             fn = ctx.create_function(fn_name)
@@ -163,7 +165,14 @@ class VenomTransformer(Transformer):
             for item in items:
                 if isinstance(item, _LabelDecl):
                     if current_block_label is not None:
-                        blocks.append((current_block_label, current_block_address, current_block_instructions, current_block_tags))
+                        blocks.append(
+                            (
+                                current_block_label,
+                                current_block_address,
+                                current_block_instructions,
+                                current_block_tags,
+                            )
+                        )
                     current_block_label = item.label
                     current_block_address = item.address
                     current_block_tags = item.tags
@@ -174,7 +183,14 @@ class VenomTransformer(Transformer):
                     current_block_instructions.append(item)
 
             if current_block_label is not None:
-                blocks.append((current_block_label, current_block_address, current_block_instructions, current_block_tags))
+                blocks.append(
+                    (
+                        current_block_label,
+                        current_block_address,
+                        current_block_instructions,
+                        current_block_tags,
+                    )
+                )
 
             for block_data in blocks:
                 # All blocks now have: (block_name, address, instructions, tags)
@@ -183,11 +199,11 @@ class VenomTransformer(Transformer):
                     bb = IRBasicBlock(IRLabel(block_name, True, address), fn)
                 else:
                     bb = IRBasicBlock(IRLabel(block_name, True), fn)
-                
+
                 # Set is_volatile if "pinned" tag is present
                 if "pinned" in tags:
                     bb.is_pinned = True
-                
+
                 fn.append_basic_block(bb)
 
                 for instruction in instructions:
@@ -217,14 +233,14 @@ class VenomTransformer(Transformer):
         label = _unescape(str(children[0]))
         address = None
         tags = []
-        
+
         # Process children after the label
         for child in children[1:]:
             if isinstance(child, IRLiteral):
                 address = child.value
             elif isinstance(child, list):  # tag_list returns a list
                 tags = child
-        
+
         return _LabelDecl(label, address, tags)
 
     def statement(self, children) -> IRInstruction:
@@ -248,14 +264,14 @@ class VenomTransformer(Transformer):
             # just the opcode (IDENT)
             opcode = str(children[0])
             # Handle Lark tokens
-            if hasattr(children[0], 'value'):
+            if hasattr(children[0], "value"):
                 opcode = children[0].value
             operands = []
         elif len(children) == 2:
             # Two cases: IDENT + operands_list OR "db" + operands_list
             opcode = str(children[0])
-            # Handle Lark tokens  
-            if hasattr(children[0], 'value'):
+            # Handle Lark tokens
+            if hasattr(children[0], "value"):
                 opcode = children[0].value
             operands = children[1]
         else:

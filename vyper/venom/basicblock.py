@@ -195,7 +195,7 @@ class IRVariable(IROperand):
 
 class IRHexString(IROperand):
     """
-    IRHexString represents a hex string literal in IR, 
+    IRHexString represents a hex string literal in IR,
     currently only used for db instructions
     """
 

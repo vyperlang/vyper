@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import Any
 
 from vyper.evm.assembler.symbols import CONST, CONSTREF, BaseConstOp, Label, SymbolKey
@@ -19,29 +18,14 @@ def num_to_bytearray(x):
     return o
 
 
-class Label:
-    def __init__(self, label: str):
-        assert isinstance(label, str), f"invalid label {type(label)} {label}"
-        self.label = label
-
-    def __repr__(self):
-        return f"LABEL {self.label}"
-
-    def __eq__(self, other):
-        if not isinstance(other, Label):
-            return False
-        return self.label == other.label
-
-    def __hash__(self):
-        return hash(self.label)
-
 class JUMPDEST:
     def __init__(self, label: Label):
         assert isinstance(label, Label), label
         self.label = label
-    
+
     def __repr__(self):
         return f"JUMPDEST {self.label.label}"
+
 
 class PUSHLABEL:
     def __init__(self, label: Label):
@@ -59,26 +43,29 @@ class PUSHLABEL:
     def __hash__(self):
         return hash(self.label)
 
+
 class PUSHLABELJUMPDEST:
     """
     This is a special case of PUSHLABEL that is used to push a label
-    that is used in a jump or return address. This is used to allow 
+    that is used in a jump or return address. This is used to allow
     the optimizer to remove jumpdests that are not used.
     """
+
     def __init__(self, label: Label):
         assert isinstance(label, Label), label
         self.label = label
-    
+
     def __repr__(self):
         return f"PUSHLABELJUMPDEST {self.label.label}"
-    
+
     def __eq__(self, other):
         if not isinstance(other, PUSHLABELJUMPDEST):
             return False
         return self.label == other.label
-    
+
     def __hash__(self):
         return hash(self.label)
+
 
 # push the result of an addition (which might be resolvable at compile-time)
 class PUSH_OFST:
@@ -169,7 +156,16 @@ def is_ofst(assembly_item):
 
 
 AssemblyInstruction = (
-    str | TaggedInstruction | int | PUSHLABEL | JUMPDEST | PUSH_OFST | DATA_ITEM | CONST
+    str
+    | TaggedInstruction
+    | int
+    | Label
+    | PUSHLABEL
+    | PUSHLABELJUMPDEST
+    | JUMPDEST
+    | PUSH_OFST
+    | DATA_ITEM
+    | CONST
 )
 
 
@@ -344,18 +340,18 @@ SYMBOL_SIZE = 2  # size of a PUSH instruction for a code symbol
 def get_data_segment_lengths(assembly: list[AssemblyInstruction]) -> list[int]:
     segments = []
     current_segment_length = 0
-    
+
     for item in assembly:
         if isinstance(item, Label):
             if current_segment_length > 0:
                 segments.append(current_segment_length)
                 current_segment_length = 0
             continue
-                    
+
         if not isinstance(item, DATA_ITEM):
             # Only DATA_ITEM contributes to segment length
             continue
-            
+
         # Add to current segment length
         if is_symbol(item.data):
             current_segment_length += SYMBOL_SIZE
@@ -363,11 +359,11 @@ def get_data_segment_lengths(assembly: list[AssemblyInstruction]) -> list[int]:
             current_segment_length += len(item.data)
         else:  # pragma: nocover
             raise ValueError(f"invalid data {type(item)} {item}")
-    
+
     # Add the final segment if it has data
     if current_segment_length > 0:
         segments.append(current_segment_length)
-    
+
     return segments
 
 

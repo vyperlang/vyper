@@ -21,12 +21,12 @@ from vyper.venom.basicblock import (
     PSEUDO_INSTRUCTION,
     TEST_INSTRUCTIONS,
     IRBasicBlock,
+    IRHexString,
     IRInstruction,
     IRLabel,
     IRLiteral,
     IROperand,
     IRVariable,
-    IRHexString,
 )
 from vyper.venom.context import IRContext, IRFunction
 from vyper.venom.passes import NormalizationPass
@@ -114,6 +114,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
     ]
 )
 
+
 def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
     ret = []
     for op in asm:
@@ -167,7 +168,7 @@ class VenomCompiler:
         asm: list[AssemblyInstruction] = []
 
         # Add global variables to the assembly
-        for var_name, var_value in self.ctx.global_labels.items():
+        for var_name, _var_value in self.ctx.global_labels.items():
             asm.append(Label(var_name))
 
         for fn in self.ctx.functions.values():
@@ -507,7 +508,7 @@ class VenomCompiler:
             pass
         elif opcode == "db":
             # Handle inline db instruction - emit data directly to assembly
-            data_operand = inst.operands[0] 
+            data_operand = inst.operands[0]
             if isinstance(data_operand, IRLabel):
                 assembly.append(DATA_ITEM(_as_asm_symbol(data_operand)))
             elif isinstance(data_operand, IRHexString):
@@ -543,7 +544,12 @@ class VenomCompiler:
             ), f"invoke target must be a label (is ${type(target)} ${target})"
             return_label = self.mklabel("return_label")
             assembly.extend(
-                [PUSHLABELJUMPDEST(return_label), PUSHLABELJUMPDEST(_as_asm_symbol(target)), "JUMP", JUMPDEST(return_label)]
+                [
+                    PUSHLABELJUMPDEST(return_label),
+                    PUSHLABELJUMPDEST(_as_asm_symbol(target)),
+                    "JUMP",
+                    JUMPDEST(return_label),
+                ]
             )
         elif opcode == "ret":
             assembly.append("JUMP")
@@ -569,7 +575,9 @@ class VenomCompiler:
             assembly.extend(["ISZERO", PUSHLABELJUMPDEST(Label("revert")), "JUMPI"])
         elif opcode == "assert_unreachable":
             end_symbol = self.mklabel("reachable")
-            assembly.extend([PUSHLABELJUMPDEST(end_symbol), "JUMPI", "INVALID", JUMPDEST(end_symbol)])
+            assembly.extend(
+                [PUSHLABELJUMPDEST(end_symbol), "JUMPI", "INVALID", JUMPDEST(end_symbol)]
+            )
         elif opcode == "iload":
             addr = inst.operands[0]
             mem_deploy_end = self.ctx.constants["mem_deploy_end"]

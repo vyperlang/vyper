@@ -1,6 +1,6 @@
 from tests.venom_utils import assert_bb_eq, assert_ctx_eq
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IRVariable
-from vyper.venom.context import DataItem, DataSection, IRContext
+from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.parser import parse_venom
 
@@ -377,7 +377,16 @@ def test_global_vars():
     """
     ctx = parse_venom(source)
 
-    # assert_ctx_eq(ctx, expected_ctx)
+    print(ctx)
+
+    expected_ctx = IRContext()
+    expected_ctx.add_function(main_fn := IRFunction(IRLabel("main")))
+    main_bb = main_fn.get_basic_block("main")
+    main_bb.append_instruction("store", IRLiteral(1), ret=IRVariable("1"))
+    main_bb.append_instruction("store", IRLiteral(2), ret=IRVariable("2"))
+    main_bb.append_instruction("add", IRVariable("2"), IRVariable("1"), ret=IRVariable("3"))
+
+    assert_ctx_eq(ctx, expected_ctx)
 
 
 def test_labels_with_addresses():
@@ -394,18 +403,19 @@ def test_labels_with_addresses():
     }
     """
     ctx = parse_venom(source)
-    
+
     assert "my_global" in ctx.global_labels
     assert ctx.global_labels["my_global"] == 0x1000
-    
+
     main_fn = ctx.get_function(IRLabel("main"))
     assert main_fn is not None
-    
+
     main_bb = main_fn.get_basic_block("main")
     assert main_bb.label.address == 0x20
-    
+
     other_bb = main_fn.get_basic_block("other_block")
     assert other_bb.label.address is None
+
 
 def test_labels_with_addresses_used_in_function():
     source = """
@@ -420,16 +430,16 @@ def test_labels_with_addresses_used_in_function():
     }
     """
     ctx = parse_venom(source)
-    
+
     assert "my_global" in ctx.global_labels
     assert ctx.global_labels["my_global"] == 0x1000
-    
+
     main_fn = ctx.get_function(IRLabel("main"))
     assert main_fn is not None
-    
+
     main_bb = main_fn.get_basic_block("main")
     assert main_bb.label.address == 0x20
-    
+
     other_bb = main_fn.get_basic_block("other_block")
     assert other_bb.label.address is None
 
@@ -454,17 +464,17 @@ def test_labels_with_tags():
 
     parsed_ctx = parse_venom(source)
     fn = list(parsed_ctx.functions.values())[0]
-    
+
     start_bb = fn.get_basic_block("start")
     assert not start_bb.is_pinned, "start block should not be volatile"
-    
+
     revert_bb = fn.get_basic_block("revert")
     assert revert_bb.is_pinned, "revert block should be volatile due to pinned tag"
     assert revert_bb.label.address == 0x100, "revert block should have address 0x100"
-    
+
     special_bb = fn.get_basic_block("special")
     assert special_bb.is_pinned, "special block should be volatile due to pinned tag"
-    
+
     normal_bb = fn.get_basic_block("normal")
     assert not normal_bb.is_pinned, "normal block should not be volatile"
     assert normal_bb.label.address == 0x200, "normal block should have address 0x200"

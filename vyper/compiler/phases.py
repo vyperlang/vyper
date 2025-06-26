@@ -3,8 +3,6 @@ from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Any, Optional
 
-from vyper.venom.ir_node_to_venom import convert_data_segment_to_function, generate_venom_from_ir
-from vyper.venom.basicblock import IRBasicBlock, IRHexString, IRLabel, IRLiteral
 import vyper.codegen.core as codegen
 from vyper import ast as vy_ast
 from vyper.ast import natspec
@@ -27,6 +25,8 @@ from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
 from vyper.utils import ERC5202_PREFIX, sha256sum
 from vyper.venom import generate_assembly_experimental, run_passes_on
+from vyper.venom.basicblock import IRBasicBlock, IRHexString, IRLabel, IRLiteral
+from vyper.venom.ir_node_to_venom import convert_data_segment_to_function, generate_venom_from_ir
 from vyper.warnings import VyperWarning, vyper_warn
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
@@ -282,9 +282,7 @@ class CompilerData:
             "immutables_len": self.compilation_target._metadata["type"].immutable_section_bytes,
         }
 
-        venom_ctx = generate_venom_from_ir(
-            self.ir_nodes, self.settings, constants=constants
-        )
+        venom_ctx = generate_venom_from_ir(self.ir_nodes, self.settings, constants=constants)
 
         main_entry = venom_ctx.entry_function
 
@@ -300,7 +298,7 @@ class CompilerData:
         bb.is_pinned = True
         data_fn.append_basic_block(bb)
         bb.append_instruction("db", IRHexString(self.bytecode_runtime))
-        
+
         bb = IRBasicBlock(IRLabel("cbor_metadata"), data_fn)
         bb.is_pinned = True
         data_fn.append_basic_block(bb)

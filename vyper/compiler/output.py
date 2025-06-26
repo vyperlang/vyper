@@ -10,13 +10,13 @@ from vyper.compiler.output_bundle import SolcJSONWriter, VyperArchiveWriter
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
+from vyper.evm.assembler.core import JUMPDEST, Label
 from vyper.exceptions import VyperException
-from vyper.ir import compile_ir
 from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
 from vyper.utils import safe_relpath
 from vyper.warnings import ContractSizeLimit, vyper_warn
-from vyper.evm.assembler.core import Label, JUMPDEST
+
 
 def build_ast_dict(compiler_data: CompilerData) -> dict:
     ast_dict = {
