@@ -21,6 +21,7 @@ from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiter
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.passes import (
+    CFGNormalization,
     AssignElimination,
     DeadStoreElimination,
     LoadElimination,
@@ -514,6 +515,7 @@ class MemoryFuzzChecker:
             SimplifyCFGPass(ac, fn).run_pass()
             SingleUseExpansion(ac, fn).run_pass()
             MakeSSA(ac, fn).run_pass()
+            CFGNormalization(ac, fn).run_pass()
             fn.freshen_varnames()
 
         hp.note(str(ctx))
