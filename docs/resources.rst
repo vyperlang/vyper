@@ -8,6 +8,7 @@ Vyper has an active community. You can find third-party tutorials, examples, cou
 General
 -------
 
+- `Cyfrin Updraft - Python & Vyper <https://updraft.cyfrin.io/courses/intro-python-vyper-smart-contract-development/>`_ by Cyfrin
 - `Ape Academy – Learn how to build Vyper projects <https://academy.apeworx.io/>`_ by ApeWorX
 - `More Vyper by Example <https://vyper-by-example.org/>`_ by Smart Contract Engineer
 - `Vyper cheat Sheet <https://reference.auditless.com/cheatsheet>`_
@@ -19,6 +20,7 @@ Frameworks and tooling
 ----------------------
 
 - `Titanoboa – A Vyper interpreter with pretty tracebacks, forking, debugging features and more <https://github.com/vyperlang/titanoboa/>`_
+- `Moccasin - A smart contract development and testing framework for Vyper and Python, built on Titanoboa <https://cyfrin.github.io/moccasin/>`_
 - `ApeWorX – The Ethereum development framework for Python Developers, Data Scientists, and Security Professionals <https://www.apeworx.io/>`_
 - `VyperDeployer – A helper smart contract to compile and test Vyper contracts in Foundry <https://github.com/pcaversaccio/snekmate/blob/main/lib/utils/VyperDeployer.sol>`_
 - `🐍 snekmate – Vyper smart contract building blocks <https://github.com/pcaversaccio/snekmate>`_

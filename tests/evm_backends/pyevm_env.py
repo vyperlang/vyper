@@ -49,7 +49,7 @@ class PyEvmEnv(BaseEnv):
             # from vdb import vdb
             # vdb.set_evm_opcode_debugger()
 
-        spec = getattr(chain_builder, evm_version + "_at")(block_number)
+        spec = getattr(chain_builder.builders, evm_version + "_at")(block_number)
         self._chain: ChainAPI = chain_builder.build(MainnetChain, spec).from_genesis(
             base_db=AtomicDB(),
             genesis_params={"difficulty": GENESIS_DIFFICULTY, "gas_limit": gas_limit},

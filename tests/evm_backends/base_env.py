@@ -73,10 +73,13 @@ class BaseEnv:
         compiler_settings: Settings = None,
         input_bundle: InputBundle = None,
         value: int = 0,
+        storage_layout_override=None,
         **kwargs,
     ) -> ABIContract:
         """Compile and deploy a contract from source code."""
-        abi, bytecode = _compile(source_code, output_formats, input_bundle, compiler_settings)
+        abi, bytecode = _compile(
+            source_code, output_formats, input_bundle, compiler_settings, storage_layout_override
+        )
         return self.deploy(abi, bytecode, value, *args, **kwargs)
 
     def deploy_blueprint(
@@ -221,6 +224,7 @@ def _compile(
     output_formats: Iterable[str],
     input_bundle: InputBundle = None,
     settings: Settings = None,
+    storage_layout_override=None,
 ) -> tuple[list[dict], bytes]:
     out = compile_code(
         source_code,
@@ -229,6 +233,7 @@ def _compile(
         settings=settings,
         input_bundle=input_bundle,
         show_gas_estimates=True,  # Enable gas estimates for testing
+        storage_layout_override=storage_layout_override,
     )
     parse_vyper_source(source_code)  # Test grammar.
     json.dumps(out["metadata"])  # test metadata is json serializable

@@ -14,7 +14,7 @@ extras_require = {
         "pytest-xdist>=3.0,<3.4",
         "pytest-split>=0.7.0,<1.0",
         "eth_abi>=5.0.0,<6.0.0",
-        "py-evm>=0.10.1b1,<0.11",
+        "py-evm>=0.12.1b1",
         "lark==1.1.9",
         "hypothesis[lark]>=6.0,<7.0",
         "eth-stdlib==0.2.7",
@@ -91,7 +91,6 @@ setup(
     py_modules=["vyper"],
     install_requires=[
         "cbor2>=5.4.6,<6",
-        "asttokens>=2.0.5,<4",
         "pycryptodome>=3.5.1,<4",
         "packaging>=23.1",
         "lark>=1.0.0,<2",
