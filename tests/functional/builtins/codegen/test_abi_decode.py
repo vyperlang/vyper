@@ -659,16 +659,16 @@ def run(x: Bytes[{buffer_size}]):
         # we define the non_strict_head as:
         # skip the remaining heads, 1st and 2nd tail
         # to the third tail + 1B
-        0x20 * 8 + 0x20 * 3 + 0x01,  # inner array0 head
-        0x20 * 4 + 0x20 * 3,  # inner array1 head
-        0x20 * 8 + 0x20 * 3,  # inner array2 head
-        0x60,  # DynArray[Bytes[96], 3][0] length
-        *_replicate(0x01, 3),  # DynArray[Bytes[96], 3][0] data
-        0x60,  # DynArray[Bytes[96], 3][1] length
-        *_replicate(0x01, 3),  # DynArray[Bytes[96], 3][1]  data
-        # the invalid head points here + 1B (thus the length is 0x60)
+        0x20 * 8 + 0x20 * 3 + 0x01,  # darray[0] head
+        0x20 * 4 + 0x20 * 3,  # darray[1] head
+        0x20 * 8 + 0x20 * 3,  # darray[2] head
+        0x60,  # darray[0] length - not used
+        *_replicate(0x01, 3),  # darray[0] data - not used
+        0x60,  # darray[1] length
+        *_replicate(0x01, 3),  # darray[1]  data
+        # the invalid head of darray[0] points here + 1B (thus the length is 0x60)
         # we don't revert because of invalid length, but because head+length is OOB
-        0x00,  # DynArray[Bytes[96], 3][2] length
+        0x00,  # darray[2] length
         (0x60).to_bytes(1, "big"),
         (0x00).to_bytes(31, "big"),
         *_replicate(0x03, 2),
@@ -680,7 +680,8 @@ def run(x: Bytes[{buffer_size}]):
         c.run(data)
 
     expected = []
-    # the array0 payload is 1B oob thus we read 1B from 0-initialized calldata past the user-provided buffer
+    # the darray[0] tail is darray[2] payload shifted left by 1B (and as such is 1B OOB)
+    # because we decode from calldata, we 0-extend the expected payload by 1 zero byte
     expected.append(_abi_payload_from_tuple((0x00, *_replicate(0x0300, 2)), 96))
     expected.append(_abi_payload_from_tuple(_replicate(0x01, 3), 96))
     expected.append(b"")
