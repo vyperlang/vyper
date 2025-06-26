@@ -586,10 +586,9 @@ def run(x: Bytes[{buffer_size}]) -> {typ}:
         # we don't want to revert on invalid length, so set this to 0
         # the first byte of payload will be considered as the length
         0x00,
-        (0x02).to_bytes(1, "big"),  # will be considered as the length=1
-        (0x00).to_bytes(31, "big"),
-        (0x01).to_bytes(1, "big"),  # will be considered as the length=1
-        *_replicate(0x02, 1),
+        (0x02).to_bytes(1, "big"),  # will be considered as the length=2
+        (0x01).to_bytes(32, "big"),  # list[0] = 1
+        (0x02).to_bytes(32, "big"),  # list[1] = 2
     )
 
     data = _abi_payload_from_tuple(buffer_payload, buffer_size)
