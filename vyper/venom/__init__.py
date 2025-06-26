@@ -19,6 +19,7 @@ from vyper.venom.passes import (
     AlgebraicOptimizationPass,
     AssignElimination,
     BranchOptimizationPass,
+    CFGNormalization,
     DFTPass,
     FloatAllocas,
     FunctionInlinerPass,
@@ -107,6 +108,8 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
         ReduceLiteralsCodesize(ac, fn).run_pass()
 
     DFTPass(ac, fn).run_pass()
+
+    CFGNormalization(ac, fn).run_pass()
 
 
 def _run_global_passes(ctx: IRContext, optimize: OptimizationLevel, ir_analyses: dict) -> None:
