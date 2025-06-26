@@ -681,7 +681,6 @@ def run(x: Bytes[{buffer_size}]):
 
     expected = []
     # the darray[0] tail is darray[2] payload shifted left by 1B (and as such is 1B OOB)
-    # because we decode from calldata, we 0-extend the expected payload by 1 zero byte
     expected.append(_abi_payload_from_tuple((0x00, *_replicate(0x0300, 2)), 96))
     expected.append(_abi_payload_from_tuple(_replicate(0x01, 3), 96))
     expected.append(b"")
