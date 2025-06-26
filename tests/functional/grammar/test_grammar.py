@@ -10,6 +10,7 @@ from hypothesis.extra.lark import LarkStrategy
 from vyper.ast import Module, parse_to_ast
 from vyper.ast.grammar import parse_vyper_source, vyper_grammar
 from vyper.ast.pre_parser import PreParser
+from vyper.exceptions import SyntaxException
 
 
 def test_basic_grammar():
@@ -35,6 +36,106 @@ def test_basic_grammar_empty():
     """
     tree = parse_vyper_source(code, dedent=True)
     assert len(tree.children) == 0
+
+
+@pytest.mark.parametrize(
+    "num_literal", ["123_456", "1_000_000", "1_2_3_4_5_6", "1_000", "9_999_999_999_999_999"]
+)
+def test_decimal_literals_with_underscores(num_literal):
+    """Test that decimal literals with underscores parse correctly"""
+    code = f"""
+@external
+def foo() -> uint256:
+    return {num_literal}
+    """
+    assert parse_to_ast(code)
+
+
+@pytest.mark.parametrize(
+    "hex_literal",
+    [
+        "0x1234_5678",
+        "0xFF_FF_FF_FF",
+        "0x1_2_3_4",
+        "0xdead_beef",
+        "0x00_00_00_01",
+        "0x_1234_5678",  # underscore after prefix is valid
+    ],
+)
+def test_hex_literals_with_underscores(hex_literal):
+    """Test that hex literals with underscores parse correctly"""
+    code = f"""
+@external
+def foo() -> bytes32:
+    x: bytes32 = {hex_literal}
+    return x
+    """
+    assert parse_to_ast(code)
+
+
+@pytest.mark.parametrize(
+    "bin_literal", ["0b1010_1010", "0b1111_0000_1111_0000", "0b1010_1010", "0b11111111_11111111"]
+)
+def test_binary_literals_with_underscores(bin_literal):
+    """Test that binary literals with underscores parse correctly"""
+    code = f"""
+@external
+def foo() -> uint256:
+    return {bin_literal}
+    """
+    assert parse_to_ast(code)
+
+
+@pytest.mark.parametrize("oct_literal", ["0o123_456", "0o7_7_7", "0o1_234_567"])
+def test_octal_literals_with_underscores(oct_literal):
+    """Test that octal literals with underscores parse correctly"""
+    code = f"""
+@external
+def foo() -> uint256:
+    return {oct_literal}
+    """
+    assert parse_to_ast(code)
+
+
+@pytest.mark.parametrize(
+    "float_literal", ["123_456.789", "1_000.000_1", "0.000_000_1", "1.234_567e10", "1_234.567_8e-5"]
+)
+def test_float_literals_with_underscores(float_literal):
+    """Test that float literals with underscores parse correctly"""
+    code = f"""
+@external
+def foo() -> decimal:
+    return {float_literal}
+    """
+    assert parse_to_ast(code)
+
+
+@pytest.mark.parametrize(
+    "invalid_literal",
+    [
+        # Trailing underscores
+        "123_",
+        "0x123_",
+        "0b10101010_",
+        "0o123_",
+        "123.45_",
+        # Double underscores
+        "10__0",
+        "0x12__34",
+        "0b10101010__10101010",
+        "0o12__34",
+        "12.34__56",
+    ],
+)
+def test_invalid_numeric_literals_with_underscores(invalid_literal):
+    """Test that invalid numeric literals with underscores fail appropriately"""
+    code = f"""
+@external
+def foo() -> uint256:
+    return {invalid_literal}
+    """
+    with pytest.raises(SyntaxException):
+        parse_to_ast(code)
 
 
 def fix_terminal(terminal: str) -> str:
