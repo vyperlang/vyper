@@ -45,7 +45,7 @@ class JUMPDEST:
 
 class PUSHLABEL:
     def __init__(self, label: Label):
-        assert isinstance(label, Label), label
+        assert isinstance(label, Label), f"invalid label {type(label)} {label}"
         self.label = label
 
     def __repr__(self):
