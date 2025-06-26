@@ -30,17 +30,17 @@ def _prune_unreachable_code(assembly):
 
 
 def _prune_inefficient_jumps(assembly):
-    # prune sequences `PUSHLABEL x JUMP LABEL x` to `LABEL x`
+    # prune sequences `PUSHLABELJUMPDEST x JUMP LABEL x` to `LABEL x`
     changed = False
     i = 0
     while i < len(assembly) - 2:
         if (
-            isinstance(assembly[i], PUSHLABEL)
+            isinstance(assembly[i], PUSHLABELJUMPDEST)
             and assembly[i + 1] == "JUMP"
-            and is_symbol(assembly[i + 2])
-            and assembly[i + 2] == assembly[i].label
+            and isinstance(assembly[i + 2], (Label, JUMPDEST))
+            and assembly[i + 2].label == assembly[i].label
         ):
-            # delete PUSHLABEL x JUMP
+            # delete PUSHLABELJUMPDEST x JUMP
             changed = True
             del assembly[i : i + 2]
         else:
@@ -51,15 +51,15 @@ def _prune_inefficient_jumps(assembly):
 
 def _optimize_inefficient_jumps(assembly):
     # optimize sequences
-    # `PUSHLABEL common JUMPI PUSHLABEL x JUMP LABEL common`
-    # to `ISZERO PUSHLABEL x JUMPI LABEL common`
+    # `PUSHLABELJUMPDEST common JUMPI PUSHLABELJUMPDEST x JUMP LABEL common`
+    # to `ISZERO PUSHLABELJUMPDEST x JUMPI LABEL common`
     changed = False
     i = 0
     while i < len(assembly) - 4:
         if (
-            isinstance(assembly[i], PUSHLABEL)
+            isinstance(assembly[i], PUSHLABELJUMPDEST)
             and assembly[i + 1] == "JUMPI"
-            and isinstance(assembly[i + 2], PUSHLABEL)
+            and isinstance(assembly[i + 2], PUSHLABELJUMPDEST)
             and assembly[i + 3] == "JUMP"
             and isinstance(assembly[i + 4], Label)
             and assembly[i].label == assembly[i + 4]
@@ -94,17 +94,17 @@ def _merge_jumpdests(assembly):
                 if new_symbol != current_symbol:
                     for j in range(len(assembly)):
                         if (
-                            isinstance(assembly[j], PUSHLABEL)
+                            isinstance(assembly[j], (PUSHLABEL, PUSHLABELJUMPDEST))
                             and assembly[j].label == current_symbol
                         ):
                             assembly[j].label = new_symbol
                             changed = True
-            elif isinstance(assembly[i + 1], PUSHLABEL) and assembly[i + 2] == "JUMP":
-                # LABEL x PUSHLABEL y JUMP
-                # replace all instances of PUSHLABEL x with PUSHLABEL y
+            elif isinstance(assembly[i + 1], PUSHLABELJUMPDEST) and assembly[i + 2] == "JUMP":
+                # LABEL x PUSHLABELJUMPDEST y JUMP
+                # replace all instances of PUSHLABELJUMPDEST x with PUSHLABELJUMPDEST y
                 new_symbol = assembly[i + 1].label
                 for j in range(len(assembly)):
-                    if isinstance(assembly[j], PUSHLABEL) and assembly[j].label == current_symbol:
+                    if isinstance(assembly[j], PUSHLABELJUMPDEST) and assembly[j].label == current_symbol:
                         assembly[j].label = new_symbol
                         changed = True
 
@@ -149,7 +149,7 @@ def _merge_iszero(assembly):
         # but it could also just be a no-op before JUMPI.
         if (
             assembly[i : i + 2] == ["ISZERO", "ISZERO"]
-            and isinstance(assembly[i + 2], PUSHLABEL)
+            and isinstance(assembly[i + 2], PUSHLABELJUMPDEST)
             and assembly[i + 3] == "JUMPI"
         ):
             changed = True
