@@ -342,25 +342,33 @@ SYMBOL_SIZE = 2  # size of a PUSH instruction for a code symbol
 
 # predict what length of an assembly [data] node will be in bytecode
 def get_data_segment_lengths(assembly: list[AssemblyInstruction]) -> list[int]:
-    ret = [0]
+    segments = []
+    current_segment_length = 0
+    
     for item in assembly:
         if isinstance(item, Label):
-            if len(ret) > 0 and ret[-1] > 0:
-                ret.append(0)
+            if current_segment_length > 0:
+                segments.append(current_segment_length)
+                current_segment_length = 0
             continue
-        if len(ret) == 0:
-            # haven't yet seen a data header
-            continue
+                    
         if not isinstance(item, DATA_ITEM):
+            # Only DATA_ITEM contributes to segment length
             continue
+            
+        # Add to current segment length
         if is_symbol(item.data):
-            ret[-1] += SYMBOL_SIZE
+            current_segment_length += SYMBOL_SIZE
         elif isinstance(item.data, bytes):
-            ret[-1] += len(item.data)
+            current_segment_length += len(item.data)
         else:  # pragma: nocover
             raise ValueError(f"invalid data {type(item)} {item}")
-
-    return ret
+    
+    # Add the final segment if it has data
+    if current_segment_length > 0:
+        segments.append(current_segment_length)
+    
+    return segments
 
 
 def _compile_data_item(item: DATA_ITEM, symbol_map: dict[SymbolKey, int]) -> bytes:
