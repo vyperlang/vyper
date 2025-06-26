@@ -87,7 +87,7 @@ def test_data_section():
             stop
     }
 
-    data readonly {
+    function selector_buckets {
         selector_buckets:
             db @selector_bucket_0
             db @fallback
@@ -103,12 +103,6 @@ def test_data_section():
     expected_ctx = IRContext()
     expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
     entry_fn.get_basic_block("entry").append_instruction("stop")
-
-    expected_ctx.add_function(revert_fn := IRFunction(IRLabel("revert")))
-    revert_fn.clear_basic_blocks()
-    revert_bb = IRBasicBlock(IRLabel("revert"), revert_fn)
-    revert_fn.append_basic_block(revert_bb)
-    revert_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
 
     expected_ctx.add_function(data_fn := IRFunction(IRLabel("selector_buckets")))
     data_fn.clear_basic_blocks()
@@ -201,7 +195,7 @@ def test_multi_function_and_data():
             revert 0, 0
     }
 
-    data readonly {
+    function selector_buckets {
         selector_buckets:
             db @selector_bucket_0
             db @fallback
@@ -236,13 +230,6 @@ def test_multi_function_and_data():
 
     check_fn.append_basic_block(value_bb := IRBasicBlock(IRLabel("has_value"), check_fn))
     value_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
-
-    # Revert function is automatically created with data segments
-    expected_ctx.add_function(revert_fn := IRFunction(IRLabel("revert")))
-    revert_fn.clear_basic_blocks()
-    revert_bb = IRBasicBlock(IRLabel("revert"), revert_fn)
-    revert_fn.append_basic_block(revert_bb)
-    revert_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
 
     # Data segment is now converted to a function
     expected_ctx.add_function(data_fn := IRFunction(IRLabel("selector_buckets")))
