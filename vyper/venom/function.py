@@ -162,6 +162,9 @@ class IRFunction:
 
     def copy(self):
         new = IRFunction(self.name)
+
+        new.last_variable = self.last_variable
+
         new.clear_basic_blocks()
         for bb in self.get_basic_blocks():
             new_bb = bb.copy()
