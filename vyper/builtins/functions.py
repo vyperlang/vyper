@@ -312,13 +312,17 @@ class Slice(BuiltinFunctionT):
         start_literal = start_expr.value if isinstance(start_expr, vy_ast.Int) else None
         length_literal = length_expr.value if isinstance(length_expr, vy_ast.Int) else None
 
-        if not is_adhoc_slice:
-            if length_literal is not None:
-                if length_literal < 1:
-                    raise ArgumentException("Length cannot be less than 1", length_expr)
+        # validation
 
-                if length_literal > arg_type.length:
-                    raise ArgumentException(f"slice out of bounds for {arg_type}", length_expr)
+        if length_literal is not None:
+            if length_literal < 1:
+                raise ArgumentException("Length cannot be less than 1", length_expr)
+
+        if not is_adhoc_slice:
+            # arg_type.length is only valid when `not is_adhoc_slice`.
+
+            if length_literal is not None and length_literal > arg_type.length:
+                raise ArgumentException(f"slice out of bounds for {arg_type}", length_expr)
 
             if start_literal is not None:
                 if start_literal > arg_type.length:
@@ -352,7 +356,7 @@ class Slice(BuiltinFunctionT):
         if src.location is None:
             # it's not a pointer; force it to be one since
             # copy_bytes works on pointers.
-            assert is_bytes32, src
+            assert is_bytes32 or src.is_empty_intrinsic, src
             src = ensure_in_memory(src, context)
         elif potential_overlap(src, start) or potential_overlap(src, length):
             src = create_memory_copy(src, context)
@@ -557,10 +561,6 @@ class Concat(BuiltinFunctionT):
             dst_data = add_ofst(bytes_data_ptr(dst), ofst)
 
             if isinstance(arg.typ, _BytestringT):
-                # Ignore empty strings
-                if arg.typ.maxlen == 0:
-                    continue
-
                 with arg.cache_when_complex("arg") as (b1, arg):
                     argdata = bytes_data_ptr(arg)
 
