@@ -1164,12 +1164,21 @@ struct Point:
     y: DynArray[uint256, 2]
     z: uint256
     """
+    bar_return_values = (
+        32,  # head
+        1,  # length of dynarray
+        32,  # head of the point tuple
+        1,  # point.x
+        64,  # head of point.y (points to point.z)
+        0,  # point.z
+    )
+
     code = f"""
 {preamble}
 
 @external
 def bar() -> (uint256, uint256, uint256, uint256, uint256, uint256):
-    return 32, 1, 32, 1, 64, 0
+    return {", ".join(str(v) for v in bar_return_values)}
 
 interface A:
     def bar() -> {typ}: nonpayable
@@ -1186,11 +1195,7 @@ def run() -> {typ}:
     assert res == expected
 
     _test_ctor_decode(
-        env,
-        typ,
-        _abi_payload_from_tuple((32, 1, 32, 1, 64, 0), 6 * 32),
-        expected,
-        preamble=preamble,
+        env, typ, _abi_payload_from_tuple(bar_return_values, 6 * 32), expected, preamble=preamble
     )
 
 
