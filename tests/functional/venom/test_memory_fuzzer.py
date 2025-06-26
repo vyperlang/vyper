@@ -101,230 +101,67 @@ class MemoryFuzzer:
         self.function = None
         self.bb_counter = 0
         self.calldata_offset = MAX_MEMORY_SIZE
-        self.available_vars = []
         self.allocated_memory_slots = set()
-        # track which variables are available in each block
-        self.bb_available_vars = {}
-        # variables defined in entry block (available everywhere)
-        self.entry_vars = set()
         # symbolic variable tracking
         self.symbolic_counter = 0
 
     def get_next_variable(self) -> IRVariable:
         """Generate a new unique variable using the function's allocator."""
         assert self.function is not None, "Function must be set before allocating variables"
-        var = self.function.get_next_variable()
-        self.available_vars.append(var)
-        return var
+        return self.function.get_next_variable()
 
     def fresh_symbolic(self) -> SymbolicVar:
         """Create a new symbolic variable"""
         self.symbolic_counter += 1
         return SymbolicVar(f"%sym_{self.symbolic_counter}")
 
-    def compute_reachable_blocks(
-        self, cfg: dict[IRBasicBlock, _BBType]
-    ) -> dict[IRBasicBlock, set[IRBasicBlock]]:
-        """Compute which blocks are reachable from each block."""
-        reachable_from = {}
-
-        def get_successors(bb: IRBasicBlock) -> list[IRBasicBlock]:
-            """Get successor blocks based on CFG."""
-            bb_type = cfg.get(bb)
-            if isinstance(bb_type, _JumpBB):
-                return [bb_type.target]
-            elif isinstance(bb_type, _BranchBB):
-                return [bb_type.target1, bb_type.target2]
-            else:
-                return []
-
-        def compute_reachable(
-            block: IRBasicBlock, visited: set[IRBasicBlock] = None
-        ) -> set[IRBasicBlock]:
-            if visited is None:
-                visited = set()
-            if block in visited:
-                return set()
-            visited.add(block)
-
-            result = {block}
-            for succ in get_successors(block):
-                result.update(compute_reachable(succ, visited))
-            return result
-
-        for bb in self.function.get_basic_blocks():
-            reachable_from[bb] = compute_reachable(bb)
-
-        return reachable_from
-
-    def compute_variable_availability(
-        self, cfg: dict[IRBasicBlock, _BBType]
-    ) -> dict[IRBasicBlock, set[IRVariable]]:
-        """Compute which variables are available at each block after resolution."""
-        # First, compute reachability
-        reachable_from = self.compute_reachable_blocks(cfg)
-
-        # Find where each variable is defined
-        var_defs = {}  # var -> defining block
-        for bb in self.function.get_basic_blocks():
-            for inst in bb.instructions:
-                if inst.output and isinstance(inst.output, IRVariable):
-                    var_defs[inst.output] = bb
-
-        # Compute availability
-        available_at = {}  # block -> set of available vars
-        for bb in self.function.get_basic_blocks():
-            available_at[bb] = set()
-
-        # Variables are available in their defining block and all reachable blocks
-        for var, def_block in var_defs.items():
-            for bb in reachable_from[def_block]:
-                available_at[bb].add(var)
-
-        # Entry block variables are available everywhere
-        entry_bb = self.function.entry
-        for inst in entry_bb.instructions:
-            if inst.output and isinstance(inst.output, IRVariable):
-                for bb in self.function.get_basic_blocks():
-                    available_at[bb].add(inst.output)
-
-        return available_at
-
-    def propagate_available_vars(self, cfg: dict[IRBasicBlock, _BBType]) -> None:
-        """Update bb_available_vars to include variables from predecessors."""
-        # Build predecessor map
-        predecessors = defaultdict(list)
-        for bb, bb_type in cfg.items():
-            if isinstance(bb_type, _JumpBB):
-                predecessors[bb_type.target].append(bb)
-            elif isinstance(bb_type, _BranchBB):
-                predecessors[bb_type.target1].append(bb)
-                predecessors[bb_type.target2].append(bb)
-
-        # Initialize with local definitions
-        for bb in self.function.get_basic_blocks():
-            if bb not in self.bb_available_vars:
-                self.bb_available_vars[bb] = []
-
-        # Add entry block variables to all blocks
-        entry_vars = self.bb_available_vars.get(self.function.entry, [])
-        for bb in self.function.get_basic_blocks():
-            if bb != self.function.entry:
-                # Add entry vars that aren't already there
-                for var in entry_vars:
-                    if var not in self.bb_available_vars[bb]:
-                        self.bb_available_vars[bb].append(var)
-
-        # Fixed-point iteration to propagate variables
-        changed = True
-        while changed:
-            changed = False
-            for bb in self.function.get_basic_blocks():
-                if bb == self.function.entry:
-                    continue
-
-                # Variables available at block entry = intersection of predecessor outputs
-                if bb in predecessors and predecessors[bb]:
-                    # Start with variables from first predecessor
-                    available = set(self.bb_available_vars.get(predecessors[bb][0], []))
-
-                    # Intersect with other predecessors
-                    for pred in predecessors[bb][1:]:
-                        available &= set(self.bb_available_vars.get(pred, []))
-
-                    # Add available vars that aren't already tracked
-                    for var in available:
-                        if var not in self.bb_available_vars[bb]:
-                            self.bb_available_vars[bb].append(var)
-                            changed = True
-
     def resolve_all_variables(self, cfg: dict[IRBasicBlock, _BBType]):
         """After building all blocks, replace symbolic vars with real ones"""
-        # Compute which variables are available at each block
-        available_at = self.compute_variable_availability(cfg)
-
-        # Track which real variable each symbolic var maps to globally
-        # We need a global mapping because symbolic vars can be used across blocks
+        # Simple global mapping - each symbolic var gets one real var
         symbolic_mapping = {}
 
-        # Track variables we've allocated but not yet assigned
-        unassigned_vars = set()
-
-        # First pass: resolve all output variables
         for bb in self.function.get_basic_blocks():
-            for inst in bb.instructions:
-                if inst.output and isinstance(inst.output, SymbolicVar):
-                    # Create a new variable for outputs
-                    symbolic_var = inst.output
-                    real_var = self.get_next_variable()
-                    inst.output = real_var
-                    symbolic_mapping[symbolic_var] = real_var
-                    # This variable is now available in this block and all reachable blocks
-
-        # Second pass: resolve all operand variables based on what's available
-        for bb in self.function.get_basic_blocks():
-            available_vars = list(available_at.get(bb, set()))
-
-            # Collect instructions that need calldataloads inserted before them
-            insertions = []  # List of (index, instruction) pairs
+            insertions = []
 
             for i, inst in enumerate(bb.instructions):
+                # First, handle output to allocate variable if needed
+                output_sym = None
+                if inst.output and isinstance(inst.output, SymbolicVar):
+                    output_sym = inst.output
+                    if inst.output not in symbolic_mapping:
+                        symbolic_mapping[inst.output] = self.get_next_variable()
+                    inst.output = symbolic_mapping[inst.output]
+
+                # Then resolve operands
                 new_operands = []
                 for op in inst.operands:
                     if isinstance(op, SymbolicVar):
-                        # Check if we already resolved this symbolic var
-                        if op in symbolic_mapping:
-                            real_var = symbolic_mapping[op]
-                        else:
-                            # This symbolic var hasn't been resolved yet
-                            # It must be used before being defined as an output
-                            # Create a fresh variable and initialize it
+                        if op not in symbolic_mapping:
+                            # First use - create variable and schedule initialization
                             real_var = self.get_next_variable()
                             symbolic_mapping[op] = real_var
-
-                            # Schedule calldataload insertion before this instruction
                             load_inst = IRInstruction(
                                 "calldataload", [IRLiteral(self.calldata_offset)], real_var
                             )
                             insertions.append((i, load_inst))
                             self.calldata_offset += 32
-
-                        op = real_var
+                        op = symbolic_mapping[op]
                     new_operands.append(op)
                 inst.operands = new_operands
 
-            # Insert calldataloads in reverse order to preserve indices
+            # Insert calldataloads
             for idx, load_inst in reversed(insertions):
                 bb.insert_instruction(load_inst, index=idx)
-
-    def ensure_all_vars_have_values(self) -> None:
-        """Ensure all available variables have values by using calldataload for unassigned ones."""
-        assigned_vars = set()
-        for bb in self.function.get_basic_blocks():
-            for inst in bb.instructions:
-                if inst.output:
-                    assigned_vars.add(inst.output)
-
-        entry_bb = self.function.entry
-        unassigned_vars = [var for var in self.available_vars if var not in assigned_vars]
-
-        for i, var in enumerate(unassigned_vars):
-            inst = IRInstruction("calldataload", [IRLiteral(self.calldata_offset)], var)
-            entry_bb.insert_instruction(inst, index=i)
-            self.calldata_offset += 32
 
     def get_next_bb_label(self) -> IRLabel:
         """Generate a new unique basic block label."""
         self.bb_counter += 1
         return IRLabel(f"bb{self.bb_counter}")
 
-    def get_random_variable(self, draw, bb: IRBasicBlock) -> IRVariable | SymbolicVar:
-        """Get a random available variable or create a new one."""
-        if bb not in self.bb_available_vars:
-            self.bb_available_vars[bb] = []
-
-        # During generation phase, always return symbolic variables
-        # They will be resolved to appropriate real variables later based on availability
+    def get_random_variable(self, draw, bb: IRBasicBlock) -> SymbolicVar:
+        """Get a symbolic variable that will be resolved later."""
+        # Always return symbolic variables during generation phase
+        # They will be resolved to real variables with proper initialization
         return self.fresh_symbolic()
 
     def get_memory_address(self, draw, bb: IRBasicBlock) -> IRVariable | IRLiteral:
@@ -369,22 +206,15 @@ def memory_instruction(draw, fuzzer: MemoryFuzzer, bb: IRBasicBlock) -> None:
     """Generate and append a memory instruction to current basic block."""
     op = draw(st.sampled_from(MEMORY_OPS))
 
-    # track variables defined so far in this block
-    if bb not in fuzzer.bb_available_vars:
-        fuzzer.bb_available_vars[bb] = []
-
     if op == "mload":
         addr = fuzzer.get_memory_address(draw, bb)
         result_var = fuzzer.fresh_symbolic()
         bb.append_instruction("mload", addr, ret=result_var)
-        # add to variables available in this block
-        fuzzer.bb_available_vars[bb].append(result_var)
 
     elif op == "mstore":
-        # can use variables defined earlier in this block
-        available_in_bb = fuzzer.bb_available_vars.get(bb, [])
-        if available_in_bb and draw(st.booleans()):
-            value = draw(st.sampled_from(available_in_bb))
+        # Use either a symbolic variable or a literal
+        if draw(st.booleans()):
+            value = fuzzer.get_random_variable(draw, bb)
         else:
             value = IRLiteral(draw(st.integers(min_value=0, max_value=2**256 - 1)))
         addr = fuzzer.get_memory_address(draw, bb)
@@ -538,10 +368,14 @@ def precompile_call(draw, fuzzer: MemoryFuzzer, bb: IRBasicBlock) -> None:
         # unreachable
         raise Exception(f"Unknown precompile: {precompile_name}")
 
-    gas = bb.append_instruction("gas")
+    gas = fuzzer.fresh_symbolic()
+    bb.append_instruction("gas", ret=gas)
     addr = IRLiteral(precompile_addr)
 
-    bb.append_instruction("staticcall", gas, addr, input_ofst, input_size, output_ofst, output_size)
+    success = fuzzer.fresh_symbolic()
+    bb.append_instruction(
+        "staticcall", gas, addr, input_ofst, input_size, output_ofst, output_size, ret=success
+    )
 
 
 @st.composite
@@ -627,46 +461,37 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
             bb.append_instruction("jmp", bb_type.target.label)
 
         elif isinstance(bb_type, _BranchBB):
-            # Ensure we have available vars tracked for this block
-            if bb not in fuzzer.bb_available_vars:
-                fuzzer.bb_available_vars[bb] = []
-
             cond_var = fuzzer.get_random_variable(draw, bb)
             # get bottom bit, for bias reasons
-            cond_var = bb.append_instruction("and", cond_var, IRLiteral(1))
-            fuzzer.bb_available_vars[bb].append(cond_var)
+            cond_result = fuzzer.fresh_symbolic()
+            bb.append_instruction("and", cond_var, IRLiteral(1), ret=cond_result)
 
             if bb_type.needs_loop_counter:
                 loop_counter_addr = IRLiteral(bb_type.counter_addr)
 
-                counter = bb.append_instruction("mload", loop_counter_addr)
-                fuzzer.bb_available_vars[bb].append(counter)
+                counter = fuzzer.fresh_symbolic()
+                bb.append_instruction("mload", loop_counter_addr, ret=counter)
 
-                incr_counter = bb.append_instruction("add", counter, IRLiteral(1))
-                fuzzer.bb_available_vars[bb].append(incr_counter)
-
+                incr_counter = fuzzer.fresh_symbolic()
+                bb.append_instruction("add", counter, IRLiteral(1), ret=incr_counter)
                 bb.append_instruction("mstore", incr_counter, loop_counter_addr)
 
                 max_iterations = IRLiteral(MAX_LOOP_ITERATIONS)
-                counter_ok = bb.append_instruction("lt", counter, max_iterations)
-                fuzzer.bb_available_vars[bb].append(counter_ok)
+                counter_ok = fuzzer.fresh_symbolic()
+                bb.append_instruction("lt", counter, max_iterations, ret=counter_ok)
 
-                cond_var = bb.append_instruction("and", counter_ok, cond_var)
-                fuzzer.bb_available_vars[bb].append(cond_var)
+                final_cond = fuzzer.fresh_symbolic()
+                bb.append_instruction("and", counter_ok, cond_result, ret=final_cond)
+                cond_result = final_cond
 
             # when there is a back edge, target2 is always the forward edge
-            bb.append_instruction("jnz", cond_var, bb_type.target1.label, bb_type.target2.label)
+            bb.append_instruction("jnz", cond_result, bb_type.target1.label, bb_type.target2.label)
 
         else:
             raise Exception()  # unreachable
 
-    # propagate available variables through the CFG
-    fuzzer.propagate_available_vars(cfg)
-
     # resolve all symbolic variables to real ones
     fuzzer.resolve_all_variables(cfg)
-
-    fuzzer.ensure_all_vars_have_values()
 
     # freshen variable names for easier debugging
     for fn in fuzzer.ctx.functions.values():
