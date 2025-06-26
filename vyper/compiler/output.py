@@ -16,7 +16,7 @@ from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility
 from vyper.typing import StorageLayout
 from vyper.utils import safe_relpath
 from vyper.warnings import ContractSizeLimit, vyper_warn
-
+from vyper.evm.assembler.core import Label, JUMPDEST
 
 def build_ast_dict(compiler_data: CompilerData) -> dict:
     ast_dict = {
@@ -337,7 +337,7 @@ def _build_asm(asm_list):
     output_string = "__entry__:"
     in_push = 0
     for item in asm_list:
-        if isinstance(item, compile_ir.Label):
+        if isinstance(item, (Label, JUMPDEST)):
             output_string += f"\n\n{item}:"
             continue
 
