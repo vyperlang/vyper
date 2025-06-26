@@ -249,7 +249,7 @@ class VenomCompiler:
                 # invoke emits the actual instruction itself so we don't need
                 # to emit it here but we need to add it to the stack map
                 if inst.opcode != "invoke":
-                    assembly.append(PUSHLABELJUMPDEST(_as_asm_symbol(op)))
+                    assembly.append(PUSHLABEL(_as_asm_symbol(op)))
                 stack.push(op)
                 continue
 
