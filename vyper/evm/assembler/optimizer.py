@@ -1,5 +1,5 @@
 from vyper.evm.assembler.core import DATA_ITEM, JUMPDEST, PUSHLABEL, PUSHLABELJUMPDEST, Label, is_symbol
-from vyper.evm.constants import COMMUTATIVE_OPS
+from vyper.evm.assembler.constants import COMMUTATIVE_OPS
 from vyper.exceptions import CompilerPanic
 
 _TERMINAL_OPS = ("JUMP", "RETURN", "REVERT", "STOP", "INVALID")
@@ -228,7 +228,7 @@ def _stack_peephole_opts(assembly):
         ):
             changed = True
             del assembly[i : i + 2]
-        if assembly[i] == "SWAP1" and str(assembly[i + 1]).lower() in COMMUTATIVE_OPS:
+        if assembly[i] == "SWAP1" and str(assembly[i + 1]).upper() in COMMUTATIVE_OPS:
             changed = True
             del assembly[i]
         if assembly[i] == "DUP1" and assembly[i + 1] == "SWAP1":
