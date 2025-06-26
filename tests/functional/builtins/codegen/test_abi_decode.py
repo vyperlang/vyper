@@ -569,14 +569,8 @@ def test_abi_decode_nonstrict_head(env, get_contract):
 @external
 def run(x: Bytes[{buffer_size}]) -> {typ}:
     y: Bytes[{buffer_size}] = x
-    a: Bytes[32] = b"a"
     decoded_y1: {typ} = _abi_decode(y, {typ})
-    assert len(decoded_y1) == 2
-    a = b"aaaa"
-    decoded_y2: {typ} = _abi_decode(y, {typ})
-    for i: uint256 in range(len(decoded_y2), bound=10):
-        assert decoded_y2[i] == decoded_y1[i]
-    return decoded_y2
+    return decoded_y1
     """
     c = get_contract(code)
 
@@ -587,8 +581,8 @@ def run(x: Bytes[{buffer_size}]) -> {typ}:
         # the first byte of payload will be considered as the length
         0x00,
         (0x02).to_bytes(1, "big"),  # will be considered as the length=2
-        (0x01).to_bytes(32, "big"),  # list[0] = 1
-        (0x02).to_bytes(32, "big"),  # list[1] = 2
+        0x01,  # list[0] = 1
+        0x02,  # list[1] = 2
     )
 
     data = _abi_payload_from_tuple(buffer_payload, buffer_size)

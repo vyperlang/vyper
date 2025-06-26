@@ -1,4 +1,5 @@
 import contextlib
+
 import pytest
 
 from tests.evm_backends.base_env import _compile
