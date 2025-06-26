@@ -59,6 +59,26 @@ class PUSHLABEL:
     def __hash__(self):
         return hash(self.label)
 
+class PUSHLABELJUMPDEST:
+    """
+    This is a special case of PUSHLABEL that is used to push a label
+    that is used in a jump or return address. This is used to allow 
+    the optimizer to remove jumpdests that are not used.
+    """
+    def __init__(self, label: Label):
+        assert isinstance(label, Label), label
+        self.label = label
+    
+    def __repr__(self):
+        return f"PUSHLABELJUMPDEST {self.label.label}"
+    
+    def __eq__(self, other):
+        if not isinstance(other, PUSHLABELJUMPDEST):
+            return False
+        return self.label == other.label
+    
+    def __hash__(self):
+        return hash(self.label)
 
 # push the result of an addition (which might be resolvable at compile-time)
 class PUSH_OFST:
@@ -125,11 +145,11 @@ def PUSH_N(x, n):
 
 
 def JUMP(label: Label):
-    return [PUSHLABEL(label), "JUMP"]
+    return [PUSHLABELJUMPDEST(label), "JUMP"]
 
 
 def JUMPI(label: Label):
-    return [PUSHLABEL(label), "JUMPI"]
+    return [PUSHLABELJUMPDEST(label), "JUMPI"]
 
 
 def mkdebug(pc_debugger, ast_source):
@@ -241,7 +261,7 @@ def resolve_symbols(
         elif isinstance(item, Label):
             _add_to_symbol_map(symbol_map, item, pc)
 
-        elif isinstance(item, PUSHLABEL):
+        elif isinstance(item, (PUSHLABEL, PUSHLABELJUMPDEST)):
             pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
 
         elif isinstance(item, PUSH_OFST):
@@ -404,7 +424,7 @@ def _assembly_to_evm(
         elif isinstance(item, Label):
             continue  # Label does not show up in bytecode
 
-        elif isinstance(item, PUSHLABEL):
+        elif isinstance(item, (PUSHLABEL, PUSHLABELJUMPDEST)):
             # push a symbol to stack
             label = item.label
             bytecode = _compile_push_instruction(PUSH_N(symbol_map[label], n=SYMBOL_SIZE))

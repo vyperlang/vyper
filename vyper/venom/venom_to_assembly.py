@@ -8,6 +8,7 @@ from vyper.evm.assembler.core import (
     PUSH,
     PUSH_OFST,
     PUSHLABEL,
+    PUSHLABELJUMPDEST,
     AssemblyInstruction,
     Label,
     TaggedInstruction,
@@ -248,7 +249,7 @@ class VenomCompiler:
                 # invoke emits the actual instruction itself so we don't need
                 # to emit it here but we need to add it to the stack map
                 if inst.opcode != "invoke":
-                    assembly.append(PUSHLABEL(_as_asm_symbol(op)))
+                    assembly.append(PUSHLABELJUMPDEST(_as_asm_symbol(op)))
                 stack.push(op)
                 continue
 
@@ -516,19 +517,19 @@ class VenomCompiler:
         elif opcode == "jnz":
             # jump if not zero
             if_nonzero_label, if_zero_label = inst.get_label_operands()
-            assembly.append(PUSHLABEL(_as_asm_symbol(if_nonzero_label)))
+            assembly.append(PUSHLABELJUMPDEST(_as_asm_symbol(if_nonzero_label)))
             assembly.append("JUMPI")
 
             # make sure the if_zero_label will be optimized out
             # assert if_zero_label == next(iter(inst.parent.cfg_out)).label
 
-            assembly.append(PUSHLABEL(_as_asm_symbol(if_zero_label)))
+            assembly.append(PUSHLABELJUMPDEST(_as_asm_symbol(if_zero_label)))
             assembly.append("JUMP")
 
         elif opcode == "jmp":
             (target,) = inst.operands
             assert isinstance(target, IRLabel)
-            assembly.append(PUSHLABEL(_as_asm_symbol(target)))
+            assembly.append(PUSHLABELJUMPDEST(_as_asm_symbol(target)))
             assembly.append("JUMP")
         elif opcode == "djmp":
             assert isinstance(
@@ -542,7 +543,7 @@ class VenomCompiler:
             ), f"invoke target must be a label (is ${type(target)} ${target})"
             return_label = self.mklabel("return_label")
             assembly.extend(
-                [PUSHLABEL(return_label), PUSHLABEL(_as_asm_symbol(target)), "JUMP", JUMPDEST(return_label)]
+                [PUSHLABELJUMPDEST(return_label), PUSHLABELJUMPDEST(_as_asm_symbol(target)), "JUMP", JUMPDEST(return_label)]
             )
         elif opcode == "ret":
             assembly.append("JUMP")
@@ -565,10 +566,10 @@ class VenomCompiler:
                 ]
             )
         elif opcode == "assert":
-            assembly.extend(["ISZERO", PUSHLABEL(Label("revert")), "JUMPI"])
+            assembly.extend(["ISZERO", PUSHLABELJUMPDEST(Label("revert")), "JUMPI"])
         elif opcode == "assert_unreachable":
             end_symbol = self.mklabel("reachable")
-            assembly.extend([PUSHLABEL(end_symbol), "JUMPI", "INVALID", JUMPDEST(end_symbol)])
+            assembly.extend([PUSHLABELJUMPDEST(end_symbol), "JUMPI", "INVALID", JUMPDEST(end_symbol)])
         elif opcode == "iload":
             addr = inst.operands[0]
             mem_deploy_end = self.ctx.constants["mem_deploy_end"]

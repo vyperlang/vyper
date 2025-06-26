@@ -1,4 +1,4 @@
-from vyper.evm.assembler.core import DATA_ITEM, JUMPDEST, PUSHLABEL, Label, is_symbol
+from vyper.evm.assembler.core import DATA_ITEM, JUMPDEST, PUSHLABEL, PUSHLABELJUMPDEST, Label, is_symbol
 from vyper.evm.constants import COMMUTATIVE_OPS
 from vyper.exceptions import CompilerPanic
 
@@ -167,15 +167,11 @@ def _prune_unused_jumpdests(assembly):
     used_as_labels: set[Label] = set()
 
     # find all used jumpdests
-    for i, item in enumerate(assembly):
+    for item in assembly:
         if isinstance(item, PUSHLABEL):
-            # only add if the next item is a jump instruction, or a pushlabel
-            # which happens when pushing return labels for inline calls. 
-            # TODO: this is a hack and we should have a better way to handle this.
-            if i + 1 < len(assembly) and (assembly[i + 1] in ("JUMP", "JUMPI") or isinstance(assembly[i + 1], PUSHLABEL)):
-                used_as_jumpdests.add(item.label)
-            else:
-                used_as_labels.add(item.label)
+            used_as_labels.add(item.label)
+        elif isinstance(item, PUSHLABELJUMPDEST):
+            used_as_jumpdests.add(item.label)
 
         if isinstance(item, DATA_ITEM) and isinstance(item.data, Label):
             # add symbols used in data sections as they are likely
