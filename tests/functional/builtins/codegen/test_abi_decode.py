@@ -1445,10 +1445,7 @@ def test_abi_decode_invalid_toplevel_dynarray_head(env, tx_failed, get_contract)
 @external
 def run(x: Bytes[{buffer_size}]):
     y: Bytes[{buffer_size}] = x
-    decoded_y1: {typ} = _abi_decode(
-        y,
-        {typ}
-    )
+    decoded_y1: {typ} = _abi_decode(y, {typ})
     """
     c = get_contract(code)
 
