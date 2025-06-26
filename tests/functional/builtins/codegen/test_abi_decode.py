@@ -571,6 +571,7 @@ def run(x: Bytes[{buffer_size}]) -> {typ}:
     y: Bytes[{buffer_size}] = x
     a: Bytes[32] = b"a"
     decoded_y1: {typ} = _abi_decode(y, {typ})
+    assert len(decoded_y1) == 2
     a = b"aaaa"
     decoded_y2: {typ} = _abi_decode(y, {typ})
     for i: uint256 in range(len(decoded_y2), bound=10):
