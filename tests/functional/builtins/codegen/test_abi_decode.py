@@ -497,7 +497,6 @@ def _raw_deploy(env, code, data):
     return c
 
 
-# maybe make this into a fixture?
 def _test_ctor_decode(env, typ, data, expected=None, should_fail=False, preamble=""):
     code = f"""
 {preamble}
@@ -516,7 +515,7 @@ def __init__(x: {typ}):
             _ = _raw_deploy(env, code, data)
     else:
         c = _raw_deploy(env, code, data)
-        # assert expected is not None
+        assert expected is not None
         assert c.get() == expected
 
 
