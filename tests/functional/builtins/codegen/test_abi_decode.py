@@ -604,10 +604,7 @@ def test_abi_decode_child_head_points_to_parent(env, get_contract):
 @external
 def run(x: Bytes[{buffer_size}]) -> {typ}:
     y: Bytes[{buffer_size}] = x
-    decoded_y1: {typ} = _abi_decode(
-        y,
-        {typ}
-    )
+    decoded_y1: {typ} = _abi_decode(y, {typ})
     return decoded_y1
     """
     c = get_contract(code)
