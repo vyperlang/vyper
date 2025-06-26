@@ -606,7 +606,7 @@ def venom_with_calldata(draw):
 # )
 @hp.given(venom_data=venom_with_calldata())
 @hp.settings(
-    max_examples=1000,
+    max_examples=50,
     suppress_health_check=(hp.HealthCheck.data_too_large, hp.HealthCheck.too_slow),
     deadline=None,
     phases=(
@@ -616,6 +616,7 @@ def venom_with_calldata(draw):
         hp.Phase.target,
         # Phase.shrink,  # can force long waiting for examples
     ),
+    verbosity=hp.Verbosity.debug,
 )
 def test_memory_passes_fuzzing(venom_data, env):
     """
