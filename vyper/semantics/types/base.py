@@ -135,7 +135,7 @@ class VyperType:
             ret["typeclass"] = self.typeclass
 
         # use dict ctor to block duplicates
-        return dict(**self._addl_dict_fields(), **ret)
+        return dict(sorted(self._addl_dict_fields().items()), **ret)
 
     # for most types, this is a reasonable implementation, but it can
     # be overridden as needed.
@@ -171,7 +171,7 @@ class VyperType:
         """
         raise CompilerPanic("Method must be implemented by the inherited class")
 
-    def get_size_in(self, location: DataLocation):
+    def get_size_in(self, location: DataLocation) -> int:
         if location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
             return self.storage_size_in_words
         if location == DataLocation.MEMORY:

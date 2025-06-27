@@ -85,6 +85,7 @@ def ir_for_self_call(stmt_expr, context):
             alloca = dataclasses.replace(alloca, _callsite=return_label)
             irnode = var.as_ir_node()
             irnode.passthrough_metadata["alloca"] = alloca
+            irnode.passthrough_metadata["callsite_func"] = func_t
             arg_items.append(irnode)
         args_dst = IRnode.from_list(arg_items, typ=dst_tuple_t)
     else:
