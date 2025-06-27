@@ -52,15 +52,15 @@ class DFGAnalysis(IRAnalysis):
             return True
 
         if isinstance(var1, IRVariable) and isinstance(var2, IRVariable):
-            var1 = self._traverse_store_chain(var1)
-            var2 = self._traverse_store_chain(var2)
+            var1 = self._traverse_assign_chain(var1)
+            var2 = self._traverse_assign_chain(var2)
 
         return var1 == var2
 
-    def _traverse_store_chain(self, var: IRVariable) -> IRVariable:
+    def _traverse_assign_chain(self, var: IRVariable) -> IRVariable:
         while True:
             inst = self.get_producing_instruction(var)
-            if inst is None or inst.opcode != "store":
+            if inst is None or inst.opcode != "assign":
                 return var
             var = inst.operands[0]  # type: ignore
 

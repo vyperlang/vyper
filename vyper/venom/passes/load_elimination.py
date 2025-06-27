@@ -71,7 +71,7 @@ class LoadElimination(IRPass):
         self._lattice[ptr] = inst.output
 
         if existing_value is not None:
-            self.updater.store(inst, existing_value)
+            self.updater.mk_assign(inst, existing_value)
 
     def _handle_store(self, inst, store_opcode):
         # mstore [val, ptr]

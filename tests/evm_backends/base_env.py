@@ -139,6 +139,7 @@ class BaseEnv:
         compiler_settings: Settings = None,
         input_bundle: InputBundle = None,
         value: int = 0,
+        storage_layout_override=None,
         **kwargs,
     ) -> ABIContract:
         """Compile and deploy a contract from source code."""
@@ -147,7 +148,11 @@ class BaseEnv:
             output_formats["solc_json"] = True
 
         out = _compile(
-            source_code, output_formats, input_bundle=input_bundle, settings=compiler_settings
+            source_code,
+            output_formats,
+            input_bundle=input_bundle,
+            settings=compiler_settings,
+            storage_layout_override=storage_layout_override,
         )
 
         abi = out["abi"]
@@ -390,6 +395,7 @@ def _compile(
     output_formats: Iterable[str],
     input_bundle: InputBundle | None = None,
     settings: Settings | None = None,
+    storage_layout_override=None,
 ) -> dict:
     if input_bundle is None:
         fake_path = _make_fake_path()
@@ -404,6 +410,7 @@ def _compile(
         settings=settings,
         input_bundle=input_bundle,
         show_gas_estimates=True,  # Enable gas estimates for testing
+        storage_layout_override=storage_layout_override,
     )
 
     parse_vyper_source(source_code)  # Test grammar.

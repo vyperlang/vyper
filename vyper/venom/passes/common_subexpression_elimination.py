@@ -14,9 +14,10 @@ UNINTERESTING_OPCODES = frozenset(
         "gaslimit",
         "address",
         "codesize",
-        "store",
+        "assign",
         "phi",
         "param",
+        "source",
         "nop",
         "returndatasize",
         "gas",
@@ -95,7 +96,7 @@ class CSE(IRPass):
 
     def _replace_inst(self, orig_inst: IRInstruction, to_inst: IRInstruction):
         if orig_inst.output is not None:
-            orig_inst.opcode = "store"
+            orig_inst.opcode = "assign"
             assert isinstance(to_inst.output, IRVariable), f"not var {to_inst}"
             orig_inst.operands = [to_inst.output]
         else:

@@ -51,7 +51,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--evm-version",
         choices=list(evm_opcodes.EVM_VERSIONS.keys()),
-        default="cancun",
+        default="prague",
         help="set evm version",
     )
 

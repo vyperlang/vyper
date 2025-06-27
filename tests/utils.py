@@ -1,9 +1,12 @@
 import contextlib
 import decimal
+import json
 import os
+from pathlib import PurePath
 from typing import Any
 
 from vyper import ast as vy_ast
+from vyper.compiler.input_bundle import JSONInput
 from vyper.compiler.phases import CompilerData
 from vyper.semantics.analysis.constant_folding import constant_fold
 from vyper.utils import DECIMAL_EPSILON, round_towards_zero
@@ -71,3 +74,10 @@ def _to_json_serializable(value: Any) -> Any:
         return {k: _to_json_serializable(v) for k, v in value.items()}
     else:
         return str(value)
+
+
+def json_input(json_data):
+    path = PurePath("<dummy json file>")
+    return JSONInput(
+        data=json_data, contents=json.dumps(json_data), source_id=-1, path=path, resolved_path=path
+    )

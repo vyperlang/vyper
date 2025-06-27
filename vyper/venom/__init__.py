@@ -18,6 +18,7 @@ from vyper.venom.passes import (
     AlgebraicOptimizationPass,
     AssignElimination,
     BranchOptimizationPass,
+    CFGNormalization,
     DFTPass,
     FloatAllocas,
     FunctionInlinerPass,
@@ -79,6 +80,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     SimplifyCFGPass(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
+
     LoadElimination(ac, fn).run_pass()
 
     SCCP(ac, fn).run_pass()
@@ -104,6 +106,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     PhiEliminationPass(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
     CSE(ac, fn).run_pass()
+
     AssignElimination(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
     SingleUseExpansion(ac, fn).run_pass()
@@ -112,6 +115,8 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
         ReduceLiteralsCodesize(ac, fn).run_pass()
 
     DFTPass(ac, fn).run_pass()
+
+    CFGNormalization(ac, fn).run_pass()
 
 
 def _run_global_passes(ctx: IRContext, optimize: OptimizationLevel, ir_analyses: dict) -> None:
