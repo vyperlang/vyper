@@ -96,18 +96,6 @@ class FunctionBuilder:
 
     def done(self) -> CodeModel:
         """Finish building the function and return to parent CodeModel."""
-        lines = []
-
-        lines.extend(self.decorators)
-        lines.append(f"def {self.signature}:")
-
-        if self.body_code:
-            indented_body = "\n".join(f"    {line}" for line in self.body_code.split("\n"))
-            lines.append(indented_body)
-        else:
-            lines.append("    pass")
-
-        self.parent._functions.append("\n".join(lines))
         return self.parent
 
 
@@ -122,9 +110,9 @@ class CodeModel:
         self._events: list[str] = []
         self._structs: list[str] = []
         self._flags: list[str] = []
-        self._functions: list[str] = []
         self._imports: list[str] = []
         self._local_vars: dict[str, VarRef] = {}
+        self._function_builders: list[FunctionBuilder] = []
 
     def storage_var(self, declaration: str) -> VarRef:
         """Add a storage variable."""
@@ -177,7 +165,9 @@ class CodeModel:
 
     def function(self, signature: str) -> FunctionBuilder:
         """Start building a function."""
-        return FunctionBuilder(signature, self)
+        fb = FunctionBuilder(signature, self)
+        self._function_builders.append(fb)
+        return fb
 
     def build(self) -> str:
         """Build the complete contract code."""
@@ -207,8 +197,22 @@ class CodeModel:
         if self._immutables:
             sections.append("\n".join(self._immutables))
 
-        if self._functions:
-            sections.append("\n\n".join(self._functions))
+        if self._function_builders:
+            function_strings = []
+            for fb in self._function_builders:
+                lines = []
+                lines.extend(fb.decorators)
+                lines.append(f"def {fb.signature}:")
+
+                if fb.body_code:
+                    indented_body = "\n".join(f"    {line}" for line in fb.body_code.split("\n"))
+                    lines.append(indented_body)
+                else:
+                    lines.append("    pass")
+
+                function_strings.append("\n".join(lines))
+
+            sections.append("\n\n".join(function_strings))
 
         return "\n\n".join(sections)
 
