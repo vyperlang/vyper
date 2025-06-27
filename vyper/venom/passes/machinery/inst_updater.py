@@ -55,7 +55,7 @@ class InstUpdater:
             if isinstance(op, IRVariable):
                 self.dfg.add_use(op, inst)
 
-        if opcode in NO_OUTPUT_INSTRUCTIONS:
+        if opcode in NO_OUTPUT_INSTRUCTIONS and opcode != "invoke":
             if inst.output is not None:
                 assert new_output is None
                 assert len(uses := self.dfg.get_uses(inst.output)) == 0, (inst, uses)
