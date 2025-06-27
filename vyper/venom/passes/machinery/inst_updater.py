@@ -102,8 +102,10 @@ class InstUpdater:
         self.nop(inst)  # for dfg updates and checks
         inst.parent.remove_instruction(inst)
 
-    def store(self, inst: IRInstruction, op: IROperand, new_output: Optional[IRVariable] = None):
-        self.update(inst, "store", [op], new_output=new_output)
+    def mk_assign(
+        self, inst: IRInstruction, op: IROperand, new_output: Optional[IRVariable] = None
+    ):
+        self.update(inst, "assign", [op], new_output=new_output)
 
     def add_before(
         self, inst: IRInstruction, opcode: str, args: list[IROperand]
