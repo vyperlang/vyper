@@ -253,7 +253,7 @@ def _literal_decimal(expr, arg_typ, out_typ):
     val = int(val)
 
     # apply sign extension, if expected
-    if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes, vy_ast.HexBytes)) and out_typ.is_signed:
+    if isinstance(expr, vy_ast.Hex) and out_typ.is_signed:
         val = _signextend(expr, val, arg_typ)
 
     lo, hi = out_typ.int_bounds
