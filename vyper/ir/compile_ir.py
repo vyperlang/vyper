@@ -821,7 +821,7 @@ def _prune_unreachable_code(assembly):
                 next_is_jumpdest = (
                     j < len(assembly) - 1
                     and is_symbol(assembly[j])
-                    and assembly[j + 1] == "JUMPDEST"
+                    and (assembly[j + 1] == "JUMPDEST" or is_label(assembly[j + 1]))
                 )
                 next_is_list = isinstance(assembly[j], list)
                 if next_is_jumpdest or next_is_list:
@@ -973,6 +973,8 @@ def _merge_iszero(assembly):
 def is_symbol_map_indicator(asm_node):
     return asm_node == "JUMPDEST"
 
+def is_label(asm_node):
+    return asm_node == "LABEL"
 
 def _prune_unused_jumpdests(assembly):
     changed = False
@@ -1256,6 +1258,11 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
                     raise CompilerPanic(f"duplicate jumpdest {item}")
 
                 symbol_map[item] = pc
+            elif is_label(assembly[i + 1]):
+                if item in symbol_map:
+                    raise CompilerPanic(f"duplicate label {item}")
+                symbol_map[item] = pc
+                pc += 1
             else:
                 pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
         elif is_mem_sym(item):
@@ -1324,7 +1331,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
             to_skip -= 1
             continue
 
-        if item in ("DEBUG",):
+        if item in ("DEBUG", "LABEL"):
             continue  # skippable opcodes
 
         elif is_symbol(item):
