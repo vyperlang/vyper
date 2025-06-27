@@ -506,9 +506,29 @@ class IRnode:
 
         return ret
 
+    @property
+    def is_call_opcode(self):
+        return self.value in ("call", "staticcall", "delegatecall")
+
+    @property
+    def is_precompile_call(self):
+        # whitelist for "safe" calls
+        assert self.is_call_opcode
+        target = self.args[1].value
+        PRECOMPILES = (
+            0x01,  # builtin ecrecover
+            0x02,  # builtin sha256
+            0x04,  # identify precompile
+            0x06,  # builtin ecadd
+            0x07,  # builtin ecmul
+            0x000000000000000000636F6E736F6C652E6C6F67,  # builtin print
+        )
+        return isinstance(target, int) and target in PRECOMPILES
+
     @cached_property
     def contains_risky_call(self):
-        ret = self.value in ("call", "delegatecall", "staticcall", "create", "create2")
+        ret = self.value in ("create", "create2")
+        ret |= self.is_call_opcode and not self.is_precompile_call
 
         for arg in self.args:
             ret |= arg.contains_risky_call
