@@ -385,6 +385,8 @@ def _compile_data_item(item: DATA_ITEM, symbol_map: dict[SymbolKey, int]) -> byt
     if isinstance(item.data, bytes):
         return item.data
     if isinstance(item.data, Label):
+        if item.data not in symbol_map:
+            raise CompilerPanic(f"Unresolved label in data section: {item.data}")
         symbolbytes = symbol_map[item.data].to_bytes(SYMBOL_SIZE, "big")
         return symbolbytes
 

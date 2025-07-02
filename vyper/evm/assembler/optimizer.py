@@ -88,20 +88,37 @@ def _merge_jumpdests(assembly):
     # intermediate jumps.
     # (Usually a chain of JUMPs is created by a nested block,
     # or some nested if statements.)
+    
+    # First, identify labels that are used as data references
+    data_labels = set()
+    for item in assembly:
+        if isinstance(item, DATA_ITEM) and isinstance(item.data, Label):
+            data_labels.add(item.data)
+        elif isinstance(item, PUSHLABEL):
+            # PUSHLABEL is used for data references
+            data_labels.add(item.label)
+    
     changed = False
     i = 0
     while i < len(assembly) - 2:
         # if is_symbol(assembly[i]) and assembly[i + 1] == "JUMPDEST":
         if is_symbol(assembly[i]):
             current_symbol = assembly[i]
+            
+            # Skip merging if current symbol is used as data
+            if current_symbol in data_labels:
+                i += 1
+                continue
+                
             if is_symbol(assembly[i + 1]):
                 # LABEL x LABEL y
-                # replace all instances of PUSHLABEL x with PUSHLABEL y
+                # Only merge jump destinations, not data references
                 new_symbol = assembly[i + 1]
                 if new_symbol != current_symbol:
                     for j in range(len(assembly)):
+                        # Only update PUSHLABELJUMPDEST references
                         if (
-                            isinstance(assembly[j], (PUSHLABEL, PUSHLABELJUMPDEST))
+                            isinstance(assembly[j], PUSHLABELJUMPDEST)
                             and assembly[j].label == current_symbol
                         ):
                             assembly[j].label = new_symbol
