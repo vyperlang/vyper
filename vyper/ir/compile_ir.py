@@ -13,10 +13,12 @@ from vyper.evm.assembler.core import (
     CONSTREF,
     DATA_ITEM,
     JUMP,
+    JUMPDEST,
     JUMPI,
     PUSH,
     PUSH_OFST,
     PUSHLABEL,
+    PUSHLABELJUMPDEST,
     AssemblyInstruction,
     Label,
     TaggedInstruction,
@@ -686,7 +688,13 @@ class _IRnodeLowerer:
         if code.value == "symbol":
             label = code.args[0].value
             assert isinstance(label, str)
-            return [PUSHLABEL(Label(label))]
+            # Check if this symbol is meant to be used as a jump destination
+            # This includes return addresses for internal function calls
+            is_jump_dest = code.passthrough_metadata.get("is_jump_dest", False)
+            if is_jump_dest:
+                return [PUSHLABELJUMPDEST(Label(label))]
+            else:
+                return [PUSHLABEL(Label(label))]
 
         # set a symbol as a location.
         if code.value == "label":
@@ -723,7 +731,7 @@ class _IRnodeLowerer:
 
             self.withargs = old_withargs
 
-            return [Label(label_name)] + body_asm + pop_scoped_vars
+            return [JUMPDEST(Label(label_name))] + body_asm + pop_scoped_vars
 
         if code.value == "unique_symbol":
             symbol = code.args[0].value
