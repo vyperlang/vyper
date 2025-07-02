@@ -404,6 +404,28 @@ def _compile_push_instruction(assembly: list[AssemblyInstruction]) -> bytes:
     return bytes(ret)
 
 
+def _validate_assembly_jumps(assembly: list[AssemblyInstruction], symbol_map: dict[SymbolKey, int]):
+    """
+    Validate assembly jumpdest and jump references for correctness before generating bytecode
+    """
+    # Track all jump destinations and references
+    jump_dests = set()
+    jump_refs = set()
+    
+    for item in assembly:
+        if isinstance(item, JUMPDEST):
+            jump_dests.add(item.label)
+        elif isinstance(item, PUSHLABELJUMPDEST):
+            jump_refs.add(item.label)
+    
+    # Check all jump references have destinations
+    missing_dests = jump_refs - jump_dests
+    if missing_dests:
+        missing_labels = [label.label if hasattr(label, 'label') else str(label) 
+                         for label in missing_dests]
+        raise CompilerPanic(f"Jump references without destinations: {missing_labels}")
+
+
 def assembly_to_evm(assembly: list[AssemblyInstruction]) -> tuple[bytes, dict[str, Any]]:
     """
     Generate bytecode and source map from assembly
@@ -414,6 +436,7 @@ def assembly_to_evm(assembly: list[AssemblyInstruction]) -> tuple[bytes, dict[st
     """
     # This API might seem a bit strange, but it's backwards compatible
     symbol_map, source_map = resolve_symbols(assembly)
+    _validate_assembly_jumps(assembly, symbol_map)
     bytecode = _assembly_to_evm(assembly, symbol_map)
     return bytecode, source_map
 
