@@ -88,7 +88,7 @@ def _merge_jumpdests(assembly):
     # intermediate jumps.
     # (Usually a chain of JUMPs is created by a nested block,
     # or some nested if statements.)
-    
+
     # First, identify labels that are used as data references
     data_labels = set()
     for item in assembly:
@@ -97,19 +97,19 @@ def _merge_jumpdests(assembly):
         elif isinstance(item, PUSHLABEL):
             # PUSHLABEL is used for data references
             data_labels.add(item.label)
-    
+
     changed = False
     i = 0
     while i < len(assembly) - 2:
         # if is_symbol(assembly[i]) and assembly[i + 1] == "JUMPDEST":
         if is_symbol(assembly[i]):
             current_symbol = assembly[i]
-            
+
             # Skip merging if current symbol is used as data
             if current_symbol in data_labels:
                 i += 1
                 continue
-                
+
             if is_symbol(assembly[i + 1]):
                 # LABEL x LABEL y
                 # Only merge jump destinations, not data references

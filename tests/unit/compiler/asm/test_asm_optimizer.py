@@ -3,7 +3,7 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings
-from vyper.evm.assembler.core import PUSHLABEL, Label, JUMPDEST
+from vyper.evm.assembler.core import JUMPDEST, PUSHLABEL, Label
 from vyper.evm.assembler.optimizer import _merge_jumpdests
 
 codes = [
@@ -89,7 +89,7 @@ def test_dead_code_eliminator(code):
             initcode_labels.append(i.label)
         elif isinstance(i, JUMPDEST):
             initcode_labels.append(i.label.label)
-    
+
     runtime_labels = []
     for i in c.assembly_runtime:
         if isinstance(i, Label):

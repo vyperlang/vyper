@@ -182,7 +182,7 @@ def _resolve_constants(assembly: list[AssemblyInstruction], symbol_map: dict[Sym
 
     max_iterations = 100  # Prevent infinite loops from circular dependencies
     iterations = 0
-    
+
     while iterations < max_iterations:
         changed = False
         for item in assembly:
@@ -198,9 +198,9 @@ def _resolve_constants(assembly: list[AssemblyInstruction], symbol_map: dict[Sym
 
         if not changed:
             break
-            
+
         iterations += 1
-    
+
     # Check if we hit the iteration limit (circular dependency)
     if iterations >= max_iterations:
         unresolved = []
@@ -244,7 +244,9 @@ def resolve_symbols(
         # update pc_jump_map
         if item == "JUMP":
             last = assembly[i - 1]
-            if (isinstance(last, PUSHLABEL) or isinstance(last, PUSHLABELJUMPDEST)) and last.label.label.startswith("internal"):
+            if (
+                isinstance(last, PUSHLABEL) or isinstance(last, PUSHLABELJUMPDEST)
+            ) and last.label.label.startswith("internal"):
                 if last.label.label.endswith("cleanup"):
                     # exit an internal function
                     source_map["pc_jump_map"][pc] = "o"
@@ -413,18 +415,19 @@ def _validate_assembly_jumps(assembly: list[AssemblyInstruction], symbol_map: di
     # Track all jump destinations and references
     jump_dests = set()
     jump_refs = set()
-    
+
     for item in assembly:
         if isinstance(item, JUMPDEST):
             jump_dests.add(item.label)
         elif isinstance(item, PUSHLABELJUMPDEST):
             jump_refs.add(item.label)
-    
+
     # Check all jump references have destinations
     missing_dests = jump_refs - jump_dests
     if missing_dests:
-        missing_labels = [label.label if hasattr(label, 'label') else str(label) 
-                         for label in missing_dests]
+        missing_labels = [
+            label.label if hasattr(label, "label") else str(label) for label in missing_dests
+        ]
         raise CompilerPanic(f"Jump references without destinations: {missing_labels}")
 
 

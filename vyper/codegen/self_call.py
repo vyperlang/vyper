@@ -116,8 +116,7 @@ def ir_for_self_call(stmt_expr, context):
         goto_op += [return_buffer]
     # pass return label to subroutine
     return_label_node = IRnode.from_list(
-        ["symbol", return_label], 
-        passthrough_metadata={"is_jump_dest": True}
+        ["symbol", return_label], passthrough_metadata={"is_jump_dest": True}
     )
     goto_op.append(return_label_node)
 
