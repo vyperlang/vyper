@@ -230,7 +230,7 @@ def resolve_symbols(
         # update pc_jump_map
         if item == "JUMP":
             last = assembly[i - 1]
-            if isinstance(last, PUSHLABEL) and last.label.label.startswith("internal"):
+            if (isinstance(last, PUSHLABEL) or isinstance(last, PUSHLABELJUMPDEST)) and last.label.label.startswith("internal"):
                 if last.label.label.endswith("cleanup"):
                     # exit an internal function
                     source_map["pc_jump_map"][pc] = "o"
