@@ -3,7 +3,7 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings
-from vyper.evm.assembler.core import PUSHLABEL, Label
+from vyper.evm.assembler.core import PUSHLABEL, Label, JUMPDEST
 from vyper.evm.assembler.optimizer import _merge_jumpdests
 
 codes = [
@@ -82,19 +82,30 @@ def __init__():
 def test_dead_code_eliminator(code):
     c = CompilerData(code, settings=Settings(optimize=OptimizationLevel.NONE))
 
-    # get the labels
-    initcode_labels = [i for i in c.assembly if isinstance(i, Label)]
-    runtime_labels = [i for i in c.assembly_runtime if isinstance(i, Label)]
+    # get the labels - including both Label and JUMPDEST objects
+    initcode_labels = []
+    for i in c.assembly:
+        if isinstance(i, Label):
+            initcode_labels.append(i.label)
+        elif isinstance(i, JUMPDEST):
+            initcode_labels.append(i.label.label)
+    
+    runtime_labels = []
+    for i in c.assembly_runtime:
+        if isinstance(i, Label):
+            runtime_labels.append(i.label)
+        elif isinstance(i, JUMPDEST):
+            runtime_labels.append(i.label.label)
 
     ctor_only = "ctor_only()"
     runtime_only = "runtime_only()"
 
     # qux reachable from unoptimized initcode, foo not reachable.
-    assert any(ctor_only in label.label for label in initcode_labels)
-    assert all(runtime_only not in label.label for label in initcode_labels)
+    assert any(ctor_only in label for label in initcode_labels)
+    assert all(runtime_only not in label for label in initcode_labels)
 
-    assert any(runtime_only in label.label for label in runtime_labels)
-    assert all(ctor_only not in label.label for label in runtime_labels)
+    assert any(runtime_only in label for label in runtime_labels)
+    assert all(ctor_only not in label for label in runtime_labels)
 
 
 def test_library_code_eliminator(make_input_bundle, experimental_codegen):
