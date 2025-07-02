@@ -180,7 +180,10 @@ def _resolve_constants(assembly: list[AssemblyInstruction], symbol_map: dict[Sym
         if isinstance(item, CONST):
             _add_to_symbol_map(symbol_map, CONSTREF(item.name), item.value)
 
-    while True:
+    max_iterations = 100  # Prevent infinite loops from circular dependencies
+    iterations = 0
+    
+    while iterations < max_iterations:
         changed = False
         for item in assembly:
             if isinstance(item, BaseConstOp):
@@ -195,6 +198,17 @@ def _resolve_constants(assembly: list[AssemblyInstruction], symbol_map: dict[Sym
 
         if not changed:
             break
+            
+        iterations += 1
+    
+    # Check if we hit the iteration limit (circular dependency)
+    if iterations >= max_iterations:
+        unresolved = []
+        for item in assembly:
+            if isinstance(item, BaseConstOp) and CONSTREF(item.name) not in symbol_map:
+                unresolved.append(item.name)
+        if unresolved:
+            raise CompilerPanic(f"Circular dependency detected in constants: {unresolved}")
 
 
 def resolve_symbols(
