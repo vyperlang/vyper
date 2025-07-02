@@ -345,7 +345,7 @@ class _IRnodeLowerer:
             end_symbol = self.mksymbol("join")
             o.extend(["ISZERO", *JUMPI(end_symbol)])
             o.extend(self._compile_r(code.args[1], height))
-            o.extend([end_symbol])
+            o.extend([JUMPDEST(end_symbol)])
             return o
 
         # If statements (3 arguments, ie. if x: y, else: z)
@@ -356,9 +356,9 @@ class _IRnodeLowerer:
             end_symbol = self.mksymbol("join")
             o.extend(["ISZERO", *JUMPI(mid_symbol)])
             o.extend(self._compile_r(code.args[1], height))
-            o.extend([*JUMP(end_symbol), mid_symbol])
+            o.extend([*JUMP(end_symbol), JUMPDEST(mid_symbol)])
             o.extend(self._compile_r(code.args[2], height))
-            o.extend([end_symbol])
+            o.extend([JUMPDEST(end_symbol)])
             return o
 
         # repeat(counter_location, start, rounds, rounds_bound, body)
@@ -420,7 +420,7 @@ class _IRnodeLowerer:
             self.withargs[i_name.value] = height + 1
 
             # stack: exit_i, i
-            o.extend([entry_dest])
+            o.extend([JUMPDEST(entry_dest)])
 
             with self.modify_breakdest(exit_dest, continue_dest, height + 2):
                 o.extend(self._compile_r(body, height + 2))
@@ -432,12 +432,12 @@ class _IRnodeLowerer:
 
             # stack: exit_i, i
             # increment i:
-            o.extend([continue_dest, "PUSH1", 1, "ADD"])
+            o.extend([JUMPDEST(continue_dest), "PUSH1", 1, "ADD"])
 
             # stack: exit_i, i+1 (new_i)
             # if (exit_i != new_i) { goto entry_dest }
             o.extend(["DUP2", "DUP2", "XOR", *JUMPI(entry_dest)])
-            o.extend([exit_dest, "POP", "POP"])
+            o.extend([JUMPDEST(exit_dest), "POP", "POP"])
 
             return o
 
@@ -569,7 +569,7 @@ class _IRnodeLowerer:
         if code.value == "assert_unreachable":
             o = self._compile_r(code.args[0], height)
             end_symbol = self.mksymbol("reachable")
-            o.extend([*JUMPI(end_symbol), "INVALID", end_symbol])
+            o.extend([*JUMPI(end_symbol), "INVALID", JUMPDEST(end_symbol)])
             return o
 
         # Assert (if false, exit)
@@ -766,7 +766,7 @@ class _IRnodeLowerer:
 
         # common revert block
         if self.global_revert_label is not None:
-            ret.extend([self.global_revert_label, *PUSH(0), "DUP1", "REVERT"])
+            ret.extend([JUMPDEST(self.global_revert_label), *PUSH(0), "DUP1", "REVERT"])
 
         return ret
 
