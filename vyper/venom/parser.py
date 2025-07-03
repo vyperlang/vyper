@@ -12,6 +12,7 @@ from vyper.venom.basicblock import (
     IROperand,
     IRVariable,
 )
+from vyper.venom.const_eval import evaluate_const_expr, try_evaluate_const_expr
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 
@@ -28,16 +29,19 @@ VENOM_GRAMMAR = """
     # Allow multiple comment styles
     COMMENT: ";" /[^\\n]*/ | "//" /[^\\n]*/ | "#" /[^\\n]*/
 
-    start: (global_label | function)*
+    start: (const_def | global_label | function)*
+
+    # Constant definitions
+    const_def: "const" IDENT "=" const_expr NEWLINE+
 
     # Global label definitions with optional address override
-    global_label: label_name ":" CONST
+    global_label: label_name ":" const_expr NEWLINE+
 
     function: "function" func_name "{" block_content "}"
 
     block_content: (label_decl | statement)*
 
-    label_decl: (IDENT | ESCAPED_STRING) ":" ("@" CONST)? ("[" tag_list "]")? NEWLINE+
+    label_decl: (IDENT | ESCAPED_STRING) ":" ("[" tag_list "]")? NEWLINE+
 
     tag_list: tag ("," tag)*
     tag: IDENT
@@ -51,7 +55,7 @@ VENOM_GRAMMAR = """
 
     operands_list: operand ("," operand)*
 
-    operand: VAR_IDENT | CONST | label_ref | HEXSTR
+    operand: VAR_IDENT | const_expr | HEXSTR
 
     VAR_IDENT: "%" (DIGIT|LETTER|"_"|":")+
 
@@ -65,6 +69,12 @@ VENOM_GRAMMAR = """
     DB: "db"
     HEXSTR: "x" DOUBLE_QUOTE (HEXDIGIT|"_")+ DOUBLE_QUOTE
     CONST: SIGNED_INT | "0x" HEXDIGIT+
+
+    # Constant expressions
+    const_expr: const_atom | const_func
+    const_func: IDENT "(" const_expr ("," const_expr)* ")"
+    const_atom: CONST | const_ref | label_ref
+    const_ref: "$" IDENT
 
     %ignore WS
     %ignore COMMENT
@@ -112,6 +122,10 @@ class _GlobalLabel(_TypedItem):
     pass
 
 
+class _ConstDef(_TypedItem):
+    pass
+
+
 class _LabelDecl:
     """Represents a block declaration in the parse tree."""
 
@@ -127,19 +141,29 @@ class VenomTransformer(Transformer):
     def start(self, children) -> IRContext:
         ctx = IRContext()
 
-        # Separate global labels and functions
+        # Separate const defs, global labels and functions
+        const_defs = []
         global_labels = []
         funcs = []
 
         for child in children:
-            if isinstance(child, _GlobalLabel):
+            if isinstance(child, _ConstDef):
+                const_defs.append(child)
+            elif isinstance(child, _GlobalLabel):
                 global_labels.append(child)
             else:
                 funcs.append(child)
 
+        # Process const definitions first
+        for const_def in const_defs:
+            name, expr = const_def.children
+            value = self._evaluate_const_expr(expr, ctx.constants, ctx.global_labels)
+            ctx.add_constant(name, value)
+
         # Process global labels
         for global_label in global_labels:
-            name, address = global_label.children
+            name, expr = global_label.children
+            address = self._evaluate_const_expr(expr, ctx.constants, ctx.global_labels)
             ctx.add_global_label(name, address)
 
         # Process functions
@@ -174,7 +198,7 @@ class VenomTransformer(Transformer):
                             )
                         )
                     current_block_label = item.label
-                    current_block_address = item.address
+                    current_block_address = item.address  # Will always be None now
                     current_block_tags = item.tags
                     current_block_instructions = []
                 elif isinstance(item, IRInstruction):
@@ -194,11 +218,8 @@ class VenomTransformer(Transformer):
 
             for block_data in blocks:
                 # All blocks now have: (block_name, address, instructions, tags)
-                block_name, address, instructions, tags = block_data
-                if address is not None:
-                    bb = IRBasicBlock(IRLabel(block_name, True, address), fn)
-                else:
-                    bb = IRBasicBlock(IRLabel(block_name, True), fn)
+                block_name, _address, instructions, tags = block_data
+                bb = IRBasicBlock(IRLabel(block_name, True), fn)
 
                 # Set is_volatile if "pinned" tag is present
                 if "pinned" in tags:
@@ -208,7 +229,28 @@ class VenomTransformer(Transformer):
 
                 for instruction in instructions:
                     assert isinstance(instruction, IRInstruction)  # help mypy
-                    bb.insert_instruction(instruction)
+                    # Process instruction operands to evaluate const expressions
+                    processed_operands = []
+                    for op in instruction.operands:
+                        if isinstance(op, (str, tuple)) and not isinstance(op, IROperand):
+                            # This is a const expression - evaluate it
+                            if isinstance(op, str) and op.startswith("@"):
+                                # This is a label reference that came from const_atom
+                                # Convert it back to IRLabel
+                                label_name = op[1:]
+                                processed_operands.append(IRLabel(label_name, True))
+                            else:
+                                # Use try_evaluate to handle undefined constants
+                                processed_operands.append(self._try_evaluate_const_expr(op, ctx))
+                        else:
+                            processed_operands.append(op)
+                    # Create new instruction with evaluated operands
+                    new_inst = IRInstruction(
+                        instruction.opcode, processed_operands, output=instruction.output
+                    )
+                    new_inst.ast_source = instruction.ast_source
+                    new_inst.error_msg = instruction.error_msg
+                    bb.insert_instruction(new_inst)
 
             _set_last_var(fn)
 
@@ -216,9 +258,34 @@ class VenomTransformer(Transformer):
 
         return ctx
 
+    def _evaluate_const_expr(
+        self, expr, constants: dict[str, int], global_labels: dict[str, int]
+    ) -> int:
+        """Helper method to evaluate const expressions."""
+        return evaluate_const_expr(expr, constants, global_labels)
+
+    def _try_evaluate_const_expr(self, expr, ctx: IRContext) -> IROperand:
+        """Try to evaluate const expression, returning IRLabel for unresolved parts."""
+        result = try_evaluate_const_expr(
+            expr, ctx.constants, ctx.global_labels, ctx.unresolved_consts, ctx.const_refs
+        )
+        if isinstance(result, int):
+            return IRLiteral(result)
+        else:
+            # result is a label name for unresolved constant
+            return IRLabel(result, True)
+
+    def const_def(self, children) -> _ConstDef:
+        # Filter out NEWLINE tokens
+        filtered = [c for c in children if not (hasattr(c, "type") and c.type == "NEWLINE")]
+        name, expr = filtered
+        return _ConstDef([str(name), expr])
+
     def global_label(self, children) -> _GlobalLabel:
-        name, address_literal = children
-        return _GlobalLabel([name, address_literal.value])
+        # Filter out NEWLINE tokens
+        filtered = [c for c in children if not (hasattr(c, "type") and c.type == "NEWLINE")]
+        name, expr = filtered
+        return _GlobalLabel([name, expr])
 
     def function(self, children) -> tuple[str, list]:
         name, block_content = children
@@ -229,19 +296,19 @@ class VenomTransformer(Transformer):
         return children
 
     def label_decl(self, children) -> _LabelDecl:
-        # children[0] is the label, optional address, optional tags, then NEWLINE tokens
+        # children[0] is the label, optional tags, then NEWLINE tokens
         label = _unescape(str(children[0]))
-        address = None
         tags = []
 
         # Process children after the label
         for child in children[1:]:
-            if isinstance(child, IRLiteral):
-                address = child.value
+            # Skip NEWLINE tokens
+            if hasattr(child, "type") and child.type == "NEWLINE":
+                continue
             elif isinstance(child, list):  # tag_list returns a list
                 tags = child
 
-        return _LabelDecl(label, address, tags)
+        return _LabelDecl(label, None, tags)
 
     def statement(self, children) -> IRInstruction:
         # children[0] is the instruction/assignment, rest are NEWLINE tokens
@@ -254,6 +321,13 @@ class VenomTransformer(Transformer):
             return value
         if isinstance(value, (IRLiteral, IRVariable, IRLabel)):
             return IRInstruction("store", [value], output=to)
+        # Handle const expressions that need evaluation
+        if isinstance(value, (str, tuple)):
+            # This will be evaluated later in the function processing
+            return IRInstruction("store", [value], output=to)  # type: ignore[list-item]
+        # Handle raw integers from const_atom
+        if isinstance(value, int):
+            return IRInstruction("store", [IRLiteral(value)], output=to)
         raise TypeError(f"Unexpected value {value} of type {type(value)}")
 
     def expr(self, children) -> IRInstruction | IROperand:
@@ -277,16 +351,27 @@ class VenomTransformer(Transformer):
         else:
             raise ValueError(f"Unexpected instruction children: {children}")
 
+        # Process operands - evaluate const expressions if needed
+        processed_operands = []
+        for op in operands:
+            if isinstance(op, (str, tuple)) and not isinstance(op, IROperand):
+                # This is a const expression that needs evaluation
+                # We need access to context, so we'll store it as-is for now
+                # and process it later during function processing
+                processed_operands.append(op)
+            else:
+                processed_operands.append(op)
+
         # reverse operands, venom internally represents top of stack
         # as rightmost operand
         if opcode == "invoke":
             # reverse stack arguments but not label arg
             # invoke <target> <stack arguments>
-            operands = [operands[0]] + list(reversed(operands[1:]))
+            processed_operands = [processed_operands[0]] + list(reversed(processed_operands[1:]))
         # special cases: operands with labels look better un-reversed
         elif opcode not in ("jmp", "jnz", "djmp", "phi", "db"):
-            operands.reverse()
-        return IRInstruction(opcode, operands)
+            processed_operands.reverse()
+        return IRInstruction(opcode, processed_operands)  # type: ignore[arg-type]
 
     def operands_list(self, children) -> list[IROperand]:
         return children
@@ -338,6 +423,37 @@ class VenomTransformer(Transformer):
 
     def tag(self, children) -> str:
         return str(children[0])
+
+    def const_expr(self, children):
+        # const_expr: const_atom | const_func
+        return children[0]
+
+    def const_atom(self, children):
+        # const_atom: CONST | const_ref | label_ref
+        child = children[0]
+        if isinstance(child, IRLiteral):
+            return child
+        elif isinstance(child, IRLabel):
+            # Return as a label reference to be evaluated later
+            return f"@{child.value}"
+        else:
+            # Must be a const_ref (string starting with $)
+            return child
+
+    def const_ref(self, children) -> str:
+        # const_ref: "$" IDENT
+        return f"${children[0]}"
+
+    def const_func(self, children):
+        # const_func: IDENT "(" const_expr ("," const_expr)* ")"
+        op_name = str(children[0])
+        args = children[1:]
+
+        if len(args) != 2:
+            raise ValueError(f"Operation {op_name} requires exactly 2 arguments, got {len(args)}")
+
+        # Return a tuple representing the operation
+        return (op_name, args[0], args[1])
 
 
 def parse_venom(source: str) -> IRContext:

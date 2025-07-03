@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Iterator, Optional
+from typing import Any, Iterator, Optional
 
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 from vyper.venom.function import IRFunction
@@ -37,6 +37,8 @@ class IRContext:
     data_segment: list[DataSection]
     last_label: int
     last_variable: int
+    unresolved_consts: dict[str, Any]  # Maps temp label to const expression
+    const_refs: set[str]  # Tracks undefined constant references
 
     def __init__(self) -> None:
         self.functions = {}
@@ -44,6 +46,8 @@ class IRContext:
         self.data_segment = []
         self.constants = {}
         self.global_labels = {}
+        self.unresolved_consts = {}
+        self.const_refs = set()
 
         self.last_label = 0
         self.last_variable = 0

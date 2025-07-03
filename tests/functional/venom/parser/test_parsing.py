@@ -394,7 +394,7 @@ def test_labels_with_addresses():
     my_global: 0x1000
 
     function main {
-        main: @0x20
+        main:
             %1 = 1
             jmp @other_block
         other_block:
@@ -410,8 +410,9 @@ def test_labels_with_addresses():
     main_fn = ctx.get_function(IRLabel("main"))
     assert main_fn is not None
 
+    # Labels inside functions don't have addresses
     main_bb = main_fn.get_basic_block("main")
-    assert main_bb.label.address == 0x20
+    assert main_bb.label.address is None
 
     other_bb = main_fn.get_basic_block("other_block")
     assert other_bb.label.address is None
@@ -422,7 +423,7 @@ def test_labels_with_addresses_used_in_function():
     my_global: 0x1000
 
     function main {
-        main: @0x20
+        main:
             %1 = 1
             jmp @other_block
         other_block:
@@ -437,9 +438,6 @@ def test_labels_with_addresses_used_in_function():
     main_fn = ctx.get_function(IRLabel("main"))
     assert main_fn is not None
 
-    main_bb = main_fn.get_basic_block("main")
-    assert main_bb.label.address == 0x20
-
     other_bb = main_fn.get_basic_block("other_block")
     assert other_bb.label.address is None
 
@@ -453,11 +451,11 @@ def test_labels_with_tags():
     function main {
         start:
             nop
-        revert: @0x100 [pinned]
+        revert: [pinned]
             revert 0, 0
         special: [tag1, pinned, tag2]
             nop
-        normal: @0x200
+        normal:
             stop
     }
     """
@@ -470,11 +468,9 @@ def test_labels_with_tags():
 
     revert_bb = fn.get_basic_block("revert")
     assert revert_bb.is_pinned, "revert block should be volatile due to pinned tag"
-    assert revert_bb.label.address == 0x100, "revert block should have address 0x100"
 
     special_bb = fn.get_basic_block("special")
     assert special_bb.is_pinned, "special block should be volatile due to pinned tag"
 
     normal_bb = fn.get_basic_block("normal")
     assert not normal_bb.is_pinned, "normal block should not be volatile"
-    assert normal_bb.label.address == 0x200, "normal block should have address 0x200"

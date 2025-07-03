@@ -14,6 +14,7 @@ from vyper.evm.assembler.core import (
     TaggedInstruction,
 )
 from vyper.evm.assembler.optimizer import optimize_assembly
+from vyper.evm.assembler.symbols import CONST_ADD, CONST_MAX, CONST_SUB, CONSTREF
 from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.utils import MemoryPositions, OrderedSet, wrap256
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
@@ -170,6 +171,24 @@ class VenomCompiler:
         for var_name, _var_value in self.ctx.global_labels.items():
             asm.append(Label(var_name))
 
+        # Emit unresolved constants
+        for label_name, expr in self.ctx.unresolved_consts.items():
+            if isinstance(expr, tuple) and len(expr) > 0 and expr[0] == "ref":
+                # Simple reference to undefined constant - don't emit anything
+                # The assembler will handle the undefined reference error
+                pass
+            elif isinstance(expr, tuple) and len(expr) == 3:
+                # Binary operation
+                op_name, arg1, arg2 = expr
+                # Emit the appropriate CONST_* operation
+                if op_name == "add":
+                    asm.append(CONST_ADD(label_name, arg1, arg2))  # type: ignore[arg-type]
+                elif op_name == "sub":
+                    asm.append(CONST_SUB(label_name, arg1, arg2))  # type: ignore[arg-type]
+                elif op_name == "max":
+                    asm.append(CONST_MAX(label_name, arg1, arg2))  # type: ignore[arg-type]
+                # TODO: Add other operations as needed
+
         for fn in self.ctx.functions.values():
             ac = IRAnalysesCache(fn)
 
@@ -248,7 +267,12 @@ class VenomCompiler:
                 # invoke emits the actual instruction itself so we don't need
                 # to emit it here but we need to add it to the stack map
                 if inst.opcode != "invoke":
-                    assembly.append(PUSHLABEL(_as_asm_symbol(op)))
+                    # Check if this label is an unresolved constant
+                    if op.value in self.ctx.unresolved_consts:
+                        # Use PUSH_OFST with CONSTREF for unresolved constants
+                        assembly.append(PUSH_OFST(CONSTREF(op.value), 0))
+                    else:
+                        assembly.append(PUSHLABEL(_as_asm_symbol(op)))
                 stack.push(op)
                 continue
 
