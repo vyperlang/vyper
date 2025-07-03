@@ -5,7 +5,7 @@ from typing import ClassVar
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.exceptions import CompilerPanic
-from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 
 
 @dataclass(frozen=True)
@@ -50,6 +50,8 @@ class MemoryLocation:
         if isinstance(size, IRLiteral):
             _size = size.value
         elif isinstance(size, IRVariable):
+            _size = None
+        elif isinstance(size, IRLabel):
             _size = None
         elif isinstance(size, int):
             _size = size
