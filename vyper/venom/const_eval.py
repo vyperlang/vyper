@@ -8,8 +8,9 @@ Supports simple expressions with function-style notation:
 - Operations: add(a, b), sub(a, b), mul(a, b), div(a, b), mod(a, b), max(a, b), min(a, b)
 """
 from typing import Any, Union
-from vyper.venom.basicblock import IRLiteral
+
 from vyper.exceptions import CompilerPanic
+from vyper.venom.basicblock import IRLiteral
 
 
 class ConstEvalException(CompilerPanic):
