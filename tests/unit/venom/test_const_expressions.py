@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.evm.assembler.core import assembly_to_evm
-from vyper.evm.assembler.symbols import CONST, Label
+from vyper.evm.assembler.symbols import CONST, CONST_ADD, Label
 from vyper.venom.basicblock import IRLabel, IRLiteral
 from vyper.venom.const_eval import ConstEvalException, evaluate_const_expr, try_evaluate_const_expr
 from vyper.venom.parser import parse_venom
@@ -474,6 +474,7 @@ def test_undefined_const_label_linking_example():
     bytecode, _ = assembly_to_evm(asm)
     assert len(bytecode) > 0
 
+
 def test_undefined_const_label_expression_linking_example():
     code = """
     const SLOT_SIZE = 32
@@ -483,7 +484,7 @@ def test_undefined_const_label_expression_linking_example():
             %slot = add $STORAGE_BASE, $SLOT_OFFSET
             %addr = mul %slot, $SLOT_SIZE
             %val = sload add(@deploy_addr, $SLOT_SIZE)
-            return %val
+            ret %val
     }
     """
 
@@ -494,6 +495,57 @@ def test_undefined_const_label_expression_linking_example():
     asm.insert(0, CONST("STORAGE_BASE", 0x1000))
     asm.insert(0, CONST("SLOT_OFFSET", 5))
     asm.insert(0, Label("deploy_addr"))
+
+    # Compile to bytecode
+    bytecode, _ = assembly_to_evm(asm)
+    assert len(bytecode) > 0
+
+
+def test_label_dependent_const_example():
+    # Test demonstrating label-dependent constants working correctly
+    code = """
+    const OFFSET = 100
+
+    function example {
+        entry:
+            %base = @deploy_label
+            %addr = add %base, $OFFSET
+            ret %addr
+    }
+    """
+
+    ctx = parse_venom(code)
+    compiler = VenomCompiler(ctx)
+    asm = compiler.generate_evm_assembly(no_optimize=True)
+
+    # Add a label for testing
+    asm.insert(0, Label("deploy_label"))
+    asm.insert(0, "JUMPDEST")
+
+    # Test with CONST_ADD using label
+    asm.insert(0, CONST_ADD("computed_addr", "deploy_label", 50))
+
+    # Compile successfully
+    bytecode, _ = assembly_to_evm(asm)
+    assert len(bytecode) > 0
+
+def test_undefined_const_label_expression_linking_example_2():
+    code = """
+    const SLOT_SIZE = 32
+
+    function storage_access {
+        entry:
+            %val = sload add(@deploy_addr, $SLOT_SIZE)
+            ret %val
+        deploy_addr: [pinned]
+            stop
+    }
+    """
+
+    ctx = parse_venom(code)
+        
+    compiler = VenomCompiler(ctx)
+    asm = compiler.generate_evm_assembly(no_optimize=True)
 
     # Compile to bytecode
     bytecode, _ = assembly_to_evm(asm)
