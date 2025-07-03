@@ -175,10 +175,43 @@ def _add_to_symbol_map(symbol_map: dict[SymbolKey, int], item: SymbolKey, value:
     symbol_map[item] = value
 
 
-def _resolve_constants(assembly: list[AssemblyInstruction], symbol_map: dict[SymbolKey, int]):
+def _resolve_constants(
+    assembly: list[AssemblyInstruction], symbol_map: dict[SymbolKey, int]
+) -> set[str]:
+    """
+    Resolve constant values and track which constants depend on labels.
+
+    Returns:
+        Set of constant names that depend on labels (directly or indirectly)
+    """
+    label_dependent_consts: set[str] = set()
+
+    # First, add simple CONST declarations
     for item in assembly:
         if isinstance(item, CONST):
             _add_to_symbol_map(symbol_map, CONSTREF(item.name), item.value)
+
+    # Track which constants reference labels (we'll check this later after labels are positioned)
+    # For now, just identify constants that have string operands that might be labels
+    # Collect all constant names first (including those from CONST declarations)
+    all_const_names = set()
+    for item in assembly:
+        if isinstance(item, CONST):
+            all_const_names.add(item.name)
+        elif isinstance(item, BaseConstOp):
+            all_const_names.add(item.name)
+
+    potential_label_refs = set()
+    for item in assembly:
+        if isinstance(item, BaseConstOp):
+            # Check if any operand is a string that could be a label
+            for operand in [item.op1, item.op2]:
+                if isinstance(operand, str):
+                    # Check if it's not a known constant name
+                    if operand not in all_const_names:
+                        # This could be a label reference
+                        label_dependent_consts.add(item.name)
+                        potential_label_refs.add(operand)
 
     max_iterations = 100  # Prevent infinite loops from circular dependencies
     iterations = 0
@@ -189,6 +222,20 @@ def _resolve_constants(assembly: list[AssemblyInstruction], symbol_map: dict[Sym
             if isinstance(item, BaseConstOp):
                 # Skip if this constant is already resolved
                 if CONSTREF(item.name) in symbol_map:
+                    continue
+
+                # Skip if this is a label-dependent constant
+                if item.name in label_dependent_consts:
+                    continue
+
+                # Check if this constant depends on other label-dependent constants
+                for operand in [item.op1, item.op2]:
+                    if isinstance(operand, str) and operand in label_dependent_consts:
+                        label_dependent_consts.add(item.name)
+                        continue  # Skip this constant too
+
+                # Skip if we already know it's label-dependent
+                if item.name in label_dependent_consts:
                     continue
 
                 # Calculate the value if possible
@@ -206,9 +253,61 @@ def _resolve_constants(assembly: list[AssemblyInstruction], symbol_map: dict[Sym
         unresolved = []
         for item in assembly:
             if isinstance(item, BaseConstOp) and CONSTREF(item.name) not in symbol_map:
-                unresolved.append(item.name)
+                # Only report non-label-dependent constants as unresolved here
+                if item.name not in label_dependent_consts:
+                    unresolved.append(item.name)
         if unresolved:
             raise CompilerPanic(f"Circular dependency detected in constants: {unresolved}")
+
+    return label_dependent_consts
+
+
+def _resolve_label_dependent_constants(
+    assembly: list[AssemblyInstruction],
+    symbol_map: dict[SymbolKey, int],
+    label_dependent_consts: set[str],
+):
+    """
+    Resolve constants that depend on labels, now that labels have been positioned.
+    Validates that values fit within 16-bit PUSH2 limit.
+    """
+    max_push2_value = 0xFFFF  # 65535 - maximum value for PUSH2
+
+    # Try to resolve remaining constants
+    max_iterations = 100
+    iterations = 0
+
+    while iterations < max_iterations:
+        changed = False
+        for item in assembly:
+            if isinstance(item, BaseConstOp):
+                const_ref = CONSTREF(item.name)
+                # Skip if already resolved
+                if const_ref in symbol_map:
+                    continue
+
+                # Try to calculate the value
+                if (value := item.calculate(symbol_map)) is not None:
+                    # Check overflow for label-dependent constants
+                    if item.name in label_dependent_consts and value > max_push2_value:
+                        raise CompilerPanic(
+                            f"Label-dependent constant '{item.name}' has value {value} (constants involving labels must fit in PUSH2 instructions) "
+                        )
+                    _add_to_symbol_map(symbol_map, const_ref, value)
+                    changed = True
+
+        if not changed:
+            break
+
+        iterations += 1
+
+    # Check for unresolved constants
+    unresolved = []
+    for item in assembly:
+        if isinstance(item, BaseConstOp) and CONSTREF(item.name) not in symbol_map:
+            unresolved.append(item.name)
+    if unresolved:
+        raise CompilerPanic(f"Could not resolve label-dependent constants: {unresolved}")
 
 
 def resolve_symbols(
@@ -233,7 +332,9 @@ def resolve_symbols(
 
     pc: int = 0
 
-    _resolve_constants(assembly, symbol_map)
+    # First pass: resolve constants that don't depend on labels
+    # and identify which constants depend on labels
+    label_dependent_consts = _resolve_constants(assembly, symbol_map)
 
     # resolve labels (i.e. JUMPDEST locations) to actual code locations,
     # and simultaneously build the source map.
@@ -264,7 +365,7 @@ def resolve_symbols(
 
         if isinstance(item, CONST):
             continue  # CONST declarations do not go into bytecode
-        
+
         if isinstance(item, BaseConstOp):
             continue  # CONST operations do not go into bytecode
 
@@ -286,9 +387,16 @@ def resolve_symbols(
             if isinstance(item.label, Label):
                 pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
             elif isinstance(item.label, CONSTREF):
-                const = symbol_map[item.label]
-                val = const + item.ofst
-                pc += calc_push_size(val)
+                # Check if this constant depends on labels
+                const_name = item.label.label
+                if const_name in label_dependent_consts:
+                    # Use fixed PUSH2 size for label-dependent constants
+                    pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
+                else:
+                    # For non-label-dependent constants, calculate actual size
+                    const = symbol_map[item.label]
+                    val = const + item.ofst
+                    pc += calc_push_size(val)
             else:  # pragma: nocover
                 raise CompilerPanic(f"invalid ofst {item.label}")
 
@@ -310,6 +418,9 @@ def resolve_symbols(
 
     # magic -- probably the assembler should actually add this label
     _add_to_symbol_map(symbol_map, Label("code_end"), pc)
+
+    # Second pass: now that labels are positioned, resolve label-dependent constants
+    _resolve_label_dependent_constants(assembly, symbol_map, label_dependent_consts)
 
     return symbol_map, source_map
 
@@ -445,12 +556,35 @@ def assembly_to_evm(assembly: list[AssemblyInstruction]) -> tuple[bytes, dict[st
     # This API might seem a bit strange, but it's backwards compatible
     symbol_map, source_map = resolve_symbols(assembly)
     _validate_assembly_jumps(assembly, symbol_map)
-    bytecode = _assembly_to_evm(assembly, symbol_map)
+
+    # Extract label-dependent constants from the assembly for bytecode generation
+    label_dependent_consts = set()
+    for item in assembly:
+        if isinstance(item, BaseConstOp):
+            # Check if this constant references labels
+            for operand in [item.op1, item.op2]:
+                if isinstance(operand, str) and Label(operand) in symbol_map:
+                    label_dependent_consts.add(item.name)
+
+    # Propagate label dependency
+    changed = True
+    while changed:
+        changed = False
+        for item in assembly:
+            if isinstance(item, BaseConstOp) and item.name not in label_dependent_consts:
+                for operand in [item.op1, item.op2]:
+                    if isinstance(operand, str) and operand in label_dependent_consts:
+                        label_dependent_consts.add(item.name)
+                        changed = True
+
+    bytecode = _assembly_to_evm(assembly, symbol_map, label_dependent_consts)
     return bytecode, source_map
 
 
 def _assembly_to_evm(
-    assembly: list[AssemblyInstruction], symbol_map: dict[SymbolKey, int]
+    assembly: list[AssemblyInstruction],
+    symbol_map: dict[SymbolKey, int],
+    label_dependent_consts: set[str],
 ) -> bytes:
     """
     Assembles assembly into EVM bytecode
@@ -458,6 +592,7 @@ def _assembly_to_evm(
     Parameters:
         assembly: list of asm instructions
         symbol_map: dict from labels to resolved locations in the code
+        label_dependent_consts: set of constant names that depend on labels
 
     Returns: bytes representing the bytecode
     """
@@ -470,6 +605,8 @@ def _assembly_to_evm(
             continue  # skippable opcodes
         elif isinstance(item, CONST):
             continue  # CONST things do not show up in bytecode
+        elif isinstance(item, BaseConstOp):
+            continue  # CONST operations do not show up in bytecode
         elif isinstance(item, Label):
             continue  # Label does not show up in bytecode
 
@@ -493,7 +630,21 @@ def _assembly_to_evm(
             else:
                 assert isinstance(item.label, CONSTREF)
                 ofst = symbol_map[item.label] + item.ofst
-                bytecode = _compile_push_instruction(PUSH(ofst))
+
+                # Check if this is a label-dependent constant
+                const_name = item.label.label
+                if const_name in label_dependent_consts:
+                    # Use PUSH2 for label-dependent constants
+                    # Also validate the value fits in 16 bits
+                    if ofst > 0xFFFF:
+                        raise CompilerPanic(
+                            f"PUSH_OFST with label-dependent constant '{const_name}' "
+                            f"has value {ofst} which exceeds 16-bit limit"
+                        )
+                    bytecode = _compile_push_instruction(PUSH_N(ofst, SYMBOL_SIZE))
+                else:
+                    # Use optimal size for non-label-dependent constants
+                    bytecode = _compile_push_instruction(PUSH(ofst))
 
             ret.extend(bytecode)
 
