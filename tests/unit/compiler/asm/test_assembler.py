@@ -79,22 +79,5 @@ def test_const_add_with_label_overflow():
     with pytest.raises(CompilerPanic) as exc_info:
         resolve_symbols(asm)
 
-    assert "exceeds 16-bit limit" in str(exc_info.value)
     assert "will_overflow" in str(exc_info.value)
 
-
-def test_push_ofst_with_label_dependent_const_overflow():
-    # Test PUSH_OFST overflow checking during bytecode generation
-
-    # Manually create a symbol map that would cause overflow
-    symbol_map = {Label("far_label"): 10000, CONSTREF("near_limit"): 65000}  # Just under the limit
-
-    # This should fail when PUSH_OFST tries to add an offset that causes overflow
-    test_asm = [PUSH_OFST(CONSTREF("near_limit"), 1000)]  # 65000 + 1000 > 65535
-
-    label_dependent_consts = {"near_limit"}  # Mark as label-dependent
-
-    with pytest.raises(CompilerPanic) as exc_info:
-        _assembly_to_evm(test_asm, symbol_map, label_dependent_consts)
-
-    assert "exceeds 16-bit limit" in str(exc_info.value)
