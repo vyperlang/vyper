@@ -189,6 +189,15 @@ class VenomCompiler:
                     asm.append(CONST_MAX(label_name, arg1, arg2))  # type: ignore[arg-type]
                 # TODO: Add other operations as needed
 
+        # Auto-detect labels used in const expressions and mark their blocks for emission
+        for fn in self.ctx.functions.values():
+            for bb in fn.get_basic_blocks():
+                for label_name, expr in self.ctx.unresolved_consts.items():
+                    if isinstance(expr, tuple) and len(expr) == 3:
+                        _, arg1, arg2 = expr
+                        if arg1 == bb.label.value or arg2 == bb.label.value:
+                            bb.is_pinned = True
+
         for fn in self.ctx.functions.values():
             ac = IRAnalysesCache(fn)
 

@@ -537,7 +537,7 @@ def test_undefined_const_label_expression_linking_example_2():
         entry:
             %val = sload add(@deploy_addr, $SLOT_SIZE)
             ret %val
-        deploy_addr: [pinned]
+        deploy_addr:
             stop
     }
     """
