@@ -264,6 +264,9 @@ def resolve_symbols(
 
         if isinstance(item, CONST):
             continue  # CONST declarations do not go into bytecode
+        
+        if isinstance(item, BaseConstOp):
+            continue  # CONST operations do not go into bytecode
 
         # update pc
         if isinstance(item, JUMPDEST):

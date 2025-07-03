@@ -447,7 +447,7 @@ def test_undefined_const_with_operations():
     assert len(bytecode) > 0
 
 
-def test_undefined_const_linking_example():
+def test_undefined_const_label_linking_example():
     """Example showing how external constants can be linked in a clean way."""
     # Venom code using external constants and labels
     code = """
@@ -458,6 +458,31 @@ def test_undefined_const_linking_example():
             %slot = add $STORAGE_BASE, $SLOT_OFFSET
             %addr = mul %slot, $SLOT_SIZE
             %val = sload @deploy_addr
+            return %val
+    }
+    """
+
+    ctx = parse_venom(code)
+    compiler = VenomCompiler(ctx)
+    asm = compiler.generate_evm_assembly(no_optimize=True)
+
+    asm.insert(0, CONST("STORAGE_BASE", 0x1000))
+    asm.insert(0, CONST("SLOT_OFFSET", 5))
+    asm.insert(0, Label("deploy_addr"))
+
+    # Compile to bytecode
+    bytecode, _ = assembly_to_evm(asm)
+    assert len(bytecode) > 0
+
+def test_undefined_const_label_expression_linking_example():
+    code = """
+    const SLOT_SIZE = 32
+
+    function storage_access {
+        entry:
+            %slot = add $STORAGE_BASE, $SLOT_OFFSET
+            %addr = mul %slot, $SLOT_SIZE
+            %val = sload add(@deploy_addr, $SLOT_SIZE)
             return %val
     }
     """

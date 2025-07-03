@@ -67,9 +67,14 @@ class BaseConstOp:
 
     def _resolve_operand(self, operand: str | int, symbol_map: dict[SymbolKey, int]) -> int | None:
         if isinstance(operand, str):
+            # Try as CONSTREF first
             op_ref = CONSTREF(operand)
             if op_ref in symbol_map:
                 return symbol_map[op_ref]
+            # Try as Label
+            label = Label(operand)
+            if label in symbol_map:
+                return symbol_map[label]
         elif isinstance(operand, int):
             return operand
         return None

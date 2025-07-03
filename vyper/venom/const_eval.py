@@ -120,8 +120,11 @@ def try_evaluate_const_expr(
         if expr.startswith("@"):
             label_name = expr[1:]
             if label_name not in global_labels:
-                # For undefined labels, we still throw since labels should be defined
-                raise ConstEvalException(f"Undefined global label: {label_name}")
+                # Treat undefined labels like undefined constants
+                const_refs.add(label_name)
+                if label_name not in unresolved_consts:
+                    unresolved_consts[label_name] = ("ref", label_name)
+                return label_name
             return global_labels[label_name]
 
         # Otherwise it might be a plain identifier
