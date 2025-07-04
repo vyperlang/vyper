@@ -5,6 +5,7 @@ from lark import Lark, Transformer
 
 from vyper.venom.basicblock import (
     IRBasicBlock,
+    IRConstExpr,
     IRHexString,
     IRInstruction,
     IRLabel,
@@ -154,17 +155,15 @@ class VenomTransformer(Transformer):
             else:
                 funcs.append(child)
 
-        # Process const definitions first
+        # Process const definitions - just store the raw expressions
         for const_def in const_defs:
             name, expr = const_def.children
-            value = self._evaluate_const_expr(expr, ctx.constants, ctx.global_labels)
-            ctx.add_constant(name, value)
+            ctx.add_const_expression(name, expr)
 
         # Process global labels
         for global_label in global_labels:
             name, expr = global_label.children
-            address = self._evaluate_const_expr(expr, ctx.constants, ctx.global_labels)
-            ctx.add_global_label(name, address)
+            ctx.add_global_label(name, 0)
 
         # Process functions
         for fn_name, items in funcs:
@@ -229,28 +228,7 @@ class VenomTransformer(Transformer):
 
                 for instruction in instructions:
                     assert isinstance(instruction, IRInstruction)  # help mypy
-                    # Process instruction operands to evaluate const expressions
-                    processed_operands = []
-                    for op in instruction.operands:
-                        if isinstance(op, (str, tuple)) and not isinstance(op, IROperand):
-                            # This is a const expression - evaluate it
-                            if isinstance(op, str) and op.startswith("@"):
-                                # This is a label reference that came from const_atom
-                                # Convert it back to IRLabel
-                                label_name = op[1:]
-                                processed_operands.append(IRLabel(label_name, True))
-                            else:
-                                # Use try_evaluate to handle undefined constants
-                                processed_operands.append(self._try_evaluate_const_expr(op, ctx))
-                        else:
-                            processed_operands.append(op)
-                    # Create new instruction with evaluated operands
-                    new_inst = IRInstruction(
-                        instruction.opcode, processed_operands, output=instruction.output
-                    )
-                    new_inst.ast_source = instruction.ast_source
-                    new_inst.error_msg = instruction.error_msg
-                    bb.insert_instruction(new_inst)
+                    bb.insert_instruction(instruction)
 
             _set_last_var(fn)
 
@@ -384,6 +362,8 @@ class VenomTransformer(Transformer):
             hex_content = operand.removeprefix('x"').removesuffix('"')
             hex_content = hex_content.replace("_", "")
             return IRHexString(bytes.fromhex(hex_content))
+        elif isinstance(operand, (str, tuple)) and not isinstance(operand, IROperand):
+            return IRConstExpr(operand)
         return operand
 
     def func_name(self, children) -> str:
