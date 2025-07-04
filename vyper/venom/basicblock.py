@@ -209,6 +209,7 @@ class IRHexString(IROperand):
         return f'x"{self.value.hex()}"'
 
 
+
 class IRLabel(IROperand):
     """
     IRLabel represents a label in IR. A label is a string that starts with a %.
@@ -509,6 +510,9 @@ class IRBasicBlock:
         assert self.is_terminated
         term = self.last_instruction
         if term.opcode == "db":
+            return []
+        # Only jmp, djmp, and jnz have jump targets
+        if term.opcode not in ("jmp", "djmp", "jnz"):
             return []
         out_labels = term.get_label_operands()
         fn = self.parent

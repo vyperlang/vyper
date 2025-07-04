@@ -33,6 +33,7 @@ class IRContext:
     functions: dict[IRLabel, IRFunction]
     entry_function: Optional[IRFunction]
     constants: dict[str, int]  # globally defined constants
+    const_expressions: dict[str, Any]  # raw const expressions (unevaluated)
     global_labels: dict[str, int]  # globally defined labels with addresses
     data_segment: list[DataSection]
     last_label: int
@@ -45,6 +46,7 @@ class IRContext:
         self.entry_function = None
         self.data_segment = []
         self.constants = {}
+        self.const_expressions = {}
         self.global_labels = {}
         self.unresolved_consts = {}
         self.const_refs = set()
@@ -106,6 +108,10 @@ class IRContext:
     def add_constant(self, name: str, value: int) -> None:
         assert name not in self.constants
         self.constants[name] = value
+
+    def add_const_expression(self, name: str, expr: Any) -> None:
+        assert name not in self.const_expressions
+        self.const_expressions[name] = expr
 
     def add_global_label(self, name: str, address: int) -> None:
         assert name not in self.global_labels

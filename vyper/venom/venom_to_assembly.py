@@ -29,6 +29,7 @@ from vyper.venom.basicblock import (
     IROperand,
     IRVariable,
 )
+from vyper.venom.const_eval import try_evaluate_const_expr
 from vyper.venom.context import IRContext, IRFunction
 from vyper.venom.stack_model import StackModel
 
@@ -164,6 +165,18 @@ class VenomCompiler:
     def generate_evm_assembly(self, no_optimize: bool = False) -> list[AssemblyInstruction]:
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
+
+        # Evaluate const expressions and populate constants
+        for name, expr in self.ctx.const_expressions.items():
+            result = try_evaluate_const_expr(
+                expr, self.ctx.constants, self.ctx.global_labels,
+                self.ctx.unresolved_consts, self.ctx.const_refs
+            )
+            if isinstance(result, int):
+                self.ctx.constants[name] = result
+            else:
+                # Store as unresolved constant
+                self.ctx.unresolved_consts[name] = expr
 
         asm: list[AssemblyInstruction] = []
 

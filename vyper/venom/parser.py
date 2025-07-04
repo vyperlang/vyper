@@ -5,7 +5,6 @@ from lark import Lark, Transformer
 
 from vyper.venom.basicblock import (
     IRBasicBlock,
-    IRConstExpr,
     IRHexString,
     IRInstruction,
     IRLabel,
@@ -362,8 +361,6 @@ class VenomTransformer(Transformer):
             hex_content = operand.removeprefix('x"').removesuffix('"')
             hex_content = hex_content.replace("_", "")
             return IRHexString(bytes.fromhex(hex_content))
-        elif isinstance(operand, (str, tuple)) and not isinstance(operand, IROperand):
-            return IRConstExpr(operand)
         return operand
 
     def func_name(self, children) -> str:

@@ -10,7 +10,8 @@ from vyper.evm.assembler.core import AssemblyInstruction
 from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import MemSSA
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRBasicBlock, IRHexString, IRLabel, IRLiteral
+from vyper.venom.basicblock import IRBasicBlock, IRHexString, IRLabel, IRLiteral, IROperand
+from vyper.venom.const_eval import try_evaluate_const_expr
 from vyper.venom.context import DataSection, IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.passes import (
@@ -112,11 +113,37 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     CFGNormalization(ac, fn).run_pass()
 
 
+def _resolve_const_operands(ctx: IRContext) -> None:
+    """Resolve raw const expressions in operands to IRLiteral or IRLabel."""
+    for fn in ctx.functions.values():
+        for bb in fn.get_basic_blocks():
+            for inst in bb.instructions:
+                new_operands = []
+                for op in inst.operands:
+                    if isinstance(op, (str, tuple)) and not isinstance(op, IROperand):
+                        # This is a raw const expression - evaluate it
+                        result = try_evaluate_const_expr(
+                            op, ctx.constants, ctx.global_labels,
+                            ctx.unresolved_consts, ctx.const_refs
+                        )
+                        if isinstance(result, int):
+                            new_operands.append(IRLiteral(result))
+                        else:
+                            # Return as label for unresolved expressions
+                            new_operands.append(IRLabel(result, True))
+                    else:
+                        new_operands.append(op)
+                inst.operands = new_operands
+
+
 def _run_global_passes(ctx: IRContext, optimize: OptimizationLevel, ir_analyses: dict) -> None:
     FunctionInlinerPass(ir_analyses, ctx, optimize).run_pass()
 
 
 def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
+    # First resolve any raw const expressions in operands
+    _resolve_const_operands(ctx)
+    
     ir_analyses = {}
     for fn in ctx.functions.values():
         ir_analyses[fn] = IRAnalysesCache(fn)
