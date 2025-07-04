@@ -291,8 +291,14 @@ class VenomCompiler:
                 if inst.opcode != "invoke":
                     # Check if this label is an unresolved constant
                     if op.value in self.ctx.unresolved_consts:
-                        # Use PUSH_OFST with CONSTREF for unresolved constants
-                        assembly.append(PUSH_OFST(CONSTREF(op.value), 0))
+                        expr = self.ctx.unresolved_consts[op.value]
+                        # Check if it's a simple reference (not a real constant)
+                        if isinstance(expr, tuple) and len(expr) == 2 and expr[0] == "ref":
+                            # Simple label reference - use PUSHLABEL
+                            assembly.append(PUSHLABEL(_as_asm_symbol(op)))
+                        else:
+                            # Real unresolved constant - use PUSH_OFST with CONSTREF
+                            assembly.append(PUSH_OFST(CONSTREF(op.value), 0))
                     else:
                         assembly.append(PUSHLABEL(_as_asm_symbol(op)))
                 stack.push(op)

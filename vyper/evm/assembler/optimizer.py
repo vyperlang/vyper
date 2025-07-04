@@ -2,11 +2,13 @@ from vyper.evm.assembler.constants import COMMUTATIVE_OPS
 from vyper.evm.assembler.core import (
     DATA_ITEM,
     JUMPDEST,
+    PUSH_OFST,
     PUSHLABEL,
     PUSHLABELJUMPDEST,
     Label,
     is_symbol,
 )
+from vyper.evm.assembler.symbols import CONSTREF, BaseConstOp
 from vyper.exceptions import CompilerPanic
 
 _TERMINAL_OPS = ("JUMP", "RETURN", "REVERT", "STOP", "INVALID")
@@ -204,6 +206,16 @@ def _prune_unused_jumpdests(assembly):
             # add symbols used in data sections as they are likely
             # used for a jumptable.
             used_as_jumpdests.add(item.data)
+        
+        # Track labels referenced through CONSTREF
+        if isinstance(item, PUSH_OFST) and isinstance(item.label, CONSTREF):
+            used_as_labels.add(Label(item.label.label))
+        
+        # Track labels in BaseConstOp operations (CONST_ADD, CONST_SUB, etc.)
+        if isinstance(item, BaseConstOp):
+            for operand in [item.op1, item.op2]:
+                if isinstance(operand, str):
+                    used_as_labels.add(Label(operand))
 
     # delete jumpdests that aren't used
     i = 0
