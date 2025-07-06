@@ -71,28 +71,28 @@ def deposit_and_stake(
         if amounts[i] == 0 or staticcall IERC20(coins[i]).allowance(self, deposit) > 0:
             continue
 
-        staticcall IERC20(coins[i]).approve(deposit, max_value(uint256), default_return_value=True)
+        extcall IERC20(coins[i]).approve(deposit, max_value(uint256), default_return_value=True)
 
     # Ensure allowance for gauge
     if staticcall IERC20(lp_token).allowance(self, gauge) == 0:
-        staticcall IERC20(lp_token).approve(gauge, max_value(uint256))
+        extcall IERC20(lp_token).approve(gauge, max_value(uint256))
 
     # Transfer coins from owner
     for i: uint256 in range(n_coins, bound=MAX_COINS):
 
         if amounts[i] > 0:
-            assert staticcall IERC20(coins[i]).transferFrom(msg.sender, self, amounts[i], default_return_value=True)
+            extcall IERC20(coins[i]).transferFrom(msg.sender, self, amounts[i], default_return_value=True)
 
     # Deposit into pool
     if pool != empty(address):  # meta-pool deposit with underlying coins, deposit is zap here
-        MetaZap(deposit).add_liquidity(pool, amounts, min_mint_amount)
+        extcall MetaZap(deposit).add_liquidity(pool, amounts, min_mint_amount)
     elif use_dynarray:  # plain stable pool
-        StableSwap(deposit).add_liquidity(amounts, min_mint_amount)
+        extcall StableSwap(deposit).add_liquidity(amounts, min_mint_amount)
     else:
         if n_coins == 2:  # twocrypto or meta-pool deposit with wrapped coins
-            Pool2(deposit).add_liquidity([amounts[0], amounts[1]], min_mint_amount)
+            extcall Pool2(deposit).add_liquidity([amounts[0], amounts[1]], min_mint_amount)
         elif n_coins == 3:  # tricrypto
-            Pool3(deposit).add_liquidity([amounts[0], amounts[1], amounts[2]], min_mint_amount)
+            extcall Pool3(deposit).add_liquidity([amounts[0], amounts[1], amounts[2]], min_mint_amount)
         else:
             raise "Wrong arguments"
 
@@ -100,6 +100,6 @@ def deposit_and_stake(
     lp_token_amount: uint256 = staticcall IERC20(lp_token).balanceOf(self)
     assert lp_token_amount > 0 # dev: swap-token mismatch
 
-    Gauge(gauge).deposit(lp_token_amount, msg.sender)
+    extcall Gauge(gauge).deposit(lp_token_amount, msg.sender)
 
     return lp_token_amount

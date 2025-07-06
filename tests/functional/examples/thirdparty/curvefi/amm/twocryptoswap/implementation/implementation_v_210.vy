@@ -327,7 +327,7 @@ def _transfer_in(
     # ----------------------------------------------- IERC20 transferFrom flow.
 
     # EXTERNAL CALL
-    assert staticcall IERC20(coins[_coin_idx]).transferFrom(
+    assert extcall IERC20(coins[_coin_idx]).transferFrom(
         sender,
         self,
         _dx,
@@ -354,7 +354,7 @@ def _transfer_out(_coin_idx: uint256, _amount: uint256, receiver: address):
     self.balances[_coin_idx] -= _amount
 
     # EXTERNAL CALL
-    assert staticcall IERC20(coins[_coin_idx]).transfer(
+    assert extcall IERC20(coins[_coin_idx]).transfer(
         receiver,
         _amount,
         default_return_value=True
@@ -520,13 +520,13 @@ def add_liquidity(
     if self.future_A_gamma_time > block.timestamp:  # <--- A_gamma is ramping.
 
         # ----- Recalculate the invariant if A or gamma are undergoing a ramp.
-        old_D = MATH.newton_D(A_gamma[0], A_gamma[1], xp_old, 0)
+        old_D = staticcall MATH.newton_D(A_gamma[0], A_gamma[1], xp_old, 0)
 
     else:
 
         old_D = self.D
 
-    D: uint256 = MATH.newton_D(A_gamma[0], A_gamma[1], xp, 0)
+    D: uint256 = staticcall MATH.newton_D(A_gamma[0], A_gamma[1], xp, 0)
 
     token_supply: uint256 = self.totalSupply
     if old_D > 0:
@@ -784,13 +784,13 @@ def _exchange(
 
         x1: uint256 = xp[i]  # <------------------ Back up old value in xp ...
         xp[i] = x0                                                         # |
-        self.D = MATH.newton_D(A_gamma[0], A_gamma[1], xp, 0)              # |
+        self.D = staticcall MATH.newton_D(A_gamma[0], A_gamma[1], xp, 0)              # |
         xp[i] = x1  # <-------------------------------------- ... and restore.
 
     # ----------------------- Calculate dy and fees --------------------------
 
     D: uint256 = self.D
-    y_out: uint256[2] = MATH.get_y(A_gamma[0], A_gamma[1], xp, D, j)
+    y_out: uint256[2] = staticcall MATH.get_y(A_gamma[0], A_gamma[1], xp, D, j)
     dy = xp[j] - y_out[0]
     xp[j] -= dy
     dy -= 1
@@ -859,7 +859,7 @@ def tweak_price(
 
         # ------------------ Calculate moving average params -----------------
 
-        alpha = MATH.wad_exp(
+        alpha = staticcall MATH.wad_exp(
             -convert(
                 unsafe_div(
                     unsafe_sub(block.timestamp, last_timestamp) * 10**18,
@@ -891,12 +891,12 @@ def tweak_price(
 
     D_unadjusted: uint256 = new_D
     if new_D == 0:  #  <--------------------------- _exchange sets new_D to 0.
-        D_unadjusted = MATH.newton_D(A_gamma[0], A_gamma[1], _xp, K0_prev)
+        D_unadjusted = staticcall MATH.newton_D(A_gamma[0], A_gamma[1], _xp, K0_prev)
 
     # ----------------------- Calculate last_prices --------------------------
 
     self.last_prices = unsafe_div(
-        MATH.get_p(_xp, D_unadjusted, A_gamma) * price_scale,
+        staticcall MATH.get_p(_xp, D_unadjusted, A_gamma) * price_scale,
         10**18
     )
 
@@ -970,7 +970,7 @@ def tweak_price(
             ]
 
             # ------------------------------------------ Update D with new xp.
-            D: uint256 = MATH.newton_D(A_gamma[0], A_gamma[1], xp, 0)
+            D: uint256 = staticcall MATH.newton_D(A_gamma[0], A_gamma[1], xp, 0)
 
             # ------------------------------------- Convert xp to real prices.
             xp = [
@@ -1082,7 +1082,7 @@ def _claim_admin_fees():
         current_lp_token_supply + admin_share
     )
     vprice = (
-        10**18 * self.get_xcp(D, price_scale) /
+        10**18 * self.get_xcp(D, price_scale) //
         total_supply_including_admin_share
     )
 
@@ -1115,7 +1115,7 @@ def _claim_admin_fees():
         for i: uint256 in range(N_COINS):
 
             admin_tokens[i] = (
-                balances[i] * admin_share /
+                balances[i] * admin_share //
                 total_supply_including_admin_share
             )
 
@@ -1127,7 +1127,7 @@ def _claim_admin_fees():
 
 
 @internal
-@pure
+@view
 def xp(
     balances: uint256[N_COINS],
     price_scale: uint256,
@@ -1246,7 +1246,7 @@ def _calc_withdraw_one_coin(
         price_scale_i = PRECISION * PRECISIONS[0]
 
     if update_D:  # <-------------- D is updated if pool is undergoing a ramp.
-        D0 = MATH.newton_D(A_gamma[0], A_gamma[1], xp, 0)
+        D0 = staticcall MATH.newton_D(A_gamma[0], A_gamma[1], xp, 0)
     else:
         D0 = self.D
 
@@ -1282,7 +1282,7 @@ def _calc_withdraw_one_coin(
     # ------------------------------------------------------------------------
     D -= (dD - D_fee)  # <----------------------------------- Charge fee on D.
     # --------------------------------- Calculate `y_out`` with `(D - D_fee)`.
-    y: uint256 = MATH.get_y(A_gamma[0], A_gamma[1], xp, D, i)[0]
+    y: uint256 = (staticcall MATH.get_y(A_gamma[0], A_gamma[1], xp, D, i))[0]
     dy: uint256 = (xp[i] - y) * PRECISION // price_scale_i
     xp[i] = y
 
@@ -1477,7 +1477,7 @@ def internal_price_oracle() -> uint256:
 
         last_prices: uint256 = self.last_prices
         ma_time: uint256 = self._unpack_3(self.packed_rebalancing_params)[2]
-        alpha: uint256 = MATH.wad_exp(
+        alpha: uint256 = staticcall MATH.wad_exp(
             -convert(
                 unsafe_sub(block.timestamp, last_prices_timestamp) * 10**18 // ma_time,
                 int256,
@@ -1525,7 +1525,7 @@ def calc_token_amount(amounts: uint256[N_COINS], deposit: bool) -> uint256:
     @return uint256 Amount of LP tokens deposited or withdrawn.
     """
     view_contract: address = staticcall factory.views_implementation()
-    return Views(view_contract).calc_token_amount(amounts, deposit, self)
+    return staticcall Views(view_contract).calc_token_amount(amounts, deposit, self)
 
 
 @external
@@ -1540,7 +1540,7 @@ def get_dy(i: uint256, j: uint256, dx: uint256) -> uint256:
     @return uint256 Exact amount of output j tokens for dx amount of i input tokens.
     """
     view_contract: address = staticcall factory.views_implementation()
-    return Views(view_contract).get_dy(i, j, dx, self)
+    return staticcall Views(view_contract).get_dy(i, j, dx, self)
 
 
 @external
@@ -1558,12 +1558,12 @@ def get_dx(i: uint256, j: uint256, dy: uint256) -> uint256:
     @return uint256 Approximate amount of input i tokens to get dy amount of j tokens.
     """
     view_contract: address = staticcall factory.views_implementation()
-    return Views(view_contract).get_dx(i, j, dy, self)
+    return staticcall Views(view_contract).get_dx(i, j, dy, self)
 
 
 @external
 @view
-@@nonreentrant
+@nonreentrant
 def lp_price() -> uint256:
     """
     @notice Calculates the current price of the LP token w.r.t coin at the
@@ -1575,7 +1575,7 @@ def lp_price() -> uint256:
 
 @external
 @view
-@@nonreentrant
+@nonreentrant
 def get_virtual_price() -> uint256:
     """
     @notice Calculates the current virtual price of the pool LP token.
@@ -1588,7 +1588,7 @@ def get_virtual_price() -> uint256:
 
 @external
 @view
-@@nonreentrant
+@nonreentrant
 def price_oracle() -> uint256:
     """
     @notice Returns the oracle price of the coin at index `k` w.r.t the coin
@@ -1603,7 +1603,7 @@ def price_oracle() -> uint256:
 
 @external
 @view
-@@nonreentrant
+@nonreentrant
 def price_scale() -> uint256:
     """
     @notice Returns the price scale of the coin at index `k` w.r.t the coin

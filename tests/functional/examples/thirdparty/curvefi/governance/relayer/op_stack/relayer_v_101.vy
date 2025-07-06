@@ -66,6 +66,6 @@ def relay(_agent: Agent, _messages: DynArray[Message, MAX_MESSAGES]):
     @param _messages The sequence of messages to relay.
     """
     assert msg.sender == MESSENGER
-    assert IMessenger(MESSENGER).xDomainMessageSender() == BROADCASTER
+    assert staticcall IMessenger(MESSENGER).xDomainMessageSender() == BROADCASTER
 
-    IAgent(self.agent[_agent]).execute(_messages)
+    extcall IAgent(self.agent[_agent]).execute(_messages)

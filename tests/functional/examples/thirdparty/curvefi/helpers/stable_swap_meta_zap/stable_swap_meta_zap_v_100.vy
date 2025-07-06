@@ -95,10 +95,10 @@ base_pool_registry: HashMap[address, BasePool]
 @internal
 @view
 def get_coins_from_pool(_pool: address) -> DynArray[address, MAX_COINS]:
-    n_coins: uint256 = extcall StableSwapNG(_pool).N_COINS()
+    n_coins: uint256 = staticcall StableSwapNG(_pool).N_COINS()
     coins: DynArray[address, MAX_COINS] = empty(DynArray[address, MAX_COINS])
     for i: uint256 in range(n_coins, bound=MAX_COINS):
-        coins.append(extcall StableSwapNG(_pool).coins(i))
+        coins.append(staticcall StableSwapNG(_pool).coins(i))
     return coins
 
 
@@ -108,7 +108,7 @@ def _approve_pool_to_spend_zap_coins(
     coins: DynArray[address, MAX_COINS],
 ):
     for i: uint256 in range(len(coins), bound=MAX_COINS):
-        staticcall IERC20(coins[i]).approve(pool, max_value(uint256))
+        extcall IERC20(coins[i]).approve(pool, max_value(uint256))
 
     self.base_pool_coins_spending_approved[pool] = True
 
@@ -117,7 +117,7 @@ def _approve_pool_to_spend_zap_coins(
 @view
 def _fetch_base_pool_data(_pool: address) -> (address, DynArray[address, MAX_COINS]):
 
-    base_pool: address = StableSwapMetaNG(_pool).BASE_POOL()
+    base_pool: address = staticcall StableSwapMetaNG(_pool).BASE_POOL()
     assert base_pool != empty(address)  # dev: not a metapool
     base_coins: DynArray[address, MAX_COINS] = self.get_coins_from_pool(base_pool)
     return base_pool, base_coins
@@ -169,10 +169,10 @@ def calc_token_amount(
     for i: uint256 in range(base_n_coins, bound=MAX_COINS):
         base_amounts.append(_amounts[i + META_N_COINS - 1])
 
-    base_tokens: uint256 = extcall StableSwapNG(base_pool).calc_token_amount(base_amounts, _is_deposit)
+    base_tokens: uint256 = staticcall StableSwapNG(base_pool).calc_token_amount(base_amounts, _is_deposit)
     meta_amounts[META_N_COINS - 1] = base_tokens
 
-    return StableSwapMetaNG(_pool).calc_token_amount(meta_amounts, _is_deposit)
+    return staticcall StableSwapMetaNG(_pool).calc_token_amount(meta_amounts, _is_deposit)
 
 
 @external
@@ -211,11 +211,11 @@ def add_liquidity(
     # Transfer meta-token (token in metapool that is not base pool token) if
     # any:
     if _deposit_amounts[0] != 0:
-        coin: address = StableSwapMetaNG(_pool).coins(0)
+        coin: address = staticcall StableSwapMetaNG(_pool).coins(0)
         if not self.is_approved[coin][_pool]:
-            staticcall IERC20(coin).approve(_pool, max_value(uint256))
+            extcall IERC20(coin).approve(_pool, max_value(uint256))
             self.is_approved[coin][_pool] = True
-        staticcall IERC20(coin).transferFrom(msg.sender, self, _deposit_amounts[0])
+        extcall IERC20(coin).transferFrom(msg.sender, self, _deposit_amounts[0])
         meta_amounts[0] = _deposit_amounts[0]
 
     # Transfer base pool coins (if any):
@@ -231,7 +231,7 @@ def add_liquidity(
         base_idx: uint256 = i - 1
         coin: address = base_coins[base_idx]
 
-        staticcall IERC20(coin).transferFrom(msg.sender, self, amount)
+        extcall IERC20(coin).transferFrom(msg.sender, self, amount)
         base_amounts[base_idx] = amount
 
     # ----------------------- Deposit to the base pool -----------------------
@@ -239,12 +239,12 @@ def add_liquidity(
     if deposit_base:
         meta_amounts[META_N_COINS - 1] = extcall StableSwapNG(base_pool).add_liquidity(base_amounts, 0)
         if not self.is_approved[base_pool][_pool]:
-            staticcall IERC20(base_pool).approve(_pool, max_value(uint256))
+            extcall IERC20(base_pool).approve(_pool, max_value(uint256))
             self.is_approved[base_pool][_pool] = True
 
     # ----------------------- Deposit to the meta pool -----------------------
 
-    return StableSwapMetaNG(_pool).add_liquidity(
+    return extcall StableSwapMetaNG(_pool).add_liquidity(
         meta_amounts,
         _min_mint_amount,
         _receiver
@@ -261,13 +261,13 @@ def calc_withdraw_one_coin(_pool: address, _token_amount: uint256, i: int128) ->
     @param i Index value of the underlying coin to withdraw
     @return Amount of coin received
     """
-    if i < META_N_COINS - 1:
-        return StableSwapMetaNG(_pool).calc_withdraw_one_coin(_token_amount, i)
+    if i < convert(META_N_COINS, int128) - 1:
+        return staticcall StableSwapMetaNG(_pool).calc_withdraw_one_coin(_token_amount, i)
     else:
-        base_pool: address = StableSwapMetaNG(_pool).BASE_POOL()
+        base_pool: address = staticcall StableSwapMetaNG(_pool).BASE_POOL()
         assert base_pool != empty(address)  # dev: not a metapool!
-        _base_tokens: uint256 = StableSwapMetaNG(_pool).calc_withdraw_one_coin(_token_amount, META_N_COINS - 1)
-        return extcall StableSwapNG(base_pool).calc_withdraw_one_coin(
+        _base_tokens: uint256 = staticcall StableSwapMetaNG(_pool).calc_withdraw_one_coin(_token_amount, convert(META_N_COINS, int128) - 1)
+        return staticcall StableSwapNG(base_pool).calc_withdraw_one_coin(
             _base_tokens,
             i - convert(META_N_COINS - 1, int128)
         )
@@ -289,7 +289,7 @@ def remove_liquidity(
     @param _receiver Address that receives the LP tokens
     @return List of amounts of underlying coins that were withdrawn
     """
-    staticcall IERC20(_pool).transferFrom(msg.sender, self, _burn_amount)
+    extcall IERC20(_pool).transferFrom(msg.sender, self, _burn_amount)
 
     base_pool: address = empty(address)
     base_coins: DynArray[address, MAX_COINS] = empty(DynArray[address, MAX_COINS])
@@ -300,7 +300,7 @@ def remove_liquidity(
     amounts: DynArray[uint256, MAX_ALL_COINS] = empty(DynArray[uint256, MAX_ALL_COINS])
 
     # Withdraw from meta
-    meta_received: uint256[META_N_COINS] = StableSwapMetaNG(_pool).remove_liquidity(
+    meta_received: uint256[META_N_COINS] = extcall StableSwapMetaNG(_pool).remove_liquidity(
         _burn_amount,
         [_min_amounts[0], convert(0, uint256)]
     )
@@ -311,8 +311,8 @@ def remove_liquidity(
     extcall StableSwapNG(base_pool).remove_liquidity(meta_received[1], min_amounts_base)
 
     # Transfer all coins out
-    coin: address = StableSwapMetaNG(_pool).coins(0)
-    staticcall IERC20(coin).transfer(_receiver, meta_received[0])
+    coin: address = staticcall StableSwapMetaNG(_pool).coins(0)
+    extcall IERC20(coin).transfer(_receiver, meta_received[0])
     amounts.append(meta_received[0])
 
     for i: uint256 in range(base_n_coins + 1, bound=MAX_ALL_COINS):
@@ -323,7 +323,7 @@ def remove_liquidity(
         coin = base_coins[i-1]
         amounts.append(staticcall IERC20(coin).balanceOf(self))
 
-        staticcall IERC20(coin).transfer(_receiver, amounts[i])
+        extcall IERC20(coin).transfer(_receiver, amounts[i])
 
     return amounts
 
@@ -345,11 +345,11 @@ def remove_liquidity_one_coin(
     @param _receiver Address that receives the LP tokens
     @return Amount of underlying coin received
     """
-    staticcall IERC20(_pool).transferFrom(msg.sender, self, _burn_amount)
+    extcall IERC20(_pool).transferFrom(msg.sender, self, _burn_amount)
 
     coin_amount: uint256 = 0
     if i == 0:
-        coin_amount = StableSwapMetaNG(_pool).remove_liquidity_one_coin(
+        coin_amount = extcall StableSwapMetaNG(_pool).remove_liquidity_one_coin(
             _burn_amount, i, _min_amount, _receiver
         )
     else:
@@ -360,13 +360,13 @@ def remove_liquidity_one_coin(
 
         coin: address = base_coins[i - convert(META_N_COINS - 1, int128)]
         # Withdraw a base pool coin
-        coin_amount = StableSwapMetaNG(_pool).remove_liquidity_one_coin(
+        coin_amount = extcall StableSwapMetaNG(_pool).remove_liquidity_one_coin(
             _burn_amount, convert(META_N_COINS - 1, int128), 0, self
         )
         coin_amount = extcall StableSwapNG(base_pool).remove_liquidity_one_coin(
             coin_amount, i - convert(META_N_COINS - 1, int128), _min_amount
         )
-        staticcall IERC20(coin).transfer(_receiver, coin_amount)
+        extcall IERC20(coin).transfer(_receiver, coin_amount)
 
     return coin_amount
 
@@ -392,11 +392,11 @@ def remove_liquidity_imbalance(
     base_pool, base_coins = self._base_pool_data(_pool)
     base_n_coins: uint256 = len(base_coins)
 
-    fee: uint256 = extcall StableSwapNG(base_pool).fee() * base_n_coins // (4 * (base_n_coins - 1))
+    fee: uint256 = staticcall StableSwapNG(base_pool).fee() * base_n_coins // (4 * (base_n_coins - 1))
     fee += fee * FEE_IMPRECISION // FEE_DENOMINATOR  # Overcharge to account for imprecision
 
     # Transfer the LP token in
-    staticcall IERC20(_pool).transferFrom(msg.sender, self, _max_burn_amount)
+    extcall IERC20(_pool).transferFrom(msg.sender, self, _max_burn_amount)
 
     withdraw_base: bool = False
     amounts_base: DynArray[uint256, MAX_COINS] = empty(DynArray[uint256, MAX_COINS])
@@ -413,12 +413,12 @@ def remove_liquidity_imbalance(
 
     # determine amounts to withdraw from metapool
     if withdraw_base:
-        amounts_meta[1] = extcall StableSwapNG(base_pool).calc_token_amount(amounts_base, False)
+        amounts_meta[1] = staticcall StableSwapNG(base_pool).calc_token_amount(amounts_base, False)
         amounts_meta[1] += amounts_meta[1] * fee // FEE_DENOMINATOR + 1
 
     # withdraw from metapool and return the remaining LP tokens
-    burn_amount: uint256 = StableSwapMetaNG(_pool).remove_liquidity_imbalance(amounts_meta, _max_burn_amount)
-    staticcall IERC20(_pool).transfer(msg.sender, _max_burn_amount - burn_amount)
+    burn_amount: uint256 = extcall StableSwapMetaNG(_pool).remove_liquidity_imbalance(amounts_meta, _max_burn_amount)
+    extcall IERC20(_pool).transfer(msg.sender, _max_burn_amount - burn_amount)
 
     # withdraw from base pool
     if withdraw_base:
@@ -429,17 +429,17 @@ def remove_liquidity_imbalance(
         if leftover > 0:
             # if some base pool LP tokens remain, re-deposit them for the caller
             if not self.is_approved[coin][_pool]:
-                staticcall IERC20(coin).approve(_pool, MAX_UINT256)
+                extcall IERC20(coin).approve(_pool, max_value(uint256))
                 self.is_approved[coin][_pool] = True
-            burn_amount -= StableSwapMetaNG(_pool).add_liquidity([convert(0, uint256), leftover], 0, msg.sender)
+            burn_amount -= extcall StableSwapMetaNG(_pool).add_liquidity([convert(0, uint256), leftover], 0, msg.sender)
 
         # transfer withdrawn base pool tokens to caller
         for i: uint256 in range(base_n_coins, bound=MAX_COINS):
-            staticcall IERC20(base_coins[i]).transfer(_receiver, amounts_base[i])
+            extcall IERC20(base_coins[i]).transfer(_receiver, amounts_base[i])
 
     # transfer withdrawn metapool tokens to caller
     if _amounts[0] > 0:
-        coin: address = StableSwapMetaNG(_pool).coins(0)
-        staticcall IERC20(coin).transfer(_receiver, _amounts[0])
+        coin: address = staticcall StableSwapMetaNG(_pool).coins(0)
+        extcall IERC20(coin).transfer(_receiver, _amounts[0])
 
     return burn_amount

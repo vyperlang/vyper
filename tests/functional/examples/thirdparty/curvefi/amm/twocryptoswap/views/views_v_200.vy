@@ -76,7 +76,7 @@ def get_dy(
 
     # dy = (get_y(x + dx) - y) * (1 - fee)
     dy, xp = self._get_dy_nofee(i, j, dx, swap)
-    dy -= Curve(swap).fee_calc(xp) * dy // 10**10
+    dy -= staticcall Curve(swap).fee_calc(xp) * dy // 10**10
 
     return dy
 
@@ -95,7 +95,7 @@ def get_dx(
     # for more precise dx (but never exact), increase num loops
     for k: uint256 in range(5):
         dx, xp = self._get_dx_fee(i, j, _dy, swap)
-        fee_dy = Curve(swap).fee_calc(xp) * _dy // 10**10
+        fee_dy = staticcall Curve(swap).fee_calc(xp) * _dy // 10**10
         _dy = dy + fee_dy + 1
 
     return dx
@@ -122,7 +122,7 @@ def calc_token_amount(
 
     d_token, amountsp, xp = self._calc_dtoken_nofee(amounts, deposit, swap)
     d_token -= (
-        Curve(swap).calc_token_fee(amountsp, xp) * d_token // 10**10 + 1
+        staticcall Curve(swap).calc_token_fee(amountsp, xp) * d_token // 10**10 + 1
     )
 
     return d_token
@@ -137,7 +137,7 @@ def calc_fee_get_dy(i: uint256, j: uint256, dx: uint256, swap: address
     xp: uint256[N_COINS] = empty(uint256[N_COINS])
     dy, xp = self._get_dy_nofee(i, j, dx, swap)
 
-    return Curve(swap).fee_calc(xp) * dy // 10**10
+    return staticcall Curve(swap).fee_calc(xp) * dy // 10**10
 
 
 @external
@@ -160,7 +160,7 @@ def calc_fee_token_amount(
     xp: uint256[N_COINS] = empty(uint256[N_COINS])
     d_token, amountsp, xp = self._calc_dtoken_nofee(amounts, deposit, swap)
 
-    return Curve(swap).calc_token_fee(amountsp, xp) * d_token // 10**10 + 1
+    return staticcall Curve(swap).calc_token_fee(amountsp, xp) * d_token // 10**10 + 1
 
 
 @internal
@@ -174,9 +174,9 @@ def _calc_D_ramp(
     swap: address
 ) -> uint256:
 
-    math: Math = Curve(swap).MATH()
-    D: uint256 = Curve(swap).D()
-    if Curve(swap).future_A_gamma_time() > block.timestamp:
+    math: Math = staticcall Curve(swap).MATH()
+    D: uint256 = staticcall Curve(swap).D()
+    if staticcall Curve(swap).future_A_gamma_time() > block.timestamp:
         _xp: uint256[N_COINS] = xp
         _xp[0] *= precisions[0]
         _xp[1] = _xp[1] * price_scale * precisions[1] // PRECISION
@@ -196,7 +196,7 @@ def _get_dx_fee(
     assert i != j and i < N_COINS and j < N_COINS, "coin index out of range"
     assert dy > 0, "do not exchange out 0 coins"
 
-    math: Math = Curve(swap).MATH()
+    math: Math = staticcall Curve(swap).MATH()
 
     xp: uint256[N_COINS] = empty(uint256[N_COINS])
     precisions: uint256[N_COINS] = empty(uint256[N_COINS])
@@ -233,7 +233,7 @@ def _get_dy_nofee(
     assert i != j and i < N_COINS and j < N_COINS, "coin index out of range"
     assert dx > 0, "do not exchange 0 coins"
 
-    math: Math = Curve(swap).MATH()
+    math: Math = staticcall Curve(swap).MATH()
 
     xp: uint256[N_COINS] = empty(uint256[N_COINS])
     precisions: uint256[N_COINS] = empty(uint256[N_COINS])
@@ -269,7 +269,7 @@ def _calc_dtoken_nofee(
     amounts: uint256[N_COINS], deposit: bool, swap: address
 ) -> (uint256, uint256[N_COINS], uint256[N_COINS]):
 
-    math: Math = Curve(swap).MATH()
+    math: Math = staticcall Curve(swap).MATH()
 
     xp: uint256[N_COINS] = empty(uint256[N_COINS])
     precisions: uint256[N_COINS] = empty(uint256[N_COINS])
@@ -317,23 +317,23 @@ def _calc_withdraw_one_coin(
     swap: address
 ) -> (uint256, uint256):
 
-    token_supply: uint256 = Curve(swap).totalSupply()
+    token_supply: uint256 = staticcall Curve(swap).totalSupply()
     assert token_amount <= token_supply  # dev: token amount more than supply
     assert i < N_COINS  # dev: coin out of range
 
-    math: Math = Curve(swap).MATH()
+    math: Math = staticcall Curve(swap).MATH()
 
     xx: uint256[N_COINS] = empty(uint256[N_COINS])
     for k: uint256 in range(N_COINS):
-        xx[k] = Curve(swap).balances(k)
+        xx[k] = staticcall Curve(swap).balances(k)
 
-    precisions: uint256[N_COINS] = Curve(swap).precisions()
-    A: uint256 = Curve(swap).A()
-    gamma: uint256 = Curve(swap).gamma()
+    precisions: uint256[N_COINS] = staticcall Curve(swap).precisions()
+    A: uint256 = staticcall Curve(swap).A()
+    gamma: uint256 = staticcall Curve(swap).gamma()
     D0: uint256 = 0
     p: uint256 = 0
 
-    price_scale_i: uint256 = Curve(swap).price_scale() * precisions[1]
+    price_scale_i: uint256 = staticcall Curve(swap).price_scale() * precisions[1]
     xp: uint256[N_COINS] = [
         xx[0] * precisions[0],
         unsafe_div(xx[1] * price_scale_i, PRECISION)
@@ -341,10 +341,10 @@ def _calc_withdraw_one_coin(
     if i == 0:
         price_scale_i = PRECISION * precisions[0]
 
-    if Curve(swap).future_A_gamma_time() > block.timestamp:
+    if staticcall Curve(swap).future_A_gamma_time() > block.timestamp:
         D0 = staticcall math.newton_D(A, gamma, xp, 0)
     else:
-        D0 = Curve(swap).D()
+        D0 = staticcall Curve(swap).D()
 
     D: uint256 = D0
 
@@ -367,7 +367,7 @@ def _calc_withdraw_one_coin(
 @view
 def _fee(xp: uint256[N_COINS], swap: address) -> uint256:
 
-    packed_fee_params: uint256 = Curve(swap).packed_fee_params()
+    packed_fee_params: uint256 = staticcall Curve(swap).packed_fee_params()
     fee_params: uint256[3] = self._unpack_3(packed_fee_params)
     f: uint256 = xp[0] + xp[1]
     f = fee_params[2] * 10**18 // (
@@ -390,16 +390,16 @@ def _prep_calc(swap: address) -> (
     uint256[N_COINS]
 ):
 
-    precisions: uint256[N_COINS] = Curve(swap).precisions()
-    token_supply: uint256 = Curve(swap).totalSupply()
+    precisions: uint256[N_COINS] = staticcall Curve(swap).precisions()
+    token_supply: uint256 = staticcall Curve(swap).totalSupply()
     xp: uint256[N_COINS] = empty(uint256[N_COINS])
     for k: uint256 in range(N_COINS):
-        xp[k] = Curve(swap).balances(k)
+        xp[k] = staticcall Curve(swap).balances(k)
 
-    price_scale: uint256 = Curve(swap).price_scale()
+    price_scale: uint256 = staticcall Curve(swap).price_scale()
 
-    A: uint256 = Curve(swap).A()
-    gamma: uint256 = Curve(swap).gamma()
+    A: uint256 = staticcall Curve(swap).A()
+    gamma: uint256 = staticcall Curve(swap).gamma()
     D: uint256 = self._calc_D_ramp(
         A, gamma, xp, precisions, price_scale, swap
     )

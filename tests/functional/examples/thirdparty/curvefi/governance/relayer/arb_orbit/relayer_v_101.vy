@@ -66,7 +66,7 @@ def relay(_agent: Agent, _messages: DynArray[Message, MAX_MESSAGES]):
     @param _agent The agent to relay messages to.
     @param _messages The sequence of messages to relay.
     """
-    assert IArbSys(ARBSYS).wasMyCallersAddressAliased()
-    assert IArbSys(ARBSYS).myCallersAddressWithoutAliasing() == BROADCASTER
+    assert staticcall IArbSys(ARBSYS).wasMyCallersAddressAliased()
+    assert staticcall IArbSys(ARBSYS).myCallersAddressWithoutAliasing() == BROADCASTER
 
-    IAgent(self.agent[_agent]).execute(_messages)
+    extcall IAgent(self.agent[_agent]).execute(_messages)

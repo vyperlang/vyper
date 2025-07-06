@@ -102,18 +102,18 @@ def _psuedo_mint(_gauge: address, _user: address):
     assert gauge_data != 0  # dev: invalid gauge
 
     # if is_mirrored and last_request != this week
-    if bitwise_and(gauge_data, 2) != 0 and shift(gauge_data, -2) // WEEK != block.timestamp // WEEK:
-        CallProxy(self.call_proxy).anyCall(
+    if gauge_data & 2 != 0 and (gauge_data >> 2) // WEEK != block.timestamp // WEEK:
+        extcall CallProxy(self.call_proxy).anyCall(
             self,
             abi_encode(_gauge, method_id=method_id("transmit_emissions(address)")),
             empty(address),
             1,
         )
         # update last request time
-        self.gauge_data[_gauge] = shift(block.timestamp, 2) + 3
+        self.gauge_data[_gauge] = block.timestamp << 2 + 3
 
-    assert ChildGauge(_gauge).user_checkpoint(_user)
-    total_mint: uint256 = ChildGauge(_gauge).integrate_fraction(_user)
+    assert extcall ChildGauge(_gauge).user_checkpoint(_user)
+    total_mint: uint256 = staticcall ChildGauge(_gauge).integrate_fraction(_user)
     to_mint: uint256 = total_mint - self.minted[_user][_gauge]
 
     if to_mint != 0:
@@ -176,7 +176,7 @@ def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address = msg.sen
         gauge_data += 2  # set mirrored = True
         log UpdateMirrored(gauge, True)
         # issue a call to the root chain to deploy a root gauge
-        CallProxy(self.call_proxy).anyCall(
+        extcall CallProxy(self.call_proxy).anyCall(
             self,
             abi_encode(chain.id, _salt, method_id=method_id("deploy_gauge(uint256,bytes32)")),
             empty(address),
@@ -203,7 +203,7 @@ def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address = msg.sen
 
     # If root is uninitilised, self.owner can always set the root gauge manually
     # on the gauge contract itself via set_root_gauge method
-    ChildGauge(gauge).initialize(_lp_token, root, _manager)
+    extcall ChildGauge(gauge).initialize(_lp_token, root, _manager)
 
     log DeployedGauge(implementation, _lp_token, msg.sender, _salt, gauge)
     return gauge

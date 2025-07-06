@@ -64,7 +64,7 @@ def relay(_agent: Agent, _messages: DynArray[Message, MAX_MESSAGES]):
     """
     assert msg.sender == self.messenger
 
-    IAgent(self.agent[_agent]).execute(_messages)
+    extcall IAgent(self.agent[_agent]).execute(_messages)
 
 
 @external

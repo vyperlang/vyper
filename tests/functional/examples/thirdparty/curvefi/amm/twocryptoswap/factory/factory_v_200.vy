@@ -438,7 +438,7 @@ def get_balances(_pool: address) -> uint256[N_COINS]:
     @param _pool Pool address
     @return uint256 list of balances
     """
-    return [TwocryptoPool(_pool).balances(0), TwocryptoPool(_pool).balances(1)]
+    return [staticcall TwocryptoPool(_pool).balances(0), staticcall TwocryptoPool(_pool).balances(1)]
 
 
 @view

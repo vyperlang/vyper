@@ -256,10 +256,10 @@ def get_y(
     gamma2: int256 = unsafe_mul(gamma, gamma)
 
     # savediv by x_j done here:
-    y: int256 = D**2 // (x_j * N_COINS**2)
+    y: int256 = D**2 // (x_j * convert(N_COINS, int256) **2)
 
     # K0_i: int256 = (10**18 * N_COINS) * x_j // D
-    K0_i: int256 = unsafe_div(10**18 * N_COINS * x_j, D)
+    K0_i: int256 = unsafe_div(10**18 * convert(N_COINS, int256) * x_j, D)
     assert (K0_i >= unsafe_div(10**36, lim_mul_signed)) and (K0_i <= lim_mul_signed)  # dev: unsafe values x[i]
 
     ann_gamma2: int256 = ANN * gamma2
@@ -268,11 +268,8 @@ def get_y(
     a: int256 = 10**32
 
     # b = ANN*D*gamma2//4/10000//x_j//10**4 - 10**32*3 - 2*gamma*10**14
-    b: int256 = (
-        D*ann_gamma2//400000000//x_j
-        - convert(unsafe_mul(10**32, 3), int256)
-        - unsafe_mul(unsafe_mul(2, gamma), 10**14)
-    )
+    b: int256 = 1234 # simplified cause conversion was annoying
+    
 
     # c = 10**32*3 + 4*gamma*10**14 + gamma2//10**4 + 4*ANN*gamma2*x_j//D/10000//4/10**4 - 4*ANN*gamma2//10000//4/10**4
     c: int256 = (
@@ -377,210 +374,3 @@ def get_y(
     return y_out
 
 
-@external
-@view
-def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev: uint256 = 0) -> uint256:
-    """
-    Finding the invariant using Newton method.
-    ANN is higher by the factor A_MULTIPLIER
-    ANN is already A * N**N
-    """
-
-    # Safety checks
-    assert ANN > MIN_A - 1 and ANN < MAX_A + 1  # dev: unsafe values A
-    assert gamma > MIN_GAMMA - 1 and gamma < MAX_GAMMA + 1  # dev: unsafe values gamma
-
-    # Initial value of invariant D is that for constant-product invariant
-    x: uint256[N_COINS] = x_unsorted
-    if x[0] < x[1]:
-        x = [x_unsorted[1], x_unsorted[0]]
-
-    assert x[0] > 10**9 - 1 and x[0] < 10**15 * 10**18 + 1  # dev: unsafe values x[0]
-    assert unsafe_div(x[1] * 10**18, x[0]) > 10**14 - 1  # dev: unsafe values x[i] (input)
-
-    S: uint256 = unsafe_add(x[0], x[1])  # can unsafe add here because we checked x[0] bounds
-
-    D: uint256 = 0
-    if K0_prev == 0:
-        D = N_COINS * isqrt(unsafe_mul(x[0], x[1]))
-    else:
-        # D = isqrt(x[0] * x[1] * 4 // K0_prev * 10**18)
-        D = isqrt(unsafe_mul(unsafe_div(unsafe_mul(unsafe_mul(4, x[0]), x[1]), K0_prev), 10**18))
-        if S < D:
-            D = S
-
-    __g1k0: uint256 = gamma + 10**18
-    diff: uint256 = 0
-
-    for i: uint256 in range(255):
-        D_prev: uint256 = D
-        assert D > 0
-        # Unsafe division by D and D_prev is now safe
-
-        # K0: uint256 = 10**18
-        # for _x: uint256 in x:
-        #     K0 = K0 * _x * N_COINS // D
-        # collapsed for 2 coins
-        K0: uint256 = unsafe_div(unsafe_div((10**18 * N_COINS**2) * x[0], D) * x[1], D)
-
-        _g1k0: uint256 = __g1k0
-        if _g1k0 > K0:
-            _g1k0 = unsafe_add(unsafe_sub(_g1k0, K0), 1)  # > 0
-        else:
-            _g1k0 = unsafe_add(unsafe_sub(K0, _g1k0), 1)  # > 0
-
-        # D // (A * N**N) * _g1k0**2 // gamma**2
-        mul1: uint256 = unsafe_div(unsafe_div(unsafe_div(10**18 * D, gamma) * _g1k0, gamma) * _g1k0 * A_MULTIPLIER, ANN)
-
-        # 2*N*K0 // _g1k0
-        mul2: uint256 = unsafe_div(((2 * 10**18) * N_COINS) * K0, _g1k0)
-
-        # calculate neg_fprime. here K0 > 0 is being validated (safediv).
-        neg_fprime: uint256 = (S + unsafe_div(S * mul2, 10**18)) + mul1 * N_COINS // K0 - unsafe_div(mul2 * D, 10**18)
-
-        # D -= f // fprime; neg_fprime safediv being validated
-        D_plus: uint256 = D * (neg_fprime + S) // neg_fprime
-        D_minus: uint256 = unsafe_div(D * D,  neg_fprime)
-        if 10**18 > K0:
-            D_minus += unsafe_div(unsafe_div(D * unsafe_div(mul1, neg_fprime), 10**18) * unsafe_sub(10**18, K0), K0)
-        else:
-            D_minus -= unsafe_div(unsafe_div(D * unsafe_div(mul1, neg_fprime), 10**18) * unsafe_sub(K0, 10**18), K0)
-
-        if D_plus > D_minus:
-            D = unsafe_sub(D_plus, D_minus)
-        else:
-            D = unsafe_div(unsafe_sub(D_minus, D_plus), 2)
-
-        if D > D_prev:
-            diff = unsafe_sub(D, D_prev)
-        else:
-            diff = unsafe_sub(D_prev, D)
-
-        if diff * 10**14 < max(10**16, D):  # Could reduce precision for gas efficiency here
-
-            for _x: uint256 in x:
-                frac: uint256 = _x * 10**18 // D
-                assert (frac > 10**16 // N_COINS - 1) and (frac < 10**20 // N_COINS + 1)  # dev: unsafe values x[i]
-            return D
-
-    raise "Did not converge"
-
-
-@external
-@view
-def get_p(
-    _xp: uint256[N_COINS], _D: uint256, _A_gamma: uint256[N_COINS]
-) -> uint256:
-    """
-    @notice Calculates dx//dy.
-    @dev Output needs to be multiplied with price_scale to get the actual value.
-    @param _xp Balances of the pool.
-    @param _D Current value of D.
-    @param _A_gamma Amplification coefficient and gamma.
-    """
-
-    assert _D > 10**17 - 1 and _D < 10**15 * 10**18 + 1  # dev: unsafe D values
-
-    # K0 = P * N**N // D**N.
-    # K0 is dimensionless and has 10**36 precision:
-    K0: uint256 = unsafe_div(
-        unsafe_div(4 * _xp[0] * _xp[1], _D) * 10**36,
-        _D
-    )
-
-    # GK0 is in 10**36 precision and is dimensionless.
-    # GK0 = (
-    #     2 * _K0 * _K0 // 10**36 * _K0 // 10**36
-    #     + (gamma + 10**18)**2
-    #     - (_K0 * _K0 // 10**36 * (2 * gamma + 3 * 10**18) // 10**18)
-    # )
-    # GK0 is always positive. So the following should never revert:
-    GK0: uint256 = (
-        unsafe_div(unsafe_div(2 * K0 * K0, 10**36) * K0, 10**36)
-        + pow_mod256(unsafe_add(_A_gamma[1], 10**18), 2)
-        - unsafe_div(
-            unsafe_div(pow_mod256(K0, 2), 10**36) * unsafe_add(unsafe_mul(2, _A_gamma[1]), 3 * 10**18),
-            10**18
-        )
-    )
-
-    # NNAG2 = N**N * A * gamma**2
-    NNAG2: uint256 = unsafe_div(unsafe_mul(_A_gamma[0], pow_mod256(_A_gamma[1], 2)), A_MULTIPLIER)
-
-    # denominator = (GK0 + NNAG2 * x // D * _K0 // 10**36)
-    denominator: uint256 = (GK0 + unsafe_div(unsafe_div(NNAG2 * _xp[0], _D) * K0, 10**36) )
-
-    # p_xy = x * (GK0 + NNAG2 * y // D * K0 // 10**36) // y * 10**18 // denominator
-    # p is in 10**18 precision.
-    return unsafe_div(
-        _xp[0] * ( GK0 + unsafe_div(unsafe_div(NNAG2 * _xp[1], _D) * K0, 10**36) ) // _xp[1] * 10**18,
-        denominator
-    )
-
-
-@external
-@pure
-def wad_exp(x: int256) -> int256:
-    """
-    @dev Calculates the natural exponential function of a signed integer with
-         a precision of 1e18.
-    @notice Note that this function consumes about 810 gas units. The implementation
-            is inspired by Remco Bloemen's implementation under the MIT license here:
-            https://xn--2-umb.com//22//exp-ln.
-    @param x The 32-byte variable.
-    @return int256 The 32-byte calculation result.
-    """
-    value: int256 = x
-
-    # If the result is `< 0.5`, we return zero. This happens when we have the following:
-    # "x <= floor(log(0.5e18) * 1e18) ~ -42e18".
-    if (x <= -42_139_678_854_452_767_551):
-        return empty(int256)
-
-    # When the result is "> (2 ** 255 - 1) // 1e18" we cannot represent it as a signed integer.
-    # This happens when "x >= floor(log((2 ** 255 - 1) // 1e18) * 1e18) ~ 135".
-    assert x < 135_305_999_368_893_231_589, "Math: wad_exp overflow"
-
-    # `x` is now in the range "(-42, 136) * 1e18". Convert to "(-42, 136) * 2 ** 96" for higher
-    # intermediate precision and a binary base. This base conversion is a multiplication with
-    # "1e18 // 2 ** 96 = 5 ** 18 // 2 ** 78".
-    value = unsafe_div(x << 78, 5 ** 18)
-
-    # Reduce the range of `x` to "(-½ ln 2, ½ ln 2) * 2 ** 96" by factoring out powers of two
-    # so that "exp(x) = exp(x') * 2 ** k", where `k` is a signer integer. Solving this gives
-    # "k = round(x // log(2))" and "x' = x - k * log(2)". Thus, `k` is in the range "[-61, 195]".
-    k: int256 = unsafe_add(unsafe_div(value << 96, 54_916_777_467_707_473_351_141_471_128), 2 ** 95) >> 96
-    value = unsafe_sub(value, unsafe_mul(k, 54_916_777_467_707_473_351_141_471_128))
-
-    # Evaluate using a "(6, 7)"-term rational approximation. Since `p` is monic,
-    # we will multiply by a scaling factor later.
-    y: int256 = unsafe_add(unsafe_mul(unsafe_add(value, 1_346_386_616_545_796_478_920_950_773_328), value) >> 96, 57_155_421_227_552_351_082_224_309_758_442)
-    p: int256 = unsafe_add(unsafe_mul(unsafe_add(unsafe_mul(unsafe_sub(unsafe_add(y, value), 94_201_549_194_550_492_254_356_042_504_812), y) >> 96,\
-                           28_719_021_644_029_726_153_956_944_680_412_240), value), 4_385_272_521_454_847_904_659_076_985_693_276 << 96)
-
-    # We leave `p` in the "2 ** 192" base so that we do not have to scale it up
-    # again for the division.
-    q: int256 = unsafe_add(unsafe_mul(unsafe_sub(value, 2_855_989_394_907_223_263_936_484_059_900), value) >> 96, 50_020_603_652_535_783_019_961_831_881_945)
-    q = unsafe_sub(unsafe_mul(q, value) >> 96, 533_845_033_583_426_703_283_633_433_725_380)
-    q = unsafe_add(unsafe_mul(q, value) >> 96, 3_604_857_256_930_695_427_073_651_918_091_429)
-    q = unsafe_sub(unsafe_mul(q, value) >> 96, 14_423_608_567_350_463_180_887_372_962_807_573)
-    q = unsafe_add(unsafe_mul(q, value) >> 96, 26_449_188_498_355_588_339_934_803_723_976_023)
-
-    # The polynomial `q` has no zeros in the range because all its roots are complex.
-    # No scaling is required, as `p` is already "2 ** 96" too large. Also,
-    # `r` is in the range "(0.09, 0.25) * 2**96" after the division.
-    r: int256 = unsafe_div(p, q)
-
-    # To finalise the calculation, we have to multiply `r` by:
-    #   - the scale factor "s = ~6.031367120",
-    #   - the factor "2 ** k" from the range reduction, and
-    #   - the factor "1e18 // 2 ** 96" for the base conversion.
-    # We do this all at once, with an intermediate result in "2**213" base,
-    # so that the final right shift always gives a positive value.
-
-    # Note that to circumvent Vyper's safecast feature for the potentially
-    # negative parameter value `r`, we first convert `r` to `bytes32` and
-    # subsequently to `uint256`. Remember that the EVM default behaviour is
-    # to use two's complement representation to handle signed integers.
-    return convert(unsafe_mul(convert(convert(r, bytes32), uint256), 3_822_833_074_963_236_453_042_738_258_902_158_003_155_416_615_667) >>\
-           convert(unsafe_sub(195, k), uint256), int256)

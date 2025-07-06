@@ -122,7 +122,7 @@ def exchange(
         assert msg.value == amount
     else:
         assert msg.value == 0
-        assert staticcall IERC20(input_token).transferFrom(msg.sender, self, amount, default_return_value=True)
+        assert extcall IERC20(input_token).transferFrom(msg.sender, self, amount, default_return_value=True)
 
     for i: uint256 in range(5):
         # 5 rounds of iteration to perform up to 5 swaps
@@ -136,40 +136,40 @@ def exchange(
             output_token_initial_balance = staticcall IERC20(output_token).balanceOf(self)
 
         if not self.is_approved[input_token][swap]:
-            assert staticcall IERC20(input_token).approve(swap, max_value(uint256), default_return_value=True, skip_contract_check=True)
+            assert extcall IERC20(input_token).approve(swap, max_value(uint256), default_return_value=True, skip_contract_check=True)
             self.is_approved[input_token][swap] = True
 
         # perform the swap according to the swap type
         if params[2] == 1:
             if params[3] == 10:  # stable-ng
-                StableNgPool(swap).exchange(convert(params[0], int128), convert(params[1], int128), amount, 0)
+                extcall StableNgPool(swap).exchange(convert(params[0], int128), convert(params[1], int128), amount, 0)
             else:  # twocrypto-ng, tricrypto-ng, llamma
-                CryptoNgPool(swap).exchange(params[0], params[1], amount, 0)
+                extcall CryptoNgPool(swap).exchange(params[0], params[1], amount, 0)
         elif params[2] == 2:  # stable-ng metapools
-            StableNgMetaPool(swap).exchange_underlying(convert(params[0], int128), convert(params[1], int128), amount, 0)
+            extcall StableNgMetaPool(swap).exchange_underlying(convert(params[0], int128), convert(params[1], int128), amount, 0)
         elif params[2] == 4:
             if params[3] == 10:  # stable-ng
                 amounts: DynArray[uint256, 8] = [0, 0, 0, 0, 0, 0, 0, 0]
                 amounts[params[0]] = amount
-                StableNgPool(swap).add_liquidity(amounts, 0)
+                extcall StableNgPool(swap).add_liquidity(amounts, 0)
             elif params[3] == 20:  # twocrypto-ng
                 amounts: uint256[2] = [0, 0]
                 amounts[params[0]] = amount
-                TwoCryptoNgPool(swap).add_liquidity(amounts, 0)
+                extcall TwoCryptoNgPool(swap).add_liquidity(amounts, 0)
             elif params[3] == 30:  # tricrypto-ng
                 amounts: uint256[3] = [0, 0, 0]
                 amounts[params[0]] = amount
-                TriCryptoNgPool(swap).add_liquidity(amounts, 0)
+                extcall TriCryptoNgPool(swap).add_liquidity(amounts, 0)
         elif params[2] == 6:
             if params[3] == 10:  # stable-ng
-                StableNgPool(swap).remove_liquidity_one_coin(amount, convert(params[1], int128), 0)
+                extcall StableNgPool(swap).remove_liquidity_one_coin(amount, convert(params[1], int128), 0)
             else:  # twocrypto-ng, tricrypto-ng
-                CryptoNgPool(swap).remove_liquidity_one_coin(amount, params[1], 0)
+                extcall CryptoNgPool(swap).remove_liquidity_one_coin(amount, params[1], 0)
         elif params[2] == 8:
             if input_token == ETH_ADDRESS and output_token == WETH_ADDRESS:
-                WETH(swap).deposit(value=amount)
+                extcall WETH(swap).deposit(value=amount)
             elif input_token == WETH_ADDRESS and output_token == ETH_ADDRESS:
-                WETH(swap).withdraw(amount)
+                extcall WETH(swap).withdraw(amount)
             else:
                 raise "Swap type 8 is only for ETH <-> WETH"
         else:
@@ -197,7 +197,7 @@ def exchange(
     if output_token == ETH_ADDRESS:
         raw_call(_receiver, b"", value=amount)
     else:
-        assert staticcall IERC20(output_token).transfer(_receiver, amount, default_return_value=True)
+        assert extcall IERC20(output_token).transfer(_receiver, amount, default_return_value=True)
 
     log Exchange(msg.sender, _receiver, _route, _swap_params, _amount, amount)
 
@@ -247,29 +247,29 @@ def get_dy(
         # Calc output amount according to the swap type
         if params[2] == 1:
             if params[3] == 10:  # stable_ng
-                amount = StableNgPool(swap).get_dy(convert(params[0], int128), convert(params[1], int128), amount)
+                amount = staticcall StableNgPool(swap).get_dy(convert(params[0], int128), convert(params[1], int128), amount)
             else:  # twocrypto-ng, tricrypto-ng, llamma
-                amount = CryptoNgPool(swap).get_dy(params[0], params[1], amount)
+                amount = staticcall CryptoNgPool(swap).get_dy(params[0], params[1], amount)
         elif params[2] == 2:  # stable-ng metapools
-                amount = StableNgMetaPool(swap).get_dy_underlying(convert(params[0], int128), convert(params[1], int128), amount)
+                amount = staticcall StableNgMetaPool(swap).get_dy_underlying(convert(params[0], int128), convert(params[1], int128), amount)
         elif params[2] == 4:
             if params[3] == 10:  # stable-ng
                 amounts: DynArray[uint256, 8] = [0, 0, 0, 0, 0, 0, 0, 0]
                 amounts[params[0]] = amount
-                amount = StableNgPool(swap).calc_token_amount(amounts, True)
+                amount = staticcall StableNgPool(swap).calc_token_amount(amounts, True)
             elif params[3] == 20:  # twocrypto-ng
                 amounts: uint256[2] = [0, 0]
                 amounts[params[0]] = amount
-                amount = TwoCryptoNgPool(swap).calc_token_amount(amounts, True)
+                amount = staticcall TwoCryptoNgPool(swap).calc_token_amount(amounts, True)
             elif params[3] == 30:  # tricrypto-ng
                 amounts: uint256[3] = [0, 0, 0]
                 amounts[params[0]] = amount
-                amount = TriCryptoNgPool(swap).calc_token_amount(amounts, True)
+                amount = staticcall TriCryptoNgPool(swap).calc_token_amount(amounts, True)
         elif params[2] == 6:
             if params[3] == 10:  # stable-ng
-                amount = StableNgPool(swap).calc_withdraw_one_coin(amount, convert(params[1], int128))
+                amount = staticcall StableNgPool(swap).calc_withdraw_one_coin(amount, convert(params[1], int128))
             else:  # twocrypto-ng, tricrypto-ng
-                amount = CryptoNgPool(swap).calc_withdraw_one_coin(amount, params[1])
+                amount = staticcall CryptoNgPool(swap).calc_withdraw_one_coin(amount, params[1])
         elif params[2] == 8:
             # ETH <--> WETH rate is 1:1
             pass
@@ -332,35 +332,35 @@ def get_dx(
         # Calc a required input amount according to the swap type
         if params[2] == 1:
             if params[3] == 10:  # stable-ng
-                amount = StableNgPool(swap).get_dx(convert(params[0], int128), convert(params[1], int128), amount)
+                amount = staticcall StableNgPool(swap).get_dx(convert(params[0], int128), convert(params[1], int128), amount)
             else:  # twocrypto-ng, tricrypto-ng, llamma
-                amount = CryptoNgPool(swap).get_dx(params[0], params[1], amount)
+                amount = staticcall CryptoNgPool(swap).get_dx(params[0], params[1], amount)
         elif params[2] == 2:  # stable-ng metapool
             _n: int128 = convert(params[0], int128)
             _k: int128 = convert(params[1], int128)
             if _n > 0 and _k > 0:
-                amount = StableNgPool(base_pool).get_dx(_n - 1, _k - 1, amount)
+                amount = staticcall StableNgPool(base_pool).get_dx(_n - 1, _k - 1, amount)
             else:
-                amount = StableNgMetaPool(swap).get_dx_underlying(_n, _k, amount)
+                amount = staticcall StableNgMetaPool(swap).get_dx_underlying(_n, _k, amount)
         elif params[2] == 4:
             # This is not correct. Should be something like calc_add_one_coin. But tests say that it's precise enough.
             if params[3] == 10:  # stable_ng
-                amount = StableNgPool(swap).calc_withdraw_one_coin(amount, convert(params[0], int128))
+                amount = staticcall StableNgPool(swap).calc_withdraw_one_coin(amount, convert(params[0], int128))
             else:  # twocrypto-ng, tricrypto-ng
-                amount = CryptoNgPool(swap).calc_withdraw_one_coin(amount, params[0])
+                amount = staticcall CryptoNgPool(swap).calc_withdraw_one_coin(amount, params[0])
         elif params[2] == 6:
             if params[3] == 10:  # stable-ng
                 amounts: DynArray[uint256, 8] = [0, 0, 0, 0, 0, 0, 0, 0]
                 amounts[params[1]] = amount
-                amount = StableNgPool(swap).calc_token_amount(amounts, False)
+                amount = staticcall StableNgPool(swap).calc_token_amount(amounts, False)
             elif params[3] == 20:  # twocrypto-ng
                 amounts: uint256[2] = [0, 0]
                 amounts[params[1]] = amount
-                amount = TwoCryptoNgPool(swap).calc_token_amount(amounts, False)
+                amount = staticcall TwoCryptoNgPool(swap).calc_token_amount(amounts, False)
             elif params[3] == 30:  # tricrypto-ng
                 amounts: uint256[3] = [0, 0, 0]
                 amounts[params[1]] = amount
-                amount = TriCryptoNgPool(swap).calc_token_amount(amounts, False)
+                amount = staticcall TriCryptoNgPool(swap).calc_token_amount(amounts, False)
         elif params[2] == 8:
             # ETH <--> WETH rate is 1:1
             pass
