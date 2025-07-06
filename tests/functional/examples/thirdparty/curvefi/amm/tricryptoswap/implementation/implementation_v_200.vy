@@ -1,6 +1,4 @@
 # pragma version >=0.4.2
-# pragma optimize gas
-# pragma evm-version paris
 
 """
 @title CurveTricryptoSwap

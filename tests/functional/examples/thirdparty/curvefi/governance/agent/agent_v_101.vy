@@ -1,5 +1,4 @@
 # pragma version >=0.4.2
-# pragma evm-version shanghai
 """
 @title Agent
 @author CurveFi

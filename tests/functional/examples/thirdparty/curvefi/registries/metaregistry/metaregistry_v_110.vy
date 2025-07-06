@@ -1,5 +1,4 @@
 # pragma version >=0.4.2
-# pragma evm-version paris
 """
 @title CurveMetaRegistry
 @custom:version 1.1.0

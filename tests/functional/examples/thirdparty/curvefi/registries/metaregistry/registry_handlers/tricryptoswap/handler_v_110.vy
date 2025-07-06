@@ -1,5 +1,4 @@
 # pragma version >=0.4.2
-# pragma evm-version paris
 """
 @title CurveTricryptoSwapFactoryHandler
 @custom:version 1.1.0

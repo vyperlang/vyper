@@ -1,5 +1,4 @@
 # pragma version >=0.4.2
-# pragma evm-version paris
 """
 @title CurveXChainLiquidityGaugeFactory
 @custom:version 2.0.1
