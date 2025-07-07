@@ -1,3 +1,4 @@
+from vyper.venom import _resolve_const_operands
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.context import IRContext
@@ -74,6 +75,9 @@ class PrePostChecker:
             hevm = self.default_hevm
 
         pre_ctx = parse_from_basic_block(pre)
+        # Resolve const expressions before running passes
+        _resolve_const_operands(pre_ctx)
+
         for fn in pre_ctx.functions.values():
             ac = IRAnalysesCache(fn)
             for p in self.passes:
@@ -82,6 +86,9 @@ class PrePostChecker:
                 obj.run_pass()
 
         post_ctx = parse_from_basic_block(post)
+        # Resolve const expressions before running passes
+        _resolve_const_operands(post_ctx)
+
         for fn in post_ctx.functions.values():
             ac = IRAnalysesCache(fn)
             for p in self.post_passes:

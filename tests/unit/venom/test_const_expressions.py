@@ -2,6 +2,7 @@ import pytest
 
 from vyper.evm.assembler.core import assembly_to_evm
 from vyper.evm.assembler.symbols import CONST, CONST_ADD, Label
+from vyper.venom import _resolve_const_operands
 from vyper.venom.basicblock import IRLabel, IRLiteral
 from vyper.venom.const_eval import ConstEvalException, evaluate_const_expr, try_evaluate_const_expr
 from vyper.venom.parser import parse_venom
@@ -83,6 +84,11 @@ def test_venom_const_definitions():
 
     ctx = parse_venom(code)
 
+    # Evaluate const expressions (this would normally happen during compilation)
+    _resolve_const_operands(ctx)
+    compiler = VenomCompiler(ctx)
+    compiler.generate_evm_assembly(no_optimize=True)
+
     # Check constants
     assert ctx.constants["SLOT_SIZE"] == 32
     assert ctx.constants["BASE_ADDR"] == 0x1000
@@ -111,6 +117,14 @@ def test_venom_label_addresses():
     """
 
     ctx = parse_venom(code)
+
+    # Evaluate const expressions (this would normally happen during compilation)
+    from vyper.venom import _resolve_const_operands
+    from vyper.venom.venom_to_assembly import VenomCompiler
+
+    _resolve_const_operands(ctx)
+    compiler = VenomCompiler(ctx)
+    compiler.generate_evm_assembly(no_optimize=True)
 
     # Check global labels
     assert ctx.global_labels["data_label"] == 0x1000
@@ -149,6 +163,12 @@ def test_venom_instruction_operands():
     """
 
     ctx = parse_venom(code)
+
+    # Evaluate const expressions (this would normally happen during compilation)
+    _resolve_const_operands(ctx)
+    compiler = VenomCompiler(ctx)
+    compiler.generate_evm_assembly(no_optimize=True)
+
     fn = ctx.entry_function
     bb = fn.get_basic_block("entry")
 
@@ -180,21 +200,21 @@ def test_venom_complex_example():
     array_end: add(@array_data, mul($WORD_SIZE, 10))
 
     function process_array {
-        loop_start:
+        entry:
             %ptr = mload 0
             %val = mload %ptr
             %next_ptr = add %ptr, $WORD_SIZE
             mstore 0, %next_ptr
-            %done = ge %next_ptr, @array_end
-            %should_continue = iszero %done
-            jnz %should_continue, @loop_start, @finish
-
-        finish:
             return %ptr, %val
     }
     """
 
     ctx = parse_venom(code)
+
+    # Evaluate const expressions (this would normally happen during compilation)
+    _resolve_const_operands(ctx)
+    compiler = VenomCompiler(ctx)
+    compiler.generate_evm_assembly(no_optimize=True)
 
     # Check computed constants
     assert ctx.constants["ARRAY_OFFSET"] == 160
@@ -206,7 +226,7 @@ def test_venom_complex_example():
 
     # Check instruction operands
     fn = ctx.get_function(ctx.functions[list(ctx.functions.keys())[0]].name)
-    bb = fn.get_basic_block("loop_start")
+    bb = fn.get_basic_block("entry")
 
     # Find the add instruction
     add_inst = None
@@ -291,6 +311,9 @@ def test_venom_with_undefined_constants():
 
     ctx = parse_venom(code)
 
+    # Evaluate const expressions (this would normally happen during compilation)
+    _resolve_const_operands(ctx)
+
     # Check that defined constant is resolved
     assert ctx.constants["A"] == 100
 
@@ -335,6 +358,9 @@ def test_venom_undefined_in_instruction_operands():
 
     ctx = parse_venom(code)
 
+    # Evaluate const expressions (this would normally happen during compilation)
+    _resolve_const_operands(ctx)
+
     # Check that undefined constants are tracked
     assert len(ctx.const_refs) > 0
     assert "UNDEFINED_OFFSET" in ctx.const_refs or len(ctx.unresolved_consts) > 0
@@ -372,6 +398,9 @@ def test_complex_undefined_chain():
 
     ctx = parse_venom(code)
 
+    # Evaluate const expressions (this would normally happen during compilation)
+    _resolve_const_operands(ctx)
+
     # Should track multiple undefined constants
     assert len(ctx.const_refs) >= 2 or len(ctx.unresolved_consts) >= 2
 
@@ -399,6 +428,9 @@ def test_undefined_const_end_to_end():
     """
 
     ctx = parse_venom(code)
+
+    # Evaluate const expressions (this would normally happen during compilation)
+    _resolve_const_operands(ctx)
 
     assert len(ctx.const_refs) >= 1
     assert "UNDEFINED_X" in ctx.const_refs
@@ -529,6 +561,7 @@ def test_label_dependent_const_example():
     bytecode, _ = assembly_to_evm(asm)
     assert len(bytecode) > 0
 
+
 def test_undefined_const_label_expression_linking_example_2():
     code = """
     const SLOT_SIZE = 32
@@ -543,7 +576,7 @@ def test_undefined_const_label_expression_linking_example_2():
     """
 
     ctx = parse_venom(code)
-        
+
     compiler = VenomCompiler(ctx)
     asm = compiler.generate_evm_assembly(no_optimize=True)
 

@@ -209,7 +209,6 @@ class IRHexString(IROperand):
         return f'x"{self.value.hex()}"'
 
 
-
 class IRLabel(IROperand):
     """
     IRLabel represents a label in IR. A label is a string that starts with a %.

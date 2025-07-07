@@ -291,7 +291,8 @@ def _resolve_label_dependent_constants(
                     # Check overflow for label-dependent constants
                     if item.name in label_dependent_consts and value > max_push2_value:
                         raise CompilerPanic(
-                            f"Label-dependent constant '{item.name}' has value {value} (constants involving labels must fit in PUSH2 instructions) "
+                            f"Label-dependent constant '{item.name}' has value {value} "
+                            "(constants involving labels must fit in PUSH2 instructions)"
                         )
                     _add_to_symbol_map(symbol_map, const_ref, value)
                     changed = True

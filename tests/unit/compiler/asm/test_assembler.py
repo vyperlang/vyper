@@ -1,12 +1,6 @@
 import pytest
 
-from vyper.evm.assembler.core import (
-    PUSH_OFST,
-    _assembly_to_evm,
-    _resolve_constants,
-    assembly_to_evm,
-    resolve_symbols,
-)
+from vyper.evm.assembler.core import PUSH_OFST, _resolve_constants, assembly_to_evm, resolve_symbols
 from vyper.evm.assembler.symbols import CONST, CONST_ADD, CONST_MAX, CONST_SUB, CONSTREF, Label
 from vyper.exceptions import CompilerPanic
 
@@ -64,7 +58,6 @@ def test_const_add_with_label():
     assert len(bytecode) > 0
 
 
-
 def test_const_add_with_label_overflow():
     # Create assembly with a large offset that will overflow when added to a label
     asm = [
@@ -80,4 +73,3 @@ def test_const_add_with_label_overflow():
         resolve_symbols(asm)
 
     assert "will_overflow" in str(exc_info.value)
-

@@ -10,7 +10,7 @@ Supports simple expressions with function-style notation:
 from typing import Any, Union
 
 from vyper.exceptions import CompilerPanic
-from vyper.venom.basicblock import IRLiteral
+from vyper.venom.basicblock import IRLabel, IRLiteral
 
 
 class ConstEvalException(CompilerPanic):
@@ -35,6 +35,13 @@ def evaluate_const_expr(expr: Any, constants: dict[str, int], global_labels: dic
 
     if isinstance(expr, IRLiteral):
         return expr.value
+
+    if isinstance(expr, IRLabel):
+        # Handle IRLabel objects
+        label_name = expr.value
+        if label_name not in global_labels:
+            raise ConstEvalException(f"Undefined global label: {label_name}")
+        return global_labels[label_name]
 
     if isinstance(expr, str):
         # Check if it's a constant reference ($NAME)
@@ -94,15 +101,25 @@ def try_evaluate_const_expr(
     unresolved_consts: dict[str, Any],
     const_refs: set[str],
 ) -> Union[int, str]:
-    # Import here to avoid circular imports
-    from vyper.venom.basicblock import IRLiteral
-
     # Handle simple cases first
     if isinstance(expr, int):
         return expr
 
     if isinstance(expr, IRLiteral):
         return expr.value
+
+    if isinstance(expr, IRLabel):
+        # Handle IRLabel objects
+        label_name = expr.value
+        if label_name in global_labels:
+            # Label is already defined, return its value
+            return global_labels[label_name]
+        else:
+            # Label is unresolved
+            const_refs.add(label_name)
+            if label_name not in unresolved_consts:
+                unresolved_consts[label_name] = ("ref", label_name)
+            return label_name
 
     if isinstance(expr, str):
         # Check if it's a constant reference ($NAME)
@@ -119,13 +136,11 @@ def try_evaluate_const_expr(
         # Check if it's a label reference (@NAME)
         if expr.startswith("@"):
             label_name = expr[1:]
-            if label_name not in global_labels:
-                # Treat undefined labels like undefined constants
-                const_refs.add(label_name)
-                if label_name not in unresolved_consts:
-                    unresolved_consts[label_name] = ("ref", label_name)
-                return label_name
-            return global_labels[label_name]
+            # Always treat label references as unresolved so they remain as labels
+            const_refs.add(label_name)
+            if label_name not in unresolved_consts:
+                unresolved_consts[label_name] = ("ref", label_name)
+            return label_name
 
         # Otherwise it might be a plain identifier
         raise ConstEvalException(f"Invalid constant expression: {expr}")

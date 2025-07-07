@@ -17,6 +17,7 @@ from vyper.evm.assembler.optimizer import optimize_assembly
 from vyper.evm.assembler.symbols import CONST_ADD, CONST_MAX, CONST_SUB, CONSTREF
 from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.utils import MemoryPositions, OrderedSet, wrap256
+from vyper.venom import _resolve_const_operands
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import (
     PSEUDO_INSTRUCTION,
@@ -166,17 +167,37 @@ class VenomCompiler:
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
 
+        # Resolve any raw const expressions in operands first
+        _resolve_const_operands(self.ctx)
+
         # Evaluate const expressions and populate constants
         for name, expr in self.ctx.const_expressions.items():
             result = try_evaluate_const_expr(
-                expr, self.ctx.constants, self.ctx.global_labels,
-                self.ctx.unresolved_consts, self.ctx.const_refs
+                expr,
+                self.ctx.constants,
+                self.ctx.global_labels,
+                self.ctx.unresolved_consts,
+                self.ctx.const_refs,
             )
             if isinstance(result, int):
                 self.ctx.constants[name] = result
             else:
                 # Store as unresolved constant
                 self.ctx.unresolved_consts[name] = expr
+
+        # Process global label expressions that were stored separately
+        for name, expr in list(self.ctx.const_expressions.items()):
+            if name.startswith("_global_label_"):
+                label_name = name[len("_global_label_") :]
+                result = try_evaluate_const_expr(
+                    expr,
+                    self.ctx.constants,
+                    self.ctx.global_labels,
+                    self.ctx.unresolved_consts,
+                    self.ctx.const_refs,
+                )
+                if isinstance(result, int):
+                    self.ctx.global_labels[label_name] = result
 
         asm: list[AssemblyInstruction] = []
 
@@ -193,6 +214,11 @@ class VenomCompiler:
             elif isinstance(expr, tuple) and len(expr) == 3:
                 # Binary operation
                 op_name, arg1, arg2 = expr
+                # Convert IRLabel objects to strings for assembler
+                if isinstance(arg1, IRLabel):
+                    arg1 = arg1.value
+                if isinstance(arg2, IRLabel):
+                    arg2 = arg2.value
                 # Emit the appropriate CONST_* operation
                 if op_name == "add":
                     asm.append(CONST_ADD(label_name, arg1, arg2))  # type: ignore[arg-type]
@@ -205,7 +231,7 @@ class VenomCompiler:
         # Auto-detect labels used in const expressions and mark their blocks for emission
         for fn in self.ctx.functions.values():
             for bb in fn.get_basic_blocks():
-                for label_name, expr in self.ctx.unresolved_consts.items():
+                for _label_name, expr in self.ctx.unresolved_consts.items():
                     if isinstance(expr, tuple) and len(expr) == 3:
                         _, arg1, arg2 = expr
                         if arg1 == bb.label.value or arg2 == bb.label.value:
@@ -291,14 +317,10 @@ class VenomCompiler:
                 if inst.opcode != "invoke":
                     # Check if this label is an unresolved constant
                     if op.value in self.ctx.unresolved_consts:
-                        expr = self.ctx.unresolved_consts[op.value]
-                        # Check if it's a simple reference (not a real constant)
-                        if isinstance(expr, tuple) and len(expr) == 2 and expr[0] == "ref":
-                            # Simple label reference - use PUSHLABEL
-                            assembly.append(PUSHLABEL(_as_asm_symbol(op)))
-                        else:
-                            # Real unresolved constant - use PUSH_OFST with CONSTREF
-                            assembly.append(PUSH_OFST(CONSTREF(op.value), 0))
+                        # For all unresolved constants, use PUSH_OFST with CONSTREF
+                        # This ensures consistent handling whether they're simple refs or
+                        # expressions
+                        assembly.append(PUSH_OFST(CONSTREF(op.value), 0))
                     else:
                         assembly.append(PUSHLABEL(_as_asm_symbol(op)))
                 stack.push(op)

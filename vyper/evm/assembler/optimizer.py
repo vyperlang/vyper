@@ -206,11 +206,11 @@ def _prune_unused_jumpdests(assembly):
             # add symbols used in data sections as they are likely
             # used for a jumptable.
             used_as_jumpdests.add(item.data)
-        
+
         # Track labels referenced through CONSTREF
         if isinstance(item, PUSH_OFST) and isinstance(item.label, CONSTREF):
             used_as_labels.add(Label(item.label.label))
-        
+
         # Track labels in BaseConstOp operations (CONST_ADD, CONST_SUB, etc.)
         if isinstance(item, BaseConstOp):
             for operand in [item.op1, item.op2]:

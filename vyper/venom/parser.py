@@ -162,7 +162,13 @@ class VenomTransformer(Transformer):
         # Process global labels
         for global_label in global_labels:
             name, expr = global_label.children
-            ctx.add_global_label(name, 0)
+            # For simple literals, we can evaluate immediately
+            if isinstance(expr, IRLiteral):
+                ctx.add_global_label(name, expr.value)
+            else:
+                # For complex expressions, store for later evaluation
+                ctx.add_global_label(name, 0)
+                ctx.add_const_expression(f"_global_label_{name}", expr)
 
         # Process functions
         for fn_name, items in funcs:
@@ -411,8 +417,8 @@ class VenomTransformer(Transformer):
         if isinstance(child, IRLiteral):
             return child
         elif isinstance(child, IRLabel):
-            # Return as a label reference to be evaluated later
-            return f"@{child.value}"
+            # Return the IRLabel directly - no @ prefix needed
+            return child
         else:
             # Must be a const_ref (string starting with $)
             return child
