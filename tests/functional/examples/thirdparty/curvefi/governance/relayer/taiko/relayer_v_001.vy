@@ -9,7 +9,7 @@
 
 version: public(constant(String[8])) = "0.0.1"
 
-import contracts.governance.relayer.relayer_v_100 as Relayer
+import tests.functional.examples.thirdparty.curvefi.governance.relayer.relayer_v_100 as Relayer
 
 initializes: Relayer
 

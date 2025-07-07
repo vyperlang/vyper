@@ -6,7 +6,7 @@
 @notice Governance message relayer
 """
 
-import contracts.governance.agent.agent_v_101 as agent_lib
+import tests.functional.examples.thirdparty.curvefi.governance.agent.agent_v_101 as agent_lib
 
 event Relay:
     agent: agent_lib.Agent
