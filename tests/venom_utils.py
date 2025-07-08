@@ -1,10 +1,10 @@
-from vyper.venom import _resolve_const_operands
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.resolve_const import resolve_const_operands
 
 
 def parse_from_basic_block(source: str, funcname="_global"):
@@ -76,7 +76,7 @@ class PrePostChecker:
 
         pre_ctx = parse_from_basic_block(pre)
         # Resolve const expressions before running passes
-        _resolve_const_operands(pre_ctx)
+        resolve_const_operands(pre_ctx)
 
         for fn in pre_ctx.functions.values():
             ac = IRAnalysesCache(fn)
@@ -87,7 +87,7 @@ class PrePostChecker:
 
         post_ctx = parse_from_basic_block(post)
         # Resolve const expressions before running passes
-        _resolve_const_operands(post_ctx)
+        resolve_const_operands(post_ctx)
 
         for fn in post_ctx.functions.values():
             ac = IRAnalysesCache(fn)

@@ -127,8 +127,21 @@ class IRContext:
 
     def __repr__(self) -> str:
         s = []
+        
+        # Print const expressions first
+        for name, expr in self.const_expressions.items():
+            if isinstance(expr, tuple) and len(expr) == 3:
+                # Format operation expressions
+                op, arg1, arg2 = expr
+                s.append(f"const {name} = {op}({arg1}, {arg2})")
+            else:
+                s.append(f"const {name} = {expr}")
+        
+        if self.const_expressions:
+            s.append("")
+        
         for fn in self.functions.values():
             s.append(IRFunction.__repr__(fn))
-            s.append("\n")
+            s.append("")
 
         return "\n".join(s)

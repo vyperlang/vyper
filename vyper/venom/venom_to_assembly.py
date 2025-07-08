@@ -17,7 +17,6 @@ from vyper.evm.assembler.optimizer import optimize_assembly
 from vyper.evm.assembler.symbols import CONST_ADD, CONST_MAX, CONST_SUB, CONSTREF
 from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.utils import MemoryPositions, OrderedSet, wrap256
-from vyper.venom import _resolve_const_operands
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import (
     PSEUDO_INSTRUCTION,
@@ -32,6 +31,7 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.const_eval import try_evaluate_const_expr
 from vyper.venom.context import IRContext, IRFunction
+from vyper.venom.resolve_const import resolve_const_operands
 from vyper.venom.stack_model import StackModel
 
 DEBUG_SHOW_COST = False
@@ -168,7 +168,7 @@ class VenomCompiler:
         self.label_counter = 0
 
         # Resolve any raw const expressions in operands first
-        _resolve_const_operands(self.ctx)
+        resolve_const_operands(self.ctx)
 
         # Evaluate const expressions and populate constants
         for name, expr in self.ctx.const_expressions.items():

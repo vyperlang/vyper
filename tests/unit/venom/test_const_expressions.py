@@ -2,10 +2,10 @@ import pytest
 
 from vyper.evm.assembler.core import assembly_to_evm
 from vyper.evm.assembler.symbols import CONST, CONST_ADD, Label
-from vyper.venom import _resolve_const_operands
 from vyper.venom.basicblock import IRLabel, IRLiteral
 from vyper.venom.const_eval import ConstEvalException, evaluate_const_expr, try_evaluate_const_expr
 from vyper.venom.parser import parse_venom
+from vyper.venom.resolve_const import resolve_const_operands
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 
@@ -85,7 +85,7 @@ def test_venom_const_definitions():
     ctx = parse_venom(code)
 
     # Evaluate const expressions (this would normally happen during compilation)
-    _resolve_const_operands(ctx)
+    resolve_const_operands(ctx)
     compiler = VenomCompiler(ctx)
     compiler.generate_evm_assembly(no_optimize=True)
 
@@ -119,10 +119,7 @@ def test_venom_label_addresses():
     ctx = parse_venom(code)
 
     # Evaluate const expressions (this would normally happen during compilation)
-    from vyper.venom import _resolve_const_operands
-    from vyper.venom.venom_to_assembly import VenomCompiler
-
-    _resolve_const_operands(ctx)
+    resolve_const_operands(ctx)
     compiler = VenomCompiler(ctx)
     compiler.generate_evm_assembly(no_optimize=True)
 
@@ -165,7 +162,7 @@ def test_venom_instruction_operands():
     ctx = parse_venom(code)
 
     # Evaluate const expressions (this would normally happen during compilation)
-    _resolve_const_operands(ctx)
+    resolve_const_operands(ctx)
     compiler = VenomCompiler(ctx)
     compiler.generate_evm_assembly(no_optimize=True)
 
@@ -212,7 +209,7 @@ def test_venom_complex_example():
     ctx = parse_venom(code)
 
     # Evaluate const expressions (this would normally happen during compilation)
-    _resolve_const_operands(ctx)
+    resolve_const_operands(ctx)
     compiler = VenomCompiler(ctx)
     compiler.generate_evm_assembly(no_optimize=True)
 
@@ -312,7 +309,7 @@ def test_venom_with_undefined_constants():
     ctx = parse_venom(code)
 
     # Evaluate const expressions (this would normally happen during compilation)
-    _resolve_const_operands(ctx)
+    resolve_const_operands(ctx)
 
     # Check that defined constant is resolved
     assert ctx.constants["A"] == 100
@@ -359,7 +356,7 @@ def test_venom_undefined_in_instruction_operands():
     ctx = parse_venom(code)
 
     # Evaluate const expressions (this would normally happen during compilation)
-    _resolve_const_operands(ctx)
+    resolve_const_operands(ctx)
 
     # Check that undefined constants are tracked
     assert len(ctx.const_refs) > 0
@@ -399,7 +396,7 @@ def test_complex_undefined_chain():
     ctx = parse_venom(code)
 
     # Evaluate const expressions (this would normally happen during compilation)
-    _resolve_const_operands(ctx)
+    resolve_const_operands(ctx)
 
     # Should track multiple undefined constants
     assert len(ctx.const_refs) >= 2 or len(ctx.unresolved_consts) >= 2
@@ -430,7 +427,7 @@ def test_undefined_const_end_to_end():
     ctx = parse_venom(code)
 
     # Evaluate const expressions (this would normally happen during compilation)
-    _resolve_const_operands(ctx)
+    resolve_const_operands(ctx)
 
     assert len(ctx.const_refs) >= 1
     assert "UNDEFINED_X" in ctx.const_refs
