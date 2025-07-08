@@ -18,7 +18,7 @@ class ReduceLiteralsCodesize(IRPass):
 
     def _process_bb(self, bb):
         for inst in bb.instructions:
-            if inst.opcode != "store":
+            if inst.opcode != "assign":
                 continue
 
             (op,) = inst.operands

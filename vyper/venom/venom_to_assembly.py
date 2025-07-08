@@ -503,7 +503,7 @@ class VenomCompiler:
             pass
         elif opcode == "param":
             pass
-        elif opcode == "store":
+        elif opcode == "assign":
             pass
         elif opcode == "dbname":
             pass

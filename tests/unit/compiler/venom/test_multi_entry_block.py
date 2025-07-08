@@ -8,13 +8,13 @@ def test_multi_entry_block_1():
     venom_src = """
     function __global {
     __global:
-        %op = store 10
+        %op = 10
         %acc = add %op, %op
         jnz %acc, @finish, @block_1
 
     block_1:
         %acc:1 = add %acc, %op
-        %op:1 = store 10
+        %op:1 = 10
         mstore %acc:1, %op:1
         jnz %acc:1, @finish, @target
 
@@ -53,13 +53,13 @@ def test_multi_entry_block_2():
     venom_src = """
     function __global {
     __global:
-        %op = store 10
+        %op = 10
         %acc = add %op, %op
         jnz %acc, @finish, @block_1
 
     block_1:
         %acc:1 = add %acc, %op
-        %op:1 = store 10
+        %op:1 = 10
         mstore %acc:1, %op:1
         jnz %acc:1, @target, @finish
 
@@ -97,13 +97,13 @@ def test_multi_entry_block_with_dynamic_jump():
     venom_src = """
     function __global {
     __global:
-        %op = store 10
+        %op = 10
         %acc = add %op, %op
         djmp %acc, @finish, @block_1
 
     block_1:
         %acc:1 = add %acc, %op
-        %op:1 = store 10
+        %op:1 = 10
         mstore %acc:1, %op:1
         jnz %acc:1, @finish, @target
 
@@ -146,8 +146,8 @@ def test_cfg_normalization_with_phi():
     venom_src = """
     function test_phi {
     entry:
-        %counter = store 10
-        %x = store 1
+        %counter = 10
+        %x = 1
         jnz %x, @loop_header, @exit
 
     loop_header:
@@ -200,8 +200,8 @@ def test_phi_forwarding():
     venom_src = """
     function test_forwarding {
     entry:
-        %base = store 42
-        %flag = store 1
+        %base = 42
+        %flag = 1
         jnz %flag, @branch_a, @branch_b
 
     branch_a:
@@ -253,8 +253,8 @@ def test_complex_phi_dependencies():
     venom_src = """
     function complex_phi {
     entry:
-        %a = store 1
-        %b = store 2
+        %a = 1
+        %b = 2
         jmp @loop
 
     loop:

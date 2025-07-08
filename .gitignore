@@ -59,3 +59,6 @@ tmp/
 trees/
 worktrees/
 repros/
+
+# used by fmt_commit_msg.py
+commitmsg.txt
