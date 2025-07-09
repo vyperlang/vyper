@@ -584,7 +584,8 @@ class VenomCompiler:
             if isinstance(data_operand, IRLabel):
                 assembly.append(DATA_ITEM(_as_asm_symbol(data_operand)))
             elif isinstance(data_operand, IRHexString):
-                assembly.append(DATA_ITEM(data_operand.value))
+                if len(data_operand.value) > 0:
+                    assembly.append(DATA_ITEM(data_operand.value))
             else:
                 raise Exception(f"Unsupported db operand type: {type(data_operand)}")
         elif opcode == "jnz":
