@@ -1,13 +1,10 @@
 from typing import Any
 
+from vyper.evm.assembler.constants import DUP_OFFSET, PUSH_OFFSET, SWAP_OFFSET
 from vyper.evm.assembler.symbols import CONST, CONSTREF, BaseConstOp, Label, SymbolKey
 from vyper.evm.opcodes import get_opcodes, version_check
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
-
-PUSH_OFFSET = 0x5F
-DUP_OFFSET = 0x7F
-SWAP_OFFSET = 0x8F
 
 
 def num_to_bytearray(x):
