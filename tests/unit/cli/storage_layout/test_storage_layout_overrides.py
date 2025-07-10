@@ -2,6 +2,7 @@ import re
 
 import pytest
 
+from tests.utils import json_input
 from vyper.cli.vyper_json import compile_json
 from vyper.compiler import compile_code
 from vyper.evm.opcodes import version_check
@@ -21,7 +22,9 @@ b: uint256"""
     expected_output = {"storage_layout": storage_layout_overrides}
 
     out = compile_code(
-        code, output_formats=["layout"], storage_layout_override=storage_layout_overrides
+        code,
+        output_formats=["layout"],
+        storage_layout_override=json_input(storage_layout_overrides),
     )
 
     assert out["layout"] == expected_output
@@ -40,12 +43,16 @@ b: uint256"""
     input_json = {
         "language": "Vyper",
         "sources": {"contracts/foo.vy": {"content": code}},
-        "storage_layout_overrides": {"contracts/foo.vy": storage_layout_overrides},
-        "settings": {"outputSelection": {"*": ["*"]}},
+        "storage_layout_overrides": {
+            "contracts/foo.vy": {"<dummy file>": storage_layout_overrides}
+        },
+        "settings": {"outputSelection": {"contracts/foo.vy": ["*"]}},
     }
 
     out = compile_code(
-        code, output_formats=["layout"], storage_layout_override=storage_layout_overrides
+        code,
+        output_formats=["layout"],
+        storage_layout_override=json_input(storage_layout_overrides),
     )
     assert (
         compile_json(input_json)["contracts"]["contracts/foo.vy"]["foo"]["layout"] == out["layout"]
@@ -99,7 +106,7 @@ def public_foo3():
     expected_output = {"storage_layout": storage_layout_override}
 
     out = compile_code(
-        code, output_formats=["layout"], storage_layout_override=storage_layout_override
+        code, output_formats=["layout"], storage_layout_override=json_input(storage_layout_override)
     )
 
     # adjust transient storage layout
@@ -127,7 +134,9 @@ symbol: public(String[32])"""
         " but it has already been reserved by 'name'",
     ):
         compile_code(
-            code, output_formats=["layout"], storage_layout_override=storage_layout_override
+            code,
+            output_formats=["layout"],
+            storage_layout_override=json_input(storage_layout_override),
         )
 
 
@@ -142,7 +151,9 @@ x: uint256[2]
         StorageLayoutException, match=f"Invalid storage slot for var x, out of bounds: {2**256}"
     ):
         compile_code(
-            code, output_formats=["layout"], storage_layout_override=storage_layout_override
+            code,
+            output_formats=["layout"],
+            storage_layout_override=json_input(storage_layout_override),
         )
 
 
@@ -159,7 +170,9 @@ def foo():
         del storage_layout_override["$.nonreentrant_key"]
         assert (
             compile_code(
-                code, output_formats=["layout"], storage_layout_override=storage_layout_override
+                code,
+                output_formats=["layout"],
+                storage_layout_override=json_input(storage_layout_override),
             )
             is not None
         )
@@ -170,7 +183,9 @@ def foo():
         )
         with pytest.raises(StorageLayoutException, match=exception_regex):
             compile_code(
-                code, output_formats=["layout"], storage_layout_override=storage_layout_override
+                code,
+                output_formats=["layout"],
+                storage_layout_override=json_input(storage_layout_override),
             )
 
 
@@ -187,7 +202,9 @@ def foo():
     if version_check(begin="cancun"):
         assert (
             compile_code(
-                code, output_formats=["layout"], storage_layout_override=storage_layout_override
+                code,
+                output_formats=["layout"],
+                storage_layout_override=json_input(storage_layout_override),
             )
             is not None
         )
@@ -200,7 +217,9 @@ def foo():
         )
         with pytest.raises(StorageLayoutException, match=exception_regex):
             compile_code(
-                code, output_formats=["layout"], storage_layout_override=storage_layout_override
+                code,
+                output_formats=["layout"],
+                storage_layout_override=json_input(storage_layout_override),
             )
 
 
@@ -217,7 +236,9 @@ symbol: public(String[32])"""
         "Have you used the correct storage layout file?",
     ):
         compile_code(
-            code, output_formats=["layout"], storage_layout_override=storage_layout_override
+            code,
+            output_formats=["layout"],
+            storage_layout_override=json_input(storage_layout_override),
         )
 
 
@@ -236,7 +257,7 @@ def __init__():
     storage_layout_override = {"name": {"slot": 10, "type": "String[64]", "n_slots": 3}}
 
     out = compile_code(
-        code, output_formats=["layout"], storage_layout_override=storage_layout_override
+        code, output_formats=["layout"], storage_layout_override=json_input(storage_layout_override)
     )
 
     expected_output = {
@@ -316,7 +337,10 @@ def foo() -> uint256:
         "counter2": {"slot": 171, "type": "uint256", "n_slots": 1},
     }
     out = compile_code(
-        code, output_formats=["layout"], input_bundle=input_bundle, storage_layout_override=override
+        code,
+        output_formats=["layout"],
+        input_bundle=input_bundle,
+        storage_layout_override=json_input(override),
     )
 
     expected_output = {
@@ -369,7 +393,7 @@ initializes: a_library
             code,
             output_formats=["layout"],
             input_bundle=input_bundle,
-            storage_layout_override=override,
+            storage_layout_override=json_input(override),
         )
 
 
@@ -401,7 +425,7 @@ initializes: lib1
             code,
             output_formats=["layout"],
             input_bundle=input_bundle,
-            storage_layout_override=override,
+            storage_layout_override=json_input(override),
         )
 
 
@@ -433,7 +457,7 @@ initializes: lib1
             code,
             output_formats=["layout"],
             input_bundle=input_bundle,
-            storage_layout_override=override,
+            storage_layout_override=json_input(override),
         )
 
 
@@ -452,4 +476,4 @@ a: public(uint256)
         }
 
     # note: compile_code checks roundtrip of the override
-    compile_code(code, storage_layout_override=override)
+    compile_code(code, storage_layout_override=json_input(override))

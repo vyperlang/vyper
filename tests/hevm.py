@@ -5,7 +5,13 @@ import pytest
 
 from tests.venom_utils import parse_from_basic_block
 from vyper.ir.compile_ir import assembly_to_evm
-from vyper.venom import LowerDloadPass, SimplifyCFGPass, SingleUseExpansion, VenomCompiler
+from vyper.venom import (
+    CFGNormalization,
+    LowerDloadPass,
+    SimplifyCFGPass,
+    SingleUseExpansion,
+    VenomCompiler,
+)
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRInstruction, IRLiteral
 
@@ -26,9 +32,9 @@ def _prep_hevm_venom_ctx(ctx, verbose=False):
     for fn in ctx.functions.values():
         for bb in fn.get_basic_blocks():
             for inst in bb.instructions:
-                # transform `param` instructions into "symbolic" values for
+                # transform `source` instructions into "symbolic" values for
                 # hevm via calldataload
-                if inst.opcode == "param":
+                if inst.opcode == "source":
                     # hevm limit: 256 bytes of symbolic calldata
                     assert num_calldataloads < 8
 
@@ -65,6 +71,7 @@ def _prep_hevm_venom_ctx(ctx, verbose=False):
         # requirements for venom_to_assembly
         LowerDloadPass(ac, fn).run_pass()
         SingleUseExpansion(ac, fn).run_pass()
+        CFGNormalization(ac, fn).run_pass()
 
     compiler = VenomCompiler([ctx])
     asm = compiler.generate_evm(no_optimize=False)

@@ -1,6 +1,7 @@
 from .algebraic_optimization import AlgebraicOptimizationPass
 from .assign_elimination import AssignElimination
 from .branch_optimization import BranchOptimizationPass
+from .cfg_normalization import CFGNormalization
 from .common_subexpression_elimination import CSE
 from .dead_store_elimination import DeadStoreElimination
 from .dft import DFTPass
@@ -12,7 +13,6 @@ from .lower_dload import LowerDloadPass
 from .make_ssa import MakeSSA
 from .mem2var import Mem2Var
 from .memmerging import MemMergePass
-from .normalization import NormalizationPass
 from .phi_elimination import PhiEliminationPass
 from .remove_unused_variables import RemoveUnusedVariablesPass
 from .revert_to_assert import RevertToAssert

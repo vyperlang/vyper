@@ -62,7 +62,7 @@ The new experimental code generation feature can be activated using the followin
 
    #pragma experimental-codegen
 
-Alternatively, you can use the alias ``"venom"`` instead of ``"experimental-codegen"``  to enable this feature.
+Alternatively, you can use the alias ``"venom-experimental"`` instead of ``"experimental-codegen"``  to enable this feature.
 
 Imports
 =======

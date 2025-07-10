@@ -116,7 +116,7 @@ class DFTPass(IRPass):
         # Compute dependency graph
         #
         last_write_effects: dict[effects.Effects, IRInstruction] = {}
-        last_read_effects: dict[effects.Effects, IRInstruction] = {}
+        all_read_effects: dict[effects.Effects, list[IRInstruction]] = defaultdict(list)
 
         for inst in non_phis:
             if inst.is_bb_terminator:
@@ -133,14 +133,22 @@ class DFTPass(IRPass):
             read_effects = inst.get_read_effects()
 
             for write_effect in write_effects:
-                if write_effect in last_read_effects:
-                    self.eda[inst].add(last_read_effects[write_effect])
+                # ALL reads must happen before this write
+                if write_effect in all_read_effects:
+                    for read_inst in all_read_effects[write_effect]:
+                        self.eda[inst].add(read_inst)
+                # prevent reordering write-after-write for the same effect
+                if write_effect in last_write_effects:
+                    self.eda[inst].add(last_write_effects[write_effect])
                 last_write_effects[write_effect] = inst
+                # clear previous read effects after a write
+                if write_effect in all_read_effects:
+                    all_read_effects[write_effect] = []
 
             for read_effect in read_effects:
                 if read_effect in last_write_effects and last_write_effects[read_effect] != inst:
                     self.eda[inst].add(last_write_effects[read_effect])
-                last_read_effects[read_effect] = inst
+                all_read_effects[read_effect].append(inst)
 
     def _calculate_data_offspring(self, inst: IRInstruction):
         if inst in self.data_offspring:
