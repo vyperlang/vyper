@@ -87,6 +87,27 @@ class PUSH_OFST:
         return hash((self.label, self.ofst))
 
 
+class PUSHSYMBOL:
+    """
+    Universal symbol reference instruction that can handle any symbol type.
+    The assembler will resolve whether it's a label, constant, or const reference.
+    """
+    def __init__(self, symbol_name: str):
+        assert isinstance(symbol_name, str)
+        self.symbol_name = symbol_name
+
+    def __repr__(self):
+        return f"PUSHSYMBOL {self.symbol_name}"
+
+    def __eq__(self, other):
+        if not isinstance(other, PUSHSYMBOL):
+            return False
+        return self.symbol_name == other.symbol_name
+
+    def __hash__(self):
+        return hash(self.symbol_name)
+
+
 class DATA_ITEM:
     def __init__(self, item: bytes | Label):
         self.data = item
@@ -378,6 +399,28 @@ def resolve_symbols(
         elif isinstance(item, (PUSHLABEL, PUSHLABELJUMPDEST)):
             pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
 
+        elif isinstance(item, PUSHSYMBOL):
+            # Determine symbol type and appropriate size
+            symbol_name = item.symbol_name
+            
+            # Strip $ prefix if present for const references
+            if symbol_name.startswith("$"):
+                const_name = symbol_name[1:]
+                if CONSTREF(const_name) in symbol_map:
+                    # Check if this is a label-dependent constant
+                    if const_name in label_dependent_consts:
+                        pc += SYMBOL_SIZE + 1  # PUSH2 for label-dependent constants
+                    else:
+                        # Calculate actual size for pure constants
+                        val = symbol_map[CONSTREF(const_name)]
+                        pc += calc_push_size(val)
+                else:
+                    # Assume it will be a label-dependent constant
+                    pc += SYMBOL_SIZE + 1
+            else:
+                # It's either a label or will be resolved as one
+                pc += SYMBOL_SIZE + 1  # PUSH2 for labels
+
         elif isinstance(item, PUSH_OFST):
             assert isinstance(item.ofst, int), item
             # [PUSH_OFST, (Label foo), bar] -> PUSH2 (foo+bar)
@@ -613,6 +656,51 @@ def _assembly_to_evm(
             label = item.label
             bytecode = _compile_push_instruction(PUSH_N(symbol_map[label], n=SYMBOL_SIZE))
             ret.extend(bytecode)
+
+        elif isinstance(item, PUSHSYMBOL):
+            # Resolve the symbol and push appropriate value
+            symbol_name = item.symbol_name
+            
+            # Handle const references (starting with $)
+            if symbol_name.startswith("$"):
+                const_name = symbol_name[1:]
+                const_ref = CONSTREF(const_name)
+                if const_ref in symbol_map:
+                    val = symbol_map[const_ref]
+                    # Check if this is a label-dependent constant
+                    if const_name in label_dependent_consts:
+                        # Use PUSH2 for label-dependent constants
+                        bytecode = _compile_push_instruction(PUSH_N(val, SYMBOL_SIZE))
+                    else:
+                        # Use optimal size for pure constants
+                        bytecode = _compile_push_instruction(PUSH(val))
+                    ret.extend(bytecode)
+                else:
+                    raise CompilerPanic(f"Undefined constant reference: {symbol_name}")
+            else:
+                # Try as a label first
+                label = Label(symbol_name)
+                if label in symbol_map:
+                    bytecode = _compile_push_instruction(PUSH_N(symbol_map[label], n=SYMBOL_SIZE))
+                    ret.extend(bytecode)
+                else:
+                    # Try as a constant without $ prefix
+                    const_ref = CONSTREF(symbol_name)
+                    if const_ref in symbol_map:
+                        val = symbol_map[const_ref]
+                        # Check if this is a label-dependent constant
+                        if symbol_name in label_dependent_consts:
+                            # Use PUSH2 for label-dependent constants
+                            bytecode = _compile_push_instruction(PUSH_N(val, SYMBOL_SIZE))
+                        else:
+                            # Use optimal size for pure constants
+                            bytecode = _compile_push_instruction(PUSH(val))
+                        ret.extend(bytecode)
+                    else:
+                        # Symbol not found. This will raise KeyError with the actual undefined symbol.
+                        # This is the same behavior as PUSHLABEL.
+                        bytecode = _compile_push_instruction(PUSH_N(symbol_map[label], n=SYMBOL_SIZE))
+                        ret.extend(bytecode)
 
         elif isinstance(item, JUMPDEST):
             jumpdest_opcode = get_opcodes()["JUMPDEST"][0]
