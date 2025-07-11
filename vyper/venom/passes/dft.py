@@ -138,7 +138,7 @@ class DFTPass(IRPass):
                     for read_inst in all_read_effects[write_effect]:
                         self.eda[inst].add(read_inst)
                 # prevent reordering write-after-write for the same effect
-                if write_effect in last_write_effects:
+                if (write_effect & ~effects.Effects.MSIZE) in last_write_effects:
                     self.eda[inst].add(last_write_effects[write_effect])
                 last_write_effects[write_effect] = inst
                 # clear previous read effects after a write
