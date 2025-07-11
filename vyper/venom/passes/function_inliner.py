@@ -144,6 +144,7 @@ class FunctionInlinerPass(IRGlobalPass):
                         # demote to alloca so that mem2var will work
                         inst.opcode = "alloca"
 
+
     def _inline_call_site(self, func: IRFunction, call_site: IRInstruction):
         """
         Inline function into call site.
@@ -206,6 +207,7 @@ class FunctionInlinerPass(IRGlobalPass):
 
         call_site_bb.instructions = call_site_bb.instructions[:call_idx]
         call_site_bb.append_instruction("jmp", func_copy.entry.label)
+
         self._fix_phi(call_site_bb, call_site_return)
 
     def _fix_phi(self, orig: IRBasicBlock, new: IRBasicBlock) -> None:
