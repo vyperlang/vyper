@@ -1,9 +1,10 @@
-from collections import defaultdict
+from collections import defaultdict, deque
 
 import vyper.venom.effects as effects
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction
+from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, CFGAnalysis
+from vyper.venom.analysis.stack_order import StackOrderAnalysis
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
@@ -22,9 +23,22 @@ class DFTPass(IRPass):
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
 
         self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.stack_order = StackOrderAnalysis(self.function, self.analyses_cache)
 
-        for bb in self.function.get_basic_blocks():
+        worklist = deque(self.cfg.dfs_post_walk)
+
+        last_order: dict[IRBasicBlock, list[IROperand]] = dict()
+
+        while len(worklist) > 0:
+            bb = worklist.popleft()
+            self.stack_order.analyze_bb(bb)
+            order = self.stack_order.get_stack(bb)
+            if bb in last_order and last_order[bb] == order:
+                break
+            self.order = order
             self._process_basic_block(bb)
+
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
@@ -63,12 +77,17 @@ class DFTPass(IRPass):
         children = list(self.dda[inst] | self.eda[inst])
 
         def cost(x: IRInstruction) -> int | float:
-            if x in self.eda[inst] or inst.flippable:
+            if (x not in self.dda[inst] and x in self.eda[inst]) or inst.flippable:
                 ret = -1 * int(len(self.data_offspring[x]) > 0)
-            else:
+            elif x.output in inst.operands:
                 assert x in self.dda[inst]  # sanity check
                 assert x.output is not None  # help mypy
-                ret = inst.operands.index(x.output)
+                ret = inst.operands.index(x.output) + len(self.order)
+            else:
+                assert x in self.dda[inst]  # sanity check
+                assert x.output in self.order
+                assert x.output is not None  # help mypy
+                ret = self.order.index(x.output)
             return ret
 
         # heuristic: sort by size of child dependency graph
@@ -97,6 +116,11 @@ class DFTPass(IRPass):
         all_read_effects: dict[effects.Effects, list[IRInstruction]] = defaultdict(list)
 
         for inst in non_phis:
+            if inst.is_bb_terminator:
+                for op in self.order:
+                    dep = self.dfg.get_producing_instruction(op)
+                    if dep is not None and dep.parent == bb:
+                        self.dda[inst].add(dep)
             for op in inst.operands:
                 dep = self.dfg.get_producing_instruction(op)
                 if dep is not None and dep.parent == bb:

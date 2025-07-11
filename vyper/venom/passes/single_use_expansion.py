@@ -21,6 +21,7 @@ class SingleUseExpansion(IRPass):
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
         for bb in self.function.get_basic_blocks():
             self._process_bb(bb)
 
@@ -35,7 +36,9 @@ class SingleUseExpansion(IRPass):
                 i += 1
                 continue
 
-            for j, op in enumerate(inst.operands):
+            ops = inst.operands.copy()
+
+            for j, op in enumerate(ops):
                 # first operand to log is magic
                 if inst.opcode == "log" and j == 0:
                     continue
@@ -54,7 +57,8 @@ class SingleUseExpansion(IRPass):
                 var = self.function.get_next_variable()
                 to_insert = IRInstruction("assign", [op], var)
                 bb.insert_instruction(to_insert, index=i)
-                inst.operands[j] = var
+                if len(inst.operands) > j:
+                    inst.operands[j] = var
                 i += 1
 
             i += 1
