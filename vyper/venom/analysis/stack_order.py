@@ -124,7 +124,7 @@ class StackOrder:
         phi_positions: dict[IRVariable, int] = dict()
 
         for inst in bb.instructions:
-            if inst.opcode == "store":
+            if inst.opcode == "assign":
                 inst_needed = self._handle_store(inst, stack)
             elif inst.opcode == "phi":
                 inst_needed = self._handle_phi(inst, phis, phi_renames)
@@ -188,7 +188,7 @@ class StackOrder:
 
     def _handle_store(self, inst: IRInstruction, stack: Stack) -> list[IROperand]:
         needed = []
-        assert inst.opcode == "store"
+        assert inst.opcode == "assign"
         ops = inst.operands
         assert len(ops) == 1
         op = ops[0]
@@ -216,7 +216,7 @@ class StackOrder:
         return needed
     
     def _handle_other_inst(self, inst: IRInstruction, stack: Stack) -> list[IROperand]:
-        assert inst.opcode not in ("store", "phi")
+        assert inst.opcode not in ("assign", "phi")
         bb = inst.parent
         if inst.is_bb_terminator:
             ops = [op for op in inst.operands if not isinstance(op, IRLabel)]
@@ -266,7 +266,7 @@ class StackOrder:
     # compute what will store do in bytecode
     def _handle_bb_store_types(self, bb: IRBasicBlock):
         for i, inst in enumerate(bb.instructions):
-            if inst.opcode != "store":
+            if inst.opcode != "assign":
                 continue
             op = inst.operands[0]
             if isinstance(op, (IRLiteral, IRLabel)):

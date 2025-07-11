@@ -90,9 +90,8 @@ class FunctionInlinerPass(IRGlobalPass):
         """
         for call_site in call_sites:
             FloatAllocas(self.analyses_caches[func], func).run_pass()
-            return_bb = self._inline_call_site(func, call_site)
+            self._inline_call_site(func, call_site)
             fn = call_site.parent.parent
-            self._fix_phi(fn, call_site.parent, return_bb)
             self.analyses_caches[fn].invalidate_analysis(DFGAnalysis)
             self.analyses_caches[fn].invalidate_analysis(CFGAnalysis)
 
