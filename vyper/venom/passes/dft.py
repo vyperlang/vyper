@@ -36,7 +36,7 @@ class DFTPass(IRPass):
             order = self.stack_order.get_stack(bb)
             if bb in last_order and last_order[bb] == order:
                 break
-            self.order = order
+            self.order = list(reversed(order))
             self._process_basic_block(bb)
 
 
