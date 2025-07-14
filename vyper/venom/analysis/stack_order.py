@@ -4,7 +4,7 @@ from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis import LivenessAnalysis, CFGAnalysis
 
 # needed [top, ... , bottom]
-type Needed = list[IROperand]
+type Needed = list[IRVariable]
 
 type Stack = list[IROperand]
 
@@ -28,7 +28,7 @@ def _swap_to(stack: Stack, depth: int):
 
 
 def _max_same_prefix(stack_a: Needed, stack_b: Needed):
-    res: list[IROperand] = []
+    res: Needed = []
     for a, b in zip(stack_a, stack_b):
         if a != b:
             break
@@ -50,27 +50,37 @@ class StackOrderAnalysis:
 
 
     def analyze_bb(self, bb: IRBasicBlock) -> Needed:
+        #breakpoint()
         self.needed = []
         self.stack = []
 
         for inst in bb.instructions:
             if inst.opcode == "assign":
                 self._handle_assign(inst)
-            if inst.opcode == "phi":
+            elif inst.opcode == "phi":
                 self._handle_inst(inst)
             elif inst.is_bb_terminator:
                 self._handle_terminator(inst)
             else:
                 self._handle_inst(inst)
 
+            if len(inst.operands) > 0:
+                if not inst.is_bb_terminator:
+                    assert self.stack[-len(inst.operands):] == inst.operands, (inst, self.stack, inst.operands)
+                self.stack = self.stack[:-len(inst.operands)]
+            if inst.output is not None:
+                self.stack.append(inst.output)
+
         for pred in self.cfg.cfg_in(bb):
-            self._from_to[(pred, bb)] = self.needed
+            self._from_to[(pred, bb)] = self.needed.copy()
 
         return self.needed
     
     def get_stack(self, bb: IRBasicBlock) -> Needed:
         succs = self.cfg.cfg_out(bb)
-        orders = [self.from_to(bb, succ) for succ in succs]
+        for succ in succs:
+            self.analyze_bb(succ)
+        orders = [self._from_to.get((bb, succ), []) for succ in succs]
         return self._merge(orders)
 
     def from_to(self, origin: IRBasicBlock, successor: IRBasicBlock) -> Needed:
@@ -84,8 +94,8 @@ class StackOrderAnalysis:
 
     def _handle_assign(self, inst: IRInstruction):
         assert inst.opcode == "assign"
+        assert inst.output is not None
 
-        self.liveness.live_vars_at(inst)
         index = inst.parent.instructions.index(inst)
         next_inst = inst.parent.instructions[index + 1]
         next_live = self.liveness.live_vars_at(next_inst)
@@ -105,7 +115,7 @@ class StackOrderAnalysis:
             else:
                 _swap(self.stack, src)
 
-    def _add_needed(self, op: IROperand):
+    def _add_needed(self, op: IRVariable):
         if op not in self.needed:
             self.needed.append(op)
 
@@ -116,7 +126,6 @@ class StackOrderAnalysis:
             depth = count - index - 1
             _swap(self.stack, op)
             _swap_to(self.stack, depth)
-            self._add_needed(op)
 
         if len(target_stack) != 0:
             assert target_stack == self.stack[-len(target_stack):], (target_stack, self.stack)
@@ -126,7 +135,7 @@ class StackOrderAnalysis:
     def _handle_inst(self, inst: IRInstruction):
         ops = inst.operands
         for op in ops:
-            if isinstance(op, IRVariable):
+            if isinstance(op, IRVariable) and op not in self.stack:
                 self._add_needed(op)
             if op not in self.stack:
                 self.stack.append(op)
@@ -142,10 +151,12 @@ class StackOrderAnalysis:
 
     def _handle_terminator(self, inst: IRInstruction):
         bb = inst.parent
-        orders = [self.from_to(bb, succ) for succ in self.cfg.cfg_out(bb)]
+        orders = [self._from_to.get((bb, succ), []) for succ in self.cfg.cfg_out(bb)]
         ops = (op for op in inst.operands if isinstance(op, IRVariable))
         for op in ops:
-            self._add_needed(op)
+            if op not in self.stack:
+                self._add_needed(op)
         for op in self._merge(orders):
-            self._add_needed(op)
+            if op not in self.stack:
+                self._add_needed(op)
 

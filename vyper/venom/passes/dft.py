@@ -4,7 +4,7 @@ import vyper.venom.effects as effects
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, CFGAnalysis
 from vyper.venom.analysis.stack_order import StackOrderAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
@@ -28,7 +28,7 @@ class DFTPass(IRPass):
 
         worklist = deque(self.cfg.dfs_post_walk)
 
-        last_order: dict[IRBasicBlock, list[IROperand]] = dict()
+        last_order: dict[IRBasicBlock, list[IRVariable]] = dict()
 
         while len(worklist) > 0:
             bb = worklist.popleft()
@@ -36,13 +36,19 @@ class DFTPass(IRPass):
             order = self.stack_order.get_stack(bb)
             if bb in last_order and last_order[bb] == order:
                 break
+            last_order[bb] = order
             self.order = list(reversed(order))
+            #self.order = order
             self._process_basic_block(bb)
+            
+            for pred in self.cfg.cfg_in(bb):
+                worklist.append(pred)
 
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
+        #breakpoint()
         self._calculate_dependency_graphs(bb)
         self.instructions = list(bb.pseudo_instructions)
         non_phi_instructions = list(bb.non_phi_instructions)
@@ -135,7 +141,7 @@ class DFTPass(IRPass):
                     for read_inst in all_read_effects[write_effect]:
                         self.eda[inst].add(read_inst)
                 # prevent reordering write-after-write for the same effect
-                if write_effect in last_write_effects:
+                if (write_effect & ~effects.Effects.MSIZE) in last_write_effects:
                     self.eda[inst].add(last_write_effects[write_effect])
                 last_write_effects[write_effect] = inst
                 # clear previous read effects after a write
