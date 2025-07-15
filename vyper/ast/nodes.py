@@ -456,6 +456,8 @@ class VyperNode:
         # TODO: add full analysis result, e.g. expr_info
         if "type" in self._metadata:
             ast_dict["type"] = self._metadata["type"].to_dict()
+        if "func_type" in self._metadata:
+            ast_dict["func_type"] = self._metadata["func_type"].to_dict()
 
         return ast_dict
 
