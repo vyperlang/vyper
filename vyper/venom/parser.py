@@ -352,6 +352,8 @@ class VenomTransformer(Transformer):
                 # We need access to context, so we'll store it as-is for now
                 # and process it later during function processing
                 processed_operands.append(op)
+            elif isinstance(op, LabelRef):
+                processed_operands.append(IRLabel(op.name))
             else:
                 processed_operands.append(op)
 
