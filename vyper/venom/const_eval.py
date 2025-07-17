@@ -6,7 +6,7 @@ Constant expression evaluator for Venom IR.
 from typing import Any, Union
 
 from vyper.exceptions import CompilerPanic
-from vyper.venom.basicblock import ConstRef, IRLabel, IRLiteral, LabelRef
+from vyper.venom.basicblock import ConstRef, IRLabel, IRLiteral, LabelRef, UnresolvedConst
 
 
 class ConstEvalException(CompilerPanic):
@@ -92,7 +92,7 @@ def try_evaluate_const_expr(
     global_labels: dict[str, int],
     unresolved_consts: dict[str, Any],
     const_refs: set[str],
-) -> Union[int, str]:
+) -> Union[int, ConstRef, LabelRef, UnresolvedConst]:
     # Handle simple cases first
     if isinstance(expr, int):
         return expr
@@ -111,7 +111,7 @@ def try_evaluate_const_expr(
             const_refs.add(label_name)
             if label_name not in unresolved_consts:
                 unresolved_consts[label_name] = ("ref", label_name)
-            return label_name
+            return LabelRef(label_name)
 
     if isinstance(expr, ConstRef):
         if expr.name not in constants:
@@ -176,6 +176,6 @@ def try_evaluate_const_expr(
         # Otherwise, create a label for this unresolved expression
         label = generate_const_label_name()
         unresolved_consts[label] = (op_name, val1, val2)
-        return label
+        return UnresolvedConst(label)
 
     raise ConstEvalException(f"Invalid constant expression format: {expr}")

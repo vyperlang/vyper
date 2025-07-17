@@ -30,6 +30,7 @@ from vyper.venom.basicblock import (
     IROperand,
     IRVariable,
     LabelRef,
+    UnresolvedConst,
 )
 from vyper.venom.const_eval import try_evaluate_const_expr
 from vyper.venom.context import IRContext, IRFunction

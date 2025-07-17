@@ -13,6 +13,7 @@ from vyper.venom.basicblock import (
     IROperand,
     IRVariable,
     LabelRef,
+    UnresolvedConst,
 )
 from vyper.venom.const_eval import evaluate_const_expr, try_evaluate_const_expr
 from vyper.venom.context import IRContext
@@ -256,9 +257,11 @@ class VenomTransformer(Transformer):
         )
         if isinstance(result, int):
             return IRLiteral(result)
+        elif isinstance(result, (ConstRef, LabelRef, UnresolvedConst)):
+            # Extract the name from typed objects for IRLabel
+            return IRLabel(result.name, True)
         else:
-            # result is a label name for unresolved constant
-            return IRLabel(result, True)
+            raise ValueError(f"Unexpected result type from try_evaluate_const_expr: {type(result)}")
 
     def const_def(self, children) -> _ConstDef:
         # Filter out NEWLINE tokens

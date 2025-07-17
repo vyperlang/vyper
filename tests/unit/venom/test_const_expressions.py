@@ -2,7 +2,7 @@ import pytest
 
 from vyper.evm.assembler.core import assembly_to_evm
 from vyper.evm.assembler.symbols import CONST, CONST_ADD, Label
-from vyper.venom.basicblock import ConstRef, IRLabel, IRLiteral, LabelRef
+from vyper.venom.basicblock import ConstRef, IRLabel, IRLiteral, LabelRef, UnresolvedConst
 from vyper.venom.const_eval import ConstEvalException, evaluate_const_expr, try_evaluate_const_expr
 from vyper.venom.parser import parse_venom
 from vyper.venom.resolve_const import resolve_const_operands
@@ -269,13 +269,13 @@ def test_try_evaluate_undefined_in_operation():
     result = try_evaluate_const_expr(
         ("add", ConstRef("A"), ConstRef("B")), constants, global_labels, unresolved_consts, const_refs
     )
-    assert isinstance(result, str)
-    assert result.startswith("__const_")  # Complex expressions still get generated names
+    assert isinstance(result, UnresolvedConst)
+    assert result.name.startswith("__const_")  # Complex expressions still get generated names
     assert "B" in const_refs
 
     # Check that the unresolved expression is stored correctly
-    assert result in unresolved_consts
-    op_name, arg1, arg2 = unresolved_consts[result]
+    assert result.name in unresolved_consts
+    op_name, arg1, arg2 = unresolved_consts[result.name]
     assert op_name == "add"
     assert arg1 == 10  # A was resolved
     assert isinstance(arg2, ConstRef) and arg2.name == "B"  # B is unresolved
@@ -286,8 +286,8 @@ def test_try_evaluate_undefined_in_operation():
     result = try_evaluate_const_expr(
         ("mul", ConstRef("B"), ConstRef("C")), constants, global_labels, unresolved_consts, const_refs
     )
-    assert isinstance(result, str)
-    assert result.startswith("__const_")
+    assert isinstance(result, UnresolvedConst)
+    assert result.name.startswith("__const_")
     assert "B" in const_refs
     assert "C" in const_refs
 

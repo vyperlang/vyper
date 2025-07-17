@@ -261,6 +261,18 @@ class LabelRef:
         return f"@{self.name}"
 
 
+@dataclass(frozen=True)
+class UnresolvedConst:
+    """
+    Represents an unresolved constant expression in Venom IR.
+    Used when a complex expression cannot be evaluated at parse time.
+    """
+    name: str
+
+    def __str__(self):
+        return f"${self.name}"
+
+
 class IRInstruction:
     """
     IRInstruction represents an instruction in IR. Each instruction has an opcode,
