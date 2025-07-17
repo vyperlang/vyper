@@ -92,6 +92,7 @@ class PUSHSYMBOL:
     Universal symbol reference instruction that can handle any symbol type.
     The assembler will resolve whether it's a label, constant, or const reference.
     """
+
     def __init__(self, symbol_name: str):
         assert isinstance(symbol_name, str)
         self.symbol_name = symbol_name
@@ -402,7 +403,7 @@ def resolve_symbols(
         elif isinstance(item, PUSHSYMBOL):
             # Determine symbol type and appropriate size
             symbol_name = item.symbol_name
-            
+
             # Strip $ prefix if present for const references
             if symbol_name.startswith("$"):
                 const_name = symbol_name[1:]
@@ -442,7 +443,7 @@ def resolve_symbols(
                         pc += calc_push_size(val)
                     else:
                         # Treat it as a label-dependent reference using PUSH2 size
-                        pc += SYMBOL_SIZE + 1  # PUSH2 
+                        pc += SYMBOL_SIZE + 1  # PUSH2
             else:  # pragma: nocover
                 raise CompilerPanic(f"invalid ofst {item.label}")
 
@@ -665,7 +666,7 @@ def _assembly_to_evm(
         elif isinstance(item, PUSHSYMBOL):
             # Resolve the symbol and push appropriate value
             symbol_name = item.symbol_name
-            
+
             # Handle const references (starting with $)
             if symbol_name.startswith("$"):
                 const_name = symbol_name[1:]
@@ -702,9 +703,12 @@ def _assembly_to_evm(
                             bytecode = _compile_push_instruction(PUSH(val))
                         ret.extend(bytecode)
                     else:
-                        # Symbol not found. This will raise KeyError with the actual undefined symbol.
+                        # Symbol not found. This will raise KeyError with the
+                        # actual undefined symbol.
                         # This is the same behavior as PUSHLABEL.
-                        bytecode = _compile_push_instruction(PUSH_N(symbol_map[label], n=SYMBOL_SIZE))
+                        bytecode = _compile_push_instruction(
+                            PUSH_N(symbol_map[label], n=SYMBOL_SIZE)
+                        )
                         ret.extend(bytecode)
 
         elif isinstance(item, JUMPDEST):
@@ -721,7 +725,7 @@ def _assembly_to_evm(
             else:
                 assert isinstance(item.label, CONSTREF)
                 const_name = item.label.label
-                
+
                 # Try to look up as a CONSTREF first
                 if item.label in symbol_map:
                     ofst = symbol_map[item.label] + item.ofst

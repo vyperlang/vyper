@@ -221,7 +221,6 @@ class IRLabel(IROperand):
     value: str
     address: Optional[int] = None  # optional address override
 
-
     def __init__(self, value: str, is_symbol: bool = False, address: Optional[int] = None) -> None:
         assert isinstance(value, str), f"not a str: {value} ({type(value)})"
         assert len(value) > 0
@@ -244,6 +243,7 @@ class ConstRef:
     Reference to a named constant in Venom IR.
     Replaces the $-prefixed string representation.
     """
+
     name: str
 
     def __str__(self):
@@ -255,6 +255,7 @@ class LabelRef:
     """
     Reference to a label in Venom IR.
     """
+
     name: str
 
     def __str__(self):
@@ -267,6 +268,7 @@ class UnresolvedConst:
     Represents an unresolved constant expression in Venom IR.
     Used when a complex expression cannot be evaluated at parse time.
     """
+
     name: str
 
     def __str__(self):
@@ -469,6 +471,7 @@ class IRInstruction:
         operands = self.operands
         if opcode not in ["jmp", "jnz", "djmp", "invoke"]:
             operands = list(reversed(operands))
+
         def format_operand(op):
             if isinstance(op, IRLabel):
                 return f"@{op}"
@@ -476,6 +479,7 @@ class IRInstruction:
                 return str(op)  # Uses their __str__ methods which add prefixes
             else:
                 return str(op)
+
         s += ", ".join([format_operand(op) for op in operands])
         return s
 
@@ -490,6 +494,7 @@ class IRInstruction:
             operands = [operands[0]] + list(reversed(operands[1:]))
         elif self.opcode not in ("jmp", "jnz", "djmp", "phi"):
             operands = reversed(operands)  # type: ignore
+
         def format_operand(op):
             if isinstance(op, IRLabel):
                 return f"@{op}"
@@ -497,6 +502,7 @@ class IRInstruction:
                 return str(op)  # Uses their __str__ methods which add prefixes
             else:
                 return str(op)
+
         s += ", ".join([format_operand(op) for op in operands])
 
         if self.annotation:

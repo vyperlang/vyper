@@ -34,12 +34,18 @@ def test_basic_const_eval():
     assert evaluate_const_expr(("min", 10, 20), constants, global_labels) == 10
 
     # Test operations with references
-    assert evaluate_const_expr(("add", ConstRef("A"), ConstRef("B")), constants, global_labels) == 30
-    assert evaluate_const_expr(("add", LabelRef("label1"), 0x100), constants, global_labels) == 0x200
+    assert (
+        evaluate_const_expr(("add", ConstRef("A"), ConstRef("B")), constants, global_labels) == 30
+    )
+    assert (
+        evaluate_const_expr(("add", LabelRef("label1"), 0x100), constants, global_labels) == 0x200
+    )
 
     # Test nested operations
     assert evaluate_const_expr(("add", ("mul", 2, 3), 4), constants, global_labels) == 10
-    assert evaluate_const_expr(("mul", ("add", ConstRef("A"), 5), 2), constants, global_labels) == 30
+    assert (
+        evaluate_const_expr(("mul", ("add", ConstRef("A"), 5), 2), constants, global_labels) == 30
+    )
 
 
 def test_const_eval_errors():
@@ -244,13 +250,17 @@ def test_try_evaluate_undefined_const():
     const_refs = set()
 
     # Test defined constant - returns value
-    result = try_evaluate_const_expr(ConstRef("A"), constants, global_labels, unresolved_consts, const_refs)
+    result = try_evaluate_const_expr(
+        ConstRef("A"), constants, global_labels, unresolved_consts, const_refs
+    )
     assert result == 10
     assert len(unresolved_consts) == 0
     assert len(const_refs) == 0
 
     # Test undefined constant - returns ConstRef object
-    result = try_evaluate_const_expr(ConstRef("B"), constants, global_labels, unresolved_consts, const_refs)
+    result = try_evaluate_const_expr(
+        ConstRef("B"), constants, global_labels, unresolved_consts, const_refs
+    )
     assert isinstance(result, ConstRef)
     assert result.name == "B"  # The ConstRef has the name
     assert "B" in const_refs
@@ -267,7 +277,11 @@ def test_try_evaluate_undefined_in_operation():
 
     # Operation with one undefined constant
     result = try_evaluate_const_expr(
-        ("add", ConstRef("A"), ConstRef("B")), constants, global_labels, unresolved_consts, const_refs
+        ("add", ConstRef("A"), ConstRef("B")),
+        constants,
+        global_labels,
+        unresolved_consts,
+        const_refs,
     )
     assert isinstance(result, UnresolvedConst)
     assert result.name.startswith("__const_")  # Complex expressions still get generated names
@@ -284,7 +298,11 @@ def test_try_evaluate_undefined_in_operation():
     unresolved_consts.clear()
     const_refs.clear()
     result = try_evaluate_const_expr(
-        ("mul", ConstRef("B"), ConstRef("C")), constants, global_labels, unresolved_consts, const_refs
+        ("mul", ConstRef("B"), ConstRef("C")),
+        constants,
+        global_labels,
+        unresolved_consts,
+        const_refs,
     )
     assert isinstance(result, UnresolvedConst)
     assert result.name.startswith("__const_")

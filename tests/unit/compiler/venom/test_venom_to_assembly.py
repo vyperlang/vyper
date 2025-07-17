@@ -1,4 +1,4 @@
-from vyper.evm.assembler.core import PUSHLABEL, PUSHSYMBOL, Label
+from vyper.evm.assembler.core import PUSHLABEL, Label
 from vyper.venom.parser import parse_venom
 from vyper.venom.venom_to_assembly import VenomCompiler
 
