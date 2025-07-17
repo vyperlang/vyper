@@ -21,6 +21,7 @@ from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, Live
 from vyper.venom.basicblock import (
     PSEUDO_INSTRUCTION,
     TEST_INSTRUCTIONS,
+    ConstRef,
     IRBasicBlock,
     IRHexString,
     IRInstruction,
@@ -28,6 +29,7 @@ from vyper.venom.basicblock import (
     IRLiteral,
     IROperand,
     IRVariable,
+    LabelRef,
 )
 from vyper.venom.const_eval import try_evaluate_const_expr
 from vyper.venom.context import IRContext, IRFunction
@@ -188,14 +190,7 @@ class VenomCompiler:
                 
                 # Normalize the expression for comparison
                 def normalize_expr(e):
-                    if isinstance(e, tuple) and len(e) == 3:
-                        op, a1, a2 = e
-                        # Strip @ prefix from label references
-                        if isinstance(a1, str) and a1.startswith("@"):
-                            a1 = a1[1:]
-                        if isinstance(a2, str) and a2.startswith("@"):
-                            a2 = a2[1:]
-                        return (op, a1, a2)
+                    # With typed objects, expressions are already normalized
                     return e
                 
                 normalized_expr = normalize_expr(expr)
@@ -241,11 +236,21 @@ class VenomCompiler:
             elif isinstance(expr, tuple) and len(expr) == 3:
                 # Binary operation
                 op_name, arg1, arg2 = expr
-                # Convert IRLabel objects to strings for assembler
+                # Convert typed objects to strings for assembler
                 if isinstance(arg1, IRLabel):
                     arg1 = arg1.value
+                elif isinstance(arg1, ConstRef):
+                    arg1 = arg1.name  # No prefix for assembler
+                elif isinstance(arg1, LabelRef):
+                    arg1 = f"@{arg1.name}"  # Add @ prefix for assembler
+                
                 if isinstance(arg2, IRLabel):
                     arg2 = arg2.value
+                elif isinstance(arg2, ConstRef):
+                    arg2 = arg2.name  # No prefix for assembler
+                elif isinstance(arg2, LabelRef):
+                    arg2 = f"@{arg2.name}"  # Add @ prefix for assembler
+                
                 # Emit the appropriate CONST_* operation
                 if op_name == "add":
                     asm.append(CONST_ADD(label_name, arg1, arg2))  # type: ignore[arg-type]

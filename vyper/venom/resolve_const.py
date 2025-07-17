@@ -1,4 +1,4 @@
-from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand
+from vyper.venom.basicblock import ConstRef, IRLabel, IRLiteral, IROperand, LabelRef
 from vyper.venom.const_eval import try_evaluate_const_expr
 from vyper.venom.context import IRContext
 
@@ -18,7 +18,7 @@ def resolve_const_operands(ctx: IRContext) -> None:
             for inst in bb.instructions:
                 new_operands = []
                 for op in inst.operands:
-                    if isinstance(op, (str, tuple)) and not isinstance(op, IROperand):
+                    if isinstance(op, (tuple, ConstRef, LabelRef)) and not isinstance(op, IROperand):
                         # This is a raw const expression - evaluate it
                         result = try_evaluate_const_expr(
                             op,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
 import vyper.venom.effects as effects
@@ -220,6 +221,7 @@ class IRLabel(IROperand):
     value: str
     address: Optional[int] = None  # optional address override
 
+
     def __init__(self, value: str, is_symbol: bool = False, address: Optional[int] = None) -> None:
         assert isinstance(value, str), f"not a str: {value} ({type(value)})"
         assert len(value) > 0
@@ -234,6 +236,30 @@ class IRLabel(IROperand):
             return self.value
 
         return json.dumps(self.value)  # escape it
+
+
+@dataclass(frozen=True)
+class ConstRef:
+    """
+    Reference to a named constant in Venom IR.
+    Replaces the $-prefixed string representation.
+    """
+    name: str
+
+    def __str__(self):
+        return f"${self.name}"
+
+
+@dataclass(frozen=True)
+class LabelRef:
+    """
+    Reference to a label in Venom IR.
+    Replaces the @-prefixed string representation.
+    """
+    name: str
+
+    def __str__(self):
+        return f"@{self.name}"
 
 
 class IRInstruction:
@@ -432,7 +458,14 @@ class IRInstruction:
         operands = self.operands
         if opcode not in ["jmp", "jnz", "djmp", "invoke"]:
             operands = list(reversed(operands))
-        s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
+        def format_operand(op):
+            if isinstance(op, IRLabel):
+                return f"@{op}"
+            elif isinstance(op, (ConstRef, LabelRef)):
+                return str(op)  # Uses their __str__ methods which add prefixes
+            else:
+                return str(op)
+        s += ", ".join([format_operand(op) for op in operands])
         return s
 
     def __repr__(self) -> str:
@@ -446,7 +479,14 @@ class IRInstruction:
             operands = [operands[0]] + list(reversed(operands[1:]))
         elif self.opcode not in ("jmp", "jnz", "djmp", "phi"):
             operands = reversed(operands)  # type: ignore
-        s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
+        def format_operand(op):
+            if isinstance(op, IRLabel):
+                return f"@{op}"
+            elif isinstance(op, (ConstRef, LabelRef)):
+                return str(op)  # Uses their __str__ methods which add prefixes
+            else:
+                return str(op)
+        s += ", ".join([format_operand(op) for op in operands])
 
         if self.annotation:
             s = f"{s: <30} ; {self.annotation}"

@@ -2,7 +2,7 @@ import pytest
 
 from vyper.evm.assembler.core import assembly_to_evm
 from vyper.evm.assembler.symbols import CONST, CONST_ADD, Label
-from vyper.venom.basicblock import IRLabel, IRLiteral
+from vyper.venom.basicblock import ConstRef, IRLabel, IRLiteral, LabelRef
 from vyper.venom.const_eval import ConstEvalException, evaluate_const_expr, try_evaluate_const_expr
 from vyper.venom.parser import parse_venom
 from vyper.venom.resolve_const import resolve_const_operands
@@ -17,12 +17,12 @@ def test_basic_const_eval():
     assert evaluate_const_expr(42, constants, global_labels) == 42
 
     # Test constant references
-    assert evaluate_const_expr("$A", constants, global_labels) == 10
-    assert evaluate_const_expr("$B", constants, global_labels) == 20
+    assert evaluate_const_expr(ConstRef("A"), constants, global_labels) == 10
+    assert evaluate_const_expr(ConstRef("B"), constants, global_labels) == 20
 
     # Test label references
-    assert evaluate_const_expr("@label1", constants, global_labels) == 0x100
-    assert evaluate_const_expr("@label2", constants, global_labels) == 0x200
+    assert evaluate_const_expr(LabelRef("label1"), constants, global_labels) == 0x100
+    assert evaluate_const_expr(LabelRef("label2"), constants, global_labels) == 0x200
 
     # Test operations
     assert evaluate_const_expr(("add", 10, 20), constants, global_labels) == 30
@@ -34,12 +34,12 @@ def test_basic_const_eval():
     assert evaluate_const_expr(("min", 10, 20), constants, global_labels) == 10
 
     # Test operations with references
-    assert evaluate_const_expr(("add", "$A", "$B"), constants, global_labels) == 30
-    assert evaluate_const_expr(("add", "@label1", 0x100), constants, global_labels) == 0x200
+    assert evaluate_const_expr(("add", ConstRef("A"), ConstRef("B")), constants, global_labels) == 30
+    assert evaluate_const_expr(("add", LabelRef("label1"), 0x100), constants, global_labels) == 0x200
 
     # Test nested operations
     assert evaluate_const_expr(("add", ("mul", 2, 3), 4), constants, global_labels) == 10
-    assert evaluate_const_expr(("mul", ("add", "$A", 5), 2), constants, global_labels) == 30
+    assert evaluate_const_expr(("mul", ("add", ConstRef("A"), 5), 2), constants, global_labels) == 30
 
 
 def test_const_eval_errors():
@@ -48,11 +48,11 @@ def test_const_eval_errors():
 
     # Test undefined constant
     with pytest.raises(ConstEvalException, match="Undefined constant: B"):
-        evaluate_const_expr("$B", constants, global_labels)
+        evaluate_const_expr(ConstRef("B"), constants, global_labels)
 
     # Test undefined label
     with pytest.raises(ConstEvalException, match="Undefined global label: label2"):
-        evaluate_const_expr("@label2", constants, global_labels)
+        evaluate_const_expr(LabelRef("label2"), constants, global_labels)
 
     # Test division by zero
     with pytest.raises(ConstEvalException, match="Division by zero"):
@@ -244,13 +244,13 @@ def test_try_evaluate_undefined_const():
     const_refs = set()
 
     # Test defined constant - returns value
-    result = try_evaluate_const_expr("$A", constants, global_labels, unresolved_consts, const_refs)
+    result = try_evaluate_const_expr(ConstRef("A"), constants, global_labels, unresolved_consts, const_refs)
     assert result == 10
     assert len(unresolved_consts) == 0
     assert len(const_refs) == 0
 
     # Test undefined constant - returns label
-    result = try_evaluate_const_expr("$B", constants, global_labels, unresolved_consts, const_refs)
+    result = try_evaluate_const_expr(ConstRef("B"), constants, global_labels, unresolved_consts, const_refs)
     assert isinstance(result, str)
     assert result == "B"  # Now uses the constant name directly
     assert "B" in const_refs
@@ -267,7 +267,7 @@ def test_try_evaluate_undefined_in_operation():
 
     # Operation with one undefined constant
     result = try_evaluate_const_expr(
-        ("add", "$A", "$B"), constants, global_labels, unresolved_consts, const_refs
+        ("add", ConstRef("A"), ConstRef("B")), constants, global_labels, unresolved_consts, const_refs
     )
     assert isinstance(result, str)
     assert result.startswith("__const_")  # Complex expressions still get generated names
@@ -284,7 +284,7 @@ def test_try_evaluate_undefined_in_operation():
     unresolved_consts.clear()
     const_refs.clear()
     result = try_evaluate_const_expr(
-        ("mul", "$B", "$C"), constants, global_labels, unresolved_consts, const_refs
+        ("mul", ConstRef("B"), ConstRef("C")), constants, global_labels, unresolved_consts, const_refs
     )
     assert isinstance(result, str)
     assert result.startswith("__const_")

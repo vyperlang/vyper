@@ -4,6 +4,7 @@ from typing import Optional
 from lark import Lark, Transformer
 
 from vyper.venom.basicblock import (
+    ConstRef,
     IRBasicBlock,
     IRHexString,
     IRInstruction,
@@ -11,6 +12,7 @@ from vyper.venom.basicblock import (
     IRLiteral,
     IROperand,
     IRVariable,
+    LabelRef,
 )
 from vyper.venom.const_eval import evaluate_const_expr, try_evaluate_const_expr
 from vyper.venom.context import IRContext
@@ -304,6 +306,14 @@ class VenomTransformer(Transformer):
             return value
         if isinstance(value, (IRLiteral, IRVariable, IRLabel)):
             return IRInstruction("store", [value], output=to)
+        # Handle typed const/label references
+        if isinstance(value, (ConstRef, LabelRef)):
+            # Convert to IRLabel for store instruction
+            if isinstance(value, LabelRef):
+                return IRInstruction("store", [IRLabel(value.name)], output=to)
+            else:
+                # ConstRef - store as is for evaluation later
+                return IRInstruction("store", [value], output=to)  # type: ignore[list-item]
         # Handle const expressions that need evaluation
         if isinstance(value, (str, tuple)):
             # This will be evaluated later in the function processing
@@ -377,12 +387,11 @@ class VenomTransformer(Transformer):
         # label_name can be IDENT or ESCAPED_STRING
         return _unescape(str(children[0]))
 
-    def label_ref(self, children) -> IRLabel:
+    def label_ref(self, children) -> LabelRef:
         # label_ref is "@" followed by IDENT or ESCAPED_STRING
+        # The @ prefix is handled by the grammar, so we only get the label name
         label = _unescape(str(children[0]))
-        if label.startswith("@"):
-            label = label[1:]
-        return IRLabel(label, True)
+        return LabelRef(label)
 
     def VAR_IDENT(self, var_ident) -> IRVariable:
         return IRVariable(var_ident[1:])
@@ -414,18 +423,12 @@ class VenomTransformer(Transformer):
     def const_atom(self, children):
         # const_atom: CONST | const_ref | label_ref
         child = children[0]
-        if isinstance(child, IRLiteral):
-            return child
-        elif isinstance(child, IRLabel):
-            # Return the IRLabel directly - no @ prefix needed
-            return child
-        else:
-            # Must be a const_ref (string starting with $)
-            return child
+        # All three types (IRLiteral, ConstRef, LabelRef) can be returned directly
+        return child
 
-    def const_ref(self, children) -> str:
+    def const_ref(self, children) -> ConstRef:
         # const_ref: "$" IDENT
-        return f"${children[0]}"
+        return ConstRef(str(children[0]))
 
     def const_func(self, children):
         # const_func: IDENT "(" const_expr ("," const_expr)* ")"
