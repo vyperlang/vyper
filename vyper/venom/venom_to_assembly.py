@@ -237,19 +237,15 @@ class VenomCompiler:
                 # Binary operation
                 op_name, arg1, arg2 = expr
                 # Convert typed objects to strings for assembler
-                if isinstance(arg1, IRLabel):
-                    arg1 = arg1.value
-                elif isinstance(arg1, ConstRef):
-                    arg1 = arg1.name  # No prefix for assembler
-                elif isinstance(arg1, LabelRef):
-                    arg1 = f"@{arg1.name}"  # Add @ prefix for assembler
-                
-                if isinstance(arg2, IRLabel):
-                    arg2 = arg2.value
-                elif isinstance(arg2, ConstRef):
-                    arg2 = arg2.name  # No prefix for assembler
-                elif isinstance(arg2, LabelRef):
-                    arg2 = f"@{arg2.name}"  # Add @ prefix for assembler
+                assert isinstance(arg1, (IRLabel, ConstRef, LabelRef)), (
+                    f"ConstRef, or LabelRef, got {type(arg1)}"
+                )
+                arg1 = arg1.name
+
+                assert isinstance(arg2, (IRLabel, ConstRef, LabelRef)), (
+                    f"ConstRef, or LabelRef, got {type(arg2)}"
+                )
+                arg2 = arg2.name
                 
                 # Emit the appropriate CONST_* operation
                 if op_name == "add":

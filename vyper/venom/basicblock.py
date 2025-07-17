@@ -254,7 +254,6 @@ class ConstRef:
 class LabelRef:
     """
     Reference to a label in Venom IR.
-    Replaces the @-prefixed string representation.
     """
     name: str
 
