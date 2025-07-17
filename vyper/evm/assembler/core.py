@@ -435,9 +435,14 @@ def resolve_symbols(
                     pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
                 else:
                     # For non-label-dependent constants, calculate actual size
-                    const = symbol_map[item.label]
-                    val = const + item.ofst
-                    pc += calc_push_size(val)
+                    # Try to look up as a CONSTREF first
+                    if item.label in symbol_map:
+                        const = symbol_map[item.label]
+                        val = const + item.ofst
+                        pc += calc_push_size(val)
+                    else:
+                        # Treat it as a label-dependent reference using PUSH2 size
+                        pc += SYMBOL_SIZE + 1  # PUSH2 
             else:  # pragma: nocover
                 raise CompilerPanic(f"invalid ofst {item.label}")
 
@@ -715,10 +720,18 @@ def _assembly_to_evm(
                 bytecode = _compile_push_instruction(PUSH_N(ofst, SYMBOL_SIZE))
             else:
                 assert isinstance(item.label, CONSTREF)
-                ofst = symbol_map[item.label] + item.ofst
+                const_name = item.label.label
+                
+                # Try to look up as a CONSTREF first
+                if item.label in symbol_map:
+                    ofst = symbol_map[item.label] + item.ofst
+                # If not found as CONSTREF, try as a Label
+                elif Label(const_name) in symbol_map:
+                    ofst = symbol_map[Label(const_name)] + item.ofst
+                else:
+                    raise CompilerPanic(f"Unknown symbol: {const_name}")
 
                 # Check if this is a label-dependent constant
-                const_name = item.label.label
                 if const_name in label_dependent_consts:
                     # Use PUSH2 for label-dependent constants
                     # Also validate the value fits in 16 bits
