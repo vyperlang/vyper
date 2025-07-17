@@ -119,7 +119,7 @@ def try_evaluate_const_expr(
             const_refs.add(expr.name)
             if expr.name not in unresolved_consts:
                 unresolved_consts[expr.name] = ("ref", expr.name)
-            return expr.name
+            return expr
         return constants[expr.name]
 
     if isinstance(expr, LabelRef):
@@ -131,7 +131,7 @@ def try_evaluate_const_expr(
             const_refs.add(expr.name)
             if expr.name not in unresolved_consts:
                 unresolved_consts[expr.name] = ("ref", expr.name)
-            return expr.name
+            return expr
 
     if isinstance(expr, str):
         # String should not appear in well-formed expressions

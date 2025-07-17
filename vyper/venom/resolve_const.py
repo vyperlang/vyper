@@ -1,3 +1,4 @@
+from vyper.exceptions import CompilerPanic
 from vyper.venom.basicblock import ConstRef, IRLabel, IRLiteral, IROperand, LabelRef
 from vyper.venom.const_eval import try_evaluate_const_expr
 from vyper.venom.context import IRContext
@@ -29,9 +30,17 @@ def resolve_const_operands(ctx: IRContext) -> None:
                         )
                         if isinstance(result, int):
                             new_operands.append(IRLiteral(result))
-                        else:
-                            # Return as label for unresolved expressions
+                        elif isinstance(result, ConstRef):
+                            # Convert unresolved ConstRef to IRLabel
+                            new_operands.append(IRLabel(result.name, True))
+                        elif isinstance(result, LabelRef):
+                            # Convert unresolved LabelRef to IRLabel  
+                            new_operands.append(IRLabel(result.name, True))
+                        elif isinstance(result, str):
+                            # String result from unresolved expressions
                             new_operands.append(IRLabel(result, True))
+                        else:
+                            raise CompilerPanic(f"Unexpected result type from const eval: {type(result)} {result}")
                     else:
                         new_operands.append(op)
                 inst.operands = new_operands

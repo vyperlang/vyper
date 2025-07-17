@@ -249,13 +249,13 @@ def test_try_evaluate_undefined_const():
     assert len(unresolved_consts) == 0
     assert len(const_refs) == 0
 
-    # Test undefined constant - returns label
+    # Test undefined constant - returns ConstRef object
     result = try_evaluate_const_expr(ConstRef("B"), constants, global_labels, unresolved_consts, const_refs)
-    assert isinstance(result, str)
-    assert result == "B"  # Now uses the constant name directly
+    assert isinstance(result, ConstRef)
+    assert result.name == "B"  # The ConstRef has the name
     assert "B" in const_refs
-    assert result in unresolved_consts
-    assert unresolved_consts[result] == ("ref", "B")
+    assert "B" in unresolved_consts
+    assert unresolved_consts["B"] == ("ref", "B")
 
 
 def test_try_evaluate_undefined_in_operation():
@@ -278,7 +278,7 @@ def test_try_evaluate_undefined_in_operation():
     op_name, arg1, arg2 = unresolved_consts[result]
     assert op_name == "add"
     assert arg1 == 10  # A was resolved
-    assert isinstance(arg2, str) and arg2 == "B"  # B is unresolved
+    assert isinstance(arg2, ConstRef) and arg2.name == "B"  # B is unresolved
 
     # Operation with both undefined
     unresolved_consts.clear()

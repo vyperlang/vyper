@@ -237,15 +237,23 @@ class VenomCompiler:
                 # Binary operation
                 op_name, arg1, arg2 = expr
                 # Convert typed objects to strings for assembler
-                assert isinstance(arg1, (IRLabel, ConstRef, LabelRef)), (
-                    f"ConstRef, or LabelRef, got {type(arg1)}"
-                )
-                arg1 = arg1.name
-
-                assert isinstance(arg2, (IRLabel, ConstRef, LabelRef)), (
-                    f"ConstRef, or LabelRef, got {type(arg2)}"
-                )
-                arg2 = arg2.name
+                if isinstance(arg1, ConstRef):
+                    arg1 = arg1.name
+                elif isinstance(arg1, LabelRef):
+                    arg1 = arg1.name
+                elif isinstance(arg1, IRLabel):
+                    arg1 = arg1.value
+                elif not isinstance(arg1, (int, str)):
+                    raise CompilerPanic(f"Unexpected arg1 type: {type(arg1)} {arg1}")
+                
+                if isinstance(arg2, ConstRef):
+                    arg2 = arg2.name
+                elif isinstance(arg2, LabelRef):
+                    arg2 = arg2.name
+                elif isinstance(arg2, IRLabel):
+                    arg2 = arg2.value
+                elif not isinstance(arg2, (int, str)):
+                    raise CompilerPanic(f"Unexpected arg2 type: {type(arg2)} {arg2}")
                 
                 # Emit the appropriate CONST_* operation
                 if op_name == "add":
@@ -262,7 +270,15 @@ class VenomCompiler:
                 for _label_name, expr in self.ctx.unresolved_consts.items():
                     if isinstance(expr, tuple) and len(expr) == 3:
                         _, arg1, arg2 = expr
-                        if arg1 == bb.label.value or arg2 == bb.label.value:
+                        # Extract label names from typed objects
+                        label1 = None
+                        label2 = None
+                        if isinstance(arg1, LabelRef):
+                            label1 = arg1.name
+                        if isinstance(arg2, LabelRef):
+                            label2 = arg2.name
+                        
+                        if label1 == bb.label.value or label2 == bb.label.value:
                             bb.is_pinned = True
 
         for fn in self.ctx.functions.values():
