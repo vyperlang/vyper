@@ -182,8 +182,35 @@ class VenomCompiler:
             if isinstance(result, int):
                 self.ctx.constants[name] = result
             else:
-                # Store as unresolved constant
-                self.ctx.unresolved_consts[name] = expr
+                # Check if try_evaluate_const_expr already added this to unresolved_consts
+                # under a different name (e.g., __const_0). If so, update it to use our name.
+                found_existing = False
+                
+                # Normalize the expression for comparison
+                def normalize_expr(e):
+                    if isinstance(e, tuple) and len(e) == 3:
+                        op, a1, a2 = e
+                        # Strip @ prefix from label references
+                        if isinstance(a1, str) and a1.startswith("@"):
+                            a1 = a1[1:]
+                        if isinstance(a2, str) and a2.startswith("@"):
+                            a2 = a2[1:]
+                        return (op, a1, a2)
+                    return e
+                
+                normalized_expr = normalize_expr(expr)
+                
+                for existing_name, existing_expr in list(self.ctx.unresolved_consts.items()):
+                    if existing_name.startswith("__const_") and normalize_expr(existing_expr) == normalized_expr:
+                        # Remove the auto-generated name and use our explicit name
+                        del self.ctx.unresolved_consts[existing_name]
+                        self.ctx.unresolved_consts[name] = existing_expr
+                        found_existing = True
+                        break
+                
+                if not found_existing:
+                    # Store as unresolved constant
+                    self.ctx.unresolved_consts[name] = expr
 
         # Process global label expressions that were stored separately
         for name, expr in list(self.ctx.const_expressions.items()):
@@ -315,9 +342,11 @@ class VenomCompiler:
                 # invoke emits the actual instruction itself so we don't need
                 # to emit it here but we need to add it to the stack map
                 if inst.opcode != "invoke":
-                    # Check if this label is an unresolved constant
-                    if op.value in self.ctx.unresolved_consts:
-                        # For all unresolved constants, use PUSH_OFST with CONSTREF
+                    # Check if this label is a constant reference
+                    if (op.value in self.ctx.unresolved_consts or 
+                        op.value in self.ctx.constants or
+                        op.value in self.ctx.const_expressions):
+                        # For all constants, use PUSH_OFST with CONSTREF
                         # This ensures consistent handling whether they're simple refs or
                         # expressions
                         assembly.append(PUSH_OFST(CONSTREF(op.value), 0))
