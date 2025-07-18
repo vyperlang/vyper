@@ -7,16 +7,19 @@ from typing import Optional
 
 from vyper.codegen.context import Alloca
 from vyper.codegen.ir_node import IRnode
+from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import get_opcodes
+from vyper.ir.compile_ir import _runtime_code_offsets
 from vyper.venom.basicblock import (
     IRBasicBlock,
+    IRHexString,
     IRInstruction,
     IRLabel,
     IRLiteral,
     IROperand,
     IRVariable,
 )
-from vyper.venom.context import IRContext
+from vyper.venom.context import DataSection, IRContext
 from vyper.venom.function import IRFunction, IRParameter
 
 ENABLE_NEW_CALL_CONV = True
@@ -95,7 +98,6 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "selfdestruct",
         "assert",
         "assert_unreachable",
-        "exit",
         "calldatacopy",
         "mcopy",
         "extcodecopy",
@@ -128,8 +130,30 @@ def get_scratch_alloca_id() -> int:
     return _scratch_alloca_id
 
 
+def generate_venom_from_ir(
+    ir: IRnode,
+    settings: Settings,
+    constants: dict[str, int] = None,
+    data_sections: dict[str, bytes] = None,
+) -> IRContext:
+    # Convert "old" IR to "new" IR
+    constants = constants or {}
+    starting_symbols = {k: IRLiteral(v) for k, v in constants.items()}
+    ctx = ir_node_to_venom(ir, starting_symbols)
+
+    data_sections = data_sections or {}
+    for section_name, data in data_sections.items():
+        ctx.append_data_section(IRLabel(section_name))
+        ctx.append_data_item(data)
+
+    for constname, value in constants.items():
+        ctx.add_constant(constname, value)
+
+    return ctx
+
+
 # convert IRnode directly to venom
-def ir_node_to_venom(ir: IRnode) -> IRContext:
+def ir_node_to_venom(ir: IRnode, symbols: Optional[dict] = None) -> IRContext:
     _ = ir.unique_symbols  # run unique symbols check
 
     global _alloca_table, _callsites
@@ -140,7 +164,8 @@ def ir_node_to_venom(ir: IRnode) -> IRContext:
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
     ctx.entry_function = fn
 
-    _convert_ir_bb(fn, ir, {})
+    symbols = symbols or {}
+    _convert_ir_bb(fn, ir, symbols)
 
     for fn in ctx.functions.values():
         for bb in fn.get_basic_blocks():
@@ -410,9 +435,22 @@ def _convert_ir_bb(fn, ir, symbols):
             "return", IRVariable("ret_size"), IRVariable("ret_ofst")
         )
     elif ir.value == "deploy":
-        ctx.ctor_mem_size = ir.args[0].value
-        ctx.immutables_len = ir.args[2].value
-        fn.get_basic_block().append_instruction("exit")
+        ctor_mem_size = ir.args[0].value
+        immutables_len = ir.args[2].value
+        runtime_codesize = symbols["runtime_codesize"].value
+        assert immutables_len == symbols["immutables_len"].value  # sanity
+
+        mem_deploy_start, mem_deploy_end = _runtime_code_offsets(ctor_mem_size, runtime_codesize)
+
+        fn.ctx.add_constant("mem_deploy_end", mem_deploy_end)
+
+        bb = fn.get_basic_block()
+
+        bb.append_instruction(
+            "codecopy", runtime_codesize, IRLabel("runtime_begin"), mem_deploy_start
+        )
+        amount_to_return = bb.append_instruction("add", runtime_codesize, immutables_len)
+        bb.append_instruction("return", amount_to_return, mem_deploy_start)
         return None
     elif ir.value == "seq":
         if len(ir.args) == 0:
@@ -526,14 +564,18 @@ def _convert_ir_bb(fn, ir, symbols):
         return IRLabel(ir.args[0].value, True)
     elif ir.value == "data":
         label = IRLabel(ir.args[0].value, True)
+
         ctx.append_data_section(label)
+
         for c in ir.args[1:]:
             if isinstance(c.value, bytes):
-                ctx.append_data_item(c.value)
+                hex_string = IRHexString(c.value)
+                ctx.append_data_item(hex_string)
             elif isinstance(c, IRnode):
                 data = _convert_ir_bb(fn, c, symbols)
                 assert isinstance(data, IRLabel)  # help mypy
                 ctx.append_data_item(data)
+
     elif ir.value == "label":
         label = IRLabel(ir.args[0].value, True)
         bb = fn.get_basic_block()
@@ -732,3 +774,26 @@ def _convert_ir_opcode(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> None
         if isinstance(arg, IRnode):
             inst_args.append(_convert_ir_bb(fn, arg, symbols))
     fn.get_basic_block().append_instruction(opcode, *inst_args)
+
+
+def convert_data_segment_to_function(ctx: IRContext, data_sections: list[DataSection]) -> None:
+    if len(data_sections) == 0:
+        return
+
+    first_label = data_sections[0].label
+    fn = ctx.create_function(first_label.value)
+    fn.clear_basic_blocks()
+
+    for data_section in data_sections:
+        bb = IRBasicBlock(data_section.label, fn)
+        bb.is_pinned = True
+        fn.append_basic_block(bb)
+
+        for data_item in data_section.data_items:
+            if isinstance(data_item.data, IRLabel):
+                bb.append_instruction("db", data_item.data)
+            else:
+                # Convert bytes to IRHexString
+                assert isinstance(data_item.data, bytes)
+                hex_string = IRHexString(data_item.data)
+                bb.append_instruction("db", hex_string)

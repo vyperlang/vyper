@@ -74,6 +74,8 @@ def test_labels_as_variables():
         %52 = mload 64
         %53 = sub %36, %52
         return %52, %53
+      revert: [pinned]
+        revert 0,0
     }
     """
     ctx = parse_venom(code)
@@ -82,4 +84,4 @@ def test_labels_as_variables():
 
     run_passes_on(ctx, OptimizationLevel.default())
     asm = generate_assembly_experimental(ctx)
-    generate_bytecode(asm, compiler_metadata=None)
+    generate_bytecode(asm)

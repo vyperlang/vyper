@@ -1,6 +1,6 @@
 from tests.venom_utils import assert_bb_eq, assert_ctx_eq
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IRVariable
-from vyper.venom.context import DataItem, DataSection, IRContext
+from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.parser import parse_venom
 
@@ -87,8 +87,8 @@ def test_data_section():
             stop
     }
 
-    data readonly {
-        dbsection selector_buckets:
+    function selector_buckets {
+        selector_buckets:
             db @selector_bucket_0
             db @fallback
             db @selector_bucket_2
@@ -104,20 +104,17 @@ def test_data_section():
     expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
     entry_fn.get_basic_block("entry").append_instruction("stop")
 
-    expected_ctx.data_segment = [
-        DataSection(
-            IRLabel("selector_buckets"),
-            [
-                DataItem(IRLabel("selector_bucket_0")),
-                DataItem(IRLabel("fallback")),
-                DataItem(IRLabel("selector_bucket_2")),
-                DataItem(IRLabel("selector_bucket_3")),
-                DataItem(IRLabel("fallback")),
-                DataItem(IRLabel("selector_bucket_5")),
-                DataItem(IRLabel("selector_bucket_6")),
-            ],
-        )
-    ]
+    expected_ctx.add_function(data_fn := IRFunction(IRLabel("selector_buckets")))
+    data_fn.clear_basic_blocks()
+    data_bb = IRBasicBlock(IRLabel("selector_buckets"), data_fn)
+    data_fn.append_basic_block(data_bb)
+    data_bb.append_instruction("db", IRLabel("selector_bucket_0"))
+    data_bb.append_instruction("db", IRLabel("fallback"))
+    data_bb.append_instruction("db", IRLabel("selector_bucket_2"))
+    data_bb.append_instruction("db", IRLabel("selector_bucket_3"))
+    data_bb.append_instruction("db", IRLabel("fallback"))
+    data_bb.append_instruction("db", IRLabel("selector_bucket_5"))
+    data_bb.append_instruction("db", IRLabel("selector_bucket_6"))
 
     assert_ctx_eq(parsed_ctx, expected_ctx)
 
@@ -198,8 +195,8 @@ def test_multi_function_and_data():
             revert 0, 0
     }
 
-    data readonly {
-        dbsection selector_buckets:
+    function selector_buckets {
+        selector_buckets:
             db @selector_bucket_0
             db @fallback
             db @selector_bucket_2
@@ -234,18 +231,16 @@ def test_multi_function_and_data():
     check_fn.append_basic_block(value_bb := IRBasicBlock(IRLabel("has_value"), check_fn))
     value_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
 
-    expected_ctx.data_segment = [
-        DataSection(
-            IRLabel("selector_buckets"),
-            [
-                DataItem(IRLabel("selector_bucket_0")),
-                DataItem(IRLabel("fallback")),
-                DataItem(IRLabel("selector_bucket_2")),
-                DataItem(IRLabel("selector_bucket_3")),
-                DataItem(IRLabel("selector_bucket_6")),
-            ],
-        )
-    ]
+    # Data segment is now converted to a function
+    expected_ctx.add_function(data_fn := IRFunction(IRLabel("selector_buckets")))
+    data_fn.clear_basic_blocks()
+    data_bb = IRBasicBlock(IRLabel("selector_buckets"), data_fn)
+    data_fn.append_basic_block(data_bb)
+    data_bb.append_instruction("db", IRLabel("selector_bucket_0"))
+    data_bb.append_instruction("db", IRLabel("fallback"))
+    data_bb.append_instruction("db", IRLabel("selector_bucket_2"))
+    data_bb.append_instruction("db", IRLabel("selector_bucket_3"))
+    data_bb.append_instruction("db", IRLabel("selector_bucket_6"))
 
     assert_ctx_eq(parsed_ctx, expected_ctx)
 
@@ -366,3 +361,116 @@ def test_phis():
 
     parsed_fn = next(iter(ctx.functions.values()))
     assert_bb_eq(parsed_fn.get_basic_block(expect_bb.label.name), expect_bb)
+
+
+def test_global_vars():
+    source = """
+
+    global_var: 10
+
+    function main {
+        main:
+            %1 = 1
+            %2 = 2
+            %3 = add %1, %2
+    }
+    """
+    ctx = parse_venom(source)
+
+    print(ctx)
+
+    expected_ctx = IRContext()
+    expected_ctx.add_function(main_fn := IRFunction(IRLabel("main")))
+    main_bb = main_fn.get_basic_block("main")
+    main_bb.append_instruction("assign", IRLiteral(1), ret=IRVariable("1"))
+    main_bb.append_instruction("assign", IRLiteral(2), ret=IRVariable("2"))
+    main_bb.append_instruction("add", IRVariable("2"), IRVariable("1"), ret=IRVariable("3"))
+
+    assert_ctx_eq(ctx, expected_ctx)
+
+
+def test_labels_with_addresses():
+    source = """
+    my_global: 0x1000
+
+    function main {
+        main:
+            %1 = 1
+            jmp @other_block
+        other_block:
+            %2 = 2
+            %3 = add %1, %2
+    }
+    """
+    ctx = parse_venom(source)
+
+    assert "my_global" in ctx.global_labels
+    assert ctx.global_labels["my_global"] == 0x1000
+
+    main_fn = ctx.get_function(IRLabel("main"))
+    assert main_fn is not None
+
+    # Labels inside functions don't have addresses
+    main_bb = main_fn.get_basic_block("main")
+    assert main_bb.label.address is None
+
+    other_bb = main_fn.get_basic_block("other_block")
+    assert other_bb.label.address is None
+
+
+def test_labels_with_addresses_used_in_function():
+    source = """
+    my_global: 0x1000
+
+    function main {
+        main:
+            %1 = 1
+            jmp @other_block
+        other_block:
+            %3 = add %1, @my_global
+    }
+    """
+    ctx = parse_venom(source)
+
+    assert "my_global" in ctx.global_labels
+    assert ctx.global_labels["my_global"] == 0x1000
+
+    main_fn = ctx.get_function(IRLabel("main"))
+    assert main_fn is not None
+
+    other_bb = main_fn.get_basic_block("other_block")
+    assert other_bb.label.address is None
+
+    add_inst = other_bb.instructions[0]
+    assert add_inst.opcode == "add"
+    assert add_inst.operands[0].value == "my_global"
+
+
+def test_labels_with_tags():
+    source = """
+    function main {
+        start:
+            nop
+        revert: [pinned]
+            revert 0, 0
+        special: [tag1, pinned, tag2]
+            nop
+        normal:
+            stop
+    }
+    """
+
+    parsed_ctx = parse_venom(source)
+    fn = list(parsed_ctx.functions.values())[0]
+
+    start_bb = fn.get_basic_block("start")
+    assert not start_bb.is_pinned, "start block should not be volatile"
+
+    revert_bb = fn.get_basic_block("revert")
+    assert revert_bb.is_pinned, "revert block should be volatile due to pinned tag"
+
+    special_bb = fn.get_basic_block("special")
+    assert special_bb.is_pinned, "special block should be volatile due to pinned tag"
+
+    normal_bb = fn.get_basic_block("normal")
+    assert not normal_bb.is_pinned, "normal block should not be volatile"

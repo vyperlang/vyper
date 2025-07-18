@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
 import vyper.venom.effects as effects
@@ -14,9 +15,7 @@ if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(
-    ["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "exit", "sink"]
-)
+BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "sink", "db"])
 
 VOLATILE_INSTRUCTIONS = frozenset(
     [
@@ -50,7 +49,6 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "assert",
         "assert_unreachable",
         "stop",
-        "exit",
     ]
 )
 
@@ -79,8 +77,8 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "djmp",
         "jnz",
         "log",
-        "exit",
         "nop",
+        "db",
     ]
 )
 
@@ -196,6 +194,22 @@ class IRVariable(IROperand):
         return self.name.strip("%")
 
 
+class IRHexString(IROperand):
+    """
+    IRHexString represents a hex string literal in IR,
+    currently only used for db instructions
+    """
+
+    value: bytes
+
+    def __init__(self, value: bytes) -> None:
+        assert isinstance(value, bytes), value
+        super().__init__(value)
+
+    def __repr__(self) -> str:
+        return f'x"{self.value.hex()}"'
+
+
 class IRLabel(IROperand):
     """
     IRLabel represents a label in IR. A label is a string that starts with a %.
@@ -205,11 +219,13 @@ class IRLabel(IROperand):
     # (like a function name, try to preserve it in optimization passes)
     is_symbol: bool = False
     value: str
+    address: Optional[int] = None  # optional address override
 
-    def __init__(self, value: str, is_symbol: bool = False) -> None:
+    def __init__(self, value: str, is_symbol: bool = False, address: Optional[int] = None) -> None:
         assert isinstance(value, str), f"not a str: {value} ({type(value)})"
         assert len(value) > 0
         self.is_symbol = is_symbol
+        self.address = address
         super().__init__(value)
 
     _IS_IDENTIFIER = re.compile("[0-9a-zA-Z_]*")
@@ -219,6 +235,44 @@ class IRLabel(IROperand):
             return self.value
 
         return json.dumps(self.value)  # escape it
+
+
+@dataclass(frozen=True)
+class ConstRef:
+    """
+    Reference to a named constant in Venom IR.
+    Replaces the $-prefixed string representation.
+    """
+
+    name: str
+
+    def __str__(self):
+        return f"${self.name}"
+
+
+@dataclass(frozen=True)
+class LabelRef:
+    """
+    Reference to a label in Venom IR.
+    """
+
+    name: str
+
+    def __str__(self):
+        return f"@{self.name}"
+
+
+@dataclass(frozen=True)
+class UnresolvedConst:
+    """
+    Represents an unresolved constant expression in Venom IR.
+    Used when a complex expression cannot be evaluated at parse time.
+    """
+
+    name: str
+
+    def __str__(self):
+        return f"${self.name}"
 
 
 class IRInstruction:
@@ -417,7 +471,16 @@ class IRInstruction:
         operands = self.operands
         if opcode not in ["jmp", "jnz", "djmp", "invoke"]:
             operands = list(reversed(operands))
-        s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
+
+        def format_operand(op):
+            if isinstance(op, IRLabel):
+                return f"@{op}"
+            elif isinstance(op, (ConstRef, LabelRef)):
+                return str(op)  # Uses their __str__ methods which add prefixes
+            else:
+                return str(op)
+
+        s += ", ".join([format_operand(op) for op in operands])
         return s
 
     def __repr__(self) -> str:
@@ -431,7 +494,16 @@ class IRInstruction:
             operands = [operands[0]] + list(reversed(operands[1:]))
         elif self.opcode not in ("jmp", "jnz", "djmp", "phi"):
             operands = reversed(operands)  # type: ignore
-        s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
+
+        def format_operand(op):
+            if isinstance(op, IRLabel):
+                return f"@{op}"
+            elif isinstance(op, (ConstRef, LabelRef)):
+                return str(op)  # Uses their __str__ methods which add prefixes
+            else:
+                return str(op)
+
+        s += ", ".join([format_operand(op) for op in operands])
 
         if self.annotation:
             s = f"{s: <30} ; {self.annotation}"
@@ -478,16 +550,26 @@ class IRBasicBlock:
     parent: IRFunction
     instructions: list[IRInstruction]
 
+    # is_pinned is used to indicate if the basic block is pinned and cannot
+    # be optimized out.
+    is_pinned: bool = False
+
     def __init__(self, label: IRLabel, parent: IRFunction) -> None:
         assert isinstance(label, IRLabel), "label must be an IRLabel"
         self.label = label
         self.parent = parent
         self.instructions = []
+        self.is_pinned = False
 
     @property
     def out_bbs(self):
         assert self.is_terminated
         term = self.last_instruction
+        if term.opcode == "db":
+            return []
+        # Only jmp, djmp, and jnz have jump targets
+        if term.opcode not in ("jmp", "djmp", "jnz"):
+            return []
         out_labels = term.get_label_operands()
         fn = self.parent
         return [fn.get_basic_block(label.name) for label in out_labels]
@@ -508,8 +590,6 @@ class IRBasicBlock:
 
         Returns the output variable if the instruction supports one
         """
-        assert not self.is_terminated, self
-
         if ret is None:
             ret = self.parent.get_next_variable() if opcode not in NO_OUTPUT_INSTRUCTIONS else None
 
@@ -551,7 +631,6 @@ class IRBasicBlock:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
 
         if index is None:
-            assert not self.is_terminated, (self, instruction)
             index = len(self.instructions)
         instruction.parent = self
         fn = self.parent
@@ -669,7 +748,13 @@ class IRBasicBlock:
     def __repr__(self) -> str:
         printer = ir_printer.get()
 
-        s = f"{repr(self.label)}:  ; OUT={[bb.label for bb in self.out_bbs]}\n"
+        s = f"{repr(self.label)}:"
+
+        if self.is_pinned:
+            s += " [pinned]\n"
+        else:
+            s += "\n"
+
         if printer and hasattr(printer, "_pre_block"):
             s += printer._pre_block(self)
         for inst in self.instructions:
