@@ -498,13 +498,12 @@ def get_data_segment_lengths(assembly: list[AssemblyInstruction]) -> list[int]:
 def _compile_data_item(item: DATA_ITEM, symbol_map: dict[SymbolKey, int]) -> bytes:
     if isinstance(item.data, bytes):
         return item.data
-    if isinstance(item.data, Label):
+    elif isinstance(item.data, Label):
         if item.data not in symbol_map:
             raise CompilerPanic(f"Unresolved label in data section: {item.data}")
-        symbolbytes = symbol_map[item.data].to_bytes(SYMBOL_SIZE, "big")
-        return symbolbytes
-
-    raise CompilerPanic(f"Invalid data {type(item.data)}, {item.data}")  # pragma: nocover
+        return symbol_map[item.data].to_bytes(SYMBOL_SIZE, "big")
+    else:
+        raise CompilerPanic(f"Invalid data {type(item.data)}, {item.data}")  # pragma: nocover
 
 
 # helper function
