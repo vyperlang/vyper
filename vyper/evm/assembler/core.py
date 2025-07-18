@@ -168,6 +168,34 @@ def _add_to_symbol_map(symbol_map: dict[SymbolKey, int], item: SymbolKey, value:
     symbol_map[item] = value
 
 
+def _extract_label_dependent_constants(
+    assembly: list[AssemblyInstruction], symbol_map: dict[SymbolKey, int]
+) -> set[str]:
+    """
+    Extract constants that depend on labels from the assembly.
+    """
+    label_dependent_consts = set()
+    for item in assembly:
+        if isinstance(item, BaseConstOp):
+            # Check if this constant references labels
+            for operand in [item.op1, item.op2]:
+                if isinstance(operand, str) and Label(operand) in symbol_map:
+                    label_dependent_consts.add(item.name)
+
+    # Propagate label dependency
+    changed = True
+    while changed:
+        changed = False
+        for item in assembly:
+            if isinstance(item, BaseConstOp) and item.name not in label_dependent_consts:
+                for operand in [item.op1, item.op2]:
+                    if isinstance(operand, str) and operand in label_dependent_consts:
+                        label_dependent_consts.add(item.name)
+                        changed = True
+    
+    return label_dependent_consts
+
+
 def _resolve_constants(
     assembly: list[AssemblyInstruction], symbol_map: dict[SymbolKey, int]
 ) -> set[str]:
@@ -555,24 +583,7 @@ def assembly_to_evm(assembly: list[AssemblyInstruction]) -> tuple[bytes, dict[st
     _validate_assembly_jumps(assembly, symbol_map)
 
     # Extract label-dependent constants from the assembly for bytecode generation
-    label_dependent_consts = set()
-    for item in assembly:
-        if isinstance(item, BaseConstOp):
-            # Check if this constant references labels
-            for operand in [item.op1, item.op2]:
-                if isinstance(operand, str) and Label(operand) in symbol_map:
-                    label_dependent_consts.add(item.name)
-
-    # Propagate label dependency
-    changed = True
-    while changed:
-        changed = False
-        for item in assembly:
-            if isinstance(item, BaseConstOp) and item.name not in label_dependent_consts:
-                for operand in [item.op1, item.op2]:
-                    if isinstance(operand, str) and operand in label_dependent_consts:
-                        label_dependent_consts.add(item.name)
-                        changed = True
+    label_dependent_consts = _extract_label_dependent_constants(assembly, symbol_map)
 
     bytecode = _assembly_to_evm(assembly, symbol_map, label_dependent_consts)
     return bytecode, source_map
