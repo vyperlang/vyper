@@ -105,7 +105,7 @@ class _Expression:
         return same_ops(self.operands, other.operands)
 
     def __repr__(self) -> str:
-        if self.opcode == "store":
+        if self.opcode == "assign":
             assert len(self.operands) == 1, "wrong store"
             return repr(self.operands[0])
         res = self.opcode + "("
@@ -286,7 +286,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
         change = False
         for inst in bb.instructions:
-            if inst.opcode == "store" or inst.is_pseudo or inst.is_bb_terminator:
+            if inst.opcode == "assign" or inst.is_pseudo or inst.is_bb_terminator:
                 continue
 
             if (
@@ -334,7 +334,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
         # create dataflow loop
         if inst.opcode == "phi":
             return op
-        if inst.opcode == "store":
+        if inst.opcode == "assign":
             return self._get_operand(inst.operands[0], available_exprs)
         if inst.opcode == "param":
             return op

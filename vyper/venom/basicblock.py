@@ -442,7 +442,7 @@ class IRInstruction:
     def code_size_cost(self) -> int:
         if self.opcode in ("ret", "param"):
             return 0
-        if self.opcode in ("store", "palloca", "alloca", "calloca"):
+        if self.opcode in ("assign", "palloca", "alloca", "calloca"):
             return 1
         return 2
 
@@ -466,7 +466,7 @@ class IRInstruction:
         s = ""
         if self.output:
             s += f"{self.output} = "
-        opcode = f"{self.opcode} " if self.opcode != "store" else ""
+        opcode = f"{self.opcode} " if self.opcode != "assign" else ""
         s += opcode
         operands = self.operands
         if opcode not in ["jmp", "jnz", "djmp", "invoke"]:
@@ -487,7 +487,7 @@ class IRInstruction:
         s = ""
         if self.output:
             s += f"{self.output} = "
-        opcode = f"{self.opcode} " if self.opcode != "store" else ""
+        opcode = f"{self.opcode} " if self.opcode != "assign" else ""
         s += opcode
         operands = self.operands
         if self.opcode == "invoke":

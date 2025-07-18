@@ -278,22 +278,22 @@ class VenomTransformer(Transformer):
             value.output = to
             return value
         if isinstance(value, (IRLiteral, IRVariable, IRLabel)):
-            return IRInstruction("store", [value], output=to)
+            return IRInstruction("assign", [value], output=to)
         # Handle typed const/label references
         if isinstance(value, (ConstRef, LabelRef)):
             # Convert to IRLabel for store instruction
             if isinstance(value, LabelRef):
-                return IRInstruction("store", [IRLabel(value.name)], output=to)
+                return IRInstruction("assign", [IRLabel(value.name)], output=to)
             else:
                 # ConstRef - store as is for evaluation later
-                return IRInstruction("store", [value], output=to)  # type: ignore[list-item]
+                return IRInstruction("assign", [value], output=to)  # type: ignore[list-item]
         # Handle const expressions that need evaluation
         if isinstance(value, (str, tuple)):
             # This will be evaluated later in the function processing
-            return IRInstruction("store", [value], output=to)  # type: ignore[list-item]
+            return IRInstruction("assign", [value], output=to)  # type: ignore[list-item]
         # Handle raw integers from const_atom
         if isinstance(value, int):
-            return IRInstruction("store", [IRLiteral(value)], output=to)
+            return IRInstruction("assign", [IRLiteral(value)], output=to)
         raise TypeError(f"Unexpected value {value} of type {type(value)}")
 
     def expr(self, children) -> IRInstruction | IROperand:
