@@ -1,166 +1,26 @@
 from typing import Any
 
 from vyper.evm.assembler.constants import DUP_OFFSET, PUSH_OFFSET, SWAP_OFFSET
+from vyper.evm.assembler.instructions import (
+    DATA_ITEM,
+    JUMPDEST,
+    PUSH,
+    PUSH_N,
+    PUSH_OFST,
+    PUSHLABEL,
+    PUSHLABELJUMPDEST,
+    AssemblyInstruction,
+    TaggedInstruction,
+)
 from vyper.evm.assembler.symbols import CONST, CONSTREF, BaseConstOp, Label, SymbolKey
-from vyper.evm.opcodes import get_opcodes, version_check
+from vyper.evm.opcodes import get_opcodes
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
-
-
-def num_to_bytearray(x):
-    o = []
-    while x > 0:
-        o.insert(0, x % 256)
-        x //= 256
-    return o
-
-
-class JUMPDEST:
-    def __init__(self, label: Label):
-        assert isinstance(label, Label), label
-        self.label = label
-
-    def __repr__(self):
-        return f"JUMPDEST {self.label.label}"
-
-
-class PUSHLABEL:
-    def __init__(self, label: Label):
-        assert isinstance(label, Label), f"invalid label {type(label)} {label}"
-        self.label = label
-
-    def __repr__(self):
-        return f"PUSHLABEL {self.label.label}"
-
-    def __eq__(self, other):
-        if not isinstance(other, PUSHLABEL):
-            return False
-        return self.label == other.label
-
-    def __hash__(self):
-        return hash(self.label)
-
-
-class PUSHLABELJUMPDEST:
-    """
-    This is a special case of PUSHLABEL that is used to push a label
-    that is used in a jump or return address. This is used to allow
-    the optimizer to remove jumpdests that are not used.
-    """
-
-    def __init__(self, label: Label):
-        assert isinstance(label, Label), label
-        self.label = label
-
-    def __repr__(self):
-        return f"PUSHLABELJUMPDEST {self.label.label}"
-
-    def __eq__(self, other):
-        if not isinstance(other, PUSHLABELJUMPDEST):
-            return False
-        return self.label == other.label
-
-    def __hash__(self):
-        return hash(self.label)
-
-
-# push the result of an addition (which might be resolvable at compile-time)
-class PUSH_OFST:
-    def __init__(self, label: Label | CONSTREF, ofst: int):
-        # label can be Label or CONSTREF
-        assert isinstance(label, (Label, CONSTREF))
-        self.label = label
-        self.ofst = ofst
-
-    def __repr__(self):
-        label = self.label
-        if isinstance(label, Label):
-            label = label.label  # str
-        return f"PUSH_OFST({label}, {self.ofst})"
-
-    def __eq__(self, other):
-        if not isinstance(other, PUSH_OFST):
-            return False
-        return self.label == other.label and self.ofst == other.ofst
-
-    def __hash__(self):
-        return hash((self.label, self.ofst))
-
-
-class DATA_ITEM:
-    def __init__(self, item: bytes | Label):
-        self.data = item
-
-    def __repr__(self):
-        if isinstance(self.data, bytes):
-            return f"DATABYTES {self.data.hex()}"
-        elif isinstance(self.data, Label):
-            return f"DATALABEL {self.data.label}"
-
-
-# a string (assembly instruction) but with additional metadata from the source code
-class TaggedInstruction(str):
-    def __new__(cls, sstr, *args, **kwargs):
-        return super().__new__(cls, sstr)
-
-    def __init__(self, sstr, ast_source=None, error_msg=None):
-        self.error_msg = error_msg
-        self.pc_debugger = False
-
-        self.ast_source = ast_source
-
-
-def PUSH(x):
-    bs = num_to_bytearray(x)
-    # starting in shanghai, can do push0 directly with no immediates
-    if len(bs) == 0 and not version_check(begin="shanghai"):
-        bs = [0]
-    return [f"PUSH{len(bs)}"] + bs
-
-
-# push an exact number of bytes
-def PUSH_N(x, n):
-    o = []
-    for _i in range(n):
-        o.insert(0, x % 256)
-        x //= 256
-    assert x == 0
-    return [f"PUSH{len(o)}"] + o
-
-
-def JUMP(label: Label):
-    return [PUSHLABELJUMPDEST(label), "JUMP"]
-
-
-def JUMPI(label: Label):
-    return [PUSHLABELJUMPDEST(label), "JUMPI"]
-
-
-def mkdebug(pc_debugger, ast_source):
-    # compile debug instructions
-    # (this is dead code -- CMC 2025-05-08)
-    i = TaggedInstruction("DEBUG", ast_source)
-    i.pc_debugger = pc_debugger
-    return [i]
 
 
 def is_label(i):
     """Check if an item is a Label instance."""
     return isinstance(i, Label)
-
-
-AssemblyInstruction = (
-    str
-    | TaggedInstruction
-    | int
-    | Label
-    | PUSHLABEL
-    | PUSHLABELJUMPDEST
-    | JUMPDEST
-    | PUSH_OFST
-    | DATA_ITEM
-    | CONST
-)
 
 
 def _add_to_symbol_map(symbol_map: dict[SymbolKey, int], item: SymbolKey, value: int):

@@ -8,9 +8,8 @@ import cbor2
 
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
-from vyper.evm.assembler.core import (
-    CONST,
-    CONSTREF,
+from vyper.evm.assembler.core import assembly_to_evm, get_data_segment_lengths
+from vyper.evm.assembler.instructions import (
     DATA_ITEM,
     JUMP,
     JUMPDEST,
@@ -20,13 +19,11 @@ from vyper.evm.assembler.core import (
     PUSHLABEL,
     PUSHLABELJUMPDEST,
     AssemblyInstruction,
-    Label,
     TaggedInstruction,
-    assembly_to_evm,
-    get_data_segment_lengths,
     mkdebug,
 )
 from vyper.evm.assembler.optimizer import optimize_assembly
+from vyper.evm.assembler.symbols import CONST, CONSTREF, Label
 from vyper.evm.opcodes import get_opcodes
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import MemoryPositions
