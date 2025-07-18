@@ -1,5 +1,5 @@
 import json
-from typing import Optional
+from typing import Any, Optional, Union
 
 from lark import Lark, Transformer
 
@@ -13,9 +13,7 @@ from vyper.venom.basicblock import (
     IROperand,
     IRVariable,
     LabelRef,
-    UnresolvedConst,
 )
-from vyper.venom.const_eval import evaluate_const_expr, try_evaluate_const_expr
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 
@@ -132,15 +130,22 @@ class _ConstDef(_TypedItem):
 class _LabelDecl:
     """Represents a block declaration in the parse tree."""
 
-    def __init__(
-        self, label: str, address: Optional[int] = None, tags: Optional[list[str]] = None
-    ) -> None:
+    def __init__(self, label: str, tags: Optional[list[str]] = None) -> None:
         self.label = label
-        self.address = address
         self.tags = tags or []
 
 
 class VenomTransformer(Transformer):
+    def _filter_newlines(self, children: list) -> list:
+        """Filter out NEWLINE tokens from children list."""
+        return [c for c in children if not (hasattr(c, "type") and c.type == "NEWLINE")]
+
+    def _get_token_value(self, token) -> str:
+        """Extract value from a Lark token or return str representation."""
+        if hasattr(token, "value"):
+            return token.value
+        return str(token)
+
     def start(self, children) -> IRContext:
         ctx = IRContext()
 
@@ -188,24 +193,17 @@ class VenomTransformer(Transformer):
             # label starts a new block that contains all instructions until
             # the next label or end of function.
             current_block_label: Optional[str] = None
-            current_block_address: Optional[int] = None
             current_block_tags: list[str] = []
             current_block_instructions: list[IRInstruction] = []
-            blocks: list[tuple[str, Optional[int], list[IRInstruction], list[str]]] = []
+            blocks: list[tuple[str, list[IRInstruction], list[str]]] = []
 
             for item in items:
                 if isinstance(item, _LabelDecl):
                     if current_block_label is not None:
                         blocks.append(
-                            (
-                                current_block_label,
-                                current_block_address,
-                                current_block_instructions,
-                                current_block_tags,
-                            )
+                            (current_block_label, current_block_instructions, current_block_tags)
                         )
                     current_block_label = item.label
-                    current_block_address = item.address  # Will always be None now
                     current_block_tags = item.tags
                     current_block_instructions = []
                 elif isinstance(item, IRInstruction):
@@ -214,18 +212,11 @@ class VenomTransformer(Transformer):
                     current_block_instructions.append(item)
 
             if current_block_label is not None:
-                blocks.append(
-                    (
-                        current_block_label,
-                        current_block_address,
-                        current_block_instructions,
-                        current_block_tags,
-                    )
-                )
+                blocks.append((current_block_label, current_block_instructions, current_block_tags))
 
             for block_data in blocks:
-                # All blocks now have: (block_name, address, instructions, tags)
-                block_name, _address, instructions, tags = block_data
+                # All blocks now have: (block_name, instructions, tags)
+                block_name, instructions, tags = block_data
                 bb = IRBasicBlock(IRLabel(block_name, True), fn)
 
                 # Set is_volatile if "pinned" tag is present
@@ -244,34 +235,13 @@ class VenomTransformer(Transformer):
 
         return ctx
 
-    def _evaluate_const_expr(
-        self, expr, constants: dict[str, int], global_labels: dict[str, int]
-    ) -> int:
-        """Helper method to evaluate const expressions."""
-        return evaluate_const_expr(expr, constants, global_labels)
-
-    def _try_evaluate_const_expr(self, expr, ctx: IRContext) -> IROperand:
-        """Try to evaluate const expression, returning IRLabel for unresolved parts."""
-        result = try_evaluate_const_expr(
-            expr, ctx.constants, ctx.global_labels, ctx.unresolved_consts, ctx.const_refs
-        )
-        if isinstance(result, int):
-            return IRLiteral(result)
-        elif isinstance(result, (ConstRef, LabelRef, UnresolvedConst)):
-            # Extract the name from typed objects for IRLabel
-            return IRLabel(result.name, True)
-        else:
-            raise ValueError(f"Unexpected result type from try_evaluate_const_expr: {type(result)}")
-
     def const_def(self, children) -> _ConstDef:
-        # Filter out NEWLINE tokens
-        filtered = [c for c in children if not (hasattr(c, "type") and c.type == "NEWLINE")]
+        filtered = self._filter_newlines(children)
         name, expr = filtered
         return _ConstDef([str(name), expr])
 
     def global_label(self, children) -> _GlobalLabel:
-        # Filter out NEWLINE tokens
-        filtered = [c for c in children if not (hasattr(c, "type") and c.type == "NEWLINE")]
+        filtered = self._filter_newlines(children)
         name, expr = filtered
         return _GlobalLabel([name, expr])
 
@@ -296,7 +266,7 @@ class VenomTransformer(Transformer):
             elif isinstance(child, list):  # tag_list returns a list
                 tags = child
 
-        return _LabelDecl(label, None, tags)
+        return _LabelDecl(label, tags)
 
     def statement(self, children) -> IRInstruction:
         # children[0] is the instruction/assignment, rest are NEWLINE tokens
@@ -332,23 +302,17 @@ class VenomTransformer(Transformer):
     def instruction(self, children) -> IRInstruction:
         if len(children) == 1:
             # just the opcode (IDENT)
-            opcode = str(children[0])
-            # Handle Lark tokens
-            if hasattr(children[0], "value"):
-                opcode = children[0].value
+            opcode = self._get_token_value(children[0])
             operands = []
         elif len(children) == 2:
             # Two cases: IDENT + operands_list OR "db" + operands_list
-            opcode = str(children[0])
-            # Handle Lark tokens
-            if hasattr(children[0], "value"):
-                opcode = children[0].value
+            opcode = self._get_token_value(children[0])
             operands = children[1]
         else:
             raise ValueError(f"Unexpected instruction children: {children}")
 
         # Process operands - evaluate const expressions if needed
-        processed_operands = []
+        processed_operands: list[Union[str, tuple[Any, ...], IROperand]] = []
         for op in operands:
             if isinstance(op, (str, tuple)) and not isinstance(op, IROperand):
                 # This is a const expression that needs evaluation
