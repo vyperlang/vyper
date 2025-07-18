@@ -1,5 +1,5 @@
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
@@ -11,6 +11,9 @@ class PhiEliminationPass(IRPass):
         self.updater = InstUpdater(self.dfg)
         self._calculate_phi_origins()
 
+        for bb in self.function.get_basic_blocks():
+            self._deduplicate_phis(bb)
+
         for _, inst in self.dfg.outputs.copy().items():
             if inst.opcode != "phi":
                 continue
@@ -21,6 +24,20 @@ class PhiEliminationPass(IRPass):
             bb.ensure_well_formed()
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+
+    def _deduplicate_phis(self, bb: IRBasicBlock):
+        phis: dict[tuple, IRVariable] = dict()
+
+        for inst in bb.instructions:
+            if inst.opcode != "phi":
+                continue
+            ops = tuple(inst.operands)
+            if ops in phis:
+                self.updater.mk_assign(inst, phis[ops])
+                continue
+
+            assert inst.output is not None
+            phis[ops] = inst.output
 
     def _process_phi(self, inst: IRInstruction):
         srcs = self.phi_to_origins[inst]
