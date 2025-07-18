@@ -139,11 +139,11 @@ def test_venom_label_addresses():
     instructions = bb.instructions
 
     # Labels in instructions should be IRLabel objects
-    assert instructions[0].opcode == "store"
+    assert instructions[0].opcode == "assign"
     assert isinstance(instructions[0].operands[0], IRLabel)
     assert instructions[0].operands[0].value == "data_label"
 
-    assert instructions[1].opcode == "store"
+    assert instructions[1].opcode == "assign"
     assert isinstance(instructions[1].operands[0], IRLabel)
     assert instructions[1].operands[0].value == "computed_label"
 
@@ -178,16 +178,16 @@ def test_venom_instruction_operands():
     instructions = bb.instructions
 
     # Check store instructions have evaluated operands
-    assert instructions[0].opcode == "store"
+    assert instructions[0].opcode == "assign"
     assert instructions[0].operands[0].value == 32
 
-    assert instructions[1].opcode == "store"
+    assert instructions[1].opcode == "assign"
     assert instructions[1].operands[0].value == 128
 
-    assert instructions[2].opcode == "store"
+    assert instructions[2].opcode == "assign"
     assert instructions[2].operands[0].value == 0x2010
 
-    assert instructions[3].opcode == "store"
+    assert instructions[3].opcode == "assign"
     assert instructions[3].operands[0].value == 64
 
 
@@ -341,7 +341,7 @@ def test_venom_with_undefined_constants():
     instructions = bb.instructions
 
     # First instruction should have resolved value
-    assert instructions[0].opcode == "store"
+    assert instructions[0].opcode == "assign"
     assert isinstance(instructions[0].operands[0], IRLiteral)
     assert instructions[0].operands[0].value == 100
 

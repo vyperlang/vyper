@@ -382,8 +382,8 @@ def test_global_vars():
     expected_ctx = IRContext()
     expected_ctx.add_function(main_fn := IRFunction(IRLabel("main")))
     main_bb = main_fn.get_basic_block("main")
-    main_bb.append_instruction("store", IRLiteral(1), ret=IRVariable("1"))
-    main_bb.append_instruction("store", IRLiteral(2), ret=IRVariable("2"))
+    main_bb.append_instruction("assign", IRLiteral(1), ret=IRVariable("1"))
+    main_bb.append_instruction("assign", IRLiteral(2), ret=IRVariable("2"))
     main_bb.append_instruction("add", IRVariable("2"), IRVariable("1"), ret=IRVariable("3"))
 
     assert_ctx_eq(ctx, expected_ctx)
