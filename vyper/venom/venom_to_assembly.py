@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Iterable
+from typing import Any, Iterable, Union
 
 from vyper.evm.assembler.core import (
     DATA_ITEM,
@@ -59,7 +59,6 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "number",
         "extcodesize",
         "extcodehash",
-        "codecopy",
         "extcodecopy",
         "returndatasize",
         "returndatacopy",
@@ -148,7 +147,6 @@ def _ofst(label: Label, value: int) -> list[Any]:
 # with the assembler. My suggestion is to let this be for now, and we can
 # refactor it later when we are finished phasing out the old IR.
 class VenomCompiler:
-    ctxs: list[IRContext]
     label_counter = 0
     visited_basicblocks: OrderedSet  # {IRBasicBlock}
     liveness: LivenessAnalysis
@@ -156,10 +154,22 @@ class VenomCompiler:
     cfg: CFGAnalysis
 
     def __init__(self, ctx: IRContext):
-        # TODO: maybe just accept a single IRContext
         self.ctx = ctx
         self.label_counter = 0
         self.visited_basicblocks = OrderedSet()
+
+    def _extract_label_name(self, obj: Any) -> Union[int, str]:
+        """Extract label name from typed objects or return as-is for int/str."""
+        if isinstance(obj, ConstRef):
+            return obj.name
+        elif isinstance(obj, LabelRef):
+            return obj.name
+        elif isinstance(obj, IRLabel):
+            return obj.value
+        elif isinstance(obj, (int, str)):
+            return obj
+        else:
+            raise CompilerPanic(f"Unexpected type: {type(obj)} {obj}")
 
     def mklabel(self, name: str) -> Label:
         self.label_counter += 1
@@ -188,18 +198,8 @@ class VenomCompiler:
                 # under a different name (e.g., __const_0). If so, update it to use our name.
                 found_existing = False
 
-                # Normalize the expression for comparison
-                def normalize_expr(e):
-                    # With typed objects, expressions are already normalized
-                    return e
-
-                normalized_expr = normalize_expr(expr)
-
                 for existing_name, existing_expr in list(self.ctx.unresolved_consts.items()):
-                    if (
-                        existing_name.startswith("__const_")
-                        and normalize_expr(existing_expr) == normalized_expr
-                    ):
+                    if existing_name.startswith("__const_") and existing_expr == expr:
                         # Remove the auto-generated name and use our explicit name
                         del self.ctx.unresolved_consts[existing_name]
                         self.ctx.unresolved_consts[name] = existing_expr
@@ -240,23 +240,8 @@ class VenomCompiler:
                 # Binary operation
                 op_name, arg1, arg2 = expr
                 # Convert typed objects to strings for assembler
-                if isinstance(arg1, ConstRef):
-                    arg1 = arg1.name
-                elif isinstance(arg1, LabelRef):
-                    arg1 = arg1.name
-                elif isinstance(arg1, IRLabel):
-                    arg1 = arg1.value
-                elif not isinstance(arg1, (int, str)):
-                    raise CompilerPanic(f"Unexpected arg1 type: {type(arg1)} {arg1}")
-
-                if isinstance(arg2, ConstRef):
-                    arg2 = arg2.name
-                elif isinstance(arg2, LabelRef):
-                    arg2 = arg2.name
-                elif isinstance(arg2, IRLabel):
-                    arg2 = arg2.value
-                elif not isinstance(arg2, (int, str)):
-                    raise CompilerPanic(f"Unexpected arg2 type: {type(arg2)} {arg2}")
+                arg1 = self._extract_label_name(arg1)
+                arg2 = self._extract_label_name(arg2)
 
                 # Emit the appropriate CONST_* operation
                 if op_name == "add":
@@ -274,12 +259,13 @@ class VenomCompiler:
                     if isinstance(expr, tuple) and len(expr) == 3:
                         _, arg1, arg2 = expr
                         # Extract label names from typed objects
-                        label1 = None
-                        label2 = None
-                        if isinstance(arg1, LabelRef):
-                            label1 = arg1.name
-                        if isinstance(arg2, LabelRef):
-                            label2 = arg2.name
+
+                        label1 = (
+                            self._extract_label_name(arg1) if not isinstance(arg1, int) else None
+                        )
+                        label2 = (
+                            self._extract_label_name(arg2) if not isinstance(arg2, int) else None
+                        )
 
                         if label1 == bb.label.value or label2 == bb.label.value:
                             bb.is_pinned = True
@@ -644,10 +630,6 @@ class VenomCompiler:
             if_nonzero_label, if_zero_label = inst.get_label_operands()
             assembly.append(PUSHLABELJUMPDEST(_as_asm_symbol(if_nonzero_label)))
             assembly.append("JUMPI")
-
-            # make sure the if_zero_label will be optimized out
-            # assert if_zero_label == next(iter(inst.parent.cfg_out)).label
-
             assembly.append(PUSHLABELJUMPDEST(_as_asm_symbol(if_zero_label)))
             assembly.append("JUMP")
 
@@ -745,10 +727,6 @@ class VenomCompiler:
         # item, and optimistically swap with it
         if DEBUG_SHOW_COST:
             stack0 = stack.copy()
-
-        # Handle empty liveness set
-        # if not next_liveness:
-        #     return
 
         next_scheduled = next_liveness.last()
         cost = 0
