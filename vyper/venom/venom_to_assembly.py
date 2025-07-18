@@ -728,7 +728,7 @@ class VenomCompiler:
         if DEBUG_SHOW_COST:
             stack0 = stack.copy()
 
-        if not next_liveness:
+        if len(next_liveness) == 0:
             return
 
         next_scheduled = next_liveness.last()
