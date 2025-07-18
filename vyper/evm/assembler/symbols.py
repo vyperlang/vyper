@@ -1,54 +1,32 @@
-class Label:
-    def __init__(self, label: str):
-        assert isinstance(label, str)
-        self.label = label
+from dataclasses import dataclass
 
-    def __repr__(self):
+
+@dataclass(frozen=True)
+class Label:
+    label: str
+
+    def __repr__(self) -> str:
         return f"LABEL {self.label}"
 
-    def __eq__(self, other):
-        if not isinstance(other, Label):
-            return False
-        return self.label == other.label
 
-    def __hash__(self):
-        return hash(self.label)
-
-
+@dataclass(frozen=True)
 class CONSTREF:
-    def __init__(self, label: str):
-        assert isinstance(label, str)
-        self.label = label
+    label: str
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"CONSTREF {self.label}"
-
-    def __eq__(self, other):
-        if not isinstance(other, CONSTREF):
-            return False
-        return self.label == other.label
-
-    def __hash__(self):
-        return hash(self.label)
 
 
 SymbolKey = Label | CONSTREF
 
 
+@dataclass
 class CONST:
-    def __init__(self, name: str, value: int):
-        assert isinstance(name, str)
-        assert isinstance(value, int)
-        self.name = name
-        self.value = value
+    name: str
+    value: int
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"CONST {self.name} {self.value}"
-
-    def __eq__(self, other):
-        if not isinstance(other, CONST):
-            return False
-        return self.name == other.name and self.value == other.value
 
 
 class BaseConstOp:
@@ -60,7 +38,7 @@ class BaseConstOp:
         self.op1 = op1
         self.op2 = op2
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         if not isinstance(other, type(self)):
             return False
         return self.name == other.name and self.op1 == other.op1 and self.op2 == other.op2
@@ -92,7 +70,7 @@ class BaseConstOp:
 
 
 class CONST_ADD(BaseConstOp):
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"CONST_ADD {self.name} {self.op1} {self.op2}"
 
     def _apply_operation(self, op1_val: int, op2_val: int) -> int:
@@ -100,7 +78,7 @@ class CONST_ADD(BaseConstOp):
 
 
 class CONST_SUB(BaseConstOp):
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"CONST_SUB {self.name} {self.op1} {self.op2}"
 
     def _apply_operation(self, op1_val: int, op2_val: int) -> int:
@@ -108,7 +86,7 @@ class CONST_SUB(BaseConstOp):
 
 
 class CONST_MAX(BaseConstOp):
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"CONST_MAX {self.name} {self.op1} {self.op2}"
 
     def _apply_operation(self, op1_val: int, op2_val: int) -> int:
