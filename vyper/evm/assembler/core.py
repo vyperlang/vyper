@@ -509,7 +509,7 @@ def get_data_segment_lengths(assembly: list[AssemblyInstruction]) -> list[int]:
             continue
 
         # Add to current segment length
-        if is_symbol(item.data):
+        if isinstance(item.data, Label):
             current_segment_length += SYMBOL_SIZE
         elif isinstance(item.data, bytes):
             current_segment_length += len(item.data)
