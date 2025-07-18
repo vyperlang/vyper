@@ -547,6 +547,26 @@ def _compile_push_instruction(assembly: list[AssemblyInstruction]) -> bytes:
     return bytes(ret)
 
 
+def _resolve_push_ofst_value(
+    item: PUSH_OFST, symbol_map: dict[SymbolKey, int]
+) -> int:
+    """Resolve the offset value for a PUSH_OFST instruction."""
+    if isinstance(item.label, Label):
+        return symbol_map[item.label] + item.ofst
+    
+    assert isinstance(item.label, CONSTREF)
+    const_name = item.label.label
+    
+    # Try to look up as a CONSTREF first
+    if item.label in symbol_map:
+        return symbol_map[item.label] + item.ofst
+    # If not found as CONSTREF, try as a Label
+    elif Label(const_name) in symbol_map:
+        return symbol_map[Label(const_name)] + item.ofst
+    else:
+        raise CompilerPanic(f"Unknown symbol: {const_name}")
+
+
 def _validate_assembly_jumps(assembly: list[AssemblyInstruction], symbol_map: dict[SymbolKey, int]):
     """
     Validate assembly jumpdest and jump references for correctness before generating bytecode
@@ -632,36 +652,26 @@ def _assembly_to_evm(
         elif isinstance(item, PUSH_OFST):
             # PUSH_OFST (LABEL foo) 32
             # PUSH_OFST (const foo) 32
-            if isinstance(item.label, Label):
-                ofst = symbol_map[item.label] + item.ofst
-                bytecode = _compile_push_instruction(PUSH_N(ofst, SYMBOL_SIZE))
-            else:
-                assert isinstance(item.label, CONSTREF)
+            ofst = _resolve_push_ofst_value(item, symbol_map)
+            
+            # Determine if we need fixed size or optimal size
+            use_fixed_size = isinstance(item.label, Label)
+            if isinstance(item.label, CONSTREF):
                 const_name = item.label.label
-
-                # Try to look up as a CONSTREF first
-                if item.label in symbol_map:
-                    ofst = symbol_map[item.label] + item.ofst
-                # If not found as CONSTREF, try as a Label
-                elif Label(const_name) in symbol_map:
-                    ofst = symbol_map[Label(const_name)] + item.ofst
-                else:
-                    raise CompilerPanic(f"Unknown symbol: {const_name}")
-
-                # Check if this is a label-dependent constant
                 if const_name in label_dependent_consts:
-                    # Use PUSH2 for label-dependent constants
-                    # Also validate the value fits in 16 bits
+                    use_fixed_size = True
+                    # Validate the value fits in 16 bits
                     if ofst > 0xFFFF:
                         raise CompilerPanic(
                             f"PUSH_OFST with label-dependent constant '{const_name}' "
                             f"has value {ofst} which exceeds 16-bit limit"
                         )
-                    bytecode = _compile_push_instruction(PUSH_N(ofst, SYMBOL_SIZE))
-                else:
-                    # Use optimal size for non-label-dependent constants
-                    bytecode = _compile_push_instruction(PUSH(ofst))
-
+            
+            if use_fixed_size:
+                bytecode = _compile_push_instruction(PUSH_N(ofst, SYMBOL_SIZE))
+            else:
+                bytecode = _compile_push_instruction(PUSH(ofst))
+            
             ret.extend(bytecode)
 
         elif isinstance(item, int):
