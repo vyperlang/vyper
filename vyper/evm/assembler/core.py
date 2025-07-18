@@ -143,7 +143,8 @@ def mkdebug(pc_debugger, ast_source):
     return [i]
 
 
-def is_symbol(i):
+def is_label(i):
+    """Check if an item is a Label instance."""
     return isinstance(i, Label)
 
 

@@ -6,7 +6,7 @@ from vyper.evm.assembler.core import (
     PUSHLABEL,
     PUSHLABELJUMPDEST,
     Label,
-    is_symbol,
+    is_label,
 )
 from vyper.evm.assembler.symbols import CONSTREF, BaseConstOp
 from vyper.exceptions import CompilerPanic
@@ -103,8 +103,8 @@ def _merge_jumpdests(assembly):
     changed = False
     i = 0
     while i < len(assembly) - 2:
-        # if is_symbol(assembly[i]) and assembly[i + 1] == "JUMPDEST":
-        if is_symbol(assembly[i]):
+        # if is_label(assembly[i]) and assembly[i + 1] == "JUMPDEST":
+        if is_label(assembly[i]):
             current_symbol = assembly[i]
 
             # Skip merging if current symbol is used as data
@@ -112,7 +112,7 @@ def _merge_jumpdests(assembly):
                 i += 1
                 continue
 
-            if is_symbol(assembly[i + 1]):
+            if is_label(assembly[i + 1]):
                 # LABEL x LABEL y
                 # Only merge jump destinations, not data references
                 new_symbol = assembly[i + 1]
