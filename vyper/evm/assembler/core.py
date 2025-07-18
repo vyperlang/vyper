@@ -194,7 +194,6 @@ def _resolve_constants(
         elif isinstance(item, BaseConstOp):
             all_const_names.add(item.name)
 
-    potential_label_refs = set()
     for item in assembly:
         if isinstance(item, BaseConstOp):
             # Check if any operand is a string that could be a label
@@ -204,7 +203,6 @@ def _resolve_constants(
                     if operand not in all_const_names:
                         # This could be a label reference
                         label_dependent_consts.add(item.name)
-                        potential_label_refs.add(operand)
 
     max_iterations = 100  # Prevent infinite loops from circular dependencies
     iterations = 0
