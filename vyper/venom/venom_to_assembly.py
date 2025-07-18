@@ -730,7 +730,7 @@ class VenomCompiler:
 
         if not next_liveness:
             return
-            
+
         next_scheduled = next_liveness.last()
         cost = 0
         if not self.dfg.are_equivalent(inst.output, next_scheduled):

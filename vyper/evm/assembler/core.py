@@ -86,6 +86,7 @@ class PUSH_OFST:
     def __hash__(self):
         return hash((self.label, self.ofst))
 
+
 class DATA_ITEM:
     def __init__(self, item: bytes | Label):
         self.data = item
@@ -192,7 +193,7 @@ def _extract_label_dependent_constants(
                     if isinstance(operand, str) and operand in label_dependent_consts:
                         label_dependent_consts.add(item.name)
                         changed = True
-    
+
     return label_dependent_consts
 
 
@@ -547,16 +548,14 @@ def _compile_push_instruction(assembly: list[AssemblyInstruction]) -> bytes:
     return bytes(ret)
 
 
-def _resolve_push_ofst_value(
-    item: PUSH_OFST, symbol_map: dict[SymbolKey, int]
-) -> int:
+def _resolve_push_ofst_value(item: PUSH_OFST, symbol_map: dict[SymbolKey, int]) -> int:
     """Resolve the offset value for a PUSH_OFST instruction."""
     if isinstance(item.label, Label):
         return symbol_map[item.label] + item.ofst
-    
+
     assert isinstance(item.label, CONSTREF)
     const_name = item.label.label
-    
+
     # Try to look up as a CONSTREF first
     if item.label in symbol_map:
         return symbol_map[item.label] + item.ofst
@@ -653,7 +652,7 @@ def _assembly_to_evm(
             # PUSH_OFST (LABEL foo) 32
             # PUSH_OFST (const foo) 32
             ofst = _resolve_push_ofst_value(item, symbol_map)
-            
+
             # Determine if we need fixed size or optimal size
             use_fixed_size = isinstance(item.label, Label)
             if isinstance(item.label, CONSTREF):
@@ -666,12 +665,12 @@ def _assembly_to_evm(
                             f"PUSH_OFST with label-dependent constant '{const_name}' "
                             f"has value {ofst} which exceeds 16-bit limit"
                         )
-            
+
             if use_fixed_size:
                 bytecode = _compile_push_instruction(PUSH_N(ofst, SYMBOL_SIZE))
             else:
                 bytecode = _compile_push_instruction(PUSH(ofst))
-            
+
             ret.extend(bytecode)
 
         elif isinstance(item, int):
