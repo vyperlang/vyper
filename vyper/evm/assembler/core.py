@@ -170,10 +170,6 @@ def is_symbol(i):
     return isinstance(i, Label)
 
 
-def is_ofst(assembly_item):
-    return isinstance(assembly_item, PUSH_OFST)
-
-
 AssemblyInstruction = (
     str
     | TaggedInstruction
@@ -248,13 +244,14 @@ def _resolve_constants(
                     continue
 
                 # Check if this constant depends on other label-dependent constants
+                depends_on_label = False
                 for operand in [item.op1, item.op2]:
                     if isinstance(operand, str) and operand in label_dependent_consts:
                         label_dependent_consts.add(item.name)
-                        continue  # Skip this constant too
+                        depends_on_label = True
+                        break
 
-                # Skip if we already know it's label-dependent
-                if item.name in label_dependent_consts:
+                if depends_on_label:
                     continue
 
                 # Calculate the value if possible
