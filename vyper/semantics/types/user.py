@@ -402,7 +402,9 @@ class StructT(_UserType):
                     f"struct member '{member_name}' has already been declared", node.value
                 )
 
-            members[member_name] = type_from_annotation(node.annotation)
+            member_type = type_from_annotation(node.annotation)
+            members[member_name] = member_type
+            node.target._metadata["type"] = member_type
 
         return cls(struct_name, members, ast_def=base_node)
 
