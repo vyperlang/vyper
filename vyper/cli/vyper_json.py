@@ -24,9 +24,11 @@ TRANSLATE_MAP = {
     "evm.bytecode.object": "bytecode",
     "evm.bytecode.opcodes": "opcodes",
     "evm.bytecode.sourceMap": "source_map",
+    "evm.bytecode.symbolMap": "symbol_map",
     "evm.deployedBytecode.object": "bytecode_runtime",
     "evm.deployedBytecode.opcodes": "opcodes_runtime",
     "evm.deployedBytecode.sourceMap": "source_map_runtime",
+    "evm.deployedBytecode.symbolMap": "symbol_map_runtime",
     "interface": "interface",
     "ir": "ir_dict",
     "ir_runtime": "ir_runtime_dict",
@@ -425,6 +427,8 @@ def format_to_output_dict(compiler_data: dict) -> dict:
                 evm["opcodes"] = data["opcodes"]
             if "source_map" in data:
                 evm["sourceMap"] = data["source_map"]
+            if "symbol_map" in data:
+                evm["symbolMap"] = data["symbol_map"]
 
         if any(i + "_runtime" in data for i in evm_keys + pc_maps_keys):
             evm = output_contracts.setdefault("evm", {}).setdefault("deployedBytecode", {})
@@ -434,6 +438,8 @@ def format_to_output_dict(compiler_data: dict) -> dict:
                 evm["opcodes"] = data["opcodes_runtime"]
             if "source_map_runtime" in data:
                 evm["sourceMap"] = data["source_map_runtime"]
+            if "symbol_map_runtime" in data:
+                evm["symbolMap"] = data["symbol_map_runtime"]
 
         if any(i in data for i in VENOM_KEYS):
             venom = {}
