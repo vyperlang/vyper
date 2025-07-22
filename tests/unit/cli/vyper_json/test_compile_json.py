@@ -208,11 +208,13 @@ def test_compile_json(input_json, input_bundle, experimental_codegen):
                     "object": data["bytecode"],
                     "opcodes": data["opcodes"],
                     "sourceMap": data["source_map"],
+                    "symbolMap": data["symbol_map"]
                 },
                 "deployedBytecode": {
                     "object": data["bytecode_runtime"],
                     "opcodes": data["opcodes_runtime"],
                     "sourceMap": data["source_map_runtime"],
+                    "symbolMap": data["symbol_map_runtime"]
                 },
                 "methodIdentifiers": data["method_identifiers"],
             },
