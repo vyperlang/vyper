@@ -282,7 +282,9 @@ class EventT(_UserType):
             else:
                 indexed.append(False)
 
-            members[member_name] = type_from_annotation(annotation)
+            member_type = type_from_annotation(annotation)
+            members[member_name] = member_type
+            node.target._metadata["type"] = member_type
 
         return cls(base_node.name, members, indexed, base_node)
 
