@@ -141,6 +141,15 @@ class ContractFunctionT(VyperType):
         self._ir_info: Any = None
         self._function_id: Optional[int] = None
 
+    def _addl_dict_fields(self):
+        ret = {}
+        ret["argument_types"] = [t.to_dict() for t in self.argument_types]
+        if self.return_type is not None:
+            ret["return_type"] = self.return_type.to_dict()
+        else:
+            ret["return_type"] = None
+        return ret
+
     @property
     # API compatibility
     def decl_node(self):
