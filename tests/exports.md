@@ -26,7 +26,6 @@ The exported data is organized into JSON files that mirror the test directory st
     "traces": [
       {
         "trace_type": "deployment",
-        "deployer": "0x...",
         "deployment_type": "source" | "ir" | "blueprint" | "raw_bytecode",
         "contract_abi": [...],
         "initcode": "0x...",
@@ -39,21 +38,46 @@ The exported data is organized into JSON files that mirror the test directory st
         "blueprint_initcode_prefix": "0x..." | null,
         "deployed_address": "0x...",
         "runtime_bytecode": "0x...",
-        "deployment_succeeded": <bool>
+        "deployment_succeeded": <bool>,
+        "env": {
+          "tx": {
+            "origin": "0x...",
+            "gas": <uint>,
+            "gas_price": <uint>,
+            "blob_hashes": ["0x..."]
+          },
+          "block": {
+            "number": <uint>,
+            "timestamp": <uint>,
+            "gas_limit": <uint>,
+            "excess_blob_gas": <uint> | null
+          }
+        }
       },
       {
         "trace_type": "call",
         "output": "0x..." | null,
         "call_args": {
           "to": "0x...",
-          "sender": "0x...",
           "calldata": "0x...",
           "value": <uint>,
-          "gas": <uint>,
-          "gas_price": <uint>,
           "is_modifying": <bool>
         },
-        "call_succeeded": <bool>
+        "call_succeeded": <bool>,
+        "env": {
+          "tx": {
+            "origin": "0x...",
+            "gas": <uint>,
+            "gas_price": <uint>,
+            "blob_hashes": ["0x..."]
+          },
+          "block": {
+            "number": <uint>,
+            "timestamp": <uint>,
+            "gas_limit": <uint>,
+            "excess_blob_gas": <uint> | null
+          }
+        }
       },
       {
         "trace_type": "set_balance",
@@ -78,6 +102,15 @@ The exported data is organized into JSON files that mirror the test directory st
 - `source_code` is the source of the compilation target, imported modules are accessible from `solc_json`
 - `deployment_type` denotes how the contract was deployed
   - this was added because some tests deploy directly from `ir` or from directly from `bytecode`
+- `env` field contains transaction and block environment data:
+  - `tx.origin` is the transaction origin
+  - `tx.gas` is the gas limit for the transaction
+  - `tx.gas_price` is the gas price for the transaction
+  - `tx.blob_hashes` is a list of blob hashes (hex encoded) for EIP-4844 transactions
+  - `block.number` is the current block number
+  - `block.timestamp` is the current block timestamp
+  - `block.gas_limit` is the block gas limit
+  - `block.excess_blob_gas` is the excess blob gas for EIP-4844 (can be null)
 - `set_balance` traces capture direct balance modifications to accounts (useful for test setup)
 - `clear_transient_storage` traces capture when transient storage is cleared between calls
   - this was added because a test runs in 1 global transcation context and all calls within the test are run as `message_calls`

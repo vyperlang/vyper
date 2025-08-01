@@ -97,7 +97,6 @@ class BaseEnv:
             python_args = python_args_to_json(args, kwargs)
 
             common_trace_kwargs = {
-                "deployer": self.deployer,
                 "deployment_type": str(export_metadata.get("deployment_origin")),
                 "contract_abi": abi,
                 "initcode": initcode.hex(),
@@ -110,6 +109,9 @@ class BaseEnv:
                 "blueprint_initcode_prefix": export_metadata.get("blueprint_initcode_prefix"),
                 "python_args": python_args,
                 "function_name": "constructor",
+                "env": self.get_env_data(
+                    self.deployer, self.gas_limit, 0
+                ),  # gas_price not accessible for deployments
             }
 
         deployment_succeeded = False
@@ -303,14 +305,12 @@ class BaseEnv:
                     output=result,
                     call_succeeded=call_succeeded,
                     to=to,
-                    sender=sender,
                     calldata=data,
                     value=value,
-                    gas=gas_to_use,
-                    gas_price=gas_price,
                     is_modifying=is_modifying,
                     python_args=python_args,
                     function_name=function_name,
+                    env=self.get_env_data(sender, gas_to_use, gas_price),
                 )
 
         return result
@@ -347,6 +347,22 @@ class BaseEnv:
 
     def _deploy(self, code: bytes, value: int, gas: int | None = None) -> str:
         raise NotImplementedError  # must be implemented by subclasses
+
+    def get_env_data(self, origin: str, gas: int, gas_price: int) -> dict:
+        return {
+            "tx": {
+                "origin": origin,
+                "gas": gas,
+                "gas_price": gas_price,
+                "blob_hashes": [h.hex() for h in self.blob_hashes],
+            },
+            "block": {
+                "number": self.block_number,
+                "timestamp": self.timestamp,
+                "gas_limit": self.gas_limit,
+                "excess_blob_gas": self.get_excess_blob_gas(),
+            },
+        }
 
     @staticmethod
     def _parse_revert(output_bytes: bytes, error: Exception, gas_used: int):
