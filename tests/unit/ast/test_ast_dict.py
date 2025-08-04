@@ -1499,15 +1499,7 @@ def qux2():
                 "ast_type": "Name",
                 "id": "x",
                 "variable_reads": [
-                    {
-                        "name": "x",
-                        "decl_node": {
-                            "node_id": 15,
-                            "source_id": 0,
-                            "type": {"name": "decimal", "typeclass": "decimal"},
-                        },
-                        "access_path": [],
-                    }
+                    {"name": "x", "decl_node": {"node_id": 15, "source_id": 0}, "access_path": []}
                 ],
             },
             "value": {
@@ -1562,20 +1554,7 @@ def qux2():
                 "ast_type": "Name",
                 "id": "x",
                 "variable_reads": [
-                    {
-                        "name": "x",
-                        "decl_node": {
-                            "node_id": 35,
-                            "source_id": 0,
-                            "type": {
-                                "bits": 256,
-                                "is_signed": False,
-                                "name": "uint256",
-                                "typeclass": "integer",
-                            },
-                        },
-                        "access_path": [],
-                    }
+                    {"name": "x", "decl_node": {"node_id": 35, "source_id": 0}, "access_path": []}
                 ],
             },
             "value": {
