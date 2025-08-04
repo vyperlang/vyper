@@ -299,7 +299,9 @@ def foo():
                                 "attr": "foo",
                                 "node_id": 12,
                                 "type": {
+                                    "argument_types": [],
                                     "name": "foo",
+                                    "return_type": None,
                                     "type_decl_node": {"node_id": 119, "source_id": 0},
                                     "typeclass": "contract_function",
                                 },
@@ -405,6 +407,13 @@ def foo():
                     },
                 ],
                 "decorator_list": [{"ast_type": "Name", "id": "internal", "node_id": 37}],
+                "func_type": {
+                    "argument_types": [],
+                    "name": "foo",
+                    "return_type": None,
+                    "type_decl_node": {"node_id": 8, "source_id": 1},
+                    "typeclass": "contract_function",
+                },
                 "doc_string": None,
                 "name": "foo",
                 "node_id": 8,
@@ -438,7 +447,17 @@ def foo():
                         "annotation": {"ast_type": "Name", "id": "uint256", "node_id": 5},
                         "ast_type": "AnnAssign",
                         "node_id": 2,
-                        "target": {"ast_type": "Name", "id": "x", "node_id": 3},
+                        "target": {
+                            "ast_type": "Name",
+                            "id": "x",
+                            "node_id": 3,
+                            "type": {
+                                "bits": 256,
+                                "is_signed": False,
+                                "name": "uint256",
+                                "typeclass": "integer",
+                            },
+                        },
                         "value": None,
                     }
                 ],
@@ -460,7 +479,12 @@ def foo():
                         "annotation": {"ast_type": "Name", "id": "decimal", "node_id": 13},
                         "ast_type": "AnnAssign",
                         "node_id": 10,
-                        "target": {"ast_type": "Name", "id": "x", "node_id": 11},
+                        "target": {
+                            "ast_type": "Name",
+                            "id": "x",
+                            "node_id": 11,
+                            "type": {"name": "decimal", "typeclass": "decimal"},
+                        },
                         "value": None,
                     },
                     {
@@ -477,7 +501,12 @@ def foo():
                         },
                         "ast_type": "AnnAssign",
                         "node_id": 15,
-                        "target": {"ast_type": "Name", "id": "y", "node_id": 16},
+                        "target": {
+                            "ast_type": "Name",
+                            "id": "y",
+                            "node_id": 16,
+                            "type": {"length": 20, "name": "Bytes", "typeclass": "bytes"},
+                        },
                         "value": None,
                     },
                     {
@@ -494,21 +523,41 @@ def foo():
                         },
                         "ast_type": "AnnAssign",
                         "node_id": 23,
-                        "target": {"ast_type": "Name", "id": "z", "node_id": 24},
+                        "target": {
+                            "ast_type": "Name",
+                            "id": "z",
+                            "node_id": 24,
+                            "type": {"length": 32, "name": "String", "typeclass": "string"},
+                        },
                         "value": None,
                     },
                     {
                         "annotation": {"ast_type": "Name", "id": "uint256", "node_id": 34},
                         "ast_type": "AnnAssign",
                         "node_id": 31,
-                        "target": {"ast_type": "Name", "id": "w", "node_id": 32},
+                        "target": {
+                            "ast_type": "Name",
+                            "id": "w",
+                            "node_id": 32,
+                            "type": {
+                                "bits": 256,
+                                "is_signed": False,
+                                "name": "uint256",
+                                "typeclass": "integer",
+                            },
+                        },
                         "value": None,
                     },
                     {
                         "annotation": {"ast_type": "Name", "id": "address", "node_id": 39},
                         "ast_type": "AnnAssign",
                         "node_id": 36,
-                        "target": {"ast_type": "Name", "id": "u", "node_id": 37},
+                        "target": {
+                            "ast_type": "Name",
+                            "id": "u",
+                            "node_id": 37,
+                            "type": {"name": "address"},
+                        },
                         "value": None,
                     },
                 ],
@@ -1163,11 +1212,46 @@ def foo():
                                 },
                             ],
                             "node_id": 178,
-                            "type": {"members": {}, "name": "$Tuple", "typeclass": "tuple"},
+                            "type": {
+                                "member_types": [
+                                    {
+                                        "length": 1,
+                                        "name": "$SArray",
+                                        "typeclass": "static_array",
+                                        "value_type": {"name": "Foo", "typeclass": "struct"},
+                                    },
+                                    {
+                                        "bits": 256,
+                                        "is_signed": False,
+                                        "name": "uint256",
+                                        "typeclass": "integer",
+                                    },
+                                ],
+                                "name": "$Tuple",
+                                "typeclass": "tuple",
+                            },
                         },
                         "value": {
                             "ast_type": "ExtCall",
                             "node_id": 186,
+                            "type": {
+                                "member_types": [
+                                    {
+                                        "length": 1,
+                                        "name": "$SArray",
+                                        "typeclass": "static_array",
+                                        "value_type": {"name": "Foo", "typeclass": "struct"},
+                                    },
+                                    {
+                                        "bits": 256,
+                                        "is_signed": False,
+                                        "name": "uint256",
+                                        "typeclass": "integer",
+                                    },
+                                ],
+                                "name": "$Tuple",
+                                "typeclass": "tuple",
+                            },
                             "value": {
                                 "args": [],
                                 "ast_type": "Call",
@@ -1175,38 +1259,83 @@ def foo():
                                     "ast_type": "Attribute",
                                     "attr": "return_tuple",
                                     "node_id": 188,
+                                    "type": {
+                                        "argument_types": [],
+                                        "name": "return_tuple",
+                                        "return_type": {
+                                            "member_types": [
+                                                {
+                                                    "length": 1,
+                                                    "name": "$SArray",
+                                                    "typeclass": "static_array",
+                                                    "value_type": {
+                                                        "name": "Foo",
+                                                        "typeclass": "struct",
+                                                    },
+                                                },
+                                                {
+                                                    "bits": 256,
+                                                    "is_signed": False,
+                                                    "name": "uint256",
+                                                    "typeclass": "integer",
+                                                },
+                                            ],
+                                            "name": "$Tuple",
+                                            "typeclass": "tuple",
+                                        },
+                                        "type_decl_node": {"node_id": 42, "source_id": 0},
+                                        "typeclass": "contract_function",
+                                    },
                                     "value": {
                                         "ast_type": "Attribute",
                                         "attr": "interface_var",
                                         "node_id": 189,
+                                        "type": {
+                                            "name": "Qux",
+                                            "type_decl_node": {"node_id": 41, "source_id": 0},
+                                            "typeclass": "interface",
+                                        },
                                         "value": {
                                             "ast_type": "Name",
                                             "id": "self",
                                             "node_id": 190,
                                             "type": {"name": "self"},
                                         },
-                                        "type": {
-                                            "name": "Qux",
-                                            "type_decl_node": {"node_id": 41, "source_id": 0},
-                                            "typeclass": "interface",
-                                        },
-                                    },
-                                    "type": {
-                                        "name": "return_tuple",
-                                        "type_decl_node": {"node_id": 42, "source_id": 0},
-                                        "typeclass": "contract_function",
                                     },
                                 },
                                 "keywords": [],
                                 "node_id": 187,
-                                "type": {"members": {}, "name": "$Tuple", "typeclass": "tuple"},
+                                "type": {
+                                    "member_types": [
+                                        {
+                                            "length": 1,
+                                            "name": "$SArray",
+                                            "typeclass": "static_array",
+                                            "value_type": {"name": "Foo", "typeclass": "struct"},
+                                        },
+                                        {
+                                            "bits": 256,
+                                            "is_signed": False,
+                                            "name": "uint256",
+                                            "typeclass": "integer",
+                                        },
+                                    ],
+                                    "name": "$Tuple",
+                                    "typeclass": "tuple",
+                                },
                             },
-                            "type": {"members": {}, "name": "$Tuple", "typeclass": "tuple"},
                         },
                     },
                 ],
                 "decorator_list": [{"ast_type": "Name", "id": "internal", "node_id": 194}],
                 "doc_string": None,
+                "func_type": {
+                    "argument_types": [],
+                    "name": "foo",
+                    "return_type": None,
+                    "type_decl_node": {"node_id": 119, "source_id": 0},
+                    "typeclass": "contract_function",
+                },
                 "name": "foo",
                 "node_id": 119,
                 "pos": None,
@@ -1262,6 +1391,13 @@ def foo():
                 ],
                 "decorator_list": [{"ast_type": "Name", "id": "external", "node_id": 208}],
                 "doc_string": None,
+                "func_type": {
+                    "argument_types": [],
+                    "name": "bar",
+                    "return_type": None,
+                    "type_decl_node": {"node_id": 196, "source_id": 0},
+                    "typeclass": "contract_function",
+                },
                 "name": "bar",
                 "node_id": 196,
                 "pos": None,
@@ -1363,7 +1499,15 @@ def qux2():
                 "ast_type": "Name",
                 "id": "x",
                 "variable_reads": [
-                    {"name": "x", "decl_node": {"node_id": 15, "source_id": 0}, "access_path": []}
+                    {
+                        "name": "x",
+                        "decl_node": {
+                            "node_id": 15,
+                            "source_id": 0,
+                            "type": {"name": "decimal", "typeclass": "decimal"},
+                        },
+                        "access_path": [],
+                    }
                 ],
             },
             "value": {
@@ -1418,7 +1562,20 @@ def qux2():
                 "ast_type": "Name",
                 "id": "x",
                 "variable_reads": [
-                    {"name": "x", "decl_node": {"node_id": 35, "source_id": 0}, "access_path": []}
+                    {
+                        "name": "x",
+                        "decl_node": {
+                            "node_id": 35,
+                            "source_id": 0,
+                            "type": {
+                                "bits": 256,
+                                "is_signed": False,
+                                "name": "uint256",
+                                "typeclass": "integer",
+                            },
+                        },
+                        "access_path": [],
+                    }
                 ],
             },
             "value": {
