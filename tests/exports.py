@@ -141,7 +141,9 @@ class TestExporter:
     def trace_deployment(self, **kwargs):
         self.current_item.traces.append({"trace_type": "deployment", **kwargs})
 
-    def trace_call(self, output: Optional[bytes], call_succeeded: bool, **kwargs):
+    def trace_call(
+        self, output: Optional[bytes], call_succeeded: bool, env: dict[str, Any], **kwargs
+    ):
         python_args = kwargs.pop("python_args", None)
         function_name = kwargs.pop("function_name", None)
 
@@ -153,6 +155,7 @@ class TestExporter:
                 "trace_type": "call",
                 "output": None if output is None else output.hex(),
                 "call_succeeded": call_succeeded,
+                "env": env,
                 "call_args": kwargs,
                 "python_args": python_args,
                 "function_name": function_name,
