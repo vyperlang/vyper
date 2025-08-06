@@ -22,7 +22,6 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.context import IRContext, IRFunction
-from vyper.venom.passes import NormalizationPass
 from vyper.venom.stack_model import StackModel
 
 DEBUG_SHOW_COST = False
@@ -157,7 +156,6 @@ class VenomCompiler:
             for fn in ctx.functions.values():
                 ac = IRAnalysesCache(fn)
 
-                NormalizationPass(ac, fn).run_pass()
                 self.liveness = ac.request_analysis(LivenessAnalysis)
                 self.dfg = ac.request_analysis(DFGAnalysis)
                 self.cfg = ac.request_analysis(CFGAnalysis)
@@ -509,7 +507,7 @@ class VenomCompiler:
             pass
         elif opcode == "param":
             pass
-        elif opcode == "store":
+        elif opcode == "assign":
             pass
         elif opcode == "dbname":
             pass
