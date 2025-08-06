@@ -283,7 +283,7 @@ def test_store_store_unknown_ptr_barrier():
     pre = """
     main:
         %ptr_mstore01 = 10
-        %ptr_mstore02 = param
+        %ptr_mstore02 = source
         mstore %ptr_mstore01, 10
 
         # barrier created with overlap

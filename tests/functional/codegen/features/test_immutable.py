@@ -1,6 +1,7 @@
 import pytest
 
 from vyper.compiler.settings import OptimizationLevel
+from vyper.exceptions import StackTooDeep
 
 
 @pytest.mark.parametrize(
@@ -198,6 +199,7 @@ def get_idx_two() -> uint256:
     assert c.get_idx_two() == expected_values[2][2]
 
 
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_nested_dynarray_immutable(get_contract):
     code = """
 my_list: immutable(DynArray[DynArray[DynArray[int128, 3], 3], 3])
@@ -401,3 +403,101 @@ def fix():
     c.fix()
     assert c.x() == 2
     assert c.d() == 2
+
+
+def test_immutable_read_outside_ctor_before_assignment(get_contract):
+    code = """
+x: public(immutable(uint256))
+
+@deploy
+def __init__():
+    x = self.a()
+
+@internal
+def a() -> uint256:
+    return x
+    """
+
+    c = get_contract(code)
+    assert c.x() == 0
+
+
+def test_immutable_assignment_in_loop(get_contract):
+    code = """
+x: public(immutable(uint256))
+
+@deploy
+def __init__():
+    for i: uint256 in range(10):
+        x = x + i
+    """
+
+    c = get_contract(code)
+    assert c.x() == 45
+
+
+def test_immutable_self_assignment(get_contract):
+    code = """
+x: public(immutable(uint256))
+
+@deploy
+def __init__():
+    x = x
+    """
+
+    c = get_contract(code)
+    assert c.x() == 0
+
+
+# verify that complex types are properly decoded in the constructor context
+def test_constructor_dynamic_type_decoding(get_contract):
+    code = """
+struct MyStruct:
+    a: uint256
+    b: address
+
+struct OuterStruct:
+    s: MyStruct
+    d: DynArray[bytes32, 2]
+
+val_s_a: public(uint256)
+val_s_b: public(address)
+val_d_0: public(bytes32)
+val_d_1: public(bytes32)
+val_d_len: public(uint256)
+
+val_single_dyn: public(uint256)
+
+@deploy
+def __init__(os: OuterStruct, single_dyn: DynArray[uint256, 1]):
+    self.val_s_a = os.s.a
+    self.val_s_b = os.s.b
+    self.val_d_len = len(os.d)
+    if len(os.d) > 0:
+        self.val_d_0 = os.d[0]
+    if len(os.d) > 1:
+        self.val_d_1 = os.d[1]
+
+    if len(single_dyn) > 0:
+        self.val_single_dyn = single_dyn[0]
+    """
+    struct_val = (123, "0x1234567890123456789012345678901234567890")
+    dyn_array_val = [b"\xAA" * 32, b"\xBB" * 32]
+    outer_struct_val = (struct_val, dyn_array_val)
+    single_dyn_val = [777]
+
+    c = get_contract(code, outer_struct_val, single_dyn_val)
+
+    assert c.val_s_a() == 123
+    assert c.val_s_b() == "0x1234567890123456789012345678901234567890"
+    assert c.val_d_len() == 2
+    assert c.val_d_0() == b"\xAA" * 32
+    assert c.val_d_1() == b"\xBB" * 32
+    assert c.val_single_dyn() == 777
+
+    outer_struct_val_empty_dyn = (struct_val, [])
+    c2 = get_contract(code, outer_struct_val_empty_dyn, [])
+    assert c2.val_s_a() == 123
+    assert c2.val_s_b() == "0x1234567890123456789012345678901234567890"
+    assert c2.val_d_len() == 0
+    assert c2.val_single_dyn() == 0

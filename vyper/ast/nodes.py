@@ -443,7 +443,8 @@ class VyperNode:
         Return the node as a dict. Child nodes and their descendants are also converted.
         """
         ast_dict = {}
-        for key in [i for i in self.get_fields() if i not in DICT_AST_SKIPLIST]:
+        fields = [i for i in self.get_fields() if i not in DICT_AST_SKIPLIST]
+        for key in sorted(fields):
             value = getattr(self, key, None)
             if isinstance(value, list):
                 ast_dict[key] = [_to_dict(i) for i in value]
@@ -748,6 +749,10 @@ class ExprNode(VyperNode):
 
     def to_dict(self):
         ret = super().to_dict()
+
+        if self.has_folded_value and self.get_folded_value() != self:
+            ret["folded_value"] = self.get_folded_value().to_dict()
+
         if self._expr_info is None:
             return ret
 

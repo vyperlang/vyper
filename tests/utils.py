@@ -1,8 +1,11 @@
 import contextlib
 import decimal
+import json
 import os
+from pathlib import PurePath
 
 from vyper import ast as vy_ast
+from vyper.compiler.input_bundle import JSONInput
 from vyper.compiler.phases import CompilerData
 from vyper.semantics.analysis.constant_folding import constant_fold
 from vyper.utils import DECIMAL_EPSILON, round_towards_zero
@@ -50,3 +53,10 @@ def check_precompile_asserts(source_code):
     _check(deploy_ir)
     # technically runtime_ir is contained in deploy_ir, but check it anyways.
     _check(runtime_ir)
+
+
+def json_input(json_data):
+    path = PurePath("<dummy json file>")
+    return JSONInput(
+        data=json_data, contents=json.dumps(json_data), source_id=-1, path=path, resolved_path=path
+    )

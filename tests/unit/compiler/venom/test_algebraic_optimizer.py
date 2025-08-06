@@ -24,7 +24,7 @@ def test_simple_jump_case(iszero_count):
 
     pre = f"""
     main:
-        %par = param
+        %par = source
         %1 = %par
         %2 = 64
         %3 = add %1, %2
@@ -48,7 +48,7 @@ def test_simple_jump_case(iszero_count):
 
     post = f"""
     main:
-        %par = param
+        %par = source
         %1 = %par
         %2 = 64
         %3 = add %1, %2
@@ -88,7 +88,7 @@ def test_simple_bool_cast_case(iszero_count):
 
     pre = f"""
     main:
-        %par = param
+        %par = source
         %1 = %par
         %2 = 64
         %3 = add %1, %2
@@ -111,7 +111,7 @@ def test_simple_bool_cast_case(iszero_count):
 
     post = f"""
     main:
-        %par = param
+        %par = source
         %1 = %par
         %2 = 64
         %3 = add %1, %2
@@ -157,7 +157,7 @@ def test_interleaved_case(interleave_point):
 
     pre = f"""
     main:
-        %par = param
+        %par = source
         %cond0 = add 64, %par
         %cond1 = iszero %cond0
         {iszero_chain}
@@ -183,7 +183,7 @@ def test_interleaved_case(interleave_point):
 
     post = f"""
     main:
-        %par = param
+        %par = source
         %cond0 = add 64, %par
         %cond1 = iszero %cond0
         {post_iszero}
@@ -209,7 +209,7 @@ def test_offsets():
 
     pre = """
     main:
-        %par = param
+        %par = source
         %1 = add @main, 0
         %2 = add 0, @main
         %3 = add %par, @main
@@ -218,13 +218,13 @@ def test_offsets():
 
     post = """
     main:
-        %par = param
+        %par = source
         %1 = offset @main, 0
 
         ; TODO fix this, should be `offset @main, 0`
-        ; (also, the `store` opcode is used directly because
+        ; (also, the `assign` opcode is used directly because
         ; the parser does not see the label as literal)
-        %2 = store @main
+        %2 = assign @main
         %3 = add %par, @main
         sink %1, %2, %3
     """

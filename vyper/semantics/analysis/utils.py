@@ -90,7 +90,8 @@ class _ExprAnalyser:
             # propagate the parent exprinfo members down into the new expr
             # note: Attribute(expr value, identifier attr)
 
-            info = self.get_expr_info(node.value, is_callable=is_callable)
+            # allow the value node to be a type expr (e.g., MyFlag.A)
+            info = self.get_expr_info(node.value, is_callable=True)
             attr = node.attr
 
             t = info.typ.get_member(attr, node)
