@@ -5,7 +5,7 @@ from typing import ClassVar
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.exceptions import CompilerPanic
-from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import ConstRef, IRLabel, IRLiteral, IROperand, IRVariable
 
 
 @dataclass(frozen=True)
@@ -51,6 +51,10 @@ class MemoryLocation:
             _size = size.value
         elif isinstance(size, IRVariable):
             _size = None
+        elif isinstance(size, IRLabel):
+            _size = None
+        elif isinstance(size, ConstRef):
+            _size = None  # Constant reference - unknown at analysis time
         elif isinstance(size, int):
             _size = size
         else:  # pragma: nocover
@@ -208,8 +212,6 @@ def _get_memory_read_location(inst) -> MemoryLocation:
     elif opcode == "sha3":
         size, offset = inst.operands
         return MemoryLocation.from_operands(offset, size)
-    elif opcode == "sha3_32":
-        raise CompilerPanic("invalid opcode")  # should be unused
     elif opcode == "sha3_64":
         return MemoryLocation(offset=0, size=64)
     elif opcode == "log":
@@ -251,7 +253,7 @@ def _get_storage_read_location(inst, addr_space: AddrSpace) -> MemoryLocation:
         return MemoryLocation.UNDEFINED
     elif opcode in ("create", "create2"):
         return MemoryLocation.UNDEFINED
-    elif opcode in ("return", "stop", "exit", "sink"):
+    elif opcode in ("return", "stop", "sink"):
         # these opcodes terminate execution and commit to (persistent)
         # storage, resulting in storage writes escaping our control.
         # returning `MemoryLocation.UNDEFINED` represents "future" reads

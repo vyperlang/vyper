@@ -5,9 +5,8 @@ from hexbytes import HexBytes
 
 import vyper.ir.compile_ir as compile_ir
 from tests.utils import ZERO_ADDRESS
-from vyper.codegen.ir_node import IRnode
 from vyper.compiler import compile_code
-from vyper.compiler.settings import OptimizationLevel
+from vyper.ir.compile_ir import DATA_ITEM, PUSH, PUSHLABEL, Label
 from vyper.utils import EIP_170_LIMIT, ERC5202_PREFIX, checksum_encode, keccak256
 
 
@@ -295,10 +294,19 @@ def test(code_ofst: uint256) -> address:
     # deploy a blueprint contract whose contained initcode contains only
     # zeroes (so no matter which offset, create_from_blueprint will
     # return empty code)
-    ir = IRnode.from_list(["deploy", 0, ["seq"] + ["stop"] * initcode_len, 0])
-    bytecode, _ = compile_ir.assembly_to_evm(
-        compile_ir.compile_to_assembly(ir, optimize=OptimizationLevel.NONE)
-    )
+    asm = [
+        *PUSH(initcode_len),
+        PUSHLABEL(Label("end")),
+        *PUSH(0),
+        "CODECOPY",
+        *PUSH(initcode_len),
+        *PUSH(0),
+        "RETURN",
+        Label("end"),
+        DATA_ITEM(b"\x00" * initcode_len),
+    ]
+    bytecode, _ = compile_ir.assembly_to_evm(asm)
+
     # manually deploy the bytecode
     c = env.deploy(abi=[], bytecode=bytecode)
     blueprint_address = c.address

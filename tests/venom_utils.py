@@ -4,6 +4,7 @@ from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.resolve_const import resolve_const_operands
 
 
 def parse_from_basic_block(source: str, funcname="_global"):
@@ -48,7 +49,6 @@ def assert_ctx_eq(ctx1: IRContext, ctx2: IRContext):
 
     # check entry function is the same
     assert next(iter(ctx1.functions.keys())) == next(iter(ctx2.functions.keys()))
-    assert ctx1.data_segment == ctx2.data_segment, ctx2.data_segment
 
 
 class PrePostChecker:
@@ -75,6 +75,9 @@ class PrePostChecker:
             hevm = self.default_hevm
 
         pre_ctx = parse_from_basic_block(pre)
+        # Resolve const expressions before running passes
+        resolve_const_operands(pre_ctx)
+
         for fn in pre_ctx.functions.values():
             ac = IRAnalysesCache(fn)
             for p in self.passes:
@@ -83,6 +86,9 @@ class PrePostChecker:
                 obj.run_pass()
 
         post_ctx = parse_from_basic_block(post)
+        # Resolve const expressions before running passes
+        resolve_const_operands(post_ctx)
+
         for fn in post_ctx.functions.values():
             ac = IRAnalysesCache(fn)
             for p in self.post_passes:

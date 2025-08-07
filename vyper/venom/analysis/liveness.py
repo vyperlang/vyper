@@ -27,6 +27,9 @@ class LivenessAnalysis(IRAnalysis):
                 self.inst_to_liveness[inst] = OrderedSet()
 
         worklist = deque(self.cfg.dfs_post_walk)
+        for bb in self.function.get_basic_blocks():
+            if bb.is_pinned:
+                worklist.append(bb)
 
         while len(worklist) > 0:
             changed = False

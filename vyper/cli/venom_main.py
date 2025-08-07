@@ -35,6 +35,9 @@ def _parse_args(argv: list[str]):
     parser.add_argument(
         "--stdin", action="store_true", help="whether to pull venom input from stdin"
     )
+    parser.add_argument(
+        "--asm", action="store_true", help="output assembly without compiling to bytecode"
+    )
 
     args = parser.parse_args(argv)
 
@@ -61,8 +64,13 @@ def _parse_args(argv: list[str]):
 
     run_passes_on(ctx, OptimizationLevel.default())
     asm = generate_assembly_experimental(ctx)
-    bytecode = generate_bytecode(asm, compiler_metadata=None)
-    print(f"0x{bytecode.hex()}")
+
+    if args.asm:
+        for inst in asm:
+            print(inst)
+    else:
+        bytecode, _ = generate_bytecode(asm)
+        print(f"0x{bytecode.hex()}")
 
 
 if __name__ == "__main__":

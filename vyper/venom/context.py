@@ -1,6 +1,5 @@
-import textwrap
 from dataclasses import dataclass, field
-from typing import Iterator, Optional
+from typing import Any, Iterator, Optional
 
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 from vyper.venom.function import IRFunction
@@ -24,7 +23,7 @@ class DataSection:
     data_items: list[DataItem] = field(default_factory=list)
 
     def __str__(self):
-        ret = [f"dbsection {self.label.value}:"]
+        ret = [f"{self.label.value}:"]
         for item in self.data_items:
             ret.append(f"  db {item}")
         return "\n".join(ret)
@@ -33,18 +32,25 @@ class DataSection:
 class IRContext:
     functions: dict[IRLabel, IRFunction]
     entry_function: Optional[IRFunction]
-    ctor_mem_size: Optional[int]
-    immutables_len: Optional[int]
+    constants: dict[str, int]  # globally defined constants
+    const_expressions: dict[str, Any]  # raw const expressions (unevaluated)
+    global_labels: dict[str, int]  # globally defined labels with addresses
     data_segment: list[DataSection]
     last_label: int
     last_variable: int
+    unresolved_consts: dict[str, Any]  # Maps temp label to const expression
+    const_refs: set[str]  # Tracks undefined constant references
 
     def __init__(self) -> None:
         self.functions = {}
         self.entry_function = None
-        self.ctor_mem_size = None
-        self.immutables_len = None
         self.data_segment = []
+        self.constants = {}
+        self.const_expressions = {}
+        self.global_labels = {}
+        self.unresolved_consts = {}
+        self.const_refs = set()
+
         self.last_label = 0
         self.last_variable = 0
 
@@ -99,6 +105,18 @@ class IRContext:
         data_section = self.data_segment[-1]
         data_section.data_items.append(DataItem(data))
 
+    def add_constant(self, name: str, value: int) -> None:
+        assert name not in self.constants
+        self.constants[name] = value
+
+    def add_const_expression(self, name: str, expr: Any) -> None:
+        assert name not in self.const_expressions
+        self.const_expressions[name] = expr
+
+    def add_global_label(self, name: str, address: int) -> None:
+        assert name not in self.global_labels
+        self.global_labels[name] = address
+
     def as_graph(self) -> str:
         s = ["digraph G {"]
         for fn in self.functions.values():
@@ -109,14 +127,21 @@ class IRContext:
 
     def __repr__(self) -> str:
         s = []
+
+        # Print const expressions first
+        for name, expr in self.const_expressions.items():
+            if isinstance(expr, tuple) and len(expr) == 3:
+                # Format operation expressions
+                op, arg1, arg2 = expr
+                s.append(f"const {name} = {op}({arg1}, {arg2})")
+            else:
+                s.append(f"const {name} = {expr}")
+
+        if self.const_expressions:
+            s.append("")
+
         for fn in self.functions.values():
             s.append(IRFunction.__repr__(fn))
-            s.append("\n")
-
-        if len(self.data_segment) > 0:
-            s.append("data readonly {")
-            for data_section in self.data_segment:
-                s.append(textwrap.indent(DataSection.__str__(data_section), "  "))
-            s.append("}")
+            s.append("")
 
         return "\n".join(s)

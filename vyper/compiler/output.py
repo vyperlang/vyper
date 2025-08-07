@@ -10,8 +10,8 @@ from vyper.compiler.output_bundle import SolcJSONWriter, VyperArchiveWriter
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
+from vyper.evm.assembler.core import JUMPDEST, Label
 from vyper.exceptions import VyperException
-from vyper.ir import compile_ir
 from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
 from vyper.utils import safe_relpath
@@ -165,19 +165,19 @@ def build_interface_output(compiler_data: CompilerData) -> str:
 
 
 def build_bb_output(compiler_data: CompilerData) -> IRnode:
-    return compiler_data.venom_functions[0]
+    return compiler_data.venom_deploytime
 
 
 def build_bb_runtime_output(compiler_data: CompilerData) -> IRnode:
-    return compiler_data.venom_functions[1]
+    return compiler_data.venom_runtime
 
 
 def build_cfg_output(compiler_data: CompilerData) -> str:
-    return compiler_data.venom_functions[0].as_graph()
+    return compiler_data.venom_deploytime.as_graph()
 
 
 def build_cfg_runtime_output(compiler_data: CompilerData) -> str:
-    return compiler_data.venom_functions[1].as_graph()
+    return compiler_data.venom_runtime.as_graph()
 
 
 def build_ir_output(compiler_data: CompilerData) -> IRnode:
@@ -323,6 +323,10 @@ def build_asm_output(compiler_data: CompilerData) -> str:
     return _build_asm(compiler_data.assembly)
 
 
+def build_asm_runtime_output(compiler_data: CompilerData) -> str:
+    return _build_asm(compiler_data.assembly_runtime)
+
+
 def build_layout_output(compiler_data: CompilerData) -> StorageLayout:
     # in the future this might return (non-storage) layout,
     # for now only storage layout is returned.
@@ -330,26 +334,24 @@ def build_layout_output(compiler_data: CompilerData) -> StorageLayout:
 
 
 def _build_asm(asm_list):
-    output_string = ""
+    output_string = "__entry__:"
     in_push = 0
-    for node in asm_list:
-        if isinstance(node, list):
-            output_string += "{ " + _build_asm(node) + "} "
+    for item in asm_list:
+        if isinstance(item, (Label, JUMPDEST)):
+            output_string += f"\n\n{item}:"
             continue
 
         if in_push > 0:
-            assert isinstance(node, int), node
-            output_string += hex(node)[2:].rjust(2, "0")
-            if in_push == 1:
-                output_string += " "
+            assert isinstance(item, int), item
+            output_string += hex(item)[2:].rjust(2, "0")
             in_push -= 1
         else:
-            output_string += str(node) + " "
+            output_string += f"\n    {item}"
 
-            if isinstance(node, str) and node.startswith("PUSH") and node != "PUSH0":
+            if isinstance(item, str) and item.startswith("PUSH") and item != "PUSH0":
                 assert in_push == 0
-                in_push = int(node[4:])
-                output_string += "0x"
+                in_push = int(item[4:])
+                output_string += " 0x"
 
     return output_string
 
@@ -357,6 +359,10 @@ def _build_asm(asm_list):
 def _build_node_identifier(ast_node):
     assert ast_node.module_node is not None, type(ast_node)
     return (ast_node.module_node.source_id, ast_node.node_id)
+
+
+def _getpos(node):
+    return (node.lineno, node.col_offset, node.end_lineno, node.end_col_offset)
 
 
 def _build_source_map_output(compiler_data, bytecode, pc_maps):
@@ -379,7 +385,7 @@ def _build_source_map_output(compiler_data, bytecode, pc_maps):
         # tag it with source id
         ast_map[0] = compiler_data.annotated_vyper_module
 
-    pc_pos_map = {k: compile_ir.getpos(v) for (k, v) in ast_map.items()}
+    pc_pos_map = {k: _getpos(v) for (k, v) in ast_map.items()}
     node_id_map = {k: _build_node_identifier(v) for (k, v) in ast_map.items()}
     compressed_map = _compress_source_map(ast_map, out["pc_jump_map"], len(bytecode))
     out["pc_pos_map_compressed"] = compressed_map
@@ -391,15 +397,15 @@ def _build_source_map_output(compiler_data, bytecode, pc_maps):
 
 
 def build_source_map_output(compiler_data: CompilerData) -> dict:
-    bytecode, pc_maps = compile_ir.assembly_to_evm(compiler_data.assembly, compiler_metadata=None)
-    return _build_source_map_output(compiler_data, bytecode, pc_maps)
+    bytecode = compiler_data.bytecode
+    source_map = compiler_data.source_map
+    return _build_source_map_output(compiler_data, bytecode, source_map)
 
 
 def build_source_map_runtime_output(compiler_data: CompilerData) -> dict:
-    bytecode, pc_maps = compile_ir.assembly_to_evm(
-        compiler_data.assembly_runtime, compiler_metadata=None
-    )
-    return _build_source_map_output(compiler_data, bytecode, pc_maps)
+    bytecode = compiler_data.bytecode_runtime
+    source_map = compiler_data.source_map_runtime
+    return _build_source_map_output(compiler_data, bytecode, source_map)
 
 
 # generate a solidity-style source map. this functionality is deprecated
