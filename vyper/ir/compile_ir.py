@@ -116,7 +116,7 @@ class PUSH_OFST:
 AssemblyInstruction = str | int | Label | PUSHLABEL | PUSH_OFST
 
 
-def mksymbol(name=""):
+def mklabel(name=""):
     Label._next_symbol += 1
 
     return Label(f"{name}{Label._next_symbol}")
@@ -286,7 +286,7 @@ def apply_line_numbers(func):
 @apply_line_numbers
 def compile_to_assembly(code, optimize=OptimizationLevel.GAS):
     global _revert_label
-    _revert_label = mksymbol("revert")
+    _revert_label = mklabel("revert")
 
     # don't overwrite ir since the original might need to be output, e.g. `-f ir,asm`
     code = copy.deepcopy(code)
@@ -434,7 +434,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     elif code.value == "if" and len(code.args) == 2:
         o = []
         o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
-        end_symbol = mksymbol("join")
+        end_symbol = mklabel("join")
         o.extend(["ISZERO", *JUMPI(end_symbol)])
         o.extend(_compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
         o.extend([end_symbol])
@@ -443,8 +443,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     elif code.value == "if" and len(code.args) == 3:
         o = []
         o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
-        mid_symbol = mksymbol("else")
-        end_symbol = mksymbol("join")
+        mid_symbol = mklabel("else")
+        end_symbol = mklabel("join")
         o.extend(["ISZERO", *JUMPI(mid_symbol)])
         o.extend(_compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
         o.extend([*JUMP(end_symbol), mid_symbol])
@@ -473,9 +473,9 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         body = code.args[4]
 
         entry_dest, continue_dest, exit_dest = (
-            mksymbol("loop_start"),
-            mksymbol("loop_continue"),
-            mksymbol("loop_exit"),
+            mklabel("loop_start"),
+            mklabel("loop_continue"),
+            mklabel("loop_exit"),
         )
 
         # stack: []
@@ -593,7 +593,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         assert isinstance(memsize, int), "non-int memsize"
         assert isinstance(immutables_len, int), "non-int immutables_len"
 
-        runtime_begin = mksymbol("runtime_begin")
+        runtime_begin = mklabel("runtime_begin")
 
         subcode = _compile_to_assembly(ir)
 
@@ -642,7 +642,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # unreachable keyword produces INVALID opcode
     elif code.value == "assert_unreachable":
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
-        end_symbol = mksymbol("reachable")
+        end_symbol = mklabel("reachable")
         o.extend([*JUMPI(end_symbol), "INVALID", end_symbol])
         return o
     # Assert (if false, exit)
