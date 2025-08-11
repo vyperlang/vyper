@@ -1325,10 +1325,12 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
         if is_label(item):
             if item in symbol_map:
                 raise CompilerPanic(f"duplicate {item}")
-            # Don't increment pc as the symbol itself doesn't go into code
             symbol_map[item] = pc
 
-        if isinstance(item, PUSHLABEL):
+            # label gets translated into a jumpdest
+            pc += 1
+
+        elif isinstance(item, PUSHLABEL):
             pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
         elif is_mem_sym(item):
             # PUSH<n> item
