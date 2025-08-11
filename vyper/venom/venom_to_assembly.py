@@ -10,7 +10,7 @@ from vyper.ir.compile_ir import (
     Instruction,
     Label,
     RuntimeHeader,
-    mklabel,
+    mksymbol,
     optimize_assembly,
 )
 from vyper.utils import MemoryPositions, OrderedSet, wrap256
@@ -581,7 +581,7 @@ class VenomCompiler:
         elif opcode == "assert":
             assembly.extend(["ISZERO", PUSHLABEL(Label("revert")), "JUMPI"])
         elif opcode == "assert_unreachable":
-            end_symbol = mklabel("reachable")
+            end_symbol = mksymbol("reachable")
             assembly.extend([PUSHLABEL(end_symbol), "JUMPI", "INVALID", end_symbol])
         elif opcode == "iload":
             addr = inst.operands[0]
