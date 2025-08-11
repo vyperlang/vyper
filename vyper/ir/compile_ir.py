@@ -132,7 +132,7 @@ def mkdebug(pc_debugger, ast_source):
     return [i]
 
 
-def is_symbol(i):
+def is_label(i):
     return isinstance(i, Label)
 
 
@@ -313,13 +313,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
     def _data_ofst_of(sym, ofst, height_):
         # e.g. PUSHOFST foo 32
-        assert is_symbol(sym) or is_mem_sym(sym), sym
+        assert is_label(sym) or is_mem_sym(sym), sym
 
         if isinstance(ofst.value, int):
             # resolve at compile time using magic PUSH_OFST op
             return [PUSH_OFST(sym, ofst.value)]
 
-        if is_symbol(sym):
+        if is_label(sym):
             pushsym = PUSHLABEL(sym)
         else:
             # magic for mem syms
@@ -901,7 +901,7 @@ def _prune_unreachable_code(assembly):
         if assembly[i] in _TERMINAL_OPS:
             # find the next jumpdest or sublist
             for j in range(i + 1, len(assembly)):
-                next_is_jumpdest = j < len(assembly) and is_symbol(assembly[j])
+                next_is_jumpdest = j < len(assembly) and is_label(assembly[j])
                 next_is_list = isinstance(assembly[j], list)
                 if next_is_jumpdest or next_is_list:
                     break
@@ -925,7 +925,7 @@ def _prune_inefficient_jumps(assembly):
         if (
             isinstance(assembly[i], PUSHLABEL)
             and assembly[i + 1] == "JUMP"
-            and is_symbol(assembly[i + 2])
+            and is_label(assembly[i + 2])
             and assembly[i + 2] == assembly[i].label
         ):
             # delete PUSHLABEL x JUMP
@@ -972,9 +972,9 @@ def _merge_jumpdests(assembly):
     changed = False
     i = 0
     while i < len(assembly) - 2:
-        if is_symbol(assembly[i]):
+        if is_label(assembly[i]):
             current_symbol = assembly[i]
-            if is_symbol(assembly[i + 1]):
+            if is_label(assembly[i + 1]):
                 # LABEL x LABEL y
                 # replace all instances of PUSHLABEL x with PUSHLABEL y
                 new_symbol = assembly[i + 1]
@@ -1062,13 +1062,13 @@ def _prune_unused_jumpdests(assembly):
             # add symbols used in data sections as they are likely
             # used for a jumptable.
             for t in item:
-                if is_symbol(t):
+                if is_label(t):
                     used_jumpdests.add(t)
 
     # delete jumpdests that aren't used
     i = 0
     while i < len(assembly):
-        if is_symbol(assembly[i]) and assembly[i] not in used_jumpdests:
+        if is_label(assembly[i]) and assembly[i] not in used_jumpdests:
             changed = True
             del assembly[i]
         else:
@@ -1163,7 +1163,7 @@ def _data_to_evm(assembly, symbol_map):
     ret = bytearray()
     assert isinstance(assembly[0], DataHeader)
     for item in assembly[1:]:
-        if is_symbol(item):
+        if is_label(item):
             symbol = symbol_map[item].to_bytes(SYMBOL_SIZE, "big")
             ret.extend(symbol)
         elif isinstance(item, int):
@@ -1181,7 +1181,7 @@ def _length_of_data(assembly):
     ret = 0
     assert isinstance(assembly[0], DataHeader)
     for item in assembly[1:]:
-        if is_symbol(item):
+        if is_label(item):
             ret += SYMBOL_SIZE
         elif isinstance(item, int):
             assert 0 <= item < 256, f"invalid data byte {item}"
@@ -1322,7 +1322,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
             line_number_map["pc_jump_map"][pc] = "-"
 
         # update pc
-        if is_symbol(item):
+        if is_label(item):
             if item in symbol_map:
                 raise CompilerPanic(f"duplicate {item}")
             # Don't increment pc as the symbol itself doesn't go into code
@@ -1334,11 +1334,11 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, compiler_metadata=None)
             # PUSH<n> item
             pc += mem_ofst_size + 1
         elif is_ofst(item):
-            assert is_symbol(item.label) or is_mem_sym(item.label), item.label
+            assert is_label(item.label) or is_mem_sym(item.label), item.label
             assert isinstance(item.ofst, int), item
             # [PUSH_OFST, (Label foo), bar] -> PUSH2 (foo+bar)
             # [PUSH_OFST, _mem_foo, bar] -> PUSHN (foo+bar)
-            if is_symbol(item.label):
+            if is_label(item.label):
                 pc += SYMBOL_SIZE + 1  # PUSH2 highbits lowbits
             else:
                 pc += mem_ofst_size + 1
