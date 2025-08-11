@@ -357,10 +357,10 @@ def test_phis():
         IRVariable("%11:4"),
         ret=IRVariable("11:3"),
     )
-    expect_bb.append_instruction("store", IRVariable("11:3"), ret=IRVariable("%35"))
-    expect_bb.append_instruction("store", IRLiteral(9), ret=IRVariable("%36"))
+    expect_bb.append_instruction("assign", IRVariable("11:3"), ret=IRVariable("%35"))
+    expect_bb.append_instruction("assign", IRLiteral(9), ret=IRVariable("%36"))
     expect_bb.append_instruction("xor", IRVariable("%35"), IRVariable("%36"), ret=IRVariable("%15"))
-    expect_bb.append_instruction("store", IRVariable("%15"), ret=IRVariable("%37"))
+    expect_bb.append_instruction("assign", IRVariable("%15"), ret=IRVariable("%37"))
     expect_bb.append_instruction("jnz", IRVariable("%37"), IRLabel("5_body"), IRLabel("7_exit"))
     # other basic blocks omitted for brevity
 

@@ -116,7 +116,7 @@ class FunctionInlinerPass(IRGlobalPass):
                             # and both b and c get inlined.
                             calloca_inst = callocas[alloca_id]
                             assert calloca_inst.output is not None
-                            inst.opcode = "store"
+                            inst.opcode = "assign"
                             inst.operands = [calloca_inst.output]
                         else:
                             callocas[alloca_id] = inst
@@ -129,7 +129,7 @@ class FunctionInlinerPass(IRGlobalPass):
                             # this is our own palloca, not one that got
                             # inlined
                             continue
-                        inst.opcode = "store"
+                        inst.opcode = "assign"
                         calloca_inst = callocas[alloca_id]
                         assert calloca_inst.output is not None  # help mypy
                         inst.operands = [calloca_inst.output]
@@ -144,7 +144,7 @@ class FunctionInlinerPass(IRGlobalPass):
                         # demote to alloca so that mem2var will work
                         inst.opcode = "alloca"
 
-    def _inline_call_site(self, func: IRFunction, call_site: IRInstruction) -> None:
+    def _inline_call_site(self, func: IRFunction, call_site: IRInstruction):
         """
         Inline function into call site.
         """
@@ -180,7 +180,7 @@ class FunctionInlinerPass(IRGlobalPass):
             for inst in bb.instructions:
                 if inst.opcode == "param":
                     # NOTE: one of these params is the return pc.
-                    inst.opcode = "store"
+                    inst.opcode = "assign"
                     # handle return pc specially - it's at top of stack.
                     ops = call_site.operands[1:] + [call_site.operands[0]]
                     val = ops[param_idx]
@@ -195,7 +195,7 @@ class FunctionInlinerPass(IRGlobalPass):
                         assert ENABLE_NEW_CALL_CONV
                         ret_value = inst.operands[0]
                         bb.insert_instruction(
-                            IRInstruction("store", [ret_value], call_site.output), -1
+                            IRInstruction("assign", [ret_value], call_site.output), -1
                         )
                     inst.opcode = "jmp"
                     inst.operands = [call_site_return.label]
@@ -206,6 +206,21 @@ class FunctionInlinerPass(IRGlobalPass):
 
         call_site_bb.instructions = call_site_bb.instructions[:call_idx]
         call_site_bb.append_instruction("jmp", func_copy.entry.label)
+        self._fix_phi(call_site_bb, call_site_return)
+
+    def _fix_phi(self, orig: IRBasicBlock, new: IRBasicBlock) -> None:
+        # when a function is inlined, the successors of the entry block
+        # may contain phis.
+        # these phis need to be updated to refer to the new block
+        # which is jumped to from the callsite of caller function.
+        orig_label = orig.label
+        new_label = new.label
+
+        for bb in new.out_bbs:
+            for inst in bb.instructions:
+                if inst.opcode != "phi":
+                    continue
+                inst.replace_label_operands({orig_label: new_label})
 
     def _build_call_walk(self, function: IRFunction) -> OrderedSet[IRFunction]:
         """
@@ -234,14 +249,14 @@ class FunctionInlinerPass(IRGlobalPass):
         clone = IRFunction(new_func_label)
         # clear the bb that is added by default
         # consider using func.copy() intead?
-        clone._basic_block_dict.clear()
+        clone.clear_basic_blocks()
         for bb in func.get_basic_blocks():
-            clone.append_basic_block(self._clone_basic_block(bb, prefix))
+            clone.append_basic_block(self._clone_basic_block(clone, bb, prefix))
         return clone
 
-    def _clone_basic_block(self, bb: IRBasicBlock, prefix: str) -> IRBasicBlock:
+    def _clone_basic_block(self, new_fn: IRFunction, bb: IRBasicBlock, prefix: str) -> IRBasicBlock:
         new_bb_label = IRLabel(f"{prefix}{bb.label.value}")
-        new_bb = IRBasicBlock(new_bb_label, bb.parent)
+        new_bb = IRBasicBlock(new_bb_label, new_fn)
         new_bb.instructions = [self._clone_instruction(inst, prefix) for inst in bb.instructions]
         for inst in new_bb.instructions:
             inst.parent = new_bb
