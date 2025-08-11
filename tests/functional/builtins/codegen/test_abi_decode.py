@@ -3,6 +3,7 @@ from eth.codecs import abi
 
 from tests.evm_backends.base_env import EvmError, ExecutionReverted
 from tests.utils import decimal_to_int
+from vyper.compiler import compile_code
 from vyper.exceptions import ArgumentException, StructureException
 from vyper.utils import method_id
 
@@ -482,6 +483,42 @@ def _abi_payload_from_tuple(payload: tuple[int | bytes, ...], max_sz: int) -> by
     return ret
 
 
+def _get_bytecode_and_abi(code) -> tuple[bytes, list[dict]]:
+    out = compile_code(code, output_formats=["bytecode", "abi"])
+    bytecode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    abi = out["abi"]
+    return bytecode, abi
+
+
+def _raw_deploy(env, code, data):
+    bytecode, abi = _get_bytecode_and_abi(code)
+    bytecode += data
+    c = env.deploy(abi, bytecode, value=0)
+    return c
+
+
+def _test_ctor_decode(env, typ, data, expected=None, should_fail=False, preamble=""):
+    code = f"""
+{preamble}
+x: {typ}
+
+@external
+def get() -> {typ}:
+    return self.x
+
+@deploy
+def __init__(x: {typ}):
+    self.x = x
+"""
+    if should_fail:
+        with pytest.raises(EvmError):
+            _ = _raw_deploy(env, code, data)
+    else:
+        c = _raw_deploy(env, code, data)
+        assert expected is not None
+        assert c.get() == expected
+
+
 def _replicate(value: int, count: int) -> tuple[int, ...]:
     return (value,) * count
 
@@ -526,24 +563,15 @@ def test_abi_decode_nonstrict_head(env, get_contract):
     # data isn't strictly encoded - head is 0x21 instead of 0x20
     # but the head + length is still within runtime bounds of the parent buffer
     buffer_size = 32 * 5
+    typ = "DynArray[uint256, 3]"
     code = f"""
 @external
-def f(x: Bytes[{buffer_size}]):
+def run(x: Bytes[{buffer_size}]) -> {typ}:
     y: Bytes[{buffer_size}] = x
-    a: Bytes[32] = b"a"
-    decoded_y1: DynArray[uint256, 3] = _abi_decode(y, DynArray[uint256, 3])
-    assert len(decoded_y1) == 1 and decoded_y1[0] == 0
-    a = b"aaaa"
-    decoded_y1 = _abi_decode(y, DynArray[uint256, 3])
-    assert len(decoded_y1) == 1 and decoded_y1[0] == 0
+    decoded_y1: {typ} = _abi_decode(y, {typ})
+    return decoded_y1
     """
     c = get_contract(code)
-
-    tuple_head_ofst = 0x20
-    parent_array_len = 0xA0
-    msg_call_overhead = (method_id("f(bytes)"), tuple_head_ofst, parent_array_len)
-
-    data = _abi_payload_from_tuple(msg_call_overhead, BUFFER_OVERHEAD)
 
     buffer_payload = (
         # head should be 0x20 but is 0x21 thus the data isn't strictly encoded
@@ -551,29 +579,31 @@ def f(x: Bytes[{buffer_size}]):
         # we don't want to revert on invalid length, so set this to 0
         # the first byte of payload will be considered as the length
         0x00,
-        (0x01).to_bytes(1, "big"),  # will be considered as the length=1
-        (0x00).to_bytes(31, "big"),
-        *_replicate(0x03, 2),
+        (0x02).to_bytes(1, "big"),  # will be considered as the length=2
+        0x01,  # list[0] = 1
+        0x02,  # list[1] = 2
     )
 
-    data += _abi_payload_from_tuple(buffer_payload, buffer_size)
+    data = _abi_payload_from_tuple(buffer_payload, buffer_size)
 
-    env.message_call(c.address, data=data)
+    expected = [1, 2]
+    res = c.run(data)
+    assert res == expected
+
+    _test_ctor_decode(env, typ, data, expected=expected)
 
 
-def test_abi_decode_child_head_points_to_parent(tx_failed, get_contract):
+def test_abi_decode_child_head_points_to_parent(env, get_contract):
     # data isn't strictly encoded and the head for the inner array
     # skips the corresponding payload and points to other valid section of the
     # parent buffer
     buffer_size = 14 * 32
+    typ = "DynArray[DynArray[DynArray[uint256, 2], 1], 2]"
     code = f"""
 @external
-def run(x: Bytes[{buffer_size}]) -> DynArray[DynArray[DynArray[uint256, 2], 1], 2]:
+def run(x: Bytes[{buffer_size}]) -> {typ}:
     y: Bytes[{buffer_size}] = x
-    decoded_y1: DynArray[DynArray[DynArray[uint256, 2], 1], 2] = _abi_decode(
-        y,
-        DynArray[DynArray[DynArray[uint256, 2], 1], 2]
-    )
+    decoded_y1: {typ} = _abi_decode(y, {typ})
     return decoded_y1
     """
     c = get_contract(code)
@@ -600,20 +630,23 @@ def run(x: Bytes[{buffer_size}]) -> DynArray[DynArray[DynArray[uint256, 2], 1], 
 
     data = _abi_payload_from_tuple(buffer_payload, buffer_size)
 
+    expected = [[[2, 2]], [[2, 2]]]
     res = c.run(data)
-    assert res == [[[2, 2]], [[2, 2]]]
+    assert res == expected
+    _test_ctor_decode(env, typ, data, expected)
 
 
-def test_abi_decode_nonstrict_head_oob(tx_failed, get_contract):
+def test_abi_decode_nonstrict_head_oob(env, tx_failed, get_contract):
     # data isn't strictly encoded and (non_strict_head + len(DynArray[..][2])) > parent_static_sz
     # thus decoding the data pointed to by the head would cause an OOB read
     # non_strict_head + length == parent + parent_static_sz + 1
     buffer_size = 2 * 32 + 3 * 32 + 3 * 32 * 4
+    typ = "DynArray[Bytes[32 * 3], 3]"
     code = f"""
 @external
 def run(x: Bytes[{buffer_size}]):
     y: Bytes[{buffer_size}] = x
-    decoded_y1: DynArray[Bytes[32 * 3], 3] = _abi_decode(y,  DynArray[Bytes[32 * 3], 3])
+    decoded_y1: {typ} = _abi_decode(y, {typ})
     """
     c = get_contract(code)
 
@@ -626,16 +659,16 @@ def run(x: Bytes[{buffer_size}]):
         # we define the non_strict_head as:
         # skip the remaining heads, 1st and 2nd tail
         # to the third tail + 1B
-        0x20 * 8 + 0x20 * 3 + 0x01,  # inner array0 head
-        0x20 * 4 + 0x20 * 3,  # inner array1 head
-        0x20 * 8 + 0x20 * 3,  # inner array2 head
-        0x60,  # DynArray[Bytes[96], 3][0] length
-        *_replicate(0x01, 3),  # DynArray[Bytes[96], 3][0] data
-        0x60,  # DynArray[Bytes[96], 3][1] length
-        *_replicate(0x01, 3),  # DynArray[Bytes[96], 3][1]  data
-        # the invalid head points here + 1B (thus the length is 0x60)
+        0x20 * 8 + 0x20 * 3 + 0x01,  # darray[0] head
+        0x20 * 4 + 0x20 * 3,  # darray[1] head
+        0x20 * 8 + 0x20 * 3,  # darray[2] head
+        0x60,  # darray[0] length - not used
+        *_replicate(0x01, 3),  # darray[0] data - not used
+        0x60,  # darray[1] length
+        *_replicate(0x01, 3),  # darray[1]  data
+        # the invalid head of darray[0] points here + 1B (thus the length is 0x60)
         # we don't revert because of invalid length, but because head+length is OOB
-        0x00,  # DynArray[Bytes[96], 3][2] length
+        0x00,  # darray[2] length
         (0x60).to_bytes(1, "big"),
         (0x00).to_bytes(31, "big"),
         *_replicate(0x03, 2),
@@ -646,9 +679,18 @@ def run(x: Bytes[{buffer_size}]):
     with tx_failed():
         c.run(data)
 
+    expected = []
+    # the darray[0] tail is darray[2] payload shifted left by 1B (and as such is 1B OOB)
+    expected.append(_abi_payload_from_tuple((0x00, *_replicate(0x0300, 2)), 96))
+    expected.append(_abi_payload_from_tuple(_replicate(0x01, 3), 96))
+    expected.append(b"")
+
+    # ctor decoding isn't strict, thus it shouldn't fail
+    _test_ctor_decode(env, typ, data, expected, should_fail=False)
+
 
 def test_abi_decode_nonstrict_head_oob2(tx_failed, get_contract):
-    # same principle as in Test_abi_decode_nonstrict_head_oob
+    # same principle as in test_abi_decode_nonstrict_head_oob
     # but adapted for dynarrays
     buffer_size = 2 * 32 + 3 * 32 + 3 * 32 * 4
     code = f"""
@@ -875,7 +917,7 @@ def run(x1: Bytes[{buffer_size1}], x2: Bytes[{buffer_size2}]):
         c.run(data1, data2)
 
 
-def test_abi_decode_merge_head_and_length(get_contract):
+def test_abi_decode_merge_head_and_length(env, get_contract):
     # compress head and length into 33B
     buffer_size = 32 * 2 + 8 * 32
     code = f"""
@@ -893,7 +935,10 @@ def run(x: Bytes[{buffer_size}]) -> Bytes[{buffer_size}]:
 
     res = c.run(data)
 
-    assert res == bytes(256)
+    expected = b"\x00" * 256
+    assert res == expected
+
+    _test_ctor_decode(env, "Bytes[256]", data, expected)
 
 
 def test_abi_decode_extcall_invalid_head(tx_failed, get_contract):
@@ -1083,17 +1128,18 @@ def run():
         c.run()
 
 
-def test_abi_decode_extcall_empty_array(get_contract):
-    code = """
+def test_abi_decode_extcall_empty_array(env, get_contract):
+    typ = "DynArray[Bytes[32], 2]"
+    code = f"""
 @external
 def bar() -> (uint256, uint256):
     return 32, 0
 
 interface A:
-    def bar() -> DynArray[Bytes[32], 2]: nonpayable
+    def bar() -> {typ}: nonpayable
 
 @external
-def run() -> DynArray[Bytes[32], 2]:
+def run() -> {typ}:
     return extcall A(self).bar()
     """
     c = get_contract(code)
@@ -1101,34 +1147,53 @@ def run() -> DynArray[Bytes[32], 2]:
     res = c.run()
 
     assert res == []
+    _test_ctor_decode(env, typ, abi.encode("bytes[]", []), [])
 
 
-def test_abi_decode_extcall_complex_empty_dynarray(get_contract):
+def test_abi_decode_extcall_complex_empty_dynarray(env, get_contract):
     # 5th word of the payload points to the last word of the payload
     # which is considered the length of the Point.y array
     # because the length is 0, the decoding should succeed
-    code = """
+    typ = "DynArray[Point, 2]"
+    preamble = """
 struct Point:
     x: uint256
     y: DynArray[uint256, 2]
     z: uint256
+    """
+    bar_return_values = (
+        32,  # head
+        1,  # length of dynarray
+        32,  # head of the point tuple
+        1,  # point.x
+        64,  # head of point.y (points to point.z)
+        0,  # point.z
+    )
+
+    code = f"""
+{preamble}
 
 @external
 def bar() -> (uint256, uint256, uint256, uint256, uint256, uint256):
-    return 32, 1, 32, 1, 64, 0
+    return {", ".join(str(v) for v in bar_return_values)}
 
 interface A:
-    def bar() -> DynArray[Point, 2]: nonpayable
+    def bar() -> {typ}: nonpayable
 
 @external
-def run() -> DynArray[Point, 2]:
+def run() -> {typ}:
     return extcall A(self).bar()
     """
     c = get_contract(code)
 
     res = c.run()
 
-    assert res == [(1, [], 0)]
+    expected = [(1, [], 0)]
+    assert res == expected
+
+    _test_ctor_decode(
+        env, typ, _abi_payload_from_tuple(bar_return_values, 6 * 32), expected, preamble=preamble
+    )
 
 
 def test_abi_decode_extcall_complex_empty_dynarray2(tx_failed, get_contract):
@@ -1157,24 +1222,27 @@ def run():
         c.run()
 
 
-def test_abi_decode_extcall_zero_len_array2(get_contract):
-    code = """
+def test_abi_decode_extcall_zero_len_array2(env, get_contract):
+    typ = "DynArray[Bytes[32], 2]"
+    code = f"""
 @external
 def bar() -> (uint256, uint256):
     return 0, 0
 
 interface A:
-    def bar() -> DynArray[Bytes[32], 2]: nonpayable
+    def bar() -> {typ}: nonpayable
 
 @external
-def run() -> DynArray[Bytes[32], 2]:
+def run() -> {typ}:
     return extcall A(self).bar()
     """
     c = get_contract(code)
 
+    expected = []
     res = c.run()
-
     assert res == []
+
+    _test_ctor_decode(env, typ, abi.encode("bytes[]", []), expected)
 
 
 def test_abi_decode_top_level_head_oob(tx_failed, get_contract):
@@ -1262,17 +1330,20 @@ def test_abi_decode_complex_empty_dynarray(env, tx_failed, get_contract):
     # point head to the last word of the payload
     # this will be the length, but because it's set to 0, the decoding should succeed
     buffer_size = 32 * 16
-    code = f"""
+    preamble = """
 struct Point:
     x: uint256
     y: DynArray[uint256, 2]
     z: uint256
-
+    """
+    typ = "DynArray[Point, 2]"
+    code = f"""
+{preamble}
 
 @external
-def run(x: Bytes[{buffer_size}]) -> DynArray[Point, 2]:
+def run(x: Bytes[{buffer_size}]) -> {typ}:
     y: Bytes[{buffer_size}] = x
-    return _abi_decode(y, DynArray[Point, 2])
+    return _abi_decode(y, {typ})
     """
     c = get_contract(code)
 
@@ -1291,24 +1362,28 @@ def run(x: Bytes[{buffer_size}]) -> DynArray[Point, 2]:
     data = _abi_payload_from_tuple(buffer_payload, buffer_size)
 
     res = c.run(data)
+    expected = [(1, [], 4)]
+    assert res == expected
+    _test_ctor_decode(env, typ, data, expected, preamble=preamble)
 
-    assert res == [(1, [], 4)]
 
-
-def test_abi_decode_complex_arithmetic_overflow(tx_failed, get_contract):
+def test_abi_decode_complex_arithmetic_overflow(env, tx_failed, get_contract):
     # inner head roundtrips due to arithmetic overflow
     buffer_size = 32 * 16
-    code = f"""
+    typ = "DynArray[Point, 2]"
+    preamble = """
 struct Point:
     x: uint256
     y: DynArray[uint256, 2]
     z: uint256
-
+"""
+    code = f"""
+{preamble}
 
 @external
 def run(x: Bytes[{buffer_size}]):
     y: Bytes[{buffer_size}] = x
-    decoded_y1: DynArray[Point, 2] = _abi_decode(y, DynArray[Point, 2])
+    decoded_y1: {typ} = _abi_decode(y, {typ})
     """
     c = get_contract(code)
 
@@ -1329,17 +1404,20 @@ def run(x: Bytes[{buffer_size}]):
     with tx_failed():
         c.run(data)
 
+    _test_ctor_decode(env, typ, data, expected=None, should_fail=True, preamble=preamble)
 
-def test_abi_decode_empty_toplevel_dynarray(get_contract):
+
+def test_abi_decode_empty_toplevel_dynarray(env, get_contract):
     buffer_size = 2 * 32 + 3 * 32 + 3 * 32 * 4
+    typ = "DynArray[DynArray[uint256, 3], 3]"
     code = f"""
 @external
-def run(x: Bytes[{buffer_size}]) -> DynArray[DynArray[uint256, 3], 3]:
+def run(x: Bytes[{buffer_size}]) -> {typ}:
     y: Bytes[{buffer_size}] = x
     assert len(y) == 2 * 32
-    decoded_y1: DynArray[DynArray[uint256, 3], 3] = _abi_decode(
+    decoded_y1: {typ} = _abi_decode(
         y,
-        DynArray[DynArray[uint256, 3], 3]
+        {typ}
     )
     return decoded_y1
     """
@@ -1350,21 +1428,21 @@ def run(x: Bytes[{buffer_size}]) -> DynArray[DynArray[uint256, 3], 3]:
     data = _abi_payload_from_tuple(buffer_payload, buffer_size)
 
     res = c.run(data)
+    expected = []
+    assert res == expected
 
-    assert res == []
+    _test_ctor_decode(env, typ, data, expected)
 
 
-def test_abi_decode_invalid_toplevel_dynarray_head(tx_failed, get_contract):
+def test_abi_decode_invalid_toplevel_dynarray_head(env, tx_failed, get_contract):
     # head points 1B over the bounds of the runtime buffer
     buffer_size = 2 * 32 + 3 * 32 + 3 * 32 * 4
+    typ = "DynArray[DynArray[uint256, 3], 3]"
     code = f"""
 @external
 def run(x: Bytes[{buffer_size}]):
     y: Bytes[{buffer_size}] = x
-    decoded_y1: DynArray[DynArray[uint256, 3], 3] = _abi_decode(
-        y,
-        DynArray[DynArray[uint256, 3], 3]
-    )
+    decoded_y1: {typ} = _abi_decode(y, {typ})
     """
     c = get_contract(code)
 
@@ -1375,6 +1453,9 @@ def run(x: Bytes[{buffer_size}]):
 
     with tx_failed():
         c.run(data)
+
+    # oob is allowed in ctor context
+    _test_ctor_decode(env, typ, data, [], should_fail=False)
 
 
 def test_nested_invalid_dynarray_head(get_contract, tx_failed):

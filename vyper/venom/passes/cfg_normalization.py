@@ -59,7 +59,7 @@ class CFGNormalization(IRPass):
                     continue
 
                 if self._needs_forwarding_store(var, pred_bb):
-                    new_var = split_bb.append_instruction("store", var)
+                    new_var = split_bb.append_instruction("assign", var)
                     assert new_var is not None  # help mypy
                     var_replacements[var] = new_var
 
