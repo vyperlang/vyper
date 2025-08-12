@@ -193,6 +193,10 @@ class FunctionInlinerPass(IRGlobalPass):
                     if len(inst.operands) > 1:
                         # sanity check (should remove once new callconv stabilizes)
                         assert ENABLE_NEW_CALL_CONV
+                        # only handle 1 output from invoke.. the other
+                        # is the return pc. if there are more in the future,
+                        # we need to loop, 1 store for every output.
+                        assert len(inst.operands) == 2, inst
                         ret_value = inst.operands[0]
                         bb.insert_instruction(
                             IRInstruction("assign", [ret_value], call_site.output), -1

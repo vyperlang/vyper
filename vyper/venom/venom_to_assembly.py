@@ -163,6 +163,7 @@ class VenomCompiler:
 
         for ctx in self.ctxs:
             for fn in ctx.functions.values():
+                print(fn)
                 ac = IRAnalysesCache(fn)
 
                 self.liveness = ac.request_analysis(LivenessAnalysis)
@@ -295,20 +296,22 @@ class VenomCompiler:
             seen.add(op)
 
     def _prepare_stack_for_function(self, asm, fn: IRFunction, stack: StackModel):
-        last_param = None
+        params = []
         for inst in fn.entry.instructions:
             if inst.opcode != "param":
                 # note: always well defined if the bb is terminated
                 next_liveness = self.liveness.live_vars_at(inst)
                 break
 
-            last_param = inst
+            params.append(inst)
 
             assert inst.output is not None  # help mypy
             stack.push(inst.output)
 
+        # find live params
+        live_params = [param for param in params if param in next_liveness]
         # no params (only applies for global entry function)
-        if last_param is None:
+        if len(live_params) == 0:
             return
 
         to_pop: list[IRVariable] = []
@@ -319,6 +322,7 @@ class VenomCompiler:
 
         self.popmany(asm, to_pop, stack)
 
+        last_param = live_params[-1]
         self._optimistic_swap(asm, last_param, next_liveness, stack)
 
     def popmany(self, asm, to_pop: Iterable[IRVariable], stack):
