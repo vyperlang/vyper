@@ -178,7 +178,7 @@ def mkdebug(pc_debugger, ast_source):
     return [i]
 
 
-def is_symbol(i):
+def is_label(i):
     return isinstance(i, Label)
 
 
@@ -1029,7 +1029,7 @@ def _prune_inefficient_jumps(assembly):
         if (
             isinstance(assembly[i], PUSHLABEL)
             and assembly[i + 1] == "JUMP"
-            and is_symbol(assembly[i + 2])
+            and is_label(assembly[i + 2])
             and assembly[i + 2] == assembly[i].label
         ):
             # delete PUSHLABEL x JUMP
@@ -1076,9 +1076,9 @@ def _merge_jumpdests(assembly):
     changed = False
     i = 0
     while i < len(assembly) - 2:
-        if is_symbol(assembly[i]):
+        if is_label(assembly[i]):
             current_symbol = assembly[i]
-            if is_symbol(assembly[i + 1]):
+            if is_label(assembly[i + 1]):
                 # LABEL x LABEL y
                 # replace all instances of PUSHLABEL x with PUSHLABEL y
                 new_symbol = assembly[i + 1]
@@ -1169,7 +1169,7 @@ def _prune_unused_jumpdests(assembly):
     # delete jumpdests that aren't used
     i = 0
     while i < len(assembly):
-        if is_symbol(assembly[i]) and assembly[i] not in used_jumpdests:
+        if is_label(assembly[i]) and assembly[i] not in used_jumpdests:
             changed = True
             del assembly[i]
         else:
@@ -1253,7 +1253,7 @@ def get_data_segment_lengths(assembly: list[AssemblyInstruction]) -> list[int]:
             # haven't yet seen a data header
             continue
         assert isinstance(item, DATA_ITEM)
-        if is_symbol(item.data):
+        if is_label(item.data):
             ret[-1] += SYMBOL_SIZE
         elif isinstance(item.data, bytes):
             ret[-1] += len(item.data)
