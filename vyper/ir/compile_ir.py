@@ -421,7 +421,6 @@ class _IRnodeLowerer:
             if isinstance(item, str) and not isinstance(item, TaggedInstruction):
                 # CMC 2025-05-08 this is O(n^2).. :'(
                 asm[i] = TaggedInstruction(item, code.ast_source, code.error_msg)
-
         return asm
 
     def _step_r(self, code: IRnode, height: int) -> list[AssemblyInstruction]:
@@ -444,7 +443,6 @@ class _IRnodeLowerer:
                 raise Exception(f"Value too low: {code.value}")
             elif code.value >= 2**256:  # pragma: nocover
                 raise Exception(f"Value too high: {code.value}")
-
             return PUSH(code.value % 2**256)
 
         # Variables connected to with statements
@@ -670,10 +668,12 @@ class _IRnodeLowerer:
                 o.extend(["SWAP1", "POP"])
             else:
                 o.extend(["POP"])
+
             if old is not None:
                 self.withargs[varname] = old
             else:
                 del self.withargs[varname]
+
             return o
 
         # runtime statement (used to deploy runtime code)
@@ -1337,6 +1337,7 @@ def resolve_symbols(
     for i, item in enumerate(assembly):
         # add it to the source map
         note_line_num(source_map, pc, item)
+
         # update pc_jump_map
         if item == "JUMP":
             last = assembly[i - 1]
