@@ -314,7 +314,6 @@ def compile_to_assembly(
             be `None` for runtime code). the value is opaque, and will be
             passed directly to `cbor2.dumps()`.
     """
-
     # don't mutate the ir since the original might need to be output, e.g. `-f ir,asm`
     code = copy.deepcopy(code)
     _rewrite_return_sequences(code)
@@ -1077,7 +1076,6 @@ def _merge_jumpdests(assembly):
     changed = False
     i = 0
     while i < len(assembly) - 2:
-        # if is_symbol(assembly[i]) and assembly[i + 1] == "JUMPDEST":
         if is_symbol(assembly[i]):
             current_symbol = assembly[i]
             if is_symbol(assembly[i + 1]):
@@ -1339,7 +1337,6 @@ def resolve_symbols(
     for i, item in enumerate(assembly):
         # add it to the source map
         note_line_num(source_map, pc, item)
-
         # update pc_jump_map
         if item == "JUMP":
             last = assembly[i - 1]

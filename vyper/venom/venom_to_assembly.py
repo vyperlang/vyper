@@ -178,7 +178,6 @@ class VenomCompiler:
             self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
 
         asm.extend(_REVERT_POSTAMBLE)
-
         # Append data segment
         for data_section in self.ctx.data_segment:
             label = data_section.label
