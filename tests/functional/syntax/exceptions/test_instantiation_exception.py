@@ -74,6 +74,11 @@ b: immutable(HashMap[uint256, uint256])
 def __init__():
     b = empty(HashMap[uint256, uint256])
     """,
+    """
+struct S:
+    x: int128
+s: S = S()
+    """,
 ]
 
 
