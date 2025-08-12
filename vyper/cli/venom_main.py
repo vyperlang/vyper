@@ -21,49 +21,86 @@ def _parse_cli_args():
 
 
 def _parse_args(argv: list[str]):
-    parser = argparse.ArgumentParser(
-        description="Venom EVM IR parser & compiler", formatter_class=argparse.RawTextHelpFormatter
+    usage = (
+        f"venom [-h] [--version] [--evm-version {{{','.join(evm.EVM_VERSIONS)}}}] "
+        "[--stdin | input_file]"
     )
-    parser.add_argument("input_file", help="Venom sourcefile", nargs="?")
-    parser.add_argument("--version", action="version", version=vyper.__long_version__)
+    parser = argparse.ArgumentParser(
+        description="Venom EVM IR parser & compiler",
+        usage=usage,
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        "input_file",
+        nargs="?",
+        help="path to the Venom source file (required if --stdin is not used)",
+    )
+    group.add_argument(
+        "--stdin", action="store_true", help="read the Venom source code from standard input"
+    )
+
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=vyper.__long_version__,
+        help="display the version of the Vyper compiler",
+    )
     parser.add_argument(
         "--evm-version",
-        help=f"Select desired EVM version (default {evm.DEFAULT_EVM_VERSION})",
+        help=f"select the desired EVM version (default {evm.DEFAULT_EVM_VERSION})",
         choices=list(evm.EVM_VERSIONS),
         dest="evm_version",
-    )
-    parser.add_argument(
-        "--stdin", action="store_true", help="whether to pull venom input from stdin"
     )
 
     args = parser.parse_args(argv)
 
-    if args.evm_version is not None:
+    if args.evm_version:
         set_global_settings(Settings(evm_version=args.evm_version))
 
+    venom_source = None
+
     if args.stdin:
-        if not sys.stdin.isatty():
-            venom_source = sys.stdin.read()
-        else:
-            # No input provided
-            print("Error: --stdin flag used but no input provided")
-            sys.exit(1)
+        venom_source = read_from_stdin()
+    elif args.input_file:
+        venom_source = read_from_file(args.input_file)
+
+    assert venom_source is not None
+    process_venom_source(venom_source)
+
+
+def read_from_stdin():
+    if not sys.stdin.isatty():
+        return sys.stdin.read()
     else:
-        if args.input_file is None:
-            print("Error: No input file provided, either use --stdin or provide a path")
-            sys.exit(1)
-        with open(args.input_file, "r") as f:
-            venom_source = f.read()
+        print("Error: --stdin flag used but no input provided.")
+        sys.exit(1)
 
-    ctx = parse_venom(venom_source)
 
-    check_venom_ctx(ctx)
+def read_from_file(input_file: str):
+    try:
+        with open(input_file, "r") as f:
+            return f.read()
+    except FileNotFoundError:
+        print(f"Error: File '{input_file}' not found.")
+        sys.exit(1)
+    except IOError as e:
+        print(f"Error: Unable to read file '{input_file}': {e}")
+        sys.exit(1)
 
-    run_passes_on(ctx, OptimizationLevel.default())
-    asm = generate_assembly_experimental(ctx)
-    bytecode = generate_bytecode(asm, compiler_metadata=None)
-    print(f"0x{bytecode.hex()}")
+
+def process_venom_source(source: str):
+    try:
+        ctx = parse_venom(source)
+        check_venom_ctx(ctx)
+        run_passes_on(ctx, OptimizationLevel.default())
+        asm = generate_assembly_experimental(ctx)
+        bytecode = generate_bytecode(asm, compiler_metadata=None)
+        print(f"0x{bytecode.hex()}")
+    except Exception as e:
+        print(f"Error: Compilation failed: {e}.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    _parse_args(sys.argv[1:])
+    _parse_cli_args()
