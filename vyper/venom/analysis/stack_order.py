@@ -50,7 +50,6 @@ class StackOrderAnalysis:
 
 
     def analyze_bb(self, bb: IRBasicBlock) -> Needed:
-        #breakpoint()
         self.needed = []
         self.stack = []
 
