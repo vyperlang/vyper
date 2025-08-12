@@ -2,7 +2,7 @@ from collections import defaultdict, deque
 
 import vyper.venom.effects as effects
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, CFGAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.analysis.stack_order import StackOrderAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
@@ -43,17 +43,16 @@ class DFTPass(IRPass):
                 break
             last_order[bb] = order
             self.order = list(reversed(order))
-            #self.order = order
+            # self.order = order
             self._process_basic_block(bb)
-            
+
             for pred in self.cfg.cfg_in(bb):
                 worklist.append(pred)
-
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
-        #breakpoint()
+        # breakpoint()
         self._calculate_dependency_graphs(bb)
         self.instructions = list(bb.pseudo_instructions)
         non_phi_instructions = list(bb.non_phi_instructions)
@@ -76,9 +75,7 @@ class DFTPass(IRPass):
         bb.instructions = self.instructions
         assert bb.is_terminated, f"Basic block should be terminated {bb}"
 
-    def _process_instruction_r(
-        self, instructions: list[IRInstruction], inst: IRInstruction
-    ):
+    def _process_instruction_r(self, instructions: list[IRInstruction], inst: IRInstruction):
         if inst in self.visited_instructions:
             return
         self.visited_instructions.add(inst)
@@ -129,8 +126,8 @@ class DFTPass(IRPass):
 
         for inst in non_phis:
             if inst.is_bb_terminator:
-                for op in self.order:
-                    dep = self.dfg.get_producing_instruction(op)
+                for var in self.order:
+                    dep = self.dfg.get_producing_instruction(var)
                     if dep is not None and dep.parent == bb:
                         self.dda[inst].add(dep)
             for op in inst.operands:

@@ -386,8 +386,9 @@ def test_stack_order_entry_instruction():
     join:
         sink %1, %2
     """
-    
+
     _check_pre_post(pre, post)
+
 
 @pytest.mark.xfail
 def test_stack_order_two_trees():

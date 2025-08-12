@@ -27,7 +27,6 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.context import IRContext, IRFunction
 from vyper.venom.stack_model import StackModel
-from vyper.venom.analysis import StackOrderAnalysis
 
 DEBUG_SHOW_COST = False
 if DEBUG_SHOW_COST:
@@ -227,7 +226,9 @@ class VenomCompiler:
         if len(stack_ops) == 0:
             return 0
 
-        assert len(stack_ops) == len(set(stack_ops)), f"duplicated stack {stack_ops}"  # precondition
+        assert len(stack_ops) == len(
+            set(stack_ops)
+        ), f"duplicated stack {stack_ops}"  # precondition
 
         cost = 0
         for i, op in enumerate(stack_ops):

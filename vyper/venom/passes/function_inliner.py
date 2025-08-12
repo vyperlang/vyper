@@ -144,7 +144,6 @@ class FunctionInlinerPass(IRGlobalPass):
                         # demote to alloca so that mem2var will work
                         inst.opcode = "alloca"
 
-
     def _inline_call_site(self, func: IRFunction, call_site: IRInstruction):
         """
         Inline function into call site.

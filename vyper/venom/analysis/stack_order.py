@@ -1,12 +1,13 @@
-from vyper.venom.basicblock import IROperand, IRBasicBlock, IRInstruction, IRVariable
-from vyper.venom.function import IRFunction
+from vyper.venom.analysis import CFGAnalysis, LivenessAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.analysis import LivenessAnalysis, CFGAnalysis
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
+from vyper.venom.function import IRFunction
 
 # needed [top, ... , bottom]
 Needed = list[IRVariable]
 
 Stack = list[IROperand]
+
 
 def _swap(stack: Stack, op: IROperand):
     top = len(stack) - 1
@@ -35,12 +36,12 @@ def _max_same_prefix(stack_a: Needed, stack_b: Needed):
         res.append(a)
     return res
 
+
 class StackOrderAnalysis:
     function: IRFunction
     liveness: LivenessAnalysis
     cfg: CFGAnalysis
     _from_to: dict[tuple[IRBasicBlock, IRBasicBlock], Needed]
-
 
     def __init__(self, function: IRFunction, ac: IRAnalysesCache):
         self._from_to = dict()
@@ -48,10 +49,9 @@ class StackOrderAnalysis:
         self.liveness = ac.request_analysis(LivenessAnalysis)
         self.cfg = ac.request_analysis(CFGAnalysis)
 
-
     def analyze_bb(self, bb: IRBasicBlock) -> Needed:
-        self.needed = []
-        self.stack = []
+        self.needed: Needed = []
+        self.stack: Stack = []
 
         for inst in bb.instructions:
             if inst.opcode == "assign":
@@ -65,8 +65,12 @@ class StackOrderAnalysis:
 
             if len(inst.operands) > 0:
                 if not inst.is_bb_terminator:
-                    assert self.stack[-len(inst.operands):] == inst.operands, (inst, self.stack, inst.operands)
-                self.stack = self.stack[:-len(inst.operands)]
+                    assert self.stack[-len(inst.operands) :] == inst.operands, (
+                        inst,
+                        self.stack,
+                        inst.operands,
+                    )
+                self.stack = self.stack[: -len(inst.operands)]
             if inst.output is not None:
                 self.stack.append(inst.output)
 
@@ -74,7 +78,7 @@ class StackOrderAnalysis:
             self._from_to[(pred, bb)] = self.needed.copy()
 
         return self.needed
-    
+
     def get_stack(self, bb: IRBasicBlock) -> Needed:
         succs = self.cfg.cfg_out(bb)
         for succ in succs:
@@ -88,7 +92,7 @@ class StackOrderAnalysis:
         for var in self.liveness.input_vars_from(origin, successor):
             if var not in target:
                 target.append(var)
-        
+
         return target
 
     def _handle_assign(self, inst: IRInstruction):
@@ -127,9 +131,7 @@ class StackOrderAnalysis:
             _swap_to(self.stack, depth)
 
         if len(target_stack) != 0:
-            assert target_stack == self.stack[-len(target_stack):], (target_stack, self.stack)
-
-
+            assert target_stack == self.stack[-len(target_stack) :], (target_stack, self.stack)
 
     def _handle_inst(self, inst: IRInstruction):
         ops = inst.operands
@@ -158,5 +160,3 @@ class StackOrderAnalysis:
         for op in self._merge(orders):
             if op not in self.stack:
                 self._add_needed(op)
-
-
