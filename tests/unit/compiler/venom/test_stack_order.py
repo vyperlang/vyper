@@ -16,8 +16,8 @@ def _check_no_change(pre):
 def test_stack_order_basic():
     pre = """
     main:
-        %1 = mload 1
-        %2 = mload 2
+        %1 = calldataload 1
+        %2 = calldataload 2
         jmp @next
     next:
         %3 = add 1, %1
@@ -27,8 +27,8 @@ def test_stack_order_basic():
 
     post = """
     main:
-        %2 = mload 2
-        %1 = mload 1
+        %2 = calldataload 2
+        %1 = calldataload 1
         jmp @next
     next:
         %3 = add 1, %1
@@ -51,10 +51,10 @@ def test_stack_order_basic():
     assert asm == [
         "PUSH1",
         2,
-        "MLOAD",
+        "CALLDATALOAD",
         "PUSH1",
         1,
-        "MLOAD",
+        "CALLDATALOAD",
         "PUSH1",
         1,
         "ADD",
@@ -69,8 +69,8 @@ def test_stack_order_basic():
 def test_stack_order_basic2():
     pre = """
     main:
-        %1 = mload 1
-        %2 = mload 2
+        %1 = calldataload 1
+        %2 = calldataload 2
         jmp @next
     next:
         %3 = add 1, %1
@@ -80,8 +80,8 @@ def test_stack_order_basic2():
 
     post = """
     main:
-        %1 = mload 1
-        %2 = mload 2
+        %1 = calldataload 1
+        %2 = calldataload 2
         jmp @next
     next:
         %4 = add 1, %2
@@ -104,10 +104,10 @@ def test_stack_order_basic2():
     assert asm == [
         "PUSH1",
         1,
-        "MLOAD",
+        "CALLDATALOAD",
         "PUSH1",
         2,
-        "MLOAD",
+        "CALLDATALOAD",
         "PUSH1",
         1,
         "ADD",
@@ -343,3 +343,62 @@ def test_stack_order_more_phi():
     """
 
     _check_pre_post(pre, post)
+
+
+def test_stack_order_entry_instruction():
+    pre = """
+    main:
+        %p = param
+        %1 = add %p, 1
+        assert %1
+        %2 = add %p, 2
+        %cond = iszero %p
+        jnz %cond, @then, @else
+    then:
+        %3a = mload 0
+        mstore 100, %3a
+        jmp @join
+    else:
+        %3b = mload 0
+        mstore 100, %3b
+        jmp @join
+    join:
+        sink %1, %2
+    """
+
+    post = """
+    main:
+        %p = param
+        %2 = add %p, 2
+        %cond = iszero %p
+        %1 = add %p, 1
+        assert %1
+        jnz %cond, @then, @else
+    then:
+        %3a = mload 0
+        mstore 100, %3a
+        jmp @join
+    else:
+        %3b = mload 0
+        mstore 100, %3b
+        jmp @join
+    join:
+        sink %1, %2
+    """
+    
+    _check_pre_post(pre, post)
+
+def test_stack_order_two_trees():
+    pre = """
+    main:
+        %1 = param
+        %2 = param
+        %cond = iszero %2
+        assert %cond
+        %3 = 3
+        jmp @after
+    after:
+        sink %3, %2, %1
+    """
+
+    _check_no_change(pre)

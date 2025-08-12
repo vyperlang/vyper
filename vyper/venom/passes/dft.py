@@ -2,8 +2,9 @@ from collections import defaultdict, deque
 
 import vyper.venom.effects as effects
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis, StackOrder
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand
+from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, CFGAnalysis
+from vyper.venom.analysis.stack_order import StackOrderAnalysis
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
@@ -17,36 +18,43 @@ class DFTPass(IRPass):
     # "effect dependency analysis"
     eda: dict[IRInstruction, OrderedSet[IRInstruction]]
 
-    stack_order: StackOrder
+    stack_order: StackOrderAnalysis
     cfg: CFGAnalysis
 
     def run_pass(self) -> None:
         self.data_offspring = {}
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
-        self.stack_order = StackOrder(self.analyses_cache, self.function)
+        self.stack_order = StackOrderAnalysis(self.function, self.analyses_cache)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
         self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
-
-        self.stack_order.calculates_store_types()
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.stack_order = StackOrderAnalysis(self.function, self.analyses_cache)
 
         worklist = deque(self.cfg.dfs_post_walk)
-        last_stack_orders: dict[IRBasicBlock, list] = dict()
+
+        last_order: dict[IRBasicBlock, list[IRVariable]] = dict()
 
         while len(worklist) > 0:
             bb = worklist.popleft()
-            stack_order = self.stack_order.get_prefered_stack(bb, list(self.cfg.cfg_out(bb)))
-            if bb in last_stack_orders and stack_order == last_stack_orders[bb]:
-                continue
-            last_stack_orders[bb] = stack_order
-            self._process_basic_block(bb, stack_order)
-            for inbb in self.cfg.cfg_in(bb):
-                worklist.append(inbb)
+            self.stack_order.analyze_bb(bb)
+            order = self.stack_order.get_stack(bb)
+            if bb in last_order and last_order[bb] == order:
+                break
+            last_order[bb] = order
+            self.order = list(reversed(order))
+            #self.order = order
+            self._process_basic_block(bb)
+            
+            for pred in self.cfg.cfg_in(bb):
+                worklist.append(pred)
+
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
-    def _process_basic_block(self, bb: IRBasicBlock, stack_order: list[IROperand]) -> None:
-        self._calculate_dependency_graphs(bb, stack_order)
+    def _process_basic_block(self, bb: IRBasicBlock) -> None:
+        #breakpoint()
+        self._calculate_dependency_graphs(bb)
         self.instructions = list(bb.pseudo_instructions)
         non_phi_instructions = list(bb.non_phi_instructions)
 
@@ -64,12 +72,12 @@ class DFTPass(IRPass):
 
         self.visited_instructions = OrderedSet()
         for inst in entry_instructions_list:
-            self._process_instruction_r(self.instructions, inst, stack_order)
+            self._process_instruction_r(self.instructions, inst)
         bb.instructions = self.instructions
         assert bb.is_terminated, f"Basic block should be terminated {bb}"
 
     def _process_instruction_r(
-        self, instructions: list[IRInstruction], inst: IRInstruction, stack_order: list[IROperand]
+        self, instructions: list[IRInstruction], inst: IRInstruction
     ):
         if inst in self.visited_instructions:
             return
@@ -83,14 +91,15 @@ class DFTPass(IRPass):
         def cost(x: IRInstruction) -> int | float:
             if (x not in self.dda[inst] and x in self.eda[inst]) or inst.flippable:
                 ret = -1 * int(len(self.data_offspring[x]) > 0)
-            else:
+            elif x.output in inst.operands:
                 assert x in self.dda[inst]  # sanity check
                 assert x.output is not None  # help mypy
-                if x.output in inst.operands:
-                    ret = inst.operands.index(x.output) + len(stack_order)
-                else:
-                    assert inst.is_bb_terminator
-                    ret = stack_order.index(x.output)
+                ret = inst.operands.index(x.output) + len(self.order)
+            else:
+                assert x in self.dda[inst]  # sanity check
+                assert x.output in self.order
+                assert x.output is not None  # help mypy
+                ret = self.order.index(x.output)
             return ret
 
         # heuristic: sort by size of child dependency graph
@@ -101,11 +110,11 @@ class DFTPass(IRPass):
             inst.flip()
 
         for dep_inst in children:
-            self._process_instruction_r(instructions, dep_inst, stack_order)
+            self._process_instruction_r(instructions, dep_inst)
 
         instructions.append(inst)
 
-    def _calculate_dependency_graphs(self, bb: IRBasicBlock, out_stack: list[IROperand]) -> None:
+    def _calculate_dependency_graphs(self, bb: IRBasicBlock) -> None:
         # ida: instruction dependency analysis
         self.dda = defaultdict(OrderedSet)
         self.eda = defaultdict(OrderedSet)
@@ -120,7 +129,7 @@ class DFTPass(IRPass):
 
         for inst in non_phis:
             if inst.is_bb_terminator:
-                for op in out_stack:
+                for op in self.order:
                     dep = self.dfg.get_producing_instruction(op)
                     if dep is not None and dep.parent == bb:
                         self.dda[inst].add(dep)
