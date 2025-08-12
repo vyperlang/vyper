@@ -344,6 +344,7 @@ def test_stack_order_more_phi():
 
     _check_pre_post(pre, post)
 
+
 def test_stack_order_entry_instruction():
     pre = """
     main:

@@ -18,9 +18,14 @@ class DFTPass(IRPass):
     # "effect dependency analysis"
     eda: dict[IRInstruction, OrderedSet[IRInstruction]]
 
+    stack_order: StackOrder
+    cfg: CFGAnalysis
+
     def run_pass(self) -> None:
         self.data_offspring = {}
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
+        self.stack_order = StackOrder(self.analyses_cache, self.function)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
         self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
@@ -67,12 +72,13 @@ class DFTPass(IRPass):
 
         self.visited_instructions = OrderedSet()
         for inst in entry_instructions_list:
-            self._process_instruction_r(self.instructions, inst)
-
+            self._process_instruction_r(self.instructions, inst, stack_order)
         bb.instructions = self.instructions
         assert bb.is_terminated, f"Basic block should be terminated {bb}"
 
-    def _process_instruction_r(self, instructions: list[IRInstruction], inst: IRInstruction):
+    def _process_instruction_r(
+        self, instructions: list[IRInstruction], inst: IRInstruction, stack_order: list[IROperand]
+    ):
         if inst in self.visited_instructions:
             return
         self.visited_instructions.add(inst)
@@ -104,11 +110,11 @@ class DFTPass(IRPass):
             inst.flip()
 
         for dep_inst in children:
-            self._process_instruction_r(instructions, dep_inst)
+            self._process_instruction_r(instructions, dep_inst, stack_order)
 
         instructions.append(inst)
 
-    def _calculate_dependency_graphs(self, bb: IRBasicBlock) -> None:
+    def _calculate_dependency_graphs(self, bb: IRBasicBlock, out_stack: list[IROperand]) -> None:
         # ida: instruction dependency analysis
         self.dda = defaultdict(OrderedSet)
         self.eda = defaultdict(OrderedSet)

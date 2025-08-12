@@ -159,3 +159,4 @@ class StackOrderAnalysis:
             if op not in self.stack:
                 self._add_needed(op)
 
+
