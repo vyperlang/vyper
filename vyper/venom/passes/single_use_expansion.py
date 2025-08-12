@@ -47,18 +47,6 @@ class SingleUseExpansion(IRPass):
                     uses = self.dfg.get_uses(op)
                     if len(uses) == 1 and len([x for x in inst.operands if x == op]) == 1:
                         continue
-                    var = self.function.get_next_variable()
-                    to_insert = IRInstruction("assign", [op], var)
-                    bb.insert_instruction(to_insert, index=i)
-                    inst.operands[j] = var
-                    i += 1
-
-                if isinstance(op, IRLiteral):
-                    var = self.function.get_next_variable()
-                    to_insert = IRInstruction("assign", [op], var)
-                    bb.insert_instruction(to_insert, index=i)
-                    inst.operands[j] = var
-                    i += 1
 
                 if not isinstance(op, (IRLiteral, IRVariable)):
                     # IRLabels are special in certain instructions (e.g., jmp)

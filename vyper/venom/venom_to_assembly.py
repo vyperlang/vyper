@@ -23,7 +23,7 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.context import IRContext, IRFunction
 from vyper.venom.stack_model import StackModel
-from vyper.venom.analysis import StackOrder
+from vyper.venom.analysis import StackOrderAnalysis
 
 DEBUG_SHOW_COST = False
 if DEBUG_SHOW_COST:
@@ -160,8 +160,6 @@ class VenomCompiler:
                 self.liveness = ac.request_analysis(LivenessAnalysis)
                 self.dfg = ac.request_analysis(DFGAnalysis)
                 self.cfg = ac.request_analysis(CFGAnalysis)
-                self.stack_order = StackOrder(ac, fn)
-                self.stack_order.calculate_all_orders()
 
                 assert self.cfg.is_normalized(), "Non-normalized CFG!"
 
@@ -466,28 +464,8 @@ class VenomCompiler:
             # guaranteed by cfg normalization+simplification
             assert len(self.cfg.cfg_in(next_bb)) > 1
 
-            liv = self.liveness.input_vars_from(inst.parent, next_bb)
-            target_stack = list(reversed(self.stack_order.from_to_stack[(inst.parent, next_bb)]))
-            # NOTE: in general the stack can contain multiple copies of
-            # the same variable, however, before a jump that is not possible
-            import sys
-            #print(target_stack, list(liv
-            tmp  = False
-            if target_stack != list(liv):
-                print(inst.parent, target_stack, list(liv), file=sys.stderr)
-                tmp = True
-            #for op in reversed(liv):
-                #if op not in target_stack:
-                    #target_stack.insert(0, op)
-
-            target_stack = list(self.liveness.input_vars_from(inst.parent, next_bb))
-
-
-            if tmp:
-                print(stack, file=sys.stderr)
-            self._stack_reorder(assembly, stack, target_stack)
-            if tmp:
-                print(stack, assembly, file=sys.stderr)
+            target_stack = self.liveness.input_vars_from(inst.parent, next_bb)
+            self._stack_reorder(assembly, stack, list(target_stack))
 
         if inst.is_commutative:
             cost_no_swap = self._stack_reorder([], stack, operands, dry_run=True)
