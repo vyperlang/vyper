@@ -437,8 +437,13 @@ class VenomCompiler:
             # example, for `%56 = %label1 %13 %label2 %14`, we will
             # find an instance of %13 *or* %14 in the stack and replace it with %56.
             to_be_replaced = stack.peek(depth)
-            assert to_be_replaced not in next_liveness
-            stack.poke(depth, ret)
+            if to_be_replaced in next_liveness:
+                # this branch seems unreachable (maybe due to make_ssa)
+                # %13/%14 is still live(!), so we make a copy of it
+                self.dup(assembly, stack, depth)
+                stack.poke(0, ret)
+            else:
+                stack.poke(depth, ret)
             return apply_line_numbers(inst, assembly)
 
         if opcode == "offset":
