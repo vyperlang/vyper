@@ -4,9 +4,9 @@ from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis import LivenessAnalysis, CFGAnalysis
 
 # needed [top, ... , bottom]
-type Needed = list[IRVariable]
+Needed = list[IRVariable]
 
-type Stack = list[IROperand]
+Stack = list[IROperand]
 
 def _swap(stack: Stack, op: IROperand):
     top = len(stack) - 1
