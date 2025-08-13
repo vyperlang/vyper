@@ -36,6 +36,11 @@ class SimplifyCFGPass(IRPass):
         jump_inst = a.instructions[-1]
         assert b.label in jump_inst.operands, f"{b.label} {jump_inst.operands}"
         jump_inst.operands[jump_inst.operands.index(b.label)] = next_bb.label
+        for inst in next_bb.instructions:
+            # assume phi instructions are at beginning of bb
+            if inst.opcode != "phi":
+                break
+            inst.operands[inst.operands.index(b.label)] = a.label
 
         self._schedule_label_replacement(b.label, next_bb.label)
 
