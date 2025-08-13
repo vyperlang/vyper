@@ -1,6 +1,7 @@
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IRVariable
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
 
 class SingleUseExpansion(IRPass):
@@ -21,6 +22,7 @@ class SingleUseExpansion(IRPass):
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.updater = InstUpdater(self.dfg)
         for bb in self.function.get_basic_blocks():
             self._process_bb(bb)
 
@@ -31,7 +33,12 @@ class SingleUseExpansion(IRPass):
         i = 0
         while i < len(bb.instructions):
             inst = bb.instructions[i]
-            if inst.opcode in ("assign", "offset", "phi", "param"):
+            if inst.opcode in ("assign", "offset", "param"):
+                i += 1
+                continue
+
+            if inst.opcode == "phi":
+                self._process_phi(inst)
                 i += 1
                 continue
 
@@ -58,3 +65,20 @@ class SingleUseExpansion(IRPass):
                 i += 1
 
             i += 1
+
+    def _process_phi(self, inst: IRInstruction):
+        assert inst.opcode == "phi"
+
+        new_vars: list[IRVariable] = []
+        for label, var in inst.phi_operands:
+            assert isinstance(var, IRVariable)
+            bb = self.function.get_basic_block(label.name)
+            term = bb.instructions[-1]
+            assert term.is_bb_terminator
+            new_var = self.updater.add_before(term, "assign", [var])
+            assert new_var is not None
+            new_vars.append(new_var)
+
+        for index, var in enumerate(new_vars):
+            i = 2 * index + 1
+            inst.operands[i] = var
