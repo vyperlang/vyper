@@ -7,20 +7,22 @@ from typing import TYPE_CHECKING, Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
+from vyper.venom.memory_location import MemoryLocation
 
 if TYPE_CHECKING:
     from vyper.venom.context import IRContext
 
 
-@dataclass
+@dataclass(frozen=True)
 class IRParameter:
     name: str
-    index: int
-    offset: int
-    size: int
-    call_site_var: Optional[IRVariable]
-    func_var: Optional[IRVariable]
-    addr_var: Optional[IRVariable]
+    index: int  # needed?
+    offset: int  # needed?
+    size: int  # needed?
+    id_: int
+    call_site_var: Optional[IRVariable]  # needed?
+    func_var: IRVariable
+    addr_var: Optional[IRVariable]  # needed?
 
 
 class IRFunction:
@@ -33,6 +35,7 @@ class IRFunction:
     args: list
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
+    _volatile_memory: list[MemoryLocation]
 
     # Used during code generation
     _ast_source_stack: list[IRnode]
@@ -43,6 +46,7 @@ class IRFunction:
         self.name = name
         self.args = []
         self._basic_block_dict = {}
+        self._volatile_memory = []
 
         self.last_variable = 0
 
@@ -133,9 +137,9 @@ class IRFunction:
         assert len(self._error_msg_stack) > 0, "Empty error stack"
         self._error_msg_stack.pop()
 
-    def get_param_at_offset(self, offset: int) -> Optional[IRParameter]:
+    def get_param_by_id(self, id_: int) -> Optional[IRParameter]:
         for param in self.args:
-            if param.offset == offset:
+            if param.id_ == id_:
                 return param
         return None
 
@@ -160,6 +164,11 @@ class IRFunction:
         for bb in self.get_basic_blocks():
             new_bb = bb.copy()
             new.append_basic_block(new_bb)
+
+        # Copy volatile memory locations
+        for mem in self._volatile_memory:
+            new.add_volatile_memory(mem.offset, mem.size)
+
         return new
 
     def as_graph(self, only_subgraph=False) -> str:
@@ -183,7 +192,7 @@ class IRFunction:
 
         if not only_subgraph:
             ret.append("digraph G {{")
-        ret.append(f'subgraph "{self.name}" {{')
+        ret.append(f"subgraph {repr(self.name)} {{")
 
         for bb in self.get_basic_blocks():
             for out_bb in bb.out_bbs:
@@ -207,3 +216,18 @@ class IRFunction:
         ret = ret.strip() + "\n}"
         ret += f"  ; close function {self.name}"
         return ret
+
+    def add_volatile_memory(self, offset: int, size: int) -> MemoryLocation:
+        """
+        Add a volatile memory location with the given offset and size.
+        Returns the created MemoryLocation object.
+        """
+        volatile_mem = MemoryLocation(offset=offset, size=size)
+        self._volatile_memory.append(volatile_mem)
+        return volatile_mem
+
+    def get_all_volatile_memory(self) -> list[MemoryLocation]:
+        """
+        Return all volatile memory locations.
+        """
+        return self._volatile_memory

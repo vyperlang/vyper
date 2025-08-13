@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
-from functools import cached_property
+from functools import cached_property, lru_cache
+
+import immutables
 
 import vyper.venom.effects as effects
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
@@ -33,6 +35,33 @@ NONIDEMPOTENT_INSTRUCTIONS = frozenset(_nonidempotent_insts)
 # sanity
 for opcode in ("call", "create", "staticcall", "delegatecall", "create2"):
     assert opcode in NONIDEMPOTENT_INSTRUCTIONS
+
+
+# flag bitwise operations are somehow a perf bottleneck, cache them
+@lru_cache
+def _get_read_effects(opcode, ignore_msize):
+    ret = effects.reads.get(opcode, effects.EMPTY)
+    if ignore_msize:
+        ret &= ~Effects.MSIZE
+    return ret
+
+
+@lru_cache
+def _get_write_effects(opcode, ignore_msize):
+    ret = effects.writes.get(opcode, effects.EMPTY)
+    if ignore_msize:
+        ret &= ~Effects.MSIZE
+    return ret
+
+
+@lru_cache
+def _get_overlap_effects(opcode, ignore_msize):
+    return _get_read_effects(opcode, ignore_msize) & _get_write_effects(opcode, ignore_msize)
+
+
+@lru_cache
+def _get_effects(opcode, ignore_msize):
+    return _get_read_effects(opcode, ignore_msize) | _get_write_effects(opcode, ignore_msize)
 
 
 @dataclass
@@ -76,7 +105,7 @@ class _Expression:
         return same_ops(self.operands, other.operands)
 
     def __repr__(self) -> str:
-        if self.opcode == "store":
+        if self.opcode == "assign":
             assert len(self.operands) == 1, "wrong store"
             return repr(self.operands[0])
         res = self.opcode + "("
@@ -93,18 +122,6 @@ class _Expression:
                 if d > max_depth:
                     max_depth = d
         return max_depth + 1
-
-    def get_reads(self, ignore_msize) -> Effects:
-        ret = effects.reads.get(self.opcode, effects.EMPTY)
-        if ignore_msize:
-            ret &= ~Effects.MSIZE
-        return ret
-
-    def get_writes(self, ignore_msize) -> Effects:
-        ret = effects.writes.get(self.opcode, effects.EMPTY)
-        if ignore_msize:
-            ret &= ~Effects.MSIZE
-        return ret
 
     @property
     def is_commutative(self) -> bool:
@@ -130,10 +147,10 @@ class _AvailableExpressions:
     and provides API for handling them
     """
 
-    exprs: dict[_Expression, list[IRInstruction]]
+    exprs: immutables.Map[_Expression, list[IRInstruction]]
 
     def __init__(self):
-        self.exprs = dict()
+        self.exprs = immutables.Map()
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, _AvailableExpressions):
@@ -148,23 +165,27 @@ class _AvailableExpressions:
         return res
 
     def add(self, expr: _Expression, src_inst: IRInstruction):
-        if expr not in self.exprs:
-            self.exprs[expr] = []
-        self.exprs[expr].append(src_inst)
+        with self.exprs.mutate() as mt:
+            if expr not in mt:
+                mt[expr] = []
+            else:
+                mt[expr] = mt[expr].copy()
+            mt[expr].append(src_inst)
+            self.exprs = mt.finish()
 
     def remove_effect(self, effect: Effects, ignore_msize):
         if effect == effects.EMPTY:
             return
         to_remove = set()
         for expr in self.exprs.keys():
-            read_effs = expr.get_reads(ignore_msize)
-            write_effs = expr.get_writes(ignore_msize)
-            op_effect = read_effs | write_effs
+            op_effect = _get_effects(expr.opcode, ignore_msize)
             if op_effect & effect != effects.EMPTY:
                 to_remove.add(expr)
 
-        for expr in to_remove:
-            del self.exprs[expr]
+        with self.exprs.mutate() as mt:
+            for expr in to_remove:
+                del mt[expr]
+            self.exprs = mt.finish()
 
     def get_source_instruction(self, expr: _Expression) -> IRInstruction | None:
         """
@@ -178,8 +199,7 @@ class _AvailableExpressions:
 
     def copy(self) -> _AvailableExpressions:
         res = _AvailableExpressions()
-        for k, v in self.exprs.items():
-            res.exprs[k] = v.copy()
+        res.exprs = self.exprs
         return res
 
     @staticmethod
@@ -187,9 +207,11 @@ class _AvailableExpressions:
         if len(lattices) == 0:
             return _AvailableExpressions()
         res = lattices[0].copy()
+        # compute intersection
         for item in lattices[1:]:
             tmp = res
             res = _AvailableExpressions()
+            mt = res.exprs.mutate()
             for expr, insts in item.exprs.items():
                 if expr not in tmp.exprs:
                     continue
@@ -199,7 +221,8 @@ class _AvailableExpressions:
                         new_insts.append(i)
                 if len(new_insts) == 0:
                     continue
-                res.exprs[expr] = new_insts
+                mt[expr] = new_insts
+            res.exprs = mt.finish()
         return res
 
 
@@ -263,7 +286,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
         change = False
         for inst in bb.instructions:
-            if inst.opcode == "store" or inst.is_pseudo or inst.is_bb_terminator:
+            if inst.opcode == "assign" or inst.is_pseudo or inst.is_bb_terminator:
                 continue
 
             if (
@@ -279,7 +302,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
             self._update_expr(inst, expr)
 
-            write_effects = expr.get_writes(self.ignore_msize)
+            write_effects = _get_write_effects(expr.opcode, self.ignore_msize)
             available_exprs.remove_effect(write_effects, self.ignore_msize)
 
             # nonidempotent instructions affect other instructions,
@@ -288,7 +311,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
             if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
                 continue
 
-            expr_effects = expr.get_writes(self.ignore_msize) & expr.get_reads(self.ignore_msize)
+            expr_effects = _get_overlap_effects(expr.opcode, self.ignore_msize)
             if expr_effects == effects.EMPTY:
                 available_exprs.add(expr, inst)
 
@@ -311,9 +334,12 @@ class AvailableExpressionAnalysis(IRAnalysis):
         # create dataflow loop
         if inst.opcode == "phi":
             return op
-        if inst.opcode == "store":
+        if inst.opcode == "assign":
             return self._get_operand(inst.operands[0], available_exprs)
         if inst.opcode == "param":
+            return op
+        # source is a magic opcode for tests
+        if inst.opcode == "source":
             return op
 
         assert inst in self.inst_to_expr, f"operand source was not handled, ({op}, {inst})"

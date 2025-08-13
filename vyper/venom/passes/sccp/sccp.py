@@ -58,8 +58,12 @@ class SCCP(IRPass):
 
     cfg_dirty: bool
 
-    def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
+    def __init__(
+        self, analyses_cache: IRAnalysesCache, function: IRFunction, /, remove_allocas=True
+    ):
         super().__init__(analyses_cache, function)
+        self.remove_allocas = remove_allocas
+
         self.lattice = {}
         self.work_list: list[WorkListItem] = []
 
@@ -175,7 +179,12 @@ class SCCP(IRPass):
 
     def _visit_expr(self, inst: IRInstruction):
         opcode = inst.opcode
-        if opcode in ("store", "alloca", "palloca", "calloca"):
+
+        store_opcodes: tuple[str, ...] = ("assign",)
+        if self.remove_allocas:
+            store_opcodes += ("alloca", "palloca", "calloca")
+
+        if opcode in store_opcodes:
             assert inst.output is not None, inst
             out = self._eval_from_lattice(inst.operands[0])
             self._set_lattice(inst.output, out)

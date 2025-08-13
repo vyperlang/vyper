@@ -2,6 +2,7 @@ from vyper.utils import all2
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
+from vyper.venom.ir_node_to_venom import ENABLE_NEW_CALL_CONV
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
@@ -48,9 +49,9 @@ class Mem2Var(IRPass):
         var = IRVariable(var_name)
         for inst in uses.copy():
             if inst.opcode == "mstore":
-                self.updater.store(inst, inst.operands[0], new_output=var)
+                self.updater.mk_assign(inst, inst.operands[0], new_output=var)
             elif inst.opcode == "mload":
-                self.updater.store(inst, var)
+                self.updater.mk_assign(inst, var)
             elif inst.opcode == "return":
                 self.updater.add_before(inst, "mstore", [var, inst.operands[1]])
 
@@ -68,12 +69,21 @@ class Mem2Var(IRPass):
         var = IRVariable(var_name)
 
         # some value given to us by the calling convention
-        # TODO: maybe better to not touch the palloca instruction,
-        # and instead "add_after" the palloca instruction.
-        self.updater.update(palloca_inst, "mload", [ofst], new_output=var)
+        fn = self.function
+        if ENABLE_NEW_CALL_CONV:
+            # it comes as a stack parameter. this (reifying with param based
+            # on alloca_id) is a bit kludgey, but we will live.
+            param = fn.get_param_by_id(alloca_id.value)
+            if param is None:
+                self.updater.update(palloca_inst, "mload", [ofst], new_output=var)
+            else:
+                self.updater.update(palloca_inst, "assign", [param.func_var], new_output=var)
+        else:
+            # otherwise, it comes from memory, convert to an mload.
+            self.updater.update(palloca_inst, "mload", [ofst], new_output=var)
 
         for inst in uses.copy():
             if inst.opcode == "mstore":
-                self.updater.store(inst, inst.operands[0], new_output=var)
+                self.updater.mk_assign(inst, inst.operands[0], new_output=var)
             elif inst.opcode == "mload":
-                self.updater.store(inst, var)
+                self.updater.mk_assign(inst, var)
