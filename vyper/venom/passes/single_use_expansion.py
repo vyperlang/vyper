@@ -79,6 +79,6 @@ class SingleUseExpansion(IRPass):
             assert new_var is not None
             new_vars.append(new_var)
 
-        for index, var in enumerate(new_vars):
+        for index, new_var in enumerate(new_vars):
             i = 2 * index + 1
-            inst.operands[i] = var
+            inst.operands[i] = new_var
