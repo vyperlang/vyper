@@ -15,15 +15,15 @@ def _ignore_instruction(inst: IRInstruction) -> bool:
         or inst.opcode == "returndatasize"
         or inst.opcode == "phi"
         or (inst.opcode == "add" and isinstance(inst.operands[1], IRLabel))
-        or inst.opcode == "store"
+        or inst.opcode == "assign"
     )
 
 
 # must check if it has as operand as literal because
-# there are cases when the store just moves value
+# there are cases when the assign just moves value
 # from one variable to another
-def _is_correct_store(inst: IRInstruction) -> bool:
-    return inst.opcode == "store" and isinstance(inst.operands[0], IRLiteral)
+def _is_correct_assign(inst: IRInstruction) -> bool:
+    return inst.opcode == "assign" and isinstance(inst.operands[0], IRLiteral)
 
 
 class LoopInvariantHoisting(IRPass):
@@ -87,30 +87,30 @@ class LoopInvariantHoisting(IRPass):
     ) -> list[IRInstruction]:
         result: list[IRInstruction] = []
         for inst in bb.instructions:
-            if self._can_hoist_instruction_ignore_stores(inst, self.loops[loop_idx], loop_effects):
-                result.extend(self._store_dependencies(inst, loop_idx))
+            if self._can_hoist_instruction_ignore_assign(inst, self.loops[loop_idx], loop_effects):
+                result.extend(self._assign_dependencies(inst, loop_idx))
                 result.append(inst)
 
         return result
 
-    # query store dependacies of instruction (they are not handled otherwise)
-    def _store_dependencies(
+    # query assign dependacies of instruction (they are not handled otherwise)
+    def _assign_dependencies(
         self, inst: IRInstruction, loop_idx: IRBasicBlock
     ) -> list[IRInstruction]:
         result: list[IRInstruction] = []
         for var in inst.get_input_variables():
             source_inst = self.dfg.get_producing_instruction(var)
             assert isinstance(source_inst, IRInstruction)
-            if not _is_correct_store(source_inst):
+            if not _is_correct_assign(source_inst):
                 continue
             for bb in self.loops[loop_idx]:
                 if source_inst.parent == bb:
                     result.append(source_inst)
         return result
 
-    # since the stores are always hoistable this ignores
-    # stores in analysis (their are hoisted if some instrution is dependent on them)
-    def _can_hoist_instruction_ignore_stores(
+    # since the assigns are always hoistable this ignores
+    # assigns in analysis (their are hoisted if some instrution is dependent on them)
+    def _can_hoist_instruction_ignore_assign(
         self, inst: IRInstruction, loop: OrderedSet[IRBasicBlock], loop_effects: Effects
     ) -> bool:
         if (inst.get_read_effects() & loop_effects) != EMPTY:
@@ -128,9 +128,9 @@ class LoopInvariantHoisting(IRPass):
             source_ins = self.dfg.get_producing_instruction(in_var)
             assert isinstance(source_ins, IRInstruction)
 
-            # ignores stores since all stores are independant
+            # ignores assign since all assigns are independant
             # and can be always hoisted
-            if _is_correct_store(source_ins):
+            if _is_correct_assign(source_ins):
                 continue
 
             if source_ins.parent == bb:
