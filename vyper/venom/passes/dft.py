@@ -86,6 +86,12 @@ class DFTPass(IRPass):
         children = list(self.dda[inst] | self.eda[inst])
 
         def cost(x: IRInstruction) -> int | float:
+            # intuition:
+            #   effect-only dependencies which have data dependencies
+            #   effect-only dependencies which have no data dependencies
+            #   indirect data dependencies (offspring of operands)
+            #   direct data dependencies (order of operands)
+
             if (x not in self.dda[inst] and x in self.eda[inst]) or inst.flippable:
                 ret = -1 * int(len(self.data_offspring[x]) > 0)
             elif x.output in inst.operands:
