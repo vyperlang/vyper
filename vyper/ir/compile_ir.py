@@ -1340,6 +1340,7 @@ def resolve_symbols(
 
         # update pc_jump_map
         if item == "JUMP":
+            assert i != 0  # otherwise we can get assembly[-1]
             last = assembly[i - 1]
             if isinstance(last, PUSHLABEL) and last.label.label.startswith("internal"):
                 if last.label.label.endswith("cleanup"):
