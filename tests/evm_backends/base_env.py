@@ -6,6 +6,8 @@ from itertools import count
 from pathlib import Path
 from typing import Iterable, Optional
 
+from eth.vm.forks.cancun.constants import BLOB_BASE_FEE_UPDATE_FRACTION, MIN_BLOB_BASE_FEE
+from eth.vm.forks.cancun.state import fake_exponential
 from eth_keys.datatypes import PrivateKey
 from eth_utils import to_checksum_address
 
@@ -345,6 +347,14 @@ class BaseEnv:
     def set_excess_blob_gas(self, param):
         raise NotImplementedError  # must be implemented by subclasses
 
+    def get_blob_basefee(self) -> Optional[int]:
+        """Calculate blob base fee from excess blob gas using EIP-4844 formula."""
+        excess_blob_gas = self.get_excess_blob_gas()
+        if excess_blob_gas is None:
+            return None
+
+        return fake_exponential(MIN_BLOB_BASE_FEE, excess_blob_gas, BLOB_BASE_FEE_UPDATE_FRACTION)
+
     def _deploy(self, code: bytes, value: int, gas: int | None = None) -> str:
         raise NotImplementedError  # must be implemented by subclasses
 
@@ -361,6 +371,7 @@ class BaseEnv:
                 "timestamp": self.timestamp,
                 "gas_limit": self.gas_limit,
                 "excess_blob_gas": self.get_excess_blob_gas(),
+                "blob_basefee": self.get_blob_basefee(),
             },
         }
 

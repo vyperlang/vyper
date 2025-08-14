@@ -50,7 +50,8 @@ The exported data is organized into JSON files that mirror the test directory st
             "number": <uint>,
             "timestamp": <uint>,
             "gas_limit": <uint>,
-            "excess_blob_gas": <uint> | null
+            "excess_blob_gas": <uint> | null,
+            "blob_basefee": <uint> | null
           }
         }
       },
@@ -75,7 +76,8 @@ The exported data is organized into JSON files that mirror the test directory st
             "number": <uint>,
             "timestamp": <uint>,
             "gas_limit": <uint>,
-            "excess_blob_gas": <uint> | null
+            "excess_blob_gas": <uint> | null,
+            "blob_basefee": <uint> | null
           }
         }
       },
