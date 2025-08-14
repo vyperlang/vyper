@@ -623,6 +623,12 @@ class VenomCompiler:
         if DEBUG_SHOW_COST:
             stack0 = stack.copy()
 
+        next_index = inst.parent.instructions.index(inst)
+        next_inst = inst.parent.instructions[next_index + 1]
+
+        if next_inst.is_bb_terminator:
+            return
+
         next_scheduled = next_liveness.last()
         cost = 0
         if not self.dfg.are_equivalent(inst.output, next_scheduled):
