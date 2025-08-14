@@ -182,9 +182,6 @@ def is_label(i):
     return isinstance(i, Label)
 
 
-def is_ofst(assembly_item):
-    return isinstance(assembly_item, PUSH_OFST)
-
 
 def generate_cbor_metadata(
     compiler_metadata: Any,
