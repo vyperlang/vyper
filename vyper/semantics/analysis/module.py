@@ -566,15 +566,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
                 self._add_exposed_function(func_t, item, relax=False)
                 with tag_exceptions(item):  # tag exceptions with specific item
-                    try:
-                        self._self_t.typ.add_member(func_t.name, func_t)
-                    except NamespaceCollision as e:
-                        export_name = item.node_source_code
-                        # Re-raise with more specific message mentioning the export
-                        raise NamespaceCollision(
-                            f"Member '{func_t.name}' already exists in self (when exporting `{export_name}`)",
-                            prev_decl=e.prev_decl
-                        ) from e
+                    export_name = item.node_source_code
+                    self._self_t.typ.add_member_with_export_context(func_t.name, func_t, export_name)
 
                     exported_funcs.append(func_t)
 
