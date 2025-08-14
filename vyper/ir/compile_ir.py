@@ -417,9 +417,9 @@ class _IRnodeLowerer:
 
     def _compile_r(self, code: IRnode, height: int) -> list[AssemblyInstruction]:
         asm = self._step_r(code, height)
+        # CMC 2025-05-08 this is O(n^2).. :'(
         for i, item in enumerate(asm):
             if isinstance(item, str) and not isinstance(item, TaggedInstruction):
-                # CMC 2025-05-08 this is O(n^2).. :'(
                 asm[i] = TaggedInstruction(item, code.ast_source, code.error_msg)
         return asm
 
