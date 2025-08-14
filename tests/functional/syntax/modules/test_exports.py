@@ -202,10 +202,9 @@ def foo():
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
     with pytest.raises(NamespaceCollision) as e:
-        # TODO: make the error message reference the export
         compile_code(main, contract_path="main.vy", input_bundle=input_bundle)
 
-    assert e.value._message == "Member 'foo' already exists in self"
+    assert e.value._message == "Member 'foo' already exists in self (when exporting `lib1.foo`)"
 
     assert e.value.annotations[0].lineno == 4
     assert e.value.annotations[0].node_source_code == "lib1.foo"
@@ -235,7 +234,6 @@ exports: lib1.foo
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
     with pytest.raises(StructureException) as e:
-        # TODO: make the error message reference the export
         compile_code(main, contract_path="main.vy", input_bundle=input_bundle)
 
     assert e.value._message == "already exported!"
@@ -266,7 +264,6 @@ exports: (lib1.foo, lib1.bar, lib1.foo)
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
     with pytest.raises(StructureException) as e:
-        # TODO: make the error message reference the export
         compile_code(main, contract_path="main.vy", input_bundle=input_bundle)
 
     assert e.value._message == "already exported!"
@@ -300,7 +297,6 @@ exports: (lib1.bar, lib1.foo)
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
     with pytest.raises(StructureException) as e:
-        # TODO: make the error message reference the export
         compile_code(main, contract_path="main.vy", input_bundle=input_bundle)
 
     assert e.value._message == "already exported!"
