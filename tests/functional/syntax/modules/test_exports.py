@@ -204,7 +204,7 @@ def foo():
     with pytest.raises(NamespaceCollision) as e:
         compile_code(main, contract_path="main.vy", input_bundle=input_bundle)
 
-    assert e.value._message == "Member 'foo' already exists in self"
+    assert e.value._message == "Member 'foo' already exists in self (when exporting `lib1.foo`)"
 
     assert e.value.annotations[0].lineno == 4
     assert e.value.annotations[0].node_source_code == "lib1.foo"
