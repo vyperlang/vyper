@@ -13,7 +13,7 @@ def test_dead_params():
     """
     ctx = parse_venom(code)
 
-    asm = VenomCompiler([ctx]).generate_evm()
+    asm = VenomCompiler(ctx).generate_evm_assembly()
     assert asm == ["SWAP1", "POP", "JUMP"]
 
 
@@ -32,5 +32,5 @@ def test_optimistic_swap_params():
     """
     ctx = parse_venom(code)
 
-    asm = VenomCompiler([ctx]).generate_evm()
+    asm = VenomCompiler(ctx).generate_evm_assembly()
     assert asm == ["SWAP2", "PUSH1", 117, "POP", "MSTORE", "MSTORE", "JUMP"]

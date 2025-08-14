@@ -33,8 +33,7 @@ class DataSection:
 class IRContext:
     functions: dict[IRLabel, IRFunction]
     entry_function: Optional[IRFunction]
-    ctor_mem_size: Optional[int]
-    immutables_len: Optional[int]
+    constants: dict[str, int]  # globally defined constants
     data_segment: list[DataSection]
     last_label: int
     last_variable: int
@@ -42,9 +41,9 @@ class IRContext:
     def __init__(self) -> None:
         self.functions = {}
         self.entry_function = None
-        self.ctor_mem_size = None
-        self.immutables_len = None
         self.data_segment = []
+        self.constants = {}
+
         self.last_label = 0
         self.last_variable = 0
 
@@ -98,6 +97,10 @@ class IRContext:
         assert len(self.data_segment) > 0
         data_section = self.data_segment[-1]
         data_section.data_items.append(DataItem(data))
+
+    def add_constant(self, name: str, value: int) -> None:
+        assert name not in self.constants
+        self.constants[name] = value
 
     def as_graph(self) -> str:
         s = ["digraph G {"]
