@@ -979,6 +979,7 @@ def note_line_num(line_number_map, pc, item):
     note_breakpoint(line_number_map, pc, item)
 
 
+# NOTE: this is dead code, we don't emit DEBUG anymore.
 def note_breakpoint(line_number_map, pc, item):
     # Record line number attached to pc
     if item == "DEBUG":
