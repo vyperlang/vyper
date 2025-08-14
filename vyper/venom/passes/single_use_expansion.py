@@ -69,7 +69,7 @@ class SingleUseExpansion(IRPass):
     def _process_phi(self, inst: IRInstruction):
         assert inst.opcode == "phi"
 
-        new_vars: list[IRVariable] = []
+        replacements: dict[IRVariable, IRVariable] = {}
         for label, var in inst.phi_operands:
             assert isinstance(var, IRVariable)
             bb = self.function.get_basic_block(label.name)
@@ -77,8 +77,6 @@ class SingleUseExpansion(IRPass):
             assert term.is_bb_terminator
             new_var = self.updater.add_before(term, "assign", [var])
             assert new_var is not None
-            new_vars.append(new_var)
+            replacements[var] = new_var
 
-        for index, new_var in enumerate(new_vars):
-            i = 2 * index + 1
-            inst.operands[i] = new_var
+        inst.replace_operands(replacements)
