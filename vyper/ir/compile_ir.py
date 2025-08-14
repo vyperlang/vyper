@@ -1159,6 +1159,9 @@ def _prune_unused_jumpdests(assembly):
         if isinstance(item, PUSHLABEL):
             used_jumpdests.add(item.label)
 
+        if isinstance(item, PUSH_OFST) and isinstance(item.label, Label):
+            used_jumpdests.add(item.label)
+
         if isinstance(item, DATA_ITEM) and isinstance(item.data, Label):
             # add symbols used in data sections as they are likely
             # used for a jumptable.
