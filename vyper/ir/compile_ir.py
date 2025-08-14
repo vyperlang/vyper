@@ -1011,7 +1011,7 @@ def _prune_unreachable_code(assembly):
                 # fixup an off-by-one if we made it to the end of the assembly
                 # without finding an jumpdest or sublist
                 j = len(assembly)
-            changed = j > i + 1
+            changed |= j > i + 1
             del assembly[i + 1 : j]
 
         i += 1
