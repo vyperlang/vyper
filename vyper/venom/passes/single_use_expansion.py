@@ -21,7 +21,6 @@ class SingleUseExpansion(IRPass):
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
         for bb in self.function.get_basic_blocks():
             self._process_bb(bb)
 
