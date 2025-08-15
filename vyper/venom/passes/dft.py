@@ -24,12 +24,10 @@ class DFTPass(IRPass):
     def run_pass(self) -> None:
         self.data_offspring = {}
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
-        self.stack_order = StackOrderAnalysis(self.function, self.analyses_cache)
-        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
         self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
-        self.stack_order = StackOrderAnalysis(self.function, self.analyses_cache)
+        self.stack_order = StackOrderAnalysis(self.analyses_cache)
 
         worklist = deque(self.cfg.dfs_post_walk)
 
@@ -43,7 +41,6 @@ class DFTPass(IRPass):
                 break
             last_order[bb] = order
             self.order = list(reversed(order))
-            # self.order = order
             self._process_basic_block(bb)
 
             for pred in self.cfg.cfg_in(bb):
@@ -52,7 +49,6 @@ class DFTPass(IRPass):
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
-        # breakpoint()
         self._calculate_dependency_graphs(bb)
         self.instructions = list(bb.pseudo_instructions)
         non_phi_instructions = list(bb.non_phi_instructions)

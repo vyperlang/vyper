@@ -43,7 +43,7 @@ class StackOrderAnalysis:
     cfg: CFGAnalysis
     _from_to: dict[tuple[IRBasicBlock, IRBasicBlock], Needed]
 
-    def __init__(self, function: IRFunction, ac: IRAnalysesCache):
+    def __init__(self, ac: IRAnalysesCache):
         self._from_to = dict()
         self.ac = ac
         self.liveness = ac.request_analysis(LivenessAnalysis)
