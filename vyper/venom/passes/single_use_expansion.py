@@ -23,8 +23,12 @@ class SingleUseExpansion(IRPass):
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(self.dfg)
+        self.phis: list[IRInstruction] = []
         for bb in self.function.get_basic_blocks():
             self._process_bb(bb)
+
+        for inst in self.phis:
+            self._process_phi(inst)
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
@@ -38,7 +42,7 @@ class SingleUseExpansion(IRPass):
                 continue
 
             if inst.opcode == "phi":
-                self._process_phi(inst)
+                self.phis.append(inst)
                 i += 1
                 continue
 
