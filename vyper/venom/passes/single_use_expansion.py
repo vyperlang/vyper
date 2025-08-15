@@ -74,8 +74,12 @@ class SingleUseExpansion(IRPass):
         replacements: dict[IRVariable, IRVariable] = {}
         for label, var in inst.phi_operands:
             assert isinstance(var, IRVariable)
-            uses = [inst for inst in self.dfg.get_uses(var) if inst.opcode != "assign"]
-            if len(uses) == 1:
+            uses = [
+                use
+                for use in self.dfg.get_uses(var) 
+                if not use.opcode == "assign"
+            ]
+            if len(uses) <= 1:
                 continue
             bb = self.function.get_basic_block(label.name)
             term = bb.instructions[-1]
