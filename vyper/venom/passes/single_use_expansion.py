@@ -58,9 +58,10 @@ class SingleUseExpansion(IRPass):
                     # skip them for now.
                     continue
 
-                var = self.function.get_next_variable()
-                to_insert = IRInstruction("assign", [op], var)
-                bb.insert_instruction(to_insert, index=i)
+                #var = self.function.get_next_variable()
+                #to_insert = IRInstruction("assign", [op], var)
+                #bb.insert_instruction(to_insert, index=i)
+                var = self.updater.add_before(inst, "assign", [op])
                 inst.operands[j] = var
                 i += 1
 
