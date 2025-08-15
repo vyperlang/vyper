@@ -77,7 +77,7 @@ class SingleUseExpansion(IRPass):
             uses = [
                 use
                 for use in self.dfg.get_uses(var) 
-                if not use.opcode == "assign"
+                if not (use.opcode == "assign" or (use.opcode == "phi" and inst.parent != use.parent))
             ]
             if len(uses) <= 1:
                 continue
