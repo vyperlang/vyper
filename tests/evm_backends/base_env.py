@@ -355,10 +355,34 @@ class BaseEnv:
 
         return fake_exponential(MIN_BLOB_BASE_FEE, excess_blob_gas, BLOB_BASE_FEE_UPDATE_FRACTION)
 
+    def get_block_hash(self, block_number: int) -> bytes:
+        """Get the hash of a block by its number."""
+        raise NotImplementedError  # must be implemented by subclasses
+
     def _deploy(self, code: bytes, value: int, gas: int | None = None) -> str:
         raise NotImplementedError  # must be implemented by subclasses
 
+    def _get_block_hashes(self) -> dict[str, bytes]:
+        # Export the last 256 block hashes (or up to block 0)
+        block_hashes = {}
+        current_block = self.block_number
+
+        # We can only get hashes for blocks before the current one
+        # Start from block_number - 1 and go back up to 256 blocks
+        start_block = current_block - 1
+        end_block = max(0, current_block - 256)
+
+        for block_num in range(start_block, end_block - 1, -1):
+            if block_num < 0:
+                break
+            block_hash = self.get_block_hash(block_num)
+            block_hashes[str(block_num)] = block_hash.hex()
+
+        return block_hashes
+
     def get_env_data(self, origin: str, gas: int, gas_price: int) -> dict:
+        block_hashes = self._get_block_hashes()
+
         return {
             "tx": {
                 "origin": origin,
@@ -372,6 +396,7 @@ class BaseEnv:
                 "gas_limit": self.gas_limit,
                 "excess_blob_gas": self.get_excess_blob_gas(),
                 "blob_basefee": self.get_blob_basefee(),
+                "block_hashes": block_hashes,
             },
         }
 

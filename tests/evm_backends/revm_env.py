@@ -131,6 +131,15 @@ class RevmEnv(BaseEnv):
             self._parse_error(e)
             raise EvmError(*e.args) from e
 
+    def get_block_hash(self, block_number: int) -> bytes:
+        """Get the hash of a block by its number."""
+        # Returns b'' for non-existent or future blocks
+        try:
+            block_hash = self._evm.block_hash(block_number)
+        except Exception:
+            block_hash = b""
+        return block_hash
+
     def _parse_error(self, e: RuntimeError):
         # TODO: Create a custom error in pyrevm instead parsing strings
         if match := re.match(r"Revert \{ gas_used: (\d+), output: 0x([0-9a-f]*) }", e.args[0]):

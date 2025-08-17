@@ -51,7 +51,8 @@ The exported data is organized into JSON files that mirror the test directory st
             "timestamp": <uint>,
             "gas_limit": <uint>,
             "excess_blob_gas": <uint> | null,
-            "blob_basefee": <uint> | null
+            "blob_basefee": <uint> | null,
+            "block_hashes": {"<block_number>": "0x..."}
           }
         }
       },
@@ -77,7 +78,8 @@ The exported data is organized into JSON files that mirror the test directory st
             "timestamp": <uint>,
             "gas_limit": <uint>,
             "excess_blob_gas": <uint> | null,
-            "blob_basefee": <uint> | null
+            "blob_basefee": <uint> | null,
+            "block_hashes": {"<block_number>": "0x..."}
           }
         }
       },
@@ -113,6 +115,8 @@ The exported data is organized into JSON files that mirror the test directory st
   - `block.timestamp` is the current block timestamp
   - `block.gas_limit` is the block gas limit
   - `block.excess_blob_gas` is the excess blob gas for EIP-4844 (can be null)
+  - `block.blob_basefee` is the blob base fee calculated from excess blob gas (can be null)
+  - `block.block_hashes` is a mapping of block numbers to their hashes (up to 256 previous blocks)
 - `set_balance` traces capture direct balance modifications to accounts (useful for test setup)
 - `clear_transient_storage` traces capture when transient storage is cleared between calls
   - this was added because a test runs in 1 global transcation context and all calls within the test are run as `message_calls`

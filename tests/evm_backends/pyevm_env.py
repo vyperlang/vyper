@@ -204,6 +204,11 @@ class PyEvmEnv(BaseEnv):
         self._check_computation(computation)
         return "0x" + target_address.hex()
 
+    def get_block_hash(self, block_number: int) -> bytes:
+        """Get the hash of a block by its number."""
+        # Returns b''  for invalid/future blocks
+        return self._state.get_ancestor_hash(block_number)
+
     def _generate_contract_address(self, sender: Address) -> Address:
         nonce = self._state.get_nonce(sender)
         self._state.increment_nonce(sender)
