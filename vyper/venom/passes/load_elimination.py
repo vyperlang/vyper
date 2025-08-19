@@ -2,8 +2,8 @@ from collections import defaultdict
 from typing import Optional
 
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis, LoadAnalysis
-from vyper.venom.basicblock import IRLiteral
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis, LoadAnalysis, DominatorTreeAnalysis
+from vyper.venom.basicblock import IRLiteral, IRVariable
 from vyper.venom.effects import Effects
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
@@ -30,6 +30,7 @@ class LoadElimination(IRPass):
     def run_pass(self):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
         self.updater = InstUpdater(self.dfg)
         self.load_analysis = self.analyses_cache.request_analysis(LoadAnalysis)
 
@@ -71,6 +72,19 @@ class LoadElimination(IRPass):
 
         if len(existing_value) == 1:
             self.updater.store(inst, existing_value.pop())
+        elif len(existing_value) > 1:
+            imdom = self.dom.immediate_dominator(inst.parent)
+            assert imdom is not None
+            first_inst = imdom.instructions[0]
+            ops = []
+            for val in existing_value:
+                assert isinstance(val, IRVariable)
+                src = self.dfg.get_producing_instruction(val)
+                assert src is not None
+                ops.extend([src.parent.label, val])
+
+            self.updater.add_before(first_inst, "phi", ops)
+
 
     def _handle_store(self, inst):
         # mstore [val, ptr]
