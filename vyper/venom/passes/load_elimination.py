@@ -36,8 +36,8 @@ class LoadElimination(IRPass):
         self._run(Effects.MEMORY, "mload", "mstore")
         self._run(Effects.TRANSIENT, "tload", "tstore")
         self._run(Effects.STORAGE, "sload", "sstore")
-        #self._run(None, "dload", None)
-        #self._run(None, "calldataload", None)
+        self._run("dload", "dload", None)
+        self._run("calldataload", "calldataload", None)
 
         for bb in self.function.get_basic_blocks():
             bb.ensure_well_formed()
@@ -51,7 +51,7 @@ class LoadElimination(IRPass):
                 if inst.opcode == load_opcode:
                     self._handle_load(inst)
                 elif inst.opcode == store_opcode:
-                    pass
+                    self._handle_store(inst)
 
     def equivalent(self, op1, op2):
         return self.dfg.are_equivalent(op1, op2)
@@ -72,34 +72,14 @@ class LoadElimination(IRPass):
         if len(existing_value) == 1:
             self.updater.store(inst, existing_value.pop())
 
-    def _handle_store(self, inst, store_opcode):
+    def _handle_store(self, inst):
         # mstore [val, ptr]
         val, ptr = inst.operands
 
-        known_ptr: Optional[IRLiteral] = self.get_literal(ptr)
-        if known_ptr is None:
-            # it's a variable. assign this ptr in the lattice and flush
-            # everything else.
-            self._lattice = {ptr: val}
-            return
-
-        existing_val = self._lattice.get(known_ptr)
+        existing_value = self._lattice[inst].get(ptr, set())
 
         # we found a redundant store, eliminate it
-        if self.equivalent(val, existing_val):
-            self.updater.nop(inst)
-            return
-
-        self._lattice[known_ptr] = val
-
-        # kick out any conflicts
-        for existing_key in self._lattice.copy().keys():
-            if not isinstance(existing_key, IRLiteral):
-                # a variable in the lattice. assign this ptr in the lattice
-                # and flush everything else.
-                self._lattice = {known_ptr: val}
-                break
-
-            if _conflict(store_opcode, known_ptr, existing_key):
-                del self._lattice[existing_key]
-                self._lattice[known_ptr] = val
+        if len(existing_value) == 1:
+            if self.equivalent(val, existing_value.pop()):
+                self.updater.nop(inst)
+                return

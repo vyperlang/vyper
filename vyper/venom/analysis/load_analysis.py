@@ -1,14 +1,23 @@
 from vyper.venom.analysis.analysis import IRAnalysis, IRAnalysesCache
 from vyper.venom.analysis import CFGAnalysis
-from vyper.venom.basicblock import IROperand, IRInstruction, IRBasicBlock, IRVariable
+from vyper.venom.basicblock import IROperand, IRInstruction, IRBasicBlock, IRVariable, IRLiteral
 from vyper.venom.effects import Effects
 from collections import deque
 
 Lattice = dict[IROperand, set[IROperand]]
 
+def _conflict(store_opcode: str, k1: IRLiteral, k2: IRLiteral):
+    ptr1, ptr2 = k1.value, k2.value
+    # hardcode the size of store opcodes for now. maybe refactor to use
+    # vyper.evm.address_space
+    if store_opcode == "mstore":
+        return abs(ptr1 - ptr2) < 32
+    assert store_opcode in ("sstore", "tstore"), "unhandled store opcode"
+    return abs(ptr1 - ptr2) < 1
+
 class LoadAnalysis(IRAnalysis):
     InstToLattice = dict[IRInstruction, Lattice]
-    lattice: dict[Effects, InstToLattice]
+    lattice: dict[Effects|str, InstToLattice]
     cfg: CFGAnalysis
 
     def analyze(self):
@@ -18,15 +27,14 @@ class LoadAnalysis(IRAnalysis):
         self._analyze_type(Effects.MEMORY, "mload", "mstore")
         self._analyze_type(Effects.TRANSIENT, "tload", "tstore")
         self._analyze_type(Effects.STORAGE, "sload", "sstore")
-        #self._analyze_type(None, "dload", None)
-        #self._analyze_type(None, "calldataload", None)
+        self._analyze_type("dload", "dload", None)
+        self._analyze_type("calldataload", "calldataload", None)
 
-    def _analyze_type(self, eff: Effects, load_opcode: str, store_opcode: str):
+    def _analyze_type(self, eff: Effects|str, load_opcode: str, store_opcode: str|None):
         self.inst_to_lattice: LoadAnalysis.InstToLattice = dict()
         self.bb_to_lattice: dict[IRBasicBlock, Lattice] = dict()
 
-        worklist = deque()
-        worklist.append(self.function.entry)
+        worklist = deque(self.cfg.dfs_pre_walk)
 
         while len(worklist) > 0:
             bb = worklist.popleft()
@@ -45,7 +53,7 @@ class LoadAnalysis(IRAnalysis):
         res = self.bb_to_lattice.get(preds[0], dict())
 
         for pred in preds[1:]:
-            other = self.bb_to_lattice[pred]
+            other = self.bb_to_lattice.get(pred, dict())
             common_keys = other.keys() & res.keys()
             tmp = res.copy()
             res = dict()
@@ -54,7 +62,7 @@ class LoadAnalysis(IRAnalysis):
         
         return res
 
-    def _handle_bb(self, eff: Effects, load_opcode: str, store_opcode: str, bb: IRBasicBlock):
+    def _handle_bb(self, eff: Effects|str, load_opcode: str, store_opcode: str|None, bb: IRBasicBlock):
         # this should join later
         lattice = self._merge(bb) 
 
@@ -70,6 +78,24 @@ class LoadAnalysis(IRAnalysis):
                 val, ptr = inst.operands
                 if isinstance(ptr, IRVariable):
                     lattice.clear()
+                    lattice[ptr] = set([val])
+                    continue
+
+                assert isinstance(ptr, IRLiteral)
+
+                # kick out any conflicts
+                for existing_key in lattice.copy().keys():
+                    if not isinstance(existing_key, IRLiteral):
+                        # a variable in the lattice. assign this ptr in the lattice
+                        # and flush everything else.
+                        lattice.clear()
+                        lattice[ptr] = set([val])
+                        break
+
+                    if store_opcode is not None:
+                        if _conflict(store_opcode, ptr, existing_key):
+                            del lattice[existing_key]
+
                 lattice[ptr] = set([val])
-            elif eff in inst.get_write_effects():
+            elif isinstance(eff, Effects) and eff in inst.get_write_effects():
                 lattice.clear()
