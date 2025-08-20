@@ -30,7 +30,6 @@ class LoadElimination(IRPass):
     def run_pass(self):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
         self.updater = InstUpdater(self.dfg)
         self.load_analysis = self.analyses_cache.request_analysis(LoadAnalysis)
 
@@ -44,11 +43,12 @@ class LoadElimination(IRPass):
             bb.ensure_well_formed()
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def _run(self, eff, load_opcode, store_opcode):
         self._lattice = self.load_analysis.lattice[eff]
         for bb in self.function.get_basic_blocks():
-            for inst in bb.instructions:
+            for inst in bb.instructions.copy():
                 if inst.opcode == load_opcode:
                     self._handle_load(inst)
                 elif inst.opcode == store_opcode:
@@ -73,17 +73,23 @@ class LoadElimination(IRPass):
         if len(existing_value) == 1:
             self.updater.store(inst, existing_value.pop())
         elif len(existing_value) > 1:
-            imdom = self.dom.immediate_dominator(inst.parent)
-            assert imdom is not None
-            first_inst = imdom.instructions[0]
+            bb = inst.parent
+            while len(preds := self.cfg.cfg_in(bb)) == 1:
+                assert len(preds) != 0
+                bb = preds.first()
+            first_inst = bb.instructions[0]
             ops = []
             for val in existing_value:
-                assert isinstance(val, IRVariable)
+                if not isinstance(val, IRVariable):
+                    return
                 src = self.dfg.get_producing_instruction(val)
                 assert src is not None
                 ops.extend([src.parent.label, val])
 
-            self.updater.add_before(first_inst, "phi", ops)
+
+            join = self.updater.add_before(first_inst, "phi", ops)
+            assert join is not None
+            self.updater.store(inst, join)
 
 
     def _handle_store(self, inst):

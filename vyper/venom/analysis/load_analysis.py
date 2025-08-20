@@ -3,8 +3,9 @@ from vyper.venom.analysis import CFGAnalysis
 from vyper.venom.basicblock import IROperand, IRInstruction, IRBasicBlock, IRVariable, IRLiteral
 from vyper.venom.effects import Effects
 from collections import deque
+from vyper.utils import OrderedSet
 
-Lattice = dict[IROperand, set[IROperand]]
+Lattice = dict[IROperand, OrderedSet[IROperand]]
 
 def _conflict(store_opcode: str, k1: IRLiteral, k2: IRLiteral):
     ptr1, ptr2 = k1.value, k2.value
@@ -50,7 +51,7 @@ class LoadAnalysis(IRAnalysis):
         preds = list(self.cfg.cfg_in(bb))
         if len(preds) == 0:
             return dict()
-        res = self.bb_to_lattice.get(preds[0], dict())
+        res = self.bb_to_lattice.get(preds[0], dict()).copy()
 
         for pred in preds[1:]:
             other = self.bb_to_lattice.get(pred, dict())
@@ -63,7 +64,6 @@ class LoadAnalysis(IRAnalysis):
         return res
 
     def _handle_bb(self, eff: Effects|str, load_opcode: str, store_opcode: str|None, bb: IRBasicBlock):
-        # this should join later
         lattice = self._merge(bb) 
 
         for inst in bb.instructions:
@@ -71,14 +71,14 @@ class LoadAnalysis(IRAnalysis):
                 self.inst_to_lattice[inst] = lattice.copy()
                 ptr = inst.operands[0]
                 assert inst.output is not None
-                lattice[ptr] = set([inst.output])
+                lattice[ptr] = OrderedSet([inst.output])
             elif inst.opcode == store_opcode:
                 self.inst_to_lattice[inst] = lattice.copy()
                 # mstore [val, ptr]
                 val, ptr = inst.operands
                 if isinstance(ptr, IRVariable):
                     lattice.clear()
-                    lattice[ptr] = set([val])
+                    lattice[ptr] = OrderedSet([val])
                     continue
 
                 assert isinstance(ptr, IRLiteral)
@@ -89,13 +89,18 @@ class LoadAnalysis(IRAnalysis):
                         # a variable in the lattice. assign this ptr in the lattice
                         # and flush everything else.
                         lattice.clear()
-                        lattice[ptr] = set([val])
+                        lattice[ptr] = OrderedSet([val])
                         break
 
                     if store_opcode is not None:
                         if _conflict(store_opcode, ptr, existing_key):
                             del lattice[existing_key]
 
-                lattice[ptr] = set([val])
+                lattice[ptr] = OrderedSet([val])
             elif isinstance(eff, Effects) and eff in inst.get_write_effects():
                 lattice.clear()
+
+        if bb not in self.bb_to_lattice or self.bb_to_lattice[bb] != lattice:
+            self.bb_to_lattice[bb] = lattice.copy()
+            return True
+        return False
