@@ -297,6 +297,7 @@ def test_store_store_unknown_ptr_barrier():
 
     _check_no_change(pre)
 
+
 def test_simple_load_elimination_inter():
     pre = """
     main:
@@ -329,6 +330,7 @@ def test_simple_load_elimination_inter():
     """
 
     _check_pre_post(pre, post)
+
 
 def test_simple_load_elimination_inter_join():
     pre = """

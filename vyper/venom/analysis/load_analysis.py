@@ -1,11 +1,13 @@
-from vyper.venom.analysis.analysis import IRAnalysis, IRAnalysesCache
-from vyper.venom.analysis import CFGAnalysis
-from vyper.venom.basicblock import IROperand, IRInstruction, IRBasicBlock, IRVariable, IRLiteral
-from vyper.venom.effects import Effects
 from collections import deque
+
 from vyper.utils import OrderedSet
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis
+from vyper.venom.analysis.analysis import IRAnalysis
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand
+from vyper.venom.effects import Effects
 
 Lattice = dict[IROperand, OrderedSet[IROperand]]
+
 
 def _conflict(store_opcode: str, k1: IRLiteral, k2: IRLiteral):
     ptr1, ptr2 = k1.value, k2.value
@@ -16,14 +18,18 @@ def _conflict(store_opcode: str, k1: IRLiteral, k2: IRLiteral):
     assert store_opcode in ("sstore", "tstore"), "unhandled store opcode"
     return abs(ptr1 - ptr2) < 1
 
+
 class LoadAnalysis(IRAnalysis):
     InstToLattice = dict[IRInstruction, Lattice]
-    lattice: dict[Effects|str, InstToLattice]
+    lattice: dict[Effects | str, InstToLattice]
     cfg: CFGAnalysis
+    eff_bb_lattice: dict[Effects | str, dict[IRBasicBlock, Lattice]]
 
     def analyze(self):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.lattice = dict()
+        self.eff_bb_lattice = dict()
 
         self._analyze_type(Effects.MEMORY, "mload", "mstore")
         self._analyze_type(Effects.TRANSIENT, "tload", "tstore")
@@ -31,7 +37,7 @@ class LoadAnalysis(IRAnalysis):
         self._analyze_type("dload", "dload", None)
         self._analyze_type("calldataload", "calldataload", None)
 
-    def _analyze_type(self, eff: Effects|str, load_opcode: str, store_opcode: str|None):
+    def _analyze_type(self, eff: Effects | str, load_opcode: str, store_opcode: str | None):
         self.inst_to_lattice: LoadAnalysis.InstToLattice = dict()
         self.bb_to_lattice: dict[IRBasicBlock, Lattice] = dict()
 
@@ -46,7 +52,8 @@ class LoadAnalysis(IRAnalysis):
                     worklist.append(succ)
 
         self.lattice[eff] = self.inst_to_lattice
-    
+        self.eff_bb_lattice[eff] = self.bb_to_lattice
+
     def _merge(self, bb: IRBasicBlock) -> Lattice:
         preds = list(self.cfg.cfg_in(bb))
         if len(preds) == 0:
@@ -60,11 +67,19 @@ class LoadAnalysis(IRAnalysis):
             res = dict()
             for key in common_keys:
                 res[key] = tmp[key] | other[key]
-        
+
         return res
 
-    def _handle_bb(self, eff: Effects|str, load_opcode: str, store_opcode: str|None, bb: IRBasicBlock):
-        lattice = self._merge(bb) 
+    def get_literal(self, op):
+        op = self.dfg._traverse_store_chain(op)
+        if isinstance(op, IRLiteral):
+            return op
+        return None
+
+    def _handle_bb(
+        self, eff: Effects | str, load_opcode: str, store_opcode: str | None, bb: IRBasicBlock
+    ):
+        lattice = self._merge(bb)
 
         for inst in bb.instructions:
             if inst.opcode == load_opcode:
@@ -76,16 +91,18 @@ class LoadAnalysis(IRAnalysis):
                 self.inst_to_lattice[inst] = lattice.copy()
                 # mstore [val, ptr]
                 val, ptr = inst.operands
-                if isinstance(ptr, IRVariable):
+                lit = self.get_literal(ptr)
+                if lit is None:
                     lattice.clear()
                     lattice[ptr] = OrderedSet([val])
                     continue
 
-                assert isinstance(ptr, IRLiteral)
+                assert lit is not None
 
                 # kick out any conflicts
                 for existing_key in lattice.copy().keys():
-                    if not isinstance(existing_key, IRLiteral):
+                    existing_lit = self.get_literal(existing_key)
+                    if existing_lit is None:
                         # a variable in the lattice. assign this ptr in the lattice
                         # and flush everything else.
                         lattice.clear()
@@ -93,7 +110,7 @@ class LoadAnalysis(IRAnalysis):
                         break
 
                     if store_opcode is not None:
-                        if _conflict(store_opcode, ptr, existing_key):
+                        if _conflict(store_opcode, lit, existing_lit):
                             del lattice[existing_key]
 
                 lattice[ptr] = OrderedSet([val])
