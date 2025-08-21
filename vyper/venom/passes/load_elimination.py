@@ -67,8 +67,6 @@ class LoadElimination(IRPass):
                 bb = preds.first()
             first_inst = bb.instructions[0]
             ops = []
-            # if inst.output is not None and inst.output.name == "%1719":
-            # breakpoint()
             for pred in self.cfg.cfg_in(inst.parent):
                 pred_lattice = self._bb_lattice[pred]
                 if ptr not in pred_lattice:
