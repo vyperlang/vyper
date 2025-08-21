@@ -82,7 +82,9 @@ class LoadElimination(IRPass):
                 val = val.first()
                 assert val in existing_value
                 if not isinstance(val, IRVariable):
-                    # tmp fix
+                    # could be extended by
+                    # adding stores to source
+                    # basicblocks
                     return
                 ops.extend([pred.label, val])
 
