@@ -67,7 +67,7 @@ class LoadElimination(IRPass):
                 bb = preds.first()
             first_inst = bb.instructions[0]
             ops = []
-            for pred in self.cfg.cfg_in(inst.parent):
+            for pred in self.cfg.cfg_in(bb):
                 pred_lattice = self._bb_lattice[pred]
                 if ptr not in pred_lattice:
                     continue

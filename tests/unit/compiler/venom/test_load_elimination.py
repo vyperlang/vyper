@@ -367,3 +367,54 @@ def test_simple_load_elimination_inter_join():
     """
 
     _check_pre_post(pre, post)
+
+
+def test_load_elimination_inter_distant_bb():
+    pre = """
+    main:
+        %par = param
+        %cond = iszero %par
+        jnz %cond, @then, @else
+    then:
+        %1 = mload 5
+        jmp @join
+    else:
+        %2 = mload 5
+        jmp @join
+    join:
+        %3 = mload 1000
+        %cond_end = iszero %3
+        jnz %cond_end, @end_a, @end_b
+    end_a:
+        %4 = mload 5
+        sink %4
+    end_b:
+        %5 = mload 50
+        sink %5
+    """
+
+    post = """
+    main:
+        %par = param
+        %cond = iszero %par
+        jnz %cond, @then, @else
+    then:
+        %1 = mload 5
+        jmp @join
+    else:
+        %2 = mload 5
+        jmp @join
+    join:
+        %6 = phi @then, %1, @else, %2
+        %3 = mload 1000
+        %cond_end = iszero %3
+        jnz %cond_end, @end_a, @end_b
+    end_a:
+        %4 = %6
+        sink %4
+    end_b:
+        %5 = mload 50
+        sink %5
+    """
+
+    _check_pre_post(pre, post)
