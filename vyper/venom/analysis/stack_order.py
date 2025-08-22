@@ -58,7 +58,8 @@ class StackOrderAnalysis:
             if inst.opcode == "assign":
                 self._handle_assign(inst)
             elif inst.opcode == "phi":
-                self._handle_inst(inst)
+                self._handle_phi(inst)
+                continue
             elif inst.is_bb_terminator:
                 self._handle_terminator(inst)
             else:
@@ -79,7 +80,7 @@ class StackOrderAnalysis:
             translates: Needed = []
             for var in self.needed:
                 if var in self.translates:
-                    translates.append(self.translates[var][pred])
+                    translates.append(self.translates[var][pred.label])
                 else:
                     translates.append(var)
             self._from_to[(pred, bb)] = translates
