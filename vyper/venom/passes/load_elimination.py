@@ -63,7 +63,6 @@ class LoadElimination(IRPass):
         elif len(existing_value) > 1:
             bb = inst.parent
             while len(preds := self.cfg.cfg_in(bb)) == 1:
-                assert len(preds) != 0
                 bb = preds.first()
             first_inst = bb.instructions[0]
             ops = []
