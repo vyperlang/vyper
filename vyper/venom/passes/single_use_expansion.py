@@ -1,5 +1,5 @@
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IRLiteral, IRVariable, IROperand
+from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
@@ -66,7 +66,7 @@ class SingleUseExpansion(IRPass):
                 assert var is not None
                 ops = inst.operands.copy()
                 ops[j] = var
-                self.updater.update(inst, inst.opcode, ops) 
+                self.updater.update(inst, inst.opcode, ops)
                 i += 1
 
             i += 1
@@ -92,8 +92,10 @@ class SingleUseExpansion(IRPass):
             #       ...
             uses = [
                 use
-                for use in self.dfg.get_uses(var) 
-                if not (use.opcode == "assign" or (use.opcode == "phi" and use.parent != inst.parent))
+                for use in self.dfg.get_uses(var)
+                if not (
+                    use.opcode == "assign" or (use.opcode == "phi" and use.parent != inst.parent)
+                )
             ]
             if len(uses) <= 1:
                 continue
@@ -104,4 +106,4 @@ class SingleUseExpansion(IRPass):
             assert new_var is not None
             replacements[var] = new_var
 
-        self.updater.update_operands(inst, replacements) 
+        self.updater.update_operands(inst, replacements)
