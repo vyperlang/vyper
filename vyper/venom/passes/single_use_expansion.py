@@ -77,6 +77,19 @@ class SingleUseExpansion(IRPass):
         replacements: dict[IROperand, IROperand] = {}
         for label, var in inst.phi_operands:
             assert isinstance(var, IRVariable)
+            # you only care about the cases which would be not correct
+            # as an output of this pass
+            # example
+            #
+            #   bb1:
+            #       ...
+            #       ; it does not matter that the %origin is here for the phi instruction
+            #       %var = %origin
+            #       ...
+            #       jmp @bb2
+            #   bb2:
+            #       %phi = phi @bb1, %origin, @someother, %somevar
+            #       ...
             uses = [
                 use
                 for use in self.dfg.get_uses(var) 
