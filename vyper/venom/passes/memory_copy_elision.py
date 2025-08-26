@@ -356,13 +356,12 @@ class MemoryCopyElisionPass(IRPass):
                 return MemoryLocation.may_overlap(write_loc, loc)
 
         elif inst.opcode in ("mcopy", "calldatacopy", "codecopy", "returndatacopy", "dloadbytes"):
-            # These write to a range
-            if len(inst.operands) >= 3:
-                size_op = inst.operands[0]
-                dst_op = inst.operands[2]
-                if isinstance(size_op, IRLiteral) and isinstance(dst_op, IRLiteral):
-                    write_loc = MemoryLocation.from_operands(dst_op, size_op)
-                    return MemoryLocation.may_overlap(write_loc, loc)
+            assert len(inst.operands) == 3
+            size_op = inst.operands[0]
+            dst_op = inst.operands[2]
+            if isinstance(size_op, IRLiteral) and isinstance(dst_op, IRLiteral):
+                write_loc = MemoryLocation.from_operands(dst_op, size_op)
+                return MemoryLocation.may_overlap(write_loc, loc)
 
         # Conservative: assume any other memory write could alias
         return True
