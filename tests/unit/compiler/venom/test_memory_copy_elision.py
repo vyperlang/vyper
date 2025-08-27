@@ -486,3 +486,50 @@ def test_special_copy_not_merged_with_hazard():
     post = pre  # No change - hazard prevents optimization
 
     _check_pre_post(pre, post)
+
+
+def test_mem_elision_tmp():
+    pre = """
+    main:
+        ; cannot remove this copy since
+        ; the mload uses this data
+        calldatacopy 100, 200, 64
+        mcopy 300, 100, 64
+        %1 = mload 132
+        %2 = mload 332
+        sink %2, %1
+    """
+
+    post = """
+    main:
+        calldatacopy 100, 200, 64
+        calldatacopy 300, 200, 64
+        %1 = mload 132
+        %2 = mload 332
+        sink %2, %1
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_mem_elision_msize():
+    pre = """
+    main:
+        ; you cannot nop both of
+        ; them since you need correct
+        ; msize (currently it does that)
+        %1 = mload 100
+        mstore 100, %1
+        %2 = msize
+        sink %2
+    """
+
+    post = """
+    main:
+        %1 = mload 100
+        nop
+        %2 = msize
+        sink %2
+    """
+
+    _check_pre_post(pre, post)
