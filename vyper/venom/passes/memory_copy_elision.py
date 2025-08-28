@@ -1,5 +1,5 @@
 from vyper.evm.address_space import MEMORY
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis, MemOverwriteAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
 from vyper.venom.effects import Effects
 from vyper.venom.memory_location import MemoryLocation, get_read_location, get_write_location
@@ -29,7 +29,25 @@ class MemoryCopyElisionPass(IRPass):
         for bb in self.function.get_basic_blocks():
             self._process_basic_block(bb)
 
+        self._remove_unnecessary_effects()
+
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+
+    def _remove_unnecessary_effects(self):
+        self.mem_overwrite = self.analyses_cache.request_analysis(MemOverwriteAnalysis)
+        for bb in self.function.get_basic_blocks():
+            self._remove_unnecessary_effects_bb(bb)
+
+    def _remove_unnecessary_effects_bb(self, bb: IRBasicBlock):
+        for inst, state in self.mem_overwrite.bb_iterator(bb):
+            write_loc = get_write_location(inst, MEMORY)
+            if write_loc == MemoryLocation.EMPTY:
+                continue
+            if not write_loc.is_fixed:
+                continue
+            overlap = [loc for loc in state if loc.completely_contains(write_loc)]
+            if len(overlap) > 0:
+                self.updater.nop(inst, annotation="remove unnecessery effects")
 
     def _process_basic_block(self, bb: IRBasicBlock):
         """Process a basic block to find and elide memory copies."""
@@ -113,12 +131,12 @@ class MemoryCopyElisionPass(IRPass):
                                     annotation="[memory copy elision - merged special copy]",
                                 )
                                 # Remove the intermediate special copy
-                                self.updater.nop(
-                                    prev_inst,
-                                    annotation="[memory copy elision - merged "
-                                    + prev_inst.opcode
-                                    + "]",
-                                )
+                                # self.updater.nop(
+                                # prev_inst,
+                                # annotation="[memory copy elision - merged "
+                                # + prev_inst.opcode
+                                # + "]",
+                                # )
                                 # Update chain tracking
                                 del mcopy_chain[src_loc.offset]
                                 # Track the new special copy in the chain for
@@ -143,9 +161,9 @@ class MemoryCopyElisionPass(IRPass):
                                     inst, "mcopy", [size_op, IRLiteral(prev_src_loc.offset), dst_op]
                                 )
                                 # Remove the intermediate mcopy
-                                self.updater.nop(
-                                    prev_inst, annotation="[memory copy elision - merged mcopy]"
-                                )
+                                # self.updater.nop(
+                                # prev_inst, annotation="[memory copy elision - merged mcopy]"
+                                # )
                                 # Update chain tracking
                                 del mcopy_chain[src_loc.offset]
                                 mcopy_chain[dst_loc.offset] = (inst, prev_src_loc)

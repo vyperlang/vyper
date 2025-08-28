@@ -55,14 +55,16 @@ def test_mcopy_chain_optimization():
     _global:
         mcopy 200, 100, 32
         mcopy 300, 200, 32
-        stop
+        %1 = mload 300
+        sink %1
     """
 
     post = """
     _global:
         nop  ; mcopy 200, 100, 32              [memory copy elision - merged mcopy]
         mcopy 300, 100, 32
-        stop
+        %1 = mload 300
+        sink %1
     """
     _check_pre_post(pre, post)
 
@@ -488,7 +490,31 @@ def test_special_copy_not_merged_with_hazard():
     _check_pre_post(pre, post)
 
 
-def test_mem_elision_tmp():
+def test_mem_elision_load_needed():
+    pre = """
+    main:
+        ; cannot remove this copy since
+        ; the mload uses this data
+        calldatacopy 100, 200, 64
+        mcopy 300, 100, 64
+        %1 = mload 100
+        %2 = mload 300
+        sink %2, %1
+    """
+
+    post = """
+    main:
+        calldatacopy 100, 200, 64
+        calldatacopy 300, 200, 64
+        %1 = mload 100
+        %2 = mload 300
+        sink %2, %1
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_mem_elision_load_needed_not_precise():
     pre = """
     main:
         ; cannot remove this copy since
