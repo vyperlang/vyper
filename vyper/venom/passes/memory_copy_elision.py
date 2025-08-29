@@ -412,22 +412,22 @@ class MemoryCopyElisionPass(IRPass):
     ):
         """Remove any tracked loads that may alias with a memory-writing instruction."""
         if inst.opcode in ("mcopy", "calldatacopy", "codecopy", "returndatacopy", "dloadbytes"):
-            if len(inst.operands) >= 3:
-                size_op = inst.operands[0]
-                dst_op = inst.operands[2]
-                if isinstance(size_op, IRLiteral) and isinstance(dst_op, IRLiteral):
-                    write_loc = MemoryLocation.from_operands(dst_op, size_op)
+            assert len(inst.operands) == 3
+            size_op = inst.operands[0]
+            dst_op = inst.operands[2]
+            if isinstance(size_op, IRLiteral) and isinstance(dst_op, IRLiteral):
+                write_loc = MemoryLocation.from_operands(dst_op, size_op)
 
-                    to_remove = []
-                    for var, (_, src_loc) in available_loads.items():
-                        if MemoryLocation.may_overlap(src_loc, write_loc):
-                            to_remove.append(var)
+                to_remove = []
+                for var, (_, src_loc) in available_loads.items():
+                    if MemoryLocation.may_overlap(src_loc, write_loc):
+                        to_remove.append(var)
 
-                    for var in to_remove:
-                        del available_loads[var]
-                else:
-                    # Conservative: clear all if we can't determine the destination
-                    available_loads.clear()
+                for var in to_remove:
+                    del available_loads[var]
+            else:
+                # Conservative: clear all if we can't determine the destination
+                available_loads.clear()
         else:
             # Conservative: clear all for unknown memory writes
             available_loads.clear()
