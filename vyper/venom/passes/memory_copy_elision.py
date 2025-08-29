@@ -88,6 +88,7 @@ class MemoryCopyElisionPass(IRPass):
 
                 # This store invalidates any loads that may alias with the destination
                 self._invalidate_aliasing_loads(available_loads, inst)
+                #self._invalidate_mcopy_chain(mcopy_chain, inst)
                 self._invalidate_mcopy_chain(mcopy_chain, inst)
 
             elif inst.opcode == "mcopy":
@@ -183,6 +184,7 @@ class MemoryCopyElisionPass(IRPass):
                     mcopy_chain[dst_loc.offset] = (inst, src_marker)
 
                 self._invalidate_aliasing_loads_by_inst(available_loads, inst)
+                #self._invalidate_mcopy_chain(mcopy_chain, inst, exclude_current=True)
                 self._invalidate_mcopy_chain(mcopy_chain, inst, exclude_current=True)
 
             elif self._modifies_memory(inst):
@@ -425,53 +427,35 @@ class MemoryCopyElisionPass(IRPass):
         inst: IRInstruction,
         exclude_current: bool = False,
     ):
-        """Remove any tracked mcopy operations that may be invalidated by a memory write."""
-        if inst.opcode == "mstore":
-            _, dst = inst.operands
-            if isinstance(dst, IRLiteral):
-                write_loc = MemoryLocation.from_operands(dst, 32)
-
-                to_remove = []
-                for dst_offset, (_, src_loc) in mcopy_chain.items():
-                    dst_loc = MemoryLocation(offset=dst_offset, size=src_loc.size)
-                    # Invalidate if the write aliases with either source or destination
-                    if MemoryLocation.may_overlap(write_loc, src_loc) or MemoryLocation.may_overlap(
-                        write_loc, dst_loc
-                    ):
-                        to_remove.append(dst_offset)
-
-                for offset in to_remove:
-                    del mcopy_chain[offset]
-            else:
-                # Conservative: clear all
-                mcopy_chain.clear()
-
-        elif inst.opcode in ("mcopy", "calldatacopy", "codecopy", "returndatacopy", "dloadbytes"):
-            write_loc = get_write_location(inst, MEMORY)
-            if write_loc.is_fixed:
-                to_remove = []
-                for dst_offset, (tracked_inst, src_loc) in mcopy_chain.items():
-                    # Skip if this is the current instruction and exclude_current is True
-                    if exclude_current and tracked_inst is inst:
-                        continue
-
-                    dst_loc = MemoryLocation(offset=dst_offset, size=src_loc.size)
-                    # Invalidate if the write aliases with either source or destination
-                    # For special copies, src_loc.offset == -1, so we only check destination
-                    if src_loc.offset == -1:  # Special marker for non-memory sources
-                        if MemoryLocation.may_overlap(write_loc, dst_loc):
-                            to_remove.append(dst_offset)
-                    else:
-                        if MemoryLocation.may_overlap(
-                            write_loc, src_loc
-                        ) or MemoryLocation.may_overlap(write_loc, dst_loc):
-                            to_remove.append(dst_offset)
-
-                for offset in to_remove:
-                    del mcopy_chain[offset]
-            else:
-                # Conservative: clear all
-                mcopy_chain.clear()
-        else:
-            # Conservative: clear all for unknown memory writes
+        if inst.opcode not in ("mstore", "mcopy", "calldatacopy", "codecopy", "returndatacopy", "dloadbytes"):
+            # Conservative: clear all
             mcopy_chain.clear()
+            return
+
+        write_loc = get_write_location(inst, MEMORY)
+        if not write_loc.is_fixed:
+            # Conservative: clear all
+            mcopy_chain.clear()
+            return
+
+        to_remove = []
+        for dst_offset, (tracked_inst, src_loc) in mcopy_chain.items():
+            # Skip if this is the current instruction and exclude_current is True
+            if exclude_current and tracked_inst is inst:
+                continue
+
+            dst_loc = MemoryLocation(offset=dst_offset, size=src_loc.size)
+            # Invalidate if the write aliases with either source or destination
+            # For special copies, src_loc.offset == -1, so we only check destination
+            if src_loc.offset == -1:  # Special marker for non-memory sources
+                if MemoryLocation.may_overlap(write_loc, dst_loc):
+                    to_remove.append(dst_offset)
+            else:
+                if MemoryLocation.may_overlap(
+                    write_loc, src_loc
+                ) or MemoryLocation.may_overlap(write_loc, dst_loc):
+                    to_remove.append(dst_offset)
+
+        for offset in to_remove:
+            del mcopy_chain[offset]
+
