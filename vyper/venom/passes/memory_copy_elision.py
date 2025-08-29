@@ -230,6 +230,7 @@ class MemoryCopyElisionPass(IRPass):
             if src_loc.offset == dst_loc.offset and src_loc.size == dst_loc.size:
                 # Redundant copy - can be eliminated entirely
                 return True
+        return False
 
         # Check for memory modifications between load and store
         load_idx = bb.instructions.index(load_inst)
