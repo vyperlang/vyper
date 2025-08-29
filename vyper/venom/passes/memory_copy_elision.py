@@ -40,6 +40,8 @@ class MemoryCopyElisionPass(IRPass):
 
     def _remove_unnecessary_effects_bb(self, bb: IRBasicBlock):
         for inst, state in self.mem_overwrite.bb_iterator(bb):
+            if inst.output is not None:
+                continue
             write_loc = get_write_location(inst, MEMORY)
             if write_loc == MemoryLocation.EMPTY:
                 continue
