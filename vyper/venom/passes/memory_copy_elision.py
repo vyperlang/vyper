@@ -190,17 +190,6 @@ class MemoryCopyElisionPass(IRPass):
                 available_loads.clear()
                 mcopy_chain.clear()
 
-            elif inst.opcode in (
-                "call",
-                "invoke",
-                "create",
-                "create2",
-                "delegatecall",
-                "staticcall",
-            ):
-                # These can modify any memory
-                available_loads.clear()
-                mcopy_chain.clear()
 
     def _can_elide_copy(
         self,
