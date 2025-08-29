@@ -118,7 +118,7 @@ class MemoryCopyElisionPass(IRPass):
                             if (
                                 prev_src_loc.size == src_loc.size == dst_loc.size
                                 and self._can_merge_special_copy_chain(
-                                    bb, prev_inst, inst, src_loc, dst_loc
+                                    bb, prev_inst, inst, src_loc,
                                 )
                             ):
                                 # Replace mcopy with the special copy directly to final destination
@@ -236,7 +236,6 @@ class MemoryCopyElisionPass(IRPass):
         special_copy: IRInstruction,
         mcopy: IRInstruction,
         intermediate_loc: MemoryLocation,
-        final_dst_loc: MemoryLocation,
     ) -> bool:
         """
         Check if a special copy (calldatacopy, etc) followed by mcopy can be merged.
