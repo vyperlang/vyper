@@ -64,8 +64,9 @@ class MemoryCopyElisionPass(IRPass):
         # Track memory writes to invalidate loads
         for inst in bb.instructions.copy():
             if inst.opcode == "mload":
+                assert inst.output is not None
                 # Track the load if it has a literal source
-                if isinstance(inst.operands[0], IRLiteral) and inst.output is not None:
+                if isinstance(inst.operands[0], IRLiteral):
                     src_loc = MemoryLocation.from_operands(inst.operands[0], 32)
                     available_loads[inst.output] = (inst, src_loc)
 
