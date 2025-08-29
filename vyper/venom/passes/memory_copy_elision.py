@@ -230,24 +230,9 @@ class MemoryCopyElisionPass(IRPass):
             if src_loc.offset == dst_loc.offset and src_loc.size == dst_loc.size:
                 # Redundant copy - can be eliminated entirely
                 return True
+
         return False
 
-        # Check for memory modifications between load and store
-        load_idx = bb.instructions.index(load_inst)
-        store_idx = bb.instructions.index(store_inst)
-
-        for i in range(load_idx + 1, store_idx):
-            inst = bb.instructions[i]
-            if self._modifies_memory_at(inst, src_loc):
-                return False
-
-        # Check if source and destination overlap (but aren't identical)
-        if MemoryLocation.may_overlap(src_loc, dst_loc):
-            # Only allow if they're completely identical (redundant copy)
-            if not (src_loc.offset == dst_loc.offset and src_loc.size == dst_loc.size):
-                return False
-
-        return True
 
     def _can_merge_special_copy_chain(
         self,
@@ -333,17 +318,11 @@ class MemoryCopyElisionPass(IRPass):
     ):
         """Elide a load-store pair by converting to a more efficient form."""
         # Check if this is a redundant copy (src == dst)
-        if src_loc.offset == dst_loc.offset and src_loc.size == dst_loc.size:
-            # Completely redundant - remove both instructions
-            # Must nop store first since it uses the load's output
-            self.updater.nop(store_inst, annotation="[memory copy elision - redundant store]")
-            self.updater.nop(load_inst, annotation="[memory copy elision - redundant load]")
-        else:
-            # For single-word copies, mload/mstore is already optimal
-            # We don't convert to mcopy because:
-            # 1. mcopy has higher base cost for single words
-            # 2. mload/mstore allows for better optimization opportunities
-            pass
+        assert src_loc.offset == dst_loc.offset and src_loc.size == dst_loc.size
+        # Completely redundant - remove both instructions
+        # Must nop store first since it uses the load's output
+        self.updater.nop(store_inst, annotation="[memory copy elision - redundant store]")
+        self.updater.nop(load_inst, annotation="[memory copy elision - redundant load]")
 
     def _modifies_memory(self, inst: IRInstruction) -> bool:
         """Check if an instruction modifies memory."""
