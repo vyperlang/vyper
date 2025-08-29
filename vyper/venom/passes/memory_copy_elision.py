@@ -79,7 +79,7 @@ class MemoryCopyElisionPass(IRPass):
                         dst_loc = MemoryLocation.from_operands(dst, 32)
 
                         # Check if we can elide this copy
-                        if self._can_elide_copy(load_inst, inst, src_loc, dst_loc, var):
+                        if self._can_elide_copy(inst, src_loc, dst_loc, var):
                             self._elide_copy(load_inst, inst, src_loc, dst_loc)
                             # Remove from available loads since we've processed it
                             del available_loads[var]
@@ -203,7 +203,6 @@ class MemoryCopyElisionPass(IRPass):
 
     def _can_elide_copy(
         self,
-        load_inst: IRInstruction,
         store_inst: IRInstruction,
         src_loc: MemoryLocation,
         dst_loc: MemoryLocation,
@@ -217,9 +216,6 @@ class MemoryCopyElisionPass(IRPass):
         2. No memory writes between load and store that could alias with src
         3. The source and destination don't overlap (unless they're identical)
         """
-        assert load_inst.parent == store_inst.parent
-        bb = load_inst.parent
-
         # Check if the loaded value is only used by the store
         uses = self.dfg.get_uses(var)
         if len(uses) != 1 or store_inst not in uses:
