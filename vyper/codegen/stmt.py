@@ -175,8 +175,7 @@ class Stmt:
         with self.context.block_scope():
             if self.stmt.get("iter.func.id") == "range":
                 return self._parse_For_range()
-            else:
-                return self._parse_For_list()
+            return self._parse_For_list()
 
     def _parse_For_range(self):
         assert "type" in self.stmt.target.target._metadata
@@ -278,6 +277,8 @@ class Stmt:
 
             del self.context.forvars[varname]
             return b1.resolve(IRnode.from_list(ret))
+
+    
 
     def parse_AugAssign(self):
         target = self._get_target(self.stmt.target)

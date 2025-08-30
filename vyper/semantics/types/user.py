@@ -21,7 +21,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.subscriptable import HashMapT
+from vyper.semantics.types.subscriptable import HashMapT, SArrayT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import keccak256
 from vyper.warnings import Deprecation, vyper_warn
@@ -75,6 +75,13 @@ class FlagT(_UserType):
         self._helper._id = name
 
     def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
+        # Special iterator helper for flags: `Flag.__values__`
+        # Returns a static array type of all flag values in declaration order.
+        if key == "__values__":
+            return SArrayT(self, len(self._flag_members))
+
+        # Regular flag member access (e.g., `Flag.FOO`) validates the member name
+        # and yields the flag type in expression position.
         self._helper.get_member(key, node)
         return self
 
