@@ -90,13 +90,14 @@ class SingleUseExpansion(IRPass):
             #   bb2:
             #       %phi = phi @bb1, %origin, @someother, %somevar
             #       ...
-            uses = [
-                use
-                for use in self.dfg.get_uses(var)
-                if not (
-                    use.opcode == "assign" or (use.opcode == "phi" and use.parent != inst.parent)
-                )
-            ]
+
+            # if the only other use would be in assigns then the variable
+            # does not have to be moved out to the new assign
+            uses = [use for use in self.dfg.get_uses(var) if use.opcode != "assign"]
+
+            # if the only other use would be in phi node in the some other block then
+            # the same rule applies
+            uses = [use for use in uses if use.opcode != "phi" or use.parent == inst.parent]
             if len(uses) <= 1:
                 continue
             bb = self.function.get_basic_block(label.name)
