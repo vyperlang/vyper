@@ -84,10 +84,15 @@ class SingleUseExpansion(IRPass):
             #   bb1:
             #       ...
             #       ; it does not matter that the %origin is here for the phi instruction
+            #       ; since if this is the only place where the origin is used
+            #       ; other then the phi node then the phi node does not have to add
+            #       ; additional store for it as and input to phi
             #       %var = %origin
             #       ...
             #       jmp @bb2
             #   bb2:
+            #       ; the %origin does not have to be extracted to new varible
+            #       ; since the only place where it is used is assign instruction
             #       %phi = phi @bb1, %origin, @someother, %somevar
             #       ...
 
