@@ -615,4 +615,17 @@ def test_remove_unused_writes():
         ;sink %2
     """
 
-    _check_no_change(pre)
+    post = """
+    main:
+        %par = param
+        nop
+        nop
+        %cond = iszero %par
+        jnz %cond, @then, @else
+    then:
+        stop
+    else:
+        stop
+    """
+
+    _check_pre_post(pre, post)

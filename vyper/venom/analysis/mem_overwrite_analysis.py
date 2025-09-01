@@ -12,7 +12,7 @@ LatticeItem = OrderedSet[MemoryLocation]
 
 def join(a: LatticeItem, b: LatticeItem) -> LatticeItem:
     assert isinstance(a, OrderedSet) and isinstance(b, OrderedSet)
-    tmp = a.union(b)
+    tmp = OrderedSet.intersection(a, b)
     assert isinstance(tmp, OrderedSet)
     return tmp
 
@@ -47,7 +47,7 @@ class MemOverwriteAnalysis(IRAnalysis):
         self.mem_start = {bb: OrderedSet() for bb in self.function.get_basic_blocks()}
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
-        order = reversed(list(self.cfg.dfs_post_walk))
+        order = self.cfg.dfs_post_walk
 
         while True:
             change = False
@@ -55,7 +55,7 @@ class MemOverwriteAnalysis(IRAnalysis):
                 res = self._handle_bb(bb)
                 if self.mem_needed[bb] != res:
                     change = True
-                    self.mem_needed[bb]
+                    self.mem_needed[bb] = res
 
             if not change:
                 break
@@ -63,11 +63,13 @@ class MemOverwriteAnalysis(IRAnalysis):
     def _handle_bb(self, bb: IRBasicBlock) -> LatticeItem:
         succs = self.cfg.cfg_out(bb)
         if len(succs) > 0:
-            lattice_item: LatticeItem = OrderedSet([])
+            lattice_item: LatticeItem = self.mem_needed[succs.first()].copy()
             for succ in self.cfg.cfg_out(bb):
                 lattice_item = join(lattice_item, self.mem_needed[succ])
-        else:
+        elif bb.instructions[-1].opcode in ("stop", "sink"):
             lattice_item: LatticeItem = OrderedSet([MemoryLocation.ALL])
+        else:
+            lattice_item: LatticeItem = OrderedSet([])
 
 
         self.mem_start[bb] = lattice_item
