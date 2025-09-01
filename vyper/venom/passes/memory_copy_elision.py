@@ -88,7 +88,6 @@ class MemoryCopyElisionPass(IRPass):
 
                 # This store invalidates any loads that may alias with the destination
                 self._invalidate_aliasing_loads(available_loads, inst)
-                #self._invalidate_mcopy_chain(mcopy_chain, inst)
                 self._invalidate_mcopy_chain(mcopy_chain, inst)
 
             elif inst.opcode == "mcopy":
@@ -184,7 +183,6 @@ class MemoryCopyElisionPass(IRPass):
                     mcopy_chain[dst_loc.offset] = (inst, src_marker)
 
                 self._invalidate_aliasing_loads_by_inst(available_loads, inst)
-                #self._invalidate_mcopy_chain(mcopy_chain, inst, exclude_current=True)
                 self._invalidate_mcopy_chain(mcopy_chain, inst, exclude_current=True)
 
             elif self._modifies_memory(inst):
