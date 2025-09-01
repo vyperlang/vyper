@@ -595,3 +595,24 @@ def test_mem_elision_msize():
     """
 
     _check_pre_post(pre, post)
+
+
+def test_remove_unused_writes():
+    pre = """
+    main:
+        %par = param
+        mstore 100, %par
+        mstore 300, %par
+        %cond = iszero %par
+        jnz %cond, @then, @else
+    then:
+        stop
+        ;%1 = mload 100
+        ;sink %1
+    else:
+        stop
+        ;%2 = mload 200
+        ;sink %2
+    """
+
+    _check_no_change(pre)

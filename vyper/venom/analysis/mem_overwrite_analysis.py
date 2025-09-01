@@ -12,7 +12,7 @@ LatticeItem = OrderedSet[MemoryLocation]
 
 def join(a: LatticeItem, b: LatticeItem) -> LatticeItem:
     assert isinstance(a, OrderedSet) and isinstance(b, OrderedSet)
-    tmp = a.intersection(b)
+    tmp = a.union(b)
     assert isinstance(tmp, OrderedSet)
     return tmp
 
@@ -61,9 +61,14 @@ class MemOverwriteAnalysis(IRAnalysis):
                 break
 
     def _handle_bb(self, bb: IRBasicBlock) -> LatticeItem:
-        lattice_item: LatticeItem = OrderedSet([MemoryLocation.ALL])
-        for succ in self.cfg.cfg_out(bb):
-            lattice_item = join(lattice_item, self.mem_needed[succ])
+        succs = self.cfg.cfg_out(bb)
+        if len(succs) > 0:
+            lattice_item: LatticeItem = OrderedSet([])
+            for succ in self.cfg.cfg_out(bb):
+                lattice_item = join(lattice_item, self.mem_needed[succ])
+        else:
+            lattice_item: LatticeItem = OrderedSet([MemoryLocation.ALL])
+
 
         self.mem_start[bb] = lattice_item
 
