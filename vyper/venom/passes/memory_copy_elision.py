@@ -1,5 +1,5 @@
 from vyper.evm.address_space import MEMORY
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis, MemOverwriteAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
 from vyper.venom.effects import Effects
 from vyper.venom.memory_location import MemoryLocation, get_read_location, get_write_location
@@ -29,7 +29,27 @@ class MemoryCopyElisionPass(IRPass):
         for bb in self.function.get_basic_blocks():
             self._process_basic_block(bb)
 
+        self._remove_unnecessary_effects()
+
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+
+    def _remove_unnecessary_effects(self):
+        self.mem_overwrite = self.analyses_cache.request_analysis(MemOverwriteAnalysis)
+        for bb in self.function.get_basic_blocks():
+            self._remove_unnecessary_effects_bb(bb)
+
+    def _remove_unnecessary_effects_bb(self, bb: IRBasicBlock):
+        for inst, state in self.mem_overwrite.bb_iterator(bb):
+            if inst.output is not None:
+                continue
+            write_loc = get_write_location(inst, MEMORY)
+            if write_loc == MemoryLocation.EMPTY:
+                continue
+            if not write_loc.is_fixed:
+                continue
+            overlap = [loc for loc in state if loc.completely_contains(write_loc)]
+            if len(overlap) > 0:
+                self.updater.nop(inst, annotation="remove unnecessery effects")
 
     def _process_basic_block(self, bb: IRBasicBlock):
         """Process a basic block to find and elide memory copies."""
@@ -44,8 +64,9 @@ class MemoryCopyElisionPass(IRPass):
         # Track memory writes to invalidate loads
         for inst in bb.instructions.copy():
             if inst.opcode == "mload":
+                assert inst.output is not None
                 # Track the load if it has a literal source
-                if isinstance(inst.operands[0], IRLiteral) and inst.output is not None:
+                if isinstance(inst.operands[0], IRLiteral):
                     src_loc = MemoryLocation.from_operands(inst.operands[0], 32)
                     available_loads[inst.output] = (inst, src_loc)
 
@@ -59,7 +80,7 @@ class MemoryCopyElisionPass(IRPass):
                         dst_loc = MemoryLocation.from_operands(dst, 32)
 
                         # Check if we can elide this copy
-                        if self._can_elide_copy(bb, load_inst, inst, src_loc, dst_loc, var):
+                        if self._can_elide_copy(inst, src_loc, dst_loc, var):
                             self._elide_copy(load_inst, inst, src_loc, dst_loc)
                             # Remove from available loads since we've processed it
                             del available_loads[var]
@@ -97,9 +118,7 @@ class MemoryCopyElisionPass(IRPass):
                             # Can merge if sizes match and no hazards
                             if (
                                 prev_src_loc.size == src_loc.size == dst_loc.size
-                                and self._can_merge_special_copy_chain(
-                                    bb, prev_inst, inst, src_loc, dst_loc
-                                )
+                                and self._can_merge_special_copy_chain(bb, prev_inst, inst, src_loc)
                             ):
                                 # Replace mcopy with the special copy directly to final destination
                                 # Need to update the destination operand
@@ -111,13 +130,6 @@ class MemoryCopyElisionPass(IRPass):
                                     prev_inst.opcode,
                                     new_operands,
                                     annotation="[memory copy elision - merged special copy]",
-                                )
-                                # Remove the intermediate special copy
-                                self.updater.nop(
-                                    prev_inst,
-                                    annotation="[memory copy elision - merged "
-                                    + prev_inst.opcode
-                                    + "]",
                                 )
                                 # Update chain tracking
                                 del mcopy_chain[src_loc.offset]
@@ -141,10 +153,6 @@ class MemoryCopyElisionPass(IRPass):
                                 assert prev_src_loc.offset is not None  # help mypy
                                 self.updater.update(
                                     inst, "mcopy", [size_op, IRLiteral(prev_src_loc.offset), dst_op]
-                                )
-                                # Remove the intermediate mcopy
-                                self.updater.nop(
-                                    prev_inst, annotation="[memory copy elision - merged mcopy]"
                                 )
                                 # Update chain tracking
                                 del mcopy_chain[src_loc.offset]
@@ -180,22 +188,8 @@ class MemoryCopyElisionPass(IRPass):
                 available_loads.clear()
                 mcopy_chain.clear()
 
-            elif inst.opcode in (
-                "call",
-                "invoke",
-                "create",
-                "create2",
-                "delegatecall",
-                "staticcall",
-            ):
-                # These can modify any memory
-                available_loads.clear()
-                mcopy_chain.clear()
-
     def _can_elide_copy(
         self,
-        bb: IRBasicBlock,
-        load_inst: IRInstruction,
         store_inst: IRInstruction,
         src_loc: MemoryLocation,
         dst_loc: MemoryLocation,
@@ -220,22 +214,7 @@ class MemoryCopyElisionPass(IRPass):
                 # Redundant copy - can be eliminated entirely
                 return True
 
-        # Check for memory modifications between load and store
-        load_idx = bb.instructions.index(load_inst)
-        store_idx = bb.instructions.index(store_inst)
-
-        for i in range(load_idx + 1, store_idx):
-            inst = bb.instructions[i]
-            if self._modifies_memory_at(inst, src_loc):
-                return False
-
-        # Check if source and destination overlap (but aren't identical)
-        if MemoryLocation.may_overlap(src_loc, dst_loc):
-            # Only allow if they're completely identical (redundant copy)
-            if not (src_loc.offset == dst_loc.offset and src_loc.size == dst_loc.size):
-                return False
-
-        return True
+        return False
 
     def _can_merge_special_copy_chain(
         self,
@@ -243,7 +222,6 @@ class MemoryCopyElisionPass(IRPass):
         special_copy: IRInstruction,
         mcopy: IRInstruction,
         intermediate_loc: MemoryLocation,
-        final_dst_loc: MemoryLocation,
     ) -> bool:
         """
         Check if a special copy (calldatacopy, etc) followed by mcopy can be merged.
@@ -321,17 +299,11 @@ class MemoryCopyElisionPass(IRPass):
     ):
         """Elide a load-store pair by converting to a more efficient form."""
         # Check if this is a redundant copy (src == dst)
-        if src_loc.offset == dst_loc.offset and src_loc.size == dst_loc.size:
-            # Completely redundant - remove both instructions
-            # Must nop store first since it uses the load's output
-            self.updater.nop(store_inst, annotation="[memory copy elision - redundant store]")
-            self.updater.nop(load_inst, annotation="[memory copy elision - redundant load]")
-        else:
-            # For single-word copies, mload/mstore is already optimal
-            # We don't convert to mcopy because:
-            # 1. mcopy has higher base cost for single words
-            # 2. mload/mstore allows for better optimization opportunities
-            pass
+        assert src_loc.offset == dst_loc.offset and src_loc.size == dst_loc.size
+        # Completely redundant - remove both instructions
+        # Must nop store first since it uses the load's output
+        self.updater.nop(store_inst, annotation="[memory copy elision - redundant store]")
+        self.updater.nop(load_inst, annotation="[memory copy elision - redundant load]")
 
     def _modifies_memory(self, inst: IRInstruction) -> bool:
         """Check if an instruction modifies memory."""
@@ -356,13 +328,12 @@ class MemoryCopyElisionPass(IRPass):
                 return MemoryLocation.may_overlap(write_loc, loc)
 
         elif inst.opcode in ("mcopy", "calldatacopy", "codecopy", "returndatacopy", "dloadbytes"):
-            # These write to a range
-            if len(inst.operands) >= 3:
-                size_op = inst.operands[0]
-                dst_op = inst.operands[2]
-                if isinstance(size_op, IRLiteral) and isinstance(dst_op, IRLiteral):
-                    write_loc = MemoryLocation.from_operands(dst_op, size_op)
-                    return MemoryLocation.may_overlap(write_loc, loc)
+            assert len(inst.operands) == 3
+            size_op = inst.operands[0]
+            dst_op = inst.operands[2]
+            if isinstance(size_op, IRLiteral) and isinstance(dst_op, IRLiteral):
+                write_loc = MemoryLocation.from_operands(dst_op, size_op)
+                return MemoryLocation.may_overlap(write_loc, loc)
 
         # Conservative: assume any other memory write could alias
         return True
@@ -421,26 +392,28 @@ class MemoryCopyElisionPass(IRPass):
         inst: IRInstruction,
     ):
         """Remove any tracked loads that may alias with a memory-writing instruction."""
-        if inst.opcode in ("mcopy", "calldatacopy", "codecopy", "returndatacopy", "dloadbytes"):
-            if len(inst.operands) >= 3:
-                size_op = inst.operands[0]
-                dst_op = inst.operands[2]
-                if isinstance(size_op, IRLiteral) and isinstance(dst_op, IRLiteral):
-                    write_loc = MemoryLocation.from_operands(dst_op, size_op)
-
-                    to_remove = []
-                    for var, (_, src_loc) in available_loads.items():
-                        if MemoryLocation.may_overlap(src_loc, write_loc):
-                            to_remove.append(var)
-
-                    for var in to_remove:
-                        del available_loads[var]
-                else:
-                    # Conservative: clear all if we can't determine the destination
-                    available_loads.clear()
-        else:
+        if inst.opcode not in ("mcopy", "calldatacopy", "codecopy", "returndatacopy", "dloadbytes"):
             # Conservative: clear all for unknown memory writes
             available_loads.clear()
+            return
+
+        assert len(inst.operands) == 3
+        size_op = inst.operands[0]
+        dst_op = inst.operands[2]
+        write_loc = MemoryLocation.from_operands(dst_op, size_op)
+
+        if not write_loc.is_fixed:
+            # Conservative: clear all if we can't determine the destination
+            available_loads.clear()
+            return
+
+        to_remove = []
+        for var, (_, src_loc) in available_loads.items():
+            if MemoryLocation.may_overlap(src_loc, write_loc):
+                to_remove.append(var)
+
+        for var in to_remove:
+            del available_loads[var]
 
     def _invalidate_mcopy_chain(
         self,
@@ -448,53 +421,41 @@ class MemoryCopyElisionPass(IRPass):
         inst: IRInstruction,
         exclude_current: bool = False,
     ):
-        """Remove any tracked mcopy operations that may be invalidated by a memory write."""
-        if inst.opcode == "mstore":
-            _, dst = inst.operands
-            if isinstance(dst, IRLiteral):
-                write_loc = MemoryLocation.from_operands(dst, 32)
-
-                to_remove = []
-                for dst_offset, (_, src_loc) in mcopy_chain.items():
-                    dst_loc = MemoryLocation(offset=dst_offset, size=src_loc.size)
-                    # Invalidate if the write aliases with either source or destination
-                    if MemoryLocation.may_overlap(write_loc, src_loc) or MemoryLocation.may_overlap(
-                        write_loc, dst_loc
-                    ):
-                        to_remove.append(dst_offset)
-
-                for offset in to_remove:
-                    del mcopy_chain[offset]
-            else:
-                # Conservative: clear all
-                mcopy_chain.clear()
-
-        elif inst.opcode in ("mcopy", "calldatacopy", "codecopy", "returndatacopy", "dloadbytes"):
-            write_loc = get_write_location(inst, MEMORY)
-            if write_loc.is_fixed:
-                to_remove = []
-                for dst_offset, (tracked_inst, src_loc) in mcopy_chain.items():
-                    # Skip if this is the current instruction and exclude_current is True
-                    if exclude_current and tracked_inst is inst:
-                        continue
-
-                    dst_loc = MemoryLocation(offset=dst_offset, size=src_loc.size)
-                    # Invalidate if the write aliases with either source or destination
-                    # For special copies, src_loc.offset == -1, so we only check destination
-                    if src_loc.offset == -1:  # Special marker for non-memory sources
-                        if MemoryLocation.may_overlap(write_loc, dst_loc):
-                            to_remove.append(dst_offset)
-                    else:
-                        if MemoryLocation.may_overlap(
-                            write_loc, src_loc
-                        ) or MemoryLocation.may_overlap(write_loc, dst_loc):
-                            to_remove.append(dst_offset)
-
-                for offset in to_remove:
-                    del mcopy_chain[offset]
-            else:
-                # Conservative: clear all
-                mcopy_chain.clear()
-        else:
-            # Conservative: clear all for unknown memory writes
+        if inst.opcode not in (
+            "mstore",
+            "mcopy",
+            "calldatacopy",
+            "codecopy",
+            "returndatacopy",
+            "dloadbytes",
+        ):
+            # Conservative: clear all
             mcopy_chain.clear()
+            return
+
+        write_loc = get_write_location(inst, MEMORY)
+        if not write_loc.is_fixed:
+            # Conservative: clear all
+            mcopy_chain.clear()
+            return
+
+        to_remove = []
+        for dst_offset, (tracked_inst, src_loc) in mcopy_chain.items():
+            # Skip if this is the current instruction and exclude_current is True
+            if exclude_current and tracked_inst is inst:
+                continue
+
+            dst_loc = MemoryLocation(offset=dst_offset, size=src_loc.size)
+            # Invalidate if the write aliases with either source or destination
+            # For special copies, src_loc.offset == -1, so we only check destination
+            if src_loc.offset == -1:  # Special marker for non-memory sources
+                if MemoryLocation.may_overlap(write_loc, dst_loc):
+                    to_remove.append(dst_offset)
+            else:
+                if MemoryLocation.may_overlap(write_loc, src_loc) or MemoryLocation.may_overlap(
+                    write_loc, dst_loc
+                ):
+                    to_remove.append(dst_offset)
+
+        for offset in to_remove:
+            del mcopy_chain[offset]

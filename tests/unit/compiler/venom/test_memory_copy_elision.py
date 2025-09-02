@@ -1,3 +1,5 @@
+import pytest
+
 from tests.venom_utils import PrePostChecker
 from vyper.evm.opcodes import version_check
 from vyper.venom.passes import MemoryCopyElisionPass
@@ -55,14 +57,16 @@ def test_mcopy_chain_optimization():
     _global:
         mcopy 200, 100, 32
         mcopy 300, 200, 32
-        stop
+        %1 = mload 300
+        sink %1
     """
 
     post = """
     _global:
         nop  ; mcopy 200, 100, 32              [memory copy elision - merged mcopy]
         mcopy 300, 100, 32
-        stop
+        %1 = mload 300
+        sink %1
     """
     _check_pre_post(pre, post)
 
@@ -98,7 +102,9 @@ def test_no_elision_with_intermediate_write():
         %1 = mload 100
         mstore 100, 42  ; BARRIER - writes to source
         mstore 200, %1
-        stop
+        %2 = mload 100
+        %3 = mload 200
+        sink %3, %2
     """
     _check_no_change(pre)
 
@@ -112,7 +118,8 @@ def test_no_elision_with_multiple_uses():
         %1 = mload 100
         mstore 200, %1
         %2 = add %1, 1  ; Another use of %1
-        stop
+        %3 = mload 200
+        sink %3
     """
     _check_no_change(pre)
 
@@ -131,7 +138,9 @@ def test_mcopy_chain_with_intermediate_read():
         %1 = mload 200  ; BARRIER - read from intermediate location
         mcopy 300, 200, 32
         mstore 400, %1
-        stop
+        %2 = mload 300
+        %3 = mload 400
+        sink %3, %2
     """
     _check_no_change(pre)
 
@@ -147,7 +156,8 @@ def test_mcopy_chain_with_size_mismatch():
     _global:
         mcopy 200, 100, 32
         mcopy 300, 200, 64  ; Different size
-        stop
+        %1 = mload 300
+        sink %3
     """
     _check_no_change(pre)
 
@@ -161,7 +171,9 @@ def test_overlapping_memory_regions():
         %1 = mload 100
         mstore 116, 42  ; BARRIER - overlaps with source [100-131]
         mstore 200, %1
-        stop
+        %2 = mload 116
+        %3 = mload 200
+        sink %3, %2
     """
     _check_no_change(pre)
 
@@ -175,7 +187,8 @@ def test_call_instruction_clears_optimization():
         %1 = mload 100
         %2 = call 0, 0, 0, 0, 0, 0, 0  ; BARRIER - can modify any memory
         mstore 200, %1
-        stop
+        %3 = mload 200
+        sink %3
     """
     _check_no_change(pre)
 
@@ -191,7 +204,9 @@ def test_multiple_load_store_pairs():
         %2 = mload 200
         mstore 300, %1
         mstore 400, %2
-        stop
+        %3 = mload 300
+        %4 = mload 400
+        sink %4, %3
     """
     _check_no_change(pre)
 
@@ -208,7 +223,8 @@ def test_mcopy_chain_longer():
         mcopy 200, 100, 32
         mcopy 300, 200, 32
         mcopy 400, 300, 32
-        stop
+        %1 = mload 400
+        sink %1
     """
 
     post = """
@@ -216,7 +232,8 @@ def test_mcopy_chain_longer():
         nop  ; mcopy 200, 100, 32              [memory copy elision - merged mcopy]
         nop  ; mcopy 300, 200, 32              [memory copy elision - merged mcopy]
         mcopy 400, 100, 32
-        stop
+        %1 = mload 400
+        sink %1
     """
     _check_pre_post(pre, post)
 
@@ -230,7 +247,8 @@ def test_calldatacopy_barrier():
         %1 = mload 100
         calldatacopy 200, 0, 32  ; BARRIER - writes to memory
         mstore %1, 300
-        stop
+        %2 = mload 200
+        sink %2
     """
     _check_no_change(pre)
 
@@ -244,7 +262,9 @@ def test_dloadbytes_barrier():
         %1 = mload 100
         dloadbytes 200, 0, 32  ; BARRIER - writes to memory
         mstore 300, %1
-        stop
+        %2 = mload 200
+        %3 = mload 300
+        sink %3, %2
     """
     _check_no_change(pre)
 
@@ -261,14 +281,16 @@ def test_calldatacopy_mcopy_chain():
     _global:
         calldatacopy 100, 0, 32  ; Copy 32 bytes from calldata offset 0 to memory 100
         mcopy 200, 100, 32       ; Copy from 100 to 200
-        stop
+        %1 = mload 200
+        sink %1
     """
 
     post = """
     _global:
         nop  ; calldatacopy 100, 0, 32         [memory copy elision - merged calldatacopy]
         calldatacopy 200, 0, 32
-        stop
+        %1 = mload 200
+        sink %1
     """
     _check_pre_post(pre, post)
 
@@ -284,14 +306,16 @@ def test_codecopy_mcopy_chain():
     _global:
         codecopy 100, 10, 64    ; Copy 64 bytes from code offset 10 to memory 100
         mcopy 300, 100, 64      ; Copy from 100 to 300
-        stop
+        %1 = mload 300
+        sink %1
     """
 
     post = """
     _global:
         nop  ; codecopy 100, 10, 64            [memory copy elision - merged codecopy]
         codecopy 300, 10, 64
-        stop
+        %1 = mload 300
+        sink %1
     """
     _check_pre_post(pre, post)
 
@@ -307,14 +331,16 @@ def test_dloadbytes_mcopy_chain():
     _global:
         dloadbytes 100, 0, 32   ; Load 32 bytes from transient offset 0 to memory 100
         mcopy 200, 100, 32      ; Copy from 100 to 200
-        stop
+        %1 = mload 200
+        sink %1
     """
 
     post = """
     _global:
         nop  ; dloadbytes 100, 0, 32           [memory copy elision - merged dloadbytes]
         dloadbytes 200, 0, 32
-        stop
+        %1 = mload 200
+        sink %1
     """
     _check_pre_post(pre, post)
 
@@ -332,7 +358,9 @@ def test_special_copy_mcopy_chain_with_read():
         %1 = mload 100           ; Read from intermediate location - BARRIER
         mcopy 200, 100, 32       ; This cannot be merged
         mstore 300, %1
-        stop
+        %1 = mload 300
+        %2 = mload 200
+        sink %2, %1
     """
     _check_no_change(pre)
 
@@ -348,7 +376,8 @@ def test_special_copy_mcopy_chain_size_mismatch():
     _global:
         calldatacopy 100, 0, 32  ; Copy 32 bytes
         mcopy 200, 100, 64       ; Try to copy 64 bytes - size mismatch
-        stop
+        %1 = mload 200
+        sink %1
     """
     _check_no_change(pre)
 
@@ -366,7 +395,8 @@ def test_special_copy_multiple_mcopy_chain():
         calldatacopy 100, 0, 32  ; Copy from calldata to 100
         mcopy 200, 100, 32       ; Copy from 100 to 200
         mcopy 300, 200, 32       ; Copy from 200 to 300
-        stop
+        %1 = mload 300
+        sink %1
     """
 
     post = """
@@ -374,7 +404,8 @@ def test_special_copy_multiple_mcopy_chain():
         nop  ; calldatacopy 100, 0, 32         [memory copy elision - merged calldatacopy]
         nop  ; mcopy 200, 100, 32              [memory copy elision - merged mcopy]
         calldatacopy 300, 0, 32
-        stop
+        %1 = mload 300
+        sink %1
     """
     _check_pre_post(pre, post)
 
@@ -391,7 +422,8 @@ def test_inter_block_no_optimization():
 
     label1:
         mstore 100, %1     ; Even though this is redundant, it's in a different block
-        stop
+        %2 = mload 100
+        sink %2
     """
 
     # No optimization should happen - load and store are in different blocks
@@ -414,7 +446,8 @@ def test_mcopy_chain_across_blocks():
 
     label1:
         mcopy 300, 200, 32
-        stop
+        %1 = mload 300
+        sink %1
     """
 
     # No optimization should happen - mcopies are in different blocks
@@ -437,7 +470,8 @@ def test_special_copy_chain_across_blocks():
 
     label1:
         mcopy 200, 100, 32
-        stop
+        %1 = mload 200
+        sink %1
     """
 
     # No optimization should happen - copies are in different blocks
@@ -458,11 +492,13 @@ def test_conditional_branch_no_optimization():
 
     label1:
         mstore 100, %1    ; Can't optimize - control flow dependent
-        stop
+        %1 = mload 100
+        sink %1
 
     label2:
         mstore 200, %1    ; Can't optimize - control flow dependent
-        stop
+        %2 = mload 200
+        sink %2
     """
 
     # No optimization should happen
@@ -480,9 +516,189 @@ def test_special_copy_not_merged_with_hazard():
         add %1, 1
         mstore 100, %1
         mcopy 200, 100, 32
-        stop
+        %2 = mload 200
+        sink %2
     """
 
     post = pre  # No change - hazard prevents optimization
+
+    _check_pre_post(pre, post)
+
+
+def test_mem_elision_load_needed():
+    pre = """
+    main:
+        ; cannot remove this copy since
+        ; the mload uses this data
+        calldatacopy 100, 200, 64
+        mcopy 300, 100, 64
+        %1 = mload 100
+        %2 = mload 300
+        sink %2, %1
+    """
+
+    post = """
+    main:
+        calldatacopy 100, 200, 64
+        calldatacopy 300, 200, 64
+        %1 = mload 100
+        %2 = mload 300
+        sink %2, %1
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_mem_elision_load_needed_not_precise():
+    pre = """
+    main:
+        ; cannot remove this copy since
+        ; the mload uses this data
+        calldatacopy 100, 200, 64
+        mcopy 300, 100, 64
+        %1 = mload 132
+        %2 = mload 332
+        sink %2, %1
+    """
+
+    post = """
+    main:
+        calldatacopy 100, 200, 64
+        calldatacopy 300, 200, 64
+        %1 = mload 132
+        %2 = mload 332
+        sink %2, %1
+    """
+
+    _check_pre_post(pre, post)
+
+
+@pytest.mark.xfail
+def test_mem_elision_msize():
+    pre = """
+    main:
+        ; you cannot nop both of
+        ; them since you need correct
+        ; msize (currently it does that)
+        %1 = mload 100
+        mstore 100, %1
+        %2 = msize
+        sink %2
+    """
+
+    post = """
+    main:
+        %1 = mload 100
+        nop
+        %2 = msize
+        sink %2
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_remove_unused_writes():
+    pre = """
+    main:
+        %par = param
+        mstore 100, %par
+        mstore 300, %par
+        %cond = iszero %par
+        jnz %cond, @then, @else
+    then:
+        stop
+        ;%1 = mload 100
+        ;sink %1
+    else:
+        stop
+        ;%2 = mload 200
+        ;sink %2
+    """
+
+    post = """
+    main:
+        %par = param
+        nop
+        nop
+        %cond = iszero %par
+        jnz %cond, @then, @else
+    then:
+        stop
+    else:
+        stop
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_remove_unused_writes_with_read():
+    pre = """
+    main:
+        %par = param
+        mstore 100, %par
+        mstore 300, %par
+        %cond = iszero %par
+        jnz %cond, @then, @else
+    then:
+        %1 = mload 100
+        sink %1
+    else:
+        %2 = mload 100
+        sink %2
+    """
+
+    post = """
+    main:
+        %par = param
+        mstore 100, %par
+        nop
+        %cond = iszero %par
+        jnz %cond, @then, @else
+    then:
+        %1 = mload 100
+        sink %1
+    else:
+        %2 = mload 100
+        sink %2
+    """
+
+    _check_pre_post(pre, post)
+
+
+@pytest.mark.xfail
+def test_remove_unused_writes_with_read_loop():
+    pre = """
+    main:
+        %par = param
+        mstore 100, %par
+        mstore 300, %par
+        jmp @cond
+    cond:
+        %cond = iszero %par
+        jnz %cond, @body, @after
+    body:
+        %1 = mload 100
+        jmp @cond
+    after:
+        %2 = mload 100
+        sink %2
+    """
+
+    post = """
+    main:
+        %par = param
+        mstore 100, %par
+        nop
+        jmp @cond
+    cond:
+        %cond = iszero %par
+        jnz %cond, @body, @after
+    body:
+        %1 = mload 100
+        jmp @cond
+    after:
+        %2 = mload 100
+        sink %2
+    """
 
     _check_pre_post(pre, post)

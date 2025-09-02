@@ -21,6 +21,7 @@ class MemoryLocation:
     # Initialize after class definition
     EMPTY: ClassVar[MemoryLocation]
     UNDEFINED: ClassVar[MemoryLocation]
+    ALL: ClassVar[MemoryLocation]
 
     @property
     def is_offset_fixed(self) -> bool:
@@ -126,6 +127,7 @@ class MemoryLocation:
 
 MemoryLocation.EMPTY = MemoryLocation(offset=0, size=0)
 MemoryLocation.UNDEFINED = MemoryLocation(offset=None, size=None)
+MemoryLocation.ALL = MemoryLocation(offset=0, size=2**256)
 
 
 def get_write_location(inst, addr_space: AddrSpace) -> MemoryLocation:
