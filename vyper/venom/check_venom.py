@@ -77,6 +77,13 @@ def find_semantic_errors(context: IRContext) -> list[VenomError]:
     return errors
 
 
+def check_venom_fn(fn: IRFunction):
+    errors = find_semantic_errors_fn(fn)
+
+    if errors:
+        raise ExceptionGroup("venom semantic errors", errors)
+
+
 def check_venom_ctx(context: IRContext):
     errors = find_semantic_errors(context)
 
