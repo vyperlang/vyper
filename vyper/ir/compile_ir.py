@@ -1078,6 +1078,8 @@ def _merge_jumpdests(assembly):
             if is_label(assembly[i + 1]):
                 # LABEL x LABEL y
                 # replace all instances of PUSHLABEL x with PUSHLABEL y
+                # (could also remove PUSH_OFST and DATA_ITEM, but doesn't
+                #  affect correctness)
                 new_symbol = assembly[i + 1]
                 if new_symbol != current_symbol:
                     for j in range(len(assembly)):
@@ -1090,6 +1092,8 @@ def _merge_jumpdests(assembly):
             elif isinstance(assembly[i + 1], PUSHLABEL) and assembly[i + 2] == "JUMP":
                 # LABEL x PUSHLABEL y JUMP
                 # replace all instances of PUSHLABEL x with PUSHLABEL y
+                # (could also remove PUSH_OFST and DATA_ITEM, but doesn't
+                #  affect correctness)
                 new_symbol = assembly[i + 1].label
                 for j in range(len(assembly)):
                     if isinstance(assembly[j], PUSHLABEL) and assembly[j].label == current_symbol:
