@@ -308,7 +308,7 @@ The following example describes the expected input format of ``vyper-json``. (Co
                 "b": {"type": "uint256", "slot": 0, "n_slots": 1},
             }
         },
-        // Optional
+        // Required
         "settings": {
             "evmVersion": "prague",  // EVM version to compile for. Can be london, paris, shanghai, cancun or prague (default).
             // optional, optimization mode
