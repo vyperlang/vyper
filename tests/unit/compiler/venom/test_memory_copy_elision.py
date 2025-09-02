@@ -629,3 +629,76 @@ def test_remove_unused_writes():
     """
 
     _check_pre_post(pre, post)
+
+
+def test_remove_unused_writes_with_read():
+    pre = """
+    main:
+        %par = param
+        mstore 100, %par
+        mstore 300, %par
+        %cond = iszero %par
+        jnz %cond, @then, @else
+    then:
+        %1 = mload 100
+        sink %1
+    else:
+        %2 = mload 100
+        sink %2
+    """
+
+    post = """
+    main:
+        %par = param
+        mstore 100, %par
+        nop
+        %cond = iszero %par
+        jnz %cond, @then, @else
+    then:
+        %1 = mload 100
+        sink %1
+    else:
+        %2 = mload 100
+        sink %2
+    """
+
+    _check_pre_post(pre, post)
+
+
+@pytest.mark.xfail
+def test_remove_unused_writes_with_read_loop():
+    pre = """
+    main:
+        %par = param
+        mstore 100, %par
+        mstore 300, %par
+        jmp @cond
+    cond:
+        %cond = iszero %par
+        jnz %cond, @body, @after
+    body:
+        %1 = mload 100
+        jmp @cond
+    after:
+        %2 = mload 100
+        sink %2
+    """
+
+    post = """
+    main:
+        %par = param
+        mstore 100, %par
+        nop
+        jmp @cond
+    cond:
+        %cond = iszero %par
+        jnz %cond, @body, @after
+    body:
+        %1 = mload 100
+        jmp @cond
+    after:
+        %2 = mload 100
+        sink %2
+    """
+
+    _check_pre_post(pre, post)
