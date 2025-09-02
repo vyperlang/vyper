@@ -39,11 +39,11 @@ def carve_out(write: MemoryLocation, read: MemoryLocation) -> list[MemoryLocatio
 
 
 class MemOverwriteAnalysis(IRAnalysis):
-    mem_needed: dict[IRBasicBlock, LatticeItem]
+    mem_rewriten: dict[IRBasicBlock, LatticeItem]
     mem_start: dict[IRBasicBlock, LatticeItem]
 
     def analyze(self):
-        self.mem_needed = {bb: OrderedSet() for bb in self.function.get_basic_blocks()}
+        self.mem_rewriten = {bb: OrderedSet() for bb in self.function.get_basic_blocks()}
         self.mem_start = {bb: OrderedSet() for bb in self.function.get_basic_blocks()}
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
@@ -53,9 +53,9 @@ class MemOverwriteAnalysis(IRAnalysis):
             change = False
             for bb in order:
                 res = self._handle_bb(bb)
-                if self.mem_needed[bb] != res:
+                if self.mem_rewriten[bb] != res:
                     change = True
-                    self.mem_needed[bb] = res
+                    self.mem_rewriten[bb] = res
 
             if not change:
                 break
@@ -63,9 +63,9 @@ class MemOverwriteAnalysis(IRAnalysis):
     def _handle_bb(self, bb: IRBasicBlock) -> LatticeItem:
         succs = self.cfg.cfg_out(bb)
         if len(succs) > 0:
-            lattice_item: LatticeItem = self.mem_needed[succs.first()].copy()
+            lattice_item: LatticeItem = self.mem_rewriten[succs.first()].copy()
             for succ in self.cfg.cfg_out(bb):
-                lattice_item = join(lattice_item, self.mem_needed[succ])
+                lattice_item = join(lattice_item, self.mem_rewriten[succ])
         elif bb.instructions[-1].opcode in ("stop", "sink"):
             lattice_item: LatticeItem = OrderedSet([MemoryLocation.ALL])
         else:
@@ -91,6 +91,7 @@ class MemOverwriteAnalysis(IRAnalysis):
 
     def bb_iterator(self, bb: IRBasicBlock) -> Iterator[tuple[IRInstruction, LatticeItem]]:
         lattice_item = self.mem_start[bb]
+        print(bb.label, lattice_item)
         for inst in reversed(bb.instructions):
             yield (inst, lattice_item)
             read_loc = get_read_location(inst, MEMORY)

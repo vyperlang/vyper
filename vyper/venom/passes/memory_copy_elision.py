@@ -118,9 +118,7 @@ class MemoryCopyElisionPass(IRPass):
                             # Can merge if sizes match and no hazards
                             if (
                                 prev_src_loc.size == src_loc.size == dst_loc.size
-                                and self._can_merge_special_copy_chain(
-                                    bb, prev_inst, inst, src_loc,
-                                )
+                                and self._can_merge_special_copy_chain(bb, prev_inst, inst, src_loc)
                             ):
                                 # Replace mcopy with the special copy directly to final destination
                                 # Need to update the destination operand
@@ -190,7 +188,6 @@ class MemoryCopyElisionPass(IRPass):
                 available_loads.clear()
                 mcopy_chain.clear()
 
-
     def _can_elide_copy(
         self,
         store_inst: IRInstruction,
@@ -218,7 +215,6 @@ class MemoryCopyElisionPass(IRPass):
                 return True
 
         return False
-
 
     def _can_merge_special_copy_chain(
         self,
@@ -425,7 +421,14 @@ class MemoryCopyElisionPass(IRPass):
         inst: IRInstruction,
         exclude_current: bool = False,
     ):
-        if inst.opcode not in ("mstore", "mcopy", "calldatacopy", "codecopy", "returndatacopy", "dloadbytes"):
+        if inst.opcode not in (
+            "mstore",
+            "mcopy",
+            "calldatacopy",
+            "codecopy",
+            "returndatacopy",
+            "dloadbytes",
+        ):
             # Conservative: clear all
             mcopy_chain.clear()
             return
@@ -449,11 +452,10 @@ class MemoryCopyElisionPass(IRPass):
                 if MemoryLocation.may_overlap(write_loc, dst_loc):
                     to_remove.append(dst_offset)
             else:
-                if MemoryLocation.may_overlap(
-                    write_loc, src_loc
-                ) or MemoryLocation.may_overlap(write_loc, dst_loc):
+                if MemoryLocation.may_overlap(write_loc, src_loc) or MemoryLocation.may_overlap(
+                    write_loc, dst_loc
+                ):
                     to_remove.append(dst_offset)
 
         for offset in to_remove:
             del mcopy_chain[offset]
-
