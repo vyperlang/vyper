@@ -182,7 +182,6 @@ def is_label(i):
     return isinstance(i, Label)
 
 
-
 def generate_cbor_metadata(
     compiler_metadata: Any,
     runtime_codesize: int,
