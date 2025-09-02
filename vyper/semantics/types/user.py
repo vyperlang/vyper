@@ -21,7 +21,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.subscriptable import HashMapT, SArrayT
+# Import moved to local scope to avoid circular dependency
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import keccak256
 from vyper.warnings import Deprecation, vyper_warn
@@ -78,6 +78,7 @@ class FlagT(_UserType):
         # Special iterator helper for flags: `Flag.__values__`
         # Returns a static array type of all flag values in declaration order.
         if key == "__values__":
+            from vyper.semantics.types.subscriptable import SArrayT
             return SArrayT(self, len(self._flag_members))
 
         # Regular flag member access (e.g., `Flag.FOO`) validates the member name
@@ -452,6 +453,7 @@ class StructT(_UserType):
             raise VariableDeclarationException(
                 "Struct values must be declared as kwargs e.g. Foo(a=1, b=2)", node.args[0]
             )
+        from vyper.semantics.types.subscriptable import HashMapT
         if next((i for i in self.member_types.values() if isinstance(i, HashMapT)), False):
             raise VariableDeclarationException(
                 "Struct contains a mapping and so cannot be declared as a literal", node
