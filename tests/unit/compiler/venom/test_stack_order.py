@@ -46,7 +46,7 @@ def test_stack_order_basic():
 
     print(ctx)
 
-    asm = VenomCompiler([ctx]).generate_evm()
+    asm = VenomCompiler(ctx).generate_evm_assembly()
     print(asm)
     assert asm == [
         "PUSH1",
@@ -99,7 +99,7 @@ def test_stack_order_basic2():
 
     print(ctx)
 
-    asm = VenomCompiler([ctx]).generate_evm()
+    asm = VenomCompiler(ctx).generate_evm_assembly()
     print(asm)
     assert asm == [
         "PUSH1",
@@ -299,8 +299,6 @@ def test_stack_order_phi():
     _check_pre_post(pre, post)
 
 
-# TODO: fix this xfail before merge
-@pytest.mark.xfail
 def test_stack_order_more_phi():
     pre = """
     main:
