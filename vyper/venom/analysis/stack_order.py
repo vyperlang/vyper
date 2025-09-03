@@ -1,6 +1,6 @@
 from vyper.venom.analysis import CFGAnalysis, LivenessAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable, IRLabel
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
 from vyper.venom.function import IRFunction
 
 # needed [top, ... , bottom]
@@ -84,7 +84,7 @@ class StackOrderAnalysis:
                 else:
                     translates.append(var)
             self._from_to[(pred, bb)] = translates
-            
+
         return self.needed
 
     def get_stack(self, bb: IRBasicBlock) -> Needed:
@@ -117,8 +117,8 @@ class StackOrderAnalysis:
             self.stack.append(src)
         elif src in next_live:
             self.stack.append(src)
-            if src in self.stack:
-                self._add_needed(src)
+            assert src in self.stack
+            self._add_needed(src)
         else:
             if src not in self.stack:
                 self.stack.append(src)
@@ -175,7 +175,7 @@ class StackOrderAnalysis:
 
         out_var = inst.output
         self.translates[out_var] = dict()
-        
+
         for label, var in inst.phi_operands:
             assert isinstance(var, IRVariable)
             self.translates[out_var][label] = var
