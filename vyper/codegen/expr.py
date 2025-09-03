@@ -226,8 +226,8 @@ class Expr:
             # Build the list of constant IR nodes for each flag value
             # using declaration order from `_flag_members`.
             elements = []
-            for name, idx in flag_t._flag_members.items():
-                value = 2 ** idx
+            for idx in flag_t._flag_members.values():
+                value = 2**idx
                 elements.append(IRnode.from_list(value, typ=flag_t))
 
             arr_t = SArrayT(flag_t, len(elements))
