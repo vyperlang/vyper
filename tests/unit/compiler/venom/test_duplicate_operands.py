@@ -20,7 +20,7 @@ def test_duplicate_operands():
     ctx = IRContext()
     fn = ctx.create_function("test")
     bb = fn.get_basic_block()
-    op = bb.append_instruction("store", 10)
+    op = bb.append_instruction("assign", 10)
     sum_ = bb.append_instruction("add", op, op)
     bb.append_instruction("mul", sum_, op)
     bb.append_instruction("stop")

@@ -7,8 +7,10 @@ from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
 from vyper.exceptions import CompilerPanic
+from vyper.ir.compile_ir import AssemblyInstruction
 from vyper.venom.analysis import MemSSA
 from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.basicblock import IRLabel, IRLiteral
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
@@ -18,6 +20,7 @@ from vyper.venom.passes import (
     AlgebraicOptimizationPass,
     AssignElimination,
     BranchOptimizationPass,
+    CFGNormalization,
     DFTPass,
     FloatAllocas,
     FunctionInlinerPass,
@@ -40,18 +43,10 @@ DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
 
 def generate_assembly_experimental(
-    runtime_code: IRContext,
-    deploy_code: Optional[IRContext] = None,
-    optimize: OptimizationLevel = DEFAULT_OPT_LEVEL,
-) -> list[str]:
-    # note: VenomCompiler is sensitive to the order of these!
-    if deploy_code is not None:
-        functions = [deploy_code, runtime_code]
-    else:
-        functions = [runtime_code]
-
-    compiler = VenomCompiler(functions)
-    return compiler.generate_evm(optimize == OptimizationLevel.NONE)
+    venom_ctx: IRContext, optimize: OptimizationLevel = DEFAULT_OPT_LEVEL
+) -> list[AssemblyInstruction]:
+    compiler = VenomCompiler(venom_ctx)
+    return compiler.generate_evm_assembly(optimize == OptimizationLevel.NONE)
 
 
 def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache) -> None:
@@ -117,6 +112,8 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 
     DFTPass(ac, fn).run_pass()
 
+    CFGNormalization(ac, fn).run_pass()
+
 
 def _run_global_passes(ctx: IRContext, optimize: OptimizationLevel, ir_analyses: dict) -> None:
     FunctionInlinerPass(ir_analyses, ctx, optimize).run_pass()
@@ -137,9 +134,24 @@ def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
         _run_passes(fn, optimize, ir_analyses[fn])
 
 
-def generate_ir(ir: IRnode, settings: Settings) -> IRContext:
+def generate_venom(
+    ir: IRnode,
+    settings: Settings,
+    constants: dict[str, int] = None,
+    data_sections: dict[str, bytes] = None,
+) -> IRContext:
     # Convert "old" IR to "new" IR
-    ctx = ir_node_to_venom(ir)
+    constants = constants or {}
+    starting_symbols = {k: IRLiteral(v) for k, v in constants.items()}
+    ctx = ir_node_to_venom(ir, starting_symbols)
+
+    data_sections = data_sections or {}
+    for section_name, data in data_sections.items():
+        ctx.append_data_section(IRLabel(section_name))
+        ctx.append_data_item(data)
+
+    for constname, value in constants.items():
+        ctx.add_constant(constname, value)
 
     optimize = settings.optimize
     assert optimize is not None  # help mypy

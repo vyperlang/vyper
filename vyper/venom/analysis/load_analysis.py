@@ -71,7 +71,7 @@ class LoadAnalysis(IRAnalysis):
         return res
 
     def get_literal(self, op):
-        op = self.dfg._traverse_store_chain(op)
+        op = self.dfg._traverse_assign_chain(op)
         if isinstance(op, IRLiteral):
             return op
         return None

@@ -49,9 +49,9 @@ class Mem2Var(IRPass):
         var = IRVariable(var_name)
         for inst in uses.copy():
             if inst.opcode == "mstore":
-                self.updater.store(inst, inst.operands[0], new_output=var)
+                self.updater.mk_assign(inst, inst.operands[0], new_output=var)
             elif inst.opcode == "mload":
-                self.updater.store(inst, var)
+                self.updater.mk_assign(inst, var)
             elif inst.opcode == "return":
                 self.updater.add_before(inst, "mstore", [var, inst.operands[1]])
 
@@ -77,13 +77,13 @@ class Mem2Var(IRPass):
             if param is None:
                 self.updater.update(palloca_inst, "mload", [ofst], new_output=var)
             else:
-                self.updater.update(palloca_inst, "store", [param.func_var], new_output=var)
+                self.updater.update(palloca_inst, "assign", [param.func_var], new_output=var)
         else:
             # otherwise, it comes from memory, convert to an mload.
             self.updater.update(palloca_inst, "mload", [ofst], new_output=var)
 
         for inst in uses.copy():
             if inst.opcode == "mstore":
-                self.updater.store(inst, inst.operands[0], new_output=var)
+                self.updater.mk_assign(inst, inst.operands[0], new_output=var)
             elif inst.opcode == "mload":
-                self.updater.store(inst, var)
+                self.updater.mk_assign(inst, var)

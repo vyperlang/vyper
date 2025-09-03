@@ -48,17 +48,19 @@ class DFGAnalysis(IRAnalysis):
         uses.remove(inst)
 
     def are_equivalent(self, var1: IROperand, var2: IROperand) -> bool:
-        if isinstance(var1, IRVariable):
-            var1 = self._traverse_store_chain(var1)
-        if isinstance(var2, IRVariable):
-            var2 = self._traverse_store_chain(var2)
+        if var1 == var2:
+            return True
+
+        if isinstance(var1, IRVariable) and isinstance(var2, IRVariable):
+            var1 = self._traverse_assign_chain(var1)
+            var2 = self._traverse_assign_chain(var2)
 
         return var1 == var2
 
-    def _traverse_store_chain(self, var: IRVariable) -> IRVariable:
+    def _traverse_assign_chain(self, var: IRVariable) -> IRVariable:
         while True:
             inst = self.get_producing_instruction(var)
-            if inst is None or inst.opcode != "store":
+            if inst is None or inst.opcode != "assign":
                 return var
             var = inst.operands[0]  # type: ignore
 

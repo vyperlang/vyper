@@ -59,7 +59,7 @@ class LoadElimination(IRPass):
         assert inst.output is not None  # help mypy
 
         if len(existing_value) == 1:
-            self.updater.store(inst, existing_value.pop())
+            self.updater.mk_assign(inst, existing_value.pop())
         elif len(existing_value) > 1:
             bb = inst.parent
             while len(preds := self.cfg.cfg_in(bb)) == 1:
@@ -91,7 +91,7 @@ class LoadElimination(IRPass):
 
             join = self.updater.add_before(first_inst, "phi", ops)
             assert join is not None
-            self.updater.store(inst, join)
+            self.updater.mk_assign(inst, join)
 
     def _handle_store(self, inst):
         # mstore [val, ptr]

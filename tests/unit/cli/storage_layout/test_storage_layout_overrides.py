@@ -1,21 +1,12 @@
-import json
 import re
-from pathlib import PurePath
 
 import pytest
 
+from tests.utils import json_input
 from vyper.cli.vyper_json import compile_json
 from vyper.compiler import compile_code
-from vyper.compiler.input_bundle import JSONInput
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import StorageLayoutException
-
-
-def json_input(json_data):
-    path = PurePath("<dummy json file>")
-    return JSONInput(
-        data=json_data, contents=json.dumps(json_data), source_id=-1, path=path, resolved_path=path
-    )
 
 
 def test_storage_layout_overrides():
