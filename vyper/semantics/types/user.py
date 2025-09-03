@@ -21,7 +21,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
-# Import moved to local scope to avoid circular dependency
+from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import keccak256
 from vyper.warnings import Deprecation, vyper_warn
@@ -453,7 +453,6 @@ class StructT(_UserType):
             raise VariableDeclarationException(
                 "Struct values must be declared as kwargs e.g. Foo(a=1, b=2)", node.args[0]
             )
-        from vyper.semantics.types.subscriptable import HashMapT
         if next((i for i in self.member_types.values() if isinstance(i, HashMapT)), False):
             raise VariableDeclarationException(
                 "Struct contains a mapping and so cannot be declared as a literal", node
