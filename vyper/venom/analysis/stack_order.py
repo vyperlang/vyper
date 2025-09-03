@@ -1,6 +1,6 @@
 from vyper.venom.analysis import CFGAnalysis, LivenessAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
 from vyper.venom.function import IRFunction
 
 # needed [top, ... , bottom]
@@ -52,7 +52,6 @@ class StackOrderAnalysis:
     def analyze_bb(self, bb: IRBasicBlock) -> Needed:
         self.needed: Needed = []
         self.stack: Stack = []
-        self.translates: dict[IRVariable, dict[IRLabel, IRVariable]] = dict()
 
         for inst in bb.instructions:
             if inst.opcode == "assign":
@@ -76,13 +75,7 @@ class StackOrderAnalysis:
                 self.stack.append(inst.output)
 
         for pred in self.cfg.cfg_in(bb):
-            translates: Needed = []
-            for var in self.needed:
-                if var in self.translates:
-                    translates.append(self.translates[var][pred])
-                else:
-                    translates.append(var)
-            self._from_to[(pred, bb)] = translates
+            self._from_to[(pred, bb)] = self.needed.copy()
 
         return self.needed
 
@@ -167,14 +160,3 @@ class StackOrderAnalysis:
         for op in self._merge(orders):
             if op not in self.stack:
                 self._add_needed(op)
-
-    def _handle_phi(self, inst: IRInstruction):
-        assert inst.opcode == "phi"
-        assert inst.output is not None
-
-        out_var = inst.output
-        self.translates[out_var] = dict()
-
-        for label, var in inst.phi_operands:
-            assert isinstance(var, IRVariable)
-            self.translates[out_var][label] = var
