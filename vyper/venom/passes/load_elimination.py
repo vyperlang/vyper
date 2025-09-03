@@ -45,12 +45,6 @@ class LoadElimination(IRPass):
     def equivalent(self, op1, op2):
         return self.dfg.are_equivalent(op1, op2)
 
-    def get_literal(self, op):
-        op = self.dfg._traverse_store_chain(op)
-        if isinstance(op, IRLiteral):
-            return op
-        return None
-
     def _handle_load(self, inst):
         (ptr,) = inst.operands
 
