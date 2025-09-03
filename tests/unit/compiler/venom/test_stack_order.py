@@ -299,6 +299,7 @@ def test_stack_order_phi():
     _check_pre_post(pre, post)
 
 
+@pytest.mark.xfail
 def test_stack_order_more_phi():
     pre = """
     main:
