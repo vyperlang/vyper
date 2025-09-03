@@ -720,3 +720,34 @@ def foo(bar: {i_typ}) -> {o_typ}:
         input_val = decimal_to_int(input_val)
     with tx_failed():
         c3.foo(input_val)
+
+
+@pytest.mark.parametrize(
+    "val",
+    [
+        "a000",
+        "0880",
+        "deadbeef",
+        "cafebabe",
+        "0123456789abcdef",
+        # test cases that would trigger sign extension
+        "80",
+        "8000",
+        "800000",
+        "80000000",
+        "8000000000000000",
+        "ff",
+        "ffff",
+        "ffffffff",
+        "ffffffffffffffff",
+    ],
+)
+def test_convert_bytes_literal_int(get_contract, val):
+    expected = int(val, 16)
+    source = f"""
+@external
+def test() -> uint256:
+    return convert(x'{val}', uint256)
+"""
+    c = get_contract(source)
+    assert c.test() == expected

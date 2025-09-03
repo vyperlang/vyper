@@ -45,12 +45,6 @@ class LoadElimination(IRPass):
     def equivalent(self, op1, op2):
         return self.dfg.are_equivalent(op1, op2)
 
-    def get_literal(self, op):
-        op = self.dfg._traverse_store_chain(op)
-        if isinstance(op, IRLiteral):
-            return op
-        return None
-
     def _handle_load(self, inst):
         (ptr,) = inst.operands
 
@@ -59,7 +53,7 @@ class LoadElimination(IRPass):
         assert inst.output is not None  # help mypy
 
         if len(existing_value) == 1:
-            self.updater.store(inst, existing_value.pop())
+            self.updater.mk_assign(inst, existing_value.pop())
         elif len(existing_value) > 1:
             bb = inst.parent
             while len(preds := self.cfg.cfg_in(bb)) == 1:
@@ -91,7 +85,7 @@ class LoadElimination(IRPass):
 
             join = self.updater.add_before(first_inst, "phi", ops)
             assert join is not None
-            self.updater.store(inst, join)
+            self.updater.mk_assign(inst, join)
 
     def _handle_store(self, inst):
         # mstore [val, ptr]

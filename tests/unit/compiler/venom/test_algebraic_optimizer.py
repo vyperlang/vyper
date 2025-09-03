@@ -222,9 +222,9 @@ def test_offsets():
         %1 = offset @main, 0
 
         ; TODO fix this, should be `offset @main, 0`
-        ; (also, the `store` opcode is used directly because
+        ; (also, the `assign` opcode is used directly because
         ; the parser does not see the label as literal)
-        %2 = store @main
+        %2 = assign @main
         %3 = add %par, @main
         sink %1, %2, %3
     """

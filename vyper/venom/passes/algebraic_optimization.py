@@ -127,7 +127,7 @@ class AlgebraicOptimizationPass(IRPass):
             return
         if inst.is_volatile:
             return
-        if inst.opcode == "store":
+        if inst.opcode == "assign":
             return
         if inst.is_pseudo:
             return
@@ -150,7 +150,7 @@ class AlgebraicOptimizationPass(IRPass):
         if inst.opcode in {"shl", "shr", "sar"}:
             # (x >> 0) == (x << 0) == x
             if lit_eq(operands[1], 0):
-                self.updater.store(inst, operands[0])
+                self.updater.mk_assign(inst, operands[0])
                 return
             # no more cases for these instructions
             return
@@ -158,12 +158,12 @@ class AlgebraicOptimizationPass(IRPass):
         if inst.opcode == "exp":
             # x ** 0 -> 1
             if lit_eq(operands[0], 0):
-                self.updater.store(inst, IRLiteral(1))
+                self.updater.mk_assign(inst, IRLiteral(1))
                 return
 
             # 1 ** x -> 1
             if lit_eq(operands[1], 1):
-                self.updater.store(inst, IRLiteral(1))
+                self.updater.mk_assign(inst, IRLiteral(1))
                 return
 
             # 0 ** x -> iszero x
@@ -173,7 +173,7 @@ class AlgebraicOptimizationPass(IRPass):
 
             # x ** 1 -> x
             if lit_eq(operands[0], 1):
-                self.updater.store(inst, operands[1])
+                self.updater.mk_assign(inst, operands[1])
                 return
 
             # no more cases for this instruction
@@ -182,14 +182,14 @@ class AlgebraicOptimizationPass(IRPass):
         if inst.opcode in {"add", "sub", "xor"}:
             # (x - x) == (x ^ x) == 0
             if inst.opcode in ("xor", "sub") and operands[0] == operands[1]:
-                self.updater.store(inst, IRLiteral(0))
+                self.updater.mk_assign(inst, IRLiteral(0))
                 return
 
             # (x + 0) == (0 + x)  -> x
             # x - 0 -> x
             # (x ^ 0) == (0 ^ x)  -> x
             if lit_eq(operands[0], 0):
-                self.updater.store(inst, operands[1])
+                self.updater.mk_assign(inst, operands[1])
                 return
 
             # (-1) - x -> ~x
@@ -207,24 +207,24 @@ class AlgebraicOptimizationPass(IRPass):
 
         # x & 0xFF..FF -> x
         if inst.opcode == "and" and lit_eq(operands[0], -1):
-            self.updater.store(inst, operands[1])
+            self.updater.mk_assign(inst, operands[1])
             return
 
         if inst.opcode in ("mul", "and", "div", "sdiv", "mod", "smod"):
             # (x * 0) == (x & 0) == (x // 0) == (x % 0) -> 0
             if any(lit_eq(op, 0) for op in operands):
-                self.updater.store(inst, IRLiteral(0))
+                self.updater.mk_assign(inst, IRLiteral(0))
                 return
 
         if inst.opcode in {"mul", "div", "sdiv", "mod", "smod"}:
             if inst.opcode in ("mod", "smod") and lit_eq(operands[0], 1):
                 # x % 1 -> 0
-                self.updater.store(inst, IRLiteral(0))
+                self.updater.mk_assign(inst, IRLiteral(0))
                 return
 
             # (x * 1) == (1 * x) == (x // 1)  -> x
             if inst.opcode in ("mul", "div", "sdiv") and lit_eq(operands[0], 1):
-                self.updater.store(inst, operands[1])
+                self.updater.mk_assign(inst, operands[1])
                 return
 
             if self._is_lit(operands[0]) and is_power_of_two(operands[0].value):
@@ -256,23 +256,23 @@ class AlgebraicOptimizationPass(IRPass):
         if inst.opcode == "or":
             # x | 0xff..ff == 0xff..ff
             if any(lit_eq(op, SizeLimits.MAX_UINT256) for op in operands):
-                self.updater.store(inst, IRLiteral(SizeLimits.MAX_UINT256))
+                self.updater.mk_assign(inst, IRLiteral(SizeLimits.MAX_UINT256))
                 return
 
             # x | n -> 1 in truthy positions (if n is non zero)
             if is_truthy and self._is_lit(operands[0]) and operands[0].value != 0:
-                self.updater.store(inst, IRLiteral(1))
+                self.updater.mk_assign(inst, IRLiteral(1))
                 return
 
             # x | 0 -> x
             if lit_eq(operands[0], 0):
-                self.updater.store(inst, operands[1])
+                self.updater.mk_assign(inst, operands[1])
                 return
 
         if inst.opcode == "eq":
             # x == x -> 1
             if operands[0] == operands[1]:
-                self.updater.store(inst, IRLiteral(1))
+                self.updater.mk_assign(inst, IRLiteral(1))
                 return
 
             # x == 0 -> iszero x
@@ -306,7 +306,7 @@ class AlgebraicOptimizationPass(IRPass):
 
         # (x > x) == (x < x) -> 0
         if operands[0] == operands[1]:
-            self.updater.store(inst, IRLiteral(0))
+            self.updater.mk_assign(inst, IRLiteral(0))
             return
 
         is_gt = "g" in opcode
@@ -333,7 +333,7 @@ class AlgebraicOptimizationPass(IRPass):
             almost_never = lo + 1
 
         if lit_eq(operands[0], never):
-            self.updater.store(inst, IRLiteral(0))
+            self.updater.mk_assign(inst, IRLiteral(0))
             return
 
         if lit_eq(operands[0], almost_never):
@@ -408,4 +408,4 @@ class AlgebraicOptimizationPass(IRPass):
         else:
             # remove the iszero!
             assert len(after.operands) == 1, after
-            self.updater.update(after, "store", after.operands)
+            self.updater.update(after, "assign", after.operands)
