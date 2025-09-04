@@ -475,6 +475,30 @@ The following code uses bitwise operations to add and revoke permissions from a 
         ret ^= Roles.USER  # flip the user bit between 0 and 1
         return ret
 
+Iteration
+^^^^^^^^^
+
+You can iterate over all members of a flag type via the special type member ``__values__``. The loop variable must be annotated with the same flag type.
+
+The iteration order follows the declaration order (i.e. ascending bit index from left to right), and the number of iterations is statically bounded by the number of members in the flag.
+
+.. code-block:: vyper
+
+    flag Permission:
+        READ
+        WRITE
+        EXECUTE
+
+    @external
+    @pure
+    def all_mask() -> uint256:
+        acc: uint256 = 0
+        for p: Permission in Permission.__values__:
+            acc = acc | convert(p, uint256)
+        return acc  # 1 | 2 | 4 == 7
+
+Attempting to iterate a flag type with a loop variable of a different type is a type error.
+
 .. index:: !reference
 
 Reference Types

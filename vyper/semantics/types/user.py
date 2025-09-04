@@ -75,6 +75,15 @@ class FlagT(_UserType):
         self._helper._id = name
 
     def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
+        # Special iterator helper for flags: `Flag.__values__`
+        # Returns a static array type of all flag values in declaration order.
+        if key == "__values__":
+            from vyper.semantics.types.subscriptable import SArrayT
+
+            return SArrayT(self, len(self._flag_members))
+
+        # Regular flag member access (e.g., `Flag.FOO`) validates the member name
+        # and yields the flag type in expression position.
         self._helper.get_member(key, node)
         return self
 

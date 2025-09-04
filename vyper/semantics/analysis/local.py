@@ -575,6 +575,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             # sanity check the postcondition of analyse_range_iter
             assert isinstance(target_type, IntegerT)
         else:
+            # Iterate over lists/arrays (including Flag.__values__)
             # note: using `node.target` here results in bad source location.
             iter_var = self._analyse_list_iter(node.target.target, node.iter, target_type)
 
