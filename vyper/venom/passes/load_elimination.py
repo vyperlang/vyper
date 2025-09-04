@@ -1,19 +1,8 @@
-from typing import Optional
-
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRLiteral
+from vyper.utils import OrderedSet
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis, LoadAnalysis
+from vyper.venom.basicblock import IRVariable
 from vyper.venom.effects import Effects
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
-
-
-def _conflict(store_opcode: str, k1: IRLiteral, k2: IRLiteral):
-    ptr1, ptr2 = k1.value, k2.value
-    # hardcode the size of store opcodes for now. maybe refactor to use
-    # vyper.evm.address_space
-    if store_opcode == "mstore":
-        return abs(ptr1 - ptr2) < 32
-    assert store_opcode in ("sstore", "tstore"), "unhandled store opcode"
-    return abs(ptr1 - ptr2) < 1
 
 
 class LoadElimination(IRPass):
@@ -26,80 +15,87 @@ class LoadElimination(IRPass):
     updater: InstUpdater
 
     def run_pass(self):
-        self.updater = InstUpdater(self.analyses_cache.request_analysis(DFGAnalysis))
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.updater = InstUpdater(self.dfg)
+        self.load_analysis = self.analyses_cache.request_analysis(LoadAnalysis)
+
+        self._run(Effects.MEMORY, "mload", "mstore")
+        self._run(Effects.TRANSIENT, "tload", "tstore")
+        self._run(Effects.STORAGE, "sload", "sstore")
+        self._run("dload", "dload", None)
+        self._run("calldataload", "calldataload", None)
 
         for bb in self.function.get_basic_blocks():
-            self._process_bb(bb, Effects.MEMORY, "mload", "mstore")
-            self._process_bb(bb, Effects.TRANSIENT, "tload", "tstore")
-            self._process_bb(bb, Effects.STORAGE, "sload", "sstore")
-            self._process_bb(bb, None, "dload", None)
-            self._process_bb(bb, None, "calldataload", None)
+            bb.ensure_well_formed()
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
+
+    def _run(self, eff, load_opcode, store_opcode):
+        self._lattice = self.load_analysis.lattice[eff]
+        self._bb_lattice = self.load_analysis.eff_bb_lattice[eff]
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions.copy():
+                if inst.opcode == load_opcode:
+                    self._handle_load(inst)
+                elif inst.opcode == store_opcode:
+                    self._handle_store(inst)
 
     def equivalent(self, op1, op2):
-        return op1 == op2
-
-    def get_literal(self, op):
-        if isinstance(op, IRLiteral):
-            return op
-        return None
-
-    def _process_bb(self, bb, eff, load_opcode, store_opcode):
-        # not really a lattice even though it is not really inter-basic block;
-        # we may generalize in the future
-        self._lattice = {}
-
-        for inst in bb.instructions:
-            if inst.opcode == store_opcode:
-                self._handle_store(inst, store_opcode)
-
-            elif eff is not None and eff in inst.get_write_effects():
-                self._lattice = {}
-
-            elif inst.opcode == load_opcode:
-                self._handle_load(inst)
+        return self.dfg.are_equivalent(op1, op2)
 
     def _handle_load(self, inst):
         (ptr,) = inst.operands
 
-        existing_value = self._lattice.get(ptr)
+        existing_value = self._lattice[inst].get(ptr, OrderedSet()).copy()
 
         assert inst.output is not None  # help mypy
 
-        # "cache" the value for future load instructions
-        self._lattice[ptr] = inst.output
+        if len(existing_value) == 1:
+            self.updater.mk_assign(inst, existing_value.pop())
+        elif len(existing_value) > 1:
+            bb = inst.parent
+            while len(preds := self.cfg.cfg_in(bb)) == 1:
+                bb = preds.first()
+            first_inst = bb.instructions[0]
+            ops = []
+            for pred in self.cfg.cfg_in(bb):
+                pred_lattice = self._bb_lattice[pred]
+                if ptr not in pred_lattice:
+                    continue
+                val = pred_lattice[ptr]
+                if len(val) == 0:
+                    continue
+                if len(val) > 1:
+                    # could be handled
+                    # but if would require
+                    # more phis
+                    return
+                val = val.first()
+                assert val in existing_value
+                if not isinstance(val, IRVariable):
+                    # could be extended by
+                    # adding stores to source
+                    # basicblocks
+                    return
+                ops.extend([pred.label, val])
 
-        if existing_value is not None:
-            self.updater.mk_assign(inst, existing_value)
+            assert len(ops) == 2 * len(existing_value), (ops, existing_value, inst)
 
-    def _handle_store(self, inst, store_opcode):
+            join = self.updater.add_before(first_inst, "phi", ops)
+            assert join is not None
+            self.updater.mk_assign(inst, join)
+
+    def _handle_store(self, inst):
         # mstore [val, ptr]
         val, ptr = inst.operands
 
-        known_ptr: Optional[IRLiteral] = self.get_literal(ptr)
-        if known_ptr is None:
-            # it's a variable. assign this ptr in the lattice and flush
-            # everything else.
-            self._lattice = {ptr: val}
-            return
+        existing_value = self._lattice[inst].get(ptr, OrderedSet()).copy()
 
         # we found a redundant store, eliminate it
-        existing_val = self._lattice.get(known_ptr)
-        if self.equivalent(val, existing_val):
+        if len(existing_value) > 0:
+            for tmp in existing_value:
+                if not self.equivalent(val, tmp):
+                    return
             self.updater.nop(inst)
-            return
-
-        self._lattice[known_ptr] = val
-
-        # kick out any conflicts
-        for existing_key in self._lattice.copy().keys():
-            if not isinstance(existing_key, IRLiteral):
-                # a variable in the lattice. assign this ptr in the lattice
-                # and flush everything else.
-                self._lattice = {known_ptr: val}
-                break
-
-            if _conflict(store_opcode, known_ptr, existing_key):
-                del self._lattice[existing_key]
-                self._lattice[known_ptr] = val
