@@ -1,7 +1,7 @@
 import json
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Iterable, Optional
 
 from eth_keys.datatypes import PrivateKey
 from eth_utils import to_checksum_address
@@ -9,7 +9,7 @@ from eth_utils import to_checksum_address
 from tests.evm_backends.abi import abi_decode
 from tests.evm_backends.abi_contract import ABIContract, ABIContractFactory, ABIFunction
 from vyper.ast.grammar import parse_vyper_source
-from vyper.compiler import CompilerData, InputBundle, Settings, compile_code
+from vyper.compiler import InputBundle, Settings, compile_code
 from vyper.utils import ERC5202_PREFIX, method_id
 
 
@@ -68,15 +68,18 @@ class BaseEnv:
     def deploy_source(
         self,
         source_code: str,
-        output_formats: dict[str, Callable[[CompilerData], str]],
+        output_formats: Iterable[str],
         *args,
         compiler_settings: Settings = None,
         input_bundle: InputBundle = None,
         value: int = 0,
+        storage_layout_override=None,
         **kwargs,
     ) -> ABIContract:
         """Compile and deploy a contract from source code."""
-        abi, bytecode = _compile(source_code, output_formats, input_bundle, compiler_settings)
+        abi, bytecode = _compile(
+            source_code, output_formats, input_bundle, compiler_settings, storage_layout_override
+        )
         return self.deploy(abi, bytecode, value, *args, **kwargs)
 
     def deploy_blueprint(
@@ -218,9 +221,10 @@ class BaseEnv:
 
 def _compile(
     source_code: str,
-    output_formats: dict[str, Callable[[CompilerData], str]],
+    output_formats: Iterable[str],
     input_bundle: InputBundle = None,
     settings: Settings = None,
+    storage_layout_override=None,
 ) -> tuple[list[dict], bytes]:
     out = compile_code(
         source_code,
@@ -229,6 +233,7 @@ def _compile(
         settings=settings,
         input_bundle=input_bundle,
         show_gas_estimates=True,  # Enable gas estimates for testing
+        storage_layout_override=storage_layout_override,
     )
     parse_vyper_source(source_code)  # Test grammar.
     json.dumps(out["metadata"])  # test metadata is json serializable

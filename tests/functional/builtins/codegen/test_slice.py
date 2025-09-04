@@ -5,7 +5,7 @@ from hypothesis import given, settings
 from vyper.compiler import compile_code
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import ArgumentException, CompilerPanic, TypeMismatch
+from vyper.exceptions import ArgumentException, StaticAssertionException, TypeMismatch
 
 _fun_bytes32_bounds = [(0, 32), (3, 29), (27, 5), (0, 5), (5, 3), (30, 2)]
 
@@ -38,6 +38,25 @@ def _fail_contract(code, opt_level, exceptions):
     settings = Settings(optimize=opt_level)
     with pytest.raises(exceptions):
         compile_code(code, settings=settings)
+
+
+# tests: calldata, code, extcode
+@pytest.mark.parametrize("ad_hoc_location", ("msg.data", "self.code", "msg.sender.code"))
+def test_slice_ad_hoc_zero_length(get_contract, ad_hoc_location):
+    code = f"""
+counter: public(uint256)
+
+@external
+def test() -> Bytes[10]:
+    b: Bytes[10]= slice({ad_hoc_location}, self.side_effect(), 0)
+    return b
+
+def side_effect() -> uint256:
+    self.counter += 1
+    return 0
+    """
+    with pytest.raises(ArgumentException, match="Length cannot be less than 1"):
+        compile_code(code)
 
 
 @pytest.mark.parametrize("use_literal_start", (True, False))
@@ -533,9 +552,15 @@ def do_slice():
 
 @pytest.mark.parametrize("bad_code", oob_fail_list)
 def test_slice_buffer_oob_reverts(bad_code, get_contract, tx_failed):
-    c = get_contract(bad_code)
-    with tx_failed():
-        c.do_slice()
+    try:
+        c = get_contract(bad_code)
+        with tx_failed():
+            c.do_slice()
+    except StaticAssertionException:
+        # it should be ok if we
+        # catch the assert in compile time
+        # since it supposed to be revert
+        pass
 
 
 # tests all 3 adhoc locations: `msg.data`, `self.code`, `<address>.code`
@@ -564,8 +589,6 @@ def foo(cs: String[64]) -> uint256:
     assert c.foo(arg) == 1
 
 
-# to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
 def test_slice_order_of_eval(get_contract):
     slice_code = """
 var:DynArray[Bytes[96], 1]
@@ -589,8 +612,6 @@ def foo() -> Bytes[96]:
     assert c.foo() == b"defghijklmnopqrstuvwxyz123456789"
 
 
-# to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
 def test_slice_order_of_eval2(get_contract):
     slice_code = """
 var:DynArray[Bytes[96], 1]
@@ -612,3 +633,37 @@ def foo() -> Bytes[96]:
 
     c = get_contract(slice_code)
     assert c.foo() == b"defghijklmnopqrstuvwxyz123456789"
+
+
+def test_slice_empty_bytes32(get_contract):
+    code = """
+@external
+def bar() -> Bytes[32]:
+    return slice(empty(bytes32), 0, 32)
+    """
+    c = get_contract(code)
+    assert c.bar() == b"\x00" * 32
+
+
+def test_slice_empty_Bytes32_0(get_contract, tx_failed):
+    code = """
+@external
+def bar(length: uint256) -> Bytes[32]:
+    # use variable length otherwise it gets optimized to
+    # StaticAssertionException
+    return slice(empty(Bytes[32]), 0, length)
+    """
+    c = get_contract(code)
+    with tx_failed():
+        _ = c.bar(1)
+
+
+def test_slice_empty_Bytes32_1(get_contract):
+    code = """
+@external
+def bar() -> Bytes[32]:
+    length: uint256 = 0
+    return slice(empty(Bytes[32]), 0, length)
+    """
+    c = get_contract(code)
+    assert c.bar() == b""

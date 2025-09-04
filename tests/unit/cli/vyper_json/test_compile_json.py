@@ -5,6 +5,7 @@ import pytest
 
 import vyper
 from vyper.cli.vyper_json import (
+    VENOM_KEYS,
     compile_from_input_dict,
     compile_json,
     exc_handler_to_dict,
@@ -12,13 +13,16 @@ from vyper.cli.vyper_json import (
     get_settings,
 )
 from vyper.compiler import OUTPUT_FORMATS, compile_code, compile_from_file_input
-from vyper.compiler.input_bundle import JSONInputBundle
+from vyper.compiler.input_bundle import JSONInput, JSONInputBundle
 from vyper.exceptions import JSONError, SyntaxException, TypeMismatch
 
 FOO_CODE = """
 import contracts.ibar as IBar
 
 import contracts.library as library
+
+a: uint256
+b: uint256
 
 @external
 def foo(a: address) -> bool:
@@ -29,15 +33,28 @@ def baz() -> uint256:
     return self.balance + library.foo()
 """
 
+FOO_STORAGE_LAYOUT_OVERRIDES = {
+    "a": {"type": "uint256", "n_slots": 1, "slot": 5},
+    "b": {"type": "uint256", "n_slots": 1, "slot": 0},
+}
+
 BAR_CODE = """
 import contracts.ibar as IBar
 
 implements: IBar
 
+c: uint256
+d: uint256
+
 @external
 def bar(a: uint256) -> bool:
     return True
 """
+
+BAR_STORAGE_LAYOUT_OVERRIDES = {
+    "c": {"type": "uint256", "n_slots": 1, "slot": 13},
+    "d": {"type": "uint256", "n_slots": 1, "slot": 7},
+}
 
 BAR_VYI = """
 @external
@@ -73,7 +90,7 @@ BAR_ABI = [
 
 
 @pytest.fixture(scope="function")
-def input_json(optimize, evm_version, experimental_codegen):
+def input_json(optimize, evm_version, experimental_codegen, debug):
     return {
         "language": "Vyper",
         "sources": {
@@ -87,6 +104,11 @@ def input_json(optimize, evm_version, experimental_codegen):
             "optimize": optimize.name.lower(),
             "evmVersion": evm_version,
             "experimentalCodegen": experimental_codegen,
+            "debug": debug,
+        },
+        "storage_layout_overrides": {
+            "contracts/foo.vy": {"foo_overrides.json": FOO_STORAGE_LAYOUT_OVERRIDES},
+            "contracts/bar.vy": {"bar_overrides.json": BAR_STORAGE_LAYOUT_OVERRIDES},
         },
     }
 
@@ -117,17 +139,23 @@ def test_keyerror_becomes_jsonerror(input_json):
         compile_json(input_json)
 
 
-def test_compile_json(input_json, input_bundle):
+def json_input(json_data, path):
+    path = PurePath(path)
+    return JSONInput(
+        contents=json.dumps(json_data), data=json_data, source_id=-1, path=path, resolved_path=path
+    )
+
+
+def test_compile_json(input_json, input_bundle, experimental_codegen):
     foo_input = input_bundle.load_file("contracts/foo.vy")
     # remove venom related from output formats
     # because they require venom (experimental)
     output_formats = OUTPUT_FORMATS.copy()
-    del output_formats["bb"]
-    del output_formats["bb_runtime"]
-    del output_formats["cfg"]
-    del output_formats["cfg_runtime"]
     foo = compile_from_file_input(
-        foo_input, output_formats=output_formats, input_bundle=input_bundle
+        foo_input,
+        output_formats=output_formats,
+        input_bundle=input_bundle,
+        storage_layout_override=json_input(FOO_STORAGE_LAYOUT_OVERRIDES, path="foo_override.json"),
     )
 
     library_input = input_bundle.load_file("contracts/library.vy")
@@ -137,7 +165,10 @@ def test_compile_json(input_json, input_bundle):
 
     bar_input = input_bundle.load_file("contracts/bar.vy")
     bar = compile_from_file_input(
-        bar_input, output_formats=output_formats, input_bundle=input_bundle
+        bar_input,
+        output_formats=output_formats,
+        input_bundle=input_bundle,
+        storage_layout_override=json_input(BAR_STORAGE_LAYOUT_OVERRIDES, path="bar_override.json"),
     )
 
     compile_code_results = {
@@ -164,12 +195,13 @@ def test_compile_json(input_json, input_bundle):
             "ast": data["ast_dict"]["ast"],
             "annotated_ast": data["annotated_ast_dict"]["ast"],
         }
-        assert output_json["contracts"][path][contract_name] == {
+        expected = {
             "abi": data["abi"],
             "devdoc": data["devdoc"],
             "interface": data["interface"],
             "ir": data["ir_dict"],
             "userdoc": data["userdoc"],
+            "layout": data["layout"],
             "metadata": data["metadata"],
             "evm": {
                 "bytecode": {
@@ -185,6 +217,14 @@ def test_compile_json(input_json, input_bundle):
                 "methodIdentifiers": data["method_identifiers"],
             },
         }
+        if experimental_codegen:
+            expected["venom"] = {
+                "bb": repr(data["bb"]),
+                "bb_runtime": repr(data["bb_runtime"]),
+                "cfg": data["cfg"],
+                "cfg_runtime": data["cfg_runtime"],
+            }
+        assert output_json["contracts"][path][contract_name] == expected
 
 
 def test_compilation_targets(input_json):
@@ -202,7 +242,7 @@ def test_compilation_targets(input_json):
     assert list(output_json["contracts"].keys()) == ["contracts/foo.vy", "contracts/bar.vy"]
 
 
-def test_different_outputs(input_bundle, input_json):
+def test_different_outputs(input_bundle, input_json, experimental_codegen):
     input_json["settings"]["outputSelection"] = {
         "contracts/bar.vy": "*",
         "contracts/foo.vy": ["evm.methodIdentifiers"],
@@ -217,7 +257,11 @@ def test_different_outputs(input_bundle, input_json):
 
     foo = contracts["contracts/foo.vy"]["foo"]
     bar = contracts["contracts/bar.vy"]["bar"]
-    assert sorted(bar.keys()) == ["abi", "devdoc", "evm", "interface", "ir", "metadata", "userdoc"]
+    expected_keys = ["abi", "devdoc", "evm", "interface", "ir", "layout", "metadata", "userdoc"]
+    if experimental_codegen:
+        expected_keys.append("venom")
+        expected_keys.sort()
+    assert sorted(bar.keys()) == expected_keys
 
     assert sorted(foo.keys()) == ["evm"]
 
@@ -269,6 +313,16 @@ def test_exc_handler_to_dict_compiler(input_json):
     assert error["type"] == "TypeMismatch"
 
 
+def test_unknown_storage_layout_overrides(input_json):
+    unknown_contract_path = "contracts/baz.vy"
+    input_json["storage_layout_overrides"] = {
+        unknown_contract_path: {"foo_override.json": FOO_STORAGE_LAYOUT_OVERRIDES}
+    }
+    with pytest.raises(JSONError) as e:
+        compile_json(input_json)
+    assert e.value.args[0] == f"unknown target for storage layout override: {unknown_contract_path}"
+
+
 def test_source_ids_increment(input_json):
     input_json["settings"]["outputSelection"] = {"*": ["ast", "evm.deployedBytecode.sourceMap"]}
     result = compile_json(input_json)
@@ -294,7 +348,7 @@ def test_source_ids_increment(input_json):
 def test_relative_import_paths(input_json):
     input_json["sources"]["contracts/potato/baz/baz.vy"] = {"content": "from ... import foo"}
     input_json["sources"]["contracts/potato/baz/potato.vy"] = {"content": "from . import baz"}
-    input_json["sources"]["contracts/potato/footato.vy"] = {"content": "from baz import baz"}
+    input_json["sources"]["contracts/potato/footato.vy"] = {"content": "from .baz import baz"}
     compile_from_input_dict(input_json)
 
 
@@ -319,7 +373,8 @@ def test_compile_json_with_abi_top(make_input_bundle):
 from . import stream
     """
     input_bundle = make_input_bundle({"stream.json": stream, "code.vy": code})
-    vyper.compiler.compile_code(code, input_bundle=input_bundle)
+    file_input = input_bundle.load_file("code.vy")
+    vyper.compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
 
 
 def test_compile_json_with_experimental_codegen():
@@ -329,14 +384,82 @@ def test_compile_json_with_experimental_codegen():
         "settings": {
             "evmVersion": "cancun",
             "optimize": "gas",
-            "venom": True,
-            "search_paths": [],
+            "venomExperimental": True,
+            "search_paths": ["."],
+            "outputSelection": {"*": VENOM_KEYS},
+        },
+    }
+    compiled = compile_from_input_dict(code)
+    expected = compiled[0][PurePath("foo.vy")]
+
+    settings = get_settings(code)
+    assert settings.experimental_codegen is True
+    output_json = compile_json(code)
+    assert "venom" in output_json["contracts"]["foo.vy"]["foo"]
+    venom = output_json["contracts"]["foo.vy"]["foo"]["venom"]
+    assert venom["bb"] == repr(expected["bb"])
+    assert venom["bb_runtime"] == repr(expected["bb_runtime"])
+    assert venom["cfg"] == expected["cfg"]
+    assert venom["cfg_runtime"] == expected["cfg_runtime"]
+
+
+def test_compile_json_subgraph_label():
+    foo_code = """
+a: uint256
+b: address
+
+@internal
+def _foo(f: uint256, g: address) -> uint256:
+    self.a = f
+    self.b = g
+    return self.a
+
+
+@internal
+def _bar(f: uint256, g: address) -> uint256:
+    self._foo(f, g)
+    self._foo(f, g)
+    return self.a
+
+
+@external
+def call_foo(amount: uint256, account: address) -> uint256:
+    return self._bar(amount, account)
+    """
+    code = {
+        "language": "Vyper",
+        "sources": {"foo.vy": {"content": foo_code}},
+        "settings": {
+            "evmVersion": "cancun",
+            "optimize": "gas",
+            "venomExperimental": True,
+            "search_paths": ["."],
+            "outputSelection": {"*": ["cfg_runtime"]},
+        },
+    }
+    output_json = compile_json(code)
+    venom = output_json["contracts"]["foo.vy"]["foo"]["venom"]
+    # ensure that quotes are formatted properly in the output
+    assert 'subgraph "internal 0 _foo(uint256,address)_runtime"' in venom["cfg_runtime"]
+
+
+def test_compile_json_without_experimental_codegen():
+    code = {
+        "language": "Vyper",
+        "sources": {"foo.vy": {"content": "@external\ndef foo() -> bool:\n    return True"}},
+        "settings": {
+            "evmVersion": "cancun",
+            "optimize": "gas",
+            "venomExperimental": False,
+            "search_paths": ["."],
             "outputSelection": {"*": ["ast"]},
         },
     }
 
     settings = get_settings(code)
-    assert settings.experimental_codegen is True
+    assert settings.experimental_codegen is False
+    output_json = compile_json(code)
+    assert "venom" not in output_json["contracts"]["foo.vy"]["foo"]
 
 
 def test_compile_json_with_both_venom_aliases():
@@ -347,11 +470,11 @@ def test_compile_json_with_both_venom_aliases():
             "evmVersion": "cancun",
             "optimize": "gas",
             "experimentalCodegen": False,
-            "venom": False,
+            "venomExperimental": False,
             "search_paths": [],
             "outputSelection": {"*": ["ast"]},
         },
     }
     with pytest.raises(JSONError) as e:
         get_settings(code)
-    assert e.value.args[0] == "both experimentalCodegen and venom cannot be set"
+    assert e.value.args[0] == "both experimentalCodegen and venomExperimental cannot be set"

@@ -47,8 +47,34 @@ External functions (marked with the ``@external`` decorator) are a part of the c
 
 A Vyper contract cannot call directly between two external functions. If you must do this, you can use an :ref:`interface <interfaces>`.
 
+External functions can use the ``@raw_return`` decorator to return raw bytes without ABI-encoding:
+
+.. code-block:: vyper
+
+    @external
+    @payable
+    @raw_return
+    def proxy_call(target: address) -> Bytes[128]:
+        # Forward a call and return the raw response without ABI-encoding
+        return raw_call(
+            target,
+            msg.data,
+            is_delegate_call=True,
+            max_outsize=128,
+            value=msg.value
+        )
+
 .. note::
-    For external functions with default arguments like ``def my_function(x: uint256, b: uint256 = 1)`` the Vyper compiler will generate ``N+1`` overloaded function selectors based on ``N`` default arguments.
+    For external functions with default arguments like ``def my_function(x: uint256, b: uint256 = 1)`` the Vyper compiler will generate ``N+1`` overloaded function selectors based on ``N`` default arguments. Consequently, the ABI signature for a function (this includes interface functions) excludes optional arguments when their default values are used in the function call.
+
+    .. code-block:: vyper
+
+        from ethereum.ercs import IERC4626
+
+        @external
+        def foo(x: IERC4626):
+            extcall x.withdraw(0, self, self)   # keccak256("withdraw(uint256,address,address)")[:4] = 0xb460af94
+            extcall x.withdraw(0)               # keccak256("withdraw(uint256)")[:4] = 0x2e1a7d4d
 
 .. _structure-functions-internal:
 
@@ -74,6 +100,14 @@ Or for internal functions which are defined in :ref:`imported modules <modules>`
     @external
     def calculate(amount: uint256) -> uint256:
         return calculator_library._times_two(amount)
+
+Marking an internal function as ``payable`` specifies that the function can interact with ``msg.value``. A ``nonpayable`` internal function can be called from an external ``payable`` function, but it cannot access ``msg.value``.
+
+.. code-block:: vyper
+
+    @payable
+    def _foo() -> uint256:
+        return msg.value % 2
 
 .. note::
    As of v0.4.0, the ``@internal`` decorator is optional. That is, functions with no visibility decorator default to being ``internal``.
@@ -110,7 +144,7 @@ You can optionally declare a function's mutability by using a :ref:`decorator <f
     * ``@pure``: does not read from the contract state or any environment variables.
     * ``@view``: may read from the contract state, but does not alter it.
     * ``@nonpayable`` (default): may read from and write to the contract state, but cannot receive Ether.
-    * ``@payable``: may read from and write to the contract state, and can receive Ether.
+    * ``@payable``: may read from and write to the contract state, and can receive and access Ether via ``msg.value``.
 
 .. code-block:: vyper
 
@@ -132,8 +166,11 @@ Functions marked with ``@view`` cannot call mutable (``payable`` or ``nonpayable
 
 Functions marked with ``@pure`` cannot call non-``pure`` functions.
 
-Re-entrancy Locks
------------------
+.. note::
+    The ``@nonpayable`` decorator is not strictly enforced on ``internal`` functions when they are invoked through an ``external`` ``payable`` function. As a result, an ``external`` ``payable`` function can invoke an ``internal`` ``nonpayable`` function. However, the ``nonpayable`` ``internal`` function cannot have access to ``msg.value``.
+
+Nonreentrancy Locks
+-------------------
 
 The ``@nonreentrant`` decorator places a global nonreentrancy lock on a function. An attempt by an external contract to call back into any other ``@nonreentrant`` function causes the transaction to revert.
 
@@ -145,11 +182,11 @@ The ``@nonreentrant`` decorator places a global nonreentrancy lock on a function
         # this function is protected from re-entrancy
         ...
 
-You can put the ``@nonreentrant`` decorator on a ``__default__`` function but we recommend against it because in most circumstances it will not work in a meaningful way.
-
 Nonreentrancy locks work by setting a specially allocated storage slot to a ``<locked>`` value on function entrance, and setting it to an ``<unlocked>`` value on function exit. On function entrance, if the storage slot is detected to be the ``<locked>`` value, execution reverts.
 
 You cannot put the ``@nonreentrant`` decorator on a ``pure`` function. You can put it on a ``view`` function, but it only checks that the function is not in a callback (the storage slot is not in the ``<locked>`` state), as ``view`` functions can only read the state, not change it.
+
+You can put the ``@nonreentrant`` decorator on a ``__default__`` function, but keep in mind that this will result in the contract rejecting ETH payments from callbacks.
 
 You can view where the nonreentrant key is physically laid out in storage by using ``vyper`` with the ``-f layout`` option (e.g., ``vyper -f layout foo.vy``). Unless it is overridden, the compiler will allocate it at slot ``0``.
 
@@ -162,6 +199,57 @@ You can view where the nonreentrant key is physically laid out in storage by usi
 
 .. note::
    Prior to 0.4.0, nonreentrancy keys took a "key" argument for fine-grained nonreentrancy control. As of 0.4.0, only a global nonreentrancy lock is available.
+
+The nonreentrant pragma
+-----------------------
+
+Beginning in 0.4.2, the ``#pragma nonreentrancy on`` pragma is available, and it enables nonreentrancy on all external functions and public getters (except for ``constants`` and ``immutables``) in the file. This is to prepare for a future release, probably in the 0.5.x series, where nonreentrant locks will be enabled by default language-wide.
+
+When the pragma is on, to re-enable reentrancy for a specific function, add the ``@reentrant`` decorator. For getters, add the ``reentrant()`` modifier. Here is an example:
+
+.. code-block:: vyper
+
+    # pragma nonreentrancy on
+
+    x: public(uint256)  # this is protected from view-only reentrancy
+    y: public(reentrant(uint256))  # this is not not protected from view-only reentrancy
+
+    @external
+    def make_a_call(addr: address):
+        # this function is protected from re-entrancy
+        ...
+
+    @external
+    @reentrant
+    def callback(addr: address):
+        # this function is allowed to be reentered into
+        ...
+
+    @external
+    def __default__():
+        # this function is nonreentrant!
+        ...
+
+The default is ``#pragma nonreentrancy off``, which can be used to signal specifically that nonreentrancy protection is off in this file.
+
+Note that the same caveats about nonreentrancy on ``__default__()`` as mentioned in the previous section apply here, since the ``__default__()`` function will be nonreentrant by default with the pragma on.
+
+With the pragma on, internal functions remain unlocked by default but can still use the ``@nonreentrant`` decorator. External ``view`` functions are protected by default (as before, checking the lock upon entry but only reading its state). External ``pure`` functions do not interact with the lock.
+
+Internal functions, ``__init__`` function and getters for ``constants`` and ``immutables`` can be marked ``reentrant``. Reentrant behavior is the default for these structures anyway, and this feature can be used to explicitly highlight the fact.
+
+.. note::
+   All the protected functions share the same, global lock.
+
+.. note::
+    Vyper disallows calling a ``nonreentrant`` function from another ``nonreentrant`` function, since the compiler implements nonreentrancy as a global lock which is acquired at function entry.
+
+.. note::
+   The ``nonreentrancy on/off`` pragma is scoped to the current file. If you import a file without the ``nonreentrancy on`` pragma, the functions in that file will behave as the author intended, that is, they will be reentrant unless marked otherwise.
+
+.. note::
+    The ``constant`` and ``immutable`` state variable getters don't check the lock because the value of the variables can't change.
+
 
 The ``__default__`` Function
 ----------------------------
@@ -218,7 +306,37 @@ Decorator                       Description
 ``@view``                       Function does not alter contract state
 ``@payable``                    Function is able to receive Ether
 ``@nonreentrant``               Function cannot be called back into during an external call
+``@raw_return``                 Function returns raw bytes without ABI-encoding (``@external`` functions only)
 =============================== ===========================================================
+
+Raw Return
+----------
+
+The ``@raw_return`` decorator allows a function to return raw bytes without ABI-encoding. This is particularly useful for proxy contracts and other helper contracts where you want to forward the exact output bytes from another contract call without adding an additional layer of ABI-encoding.
+
+.. code-block:: vyper
+
+    @external
+    @payable
+    @raw_return
+    def forward_call(target: address) -> Bytes[1024]:
+        # Returns the raw bytes from the external call without ABI-encoding
+        return raw_call(target, msg.data, max_outsize=1024, value=msg.value, is_delegate_call=True)
+
+The ``@raw_return`` decorator has the following restrictions:
+
+    * It can only be used on ``@external`` functions
+    * The function must have a ``Bytes[N]`` return type
+    * It cannot be used on ``@deploy`` (constructor) functions (you can however use it in the ``__default__()`` function)
+    * It cannot be used on ``@internal`` functions
+
+When a function is marked with ``@raw_return``, the compiler directly returns the bytes value using the EVM ``RETURN`` opcode, bypassing the normal ABI-encoding that would wrap the bytes in a ``(bytes)`` tuple.
+
+.. note::
+    The ``@raw_return`` decorator cannot be used in interface definitions (``.vyi`` files). Note that to call a ``@raw_return`` function from another contract, you should use ``raw_call`` instead of an interface call, since the return data may not be ABI-encoded.
+
+.. warning::
+    When using ``@raw_return``, ensure all return paths in your function use raw bytes. Having multiple return statements where some use ABI-encoded data and others don't can lead to decoding errors.
 
 ``if`` statements
 =================

@@ -192,15 +192,22 @@ class VyperException(_BaseVyperException):
 
 
 class SyntaxException(VyperException):
-
     """Invalid syntax."""
 
-    def __init__(self, message, source_code, lineno, col_offset):
+    def __init__(self, message, source_code, lineno, col_offset, hint=None):
         item = types.SimpleNamespace()  # TODO: Create an actual object for this
         item.lineno = lineno
         item.col_offset = col_offset
         item.full_source_code = source_code
-        super().__init__(message, item)
+        super().__init__(message, item, hint=hint)
+
+
+class PragmaException(SyntaxException):
+    """Invalid pragma"""
+
+
+class VersionException(SyntaxException):
+    """Version string is malformed or incompatible with this compiler version."""
 
 
 class DecimalOverrideException(VyperException):
@@ -219,10 +226,6 @@ class StructureException(VyperException):
 
 class InstantiationException(StructureException):
     """Variable or expression cannot be instantiated"""
-
-
-class VersionException(SyntaxException):
-    """Version string is malformed or incompatible with this compiler version."""
 
 
 class VariableDeclarationException(VyperException):

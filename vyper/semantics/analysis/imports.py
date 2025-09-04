@@ -1,27 +1,31 @@
 import contextlib
-from dataclasses import dataclass, field
+import dataclasses as dc
+import json
+from dataclasses import asdict, dataclass
 from pathlib import Path, PurePath
-from typing import Any, Iterator
+from typing import Any, Iterator, Optional
 
 import vyper.builtins.interfaces
+import vyper.builtins.stdlib
 from vyper import ast as vy_ast
 from vyper.compiler.input_bundle import (
-    ABIInput,
+    BUILTIN,
     CompilerInput,
     FileInput,
     FilesystemInputBundle,
     InputBundle,
+    JSONInput,
     PathLike,
 )
 from vyper.exceptions import (
-    CompilerPanic,
     DuplicateImport,
     ImportCycle,
     ModuleNotFound,
     StructureException,
+    tag_exceptions,
 )
 from vyper.semantics.analysis.base import ImportInfo
-from vyper.utils import safe_relpath, sha256sum
+from vyper.utils import OrderedSet, safe_relpath, sha256sum
 
 """
 collect import statements and validate the import graph.
@@ -34,11 +38,11 @@ segregate the I/O portion of semantic analysis into its own pass.
 @dataclass
 class _ImportGraph:
     # the current path in the import graph traversal
-    _path: list[vy_ast.Module] = field(default_factory=list)
+    _path: list[vy_ast.Module] = dc.field(default_factory=list)
 
     # stack of dicts, each item in the stack is a dict keeping
     # track of imports in the current module
-    _imports: list[dict] = field(default_factory=list)
+    _imports: list[dict] = dc.field(default_factory=list)
 
     @property
     def imported_modules(self):
@@ -58,8 +62,7 @@ class _ImportGraph:
 
     def pop_path(self, expected: vy_ast.Module) -> None:
         popped = self._path.pop()
-        if expected != popped:
-            raise CompilerPanic("unreachable")
+        assert expected is popped, "unreachable"
         self._imports.pop()
 
     @contextlib.contextmanager
@@ -71,19 +74,45 @@ class _ImportGraph:
             self.pop_path(module_ast)
 
 
+def try_parse_abi(file_input: FileInput) -> CompilerInput:
+    try:
+        s = json.loads(file_input.source_code)
+        if isinstance(s, dict) and "abi" in s:
+            s = s["abi"]
+        return JSONInput(**asdict(file_input), data=s)
+    except (ValueError, TypeError):
+        return file_input
+
+
 class ImportAnalyzer:
-    def __init__(self, input_bundle: InputBundle, graph: _ImportGraph):
+    seen: OrderedSet[vy_ast.Module]
+    _compiler_inputs: dict[CompilerInput, vy_ast.Module]
+    toplevel_module: vy_ast.Module
+
+    def __init__(self, input_bundle: InputBundle, graph: _ImportGraph, module_ast: vy_ast.Module):
         self.input_bundle = input_bundle
         self.graph = graph
+        self.toplevel_module = module_ast
         self._ast_of: dict[int, vy_ast.Module] = {}
 
-        self.seen: set[int] = set()
+        self.seen = OrderedSet()
 
-        self.integrity_sum = None
+        # keep around compiler inputs so when we construct the output
+        # bundle, we have access to the compiler input for each module
+        self._compiler_inputs = {}
 
-    def resolve_imports(self, module_ast: vy_ast.Module):
-        self._resolve_imports_r(module_ast)
-        self.integrity_sum = self._calculate_integrity_sum_r(module_ast)
+        self._integrity_sum = None
+
+        # should be all system paths + topmost module path
+        self.absolute_search_paths = input_bundle.search_paths.copy()
+
+    def resolve_imports(self):
+        self._resolve_imports_r(self.toplevel_module)
+        self._integrity_sum = self._calculate_integrity_sum_r(self.toplevel_module)
+
+    @property
+    def compiler_inputs(self) -> dict[CompilerInput, vy_ast.Module]:
+        return self._compiler_inputs
 
     def _calculate_integrity_sum_r(self, module_ast: vy_ast.Module):
         acc = [sha256sum(module_ast.full_source_code)]
@@ -99,15 +128,17 @@ class ImportAnalyzer:
         return sha256sum("".join(acc))
 
     def _resolve_imports_r(self, module_ast: vy_ast.Module):
-        if id(module_ast) in self.seen:
+        if module_ast in self.seen:
             return
         with self.graph.enter_path(module_ast):
             for node in module_ast.body:
-                if isinstance(node, vy_ast.Import):
-                    self._handle_Import(node)
-                elif isinstance(node, vy_ast.ImportFrom):
-                    self._handle_ImportFrom(node)
-        self.seen.add(id(module_ast))
+                with tag_exceptions(node):
+                    if isinstance(node, vy_ast.Import):
+                        self._handle_Import(node)
+                    elif isinstance(node, vy_ast.ImportFrom):
+                        self._handle_ImportFrom(node)
+
+        self.seen.add(module_ast)
 
     def _handle_Import(self, node: vy_ast.Import):
         # import x.y[name] as y[alias]
@@ -145,24 +176,17 @@ class ImportAnalyzer:
         self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
     ) -> None:
         compiler_input, ast = self._load_import(node, level, qualified_module_name, alias)
+        self._compiler_inputs[compiler_input] = ast
         node._metadata["import_info"] = ImportInfo(
             alias, qualified_module_name, compiler_input, ast
         )
 
     # load an InterfaceT or ModuleInfo from an import.
     # raises FileNotFoundError
-    def _load_import(self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str) -> Any:
-        # the directory this (currently being analyzed) module is in
-        ast = self.graph.current_module
-        self_search_path = Path(ast.resolved_path).parent
-
-        with self.input_bundle.poke_search_path(self_search_path):
-            return self._load_import_helper(node, level, module_str, alias)
-
-    def _load_import_helper(
+    def _load_import(
         self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
     ) -> tuple[CompilerInput, Any]:
-        if _is_builtin(module_str):
+        if _is_builtin(level, module_str):
             return _load_builtin_import(level, module_str)
 
         path = _import_to_path(level, module_str)
@@ -177,11 +201,11 @@ class ImportAnalyzer:
 
         try:
             path_vy = path.with_suffix(".vy")
-            file = self.input_bundle.load_file(path_vy)
+            file = self._load_file(path_vy, level)
             assert isinstance(file, FileInput)  # mypy hint
 
             module_ast = self._ast_from_file(file)
-            self.resolve_imports(module_ast)
+            self._resolve_imports_r(module_ast)
 
             return file, module_ast
 
@@ -191,13 +215,10 @@ class ImportAnalyzer:
             err = e
 
         try:
-            file = self.input_bundle.load_file(path.with_suffix(".vyi"))
+            file = self._load_file(path.with_suffix(".vyi"), level)
             assert isinstance(file, FileInput)  # mypy hint
             module_ast = self._ast_from_file(file)
-            self.resolve_imports(module_ast)
-
-            # language does not yet allow recursion for vyi files
-            # self.resolve_imports(module_ast)
+            self._resolve_imports_r(module_ast)
 
             return file, module_ast
 
@@ -205,9 +226,11 @@ class ImportAnalyzer:
             pass
 
         try:
-            file = self.input_bundle.load_file(path.with_suffix(".json"))
-            assert isinstance(file, ABIInput)  # mypy hint
-            return file, file.abi
+            file = self._load_file(path.with_suffix(".json"), level)
+            if isinstance(file, FileInput):
+                file = try_parse_abi(file)
+            assert isinstance(file, JSONInput)  # mypy hint
+            return file, file.data
         except FileNotFoundError:
             pass
 
@@ -218,6 +241,18 @@ class ImportAnalyzer:
         # copy search_paths, makes debugging a bit easier
         search_paths = self.input_bundle.search_paths.copy()  # noqa: F841
         raise ModuleNotFound(module_str, hint=hint) from err
+
+    def _load_file(self, path: PathLike, level: int) -> CompilerInput:
+        ast = self.graph.current_module
+
+        search_paths: list[PathLike]  # help mypy
+        if level != 0:  # relative import
+            search_paths = [Path(ast.resolved_path).parent]
+        else:
+            search_paths = self.absolute_search_paths
+
+        with self.input_bundle.temporary_search_paths(search_paths):
+            return self.input_bundle.load_file(path)
 
     def _ast_from_file(self, file: FileInput) -> vy_ast.Module:
         # cache ast if we have seen it before.
@@ -243,11 +278,13 @@ def _parse_ast(file: FileInput) -> vy_ast.Module:
         # use the resolved path given to us by the InputBundle
         pass
 
+    is_interface = file.resolved_path.suffix == ".vyi"
     ret = vy_ast.parse_to_ast(
         file.source_code,
         source_id=file.source_id,
         module_path=module_path.as_posix(),
         resolved_path=file.resolved_path.as_posix(),
+        is_interface=is_interface,
     )
     return ret
 
@@ -262,40 +299,49 @@ def _import_to_path(level: int, module_str: str) -> PurePath:
     return PurePath(f"{base_path}{module_str.replace('.', '/')}/")
 
 
-# can add more, e.g. "vyper.builtins.interfaces", etc.
-BUILTIN_PREFIXES = ["ethereum.ercs"]
+_builtins_cache: dict[PathLike, tuple[CompilerInput, vy_ast.Module]] = {}
+
+# builtin import path -> (prefix for removal, package, suffix)
+BUILTIN_MODULE_RULES = {
+    "ethereum.ercs": ("ethereum.ercs", vyper.builtins.interfaces.__package__, ".vyi"),
+    "math": ("", vyper.builtins.stdlib.__package__, ".vy"),
+}
 
 
 # TODO: could move this to analysis/common.py or something
-def _is_builtin(module_str):
-    return any(module_str.startswith(prefix) for prefix in BUILTIN_PREFIXES)
+def _get_builtin_prefix(module_str: str) -> Optional[str]:
+    for prefix in BUILTIN_MODULE_RULES.keys():
+        if module_str.startswith(prefix):
+            return prefix
+    return None
 
 
-_builtins_cache: dict[PathLike, tuple[CompilerInput, vy_ast.Module]] = {}
+def _is_builtin(level: int, module_str: str) -> bool:
+    return level == 0 and _get_builtin_prefix(module_str) is not None
 
 
 def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy_ast.Module]:
-    if not _is_builtin(module_str):  # pragma: nocover
-        raise CompilerPanic("unreachable!")
+    module_prefix = _get_builtin_prefix(module_str)
+    assert module_prefix is not None, "unreachable"
 
-    builtins_path = vyper.builtins.interfaces.__path__[0]
+    assert level == 0, "builtin imports are absolute"
+
+    builtins_path = vyper.builtins.__path__[0]
     # hygiene: convert to relpath to avoid leaking user directory info
     # (note Path.relative_to cannot handle absolute to relative path
     # conversion, so we must use the `os` module).
     builtins_path = safe_relpath(builtins_path)
 
-    search_path = Path(builtins_path).parent.parent.parent
+    search_path = Path(builtins_path).parent.parent
     # generate an input bundle just because it knows how to build paths.
     input_bundle = FilesystemInputBundle([search_path])
 
-    # remap builtins directory --
-    # ethereum/ercs => vyper/builtins/interfaces
-    remapped_module = module_str
-    if remapped_module.startswith("ethereum.ercs"):
-        remapped_module = remapped_module.removeprefix("ethereum.ercs")
-        remapped_module = vyper.builtins.interfaces.__package__ + remapped_module
+    remove_prefix, target_package, suffix = BUILTIN_MODULE_RULES[module_prefix]
+    base_name = module_str.removeprefix(remove_prefix + ".")
+    remapped_module = f"{target_package}.{base_name}"
 
-    path = _import_to_path(level, remapped_module).with_suffix(".vyi")
+    path = _import_to_path(level, remapped_module)
+    path = path.with_suffix(suffix)
 
     # builtins are globally the same, so we can safely cache them
     # (it is also *correct* to cache them, so that types defined in builtins
@@ -306,6 +352,8 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy
 
     try:
         file = input_bundle.load_file(path)
+        # set source_id to builtin sentinel value
+        file = dc.replace(file, source_id=BUILTIN)
         assert isinstance(file, FileInput)  # mypy hint
     except FileNotFoundError as e:
         hint = None
@@ -317,17 +365,17 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy
             hint = f"try renaming `{module_prefix}` to `I{module_prefix}`"
         raise ModuleNotFound(module_str, hint=hint) from e
 
-    interface_ast = _parse_ast(file)
+    builtin_ast = _parse_ast(file)
 
     # no recursion needed since builtins don't have any imports
 
-    _builtins_cache[path] = file, interface_ast
-    return file, interface_ast
+    _builtins_cache[path] = file, builtin_ast
+    return file, builtin_ast
 
 
 def resolve_imports(module_ast: vy_ast.Module, input_bundle: InputBundle):
     graph = _ImportGraph()
-    analyzer = ImportAnalyzer(input_bundle, graph)
-    analyzer.resolve_imports(module_ast)
+    analyzer = ImportAnalyzer(input_bundle, graph, module_ast)
+    analyzer.resolve_imports()
 
     return analyzer

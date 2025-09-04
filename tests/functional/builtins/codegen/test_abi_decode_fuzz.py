@@ -266,6 +266,7 @@ _settings = dict(
         hp.HealthCheck.data_too_large,
         hp.HealthCheck.too_slow,
         hp.HealthCheck.large_base_example,
+        hp.HealthCheck.nested_given,
     ),
     phases=(
         hp.Phase.explicit,

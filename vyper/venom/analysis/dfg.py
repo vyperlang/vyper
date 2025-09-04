@@ -3,7 +3,7 @@ from typing import Optional
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
 from vyper.venom.function import IRFunction
 
 
@@ -27,8 +27,17 @@ class DFGAnalysis(IRAnalysis):
         return [inst for inst in self.get_uses(op) if inst.parent == bb]
 
     # the instruction which produces this variable.
-    def get_producing_instruction(self, op: IRVariable) -> Optional[IRInstruction]:
+    def get_producing_instruction(self, op: IROperand) -> Optional[IRInstruction]:
+        if not isinstance(op, IRVariable):
+            return None
         return self._dfg_outputs.get(op)
+
+    def set_producing_instruction(self, op: IRVariable, inst: IRInstruction):
+        # should this check if inst.output is already in dfg_outputs?
+        self._dfg_outputs[op] = inst
+
+    def remove_producing_instruction(self, op: IRVariable):
+        del self._dfg_outputs[op]
 
     def add_use(self, op: IRVariable, inst: IRInstruction):
         uses = self._dfg_inputs.setdefault(op, OrderedSet())
@@ -37,6 +46,23 @@ class DFGAnalysis(IRAnalysis):
     def remove_use(self, op: IRVariable, inst: IRInstruction):
         uses: OrderedSet = self._dfg_inputs.get(op, OrderedSet())
         uses.remove(inst)
+
+    def are_equivalent(self, var1: IROperand, var2: IROperand) -> bool:
+        if var1 == var2:
+            return True
+
+        if isinstance(var1, IRVariable) and isinstance(var2, IRVariable):
+            var1 = self._traverse_assign_chain(var1)
+            var2 = self._traverse_assign_chain(var2)
+
+        return var1 == var2
+
+    def _traverse_assign_chain(self, var: IRVariable) -> IRVariable:
+        while True:
+            inst = self.get_producing_instruction(var)
+            if inst is None or inst.opcode != "assign":
+                return var
+            var = inst.operands[0]  # type: ignore
 
     @property
     def outputs(self) -> dict[IRVariable, IRInstruction]:
@@ -78,6 +104,9 @@ class DFGAnalysis(IRAnalysis):
 
     def invalidate(self):
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+
+        del self._dfg_inputs
+        del self._dfg_outputs
 
     def __repr__(self) -> str:
         return self.as_graph()

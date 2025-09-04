@@ -69,14 +69,14 @@ Either the ``extcall`` or ``staticcall`` keyword is required to precede the exte
 
 Vyper offers the option to set the following additional keyword arguments when making external calls:
 
-=============================== ===========================================================
+=============================== ==============================================================
 Keyword                         Description
-=============================== ===========================================================
+=============================== ==============================================================
 ``gas``                         Specify gas value for the call
 ``value``                       Specify amount of ether sent with the call
-``skip_contract_check``         Drop ``EXTCODESIZE`` and ``RETURNDATASIZE`` checks
+``skip_contract_check``         Drop ``EXTCODESIZE`` check (but keep ``RETURNDATASIZE`` check)
 ``default_return_value``        Specify a default return value if no value is returned
-=============================== ===========================================================
+=============================== ==============================================================
 
 The ``default_return_value`` parameter can be used to handle ERC20 tokens affected by the missing return value bug in a way similar to OpenZeppelin's ``safeTransfer`` for Solidity:
 
@@ -119,6 +119,10 @@ This imports the defined interface from the vyper file at ``an_interface.vyi`` (
 .. note::
 
   Prior to v0.4.0, ``implements`` required that events defined in an interface were re-defined in the "implementing" contract. As of v0.4.0, this is no longer required because events can be used just by importing them. Any events used in a contract will automatically be exported in the ABI output.
+
+.. note::
+
+  An interface function with default parameters (e.g. ``deposit(assets: uint256, receiver: address = msg.sender)``) implies that the contract being interfaced with supports these default arguments via the ABI-encoded function signatures (e.g. ``keccak256("deposit(uint256,address)")[:4]`` and ``keccak256("deposit(uint256)")[:4]``). It is the responsibility of the callee to implement the behavior associated with these defaults.
 
 Standalone Interfaces
 =====================

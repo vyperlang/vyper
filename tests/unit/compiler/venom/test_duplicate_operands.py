@@ -2,7 +2,7 @@ from vyper.compiler.settings import OptimizationLevel
 from vyper.venom import generate_assembly_experimental
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
-from vyper.venom.passes import StoreExpansionPass
+from vyper.venom.passes import SingleUseExpansion
 
 
 def test_duplicate_operands():
@@ -20,13 +20,13 @@ def test_duplicate_operands():
     ctx = IRContext()
     fn = ctx.create_function("test")
     bb = fn.get_basic_block()
-    op = bb.append_instruction("store", 10)
+    op = bb.append_instruction("assign", 10)
     sum_ = bb.append_instruction("add", op, op)
     bb.append_instruction("mul", sum_, op)
     bb.append_instruction("stop")
 
     ac = IRAnalysesCache(fn)
-    StoreExpansionPass(ac, fn).run_pass()
+    SingleUseExpansion(ac, fn).run_pass()
 
     optimize = OptimizationLevel.GAS
     asm = generate_assembly_experimental(ctx, optimize=optimize)

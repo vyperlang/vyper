@@ -1,4 +1,9 @@
+import contextlib
+
+import pytest
+
 from tests.evm_backends.base_env import _compile
+from vyper.exceptions import StackTooDeep
 from vyper.utils import method_id
 
 
@@ -211,6 +216,7 @@ def get_foo() -> DynArray[DynArray[uint256, 3], 3]:
     assert c.get_foo() == [[37, 41, 73], [37041, 41073, 73037], [146, 123, 148]]
 
 
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_initialise_nested_dynamic_array_2(env, get_contract):
     code = """
 foo: DynArray[DynArray[DynArray[int128, 3], 3], 3]
@@ -241,3 +247,76 @@ def get_foo() -> DynArray[DynArray[DynArray[int128, 3], 3], 3]:
         [[37041, 41073, 73037], [-37041, -41073, -73037], [-36959, -40927, -72963]],
         [[146, 123, 148], [-146, -123, -148], [-2993, -1517, -2701]],
     ]
+
+
+def test_long_call_chain_in_ctor(get_contract):
+    code = """
+x: public(immutable(uint256))
+
+@deploy
+def __init__(i: uint256):
+    x = self.foo0(i)
+"""
+    for i in range(16):
+        code += f"""
+@internal
+def foo{i}(i: uint256) -> uint256:
+    return self.foo{i + 1}(i)
+    """
+    code += """
+@internal
+def foo16(i: uint256) -> uint256:
+    return i
+
+@external
+def entry(i: uint256) -> uint256:
+    return self.foo0(i)
+"""
+    c = get_contract(code, 42)
+    assert c.x() == 42
+    assert c.entry(42) == 42
+
+
+def test_immutable_set_with_constants(get_contract):
+    CONST_UINT = 12345
+    CONST_ADDR = "0x2222222222222222222222222222222222222222"
+    CONST_BYTES32 = "0xabababababababababababababababababababababababababababababababab"
+    code = f"""
+CONST_UINT: constant(uint256) = {CONST_UINT}
+CONST_ADDR: constant(address) = {CONST_ADDR}
+CONST_BYTES32: constant(bytes32) = {CONST_BYTES32}
+
+I_UINT: public(immutable(uint256))
+I_ADDR: public(immutable(address))
+I_BYTES32: public(immutable(bytes32))
+
+@deploy
+def __init__():
+    I_UINT = CONST_UINT
+    I_ADDR = CONST_ADDR
+    I_BYTES32 = CONST_BYTES32
+    """
+    print(code)
+    c = get_contract(code)
+    assert c.I_UINT() == CONST_UINT
+    assert c.I_ADDR() == CONST_ADDR
+    assert c.I_BYTES32() == bytes.fromhex(CONST_BYTES32.removeprefix("0x"))
+
+
+@pytest.mark.parametrize("should_fail", [True, False])
+def test_constructor_payability(env, get_contract, tx_failed, should_fail):
+    code = f"""
+@deploy
+{"" if should_fail else "@payable"}
+def __init__():
+    pass
+"""
+    env.set_balance(env.deployer, 10)
+
+    if should_fail:
+        ctx = tx_failed
+    else:
+        ctx = contextlib.nullcontext
+
+    with ctx():
+        _ = get_contract(code, value=10)

@@ -3,7 +3,7 @@ from typing import Callable, Dict, Optional
 
 import vyper.codegen.core as codegen
 import vyper.compiler.output as output
-from vyper.compiler.input_bundle import FileInput, InputBundle, PathLike
+from vyper.compiler.input_bundle import FileInput, InputBundle, JSONInput, PathLike
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings, anchor_settings, get_global_settings
 from vyper.typing import OutputFormats, StorageLayout
@@ -33,9 +33,11 @@ OUTPUT_FORMATS = {
     "ir_runtime_dict": output.build_ir_runtime_dict_output,
     "method_identifiers": output.build_method_identifiers_output,
     "metadata": output.build_metadata_output,
+    "settings_dict": output.build_settings_output,
     # requires assembly
     "abi": output.build_abi_output,
     "asm": output.build_asm_output,
+    "asm_runtime": output.build_asm_runtime_output,
     "source_map": output.build_source_map_output,
     "source_map_runtime": output.build_source_map_runtime_output,
     # requires bytecode
@@ -46,6 +48,13 @@ OUTPUT_FORMATS = {
     "opcodes_runtime": output.build_opcodes_runtime_output,
 }
 
+INTERFACE_OUTPUT_FORMATS = [
+    "ast_dict",
+    "annotated_ast_dict",
+    "interface",
+    "external_interface",
+    "abi",
+]
 
 UNKNOWN_CONTRACT_NAME = "<unknown>"
 
@@ -56,7 +65,7 @@ def compile_from_file_input(
     settings: Settings = None,
     integrity_sum: str = None,
     output_formats: Optional[OutputFormats] = None,
-    storage_layout_override: Optional[StorageLayout] = None,
+    storage_layout_override: Optional[JSONInput] = None,
     no_bytecode_metadata: bool = False,
     show_gas_estimates: bool = False,
     exc_handler: Optional[Callable] = None,
@@ -121,10 +130,18 @@ def outputs_from_compiler_data(
         output_formats = ("bytecode",)
 
     ret = {}
+
     with anchor_settings(compiler_data.settings):
         for output_format in output_formats:
             if output_format not in OUTPUT_FORMATS:
                 raise ValueError(f"Unsupported format type {repr(output_format)}")
+
+            is_vyi = compiler_data.file_input.resolved_path.suffix == ".vyi"
+            if is_vyi and output_format not in INTERFACE_OUTPUT_FORMATS:
+                raise ValueError(
+                    f"Unsupported format for compiling interface: {repr(output_format)}"
+                )
+
             try:
                 formatter = OUTPUT_FORMATS[output_format]
                 ret[output_format] = formatter(compiler_data)

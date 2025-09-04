@@ -53,7 +53,7 @@ def analyze_module(module_ast: vy_ast.Module) -> ModuleT:
     add all module-level objects to the namespace, type-check/validate
     semantics and annotate with type and analysis info
     """
-    return _analyze_module_r(module_ast)
+    return _analyze_module_r(module_ast, module_ast.is_interface)
 
 
 def _analyze_module_r(module_ast: vy_ast.Module, is_interface: bool = False):
@@ -116,6 +116,16 @@ def _analyze_call_graph(module_ast: vy_ast.Module):
 
         # compute reachable set and validate the call graph
         _compute_reachable_set(fn_t)
+
+        if fn_t.nonreentrant:
+            for g in fn_t.reachable_internal_functions:
+                if g.nonreentrant:
+                    # TODO: improve the error message by displaying the exact
+                    # path through the call graph
+                    msg = f"Cannot call `{g.name}` since it is"
+                    msg += f" `@nonreentrant` and reachable from `{fn_t.name}`"
+                    msg += ", which is also marked `@nonreentrant`"
+                    raise CallViolation(msg, func, g.ast_def)
 
 
 # compute reachable set and validate the call graph (detect cycles)
@@ -586,6 +596,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # postcondition of VariableDecl.validate
         assert isinstance(node.target, vy_ast.Name)
         name = node.target.id
+
+        if not self.ast.settings.nonreentrancy_by_default and node.is_reentrant:
+            raise StructureException(
+                "reentrant() is not allowed without `pragma nonreentrancy on`", node
+            )
 
         # TODO: move this check to local analysis
         if node.is_immutable:
