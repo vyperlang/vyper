@@ -218,10 +218,7 @@ class Expr:
 
         # Flag.__values__: materialize a static array of all flag values in order
         # Left side must be a flag type expression.
-        if (
-            self.expr.attr == "__values__"
-            and is_type_t(self.expr.value._metadata["type"], FlagT)
-        ):
+        if self.expr.attr == "__values__" and is_type_t(self.expr.value._metadata["type"], FlagT):
             flag_t = self.expr.value._metadata["type"].typedef
             # Build the list of constant IR nodes for each flag value
             # using declaration order from `_flag_members`.
@@ -493,9 +490,10 @@ class Expr:
 
         ret = ["seq"]
 
-        with left.cache_when_complex("needle") as (b1, left), right.cache_when_complex(
-            "haystack"
-        ) as (b2, right):
+        with (
+            left.cache_when_complex("needle") as (b1, left),
+            right.cache_when_complex("haystack") as (b2, right),
+        ):
             # unroll the loop for compile-time list literals
             if right.value == "multi":
                 # empty list literals should be rejected at typechecking time

@@ -79,6 +79,7 @@ class FlagT(_UserType):
         # Returns a static array type of all flag values in declaration order.
         if key == "__values__":
             from vyper.semantics.types.subscriptable import SArrayT
+
             return SArrayT(self, len(self._flag_members))
 
         # Regular flag member access (e.g., `Flag.FOO`) validates the member name
