@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from vyper.exceptions import CompilerPanic, StackTooDeep
+from vyper.exceptions import CompilerPanic, UnreachableStackException
 from vyper.ir.compile_ir import (
     DATA_ITEM,
     PUSH,
@@ -395,7 +395,6 @@ class VenomCompiler:
 
         if opcode in ["jmp", "djmp", "jnz", "invoke"]:
             operands = list(inst.get_non_label_operands())
-
         elif opcode in ("alloca", "palloca", "calloca"):
             assert len(inst.operands) == 3, inst
             offset, _size, _id = inst.operands
@@ -617,22 +616,21 @@ class VenomCompiler:
             print("  NEXT LIVENESS", next_liveness, file=sys.stderr)
             print("  NEW_STACK", stack, file=sys.stderr)
 
-    def pop(self, assembly, stack, num=1):
+    def pop(self, assembly, stack: StackModel, num=1):
         stack.pop(num)
         assembly.extend(["POP"] * num)
 
-    def swap(self, assembly, stack, depth) -> int:
+    def swap(self, assembly, stack: StackModel, depth) -> int:
         # Swaps of the top is no op
         if depth == 0:
             return 0
-
         stack.swap(depth)
-        assembly.append(_evm_swap_for(depth))
+        assembly.append(_evm_swap_for(depth, stack.top()))
         return 1
 
-    def dup(self, assembly, stack, depth):
+    def dup(self, assembly, stack: StackModel, depth):
         stack.dup(depth)
-        assembly.append(_evm_dup_for(depth))
+        assembly.append(_evm_dup_for(depth, stack.top()))
 
     def swap_op(self, assembly, stack, op):
         depth = stack.get_depth(op)
@@ -645,15 +643,15 @@ class VenomCompiler:
         self.dup(assembly, stack, depth)
 
 
-def _evm_swap_for(depth: int) -> str:
+def _evm_swap_for(depth: int, op: IROperand) -> str:
     swap_idx = -depth
     if not (1 <= swap_idx <= 16):
-        raise StackTooDeep(f"Unsupported swap depth {swap_idx}")
+        raise UnreachableStackException(f"Unsupported swap depth {swap_idx} ({op})", op)
     return f"SWAP{swap_idx}"
 
 
-def _evm_dup_for(depth: int) -> str:
+def _evm_dup_for(depth: int, op: IROperand) -> str:
     dup_idx = 1 - depth
     if not (1 <= dup_idx <= 16):
-        raise StackTooDeep(f"Unsupported dup depth {dup_idx}")
+        raise UnreachableStackException(f"Unsupported dup depth {dup_idx} ({op})", op)
     return f"DUP{dup_idx}"

@@ -1,4 +1,5 @@
 from .algebraic_optimization import AlgebraicOptimizationPass
+from .alloca_elimination import AllocaElimination
 from .assign_elimination import AssignElimination
 from .branch_optimization import BranchOptimizationPass
 from .cfg_normalization import CFGNormalization
@@ -18,4 +19,5 @@ from .remove_unused_variables import RemoveUnusedVariablesPass
 from .revert_to_assert import RevertToAssert
 from .sccp import SCCP
 from .simplify_cfg import SimplifyCFGPass
+from .stack2mem import Stack2Mem
 from .single_use_expansion import SingleUseExpansion

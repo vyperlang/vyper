@@ -4,6 +4,7 @@ from typing import Iterator, Optional
 
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 from vyper.venom.function import IRFunction
+from vyper.venom.mem_allocator import MemoryAllocator
 
 
 @dataclass
@@ -36,6 +37,7 @@ class IRContext:
     constants: dict[str, int]  # globally defined constants
     data_segment: list[DataSection]
     last_label: int
+    mem_allocator: MemoryAllocator
     last_variable: int
 
     def __init__(self) -> None:
@@ -45,6 +47,7 @@ class IRContext:
         self.constants = {}
 
         self.last_label = 0
+        self.mem_allocator = MemoryAllocator(0xFFFFFFFFFFFFFFFF, 256)
         self.last_variable = 0
 
     def get_basic_blocks(self) -> Iterator[IRBasicBlock]:

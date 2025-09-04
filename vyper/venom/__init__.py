@@ -18,6 +18,7 @@ from vyper.venom.passes import (
     CSE,
     SCCP,
     AlgebraicOptimizationPass,
+    AllocaElimination,
     AssignElimination,
     BranchOptimizationPass,
     CFGNormalization,
@@ -34,6 +35,7 @@ from vyper.venom.passes import (
     RemoveUnusedVariablesPass,
     RevertToAssert,
     SimplifyCFGPass,
+    Stack2Mem,
     SingleUseExpansion,
 )
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
@@ -56,7 +58,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     FloatAllocas(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
-
+    AllocaElimination(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
 
@@ -109,6 +111,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
         ReduceLiteralsCodesize(ac, fn).run_pass()
 
     DFTPass(ac, fn).run_pass()
+    # Stack2Mem(ac, fn).run_pass()
 
     CFGNormalization(ac, fn).run_pass()
 
