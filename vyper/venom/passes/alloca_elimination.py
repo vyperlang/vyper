@@ -18,4 +18,4 @@ class AllocaElimination(IRPass):
         address = inst.parent.parent.ctx.mem_allocator.allocate(_size.value)
         inst.opcode = "store"
         inst.operands = [IRLiteral(address)]
-        #print(f"Allocated address {address} for alloca {_size.value} {offset}")
+        # print(f"Allocated address {address} for alloca {_size.value} {offset}")

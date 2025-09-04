@@ -6,9 +6,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
-from vyper.venom.basicblock import CFG_ALTERING_INSTRUCTIONS, IRBasicBlock, IRLabel, IRVariable
-from vyper.venom.mem_allocator import MemoryAllocator
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
+from vyper.venom.mem_allocator import MemoryAllocator
 from vyper.venom.memory_location import MemoryLocation
 
 if TYPE_CHECKING:

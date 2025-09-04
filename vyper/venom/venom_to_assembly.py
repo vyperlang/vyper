@@ -616,7 +616,7 @@ class VenomCompiler:
             print("  NEXT LIVENESS", next_liveness, file=sys.stderr)
             print("  NEW_STACK", stack, file=sys.stderr)
 
-    def pop(self, assembly, stack: StackModel, num=1):    
+    def pop(self, assembly, stack: StackModel, num=1):
         stack.pop(num)
         assembly.extend(["POP"] * num)
 

@@ -111,7 +111,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
         ReduceLiteralsCodesize(ac, fn).run_pass()
 
     DFTPass(ac, fn).run_pass()
-    #Stack2Mem(ac, fn).run_pass()
+    # Stack2Mem(ac, fn).run_pass()
 
     CFGNormalization(ac, fn).run_pass()
 
