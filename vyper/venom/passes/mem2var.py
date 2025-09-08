@@ -26,7 +26,7 @@ class Mem2Var(IRPass):
                 self._process_alloca_var(dfg, inst, var)
             elif inst.opcode == "palloca":
                 self._process_palloca_var(dfg, inst, var)
-
+        
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _mk_varname(self, varname: str, alloca_id: int):
@@ -58,6 +58,7 @@ class Mem2Var(IRPass):
             elif inst.opcode == "return":
                 if mem_loc is None:
                     mem_loc = self.mem_alloc.allocate(size)
+                    alloca_inst.operands[0] = mem_loc.get_offset_lit()
                 self.updater.add_before(inst, "mstore", [var, mem_loc.get_offset_lit()])
 
     def _process_palloca_var(self, dfg: DFGAnalysis, palloca_inst: IRInstruction, var: IRVariable):
