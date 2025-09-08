@@ -79,6 +79,14 @@ class MemoryLocation:
         start2, end2 = other.offset, other.offset + other.size
 
         return start1 <= start2 and end1 >= end2
+    
+    def get_size_lit(self) -> IRLiteral:
+        assert self.is_size_fixed
+        return IRLiteral(self.size)
+
+    def get_offset_lit(self) -> IRLiteral:
+        assert self.is_offset_fixed
+        return IRLiteral(self.offset)
 
     @staticmethod
     def may_overlap(loc1: MemoryLocation, loc2: MemoryLocation) -> bool:

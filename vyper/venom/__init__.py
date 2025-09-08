@@ -38,6 +38,7 @@ from vyper.venom.passes import (
 )
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.venom_to_assembly import VenomCompiler
+from vyper.venom.memory_allocator import MemoryAllocator
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
@@ -49,7 +50,7 @@ def generate_assembly_experimental(
     return compiler.generate_evm_assembly(optimize == OptimizationLevel.NONE)
 
 
-def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache) -> None:
+def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache, alloc: MemoryAllocator) -> None:
     # Run passes on Venom IR
     # TODO: Add support for optimization levels
 
@@ -66,7 +67,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     SimplifyCFGPass(ac, fn).run_pass()
 
     AssignElimination(ac, fn).run_pass()
-    Mem2Var(ac, fn).run_pass()
+    Mem2Var(ac, fn).run_pass(alloc)
     MakeSSA(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
@@ -129,7 +130,7 @@ def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
         ir_analyses[fn] = IRAnalysesCache(fn)
 
     for fn in ctx.functions.values():
-        _run_passes(fn, optimize, ir_analyses[fn])
+        _run_passes(fn, optimize, ir_analyses[fn], ctx.mem_allocator)
 
 
 def generate_venom(

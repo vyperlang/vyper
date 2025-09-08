@@ -14,7 +14,8 @@ class Mem2Var(IRPass):
 
     function: IRFunction
 
-    def run_pass(self):
+    def run_pass(self, mem_alloc):
+        self.mem_alloc = mem_alloc
         self.analyses_cache.request_analysis(CFGAnalysis)
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(dfg)
@@ -44,16 +45,20 @@ class Mem2Var(IRPass):
         if not all2(inst.opcode in ["mstore", "mload", "return"] for inst in uses):
             return
 
+        _offset, size, _id = alloca_inst.operands
         alloca_id = alloca_inst.operands[2]
         var_name = self._mk_varname(var.value, alloca_id.value)
         var = IRVariable(var_name)
+        mem_loc = None
         for inst in uses.copy():
             if inst.opcode == "mstore":
                 self.updater.mk_assign(inst, inst.operands[0], new_output=var)
             elif inst.opcode == "mload":
                 self.updater.mk_assign(inst, var)
             elif inst.opcode == "return":
-                self.updater.add_before(inst, "mstore", [var, inst.operands[1]])
+                if mem_loc is None:
+                    mem_loc = self.mem_alloc.allocate(size)
+                self.updater.add_before(inst, "mstore", [var, mem_loc.get_offset_lit()])
 
     def _process_palloca_var(self, dfg: DFGAnalysis, palloca_inst: IRInstruction, var: IRVariable):
         """
@@ -64,9 +69,10 @@ class Mem2Var(IRPass):
         if not all2(inst.opcode in ["mstore", "mload"] for inst in uses):
             return
 
-        ofst, _size, alloca_id = palloca_inst.operands
+        _ofst, size, alloca_id = palloca_inst.operands
         var_name = self._mk_varname(var.value, alloca_id.value)
         var = IRVariable(var_name)
+        mem_loc = self.mem_alloc.allocate(size)
 
         # some value given to us by the calling convention
         fn = self.function
@@ -75,12 +81,12 @@ class Mem2Var(IRPass):
             # on alloca_id) is a bit kludgey, but we will live.
             param = fn.get_param_by_id(alloca_id.value)
             if param is None:
-                self.updater.update(palloca_inst, "mload", [ofst], new_output=var)
+                self.updater.update(palloca_inst, "mload", [mem_loc.get_offset_lit()], new_output=var)
             else:
                 self.updater.update(palloca_inst, "assign", [param.func_var], new_output=var)
         else:
             # otherwise, it comes from memory, convert to an mload.
-            self.updater.update(palloca_inst, "mload", [ofst], new_output=var)
+            self.updater.update(palloca_inst, "mload", [mem_loc.get_offset_lit()], new_output=var)
 
         for inst in uses.copy():
             if inst.opcode == "mstore":
