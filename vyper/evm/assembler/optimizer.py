@@ -1,5 +1,11 @@
-from vyper.evm.assembler.instructions import DATA_ITEM, PUSH_OFST, PUSHLABEL, DataHeader
-from vyper.evm.assembler.symbols import Label, is_label
+from vyper.evm.assembler.instructions import (
+    DATA_ITEM,
+    PUSH_OFST,
+    PUSHLABEL,
+    DataHeader,
+    Label,
+    is_label,
+)
 from vyper.exceptions import CompilerPanic
 from vyper.ir.optimizer import COMMUTATIVE_OPS
 

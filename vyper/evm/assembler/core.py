@@ -1,15 +1,19 @@
 from typing import Any
 
-from build.lib.vyper.ir.compile_ir import PUSH, PUSH_N
 from vyper.evm.assembler.instructions import (
     CONST,
+    CONSTREF,
     DATA_ITEM,
+    PUSH,
+    PUSH_N,
     PUSH_OFST,
     PUSHLABEL,
     AssemblyInstruction,
     DataHeader,
+    Label,
+    is_label,
 )
-from vyper.evm.assembler.symbols import CONSTREF, SYMBOL_SIZE, Label, is_label, resolve_symbols
+from vyper.evm.assembler.symbols import SYMBOL_SIZE, resolve_symbols
 from vyper.evm.opcodes import get_opcodes
 from vyper.exceptions import CompilerPanic
 
