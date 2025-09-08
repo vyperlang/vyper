@@ -1,6 +1,8 @@
 from dataclasses import dataclass
+
 from vyper.evm.assembler.symbols import CONSTREF, Label
 from vyper.evm.opcodes import version_check
+
 
 @dataclass
 class DataHeader:
@@ -19,6 +21,7 @@ class DATA_ITEM:
             return f"DATABYTES {self.data.hex()}"
         elif isinstance(self.data, Label):
             return f"DATALABEL {self.data.label}"
+
 
 # a string (assembly instruction) but with additional metadata from the source code
 class TaggedInstruction(str):
@@ -57,6 +60,7 @@ def PUSH_N(x, n):
     assert x == 0
     return [f"PUSH{len(o)}"] + o
 
+
 # Calculate the size of PUSH instruction
 def calc_push_size(val: int):
     # stupid implementation. this is "slow", but its correctness is
@@ -68,6 +72,7 @@ def calc_push_size(val: int):
     #      else 0)
     # ```
     return len(PUSH(val))
+
 
 class CONST:
     def __init__(self, name: str, value: int):
@@ -123,7 +128,8 @@ class PUSH_OFST:
 
     def __hash__(self):
         return hash((self.label, self.ofst))
-    
+
+
 def JUMP(label: Label):
     return [PUSHLABEL(label), "JUMP"]
 

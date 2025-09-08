@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from build.lib.vyper.ir.compile_ir import DataHeader
-from vyper.evm.assembler.instructions import DATA_ITEM, PUSH
+from vyper.evm.assembler.instructions import DATA_ITEM, PUSH, DataHeader
 from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.ir.compile_ir import (
     PUSH_OFST,

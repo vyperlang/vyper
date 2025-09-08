@@ -4,13 +4,24 @@ import contextlib
 import copy
 from typing import Any, Optional
 
-from build.lib.vyper.ir.compile_ir import DataHeader
 import cbor2
 
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.assembler.core import assembly_to_evm, get_data_segment_lengths
-from vyper.evm.assembler.instructions import CONST, DATA_ITEM, JUMP, JUMPI, PUSH, PUSH_N, PUSH_OFST, PUSHLABEL, AssemblyInstruction, TaggedInstruction, mkdebug
+from vyper.evm.assembler.instructions import (
+    CONST,
+    DATA_ITEM,
+    JUMP,
+    JUMPI,
+    PUSH,
+    PUSH_OFST,
+    PUSHLABEL,
+    AssemblyInstruction,
+    DataHeader,
+    TaggedInstruction,
+    mkdebug,
+)
 from vyper.evm.assembler.optimizer import optimize_assembly
 from vyper.evm.assembler.symbols import CONSTREF, Label
 from vyper.evm.opcodes import get_opcodes
@@ -100,6 +111,7 @@ def _rewrite_return_sequences(ir_node, label_params=None):
     for t in args:
         _rewrite_return_sequences(t, label_params)
 
+
 ##############################
 # IRnode to assembly
 ##############################
@@ -130,6 +142,7 @@ def compile_to_assembly(
     if optimize != OptimizationLevel.NONE:
         optimize_assembly(res)
     return res
+
 
 class _IRnodeLowerer:
     # map from variable names to height in stack
@@ -757,5 +770,3 @@ class _IRnodeLowerer:
             self.global_revert_label = self.mksymbol("revert")
         # use a shared failure block for common case of assert(x).
         return JUMPI(self.global_revert_label)
-
-

@@ -1,8 +1,10 @@
-
-
-
+from vyper.evm.assembler.instructions import DATA_ITEM, PUSH_OFST, PUSHLABEL, DataHeader
+from vyper.evm.assembler.symbols import Label, is_label
+from vyper.exceptions import CompilerPanic
+from vyper.ir.optimizer import COMMUTATIVE_OPS
 
 _TERMINAL_OPS = ("JUMP", "RETURN", "REVERT", "STOP", "INVALID")
+
 
 def _prune_unreachable_code(assembly):
     # delete code between terminal ops and JUMPDESTS as those are
