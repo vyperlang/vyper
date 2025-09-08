@@ -74,6 +74,7 @@ class Mem2Var(IRPass):
         var_name = self._mk_varname(var.value, alloca_id.value)
         var = IRVariable(var_name)
         mem_loc = self.mem_alloc.allocate(size)
+        palloca_inst.operands[0] = mem_loc.get_offset_lit()
 
         # some value given to us by the calling convention
         fn = self.function
