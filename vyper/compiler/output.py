@@ -289,7 +289,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             "source_id",
             "function_id",
             "venom_via_stack",
-            "venom_return_via_stack"
+            "venom_return_via_stack",
         }
         ret = {k: v for k, v in ret.items() if k in keep_keys}
         return ret
@@ -448,17 +448,16 @@ def _compress_source_map(ast_map, jump_map, bytecode_size):
 
     return ";".join(ret)
 
-def build_symbol_map(compiler_data: CompilerData) -> dict:
-    _, _, sym = compile_ir.assembly_to_evm_with_symbol_map(
-        compiler_data.assembly, 0, None
-    )
-    return sym
 
-def build_symbol_map_runtime(compiler_data: CompilerData) -> dict:
-    _, _, sym = compile_ir.assembly_to_evm_with_symbol_map(
-        compiler_data.assembly_runtime, 0, None
-    )
-    return sym
+def build_symbol_map(compiler_data: CompilerData) -> dict:
+    sym, _, _ = compile_ir.resolve_symbols(compiler_data.assembly)
+    return {k.label: v for (k, v) in sym.items()}
+
+
+def buld_symbol_map_runtime(compiler_data: CompilerData) -> dict:
+    sym, _, _ = compile_ir.resolve_symbols(compiler_data.assembly_runtime)
+    return {k.label: v for (k, v) in sym.items()}
+
 
 def build_bytecode_output(compiler_data: CompilerData) -> str:
     return f"0x{compiler_data.bytecode.hex()}"

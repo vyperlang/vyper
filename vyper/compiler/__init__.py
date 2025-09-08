@@ -47,7 +47,7 @@ OUTPUT_FORMATS = {
     "opcodes": output.build_opcodes_output,
     "opcodes_runtime": output.build_opcodes_runtime_output,
     "symbol_map": output.build_symbol_map,
-    "symbol_map_runtime": output.build_symbol_map_runtime
+    "symbol_map_runtime": output.buld_symbol_map_runtime,
 }
 
 INTERFACE_OUTPUT_FORMATS = [
