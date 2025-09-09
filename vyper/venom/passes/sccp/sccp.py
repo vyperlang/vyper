@@ -13,6 +13,7 @@ from vyper.venom.basicblock import (
     IRLiteral,
     IROperand,
     IRVariable,
+    IRAbstractMemLoc,
 )
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
@@ -151,11 +152,11 @@ class SCCP(IRPass):
         return lat
 
     def _set_lattice(self, op: IROperand, value: LatticeItem):
-        assert isinstance(op, IRVariable), f"Not a variable: {op}"
+        assert isinstance(op, IRVariable), (f"Not a variable: {op}")
         self.lattice[op] = value
 
     def _eval_from_lattice(self, op: IROperand) -> LatticeItem:
-        if isinstance(op, (IRLiteral, IRLabel)):
+        if isinstance(op, (IRLiteral, IRLabel, IRAbstractMemLoc)):
             return op
 
         assert isinstance(op, IRVariable), f"Not a variable: {op}"

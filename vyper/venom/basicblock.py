@@ -4,6 +4,7 @@ import json
 import re
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
+from typing import ClassVar
 
 import vyper.venom.effects as effects
 from vyper.codegen.ir_node import IRnode
@@ -171,6 +172,30 @@ class IRLiteral(IROperand):
         if abs(self.value) < 1024:
             return str(self.value)
         return f"0x{self.value:x}"
+
+
+class IRAbstractMemLoc(IROperand):
+    _id: int
+    size: int
+    source: IRInstruction
+
+    _curr_id: ClassVar[int]
+
+    def __init__(self, size: int, source: IRInstruction):
+        self._id = IRAbstractMemLoc._curr_id
+        IRAbstractMemLoc._curr_id += 1
+        self.size = size
+        self.source = source
+
+    def __hash__(self) -> int:
+        if self._hash is None:
+            self._hash = hash(self.source)
+        return self._hash
+
+    def __repr__(self) -> str:
+        return f"memloc({self._id})"
+
+IRAbstractMemLoc._curr_id = 0
 
 
 class IRVariable(IROperand):

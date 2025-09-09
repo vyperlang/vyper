@@ -14,6 +14,7 @@ from vyper.venom.basicblock import IRLabel, IRLiteral
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
+from vyper.venom.memory_allocator import MemoryAllocator
 from vyper.venom.passes import (
     CSE,
     SCCP,
@@ -38,7 +39,7 @@ from vyper.venom.passes import (
 )
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.venom_to_assembly import VenomCompiler
-from vyper.venom.memory_allocator import MemoryAllocator
+from vyper.venom.check_venom import no_concrete_locations_fn
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
@@ -50,27 +51,34 @@ def generate_assembly_experimental(
     return compiler.generate_evm_assembly(optimize == OptimizationLevel.NONE)
 
 
-def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache, alloc: MemoryAllocator) -> None:
+def _run_passes(
+    fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache, alloc: MemoryAllocator
+) -> None:
     # Run passes on Venom IR
     # TODO: Add support for optimization levels
 
     FloatAllocas(ac, fn).run_pass()
+    no_concrete_locations_fn(fn)    
 
     SimplifyCFGPass(ac, fn).run_pass()
 
     MakeSSA(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
+    no_concrete_locations_fn(fn)    
+    breakpoint()
 
     # run constant folding before mem2var to reduce some pointer arithmetic
     AlgebraicOptimizationPass(ac, fn).run_pass()
     SCCP(ac, fn, remove_allocas=False).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
+    no_concrete_locations_fn(fn)    
 
     AssignElimination(ac, fn).run_pass()
     Mem2Var(ac, fn).run_pass(alloc)
     MakeSSA(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
+    no_concrete_locations_fn(fn)    
 
     SimplifyCFGPass(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()

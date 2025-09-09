@@ -1,5 +1,5 @@
 from vyper.venom.analysis import IRAnalysesCache, VarDefinition
-from vyper.venom.basicblock import IRBasicBlock, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRVariable, IROperand, IRAbstractMemLoc
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 
@@ -82,3 +82,69 @@ def check_venom_ctx(context: IRContext):
 
     if errors:
         raise ExceptionGroup("venom semantic errors", errors)
+
+def no_concrete_locations_fn(function: IRFunction):
+    for bb in function.get_basic_blocks():
+        for inst in bb.instructions:
+            write_op = _get_memory_write_op(inst)
+            read_op = _get_memory_write_op(inst)
+            if write_op is not None:
+                assert isinstance(write_op, (IRVariable, IRAbstractMemLoc))
+            if read_op is not None:
+                assert isinstance(read_op, (IRVariable, IRAbstractMemLoc))
+
+def _get_memory_write_op(inst) -> IROperand | None:
+    opcode = inst.opcode
+    if opcode == "mstore":
+        dst = inst.operands[1]
+        return dst 
+    elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
+        _, _, dst = inst.operands
+        return dst
+    elif opcode == "call":
+        _, dst, _, _, _, _, _ = inst.operands
+        return dst
+    elif opcode in ("delegatecall", "staticcall"):
+        _, dst, _, _, _, _ = inst.operands
+        return dst
+    elif opcode == "extcodecopy":
+        _, _, dst, _ = inst.operands
+        return dst 
+
+    return None
+
+
+def _get_memory_read_op(inst) -> IROperand | None:
+    opcode = inst.opcode
+    if opcode == "mload":
+        return inst.operands[0]
+    elif opcode == "mcopy":
+        _, src, _ = inst.operands
+        return src
+    elif opcode == "call":
+        _, _, _, dst, _, _, _ = inst.operands
+        return dst
+    elif opcode in ("delegatecall", "staticcall"):
+        _, _, _, dst, _, _ = inst.operands
+        return dst
+    elif opcode == "return":
+        _, src = inst.operands
+        return src
+    elif opcode == "create":
+        _, src, _value = inst.operands
+        return src
+    elif opcode == "create2":
+        _salt, size, src, _value = inst.operands
+        return src
+    elif opcode == "sha3":
+        _, offset = inst.operands
+        return offset
+    elif opcode == "log":
+        _, src = inst.operands[-2:]
+        return src
+    elif opcode == "revert":
+        _, src = inst.operands
+        return src
+
+    return None
+
