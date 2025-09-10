@@ -36,7 +36,9 @@ VENOM_GRAMMAR = """
     label_decl: (IDENT | ESCAPED_STRING) ":" NEWLINE+
 
     statement: (assignment | instruction) NEWLINE+
-    assignment: VAR_IDENT "=" expr
+    assignment: lhs "=" expr
+    lhs: VAR_IDENT | lhs_list
+    lhs_list: VAR_IDENT ("," VAR_IDENT)+
     expr: instruction | operand
 
     instruction: IDENT operands_list?
@@ -206,8 +208,32 @@ class VenomTransformer(Transformer):
         item = item.replace("_", "")
         return DataItem(bytes.fromhex(item))
 
+    def lhs(self, children):
+        # unwrap VAR_IDENT or lhs_list
+        assert len(children) == 1
+        return children[0]
+
+    def lhs_list(self, children):
+        # list of VAR_IDENTs
+        return children
+
     def assignment(self, children) -> IRInstruction:
-        to, value = children
+        left, value = children
+        # Multi-output assignment (e.g., %a, %b = invoke @f)
+        if isinstance(left, list):
+            if not isinstance(value, IRInstruction):
+                raise TypeError("Multi-target assignment requires an instruction on RHS")
+            outs = left
+            if len(outs) == 1:
+                value.output = outs[0]
+            elif len(outs) > 1:
+                # For multi-output instructions, prefer primary None + extra outputs
+                value.output = None
+                value.set_extra_outputs(outs)
+            return value
+
+        # Single-target assignment
+        to = left
         if isinstance(value, IRInstruction):
             value.output = to
             return value
