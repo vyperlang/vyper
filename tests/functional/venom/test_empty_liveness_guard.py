@@ -1,8 +1,6 @@
-import pytest
-
 from tests.venom_utils import parse_venom
-from vyper.venom import generate_assembly_experimental, run_passes_on
 from vyper.compiler.settings import OptimizationLevel
+from vyper.venom import generate_assembly_experimental, run_passes_on
 
 
 def test_empty_liveness_at_function_entry_param_then_stop():
