@@ -7,7 +7,6 @@ from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, FCGAnalysis, IRAnalys
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
-from vyper.venom.ir_node_to_venom import ENABLE_NEW_CALL_CONV
 from vyper.venom.passes import FloatAllocas
 from vyper.venom.passes.base_pass import IRGlobalPass
 
@@ -201,8 +200,8 @@ class FunctionInlinerPass(IRGlobalPass):
                         # When single-output invoke is used, alias to list
                         if not callsite_outs and call_site.output is not None:
                             callsite_outs = [call_site.output]
-                        assert (
-                            len(ret_values) == len(callsite_outs)
+                        assert len(ret_values) == len(
+                            callsite_outs
                         ), f"Return arity mismatch: {len(ret_values)} vs {len(callsite_outs)}"
                         for idx, ret_value in enumerate(ret_values):
                             bb.insert_instruction(

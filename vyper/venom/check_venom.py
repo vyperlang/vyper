@@ -38,7 +38,9 @@ class InconsistentReturnArity(VenomError):
         self.arities = arities
 
     def __str__(self):
-        return f"function {self.function.name} has inconsistent 'ret' arities: {sorted(self.arities)}"
+        return (
+            f"function {self.function.name} has inconsistent 'ret' arities: {sorted(self.arities)}"
+        )
 
 
 class InvokeArityMismatch(VenomError):
@@ -53,7 +55,8 @@ class InvokeArityMismatch(VenomError):
     def __str__(self):
         bb = self.inst.parent
         return (
-            f"invoke arity mismatch in {self.caller.name}: expected {self.expected}, got {self.got}\n"
+            f"invoke arity mismatch in {self.caller.name}: "
+            f"expected {self.expected}, got {self.got}\n"
             f"  {self.inst}\n\n{bb}"
         )
 

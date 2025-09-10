@@ -11,6 +11,7 @@ from vyper.ir.compile_ir import AssemblyInstruction
 from vyper.venom.analysis import MemSSA
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLabel, IRLiteral
+from vyper.venom.check_venom import check_calling_convention
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
@@ -38,7 +39,6 @@ from vyper.venom.passes import (
 )
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.venom_to_assembly import VenomCompiler
-from vyper.venom.check_venom import check_calling_convention
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 

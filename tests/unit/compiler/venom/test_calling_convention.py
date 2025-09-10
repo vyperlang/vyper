@@ -2,8 +2,8 @@ import pytest
 
 from tests.venom_utils import parse_venom
 from vyper.venom.check_venom import (
-    InvokeArityMismatch,
     InconsistentReturnArity,
+    InvokeArityMismatch,
     check_calling_convention,
 )
 
@@ -117,4 +117,3 @@ def test_inconsistent_callee_return_arity():
     with pytest.raises(ExceptionGroup) as excinfo:
         check_calling_convention(ctx)
     _assert_raises(excinfo.value, InconsistentReturnArity)
-

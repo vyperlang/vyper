@@ -1,9 +1,10 @@
 import pytest
 
 from tests.hevm import hevm_check_venom_ctx
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral
+from vyper.venom.basicblock import IRLabel, IRLiteral
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
+
 
 # Will update when we have a proper support for the parser
 def _ctx_with_invoke_two_returns(a: int, b: int) -> IRContext:
@@ -54,4 +55,3 @@ def test_invoke_two_returns_executes_correctly():
     post = _ctx_sink_constants(a, b)
 
     hevm_check_venom_ctx(pre, post)
-
