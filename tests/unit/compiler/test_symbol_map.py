@@ -1,7 +1,6 @@
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings
 
-
 TEST_CODE = """
 @internal
 def foo(a: uint256) -> uint256:
