@@ -21,6 +21,9 @@ from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction, IRParameter
 
 ENABLE_NEW_CALL_CONV = True
+# Experimental: allow returning multiple 32-byte values via the stack
+ENABLE_MULTI_RETURNS = False
+MAX_STACK_RETURNS = 4
 MAX_STACK_ARGS = 6
 
 # Instructions that are mapped to their inverse

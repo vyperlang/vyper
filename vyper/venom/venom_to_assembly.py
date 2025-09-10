@@ -488,10 +488,13 @@ class VenomCompiler:
         # with the stack model containing the return value(s), so we fiddle
         # with the stack model beforehand.
 
-        # Step 4: Push instruction's return value to stack
+        # Step 4: Push instruction's return value(s) to stack
         stack.pop(len(operands))
-        if inst.output is not None:
-            stack.push(inst.output)
+        outs = inst.get_outputs()
+        if outs:
+            for out in outs:
+                assert isinstance(out, IROperand)  # help mypy
+                stack.push(out)
 
         # Step 5: Emit the EVM instruction(s)
         if opcode in _ONE_TO_ONE_INSTRUCTIONS:
@@ -590,10 +593,16 @@ class VenomCompiler:
             raise Exception(f"Unknown opcode: {opcode}")
 
         # Step 6: Emit instructions output operands (if any)
-        if inst.output is not None:
-            if inst.output not in next_liveness:
-                self.pop(assembly, stack)
-            else:
+        outs = inst.get_outputs()
+        if outs:
+            # Pop any outputs which are dead
+            for out in list(reversed(outs)):
+                if out not in next_liveness:
+                    self.pop(assembly, stack)
+            # Heuristic scheduling based on the next expected live var
+            # Use the top-most surviving output to schedule
+            alive_outs = [o for o in outs if o in next_liveness]
+            if alive_outs:
                 self._optimistic_swap(assembly, inst, next_liveness, stack)
 
         return apply_line_numbers(inst, assembly)
@@ -610,7 +619,10 @@ class VenomCompiler:
 
         next_scheduled = next_liveness.last()
         cost = 0
-        if not self.dfg.are_equivalent(inst.output, next_scheduled):
+        # Use last output (top-of-stack) when available, else the single output
+        outputs = inst.get_outputs()
+        current_top_out = outputs[-1] if outputs else inst.output
+        if not self.dfg.are_equivalent(current_top_out, next_scheduled):
             cost = self.swap_op(assembly, stack, next_scheduled)
 
         if DEBUG_SHOW_COST and cost != 0:

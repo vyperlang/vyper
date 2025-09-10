@@ -38,6 +38,7 @@ from vyper.venom.passes import (
 )
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.venom_to_assembly import VenomCompiler
+from vyper.venom.check_venom import check_calling_convention
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
@@ -119,6 +120,8 @@ def _run_global_passes(ctx: IRContext, optimize: OptimizationLevel, ir_analyses:
 
 def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
     ir_analyses = {}
+    # Validate calling convention invariants before running passes
+    check_calling_convention(ctx)
     for fn in ctx.functions.values():
         ir_analyses[fn] = IRAnalysesCache(fn)
 

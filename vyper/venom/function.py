@@ -120,6 +120,11 @@ class IRFunction:
             for inst in bb.instructions:
                 if inst.output:
                     inst.output = varmap[inst.output]
+                # rename any extra outputs
+                outs = inst.get_outputs()[1:]
+                if outs:
+                    # rebuild preserving first output as-is
+                    inst.set_extra_outputs([varmap[o] for o in outs])
 
                 for i, op in enumerate(inst.operands):
                     if not isinstance(op, IRVariable):

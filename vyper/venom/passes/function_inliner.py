@@ -144,7 +144,7 @@ class FunctionInlinerPass(IRGlobalPass):
                         # demote to alloca so that mem2var will work
                         inst.opcode = "alloca"
 
-    def _inline_call_site(self, func: IRFunction, call_site: IRInstruction):
+    def _inline_call_site(self, func: IRFunction, call_site: IRInstruction) -> None:
         """
         Inline function into call site.
         """
@@ -190,13 +190,24 @@ class FunctionInlinerPass(IRGlobalPass):
                     # will be handled at the toplevel `inline_function`
                     pass
                 elif inst.opcode == "ret":
-                    if len(inst.operands) > 1:
-                        # sanity check (should remove once new callconv stabilizes)
-                        assert ENABLE_NEW_CALL_CONV
-                        ret_value = inst.operands[0]
-                        bb.insert_instruction(
-                            IRInstruction("assign", [ret_value], call_site.output), -1
-                        )
+                    # Map callee returns to caller outputs (if any)
+                    # ret may be: ret @return_pc  OR  ret v1, v2, ..., @return_pc
+                    # The last operand is the return PC (label or variable);
+                    # all preceding operands (if any) are return values.
+                    ret_values = [op for op in inst.operands[:-1] if not isinstance(op, IRLabel)]
+                    if len(ret_values) > 0:
+                        # Map each returned value to corresponding callsite outputs
+                        callsite_outs = call_site.get_outputs()
+                        # When single-output invoke is used, alias to list
+                        if not callsite_outs and call_site.output is not None:
+                            callsite_outs = [call_site.output]
+                        assert (
+                            len(ret_values) == len(callsite_outs)
+                        ), f"Return arity mismatch: {len(ret_values)} vs {len(callsite_outs)}"
+                        for idx, ret_value in enumerate(ret_values):
+                            bb.insert_instruction(
+                                IRInstruction("assign", [ret_value], callsite_outs[idx]), -1
+                            )
                     inst.opcode = "jmp"
                     inst.operands = [call_site_return.label]
 
@@ -284,6 +295,10 @@ class FunctionInlinerPass(IRGlobalPass):
             output = IRVariable(f"{prefix}{inst.output.plain_name}")
 
         clone = IRInstruction(inst.opcode, ops, output)
+        # Handle multi-outputs
+        extra_outs = [out for out in inst.get_outputs()[1:]]
+        if extra_outs:
+            clone.set_extra_outputs([IRVariable(f"{prefix}{o.plain_name}") for o in extra_outs])
         clone.parent = inst.parent
         clone.annotation = inst.annotation
         clone.ast_source = inst.ast_source
