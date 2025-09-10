@@ -2,14 +2,12 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+from vyper.evm.assembler.instructions import DATA_ITEM, PUSH, DataHeader
 from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.ir.compile_ir import (
-    DATA_ITEM,
-    PUSH,
     PUSH_OFST,
     PUSHLABEL,
     AssemblyInstruction,
-    DataHeader,
     Label,
     TaggedInstruction,
     optimize_assembly,
