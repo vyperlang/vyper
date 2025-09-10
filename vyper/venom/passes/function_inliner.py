@@ -204,8 +204,10 @@ class FunctionInlinerPass(IRGlobalPass):
                             callsite_outs
                         ), f"Return arity mismatch: {len(ret_values)} vs {len(callsite_outs)}"
                         for idx, ret_value in enumerate(ret_values):
+                            target_out = callsite_outs[idx]
+                            assert isinstance(target_out, IRVariable)
                             bb.insert_instruction(
-                                IRInstruction("assign", [ret_value], callsite_outs[idx]), -1
+                                IRInstruction("assign", [ret_value], target_out), -1
                             )
                     inst.opcode = "jmp"
                     inst.operands = [call_site_return.label]
@@ -295,7 +297,7 @@ class FunctionInlinerPass(IRGlobalPass):
 
         clone = IRInstruction(inst.opcode, ops, output)
         # Handle multi-outputs
-        extra_outs = [out for out in inst.get_outputs()[1:]]
+        extra_outs = [out for out in inst.get_outputs()[1:] if isinstance(out, IRVariable)]
         if extra_outs:
             clone.set_extra_outputs([IRVariable(f"{prefix}{o.plain_name}") for o in extra_outs])
         clone.parent = inst.parent

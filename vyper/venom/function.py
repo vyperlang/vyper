@@ -123,8 +123,10 @@ class IRFunction:
                 # rename any extra outputs
                 outs = inst.get_outputs()[1:]
                 if outs:
-                    # rebuild preserving first output as-is
-                    inst.set_extra_outputs([varmap[o] for o in outs])
+                    # only IRVariable items are valid as extra outputs
+                    extra_vars = [o for o in outs if isinstance(o, IRVariable)]
+                    if extra_vars:
+                        inst.set_extra_outputs([varmap[o] for o in extra_vars])
 
                 for i, op in enumerate(inst.operands):
                     if not isinstance(op, IRVariable):

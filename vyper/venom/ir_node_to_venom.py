@@ -250,6 +250,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
         if returns_word:
             ret_value = bb.append_invoke_instruction(stack_args, returns=True)  # type: ignore
             assert ret_value is not None
+            assert isinstance(ret_value, IRVariable)
             assert isinstance(return_buf, IROperand)
             bb.append_instruction("mstore", ret_value, return_buf)
             return return_buf
