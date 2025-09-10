@@ -605,6 +605,10 @@ class VenomCompiler:
         # item, and optimistically swap with it
         if DEBUG_SHOW_COST:
             stack0 = stack.copy()
+        
+        # if there are no live vars at the next point, nothing to schedule
+        if len(next_liveness) == 0:
+            return
 
         next_scheduled = next_liveness.last()
         cost = 0
