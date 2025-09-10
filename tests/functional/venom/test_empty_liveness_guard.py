@@ -22,6 +22,18 @@ def test_empty_liveness_param_then_revert_immediates():
     function main {
     main:
         %p = param
+        revert 1, 2
+    }
+    """
+    ctx = parse_venom(venom)
+    generate_assembly_experimental(ctx)
+
+
+def test_empty_liveness_param_then_revert_immediates2():
+    venom = """
+    function main {
+    main:
+        %p = param
         revert 0, 0
     }
     """
