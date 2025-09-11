@@ -70,10 +70,7 @@ class MultiOutputNonInvoke(VenomError):
 
     def __str__(self):
         bb = self.inst.parent
-        return (
-            f"multi-output on non-invoke in {self.caller.name}:\n"
-            f"  {self.inst}\n\n{bb}"
-        )
+        return f"multi-output on non-invoke in {self.caller.name}:\n" f"  {self.inst}\n\n{bb}"
 
 
 def _handle_var_definition(
