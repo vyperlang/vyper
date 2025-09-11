@@ -61,6 +61,21 @@ class InvokeArityMismatch(VenomError):
         )
 
 
+class MultiOutputNonInvoke(VenomError):
+    message: str = "multi-output assignment only supported for invoke"
+
+    def __init__(self, caller: IRFunction, inst: IRInstruction):
+        self.caller = caller
+        self.inst = inst
+
+    def __str__(self):
+        bb = self.inst.parent
+        return (
+            f"multi-output on non-invoke in {self.caller.name}:\n"
+            f"  {self.inst}\n\n{bb}"
+        )
+
+
 def _handle_var_definition(
     fn: IRFunction, bb: IRBasicBlock, var_def: VarDefinition
 ) -> list[VenomError]:
@@ -135,6 +150,10 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
     for caller in context.functions.values():
         for bb in caller.get_basic_blocks():
             for inst in bb.instructions:
+                # Disallow multi-output except on invoke
+                if len(inst.get_outputs()) > 1 and inst.opcode != "invoke":
+                    errors.append(MultiOutputNonInvoke(caller, inst))
+                    continue
                 if inst.opcode != "invoke":
                     continue
                 target = inst.operands[0]

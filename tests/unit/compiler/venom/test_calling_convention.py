@@ -4,6 +4,7 @@ from tests.venom_utils import parse_venom
 from vyper.venom.check_venom import (
     InconsistentReturnArity,
     InvokeArityMismatch,
+    MultiOutputNonInvoke,
     check_calling_convention,
 )
 
@@ -117,3 +118,17 @@ def test_inconsistent_callee_return_arity():
     with pytest.raises(ExceptionGroup) as excinfo:
         check_calling_convention(ctx)
     _assert_raises(excinfo.value, InconsistentReturnArity)
+
+
+def test_multi_lhs_non_invoke_rejected():
+    src = """
+    function main {
+    main:
+        %x, %y = add 1, 2
+        sink %x, %y
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, MultiOutputNonInvoke)
