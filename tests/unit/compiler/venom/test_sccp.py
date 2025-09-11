@@ -2,7 +2,9 @@ import pytest
 
 from tests.venom_utils import PrePostChecker
 from vyper.exceptions import StaticAssertionException
+from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRVariable
+from vyper.venom.parser import parse_venom
 from vyper.venom.passes import SCCP
 from vyper.venom.passes.sccp.sccp import LatticeEnum
 
@@ -276,6 +278,61 @@ def test_cont_phi_const_case():
 
     # never visited
     assert sccp.lattice[IRVariable("%5:2")] == LatticeEnum.TOP
+
+
+def test_sccp_phi_operand_top_no_branch():
+    """
+    control jumps directly to a join block where a phi depends on predecessors
+    that haven't been executed yet. The phi is TOP at first, and hhe arithmetic
+    using it must defer evaluation.
+    """
+    pre = """
+    main:
+        jmp @join
+    then:
+        %a_then = 2
+        jmp @join
+    else:
+        %a_else = 3
+        jmp @join
+    join:
+        %phi = phi @then, %a_then, @else, %a_else
+        %out = sub 14, %phi
+        sink %out
+    """
+
+    _check_pre_post(pre, pre, hevm=False)
+
+
+def test_sccp_jnz_top_phi_text_ir():
+    """
+    Same as above but using the value to control a jnz.
+    This used to assert in SCCP when the jnz condition was TOP.
+    """
+    src = """
+    function main {
+    main:
+        jmp @join
+    then:
+        %a_then = 2
+        jmp @join
+    else:
+        %a_else = 3
+        jmp @join
+    join:
+        %phi = phi @then, %a_then, @else, %a_else
+        jnz %phi, @true, @false
+    true:
+        sink 1
+    false:
+        sink 2
+    }
+    """
+
+    ctx = parse_venom(src)
+    fn = ctx.get_function(next(iter(ctx.functions.keys())))
+    ac = IRAnalysesCache(fn)
+    SCCP(ac, fn).run_pass()
 
 
 def test_phi_reduction_without_basic_block_removal():
