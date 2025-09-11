@@ -6,6 +6,7 @@ from typing import Iterable
 import vyper.ast as vy_ast
 from vyper.ast.utils import ast_to_dict
 from vyper.codegen.ir_node import IRnode
+from vyper.evm.assembler.symbols import resolve_symbols
 from vyper.compiler.output_bundle import SolcJSONWriter, VyperArchiveWriter
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
@@ -449,13 +450,13 @@ def _compress_source_map(ast_map, jump_map, bytecode_size):
     return ";".join(ret)
 
 
-def build_symbol_map(compiler_data: CompilerData) -> dict:
-    sym, _, _ = compile_ir.resolve_symbols(compiler_data.assembly)
+def build_symbol_map(compiler_data: CompilerData) -> dict[str, int]:
+    sym, _, _ = resolve_symbols(compiler_data.assembly)
     return {k.label: v for (k, v) in sym.items()}
 
 
-def buld_symbol_map_runtime(compiler_data: CompilerData) -> dict:
-    sym, _, _ = compile_ir.resolve_symbols(compiler_data.assembly_runtime)
+def build_symbol_map_runtime(compiler_data: CompilerData) -> dict[str, int]:
+    sym, _, _ = resolve_symbols(compiler_data.assembly_runtime)
     return {k.label: v for (k, v) in sym.items()}
 
 
