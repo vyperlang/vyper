@@ -36,6 +36,7 @@ from vyper.venom.passes import (
     RevertToAssert,
     SimplifyCFGPass,
     SingleUseExpansion,
+    ConcretizeMemLocPass,
 )
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.venom_to_assembly import VenomCompiler
@@ -58,6 +59,8 @@ def _run_passes(
     # TODO: Add support for optimization levels
 
     FloatAllocas(ac, fn).run_pass()
+    print("a")
+    print(fn)
     no_concrete_locations_fn(fn)    
 
     SimplifyCFGPass(ac, fn).run_pass()
@@ -65,7 +68,6 @@ def _run_passes(
     MakeSSA(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
     no_concrete_locations_fn(fn)    
-    breakpoint()
 
     # run constant folding before mem2var to reduce some pointer arithmetic
     AlgebraicOptimizationPass(ac, fn).run_pass()
@@ -78,6 +80,8 @@ def _run_passes(
     MakeSSA(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
+    no_concrete_locations_fn(fn)    
+    print("yo")
     no_concrete_locations_fn(fn)    
 
     SimplifyCFGPass(ac, fn).run_pass()
@@ -94,6 +98,8 @@ def _run_passes(
     MemMergePass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
+
+
     DeadStoreElimination(ac, fn).run_pass(addr_space=MEMORY)
     DeadStoreElimination(ac, fn).run_pass(addr_space=STORAGE)
     DeadStoreElimination(ac, fn).run_pass(addr_space=TRANSIENT)
@@ -109,6 +115,9 @@ def _run_passes(
     PhiEliminationPass(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
     CSE(ac, fn).run_pass()
+
+    ConcretizeMemLocPass(ac, fn).run_pass(alloc)
+    SCCP(ac, fn).run_pass()
 
     AssignElimination(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()

@@ -57,13 +57,19 @@ class Mem2Var(IRPass):
 
         self.updater.mk_assign(alloca_inst, mem_loc)
 
+        assert alloca_inst.output is not None
+
         for inst in uses.copy():
             if inst.opcode == "mstore":
-                assert size.value <= 32, inst 
-                self.updater.mk_assign(inst, inst.operands[0], new_output=var)
+                if size.value <= 32:
+                    self.updater.mk_assign(inst, inst.operands[0], new_output=var)
+                else:
+                    self.updater.update_operands(inst, {alloca_inst.output: mem_loc})
             elif inst.opcode == "mload":
-                assert size.value <= 32, inst 
-                self.updater.mk_assign(inst, var)
+                if size.value <= 32:
+                    self.updater.mk_assign(inst, var)
+                else:
+                    self.updater.update_operands(inst, {alloca_inst.output: mem_loc})
             elif inst.opcode == "add":
                 assert size.value > 32
                 other = [op for op in inst.operands if op != alloca_inst.output]

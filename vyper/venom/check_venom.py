@@ -87,11 +87,11 @@ def no_concrete_locations_fn(function: IRFunction):
     for bb in function.get_basic_blocks():
         for inst in bb.instructions:
             write_op = _get_memory_write_op(inst)
-            read_op = _get_memory_write_op(inst)
+            read_op = _get_memory_read_op(inst)
             if write_op is not None:
-                assert isinstance(write_op, (IRVariable, IRAbstractMemLoc))
+                assert isinstance(write_op, (IRVariable, IRAbstractMemLoc)), inst.parent
             if read_op is not None:
-                assert isinstance(read_op, (IRVariable, IRAbstractMemLoc))
+                assert isinstance(read_op, (IRVariable, IRAbstractMemLoc)), inst.parent
 
 def _get_memory_write_op(inst) -> IROperand | None:
     opcode = inst.opcode
@@ -143,7 +143,9 @@ def _get_memory_read_op(inst) -> IROperand | None:
         _, src = inst.operands[-2:]
         return src
     elif opcode == "revert":
-        _, src = inst.operands
+        size, src = inst.operands
+        if size.value == 0:
+            return None
         return src
 
     return None

@@ -9,6 +9,8 @@ class ConcretizeMemLocPass(IRPass):
             for inst in bb.instructions:
                 new_ops = [self._handle_op(op) for op in inst.operands]
                 inst.operands = new_ops
+                if inst.opcode == "gep":
+                    inst.opcode = "add"
 
     def _handle_op(self, op: IROperand) -> IROperand:
         if isinstance(op, IRAbstractMemLoc):

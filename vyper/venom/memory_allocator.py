@@ -8,7 +8,7 @@ class MemoryAllocator:
 
     def __init__(self):
         self.curr = 0
-        self.allocate = dict()
+        self.allocated = dict()
 
     def allocate(self, size: int | IRLiteral) -> MemoryLocation:
         if isinstance(size, IRLiteral):
