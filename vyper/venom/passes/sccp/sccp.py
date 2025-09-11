@@ -257,12 +257,15 @@ class SCCP(IRPass):
                 assert isinstance(op, IRLiteral)  # clarity
                 eval_result = op
 
-            # The value from the lattice should have evaluated to BOTTOM
-            # or a literal by now.
+            # The value from the lattice should have evaluated to TOP,
+            # BOTTOM, or a literal by now.
+
             # If any operand is BOTTOM, the whole operation is BOTTOM
-            # and we can stop the evaluation early
             if eval_result is LatticeEnum.BOTTOM:
                 return finalize(LatticeEnum.BOTTOM)
+            # If any operand is TOP the operation is TOP
+            if eval_result is LatticeEnum.TOP:
+                return finalize(LatticeEnum.TOP)
 
             assert isinstance(eval_result, IRLiteral), (inst.parent.label, op, inst)
             ops.append(eval_result)

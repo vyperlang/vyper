@@ -278,6 +278,30 @@ def test_cont_phi_const_case():
     assert sccp.lattice[IRVariable("%5:2")] == LatticeEnum.TOP
 
 
+def test_sccp_phi_operand_top_no_branch():
+    """
+    control jumps directly to a join block where a phi depends on predecessors
+    that haven't been executed yet. The phi is TOP at first, and hhe arithmetic
+    using it must defer evaluation.
+    """
+    pre = """
+    main:
+        jmp @join
+    then:
+        %a_then = 2
+        jmp @join
+    else:
+        %a_else = 3
+        jmp @join
+    join:
+        %phi = phi @then, %a_then, @else, %a_else
+        %out = sub 14, %phi
+        sink %out
+    """
+
+    _check_pre_post(pre, pre, hevm=False)
+
+
 def test_phi_reduction_without_basic_block_removal():
     """
     Test of phi reduction `if` end not `if-else`
