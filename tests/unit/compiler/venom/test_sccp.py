@@ -2,7 +2,9 @@ import pytest
 
 from tests.venom_utils import PrePostChecker
 from vyper.exceptions import StaticAssertionException
+from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRVariable
+from vyper.venom.parser import parse_venom
 from vyper.venom.passes import SCCP
 from vyper.venom.passes.sccp.sccp import LatticeEnum
 
@@ -300,6 +302,55 @@ def test_sccp_phi_operand_top_no_branch():
     """
 
     _check_pre_post(pre, pre, hevm=False)
+
+
+def test_sccp_jnz_top_condition_conservative():
+    """
+    Ensure SCCP doesn't assert when jnz condition is TOP. It should
+    conservatively schedule both successors.
+    """
+    pre = """
+    main:
+        %cond = source
+        jnz %cond, @then, @else
+    then:
+        sink 1
+    else:
+        sink 2
+    """
+
+    _check_pre_post(pre, pre, hevm=False)
+
+
+def test_sccp_jnz_top_phi_text_ir():
+    """
+    Same as the programmatic TOP-phi jnz case, encoded as Venom text.
+    This used to assert in SCCP when the jnz condition was TOP.
+    """
+    src = """
+    function main {
+    main:
+        jmp @join
+    then:
+        %a_then = 2
+        jmp @join
+    else:
+        %a_else = 3
+        jmp @join
+    join:
+        %phi = phi @then, %a_then, @else, %a_else
+        jnz %phi, @true, @false
+    true:
+        sink 1
+    false:
+        sink 2
+    }
+    """
+
+    ctx = parse_venom(src)
+    fn = ctx.get_function(next(iter(ctx.functions.keys())))
+    ac = IRAnalysesCache(fn)
+    SCCP(ac, fn).run_pass()
 
 
 def test_phi_reduction_without_basic_block_removal():

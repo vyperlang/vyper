@@ -195,8 +195,8 @@ class SCCP(IRPass):
         elif opcode == "jnz":
             lat = self._eval_from_lattice(inst.operands[0])
 
-            assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
-            if lat == LatticeEnum.BOTTOM:
+            if lat in (LatticeEnum.TOP, LatticeEnum.BOTTOM):
+                # Conservatively assume both successors are possible
                 for out_bb in self.cfg.cfg_out(inst.parent):
                     self.work_list.append(FlowWorkItem(inst.parent, out_bb))
             else:
@@ -210,8 +210,7 @@ class SCCP(IRPass):
                 self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "djmp":
             lat = self._eval_from_lattice(inst.operands[0])
-            assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
-            if lat == LatticeEnum.BOTTOM:
+            if lat in (LatticeEnum.TOP, LatticeEnum.BOTTOM):
                 for op in inst.operands[1:]:
                     target = self.fn.get_basic_block(op.name)
                     self.work_list.append(FlowWorkItem(inst.parent, target))
