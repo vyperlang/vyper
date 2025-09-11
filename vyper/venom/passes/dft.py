@@ -66,9 +66,15 @@ class DFTPass(IRPass):
             if x in self.eda[inst] or inst.flippable:
                 ret = -1 * int(len(self.data_offspring[x]) > 0)
             else:
+                # x is a data dependency; locate the operand produced by x
                 assert x in self.dda[inst]  # sanity check
-                assert x.output is not None  # help mypy
-                ret = inst.operands.index(x.output)
+                idxs = []
+                for i, op in enumerate(inst.operands):
+                    prod = self.dfg.get_producing_instruction(op)
+                    if prod is x:
+                        idxs.append(i)
+                # pick the earliest occurrence if multiple
+                ret = min(idxs) if idxs else 0
             return ret
 
         # heuristic: sort by size of child dependency graph
