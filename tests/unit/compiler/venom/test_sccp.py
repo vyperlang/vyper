@@ -304,27 +304,9 @@ def test_sccp_phi_operand_top_no_branch():
     _check_pre_post(pre, pre, hevm=False)
 
 
-def test_sccp_jnz_top_condition_conservative():
-    """
-    Ensure SCCP doesn't assert when jnz condition is TOP. It should
-    conservatively schedule both successors.
-    """
-    pre = """
-    main:
-        %cond = source
-        jnz %cond, @then, @else
-    then:
-        sink 1
-    else:
-        sink 2
-    """
-
-    _check_pre_post(pre, pre, hevm=False)
-
-
 def test_sccp_jnz_top_phi_text_ir():
     """
-    Same as the programmatic TOP-phi jnz case, encoded as Venom text.
+    Same as above but using the value to control a jnz.
     This used to assert in SCCP when the jnz condition was TOP.
     """
     src = """
