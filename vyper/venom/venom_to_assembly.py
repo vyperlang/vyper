@@ -418,6 +418,13 @@ class VenomCompiler:
             log_topic_count = inst.operands[0].value
             assert log_topic_count in [0, 1, 2, 3, 4], "Invalid topic count"
             operands = inst.operands[1:]
+        elif opcode == "ret":
+            # For ret with values, we only treat the return PC as an input operand
+            # The return values must remain on the stack and are not consumed here
+            if len(inst.operands) == 0:
+                operands = []
+            else:
+                operands = [inst.operands[-1]]
         else:
             operands = inst.operands
 
@@ -595,8 +602,11 @@ class VenomCompiler:
         # Step 6: Emit instructions output operands (if any)
         outs = inst.get_outputs()
         if outs:
-            # Pop any outputs which are dead
-            for out in list(reversed(outs)):
+            # For multi-output instructions, keep outputs on stack even if
+            # not immediately live; subsequent instructions may consume them.
+            if len(outs) == 1:
+                # Pop the single output if it is dead at the next point
+                out = outs[0]
                 if out not in next_liveness:
                     self.pop(assembly, stack)
             # Heuristic scheduling based on the next expected live var
