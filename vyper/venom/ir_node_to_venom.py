@@ -9,6 +9,7 @@ from vyper.codegen.context import Alloca
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.ir.compile_ir import _runtime_code_offsets
+from vyper.semantics.types.subscriptable import TupleT
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -22,7 +23,7 @@ from vyper.venom.function import IRFunction, IRParameter
 
 ENABLE_NEW_CALL_CONV = True
 # Experimental: allow returning multiple 32-byte values via the stack
-ENABLE_MULTI_RETURNS = False
+ENABLE_MULTI_RETURNS = True
 MAX_STACK_RETURNS = 4
 MAX_STACK_ARGS = 6
 
@@ -190,6 +191,21 @@ def _pass_via_stack(func_t) -> dict[str, bool]:
 
     stack_items = 0
     returns_word = _returns_word(func_t)
+    returns_count = (
+        _returns_stack_count(func_t) if ENABLE_NEW_CALL_CONV else (1 if returns_word else 0)
+    )
+    returns_count = (
+        _returns_stack_count(func_t) if ENABLE_NEW_CALL_CONV else (1 if returns_word else 0)
+    )
+    returns_count = (
+        _returns_stack_count(func_t) if ENABLE_NEW_CALL_CONV else (1 if returns_word else 0)
+    )
+    returns_count = (
+        _returns_stack_count(func_t) if ENABLE_NEW_CALL_CONV else (1 if returns_word else 0)
+    )
+    returns_count = (
+        _returns_stack_count(func_t) if ENABLE_NEW_CALL_CONV else (1 if returns_word else 0)
+    )
     if returns_word:
         stack_items += 1
 
@@ -215,6 +231,9 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     assert func_t is not None, "func_t not found in passthrough metadata"
 
     returns_word = _returns_word(func_t)
+    returns_count = (
+        _returns_stack_count(func_t) if ENABLE_NEW_CALL_CONV else (1 if returns_word else 0)
+    )
 
     if setup_ir != goto_ir:
         _convert_ir_bb(fn, setup_ir, symbols)
@@ -226,15 +245,20 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     callsite = callsite_op.value
 
     bb = fn.get_basic_block()
-    return_buf = None
-
+    return_buf: Optional[IROperand] = None
+    # If a return buffer pointer is supplied by upstream IR, use it
     if len(converted_args) > 1:
         return_buf = converted_args[0]
+    # For multi-return via stack without a provided buffer, synthesize one
+    if ENABLE_NEW_CALL_CONV and returns_count > 0 and return_buf is None:
+        tmp_buf = bb.append_instruction("alloca", 0, 32 * returns_count, get_scratch_alloca_id())
+        assert tmp_buf is not None
+        return_buf = tmp_buf
 
     stack_args: list[IROperand] = [IRLabel(str(target_label))]
 
     if return_buf is not None:
-        if not ENABLE_NEW_CALL_CONV or not returns_word:
+        if not ENABLE_NEW_CALL_CONV or returns_count == 0:
             stack_args.append(return_buf)  # type: ignore
 
     callsite_args = _callsites[callsite]
@@ -247,12 +271,24 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
             assert stack_arg is not None
             stack_args.append(stack_arg)
 
-        if returns_word:
-            ret_value = bb.append_invoke_instruction(stack_args, returns=True)  # type: ignore
-            assert ret_value is not None
-            assert isinstance(ret_value, IRVariable)
+        if returns_count > 0:
+            outs = bb.append_invoke_instruction(stack_args, returns=returns_count)  # type: ignore
+            # Normalize to list of IRVariable
+            if isinstance(outs, list):
+                out_vars = outs  # type: ignore[assignment]
+            else:
+                out_vars = [outs]  # type: ignore[list-item]
             assert isinstance(return_buf, IROperand)
-            bb.append_instruction("mstore", ret_value, return_buf)
+            for i, outv in enumerate(out_vars):
+                if i == 0:
+                    dst = return_buf
+                else:
+                    ofst = bb.append_instruction("assign", IRLiteral(32 * i))
+                    assert ofst is not None
+                    new_dst = bb.append_instruction("add", return_buf, ofst)
+                    assert new_dst is not None
+                    dst = new_dst
+                bb.append_instruction("mstore", outv, dst)
             return return_buf
 
     bb.append_invoke_instruction(stack_args, returns=False)  # type: ignore
@@ -272,6 +308,20 @@ def _is_word_type(typ):
 def _returns_word(func_t) -> bool:
     return_t = func_t.return_type
     return return_t is not None and _is_word_type(return_t)
+
+
+def _returns_stack_count(func_t) -> int:
+    ret_t = func_t.return_type
+    if ret_t is None:
+        return 0
+    if not ENABLE_NEW_CALL_CONV:
+        return 0
+    if ENABLE_MULTI_RETURNS and isinstance(ret_t, TupleT):
+        members = ret_t.member_types
+        if 1 <= len(members) <= MAX_STACK_RETURNS and all(_is_word_type(t) for t in members):
+            return len(members)
+        return 0
+    return 1 if _is_word_type(ret_t) else 0
 
 
 def _handle_internal_func(
@@ -300,16 +350,13 @@ def _handle_internal_func(
     _alloca_table = {}
 
     returns_word = _returns_word(func_t)
+    returns_count = _returns_stack_count(func_t)
 
     # return buffer
     if does_return_data:
-        if ENABLE_NEW_CALL_CONV and returns_word:
-            # TODO: remove this once we have proper memory allocator
-            # functionality in venom. Currently, we hardcode the scratch
-            # buffer size of 32 bytes.
-            # TODO: we don't need to use scratch space once the legacy optimizer
-            # is disabled.
-            buf = bb.append_instruction("alloca", 0, 32, get_scratch_alloca_id())
+        if ENABLE_NEW_CALL_CONV and returns_count > 0:
+            # allocate scratch return buffer sized to the number of stack-returned words
+            buf = bb.append_instruction("alloca", 0, 32 * returns_count, get_scratch_alloca_id())
         else:
             buf = bb.append_instruction("param")
             bb.instructions[-1].annotation = "return_buffer"
@@ -319,7 +366,7 @@ def _handle_internal_func(
 
     if ENABLE_NEW_CALL_CONV:
         stack_index = 0
-        if func_t.return_type is not None and not _returns_word(func_t):
+        if func_t.return_type is not None and _returns_stack_count(func_t) == 0:
             stack_index += 1
         for arg in func_t.arguments:
             if not _pass_via_stack(func_t)[arg.name]:
@@ -577,10 +624,19 @@ def _convert_ir_bb(fn, ir, symbols):
         if label.value == "return_pc":
             label = symbols.get("return_pc")
             # return label should be top of stack
-            if _returns_word(_current_func_t) and ENABLE_NEW_CALL_CONV:
+            k = _returns_stack_count(_current_func_t) if ENABLE_NEW_CALL_CONV else 0
+            if k > 0:
                 buf = symbols["return_buffer"]
-                val = bb.append_instruction("mload", buf)
-                bb.append_instruction("ret", val, label)
+                ret_vals: list[IROperand] = []
+                for i in range(k):
+                    if i == 0:
+                        ptr = buf
+                    else:
+                        ofst = bb.append_instruction("assign", IRLiteral(32 * i))
+                        ptr = bb.append_instruction("add", buf, ofst)
+                    val = bb.append_instruction("mload", ptr)
+                    ret_vals.append(val)  # type: ignore[arg-type]
+                bb.append_instruction("ret", *ret_vals, label)
             else:
                 bb.append_instruction("ret", label)
 
