@@ -217,16 +217,20 @@ class SCCP(IRPass):
             elif isinstance(lat, IRLiteral):
                 raise CompilerPanic("Unimplemented djmp with literal")
 
-        elif opcode in ["param", "calldataload"]:
-            self.lattice[inst.output] = LatticeEnum.BOTTOM  # type: ignore
-            self._add_ssa_work_items(inst)
-        elif opcode == "mload":
+        elif opcode in ["param", "calldataload", "mload"]:
             self.lattice[inst.output] = LatticeEnum.BOTTOM  # type: ignore
         elif opcode in ARITHMETIC_OPS:
             self._eval(inst)
         else:
-            if inst.output is not None:
-                self._set_lattice(inst.output, LatticeEnum.BOTTOM)
+            if opcode == "invoke":
+                # Multi-output: mark all returned values as BOTTOM and schedule users
+                for out in inst.get_outputs():
+                    self._set_lattice(out, LatticeEnum.BOTTOM)
+                self._add_ssa_work_items(inst)
+            else:
+                # Unknown single-output op: conservatively mark output as BOTTOM
+                if inst.output is not None:
+                    self._set_lattice(inst.output, LatticeEnum.BOTTOM)
 
     def _eval(self, inst) -> LatticeItem:
         """
@@ -275,8 +279,12 @@ class SCCP(IRPass):
         return finalize(res)
 
     def _add_ssa_work_items(self, inst: IRInstruction):
-        for target_inst in self.dfg.get_uses(inst.output):  # type: ignore
-            self.work_list.append(SSAWorkListItem(target_inst))
+        outputs = inst.get_outputs() if hasattr(inst, "get_outputs") else [inst.output]
+        for out in outputs:
+            if out is None:
+                continue
+            for target_inst in self.dfg.get_uses(out):  # type: ignore
+                self.work_list.append(SSAWorkListItem(target_inst))
 
     def _propagate_constants(self):
         """
