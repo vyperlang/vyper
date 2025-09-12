@@ -422,11 +422,13 @@ def _convert_ir_bb(fn, ir, symbols):
 
         bb = fn.get_basic_block()
 
+        mem_start_var = bb.append_instruction("mem_deploy_start", mem_deploy_start)
+
         bb.append_instruction(
-            "codecopy", runtime_codesize, IRLabel("runtime_begin"), mem_deploy_start
+            "codecopyruntime", runtime_codesize, IRLabel("runtime_begin"), mem_start_var
         )
         amount_to_return = bb.append_instruction("add", runtime_codesize, immutables_len)
-        bb.append_instruction("return", amount_to_return, mem_deploy_start)
+        bb.append_instruction("return", amount_to_return, mem_start_var)
         return None
     elif ir.value == "seq":
         if len(ir.args) == 0:

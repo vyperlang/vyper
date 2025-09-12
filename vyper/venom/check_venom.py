@@ -89,9 +89,9 @@ def no_concrete_locations_fn(function: IRFunction):
             write_op = _get_memory_write_op(inst)
             read_op = _get_memory_read_op(inst)
             if write_op is not None:
-                assert isinstance(write_op, (IRVariable, IRAbstractMemLoc)), inst.parent
+                assert isinstance(write_op, (IRVariable, IRAbstractMemLoc)), (inst, inst.parent)
             if read_op is not None:
-                assert isinstance(read_op, (IRVariable, IRAbstractMemLoc)), inst.parent
+                assert isinstance(read_op, (IRVariable, IRAbstractMemLoc)), (inst, inst.parent)
 
 def _get_memory_write_op(inst) -> IROperand | None:
     opcode = inst.opcode

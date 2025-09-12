@@ -7,6 +7,8 @@ class ConcretizeMemLocPass(IRPass):
         self.allocator = mem_allocator
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
+                if inst == "codecopyruntime":
+                    continue
                 new_ops = [self._handle_op(op) for op in inst.operands]
                 inst.operands = new_ops
                 if inst.opcode == "gep":
