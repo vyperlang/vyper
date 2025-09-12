@@ -220,6 +220,7 @@ class SCCP(IRPass):
 
         elif opcode in ["param", "calldataload", "mload"]:
             self.lattice[inst.output] = LatticeEnum.BOTTOM  # type: ignore
+            self._add_ssa_work_items(inst)
         elif opcode in ARITHMETIC_OPS:
             self._eval(inst)
         else:
