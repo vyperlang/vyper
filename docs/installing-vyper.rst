@@ -45,7 +45,7 @@ PIP
 Installing Python
 =================
 
-Vyper can only be built using Python 3.10 and higher. If you need to know how to install the correct version of python,
+Vyper can only be built using Python 3.11 and higher. If you need to know how to install the correct version of python,
 follow the instructions from the official `Python website <https://wiki.python.org/moin/BeginnersGuide/Download>`_.
 
 Creating a virtual environment
