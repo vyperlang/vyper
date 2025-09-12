@@ -157,9 +157,9 @@ jobs:
 
           # run across other python versions. we don't really need to run all
           # modes across all python versions - one is enough
-          - python-version: ["3.10", "310"]
           - python-version: ["3.12", "312"]
           - python-version: ["3.13", "313"]
+          # todo: add 3.14 when it is released on oct 7 2025
 
           # os-specific rules
           - os: windows
