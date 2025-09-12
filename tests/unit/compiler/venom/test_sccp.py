@@ -364,3 +364,28 @@ def test_phi_reduction_without_basic_block_removal():
     """
 
     _check_pre_post(pre, post)
+
+
+def test_mload_schedules_uses():
+    pre = """
+    main:
+        %cond = param
+        jnz %cond, @B, @A
+    A:
+        %m = mload 0
+        jmp @join
+    B:
+        %x = assign %m
+        jmp @join
+    join:
+        sink %x
+    """
+
+    post = pre
+
+    passes = _check_pre_post(pre, post)
+    sccp = passes[0]
+    assert isinstance(sccp, SCCP)
+
+    assert sccp.lattice[IRVariable("%m")] == LatticeEnum.BOTTOM
+    assert sccp.lattice[IRVariable("%x")] == LatticeEnum.BOTTOM
