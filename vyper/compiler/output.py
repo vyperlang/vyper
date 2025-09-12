@@ -6,11 +6,11 @@ from typing import Iterable
 import vyper.ast as vy_ast
 from vyper.ast.utils import ast_to_dict
 from vyper.codegen.ir_node import IRnode
-from vyper.evm.assembler.symbols import resolve_symbols
 from vyper.compiler.output_bundle import SolcJSONWriter, VyperArchiveWriter
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
+from vyper.evm.assembler.symbols import resolve_symbols
 from vyper.exceptions import VyperException
 from vyper.ir import compile_ir
 from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
