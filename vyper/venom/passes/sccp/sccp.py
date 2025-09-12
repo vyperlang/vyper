@@ -217,15 +217,12 @@ class SCCP(IRPass):
                     self.work_list.append(FlowWorkItem(inst.parent, target))
             elif isinstance(lat, IRLiteral):
                 raise CompilerPanic("Unimplemented djmp with literal")
-
-        elif opcode in ["param", "calldataload", "mload"]:
-            self.lattice[inst.output] = LatticeEnum.BOTTOM  # type: ignore
-            self._add_ssa_work_items(inst)
         elif opcode in ARITHMETIC_OPS:
             self._eval(inst)
         else:
             if inst.output is not None:
                 self._set_lattice(inst.output, LatticeEnum.BOTTOM)
+                self._add_ssa_work_items(inst)
 
     def _eval(self, inst) -> LatticeItem:
         """

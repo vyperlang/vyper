@@ -366,13 +366,17 @@ def test_phi_reduction_without_basic_block_removal():
     _check_pre_post(pre, post)
 
 
-def test_mload_schedules_uses():
-    pre = """
+inst = ["mload", "sload", "dload", "iload", "calldataload", "param"]
+
+
+@pytest.mark.parametrize("inst", inst)
+def test_mload_schedules_uses(inst):
+    pre = f"""
     main:
         %cond = param
         jnz %cond, @B, @A
     A:
-        %m = mload 0
+        %m = {inst} 0
         jmp @join
     B:
         %x = assign %m
