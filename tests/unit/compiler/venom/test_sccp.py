@@ -385,8 +385,6 @@ def test_mload_schedules_uses(inst):
         sink %x
     """
 
-    post = pre
-
     passes = _check_pre_post(pre, pre)
     sccp = passes[0]
     assert isinstance(sccp, SCCP)
