@@ -4,11 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       tag:
+        description: 'Commit/tag to build (optional)'
         default: ''
   push:
     branches:
       - master
+    paths-ignore:
+      - 'docs/**'
+      - 'README.*'
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - 'README.*'
   release:
     types: [published]  # releases and pre-releases (release candidates)
 

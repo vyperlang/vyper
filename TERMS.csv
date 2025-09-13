@@ -1,0 +1,31 @@
+﻿ contract , 合约 
+ module , 模块 
+ interface , 接口 
+ event , 事件 
+ storage slot , 存储槽 
+ storage layout , 存储布局 
+ reentrancy , 可重入 / 重入 
+ nonreentrant , 不可重入 
+ immutable , 不可变(变量) 
+ constant , 常量 
+ external function , 外部函数 
+ internal function , 内部函数 
+ visibility , 可见性 
+ mutability , 可变性 
+ payable , 可支付 
+ view , 只读 
+ pure , 纯函数 
+ raw return , 原始返回 
+ selector table , 选择器表 
+ ABI , ABI 
+ gas , gas 
+ opcode , 操作码 
+ optimizer / optimization , 优化器 / 优化 
+ Venom (pipeline) , Venom 管线 
+ feature flag , 功能开关 
+ fallback / default function , 默认函数 
+ constructor , 构造函数 
+ bound (range) , 上界（bound） 
+ pragma , 编译指示 
+ layout (storage layout) , 布局 
+literal tuples , 字面量元组（直接写出的元组）

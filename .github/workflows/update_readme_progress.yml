@@ -1,0 +1,52 @@
+name: Update README translation progress
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ master, cc-docs-translation ]
+    paths:
+      - 'docs/locale/**'
+      - 'scripts/po_stats.py'
+      - '.github/workflows/update_readme_progress.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update-progress:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+
+      - name: Generate PO stats JSON
+        id: stats
+        run: |
+          python scripts/po_stats.py > po_stats.json
+          echo "PO stats JSON written to po_stats.json" >> $GITHUB_STEP_SUMMARY
+
+      - name: Update README progress section
+        id: update
+        run: |
+          python scripts/update_readme_progress.py | tee -a $GITHUB_STEP_SUMMARY
+          if git diff --quiet -- README.md; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo 'Updated README.md progress section' >> $GITHUB_STEP_SUMMARY
+            git add README.md po_stats.json po_stats_table.md
+            git config user.name github-actions
+            git config user.email github-actions@github.com
+            git commit -m "docs(readme): update translation progress"
+            git push
+          fi

@@ -7,7 +7,15 @@ name: Era compiler tester
 # which break the downstream backend (at which point, downstream needs
 # to update, which we do not want to be blocked on).
 
-on: [push, pull_request]
+on:
+  push:
+    paths-ignore:
+      - 'docs/**'
+      - 'README.*'
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - 'README.*'
 
 concurrency:
   # cancel older, in-progress jobs from the same PR, same workflow.

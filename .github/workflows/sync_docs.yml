@@ -1,0 +1,103 @@
+name: Sync upstream docs
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 2 * * *'
+
+jobs:
+  sync-docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      UPSTREAM_REPO: vyperlang/vyper
+      UPSTREAM_BRANCH: master
+      BASE_BRANCH: master
+      SYNC_BRANCH: sync-upstream-docs
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/${{ env.UPSTREAM_REPO }}.git || true
+          git fetch upstream ${{ env.UPSTREAM_BRANCH }} --depth=200
+          git fetch origin ${{ env.BASE_BRANCH }} --depth=200
+
+      - name: Detect docs changes upstream
+        id: changes
+        run: |
+          set -e
+          DOCS_DIFF=$(git diff --name-only origin/${BASE_BRANCH} upstream/${UPSTREAM_BRANCH} -- docs/ README.md README.rst | grep -E '^(docs/|README)' || true)
+          if [ -n "$DOCS_DIFF" ]; then
+            echo "docs_changed=true" >> $GITHUB_OUTPUT
+            echo "Changed docs files:\n$DOCS_DIFF" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "docs_changed=false" >> $GITHUB_OUTPUT
+            echo "No docs changes" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Exit if no docs changes
+        if: steps.changes.outputs.docs_changed != 'true'
+        run: echo "No documentation changes upstream. Skipping PR." && exit 0
+
+      - name: Prepare sync branch
+        run: |
+          git checkout -B ${SYNC_BRANCH} origin/${BASE_BRANCH}
+          set +e
+          git merge --no-commit --no-ff upstream/${UPSTREAM_BRANCH}
+          STATUS=$?
+          set -e
+          if [ $STATUS -ne 0 ]; then
+            echo 'Merge encountered conflicts. Attempting auto-resolution for non-doc files.'
+            for f in $(git diff --name-only --diff-filter=U); do
+              if echo "$f" | grep -q '^docs/'; then
+                git checkout --theirs -- "$f"
+              else
+                git checkout --ours -- "$f"
+              fi
+              git add "$f"
+            done
+          fi
+          git commit -m "chore(docs): sync upstream docs from ${UPSTREAM_REPO}@${UPSTREAM_BRANCH}" || echo "No commit created"
+
+      - name: Collect gettext stats
+        if: steps.changes.outputs.docs_changed == 'true'
+        run: |
+          set -e
+          python -m pip install --upgrade pip
+          pip install sphinx sphinx-intl
+          echo 'Generating gettext POT files (post-merge)...'
+          sphinx-build -b gettext docs docs/_build/gettext > /dev/null 2>&1 || true
+          echo 'Changed POT files:' > gettext_summary.txt
+          git add docs/_build/gettext || true
+          git diff --name-only -- docs/_build/gettext | sed 's/^/- /' >> gettext_summary.txt || echo ' (none)' >> gettext_summary.txt
+          ADDED=$(git diff --name-status -- docs/_build/gettext | awk '$1=="A"{c++}END{print c+0}')
+          MOD=$(git diff --name-status -- docs/_build/gettext | awk '$1=="M"{c++}END{print c+0}')
+          DEL=$(git diff --name-status -- docs/_build/gettext | awk '$1=="D"{c++}END{print c+0}')
+          echo "\nStats: added=$ADDED modified=$MOD deleted=$DEL" >> gettext_summary.txt
+          echo "gettext_added=$ADDED" >> $GITHUB_ENV
+          echo "gettext_modified=$MOD" >> $GITHUB_ENV
+          echo "gettext_deleted=$DEL" >> $GITHUB_ENV
+          echo 'Gettext stats collected:' >> $GITHUB_STEP_SUMMARY
+          cat gettext_summary.txt >> $GITHUB_STEP_SUMMARY
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ${SYNC_BRANCH}
+          base: ${{ env.BASE_BRANCH }}
+          title: "chore: sync upstream docs"
+          commit-message: "chore(docs): sync upstream docs"
+          body: |-
+            自动同步上游文档变更。
+            - 上游仓库: ${{ env.UPSTREAM_REPO }}@${{ env.UPSTREAM_BRANCH }}
+            - 仅包含 docs/ 与 README.* 中的差异
+            - Gettext 统计: 新增 ${{ env.gettext_added }}  修改 ${{ env.gettext_modified }}  删除 ${{ env.gettext_deleted }}
+            请在合并后开始对应的中文翻译更新。
+          labels: documentation, sync
+          delete-branch: false
