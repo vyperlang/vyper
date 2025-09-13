@@ -1,0 +1,733 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../control-structures.rst:4
+msgid "Control Structures"
+msgstr "控制结构"
+
+#: ../../control-structures.rst:9
+msgid "Functions"
+msgstr "函数"
+
+#: ../../control-structures.rst:11
+msgid ""
+"Functions are executable units of code within a contract. Functions may "
+"only be declared within a contract's :ref:`module scope <scoping-"
+"module>`."
+msgstr "函数是合约中可执行的代码单元。函数只能在合约的 :ref:`模块作用域 <scoping-module>` 内声明。"
+
+#: ../../control-structures.rst:19
+msgid ""
+"Functions may be called internally or externally depending on their "
+":ref:`visibility <function-visibility>`. Functions may accept input "
+"arguments and return variables in order to pass values between them."
+msgstr "函数可以根据其 :ref:`可见性 <function-visibility>` 在内部或外部调用。函数可以接受输入参数并返回变量，以便在它们之间传递值。"
+
+#: ../../control-structures.rst:22
+msgid "Visibility"
+msgstr "可见性"
+
+#: ../../control-structures.rst:26
+msgid ""
+"You can optionally declare a function's visibility by using a "
+":ref:`decorator <function-decorators>`. There are three visibility levels"
+" in Vyper:"
+msgstr "您可以选择使用 :ref:`装饰器 <function-decorators>` 来声明函数的可见性。Vyper 中有三个可见性级别："
+
+#: ../../control-structures.rst:28
+msgid ""
+"``@external``: exposed in the selector table, can be called by an "
+"external call into this contract"
+msgstr "``@external``: 在选择器表中公开，可以被外部调用到此合约中"
+
+#: ../../control-structures.rst:29
+msgid ""
+"``@internal`` (default): can be invoked only from within this contract. "
+"Not available to external callers"
+msgstr "``@internal`` (默认): 只能从此合约内部调用。对外部调用者不可用"
+
+#: ../../control-structures.rst:30
+msgid ""
+"``@deploy``: constructor code. This is code which is invoked once in the "
+"lifetime of a contract, upon its deploy. It is not available at runtime "
+"to either external callers or internal call invocations. At this time, "
+"only the :ref:`__init__() function <init-function>` may be marked as "
+"``@deploy``."
+msgstr "``@deploy``: 构造函数代码。这是在合约生命周期中仅在部署时调用一次的代码。在运行时，外部调用者或内部调用都无法使用它。目前，只有 :ref:`__init__() 函数 <init-function>` 可以标记为 ``@deploy``。"
+
+#: ../../control-structures.rst:34
+msgid "External Functions"
+msgstr "外部函数"
+
+#: ../../control-structures.rst:36
+msgid ""
+"External functions (marked with the ``@external`` decorator) are a part "
+"of the contract interface and may only be called via transactions or from"
+" other contracts."
+msgstr "外部函数（用 ``@external`` 装饰器标记）是合约接口的一部分，只能通过交易或其他合约调用。"
+
+#: ../../control-structures.rst:48
+msgid ""
+"A Vyper contract cannot call directly between two external functions. If "
+"you must do this, you can use an :ref:`interface <interfaces>`."
+msgstr "Vyper 合约不能在两个外部函数之间直接调用。如果必须这样做，您可以使用 :ref:`接口 <interfaces>`。"
+
+#: ../../control-structures.rst:50
+msgid ""
+"External functions can use the ``@raw_return`` decorator to return raw "
+"bytes without ABI-encoding:"
+msgstr "外部函数可以使用 ``@raw_return`` 装饰器返回原始字节，而无需进行 ABI 编码："
+
+#: ../../control-structures.rst:68
+msgid ""
+"For external functions with default arguments like ``def my_function(x: "
+"uint256, b: uint256 = 1)`` the Vyper compiler will generate ``N+1`` "
+"overloaded function selectors based on ``N`` default arguments. "
+"Consequently, the ABI signature for a function (this includes interface "
+"functions) excludes optional arguments when their default values are used"
+" in the function call."
+msgstr "对于具有默认参数的外部函数，例如 ``def my_function(x: uint256, b: uint256 = 1)``，Vyper 编译器将根据 ``N`` 个默认参数生成 ``N+1`` 个重载函数选择器。因此，当在函数调用中使用默认值时，函数的 ABI 签名（包括接口函数）会排除可选参数。"
+
+#: ../../control-structures.rst:82
+msgid "Internal Functions"
+msgstr "内部函数"
+
+#: ../../control-structures.rst:84
+msgid ""
+"Internal functions (optionally marked with the ``@internal`` decorator) "
+"are only accessible from other functions within the same contract. They "
+"are invoked via the :ref:`self<constants-self>` object:"
+msgstr "内部函数（可选地用 ``@internal`` 装饰器标记）只能从同一合约中的其他函数访问。它们通过 :ref:`self<constants-self>` 对象调用："
+
+#: ../../control-structures.rst:95
+msgid ""
+"Or for internal functions which are defined in :ref:`imported modules "
+"<modules>`, they are invoked by prefixing the name of the module to the "
+"function name:"
+msgstr "或者对于在 :ref:`导入的模块 <modules>` 中定义的内部函数，可以通过在函数名前加上模块名称来调用它们："
+
+#: ../../control-structures.rst:104
+msgid ""
+"Marking an internal function as ``payable`` specifies that the function "
+"can interact with ``msg.value``. A ``nonpayable`` internal function can "
+"be called from an external ``payable`` function, but it cannot access "
+"``msg.value``."
+msgstr "将内部函数标记为 ``payable`` 指定该函数可以与 ``msg.value`` 交互。可以从外部 ``payable`` 函数调用 ``nonpayable`` 内部函数，但它不能访问 ``msg.value``。"
+
+#: ../../control-structures.rst:113
+msgid ""
+"As of v0.4.0, the ``@internal`` decorator is optional. That is, functions"
+" with no visibility decorator default to being ``internal``."
+msgstr "从 v0.4.0 开始，``@internal`` 装饰器是可选的。也就是说，没有可见性装饰器的函数默认为 ``internal``。"
+
+#: ../../control-structures.rst:116
+msgid ""
+"Please note that for ``internal`` functions which use more than one "
+"default parameter, Vyper versions ``>=0.3.8`` are recommended due to the "
+"security advisory `GHSA-ph9x-4vc9-m39g "
+"<https://github.com/vyperlang/vyper/security/advisories/GHSA-ph9x-"
+"4vc9-m39g>`_."
+msgstr "请注意，对于使用多个默认参数的 ``internal`` 函数，由于安全公告 `GHSA-ph9x-4vc9-m39g <https://github.com/vyperlang/vyper/security/advisories/GHSA-ph9x-4vc9-m39g>`_，建议使用 Vyper 版本 ``>=0.3.8``。"
+
+#: ../../control-structures.rst:120
+msgid "The ``__init__`` Function"
+msgstr "``__init__`` 函数"
+
+#: ../../control-structures.rst:124
+msgid ""
+"The ``__init__()`` function, also known as the constructor, is a special "
+"initialization function that is only called at the time of deploying a "
+"contract. It can be used to set initial values for storage or immutable "
+"variables. It must be declared with the ``@deploy`` decorator. A common "
+"use case is to set an ``owner`` variable with the creator of the "
+"contract:"
+msgstr "``__init__()`` 函数，也称为构造函数，是一个特殊的初始化函数，仅在部署合约时调用。它可用于设置存储或不可变变量的初始值。它必须用 ``@deploy`` 装饰器声明。一个常见的用例是用合约的创建者设置一个 ``owner`` 变量："
+
+#: ../../control-structures.rst:134
+msgid ""
+"Additionally, :ref:`immutable variables <immutable-variables>` may only "
+"be set within the constructor."
+msgstr "此外，:ref:`不可变变量 <immutable-variables>` 只能在构造函数中设置。"
+
+#: ../../control-structures.rst:138
+msgid "Mutability"
+msgstr "可变性"
+
+#: ../../control-structures.rst:142
+msgid ""
+"You can optionally declare a function's mutability by using a "
+":ref:`decorator <function-decorators>`. There are four mutability levels:"
+msgstr "您可以选择使用 :ref:`装饰器 <function-decorators>` 来声明函数的可变性。有四个可变性级别："
+
+#: ../../control-structures.rst:144
+msgid ""
+"``@pure``: does not read from the contract state or any environment "
+"variables."
+msgstr "``@pure``: 不从合约状态或任何环境变量中读取。"
+
+#: ../../control-structures.rst:145
+msgid "``@view``: may read from the contract state, but does not alter it."
+msgstr "``@view``: 可以从合约状态中读取，但不会改变它。"
+
+#: ../../control-structures.rst:146
+msgid ""
+"``@nonpayable`` (default): may read from and write to the contract state,"
+" but cannot receive Ether."
+msgstr "``@nonpayable`` (默认): 可以从合约状态中读取和写入，但不能接收以太币。"
+
+#: ../../control-structures.rst:147
+msgid ""
+"``@payable``: may read from and write to the contract state, and can "
+"receive and access Ether via ``msg.value``."
+msgstr "``@payable``: 可以从合约状态中读取和写入，并且可以通过 ``msg.value`` 接收和访问以太币。"
+
+#: ../../control-structures.rst:163
+msgid "Functions default to ``nonpayable`` when no mutability decorator is used."
+msgstr "当没有使用可变性装饰器时，函数默认为 ``nonpayable``。"
+
+#: ../../control-structures.rst:165
+msgid ""
+"Functions marked with ``@view`` cannot call mutable (``payable`` or "
+"``nonpayable``) functions. Any external calls are made using the special "
+"``STATICCALL`` opcode, which prevents state changes at the EVM level."
+msgstr "标记为 ``@view`` 的函数不能调用可变（``payable`` 或 ``nonpayable``）函数。任何外部调用都使用特殊的 ``STATICCALL`` 操作码进行，这可以防止在 EVM 级别发生状态更改。"
+
+#: ../../control-structures.rst:167
+msgid "Functions marked with ``@pure`` cannot call non-``pure`` functions."
+msgstr "标记为 ``@pure`` 的函数不能调用非 ``pure`` 函数。"
+
+#: ../../control-structures.rst:170
+msgid ""
+"The ``@nonpayable`` decorator is not strictly enforced on ``internal`` "
+"functions when they are invoked through an ``external`` ``payable`` "
+"function. As a result, an ``external`` ``payable`` function can invoke an"
+" ``internal`` ``nonpayable`` function. However, the ``nonpayable`` "
+"``internal`` function cannot have access to ``msg.value``."
+msgstr "当通过 ``external`` ``payable`` 函数调用 ``internal`` 函数时，``@nonpayable`` 装饰器不会严格执行。因此，``external`` ``payable`` 函数可以调用 ``internal`` ``nonpayable`` 函数。但是，``nonpayable`` ``internal`` 函数不能访问 ``msg.value``。"
+
+#: ../../control-structures.rst:173
+msgid "Nonreentrancy Locks"
+msgstr "非重入锁"
+
+#: ../../control-structures.rst:175
+msgid ""
+"The ``@nonreentrant`` decorator places a global nonreentrancy lock on a "
+"function. An attempt by an external contract to call back into any other "
+"``@nonreentrant`` function causes the transaction to revert."
+msgstr "``@nonreentrant`` 装饰器在函数上放置一个全局非重入锁。外部合约尝试回调任何其他 ``@nonreentrant`` 函数将导致交易回滚。"
+
+#: ../../control-structures.rst:185
+msgid ""
+"Nonreentrancy locks work by setting a specially allocated storage slot to"
+" a ``<locked>`` value on function entrance, and setting it to an "
+"``<unlocked>`` value on function exit. On function entrance, if the "
+"storage slot is detected to be the ``<locked>`` value, execution reverts."
+msgstr "非重入锁的工作原理是在函数入口处将一个特殊分配的存储槽设置为 ``<locked>`` 值，并在函数出口处将其设置为 ``<unlocked>`` 值。在函数入口处，如果检测到存储槽为 ``<locked>`` 值，则执行回滚。"
+
+#: ../../control-structures.rst:187
+msgid ""
+"You cannot put the ``@nonreentrant`` decorator on a ``pure`` function. "
+"You can put it on a ``view`` function, but it only checks that the "
+"function is not in a callback (the storage slot is not in the "
+"``<locked>`` state), as ``view`` functions can only read the state, not "
+"change it."
+msgstr "您不能在 ``pure`` 函数上放置 ``@nonreentrant`` 装饰器。您可以将其放在 ``view`` 函数上，但它只检查该函数是否不在回调中（存储槽不处于 ``<locked>`` 状态），因为 ``view`` 函数只能读取状态，而不能更改状态。"
+
+#: ../../control-structures.rst:189
+msgid ""
+"You can put the ``@nonreentrant`` decorator on a ``__default__`` "
+"function, but keep in mind that this will result in the contract "
+"rejecting ETH payments from callbacks."
+msgstr "您可以将 ``@nonreentrant`` 装饰器放在 ``__default__`` 函数上，但请记住，这将导致合约拒绝来自回调的 ETH 付款。"
+
+#: ../../control-structures.rst:191
+msgid ""
+"You can view where the nonreentrant key is physically laid out in storage"
+" by using ``vyper`` with the ``-f layout`` option (e.g., ``vyper -f "
+"layout foo.vy``). Unless it is overridden, the compiler will allocate it "
+"at slot ``0``."
+msgstr "您可以使用带有 ``-f layout`` 选项的 ``vyper`` 来查看非重入密钥在存储中的物理布局（例如，``vyper -f layout foo.vy``）。除非被覆盖，否则编译器会将其分配在槽 ``0``。"
+
+#: ../../control-structures.rst:194
+msgid ""
+"A mutable function can protect a ``view`` function from being called back"
+" into (which is useful for instance, if a ``view`` function would return "
+"inconsistent state during a mutable function), but a ``view`` function "
+"cannot protect itself from being called back into. Note that mutable "
+"functions can never be called from a ``view`` function because all "
+"external calls out from a ``view`` function are protected by the use of "
+"the ``STATICCALL`` opcode."
+msgstr "可变函数可以保护 ``view`` 函数不被回调（例如，如果 ``view`` 函数在可变函数期间会返回不一致的状态，这很有用），但 ``view`` 函数无法保护自己不被回调。请注意，永远不能从 ``view`` 函数调用可变函数，因为从 ``view`` 函数发出的所有外部调用都受到 ``STATICCALL`` 操作码的保护。"
+
+#: ../../control-structures.rst:198
+msgid ""
+"A nonreentrant lock has an ``<unlocked>`` value of 3, and a ``<locked>`` "
+"value of 2. Nonzero values are used to take advantage of net gas metering"
+" - as of the Berlin hard fork, the net cost for utilizing a nonreentrant "
+"lock is 2300 gas. Prior to v0.3.4, the ``<unlocked>`` and ``<locked>`` "
+"values were 0 and 1, respectively."
+msgstr "非重入锁的 ``<unlocked>`` 值为 3，``<locked>`` 值为 2。使用非零值是为了利用净 gas 计量——自柏林硬分叉以来，使用非重入锁的净成本为 2300 gas。在 v0.3.4 之前，``<unlocked>`` 和 ``<locked>`` 的值分别为 0 和 1。"
+
+#: ../../control-structures.rst:201
+msgid ""
+"Prior to 0.4.0, nonreentrancy keys took a \"key\" argument for fine-"
+"grained nonreentrancy control. As of 0.4.0, only a global nonreentrancy "
+"lock is available."
+msgstr "在 0.4.0 之前，非重入密钥采用“密钥”参数进行细粒度的非重入控制。从 0.4.0 开始，仅提供全局非重入锁。"
+
+#: ../../control-structures.rst:204
+msgid "The nonreentrant pragma"
+msgstr "非重入 pragma"
+
+#: ../../control-structures.rst:206
+msgid ""
+"Beginning in 0.4.2, the ``#pragma nonreentrancy on`` pragma is available,"
+" and it enables nonreentrancy on all external functions and public "
+"getters (except for ``constants`` and ``immutables``) in the file. This "
+"is to prepare for a future release, probably in the 0.5.x series, where "
+"nonreentrant locks will be enabled by default language-wide."
+msgstr "从 0.4.2 开始，``#pragma nonreentrancy on`` pragma 可用，它在文件中的所有外部函数和公共 getter（``constants`` 和 ``immutables`` 除外）上启用非重入。这是为未来的版本做准备，可能是在 0.5.x 系列中，届时非重入锁将在全语言范围内默认启用。"
+
+#: ../../control-structures.rst:208
+msgid ""
+"When the pragma is on, to re-enable reentrancy for a specific function, "
+"add the ``@reentrant`` decorator. For getters, add the ``reentrant()`` "
+"modifier. Here is an example:"
+msgstr "当 pragma 开启时，要为特定函数重新启用重入，请添加 ``@reentrant`` 装饰器。对于 getter，请添加 ``reentrant()`` 修饰符。这是一个例子："
+
+#: ../../control-structures.rst:233
+msgid ""
+"The default is ``#pragma nonreentrancy off``, which can be used to signal"
+" specifically that nonreentrancy protection is off in this file."
+msgstr "默认值为 ``#pragma nonreentrancy off``，可用于明确表示此文件中的非重入保护已关闭。"
+
+#: ../../control-structures.rst:235
+msgid ""
+"Note that the same caveats about nonreentrancy on ``__default__()`` as "
+"mentioned in the previous section apply here, since the ``__default__()``"
+" function will be nonreentrant by default with the pragma on."
+msgstr "请注意，上一节中提到的关于 ``__default__()`` 的非重入的相同警告在此处同样适用，因为在 pragma 开启的情况下，``__default__()`` 函数将默认为非重入。"
+
+#: ../../control-structures.rst:237
+msgid ""
+"With the pragma on, internal functions remain unlocked by default but can"
+" still use the ``@nonreentrant`` decorator. External ``view`` functions "
+"are protected by default (as before, checking the lock upon entry but "
+"only reading its state). External ``pure`` functions do not interact with"
+" the lock."
+msgstr "在 pragma 开启的情况下，内部函数默认保持解锁状态，但仍可使用 ``@nonreentrant`` 装饰器。外部 ``view`` 函数默认受保护（与之前一样，在进入时检查锁，但只读取其状态）。外部 ``pure`` 函数不与锁交互。"
+
+#: ../../control-structures.rst:239
+msgid ""
+"Internal functions, ``__init__`` function and getters for ``constants`` "
+"and ``immutables`` can be marked ``reentrant``. Reentrant behavior is the"
+" default for these structures anyway, and this feature can be used to "
+"explicitly highlight the fact."
+msgstr "内部函数、``__init__`` 函数以及 ``constants`` 和 ``immutables`` 的 getter 可以标记为 ``reentrant``。无论如何，重入行为是这些结构的默认行为，此功能可用于明确突出这一事实。"
+
+#: ../../control-structures.rst:242
+msgid "All the protected functions share the same, global lock."
+msgstr "所有受保护的函数共享同一个全局锁。"
+
+#: ../../control-structures.rst:245
+msgid ""
+"Vyper disallows calling a ``nonreentrant`` function from another "
+"``nonreentrant`` function, since the compiler implements nonreentrancy as"
+" a global lock which is acquired at function entry."
+msgstr "Vyper 禁止从另一个 ``nonreentrant`` 函数调用 ``nonreentrant`` 函数，因为编译器将非重入实现为在函数入口处获取的全局锁。"
+
+#: ../../control-structures.rst:248
+msgid ""
+"The ``nonreentrancy on/off`` pragma is scoped to the current file. If you"
+" import a file without the ``nonreentrancy on`` pragma, the functions in "
+"that file will behave as the author intended, that is, they will be "
+"reentrant unless marked otherwise."
+msgstr "``nonreentrancy on/off`` pragma 的作用域为当前文件。如果您导入的文件没有 ``nonreentrancy on`` pragma，则该文件中的函数将按照作者的意图行事，也就是说，除非另有标记，否则它们将是可重入的。"
+
+#: ../../control-structures.rst:251
+msgid ""
+"The ``constant`` and ``immutable`` state variable getters don't check the"
+" lock because the value of the variables can't change."
+msgstr "``constant`` 和 ``immutable`` 状态变量 getter 不会检查锁，因为变量的值无法更改。"
+
+#: ../../control-structures.rst:255
+msgid "The ``__default__`` Function"
+msgstr "``__default__`` 函数"
+
+#: ../../control-structures.rst:257
+msgid ""
+"A contract can also have a default function, which is executed on a call "
+"to the contract if no other functions match the given function identifier "
+"(or if none was supplied at all, such as through someone sending it "
+"Eth). It is the same construct as fallback functions `in Solidity "
+"<https://solidity.readthedocs.io/en/latest/contracts.html?highlight=fallback"
+"#fallback-function>`_."
+msgstr "合约还可以有一个默认函数，如果在对合约的调用中没有其他函数与给定的函数标识符匹配（或者根本没有提供，例如通过某人向其发送 Eth），则会执行该函数。它与 `Solidity <https://solidity.readthedocs.io/en/latest/contracts.html?highlight=fallback#fallback-function>`_ 中的回退函数是相同的构造。"
+
+#: ../../control-structures.rst:259
+msgid ""
+"This function is always named ``__default__``. It must be annotated with "
+"``@external``. It cannot expect any input arguments."
+msgstr "此函数始终命名为 ``__default__``。它必须用 ``@external`` 注释。它不能期望任何输入参数。"
+
+#: ../../control-structures.rst:261
+msgid ""
+"If the function is annotated as ``@payable``, this function is executed "
+"whenever the contract is sent Ether (without data). This is why the "
+"default function cannot accept arguments - it is a design decision of "
+"Ethereum to make no differentiation between sending ether to a contract "
+"or a user address."
+msgstr "如果函数被注释为 ``@payable``，则每当合约被发送以太币（不带数据）时，都会执行此函数。这就是为什么默认函数不能接受参数的原因——这是以太坊的设计决定，即在向合约或用户地址发送以太币之间不做区分。"
+
+#: ../../control-structures.rst:275
+msgid "Considerations"
+msgstr "注意事项"
+
+#: ../../control-structures.rst:277
+msgid ""
+"Just as in Solidity, Vyper generates a default function if one isn't "
+"found, in the form of a ``REVERT`` call. Note that this rolls back state "
+"changes, and thus will not succeed in receiving funds."
+msgstr "与 Solidity 一样，如果未找到默认函数，Vyper 会以 ``REVERT`` 调用的形式生成一个默认函数。请注意，这会回滚状态更改，因此不会成功接收资金。"
+
+#: ../../control-structures.rst:279
+msgid ""
+"Ethereum specifies that the operations will be rolled back if the "
+"contract runs out of gas in execution. ``send`` calls to the contract "
+"come with a free stipend of 2300 gas, which does not leave much room to "
+"perform other operations except basic logging. **However**, if the sender"
+" includes a higher gas amount through a ``call`` instead of ``send``, "
+"then more complex functionality can be run."
+msgstr "以太坊规定，如果合约在执行中耗尽 gas，操作将被回滚。对合约的 ``send`` 调用附带 2300 gas 的免费津贴，除了基本日志记录外，没有太多空间来执行其他操作。**但是**，如果发送方通过 ``call`` 而不是 ``send`` 包含更高的 gas 量，则可以运行更复杂的功能。"
+
+#: ../../control-structures.rst:281
+msgid ""
+"It is considered a best practice to ensure your payable default function "
+"is compatible with this stipend. The following operations will consume "
+"more than 2300 gas:"
+msgstr "确保您的应付默认函数与此津贴兼容被认为是最佳实践。以下操作将消耗超过 2300 gas："
+
+#: ../../control-structures.rst:283
+msgid "Writing to storage"
+msgstr "写入存储"
+
+#: ../../control-structures.rst:284
+msgid "Creating a contract"
+msgstr "创建合约"
+
+#: ../../control-structures.rst:285
+msgid "Calling an external function which consumes a large amount of gas"
+msgstr "调用消耗大量 gas 的外部函数"
+
+#: ../../control-structures.rst:286
+msgid "Sending Ether"
+msgstr "发送以太币"
+
+#: ../../control-structures.rst:288
+msgid ""
+"Lastly, although the default function receives no arguments, it can still"
+" access the ``msg`` object, including:"
+msgstr "最后，虽然默认函数不接收任何参数，但它仍然可以访问 ``msg`` 对象，包括："
+
+#: ../../control-structures.rst:290
+msgid "the address of who is interacting with the contract (``msg.sender``)"
+msgstr "与合约交互的地址 (``msg.sender``)"
+
+#: ../../control-structures.rst:291
+msgid "the amount of ETH sent (``msg.value``)"
+msgstr "发送的 ETH 数量 (``msg.value``)"
+
+#: ../../control-structures.rst:292
+msgid "the gas provided (``msg.gas``)."
+msgstr "提供的 gas (``msg.gas``)。"
+
+#: ../../control-structures.rst:297
+msgid "Decorators Reference"
+msgstr "装饰器参考"
+
+#: ../../control-structures.rst:300
+msgid "Decorator"
+msgstr "装饰器"
+
+#: ../../control-structures.rst:300
+msgid "Description"
+msgstr "描述"
+
+#: ../../control-structures.rst:302
+msgid "``@external``"
+msgstr "``@external``"
+
+#: ../../control-structures.rst:302
+msgid ""
+"Function can only be called externally, it is part of the runtime "
+"selector table"
+msgstr "函数只能在外部调用，它是运行时选择器表的一部分"
+
+#: ../../control-structures.rst:303
+msgid "``@internal``"
+msgstr "``@internal``"
+
+#: ../../control-structures.rst:303
+msgid "Function can only be called within current contract"
+msgstr "函数只能在当前合约内调用"
+
+#: ../../control-structures.rst:304
+msgid "``@deploy``"
+msgstr "``@deploy``"
+
+#: ../../control-structures.rst:304
+msgid "Function is called only at deploy time"
+msgstr "函数仅在部署时调用"
+
+#: ../../control-structures.rst:305
+msgid "``@pure``"
+msgstr "``@pure``"
+
+#: ../../control-structures.rst:305
+msgid "Function does not read contract state or environment variables"
+msgstr "函数不读取合约状态或环境变量"
+
+#: ../../control-structures.rst:306
+msgid "``@view``"
+msgstr "``@view``"
+
+#: ../../control-structures.rst:306
+msgid "Function does not alter contract state"
+msgstr "函数不改变合约状态"
+
+#: ../../control-structures.rst:307
+msgid "``@payable``"
+msgstr "``@payable``"
+
+#: ../../control-structures.rst:307
+msgid "Function is able to receive Ether"
+msgstr "函数能够接收以太币"
+
+#: ../../control-structures.rst:308
+msgid "``@nonreentrant``"
+msgstr "``@nonreentrant``"
+
+#: ../../control-structures.rst:308
+msgid "Function cannot be called back into during an external call"
+msgstr "函数在外部调用期间不能被回调"
+
+#: ../../control-structures.rst:309
+msgid "``@raw_return``"
+msgstr "``@raw_return``"
+
+#: ../../control-structures.rst:309
+msgid ""
+"Function returns raw bytes without ABI-encoding (``@external`` functions "
+"only)"
+msgstr "函数返回原始字节，无需 ABI 编码（仅限 ``@external`` 函数）"
+
+#: ../../control-structures.rst:313
+msgid "Raw Return"
+msgstr "原始返回"
+
+#: ../../control-structures.rst:315
+msgid ""
+"The ``@raw_return`` decorator allows a function to return raw bytes "
+"without ABI-encoding. This is particularly useful for proxy contracts and"
+" other helper contracts where you want to forward the exact output bytes "
+"from another contract call without adding an additional layer of ABI-"
+"encoding."
+msgstr "``@raw_return`` 装饰器允许函数返回原始字节，而无需进行 ABI 编码。这对于代理合约和其他辅助合约特别有用，因为您希望从另一个合约调用中转发确切的输出字节，而无需添加额外的 ABI 编码层。"
+
+#: ../../control-structures.rst:326
+msgid "The ``@raw_return`` decorator has the following restrictions:"
+msgstr "``@raw_return`` 装饰器有以下限制："
+
+#: ../../control-structures.rst:328
+msgid "It can only be used on ``@external`` functions"
+msgstr "它只能用于 ``@external`` 函数"
+
+#: ../../control-structures.rst:329
+msgid "The function must have a ``Bytes[N]`` return type"
+msgstr "函数必须具有 ``Bytes[N]`` 返回类型"
+
+#: ../../control-structures.rst:330
+msgid ""
+"It cannot be used on ``@deploy`` (constructor) functions (you can however"
+" use it in the ``__default__()`` function)"
+msgstr "它不能用于 ``@deploy``（构造函数）函数（但是您可以在 ``__default__()`` 函数中使用它）"
+
+#: ../../control-structures.rst:331
+msgid "It cannot be used on ``@internal`` functions"
+msgstr "它不能用于 ``@internal`` 函数"
+
+#: ../../control-structures.rst:333
+msgid ""
+"When a function is marked with ``@raw_return``, the compiler directly "
+"returns the bytes value using the EVM ``RETURN`` opcode, bypassing the "
+"normal ABI-encoding that would wrap the bytes in a ``(bytes)`` tuple."
+msgstr "当函数标记为 ``@raw_return`` 时，编译器直接使用 EVM ``RETURN`` 操作码返回字节值，绕过将字节包装在 ``(bytes)`` 元组中的正常 ABI 编码。"
+
+#: ../../control-structures.rst:336
+msgid ""
+"The ``@raw_return`` decorator cannot be used in interface definitions "
+"(``.vyi`` files). Note that to call a ``@raw_return`` function from "
+"another contract, you should use ``raw_call`` instead of an interface "
+"call, since the return data may not be ABI-encoded."
+msgstr "``@raw_return`` 装饰器不能在接口定义（``.vyi`` 文件）中使用。请注意，要从另一个合约调用 ``@raw_return`` 函数，您应该使用 ``raw_call`` 而不是接口调用，因为返回数据可能未经 ABI 编码。"
+
+#: ../../control-structures.rst:339
+msgid ""
+"When using ``@raw_return``, ensure all return paths in your function use "
+"raw bytes. Having multiple return statements where some use ABI-encoded "
+"data and others don't can lead to decoding errors."
+msgstr "使用 ``@raw_return`` 时，请确保函数中的所有返回路径都使用原始字节。具有多个返回语句，其中一些使用 ABI 编码的数据而另一些不使用，可能会导致解码错误。"
+
+#: ../../control-structures.rst:342
+msgid "``if`` statements"
+msgstr "``if`` 语句"
+
+#: ../../control-structures.rst:344
+msgid ""
+"The ``if`` statement is a control flow construct used for conditional "
+"execution:"
+msgstr "``if`` 语句是用于条件执行的控制流结构："
+
+#: ../../control-structures.rst:351
+msgid ""
+"``CONDITION`` is a boolean or boolean operation. The boolean is evaluated"
+" left-to-right, one expression at a time, until the condition is found to"
+" be true or false.  If true, the logic in the body of the ``if`` "
+"statement is executed."
+msgstr "``CONDITION`` 是一个布尔值或布尔运算。布尔值从左到右逐个表达式求值，直到条件为真或假。如果为真，则执行 ``if`` 语句主体中的逻辑。"
+
+#: ../../control-structures.rst:353
+msgid ""
+"Note that unlike Python, Vyper does not allow implicit conversion from "
+"non-boolean types within the condition of an ``if`` statement. ``if 1: "
+"pass`` will fail to compile with a type mismatch."
+msgstr "请注意，与 Python 不同，Vyper 不允许在 ``if`` 语句的条件中从非布尔类型进行隐式转换。``if 1: pass`` 将因类型不匹配而无法编译。"
+
+#: ../../control-structures.rst:355
+msgid ""
+"You can also include ``elif`` and ``else`` statements, to add more "
+"conditional statements and a body that executes when the conditionals are"
+" false:"
+msgstr "您还可以包含 ``elif`` 和 ``else`` 语句，以添加更多条件语句以及在条件为假时执行的主体："
+
+#: ../../control-structures.rst:367
+msgid "``for`` loops"
+msgstr "``for`` 循环"
+
+#: ../../control-structures.rst:369
+msgid ""
+"The ``for`` statement is a control flow construct used to iterate over a "
+"value:"
+msgstr "``for`` 语句是用于遍历值的控制流结构："
+
+#: ../../control-structures.rst:376
+msgid ""
+"The iterated value can be a static array, a dynamic array, or generated "
+"from the built-in ``range`` function."
+msgstr "迭代的值可以是静态数组、动态数组，也可以由内置的 ``range`` 函数生成。"
+
+#: ../../control-structures.rst:379
+msgid "Array Iteration"
+msgstr "数组迭代"
+
+#: ../../control-structures.rst:381
+msgid "You can use ``for`` to iterate through the values of any array variable:"
+msgstr "您可以使用 ``for`` 遍历任何数组变量的值："
+
+#: ../../control-structures.rst:389
+msgid ""
+"In the above, example, the loop executes three times with ``i`` assigned "
+"the values of ``4``, ``23``, and then ``42``."
+msgstr "在上面的示例中，循环执行三次，``i`` 分别被赋值为 ``4``、``23`` 和 ``42``。"
+
+#: ../../control-structures.rst:391
+msgid ""
+"You can also iterate over a literal array, as long as the annotated type "
+"is valid for each item in the array:"
+msgstr "您还可以遍历文字数组，只要注释的类型对数组中的每个项目都有效："
+
+#: ../../control-structures.rst:398
+msgid "Some restrictions:"
+msgstr "一些限制："
+
+#: ../../control-structures.rst:400
+msgid ""
+"You cannot iterate over a multi-dimensional array.  ``i`` must always be "
+"a base type."
+msgstr "您不能遍历多维数组。``i`` 必须始终是基本类型。"
+
+#: ../../control-structures.rst:401
+msgid ""
+"You cannot modify a value in an array while it is being iterated, or call"
+" to a function that might modify the array being iterated."
+msgstr "您不能在迭代数组时修改数组中的值，也不能调用可能修改正在迭代的数组的函数。"
+
+#: ../../control-structures.rst:404
+msgid "Range Iteration"
+msgstr "范围迭代"
+
+#: ../../control-structures.rst:406
+msgid ""
+"Ranges are created using the ``range`` function. The following examples "
+"are valid uses of ``range``:"
+msgstr "范围是使用 ``range`` 函数创建的。以下是 ``range`` 的有效用法示例："
+
+#: ../../control-structures.rst:413
+msgid ""
+"``STOP`` is a literal integer greater than zero. ``i`` begins as zero and"
+"increments by one until it is equal to ``STOP``. ``i`` must be of the "
+"same type as ``STOP``."
+msgstr "``STOP`` 是一个大于零的文字整数。``i`` 从零开始，每次递增一，直到等于 ``STOP``。``i`` 必须与 ``STOP`` 的类型相同。"
+
+#: ../../control-structures.rst:420
+msgid ""
+"Here, ``stop`` can be a variable with integer type, greater than zero. "
+"``N`` must be a compile-time constant. ``i`` begins as zero and "
+"increments by one until it is equal to ``stop``. If ``stop`` is larger "
+"than ``N``, execution will revert at runtime. In certain cases, you may "
+"not have a guarantee that ``stop`` is less than ``N``, but still want to "
+"avoid the possibility of runtime reversion. To accomplish this, use the "
+"``bound=`` keyword in combination with ``min(stop, N)`` as the argument "
+"to ``range``, like ``range(min(stop, N), bound=N)``. This is helpful for "
+"use cases like chunking up operations on larger arrays across multiple "
+"transactions. ``i``, ``stop`` and ``N`` must be of the same type."
+msgstr "在这里，``stop`` 可以是一个大于零的整数类型的变量。``N`` 必须是一个编译时常量。``i`` 从零开始，每次递增一，直到等于 ``stop``。如果 ``stop`` 大于 ``N``，执行将在运行时回滚。在某些情况下，您可能无法保证 ``stop`` 小于 ``N``，但仍希望避免运行时回滚的可能性。为此，请将 ``bound=`` 关键字与 ``min(stop, N)`` 结合使用作为 ``range`` 的参数，例如 ``range(min(stop, N), bound=N)``。这对于跨多个事务对较大数组进行分块操作等用例很有帮助。``i``、``stop`` 和 ``N`` 必须是同一类型。"
+
+#: ../../control-structures.rst:422
+msgid "Another use of range can be with ``START`` and ``STOP`` bounds."
+msgstr "range 的另一个用法是使用 ``START`` 和 ``STOP`` 边界。"
+
+#: ../../control-structures.rst:429
+msgid ""
+"Here, ``START`` and ``STOP`` are literal integers, with ``STOP`` being a "
+"greater value than ``START``. ``i`` begins as ``START`` and increments by"
+"one until it is equal to ``STOP``. ``i``, ``START`` and ``STOP`` must be "
+"of the same type."
+msgstr "在这里，``START`` 和 ``STOP`` 是文字整数，``STOP`` 的值大于 ``START``。``i`` 从 ``START`` 开始，每次递增一，直到等于 ``STOP``。``i``、``START`` 和 ``STOP`` 必须是同一类型。"
+
+#: ../../control-structures.rst:431
+msgid ""
+"Finally, it is possible to use ``range`` with runtime `start` and `stop` "
+"values as long as a constant `bound` value is provided. In this case, "
+"Vyper checks at runtime that `end - start <= bound`. ``N`` must be a "
+"compile-time constant. ``i``, ``stop`` and ``N`` must be of the same "
+"type."
+msgstr "最后，只要提供了常量 `bound` 值，就可以将 ``range`` 与运行时 `start` 和 `stop` 值一起使用。在这种情况下，Vyper 在运行时检查 `end - start <= bound`。``N`` 必须是编译时常量。``i``、``stop`` 和 ``N`` 必须是同一类型。"

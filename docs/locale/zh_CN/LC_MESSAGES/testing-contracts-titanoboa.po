@@ -1,0 +1,36 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../testing-contracts-titanoboa.rst:4
+msgid "Testing with Titanoboa"
+msgstr "使用 Titanoboa 进行测试"
+
+#: ../../testing-contracts-titanoboa.rst:6
+msgid ""
+"Titanoboa is a Vyper interpreter which is fast and provides a \"swiss-"
+"army knife\" toolkit for developing vyper applications. The best place to"
+" start is at `the official docs <https://titanoboa.readthedocs.io/>`_, "
+"and skip down to the `testing reference "
+"<https://titanoboa.readthedocs.io/en/latest/testing.html>`_ for an "
+"overview of testing strategies. Finally, a more detailed API reference is"
+" available in the `API reference subsection "
+"<https://titanoboa.readthedocs.io/en/latest/api.html>`_."
+msgstr "Titanoboa 是一个 Vyper 解释器，它速度快，并为开发 vyper 应用程序提供了一个“瑞士军刀”工具包。最好的起点是 `官方文档 <https://titanoboa.readthedocs.io/>`_，然后跳到 `测试参考 <https://titanoboa.readthedocs.io/en/latest/testing.html>`_ 以获取测试策略的概述。最后，`API 参考小节 <https://titanoboa.readthedocs.io/en/latest/api.html>`_ 中提供了更详细的 API 参考。"

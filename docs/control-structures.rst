@@ -95,6 +95,7 @@ Internal functions (optionally marked with the ``@internal`` decorator) are only
 Or for internal functions which are defined in :ref:`imported modules <modules>`, they are invoked by prefixing the name of the module to the function name:
 
 .. code-block:: vyper
+
     import calculator_library
 
     @external

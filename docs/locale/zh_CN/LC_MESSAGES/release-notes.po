@@ -1,0 +1,298 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../release-notes.rst:4
+msgid "Release Notes"
+msgstr "发布说明"
+
+#: ../../release-notes.rst:6
+msgid ""
+"Release audits can be found `here "
+"<https://github.com/vyperlang/audits/tree/master>`_."
+msgstr "发布审计可以在 `这里 <https://github.com/vyperlang/audits/tree/master>`_ 找到。"
+
+#: ../../release-notes.rst:22
+msgid "v0.4.3 ("Buttermilk Racer")"
+msgstr "v0.4.3 ("Buttermilk Racer")"
+
+#: ../../release-notes.rst:25
+msgid "Date released: 2025-06-19"
+msgstr "发布日期：2025-06-19"
+
+#: ../../release-notes.rst:27
+msgid ""
+"v0.4.3 introduces the ``@raw_return`` decorator which allows contracts to"
+" return bytes directly without ABI-encoding, which enables new proxy "
+"contract use cases. The default EVM version has been updated to "
+"``prague``, and several improvements have been made to the Venom "
+"optimizer pipeline."
+msgstr "v0.4.3 引入了 ``@raw_return`` 装饰器，该装饰器允许合约直接返回字节而无需 ABI 编码，从而支持新的代理合约用例。默认 EVM 版本已更新为 ``prague``，并且对 Venom 优化器管道进行了一些改进。"
+
+#: ../../release-notes.rst:29
+msgid ""
+"Audits: `ChainSecurity "
+"<https://github.com/vyperlang/audits/blob/master/audits/ChainSecurity_Vyper_June_2025_limited_review.pdf>`_,"
+"  `Anatomist "
+"<https://github.com/vyperlang/audits/blob/master/audits/Anatomist_Vyper_April_2025.pdf>`_"
+msgstr "审计：`ChainSecurity <https://github.com/vyperlang/audits/blob/master/audits/ChainSecurity_Vyper_June_2025_limited_review.pdf>`_，`Anatomist <https://github.com/vyperlang/audits/blob/master/audits/Anatomist_Vyper_April_2025.pdf>`_"
+
+#: ../../release-notes.rst:32 ../../release-notes.rst:212
+msgid "Breaking changes"
+msgstr "重大变更"
+
+#: ../../release-notes.rst:33
+msgid ""
+"feat[tool]!: make ``prague`` the default evm version (`#4633 "
+"<https://github.com/vyperlang/vyper/pull/4633>`_)"
+msgstr "feat[tool]!: 将 ``prague`` 设为默认 evm 版本 (`#4633 <https://github.com/vyperlang/vyper/pull/4633>`_)"
+
+#: ../../release-notes.rst:36 ../../release-notes.rst:89
+#: ../../release-notes.rst:219
+msgid "Other new features and improvements"
+msgstr "其他新功能和改进"
+
+#: ../../release-notes.rst:37
+msgid ""
+"feat[lang]: ``@raw_return`` decorator (`#4568 "
+"<https://github.com/vyperlang/vyper/pull/4568>`_)"
+msgstr "feat[lang]: ``@raw_return`` 装饰器 (`#4568 <https://github.com/vyperlang/vyper/pull/4568>`_)"
+
+#: ../../release-notes.rst:38
+msgid ""
+"fix[lang]: disallow ``@raw_return`` in interfaces (`#4700 "
+"<https://github.com/vyperlang/vyper/pull/4700>`_)"
+msgstr "fix[lang]: 禁止在接口中使用 ``@raw_return`` (`#4700 <https://github.com/vyperlang/vyper/pull/4700>`_)"
+
+#: ../../release-notes.rst:41 ../../release-notes.rst:100
+#: ../../release-notes.rst:230
+msgid "Tooling / CLI"
+msgstr "工具/CLI"
+
+#: ../../release-notes.rst:42
+msgid ""
+"fix[tool]: fix invalid quotes in ``-f cfg`` output (`#4672 "
+"<https://github.com/vyperlang/vyper/pull/4672>`_)"
+msgstr "fix[tool]: 修复 ``-f cfg`` 输出中的无效引号 (`#4672 <https://github.com/vyperlang/vyper/pull/4672>`_)"
+
+#: ../../release-notes.rst:43
+msgid ""
+"fix[tool]: add metadata for ctor functions (`#4668 "
+"<https://github.com/vyperlang/vyper/pull/4668>`_)"
+msgstr "fix[tool]: 为 ctor 函数添加元数据 (`#4668 <https://github.com/vyperlang/vyper/pull/4668>`_)"
+
+#: ../../release-notes.rst:46 ../../release-notes.rst:130
+#: ../../release-notes.rst:287
+msgid "Venom improvements"
+msgstr "Venom 改进"
+
+#: ../../release-notes.rst:47
+msgid ""
+"fix[venom]: fix incorrect write reordering in ``DFTPass`` (`#4695 "
+"<https://github.com/vyperlang/vyper/pull/4695>`_)"
+msgstr "fix[venom]: 修复 ``DFTPass`` 中不正确的写入重新排序 (`#4695 <https://github.com/vyperlang/vyper/pull/4695>`_)"
+
+#: ../../release-notes.rst:48
+msgid ""
+"feat[venom]: rewrite grammar to LALR(1) (`#4687 "
+"<https://github.com/vyperlang/vyper/pull/4687>`_)"
+msgstr "feat[venom]: 将语法重写为 LALR(1) (`#4687 <https://github.com/vyperlang/vyper/pull/4687>`_)"
+
+#: ../../release-notes.rst:49
+msgid ""
+"fix[venom]: reduce single-use expansion (`#4667 "
+"<https://github.com/vyperlang/vyper/pull/4667>`_)"
+msgstr "fix[venom]: 减少一次性扩展 (`#4667 <https://github.com/vyperlang/vyper/pull/4667>`_)"
+
+#: ../../release-notes.rst:50
+msgid ""
+"fix[venom]: fix function inliner ``clone`` function (`#4696 "
+"<https://github.com/vyperlang/vyper/pull/4696>`_)"
+msgstr "fix[venom]: 修复函数内联器 ``clone`` 函数 (`#4696 <https://github.com/vyperlang/vyper/pull/4696>`_)"
+
+#: ../../release-notes.rst:53 ../../release-notes.rst:175
+#: ../../release-notes.rst:337 ../../release-notes.rst:501
+msgid "Docs"
+msgstr "文档"
+
+#: ../../release-notes.rst:54
+msgid ""
+"feat[docs]: add docs for ``@raw_return`` decorator (`#4699 "
+"<https://github.com/vyperlang/vyper/pull/4699>`_)"
+msgstr "feat[docs]: 为 ``@raw_return`` 装饰器添加文档 (`#4699 <https://github.com/vyperlang/vyper/pull/4699>`_)"
+
+#: ../../release-notes.rst:55
+msgid ""
+"fix[docs]: clarify ``n_slots`` requirement in custom layout file (`#4641 "
+"<https://github.com/vyperlang/vyper/pull/4641>`_)"
+msgstr "fix[docs]: 阐明自定义布局文件中的 ``n_slots`` 要求 (`#4641 <https://github.com/vyperlang/vyper/pull/4641>`_)"
+
+#: ../../release-notes.rst:56
+msgid ""
+"fix[docs]: fix build status in README.md (`#4680 "
+"<https://github.com/vyperlang/vyper/pull/4680>`_)"
+msgstr "fix[docs]: 修复 README.md 中的构建状态 (`#4680 <https://github.com/vyperlang/vyper/pull/4680>`_)"
+
+#: ../../release-notes.rst:57
+msgid ""
+"chore[docs]: document the copy maxbound heuristic reasoning (`#4593 "
+"<https://github.com/vyperlang/vyper/pull/4593>`_)"
+msgstr "chore[docs]: 记录副本 maxbound 启发式推理 (`#4593 <https://github.com/vyperlang/vyper/pull/4593>`_)"
+
+#: ../../release-notes.rst:60 ../../release-notes.rst:183
+msgid "Test suite and CI improvements"
+msgstr "测试套件和 CI 改进"
+
+#: ../../release-notes.rst:61
+msgid ""
+"refactor[test]: rename venom ``param`` instruction in tests (`#4689 "
+"<https://github.com/vyperlang/vyper/pull/4689>`_)"
+msgstr "refactor[test]: 在测试中重命名 venom ``param`` 指令 (`#4689 <https://github.com/vyperlang/vyper/pull/4689>`_)"
+
+#: ../../release-notes.rst:62
+msgid ""
+"chore[ci]: update gitignore (`#4690 "
+"<https://github.com/vyperlang/vyper/pull/4690>`_)"
+msgstr "chore[ci]: 更新 gitignore (`#4690 <https://github.com/vyperlang/vyper/pull/4690>`_)"
+
+#: ../../release-notes.rst:65
+msgid "v0.4.2 ("Lernaean Hydra")"
+msgstr "v0.4.2 ("Lernaean Hydra")"
+
+#: ../../release-notes.rst:68
+msgid "Date released: 2025-05-31"
+msgstr "发布日期：2025-05-31"
+
+#: ../../release-notes.rst:70
+msgid ""
+"v0.4.2 includes a new ``raw_create()`` builtin which allows users to "
+"build more generic factories in Vyper. It also moves the ``sqrt()`` "
+"builtin to a pure Vyper module, involving a refactor which will allow "
+"more stdlib functionality to be written in Vyper in the future."
+msgstr "v0.4.2 包含一个新的 ``raw_create()`` 内置函数，允许用户在 Vyper 中构建更通用的工厂。它还将 ``sqrt()`` 内置函数移动到一个纯 Vyper 模块中，其中涉及一次重构，这将允许将来在 Vyper 中编写更多的 stdlib 功能。"
+
+#: ../../release-notes.rst:72
+#, python-format
+msgid ""
+"Additionally, Venom has undergone more improvements, including a CSE "
+"elimination pass, dead-store elimination pass, as well as moving more "
+"items in the calling convention to the stack in the venom pipeline. "
+"Benchmark contracts are now typically 5% smaller."
+msgstr "此外，Venom 还进行了更多改进，包括 CSE 消除遍、死存储消除遍，以及将调用约定中的更多项目移动到 venom 管道中的堆栈。基准合约现在通常小 5%。"
+
+#: ../../release-notes.rst:74
+msgid "Two low severity GHSAs have been patched in this release."
+msgstr "此版本中已修补两个低严重性 GHSA。"
+
+#: ../../release-notes.rst:76
+msgid ""
+"Audits: `ChainSecurity "
+"<https://github.com/vyperlang/audits/blob/master/audits/ChainSecurity_Vyper_April_2025.pdf>`_,"
+"  `Anatomist "
+"<https://github.com/vyperlang/audits/blob/master/audits/Anatomist_Vyper_April_2025.pdf>`_"
+msgstr "审计：`ChainSecurity <https://github.com/vyperlang/audits/blob/master/audits/ChainSecurity_Vyper_April_2025.pdf>`_，`Anatomist <https://github.com/vyperlang/audits/blob/master/audits/Anatomist_Vyper_April_2025.pdf>`_"
+
+#: ../../release-notes.rst:80
+msgid "Breaking and notable changes"
+msgstr "重大和值得注意的变更"
+
+#: ../../release-notes.rst:81
+msgid ""
+"feat[lang]!: move sqrt to new stdlib ``math`` module (`#4520 "
+"<https://github.com/vyperlang/vyper/pull/4520>`_)"
+msgstr "feat[lang]!: 将 sqrt 移动到新的 stdlib ``math`` 模块 (`#4520 <https://github.com/vyperlang/vyper/pull/4520>`_)"
+
+#: ../../release-notes.rst:82
+msgid ""
+"fix[lang]!: ban calling nonreentrant functions from nonreentrant "
+"functions (`#4574 <https://github.com/vyperlang/vyper/pull/4574>`_)"
+msgstr "fix[lang]!: 禁止从非重入函数调用非重入函数 (`#4574 <https://github.com/vyperlang/vyper/pull/4574>`_)"
+
+#: ../../release-notes.rst:83
+msgid ""
+"fix[lang]!: forbid calling ``__default__`` (`#4371 "
+"<https://github.com/vyperlang/vyper/pull/4371>`_)"
+msgstr "fix[lang]!: 禁止调用 ``__default__`` (`#4371 <https://github.com/vyperlang/vyper/pull/4371>`_)"
+
+#: ../../release-notes.rst:84
+msgid ""
+"feat[lang]!: remove deprecated bitwise builtins (`#4552 "
+"<https://github.com/vyperlang/vyper/pull/4552>`_)"
+msgstr "feat[lang]!: 移除已弃用的按位内置函数 (`#4552 <https://github.com/vyperlang/vyper/pull/4552>`_)"
+
+#: ../../release-notes.rst:85
+msgid ""
+"feat[tool]!: rename ``--venom`` to ``--venom-experimental`` (`#4662 "
+"<https://github.com/vyperlang/vyper/pull/4662>`_)"
+msgstr "feat[tool]!: 将 ``--venom`` 重命名为 ``--venom-experimental`` (`#4662 <https://github.com/vyperlang/vyper/pull/4662>`_)"
+
+#: ../../release-notes.rst:86
+msgid ""
+"refactor[tool]!: update storage layout format (`#4495 "
+"<https://github.com/vyperlang/vyper/pull/4495>`_)"
+msgstr "refactor[tool]!: 更新存储布局格式 (`#4495 <https://github.com/vyperlang/vyper/pull/4495>`_)"
+
+#: ../../release-notes.rst:90
+msgid ""
+"feat[lang]: nonreentrancy by default (`#4563 "
+"<https://github.com/vyperlang/vyper/pull/4563>`_)"
+msgstr "feat[lang]: 默认非重入 (`#4563 <https://github.com/vyperlang/vyper/pull/4563>`_)"
+
+#: ../../release-notes.rst:91
+msgid ""
+"feat[lang]: add ``raw_create()`` builtin (`#4204 "
+"<https://github.com/vyperlang/vyper/pull/4204>`_)"
+msgstr "feat[lang]: 添加 ``raw_create()`` 内置函数 (`#4204 <https://github.com/vyperlang/vyper/pull/4204>`_)"
+
+#: ../../release-notes.rst:92
+msgid ""
+"feat[lang]: remove one-warning limit from builtins (`#4542 "
+"<https://github.com/vyperlang/vyper/pull/4542>`_)"
+msgstr "feat[lang]: 从内置函数中移除一个警告限制 (`#4542 <https://github.com/vyperlang/vyper/pull/4542>`_)"
+
+#: ../../release-notes.rst:93
+msgid ""
+"feat[lang]: enable bitwise ops for ``bytesM`` types (`#4538 "
+"<https://github.com/vyperlang/vyper/pull/4538>`_)"
+msgstr "feat[lang]: 为 ``bytesM`` 类型启用按位运算 (`#4538 <https://github.com/vyperlang/vyper/pull/4538>`_)"
+
+#: ../../release-notes.rst:94
+msgid ""
+"fix[lang]: extend ``as_wei_value`` to all numeric types (`#3498 "
+"<https://github.com/vyperlang/vyper/pull/3498>`_)"
+msgstr "fix[lang]: 将 ``as_wei_value`` 扩展到所有数字类型 (`#3498 <https://github.com/vyperlang/vyper/pull/3498>`_)"
+
+#: ../../release-notes.rst:95
+msgid ""
+"feat[lang]: bubble up create revertdata (`#4540 "
+"<https://github.com/vyperlang/vyper/pull/4540>`_)"
+msgstr "feat[lang]: 冒泡创建 revertdata (`#4540 <https://github.com/vyperlang/vyper/pull/4540>`_)"
+
+#: ../../release-notes.rst:96
+msgid ""
+"fix[codegen]: fix overcopying of bytes in ``make_setter`` (`#4419 "
+"<https://github.com/vyperlang/vyper/pull/4419>`_)"
+msgstr "fix[codegen]: 修复 ``make_setter`` 中字节的过度复制 (`#4419 <https://github.com/vyperlang/vyper/pull/4419>`_)"
+
+#: ../../release-notes.rst:97
+msgid ""
+"fix[ux]: don't warn for logs with 0 positional args (`#4501 "
+"<https://github.com/vyperlang/vyper/pull/4501>`_)"
+msgstr "fix[ux]: 不要对具有 0 个位置参数的日志发出警告 (`#4501 <https://github.com/vyperlang/vyper/pull/4501>`_)"

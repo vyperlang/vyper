@@ -1,0 +1,178 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../statements.rst:4
+msgid "Statements"
+msgstr "语句"
+
+#: ../../statements.rst:6
+msgid ""
+"Vyper's statements are syntactically similar to Python, with some notable"
+" exceptions."
+msgstr "Vyper 的语句在语法上与 Python 类似，但有一些明显的例外。"
+
+#: ../../statements.rst:9
+msgid "Control Flow"
+msgstr "控制流"
+
+#: ../../statements.rst:12
+msgid "break"
+msgstr "break"
+
+#: ../../statements.rst:14
+msgid "The ``break`` statement terminates the nearest enclosing ``for`` loop."
+msgstr "``break`` 语句终止最近的封闭 ``for`` 循环。"
+
+#: ../../statements.rst:22
+msgid "In the above example, the ``for`` loop terminates if ``i == a``."
+msgstr "在上面的示例中，如果 ``i == a``，``for`` 循环将终止。"
+
+#: ../../statements.rst:25
+msgid "continue"
+msgstr "continue"
+
+#: ../../statements.rst:27
+msgid ""
+"The ``continue`` statement begins the next cycle of the nearest enclosing"
+" ``for`` loop."
+msgstr "``continue`` 语句开始最近的封闭 ``for`` 循环的下一个周期。"
+
+#: ../../statements.rst:36
+msgid ""
+"In the above example, the ``for`` loop begins the next cycle immediately "
+"whenever ``i != a``."
+msgstr "在上面的示例中，只要 ``i != a``，``for`` 循环就会立即开始下一个周期。"
+
+#: ../../statements.rst:39
+msgid "pass"
+msgstr "pass"
+
+#: ../../statements.rst:41
+msgid ""
+"``pass`` is a null operation — when it is executed, nothing happens. It "
+"is useful as a placeholder when a statement is required syntactically, "
+"but no code needs to be executed:"
+msgstr "``pass`` 是一个空操作——当它被执行时，什么也不会发生。当语法上需要一个语句，但不需要执行任何代码时，它作为占位符很有用："
+
+#: ../../statements.rst:52
+msgid "return"
+msgstr "return"
+
+#: ../../statements.rst:54
+msgid ""
+"``return`` leaves the current function call with the expression list (or "
+"None) as a return value."
+msgstr "``return`` 以表达式列表（或 None）作为返回值离开当前函数调用。"
+
+#: ../../statements.rst:60
+msgid ""
+"If a function has no return type, it is allowed to omit the ``return`` "
+"statement, otherwise, the function must end with a ``return`` statement, "
+"or another terminating action such as ``raise``."
+msgstr "如果函数没有返回类型，则允许省略 ``return`` 语句，否则，函数必须以 ``return`` 语句或其他终止操作（例如 ``raise``）结尾。"
+
+#: ../../statements.rst:62
+msgid ""
+"It is not allowed to have additional, unreachable statements after a "
+"``return`` statement."
+msgstr "不允许在 ``return`` 语句之后有其他不可达的语句。"
+
+#: ../../statements.rst:65
+msgid "Event Logging"
+msgstr "事件日志记录"
+
+#: ../../statements.rst:68
+msgid "log"
+msgstr "log"
+
+#: ../../statements.rst:70
+msgid "The ``log`` statement is used to log an event:"
+msgstr "``log`` 语句用于记录事件："
+
+#: ../../statements.rst:76
+msgid "The event must have been previously declared."
+msgstr "事件必须已事先声明。"
+
+#: ../../statements.rst:78
+msgid "See :ref:`Event Logging<event-logging>` for more information on events."
+msgstr "有关事件的更多信息，请参阅 :ref:`事件日志记录<event-logging>`。"
+
+#: ../../statements.rst:81
+msgid ""
+"The evaluation order of arguments passed to ``log`` is undefined. The "
+"compiler may evaluate them in any order. Therefore, arguments with side "
+"effects should be evaluated in separate statements before the ``log`` "
+"call to ensure predictable behavior."
+msgstr "传递给 ``log`` 的参数的求值顺序是未定义的。编译器可以按任何顺序对它们进行求值。因此，具有副作用的参数应在 ``log`` 调用之前在单独的语句中进行求值，以确保可预测的行为。"
+
+#: ../../statements.rst:84
+msgid "Assertions and Exceptions"
+msgstr "断言和异常"
+
+#: ../../statements.rst:86
+msgid ""
+"Vyper uses state-reverting exceptions to handle errors. Exceptions "
+"trigger the ``REVERT`` opcode (``0xFD``) with the provided reason given "
+"as the error message. When an exception is raised the code stops "
+"operation, the contract's state is reverted to the state before the "
+"transaction took place and the remaining gas is returned to the "
+"transaction's sender. When an exception happen in a sub-call, it “bubbles"
+" up” (i.e., exceptions are rethrown) automatically."
+msgstr "Vyper 使用状态恢复异常来处理错误。异常会触发 ``REVERT`` 操作码 (``0xFD``)，并将提供的原因作为错误消息。当引发异常时，代码将停止操作，合约的状态将恢复到交易发生之前的状态，剩余的 gas 将返回给交易的发送者。当子调用中发生异常时，它会自动“冒泡”（即重新引发异常）。"
+
+#: ../../statements.rst:88
+msgid ""
+"If the reason string is set to ``UNREACHABLE``, an ``INVALID`` opcode "
+"(``0xFE``) is used instead of ``REVERT``. In this case, calls that revert"
+" do not receive a gas refund. This is not a recommended practice for "
+"general usage, but is available for interoperability with various tools "
+"that use the ``INVALID`` opcode to perform dynamic analysis."
+msgstr "如果原因字符串设置为 ``UNREACHABLE``，则使用 ``INVALID`` 操作码 (``0xFE``) 而不是 ``REVERT``。在这种情况下，回滚的调用不会收到 gas 退款。对于一般用途，不建议这样做，但可用于与使用 ``INVALID`` 操作码执行动态分析的各种工具的互操作性。"
+
+#: ../../statements.rst:91
+msgid "raise"
+msgstr "raise"
+
+#: ../../statements.rst:93
+msgid ""
+"The ``raise`` statement triggers an exception and reverts the current "
+"call."
+msgstr "``raise`` 语句会触发异常并回滚当前调用。"
+
+#: ../../statements.rst:99 ../../statements.rst:110
+msgid ""
+"The error string is not required. If it is provided, it is limited to "
+"1024 bytes."
+msgstr "错误字符串不是必需的。如果提供，则限制为 1024 字节。"
+
+#: ../../statements.rst:102
+msgid "assert"
+msgstr "assert"
+
+#: ../../statements.rst:104
+msgid ""
+"The ``assert`` statement makes an assertion about a given condition. If "
+"the condition evaluates falsely, the transaction is reverted."
+msgstr "``assert`` 语句对给定条件进行断言。如果条件评估为假，则交易将回滚。"
+
+#: ../../statements.rst:112
+msgid "This method's behavior is equivalent to:"
+msgstr "此方法的行为等效于："

@@ -1,0 +1,49 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../testing-contracts.rst:4
+msgid "Testing a Contract"
+msgstr "测试合约"
+
+#: ../../testing-contracts.rst:6
+msgid ""
+"For testing Vyper contracts we recommend the use of `pytest "
+"<https://docs.pytest.org/en/latest/contents.html>`_ along with one of the"
+" following packages:"
+msgstr "为了测试 Vyper 合约，我们建议使用 `pytest <https://docs.pytest.org/en/latest/contents.html>`_ 以及以下软件包之一："
+
+#: ../../testing-contracts.rst:8
+msgid ""
+"`Titanoboa <https://github.com/vyperlang/titanoboa>`_: A Vyper "
+"interpreter, pretty tracebacks, forking, debugging and deployment "
+"features. Maintained by the Vyper team."
+msgstr "`Titanoboa <https://github.com/vyperlang/titanoboa>`_：一个 Vyper 解释器，具有漂亮的追溯、分叉、调试和部署功能。由 Vyper 团队维护。"
+
+#: ../../testing-contracts.rst:9
+msgid ""
+"`Brownie <https://github.com/iamdefinitelyahuman/brownie>`_: A "
+"development and testing framework for smart contracts targeting the "
+"Ethereum Virtual Machine"
+msgstr "`Brownie <https://github.com/iamdefinitelyahuman/brownie>`_：一个针对以太坊虚拟机的智能合约开发和测试框架"
+
+#: ../../testing-contracts.rst:11
+msgid "Example usage for each package is provided in the sections listed below."
+msgstr "下面列出的部分提供了每个包的示例用法。"

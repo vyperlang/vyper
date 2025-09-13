@@ -1,0 +1,721 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../style-guide.rst:4
+msgid "Style Guide"
+msgstr "风格指南"
+
+#: ../../style-guide.rst:6
+msgid ""
+"This document outlines the code style, project structure and practices "
+"followed by the Vyper development team."
+msgstr "本文档概述了 Vyper 开发团队遵循的代码风格、项目结构和实践。"
+
+#: ../../style-guide.rst:10
+msgid ""
+"Portions of the current codebase do not adhere to this style guide. We "
+"are in the process of a large-scale refactor and this guide is intended "
+"to outline the structure and best practices *during and beyond* this "
+"refactor. Refactored code and added functionality **must** adhere to this"
+" guide. Bugfixes and modifications to existing functionality **may** "
+"adopt the same style as the related code."
+msgstr "当前代码库的部分内容不符合本风格指南。我们正在进行大规模重构，本指南旨在概述此重构*期间及之后*的结构和最佳实践。重构的代码和添加的功能**必须**遵守本指南。错误修复和对现有功能的修改**可以**采用与相关代码相同的风格。"
+
+#: ../../style-guide.rst:13
+msgid "Project Organization"
+msgstr "项目组织"
+
+#: ../../style-guide.rst:15
+msgid ""
+"Each subdirectory within Vyper **should** be a self-contained package "
+"representing a single pass of the compiler or other logical component."
+msgstr "Vyper 中的每个子目录**都应该**是一个独立的包，代表编译器的单次传递或其他逻辑组件。"
+
+#: ../../style-guide.rst:16
+msgid ""
+"Functionality intended to be called from modules outside of a package "
+"**must** be exposed within the base ``__init__.py``. All other "
+"functionality is for internal use only."
+msgstr "旨在从包外部的模块调用的功能**必须**在基础 ``__init__.py`` 中公开。所有其他功能仅供内部使用。"
+
+#: ../../style-guide.rst:17
+msgid ""
+"It **should** be possible to remove any package and replace it with "
+"another that exposes the same API, without breaking functionality in "
+"other packages."
+msgstr "**应该**可以删除任何包并将其替换为公开相同 API 的另一个包，而不会破坏其他包中的功能。"
+
+#: ../../style-guide.rst:20
+msgid "Code Style"
+msgstr "代码风格"
+
+#: ../../style-guide.rst:22
+msgid ""
+"All code **must** conform to the `PEP 8 style guide "
+"<https://www.python.org/dev/peps/pep-0008>`_ with the following "
+"exceptions:"
+msgstr "所有代码**必须**符合 `PEP 8 风格指南 <https://www.python.org/dev/peps/pep-0008>`_，但有以下例外："
+
+#: ../../style-guide.rst:24
+msgid "Maximum line length of 100"
+msgstr "最大行长为 100"
+
+#: ../../style-guide.rst:26
+msgid ""
+"We handle code formatting with `black <https://github.com/psf/black>`_ "
+"with the line-length option set to 80. This ensures a consistent style "
+"across the project and saves time by not having to be opinionated."
+msgstr "我们使用 `black <https://github.com/psf/black>`_ 处理代码格式，并将行长选项设置为 80。这确保了整个项目的一致风格，并通过避免固执己见来节省时间。"
+
+#: ../../style-guide.rst:29
+msgid "Naming Conventions"
+msgstr "命名约定"
+
+#: ../../style-guide.rst:31
+msgid ""
+"Names **must** adhere to `PEP 8 naming conventions "
+"<https://www.python.org/dev/peps/pep-0008/#prescriptive-naming-"
+"conventions>`_:"
+msgstr "名称**必须**遵守 `PEP 8 命名约定 <https://www.python.org/dev/peps/pep-0008/#prescriptive-naming-conventions>`_："
+
+#: ../../style-guide.rst:33
+msgid ""
+"**Modules** have short, all-lowercase names. Underscores can be used in "
+"the module name if it improves readability."
+msgstr "**模块**名称简短，全小写。如果能提高可读性，可以在模块名称中使用下划线。"
+
+#: ../../style-guide.rst:34
+msgid "**Class names** use the CapWords convention."
+msgstr "**类名**使用 CapWords 约定。"
+
+#: ../../style-guide.rst:35
+msgid "**Exceptions** follow the same conventions as other classes."
+msgstr "**异常**遵循与其他类相同的约定。"
+
+#: ../../style-guide.rst:36
+msgid ""
+"**Function** names are lowercase, with words separated by underscores "
+"when it improves readability."
+msgstr "**函数**名称为小写，当能提高可读性时，单词之间用下划线分隔。"
+
+#: ../../style-guide.rst:37
+msgid ""
+"**Method** names and **instance** variables follow the same conventions "
+"as functions."
+msgstr "**方法**名称和**实例**变量遵循与函数相同的约定。"
+
+#: ../../style-guide.rst:38
+msgid "**Constants** use all capital letters with underscores separating words."
+msgstr "**常量**使用所有大写字母，单词之间用下划线分隔。"
+
+#: ../../style-guide.rst:41
+msgid "Leading Underscores"
+msgstr "前导下划线"
+
+#: ../../style-guide.rst:43
+msgid "A single leading underscore marks an object as private."
+msgstr "单个前导下划线将对象标记为私有。"
+
+#: ../../style-guide.rst:45
+msgid ""
+"Classes and functions with one leading underscore are only used in the "
+"module where they are declared. They **must not** be imported."
+msgstr "带有一个前导下划线的类和函数仅在声明它们的模块中使用。它们**不得**被导入。"
+
+#: ../../style-guide.rst:46
+msgid ""
+"Class attributes and methods with one leading underscore **must** only be"
+" accessed by methods within the same class."
+msgstr "带有一个前导下划线的类属性和方法**必须**只能由同一类中的方法访问。"
+
+#: ../../style-guide.rst:49
+msgid "Booleans"
+msgstr "布尔值"
+
+#: ../../style-guide.rst:51
+msgid "Boolean values **should** be prefixed with ``is_``."
+msgstr "布尔值**应**以 ``is_`` 为前缀。"
+
+#: ../../style-guide.rst:52
+msgid ""
+"Booleans **must not** represent *negative* properties, (e.g. "
+"``is_not_set``). This can result in double-negative evaluations which are"
+" not intuitive for readers."
+msgstr "布尔值**不得**表示*否定*属性（例如 ``is_not_set``）。这可能导致双重否定评估，对读者来说不直观。"
+
+#: ../../style-guide.rst:53
+msgid ""
+"Methods that return a single boolean **should** use the "
+":py:class:`@property<property>` decorator."
+msgstr "返回单个布尔值的方法**应**使用 :py:class:`@property<property>` 装饰器。"
+
+#: ../../style-guide.rst:56
+msgid "Methods"
+msgstr "方法"
+
+#: ../../style-guide.rst:58
+msgid ""
+"The following conventions **should** be used when naming functions or "
+"methods. Consistent naming provides logical consistency throughout the "
+"codebase and makes it easier for future readers to understand what a "
+"method does (and does not) do."
+msgstr "在命名函数或方法时，**应**使用以下约定。一致的命名在整个代码库中提供逻辑一致性，并使未来的读者更容易理解方法的作用（和不作用）。"
+
+#: ../../style-guide.rst:60
+msgid "``get_``: For simple data retrieval without any side effects."
+msgstr "``get_``：用于没有任何副作用的简单数据检索。"
+
+#: ../../style-guide.rst:61
+msgid "``fetch_``: For retreivals that may have some sort of side effect."
+msgstr "``fetch_``：用于可能具有某种副作用的检索。"
+
+#: ../../style-guide.rst:62
+msgid "``build_``: For creation of a new object that is derived from some other "
+"data."
+msgstr "``build_``：用于从其他数据派生创建新对象。"
+
+#: ../../style-guide.rst:63
+msgid "``set_``: For adding a new value or modifying an existing one within an "
+"object."
+msgstr "``set_``：用于在对象中添加新值或修改现有值。"
+
+#: ../../style-guide.rst:64
+msgid "``add_``: For adding a new attribute or other value to an object. Raises "
+"an exception if the value already exists."
+msgstr "``add_``：用于向对象添加新属性或其他值。如果值已存在，则引发异常。"
+
+#: ../../style-guide.rst:65
+msgid "``replace_``: For mutating an object. Should return ``None`` on success "
+"or raise an exception if something is wrong."
+msgstr "``replace_``：用于改变对象。成功时应返回 ``None``，如果出现问题则引发异常。"
+
+#: ../../style-guide.rst:66
+msgid "``compare_``: For comparing values. Returns ``True`` or ``False``, does "
+"not raise an exception."
+msgstr "``compare_``：用于比较值。返回 ``True`` 或 ``False``，不引发异常。"
+
+#: ../../style-guide.rst:67
+msgid "``validate_``: Returns ``None`` or raises an exception if something is "
+"wrong."
+msgstr "``validate_``：返回 ``None`` 或在出现问题时引发异常。"
+
+#: ../../style-guide.rst:68
+msgid "``from_``: For class methods that instantiate an object based on the "
+"given input data."
+msgstr "``from_``：用于基于给定输入数据实例化对象的类方法。"
+
+#: ../../style-guide.rst:70
+msgid ""
+"For other functionality, choose names that clearly communicate intent "
+"without being overly verbose. Focus on *what* the method does, not on "
+"*how* the method does it."
+msgstr "对于其他功能，请选择能够清楚传达意图而又不过于冗长的名称。关注方法*做什么*，而不是*如何*做。"
+
+#: ../../style-guide.rst:73
+msgid "Imports"
+msgstr "导入"
+
+#: ../../style-guide.rst:75
+msgid "Import sequencing is handled with `isort "
+"<https://github.com/timothycrosley/isort>`_. We follow these additional "
+"rules:"
+msgstr "导入排序由 `isort <https://github.com/timothycrosley/isort>`_ 处理。我们遵循以下附加规则："
+
+#: ../../style-guide.rst:78
+msgid "Standard Library Imports"
+msgstr "标准库导入"
+
+#: ../../style-guide.rst:80
+msgid ""
+"Standard libraries **should** be imported absolutely and without "
+"aliasing. Importing the library aids readability, as other users may be "
+"familiar with that library."
+msgstr "标准库**应**绝对导入且不使用别名。导入库有助于提高可读性，因为其他用户可能熟悉该库。"
+
+#: ../../style-guide.rst:93
+msgid "Internal Imports"
+msgstr "内部导入"
+
+#: ../../style-guide.rst:95
+msgid ""
+"Internal imports are those between two modules inside the same Vyper "
+"package."
+msgstr "内部导入是指在同一个 Vyper 包内的两个模块之间的导入。"
+
+#: ../../style-guide.rst:97
+msgid ""
+"Internal imports **may** use either ``import`` or ``from ..`` syntax. The"
+" imported value **should** be a module, not an object. Importing modules "
+"instead of objects avoids circular dependency issues."
+msgstr "内部导入**可以**使用 ``import`` 或 ``from ..`` 语法。导入的值**应该**是模块，而不是对象。导入模块而不是对象可以避免循环依赖问题。"
+
+#: ../../style-guide.rst:98
+msgid "Internal imports **may** be aliased where it aids readability."
+msgstr "内部导入**可以**在有助于提高可读性的地方使用别名。"
+
+#: ../../style-guide.rst:99
+msgid ""
+"Internal imports **must** use absolute paths. Relative imports cause "
+"issues when the module is moved."
+msgstr "内部导入**必须**使用绝对路径。相对导入在移动模块时会导致问题。"
+
+#: ../../style-guide.rst:114
+msgid "Cross-Package Imports"
+msgstr "跨包导入"
+
+#: ../../style-guide.rst:116
+msgid "Cross-package imports are imports between one Vyper package and another."
+msgstr "跨包导入是指一个 Vyper 包与另一个 Vyper 包之间的导入。"
+
+#: ../../style-guide.rst:118
+msgid ""
+"Cross-package imports **must not** request anything beyond the root "
+"namespace of the target package."
+msgstr "跨包导入**不得**请求目标包根命名空间之外的任何内容。"
+
+#: ../../style-guide.rst:119
+msgid "Cross-package imports **may** be aliased where it aids readability."
+msgstr "跨包导入**可以**在有助于提高可读性的地方使用别名。"
+
+#: ../../style-guide.rst:120
+msgid ""
+"Cross-package imports **may** use ``from [module] import [package]`` "
+"syntax."
+msgstr "跨包导入**可以**使用 ``from [module] import [package]`` 语法。"
+
+#: ../../style-guide.rst:132
+msgid "Exceptions"
+msgstr "异常"
+
+#: ../../style-guide.rst:134
+msgid ""
+"We use :ref:`custom exception classes <compiler-exceptions>` to indicate "
+"what has gone wrong during compilation."
+msgstr "我们使用 :ref:`自定义异常类 <compiler-exceptions>` 来指示编译期间出了什么问题。"
+
+#: ../../style-guide.rst:136
+msgid ""
+"All raised exceptions **must** use an exception class that appropriately "
+"describes what has gone wrong. When none fits, or when using a single "
+"exception class for an overly broad range of errors, consider creating a "
+"new class."
+msgstr "所有引发的异常**必须**使用能够恰当描述错误的异常类。当没有合适的异常类时，或者当对过于宽泛的错误范围使用单个异常类时，请考虑创建一个新类。"
+
+#: ../../style-guide.rst:137
+msgid ""
+"Builtin Python exceptions **must not** be raised intentionally. An "
+"unhandled builtin exception indicates a bug in the codebase."
+msgstr "内置 Python 异常**不得**被有意引发。未处理的内置异常表示代码库中存在错误。"
+
+#: ../../style-guide.rst:138
+msgid "Use :func:`CompilerPanic<CompilerPanic>` for errors that are not caused "
+"by the user."
+msgstr "对于非用户引起的错误，请使用 :func:`CompilerPanic<CompilerPanic>`。"
+
+#: ../../style-guide.rst:141
+msgid "Strings"
+msgstr "字符串"
+
+#: ../../style-guide.rst:143
+msgid ""
+"Strings substitutions **should** be performed via `formatted string "
+"literals <https://docs.python.org/3/reference/lexical_analysis.html"
+"#formatted-string-literals>`_ rather than the ``str.format`` method or "
+"other techniques."
+msgstr "字符串替换**应**通过 `格式化字符串文字 <https://docs.python.org/3/reference/lexical_analysis.html#formatted-string-literals>`_ 而不是 ``str.format`` 方法或其他技术来执行。"
+
+#: ../../style-guide.rst:146
+msgid "Type Annotations"
+msgstr "类型注释"
+
+#: ../../style-guide.rst:148
+msgid ""
+"All publicly exposed classes and methods **should** include `PEP 484 "
+"<https://www.python.org/dev/peps/pep-0484/>`_ annotations for all "
+"arguments and return values."
+msgstr "所有公开的类和方法**都应**为所有参数和返回值包含 `PEP 484 <https://www.python.org/dev/peps/pep-0484/>`_ 注释。"
+
+#: ../../style-guide.rst:149
+msgid ""
+"Type annotations **should** be included directly in the source. `Stub "
+"files <https://www.python.org/dev/peps/pep-0484/#stub-files>`_ **may** be"
+"used where there is a valid reason. Source files using stubs **must** "
+"still be annotated to aid readability."
+msgstr "类型注释**应**直接包含在源代码中。在有正当理由的情况下，**可以**使用 `存根文件 <https://www.python.org/dev/peps/pep-0484/#stub-files>`_。使用存根的源文件**必须**仍然进行注释以帮助提高可读性。"
+
+#: ../../style-guide.rst:150
+msgid "Internal methods **should** include type annotations."
+msgstr "内部方法**应**包含类型注释。"
+
+#: ../../style-guide.rst:153
+msgid "Tests"
+msgstr "测试"
+
+#: ../../style-guide.rst:155
+msgid "We use the `pytest <https://docs.pytest.org/en/latest/>`_ framework for "
+"testing."
+msgstr "我们使用 `pytest <https://docs.pytest.org/en/latest/>`_ 框架进行测试。"
+
+#: ../../style-guide.rst:158 ../../style-guide.rst:272
+msgid "Best Practices"
+msgstr "最佳实践"
+
+#: ../../style-guide.rst:160
+msgid "``pytest`` functionality **should not** be imported with ``from ...`` "
+"style syntax, particularly :func:`pytest.raises<pytest.raises>`. "
+"Importing the library itself aids readability."
+msgstr "``pytest`` 功能**不应**使用 ``from ...`` 风格的语法导入，特别是 :func:`pytest.raises<pytest.raises>`。导入库本身有助于提高可读性。"
+
+#: ../../style-guide.rst:161
+msgid ""
+"Tests **must not** be interdependent. We use ``xdist`` to execute tests "
+"in parallel. You **cannot** rely on which order tests will execute in, or"
+" that two tests will execute in the same process."
+msgstr "测试**不得**相互依赖。我们使用 ``xdist`` 并行执行测试。您**不能**依赖测试的执行顺序，也不能依赖两个测试在同一进程中执行。"
+
+#: ../../style-guide.rst:162
+msgid ""
+"Test cases **should** be designed with a minimalistic approach. Each test"
+" should verify a single behavior. A good test is one with few assertions,""
+" and where it is immediately obvious exactly what is being tested."
+msgstr "测试用例**应**采用简约的方法进行设计。每个测试都应验证单个行为。一个好的测试是断言很少，并且可以立即清楚地知道正在测试什么。"
+
+#: ../../style-guide.rst:163
+msgid ""
+"Where logical, tests **should** be `parametrized "
+"<https://docs.pytest.org/en/latest/parametrize.html>`_ or use `property-"
+"based <https://hypothesis.works/>`_ testing."
+msgstr "在逻辑上，测试**应**进行 `参数化 <https://docs.pytest.org/en/latest/parametrize.html>`_ 或使用 `基于属性的 <https://hypothesis.works/>`_ 测试。"
+
+#: ../../style-guide.rst:164
+msgid "Tests **must not** involve mocking."
+msgstr "测试**不得**涉及模拟。"
+
+#: ../../style-guide.rst:167
+msgid "Directory Structure"
+msgstr "目录结构"
+
+#: ../../style-guide.rst:169
+msgid ""
+"Where possible, the test suite **should** copy the structure of main "
+"Vyper package. For example, test cases for ``vyper/context/types/`` "
+"should exist at ``tests/context/types/``."
+msgstr "在可能的情况下，测试套件**应**复制主 Vyper 包的结构。例如，``vyper/context/types/`` 的测试用例应存在于 ``tests/context/types/``。"
+
+#: ../../style-guide.rst:172
+msgid "Filenames"
+msgstr "文件名"
+
+#: ../../style-guide.rst:174
+msgid "Test files **must** use the following naming conventions:"
+msgstr "测试文件**必须**使用以下命名约定："
+
+#: ../../style-guide.rst:176
+msgid "``test_[module].py``: When all tests for a module are contained in a "
+"single file."
+msgstr "``test_[module].py``：当模块的所有测试都包含在单个文件中时。"
+
+#: ../../style-guide.rst:177
+msgid "``test_[module]_[functionality].py``: When tests for a module are split "
+"across multiple files."
+msgstr "``test_[module]_[functionality].py``：当模块的测试分布在多个文件中时。"
+
+#: ../../style-guide.rst:180
+msgid "Fixtures"
+msgstr "固定装置"
+
+#: ../../style-guide.rst:182
+msgid ""
+"Fixtures **should** be stored in ``conftest.py`` rather than the test "
+"file itself."
+msgstr "固定装置**应**存储在 ``conftest.py`` 中，而不是测试文件本身。"
+
+#: ../../style-guide.rst:183
+msgid "``conftest.py`` files **must not** exist more than one subdirectory "
+"beyond the initial ``tests/`` directory."
+msgstr "``conftest.py`` 文件**不得**存在于初始 ``tests/`` 目录之外的多个子目录中。"
+
+#: ../../style-guide.rst:184
+msgid "The functionality of a fixture **must** be fully documented, either via "
+"docstrings or comments."
+msgstr "固定装置的功能**必须**通过文档字符串或注释进行完整记录。"
+
+#: ../../style-guide.rst:187
+msgid "Documentation"
+msgstr "文档"
+
+#: ../../style-guide.rst:189
+msgid "It is important to maintain comprehensive and up-to-date documentation "
+"for the Vyper language."
+msgstr "为 Vyper 语言维护全面且最新的文档非常重要。"
+
+#: ../../style-guide.rst:191
+msgid "Documentation **must** accurately reflect the current state of the master"
+" branch on Github."
+msgstr "文档**必须**准确反映 Github 上 master 分支的当前状态。"
+
+#: ../../style-guide.rst:192
+msgid "New functionality **must not** be added without corresponding "
+"documentation updates."
+msgstr "**不得**在没有相应文档更新的情况下添加新功能。"
+
+#: ../../style-guide.rst:195
+msgid "Writing Style"
+msgstr "写作风格"
+
+#: ../../style-guide.rst:197
+msgid "We use imperative, present tense to describe APIs: “return” not "
+"“returns”. One way to test if we have it right is to complete the "
+"following sentence:"
+msgstr "我们使用祈使句、现在时来描述 API：“return”而不是“returns”。测试我们是否正确的一种方法是完成以下句子："
+
+#: ../../style-guide.rst:199
+msgid '"If we call this API it will: ..."'
+msgstr '"如果我们调用此 API，它将：...”'
+
+#: ../../style-guide.rst:201
+msgid ""
+"For narrative style documentation, we prefer the use of first-person "
+""we" form over second-person "you" form."
+msgstr "对于叙事风格的文档，我们更喜欢使用第一人称“我们”形式，而不是第二人称“您”形式。"
+
+#: ../../style-guide.rst:203
+msgid "Additionally, we **recommend** the following best practices when writing "
+"documentation:"
+msgstr "此外，我们**建议**在编写文档时遵循以下最佳实践："
+
+#: ../../style-guide.rst:205
+msgid "Use terms consistently."
+msgstr "一致地使用术语。"
+
+#: ../../style-guide.rst:206
+msgid "Avoid ambiguous pronouns."
+msgstr "避免使用模棱两可的代词。"
+
+#: ../../style-guide.rst:207
+msgid "Eliminate unneeded words."
+msgstr "删除不必要的单词。"
+
+#: ../../style-guide.rst:208
+msgid "Establish key points at the start of a document."
+msgstr "在文档开头建立要点。"
+
+#: ../../style-guide.rst:209
+msgid "Focus each paragraph on a single topic."
+msgstr "每段都集中讨论一个主题。"
+
+#: ../../style-guide.rst:210
+msgid "Focus each sentence on a single idea."
+msgstr "每句话都集中讨论一个想法。"
+
+#: ../../style-guide.rst:211
+msgid ""
+"Use a numbered list when order is important and a bulleted list when "
+"order is irrelevant."
+msgstr "当顺序很重要时使用编号列表，当顺序无关紧要时使用项目符号列表。"
+
+#: ../../style-guide.rst:212
+msgid "Introduce lists and tables appropriately."
+msgstr "适当地介绍列表和表格。"
+
+#: ../../style-guide.rst:214
+msgid "Google's `technical writing courses <https://developers.google.com/tech-"
+"writing>`_ are a valuable resource. We recommend reviewing them before "
+"any significant documentation work."
+msgstr "谷歌的 `技术写作课程 <https://developers.google.com/tech-writing>`_ 是宝贵的资源。我们建议在进行任何重要的文档工作之前先复习一下。"
+
+#: ../../style-guide.rst:217
+msgid "API Directives"
+msgstr "API 指令"
+
+#: ../../style-guide.rst:219
+msgid ""
+"All API documentation **must** use standard Python `directives "
+"<https://www.sphinx-doc.org/en/master/usage/restructuredtext/domains.html"
+"#the-python-domain>`_."
+msgstr "所有 API 文档**必须**使用标准的 Python `指令 <https://www.sphinx-doc.org/en/master/usage/restructuredtext/domains.html#the-python-domain>`_。"
+
+#: ../../style-guide.rst:220
+msgid ""
+"Where possible, references to syntax **should** use appropriate `Python "
+"roles <https://www.sphinx-"
+"doc.org/en/master/usage/restructuredtext/domains.html#cross-referencing-"
+"syntax>`_."
+msgstr "在可能的情况下，对语法的引用**应**使用适当的 `Python 角色 <https://www.sphinx-doc.org/en/master/usage/restructuredtext/domains.html#cross-referencing-syntax>`_。"
+
+#: ../../style-guide.rst:221
+msgid "External references **may** use `intersphinx roles <https://www.sphinx-"
+"doc.org/en/master/usage/extensions/intersphinx.html>`_."
+msgstr "外部引用**可以**使用 `intersphinx 角色 <https://www.sphinx-doc.org/en/master/usage/extensions/intersphinx.html>`_。"
+
+#: ../../style-guide.rst:224
+msgid "Headers"
+msgstr "标题"
+
+#: ../../style-guide.rst:226
+msgid ""
+"Each documentation section **must** begin with a `label <https://www"
+".sphinx-doc.org/en/stable/usage/restructuredtext/roles.html#cross-"
+"referencing-arbitrary-locations>`_ of the same name as the filename for "
+"that section. For example, this section's filename is ``style-"
+"guide.rst``, so the RST opens with a label ``_style-guide``."
+msgstr "每个文档部分**必须**以与该部分的文件名同名的 `标签 <https://www.sphinx-doc.org/en/stable/usage/restructuredtext/roles.html#cross-referencing-arbitrary-locations>`_ 开头。例如，本部分的文件名为 ``style-guide.rst``，因此 RST 以标签 ``_style-guide`` 开头。"
+
+#: ../../style-guide.rst:227
+msgid ""
+"Section headers **should** use the following sequence, from top to "
+"bottom: ``#``, ``=``, ``-``, ``*``, ``^``."
+msgstr "节标题**应**使用以下顺序，从上到下：``#``、``=``、``-``、``*``、``^``。"
+
+#: ../../style-guide.rst:230
+msgid "Internal Documentation"
+msgstr "内部文档"
+
+#: ../../style-guide.rst:232
+msgid ""
+"Internal documentation is vital to aid other contributors in "
+"understanding the layout of the Vyper codebase."
+msgstr "内部文档对于帮助其他贡献者理解 Vyper 代码库的布局至关重要。"
+
+#: ../../style-guide.rst:234
+msgid "We handle internal documentation in the following ways:"
+msgstr "我们通过以下方式处理内部文档："
+
+#: ../../style-guide.rst:236
+msgid ""
+"A ``README.md`` **must** be included in each first-level subdirectory of "
+"the Vyper package. The readme explain the purpose, organization and "
+"control flow of the subdirectory."
+msgstr "Vyper 包的每个一级子目录中**必须**包含一个 ``README.md``。自述文件解释了子目录的用途、组织和控制流。"
+
+#: ../../style-guide.rst:237
+msgid "All publicly exposed classes and methods **must** include detailed "
+"docstrings."
+msgstr "所有公开的类和方法**必须**包含详细的文档字符串。"
+
+#: ../../style-guide.rst:238
+msgid "Internal methods **should** include docstrings, or at minimum comments."
+msgstr "内部方法**应**包含文档字符串，或至少包含注释。"
+
+#: ../../style-guide.rst:239
+msgid "Any code that may be considered \"clever\" or \"magic\" **must** include "
+"comments explaining exactly what is happening."
+msgstr "任何可能被认为是“聪明的”或“神奇的”代码**必须**包含解释到底发生了什么的注释。"
+
+#: ../../style-guide.rst:241
+msgid "Docstrings **should** be formatted according to the `NumPy docstring "
+"style <https://numpydoc.readthedocs.io/en/latest/format.html>`_."
+msgstr "文档字符串**应**根据 `NumPy 文档字符串样式 <https://numpydoc.readthedocs.io/en/latest/format.html>`_ 进行格式化。"
+
+#: ../../style-guide.rst:244
+msgid "Commit Messages"
+msgstr "提交消息"
+
+#: ../../style-guide.rst:246
+msgid ""
+"Contributors **should** adhere to the following standards and best "
+"practices when making commits to be merged into the Vyper codebase."
+msgstr "贡献者在向 Vyper 代码库提交要合并的提交时，**应**遵守以下标准和最佳实践。"
+
+#: ../../style-guide.rst:248
+msgid "Maintainers  **may** request a rebase, or choose to squash merge pull "
+"requests that do not follow these standards."
+msgstr "维护者**可以**请求变基，或者选择对不遵循这些标准的拉取请求进行 squash 合并。"
+
+#: ../../style-guide.rst:251
+msgid "Conventional Commits"
+msgstr "约定式提交"
+
+#: ../../style-guide.rst:253
+msgid ""
+"Commit messages **should** adhere to the `Conventional Commits "
+"<https://www.conventionalcommits.org/>`_ standard. A conventional commit "
+"message is structured as follows:"
+msgstr "提交消息**应**遵守 `约定式提交 <https://www.conventionalcommits.org/>`_ 标准。约定式提交消息的结构如下："
+
+#: ../../style-guide.rst:263
+msgid ""
+"The commit contains the following elements, to communicate intent to the "
+"consumers of your library:"
+msgstr "提交包含以下元素，以向库的使用者传达意图："
+
+#: ../../style-guide.rst:265
+msgid "**fix**: a commit of the *type* ``fix`` patches a bug in your codebase "
+"(this correlates with ``PATCH`` in semantic versioning)."
+msgstr "**fix**：*类型*为 ``fix`` 的提交会修补您代码库中的一个错误（这与语义版本控制中的 ``PATCH`` 相关）。"
+
+#: ../../style-guide.rst:266
+msgid "**feat**: a commit of the *type* ``feat`` introduces a new feature to the"
+" codebase (this correlates with ``MINOR`` in semantic versioning)."
+msgstr "**feat**：*类型*为 ``feat`` 的提交会向代码库中引入一个新功能（这与语义版本控制中的 ``MINOR`` 相关）。"
+
+#: ../../style-guide.rst:267
+msgid "**BREAKING CHANGE**: a commit that has the text ``BREAKING CHANGE:`` at "
+"the beginning of its optional body or footer section introduces a "
+"breaking API change (correlating with ``MAJOR`` in semantic versioning). "
+"A BREAKING CHANGE can be part of commits of any *type*."
+msgstr "**重大变更**：在其可选正文或页脚部分的开头包含文本 ``BREAKING CHANGE:`` 的提交会引入一个重大的 API 变更（与语义版本控制中的 ``MAJOR`` 相关）。重大变更可以是任何*类型*的提交的一部分。"
+
+#: ../../style-guide.rst:269
+msgid "The use of commit types other than ``fix:`` and ``feat:`` is recommended. "
+"For example: ``docs:``, ``style:``, ``refactor:``, ``test:``, "
+"``chore:``, or ``improvement:``. These tags are not mandated by the "
+"specification and have no implicit effect in semantic versioning."
+msgstr "建议使用 ``fix:`` 和 ``feat:`` 以外的提交类型。例如：``docs:``、``style:``、``refactor:``、``test:``、``chore:`` 或 ``improvement:``。这些标签不是规范强制要求的，并且在语义版本控制中没有隐式效果。"
+
+#: ../../style-guide.rst:274
+msgid ""
+"We **recommend** the following best practices for commit messages (taken "
+"from `How To Write a Commit Message <https://chris.beams.io/posts/git-"
+"commit/>`_):"
+msgstr "我们**建议**遵循以下提交消息的最佳实践（摘自 `如何编写提交消息 <https://chris.beams.io/posts/git-commit/>`_）："
+
+#: ../../style-guide.rst:276
+msgid "Limit the subject line to 50 characters."
+msgstr "将主题行限制在 50 个字符以内。"
+
+#: ../../style-guide.rst:277
+msgid "Use imperative, present tense in the subject line."
+msgstr "在主题行中使用祈使句、现在时。"
+
+#: ../../style-guide.rst:278
+msgid "Capitalize the subject line."
+msgstr "将主题行大写。"
+
+#: ../../style-guide.rst:279
+msgid "Do not end the subject line with a period."
+msgstr "不要以句点结束主题行。"
+
+#: ../../style-guide.rst:280
+msgid "Separate the subject from the body with a blank line."
+msgstr "用空行将主题与正文分开。"
+
+#: ../../style-guide.rst:281
+msgid "Wrap the body at 72 characters."
+msgstr "将正文换行到 72 个字符。"
+
+#: ../../style-guide.rst:282
+msgid "Use the body to explain what and why vs. how."
+msgstr "使用正文解释什么和为什么，而不是如何。"
+
+#: ../../style-guide.rst:284
+msgid "Here's an example commit message adhering to the above practices::"
+msgstr "以下是遵守上述实践的提交消息示例："

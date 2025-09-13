@@ -1,0 +1,279 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../types.rst:6
+msgid "Types"
+msgstr "类型"
+
+#: ../../types.rst:8
+msgid ""
+"Vyper is a statically typed language. The type of each variable (state "
+"and local) must be specified or at least known at compile-time. Vyper "
+"provides several elementary types which can be combined to form complex "
+"types."
+msgstr "Vyper 是一种静态类型语言。每个变量（状态变量和局部变量）的类型必须在编译时指定或至少已知。Vyper 提供了几种基本类型，可以组合成复杂类型。"
+
+#: ../../types.rst:10
+msgid ""
+"In addition, types can interact with each other in expressions containing"
+" operators."
+msgstr "此外，类型可以在包含运算符的表达式中相互交互。"
+
+#: ../../types.rst:15
+msgid "Value Types"
+msgstr "值类型"
+
+#: ../../types.rst:17
+msgid ""
+"The following types are also called value types because variables of "
+"these types will always be passed by value, i.e. they are always copied "
+"when they are used as function arguments or in assignments."
+msgstr "以下类型也称为值类型，因为这些类型的变量将始终按值传递，即在用作函数参数或赋值时始终被复制。"
+
+#: ../../types.rst:24
+msgid "Boolean"
+msgstr "布尔值"
+
+#: ../../types.rst:26
+msgid "**Keyword:** ``bool``"
+msgstr "**关键字：** ``bool``"
+
+#: ../../types.rst:28
+msgid "A boolean is a type to store a logical/truth value."
+msgstr "布尔值是用于存储逻辑/真值的类型。"
+
+#: ../../types.rst:31 ../../types.rst:61 ../../types.rst:147
+#: ../../types.rst:237 ../../types.rst:292
+msgid "Values"
+msgstr "值"
+
+#: ../../types.rst:33
+msgid "The only possible values are the constants ``True`` and ``False``."
+msgstr "唯一可能的值是常量 ``True`` 和 ``False``。"
+
+#: ../../types.rst:106 ../../types.rst:194 ../../types.rst:422
+msgid "Bitwise Operators"
+msgstr "位运算符"
+
+#: ../../types.rst:39 ../../types.rst:76 ../../types.rst:92 ../../types.rst:109
+#: ../../types.rst:122 ../../types.rst:165 ../../types.rst:181
+#: ../../types.rst:197 ../../types.rst:214 ../../types.rst:254
+#: ../../types.rst:270 ../../types.rst:413 ../../types.rst:425
+msgid "Operator"
+msgstr "运算符"
+
+#: ../../types.rst:39 ../../types.rst:76 ../../types.rst:92 ../../types.rst:109
+#: ../../types.rst:122 ../../types.rst:165 ../../types.rst:181
+#: ../../types.rst:197 ../../types.rst:214 ../../types.rst:254
+#: ../../types.rst:270 ../../types.rst:302 ../../types.rst:341
+#: ../../types.rst:413 ../../types.rst:425
+msgid "Description"
+msgstr "描述"
+
+#: ../../types.rst:41
+msgid "``not x``"
+msgstr "``not x``"
+
+#: ../../types.rst:41
+msgid "Logical negation"
+msgstr "逻辑非"
+
+#: ../../types.rst:42
+msgid "``x and y``"
+msgstr "``x and y``"
+
+#: ../../types.rst:42
+msgid "Logical conjunction"
+msgstr "逻辑与"
+
+#: ../../types.rst:43
+msgid "``x or y``"
+msgstr "``x or y``"
+
+#: ../../types.rst:43
+msgid "Logical disjunction"
+msgstr "逻辑或"
+
+#: ../../types.rst:44 ../../types.rst:80 ../../types.rst:169
+#: ../../types.rst:258 ../../types.rst:415
+msgid "``x == y``"
+msgstr "``x == y``"
+
+#: ../../types.rst:44
+msgid "Equality"
+msgstr "相等"
+
+#: ../../types.rst:45 ../../types.rst:81 ../../types.rst:170
+#: ../../types.rst:259 ../../types.rst:416
+msgid "``x != y``"
+msgstr "``x != y``"
+
+#: ../../types.rst:45
+msgid "Inequality"
+msgstr "不相等"
+
+#: ../../types.rst:48
+msgid ""
+"Short-circuiting of boolean operators (``or`` and ``and``) is consistent "
+"with the behavior of Python."
+msgstr "布尔运算符（``or`` 和 ``and``）的短路行为与 Python 的行为一致。"
+
+#: ../../types.rst:54
+msgid "Signed Integer (N bit)"
+msgstr "有符号整数（N 位）"
+
+#: ../../types.rst:56
+msgid "**Keyword:** ``intN`` (e.g., ``int128``)"
+msgstr "**关键字：** ``intN``（例如 ``int128``）"
+
+#: ../../types.rst:58
+msgid ""
+"A signed integer which can store positive and negative integers. ``N`` "
+"must be a multiple of 8 between 8 and 256 (inclusive)."
+msgstr "可以存储正整数和负整数的有符号整数。``N`` 必须是 8 到 256（含）之间 8 的倍数。"
+
+#: ../../types.rst:63
+msgid ""
+"Signed integer values between -2\ :sup:`N-1` and (2\ :sup:`N-1` - 1), "
+"inclusive."
+msgstr "有符号整数值介于 -2\ :sup:`N-1` 和 (2\ :sup:`N-1` - 1)（含）之间。"
+
+#: ../../types.rst:65 ../../types.rst:151
+msgid ""
+"Integer literals cannot have a decimal point even if the decimal value is"
+" zero. For example, ``2.0`` cannot be interpreted as an integer."
+msgstr "即使小数值为零，整型字面量也不能有小数点。例如，``2.0`` 不能解释为整数。"
+
+#: ../../types.rst:71 ../../types.rst:160 ../../types.rst:249
+#: ../../types.rst:408
+msgid "Comparisons"
+msgstr "比较"
+
+#: ../../types.rst:73 ../../types.rst:162 ../../types.rst:251
+#: ../../types.rst:410
+msgid "Comparisons return a boolean value."
+msgstr "比较返回一个布尔值。"
+
+#: ../../types.rst:78 ../../types.rst:167 ../../types.rst:256
+msgid "``x < y``"
+msgstr "``x < y``"
+
+#: ../../types.rst:78 ../../types.rst:167 ../../types.rst:256
+msgid "Less than"
+msgstr "小于"
+
+#: ../../types.rst:79 ../../types.rst:168 ../../types.rst:257
+msgid "``x <= y``"
+msgstr "``x <= y``"
+
+#: ../../types.rst:79 ../../types.rst:168
+msgid "Less than or equal to"
+msgstr "小于或等于"
+
+#: ../../types.rst:80 ../../types.rst:169 ../../types.rst:258
+#: ../../types.rst:415
+msgid "Equals"
+msgstr "等于"
+
+#: ../../types.rst:81 ../../types.rst:170 ../../types.rst:259
+#: ../../types.rst:416
+msgid "Does not equal"
+msgstr "不等于"
+
+#: ../../types.rst:82 ../../types.rst:171 ../../types.rst:260
+msgid "``x >= y``"
+msgstr "``x >= y``"
+
+#: ../../types.rst:82 ../../types.rst:171
+msgid "Greater than or equal to"
+msgstr "大于或等于"
+
+#: ../../types.rst:83 ../../types.rst:172 ../../types.rst:261
+msgid "``x > y``"
+msgstr "``x > y``"
+
+#: ../../types.rst:83 ../../types.rst:172 ../../types.rst:261
+msgid "Greater than"
+msgstr "大于"
+
+#: ../../types.rst:86 ../../types.rst:103
+msgid "``x`` and ``y`` must both be of the same type."
+msgstr "``x`` 和 ``y`` 必须都是同一类型。"
+
+#: ../../types.rst:89 ../../types.rst:178 ../../types.rst:267
+msgid "Arithmetic Operators"
+msgstr "算术运算符"
+
+#: ../../types.rst:94 ../../types.rst:183 ../../types.rst:272
+msgid "``x + y``"
+msgstr "``x + y``"
+
+#: ../../types.rst:94 ../../types.rst:183 ../../types.rst:272
+msgid "Addition"
+msgstr "加法"
+
+#: ../../types.rst:95 ../../types.rst:184 ../../types.rst:273
+msgid "``x - y``"
+msgstr "``x - y``"
+
+#: ../../types.rst:95 ../../types.rst:184 ../../types.rst:273
+msgid "Subtraction"
+msgstr "减法"
+
+#: ../../types.rst:96 ../../types.rst:274
+msgid "``-x``"
+msgstr "``-x``"
+
+#: ../../types.rst:96 ../../types.rst:274
+msgid "Unary minus/Negation"
+msgstr "一元减/负"
+
+#: ../../types.rst:97 ../../types.rst:185 ../../types.rst:275
+msgid "``x * y``"
+msgstr "``x * y``"
+
+#: ../../types.rst:97 ../../types.rst:185 ../../types.rst:275
+msgid "Multiplication"
+msgstr "乘法"
+
+#: ../../types.rst:98 ../../types.rst:186
+msgid "``x // y``"
+msgstr "``x // y``"
+
+#: ../../types.rst:98 ../../types.rst:186
+msgid "Integer division"
+msgstr "整数除法"
+
+#: ../../types.rst:99 ../../types.rst:187
+msgid "``x**y``"
+msgstr "``x**y``"
+
+#: ../../types.rst:99 ../../types.rst:187
+msgid "Exponentiation"
+msgstr "求幂"
+
+#: ../../types.rst:100 ../../types.rst:188 ../../types.rst:277
+msgid "``x % y``"
+msgstr "``x % y``"
+
+#: ../../types.rst:100 ../../types.rst:188 ../../types.rst:277
+msgid "Modulo"
+msgstr "模"

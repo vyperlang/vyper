@@ -130,6 +130,7 @@ Standalone Interfaces
 Standalone interfaces are written using a variant of standard Vyper syntax. The body of each function must be an ellipsis (``...``). Interface files must have a ``.vyi`` suffix in order to be found by an import statement.
 
 .. code-block:: vyper
+
     # ISomeInterface.vyi
 
     @external

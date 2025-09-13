@@ -1,0 +1,375 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../structure-of-a-contract.rst:4
+msgid "Structure of a Contract"
+msgstr "合约结构"
+
+#: ../../structure-of-a-contract.rst:6
+msgid ""
+"Vyper contracts are contained within files. Each file contains exactly "
+"one contract."
+msgstr "Vyper 合约包含在文件中。每个文件只包含一个合约。"
+
+#: ../../structure-of-a-contract.rst:8
+msgid ""
+"This section provides a quick overview of the types of data present "
+"within a contract, with links to other sections where you can obtain more"
+" details."
+msgstr "本节概述了合约中存在的数据类型，并提供了指向其他部分的链接，您可以在其中获取更多详细信息。"
+
+#: ../../structure-of-a-contract.rst:13
+msgid "Pragmas"
+msgstr "Pragmas"
+
+#: ../../structure-of-a-contract.rst:15
+msgid ""
+"Vyper supports several source code directives to control compiler modes "
+"and help with build reproducibility."
+msgstr "Vyper 支持多个源代码指令来控制编译器模式并帮助实现构建可重现性。"
+
+#: ../../structure-of-a-contract.rst:18
+msgid "Version Pragma"
+msgstr "版本 Pragma"
+
+#: ../../structure-of-a-contract.rst:20
+msgid ""
+"The version pragma ensures that a contract is only compiled by the "
+"intended compiler version, or range of versions. Version strings use `NPM"
+" <https://docs.npmjs.com/about-semantic-versioning>`_ style syntax. "
+"Starting from v0.4.0 and up, version strings will use `PEP440 version "
+"specifiers <https://peps.python.org/pep-0440/#version-specifiers>`_."
+msgstr "版本 pragma 确保合约仅由预期的编译器版本或版本范围编译。版本字符串使用 `NPM <https://docs.npmjs.com/about-semantic-versioning>`_ 样式语法。从 v0.4.0 及更高版本开始，版本字符串将使用 `PEP440 版本说明符 <https://peps.python.org/pep-0440/#version-specifiers>`_。"
+
+#: ../../structure-of-a-contract.rst:22
+msgid ""
+"As of 0.3.10, the recommended way to specify the version pragma is as "
+"follows:"
+msgstr "从 0.3.10 开始，推荐的指定版本 pragma 的方法如下："
+
+#: ../../structure-of-a-contract.rst:30
+msgid "Both pragma directive versions ``#pragma`` and ``# pragma`` are supported."
+msgstr "支持 ``#pragma`` 和 ``# pragma`` 两种 pragma 指令版本。"
+
+#: ../../structure-of-a-contract.rst:32
+msgid ""
+"The following declaration is equivalent, and, prior to 0.3.10, was the "
+"only supported method to specify the compiler version:"
+msgstr "以下声明是等效的，并且在 0.3.10 之前，是指定编译器版本的唯一受支持的方法："
+
+#: ../../structure-of-a-contract.rst:39
+msgid ""
+"In the above examples, the contract will only compile with Vyper versions"
+" ``0.3.x``."
+msgstr "在上面的示例中，合约将仅使用 Vyper 版本 ``0.3.x`` 进行编译。"
+
+#: ../../structure-of-a-contract.rst:42
+msgid "Optimization Mode"
+msgstr "优化模式"
+
+#: ../../structure-of-a-contract.rst:44
+msgid ""
+"The optimization mode can be one of ``\"none\"``, ``\"codesize\"``, or "
+"``\"gas\"`` (default). For example, adding the following line to a "
+"contract will cause it to try to optimize for codesize:"
+msgstr "优化模式可以是 ``\"none\"``、``\"codesize\"`` 或 ``\"gas\"``（默认）。例如，将以下行添加到合约中将使其尝试针对代码大小进行优化："
+
+#: ../../structure-of-a-contract.rst:50
+msgid ""
+"The optimization mode can also be set as a compiler option, which is "
+"documented in :ref:`optimization-mode`. If the compiler option conflicts "
+"with the source code pragma, an exception will be raised and compilation "
+"will not continue."
+msgstr "优化模式也可以设置为编译器选项，这在 :ref:`optimization-mode` 中有记录。如果编译器选项与源代码 pragma 冲突，将引发异常并且编译将不会继续。"
+
+#: ../../structure-of-a-contract.rst:53
+msgid "EVM Version"
+msgstr "EVM 版本"
+
+#: ../../structure-of-a-contract.rst:55
+msgid ""
+"The EVM version can be set with the ``evm-version`` pragma, which is "
+"documented in :ref:`evm-version`."
+msgstr "可以使用 ``evm-version`` pragma 设置 EVM 版本，这在 :ref:`evm-version` 中有记录。"
+
+#: ../../structure-of-a-contract.rst:58
+msgid "Experimental Code Generation"
+msgstr "实验性代码生成"
+
+#: ../../structure-of-a-contract.rst:59
+msgid ""
+"The new experimental code generation feature can be activated using the "
+"following directive:"
+msgstr "可以使用以下指令激活新的实验性代码生成功能："
+
+#: ../../structure-of-a-contract.rst:65
+msgid ""
+"Alternatively, you can use the alias ``\"venom-experimental\"`` instead "
+"of ``\"experimental-codegen\"``  to enable this feature."
+msgstr "或者，您可以使用别名 ``\"venom-experimental\"`` 代替 ``\"experimental-codegen\"`` 来启用此功能。"
+
+#: ../../structure-of-a-contract.rst:68
+msgid "Imports"
+msgstr "导入"
+
+#: ../../structure-of-a-contract.rst:70
+msgid ""
+"Import statements allow you to import :ref:`modules` or :ref:`interfaces`"
+"with the ``import`` or ``from ... import`` syntax."
+msgstr "导入语句允许您使用 ``import`` 或 ``from ... import`` 语法导入 :ref:`模块` 或 :ref:`接口`。"
+
+#: ../../structure-of-a-contract.rst:73
+msgid "Imports via ``import``"
+msgstr "通过 ``import`` 导入"
+
+#: ../../structure-of-a-contract.rst:75
+msgid ""
+"You may import modules (defined in ``.vy`` files) and interfaces (defined"
+"in ``.vyi`` or ``.json`` files) via ``import`` statements. You may use "
+"plain or ``as`` variants."
+msgstr "您可以通过 ``import`` 语句导入模块（在 ``.vy`` 文件中定义）和接口（在 ``.vyi`` 或 ``.json`` 文件中定义）。您可以使用普通变体或 ``as`` 变体。"
+
+#: ../../structure-of-a-contract.rst:86
+msgid "Imports via ``from ... import``"
+msgstr "通过 ``from ... import`` 导入"
+
+#: ../../structure-of-a-contract.rst:88
+msgid ""
+"Using ``from`` you can perform both absolute and relative imports. You "
+"may optionally include an alias - if you do not, the name of the "
+"interface will be the same as the file."
+msgstr "使用 ``from`` 可以执行绝对导入和相对导入。您可以选择包含别名 - 如果不包含，接口的名称将与文件名相同。"
+
+#: ../../structure-of-a-contract.rst:98
+msgid ""
+"Relative imports are possible by prepending dots to the contract name. A "
+"single leading dot indicates a relative import starting with the current "
+"package. Two leading dots indicate a relative import from the parent of "
+"the current package:"
+msgstr "通过在合约名称前加上点可以进行相对导入。一个前导点表示从当前包开始的相对导入。两个前导点表示从当前包的父包开始的相对导入："
+
+#: ../../structure-of-a-contract.rst:105
+msgid ""
+"Further higher directories can be accessed with ``...``, ``....`` etc., "
+"as in Python."
+msgstr "可以使用 ``...``、``....`` 等访问更高级别的目录，就像在 Python 中一样。"
+
+#: ../../structure-of-a-contract.rst:110
+msgid "Searching For Imports"
+msgstr "搜索导入"
+
+#: ../../structure-of-a-contract.rst:112
+msgid ""
+"When looking for a file to import, Vyper will first search relative to "
+"the same folder as the contract being compiled. It then checks for the "
+"file in the provided search paths, in the precedence provided. Vyper "
+"checks for the file name with a ``.vy`` suffix first, then ``.vyi``, then"
+" ``.json``."
+msgstr "在查找要导入的文件时，Vyper 将首先相对于正在编译的合约所在的同一文件夹进行搜索。然后，它会按照提供的优先级在提供的搜索路径中检查该文件。Vyper 首先检查带有 ``.vy`` 后缀的文件名，然后是 ``.vyi``，然后是 ``.json``。"
+
+#: ../../structure-of-a-contract.rst:114
+msgid ""
+"When using the :ref:`vyper CLI <vyper-cli-command>`, the search path "
+"defaults to the current working directory, plus the python `syspath "
+"<https://docs.python.org/3.11/library/sys.html#sys.path>`_. You can "
+"append to the search path with the ``-p`` flag, e.g.:"
+msgstr "使用 :ref:`vyper CLI <vyper-cli-command>` 时，搜索路径默认为当前工作目录，外加 python `syspath <https://docs.python.org/3.11/library/sys.html#sys.path>`_。您可以使用 ``-p`` 标志附加到搜索路径，例如："
+
+#: ../../structure-of-a-contract.rst:120
+msgid "In the above example, the ``my_project`` folder is set as the root path."
+msgstr "在上面的示例中，``my_project`` 文件夹被设置为根路径。"
+
+#: ../../structure-of-a-contract.rst:124
+msgid ""
+"Including the python syspath on the search path means that any Vyper "
+"module in the current ``virtualenv`` is discoverable by the Vyper "
+"compiler, and Vyper packages can be published to and installed from PyPI "
+"and accessed via ``import`` statements with no additional configuration. "
+"Keep in mind that best practice is always to install packages *within* a "
+"``virtualenv`` and not globally!"
+msgstr "在搜索路径中包含 python syspath 意味着当前 ``virtualenv`` 中的任何 Vyper 模块都可以被 Vyper 编译器发现，并且 Vyper 包可以发布到 PyPI 并从中安装，并通过 ``import`` 语句访问，无需额外配置。请记住，最佳实践始终是在 ``virtualenv`` *内*安装包，而不是全局安装！"
+
+#: ../../structure-of-a-contract.rst:126
+msgid ""
+"You can additionally disable the behavior of adding the syspath to the "
+"search path with the CLI flag ``--disable-sys-path``:"
+msgstr "您还可以使用 CLI 标志 ``--disable-sys-path`` 禁用将 syspath 添加到搜索路径的行为："
+
+#: ../../structure-of-a-contract.rst:132
+msgid ""
+"When compiling from a :ref:`.vyz archive file <vyper-archives>` or "
+":ref:`standard json input <vyper-json>`, the search path is already part "
+"of the bundle, it cannot be changed from the command line."
+msgstr "从 :ref:`.vyz 归档文件 <vyper-archives>` 或 :ref:`标准 json 输入 <vyper-json>` 编译时，搜索路径已经是包的一部分，无法从命令行更改。"
+
+#: ../../structure-of-a-contract.rst:137
+msgid "State Variables"
+msgstr "状态变量"
+
+#: ../../structure-of-a-contract.rst:139
+msgid ""
+"State variables are values which are permanently stored in contract "
+"storage. They are declared outside of the body of any functions, and "
+"initially contain the :ref:`default value<types-initial>` for their type."
+msgstr "状态变量是永久存储在合约存储中的值。它们在任何函数的主体之外声明，并且最初包含其类型的 :ref:`默认值<types-initial>`。"
+
+#: ../../structure-of-a-contract.rst:145
+msgid "State variables are accessed via the :ref:`self<constants-self>` object."
+msgstr "状态变量通过 :ref:`self<constants-self>` 对象访问。"
+
+#: ../../structure-of-a-contract.rst:151
+msgid ""
+"See the documentation on :ref:`Types<types>` or :ref:`Scoping and "
+"Declarations<scoping>` for more information."
+msgstr "有关更多信息，请参阅 :ref:`类型<types>` 或 :ref:`作用域和声明<scoping>` 的文档。"
+
+#: ../../structure-of-a-contract.rst:156
+msgid "Functions"
+msgstr "函数"
+
+#: ../../structure-of-a-contract.rst:158
+msgid "Functions are executable units of code within a contract."
+msgstr "函数是合约中可执行的代码单元。"
+
+#: ../../structure-of-a-contract.rst:166
+msgid ""
+"Functions may be called internally or externally depending on their "
+":ref:`visibility <function-visibility>`. Functions may accept input "
+"arguments and return variables in order to pass values between them."
+msgstr "函数可以根据其 :ref:`可见性 <function-visibility>` 在内部或外部调用。函数可以接受输入参数并返回变量，以便在它们之间传递值。"
+
+#: ../../structure-of-a-contract.rst:168
+msgid ""
+"See the :ref:`Functions <control-structures-functions>` documentation for"
+"more information."
+msgstr "有关更多信息，请参阅 :ref:`函数 <control-structures-functions>` 文档。"
+
+#: ../../structure-of-a-contract.rst:173
+msgid "Modules"
+msgstr "模块"
+
+#: ../../structure-of-a-contract.rst:175
+msgid ""
+"A module is a set of function definitions and variable declarations which"
+"enables code reuse. Vyper favors code reuse through composition, rather "
+"than inheritance."
+msgstr "模块是一组函数定义和变量声明，可实现代码重用。Vyper 支持通过组合而不是继承来实现代码重用。"
+
+#: ../../structure-of-a-contract.rst:177
+msgid "Broadly speaking, a module contains:"
+msgstr "广义上讲，一个模块包含："
+
+#: ../../structure-of-a-contract.rst:179
+msgid "function definitions"
+msgstr "函数定义"
+
+#: ../../structure-of-a-contract.rst:180
+msgid "state variable declarations"
+msgstr "状态变量声明"
+
+#: ../../structure-of-a-contract.rst:181
+msgid "type definitions"
+msgstr "类型定义"
+
+#: ../../structure-of-a-contract.rst:183
+msgid "Therefore, a module encapsulates"
+msgstr "因此，一个模块封装了"
+
+#: ../../structure-of-a-contract.rst:185
+msgid "functionality (types and functions), and"
+msgstr "功能（类型和函数），以及"
+
+#: ../../structure-of-a-contract.rst:186
+msgid "state (variables), which may be tightly coupled with that functionality"
+msgstr "状态（变量），它可能与该功能紧密耦合"
+
+#: ../../structure-of-a-contract.rst:188
+msgid ""
+"Modules can be added to contracts by importing them from a ``.vy`` file. "
+"Any ``.vy`` file is a valid module which can be imported into another "
+"contract! This is a very powerful feature which allows you to assemble "
+"contracts via other contracts as building blocks."
+msgstr "可以通过从 ``.vy`` 文件导入模块来将模块添加到合约中。任何 ``.vy`` 文件都是一个有效的模块，可以导入到另一个合约中！这是一个非常强大的功能，允许您通过其他合约作为构建块来组装合约。"
+
+#: ../../structure-of-a-contract.rst:209
+msgid ""
+"Modules are opt-in by design. That is, any operations involving state or "
+"exposing external functions must be explicitly opted into using the "
+"``exports``, ``uses`` or ``initializes`` keywords. See the :ref:`Modules "
+"<modules>` documentation for more information."
+msgstr "模块在设计上是可选的。也就是说，任何涉及状态或公开外部函数的操作都必须使用 ``exports``、``uses`` 或 ``initializes`` 关键字明确选择加入。有关更多信息，请参阅 :ref:`模块 <modules>` 文档。"
+
+#: ../../structure-of-a-contract.rst:212
+msgid "Events"
+msgstr "事件"
+
+#: ../../structure-of-a-contract.rst:214
+msgid ""
+"Events provide an interface for the EVM's logging facilities. Events may "
+"be logged with specially indexed data structures that allow clients, "
+"including light clients, to efficiently search for them."
+msgstr "事件为 EVM 的日志记录功能提供了一个接口。事件可以使用特殊索引的数据结构进行记录，从而允许客户端（包括轻客户端）高效地搜索它们。"
+
+#: ../../structure-of-a-contract.rst:230
+msgid "See the :ref:`Event <event-logging>` documentation for more information."
+msgstr "有关更多信息，请参阅 :ref:`事件 <event-logging>` 文档。"
+
+#: ../../structure-of-a-contract.rst:235
+msgid "Interfaces"
+msgstr "接口"
+
+#: ../../structure-of-a-contract.rst:237
+msgid ""
+"An interface is a set of function definitions used to enable calls "
+"between smart contracts. A contract interface defines all of that "
+"contract's externally available functions. By importing the interface, "
+"your contract now knows how to call these functions in other contracts."
+msgstr "接口是一组函数定义，用于在智能合约之间启用调用。合约接口定义了该合约所有可外部调用的函数。通过导入接口，您的合约现在知道如何调用其他合约中的这些函数。"
+
+#: ../../structure-of-a-contract.rst:239
+msgid ""
+"Interfaces can be added to contracts either through inline definition, or"
+"by importing them from a separate ``.vyi`` file."
+msgstr "接口可以通过内联定义或从单独的 ``.vyi`` 文件导入来添加到合约中。"
+
+#: ../../structure-of-a-contract.rst:251
+msgid ""
+"Once defined, an interface can then be used to make external calls to a "
+"given address:"
+msgstr "一旦定义，就可以使用接口对给定地址进行外部调用："
+
+#: ../../structure-of-a-contract.rst:259
+msgid "See the :ref:`Interfaces <interfaces>` documentation for more information."
+msgstr "有关更多信息，请参阅 :ref:`接口 <interfaces>` 文档。"
+
+#: ../../structure-of-a-contract.rst:262
+msgid "Structs"
+msgstr "结构体"
+
+#: ../../structure-of-a-contract.rst:264
+msgid ""
+"A struct is a custom defined type that allows you to group several "
+"variables together:"
+msgstr "结构体是一种自定义定义的类型，允许您将多个变量组合在一起："
+
+#: ../../structure-of-a-contract.rst:272
+msgid "See the :ref:`Structs <types-struct>` documentation for more information."
+msgstr "有关更多信息，请参阅 :ref:`结构体 <types-struct>` 文档。"

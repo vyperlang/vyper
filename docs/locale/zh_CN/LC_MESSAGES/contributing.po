@@ -1,0 +1,197 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../contributing.rst:4
+msgid "Contributing"
+msgstr "贡献"
+
+#: ../../contributing.rst:6
+msgid "Help is always appreciated!"
+msgstr "我们随时欢迎您的帮助！"
+
+#: ../../contributing.rst:8
+msgid ""
+"To get started, you can try `installing Vyper <installing-vyper.html>`_ "
+"in order to familiarize yourself with the components of Vyper and the "
+"build process. Also, it may be useful to become well-versed at writing "
+"smart-contracts in Vyper."
+msgstr "首先，您可以尝试 `安装 Vyper <installing-vyper.html>`_，以熟悉 Vyper 的组件和构建过程。此外，熟练使用 Vyper 编写智能合约也很有帮助。"
+
+#: ../../contributing.rst:13
+msgid "Types of Contributions"
+msgstr "贡献类型"
+
+#: ../../contributing.rst:15
+msgid "In particular, we need help in the following areas:"
+msgstr "我们特别需要在以下方面提供帮助："
+
+#: ../../contributing.rst:17
+msgid "Improving the documentation"
+msgstr "改进文档"
+
+#: ../../contributing.rst:18
+msgid ""
+"Responding to questions from other users on `StackExchange "
+"<https://ethereum.stackexchange.com>`_ and `Discussions "
+"<https://github.com/vyperlang/vyper/discussions>`_"
+msgstr "在 `StackExchange <https://ethereum.stackexchange.com>`_ 和 `Discussions <https://github.com/vyperlang/vyper/discussions>`_ 上回答其他用户的问题"
+
+#: ../../contributing.rst:20
+msgid ""
+"Add to the discussions on the `Vyper (Smart Contract Programming "
+"Language) Discord <https://discord.gg/6tw7PTM7C2>`_"
+msgstr "参与 `Vyper (智能合约编程语言) Discord <https://discord.gg/6tw7PTM7C2>`_ 上的讨论"
+
+#: ../../contributing.rst:21
+msgid "Suggesting Improvements"
+msgstr "提出改进建议"
+
+#: ../../contributing.rst:22
+msgid ""
+"Fixing and responding to `Vyper's GitHub issues "
+"<https://github.com/vyperlang/vyper/issues>`_"
+msgstr "修复和回应 `Vyper 的 GitHub 问题 <https://github.com/vyperlang/vyper/issues>`_"
+
+#: ../../contributing.rst:25
+msgid "How to Suggest Improvements"
+msgstr "如何提出改进建议"
+
+#: ../../contributing.rst:27
+msgid ""
+"To suggest an improvement, please create a Vyper Improvement Proposal "
+"(VIP for short) using the `VIP Template "
+"<https://github.com/vyperlang/vyper/blob/master/.github/ISSUE_TEMPLATE/vip.md>`_."
+msgstr "要提出改进建议，请使用 `VIP 模板 <https://github.com/vyperlang/vyper/blob/master/.github/ISSUE_TEMPLATE/vip.md>`_ 创建 Vyper 改进提案（简称 VIP）。"
+
+#: ../../contributing.rst:31
+msgid "How to Report Issues"
+msgstr "如何报告问题"
+
+#: ../../contributing.rst:33
+msgid ""
+"To report an issue, please use the `GitHub issues tracker "
+"<https://github.com/vyperlang/vyper/issues>`_. When reporting issues, "
+"please mention the following details:"
+msgstr "要报告问题，请使用 `GitHub 问题跟踪器 <https://github.com/vyperlang/vyper/issues>`_。报告问题时，请提及以下详细信息："
+
+#: ../../contributing.rst:37
+msgid "Which version of Vyper you are using"
+msgstr "您使用的 Vyper 版本"
+
+#: ../../contributing.rst:38
+msgid "What was the source code (if applicable)"
+msgstr "源代码是什么（如果适用）"
+
+#: ../../contributing.rst:39
+msgid "Which platform are you running on"
+msgstr "您正在运行的平台"
+
+#: ../../contributing.rst:40
+msgid "Your operating system name and version"
+msgstr "您的操作系统名称和版本"
+
+#: ../../contributing.rst:41
+msgid "Detailed steps to reproduce the issue"
+msgstr "重现问题的详细步骤"
+
+#: ../../contributing.rst:42
+msgid "What was the result of the issue"
+msgstr "问题的结果是什么"
+
+#: ../../contributing.rst:43
+msgid "What the expected behaviour is"
+msgstr "预期的行为是什么"
+
+#: ../../contributing.rst:45
+msgid ""
+"Reducing the source code that caused the issue to a bare minimum is "
+"always very helpful and sometimes even clarifies a misunderstanding."
+msgstr "将导致问题的源代码减少到最低限度总是非常有帮助的，有时甚至可以澄清误解。"
+
+#: ../../contributing.rst:49
+msgid "Fix Bugs"
+msgstr "修复错误"
+
+#: ../../contributing.rst:51
+msgid ""
+"Find or report bugs at our `issues page "
+"<https://github.com/vyperlang/vyper/issues>`_. Anything tagged with "
+""bug" is open to whoever wants to implement it."
+msgstr "在我们的 `问题页面 <https://github.com/vyperlang/vyper/issues>`_ 上查找或报告错误。任何标记为“错误”的内容都对任何想要实现它的人开放。"
+
+#: ../../contributing.rst:54
+msgid "Style Guide"
+msgstr "风格指南"
+
+#: ../../contributing.rst:56
+msgid ""
+"Our :ref:`style guide<style-guide>` outlines best practices for the Vyper"
+"repository. Please ask us on the `Vyper (Smart Contract Programming "
+"Language) Discord <https://discord.gg/6tw7PTM7C2>`_ ``#compiler-dev`` "
+"channel if you have questions about anything that is not outlined in the "
+"style guide."
+msgstr "我们的 :ref:`风格指南<style-guide>` 概述了 Vyper 存储库的最佳实践。如果您对风格指南中未概述的任何内容有疑问，请在 `Vyper (智能合约编程语言) Discord <https://discord.gg/6tw7PTM7C2>`_ ``#compiler-dev`` 频道上询问我们。"
+
+#: ../../contributing.rst:59
+msgid "Workflow for Pull Requests"
+msgstr "拉取请求工作流程"
+
+#: ../../contributing.rst:61
+msgid ""
+"In order to contribute, please fork off of the ``master`` branch and make"
+" your changes there. Your commit messages should detail *why* you made "
+"your change in addition to *what* you did (unless it is a tiny change)."
+msgstr "为了做出贡献，请从 ``master`` 分支分叉并在那里进行更改。您的提交消息应详细说明您进行更改的*原因*以及您所做的*内容*（除非是很小的更改）。"
+
+#: ../../contributing.rst:65
+msgid ""
+"If you need to pull in any changes from ``master`` after making your fork"
+" (for example, to resolve potential merge conflicts), please avoid using "
+"``git merge`` and instead, ``git rebase`` your branch."
+msgstr "如果您在创建分叉后需要从 ``master`` 中提取任何更改（例如，为了解决潜在的合并冲突），请避免使用 ``git merge``，而应 ``git rebase`` 您的分支。"
+
+#: ../../contributing.rst:70
+msgid "Implementing New Features"
+msgstr "实现新功能"
+
+#: ../../contributing.rst:72
+msgid ""
+"If you are writing a new feature, please ensure you write appropriate "
+"Pytest test cases and place them under ``tests/``."
+msgstr "如果您正在编写新功能，请确保编写适当的 Pytest 测试用例并将其放在 ``tests/`` 下。"
+
+#: ../../contributing.rst:74
+msgid ""
+"If you are making a larger change, please consult first with the `Vyper "
+"(Smart Contract Programming Language) Discord "
+"<https://discord.gg/6tw7PTM7C2>`_ ``#compiler-dev`` channel."
+msgstr "如果您要进行较大的更改，请首先咨询 `Vyper (智能合约编程语言) Discord <https://discord.gg/6tw7PTM7C2>`_ ``#compiler-dev`` 频道。"
+
+#: ../../contributing.rst:76
+msgid ""
+"Although we do CI testing, please make sure that the tests pass for "
+"supported Python version and ensure that it builds locally before "
+"submitting a pull request."
+msgstr "虽然我们进行 CI 测试，但在提交拉取请求之前，请确保测试在支持的 Python 版本上通过，并确保它可以在本地构建。"
+
+#: ../../contributing.rst:78
+msgid "Thank you for your help!"
+msgstr "感谢您的帮助！"

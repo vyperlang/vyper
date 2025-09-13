@@ -37,6 +37,7 @@ docs/vyper.*.rst
 # IDEs
 .idea/
 .vscode/
+*.code-workspace
 
 .tox/
 .mypy_cache/

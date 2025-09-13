@@ -1,0 +1,119 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../vyper-by-example.rst:2
+msgid "Vyper by Example"
+msgstr "Vyper 示例"
+
+#: ../../vyper-by-example.rst:7
+msgid "Simple Open Auction"
+msgstr "简单公开拍卖"
+
+#: ../../vyper-by-example.rst:11
+msgid ""
+"As an introductory example of a smart contract written in Vyper, we will "
+"begin with a simple open auction contract. As we dive into the code, it "
+"is important to remember that all Vyper syntax is valid Python3 syntax, "
+"however not all Python3 functionality is available in Vyper."
+msgstr "作为用 Vyper 编写的智能合约的介绍性示例，我们将从一个简单的公开拍卖合约开始。在我们深入研究代码时，重要的是要记住，所有 Vyper 语法都是有效的 Python3 语法，但并非所有 Python3 功能都在 Vyper 中可用。"
+
+#: ../../vyper-by-example.rst:16
+msgid ""
+"In this contract, we will be looking at a simple open auction contract "
+"where participants can submit bids during a limited time period. When the"
+" auction period ends, a predetermined beneficiary will receive the amount"
+"of the highest bid."
+msgstr "在本合约中，我们将研究一个简单的公开拍卖合约，参与者可以在有限的时间内提交出价。当拍卖期结束时，预定的受益人将收到最高出价的金额。"
+
+#: ../../vyper-by-example.rst:25
+msgid ""
+"As you can see, this example only has a constructor, two methods to call,"
+" and a few variables to manage the contract state. Believe it or not, "
+"this is all we need for a basic implementation of an auction smart "
+"contract."
+msgstr "如您所见，此示例只有一个构造函数、两个要调用的方法和几个用于管理合约状态的变量。信不信由你，这就是我们实现拍卖智能合约基本功能所需的全部内容。"
+
+#: ../../vyper-by-example.rst:29
+msgid "Let's get started!"
+msgstr "让我们开始吧！"
+
+#: ../../vyper-by-example.rst:36
+msgid ""
+"We begin by declaring a few variables to keep track of our contract "
+"state. We initialize a global variable ``beneficiary`` by calling "
+"``public`` on the datatype ``address``. The ``beneficiary`` will be the "
+"receiver of money from the highest bidder.  We also initialize the "
+"variables ``auctionStart`` and ``auctionEnd`` with the datatype "
+"``uint256`` to manage the open auction period and ``highestBid`` with "
+"datatype ``uint256``, the smallest denomination of ether, to manage "
+"auction state. The variable ``ended`` is a boolean to determine whether "
+"the auction is officially over. The variable ``pendingReturns`` is a "
+"``map`` which enables the use of key-value pairs to keep proper track of "
+"the auctions withdrawal pattern."
+msgstr "我们首先声明一些变量来跟踪我们的合约状态。我们通过在数据类型 ``address`` 上调用 ``public`` 来初始化一个全局变量 ``beneficiary``。``beneficiary`` 将是最高出价者的收款人。我们还使用数据类型 ``uint256`` 初始化变量 ``auctionStart`` 和 ``auctionEnd`` 以管理公开拍卖期，并使用数据类型 ``uint256``（以太的最小单位）初始化 ``highestBid`` 以管理拍卖状态。变量 ``ended`` 是一个布尔值，用于确定拍卖是否正式结束。变量 ``pendingReturns`` 是一个 ``map``，它支持使用键值对来正确跟踪拍卖的提款模式。"
+
+#: ../../vyper-by-example.rst:46
+msgid ""
+"You may notice all of the variables being passed into the ``public`` "
+"function. By declaring the variable *public*, the variable is callable by"
+" external contracts. Initializing the variables without the ``public`` "
+"function defaults to a private declaration and thus only accessible to "
+"methods within the same contract. The ``public`` function additionally "
+"creates a ‘getter’ function for the variable, accessible through an "
+"external call such as ``contract.beneficiary()``."
+msgstr "您可能会注意到所有变量都传递给了 ``public`` 函数。通过将变量声明为*public*，该变量可以被外部合约调用。在没有 ``public`` 函数的情况下初始化变量默认为私有声明，因此只能由同一合约中的方法访问。``public`` 函数还为该变量创建一个“getter”函数，可通过外部调用（例如 ``contract.beneficiary()``）访问。"
+
+#: ../../vyper-by-example.rst:54
+msgid "Now, the constructor."
+msgstr "现在，是构造函数。"
+
+#: ../../vyper-by-example.rst:61
+msgid ""
+"The contract is initialized with three arguments: ``_beneficiary`` of "
+"type ``address``, ``_auction_start`` with type ``uint256`` and "
+"``_bidding_time`` with type ``uint256``, the time difference between the "
+"start and end of the auction. We then store these three pieces of "
+"information into the contract variables ``self.beneficiary``, "
+"``self.auctionStart`` and ``self.auctionEnd`` respectively. Notice that "
+"we have access to the current time by calling ``block.timestamp``. "
+"``block`` is an object available within any Vyper contract and provides "
+"information about the block at the time of calling. Similar to ``block``,"
+" another important object available to us within the contract is ``msg``,"
+" which provides information on the method caller as we will soon see."
+msgstr "合约使用三个参数进行初始化：类型为 ``address`` 的 ``_beneficiary``、类型为 ``uint256`` 的 ``_auction_start`` 和类型为 ``uint256`` 的 ``_bidding_time``，即拍卖开始和结束之间的时间差。然后，我们将这三条信息分别存储到合约变量 ``self.beneficiary``、``self.auctionStart`` 和 ``self.auctionEnd`` 中。请注意，我们可以通过调用 ``block.timestamp`` 来访问当前时间。``block`` 是任何 Vyper 合约中都可用的对象，它提供有关调用时区块的信息。与 ``block`` 类似，合约中另一个可用的重要对象是 ``msg``，它提供有关方法调用者的信息，我们稍后会看到。"
+
+#: ../../vyper-by-example.rst:72
+msgid ""
+"With initial setup out of the way, lets look at how our users can make "
+"bids."
+msgstr "完成初始设置后，让我们看看我们的用户如何出价。"
+
+#: ../../vyper-by-example.rst:79
+msgid ""
+"The ``@payable`` decorator will allow a user to send some ether to the "
+"contract in order to call the decorated method. In this case, a user "
+"wanting to make a bid would call the ``bid()`` method while sending an "
+"amount equal to their desired bid (not including gas fees). When calling "
+"any method within a contract, we are provided with a built-in variable "
+"``msg`` and we can access the public address of any method caller with "
+"``msg.sender``. Similarly, the amount of ether a user sends can be "
+"accessed by calling ``msg.value``."
+msgstr "``@payable`` 装饰器将允许用户向合约发送一些以太币以调用被装饰的方法。在这种情况下，想要出价的用户将调用 ``bid()`` 方法，同时发送等于其期望出价的金额（不包括 gas 费）。在合约中调用任何方法时，我们都会获得一个内置变量 ``msg``，我们可以使用 ``msg.sender`` 访问任何方法调用者的公共地址。同样，用户发送的以太币数量可以通过调用 ``msg.value`` 来访问。"

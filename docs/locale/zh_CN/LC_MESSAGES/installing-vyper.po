@@ -1,0 +1,189 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../installing-vyper.rst:2 ../../installing-vyper.rst:74
+#: ../../installing-vyper.rst:132
+msgid "Installing Vyper"
+msgstr "安装 Vyper"
+
+#: ../../installing-vyper.rst:4
+msgid ""
+"Take a deep breath, follow the instructions, and please `create an issue "
+"<https://github.com/vyperlang/vyper/issues>`_ if you encounter any "
+"errors."
+msgstr "深呼吸，按照说明进行操作，如果遇到任何错误，请 `创建问题 <https://github.com/vyperlang/vyper/issues>`_。"
+
+#: ../../installing-vyper.rst:10
+msgid ""
+"The easiest way to experiment with the language is to use either `Try "
+"Vyper! <https://try.vyperlang.org>`_ (maintained by the Vyper team) or "
+"the `Remix online compiler <https://remix.ethereum.org>`_ (maintained by "
+"the Ethereum Foundation). - To use Try Vyper, go to "
+"https://try.vyperlang.org and log in (requires Github login). - To use "
+"remix, go to https://remix.ethereum.org and activate the vyper-remix "
+"plugin in the Plugin manager."
+msgstr "体验该语言最简单的方法是使用 `Try Vyper! <https://try.vyperlang.org>`_（由 Vyper 团队维护）或 `Remix 在线编译器 <https://remix.ethereum.org>`_（由以太坊基金会维护）。 - 要使用 Try Vyper，请访问 https://try.vyperlang.org 并登录（需要 Github 登录）。 - 要使用 remix，请访问 https://remix.ethereum.org 并在插件管理器中激活 vyper-remix 插件。"
+
+#: ../../installing-vyper.rst:16
+msgid "Standalone"
+msgstr "独立安装"
+
+#: ../../installing-vyper.rst:18
+msgid ""
+"The Vyper CLI can be installed with any ``pip`` compatible tool, for "
+"example, ``pipx`` or ``uv tool``. If you do not have ``pipx`` or ``uv`` "
+"installed, first, go to the respective tool's installation page:"
+msgstr "Vyper CLI 可以使用任何与 ``pip`` 兼容的工具进行安装，例如 ``pipx`` 或 ``uv tool``。如果您没有安装 ``pipx`` 或 ``uv``，请首先访问相应工具的安装页面："
+
+#: ../../installing-vyper.rst:20
+msgid "https://github.com/pypa/pipx?tab=readme-ov-file"
+msgstr "https://github.com/pypa/pipx?tab=readme-ov-file"
+
+#: ../../installing-vyper.rst:21
+msgid "https://github.com/astral-sh/uv?tab=readme-ov-file#uv"
+msgstr "https://github.com/astral-sh/uv?tab=readme-ov-file#uv"
+
+#: ../../installing-vyper.rst:23
+msgid "Then, the command to install Vyper would be"
+msgstr "然后，安装 Vyper 的命令是"
+
+#: ../../installing-vyper.rst:29
+msgid "Or,"
+msgstr "或者，"
+
+#: ../../installing-vyper.rst:37
+msgid "Binaries"
+msgstr "二进制文件"
+
+#: ../../installing-vyper.rst:39
+msgid ""
+"Alternatively, prebuilt Vyper binaries for Windows, Mac and Linux are "
+"available for download from the GitHub releases page: "
+"https://github.com/vyperlang/vyper/releases."
+msgstr "或者，可以从 GitHub 发布页面下载适用于 Windows、Mac 和 Linux 的预构建 Vyper 二进制文件：https://github.com/vyperlang/vyper/releases."
+
+#: ../../installing-vyper.rst:43
+msgid "PIP"
+msgstr "PIP"
+
+#: ../../installing-vyper.rst:46
+msgid "Installing Python"
+msgstr "安装 Python"
+
+#: ../../installing-vyper.rst:48
+msgid ""
+"Vyper can only be built using Python 3.10 and higher. If you need to know"
+" how to install the correct version of python, follow the instructions "
+"from the official `Python website "
+"<https://wiki.python.org/moin/BeginnersGuide/Download>`_."
+msgstr "Vyper 只能使用 Python 3.10 及更高版本构建。如果您需要知道如何安装正确版本的 python，请按照官方 `Python 网站 <https://wiki.python.org/moin/BeginnersGuide/Download>`_ 的说明进行操作。"
+
+#: ../../installing-vyper.rst:52
+msgid "Creating a virtual environment"
+msgstr "创建虚拟环境"
+
+#: ../../installing-vyper.rst:54
+msgid ""
+"Because pip installations are not isolated by default, this method of "
+"installation is meant for more experienced Python developers who are "
+"using Vyper as a library, or want to use it within a Python project with "
+"other pip dependencies."
+msgstr "由于 pip 安装默认情况下不是隔离的，因此此安装方法适用于更有经验的 Python 开发人员，他们将 Vyper 用作库，或者希望在具有其他 pip 依赖项的 Python 项目中使用它。"
+
+#: ../../installing-vyper.rst:59
+msgid ""
+"It is **strongly recommended** to install Vyper in **a virtual Python "
+"environment**, so that new packages installed and dependencies built are "
+"strictly contained in your Vyper project and will not alter or affect "
+"your other development environment set-up. For easy virtualenv "
+"management, we recommend either `pyenv <https://github.com/pyenv/pyenv>`_ "
+"or `Poetry <https://github.com/python-poetry/poetry>`_."
+msgstr "**强烈建议**在**虚拟 Python 环境**中安装 Vyper，以便新安装的包和构建的依赖项严格包含在您的 Vyper 项目中，并且不会更改或影响您的其他开发环境设置。为了轻松管理 virtualenv，我们建议使用 `pyenv <https://github.com/pyenv/pyenv>`_ 或 `Poetry <https://github.com/python-poetry/poetry>`_。"
+
+#: ../../installing-vyper.rst:69
+msgid ""
+"To find out more about virtual environments, check out: `virtualenv guide"
+" <https://docs.python.org/3/library/venv.html>`_."
+msgstr "要了解有关虚拟环境的更多信息，请查看：`virtualenv 指南 <https://docs.python.org/3/library/venv.html>`_。"
+
+#: ../../installing-vyper.rst:76
+msgid ""
+"Each tagged version of vyper is uploaded to `pypi "
+"<https://pypi.org/project/vyper/>`_, and can be installed using ``pip``: "
+"::"
+msgstr "每个带标签的 vyper 版本都上传到 `pypi <https://pypi.org/project/vyper/>`_，并且可以使用 ``pip`` 安装："
+
+#: ../../installing-vyper.rst:81
+msgid "To install a specific version use: ::"
+msgstr "要安装特定版本，请使用："
+
+#: ../../installing-vyper.rst:86
+msgid ""
+"You can check if Vyper is installed completely or not by typing the "
+"following in your terminal/cmd: ::"
+msgstr "您可以通过在终端/cmd 中键入以下内容来检查 Vyper 是否已完全安装："
+
+#: ../../installing-vyper.rst:93
+msgid "Docker"
+msgstr "Docker"
+
+#: ../../installing-vyper.rst:95
+msgid ""
+"Vyper can be downloaded as docker image from `dockerhub "
+"<https://hub.docker.com/r/vyperlang/vyper/tags?page=1&ordering=last_updated>`_:
+" ::"
+msgstr "可以从 `dockerhub <https://hub.docker.com/r/vyperlang/vyper/tags?page=1&ordering=last_updated>`_ 下载 Vyper 作为 docker 镜像："
+
+#: ../../installing-vyper.rst:100
+msgid "To run the compiler use the ``docker run`` command: ::"
+msgstr "要运行编译器，请使用 ``docker run`` 命令："
+
+#: ../../installing-vyper.rst:105
+msgid ""
+"Alternatively you can log into the docker image and execute vyper on the "
+"prompt. ::"
+msgstr "或者，您可以登录到 docker 镜像并在提示符下执行 vyper。"
+
+#: ../../installing-vyper.rst:111
+msgid "The normal parameters are also supported, for example: ::"
+msgstr "也支持常规参数，例如："
+
+#: ../../installing-vyper.rst:119
+msgid ""
+"If you would like to know how to install Docker, please follow their "
+"`documentation <https://docs.docker.com/get-docker/>`_."
+msgstr "如果您想知道如何安装 Docker，请按照他们的 `文档 <https://docs.docker.com/get-docker/>`_ 进行操作。"
+
+#: ../../installing-vyper.rst:122
+msgid "nix"
+msgstr "nix"
+
+#: ../../installing-vyper.rst:124
+msgid ""
+"View the versions supported through nix at `nix package search "
+"<https://search.nixos.org/packages?channel=21.05&show=vyper&from=0&size=50&sort=relevance&query=vyper>`_"
+msgstr "在 `nix 包搜索 <https://search.nixos.org/packages?channel=21.05&show=vyper&from=0&size=50&sort=relevance&query=vyper>`_ 上查看通过 nix 支持的版本"
+
+#: ../../installing-vyper.rst:128
+msgid ""
+"The derivation for Vyper is located at  `nixpkgs "
+"<https://github.com/NixOS/nixpkgs/blob/master/pkgs/development/compilers/vyper/default.nix>`_"
+msgstr "Vyper 的派生位于 `nixpkgs <https://github.com/NixOS/nixpkgs/blob/master/pkgs/development/compilers/vyper/default.nix>`_"

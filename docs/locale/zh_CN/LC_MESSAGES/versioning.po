@@ -1,0 +1,270 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../versioning.rst:4
+msgid "Vyper Versioning Guideline"
+msgstr "Vyper 版本控制指南"
+
+#: ../../versioning.rst:7
+msgid "Motivation"
+msgstr "动机"
+
+#: ../../versioning.rst:9
+msgid "Vyper has different groups that are considered \"users\":"
+msgstr "Vyper 有不同的用户群体："
+
+#: ../../versioning.rst:11
+msgid "Smart Contract Developers (Developers)"
+msgstr "智能合约开发人员（开发人员）"
+
+#: ../../versioning.rst:12
+msgid "Package Integrators (Integrators)"
+msgstr "软件包集成商（集成商）"
+
+#: ../../versioning.rst:13
+msgid "Security Professionals (Auditors)"
+msgstr "安全专业人员（审计员）"
+
+#: ../../versioning.rst:15
+msgid ""
+"Each set of users must understand which changes to the compiler may "
+"require their attention, and how these changes may impact their use of "
+"the compiler. This guide defines what scope each compiler change may have"
+" and its potential impact based on the type of user, so that users can "
+"stay informed about the progress of Vyper."
+msgstr "每个用户群体都必须了解编译器的哪些更改可能需要他们注意，以及这些更改可能如何影响他们对编译器的使用。本指南根据用户类型定义了每个编译器更改的范围及其潜在影响，以便用户可以随时了解 Vyper 的进展。"
+
+#: ../../versioning.rst:21 ../../versioning.rst:61 ../../versioning.rst:82
+#: ../../versioning.rst:100
+msgid "Group"
+msgstr "群组"
+
+#: ../../versioning.rst:21
+msgid "How they use Vyper"
+msgstr "他们如何使用 Vyper"
+
+#: ../../versioning.rst:23 ../../versioning.rst:63 ../../versioning.rst:84
+#: ../../versioning.rst:102
+msgid "Developers"
+msgstr "开发人员"
+
+#: ../../versioning.rst:23
+msgid "Write smart contracts in Vyper"
+msgstr "用 Vyper 编写智能合约"
+
+#: ../../versioning.rst:25 ../../versioning.rst:65 ../../versioning.rst:86
+#: ../../versioning.rst:104
+msgid "Integrators"
+msgstr "集成商"
+
+#: ../../versioning.rst:25
+msgid "Integrating Vyper package or CLI into tools"
+msgstr "将 Vyper 包或 CLI 集成到工具中"
+
+#: ../../versioning.rst:27 ../../versioning.rst:67 ../../versioning.rst:88
+#: ../../versioning.rst:106
+msgid "Auditors"
+msgstr "审计员"
+
+#: ../../versioning.rst:27
+msgid "Aware of Vyper features and security issues"
+msgstr "了解 Vyper 功能和安全问题"
+
+#: ../../versioning.rst:30
+msgid ""
+"A big part of Vyper's \"public API\" is the language grammar. The syntax "
+"of the language is the main touchpoint all parties have with Vyper, so "
+"it's important to discuss changes to the language from the viewpoint of "
+"dependability. Users expect that all contracts written in an earlier "
+"version of Vyper will work seamlessly with later versions, or that they "
+"will be reasonably informed when this isn't possible. The Vyper package "
+"itself and its CLI utilities also has a fairly well-defined public API, "
+"which consists of the available features in Vyper's `exported package "
+"<https://github.com/vyperlang/vyper/blob/master/vyper/__init__.py>`_, the"
+" top level modules under the package, and all CLI scripts."
+msgstr "Vyper 的“公共 API”的很大一部分是语言语法。语言的语法是所有各方与 Vyper 的主要接触点，因此从可靠性的角度讨论语言的更改非常重要。用户希望所有用早期版本的 Vyper 编写的合约都能与更高版本无缝协作，或者在无法实现时能得到合理的通知。Vyper 包本身及其 CLI 实用程序也有一个定义相当明确的公共 API，它由 Vyper 的 `导出包 <https://github.com/vyperlang/vyper/blob/master/vyper/__init__.py>`_ 中的可用功能、包下的顶级模块以及所有 CLI 脚本组成。"
+
+#: ../../versioning.rst:41
+msgid "Version Types"
+msgstr "版本类型"
+
+#: ../../versioning.rst:43
+msgid ""
+"This guide was adapted from `semantic versioning <https://semver.org/>`_." 
+" It defines a format for version numbers that looks like "
+"``MAJOR.MINOR.PATCH[-STAGE.DEVNUM]``. We will periodically release "
+"updates according to this format, with the release decided via the "
+"following guidelines."
+msgstr "本指南改编自 `语义版本控制 <https://semver.org/>`_。它定义了一种版本号格式，看起来像 ``MAJOR.MINOR.PATCH[-STAGE.DEVNUM]``。我们将根据此格式定期发布更新，发布将根据以下准则决定。"
+
+#: ../../versioning.rst:49
+msgid "Major Release ``X.0.0``"
+msgstr "主要版本 ``X.0.0``"
+
+#: ../../versioning.rst:51
+msgid ""
+"Changes to the grammar cannot be made in a backwards incompatible way "
+"without changing Major versions (e.g. ``v1.x`` -> ``v2.x``). It is to be "
+"expected that breaking changes to many features will occur when updating "
+"to a new Major release, primarily for Developers that use Vyper to "
+"compile their contracts. Major releases will have an audit performed "
+"prior to release (e.g. ``x.0.0`` releases) and all ``moderate`` or "
+"``severe`` vulnerabilities will be addressed that are reported in the "
+"audit report. ``minor`` or ``informational`` vulnerabilities *should* be "
+"addressed as well, although this may be left up to the maintainers of "
+"Vyper to decide."
+msgstr "在不更改主要版本（例如 ``v1.x`` -> ``v2.x``）的情况下，不能以向后不兼容的方式更改语法。可以预见，在更新到新的主要版本时，许多功能都会发生重大更改，这主要针对使用 Vyper 编译其合约的开发人员。主要版本将在发布前进行审计（例如 ``x.0.0`` 版本），并且审计报告中报告的所有 ``中等`` 或 ``严重`` 漏洞都将得到解决。``次要`` 或 ``信息性`` 漏洞也*应该*得到解决，尽管这可能由 Vyper 的维护者决定。"
+
+#: ../../versioning.rst:61 ../../versioning.rst:82 ../../versioning.rst:100
+msgid "Look For"
+msgstr "寻找"
+
+#: ../../versioning.rst:63
+msgid "Syntax deprecation, new features"
+msgstr "语法弃用、新功能"
+
+#: ../../versioning.rst:65
+msgid "No changes"
+msgstr "无变化"
+
+#: ../../versioning.rst:67
+msgid "Audit report w/ resolved changes"
+msgstr "审计报告及已解决的变更"
+
+#: ../../versioning.rst:71
+msgid "Minor Release ``x.Y.0``"
+msgstr "次要版本 ``x.Y.0``"
+
+#: ../../versioning.rst:73
+msgid ""
+"Minor version updates may add new features or fix a ``moderate`` or "
+"``severe`` vulnerability, and these will be detailed in the Release Notes"
+" for that release. Minor releases may change the features or "
+"functionality offered by the package and CLI scripts in a backwards-"
+"incompatible way that requires attention from an integrator. Minor "
+"releases are required to fix a ``moderate`` or ``severe`` vulnerability, "
+"but a ``minor`` or ``informational`` vulnerability can be fixed in Patch "
+"releases, alongside documentation updates."
+msgstr "次要版本更新可能会添加新功能或修复 ``中等`` 或 ``严重`` 漏洞，这些将在该版本的发行说明中详细说明。次要版本可能会以向后不兼容的方式更改包和 CLI 脚本提供的功能或特性，这需要集成商注意。需要次要版本来修复 ``中等`` 或 ``严重`` 漏洞，但 ``次要`` 或 ``信息性`` 漏洞可以在补丁版本中修复，同时更新文档。"
+
+#: ../../versioning.rst:84
+msgid "New features, security bug fixes"
+msgstr "新功能、安全错误修复"
+
+#: ../../versioning.rst:86
+msgid "Changes to external API"
+msgstr "外部 API 的更改"
+
+#: ../../versioning.rst:88
+msgid "``moderate`` or ``severe`` patches"
+msgstr "``中等`` 或 ``严重`` 补丁"
+
+#: ../../versioning.rst:92
+msgid "Patch Release ``x.y.Z``"
+msgstr "补丁版本 ``x.y.Z``"
+
+#: ../../versioning.rst:94
+msgid ""
+"Patch version releases will be released to fix documentation issues, "
+"usage bugs, and ``minor`` or ``informational`` vulnerabilities found in "
+"Vyper. Patch releases should only update error messages and documentation"
+" issues relating to its external API."
+msgstr "补丁版本将发布以修复文档问题、使用错误以及在 Vyper 中发现的 ``次要`` 或 ``信息性`` 漏洞。补丁版本应仅更新与其外部 API 相关的错误消息和文档问题。"
+
+#: ../../versioning.rst:102 ../../versioning.rst:104
+msgid "Doc updates, usage bug fixes, error messages"
+msgstr "文档更新、使用错误修复、错误消息"
+
+#: ../../versioning.rst:106
+msgid "``minor`` or ``informational`` patches"
+msgstr "``次要`` 或 ``信息性`` 补丁"
+
+#: ../../versioning.rst:110
+msgid "Vyper Security"
+msgstr "Vyper 安全"
+
+#: ../../versioning.rst:112
+msgid ""
+"As Vyper develops, it is very likely that we will encounter "
+"inconsistencies in how certain language features can be used, and "
+"software bugs in the code the compiler generates. Some of them may be "
+"quite serious, and can render a user's compiled contract vulnerable to "
+"exploitation for financial gain. As we become aware of these "
+"vulnerabilities, we will work according to our `security policy "
+"<https://github.com/vyperlang/vyper/security/policy>`_ to resolve these "
+"issues, and eventually will publish the details of all reported "
+"vulnerabilities `here "
+"<https://github.com/vyperlang/vyper/security/advisories?state=published>`_." 
+" Fixes for these issues will also be noted in the :ref:`Release Notes"
+"<release-notes>`."
+msgstr "随着 Vyper 的发展，我们很可能会遇到某些语言功能使用方式的不一致，以及编译器生成的代码中的软件错误。其中一些可能非常严重，并可能使用户编译的合约容易受到以获取经济利益为目的的利用。当我们意识到这些漏洞时，我们将根据我们的 `安全策略 <https://github.com/vyperlang/vyper/security/policy>`_ 来解决这些问题，并最终将 `在此处 <https://github.com/vyperlang/vyper/security/advisories?state=published>`_ 发布所有报告的漏洞的详细信息。这些问题的修复也将在 :ref:`发行说明<release-notes>` 中注明。"
+
+#: ../../versioning.rst:123
+msgid "Vyper *Next*"
+msgstr "Vyper *Next*"
+
+#: ../../versioning.rst:125
+msgid ""
+"There may be multiple Major versions in the process of development. Work "
+"on new features that break compatibility with the existing grammar can be"
+" maintained on a separate branch called ``next`` and represents the next "
+"Major release of Vyper (provided in an unaudited state without Release "
+"Notes). The work on the current branch will remain on the ``master`` "
+"branch with periodic new releases using the process as mentioned above."
+msgstr "开发过程中可能有多个主要版本。破坏与现有语法兼容性的新功能的工作可以在一个名为 ``next`` 的单独分支上进行维护，它代表 Vyper 的下一个主要版本（在未经审计的状态下提供，没有发行说明）。当前分支的工作将保留在 ``master`` 分支上，并使用上述过程定期发布新版本。"
+
+#: ../../versioning.rst:132
+msgid ""
+"Any other branches of work outside of what is being tracked via "
+"``master`` will use the ``-alpha.[release #]`` (Alpha) to denote WIP "
+"updates, and ``-beta.[release #]`` (Beta) to describe work that is "
+"eventually intended for release. ``-rc.[release #]`` (Release Candidate) "
+"will only be used to denote candidate builds prior to a Major release. An"
+" audit will be solicited for ``-rc.1`` builds, and subsequent releases "
+"*may* incorporate feedback during the audit. The last Release Candidate "
+"will become the next Major release, and will be made available alongside "
+"the full audit report summarizing the findings."
+msgstr "``master`` 跟踪之外的任何其他工作分支将使用 ``-alpha.[release #]`` (Alpha) 来表示 WIP 更新，并使用 ``-beta.[release #]`` (Beta) 来描述最终打算发布的工作。``-rc.[release #]`` (Release Candidate) 将仅用于表示主要版本之前的候选版本。将为 ``-rc.1`` 版本征求审计，后续版本*可以*在审计期间采纳反馈。最后一个候选版本将成为下一个主要版本，并将与总结调查结果的完整审计报告一起提供。"
+
+#: ../../versioning.rst:142
+msgid "Pull Requests"
+msgstr "拉取请求"
+
+#: ../../versioning.rst:144
+msgid ""
+"Pull Requests can be opened against either ``master`` or ``next`` branch,"
+" depending on their content. Changes that would increment a Minor or "
+"Patch release should target ``master``, whereas changes to syntax (as "
+"detailed above) should be opened against ``next``. The ``next`` branch "
+"will be periodically rebased against the ``master`` branch to pull in "
+"changes made that were added to the latest supported version of Vyper."
+msgstr "可以针对 ``master`` 或 ``next`` 分支打开拉取请求，具体取决于其内容。将增加次要版本或补丁版本的更改应针对 ``master``，而对语法的更改（如上所述）应针对 ``next`` 打开。``next`` 分支将定期针对 ``master`` 分支进行变基，以拉入添加到最新支持的 Vyper 版本中的更改。"
+
+#: ../../versioning.rst:151
+msgid "Communication"
+msgstr "沟通"
+
+#: ../../versioning.rst:153
+msgid ""
+"Major and Minor versions should be communicated on appropriate "
+"communications channels to end users, and Patch updates will usually not "
+"be discussed, unless there is a relevant reason to do so."
+msgstr "主要版本和次要版本应通过适当的沟通渠道向最终用户进行沟通，而补丁更新通常不会被讨论，除非有相关的理由这样做。"

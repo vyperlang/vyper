@@ -1,0 +1,44 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../toctree.rst:5
+msgid "Overview"
+msgstr "概述"
+
+#: ../../toctree.rst:10
+msgid "Getting Started"
+msgstr "入门"
+
+#: ../../toctree.rst:17
+msgid "Language Description"
+msgstr "语言描述"
+
+#: ../../toctree.rst:33
+msgid "Using the Compiler"
+msgstr "使用编译器"
+
+#: ../../toctree.rst:42
+msgid "Additional Resources"
+msgstr "其他资源"
+
+#: ../../toctree.rst:3
+msgid "Vyper"
+msgstr "Vyper"

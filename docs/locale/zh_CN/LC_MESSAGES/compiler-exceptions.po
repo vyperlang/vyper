@@ -1,0 +1,187 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../compiler-exceptions.rst:4
+msgid "Compiler Exceptions"
+msgstr "编译器异常"
+
+#: ../../compiler-exceptions.rst:8
+msgid ""
+"Vyper raises one or more of the following exceptions when an issue is \n""encountered while compiling a contract."
+msgstr "在编译合约时遇到问题时，Vyper 会引发以下一个或多个异常。"
+
+#: ../../compiler-exceptions.rst:10
+msgid ""
+"Whenever possible, exceptions include a source highlight displaying the \n""location of the error within the code:"
+msgstr "在可能的情况下，异常会包含一个源代码高亮，显示代码中错误的位置："
+
+#: ../../compiler-exceptions.rst:23
+msgid ""
+"Raises when calling a function with invalid arguments, for example an \n""incorrect number of positional arguments or an invalid keyword argument."
+msgstr "在使用无效参数调用函数时引发，例如位置参数数量不正确或关键字参数无效。"
+
+#: ../../compiler-exceptions.rst:27
+msgid ""
+"Raises on an illegal function call, such as attempting to call between \n""two external functions."
+msgstr "在非法函数调用时引发，例如尝试在两个外部函数之间调用。"
+
+#: ../../compiler-exceptions.rst:31
+msgid "Raises when an array index is out of bounds."
+msgstr "当数组索引越界时引发。"
+
+#: ../../compiler-exceptions.rst:35
+msgid "Raises when an event declaration is invalid."
+msgstr "当事件声明无效时引发。"
+
+#: ../../compiler-exceptions.rst:39
+msgid ""
+"Raises when a contract contains an action that cannot be performed with \n""the active EVM ruleset."
+msgstr "当合约包含无法使用活动 EVM 规则集执行的操作时引发。"
+
+#: ../../compiler-exceptions.rst:43
+msgid ""
+"Raises when a function declaration is invalid, for example because of \n""incorrect or mismatched return values."
+msgstr "当函数声明无效时引发，例如因为返回值不正确或不匹配。"
+
+#: ../../compiler-exceptions.rst:47
+msgid ""
+"Raises when attempting to perform a change a variable, constant or \n""definition that cannot be changed. For example, trying to update a \n""constant, or trying to assign to a function definition."
+msgstr "在尝试更改无法更改的变量、常量或定义时引发。例如，尝试更新常量或尝试分配给函数定义。"
+
+#: ../../compiler-exceptions.rst:51
+msgid "Raises when an interface is not fully implemented."
+msgstr "当接口未完全实现时引发。"
+
+#: ../../compiler-exceptions.rst:55
+msgid "Raises on a reference to an attribute that does not exist."
+msgstr "在引用不存在的属性时引发。"
+
+#: ../../compiler-exceptions.rst:59
+msgid "Raises when no valid type can be found for a literal value."
+msgstr "当找不到文字值的有效类型时引发。"
+
+#: ../../compiler-exceptions.rst:67
+msgid ""
+"This example raises ``InvalidLiteral`` because the given literal value \n""has too many decimal places and so cannot be assigned any valid Vyper \n""type."
+msgstr "此示例引发 ``InvalidLiteral``，因为给定的文字值小数位数过多，因此无法分配任何有效的 Vyper 类型。"
+
+#: ../../compiler-exceptions.rst:71
+msgid "Raises when using an invalid operator for a given type."
+msgstr "在为给定类型使用无效运算符时引发。"
+
+#: ../../compiler-exceptions.rst:79
+msgid ""
+"This example raises ``InvalidOperation`` because multiplication is not \n""possible on string types."
+msgstr "此示例引发 ``InvalidOperation``，因为无法对字符串类型执行乘法。"
+
+#: ../../compiler-exceptions.rst:83
+msgid "Raises on an invalid reference to an existing definition."
+msgstr "在对现有定义的无效引用时引发。"
+
+#: ../../compiler-exceptions.rst:93
+msgid ""
+"This example raises ``InvalidReference`` because ``baz`` is a storage \n""variable. The reference to it should be written as ``self.baz``."
+msgstr "此示例引发 ``InvalidReference``，因为 ``baz`` 是一个存储变量。对它的引用应写为 ``self.baz``。"
+
+#: ../../compiler-exceptions.rst:97
+msgid "Raises when using an invalid literal value for the given type."
+msgstr "在为给定类型使用无效文字值时引发。"
+
+#: ../../compiler-exceptions.rst:105
+msgid ""
+"This example raises ``InvalidType`` because ``3.5`` is a valid literal \n""value, but cannot be cast as ``int128``."
+msgstr "此示例引发 ``InvalidType``，因为 ``3.5`` 是一个有效的文字值，但不能强制转换为 ``int128``。"
+
+#: ../../compiler-exceptions.rst:109
+msgid "Raises when an iterator is constructed or used incorrectly."
+msgstr "在迭代器构造或使用不正确时引发。"
+
+#: ../../compiler-exceptions.rst:113
+msgid "Raises when the compiler JSON input is malformed."
+msgstr "当编译器 JSON 输入格式错误时引发。"
+
+#: ../../compiler-exceptions.rst:117
+msgid ""
+"Raises when attempting to assign a variable to a name that is already in \n""use."
+msgstr "在尝试将变量分配给已在使用的名称时引发。"
+
+#: ../../compiler-exceptions.rst:121
+msgid ""
+"Raises when a contract contains an invalid :ref:`NatSpec<natspec>` \n""docstring."
+msgstr "当合约包含无效的 :ref:`NatSpec<natspec>` 文档字符串时引发。"
+
+#: ../../compiler-exceptions.rst:133
+msgid ""
+"Raises when attempting to access ``msg.value`` from within a function \n""that has not been marked as ``@payable``."
+msgstr "在尝试从未标记为 ``@payable`` 的函数中访问 ``msg.value`` 时引发。"
+
+#: ../../compiler-exceptions.rst:143
+msgid "Raises when a numeric value is out of bounds for the given type."
+msgstr "当数值超出给定类型的边界时引发。"
+
+#: ../../compiler-exceptions.rst:147
+msgid ""
+"Raises when attempting to perform a modifying action within view-only or \n""stateless context. For example, writing to storage in a ``@view`` \n""function, reading from storage in a ``@pure`` function."
+msgstr "在仅视图或无状态上下文中尝试执行修改操作时引发。例如，在 ``@view`` 函数中写入存储，在 ``@pure`` 函数中读取存储。"
+
+#: ../../compiler-exceptions.rst:151
+msgid "Raises on syntax that is parsable, but invalid in some way."
+msgstr "在可解析但以某种方式无效的语法上引发。"
+
+#: ../../compiler-exceptions.rst:163
+msgid "Raises on invalid syntax that cannot be parsed."
+msgstr "在无法解析的无效语法上引发。"
+
+#: ../../compiler-exceptions.rst:175
+msgid ""
+"Raises when attempting to perform an action between two or more objects \n""with known, dislike types."
+msgstr "在尝试在两个或多个具有已知、不相似类型的对象之间执行操作时引发。"
+
+#: ../../compiler-exceptions.rst:187
+msgid ""
+"``foo`` has a type of ``int128`` and ``bar`` has a type of ``decimal``, \n""so attempting to add them together  raises a ``TypeMismatch``."
+msgstr "``foo`` 的类型为 ``int128``，``bar`` 的类型为 ``decimal``，因此尝试将它们相加会引发 ``TypeMismatch``。"
+
+#: ../../compiler-exceptions.rst:191
+msgid "Raises when attempting to access an object that has not been declared."
+msgstr "在尝试访问尚未声明的对象时引发。"
+
+#: ../../compiler-exceptions.rst:195
+msgid "Raises on an invalid variable declaration."
+msgstr "在无效的变量声明时引发。"
+
+#: ../../compiler-exceptions.rst:207
+msgid ""
+"Raises when a contract version string is malformed or incompatible with \n""the current compiler version."
+msgstr "当合约版本字符串格式错误或与当前编译器版本不兼容时引发。"
+
+#: ../../compiler-exceptions.rst:211
+msgid "Raises when a divide by zero or modulo zero situation arises."
+msgstr "当出现除以零或模零的情况时引发。"
+
+#: ../../compiler-exceptions.rst:214
+msgid "CompilerPanic"
+msgstr "编译器恐慌"
+
+#: ../../compiler-exceptions.rst:225
+msgid ""
+"A compiler panic error indicates that there is a problem internally to \n""the compiler and an issue should be reported right away on the Vyper \n""Github page.  Open an issue if you are experiencing this error. Please \n""`Open an Issue <https://github.com/vyperlang/vyper/issues>`_"
+msgstr "编译器恐慌错误表示编译器内部存在问题，应立即在 Vyper Github 页面上报告问题。如果您遇到此错误，请打开一个问题。请 `打开一个问题 <https://github.com/vyperlang/vyper/issues>`_。"

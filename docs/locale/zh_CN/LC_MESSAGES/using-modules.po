@@ -1,0 +1,192 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../using-modules.rst:4
+msgid "Modules"
+msgstr "模块"
+
+#: ../../using-modules.rst:6
+msgid ""
+"A module is a set of function definitions and variable declarations which"" enables code reuse. Vyper favors code reuse through composition, rather ""than inheritance. A module encapsulates everything needed for code reuse,"" from type and function declarations to state. It is important to note ""that functions which make use of defined state must be initialized in ""order to use that state, whereas functions that are \"pure\" do not ""require this."
+msgstr "模块是一组函数定义和变量声明，可实现代码重用。Vyper 支持通过组合而非继承来实现代码重用。模块封装了代码重用所需的一切，从类型和函数声明到状态。需要注意的是，使用已定义状态的函数必须进行初始化才能使用该状态，而“纯”函数则不需要。"
+
+#: ../../using-modules.rst:9
+msgid "Declaring and using modules"
+msgstr "声明和使用模块"
+
+#: ../../using-modules.rst:11
+msgid ""
+"The simplest way to define a module is to write a contract. In Vyper, any"" contract is a valid module! For example, the following contract is also ""a valid module."
+msgstr "定义模块最简单的方法是编写一个合约。在 Vyper 中，任何合约都是一个有效的模块！例如，以下合约也是一个有效的模块。"
+
+#: ../../using-modules.rst:36
+msgid ""
+"This contract basically has two bits of functionality which can be reused"" upon import, the ``_check_owner()`` function and the ``update_owner()`` ""function. The ``_check_owner()`` is an internal function which can be ""used as a helper to check ownership in importing modules, while the ""``update_owner()`` is an external function which an importing module can ""itself :ref:`export <exporting-functions>` as an externally facing piece ""of functionality."
+msgstr "该合约基本上有两个可在导入时重用的功能位：``_check_owner()`` 函数和 ``update_owner()`` 函数。``_check_owner()`` 是一个内部函数，可用作在导入模块中检查所有权的辅助函数，而 ``update_owner()`` 是一个外部函数，导入模块本身可以 :ref:`导出 <exporting-functions>` 为一个面向外部的功能。"
+
+#: ../../using-modules.rst:38
+msgid ""
+"You can use this module's functionality simply by importing it, however ""any functionality that you do not use from a module will not be included ""in the final compilation target. For example, if you don't use the ""``initializes`` statement to declare a module's location in the storage ""layout, you cannot use its state. Similarly, if you don't explicitly ""``export`` an external function from a module, it will not appear in the ""runtime code."
+msgstr "您只需导入此模块即可使用其功能，但是，您未使用的任何模块功能都不会包含在最终编译目标中。例如，如果您不使用 ``initializes`` 语句来声明模块在存储布局中的位置，则无法使用其状态。同样，如果您没有从模块中显式 ``export`` 外部函数，它将不会出现在运行时代码中。"
+
+#: ../../using-modules.rst:41
+msgid "Importing a module"
+msgstr "导入模块"
+
+#: ../../using-modules.rst:43
+msgid ""
+"A module can be imported using ``import`` or ``from ... import`` ""statements. The following are all equivalent ways to import the above ""module:"
+msgstr "可以使用 ``import`` 或 ``from ... import`` 语句导入模块。以下是导入上述模块的所有等效方法："
+
+#: ../../using-modules.rst:52
+msgid ""
+"When importing using the ``as`` keyword, the module will be referred to ""by its alias in the rest of the contract."
+msgstr "使用 ``as`` 关键字导入时，该模块将在合约的其余部分由其别名引用。"
+
+#: ../../using-modules.rst:54
+msgid ""
+"The ``_times_two()`` helper function in the above module can be ""immediately used without any further work since it is \"pure\" and ""doesn't depend on initialized state."
+msgstr "上述模块中的 ``_times_two()`` 辅助函数可以立即使用，无需任何进一步的工作，因为它是“纯”的，并且不依赖于初始化的状态。"
+
+#: ../../using-modules.rst:63
+msgid ""
+"The other functions cannot be used yet, because they touch the ""``ownable`` module's state. There are two ways to declare a module so ""that its state can be used."
+msgstr "其他函数尚不能使用，因为它们会触及 ``ownable`` 模块的状态。有两种方法可以声明模块以便可以使用其状态。"
+
+#: ../../using-modules.rst:66
+msgid "Using a module as an interface"
+msgstr "使用模块作为接口"
+
+#: ../../using-modules.rst:68
+msgid "A module can be used as an interface with the ``__at__`` syntax."
+msgstr "模块可以使用 ``__at__`` 语法作为接口使用。"
+
+#: ../../using-modules.rst:81
+msgid "Initializing a module"
+msgstr "初始化模块"
+
+#: ../../using-modules.rst:83
+msgid ""
+"In order to use a module's state, it must be \"initialized\". A module ""can be initialized with the ``initializes`` keyword. This declares the ""module's location in the contract's :ref:`Storage Layout <compiler-""storage-layout>`. It also creates a requirement to invoke the module's "":ref:`__init__() function <init-function>`, if it has one. This is a ""well-formedness requirement, since it does not make sense to access a ""module's state unless its ``__init__()`` function has been called."
+msgstr "为了使用模块的状态，它必须被“初始化”。可以使用 ``initializes`` 关键字初始化模块。这会在合约的 :ref:`存储布局 <compiler-storage-layout>` 中声明模块的位置。如果模块有 :ref:`__init__() 函数 <init-function>`，它还会创建一个调用该函数的要求。这是一个形式正确性要求，因为除非调用了模块的 ``__init__()`` 函数，否则访问模块的状态是没有意义的。"
+
+#: ../../using-modules.rst:101
+msgid ""
+"It is a compile-time error to invoke a module's ``__init__()`` function ""more than once!"
+msgstr "多次调用模块的 ``__init__()`` 函数是编译时错误！"
+
+#: ../../using-modules.rst:103
+msgid ""
+"A module's state can be directly accessed just by prefixing the name of a"" variable with the module's alias, like follows:"
+msgstr "只需在变量名前加上模块的别名，即可直接访问模块的状态，如下所示："
+
+#: ../../using-modules.rst:113
+msgid "The ``uses`` statement"
+msgstr "``uses`` 语句"
+
+#: ../../using-modules.rst:115
+msgid ""
+"Another way of using a contract's state without directly initializing it ""is to use the ``uses`` keyword. This is a more advanced usage which is ""expected to be mostly utilized by library designers. The ``uses`` ""statement allows a module to use another module's state but defer its ""initialization to another module in the compilation tree (most likely a ""user of the library in question)."
+msgstr "另一种无需直接初始化即可使用合约状态的方法是使用 ``uses`` 关键字。这是一种更高级的用法，预计主要由库设计人员使用。``uses`` 语句允许一个模块使用另一个模块的状态，但将其初始化推迟到编译树中的另一个模块（很可能是相关库的用户）。"
+
+#: ../../using-modules.rst:117
+msgid "This is best illustrated with an example:"
+msgstr "最好用一个例子来说明这一点："
+
+#: ../../using-modules.rst:147
+msgid ""
+"Here, the ``ownable_2step`` module does not want to seal off access to ""calling the ``ownable`` module's ``__init__()`` function. So, it utilizes""" the ``uses: ownable`` statement to get access to the ``ownable`` ""module's state, without the requirement to initialize it. Note that this ""is a valid module, but it is not a valid contract (that is, it cannot ""produce bytecode) because it does not initialize the ``ownable`` module. ""To make a valid contract, the user of the ``ownable_2step`` module would ""be responsible for initializing the ``ownable`` module themselves (as in ""the next section: :ref:`initializing dependencies <init-dependencies>`)."
+msgstr "在这里，``ownable_2step`` 模块不想阻止对 ``ownable`` 模块的 ``__init__()`` 函数的调用。因此，它利用 ``uses: ownable`` 语句来访问 ``ownable`` 模块的状态，而无需初始化它。请注意，这是一个有效的模块，但它不是一个有效的合约（也就是说，它不能生成字节码），因为它没有初始化 ``ownable`` 模块。要创建一个有效的合约，``ownable_2step`` 模块的用户将负责自己初始化 ``ownable`` 模块（如下一节：:ref:`初始化依赖项 <init-dependencies>`）。"
+
+#: ../../using-modules.rst:149
+msgid ""
+"Whether to ``use`` or ``initialize`` a module is a choice which is left ""up to the library designer."
+msgstr "是 ``use`` 还是 ``initialize`` 模块的选择权在于库设计者。"
+
+#: ../../using-modules.rst:152
+msgid "Technical notes on the design"
+msgstr "设计技术说明"
+
+#: ../../using-modules.rst:154
+msgid ""
+"This section contains some notes on the design from a language design ""perspective. It can be safely skipped if you are just interested in how ""to use modules, and not necessarily in programming language theory."
+msgstr "本节从语言设计的角度包含一些关于设计的说明。如果您只对如何使用模块感兴趣，而不一定对编程语言理论感兴趣，可以安全地跳过本节。"
+
+#: ../../using-modules.rst:156
+msgid ""
+"The design of the module system takes inspiration from (but is not ""directly related to) the rust language's `borrow checker <https://doc""..rust-lang.org/1.8.0/book/references-and-borrowing.html>`_. In the ""language of type systems, module initialization is modeled as an affine ""constraint which is promoted to a linear constraint if the module's state"" is touched in the compilation target. In practice, what this means is:"
+msgstr "模块系统的设计灵感来自（但与此不直接相关）rust 语言的 `借用检查器 <https://doc.rust-lang.org/1.8.0/book/references-and-borrowing.html>`_。在类型系统的语言中，模块初始化被建模为一个仿射约束，如果模块的状态在编译目标中被触及，则该约束被提升为线性约束。实际上，这意味着："
+
+#: ../../using-modules.rst:158
+msgid ""
+"A module must be \"used\" or \"initialized\" before its state can be ""accessed in an import"
+msgstr "模块必须先“使用”或“初始化”，然后才能在导入中访问其状态"
+
+#: ../../using-modules.rst:159
+msgid "A module may be \"used\" many times"
+msgstr "一个模块可以被“使用”多次"
+
+#: ../../using-modules.rst:160
+msgid ""
+"A module which is \"used\" or its state touched must be \"initialized\" ""exactly once"
+msgstr "一个被“使用”或其状态被触及的模块必须被“初始化”一次"
+
+#: ../../using-modules.rst:162
+msgid ""
+"To read more about the design background of Vyper's module system, please"" see its original `design document ""<https://github.com/vyperlang/vyper/issues/3722>`_."
+msgstr "要了解有关 Vyper 模块系统设计背景的更多信息，请参阅其原始 `设计文档 <https://github.com/vyperlang/vyper/issues/3722>`_。"
+
+#: ../../using-modules.rst:167
+msgid "Initializing a module with dependencies"
+msgstr "初始化具有依赖项的模块"
+
+#: ../../using-modules.rst:169
+msgid ""
+"Sometimes, you may encounter a module which itself ``uses`` other ""modules. Vyper's module system is designed to allow this, but it requires""" you make explicit the access to the imported module's state. The above ""``ownable_2step.vy`` contract is an example of this. If you wanted to ""initialize the ``ownable_2step`` module, it would use the special ``:=`` ""(aka \"walrus\") syntax, and look something like this:"
+msgstr "有时，您可能会遇到一个本身 ``uses`` 其他模块的模块。Vyper 的模块系统旨在允许这样做，但它要求您明确访问导入模块的状态。上面的 ``ownable_2step.vy`` 合约就是这样一个例子。如果您想初始化 ``ownable_2step`` 模块，它将使用特殊的 ``:=``（又名“海象”）语法，看起来像这样："
+
+#: ../../using-modules.rst:190
+msgid ""
+"In normal usage, you should make sure that ``__init__()`` functions are ""called in dependency order. In the above example, you can get unexpected ""behavior if ``ownable_2step.__init__()`` is called before ""``ownable.__init__()``! The compiler may enforce this behavior in the ""future."
+msgstr "在正常使用中，您应确保按依赖顺序调用 ``__init__()`` 函数。在上面的示例中，如果在 ``ownable.__init__()`` 之前调用 ``ownable_2step.__init__()``，您可能会得到意外的行为！编译器将来可能会强制执行此行为。"
+
+#: ../../using-modules.rst:195
+msgid "Exporting functions"
+msgstr "导出函数"
+
+#: ../../using-modules.rst:197
+msgid ""
+"In Vyper, ``@external`` functions are not automatically exposed (i.e., ""included in the runtime code) in the importing contract. This is a safety""" feature, it means that any externally facing functionality must be ""explicitly defined in the top-level of the compilation target."
+msgstr "在 Vyper 中，``@external`` 函数不会在导入合约中自动公开（即包含在运行时代码中）。这是一项安全功能，这意味着任何面向外部的功能都必须在编译目标的顶层明确定义。"
+
+#: ../../using-modules.rst:199
+msgid ""
+"So, exporting external functions from modules is accomplished using the ""``exports`` keyword. In Vyper, functions can be exported individually, ""or, a wholesale export of all the functions in an interface can be done. ""The special interface ``module.__interface__`` is a compiler-defined ""interface, which automatically includes all the functions in a module."
+msgstr "因此，从模块导出外部函数是使用 ``exports`` 关键字完成的。在 Vyper 中，可以单独导出函数，也可以批量导出接口中的所有函数。特殊接口 ``module.__interface__`` 是一个编译器定义的接口，它自动包含模块中的所有函数。"
+
+#: ../../using-modules.rst:201
+msgid "The following are all ways of exporting functions from an imported module."
+msgstr "以下是从导入的模块导出函数的所有方法。"
+
+#: ../../using-modules.rst:222
+msgid ""
+"Any exported interfaces must be implemented by the module. For example, ""in the above example, ``base_token`` must contain ``implements: IERC20``,"" or else the compiler will raise an error."
+msgstr "任何导出的接口都必须由模块实现。例如，在上面的示例中，``base_token`` 必须包含 ``implements: IERC20``，否则编译器将引发错误。"

@@ -1,0 +1,153 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../testing-contracts-brownie.rst:4
+msgid "Testing with Brownie"
+msgstr "使用 Brownie 进行测试"
+
+#: ../../testing-contracts-brownie.rst:6
+msgid ""
+`Brownie <https://github.com/iamdefinitelyahuman/brownie>`_ is a Python-"
+"based development and testing framework for smart contracts. It includes "
+"a pytest plugin with fixtures that simplify testing your contract."
+msgstr "`Brownie <https://github.com/iamdefinitelyahuman/brownie>`_ 是一个基于 Python 的智能合约开发和测试框架。它包含一个 pytest 插件，其中包含简化合约测试的固定装置。"
+
+#: ../../testing-contracts-brownie.rst:8
+msgid ""
+"This section provides a quick overview of testing with Brownie. To learn "
+"more, you can view the Brownie documentation on `writing unit tests "
+"<https://eth-brownie.readthedocs.io/en/stable/tests-pytest-intro.html>`_ "
+"or join the `Ethereum Python Dev Discord "
+"<https://discord.gg/abJEARdx3Q>`_ ``#brownie`` channel."
+msgstr "本节概述了使用 Brownie 进行测试。要了解更多信息，您可以查看关于 `编写单元测试 <https://eth-brownie.readthedocs.io/en/stable/tests-pytest-intro.html>`_ 的 Brownie 文档，或加入 `Ethereum Python Dev Discord <https://discord.gg/abJEARdx3Q>`_ ``#brownie`` 频道。"
+
+#: ../../testing-contracts-brownie.rst:11
+msgid "Getting Started"
+msgstr "入门"
+
+#: ../../testing-contracts-brownie.rst:13
+msgid ""
+"In order to use Brownie for testing you must first `initialize a new "
+"project <https://eth-brownie.readthedocs.io/en/stable/init.html>`_. "
+"Create a new directory for the project, and from within that directory "
+"type:"
+msgstr "为了使用 Brownie 进行测试，您必须首先 `初始化一个新项目 <https://eth-brownie.readthedocs.io/en/stable/init.html>`_。为项目创建一个新目录，并从该目录中键入："
+
+#: ../../testing-contracts-brownie.rst:19
+msgid ""
+"This will create an empty `project structure <https://eth-"
+"brownie.readthedocs.io/en/stable/structure.html#structure>`_ within the "
+"directory. Store your contract sources within the project's "
+"``contracts/`` directory and your tests within ``tests/``."
+msgstr "这将在目录中创建一个空的 `项目结构 <https://eth-brownie.readthedocs.io/en/stable/structure.html#structure>`_。将您的合约源存储在项目的 ``contracts/`` 目录中，并将您的测试存储在 ``tests/`` 中。"
+
+#: ../../testing-contracts-brownie.rst:22
+msgid "Writing a Basic Test"
+msgstr "编写基本测试"
+
+#: ../../testing-contracts-brownie.rst:24
+msgid ""
+"Assume the following simple contract ``Storage.vy``. It has a single "
+"integer variable and a function to set that value."
+msgstr "假设以下简单的合约 ``Storage.vy``。它有一个整型变量和一个设置该值的函数。"
+
+#: ../../testing-contracts-brownie.rst:26
+msgid "storage.vy"
+msgstr "storage.vy"
+
+#: ../../testing-contracts-brownie.rst:31
+msgid ""
+"We create a test file ``tests/test_storage.py`` where we write our tests "
+"in pytest style."
+msgstr "我们创建一个测试文件 ``tests/test_storage.py``，在其中以 pytest 风格编写我们的测试。"
+
+#: ../../testing-contracts-brownie.rst:33
+msgid "test_storage.py"
+msgstr "test_storage.py"
+
+#: ../../testing-contracts-brownie.rst:63
+msgid "In this example we are using two fixtures which are provided by Brownie:"
+msgstr "在此示例中，我们使用 Brownie 提供的两个固定装置："
+
+#: ../../testing-contracts-brownie.rst:65
+msgid ""
+"``accounts`` provides access to the :py:class:`Accounts "
+"<brownie.network.account.Accounts>` container, containing all of your "
+"local accounts"
+msgstr "``accounts`` 提供对 :py:class:`Accounts <brownie.network.account.Accounts>` 容器的访问，其中包含您所有的本地帐户"
+
+#: ../../testing-contracts-brownie.rst:66
+msgid ""
+"``Storage`` is a dynamically named fixture that provides access to a "
+":py:class:`ContractContainer "
+"<brownie.network.contract.ContractContainer>` object, used to deploy your"
+" contract"
+msgstr "``Storage`` 是一个动态命名的固定装置，它提供对 :py:class:`ContractContainer <brownie.network.contract.ContractContainer>` 对象的访问，用于部署您的合约"
+
+#: ../../testing-contracts-brownie.rst:70
+msgid ""
+"To run the tests, use the ``brownie test`` command from the root "
+"directory of your project."
+msgstr "要运行测试，请从项目的根目录使用 ``brownie test`` 命令。"
+
+#: ../../testing-contracts-brownie.rst:73
+msgid "Testing Events"
+msgstr "测试事件"
+
+#: ../../testing-contracts-brownie.rst:75
+msgid ""
+"For the remaining examples, we expand our simple storage contract to "
+"include an event and two conditions for a failed transaction: "
+"``advanced_storage.vy``"
+msgstr "对于其余示例，我们将扩展我们的简单存储合约以包含一个事件和两个失败交易的条件：``advanced_storage.vy``"
+
+#: ../../testing-contracts-brownie.rst:77
+msgid "advanced_storage.vy"
+msgstr "advanced_storage.vy"
+
+#: ../../testing-contracts-brownie.rst:82
+msgid ""
+"To test events, we examine the :py:class:`TransactionReceipt "
+"<brownie.network.transaction.TransactionReceipt>` object which is "
+"returned after each successful transaction. It contains an "
+":py:class:`events <brownie.network.event.EventDict>` member with "
+"information about events that fired."
+msgstr "要测试事件，我们检查在每次成功交易后返回的 :py:class:`TransactionReceipt <brownie.network.transaction.TransactionReceipt>` 对象。它包含一个 :py:class:`events <brownie.network.event.EventDict>` 成员，其中包含有关已触发事件的信息。"
+
+#: ../../testing-contracts-brownie.rst:112
+msgid "Handling Reverted Transactions"
+msgstr "处理回滚的交易"
+
+#: ../../testing-contracts-brownie.rst:114
+msgid ""
+"Transactions that revert raise a :py:class:`VirtualMachineError "
+"<brownie.exceptions.VirtualMachineError>` exception. To write assertions "
+"around this you can use :py:class:`brownie.reverts "
+"<brownie.test.plugin.RevertContextManager>` as a context manager. It "
+"functions very similarly to :py:func:`pytest.raises <pytest.raises>`."
+msgstr "回滚的交易会引发 :py:class:`VirtualMachineError <brownie.exceptions.VirtualMachineError>` 异常。要围绕此编写断言，您可以使用 :py:class:`brownie.reverts <brownie.test.plugin.RevertContextManager>` 作为上下文管理器。它的功能与 :py:func:`pytest.raises <pytest.raises>` 非常相似。"
+
+#: ../../testing-contracts-brownie.rst:116
+msgid ""
+":py:class:`brownie.reverts <brownie.test.plugin.RevertContextManager>` "
+"optionally accepts a string as an argument. If given, the error string "
+"returned by the transaction must match it in order for the test to pass."
+msgstr ":py:class:`brownie.reverts <brownie.test.plugin.RevertContextManager>` 可选地接受一个字符串作为参数。如果给定，交易返回的错误字符串必须与之匹配，测试才能通过。"

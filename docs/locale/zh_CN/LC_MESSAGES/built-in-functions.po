@@ -1,0 +1,970 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../built-in-functions.rst:6
+msgid "Built-in Functions"
+msgstr "内置函数"
+
+#: ../../built-in-functions.rst:8
+msgid ""
+"Vyper provides a collection of built-in functions available in the global"
+" namespace of all contracts."
+msgstr "Vyper 在所有合约的全局命名空间中提供了一系列内置函数。"
+
+#: ../../built-in-functions.rst:11
+msgid "Bitwise Operations"
+msgstr "位运算"
+
+#: ../../built-in-functions.rst:16
+msgid ""
+"Return \"x\" with the bits shifted \"_shift\" places. A positive "
+"\"_shift\" value equals a left shift, a negative value is a right shift."
+msgstr "返回 \"x\"，其位被移动了 \"_shift\" 位。正的 \"_shift\" 值等于左移，负值等于右移。"
+
+#: ../../built-in-functions.rst:32
+msgid ""
+"This function has been deprecated from version 0.3.8 onwards. Please use "
+"the \"<<\" and \">>\" operators instead."
+msgstr "此函数自 0.3.8 版本起已弃用。请改用 \"<<\" 和 \">>\" 运算符。"
+
+#: ../../built-in-functions.rst:36
+msgid ""
+"The functions \"bitwise_and\", \"bitwise_or\", \"bitwise_xor\" and "
+"\"bitwise_not\" have been deprecated from version 0.3.4., and removed in "
+"version 0.4.2. Please use their operator versions instead: \"&\", \"|\", "
+"\"^\", \"~\"."
+msgstr "函数 \"bitwise_and\"、\"bitwise_or\"、\"bitwise_xor\" 和 \"bitwise_not\" 自 0.3.4 版本起已弃用，并在 0.4.2 版本中移除。请改用它们的运算符版本：\"&\"、\"|\"、\"^\"、\"~\"。"
+
+#: ../../built-in-functions.rst:40
+msgid "Chain Interaction"
+msgstr "链交互"
+
+#: ../../built-in-functions.rst:43
+msgid ""
+"Vyper has four built-ins for contract creation; the first three contract "
+"creation built-ins rely on the code to deploy already being stored on-"
+"chain, but differ in call vs deploy overhead, and whether or not they "
+"invoke the constructor of the contract to be deployed. The following list"
+" provides a short summary of the differences between them."
+msgstr "Vyper 有四个用于创建合约的内置函数；前三个合约创建内置函数依赖于已存储在链上的部署代码，但在调用与部署开销以及是否调用待部署合约的构造函数方面有所不同。以下列表简要总结了它们之间的差异。"
+
+#: ../../built-in-functions.rst:48
+msgid "``create_minimal_proxy_to(target: address, ...)``"
+msgstr "``create_minimal_proxy_to(target: address, ...)``"
+
+#: ../../built-in-functions.rst:46
+msgid "Creates an immutable proxy to \"target\""
+msgstr "创建到 \"target\" 的不可变代理"
+
+#: ../../built-in-functions.rst:47
+msgid ""
+"Expensive to call (incurs a single \"DELEGATECALL\" overhead on every "
+"invocation), cheap to create (since it only deploys \"EIP-1167\" "
+"forwarder bytecode)"
+msgstr "调用成本高（每次调用都会产生一次 \"DELEGATECALL\" 开销），创建成本低（因为它只部署 \"EIP-1167\" 转发器字节码）"
+
+#: ../../built-in-functions.rst:48 ../../built-in-functions.rst:53
+msgid "Does not have the ability to call a constructor"
+msgstr "无法调用构造函数"
+
+#: ../../built-in-functions.rst:49
+msgid ""
+"Does **not** check that there is code at \"target\" (allows one to deploy"
+"proxies counterfactually)"
+msgstr "**不**检查 \"target\" 处是否有代码（允许反事实地部署代理）"
+
+#: ../../built-in-functions.rst:53
+msgid "``create_copy_of(target: address, ...)``"
+msgstr "``create_copy_of(target: address, ...)``"
+
+#: ../../built-in-functions.rst:51
+msgid "Creates a byte-for-byte copy of runtime code stored at \"target\""
+msgstr "创建存储在 \"target\" 处的运行时代码的逐字节副本"
+
+#: ../../built-in-functions.rst:52 ../../built-in-functions.rst:57
+msgid ""
+"Cheap to call (no \"DELEGATECALL\" overhead), expensive to create (200 "
+"gas per deployed byte)"
+msgstr "调用成本低（无 \"DELEGATECALL\" 开销），创建成本高（每部署字节 200 gas）"
+
+#: ../../built-in-functions.rst:54 ../../built-in-functions.rst:59
+msgid "Performs an \"EXTCODESIZE\" check to check there is code at \"target\""
+msgstr "执行 \"EXTCODESIZE\" 检查以检查 \"target\" 处是否有代码"
+
+#: ../../built-in-functions.rst:58
+msgid "``create_from_blueprint(target: address, ...)``"
+msgstr "``create_from_blueprint(target: address, ...)``"
+
+#: ../../built-in-functions.rst:56
+msgid "Deploys a contract using the initcode stored at \"target\""
+msgstr "使用存储在 \"target\" 处的 initcode 部署合约"
+
+#: ../../built-in-functions.rst:58
+msgid ""
+"Invokes constructor, requires a special \"blueprint\" contract to be "
+"deployed"
+msgstr "调用构造函数，需要部署一个特殊的“蓝图”合约"
+
+#: ../../built-in-functions.rst:61
+msgid "``raw_create(initcode: Bytes[...], ...)```"
+msgstr "``raw_create(initcode: Bytes[...], ...)```"
+
+#: ../../built-in-functions.rst:61
+msgid ""
+"Low-level create. Takes the given initcode, along with the arguments to "
+"be abi-encoded, and deploys the initcode after concatenating the abi-"
+"encoded arguments."
+msgstr "低级创建。获取给定的 initcode 以及要进行 abi 编码的参数，并在连接 abi 编码的参数后部署 initcode。"
+
+#: ../../built-in-functions.rst:65
+msgid ""
+"Deploys a small, EIP1167-compliant \"minimal proxy contract\" that "
+"duplicates the logic of the contract at \"target\", but has its own state"
+" since every call to \"target\" is made using \"DELEGATECALL\" to "
+"\"target\". To the end user, this should be indistinguishable from an "
+"independently deployed contract with the same code as \"target\"."
+msgstr "部署一个小的、符合 EIP1167 的“最小代理合约”，该合约复制了 \"target\" 处合约的逻辑，但拥有自己的状态，因为对 \"target\" 的每次调用都使用 \"DELEGATECALL\"。对于最终用户来说，这应该与具有与 \"target\" 相同代码的独立部署的合约无法区分。"
+
+#: ../../built-in-functions.rst:68
+msgid "``target``: Address of the contract to proxy to"
+msgstr "``target``: 要代理到的合约地址"
+
+#: ../../built-in-functions.rst:69 ../../built-in-functions.rst:99
+#: ../../built-in-functions.rst:122 ../../built-in-functions.rst:163
+msgid ""
+"``value``: The wei value to send to the new contract address (Optional, "
+"default 0)"
+msgstr "``value``: 发送到新合约地址的 wei 值（可选，默认为 0）"
+
+#: ../../built-in-functions.rst:70 ../../built-in-functions.rst:100
+#: ../../built-in-functions.rst:125 ../../built-in-functions.rst:165
+msgid ""
+"``revert_on_failure``: If \"False\", instead of reverting when the create"
+" operation fails, return the zero address (Optional, default \"True\")"
+msgstr "``revert_on_failure``: 如果为 \"False\"，则在创建操作失败时返回零地址，而不是回滚（可选，默认为 \"True\"）"
+
+#: ../../built-in-functions.rst:71 ../../built-in-functions.rst:101
+#: ../../built-in-functions.rst:126 ../../built-in-functions.rst:166
+msgid ""
+"``salt``: A \"bytes32\" value utilized by the deterministic \"CREATE2\" "
+"opcode (Optional, if not supplied, \"CREATE\" is used)"
+msgstr "``salt``: 确定性 \"CREATE2\" 操作码使用的 \"bytes32\" 值（可选，如果未提供，则使用 \"CREATE\"）"
+
+#: ../../built-in-functions.rst:73
+msgid ""
+"Returns the address of the newly created proxy contract. If the create "
+"operation fails (for instance, in the case of a \"CREATE2\" collision), "
+"execution will revert."
+msgstr "返回新创建的代理合约的地址。如果创建操作失败（例如，在 \"CREATE2\" 冲突的情况下），执行将回滚。"
+
+#: ../../built-in-functions.rst:83
+msgid ""
+"It is very important that the deployed contract at \"target\" is code you"
+" know and trust, and does not implement the \"selfdestruct\" opcode or "
+"have upgradeable code as this will affect the operation of the proxy "
+"contract."
+msgstr "非常重要的一点是，部署在 \"target\" 处的合约是您了解和信任的代码，并且没有实现 \"selfdestruct\" 操作码或具有可升级的代码，因为这会影响代理合约的操作。"
+
+#: ../../built-in-functions.rst:87
+msgid ""
+"There is no runtime check that there is code already deployed at "
+"\"target\" (since a proxy may be deployed counterfactually). Most "
+"applications may want to insert this check."
+msgstr "没有运行时检查 \"target\" 处是否已部署代码（因为代理可以反事实地部署）。大多数应用程序可能希望插入此检查。"
+
+#: ../../built-in-functions.rst:91
+msgid "Before version 0.3.4, this function was named \"create_forwarder_to\"."
+msgstr "在 0.3.4 版本之前，此函数名为 \"create_forwarder_to\"。"
+
+#: ../../built-in-functions.rst:96
+msgid ""
+"Create a physical copy of the runtime code at \"target\". The code at "
+"\"target\" is byte-for-byte copied into a newly deployed contract."
+msgstr "在 \"target\" 处创建运行时代码的物理副本。\"target\" 处的代码被逐字节复制到新部署的合约中。"
+
+#: ../../built-in-functions.rst:98
+msgid "``target``: Address of the contract to copy"
+msgstr "``target``: 要复制的合约地址"
+
+#: ../../built-in-functions.rst:103
+msgid ""
+"Returns the address of the created contract. If the create operation "
+"fails (for instance, in the case of a \"CREATE2\" collision), execution "
+"will revert. If there is no code at \"target\", execution will revert."
+msgstr "返回创建的合约的地址。如果创建操作失败（例如，在 \"CREATE2\" 冲突的情况下），执行将回滚。如果 \"target\" 处没有代码，执行将回滚。"
+
+#: ../../built-in-functions.rst:113
+msgid ""
+"The implementation of \"create_copy_of\" assumes that the code at "
+"\"target\" is smaller than 16MB. While this is much larger than the "
+"EIP-170 constraint of 24KB, it is a conservative size limit intended to "
+"future-proof deployer contracts in case the EIP-170 constraint is lifted. "
+"If the code at \"target\" is larger than 16MB, the behavior of "
+"\"create_copy_of\" is undefined."
+msgstr "\"create_copy_of\" 的实现假定 \"target\" 处的代码小于 16MB。虽然这比 EIP-170 的 24KB 约束大得多，但这是一个保守的大小限制，旨在在 EIP-170 约束被解除的情况下使部署者合约面向未来。如果 \"target\" 处的代码大于 16MB，则 \"create_copy_of\" 的行为是未定义的。"
+
+#: ../../built-in-functions.rst:118
+msgid ""
+"Copy the code of \"target\" into memory and execute it as initcode. In "
+"other words, this operation interprets the code at \"target\" not as "
+"regular runtime code, but directly as initcode. The \"*args\" are "
+"interpreted as constructor arguments, and are ABI-encoded and included "
+"when executing the initcode."
+msgstr "将 \"target\" 的代码复制到内存中并将其作为 initcode 执行。换句话说，此操作将 \"target\" 处的代码直接解释为 initcode，而不是常规运行时代码。\"*args\" 被解释为构造函数参数，并在执行 initcode 时进行 ABI 编码和包含。"
+
+#: ../../built-in-functions.rst:120
+msgid "``target``: Address of the blueprint to invoke"
+msgstr "``target``: 要调用的蓝图地址"
+
+#: ../../built-in-functions.rst:121 ../../built-in-functions.rst:164
+msgid "``*args``: Constructor arguments to forward to the initcode."
+msgstr "``*args``: 要转发到 initcode 的构造函数参数。"
+
+#: ../../built-in-functions.rst:123
+msgid ""
+"``raw_args``: If \"True\", \"*args\" must be a single \"Bytes[...]\" "
+"argument, which will be interpreted as a raw bytes buffer to forward to "
+"the create operation (which is useful for instance, if pre- ABI-encoded "
+"data is passed in from elsewhere). (Optional, default \"False\")"
+msgstr "``raw_args``: 如果为 \"True\"，则 \"*args\" 必须是单个 \"Bytes[...]\" 参数，该参数将被解释为要转发到创建操作的原始字节缓冲区（例如，如果从其他地方传入了预先进行 ABI 编码的数据，则这很有用）。（可选，默认为 \"False\"）"
+
+#: ../../built-in-functions.rst:124
+msgid "``code_offset``: The offset to start the \"EXTCODECOPY\" from (Optional, "
+"default 3)"
+msgstr "``code_offset``: \"EXTCODECOPY\" 的起始偏移量（可选，默认为 3）"
+
+#: ../../built-in-functions.rst:128
+msgid ""
+"Returns the address of the created contract. If the create operation "
+"fails (for instance, in the case of a \"CREATE2\" collision), execution "
+"will revert. If \"code_offset >= target.codesize\" (ex. if there is no "
+"code at \"target\"), execution will revert."
+msgstr "返回创建的合约的地址。如果创建操作失败（例如，在 \"CREATE2\" 冲突的情况下），执行将回滚。如果 \"code_offset >= target.codesize\"（例如，如果 \"target\" 处没有代码），执行将回滚。"
+
+#: ../../built-in-functions.rst:140
+msgid ""
+"To properly deploy a blueprint contract, special deploy bytecode must be "
+"used. The output of \"vyper -f blueprint_bytecode\" will produce bytecode"
+" which deploys an ERC-5202 compatible blueprint."
+msgstr "要正确部署蓝图合约，必须使用特殊的部署字节码。\"vyper -f blueprint_bytecode\" 的输出将生成部署与 ERC-5202 兼容的蓝图的字节码。"
+
+#: ../../built-in-functions.rst:144
+msgid ""
+"Prior to Vyper version \"0.4.0\", the \"code_offset\" parameter defaulted"
+" to \"0\"."
+msgstr "在 Vyper \"0.4.0\" 版本之前，\"code_offset\" 参数默认为 \"0\"."
+
+#: ../../built-in-functions.rst:148
+msgid ""
+"It is recommended to deploy blueprints with an `ERC-5202 "
+"<https://eips.ethereum.org/EIPS/eip-5202>`_ preamble like \"0xFE7100\" to"
+" guard them from being called as regular contracts. This is particularly "
+"important for factories where the constructor has side effects (including"
+" \"SELFDESTRUCT\"!), as those could get executed by *anybody* calling the"
+" blueprint contract directly. The \"code_offset=\" kwarg is provided (and"
+" defaults to the ERC-5202 default of 3) to enable this pattern:"
+msgstr "建议使用 `ERC-5202 <https://eips.ethereum.org/EIPS/eip-5202>`_ 前导码（如 \"0xFE7100\"）部署蓝图，以防止它们被作为常规合约调用。这对于构造函数具有副作用（包括 \"SELFDESTRUCT\"！）的工厂尤其重要，因为任何直接调用蓝图合约的人都可能执行这些副作用。提供了 \"code_offset=\" kwarg（并默认为 ERC-5202 的默认值 3）以启用此模式："
+
+#: ../../built-in-functions.rst:160
+msgid ""
+"Create a contract using the given \"initcode\". Provides low-level access"
+" to the \"CREATE\" and \"CREATE2\" opcodes."
+msgstr "使用给定的 \"initcode\" 创建合约。提供对 \"CREATE\" 和 \"CREATE2\" 操作码的低级访问。"
+
+#: ../../built-in-functions.rst:162
+msgid "``initcode``: Initcode bytes"
+msgstr "``initcode``: Initcode 字节"
+
+#: ../../built-in-functions.rst:168
+msgid ""
+"Returns the address of the created contract. If the create operation "
+"fails (for instance, in the case of a \"CREATE2\" collision), execution "
+"will revert."
+msgstr "返回创建的合约的地址。如果创建操作失败（例如，在 \"CREATE2\" 冲突的情况下），执行将回滚。"
+
+#: ../../built-in-functions.rst:180
+msgid "Call to the specified Ethereum address."
+msgstr "调用指定的以太坊地址。"
+
+#: ../../built-in-functions.rst:182
+msgid "``to``: Destination address to call to"
+msgstr "``to``: 要调用的目标地址"
+
+#: ../../built-in-functions.rst:183
+msgid "``data``: Data to send to the destination address"
+msgstr "``data``: 要发送到目标地址的数据"
+
+#: ../../built-in-functions.rst:184
+msgid ""
+"``max_outsize``: Maximum length of the bytes array returned from the "
+"call. If the returned call data exceeds this length, only this number of "
+"bytes is returned. (Optional, default \"0\")"
+msgstr "``max_outsize``: 从调用返回的字节数组的最大长度。如果返回的调用数据超过此长度，则仅返回此数量的字节。（可选，默认为 \"0\"）"
+
+#: ../../built-in-functions.rst:185
+msgid ""
+"``gas``: The amount of gas to attach to the call. (Optional, defaults to "
+"``msg.gas``)."
+msgstr "``gas``: 附加到调用的 gas 量。（可选，默认为 \"msg.gas\")。"
+
+#: ../../built-in-functions.rst:186
+msgid "``value``: The wei value to send to the address (Optional, default \"0\")"
+msgstr "``value``: 发送到地址的 wei 值（可选，默认为 \"0\"）"
+
+#: ../../built-in-functions.rst:187
+msgid ""
+"``is_delegate_call``: If \"True\", the call will be sent as "
+"``DELEGATECALL`` (Optional, default \"False\")"
+msgstr "``is_delegate_call``: 如果为 \"True\"，则调用将作为 \"DELEGATECALL\" 发送（可选，默认为 \"False\"）"
+
+#: ../../built-in-functions.rst:188
+msgid ""
+"``is_static_call``: If \"True\", the call will be sent as \"STATICCALL\" "
+"(Optional, default \"False\")"
+msgstr "``is_static_call``: 如果为 \"True\"，则调用将作为 \"STATICCALL\" 发送（可选，默认为 \"False\"）"
+
+#: ../../built-in-functions.rst:189
+msgid ""
+"``revert_on_failure``: If \"True\", the call will revert on a failure, "
+"otherwise \"success\" will be returned (Optional, default \"True\")"
+msgstr "``revert_on_failure``: 如果为 \"True\"，则调用将在失败时回滚，否则将返回 \"success\"（可选，默认为 \"True\"）"
+
+#: ../../built-in-functions.rst:193
+msgid ""
+"Returns the data returned by the call as a \"Bytes\" list, with "
+"``max_outsize`` as the max length. The actual size of the returned data "
+"may be less than \"max_outsize\". You can use \"len\" to obtain the "
+"actual size."
+msgstr "以 \"Bytes\" 列表的形式返回调用返回的数据，其中 \"max_outsize\" 是最大长度。返回数据的实际大小可能小于 \"max_outsize\". 您可以使用 \"len\" 获取实际大小。"
+
+#: ../../built-in-functions.rst:195
+msgid "Returns nothing if \"max_outsize\" is omitted or set to \"0\"."
+msgstr "如果省略 \"max_outsize\" 或将其设置为 \"0\"，则不返回任何内容。"
+
+#: ../../built-in-functions.rst:197
+msgid ""
+"Returns \"success\" in a tuple with return value if \"revert_on_failure\""
+" is set to \"False\"."
+msgstr "如果 \"revert_on_failure\" 设置为 \"False\"，则在元组中返回 \"success\" 和返回值。"
+
+#: ../../built-in-functions.rst:225
+msgid ""
+"Regarding \"forwarding all gas\", note that, while Vyper will provide "
+"``msg.gas`` to the call, in practice, there are some subtleties around "
+"forwarding all remaining gas on the EVM which are out of scope of this "
+"documentation and could be subject to change. For instance, see the "
+"language in EIP-150 around \"all but one 64th\"."
+msgstr "关于“转发所有 gas”，请注意，虽然 Vyper 会向调用提供 ``msg.gas``，但在实践中，在 EVM 上转发所有剩余 gas 存在一些微妙之处，这些超出了本文档的范围，并且可能会发生变化。例如，请参阅 EIP-150 中关于“除 64 分之一外的所有”的语言。"
+
+#: ../../built-in-functions.rst:229
+msgid ""
+"Provides low level access to the \"LOG\" opcodes, emitting a log without "
+"having to specify an ABI type."
+msgstr "提供对 \"LOG\" 操作码的低级访问，发出日志而无需指定 ABI 类型。"
+
+#: ../../built-in-functions.rst:231
+msgid ""
+"``topics``: List of \"bytes32\" log topics. The length of this array "
+"determines which opcode is used."
+msgstr "``topics``: \"bytes32\" 日志主题列表。此数组的长度决定了使用哪个操作码。"
+
+#: ../../built-in-functions.rst:232
+msgid "``data``: Unindexed event data to include in the log. May be given as "
+"``Bytes`` or ``bytes32``."
+msgstr "``data``: 要包含在日志中的未索引事件数据。可以作为 \"Bytes\" 或 \"bytes32\" 给出。"
+
+#: ../../built-in-functions.rst:242
+msgid ""
+"Provides low level access to the \"REVERT\" opcode, reverting execution "
+"with the specified data returned."
+msgstr "提供对 \"REVERT\" 操作码的低级访问，使用返回的指定数据回滚执行。"
+
+#: ../../built-in-functions.rst:244
+msgid "``data``: Data representing the error message causing the revert."
+msgstr "``data``: 表示导致回滚的错误消息的数据。"
+
+#: ../../built-in-functions.rst:254
+msgid ""
+"Trigger the \"SELFDESTRUCT\" opcode (\"0xFF\"), causing the contract to "
+"be destroyed."
+msgstr "触发 \"SELFDESTRUCT\" 操作码 (\"0xFF\")，导致合约被销毁。"
+
+#: ../../built-in-functions.rst:256
+msgid "``to``: Address to forward the contract's ether balance to"
+msgstr "``to``: 将合约的以太币余额转发到的地址"
+
+#: ../../built-in-functions.rst:260
+msgid ""
+"This method deletes the contract from the blockchain. All non-ether "
+"assets associated with this contract are \"burned\" and the contract is "
+"no longer accessible."
+msgstr "此方法从区块链中删除合约。与此合约关联的所有非以太币资产都将被\"销毁\"，并且该合约将不再可访问。"
+
+#: ../../built-in-functions.rst:264
+msgid ""
+"This function has been deprecated from version 0.3.8 onwards. The "
+"underlying opcode will eventually undergo breaking changes, and its use "
+"is not recommended."
+msgstr "此函数自 0.3.8 版本起已弃用。底层操作码最终将进行重大更改，不建议使用。"
+
+#: ../../built-in-functions.rst:274
+msgid "Send ether from the contract to the specified Ethereum address."
+msgstr "从合约向指定的以太坊地址发送以太币。"
+
+#: ../../built-in-functions.rst:276
+msgid "``to``: The destination address to send ether to"
+msgstr "``to``: 发送以太币的目标地址"
+
+#: ../../built-in-functions.rst:277
+msgid "``value``: The wei value to send to the address"
+msgstr "``value``: 发送到地址的 wei 值"
+
+#: ../../built-in-functions.rst:278
+msgid ""
+"``gas``: The amount of gas (the \"stipend\") to attach to the call. If "
+"not set, the stipend defaults to 0."
+msgstr "``gas``: 附加到调用的 gas 量（“津贴”）。如果未设置，津贴默认为 0。"
+
+#: ../../built-in-functions.rst:282
+msgid "The amount to send is always specified in \"wei\"."
+msgstr "发送的金额始终以 \"wei\" 为单位指定。"
+
+#: ../../built-in-functions.rst:291
+msgid "Cryptography"
+msgstr "密码学"
+
+#: ../../built-in-functions.rst:295
+msgid "Take two points on the Alt-BN128 curve and add them together."
+msgstr "取 Alt-BN128 曲线上的两个点并将它们相加。"
+
+#: ../../built-in-functions.rst:314
+msgid ""
+"Take a point on the Alt-BN128 curve (``p``) and a scalar value (``s``), "
+"and return the result of adding the point to itself ``s`` times, i.e. ``p" 
+"* s``."
+msgstr "取 Alt-BN128 曲线上的一个点 (``p``) 和一个标量值 (``s``)，并返回将该点自身相加 ``s`` 次的结果，即 ``p * s``。"
+
+#: ../../built-in-functions.rst:316
+msgid "``point``: Point to be multiplied"
+msgstr "``point``: 要相乘的点"
+
+#: ../../built-in-functions.rst:317
+msgid "``scalar``: Scalar value"
+msgstr "``scalar``: 标量值"
+
+#: ../../built-in-functions.rst:336
+msgid ""
+"Recover the address associated with the public key from the given "
+"elliptic curve signature."
+msgstr "从给定的椭圆曲线签名中恢复与公钥关联的地址。"
+
+#: ../../built-in-functions.rst:338
+msgid "``r``: first 32 bytes of signature"
+msgstr "``r``: 签名的前 32 个字节"
+
+#: ../../built-in-functions.rst:339
+msgid "``s``: second 32 bytes of signature"
+msgstr "``s``: 签名的后 32 个字节"
+
+#: ../../built-in-functions.rst:340
+msgid "``v``: final 1 byte of signature"
+msgstr "``v``: 签名的最后一个字节"
+
+#: ../../built-in-functions.rst:342
+msgid "Returns the associated address, or \"empty(address)\" on error."
+msgstr "返回关联的地址，如果出错则返回 \"empty(address)\"。"
+
+#: ../../built-in-functions.rst:346
+msgid ""
+"Prior to Vyper \"0.3.10\", the \"ecrecover\" function could return an "
+"undefined (possibly nonzero) value for invalid inputs to \"ecrecover\". "
+"For more information, please see `GHSA-f5x6-7qgp-jhf3 "
+"<https://github.com/vyperlang/vyper/security/advisories/GHSA-f5x6-7qgp-"
+"jhf3>`_."
+msgstr "在 Vyper \"0.3.10\" 之前，\"ecrecover\" 函数对于 \"ecrecover\" 的无效输入可能会返回一个未定义（可能为非零）的值。有关更多信息，请参阅 `GHSA-f5x6-7qgp-jhf3 <https://github.com/vyperlang/vyper/security/advisories/GHSA-f5x6-7qgp-jhf3>`_。"
+
+#: ../../built-in-functions.rst:371
+msgid "Return a \"keccak256\" hash of the given value."
+msgstr "返回给定值的 \"keccak256\" 哈希值。"
+
+#: ../../built-in-functions.rst:373 ../../built-in-functions.rst:391
+msgid "``_value``: Value to hash. Can be a \"String\", \"Bytes\", or \"bytes32\"."
+msgstr "``_value``: 要哈希的值。可以是 \"String\"、\"Bytes\" 或 \"bytes32\"."
+
+#: ../../built-in-functions.rst:389
+msgid "Return a \"sha256\" (SHA2 256-bit output) hash of the given value."
+msgstr "返回给定值的 \"sha256\"（SHA2 256 位输出）哈希值。"
+
+#: ../../built-in-functions.rst:406
+msgid "Data Manipulation"
+msgstr "数据操作"
+
+#: ../../built-in-functions.rst:410
+msgid ""
+"Take 2 or more bytes arrays of type \"bytesM\", \"Bytes\" or \"String\" "
+"and combine them into a single value."
+msgstr "取 2 个或更多类型为 \"bytesM\"、\"Bytes\" 或 \"String\" 的字节数组，并将它们组合成一个单一的值。"
+
+#: ../../built-in-functions.rst:412
+msgid ""
+"If the input arguments are \"String\" the return type is \"String\".  "
+"Otherwise the return type is \"Bytes\"."
+msgstr "如果输入参数是 \"String\"，则返回类型是 \"String\".  否则返回类型是 \"Bytes\"."
+
+#: ../../built-in-functions.rst:428
+msgid "Converts a variable or literal from one type to another."
+msgstr "将变量或文字从一种类型转换为另一种类型。"
+
+#: ../../built-in-functions.rst:430
+msgid "``value``: Value to convert"
+msgstr "``value``: 要转换的值"
+
+#: ../../built-in-functions.rst:431
+msgid ""
+"``type_``: The destination type to convert to (e.g., \"bool\", "
+"``decimal``, ``int128``, ``uint256`` or ``bytes32``)"
+msgstr "``type_``: 要转换的目标类型（例如，\"bool\"、``decimal``、``int128``、``uint256`` 或 ``bytes32``）"
+
+#: ../../built-in-functions.rst:433
+msgid "Returns a value of the type specified by \"type_\"."
+msgstr "返回由 \"type_\" 指定的类型的值。"
+
+#: ../../built-in-functions.rst:435
+msgid ""
+"For more details on available type conversions, see "
+":ref:`type_conversions`."
+msgstr "有关可用类型转换的更多详细信息，请参阅 :ref:`type_conversions`。"
+
+#: ../../built-in-functions.rst:439
+msgid "Returns an unsigned integer's string representation."
+msgstr "返回无符号整数的字符串表示形式。"
+
+#: ../../built-in-functions.rst:441
+msgid "``value``: Unsigned integer to convert."
+msgstr "``value``: 要转换的无符号整数。"
+
+#: ../../built-in-functions.rst:443
+msgid "Returns the string representation of \"value\"."
+msgstr "返回 \"value\" 的字符串表示形式。"
+
+#: ../../built-in-functions.rst:459
+msgid "Extract a value from a \"Bytes\" list."
+msgstr "从 \"Bytes\" 列表中提取一个值。"
+
+#: ../../built-in-functions.rst:461
+msgid "``b``: \"Bytes\" list to extract from"
+msgstr "``b``: 要从中提取的 \"Bytes\" 列表"
+
+#: ../../built-in-functions.rst:462
+msgid "``start``: Start point to extract from"
+msgstr "``start``: 从中提取的起始点"
+
+#: ../../built-in-functions.rst:463
+msgid ""
+"``output_type``: Type of output (\"bytesM\", \"integer\", or "
+"``address``). Defaults to \"bytes32\"."
+msgstr "``output_type``: 输出类型（\"bytesM\"、\"integer\" 或 \"address\"）。默认为 \"bytes32\"."
+
+#: ../../built-in-functions.rst:465 ../../built-in-functions.rst:964
+msgid "Returns a value of the type specified by \"output_type\"."
+msgstr "返回由 \"output_type\" 指定的类型的值。"
+
+#: ../../built-in-functions.rst:481
+msgid "Copy a list of bytes and return a specified slice."
+msgstr "复制一个字节列表并返回指定的切片。"
+
+#: ../../built-in-functions.rst:483
+msgid "``b``: value being sliced"
+msgstr "``b``: 被切片的值"
+
+#: ../../built-in-functions.rst:484
+msgid "``start``: start position of the slice"
+msgstr "``start``: 切片的起始位置"
+
+#: ../../built-in-functions.rst:485
+msgid "``length``: length of the slice"
+msgstr "``length``: 切片的长度"
+
+#: ../../built-in-functions.rst:487
+msgid ""
+"If the value being sliced is a \"Bytes\" or \"bytes32\", the return type "
+"is \"Bytes\".  If it is a \"String\", the return type is \"String\"."
+msgstr "如果被切片的值是 \"Bytes\" 或 \"bytes32\"，则返回类型是 \"Bytes\".  如果它是 \"String\"，则返回类型是 \"String\"."
+
+#: ../../built-in-functions.rst:502
+msgid "Math"
+msgstr "数学"
+
+#: ../../built-in-functions.rst:506
+msgid "Return the absolute value of a signed integer."
+msgstr "返回带符号整数的绝对值。"
+
+#: ../../built-in-functions.rst:508
+msgid "``value``: Integer to return the absolute value of"
+msgstr "``value``: 要返回其绝对值的整数"
+
+#: ../../built-in-functions.rst:524
+msgid "Round a decimal up to the nearest integer."
+msgstr "将小数向上舍入到最接近的整数。"
+
+#: ../../built-in-functions.rst:526
+msgid "``value``: Decimal value to round up"
+msgstr "``value``: 要向上舍入的小数值"
+
+#: ../../built-in-functions.rst:542
+msgid "Returns the smallest non-zero value for a decimal type."
+msgstr "返回小数类型的最小非零值。"
+
+#: ../../built-in-functions.rst:544
+msgid "``typename``: Name of the decimal type (currently only \"decimal\")"
+msgstr "``typename``: 小数类型的名称（目前仅为 \"decimal\"）"
+
+#: ../../built-in-functions.rst:560
+msgid "Round a decimal down to the nearest integer."
+msgstr "将小数向下舍入到最接近的整数。"
+
+#: ../../built-in-functions.rst:562
+msgid "``value``: Decimal value to round down"
+msgstr "``value``: 要向下舍入的小数值"
+
+#: ../../built-in-functions.rst:578
+msgid ""
+"Return the greater value of ``a`` and ``b``. The input values may be any "
+"numeric type as long as they are both of the same type.  The output value"
+" is of the same type as the input values."
+msgstr "返回 ``a`` 和 ``b`` 中的较大值。输入值可以是任何数字类型，只要它们都是同一类型即可。输出值的类型与输入值的类型相同。"
+
+#: ../../built-in-functions.rst:594
+msgid ""
+"Returns the maximum value of the numeric type specified by \"type_\" "
+"(e.g., \"int128\", \"uint256\", \"decimal\")."
+msgstr "返回由 \"type_\" 指定的数字类型的最大值（例如，\"int128\"、\"uint256\"、\"decimal\"）。"
+
+#: ../../built-in-functions.rst:610
+msgid ""
+"Returns the lesser value of ``a`` and ``b``. The input values may be any "
+"numeric type as long as they are both of the same type.  The output value"
+" is of the same type as the input values."
+msgstr "返回 ``a`` 和 ``b`` 中的较小值。输入值可以是任何数字类型，只要它们都是同一类型即可。输出值的类型与输入值的类型相同。"
+
+#: ../../built-in-functions.rst:626
+msgid ""
+"Returns the minimum value of the numeric type specified by \"type_\" "
+"(e.g., \"int128\", \"uint256\", \"decimal\")."
+msgstr "返回由 \"type_\" 指定的数字类型的最小值（例如，\"int128\"、\"uint256\"、\"decimal\"）。"
+
+#: ../../built-in-functions.rst:642
+msgid "Return the result of \"a ** b % (2 ** 256)\"."
+msgstr "返回 \"a ** b % (2 ** 256)\" 的结果。"
+
+#: ../../built-in-functions.rst:644
+msgid "This method is used to perform exponentiation without overflow checks."
+msgstr "此方法用于执行不带溢出检查的求幂运算。"
+
+#: ../../built-in-functions.rst:662
+msgid ""
+"Return the square root of the provided decimal number, using the "
+"Babylonian square root algorithm. The rounding mode is to round down to "
+"the nearest epsilon. For instance, \"sqrt(0.9999999998) == "
+"0.9999999998``."
+msgstr "使用巴比伦平方根算法返回所提供小数的平方根。舍入模式是向下舍入到最接近的 epsilon。例如，\"sqrt(0.9999999998) == 0.9999999998``。"
+
+#: ../../built-in-functions.rst:678
+msgid ""
+"Return the (integer) square root of the provided integer number, using "
+"the Babylonian square root algorithm. The rounding mode is to round down "
+"to the nearest integer. For instance, \"isqrt(101) == 10\"."
+msgstr "使用巴比伦平方根算法返回所提供整数的（整数）平方根。舍入模式是向下舍入到最接近的整数。例如，\"isqrt(101) == 10\"."
+
+#: ../../built-in-functions.rst:694
+#, python-format
+msgid ""
+"Return the modulo of \"(a + b) % c\". Reverts if \"c == 0\". As this "
+"built-in function is intended to provides access to the underlying "
+"``ADDMOD`` opcode, all intermediate calculations of this operation are "
+"not subject to the \"2 ** 256\" modulo according to the EVM "
+"specifications."
+msgstr "返回 \"(a + b) % c\" 的模。如果 \"c == 0\" 则回滚。由于此内置函数旨在提供对底层 ``ADDMOD`` 操作码的访问，因此根据 EVM 规范，此操作的所有中间计算都不受 \"2 ** 256\" 模的约束。"
+
+#: ../../built-in-functions.rst:712
+#, python-format
+msgid ""
+"Return the modulo from \"(a * b) % c\". Reverts if \"c == 0\". As this "
+"built-in function is intended to provides access to the underlying "
+"``MULMOD`` opcode, all intermediate calculations of this operation are "
+"not subject to the \"2 ** 256\" modulo according to the EVM "
+"specifications."
+msgstr "返回 \"(a * b) % c\" 的模。如果 \"c == 0\" 则回滚。由于此内置函数旨在提供对底层 ``MULMOD`` 操作码的访问，因此根据 EVM 规范，此操作的所有中间计算都不受 \"2 ** 256\" 模的约束。"
+
+#: ../../built-in-functions.rst:730
+msgid ""
+"Add \"x\" and \"y\", without checking for overflow. \"x\" and \"y\" must "
+"both be integers of the same type. If the result exceeds the bounds of "
+"the input type, it will be wrapped."
+msgstr "将 \"x\" 和 \"y\" 相加，不检查溢出。\"x\" 和 \"y\" 必须都是相同类型的整数。如果结果超出输入类型的边界，它将被包装。"
+
+#: ../../built-in-functions.rst:757
+msgid ""
+"Performance note: for the native word types of the EVM \"uint256\" and "
+"\"int256\", this will compile to a single \"ADD\" instruction, since the "
+"EVM natively wraps addition on 256-bit words."
+msgstr "性能说明：对于 EVM 的本机字类型 \"uint256\" 和 \"int256\"，这将编译为单个 \"ADD\" 指令，因为 EVM 在 256 位字上本机包装加法。"
+
+#: ../../built-in-functions.rst:761
+msgid ""
+"Subtract \"x\" and \"y\", without checking for overflow. \"x\" and \"y\" "
+"must both be integers of the same type. If the result underflows the "
+"bounds of the input type, it will be wrapped."
+msgstr "将 \"x\" 和 \"y\" 相减，不检查溢出。\"x\" 和 \"y\" 必须都是相同类型的整数。如果结果下溢输入类型的边界，它将被包装。"
+
+#: ../../built-in-functions.rst:788
+msgid ""
+"Performance note: for the native word types of the EVM \"uint256\" and "
+"\"int256\", this will compile to a single \"SUB\" instruction, since the "
+"EVM natively wraps subtraction on 256-bit words."
+msgstr "性能说明：对于 EVM 的本机字类型 \"uint256\" 和 \"int256\"，这将编译为单个 \"SUB\" 指令，因为 EVM 在 256 位字上本机包装减法。"
+
+#: ../../built-in-functions.rst:793
+msgid ""
+"Multiply \"x\" and \"y\", without checking for overflow. \"x\" and \"y\" "
+"must both be integers of the same type. If the result exceeds the bounds "
+"of the input type, it will be wrapped."
+msgstr "将 \"x\" 和 \"y\" 相乘，不检查溢出。\"x\" 和 \"y\" 必须都是相同类型的整数。如果结果超出输入类型的边界，它将被包装。"
+
+#: ../../built-in-functions.rst:823
+msgid ""
+"Performance note: for the native word types of the EVM \"uint256\" and "
+"\"int256\", this will compile to a single \"MUL\" instruction, since the "
+"EVM natively wraps multiplication on 256-bit words."
+msgstr "性能说明：对于 EVM 的本机字类型 \"uint256\" 和 \"int256\"，这将编译为单个 \"MUL\" 指令，因为 EVM 在 256 位字上本机包装乘法。"
+
+#: ../../built-in-functions.rst:828
+msgid ""
+"Divide \"x\" and \"y\", without checking for division-by-zero. \"x\" and "
+"\"y\" must both be integers of the same type. If the denominator is zero, "
+"the result will (following EVM semantics) be zero."
+msgstr "将 \"x\" 和 \"y\" 相除，不检查除以零。\"x\" 和 \"y\" 必须都是相同类型的整数。如果分母为零，则结果将（遵循 EVM 语义）为零。"
+
+#: ../../built-in-functions.rst:855
+msgid ""
+"Performance note: this will compile to a single \"SDIV\" or \"DIV\" "
+"instruction, depending on if the inputs are signed or unsigned "
+"(respectively)."
+msgstr "性能说明：这将根据输入是有符号还是无符号（分别）编译为单个 \"SDIV\" 或 \"DIV\" 指令。"
+
+#: ../../built-in-functions.rst:859
+msgid "Utilities"
+msgstr "实用程序"
+
+#: ../../built-in-functions.rst:863
+msgid ""
+"Take an amount of ether currency specified by a number and a unit and "
+"return the integer quantity of wei equivalent to that amount."
+msgstr "取一个由数字和单位指定的以太币数量，并返回与该数量等效的 wei 的整数数量。"
+
+#: ../../built-in-functions.rst:865
+msgid ""
+"``_value``: Value for the ether unit. Any numeric type may be used, "
+"however, the value cannot be negative."
+msgstr "``_value``: 以太币单位的值。可以使用任何数字类型，但是，该值不能为负。"
+
+#: ../../built-in-functions.rst:866
+msgid ""
+"``unit``: Ether unit name (e.g. \"wei\", \"ether\", \"gwei\", "
+"etc.) indicating the denomination of \"_value\". Must be given as a "
+"literal string."
+msgstr "``unit``: 以太币单位名称（例如 \"wei\"、\"ether\"、\"gwei\" 等），指示 \"_value\" 的面额。必须作为文字字符串给出。"
+
+#: ../../built-in-functions.rst:881
+msgid ""
+"When \"as_wei_value\" is given some \"decimal\", the result might be "
+"rounded down to the nearest integer, for example, the following is true: "
+"``as_wei_value(12.2, \"wei\") == 12``."
+msgstr "当 \"as_wei_value\" 被赋予某个 \"decimal\" 时，结果可能会向下舍入到最接近的整数，例如，以下为真：``as_wei_value(12.2, \"wei\") == 12``。"
+
+#: ../../built-in-functions.rst:886
+msgid "Return the hash of the block at the specified height."
+msgstr "返回指定高度的区块的哈希值。"
+
+#: ../../built-in-functions.rst:890
+msgid ""
+"The EVM only provides access to the most recent 256 blocks. This function"
+" reverts if the block number is greater than or equal to the current "
+"block number or more than 256 blocks behind the current block."
+msgstr "EVM 仅提供对最近 256 个区块的访问。如果区块号大于或等于当前区块号或比当前区块落后超过 256 个区块，则此函数将回滚。"
+
+#: ../../built-in-functions.rst:906
+msgid ""
+"Return the versioned hash of the \"index\"-th BLOB associated with the "
+"current transaction."
+msgstr "返回与当前交易关联的第 \"index\" 个 BLOB 的版本化哈希。"
+
+#: ../../built-in-functions.rst:910
+msgid ""
+"A versioned hash consists of a single byte representing the version "
+"(currently \"0x01\"), followed by the last 31 bytes of the \"SHA256\" "
+"hash of the KZG commitment (`EIP-4844 "
+"<https://eips.ethereum.org/EIPS/eip-4844>`_). For the case \"index >= "
+"len(tx.blob_versioned_hashes)\", \"blobhash(index: uint256)\" returns "
+"\"empty(bytes32)\"."
+msgstr "版本化哈希由表示版本的单个字节（当前为 \"0x01\"）和 KZG 承诺的 \"SHA256\" 哈希的最后 31 个字节组成 (`EIP-4844 <https://eips.ethereum.org/EIPS/eip-4844>`_). 对于 \"index >= len(tx.blob_versioned_hashes)\" 的情况，\"blobhash(index: uint256)\" 返回 \"empty(bytes32)\"。"
+
+#: ../../built-in-functions.rst:930
+msgid ""
+"Return a value which is the default (zero-ed) value of its type. Useful "
+"for initializing new memory variables."
+msgstr "返回其类型的默认（清零）值。用于初始化新的内存变量。"
+
+#: ../../built-in-functions.rst:932
+msgid "``typename``: Name of the type, except ``HashMap[_KeyType, _ValueType]``"
+msgstr "``typename``: 类型的名称，``HashMap[_KeyType, _ValueType]`` 除外"
+
+#: ../../built-in-functions.rst:943
+msgid ""
+"Return the length of a given \"Bytes\", \"String\" or \"DynArray[_Type, "
+"_Integer]\"."
+msgstr "返回给定 \"Bytes\"、\"String\" 或 \"DynArray[_Type, _Integer]\" 的长度。"
+
+#: ../../built-in-functions.rst:959
+msgid ""
+"Takes a function declaration and returns its method_id (used in data "
+"field to call it)."
+msgstr "取一个函数声明并返回其 method_id（用于在数据字段中调用它）。"
+
+#: ../../built-in-functions.rst:961
+msgid "``method``: Method declaration as given as a literal string"
+msgstr "``method``: 作为文字字符串给出的方法声明"
+
+#: ../../built-in-functions.rst:962
+msgid ""
+"``output_type``: The type of output (\"Bytes[4]\" or \"bytes4\"). "
+"Defaults to \"Bytes[4]\"."
+msgstr "``output_type``: 输出类型（\"Bytes[4]\" 或 \"bytes4\"). 默认为 \"Bytes[4]\"."
+
+#: ../../built-in-functions.rst:980
+msgid ""
+"Takes a variable number of args as input, and returns the ABIv2-encoded "
+"bytestring. Used for packing arguments to raw_call, EIP712 and other "
+"cases where a consistent and efficient serialization method is needed. "
+"Once this function has seen more use we provisionally plan to put it into"
+" the \"ethereum.abi\" namespace."
+msgstr "接受可变数量的参数作为输入，并返回 ABIv2 编码的字节串。用于打包参数以进行 raw_call、EIP712 以及其他需要一致且高效的序列化方法的情况。一旦此函数得到更广泛的使用，我们暂时计划将其放入 \"ethereum.abi\" 命名空间。"
+
+#: ../../built-in-functions.rst:983
+msgid "``*args``: Arbitrary arguments"
+msgstr "``*args``: 任意参数"
+
+#: ../../built-in-functions.rst:984
+msgid ""
+"``ensure_tuple``: If set to True, ensures that even a single argument is "
+"encoded as a tuple. In other words, \"bytes\" gets encoded as "
+"\"(bytes,)\", and \"(bytes,)\" gets encoded as \"((bytes,),)\" This is "
+"the calling convention for Vyper and Solidity functions. Except for very "
+"specific use cases, this should be set to True. Must be a literal."
+msgstr "``ensure_tuple``: 如果设置为 True，则确保即使是单个参数也被编码为元组。换句话说，\"bytes\" 被编码为 \"(bytes,)\"，而 \"(bytes,)\" 被编码为 \"((bytes,),)\". 这是 Vyper 和 Solidity 函数的调用约定。除非有非常特殊的用例，否则应将其设置为 True。必须是文字。"
+
+#: ../../built-in-functions.rst:985
+msgid ""
+"``method_id``: A literal hex or Bytes[4] value to append to the beginning"
+" of the abi-encoded bytestring."
+msgstr "``method_id``: 要附加到 abi 编码字节串开头的文字十六进制或 Bytes[4] 值。"
+
+#: ../../built-in-functions.rst:987
+msgid ""
+"Returns a bytestring whose max length is determined by the arguments. For "
+"example, encoding a \"Bytes[32]\" results in a \"Bytes[64]\" (first word "
+"is the length of the bytestring variable)."
+msgstr "返回一个字节串，其最大长度由参数确定。例如，编码一个 \"Bytes[32]\" 会得到一个 \"Bytes[64]\"（第一个字是字节串变量的长度）。"
+
+#: ../../built-in-functions.rst:1008
+msgid "Prior to v0.4.0, this function was named \"_abi_encode\"."
+msgstr "在 v0.4.0 之前，此函数名为 \"_abi_encode\"."
+
+#: ../../built-in-functions.rst:1013
+msgid ""
+"Takes a byte array as input, and returns the decoded values according to "
+"the specified output types. Used for unpacking ABIv2-encoded values. Once "
+"this function has seen more use we provisionally plan to put it into the "
+"\"ethereum.abi\" namespace."
+msgstr "接受一个字节数组作为输入，并根据指定的输出类型返回解码后的值。用于解包 ABIv2 编码的值。一旦此函数得到更广泛的使用，我们暂时计划将其放入 \"ethereum.abi\" 命名空间。"
+
+#: ../../built-in-functions.rst:1016
+msgid ""
+"``b``: A byte array of a length that is between the minimum and maximum "
+"ABIv2 size bounds of the \"output type\"."
+msgstr "``b``: 长度介于 \"output type\" 的最小和最大 ABIv2 大小边界之间的字节数组。"
+
+#: ../../built-in-functions.rst:1017
+msgid ""
+"``output_type``: Name of the output type, or tuple of output types, to be"
+" decoded."
+msgstr "``output_type``: 要解码的输出类型的名称或输出类型的元组。"
+
+#: ../../built-in-functions.rst:1018
+msgid ""
+"``unwrap_tuple``: If set to True, the input is decoded as a tuple even if "
+"only one output type is specified. In other words, \"abi_decode(b, "
+"Bytes[32])\" gets decoded as \"(Bytes[32],)\". This is the convention for "
+"ABIv2-encoded values generated by Vyper and Solidity functions. Except "
+"for very specific use cases, this should be set to True. Must be a "
+"literal."
+msgstr "``unwrap_tuple``: 如果设置为 True，则即使只指定了一个输出类型，输入也会被解码为元组。换句话说，\"abi_decode(b, Bytes[32])\" 会被解码为 \"(Bytes[32],)\". 这是 Vyper 和 Solidity 函数生成的 ABIv2 编码值的约定。除非有非常特殊的用例，否则应将其设置为 True。必须是文字。"
+
+#: ../../built-in-functions.rst:1020
+msgid "Returns the decoded value(s), with type as specified by `output_type`."
+msgstr "返回解码后的值，其类型由 `output_type` 指定。"
+
+#: ../../built-in-functions.rst:1033
+msgid "Prior to v0.4.0, this function was named \"_abi_decode\"."
+msgstr "在 v0.4.0 之前，此函数名为 \"_abi_decode\"."
+
+#: ../../built-in-functions.rst:1038
+msgid ""
+"\"prints\" the arguments by issuing a static call to the \"console\" "
+"address, \"0x000000000000000000636F6E736F6C652E6C6F67\". This is "
+"supported by some smart contract development frameworks."
+msgstr "通过向“控制台”地址 \"0x000000000000000000636F6E736F6C652E6C6F67\" 发出静态调用来“打印”参数。一些智能合约开发框架支持此功能。"
+
+#: ../../built-in-functions.rst:1040
+msgid ""
+"The default mode works natively with titanoboa. For hardhat-style "
+"frameworks, use \"hardhat_compat=True)\"."
+msgstr "默认模式与 titanoboa 本机兼容。对于 hardhat 风格的框架，请使用 \"hardhat_compat=True)\"。"
+
+#: ../../built-in-functions.rst:1044
+msgid ""
+"Issuing of the static call is *NOT* mode-dependent (that is, it is not "
+"removed from production code), although the compiler will issue a warning"
+" whenever \"print\" is used."
+msgstr "静态调用的发出*不*依赖于模式（也就是说，它不会从生产代码中移除），尽管编译器在使用 \"print\" 时会发出警告。"
+
+#: ../../built-in-functions.rst:1047
+msgid ""
+"In Vyper, as of v0.4.0, the order of argument evaluation of builtins is "
+"not defined. That means that the compiler may choose to reorder "
+"evaluation of arguments. For example, \"extract32(x(), y())\" may yield "
+"unexpected results if \"x()\" and \"y()\" both touch the same data. For "
+"this reason, it is best to avoid calling functions with side-effects "
+"inside of builtins. For more information, see `GHSA-g2xh-c426-v8mf "
+"<https://github.com/vyperlang/vyper/security/advisories/GHSA-"
+"g2xh-c426-v8mf>`_ and `issue #4019 "
+"<https://github.com/vyperlang/vyper/issues/4019>`_."
+msgstr "在 Vyper 中，从 v0.4.0 开始，内置函数参数的求值顺序未定义。这意味着编译器可以选择重新排序参数的求值。例如，如果 \"x()\" 和 \"y()\" 都接触相同的数据，\"extract32(x(), y())\" 可能会产生意想不到的结果。因此，最好避免在内置函数内部调用具有副作用的函数。有关更多信息，请参阅 `GHSA-g2xh-c426-v8mf <https://github.com/vyperlang/vyper/security/advisories/GHSA-g2xh-c426-v8mf>`_ 和 `问题 #4019 <https://github.com/vyperlang/vyper/issues/4019>`_。"

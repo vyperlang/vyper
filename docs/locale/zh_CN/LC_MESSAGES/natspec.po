@@ -1,0 +1,231 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../natspec.rst:4
+msgid "NatSpec Metadata"
+msgstr "NatSpec 元数据"
+
+#: ../../natspec.rst:6
+msgid ""
+"Vyper contracts can use a special form of docstring to provide rich "
+"documentation for functions, return variables and more. This special form"
+" is named the Ethereum Natural Language Specification Format (NatSpec)."
+msgstr "Vyper 合约可以使用一种特殊形式的文档字符串，为函数、返回变量等提供丰富的文档。这种特殊形式被称为以太坊自然语言规范格式 (NatSpec)。"
+
+#: ../../natspec.rst:8
+msgid ""
+"This documentation is segmented into developer-focused messages and end-"
+"user-facing messages. These messages may be shown to the end user (the "
+"human) at the time that they will interact with the contract (i.e. sign a"
+" transaction)."
+msgstr "本文档分为面向开发人员的消息和面向最终用户的消息。这些消息可能会在最终用户（人类）与合约交互（即签署交易）时显示给他们。"
+
+#: ../../natspec.rst:11
+msgid "Example"
+msgstr "示例"
+
+#: ../../natspec.rst:13
+msgid ""
+"Vyper supports structured documentation for contracts and external "
+"functions using the doxygen notation format."
+msgstr "Vyper 支持使用 doxygen 表示法格式为合约和外部函数提供结构化文档。"
+
+#: ../../natspec.rst:17
+msgid ""
+"The compiler does not parse docstrings of internal functions. You are "
+"welcome to NatSpec in comments for internal functions, however they are "
+"not processed or included in the compiler output."
+msgstr "编译器不会解析内部函数的文档字符串。欢迎您在内部函数的注释中使用 NatSpec，但是它们不会被处理或包含在编译器输出中。"
+
+#: ../../natspec.rst:44
+msgid "Tags"
+msgstr "标签"
+
+#: ../../natspec.rst:46
+msgid ""
+"All tags are optional. The following table explains the purpose of each "
+"NatSpec tag and where it may be used:"
+msgstr "所有标签都是可选的。下表解释了每个 NatSpec 标签的用途以及可以在何处使用："
+
+#: ../../natspec.rst:49
+msgid "Tag"
+msgstr "标签"
+
+#: ../../natspec.rst:49
+msgid "Description"
+msgstr "描述"
+
+#: ../../natspec.rst:49
+msgid "Context"
+msgstr "上下文"
+
+#: ../../natspec.rst:51
+msgid "``@title``"
+msgstr "``@title``"
+
+#: ../../natspec.rst:51
+msgid "Title that describes the contract"
+msgstr "描述合约的标题"
+
+#: ../../natspec.rst:51 ../../natspec.rst:52
+msgid "contract"
+msgstr "合约"
+
+#: ../../natspec.rst:52
+msgid "``@license``"
+msgstr "``@license``"
+
+#: ../../natspec.rst:52
+msgid "License of the contract"
+msgstr "合约的许可证"
+
+#: ../../natspec.rst:53
+msgid "``@author``"
+msgstr "``@author``"
+
+#: ../../natspec.rst:53
+msgid "Name of the author"
+msgstr "作者姓名"
+
+#: ../../natspec.rst:53 ../../natspec.rst:54 ../../natspec.rst:55
+#: ../../natspec.rst:58
+msgid "contract, function"
+msgstr "合约、函数"
+
+#: ../../natspec.rst:54
+msgid "``@notice``"
+msgstr "``@notice``"
+
+#: ../../natspec.rst:54
+msgid "Explain to an end user what this does"
+msgstr "向最终用户解释此功能的作用"
+
+#: ../../natspec.rst:55
+msgid "``@dev``"
+msgstr "``@dev``"
+
+#: ../../natspec.rst:55
+msgid "Explain to a developer any extra details"
+msgstr "向开发人员解释任何其他详细信息"
+
+#: ../../natspec.rst:56
+msgid "``@param``"
+msgstr "``@param``"
+
+#: ../../natspec.rst:56
+msgid "Documents a single parameter"
+msgstr "记录单个参数"
+
+#: ../../natspec.rst:56 ../../natspec.rst:57
+msgid "function"
+msgstr "函数"
+
+#: ../../natspec.rst:57
+msgid "``@return``"
+msgstr "``@return``"
+
+#: ../../natspec.rst:57
+msgid "Documents one or all return variable(s)"
+msgstr "记录一个或所有返回变量"
+
+#: ../../natspec.rst:58
+msgid "``@custom:...``"
+msgstr "``@custom:...``"
+
+#: ../../natspec.rst:58
+msgid "Custom tag, semantics is application-defined"
+msgstr "自定义标签，语义由应用程序定义"
+
+#: ../../natspec.rst:61
+msgid "Some rules / restrictions:"
+msgstr "一些规则/限制："
+
+#: ../../natspec.rst:63
+msgid ""
+"A single tag description may span multiple lines. All whitespace between "
+"lines is interpreted as a single space."
+msgstr "单个标签描述可以跨越多行。行之间的所有空格都解释为单个空格。"
+
+#: ../../natspec.rst:64
+msgid ""
+"If a docstring is included with no NatSpec tags, it is interpreted as a "
+"``@notice``."
+msgstr "如果包含没有 NatSpec 标签的文档字符串，则将其解释为 ``@notice``。"
+
+#: ../../natspec.rst:65
+msgid ""
+"Each use of ``@param`` must be followed by the name of an input argument."
+" Including invalid or duplicate argument names raises a "
+":func:`NatSpecSyntaxException<NatSpecSyntaxException>`."
+msgstr "每次使用 ``@param`` 都必须后跟输入参数的名称。包含无效或重复的参数名称会引发 :func:`NatSpecSyntaxException<NatSpecSyntaxException>`。"
+
+#: ../../natspec.rst:66
+msgid ""
+"The preferred use of ``@return`` is one entry for each output value, "
+"however you may also use it once for all outputs. Including more "
+"``@return`` values than output values raises a "
+":func:`NatSpecSyntaxException<NatSpecSyntaxException>`."
+msgstr "``@return`` 的首选用法是为每个输出值提供一个条目，但是您也可以为所有输出使用一次。包含比输出值更多的 ``@return`` 值会引发 :func:`NatSpecSyntaxException<NatSpecSyntaxException>`。"
+
+#: ../../natspec.rst:69
+msgid "Documentation Output"
+msgstr "文档输出"
+
+#: ../../natspec.rst:71
+msgid ""
+"When parsed by the compiler, documentation such as the one from the above"
+" example will produce two different JSON outputs. One is meant to be "
+"consumed by the end user as a notice when a function is executed and the "
+"other to be used by the developer."
+msgstr "当由编译器解析时，诸如上述示例之类的文档将产生两个不同的 JSON 输出。一个旨在在执行函数时由最终用户作为通知使用，另一个供开发人员使用。"
+
+#: ../../natspec.rst:73
+msgid ""
+"If the above contract is saved as ``carrots.vy`` then you can generate "
+"the documentation using:"
+msgstr "如果将上述合约另存为 ``carrots.vy``，则可以使用以下命令生成文档："
+
+#: ../../natspec.rst:80
+msgid "User Documentation"
+msgstr "用户文档"
+
+#: ../../natspec.rst:82
+msgid ""
+"The above documentation will produce the following user documentation "
+"JSON as output:"
+msgstr "上述文档将生成以下用户文档 JSON 作为输出："
+
+#: ../../natspec.rst:95
+msgid ""
+"Note that the key by which to find the methods is the function's "
+"canonical signature as defined in the contract ABI, not simply the "
+"function's name."
+msgstr "请注意，用于查找方法的键是合约 ABI 中定义的函数的规范签名，而不仅仅是函数的名称。"
+
+#: ../../natspec.rst:100
+msgid "Developer Documentation"
+msgstr "开发人员文档"
+
+#: ../../natspec.rst:102
+msgid ""
+"Apart from the user documentation file, a developer documentation JSON "
+"file should also be produced and should look like this:"
+msgstr "除了用户文档文件外，还应生成一个开发人员文档 JSON 文件，其外观应如下所示："

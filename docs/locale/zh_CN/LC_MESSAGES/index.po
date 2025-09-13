@@ -1,0 +1,180 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../index.rst:-1
+msgid "Vyper logo"
+msgstr "Vyper logo"
+
+#: ../../index.rst:7
+msgid "Vyper"
+msgstr "Vyper"
+
+#: ../../index.rst:9
+msgid ""
+"Vyper is a contract-oriented, Pythonic programming language that targets "
+"the `Ethereum Virtual Machine (EVM) <https://ethereum.org/learn"
+"/#ethereum-basics>`_. It prioritizes user safety, encourages clear coding"
+" practices via language design and efficient execution. In other words, "
+"Vyper code is safe, clear and efficient!"
+msgstr "Vyper 是一种面向合约的、Python 风格的编程语言，其目标是 `以太坊虚拟机 (EVM) <https://ethereum.org/learn/#ethereum-basics>`_。它优先考虑用户安全，通过语言设计和高效执行鼓励清晰的编码实践。换句话说，Vyper 代码是安全、清晰和高效的！"
+
+#: ../../index.rst:13
+msgid "Principles and Goals"
+msgstr "原则和目标"
+
+#: ../../index.rst:15
+msgid ""
+"**Security**: It should be possible and natural to build secure smart-"
+"contracts in Vyper."
+msgstr "**安全性**：在 Vyper 中构建安全的智能合约应该是可能且自然的。"
+
+#: ../../index.rst:16
+msgid ""
+"**Language and compiler simplicity**: The language and the compiler "
+"implementation should strive to be simple."
+msgstr "**语言和编译器简单性**：语言和编译器实现应力求简单。"
+
+#: ../../index.rst:17
+msgid ""
+"**Auditability**: Vyper code should be maximally human-readable. "
+"Furthermore, it should be maximally difficult to write misleading code. "
+"Simplicity for the reader is more important than simplicity for the "
+"writer, and simplicity for readers with low prior experience with Vyper "
+"(and low prior experience with programming in general) is particularly "
+"important."
+msgstr "**可审计性**：Vyper 代码应具有最大程度的人类可读性。此外，编写误导性代码应具有最大程度的难度。对于读者而言，简单性比对于作者而言更重要，而对于 Vyper 经验不足（以及一般编程经验不足）的读者而言，简单性尤其重要。"
+
+#: ../../index.rst:21
+msgid "Because of this Vyper provides the following features:"
+msgstr "因此，Vyper 提供了以下功能："
+
+#: ../../index.rst:23
+msgid "**Bounds and overflow checking**: On array accesses and arithmetic."
+msgstr "**边界和溢出检查**：在数组访问和算术运算中。"
+
+#: ../../index.rst:24
+msgid "**Support for signed integers and decimal fixed point numbers**"
+msgstr "**支持有符号整数和十进制定点数**"
+
+#: ../../index.rst:25
+msgid ""
+"**Decidability**: It is possible to compute a precise upper bound for the"
+" gas consumption of any Vyper function call."
+msgstr "**可判定性**：可以计算任何 Vyper 函数调用的 gas 消耗的精确上限。"
+
+#: ../../index.rst:26
+msgid "**Strong typing**"
+msgstr "**强类型**"
+
+#: ../../index.rst:27
+msgid "**Clean and understandable compiler code**"
+msgstr "**简洁易懂的编译器代码**"
+
+#: ../../index.rst:28
+msgid ""
+"**Support for pure functions**: Anything marked ``pure`` is not allowed "
+"to change the state."
+msgstr "**支持纯函数**：任何标记为 ``pure`` 的内容都不允许更改状态。"
+
+#: ../../index.rst:29
+msgid ""
+"**Code reuse through composition**: Vyper supports code reuse through "
+"composition, and requires syntactic marking of dependencies which "
+"potentially modify state."
+msgstr "**通过组合实现代码重用**：Vyper 支持通过组合实现代码重用，并要求对可能修改状态的依赖项进行语法标记。"
+
+#: ../../index.rst:31
+msgid ""
+"Following the principles and goals, Vyper **does not** provide the "
+"following features:"
+msgstr "遵循原则和目标，Vyper **不**提供以下功能："
+
+#: ../../index.rst:33
+#, python-brace-format
+msgid ""
+"**Modifiers**: For example in Solidity you can define a ``function foo() "
+"mod1 { ... }``, where ``mod1`` can be defined elsewhere in the code to "
+"include a check that is done before execution, a check that is done after"
+" execution, some state changes, or possibly other things. Vyper does not "
+"have this, because it makes it too easy to write misleading code. "
+"``mod1`` just looks too innocuous for something that could add arbitrary "
+"pre-conditions, post-conditions or state changes. Also, it encourages "
+"people to write code where the execution jumps around the file, harming "
+"auditability. The usual use case for a modifier is something that "
+"performs a single check before execution of a program; our recommendation"
+" is to simply inline these checks as asserts."
+msgstr "**修饰符**：例如，在 Solidity 中，您可以定义一个 ``function foo() mod1 { ... }``，其中 ``mod1`` 可以在代码的其他地方定义，以包含在执行前完成的检查、在执行后完成的检查、一些状态更改或其他可能的事情。Vyper 没有这个功能，因为它太容易编写误导性代码了。对于可以添加任意前置条件、后置条件或状态更改的东西来说，``mod1`` 看起来太无害了。此外，它鼓励人们编写执行在文件中跳转的代码，从而损害了可审计性。修饰符的通常用例是在程序执行前执行单个检查；我们的建议是简单地将这些检查内联为断言。"
+
+#: ../../index.rst:34
+msgid ""
+"**Class inheritance**: Class inheritance requires readers to jump between"
+" multiple files to understand what a program is doing, and requires "
+"readers to understand the rules of precedence in case of conflicts "
+"(\"Which class's function ``X`` is the one that's actually used?\", )."
+msgstr "**类继承**：类继承要求读者在多个文件之间跳转才能理解程序在做什么，并且要求读者在发生冲突时理解优先规则（“哪个类的函数 ``X`` 是实际使用的那个？”）。"
+
+#: ../../index.rst:35
+msgid ""
+"**Inline assembly**: Adding inline assembly would make it no longer "
+"possible to search for a variable name in order to find all instances "
+"where that variable is read or modified."
+msgstr "**内联汇编**：添加内联汇编将不再可能搜索变量名以查找该变量被读取或修改的所有实例。"
+
+#: ../../index.rst:36
+msgid ""
+"**Function overloading**: This can cause lots of confusion on which "
+"function is called at any given time. Thus it's easier to write "
+"misleading code (``foo(\"hello\")`` logs \"hello\" but ``foo(\"hello\", "
+"\"world\")`` steals your funds). Another problem with function "
+"overloading is that it makes the code much harder to search through as "
+"you have to keep track on which call refers to which function."
+msgstr "**函数重载**：这可能会在任何给定时间调用哪个函数时引起很多混淆。因此，编写误导性代码更容易（``foo(\"hello\")`` 记录“hello”，但 ``foo(\"hello\", \"world\")`` 会窃取您的资金）。函数重载的另一个问题是，它使代码更难搜索，因为您必须跟踪哪个调用引用哪个函数。"
+
+#: ../../index.rst:37
+msgid ""
+"**Operator overloading**: Operator overloading makes writing misleading "
+"code possible. For example ``+`` could be overloaded so that it executes "
+"commands that are not visible at a first glance, such as sending funds "
+"the user did not want to send."
+msgstr "**运算符重载**：运算符重载使得编写误导性代码成为可能。例如，可以重载 ``+``，以便它执行乍一看不可见的命令，例如发送用户不想发送的资金。"
+
+#: ../../index.rst:38
+msgid ""
+"**Recursive calling**: Recursive calling makes it impossible to set an "
+"upper bound on gas limits, opening the door for gas limit attacks."
+msgstr "**递归调用**：递归调用使得无法设置 gas 限制的上限，从而为 gas 限制攻击打开了大门。"
+
+#: ../../index.rst:39
+msgid ""
+"**Infinite-length loops**: Similar to recursive calling, infinite-length "
+"loops make it impossible to set an upper bound on gas limits, opening the"
+" door for gas limit attacks."
+msgstr "**无限长度循环**：与递归调用类似，无限长度循环使得无法设置 gas 限制的上限，从而为 gas 限制攻击打开了大门。"
+
+#: ../../index.rst:40
+msgid ""
+"**Binary fixed point**: Decimal fixed point is better, because any "
+"decimal fixed point value written as a literal in code has an exact "
+"representation, whereas with binary fixed point approximations are often "
+"required (e.g. (0.2)\ :sub:`10` = (0.001100110011...)\ :sub:`2`, which "
+"needs to be truncated), leading to unintuitive results, e.g. in Python "
+"0.3 + 0.3 + 0.3 + 0.1 != 1."
+msgstr "**二进制定点**：十进制定点更好，因为任何以文字形式写入代码的十进制定点值都具有精确的表示，而二进制定点通常需要近似值（例如 (0.2)\:sub:`10` = (0.001100110011...)\:sub:`2`，需要截断），导致不直观的结果，例如在 Python 中 0.3 + 0.3 + 0.3 + 0.1 != 1。"

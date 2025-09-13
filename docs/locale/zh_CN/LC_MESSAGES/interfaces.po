@@ -1,0 +1,188 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../interfaces.rst:4
+msgid "Interfaces"
+msgstr "接口"
+
+#: ../../interfaces.rst:6
+msgid ""
+"An interface is a set of function definitions used to enable communication between smart contracts. A contract interface defines all of that contract's externally available functions. By importing the interface, your contract now knows how to call these functions in other contracts."
+msgstr "接口是一组函数定义，用于在智能合约之间进行通信。合约接口定义了该合约所有可外部调用的函数。通过导入接口，您的合约现在知道如何调用其他合约中的这些函数。"
+
+#: ../../interfaces.rst:9
+msgid "Declaring and using Interfaces"
+msgstr "声明和使用接口"
+
+#: ../../interfaces.rst:11
+msgid ""
+"Interfaces can be added to contracts either through inline definition, or by importing them from a separate file."
+msgstr "接口可以通过内联定义或从单独的文件导入添加到合约中。"
+
+#: ../../interfaces.rst:13
+msgid "The ``interface`` keyword is used to define an inline external interface:"
+msgstr "``interface`` 关键字用于定义内联外部接口："
+
+#: ../../interfaces.rst:21
+msgid ""
+"The defined interface can then be used to make external calls, given a contract address:"
+msgstr "然后，可以使用定义的接口在给定合约地址的情况下进行外部调用："
+
+#: ../../interfaces.rst:33
+msgid ""
+"The interface name can also be used as a type annotation for storage variables. You then assign an address value to the variable to access that interface. Note that casting an address to an interface is possible, e.g. ``FooBar(<address_var>)``:"
+msgstr "接口名称也可以用作存储变量的类型注释。然后，您可以将地址值分配给变量以访问该接口。请注意，可以将地址强制转换为接口，例如 ``FooBar(<address_var>)``："
+
+#: ../../interfaces.rst:47
+msgid ""
+"Specifying ``payable`` or ``nonpayable`` annotation in the interface indicates that the call made to the external contract will be able to alter storage, whereas ``view`` and ``pure`` calls will use a ``STATICCALL`` ensuring no storage can be altered during execution. Additionally, ``payable`` allows non-zero value to be sent along with the call."
+msgstr "在接口中指定 ``payable`` 或 ``nonpayable`` 注释表示对外部合约的调用将能够更改存储，而 ``view`` 和 ``pure`` 调用将使用 ``STATICCALL`` 以确保在执行期间无法更改存储。此外，``payable`` 允许随调用一起发送非零值。"
+
+#: ../../interfaces.rst:49
+msgid ""
+"Either the ``extcall`` or ``staticcall`` keyword is required to precede the external call to distinguish it from internal calls. The keyword must match the visibility of the function, ``staticcall`` for ``pure`` and ``view`` functions, and ``extcall`` for ``payable`` and ``nonpayable`` functions. Additionally, the output of a ``staticcall`` must be assigned to a result."
+msgstr "外部调用之前需要使用 ``extcall`` 或 ``staticcall`` 关键字，以将其与内部调用区分开来。关键字必须与函数的可见性匹配，``staticcall`` 用于 ``pure`` 和 ``view`` 函数，``extcall`` 用于 ``payable`` 和 ``nonpayable`` 函数。此外，``staticcall`` 的输出必须分配给一个结果。"
+
+#: ../../interfaces.rst:53
+msgid ""
+"If the signature in an interface does not match the actual signature of the called contract, you can get runtime errors or undefined behavior. For instance, if you accidentally mark a ``nonpayable`` function as ``view``, calling that function may result in the EVM reverting execution in the called contract."
+msgstr "如果接口中的签名与被调用合约的实际签名不匹配，您可能会遇到运行时错误或未定义的行为。例如，如果您意外地将 ``nonpayable`` 函数标记为 ``view``，则调用该函数可能会导致 EVM 在被调用合约中回滚执行。"
+
+#: ../../interfaces.rst:70
+msgid ""
+"Vyper offers the option to set the following additional keyword arguments when making external calls:"
+msgstr "在进行外部调用时，Vyper 提供了设置以下附加关键字参数的选项："
+
+#: ../../interfaces.rst:73
+msgid "Keyword"
+msgstr "关键字"
+
+#: ../../interfaces.rst:73
+msgid "Description"
+msgstr "描述"
+
+#: ../../interfaces.rst:75
+msgid "``gas``"
+msgstr "``gas``"
+
+#: ../../interfaces.rst:75
+msgid "Specify gas value for the call"
+msgstr "指定调用的 gas 值"
+
+#: ../../interfaces.rst:76
+msgid "``value``"
+msgstr "``value``"
+
+#: ../../interfaces.rst:76
+msgid "Specify amount of ether sent with the call"
+msgstr "指定随调用发送的以太币数量"
+
+#: ../../interfaces.rst:77
+msgid "``skip_contract_check``"
+msgstr "``skip_contract_check``"
+
+#: ../../interfaces.rst:77
+msgid "Drop ``EXTCODESIZE`` check (but keep ``RETURNDATASIZE`` check)"
+msgstr "放弃 ``EXTCODESIZE`` 检查（但保留 ``RETURNDATASIZE`` 检查）"
+
+#: ../../interfaces.rst:78
+msgid "``default_return_value``"
+msgstr "``default_return_value``"
+
+#: ../../interfaces.rst:78
+msgid "Specify a default return value if no value is returned"
+msgstr "如果未返回值，则指定默认返回值"
+
+#: ../../interfaces.rst:81
+msgid ""
+"The ``default_return_value`` parameter can be used to handle ERC20 tokens affected by the missing return value bug in a way similar to OpenZeppelin's ``safeTransfer`` for Solidity:"
+msgstr "``default_return_value`` 参数可用于处理受缺少返回值错误影响的 ERC20 代币，其方式类似于 OpenZeppelin 的 ``safeTransfer`` for Solidity："
+
+#: ../../interfaces.rst:89
+msgid "Built-in Interfaces"
+msgstr "内置接口"
+
+#: ../../interfaces.rst:91
+msgid ""
+"Vyper includes common built-in interfaces such as `IERC20 <https://eips.ethereum.org/EIPS/eip-20>`_ and `IERC721 <https://eips.ethereum.org/EIPS/eip-721>`_. These are imported from ``ethereum.ercs``:"
+msgstr "Vyper 包含常见的内置接口，例如 `IERC20 <https://eips.ethereum.org/EIPS/eip-20>`_ 和 `IERC721 <https://eips.ethereum.org/EIPS/eip-721>`_。这些是从 ``ethereum.ercs`` 导入的："
+
+#: ../../interfaces.rst:99
+msgid ""
+"You can see all the available built-in interfaces in the `Vyper GitHub <https://github.com/vyperlang/vyper/tree/master/vyper/builtins/interfaces>`_ repo."
+msgstr "您可以在 `Vyper GitHub <https://github.com/vyperlang/vyper/tree/master/vyper/builtins/interfaces>`_ 存储库中查看所有可用的内置接口。"
+
+#: ../../interfaces.rst:102
+msgid "Implementing an Interface"
+msgstr "实现接口"
+
+#: ../../interfaces.rst:104
+msgid ""
+"You can define an interface for your contract with the ``implements`` statement:"
+msgstr "您可以使用 ``implements`` 语句为您的合约定义一个接口："
+
+#: ../../interfaces.rst:113
+msgid ""
+"This imports the defined interface from the vyper file at ``an_interface.vyi`` (or ``an_interface.json`` if using ABI json interface type) and ensures your current contract implements all the necessary external functions. If any interface functions are not included in the contract, it will fail to compile. This is especially useful when developing contracts around well-defined standards such as ERC20."
+msgstr "这将从 ``an_interface.vyi``（如果使用 ABI json 接口类型，则为 ``an_interface.json``）处的 vyper 文件导入定义的接口，并确保您当前的合约实现所有必要的外部函数。如果合约中未包含任何接口函数，则编译将失败。这在围绕 ERC20 等明确定义的标准开发合约时尤其有用。"
+
+#: ../../interfaces.rst:117
+msgid ""
+"Interfaces that implement functions with return values that require an upper bound (e.g. ``Bytes``, ``DynArray``, or ``String``), the upper bound defined in the interface represents the lower bound of the implementation. Assuming a function ``my_func`` returns a value ``String[1]`` in the interface, this would mean for the implementation function of ``my_func`` that the return value must have **at least** length 1. This behavior might change in the future."
+msgstr "实现具有需要上限的返回值的函数（例如 ``Bytes``、``DynArray`` 或 ``String``）的接口，接口中定义的上限表示实现的下限。假设接口中的函数 ``my_func`` 返回一个值 ``String[1]``，这意味着对于 ``my_func`` 的实现函数，返回值必须**至少**长度为 1。此行为将来可能会更改。"
+
+#: ../../interfaces.rst:121
+msgid ""
+"Prior to v0.4.0, ``implements`` required that events defined in an interface were re-defined in the \"implementing\" contract. As of v0.4.0, this is no longer required because events can be used just by importing them. Any events used in a contract will automatically be exported in the ABI output."
+msgstr "在 v0.4.0 之前，``implements`` 要求在“实现”合约中重新定义接口中定义的事件。从 v0.4.0 开始，不再需要这样做，因为只需导入事件即可使用它们。合约中使用的任何事件都将自动导出到 ABI 输出中。"
+
+#: ../../interfaces.rst:125
+msgid ""
+"An interface function with default parameters (e.g. ``deposit(assets: uint256, receiver: address = msg.sender)``) implies that the contract being interfaced with supports these default arguments via the ABI-encoded function signatures (e.g. ``keccak256(\"deposit(uint256,address)\")[:4]`` and ``keccak256(\"deposit(uint256)\")[:4]``). It is the responsibility of the callee to implement the behavior associated with these defaults."
+msgstr "具有默认参数的接口函数（例如 ``deposit(assets: uint256, receiver: address = msg.sender)``）意味着与之交互的合约通过 ABI 编码的函数签名（例如 ``keccak256(\"deposit(uint256,address)\")[:4]`` 和 ``keccak256(\"deposit(uint256)\")[:4]``）支持这些默认参数。被调用方有责任实现与这些默认值相关的行为。"
+
+#: ../../interfaces.rst:128
+msgid "Standalone Interfaces"
+msgstr "独立接口"
+
+#: ../../interfaces.rst:130
+msgid ""
+"Standalone interfaces are written using a variant of standard Vyper syntax. The body of each function must be an ellipsis (``...``). Interface files must have a ``.vyi`` suffix in order to be found by an import statement."
+msgstr "独立接口是使用标准 Vyper 语法的变体编写的。每个函数的主体必须是省略号 (``...``)。接口文件必须具有 ``.vyi`` 后缀才能被 import 语句找到。"
+
+#: ../../interfaces.rst:144
+msgid "Extracting Interfaces"
+msgstr "提取接口"
+
+#: ../../interfaces.rst:146
+msgid ""
+"Vyper has a built-in format option to allow you to easily export a Vyper interface from a pre-existing contract."
+msgstr "Vyper 有一个内置的格式选项，可让您轻松地从预先存在的合约中导出 Vyper 接口。"
+
+#: ../../interfaces.rst:161
+msgid ""
+"If you want to export it as an inline interface, Vyper provides a utility to extract that as well."
+msgstr "如果您想将其导出为内联接口，Vyper 也提供了一个实用程序来提取它。"
+
+#: ../../interfaces.rst:175
+msgid ""
+"The output can then easily be copy-pasted directly in a regular vyper file."
+msgstr "然后可以轻松地将输出直接复制粘贴到常规的 vyper 文件中。"

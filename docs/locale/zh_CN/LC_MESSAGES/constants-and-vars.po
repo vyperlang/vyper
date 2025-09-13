@@ -1,0 +1,282 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../constants-and-vars.rst:2
+msgid "Environment Variables and Constants"
+msgstr "环境变量和常量"
+
+#: ../../constants-and-vars.rst:7
+msgid "Environment Variables"
+msgstr "环境变量"
+
+#: ../../constants-and-vars.rst:9
+msgid ""
+"Environment variables always exist in the namespace and are primarily "
+"used to provide information about the blockchain or current transaction."
+msgstr "环境变量始终存在于命名空间中，主要用于提供有关区块链或当前交易的信息。"
+
+#: ../../constants-and-vars.rst:12
+msgid "Block and Transaction Properties"
+msgstr "区块和交易属性"
+
+#: ../../constants-and-vars.rst:15 ../../constants-and-vars.rst:52
+msgid "Name"
+msgstr "名称"
+
+#: ../../constants-and-vars.rst:15 ../../constants-and-vars.rst:52
+msgid "Type"
+msgstr "类型"
+
+#: ../../constants-and-vars.rst:15 ../../constants-and-vars.rst:52
+msgid "Value"
+msgstr "值"
+
+#: ../../constants-and-vars.rst:17
+msgid "``block.coinbase``"
+msgstr "``block.coinbase``"
+
+#: ../../constants-and-vars.rst:17 ../../constants-and-vars.rst:30
+#: ../../constants-and-vars.rst:32 ../../constants-and-vars.rst:54
+msgid "``address``"
+msgstr "``address``"
+
+#: ../../constants-and-vars.rst:17
+msgid "Current block miner's address"
+msgstr "当前区块矿工的地址"
+
+#: ../../constants-and-vars.rst:18
+msgid "``block.difficulty``"
+msgstr "``block.difficulty``"
+
+#: ../../constants-and-vars.rst:18 ../../constants-and-vars.rst:20
+#: ../../constants-and-vars.rst:21 ../../constants-and-vars.rst:22
+#: ../../constants-and-vars.rst:23 ../../constants-and-vars.rst:25
+#: ../../constants-and-vars.rst:26 ../../constants-and-vars.rst:28
+#: ../../constants-and-vars.rst:29 ../../constants-and-vars.rst:31
+#: ../../constants-and-vars.rst:33 ../../constants-and-vars.rst:55
+msgid "``uint256``"
+msgstr "``uint256``"
+
+#: ../../constants-and-vars.rst:18
+msgid "Current block difficulty"
+msgstr "当前区块难度"
+
+#: ../../constants-and-vars.rst:19
+msgid "``block.prevrandao``"
+msgstr "``block.prevrandao``"
+
+#: ../../constants-and-vars.rst:19 ../../constants-and-vars.rst:24
+msgid "``bytes32``"
+msgstr "``bytes32``"
+
+#: ../../constants-and-vars.rst:19
+msgid "Current randomness beacon provided by the beacon chain"
+msgstr "信标链提供的当前随机信标"
+
+#: ../../constants-and-vars.rst:20
+msgid "``block.number``"
+msgstr "``block.number``"
+
+#: ../../constants-and-vars.rst:20
+msgid "Current block number"
+msgstr "当前区块号"
+
+#: ../../constants-and-vars.rst:21
+msgid "``block.gaslimit``"
+msgstr "``block.gaslimit``"
+
+#: ../../constants-and-vars.rst:21
+msgid "Current block's gas limit"
+msgstr "当前区块的 gas limit"
+
+#: ../../constants-and-vars.rst:22
+msgid "``block.basefee``"
+msgstr "``block.basefee``"
+
+#: ../../constants-and-vars.rst:22
+msgid "Current block's base fee"
+msgstr "当前区块的基础费用"
+
+#: ../../constants-and-vars.rst:23
+msgid "``block.blobbasefee``"
+msgstr "``block.blobbasefee``"
+
+#: ../../constants-and-vars.rst:23
+msgid "Current block's blob gas base fee"
+msgstr "当前区块的 blob gas 基础费用"
+
+#: ../../constants-and-vars.rst:24
+msgid "``block.prevhash``"
+msgstr "``block.prevhash``"
+
+#: ../../constants-and-vars.rst:24
+msgid "Equivalent to ``blockhash(block.number - 1)``"
+msgstr "相当于 ``blockhash(block.number - 1)``"
+
+#: ../../constants-and-vars.rst:25
+msgid "``block.timestamp``"
+msgstr "``block.timestamp``"
+
+#: ../../constants-and-vars.rst:25
+msgid "Current block epoch timestamp"
+msgstr "当前区块纪元时间戳"
+
+#: ../../constants-and-vars.rst:26
+msgid "``chain.id``"
+msgstr "``chain.id``"
+
+#: ../../constants-and-vars.rst:26
+msgid "Chain ID"
+msgstr "链 ID"
+
+#: ../../constants-and-vars.rst:27
+msgid "``msg.data``"
+msgstr "``msg.data``"
+
+#: ../../constants-and-vars.rst:27
+msgid "``Bytes``"
+msgstr "``字节``"
+
+#: ../../constants-and-vars.rst:27
+msgid "Message data"
+msgstr "消息数据"
+
+#: ../../constants-and-vars.rst:28
+msgid "``msg.gas``"
+msgstr "``msg.gas``"
+
+#: ../../constants-and-vars.rst:28
+msgid "Remaining gas"
+msgstr "剩余 gas"
+
+#: ../../constants-and-vars.rst:29
+msgid "``msg.mana``"
+msgstr "``msg.mana``"
+
+#: ../../constants-and-vars.rst:29
+msgid "Remaining gas (alias for ``msg.gas``)"
+msgstr "剩余 gas (``msg.gas`` 的别名)"
+
+#: ../../constants-and-vars.rst:30
+msgid "``msg.sender``"
+msgstr "``msg.sender``"
+
+#: ../../constants-and-vars.rst:30
+msgid "Sender of the message (current call)"
+msgstr "消息发送者（当前调用）"
+
+#: ../../constants-and-vars.rst:31
+msgid "``msg.value``"
+msgstr "``msg.value``"
+
+#: ../../constants-and-vars.rst:31
+msgid "Number of wei sent with the message"
+msgstr "随消息发送的 wei 的数量"
+
+#: ../../constants-and-vars.rst:32
+msgid "``tx.origin``"
+msgstr "``tx.origin``"
+
+#: ../../constants-and-vars.rst:32
+msgid "Sender of the transaction (full call chain)"
+msgstr "交易发送者（完整调用链）"
+
+#: ../../constants-and-vars.rst:33
+msgid "``tx.gasprice``"
+msgstr "``tx.gasprice``"
+
+#: ../../constants-and-vars.rst:33
+msgid "Gas price of current transaction in wei"
+msgstr "当前交易的 gas 价格（以 wei 为单位）"
+
+#: ../../constants-and-vars.rst:38
+msgid ""
+"``block.prevrandao`` is an alias for the ``block.difficulty`` opcode. "
+"Since ``block.difficulty`` is considered deprecated according to "
+"`EIP-4399 <https://eips.ethereum.org/EIPS/eip-4399>`_ after \"The Merge\""
+"(Paris hard fork), we recommend using ``block.prevrandao``."
+msgstr "``block.prevrandao`` 是 ``block.difficulty`` 操作码的别名。由于根据 `EIP-4399 <https://eips.ethereum.org/EIPS/eip-4399>`_，在“合并”（巴黎硬分叉）之后，``block.difficulty`` 被视为已弃用，因此我们建议使用 ``block.prevrandao``。"
+
+#: ../../constants-and-vars.rst:42
+msgid ""
+"``msg.data`` requires the usage of :func:`slice <slice>` to explicitly "
+"extract a section of calldata. If the extracted section exceeds the "
+"bounds of calldata, this will throw. You can check the size of "
+"``msg.data`` using :func:`len <len>`."
+msgstr "``msg.data`` 需要使用 :func:`slice <slice>` 来显式提取 calldata 的一部分。如果提取的部分超出了 calldata 的边界，则会引发异常。您可以使用 :func:`len <len>` 检查 ``msg.data`` 的大小。"
+
+#: ../../constants-and-vars.rst:47
+msgid "The self Variable"
+msgstr "self 变量"
+
+#: ../../constants-and-vars.rst:49
+msgid ""
+"``self`` is an environment variable used to reference a contract from "
+"within itself. Along with the normal :ref:`address<address>` members, "
+"``self`` allows you to read and write to state variables and to call "
+"private functions within the contract."
+msgstr "``self`` 是一个环境变量，用于从合约内部引用合约本身。除了常规的 :ref:`address<address>` 成员外，``self`` 还允许您读取和写入状态变量以及调用合约内的私有函数。"
+
+#: ../../constants-and-vars.rst:54
+msgid "``self``"
+msgstr "``self``"
+
+#: ../../constants-and-vars.rst:54
+msgid "Current contract's address"
+msgstr "当前合约的地址"
+
+#: ../../constants-and-vars.rst:55
+msgid "``self.balance``"
+msgstr "``self.balance``"
+
+#: ../../constants-and-vars.rst:55
+msgid "Current contract's balance"
+msgstr "当前合约的余额"
+
+#: ../../constants-and-vars.rst:59
+msgid "Accessing State Variables"
+msgstr "访问状态变量"
+
+#: ../../constants-and-vars.rst:61
+msgid ""
+"``self`` is used to access a contract's :ref:`state variables<structure-"
+"state-variables>`, as shown in the following example:"
+msgstr "``self`` 用于访问合约的 :ref:`状态变量<structure-state-variables>`，如以下示例所示："
+
+#: ../../constants-and-vars.rst:79
+msgid "Calling Internal Functions"
+msgstr "调用内部函数"
+
+#: ../../constants-and-vars.rst:81
+msgid ""
+"``self`` is also used to call :ref:`internal functions<structure-"
+"functions-internal>` within a contract:"
+msgstr "``self`` 也用于调用合约内的 :ref:`内部函数<structure-functions-internal>`："
+
+#: ../../constants-and-vars.rst:96
+msgid "Custom Constants"
+msgstr "自定义常量"
+
+#: ../../constants-and-vars.rst:98
+msgid ""
+"Custom constants can be defined at a global level in Vyper. To define a "
+"constant, make use of the ``constant`` keyword."
+msgstr "可以在 Vyper 的全局级别定义自定义常量。要定义常量，请使用 ``constant`` 关键字。"

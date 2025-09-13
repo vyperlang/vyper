@@ -1,0 +1,161 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2017-2024 CC-BY-4.0 Vyper Team
+# This file is distributed under the same license as the Vyper package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Vyper \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 10:44+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../event-logging.rst:4
+msgid "Event Logging"
+msgstr "事件日志"
+
+#: ../../event-logging.rst:6
+msgid "Vyper can log events to be caught and displayed by user interfaces."
+msgstr "Vyper 可以记录事件，以便用户界面捕获和显示。"
+
+#: ../../event-logging.rst:9
+msgid "Example of Logging"
+msgstr "日志记录示例"
+
+#: ../../event-logging.rst:11
+msgid ""
+"This example is taken from the `sample ERC20 contract "
+"<https://github.com/vyperlang/vyper/blob/master/examples/tokens/ERC20.vy>`_"
+"and shows the basic flow of event logging:"
+msgstr "此示例取自 `示例 ERC20 合约 <https://github.com/vyperlang/vyper/blob/master/examples/tokens/ERC20.vy>`_，并显示了事件日志记录的基本流程："
+
+#: ../../event-logging.rst:34
+msgid "Let's look at what this is doing."
+msgstr "我们来看看这是在做什么。"
+
+#: ../../event-logging.rst:36
+msgid ""
+"We declare two event types to log. The two events are similar in that "
+"they contain two indexed address fields. Indexed fields do not make up "
+"part of the event data itself, but can be searched by clients that want "
+"to catch the event. Also, each event contains one single data field, in "
+"each case called ``value``. Events can contain several arguments with any"
+" names desired."
+msgstr "我们声明了两种要记录的事件类型。这两种事件相似，因为它们都包含两个索引地址字段。索引字段本身不构成事件数据的一部分，但希望捕获事件的客户端可以搜索它们。此外，每个事件都包含一个数据字段，在每种情况下都称为 ``value``。事件可以包含具有任何所需名称的多个参数。"
+
+#: ../../event-logging.rst:37
+msgid ""
+"In the ``transfer`` function, after we do whatever work is necessary, we "
+"log the event. We pass three arguments, corresponding with the three "
+"arguments of the Transfer event declaration."
+msgstr "在 ``transfer`` 函数中，在完成必要的工作后，我们记录事件。我们传递三个参数，对应于 Transfer 事件声明的三个参数。"
+
+#: ../../event-logging.rst:39
+msgid ""
+"Clients listening to the events will declare and handle the events they "
+"are interested in using a `library such as web3.js "
+"<https://solidity.readthedocs.io/en/latest/contracts.html#events>`_."
+msgstr "监听事件的客户端将使用 `诸如 web3.js 之类的库 <https://solidity.readthedocs.io/en/latest/contracts.html#events>`_ 来声明和处理他们感兴趣的事件："
+
+#: ../../event-logging.rst:55
+msgid ""
+"In this example, the listening client declares the event to listen for. "
+"Any time the contract sends this log event, the callback will be invoked."
+msgstr "在此示例中，监听客户端声明要监听的事件。每当合约发送此日志事件时，都会调用回调。"
+
+#: ../../event-logging.rst:58
+msgid "Declaring Events"
+msgstr "声明事件"
+
+#: ../../event-logging.rst:60
+msgid "Let's look at an event declaration in more detail."
+msgstr "让我们更详细地看一下事件声明。"
+
+#: ../../event-logging.rst:69
+msgid ""
+"The EVM currently has five opcodes for emitting event logs: ``LOG0``, "
+"``LOG1``, ``LOG2``, ``LOG3``, and ``LOG4``. These opcodes can be used to "
+"create log records, where each log record consists of both **topics** and"
+" **data**. Topics are 32-byte ''words'' that are used to describe what is"
+" happening in an event. While topics are searchable, data is not. Event "
+"data is however not limited, which means that you can include large or "
+"complicated data like arrays or strings. Different opcodes (``LOG0`` "
+"through ``LOG4``) allow for different numbers of topics. For instance, "
+"``LOG1`` includes one topic, ``LOG2`` includes two topics, and so on. "
+"Event declarations look similar to struct declarations, containing one or"
+" more arguments that are passed to the event. Typical events will contain"
+" two kinds of arguments:"
+msgstr "EVM 当前有五个用于发出事件日志的操作码：``LOG0``、``LOG1``、``LOG2``、``LOG3`` 和 ``LOG4``。这些操作码可用于创建日志记录，其中每个日志记录都包含 **主题** 和 **数据**。主题是 32 字节的“单词”，用于描述事件中发生的事情。虽然主题是可搜索的，但数据不是。但是，事件数据不受限制，这意味着您可以包含大型或复杂的数据，例如数组或字符串。不同的操作码（``LOG0`` 到 ``LOG4``）允许不同数量的主题。例如，``LOG1`` 包含一个主题，``LOG2`` 包含两个主题，依此类推。事件声明类似于结构声明，包含一个或多个传递给事件的参数。典型的事件将包含两种参数："
+
+#: ../../event-logging.rst:78
+msgid ""
+"**Indexed** arguments (topics), which can be searched for by listeners. "
+"Each indexed argument is identified by the ``indexed`` keyword.  Here, "
+"each indexed argument is an address. You can have up to four indexed "
+"arguments (``LOG4``), but indexed arguments are not passed directly to "
+"listeners, although some of this information (such as the sender) may be "
+"available in the listener's `results` object."
+msgstr "**索引** 参数（主题），监听器可以搜索。每个索引参数都由 ``indexed`` 关键字标识。在这里，每个索引参数都是一个地址。您最多可以有四个索引参数 (``LOG4``)，但索引参数不会直接传递给监听器，尽管其中一些信息（例如发送者）可能在监听器的 `results` 对象中可用。"
+
+#: ../../event-logging.rst:79
+msgid ""
+"**Value** arguments (data), which are passed through to listeners. You "
+"can have any number of value arguments and they can have arbitrary names,"
+" but each is limited by the EVM to be no more than 32 bytes."
+msgstr "**值** 参数（数据），传递给监听器。您可以有任意数量的值参数，并且它们可以有任意名称，但每个参数都受 EVM 限制，不得超过 32 字节。"
+
+#: ../../event-logging.rst:81
+msgid ""
+"Note that the first topic of a log record consists of the signature of "
+"the name of the event that occurred, including the types of its "
+"parameters. It is also possible to create an event with no arguments. In "
+"this case, use the ``pass`` statement:"
+msgstr "请注意，日志记录的第一个主题由发生的事件名称的签名组成，包括其参数的类型。也可以创建不带参数的事件。在这种情况下，请使用 ``pass`` 语句："
+
+#: ../../event-logging.rst:89
+msgid "Logging Events"
+msgstr "记录事件"
+
+#: ../../event-logging.rst:91
+msgid ""
+"Once an event is declared, you can log (send) events. You can send events"
+" as many times as you want to. Please note that events sent do not take "
+"state storage and thus do not cost gas: this makes events a good way to "
+"save some information. However, the drawback is that events are not "
+"available to contracts, only to clients."
+msgstr "一旦声明了事件，您就可以记录（发送）事件。您可以根据需要多次发送事件。请注意，发送的事件不占用状态存储，因此不消耗 gas：这使得事件成为保存某些信息的好方法。但是，缺点是事件对合约不可用，仅对客户端可用。"
+
+#: ../../event-logging.rst:93
+msgid "Logging events is done using the ``log`` statement:"
+msgstr "记录事件是使用 ``log`` 语句完成的："
+
+#: ../../event-logging.rst:99
+msgid ""
+"The order and types of arguments given must match the order of arguments "
+"used when declaring the event."
+msgstr "给定的参数的顺序和类型必须与声明事件时使用的参数顺序匹配。"
+
+#: ../../event-logging.rst:102
+msgid "Listening for Events"
+msgstr "监听事件"
+
+#: ../../event-logging.rst:104
+msgid ""
+"In the example listener above, the ``result`` arg actually passes a "
+"`large amount of information "
+"<https://web3js.readthedocs.io/en/v1.2.6/web3-eth-contract.html#contract-"
+"events-return>`_. Here we're most interested in ``result.returnValues``. "
+"This is an object with properties that match the properties declared in "
+"the event. Note that this object does not contain the indexed properties, "
+"which can only be searched in the original ``myToken.Transfer`` that "
+"created the callback."
+msgstr "在上面的示例监听器中，``result`` 参数实际上传递了 `大量信息 <https://web3js.readthedocs.io/en/v1.2.6/web3-eth-contract.html#contract-events-return>`_。在这里，我们最感兴趣的是 ``result.returnValues``。这是一个具有与事件中声明的属性匹配的属性的对象。请注意，此对象不包含索引属性，只能在创建回调的原始 ``myToken.Transfer`` 中搜索。"
