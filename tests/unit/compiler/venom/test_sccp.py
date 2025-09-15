@@ -286,6 +286,13 @@ def test_sccp_phi_operand_top_no_branch():
     that haven't been executed yet. The phi is TOP at first, and hhe arithmetic
     using it must defer evaluation.
     """
+    # NOTE: `main` goes straight to `@join`, yet the phi still lists `@then`
+    # and `@else` as inputs. This intentionally mimics malformed IR seen in
+    # programs where the CFG includes those predecessors even though
+    # execution never reaches them (and will be prunned by a later pass). 
+    # So here we show that can SCCP gracefully treat the phi inputs
+    # as TOP until (and unless) those blocks are actually visited. Decoupling 
+    # essentially the CGF from the SCCP.
     pre = """
     main:
         jmp @join
@@ -309,6 +316,13 @@ def test_sccp_jnz_top_phi_text_ir():
     Same as above but using the value to control a jnz.
     This used to assert in SCCP when the jnz condition was TOP.
     """
+    # NOTE: `main` goes straight to `@join`, yet the phi still lists `@then`
+    # and `@else` as inputs. This intentionally mimics malformed IR seen in
+    # programs where the CFG includes those predecessors even though
+    # execution never reaches them (and will be prunned by a later pass). 
+    # So here we show that can SCCP gracefully treat the phi inputs
+    # as TOP until (and unless) those blocks are actually visited. Decoupling 
+    # essentially the CGF from the SCCP.
     src = """
     function main {
     main:
