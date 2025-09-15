@@ -289,9 +289,9 @@ def test_sccp_phi_operand_top_no_branch():
     # NOTE: `main` goes straight to `@join`, yet the phi still lists `@then`
     # and `@else` as inputs. This intentionally mimics malformed IR seen in
     # programs where the CFG includes those predecessors even though
-    # execution never reaches them (and will be prunned by a later pass). 
+    # execution never reaches them (and will be prunned by a later pass).
     # So here we show that can SCCP gracefully treat the phi inputs
-    # as TOP until (and unless) those blocks are actually visited. Decoupling 
+    # as TOP until (and unless) those blocks are actually visited. Decoupling
     # essentially the CGF from the SCCP.
     pre = """
     main:
@@ -319,9 +319,9 @@ def test_sccp_jnz_top_phi_text_ir():
     # NOTE: `main` goes straight to `@join`, yet the phi still lists `@then`
     # and `@else` as inputs. This intentionally mimics malformed IR seen in
     # programs where the CFG includes those predecessors even though
-    # execution never reaches them (and will be prunned by a later pass). 
+    # execution never reaches them (and will be prunned by a later pass).
     # So here we show that can SCCP gracefully treat the phi inputs
-    # as TOP until (and unless) those blocks are actually visited. Decoupling 
+    # as TOP until (and unless) those blocks are actually visited. Decoupling
     # essentially the CGF from the SCCP.
     src = """
     function main {
