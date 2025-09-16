@@ -15,7 +15,6 @@ class Mem2Var(IRPass):
     function: IRFunction
 
     def run_pass(self, mem_alloc):
-        print(self.function)
         self.mem_alloc = mem_alloc
         self.analyses_cache.request_analysis(CFGAnalysis)
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -27,8 +26,6 @@ class Mem2Var(IRPass):
                 self._process_alloca_var(dfg, inst, var)
             elif inst.opcode == "palloca":
                 self._process_palloca_var(dfg, inst, var)
-
-        print(self.function)
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
@@ -44,9 +41,6 @@ class Mem2Var(IRPass):
         mstore/mload/return instructions, it is promoted to a stack variable.
         Otherwise, it is left as is.
         """
-        uses = dfg.get_uses(var)
-        if not all2(inst.opcode in ["mstore", "mload", "return", "add"] for inst in uses):
-            return
 
         _offset, size, _id = alloca_inst.operands
         alloca_id = alloca_inst.operands[2]
@@ -54,8 +48,18 @@ class Mem2Var(IRPass):
         var = IRVariable(var_name)
         assert isinstance(size, IRLiteral)
         mem_loc = IRAbstractMemLoc(size.value, alloca_inst)
+        uses = dfg.get_uses(alloca_inst.output)
 
         self.updater.mk_assign(alloca_inst, mem_loc)
+
+        for inst in uses.copy():
+            if inst.opcode == "add":
+                assert size.value > 32
+                other = [op for op in inst.operands if op != alloca_inst.output]
+                assert len(other) == 1
+                self.updater.update(inst, "gep", [mem_loc, other[0]])
+        if not all2(inst.opcode in ["mstore", "mload", "return", "add"] for inst in uses):
+            return
 
         assert alloca_inst.output is not None
 

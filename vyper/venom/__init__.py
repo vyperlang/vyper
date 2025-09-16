@@ -59,30 +59,27 @@ def _run_passes(
     # TODO: Add support for optimization levels
 
     FloatAllocas(ac, fn).run_pass()
-    print("a")
-    print(fn)
-    no_concrete_locations_fn(fn)    
 
     SimplifyCFGPass(ac, fn).run_pass()
+    #print(fn)
+    #no_concrete_locations_fn(fn)    
 
     MakeSSA(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
-    no_concrete_locations_fn(fn)    
+    #no_concrete_locations_fn(fn)    
 
     # run constant folding before mem2var to reduce some pointer arithmetic
     AlgebraicOptimizationPass(ac, fn).run_pass()
     SCCP(ac, fn, remove_allocas=False).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
-    no_concrete_locations_fn(fn)    
+    #no_concrete_locations_fn(fn)    
 
     AssignElimination(ac, fn).run_pass()
     Mem2Var(ac, fn).run_pass(alloc)
     MakeSSA(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
-    no_concrete_locations_fn(fn)    
-    print("yo")
-    no_concrete_locations_fn(fn)    
+    #no_concrete_locations_fn(fn)    
 
     SimplifyCFGPass(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
@@ -98,7 +95,8 @@ def _run_passes(
     MemMergePass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
-
+    ConcretizeMemLocPass(ac, fn).run_pass(alloc)
+    SCCP(ac, fn).run_pass()
 
     DeadStoreElimination(ac, fn).run_pass(addr_space=MEMORY)
     DeadStoreElimination(ac, fn).run_pass(addr_space=STORAGE)
@@ -115,9 +113,6 @@ def _run_passes(
     PhiEliminationPass(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
     CSE(ac, fn).run_pass()
-
-    ConcretizeMemLocPass(ac, fn).run_pass(alloc)
-    SCCP(ac, fn).run_pass()
 
     AssignElimination(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
