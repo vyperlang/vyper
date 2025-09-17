@@ -54,7 +54,7 @@ class Mem2Var(IRPass):
 
         for inst in uses.copy():
             if inst.opcode == "add":
-                assert size.value > 32
+                assert size.value > 32, (inst, inst.parent, alloca_inst, size)
                 other = [op for op in inst.operands if op != alloca_inst.output]
                 assert len(other) == 1
                 self.updater.update(inst, "gep", [mem_loc, other[0]])

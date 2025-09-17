@@ -61,11 +61,11 @@ def _run_passes(
     FloatAllocas(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
-    #print(fn)
     #no_concrete_locations_fn(fn)    
 
     MakeSSA(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
+    print(fn)
     #no_concrete_locations_fn(fn)    
 
     # run constant folding before mem2var to reduce some pointer arithmetic

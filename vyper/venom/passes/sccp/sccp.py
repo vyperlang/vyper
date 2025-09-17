@@ -250,7 +250,7 @@ class SCCP(IRPass):
         ops: list[IRLiteral] = []
         for op in inst.operands:
             # Evaluate the operand according to the lattice
-            if isinstance(op, IRLabel):
+            if isinstance(op, (IRLabel, IRAbstractMemLoc)):
                 return finalize(LatticeEnum.BOTTOM)
             elif isinstance(op, IRVariable):
                 eval_result = self.lattice[op]
@@ -265,7 +265,10 @@ class SCCP(IRPass):
             if eval_result is LatticeEnum.BOTTOM:
                 return finalize(LatticeEnum.BOTTOM)
 
-            assert isinstance(eval_result, IRLiteral), (inst.parent.label, op, inst)
+            if isinstance(eval_result, IRAbstractMemLoc):
+                return finalize(LatticeEnum.BOTTOM)
+
+            assert isinstance(eval_result, IRLiteral), (inst.parent.label, op, inst, eval_result)
             ops.append(eval_result)
 
         # If we haven't found BOTTOM yet, evaluate the operation

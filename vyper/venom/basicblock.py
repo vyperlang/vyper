@@ -64,6 +64,7 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "mcopy",
         "returndatacopy",
         "codecopy",
+        "codecopyruntime",
         "extcodecopy",
         "return",
         "ret",
