@@ -33,7 +33,8 @@ def foo(a: uint256) -> int128:
 
 
 def test_jump_map(optimize, experimental_codegen):
-    source_map = compile_code(TEST_CODE, output_formats=["source_map"])["source_map"]
+    compiler_output = compile_code(TEST_CODE, output_formats=["source_map_runtime"])
+    source_map = compiler_output["source_map_runtime"]
     pos_map = source_map["pc_pos_map"]
     jump_map = source_map["pc_jump_map"]
 
@@ -62,6 +63,7 @@ def test_jump_map(optimize, experimental_codegen):
         if pc not in pos_map:
             assert optimize == OptimizationLevel.NONE
             continue  # some jump is not being optimized out
+
         lineno, col_offset, _, end_col_offset = pos_map[pc]
         assert code_lines[lineno - 1][col_offset:end_col_offset].startswith("return")
 
@@ -74,7 +76,8 @@ def test_jump_map(optimize, experimental_codegen):
 
 
 def test_pos_map_offsets():
-    source_map = compile_code(TEST_CODE, output_formats=["source_map"])["source_map"]
+    compiler_output = compile_code(TEST_CODE, output_formats=["source_map_runtime"])
+    source_map = compiler_output["source_map_runtime"]
     expanded = expand_source_map(source_map["pc_pos_map_compressed"])
 
     pc_iter = iter(source_map["pc_pos_map"][i] for i in sorted(source_map["pc_pos_map"]))
@@ -104,7 +107,9 @@ foo: uint256
 def update_foo():
     self.foo += 1
     """
-    error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
+    compiler_output = compile_code(code, output_formats=["source_map_runtime"])
+    error_map = compiler_output["source_map_runtime"]["error_map"]
+
     assert "safeadd" in error_map.values()
 
     if experimental_codegen:
@@ -120,7 +125,8 @@ def test_error_map_with_user_error():
 def foo():
     raise "some error"
     """
-    error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
+    compiler_output = compile_code(code, output_formats=["source_map_runtime"])
+    error_map = compiler_output["source_map_runtime"]["error_map"]
     assert "user revert with reason" in error_map.values()
 
 
@@ -131,7 +137,8 @@ def foo(i: uint256):
     a: DynArray[uint256, 10] = [1]
     a[i % 10] = 2
     """
-    error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
+    compiler_output = compile_code(code, output_formats=["source_map_runtime"])
+    error_map = compiler_output["source_map_runtime"]["error_map"]
     assert "safemod" in error_map.values()
 
 
@@ -142,10 +149,12 @@ def foo(i: uint256):
     raise self.bar(5%i)
 
 @pure
-def bar(i: uint256) -> String[32]:
-    return "foo foo"
+def bar(i: uint256) -> String[85]:
+    # ensure the mod doesn't get erased
+    return concat("foo foo", uint2str(i))
     """
-    error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
+    compiler_output = compile_code(code, output_formats=["source_map_runtime"])
+    error_map = compiler_output["source_map_runtime"]["error_map"]
     assert "user revert with reason" in error_map.values()
     assert "safemod" in error_map.values()
 
@@ -194,10 +203,11 @@ def _construct_node_id_map(ast_struct):
 
 def test_node_id_map():
     code = TEST_CODE
-    out = compile_code(code, output_formats=["annotated_ast_dict", "source_map", "ir"])
-    assert out["source_map"]["pc_ast_map_item_keys"] == ("source_id", "node_id")
+    out = compile_code(code, output_formats=["annotated_ast_dict", "source_map_runtime", "ir"])
+    source_map = out["source_map_runtime"]
+    assert source_map["pc_ast_map_item_keys"] == ("source_id", "node_id")
 
-    pc_ast_map = out["source_map"]["pc_ast_map"]
+    pc_ast_map = source_map["pc_ast_map"]
 
     ast_node_map = _construct_node_id_map(out["annotated_ast_dict"])
 

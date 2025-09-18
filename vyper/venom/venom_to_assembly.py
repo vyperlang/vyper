@@ -1,12 +1,15 @@
+from __future__ import annotations
+
 from typing import Any, Iterable
 
+from vyper.evm.assembler.instructions import DATA_ITEM, PUSH, DataHeader
 from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.ir.compile_ir import (
-    PUSH,
-    DataHeader,
-    Instruction,
-    RuntimeHeader,
-    mksymbol,
+    PUSH_OFST,
+    PUSHLABEL,
+    AssemblyInstruction,
+    Label,
+    TaggedInstruction,
     optimize_assembly,
 )
 from vyper.utils import MemoryPositions, OrderedSet, wrap256
@@ -22,7 +25,6 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.context import IRContext, IRFunction
-from vyper.venom.passes import NormalizationPass
 from vyper.venom.stack_model import StackModel
 
 DEBUG_SHOW_COST = False
@@ -107,22 +109,27 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
     ]
 )
 
-_REVERT_POSTAMBLE = ["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
+_REVERT_POSTAMBLE = [Label("revert"), *PUSH(0), "DUP1", "REVERT"]
 
 
 def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
     ret = []
     for op in asm:
-        if isinstance(op, str) and not isinstance(op, Instruction):
-            ret.append(Instruction(op, inst.ast_source, inst.error_msg))
+        if isinstance(op, str) and not isinstance(op, TaggedInstruction):
+            ret.append(TaggedInstruction(op, inst.ast_source, inst.error_msg))
         else:
             ret.append(op)
     return ret  # type: ignore
 
 
-def _as_asm_symbol(label: IRLabel) -> str:
+def _as_asm_symbol(label: IRLabel) -> Label:
     # Lower an IRLabel to an assembly symbol
-    return f"_sym_{label.value}"
+    return Label(label.value)
+
+
+def _ofst(label: Label, value: int) -> list[Any]:
+    # resolve at compile time using magic PUSH_OFST op
+    return [PUSH_OFST(label, value)]
 
 
 # TODO: "assembly" gets into the recursion due to how the original
@@ -141,68 +148,53 @@ class VenomCompiler:
     dfg: DFGAnalysis
     cfg: CFGAnalysis
 
-    def __init__(self, ctxs: list[IRContext]):
-        self.ctxs = ctxs
+    def __init__(self, ctx: IRContext):
+        # TODO: maybe just accept a single IRContext
+        self.ctx = ctx
         self.label_counter = 0
         self.visited_basicblocks = OrderedSet()
 
-    def generate_evm(self, no_optimize: bool = False) -> list[str]:
+    def mklabel(self, name: str) -> Label:
+        self.label_counter += 1
+        return Label(f"{name}_{self.label_counter}")
+
+    def generate_evm_assembly(self, no_optimize: bool = False) -> list[AssemblyInstruction]:
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
 
-        asm: list[Any] = []
-        top_asm = asm
+        asm: list[AssemblyInstruction] = []
 
-        for ctx in self.ctxs:
-            for fn in ctx.functions.values():
-                ac = IRAnalysesCache(fn)
+        for fn in self.ctx.functions.values():
+            ac = IRAnalysesCache(fn)
 
-                NormalizationPass(ac, fn).run_pass()
-                self.liveness = ac.request_analysis(LivenessAnalysis)
-                self.dfg = ac.request_analysis(DFGAnalysis)
-                self.cfg = ac.request_analysis(CFGAnalysis)
+            self.liveness = ac.request_analysis(LivenessAnalysis)
+            self.dfg = ac.request_analysis(DFGAnalysis)
+            self.cfg = ac.request_analysis(CFGAnalysis)
 
-                assert self.cfg.is_normalized(), "Non-normalized CFG!"
+            assert self.cfg.is_normalized(), "Non-normalized CFG!"
 
-                self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
+            self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
 
-            # TODO make this property on IRFunction
-            asm.extend(["_sym__ctor_exit", "JUMPDEST"])
-            if ctx.immutables_len is not None and ctx.ctor_mem_size is not None:
-                asm.extend(
-                    ["_sym_subcode_size", "_sym_runtime_begin", "_mem_deploy_start", "CODECOPY"]
-                )
-                asm.extend(["_OFST", "_sym_subcode_size", ctx.immutables_len])  # stack: len
-                asm.extend(["_mem_deploy_start"])  # stack: len mem_ofst
-                asm.extend(["RETURN"])
-                asm.extend(_REVERT_POSTAMBLE)
-                runtime_asm = [
-                    RuntimeHeader("_sym_runtime_begin", ctx.ctor_mem_size, ctx.immutables_len)
-                ]
-                asm.append(runtime_asm)
-                asm = runtime_asm
-            else:
-                asm.extend(_REVERT_POSTAMBLE)
+        asm.extend(_REVERT_POSTAMBLE)
+        # Append data segment
+        for data_section in self.ctx.data_segment:
+            label = data_section.label
+            asm_data_section: list[AssemblyInstruction] = []
+            asm_data_section.append(DataHeader(_as_asm_symbol(label)))
+            for item in data_section.data_items:
+                data = item.data
+                if isinstance(data, IRLabel):
+                    asm_data_section.append(DATA_ITEM(_as_asm_symbol(data)))
+                else:
+                    assert isinstance(data, bytes)
+                    asm_data_section.append(DATA_ITEM(data))
 
-            # Append data segment
-            for data_section in ctx.data_segment:
-                label = data_section.label
-                asm_data_section: list[Any] = []
-                asm_data_section.append(DataHeader(_as_asm_symbol(label)))
-                for item in data_section.data_items:
-                    data = item.data
-                    if isinstance(data, IRLabel):
-                        asm_data_section.append(_as_asm_symbol(data))
-                    else:
-                        assert isinstance(data, bytes)
-                        asm_data_section.append(data)
-
-                asm.append(asm_data_section)
+            asm.extend(asm_data_section)
 
         if no_optimize is False:
-            optimize_assembly(top_asm)
+            optimize_assembly(asm)
 
-        return top_asm
+        return asm
 
     def _stack_reorder(
         self, assembly: list, stack: StackModel, stack_ops: list[IROperand], dry_run: bool = False
@@ -262,7 +254,7 @@ class VenomCompiler:
                 # invoke emits the actual instruction itself so we don't need
                 # to emit it here but we need to add it to the stack map
                 if inst.opcode != "invoke":
-                    assembly.append(_as_asm_symbol(op))
+                    assembly.append(PUSHLABEL(_as_asm_symbol(op)))
                 stack.push(op)
                 continue
 
@@ -338,7 +330,6 @@ class VenomCompiler:
 
         # assembly entry point into the block
         asm.append(_as_asm_symbol(basicblock.label))
-        asm.append("JUMPDEST")
 
         fn = basicblock.parent
         if basicblock == fn.entry:
@@ -391,7 +382,7 @@ class VenomCompiler:
     def _generate_evm_for_instruction(
         self, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet
     ) -> list[str]:
-        assembly: list[str | int] = []
+        assembly: list[AssemblyInstruction] = []
         opcode = inst.opcode
 
         #
@@ -450,7 +441,7 @@ class VenomCompiler:
         if opcode == "offset":
             ofst, label = inst.operands
             assert isinstance(label, IRLabel)  # help mypy
-            assembly.extend(["_OFST", _as_asm_symbol(label), ofst.value])
+            assembly.extend(_ofst(_as_asm_symbol(label), ofst.value))
             assert isinstance(inst.output, IROperand), "Offset must have output"
             stack.push(inst.output)
             return apply_line_numbers(inst, assembly)
@@ -509,26 +500,26 @@ class VenomCompiler:
             pass
         elif opcode == "param":
             pass
-        elif opcode == "store":
+        elif opcode == "assign":
             pass
         elif opcode == "dbname":
             pass
         elif opcode == "jnz":
             # jump if not zero
             if_nonzero_label, if_zero_label = inst.get_label_operands()
-            assembly.append(_as_asm_symbol(if_nonzero_label))
+            assembly.append(PUSHLABEL(_as_asm_symbol(if_nonzero_label)))
             assembly.append("JUMPI")
 
             # make sure the if_zero_label will be optimized out
             # assert if_zero_label == next(iter(inst.parent.cfg_out)).label
 
-            assembly.append(_as_asm_symbol(if_zero_label))
+            assembly.append(PUSHLABEL(_as_asm_symbol(if_zero_label)))
             assembly.append("JUMP")
 
         elif opcode == "jmp":
             (target,) = inst.operands
             assert isinstance(target, IRLabel)
-            assembly.append(_as_asm_symbol(target))
+            assembly.append(PUSHLABEL(_as_asm_symbol(target)))
             assembly.append("JUMP")
         elif opcode == "djmp":
             assert isinstance(
@@ -540,22 +531,14 @@ class VenomCompiler:
             assert isinstance(
                 target, IRLabel
             ), f"invoke target must be a label (is ${type(target)} ${target})"
+            return_label = self.mklabel("return_label")
             assembly.extend(
-                [
-                    f"_sym_label_ret_{self.label_counter}",
-                    _as_asm_symbol(target),
-                    "JUMP",
-                    f"_sym_label_ret_{self.label_counter}",
-                    "JUMPDEST",
-                ]
+                [PUSHLABEL(return_label), PUSHLABEL(_as_asm_symbol(target)), "JUMP", return_label]
             )
-            self.label_counter += 1
         elif opcode == "ret":
             assembly.append("JUMP")
         elif opcode == "return":
             assembly.append("RETURN")
-        elif opcode == "exit":
-            assembly.extend(["_sym__ctor_exit", "JUMP"])
         elif opcode == "phi":
             pass
         elif opcode == "sha3":
@@ -573,23 +556,27 @@ class VenomCompiler:
                 ]
             )
         elif opcode == "assert":
-            assembly.extend(["ISZERO", "_sym___revert", "JUMPI"])
+            assembly.extend(["ISZERO", PUSHLABEL(Label("revert")), "JUMPI"])
         elif opcode == "assert_unreachable":
-            end_symbol = mksymbol("reachable")
-            assembly.extend([end_symbol, "JUMPI", "INVALID", end_symbol, "JUMPDEST"])
+            end_symbol = self.mklabel("reachable")
+            assembly.extend([PUSHLABEL(end_symbol), "JUMPI", "INVALID", end_symbol])
         elif opcode == "iload":
             addr = inst.operands[0]
+            mem_deploy_end = self.ctx.constants["mem_deploy_end"]
             if isinstance(addr, IRLiteral):
-                assembly.extend(["_OFST", "_mem_deploy_end", addr.value])
+                ptr = mem_deploy_end + addr.value
+                assembly.extend(PUSH(ptr))
             else:
-                assembly.extend(["_mem_deploy_end", "ADD"])
+                assembly.extend([*PUSH(mem_deploy_end), "ADD"])
             assembly.append("MLOAD")
         elif opcode == "istore":
             addr = inst.operands[1]
+            mem_deploy_end = self.ctx.constants["mem_deploy_end"]
             if isinstance(addr, IRLiteral):
-                assembly.extend(["_OFST", "_mem_deploy_end", addr.value])
+                ptr = mem_deploy_end + addr.value
+                assembly.extend(PUSH(ptr))
             else:
-                assembly.extend(["_mem_deploy_end", "ADD"])
+                assembly.extend([*PUSH(mem_deploy_end), "ADD"])
             assembly.append("MSTORE")
         elif opcode == "log":
             assembly.extend([f"LOG{log_topic_count}"])
@@ -616,6 +603,10 @@ class VenomCompiler:
         # item, and optimistically swap with it
         if DEBUG_SHOW_COST:
             stack0 = stack.copy()
+
+        # if there are no live vars at the next point, nothing to schedule
+        if len(next_liveness) == 0:
+            return
 
         next_scheduled = next_liveness.last()
         cost = 0

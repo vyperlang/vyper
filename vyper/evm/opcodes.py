@@ -11,10 +11,10 @@ from vyper.typing import OpcodeMap, OpcodeRulesetMap
 # 3. Per VIP-3365, we support mainnet fork choice rules up to 3 years old
 #    (and may optionally have forward support for experimental/unreleased
 #    fork choice rules)
-_evm_versions: Iterable[str] = ("london", "paris", "shanghai", "cancun")
+_evm_versions: Iterable[str] = ("london", "paris", "shanghai", "cancun", "prague")
 EVM_VERSIONS: dict[str, int] = dict((v, i) for i, v in enumerate(_evm_versions))
 
-DEFAULT_EVM_VERSION = "cancun"
+DEFAULT_EVM_VERSION = "prague"
 
 
 # opcode as hex value

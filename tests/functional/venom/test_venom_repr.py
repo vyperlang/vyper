@@ -25,6 +25,9 @@ def test_round_trip_examples(vy_filename, debug, optimize, compiler_settings, re
     """
     Check all examples round trip
     """
+    if not compiler_settings.experimental_codegen:
+        pytest.skip("tests n/a when venom is not enabled")
+
     path = f"examples/{vy_filename}"
     with open(path) as f:
         vyper_source = f.read()
@@ -55,6 +58,9 @@ def test_round_trip_sources(vyper_source, debug, optimize, compiler_settings, re
     """
     Test vyper_sources round trip
     """
+    if not compiler_settings.experimental_codegen:
+        pytest.skip("tests n/a when venom is not enabled")
+
     vyper_source = textwrap.dedent(vyper_source)
 
     if debug and optimize == OptimizationLevel.CODESIZE:
@@ -98,7 +104,7 @@ def _helper1(vyper_source, optimize):
 
     # test we can generate assembly+bytecode
     asm = generate_assembly_experimental(ctx)
-    generate_bytecode(asm, compiler_metadata=None)
+    generate_bytecode(asm)
 
 
 def _helper2(vyper_source, optimize, compiler_settings):
@@ -120,7 +126,7 @@ def _helper2(vyper_source, optimize, compiler_settings):
 
     # test we can generate assembly+bytecode
     asm = generate_assembly_experimental(ctx, optimize=optimize)
-    bytecode = generate_bytecode(asm, compiler_metadata=None)
+    bytecode, _ = generate_bytecode(asm)
 
     out = compile_code(vyper_source, settings=settings, output_formats=["bytecode_runtime"])
     assert "0x" + bytecode.hex() == out["bytecode_runtime"]

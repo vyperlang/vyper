@@ -30,7 +30,7 @@ class PhiEliminationPass(IRPass):
             if src == inst:
                 return
             assert src.output is not None
-            self.updater.store(inst, src.output)
+            self.updater.mk_assign(inst, src.output)
 
     def _calculate_phi_origins(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -86,12 +86,12 @@ class PhiEliminationPass(IRPass):
                 return set([inst])
             return res
 
-        if inst.opcode == "store" and isinstance(inst.operands[0], IRVariable):
-            # traverse store chain
+        if inst.opcode == "assign" and isinstance(inst.operands[0], IRVariable):
+            # traverse assignment chain
             var = inst.operands[0]
             next_inst = self.dfg.get_producing_instruction(var)
             assert next_inst is not None
             return self._get_phi_origins_r(next_inst, visited)
 
-        # root of the phi/store chain
+        # root of the phi/assignment chain
         return set([inst])

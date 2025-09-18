@@ -15,10 +15,12 @@ class InstUpdater:
     def __init__(self, dfg: DFGAnalysis):
         self.dfg = dfg
 
-    def update_operands(self, inst: IRInstruction, replace_dict: dict[IROperand, IROperand]):
+    def update_operands(
+        self, inst: IRInstruction, replace_dict: dict[IROperand, IROperand], annotation: str = ""
+    ):
         old_operands = inst.operands
         new_operands = [replace_dict[op] if op in replace_dict else op for op in old_operands]
-        self.update(inst, inst.opcode, new_operands)
+        self.update(inst, inst.opcode, new_operands, annotation=annotation)
 
     # move the uses of old_var to new_inst
     def move_uses(self, old_var: IRVariable, new_inst: IRInstruction):
@@ -34,10 +36,12 @@ class InstUpdater:
         opcode: str,
         new_operands: list[IROperand],
         new_output: Optional[IRVariable] = None,
-    ):
-        # assert opcode != "phi"
+        annotation: str = "",
+    ) -> IRInstruction:
         # sanity
         assert all(isinstance(op, IROperand) for op in new_operands)
+
+        original_str = str(inst)
 
         old_operands = inst.operands
 
@@ -68,9 +72,13 @@ class InstUpdater:
         inst.opcode = opcode
         inst.operands = new_operands
 
-    def nop(self, inst: IRInstruction, ignore_uses=False):
-        inst.annotation = str(inst)  # copy IRInstruction.make_nop()
-        self.update(inst, "nop", [])
+        if annotation:
+            inst.annotation = original_str + " " + annotation
+
+        return inst
+
+    def nop(self, inst: IRInstruction, annotation: str = ""):
+        self.update(inst, "nop", [], annotation=annotation)
 
     def nop_multi(self, to_nop: Iterable[IRInstruction]):
         q = deque(to_nop)
@@ -94,8 +102,10 @@ class InstUpdater:
         self.nop(inst)  # for dfg updates and checks
         inst.parent.remove_instruction(inst)
 
-    def store(self, inst: IRInstruction, op: IROperand, new_output: Optional[IRVariable] = None):
-        self.update(inst, "store", [op], new_output=new_output)
+    def mk_assign(
+        self, inst: IRInstruction, op: IROperand, new_output: Optional[IRVariable] = None
+    ):
+        self.update(inst, "assign", [op], new_output=new_output)
 
     def add_before(
         self, inst: IRInstruction, opcode: str, args: list[IROperand]

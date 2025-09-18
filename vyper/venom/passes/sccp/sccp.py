@@ -58,8 +58,12 @@ class SCCP(IRPass):
 
     cfg_dirty: bool
 
-    def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
+    def __init__(
+        self, analyses_cache: IRAnalysesCache, function: IRFunction, /, remove_allocas=True
+    ):
         super().__init__(analyses_cache, function)
+        self.remove_allocas = remove_allocas
+
         self.lattice = {}
         self.work_list: list[WorkListItem] = []
 
@@ -175,7 +179,12 @@ class SCCP(IRPass):
 
     def _visit_expr(self, inst: IRInstruction):
         opcode = inst.opcode
-        if opcode in ("store", "alloca", "palloca", "calloca"):
+
+        store_opcodes: tuple[str, ...] = ("assign",)
+        if self.remove_allocas:
+            store_opcodes += ("alloca", "palloca", "calloca")
+
+        if opcode in store_opcodes:
             assert inst.output is not None, inst
             out = self._eval_from_lattice(inst.operands[0])
             self._set_lattice(inst.output, out)
@@ -186,8 +195,7 @@ class SCCP(IRPass):
         elif opcode == "jnz":
             lat = self._eval_from_lattice(inst.operands[0])
 
-            assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
-            if lat == LatticeEnum.BOTTOM:
+            if lat in (LatticeEnum.BOTTOM, LatticeEnum.TOP):
                 for out_bb in self.cfg.cfg_out(inst.parent):
                     self.work_list.append(FlowWorkItem(inst.parent, out_bb))
             else:
@@ -201,24 +209,18 @@ class SCCP(IRPass):
                 self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "djmp":
             lat = self._eval_from_lattice(inst.operands[0])
-            assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
-            if lat == LatticeEnum.BOTTOM:
+            if lat in (LatticeEnum.BOTTOM, LatticeEnum.TOP):
                 for op in inst.operands[1:]:
                     target = self.fn.get_basic_block(op.name)
                     self.work_list.append(FlowWorkItem(inst.parent, target))
             elif isinstance(lat, IRLiteral):
                 raise CompilerPanic("Unimplemented djmp with literal")
-
-        elif opcode in ["param", "calldataload"]:
-            self.lattice[inst.output] = LatticeEnum.BOTTOM  # type: ignore
-            self._add_ssa_work_items(inst)
-        elif opcode == "mload":
-            self.lattice[inst.output] = LatticeEnum.BOTTOM  # type: ignore
         elif opcode in ARITHMETIC_OPS:
             self._eval(inst)
         else:
             if inst.output is not None:
                 self._set_lattice(inst.output, LatticeEnum.BOTTOM)
+                self._add_ssa_work_items(inst)
 
     def _eval(self, inst) -> LatticeItem:
         """
@@ -248,12 +250,15 @@ class SCCP(IRPass):
                 assert isinstance(op, IRLiteral)  # clarity
                 eval_result = op
 
-            # The value from the lattice should have evaluated to BOTTOM
-            # or a literal by now.
+            # The value from the lattice should have evaluated to TOP,
+            # BOTTOM, or a literal by now.
+
             # If any operand is BOTTOM, the whole operation is BOTTOM
-            # and we can stop the evaluation early
             if eval_result is LatticeEnum.BOTTOM:
                 return finalize(LatticeEnum.BOTTOM)
+            # If any operand is TOP the operation is TOP
+            if eval_result is LatticeEnum.TOP:
+                return finalize(LatticeEnum.TOP)
 
             assert isinstance(eval_result, IRLiteral), (inst.parent.label, op, inst)
             ops.append(eval_result)
