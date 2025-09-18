@@ -262,7 +262,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
             if self._handle_bb(bb):
                 worklist.extend(self.cfg.cfg_out(bb))
 
-    # msize effect should be only necessery
+    # msize effect should be only necessary
     # to be handled when there is a possibility
     # of msize read otherwise it should not make difference
     # for this analysis
@@ -317,7 +317,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
         if bb not in self.bb_outs or available_exprs != self.bb_outs[bb]:
             self.bb_outs[bb] = available_exprs
-            # change is only necessery when the output of the
+            # change is only necessary when the output of the
             # basic block is changed (otherwise it wont affect rest)
             change |= True
 
