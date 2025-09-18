@@ -65,7 +65,6 @@ def _run_passes(
 
     MakeSSA(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
-    print(fn)
     #no_concrete_locations_fn(fn)    
 
     # run constant folding before mem2var to reduce some pointer arithmetic
@@ -97,6 +96,24 @@ def _run_passes(
 
     ConcretizeMemLocPass(ac, fn).run_pass(alloc)
     SCCP(ac, fn).run_pass()
+
+    PhiEliminationPass(ac, fn).run_pass()
+    SCCP(ac, fn).run_pass()
+    #no_concrete_locations_fn(fn)    
+
+    SimplifyCFGPass(ac, fn).run_pass()
+    AssignElimination(ac, fn).run_pass()
+    AlgebraicOptimizationPass(ac, fn).run_pass()
+
+    LoadElimination(ac, fn).run_pass()
+
+    SCCP(ac, fn).run_pass()
+    AssignElimination(ac, fn).run_pass()
+    RevertToAssert(ac, fn).run_pass()
+
+    SimplifyCFGPass(ac, fn).run_pass()
+    MemMergePass(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     DeadStoreElimination(ac, fn).run_pass(addr_space=MEMORY)
     DeadStoreElimination(ac, fn).run_pass(addr_space=STORAGE)

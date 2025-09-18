@@ -194,6 +194,10 @@ class IRAbstractMemLoc(IROperand):
             self._hash = hash(self.source)
         return self._hash
 
+    @property
+    def value(self):
+        return self._id
+
     def __repr__(self) -> str:
         return f"memloc({self._id})"
 
