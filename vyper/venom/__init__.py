@@ -36,6 +36,7 @@ from vyper.venom.passes import (
     SimplifyCFGPass,
     SingleUseExpansion,
 )
+from vyper.venom.passes.loop_invariant_hosting import LoopInvariantHoisting
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.venom_to_assembly import VenomCompiler
 
@@ -96,6 +97,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 
     # This improves the performance of cse
     RemoveUnusedVariablesPass(ac, fn).run_pass()
+    LoopInvariantHoisting(ac, fn).run_pass()
 
     PhiEliminationPass(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
