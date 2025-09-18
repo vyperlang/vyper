@@ -15,6 +15,7 @@ from vyper.ir import compile_ir
 from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
 from vyper.utils import safe_relpath
+from vyper.venom.ir_node_to_venom import _pass_via_stack
 from vyper.warnings import ContractSizeLimit, vyper_warn
 
 
@@ -265,6 +266,13 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         ret["source_id"] = func_t.decl_node.module_node.source_id
         ret["function_id"] = func_t._function_id
 
+        if func_t.is_internal:
+            pass_via_stack = _pass_via_stack(func_t)
+            pass_via_stack_list = [
+                arg for (arg, is_stack_arg) in pass_via_stack.items() if is_stack_arg
+            ]
+            ret["venom_via_stack"] = pass_via_stack_list
+
         keep_keys = {
             "name",
             "return_type",
@@ -279,6 +287,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             "module_path",
             "source_id",
             "function_id",
+            "venom_via_stack",
         }
         ret = {k: v for k, v in ret.items() if k in keep_keys}
         return ret
