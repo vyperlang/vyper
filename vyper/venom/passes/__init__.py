@@ -16,6 +16,7 @@ from .memmerging import MemMergePass
 from .phi_elimination import PhiEliminationPass
 from .remove_unused_variables import RemoveUnusedVariablesPass
 from .revert_to_assert import RevertToAssert
+from .rvp import RangeValuePropagationPass
 from .sccp import SCCP
 from .simplify_cfg import SimplifyCFGPass
 from .single_use_expansion import SingleUseExpansion
