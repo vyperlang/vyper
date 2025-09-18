@@ -195,8 +195,7 @@ class SCCP(IRPass):
         elif opcode == "jnz":
             lat = self._eval_from_lattice(inst.operands[0])
 
-            if lat in (LatticeEnum.TOP, LatticeEnum.BOTTOM):
-                # Conservatively assume both successors are possible
+            if lat in (LatticeEnum.BOTTOM, LatticeEnum.TOP):
                 for out_bb in self.cfg.cfg_out(inst.parent):
                     self.work_list.append(FlowWorkItem(inst.parent, out_bb))
             else:
@@ -210,27 +209,18 @@ class SCCP(IRPass):
                 self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "djmp":
             lat = self._eval_from_lattice(inst.operands[0])
-            if lat in (LatticeEnum.TOP, LatticeEnum.BOTTOM):
+            if lat in (LatticeEnum.BOTTOM, LatticeEnum.TOP):
                 for op in inst.operands[1:]:
                     target = self.fn.get_basic_block(op.name)
                     self.work_list.append(FlowWorkItem(inst.parent, target))
             elif isinstance(lat, IRLiteral):
                 raise CompilerPanic("Unimplemented djmp with literal")
-
-        elif opcode in ["param", "calldataload", "mload"]:
-            self.lattice[inst.output] = LatticeEnum.BOTTOM  # type: ignore
         elif opcode in ARITHMETIC_OPS:
             self._eval(inst)
         else:
-            if opcode == "invoke":
-                # Multi-output: mark all returned values as BOTTOM and schedule users
-                for out in inst.get_outputs():
-                    self._set_lattice(out, LatticeEnum.BOTTOM)
+            if inst.output is not None:
+                self._set_lattice(inst.output, LatticeEnum.BOTTOM)
                 self._add_ssa_work_items(inst)
-            else:
-                # Unknown single-output op: conservatively mark output as BOTTOM
-                if inst.output is not None:
-                    self._set_lattice(inst.output, LatticeEnum.BOTTOM)
 
     def _eval(self, inst) -> LatticeItem:
         """
