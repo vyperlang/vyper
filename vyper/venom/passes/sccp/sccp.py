@@ -195,8 +195,7 @@ class SCCP(IRPass):
         elif opcode == "jnz":
             lat = self._eval_from_lattice(inst.operands[0])
 
-            assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
-            if lat == LatticeEnum.BOTTOM:
+            if lat in (LatticeEnum.BOTTOM, LatticeEnum.TOP):
                 for out_bb in self.cfg.cfg_out(inst.parent):
                     self.work_list.append(FlowWorkItem(inst.parent, out_bb))
             else:
@@ -210,24 +209,18 @@ class SCCP(IRPass):
                 self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "djmp":
             lat = self._eval_from_lattice(inst.operands[0])
-            assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
-            if lat == LatticeEnum.BOTTOM:
+            if lat in (LatticeEnum.BOTTOM, LatticeEnum.TOP):
                 for op in inst.operands[1:]:
                     target = self.fn.get_basic_block(op.name)
                     self.work_list.append(FlowWorkItem(inst.parent, target))
             elif isinstance(lat, IRLiteral):
                 raise CompilerPanic("Unimplemented djmp with literal")
-
-        elif opcode in ["param", "calldataload"]:
-            self.lattice[inst.output] = LatticeEnum.BOTTOM  # type: ignore
-            self._add_ssa_work_items(inst)
-        elif opcode == "mload":
-            self.lattice[inst.output] = LatticeEnum.BOTTOM  # type: ignore
         elif opcode in ARITHMETIC_OPS:
             self._eval(inst)
         else:
             if inst.output is not None:
                 self._set_lattice(inst.output, LatticeEnum.BOTTOM)
+                self._add_ssa_work_items(inst)
 
     def _eval(self, inst) -> LatticeItem:
         """
@@ -257,12 +250,15 @@ class SCCP(IRPass):
                 assert isinstance(op, IRLiteral)  # clarity
                 eval_result = op
 
-            # The value from the lattice should have evaluated to BOTTOM
-            # or a literal by now.
+            # The value from the lattice should have evaluated to TOP,
+            # BOTTOM, or a literal by now.
+
             # If any operand is BOTTOM, the whole operation is BOTTOM
-            # and we can stop the evaluation early
             if eval_result is LatticeEnum.BOTTOM:
                 return finalize(LatticeEnum.BOTTOM)
+            # If any operand is TOP the operation is TOP
+            if eval_result is LatticeEnum.TOP:
+                return finalize(LatticeEnum.TOP)
 
             assert isinstance(eval_result, IRLiteral), (inst.parent.label, op, inst)
             ops.append(eval_result)
