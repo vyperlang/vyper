@@ -567,7 +567,7 @@ class IRBasicBlock:
         else:
             # Multiple outputs go to extra_outputs field
             single_output = None
-            extra_outputs = outputs    
+            extra_outputs = outputs
 
         # Wrap raw integers in IRLiterals
         inst_args = [_ir_operand_from_value(arg) for arg in args]

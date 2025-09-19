@@ -329,7 +329,6 @@ def _handle_internal_func(
     _saved_alloca_table = _alloca_table
     _alloca_table = {}
 
-    returns_word = _returns_word(func_t)
     returns_count = _returns_stack_count(func_t)
 
     # return buffer
