@@ -20,7 +20,7 @@ def _conflict(store_opcode: str, k1: IRLiteral | IRAbstractMemLoc, k2: IRLiteral
     if store_opcode == "mstore":
         if isinstance(k1, IRLiteral) and isinstance(k2, IRLiteral):
             return _conflict_lit(store_opcode, k1, k2)
-        assert isinstance(k1, IRAbstractMemLoc) and isinstance(k2, IRAbstractMemLoc), tmp
+        assert isinstance(k1, IRAbstractMemLoc) and isinstance(k2, IRAbstractMemLoc), (k1, k2, tmp)
         return k1._id == k2._id
 
     assert isinstance(k1, IRLiteral) and isinstance(k2, IRLiteral)
