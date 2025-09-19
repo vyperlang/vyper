@@ -179,11 +179,13 @@ class IRLiteral(IROperand):
 class IRAbstractMemLoc(IROperand):
     _id: int
     size: int
-    source: IRInstruction
+    source: IRInstruction | None
 
     _curr_id: ClassVar[int]
+    FREE_VAR1: ClassVar["IRAbstractMemLoc"]
+    FREE_VAR2: ClassVar["IRAbstractMemLoc"]
 
-    def __init__(self, size: int, source: IRInstruction):
+    def __init__(self, size: int, source: IRInstruction | None):
         self._id = IRAbstractMemLoc._curr_id
         IRAbstractMemLoc._curr_id += 1
         self.size = size
@@ -202,7 +204,8 @@ class IRAbstractMemLoc(IROperand):
         return f"memloc({self._id})"
 
 IRAbstractMemLoc._curr_id = 0
-
+IRAbstractMemLoc.FREE_VAR1 = IRAbstractMemLoc(32, None)
+IRAbstractMemLoc.FREE_VAR2 = IRAbstractMemLoc(32, None)
 
 class IRVariable(IROperand):
     """

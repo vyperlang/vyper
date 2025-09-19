@@ -10,7 +10,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import AssemblyInstruction
 from vyper.venom.analysis import MemSSA
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRLabel, IRLiteral
+from vyper.venom.basicblock import IRLabel, IRLiteral, IRInstruction
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
@@ -40,7 +40,7 @@ from vyper.venom.passes import (
 )
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.venom_to_assembly import VenomCompiler
-from vyper.venom.check_venom import no_concrete_locations_fn
+from vyper.venom.check_venom import no_concrete_locations_fn, fix_mem_loc
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
@@ -84,6 +84,7 @@ def _run_passes(
     AssignElimination(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
 
+    print(fn)
     LoadElimination(ac, fn).run_pass()
 
     SCCP(ac, fn).run_pass()
@@ -161,7 +162,6 @@ def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
     for fn in ctx.functions.values():
         _run_passes(fn, optimize, ir_analyses[fn], ctx.mem_allocator)
 
-
 def generate_venom(
     ir: IRnode,
     settings: Settings,
@@ -172,6 +172,9 @@ def generate_venom(
     constants = constants or {}
     starting_symbols = {k: IRLiteral(v) for k, v in constants.items()}
     ctx = ir_node_to_venom(ir, starting_symbols)
+
+    for fn in ctx.functions.values():
+        fix_mem_loc(fn)
 
     data_sections = data_sections or {}
     for section_name, data in data_sections.items():

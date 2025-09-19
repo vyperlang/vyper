@@ -272,3 +272,25 @@ def _get_storage_read_location(inst, addr_space: AddrSpace) -> MemoryLocation:
         return MemoryLocation.UNDEFINED
 
     return MemoryLocation.EMPTY
+
+def get_mem_ops_indexes(inst) -> list[int]:
+    opcode = inst.opcode
+    if opcode == "mstore":
+        dst = inst.operands[1]
+        return [1]
+    elif opcode == "mload":
+        return [0]
+    elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
+        size, _, dst = inst.operands
+        return [1, 2]
+    elif opcode == "call":
+        size, dst, _, _, _, _, _ = inst.operands
+        return MemoryLocation.from_operands(dst, size)
+    elif opcode in ("delegatecall", "staticcall"):
+        size, dst, _, _, _, _ = inst.operands
+        return MemoryLocation.from_operands(dst, size)
+    elif opcode == "extcodecopy":
+        size, _, dst, _ = inst.operands
+        return MemoryLocation.from_operands(dst, size)
+
+    return MemoryLocation.EMPTY

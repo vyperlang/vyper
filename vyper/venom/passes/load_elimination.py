@@ -14,13 +14,13 @@ def _conflict_lit(store_opcode: str, k1: IRLiteral, k2: IRLiteral):
     return abs(ptr1 - ptr2) < 1
 
 
-def _conflict(store_opcode: str, k1: IRLiteral | IRAbstractMemLoc, k2: IRLiteral | IRAbstractMemLoc):
+def _conflict(store_opcode: str, k1: IRLiteral | IRAbstractMemLoc, k2: IRLiteral | IRAbstractMemLoc, tmp = None):
     # hardcode the size of store opcodes for now. maybe refactor to use
     # vyper.evm.address_space
     if store_opcode == "mstore":
         if isinstance(k1, IRLiteral) and isinstance(k2, IRLiteral):
             return _conflict_lit(store_opcode, k1, k2)
-        assert isinstance(k1, IRAbstractMemLoc) and isinstance(k2, IRAbstractMemLoc)
+        assert isinstance(k1, IRAbstractMemLoc) and isinstance(k2, IRAbstractMemLoc), tmp
         return k1._id == k2._id
 
     assert isinstance(k1, IRLiteral) and isinstance(k2, IRLiteral)
@@ -115,6 +115,6 @@ class LoadElimination(IRPass):
                 self._lattice = {known_ptr: val}
                 break
 
-            if _conflict(store_opcode, known_ptr, existing_key):
+            if _conflict(store_opcode, known_ptr, existing_key, self._lattice):
                 del self._lattice[existing_key]
                 self._lattice[known_ptr] = val
