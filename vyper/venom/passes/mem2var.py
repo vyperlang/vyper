@@ -52,12 +52,14 @@ class Mem2Var(IRPass):
 
         self.updater.mk_assign(alloca_inst, mem_loc)
 
-        for inst in uses.copy():
-            if inst.opcode == "add":
-                #assert size.value > 32, (inst, inst.parent, alloca_inst, size)
-                other = [op for op in inst.operands if op != alloca_inst.output]
-                assert len(other) == 1
-                self.updater.update(inst, "gep", [mem_loc, other[0]])
+        if any(inst.opcode == "add" for inst in uses):
+            for inst in uses.copy():
+                if inst.opcode == "add":
+                    #assert size.value > 32, (inst, inst.parent, alloca_inst, size)
+                    other = [op for op in inst.operands if op != alloca_inst.output]
+                    assert len(other) == 1
+                    self.updater.update(inst, "gep", [mem_loc, other[0]])
+            return
         if not all2(inst.opcode in ["mstore", "mload", "return"] for inst in uses):
             return
 

@@ -1,17 +1,30 @@
 from typing import Optional
 
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRLiteral
+from vyper.venom.basicblock import IRLiteral, IRAbstractMemLoc
 from vyper.venom.effects import Effects
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
-def _conflict(store_opcode: str, k1: IRLiteral, k2: IRLiteral):
+def _conflict_lit(store_opcode: str, k1: IRLiteral, k2: IRLiteral):
     ptr1, ptr2 = k1.value, k2.value
+    if store_opcode == "mstore":
+        return abs(ptr1 - ptr2) < 32
+    assert store_opcode in ("sstore", "tstore"), "unhandled store opcode"
+    return abs(ptr1 - ptr2) < 1
+
+
+def _conflict(store_opcode: str, k1: IRLiteral | IRAbstractMemLoc, k2: IRLiteral | IRAbstractMemLoc):
     # hardcode the size of store opcodes for now. maybe refactor to use
     # vyper.evm.address_space
     if store_opcode == "mstore":
-        return abs(ptr1 - ptr2) < 32
+        if isinstance(k1, IRLiteral) and isinstance(k2, IRLiteral):
+            return _conflict_lit(store_opcode, k1, k2)
+        assert isinstance(k1, IRAbstractMemLoc) and isinstance(k2, IRAbstractMemLoc)
+        return k1._id == k2._id
+
+    assert isinstance(k1, IRLiteral) and isinstance(k2, IRLiteral)
+    ptr1, ptr2 = k1.value, k2.value
     assert store_opcode in ("sstore", "tstore"), "unhandled store opcode"
     return abs(ptr1 - ptr2) < 1
 
@@ -40,7 +53,9 @@ class LoadElimination(IRPass):
     def equivalent(self, op1, op2):
         return op1 == op2
 
-    def get_literal(self, op):
+    def get_memloc(self, op):
+        if isinstance(op, IRAbstractMemLoc):
+            return op
         if isinstance(op, IRLiteral):
             return op
         return None
@@ -77,7 +92,7 @@ class LoadElimination(IRPass):
         # mstore [val, ptr]
         val, ptr = inst.operands
 
-        known_ptr: Optional[IRLiteral] = self.get_literal(ptr)
+        known_ptr: Optional[IRAbstractMemLoc | IRLiteral] = self.get_memloc(ptr)
         if known_ptr is None:
             # it's a variable. assign this ptr in the lattice and flush
             # everything else.
