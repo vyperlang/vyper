@@ -58,7 +58,7 @@ class Mem2Var(IRPass):
                 other = [op for op in inst.operands if op != alloca_inst.output]
                 assert len(other) == 1
                 self.updater.update(inst, "gep", [mem_loc, other[0]])
-        if not all2(inst.opcode in ["mstore", "mload", "return", "add"] for inst in uses):
+        if not all2(inst.opcode in ["mstore", "mload", "return"] for inst in uses):
             return
 
         assert alloca_inst.output is not None
@@ -74,11 +74,6 @@ class Mem2Var(IRPass):
                     self.updater.mk_assign(inst, var)
                 else:
                     self.updater.update_operands(inst, {alloca_inst.output: mem_loc})
-            elif inst.opcode == "add":
-                assert size.value > 32
-                other = [op for op in inst.operands if op != alloca_inst.output]
-                assert len(other) == 1
-                self.updater.update(inst, "gep", [mem_loc, other[0]])
             elif inst.opcode == "return":
                 if size.value <= 32:
                     self.updater.add_before(inst, "mstore", [var, mem_loc])

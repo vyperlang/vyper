@@ -179,6 +179,11 @@ class AlgebraicOptimizationPass(IRPass):
             # no more cases for this instruction
             return
 
+        if inst.opcode == "gep":
+            if lit_eq(inst.operands[1], 0):
+                self.updater.mk_assign(inst, inst.operands[0])
+            return
+
         if inst.opcode in {"add", "sub", "xor"}:
             # (x - x) == (x ^ x) == 0
             if inst.opcode in ("xor", "sub") and operands[0] == operands[1]:
