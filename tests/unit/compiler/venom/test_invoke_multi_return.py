@@ -8,7 +8,8 @@ from vyper.venom.parser import parse_venom
 def test_invoke_two_returns_executes_correctly():
     a, b = 7, 9
 
-    pre = parse_venom(f"""
+    pre = parse_venom(
+        f"""
         function main {{
             main:
                 %1, %2 = invoke @f
@@ -22,13 +23,16 @@ def test_invoke_two_returns_executes_correctly():
                 %v1 = {b}
                 ret %v0, %v1, %retpc
         }}
-    """)
+    """
+    )
 
-    post = parse_venom(f"""
+    post = parse_venom(
+        f"""
         function main {{
             main:
                 sink {a}, {b}
         }}
-    """)
+    """
+    )
 
     hevm_check_venom_ctx(pre, post)
