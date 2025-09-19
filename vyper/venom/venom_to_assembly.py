@@ -418,6 +418,13 @@ class VenomCompiler:
             log_topic_count = inst.operands[0].value
             assert log_topic_count in [0, 1, 2, 3, 4], "Invalid topic count"
             operands = inst.operands[1:]
+        elif opcode == "ret":
+            # For ret with values, we only treat the return PC as an input operand
+            # The return values must remain on the stack and are not consumed here
+            if len(inst.operands) == 0:
+                operands = []
+            else:
+                operands = [inst.operands[-1]]
         else:
             operands = inst.operands
 
@@ -488,10 +495,13 @@ class VenomCompiler:
         # with the stack model containing the return value(s), so we fiddle
         # with the stack model beforehand.
 
-        # Step 4: Push instruction's return value to stack
+        # Step 4: Push instruction's return value(s) to stack
         stack.pop(len(operands))
-        if inst.output is not None:
-            stack.push(inst.output)
+        outs = inst.get_outputs()
+        if outs:
+            for out in outs:
+                assert isinstance(out, IROperand)  # help mypy
+                stack.push(out)
 
         # Step 5: Emit the EVM instruction(s)
         if opcode in _ONE_TO_ONE_INSTRUCTIONS:
@@ -590,10 +600,19 @@ class VenomCompiler:
             raise Exception(f"Unknown opcode: {opcode}")
 
         # Step 6: Emit instructions output operands (if any)
-        if inst.output is not None:
-            if inst.output not in next_liveness:
-                self.pop(assembly, stack)
-            else:
+        outs = inst.get_outputs()
+        if outs:
+            # For multi-output instructions, keep outputs on stack even if
+            # not immediately live; subsequent instructions may consume them.
+            if len(outs) == 1:
+                # Pop the single output if it is dead at the next point
+                out = outs[0]
+                if out not in next_liveness:
+                    self.pop(assembly, stack)
+            # Heuristic scheduling based on the next expected live var
+            # Use the top-most surviving output to schedule
+            alive_outs = [o for o in outs if o in next_liveness]
+            if alive_outs:
                 self._optimistic_swap(assembly, inst, next_liveness, stack)
 
         return apply_line_numbers(inst, assembly)
@@ -610,7 +629,10 @@ class VenomCompiler:
 
         next_scheduled = next_liveness.last()
         cost = 0
-        if not self.dfg.are_equivalent(inst.output, next_scheduled):
+        # Use last output (top-of-stack) when available, else the single output
+        outputs = inst.get_outputs()
+        current_top_out = outputs[-1] if outputs else inst.output
+        if not self.dfg.are_equivalent(current_top_out, next_scheduled):
             cost = self.swap_op(assembly, stack, next_scheduled)
 
         if DEBUG_SHOW_COST and cost != 0:
