@@ -269,7 +269,7 @@ class SCCP(IRPass):
         return finalize(res)
 
     def _add_ssa_work_items(self, inst: IRInstruction):
-        outputs = inst.get_outputs() if hasattr(inst, "get_outputs") else [inst.output]
+        outputs = inst.get_outputs()
         for out in outputs:
             if out is None:
                 continue
