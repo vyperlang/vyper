@@ -548,27 +548,26 @@ class IRBasicBlock:
         return ret
 
     def append_invoke_instruction(
-        self, args: list[IROperand | int], returns: bool | int
-    ) -> Optional[IRVariable] | list[IRVariable]:
+        self, args: list[IROperand | int], returns: int = 0
+    ) -> list[IRVariable]:
         """
-        Append an invoke to the basic block
+        Append an invoke to the basic block. Always returns a list of output variables.
         """
         assert not self.is_terminated, self
+
         # Determine outputs
-        single_output: Optional[IRVariable] = None
+        outputs: list[IRVariable] = [self.parent.get_next_variable() for _ in range(returns)]
+        single_output = None
         extra_outputs: list[IRVariable] = []
-        if isinstance(returns, bool):
-            if returns:
-                single_output = self.parent.get_next_variable()
+
+        if returns == 1:
+            # Single output goes to primary output field
+            single_output = outputs[0]
+            extra_outputs = []
         else:
-            k = int(returns)
-            if k < 0:
-                k = 0
-            if k == 1:
-                single_output = self.parent.get_next_variable()
-            elif k > 1:
-                # model multi-outputs via extra outputs; leave primary output None
-                extra_outputs = [self.parent.get_next_variable() for _ in range(k)]
+            # Multiple outputs go to extra_outputs field
+            single_output = None
+            extra_outputs = outputs    
 
         # Wrap raw integers in IRLiterals
         inst_args = [_ir_operand_from_value(arg) for arg in args]
@@ -582,9 +581,7 @@ class IRBasicBlock:
         inst.ast_source = self.parent.ast_source
         inst.error_msg = self.parent.error_msg
         self.instructions.append(inst)
-        if extra_outputs:
-            return extra_outputs
-        return single_output
+        return outputs
 
     def insert_instruction(self, instruction: IRInstruction, index: Optional[int] = None) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"

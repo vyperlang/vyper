@@ -191,21 +191,6 @@ def _pass_via_stack(func_t) -> dict[str, bool]:
 
     stack_items = 0
     returns_word = _returns_word(func_t)
-    returns_count = (
-        _returns_stack_count(func_t) if ENABLE_NEW_CALL_CONV else (1 if returns_word else 0)
-    )
-    returns_count = (
-        _returns_stack_count(func_t) if ENABLE_NEW_CALL_CONV else (1 if returns_word else 0)
-    )
-    returns_count = (
-        _returns_stack_count(func_t) if ENABLE_NEW_CALL_CONV else (1 if returns_word else 0)
-    )
-    returns_count = (
-        _returns_stack_count(func_t) if ENABLE_NEW_CALL_CONV else (1 if returns_word else 0)
-    )
-    returns_count = (
-        _returns_stack_count(func_t) if ENABLE_NEW_CALL_CONV else (1 if returns_word else 0)
-    )
     if returns_word:
         stack_items += 1
 
@@ -273,13 +258,8 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 
         if returns_count > 0:
             outs = bb.append_invoke_instruction(stack_args, returns=returns_count)  # type: ignore
-            # Normalize to list of IRVariable
-            if isinstance(outs, list):
-                out_vars = outs  # type: ignore[assignment]
-            else:
-                out_vars = [outs]  # type: ignore[list-item]
             assert isinstance(return_buf, IROperand)
-            for i, outv in enumerate(out_vars):
+            for i, outv in enumerate(outs):
                 if i == 0:
                     dst = return_buf
                 else:
@@ -291,7 +271,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
                 bb.append_instruction("mstore", outv, dst)
             return return_buf
 
-    bb.append_invoke_instruction(stack_args, returns=False)  # type: ignore
+    bb.append_invoke_instruction(stack_args, returns=0)  # type: ignore
 
     return return_buf
 

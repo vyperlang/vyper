@@ -30,10 +30,7 @@ def _ctx_with_invoke_two_returns(a: int, b: int) -> IRContext:
     # Two-output invoke of @f
     outs = main_bb.append_invoke_instruction([IRLabel("f")], returns=2)
     # sink the results
-    if isinstance(outs, list):  # returns=2
-        main_bb.append_instruction("sink", *outs)
-    else:
-        main_bb.append_instruction("sink", outs)
+    main_bb.append_instruction("sink", *outs)
 
     return ctx
 
