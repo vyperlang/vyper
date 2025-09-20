@@ -48,6 +48,7 @@ class Mem2Var(IRPass):
         var = IRVariable(var_name)
         assert isinstance(size, IRLiteral)
         mem_loc = IRAbstractMemLoc(size.value, alloca_inst)
+        assert alloca_inst.output is not None
         uses = dfg.get_uses(alloca_inst.output)
 
         self.updater.mk_assign(alloca_inst, mem_loc)
@@ -63,7 +64,6 @@ class Mem2Var(IRPass):
         if not all2(inst.opcode in ["mstore", "mload", "return"] for inst in uses):
             return
 
-        assert alloca_inst.output is not None
 
         for inst in uses.copy():
             if inst.opcode == "mstore":
@@ -86,17 +86,23 @@ class Mem2Var(IRPass):
         Process alloca allocated variable. If it is only used by mstore/mload
         instructions, it is promoted to a stack variable. Otherwise, it is left as is.
         """
-        uses = dfg.get_uses(var)
-        if not all2(inst.opcode in ["mstore", "mload"] for inst in uses):
-            return
-
         _ofst, size, alloca_id = palloca_inst.operands
-        var_name = self._mk_varname(var.value, alloca_id.value)
-        var = IRVariable(var_name)
         assert isinstance(size, IRLiteral)
         mem_loc = IRAbstractMemLoc(size.value, palloca_inst)
+        uses = dfg.get_uses(palloca_inst.output)
 
         self.updater.mk_assign(palloca_inst, mem_loc)
+        if any(inst.opcode == "add" for inst in uses):
+            for inst in uses.copy():
+                if inst.opcode == "add":
+                    #assert size.value > 32, (inst, inst.parent, alloca_inst, size)
+                    other = [op for op in inst.operands if op != palloca_inst.output]
+                    assert len(other) == 1
+                    self.updater.update(inst, "gep", [mem_loc, other[0]])
+            return
+
+        if not all2(inst.opcode in ["mstore", "mload"] for inst in uses):
+            return
 
         # some value given to us by the calling convention
         fn = self.function
@@ -116,6 +122,12 @@ class Mem2Var(IRPass):
 
         for inst in uses.copy():
             if inst.opcode == "mstore":
-                self.updater.mk_assign(inst, inst.operands[0], new_output=var)
+                if size.value <= 32:
+                    self.updater.mk_assign(inst, inst.operands[0], new_output=var)
+                else:
+                    self.updater.update_operands(inst, {palloca_inst.output: mem_loc})
             elif inst.opcode == "mload":
-                self.updater.mk_assign(inst, var)
+                if size.value <= 32:
+                    self.updater.mk_assign(inst, var)
+                else:
+                    self.updater.update_operands(inst, {palloca_inst.output: mem_loc})
