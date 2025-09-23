@@ -38,6 +38,7 @@ class FunctionInlinerPass(IRGlobalPass):
         self.optimize = optimize
 
     def run_pass(self):
+        return
         entry = self.ctx.entry_function
         self.inline_count = 0
 

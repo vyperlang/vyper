@@ -16,6 +16,7 @@ from vyper.venom.basicblock import (
     IRLiteral,
     IROperand,
     IRVariable,
+    IRAbstractMemLoc,
 )
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction, IRParameter
@@ -699,10 +700,13 @@ def _convert_ir_bb(fn, ir, symbols):
             return _alloca_table[alloca._id]
 
         elif ir.value.startswith("$palloca"):
+            assert isinstance(fn, IRFunction)
             alloca = ir.passthrough_metadata["alloca"]
             if alloca._id not in _alloca_table:
+                mem_loc_op = IRAbstractMemLoc(alloca.size, None)
+                fn.allocated_args.append(IRAbstractMemLoc(alloca.size, None))
                 bb = fn.get_basic_block()
-                ptr = bb.append_instruction("palloca", alloca.offset, alloca.size, alloca._id)
+                ptr = bb.append_instruction("palloca", mem_loc_op)
                 bb.instructions[-1].annotation = f"{alloca.name} (memory)"
                 if ENABLE_NEW_CALL_CONV and _pass_via_stack(_current_func_t)[alloca.name]:
                     param = fn.get_param_by_id(alloca._id)

@@ -86,9 +86,8 @@ class Mem2Var(IRPass):
         Process alloca allocated variable. If it is only used by mstore/mload
         instructions, it is promoted to a stack variable. Otherwise, it is left as is.
         """
-        _ofst, size, alloca_id = palloca_inst.operands
-        assert isinstance(size, IRLiteral)
-        mem_loc = IRAbstractMemLoc(size.value, palloca_inst)
+        mem_loc = palloca_inst.operands[0]
+        assert palloca_inst.output is not None
         uses = dfg.get_uses(palloca_inst.output)
 
         self.updater.mk_assign(palloca_inst, mem_loc)
