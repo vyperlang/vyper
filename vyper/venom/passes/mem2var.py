@@ -86,7 +86,7 @@ class Mem2Var(IRPass):
         Process alloca allocated variable. If it is only used by mstore/mload
         instructions, it is promoted to a stack variable. Otherwise, it is left as is.
         """
-        mem_loc = palloca_inst.operands[0]
+        mem_loc, alloca_id = palloca_inst.operands
         assert palloca_inst.output is not None
         uses = dfg.get_uses(palloca_inst.output)
 
@@ -118,15 +118,20 @@ class Mem2Var(IRPass):
         else:
             # otherwise, it comes from memory, convert to an mload.
             self.updater.update(palloca_inst, "mload", [mem_loc], new_output=var)
+        
+        assert isinstance(mem_loc, IRAbstractMemLoc)
+        size = mem_loc.size
 
         for inst in uses.copy():
             if inst.opcode == "mstore":
-                if size.value <= 32:
+                if size <= 32:
                     self.updater.mk_assign(inst, inst.operands[0], new_output=var)
                 else:
                     self.updater.update_operands(inst, {palloca_inst.output: mem_loc})
             elif inst.opcode == "mload":
-                if size.value <= 32:
+                if size <= 32:
                     self.updater.mk_assign(inst, var)
                 else:
                     self.updater.update_operands(inst, {palloca_inst.output: mem_loc})
+    def _process_calloca(self, inst: IRInstruction):
+        pass
