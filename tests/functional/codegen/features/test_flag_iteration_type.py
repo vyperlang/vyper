@@ -118,6 +118,22 @@ def f() -> uint256:
     assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
+def test_flag_instance_member_access(assert_compile_failed, get_contract):
+    from vyper.exceptions import UnknownAttribute
+
+    code = """
+flag P:
+    A
+    B
+
+@pure
+@external
+def f(p: P) -> uint256:
+    return convert(p.A, uint256)
+"""
+    assert_compile_failed(lambda: get_contract(code), UnknownAttribute)
+
+
 def test_nested_flag_type_iteration(get_contract):
     code = """
 flag A:
