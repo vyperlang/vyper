@@ -82,4 +82,4 @@ def test_labels_as_variables():
 
     run_passes_on(ctx, OptimizationLevel.default())
     asm = generate_assembly_experimental(ctx)
-    generate_bytecode(asm, compiler_metadata=None)
+    generate_bytecode(asm)
