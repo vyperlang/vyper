@@ -212,6 +212,8 @@ class IRFunction:
 
     def __repr__(self) -> str:
         ret = f"function {self.name} {{\n"
+        for _id, loc in self.allocated_args.items():
+            ret += f"  {_id} -> {loc}\n"
         for bb in self.get_basic_blocks():
             bb_str = textwrap.indent(str(bb), "  ")
             ret += f"{bb_str}\n"

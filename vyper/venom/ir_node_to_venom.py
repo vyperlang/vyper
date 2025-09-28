@@ -704,7 +704,7 @@ def _convert_ir_bb(fn, ir, symbols):
             alloca = ir.passthrough_metadata["alloca"]
             if alloca._id not in _alloca_table:
                 mem_loc_op = IRAbstractMemLoc(alloca.size, None)
-                fn.allocated_args[alloca._id] = IRAbstractMemLoc(alloca.size, None)
+                fn.allocated_args[alloca._id] = mem_loc_op
                 bb = fn.get_basic_block()
                 ptr = bb.append_instruction("palloca", mem_loc_op, alloca._id)
                 bb.instructions[-1].annotation = f"{alloca.name} (memory)"
