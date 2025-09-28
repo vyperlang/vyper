@@ -255,7 +255,7 @@ def _opt_gas():
 
 
 def _opt_none():
-    return _settings.optimize == OptimizationLevel.NONE
+    return _settings.optimize in (OptimizationLevel.NONE, OptimizationLevel.O0)
 
 
 def _is_debug_mode():
