@@ -4,7 +4,7 @@
 from typing import Optional
 
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
 from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import AssemblyInstruction
@@ -46,90 +46,105 @@ def generate_assembly_experimental(
     venom_ctx: IRContext, optimize: OptimizationLevel = DEFAULT_OPT_LEVEL
 ) -> list[AssemblyInstruction]:
     compiler = VenomCompiler(venom_ctx)
-    return compiler.generate_evm_assembly(optimize == OptimizationLevel.NONE)
+    return compiler.generate_evm_assembly(optimize in (OptimizationLevel.NONE, OptimizationLevel.O0))
 
 
-def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache) -> None:
-    # Run passes on Venom IR
-    # TODO: Add support for optimization levels
+def _run_passes(fn: IRFunction, settings: Settings, ac: IRAnalysesCache) -> None:
+    flags = settings.venom_flags or VenomOptimizationFlags()
+    optimize = settings.optimize
 
+    # Essential passes that must always run
     FloatAllocas(ac, fn).run_pass()
-
     SimplifyCFGPass(ac, fn).run_pass()
-
     MakeSSA(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
 
-    # run constant folding before mem2var to reduce some pointer arithmetic
-    AlgebraicOptimizationPass(ac, fn).run_pass()
-    SCCP(ac, fn, remove_allocas=False).run_pass()
-    SimplifyCFGPass(ac, fn).run_pass()
+    if flags.enable_algebraic_optimization:
+        AlgebraicOptimizationPass(ac, fn).run_pass()
+    if flags.enable_sccp:
+        SCCP(ac, fn, remove_allocas=False).run_pass()
+    if flags.enable_simplify_cfg:
+        SimplifyCFGPass(ac, fn).run_pass()
 
+    # Essential passes
     AssignElimination(ac, fn).run_pass()
-    Mem2Var(ac, fn).run_pass()
+    if flags.enable_mem2var:
+        Mem2Var(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
-    SCCP(ac, fn).run_pass()
+    if flags.enable_sccp:
+        SCCP(ac, fn).run_pass()
 
-    SimplifyCFGPass(ac, fn).run_pass()
+    if flags.enable_simplify_cfg:
+        SimplifyCFGPass(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
-    AlgebraicOptimizationPass(ac, fn).run_pass()
+    if flags.enable_algebraic_optimization:
+        AlgebraicOptimizationPass(ac, fn).run_pass()
 
-    LoadElimination(ac, fn).run_pass()
+    if flags.enable_load_elimination:
+        LoadElimination(ac, fn).run_pass()
 
-    SCCP(ac, fn).run_pass()
+    if flags.enable_sccp:
+        SCCP(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
     RevertToAssert(ac, fn).run_pass()
 
-    SimplifyCFGPass(ac, fn).run_pass()
+    SimplifyCFGPass(ac, fn).run_pass()  # Essential
     MemMergePass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
+    if flags.enable_remove_unused_variables:
+        RemoveUnusedVariablesPass(ac, fn).run_pass()
 
-    DeadStoreElimination(ac, fn).run_pass(addr_space=MEMORY)
-    DeadStoreElimination(ac, fn).run_pass(addr_space=STORAGE)
-    DeadStoreElimination(ac, fn).run_pass(addr_space=TRANSIENT)
+    if flags.enable_dead_store_elimination:
+        DeadStoreElimination(ac, fn).run_pass(addr_space=MEMORY)
+        DeadStoreElimination(ac, fn).run_pass(addr_space=STORAGE)
+        DeadStoreElimination(ac, fn).run_pass(addr_space=TRANSIENT)
     LowerDloadPass(ac, fn).run_pass()
 
-    BranchOptimizationPass(ac, fn).run_pass()
+    if flags.enable_branch_optimization:
+        BranchOptimizationPass(ac, fn).run_pass()
 
-    AlgebraicOptimizationPass(ac, fn).run_pass()
+    if flags.enable_algebraic_optimization:
+        AlgebraicOptimizationPass(ac, fn).run_pass()
 
-    # This improves the performance of cse
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
+    if flags.enable_remove_unused_variables:
+        RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     PhiEliminationPass(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
-    CSE(ac, fn).run_pass()
+    if flags.enable_cse:
+        CSE(ac, fn).run_pass()
 
     AssignElimination(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
+    if flags.enable_remove_unused_variables:
+        RemoveUnusedVariablesPass(ac, fn).run_pass()
     SingleUseExpansion(ac, fn).run_pass()
 
-    if optimize == OptimizationLevel.CODESIZE:
+    if optimize in (OptimizationLevel.CODESIZE, OptimizationLevel.Os, OptimizationLevel.Oz):
         ReduceLiteralsCodesize(ac, fn).run_pass()
 
     DFTPass(ac, fn).run_pass()
-
     CFGNormalization(ac, fn).run_pass()
 
 
-def _run_global_passes(ctx: IRContext, optimize: OptimizationLevel, ir_analyses: dict) -> None:
-    FunctionInlinerPass(ir_analyses, ctx, optimize).run_pass()
+def _run_global_passes(ctx: IRContext, settings: Settings, ir_analyses: dict) -> None:
+    flags = settings.venom_flags or VenomOptimizationFlags()
+    if flags.enable_inlining:
+        FunctionInlinerPass(ir_analyses, ctx, settings).run_pass()
 
 
-def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
+def run_passes_on(ctx: IRContext, settings: Settings) -> None:
     ir_analyses = {}
     for fn in ctx.functions.values():
         ir_analyses[fn] = IRAnalysesCache(fn)
 
-    _run_global_passes(ctx, optimize, ir_analyses)
+    _run_global_passes(ctx, settings, ir_analyses)
 
     ir_analyses = {}
     for fn in ctx.functions.values():
         ir_analyses[fn] = IRAnalysesCache(fn)
 
     for fn in ctx.functions.values():
-        _run_passes(fn, optimize, ir_analyses[fn])
+        _run_passes(fn, settings, ir_analyses[fn])
 
 
 def generate_venom(
@@ -151,8 +166,7 @@ def generate_venom(
     for constname, value in constants.items():
         ctx.add_constant(constname, value)
 
-    optimize = settings.optimize
-    assert optimize is not None  # help mypy
-    run_passes_on(ctx, optimize)
+    assert settings.optimize is not None  # help mypy
+    run_passes_on(ctx, settings)
 
     return ctx
