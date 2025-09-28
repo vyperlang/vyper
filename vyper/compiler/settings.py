@@ -52,6 +52,70 @@ DEFAULT_ENABLE_DECIMALS = False
 
 
 @dataclass
+class VenomOptimizationFlags:
+    enable_inlining: bool = True
+    enable_cse: bool = True
+    enable_sccp: bool = True
+    enable_load_elimination: bool = True
+    enable_dead_store_elimination: bool = True
+    enable_algebraic_optimization: bool = True
+    enable_branch_optimization: bool = True
+    enable_mem2var: bool = True
+    enable_simplify_cfg: bool = True
+    enable_remove_unused_variables: bool = True
+    inline_threshold: int = 15
+
+    @classmethod
+    def from_optimization_level(cls, level: OptimizationLevel):
+        if level in (OptimizationLevel.NONE, OptimizationLevel.O0):
+            return cls(
+                enable_inlining=False,
+                enable_cse=False,
+                enable_sccp=False,
+                enable_load_elimination=False,
+                enable_dead_store_elimination=False,
+                enable_algebraic_optimization=False,
+                enable_branch_optimization=False,
+                enable_mem2var=False,
+                enable_simplify_cfg=False,
+                enable_remove_unused_variables=False,
+            )
+        elif level == OptimizationLevel.O1:
+            return cls(
+                enable_inlining=False,
+                enable_cse=False,
+                enable_sccp=True,
+                enable_load_elimination=False,
+                enable_dead_store_elimination=True,
+                enable_algebraic_optimization=True,
+                enable_branch_optimization=False,
+                enable_mem2var=False,
+                enable_simplify_cfg=True,
+                enable_remove_unused_variables=True,
+            )
+        elif level in (OptimizationLevel.GAS, OptimizationLevel.O2):
+            return cls()
+        elif level == OptimizationLevel.O3:
+            return cls(inline_threshold=30)  # More aggressive inlining
+        elif level in (OptimizationLevel.CODESIZE, OptimizationLevel.Os):
+            return cls(inline_threshold=5)  # Less aggressive inlining for size
+        elif level == OptimizationLevel.Oz:
+            return cls(
+                enable_inlining=False, # temp, because inlining will probably decrease size in many cases
+                inline_threshold=0,
+            )
+        else:
+            return cls()
+
+    def as_dict(self):
+        return dataclasses.asdict(self)
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(**data)
+
+
+@dataclass
 class Settings:
     compiler_version: Optional[str] = None
     optimize: Optional[OptimizationLevel] = None
@@ -60,6 +124,7 @@ class Settings:
     debug: Optional[bool] = None
     enable_decimals: Optional[bool] = None
     nonreentrancy_by_default: Optional[bool] = None
+    venom_flags: Optional[VenomOptimizationFlags] = None
 
     def __post_init__(self):
         # sanity check inputs
@@ -73,6 +138,8 @@ class Settings:
             assert isinstance(self.enable_decimals, bool)
         if self.nonreentrancy_by_default is not None:
             assert isinstance(self.nonreentrancy_by_default, bool)
+        if self.venom_flags is not None:
+            assert isinstance(self.venom_flags, VenomOptimizationFlags)
 
     # CMC 2024-04-10 consider hiding the `enable_decimals` member altogether
     def get_enable_decimals(self) -> bool:
