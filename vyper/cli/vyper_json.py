@@ -9,7 +9,7 @@ from typing import Any, Callable, Hashable, Optional
 
 import vyper
 from vyper.compiler.input_bundle import FileInput, JSONInput, JSONInputBundle, _normpath
-from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import JSONError
 from vyper.utils import OrderedSet, keccak256
