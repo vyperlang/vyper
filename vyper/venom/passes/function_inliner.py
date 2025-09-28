@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from vyper.compiler.settings import OptimizationLevel
+from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, FCGAnalysis, IRAnalysesCache
@@ -26,16 +26,18 @@ class FunctionInlinerPass(IRGlobalPass):
 
     inline_count: int
     fcg: FCGAnalysis
-    optimize: OptimizationLevel
+    settings: Settings
+    flags: VenomOptimizationFlags
 
     def __init__(
         self,
         analyses_caches: dict[IRFunction, IRAnalysesCache],
         ctx: IRContext,
-        optimize: OptimizationLevel,
+        settings: Settings,
     ):
         super().__init__(analyses_caches, ctx)
-        self.optimize = optimize
+        self.settings = settings
+        self.flags = settings.venom_flags or VenomOptimizationFlags()
 
     def run_pass(self):
         entry = self.ctx.entry_function
@@ -71,16 +73,9 @@ class FunctionInlinerPass(IRGlobalPass):
             if call_count == 1:
                 return func
 
-            # Decide whether to inline based on the optimization level.
-            if self.optimize == OptimizationLevel.CODESIZE:
-                continue
-            elif self.optimize == OptimizationLevel.GAS:
-                if func.code_size_cost <= 15:
-                    return func
-            elif self.optimize == OptimizationLevel.NONE:
-                continue
-            else:  # pragma: nocover
-                raise CompilerPanic(f"Unsupported inlining optimization level: {self.optimize}")
+            # Use the inline threshold from flags
+            if func.code_size_cost <= self.flags.inline_threshold:
+                return func
 
         return None
 
