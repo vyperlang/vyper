@@ -304,6 +304,10 @@ def get_settings(input_dict: dict) -> Settings:
     evm_version = get_evm_version(input_dict)
 
     optimize = input_dict["settings"].get("optimize")
+    opt_level = input_dict["settings"].get("optLevel")
+
+    if optimize is not None and opt_level is not None:
+        raise JSONError("both 'optimize' and 'optLevel' cannot be set")
 
     experimental_codegen = input_dict["settings"].get("experimentalCodegen")
     if experimental_codegen is None:
@@ -311,7 +315,9 @@ def get_settings(input_dict: dict) -> Settings:
     elif input_dict["settings"].get("venomExperimental") is not None:
         raise JSONError("both experimentalCodegen and venomExperimental cannot be set")
 
-    if isinstance(optimize, bool):
+    if opt_level is not None:
+        optimize = OptimizationLevel.from_string(opt_level)
+    elif isinstance(optimize, bool):
         # bool optimization level for backwards compatibility
         vyper_warn(
             Deprecation(
@@ -329,12 +335,47 @@ def get_settings(input_dict: dict) -> Settings:
     # TODO: maybe change these to camelCase for consistency
     enable_decimals = input_dict["settings"].get("enable_decimals", None)
 
+    # Handle Venom optimization flags
+    venom_flags = None
+    if optimize is not None:
+        venom_flags = VenomOptimizationFlags.from_optimization_level(optimize)
+
+    # Check for Venom-specific settings
+    venom_settings = input_dict["settings"].get("venom", {})
+    if venom_settings:
+        if venom_flags is None:
+            venom_flags = VenomOptimizationFlags()
+
+        if "enableInlining" in venom_settings:
+            venom_flags.enable_inlining = venom_settings["enableInlining"]
+        if "enableCSE" in venom_settings:
+            venom_flags.enable_cse = venom_settings["enableCSE"]
+        if "enableSCCP" in venom_settings:
+            venom_flags.enable_sccp = venom_settings["enableSCCP"]
+        if "enableLoadElimination" in venom_settings:
+            venom_flags.enable_load_elimination = venom_settings["enableLoadElimination"]
+        if "enableDeadStoreElimination" in venom_settings:
+            venom_flags.enable_dead_store_elimination = venom_settings["enableDeadStoreElimination"]
+        if "enableAlgebraicOptimization" in venom_settings:
+            venom_flags.enable_algebraic_optimization = venom_settings["enableAlgebraicOptimization"]
+        if "enableBranchOptimization" in venom_settings:
+            venom_flags.enable_branch_optimization = venom_settings["enableBranchOptimization"]
+        if "enableMem2Var" in venom_settings:
+            venom_flags.enable_mem2var = venom_settings["enableMem2Var"]
+        if "enableSimplifyCFG" in venom_settings:
+            venom_flags.enable_simplify_cfg = venom_settings["enableSimplifyCFG"]
+        if "enableRemoveUnusedVariables" in venom_settings:
+            venom_flags.enable_remove_unused_variables = venom_settings["enableRemoveUnusedVariables"]
+        if "inlineThreshold" in venom_settings:
+            venom_flags.inline_threshold = venom_settings["inlineThreshold"]
+
     return Settings(
         evm_version=evm_version,
         optimize=optimize,
         experimental_codegen=experimental_codegen,
         debug=debug,
         enable_decimals=enable_decimals,
+        venom_flags=venom_flags,
     )
 
 
