@@ -155,35 +155,21 @@ def _parse_args(argv):
         choices=["O0", "O1", "O2", "O3", "Os", "Oz"],
     )
     parser.add_argument(
-        "--no-inlining",
-        help="Disable function inlining optimization",
-        action="store_true",
+        "--no-inlining", help="Disable function inlining optimization", action="store_true"
     )
     parser.add_argument(
-        "--no-cse",
-        help="Disable common subexpression elimination",
-        action="store_true",
+        "--no-cse", help="Disable common subexpression elimination", action="store_true"
     )
     parser.add_argument(
-        "--no-sccp",
-        help="Disable sparse conditional constant propagation",
-        action="store_true",
+        "--no-sccp", help="Disable sparse conditional constant propagation", action="store_true"
     )
     parser.add_argument(
-        "--no-load-elimination",
-        help="Disable load elimination optimization",
-        action="store_true",
+        "--no-load-elimination", help="Disable load elimination optimization", action="store_true"
     )
     parser.add_argument(
-        "--no-dead-store-elimination",
-        help="Disable dead store elimination",
-        action="store_true",
+        "--no-dead-store-elimination", help="Disable dead store elimination", action="store_true"
     )
-    parser.add_argument(
-        "--inline-threshold",
-        help="Function inlining cost threshold",
-        type=int,
-    )
+    parser.add_argument("--inline-threshold", help="Function inlining cost threshold", type=int)
     parser.add_argument("--debug", help="Compile in debug mode", action="store_true")
     parser.add_argument(
         "--no-bytecode-metadata", help="Do not add metadata to bytecode", action="store_true"

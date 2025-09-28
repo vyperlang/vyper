@@ -57,7 +57,7 @@ class OptimizationLevel(Enum):
         return cls.GAS
 
     def __str__(self):
-        return self._name_ if self._name_.startswith('O') else self._name_.lower()
+        return self._name_ if self._name_.startswith("O") else self._name_.lower()
 
 
 DEFAULT_ENABLE_DECIMALS = False
@@ -113,7 +113,7 @@ class VenomOptimizationFlags:
             return cls(inline_threshold=5)  # Less aggressive inlining for size
         elif level == OptimizationLevel.Oz:
             return cls(
-                enable_inlining=False, # temp, because inlining will probably decrease size in many cases
+                enable_inlining=False,  # temp, because inlining will probably decrease size in many cases
                 inline_threshold=0,
             )
         else:

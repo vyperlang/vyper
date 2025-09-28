@@ -357,7 +357,9 @@ def get_settings(input_dict: dict) -> Settings:
         if "enableDeadStoreElimination" in venom_settings:
             venom_flags.enable_dead_store_elimination = venom_settings["enableDeadStoreElimination"]
         if "enableAlgebraicOptimization" in venom_settings:
-            venom_flags.enable_algebraic_optimization = venom_settings["enableAlgebraicOptimization"]
+            venom_flags.enable_algebraic_optimization = venom_settings[
+                "enableAlgebraicOptimization"
+            ]
         if "enableBranchOptimization" in venom_settings:
             venom_flags.enable_branch_optimization = venom_settings["enableBranchOptimization"]
         if "enableMem2Var" in venom_settings:
@@ -365,7 +367,9 @@ def get_settings(input_dict: dict) -> Settings:
         if "enableSimplifyCFG" in venom_settings:
             venom_flags.enable_simplify_cfg = venom_settings["enableSimplifyCFG"]
         if "enableRemoveUnusedVariables" in venom_settings:
-            venom_flags.enable_remove_unused_variables = venom_settings["enableRemoveUnusedVariables"]
+            venom_flags.enable_remove_unused_variables = venom_settings[
+                "enableRemoveUnusedVariables"
+            ]
         if "inlineThreshold" in venom_settings:
             venom_flags.inline_threshold = venom_settings["inlineThreshold"]
 
