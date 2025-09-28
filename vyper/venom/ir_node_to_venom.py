@@ -727,7 +727,7 @@ def _convert_ir_bb(fn, ir, symbols):
                 else:
                     # if we use alloca, mstores might get removed. convert
                     # to calloca until memory analysis is more sound.
-                    ptr = bb.append_instruction("calloca", alloca.offset, alloca.size, alloca._id)
+                    ptr = bb.append_instruction("calloca", alloca.offset, alloca.size, alloca._id, IRLabel(alloca._callsite))
 
                 _alloca_table[alloca._id] = ptr
             ret = _alloca_table[alloca._id]

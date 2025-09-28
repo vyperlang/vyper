@@ -26,6 +26,8 @@ class Mem2Var(IRPass):
                 self._process_alloca_var(dfg, inst, var)
             elif inst.opcode == "palloca":
                 self._process_palloca_var(dfg, inst, var)
+            elif inst.opcode == "calloca":
+                self._process_calloca(inst)
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
@@ -133,5 +135,12 @@ class Mem2Var(IRPass):
                     self.updater.mk_assign(inst, var)
                 else:
                     self.updater.update_operands(inst, {palloca_inst.output: mem_loc})
+
     def _process_calloca(self, inst: IRInstruction):
-        pass
+        assert inst.opcode == "calloca"
+        assert inst.output is not None
+        assert len(inst.operands) == 1
+        memloc = inst.operands[0]
+
+        self.updater.mk_assign(inst, memloc)
+

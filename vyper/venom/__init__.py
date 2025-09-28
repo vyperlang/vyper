@@ -37,6 +37,7 @@ from vyper.venom.passes import (
     SimplifyCFGPass,
     SingleUseExpansion,
     ConcretizeMemLocPass,
+    FixCalloca,
 )
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.venom_to_assembly import VenomCompiler
@@ -144,6 +145,7 @@ def _run_passes(
 
 
 def _run_global_passes(ctx: IRContext, optimize: OptimizationLevel, ir_analyses: dict) -> None:
+    FixCalloca(ir_analyses, ctx).run_pass()
     FunctionInlinerPass(ir_analyses, ctx, optimize).run_pass()
 
 
@@ -160,6 +162,24 @@ def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
 
     for fn in ctx.functions.values():
         _run_passes(fn, optimize, ir_analyses[fn], ctx.mem_allocator)
+
+
+def _fix_calloca(ctx: IRContext, fn: IRFunction):
+    for bb in fn.get_basic_blocks():
+        for inst in bb.instructions:
+            if inst.opcode != "calloca":
+                continue
+            assert inst.output is not None
+            assert len(inst.operands) == 4
+            _offset, size, _id, callsite = inst.operands
+            assert isinstance(callsite, IRLabel)
+            assert isinstance(_id, IRLiteral)
+            
+            print(ctx)
+            called = ctx.get_function(callsite)
+            memloc = called.allocated_args[_id.value]
+
+            inst.operands = [memloc]
 
 def generate_venom(
     ir: IRnode,

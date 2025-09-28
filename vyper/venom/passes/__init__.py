@@ -20,3 +20,4 @@ from .sccp import SCCP
 from .simplify_cfg import SimplifyCFGPass
 from .single_use_expansion import SingleUseExpansion
 from .concretize_mem_loc import ConcretizeMemLocPass
+from .fixcalloca import FixCalloca
