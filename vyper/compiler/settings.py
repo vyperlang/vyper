@@ -28,16 +28,28 @@ class OptimizationLevel(Enum):
     NONE = 1
     GAS = 2
     CODESIZE = 3
+    O0 = 4  # No optimizations
+    O1 = 5  # Basic optimizations
+    O2 = 6  # Standard "stable" optimizations (default)
+    O3 = 7  # Aggressive optimizations -- experimental posibly unsafe
+    Os = 8  # Optimize for size
+    Oz = 9  # Extreme size optimization -- disregard performance completely
 
     @classmethod
     def from_string(cls, val):
         match val:
-            case "none":
+            case "none" | "O0":
                 return cls.NONE
-            case "gas":
+            case "gas" | "O2":
                 return cls.GAS
-            case "codesize":
+            case "codesize" | "Os":
                 return cls.CODESIZE
+            case "O1":
+                return cls.O1
+            case "O3":
+                return cls.O3
+            case "Oz":
+                return cls.Oz
         raise ValueError(f"unrecognized optimization level: {val}")
 
     @classmethod
@@ -45,7 +57,7 @@ class OptimizationLevel(Enum):
         return cls.GAS
 
     def __str__(self):
-        return self._name_.lower()
+        return self._name_ if self._name_.startswith('O') else self._name_.lower()
 
 
 DEFAULT_ENABLE_DECIMALS = False
@@ -170,6 +182,8 @@ class Settings:
         ret = {k: v for (k, v) in ret.items() if v is not None}
         if "optimize" in ret:
             ret["optimize"] = str(ret["optimize"])
+        if "venom_flags" in ret and ret["venom_flags"] is not None:
+            ret["venom_flags"] = ret["venom_flags"]
         return ret
 
     @classmethod
@@ -177,11 +191,13 @@ class Settings:
         data = data.copy()
         if "optimize" in data:
             data["optimize"] = OptimizationLevel.from_string(data["optimize"])
+        if "venom_flags" in data and data["venom_flags"] is not None:
+            data["venom_flags"] = VenomOptimizationFlags.from_dict(data["venom_flags"])
         return cls(**data)
 
 
 def should_run_legacy_optimizer(settings: Settings):
-    if settings.optimize == OptimizationLevel.NONE:
+    if settings.optimize in (OptimizationLevel.NONE, OptimizationLevel.O0):
         return False
     if settings.experimental_codegen and not VENOM_ENABLE_LEGACY_OPTIMIZER:
         return False
@@ -207,8 +223,11 @@ def merge_settings(
     for field in dataclasses.fields(ret):
         if field.name == "compiler_version":
             continue
-        pretty_name = field.name.replace("_", "-")  # e.g. evm_version -> evm-version
-        val = _merge_one(getattr(one, field.name), getattr(two, field.name), pretty_name)
+        if field.name == "venom_flags":
+            val = getattr(one, field.name) or getattr(two, field.name)
+        else:
+            pretty_name = field.name.replace("_", "-")  # e.g. evm_version -> evm-version
+            val = _merge_one(getattr(one, field.name), getattr(two, field.name), pretty_name)
         setattr(ret, field.name, val)
 
     return ret

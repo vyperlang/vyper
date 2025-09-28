@@ -14,7 +14,12 @@ import vyper.evm.opcodes as evm
 from vyper.cli import vyper_json
 from vyper.cli.compile_archive import NotZipInput, compile_from_zip
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
-from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
+from vyper.compiler.settings import (
+    VYPER_TRACEBACK_LIMIT,
+    OptimizationLevel,
+    Settings,
+    VenomOptimizationFlags,
+)
 from vyper.typing import ContractPath, OutputFormats
 from vyper.utils import uniq
 from vyper.warnings import warnings_filter
@@ -144,6 +149,41 @@ def _parse_args(argv):
         help="Optimization flag (defaults to 'gas')",
         choices=["gas", "codesize", "none"],
     )
+    parser.add_argument(
+        "--opt-level",
+        help="Optimization level (O0, O1, O2, O3, Os, Oz)",
+        choices=["O0", "O1", "O2", "O3", "Os", "Oz"],
+    )
+    parser.add_argument(
+        "--no-inlining",
+        help="Disable function inlining optimization",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--no-cse",
+        help="Disable common subexpression elimination",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--no-sccp",
+        help="Disable sparse conditional constant propagation",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--no-load-elimination",
+        help="Disable load elimination optimization",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--no-dead-store-elimination",
+        help="Disable dead store elimination",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--inline-threshold",
+        help="Function inlining cost threshold",
+        type=int,
+    )
     parser.add_argument("--debug", help="Compile in debug mode", action="store_true")
     parser.add_argument(
         "--no-bytecode-metadata", help="Do not add metadata to bytecode", action="store_true"
@@ -222,13 +262,41 @@ def _parse_args(argv):
     if args.no_optimize and args.optimize:
         raise ValueError("Cannot use `--no-optimize` and `--optimize` at the same time!")
 
+    if args.no_optimize and args.opt_level:
+        raise ValueError("Cannot use `--no-optimize` and `--opt-level` at the same time!")
+
+    if args.optimize and args.opt_level:
+        raise ValueError("Cannot use `--optimize` and `--opt-level` at the same time!")
+
     settings = Settings()
 
     # TODO: refactor to something like Settings.from_args()
     if args.no_optimize:
         settings.optimize = OptimizationLevel.NONE
+    elif args.opt_level is not None:
+        settings.optimize = OptimizationLevel.from_string(args.opt_level)
     elif args.optimize is not None:
         settings.optimize = OptimizationLevel.from_string(args.optimize)
+
+    # Handle Venom optimization flags
+    if settings.optimize is not None:
+        settings.venom_flags = VenomOptimizationFlags.from_optimization_level(settings.optimize)
+    else:
+        settings.venom_flags = VenomOptimizationFlags()
+
+    # Apply individual flag overrides
+    if args.no_inlining:
+        settings.venom_flags.enable_inlining = False
+    if args.no_cse:
+        settings.venom_flags.enable_cse = False
+    if args.no_sccp:
+        settings.venom_flags.enable_sccp = False
+    if args.no_load_elimination:
+        settings.venom_flags.enable_load_elimination = False
+    if args.no_dead_store_elimination:
+        settings.venom_flags.enable_dead_store_elimination = False
+    if args.inline_threshold is not None:
+        settings.venom_flags.inline_threshold = args.inline_threshold
 
     if args.evm_version:
         settings.evm_version = args.evm_version
