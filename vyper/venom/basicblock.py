@@ -243,13 +243,27 @@ class IRInstruction:
         opcode: str,
         operands: list[IROperand] | Iterator[IROperand],
         output: Optional[IRVariable] = None,
+        outputs: Optional[list[IRVariable]] = None,
     ):
         assert isinstance(opcode, str), "opcode must be an str"
         assert isinstance(operands, list | Iterator), "operands must be a list"
         self.opcode = opcode
         self.operands = list(operands)  # in case we get an iterator
-        self.output = output
-        self._extra_outputs = []
+
+        if outputs is not None:
+            if len(outputs) == 0:
+                self.output = None
+                self._extra_outputs = []
+            elif len(outputs) == 1:
+                self.output = outputs[0]
+                self._extra_outputs = []
+            else:
+                self.output = None
+                self._extra_outputs = outputs
+        else:
+            self.output = output
+            self._extra_outputs = []
+
         self.annotation = None
         self.ast_source = None
         self.error_msg = None

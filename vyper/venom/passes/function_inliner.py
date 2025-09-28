@@ -291,15 +291,10 @@ class FunctionInlinerPass(IRGlobalPass):
             else:
                 ops.append(op)
 
-        output = None
-        if inst.output:
-            output = IRVariable(f"{prefix}{inst.output.plain_name}")
+        all_outputs = inst.get_outputs()
+        cloned_outputs = [IRVariable(f"{prefix}{o.plain_name}") for o in all_outputs if isinstance(o, IRVariable)]
 
-        clone = IRInstruction(inst.opcode, ops, output)
-        # Handle multi-outputs
-        extra_outs = [out for out in inst.get_outputs()[1:] if isinstance(out, IRVariable)]
-        if extra_outs:
-            clone.set_extra_outputs([IRVariable(f"{prefix}{o.plain_name}") for o in extra_outs])
+        clone = IRInstruction(inst.opcode, ops, outputs=cloned_outputs)
         clone.parent = inst.parent
         clone.annotation = inst.annotation
         clone.ast_source = inst.ast_source
