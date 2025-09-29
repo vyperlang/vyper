@@ -65,58 +65,35 @@ DEFAULT_ENABLE_DECIMALS = False
 
 @dataclass
 class VenomOptimizationFlags:
-    enable_inlining: bool = True
-    enable_cse: bool = True
-    enable_sccp: bool = True
-    enable_load_elimination: bool = True
-    enable_dead_store_elimination: bool = True
-    enable_algebraic_optimization: bool = True
-    enable_branch_optimization: bool = True
-    enable_mem2var: bool = True
-    enable_simplify_cfg: bool = True
-    enable_remove_unused_variables: bool = True
-    inline_threshold: int = 15
+    # The base optimization level
+    level: Optional[OptimizationLevel] = None
 
-    @classmethod
-    def from_optimization_level(cls, level: OptimizationLevel):
-        if level in (OptimizationLevel.NONE, OptimizationLevel.O0):
-            return cls(
-                enable_inlining=False,
-                enable_cse=False,
-                enable_sccp=False,
-                enable_load_elimination=False,
-                enable_dead_store_elimination=False,
-                enable_algebraic_optimization=False,
-                enable_branch_optimization=False,
-                enable_mem2var=False,
-                enable_simplify_cfg=False,
-                enable_remove_unused_variables=False,
-            )
-        elif level == OptimizationLevel.O1:
-            return cls(
-                enable_inlining=False,
-                enable_cse=False,
-                enable_sccp=True,
-                enable_load_elimination=False,
-                enable_dead_store_elimination=True,
-                enable_algebraic_optimization=True,
-                enable_branch_optimization=False,
-                enable_mem2var=False,
-                enable_simplify_cfg=True,
-                enable_remove_unused_variables=True,
-            )
-        elif level in (OptimizationLevel.GAS, OptimizationLevel.O2):
-            return cls()
-        elif level == OptimizationLevel.O3:
-            return cls(inline_threshold=30)  # More aggressive inlining
-        elif level in (OptimizationLevel.CODESIZE, OptimizationLevel.Os):
-            return cls(inline_threshold=5)  # Less aggressive inlining for size
-        elif level == OptimizationLevel.Oz:
-            # temp, because inlining will probably
-            # decrease size in many cases
-            return cls(enable_inlining=False, inline_threshold=0)
-        else:
-            return cls()
+    # Disable flags - default False means optimization is enabled
+    # These are used to override the defaults for the optimization level
+    disable_inlining: bool = False
+    disable_cse: bool = False
+    disable_sccp: bool = False
+    disable_load_elimination: bool = False
+    disable_dead_store_elimination: bool = False
+    disable_algebraic_optimization: bool = False
+    disable_branch_optimization: bool = False
+    disable_mem2var: bool = False
+    disable_simplify_cfg: bool = False
+    disable_remove_unused_variables: bool = False
+
+    # Tuning parameters
+    inline_threshold: Optional[int] = None
+
+    def __post_init__(self):
+        if self.inline_threshold is None:
+            if self.level == OptimizationLevel.O3:
+                self.inline_threshold = 30  # Aggressive inlining
+            elif self.level in (OptimizationLevel.Os, OptimizationLevel.CODESIZE):
+                self.inline_threshold = 5  # Conservative for size
+            elif self.level == OptimizationLevel.Oz:
+                self.inline_threshold = 5  # Conservative for size (see what this should be)
+            else:
+                self.inline_threshold = 15  # Default threshold
 
     def as_dict(self):
         return dataclasses.asdict(self)

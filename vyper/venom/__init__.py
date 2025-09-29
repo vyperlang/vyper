@@ -242,17 +242,17 @@ def generate_assembly_experimental(
     )
 
 
-# Mapping of pass names to their flag names
+# Mapping of pass names to their disable flag names
 # Passes not in this map are considered essential and always run
 PASS_FLAG_MAP = {
-    "AlgebraicOptimizationPass": "enable_algebraic_optimization",
-    "SCCP": "enable_sccp",
-    "Mem2Var": "enable_mem2var",
-    "LoadElimination": "enable_load_elimination",
-    "RemoveUnusedVariablesPass": "enable_remove_unused_variables",
-    "DeadStoreElimination": "enable_dead_store_elimination",
-    "BranchOptimizationPass": "enable_branch_optimization",
-    "CSE": "enable_cse",
+    "AlgebraicOptimizationPass": "disable_algebraic_optimization",
+    "SCCP": "disable_sccp",
+    "Mem2Var": "disable_mem2var",
+    "LoadElimination": "disable_load_elimination",
+    "RemoveUnusedVariablesPass": "disable_remove_unused_variables",
+    "DeadStoreElimination": "disable_dead_store_elimination",
+    "BranchOptimizationPass": "disable_branch_optimization",
+    "CSE": "disable_cse",
 }
 
 
@@ -273,7 +273,7 @@ def _run_passes(fn: IRFunction, settings: Settings, ac: IRAnalysesCache) -> None
         pass_name = pass_cls.__name__
         flag_name = PASS_FLAG_MAP.get(pass_name)
 
-        if flag_name and not getattr(flags, flag_name):
+        if flag_name and getattr(flags, flag_name):
             continue
 
         # Run the pass
@@ -283,7 +283,7 @@ def _run_passes(fn: IRFunction, settings: Settings, ac: IRAnalysesCache) -> None
 
 def _run_global_passes(ctx: IRContext, settings: Settings, ir_analyses: dict) -> None:
     flags = settings.venom_flags or VenomOptimizationFlags()
-    if flags.enable_inlining:
+    if not flags.disable_inlining:
         FunctionInlinerPass(ir_analyses, ctx, settings).run_pass()
 
 
