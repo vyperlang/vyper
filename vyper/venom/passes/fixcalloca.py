@@ -16,14 +16,15 @@ class FixCalloca(IRGlobalPass):
                     continue
 
                 assert inst.output is not None
-                assert len(inst.operands) == 4
-                _offset, size, _id, callsite = inst.operands
+                assert len(inst.operands) == 2
+                _id, callsite = inst.operands
                 assert isinstance(callsite, IRLabel)
                 assert isinstance(_id, IRLiteral)
 
                 called_name = callsite.value.rsplit("_call", maxsplit=1)[0]
                 
                 called = self.ctx.get_function(IRLabel(called_name))
+                assert _id.value in called.allocated_args, (_id, inst, called, self.ctx)
                 memloc = called.allocated_args[_id.value]
 
                 inst.operands = [memloc]
