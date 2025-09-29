@@ -140,7 +140,7 @@ class Mem2Var(IRPass):
     def _process_calloca(self, inst: IRInstruction):
         assert inst.opcode == "calloca"
         assert inst.output is not None
-        assert len(inst.operands) == 1
+        assert len(inst.operands) == 2
         memloc = inst.operands[0]
 
         self.updater.mk_assign(inst, memloc)

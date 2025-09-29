@@ -26,9 +26,9 @@ class FixCalloca(IRGlobalPass):
                 called = self.ctx.get_function(IRLabel(called_name))
                 if _id.value not in called.allocated_args:
                     # TODO in this case the calloca should be removed I think
-                    inst.operands = [IRAbstractMemLoc(size.value, inst)]
+                    inst.operands = [IRAbstractMemLoc(size.value, inst), _id]
                     continue
                 #assert _id.value in called.allocated_args, (_id, inst, called, self.ctx)
                 memloc = called.allocated_args[_id.value]
 
-                inst.operands = [memloc]
+                inst.operands = [memloc, _id]
