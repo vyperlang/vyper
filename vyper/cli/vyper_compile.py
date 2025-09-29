@@ -31,6 +31,8 @@ method_identifiers - Dictionary of method signature to method identifier
 userdoc            - Natspec user documentation
 devdoc             - Natspec developer documentation
 metadata           - Contract metadata (intended for use by tooling developers)
+symbol_map_runtime - Symbol values in runtime bytecode (intended for use by tooling developers)
+symbol_map         - Symbol values in deployable bytecode (intended for use by tooling developers)
 combined_json      - All of the above format options combined as single JSON output
 layout             - Storage layout of a Vyper contract
 ast                - AST (not yet annotated) in JSON format
