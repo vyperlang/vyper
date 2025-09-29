@@ -264,23 +264,19 @@ def _parse_args(argv):
     elif args.optimize is not None:
         settings.optimize = OptimizationLevel.from_string(args.optimize)
 
-    # Handle Venom optimization flags
-    if settings.optimize is not None:
-        settings.venom_flags = VenomOptimizationFlags.from_optimization_level(settings.optimize)
-    else:
-        settings.venom_flags = VenomOptimizationFlags()
+    settings.venom_flags = VenomOptimizationFlags(level=settings.optimize)
 
     # Apply individual flag overrides
     if args.no_inlining:
-        settings.venom_flags.enable_inlining = False
+        settings.venom_flags.disable_inlining = True
     if args.no_cse:
-        settings.venom_flags.enable_cse = False
+        settings.venom_flags.disable_cse = True
     if args.no_sccp:
-        settings.venom_flags.enable_sccp = False
+        settings.venom_flags.disable_sccp = True
     if args.no_load_elimination:
-        settings.venom_flags.enable_load_elimination = False
+        settings.venom_flags.disable_load_elimination = True
     if args.no_dead_store_elimination:
-        settings.venom_flags.enable_dead_store_elimination = False
+        settings.venom_flags.disable_dead_store_elimination = True
     if args.inline_threshold is not None:
         settings.venom_flags.inline_threshold = args.inline_threshold
 
