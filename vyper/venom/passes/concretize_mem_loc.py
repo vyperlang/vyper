@@ -5,6 +5,11 @@ from vyper.venom.memory_allocator import MemoryAllocator
 class ConcretizeMemLocPass(IRPass):
     def run_pass(self, mem_allocator: MemoryAllocator):
         self.allocator = mem_allocator
+
+        # these mem location are used sha3_64 instruction
+        # with concrete value so I need to allocate it here
+        mem_allocator.get_place(IRAbstractMemLoc.FREE_VAR1)
+        mem_allocator.get_place(IRAbstractMemLoc.FREE_VAR2)
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 if inst.opcode == "codecopyruntime":
