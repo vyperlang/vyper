@@ -88,7 +88,9 @@ class VenomOptimizationFlags:
         # Set default optimization level if not provided
         if self.level is None:
             self.level = OptimizationLevel.default()
+        self._update_inline_threshold()
 
+    def _update_inline_threshold(self):
         if self.inline_threshold is None:
             if self.level == OptimizationLevel.O3:
                 self.inline_threshold = 30  # Aggressive inlining
@@ -99,11 +101,25 @@ class VenomOptimizationFlags:
             else:
                 self.inline_threshold = 15  # Default threshold
 
+    def set_level(self, level: OptimizationLevel):
+        """Set optimization level and update dependent parameters."""
+        self.level = level
+        self.inline_threshold = None  # Reset to allow recalculation
+        self._update_inline_threshold()
+
     def as_dict(self):
-        return dataclasses.asdict(self)
+        ret = dataclasses.asdict(self)
+        # Convert OptimizationLevel to string for JSON serialization
+        if ret.get("level") is not None:
+            ret["level"] = str(ret["level"])
+        return ret
 
     @classmethod
     def from_dict(cls, data):
+        data = data.copy()
+        # Convert string back to OptimizationLevel
+        if "level" in data and data["level"] is not None:
+            data["level"] = OptimizationLevel.from_string(data["level"])
         return cls(**data)
 
 
@@ -136,6 +152,9 @@ class Settings:
             self.venom_flags = VenomOptimizationFlags(level=self.optimize)
         else:
             assert isinstance(self.venom_flags, VenomOptimizationFlags)
+            # Ensure venom_flags.level matches optimize if both are set
+            if self.venom_flags.level is None and self.optimize is not None:
+                self.venom_flags.level = self.optimize
 
     # CMC 2024-04-10 consider hiding the `enable_decimals` member altogether
     def get_enable_decimals(self) -> bool:
@@ -158,16 +177,25 @@ class Settings:
 
         return "".join(ret)
 
-    def as_dict(self):
-        ret = dataclasses.asdict(self)
-        # compiler_version is not a compiler input, it can only come from
-        # source code pragma.
-        ret.pop("compiler_version", None)
-        ret = {k: v for (k, v) in ret.items() if v is not None}
-        if "optimize" in ret:
-            ret["optimize"] = str(ret["optimize"])
-        if "venom_flags" in ret and ret["venom_flags"] is not None:
-            ret["venom_flags"] = ret["venom_flags"]
+    def as_dict(self, include_venom_flags=True):
+        ret = {}
+        for field in dataclasses.fields(self):
+            value = getattr(self, field.name)
+            if value is None:
+                continue
+            if field.name == "compiler_version":
+                # compiler_version is not a compiler input, it can only come from
+                # source code pragma.
+                continue
+            if field.name == "venom_flags" and not include_venom_flags:
+                # Skip venom_flags for AST output - it's an internal optimization detail
+                continue
+            if field.name == "optimize":
+                ret["optimize"] = str(value)
+            elif field.name == "venom_flags":
+                ret["venom_flags"] = value.as_dict()
+            else:
+                ret[field.name] = value
         return ret
 
     @classmethod
@@ -203,18 +231,35 @@ def merge_settings(
             )
         return lhs if rhs is None else rhs
 
-    ret = Settings()
-    for field in dataclasses.fields(ret):
+    # Collect all values first before creating Settings to avoid double initialization
+    values = {}
+    for field in dataclasses.fields(Settings):
         if field.name == "compiler_version":
             continue
         if field.name == "venom_flags":
-            val = getattr(one, field.name) or getattr(two, field.name)
+            # Skip venom_flags - we'll handle it after optimization level is merged
+            continue
         else:
             pretty_name = field.name.replace("_", "-")  # e.g. evm_version -> evm-version
             val = _merge_one(getattr(one, field.name), getattr(two, field.name), pretty_name)
-        setattr(ret, field.name, val)
+        if val is not None:
+            values[field.name] = val
 
-    return ret
+    # Now handle venom_flags based on the merged optimize value
+    # If either source has explicit venom_flags with customizations, use it
+    # Otherwise let Settings.__post_init__ create the default based on optimize
+    venom_one = getattr(one, "venom_flags", None)
+    venom_two = getattr(two, "venom_flags", None)
+
+    # Pick the venom_flags that matches the merged optimize level, if any
+    merged_optimize = values.get("optimize")
+    if venom_two and venom_two.level == merged_optimize:
+        values["venom_flags"] = venom_two
+    elif venom_one and venom_one.level == merged_optimize:
+        values["venom_flags"] = venom_one
+    # Otherwise don't set it - let __post_init__ create the right one
+
+    return Settings(**values)
 
 
 # CMC 2024-04-10 do we need it to be Optional?

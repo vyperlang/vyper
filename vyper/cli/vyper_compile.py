@@ -146,13 +146,11 @@ def _parse_args(argv):
     parser.add_argument(
         "-O",
         "--optimize",
-        help="Optimization flag (defaults to 'gas')",
-        choices=["gas", "codesize", "none"],
-    )
-    parser.add_argument(
-        "--opt-level",
-        help="Optimization level (O0, O1, O2, O3, Os, Oz)",
-        choices=["O0", "O1", "O2", "O3", "Os", "Oz"],
+        help="Optimization level (defaults to 'gas'). Valid options: "
+             "0 (none), 1 (basic), 2 (gas/default), 3 (aggressive - experimental), "
+             "s (size), z (extreme size), or legacy names: none, gas, codesize",
+        metavar="LEVEL",
+        dest="optimize",
     )
     parser.add_argument(
         "--no-inlining", help="Disable function inlining optimization", action="store_true"
@@ -246,23 +244,23 @@ def _parse_args(argv):
         output_formats = ("archive_b64",)
 
     if args.no_optimize and args.optimize:
-        raise ValueError("Cannot use `--no-optimize` and `--optimize` at the same time!")
-
-    if args.no_optimize and args.opt_level:
-        raise ValueError("Cannot use `--no-optimize` and `--opt-level` at the same time!")
-
-    if args.optimize and args.opt_level:
-        raise ValueError("Cannot use `--optimize` and `--opt-level` at the same time!")
+        raise ValueError("Cannot use `--no-optimize` and `-O/--optimize` at the same time!")
 
     settings = Settings()
 
     # TODO: refactor to something like Settings.from_args()
     if args.no_optimize:
         settings.optimize = OptimizationLevel.NONE
-    elif args.opt_level is not None:
-        settings.optimize = OptimizationLevel.from_string(args.opt_level)
     elif args.optimize is not None:
-        settings.optimize = OptimizationLevel.from_string(args.optimize)
+        # Handle both old-style (none, gas, codesize) and new-style (0, 1, 2, 3, s, z) arguments
+        opt_level = args.optimize.lower()
+        if opt_level in ["0", "1", "2", "3"]:
+            opt_level = "O" + opt_level
+        elif opt_level == "s":
+            opt_level = "Os"
+        elif opt_level == "z":
+            opt_level = "Oz"
+        settings.optimize = OptimizationLevel.from_string(opt_level)
 
     settings.venom_flags = VenomOptimizationFlags(level=settings.optimize)
 
