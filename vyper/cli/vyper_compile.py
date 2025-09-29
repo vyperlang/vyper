@@ -14,12 +14,7 @@ import vyper.evm.opcodes as evm
 from vyper.cli import vyper_json
 from vyper.cli.compile_archive import NotZipInput, compile_from_zip
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
-from vyper.compiler.settings import (
-    VYPER_TRACEBACK_LIMIT,
-    OptimizationLevel,
-    Settings,
-    VenomOptimizationFlags,
-)
+from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
 from vyper.typing import ContractPath, OutputFormats
 from vyper.utils import uniq
 from vyper.warnings import warnings_filter
@@ -246,11 +241,9 @@ def _parse_args(argv):
     if args.no_optimize and args.optimize:
         raise ValueError("Cannot use `--no-optimize` and `-O/--optimize` at the same time!")
 
-    settings = Settings()
-
-    # TODO: refactor to something like Settings.from_args()
+    optimize = None
     if args.no_optimize:
-        settings.optimize = OptimizationLevel.NONE
+        optimize = OptimizationLevel.NONE
     elif args.optimize is not None:
         # Handle both old-style (none, gas, codesize) and new-style (0, 1, 2, 3, s, z) arguments
         opt_level = args.optimize.lower()
@@ -260,9 +253,9 @@ def _parse_args(argv):
             opt_level = "Os"
         elif opt_level == "z":
             opt_level = "Oz"
-        settings.optimize = OptimizationLevel.from_string(opt_level)
+        optimize = OptimizationLevel.from_string(opt_level)
 
-    settings.venom_flags = VenomOptimizationFlags(level=settings.optimize)
+    settings = Settings(optimize=optimize)
 
     # Apply individual flag overrides
     if args.no_inlining:

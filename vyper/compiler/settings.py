@@ -62,11 +62,17 @@ class OptimizationLevel(Enum):
 
 DEFAULT_ENABLE_DECIMALS = False
 
+# Inlining threshold constants
+INLINE_THRESHOLD_NONE = 0  # No inlining
+INLINE_THRESHOLD_SIZE = 5  # Conservative for size optimization
+INLINE_THRESHOLD_SIZE_AGGRESSIVE = 5
+INLINE_THRESHOLD_DEFAULT = 15  # Standard inlining
+INLINE_THRESHOLD_AGGRESSIVE = 30  # Aggressive inlining for O3
+
 
 @dataclass
 class VenomOptimizationFlags:
-    # The base optimization level
-    level: Optional[OptimizationLevel] = None
+    level: OptimizationLevel = OptimizationLevel.default()
 
     # Disable flags - default False means optimization is enabled
     # These are used to override the defaults for the optimization level
@@ -82,29 +88,35 @@ class VenomOptimizationFlags:
     disable_remove_unused_variables: bool = False
 
     # Tuning parameters
-    inline_threshold: Optional[int] = None
+    inline_threshold: int = INLINE_THRESHOLD_DEFAULT
 
     def __post_init__(self):
         # Set default optimization level if not provided
         if self.level is None:
             self.level = OptimizationLevel.default()
-        self._update_inline_threshold()
+
+        # Always set inline_threshold based on level
+        if self.inline_threshold is None:
+            self.inline_threshold = self._get_inline_threshold_for_level(self.level)
+
+    def _get_inline_threshold_for_level(self, level: OptimizationLevel) -> int:
+        if level == OptimizationLevel.O3:
+            return INLINE_THRESHOLD_AGGRESSIVE
+        elif level in (OptimizationLevel.Os, OptimizationLevel.CODESIZE):
+            return INLINE_THRESHOLD_SIZE
+        elif level == OptimizationLevel.Oz:
+            return INLINE_THRESHOLD_SIZE_AGGRESSIVE
+        elif level in (OptimizationLevel.NONE, OptimizationLevel.O0):
+            return INLINE_THRESHOLD_NONE
+        else:
+            return INLINE_THRESHOLD_DEFAULT
 
     def _update_inline_threshold(self):
-        if self.inline_threshold is None:
-            if self.level == OptimizationLevel.O3:
-                self.inline_threshold = 30  # Aggressive inlining
-            elif self.level in (OptimizationLevel.Os, OptimizationLevel.CODESIZE):
-                self.inline_threshold = 5  # Conservative for size
-            elif self.level == OptimizationLevel.Oz:
-                self.inline_threshold = 5  # Conservative for size (see what this should be)
-            else:
-                self.inline_threshold = 15  # Default threshold
+        self.inline_threshold = self._get_inline_threshold_for_level(self.level)
 
     def set_level(self, level: OptimizationLevel):
         """Set optimization level and update dependent parameters."""
         self.level = level
-        self.inline_threshold = None  # Reset to allow recalculation
         self._update_inline_threshold()
 
     def as_dict(self):
@@ -152,9 +164,10 @@ class Settings:
             self.venom_flags = VenomOptimizationFlags(level=self.optimize)
         else:
             assert isinstance(self.venom_flags, VenomOptimizationFlags)
-            # Ensure venom_flags.level matches optimize if both are set
-            if self.venom_flags.level is None and self.optimize is not None:
+            # Ensure consistency
+            if self.optimize is not None and self.venom_flags.level != self.optimize:
                 self.venom_flags.level = self.optimize
+                self.venom_flags._update_inline_threshold()
 
     # CMC 2024-04-10 consider hiding the `enable_decimals` member altogether
     def get_enable_decimals(self) -> bool:

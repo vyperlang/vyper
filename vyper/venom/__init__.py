@@ -257,9 +257,7 @@ PASS_FLAG_MAP = {
 
 
 def _run_passes(fn: IRFunction, flags: VenomOptimizationFlags, ac: IRAnalysesCache) -> None:
-    passes = OPTIMIZATION_PASSES.get(
-        flags.level or OptimizationLevel.O2, OPTIMIZATION_PASSES[OptimizationLevel.O2]
-    )
+    passes = OPTIMIZATION_PASSES.get(flags.level, OPTIMIZATION_PASSES[OptimizationLevel.O2])
 
     for pass_config in passes:
         if isinstance(pass_config, tuple):
@@ -280,7 +278,9 @@ def _run_passes(fn: IRFunction, flags: VenomOptimizationFlags, ac: IRAnalysesCac
         pass_instance.run_pass(**kwargs)
 
 
-def _run_global_passes(ctx: IRContext, flags: VenomOptimizationFlags, ir_analyses: dict) -> None:
+def _run_global_passes(
+    ctx: IRContext, flags: VenomOptimizationFlags, ir_analyses: dict[IRFunction, IRAnalysesCache]
+) -> None:
     if not flags.disable_inlining:
         FunctionInlinerPass(ir_analyses, ctx, flags).run_pass()
 
