@@ -147,8 +147,8 @@ def _parse_args(argv):
         "-O",
         "--optimize",
         help="Optimization level (defaults to 'gas'). Valid options: "
-             "0 (none), 1 (basic), 2 (gas/default), 3 (aggressive - experimental), "
-             "s (size), z (extreme size), or legacy names: none, gas, codesize",
+        "0 (none), 1 (basic), 2 (gas/default), 3 (aggressive - experimental), "
+        "s (size), z (extreme size), or legacy names: none, gas, codesize",
         metavar="LEVEL",
         dest="optimize",
     )

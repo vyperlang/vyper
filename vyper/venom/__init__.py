@@ -257,7 +257,9 @@ PASS_FLAG_MAP = {
 
 
 def _run_passes(fn: IRFunction, flags: VenomOptimizationFlags, ac: IRAnalysesCache) -> None:
-    passes = OPTIMIZATION_PASSES.get(flags.level, OPTIMIZATION_PASSES[OptimizationLevel.O2])
+    passes = OPTIMIZATION_PASSES.get(
+        flags.level or OptimizationLevel.O2, OPTIMIZATION_PASSES[OptimizationLevel.O2]
+    )
 
     for pass_config in passes:
         if isinstance(pass_config, tuple):

@@ -29,7 +29,10 @@ class FunctionInlinerPass(IRGlobalPass):
     flags: VenomOptimizationFlags
 
     def __init__(
-        self, analyses_caches: dict[IRFunction, IRAnalysesCache], ctx: IRContext, flags: VenomOptimizationFlags
+        self,
+        analyses_caches: dict[IRFunction, IRAnalysesCache],
+        ctx: IRContext,
+        flags: VenomOptimizationFlags,
     ):
         super().__init__(analyses_caches, ctx)
         self.flags = flags or VenomOptimizationFlags()
