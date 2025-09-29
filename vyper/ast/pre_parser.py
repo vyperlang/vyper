@@ -66,6 +66,7 @@ def _parse_pragma(comment_contents, settings, is_interface, code, start):
         try:
             mode = pragma.removeprefix("optimize").strip()
             settings.optimize = OptimizationLevel.from_string(mode)
+            settings.venom_flags.set_level(settings.optimize)
         except ValueError:
             raise PragmaException(f"Invalid optimization mode `{mode}`", *location)
         return
