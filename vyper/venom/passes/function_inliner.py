@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from vyper.compiler.settings import Settings, VenomOptimizationFlags
+from vyper.compiler.settings import VenomOptimizationFlags
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, FCGAnalysis, IRAnalysesCache
@@ -26,15 +26,13 @@ class FunctionInlinerPass(IRGlobalPass):
 
     inline_count: int
     fcg: FCGAnalysis
-    settings: Settings
     flags: VenomOptimizationFlags
 
     def __init__(
-        self, analyses_caches: dict[IRFunction, IRAnalysesCache], ctx: IRContext, settings: Settings
+        self, analyses_caches: dict[IRFunction, IRAnalysesCache], ctx: IRContext, flags: VenomOptimizationFlags
     ):
         super().__init__(analyses_caches, ctx)
-        self.settings = settings
-        self.flags = settings.venom_flags or VenomOptimizationFlags()
+        self.flags = flags or VenomOptimizationFlags()
 
     def run_pass(self):
         entry = self.ctx.entry_function

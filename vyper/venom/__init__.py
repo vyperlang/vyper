@@ -284,7 +284,7 @@ def _run_passes(fn: IRFunction, settings: Settings, ac: IRAnalysesCache) -> None
 def _run_global_passes(ctx: IRContext, settings: Settings, ir_analyses: dict) -> None:
     flags = settings.venom_flags or VenomOptimizationFlags()
     if not flags.disable_inlining:
-        FunctionInlinerPass(ir_analyses, ctx, settings).run_pass()
+        FunctionInlinerPass(ir_analyses, ctx, flags).run_pass()
 
 
 def run_passes_on(ctx: IRContext, settings: Settings) -> None:
