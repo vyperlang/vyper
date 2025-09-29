@@ -44,12 +44,11 @@ class Mem2Var(IRPass):
         Otherwise, it is left as is.
         """
 
-        _offset, size, _id = alloca_inst.operands
-        alloca_id = alloca_inst.operands[2]
+        assert len(alloca_inst.operands) == 2, (alloca_inst, alloca_inst.parent)
+
+        mem_loc, alloca_id = alloca_inst.operands
         var_name = self._mk_varname(var.value, alloca_id.value)
         var = IRVariable(var_name)
-        assert isinstance(size, IRLiteral)
-        mem_loc = IRAbstractMemLoc(size.value, alloca_inst)
         assert alloca_inst.output is not None
         uses = dfg.get_uses(alloca_inst.output)
 
@@ -66,20 +65,22 @@ class Mem2Var(IRPass):
         if not all2(inst.opcode in ["mstore", "mload", "return"] for inst in uses):
             return
 
+        assert isinstance(mem_loc, IRAbstractMemLoc)
+        size = mem_loc.size
 
         for inst in uses.copy():
             if inst.opcode == "mstore":
-                if size.value <= 32:
+                if size <= 32:
                     self.updater.mk_assign(inst, inst.operands[0], new_output=var)
                 else:
                     self.updater.update_operands(inst, {alloca_inst.output: mem_loc})
             elif inst.opcode == "mload":
-                if size.value <= 32:
+                if size <= 32:
                     self.updater.mk_assign(inst, var)
                 else:
                     self.updater.update_operands(inst, {alloca_inst.output: mem_loc})
             elif inst.opcode == "return":
-                if size.value <= 32:
+                if size <= 32:
                     self.updater.add_before(inst, "mstore", [var, mem_loc])
                 inst.operands[1] = mem_loc
 
