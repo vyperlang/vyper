@@ -1,6 +1,8 @@
 # maybe rename this `main.py` or `venom.py`
 # (can have an `__init__.py` which exposes the API).
 
+from typing import Any, Dict, List, Tuple, Type, Union
+
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
@@ -32,13 +34,17 @@ from vyper.venom.passes import (
     SimplifyCFGPass,
     SingleUseExpansion,
 )
+from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
+# REVIEW: Should we just disable typechecking for this?
+PassConfig = Union[Type[IRPass], Tuple[Type[IRPass], Dict[str, Any]]]
+
 # Pass configuration for each optimization level
-OPTIMIZATION_PASSES = {
+OPTIMIZATION_PASSES: Dict[OptimizationLevel, List[PassConfig]] = {
     OptimizationLevel.O0: [  # No optimizations
         FloatAllocas,
         SimplifyCFGPass,
@@ -215,17 +221,25 @@ OPTIMIZATION_PASSES = {
 }
 
 # Legacy aliases for backwards compatibility
-OPTIMIZATION_PASSES[OptimizationLevel.NONE] = OPTIMIZATION_PASSES[OptimizationLevel.O0]      # none -> O0
-OPTIMIZATION_PASSES[OptimizationLevel.GAS] = OPTIMIZATION_PASSES[OptimizationLevel.O2]       # gas -> O2
-OPTIMIZATION_PASSES[OptimizationLevel.CODESIZE] = OPTIMIZATION_PASSES[OptimizationLevel.Os]  # codesize -> Os
-OPTIMIZATION_PASSES[OptimizationLevel.Oz] = OPTIMIZATION_PASSES[OptimizationLevel.Os]        # Oz uses same passes as Os (differs in flags)
+OPTIMIZATION_PASSES[OptimizationLevel.NONE] = OPTIMIZATION_PASSES[
+    OptimizationLevel.O0
+]  # none -> O0
+OPTIMIZATION_PASSES[OptimizationLevel.GAS] = OPTIMIZATION_PASSES[OptimizationLevel.O2]  # gas -> O2
+OPTIMIZATION_PASSES[OptimizationLevel.CODESIZE] = OPTIMIZATION_PASSES[
+    OptimizationLevel.Os
+]  # codesize -> Os
+OPTIMIZATION_PASSES[OptimizationLevel.Oz] = OPTIMIZATION_PASSES[
+    OptimizationLevel.Os
+]  # Oz uses same passes as Os (differs in flags)
 
 
 def generate_assembly_experimental(
     venom_ctx: IRContext, optimize: OptimizationLevel = DEFAULT_OPT_LEVEL
 ) -> list[AssemblyInstruction]:
     compiler = VenomCompiler(venom_ctx)
-    return compiler.generate_evm_assembly(optimize in (OptimizationLevel.NONE, OptimizationLevel.O0))
+    return compiler.generate_evm_assembly(
+        optimize in (OptimizationLevel.NONE, OptimizationLevel.O0)
+    )
 
 
 # Mapping of pass names to their flag names

@@ -112,10 +112,9 @@ class VenomOptimizationFlags:
         elif level in (OptimizationLevel.CODESIZE, OptimizationLevel.Os):
             return cls(inline_threshold=5)  # Less aggressive inlining for size
         elif level == OptimizationLevel.Oz:
-            return cls(
-                enable_inlining=False,  # temp, because inlining will probably decrease size in many cases
-                inline_threshold=0,
-            )
+            # temp, because inlining will probably
+            # decrease size in many cases
+            return cls(enable_inlining=False, inline_threshold=0)
         else:
             return cls()
 
