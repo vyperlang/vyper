@@ -345,23 +345,29 @@ def get_settings(input_dict: dict) -> Settings:
             venom_flags = VenomOptimizationFlags()
 
         flag_mapping = {
-            "disableInlining": "disable_inlining",
-            "disableCSE": "disable_cse",
-            "disableSCCP": "disable_sccp",
-            "disableLoadElimination": "disable_load_elimination",
-            "disableDeadStoreElimination": "disable_dead_store_elimination",
-            "disableAlgebraicOptimization": "disable_algebraic_optimization",
-            "disableBranchOptimization": "disable_branch_optimization",
-            "disableMem2Var": "disable_mem2var",
-            "disableSimplifyCFG": "disable_simplify_cfg",
-            "disableRemoveUnusedVariables": "disable_remove_unused_variables",
-            "inlineThreshold": "inline_threshold",
+            "disableInlining": ("disable_inlining", bool),
+            "disableCSE": ("disable_cse", bool),
+            "disableSCCP": ("disable_sccp", bool),
+            "disableLoadElimination": ("disable_load_elimination", bool),
+            "disableDeadStoreElimination": ("disable_dead_store_elimination", bool),
+            "disableAlgebraicOptimization": ("disable_algebraic_optimization", bool),
+            "disableBranchOptimization": ("disable_branch_optimization", bool),
+            "disableMem2Var": ("disable_mem2var", bool),
+            "disableSimplifyCFG": ("disable_simplify_cfg", bool),
+            "disableRemoveUnusedVariables": ("disable_remove_unused_variables", bool),
+            "inlineThreshold": ("inline_threshold", int),
         }
 
         # Apply settings from venom_settings
-        for json_field, attr_name in flag_mapping.items():
+        for json_field, (attr_name, expected_type) in flag_mapping.items():
             if json_field in venom_settings:
-                setattr(venom_flags, attr_name, venom_settings[json_field])
+                value = venom_settings[json_field]
+                if not isinstance(value, expected_type):
+                    raise JSONError(
+                        f"venom.{json_field} must be {expected_type.__name__}, "
+                        f"got {type(value).__name__}"
+                    )
+                setattr(venom_flags, attr_name, value)
 
     return Settings(
         evm_version=evm_version,
