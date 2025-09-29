@@ -256,11 +256,8 @@ PASS_FLAG_MAP = {
 }
 
 
-def _run_passes(fn: IRFunction, settings: Settings, ac: IRAnalysesCache) -> None:
-    flags = settings.venom_flags or VenomOptimizationFlags()
-    optimize = settings.optimize or OptimizationLevel.default()
-
-    passes = OPTIMIZATION_PASSES.get(optimize, OPTIMIZATION_PASSES[OptimizationLevel.O2])
+def _run_passes(fn: IRFunction, flags: VenomOptimizationFlags, ac: IRAnalysesCache) -> None:
+    passes = OPTIMIZATION_PASSES.get(flags.level, OPTIMIZATION_PASSES[OptimizationLevel.O2])
 
     for pass_config in passes:
         if isinstance(pass_config, tuple):
@@ -281,25 +278,24 @@ def _run_passes(fn: IRFunction, settings: Settings, ac: IRAnalysesCache) -> None
         pass_instance.run_pass(**kwargs)
 
 
-def _run_global_passes(ctx: IRContext, settings: Settings, ir_analyses: dict) -> None:
-    flags = settings.venom_flags or VenomOptimizationFlags()
+def _run_global_passes(ctx: IRContext, flags: VenomOptimizationFlags, ir_analyses: dict) -> None:
     if not flags.disable_inlining:
         FunctionInlinerPass(ir_analyses, ctx, flags).run_pass()
 
 
-def run_passes_on(ctx: IRContext, settings: Settings) -> None:
+def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags) -> None:
     ir_analyses = {}
     for fn in ctx.functions.values():
         ir_analyses[fn] = IRAnalysesCache(fn)
 
-    _run_global_passes(ctx, settings, ir_analyses)
+    _run_global_passes(ctx, flags, ir_analyses)
 
     ir_analyses = {}
     for fn in ctx.functions.values():
         ir_analyses[fn] = IRAnalysesCache(fn)
 
     for fn in ctx.functions.values():
-        _run_passes(fn, settings, ir_analyses[fn])
+        _run_passes(fn, flags, ir_analyses[fn])
 
 
 def generate_venom(
@@ -321,7 +317,7 @@ def generate_venom(
     for constname, value in constants.items():
         ctx.add_constant(constname, value)
 
-    assert settings.optimize is not None  # help mypy
-    run_passes_on(ctx, settings)
+    assert settings.venom_flags is not None
+    run_passes_on(ctx, settings.venom_flags)
 
     return ctx
