@@ -85,6 +85,10 @@ class VenomOptimizationFlags:
     inline_threshold: Optional[int] = None
 
     def __post_init__(self):
+        # Set default optimization level if not provided
+        if self.level is None:
+            self.level = OptimizationLevel.default()
+
         if self.inline_threshold is None:
             if self.level == OptimizationLevel.O3:
                 self.inline_threshold = 30  # Aggressive inlining
@@ -126,7 +130,11 @@ class Settings:
             assert isinstance(self.enable_decimals, bool)
         if self.nonreentrancy_by_default is not None:
             assert isinstance(self.nonreentrancy_by_default, bool)
-        if self.venom_flags is not None:
+
+        # Initialize venom_flags if not provided
+        if self.venom_flags is None:
+            self.venom_flags = VenomOptimizationFlags(level=self.optimize)
+        else:
             assert isinstance(self.venom_flags, VenomOptimizationFlags)
 
     # CMC 2024-04-10 consider hiding the `enable_decimals` member altogether
