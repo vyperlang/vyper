@@ -335,10 +335,8 @@ def get_settings(input_dict: dict) -> Settings:
     # TODO: maybe change these to camelCase for consistency
     enable_decimals = input_dict["settings"].get("enable_decimals", None)
 
-    # Handle Venom optimization flags
-    venom_flags = None
-    if optimize is not None:
-        venom_flags = VenomOptimizationFlags.from_optimization_level(optimize)
+    # Create Venom optimization flags with the optimization level
+    venom_flags = VenomOptimizationFlags(level=optimize)
 
     # Check for Venom-specific settings
     venom_settings = input_dict["settings"].get("venom", {})
@@ -346,32 +344,24 @@ def get_settings(input_dict: dict) -> Settings:
         if venom_flags is None:
             venom_flags = VenomOptimizationFlags()
 
-        if "enableInlining" in venom_settings:
-            venom_flags.enable_inlining = venom_settings["enableInlining"]
-        if "enableCSE" in venom_settings:
-            venom_flags.enable_cse = venom_settings["enableCSE"]
-        if "enableSCCP" in venom_settings:
-            venom_flags.enable_sccp = venom_settings["enableSCCP"]
-        if "enableLoadElimination" in venom_settings:
-            venom_flags.enable_load_elimination = venom_settings["enableLoadElimination"]
-        if "enableDeadStoreElimination" in venom_settings:
-            venom_flags.enable_dead_store_elimination = venom_settings["enableDeadStoreElimination"]
-        if "enableAlgebraicOptimization" in venom_settings:
-            venom_flags.enable_algebraic_optimization = venom_settings[
-                "enableAlgebraicOptimization"
-            ]
-        if "enableBranchOptimization" in venom_settings:
-            venom_flags.enable_branch_optimization = venom_settings["enableBranchOptimization"]
-        if "enableMem2Var" in venom_settings:
-            venom_flags.enable_mem2var = venom_settings["enableMem2Var"]
-        if "enableSimplifyCFG" in venom_settings:
-            venom_flags.enable_simplify_cfg = venom_settings["enableSimplifyCFG"]
-        if "enableRemoveUnusedVariables" in venom_settings:
-            venom_flags.enable_remove_unused_variables = venom_settings[
-                "enableRemoveUnusedVariables"
-            ]
-        if "inlineThreshold" in venom_settings:
-            venom_flags.inline_threshold = venom_settings["inlineThreshold"]
+        flag_mapping = {
+            "disableInlining": "disable_inlining",
+            "disableCSE": "disable_cse",
+            "disableSCCP": "disable_sccp",
+            "disableLoadElimination": "disable_load_elimination",
+            "disableDeadStoreElimination": "disable_dead_store_elimination",
+            "disableAlgebraicOptimization": "disable_algebraic_optimization",
+            "disableBranchOptimization": "disable_branch_optimization",
+            "disableMem2Var": "disable_mem2var",
+            "disableSimplifyCFG": "disable_simplify_cfg",
+            "disableRemoveUnusedVariables": "disable_remove_unused_variables",
+            "inlineThreshold": "inline_threshold",
+        }
+
+        # Apply settings from venom_settings
+        for json_field, attr_name in flag_mapping.items():
+            if json_field in venom_settings:
+                setattr(venom_flags, attr_name, venom_settings[json_field])
 
     return Settings(
         evm_version=evm_version,
