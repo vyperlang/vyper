@@ -164,23 +164,6 @@ def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
         _run_passes(fn, optimize, ir_analyses[fn], ctx.mem_allocator)
 
 
-def _fix_calloca(ctx: IRContext, fn: IRFunction):
-    for bb in fn.get_basic_blocks():
-        for inst in bb.instructions:
-            if inst.opcode != "calloca":
-                continue
-            assert inst.output is not None
-            assert len(inst.operands) == 4
-            _offset, size, _id, callsite = inst.operands
-            assert isinstance(callsite, IRLabel)
-            assert isinstance(_id, IRLiteral)
-            
-            print(ctx)
-            called = ctx.get_function(callsite)
-            memloc = called.allocated_args[_id.value]
-
-            inst.operands = [memloc]
-
 def generate_venom(
     ir: IRnode,
     settings: Settings,
