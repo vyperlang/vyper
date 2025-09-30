@@ -1,7 +1,7 @@
 from typing import Optional
 
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRLiteral, IRAbstractMemLoc
+from vyper.venom.basicblock import IRAbstractMemLoc, IRLiteral
 from vyper.venom.effects import Effects
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
@@ -14,7 +14,9 @@ def _conflict_lit(store_opcode: str, k1: IRLiteral, k2: IRLiteral):
     return abs(ptr1 - ptr2) < 1
 
 
-def _conflict(store_opcode: str, k1: IRLiteral | IRAbstractMemLoc, k2: IRLiteral | IRAbstractMemLoc, tmp = None):
+def _conflict(
+    store_opcode: str, k1: IRLiteral | IRAbstractMemLoc, k2: IRLiteral | IRAbstractMemLoc, tmp=None
+):
     # hardcode the size of store opcodes for now. maybe refactor to use
     # vyper.evm.address_space
     if store_opcode == "mstore":

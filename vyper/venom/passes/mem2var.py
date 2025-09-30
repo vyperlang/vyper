@@ -1,6 +1,6 @@
 from vyper.utils import all2
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRAbstractMemLoc, IRInstruction, IRVariable, IRLiteral
+from vyper.venom.basicblock import IRAbstractMemLoc, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ENABLE_NEW_CALL_CONV
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
@@ -57,7 +57,6 @@ class Mem2Var(IRPass):
         if any(inst.opcode == "add" for inst in uses):
             for inst in uses.copy():
                 if inst.opcode == "add":
-                    #assert size.value > 32, (inst, inst.parent, alloca_inst, size)
                     other = [op for op in inst.operands if op != alloca_inst.output]
                     assert len(other) == 1
                     self.updater.update(inst, "gep", [mem_loc, other[0]])
@@ -97,7 +96,6 @@ class Mem2Var(IRPass):
         if any(inst.opcode == "add" for inst in uses):
             for inst in uses.copy():
                 if inst.opcode == "add":
-                    #assert size.value > 32, (inst, inst.parent, alloca_inst, size)
                     other = [op for op in inst.operands if op != palloca_inst.output]
                     assert len(other) == 1
                     self.updater.update(inst, "gep", [mem_loc, other[0]])
@@ -113,15 +111,13 @@ class Mem2Var(IRPass):
             # on alloca_id) is a bit kludgey, but we will live.
             param = fn.get_param_by_id(alloca_id.value)
             if param is None:
-                self.updater.update(
-                    palloca_inst, "mload", [mem_loc], new_output=var
-                )
+                self.updater.update(palloca_inst, "mload", [mem_loc], new_output=var)
             else:
                 self.updater.update(palloca_inst, "assign", [param.func_var], new_output=var)
         else:
             # otherwise, it comes from memory, convert to an mload.
             self.updater.update(palloca_inst, "mload", [mem_loc], new_output=var)
-        
+
         assert isinstance(mem_loc, IRAbstractMemLoc)
         size = mem_loc.size
 
@@ -144,4 +140,3 @@ class Mem2Var(IRPass):
         memloc = inst.operands[0]
 
         self.updater.mk_assign(inst, memloc)
-

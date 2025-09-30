@@ -1,4 +1,4 @@
-from vyper.venom.basicblock import IRLiteral, IRAbstractMemLoc
+from vyper.venom.basicblock import IRAbstractMemLoc, IRLiteral
 from vyper.venom.memory_location import MemoryLocation
 
 
@@ -23,4 +23,3 @@ class MemoryAllocator:
         res = self.allocate(mem_loc.size)
         self.allocated[mem_loc] = res
         return res
-

@@ -1,8 +1,15 @@
+from vyper.utils import MemoryPositions
 from vyper.venom.analysis import IRAnalysesCache, VarDefinition
-from vyper.venom.basicblock import IRBasicBlock, IRVariable, IROperand, IRAbstractMemLoc, IRLiteral, IRInstruction
+from vyper.venom.basicblock import (
+    IRAbstractMemLoc,
+    IRBasicBlock,
+    IRInstruction,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+)
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
-from vyper.utils import MemoryPositions
 
 
 class VenomError(Exception):
@@ -84,6 +91,7 @@ def check_venom_ctx(context: IRContext):
     if errors:
         raise ExceptionGroup("venom semantic errors", errors)
 
+
 def no_concrete_locations_fn(function: IRFunction):
     for bb in function.get_basic_blocks():
         for inst in bb.instructions:
@@ -126,7 +134,7 @@ def _get_memory_write_op(inst) -> IROperand | None:
     opcode = inst.opcode
     if opcode == "mstore":
         dst = inst.operands[1]
-        return dst 
+        return dst
     elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
         _, _, dst = inst.operands
         return dst
@@ -138,9 +146,10 @@ def _get_memory_write_op(inst) -> IROperand | None:
         return dst
     elif opcode == "extcodecopy":
         _, _, dst, _ = inst.operands
-        return dst 
+        return dst
 
     return None
+
 
 def _get_write_size(inst: IRInstruction) -> IROperand | None:
     opcode = inst.opcode
@@ -157,10 +166,9 @@ def _get_write_size(inst: IRInstruction) -> IROperand | None:
         return size
     elif opcode == "extcodecopy":
         size, _, _, _ = inst.operands
-        return size 
+        return size
 
     return None
-
 
 
 def _get_memory_read_op(inst) -> IROperand | None:
@@ -199,6 +207,7 @@ def _get_memory_read_op(inst) -> IROperand | None:
 
     return None
 
+
 def _get_read_size(inst: IRInstruction) -> IROperand | None:
     opcode = inst.opcode
     if opcode == "mload":
@@ -235,8 +244,6 @@ def _get_read_size(inst: IRInstruction) -> IROperand | None:
 
     return None
 
-    
-
 
 def _update_write_op(inst, new_op: IROperand):
     opcode = inst.opcode
@@ -251,6 +258,7 @@ def _update_write_op(inst, new_op: IROperand):
         inst.operands[1] = new_op
     elif opcode == "extcodecopy":
         inst.operands[2] = new_op
+
 
 def _update_read_op(inst, new_op: IROperand):
     opcode = inst.opcode
@@ -274,4 +282,3 @@ def _update_read_op(inst, new_op: IROperand):
         inst.operands[-1] = new_op
     elif opcode == "revert":
         inst.operands[1] = new_op
-

@@ -3,8 +3,7 @@ from __future__ import annotations
 import json
 import re
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
-from typing import ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, Iterator, Optional, Union
 
 import vyper.venom.effects as effects
 from vyper.codegen.ir_node import IRnode
@@ -203,9 +202,11 @@ class IRAbstractMemLoc(IROperand):
     def __repr__(self) -> str:
         return f"memloc({self._id})"
 
+
 IRAbstractMemLoc._curr_id = 0
 IRAbstractMemLoc.FREE_VAR1 = IRAbstractMemLoc(32, None)
 IRAbstractMemLoc.FREE_VAR2 = IRAbstractMemLoc(32, None)
+
 
 class IRVariable(IROperand):
     """

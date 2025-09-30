@@ -273,6 +273,7 @@ def _get_storage_read_location(inst, addr_space: AddrSpace) -> MemoryLocation:
 
     return MemoryLocation.EMPTY
 
+
 def get_mem_ops_indexes(inst) -> list[int]:
     opcode = inst.opcode
     if opcode == "mstore":

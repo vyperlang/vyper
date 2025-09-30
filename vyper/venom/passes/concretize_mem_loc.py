@@ -1,6 +1,7 @@
-from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.basicblock import IROperand, IRAbstractMemLoc
+from vyper.venom.basicblock import IRAbstractMemLoc, IROperand
 from vyper.venom.memory_allocator import MemoryAllocator
+from vyper.venom.passes.base_pass import IRPass
+
 
 class ConcretizeMemLocPass(IRPass):
     def run_pass(self, mem_allocator: MemoryAllocator):

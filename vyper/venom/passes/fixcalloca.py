@@ -1,7 +1,8 @@
-from vyper.venom.passes.base_pass import IRGlobalPass
 from vyper.venom.analysis import FCGAnalysis
+from vyper.venom.basicblock import IRAbstractMemLoc, IRLabel, IRLiteral
 from vyper.venom.function import IRFunction
-from vyper.venom.basicblock import IRLabel, IRLiteral, IRAbstractMemLoc
+from vyper.venom.passes.base_pass import IRGlobalPass
+
 
 class FixCalloca(IRGlobalPass):
     def run_pass(self):
@@ -22,13 +23,12 @@ class FixCalloca(IRGlobalPass):
                 assert isinstance(_id, IRLiteral)
 
                 called_name = callsite.value.rsplit("_call", maxsplit=1)[0]
-                
+
                 called = self.ctx.get_function(IRLabel(called_name))
                 if _id.value not in called.allocated_args:
                     # TODO in this case the calloca should be removed I think
                     inst.operands = [IRAbstractMemLoc(size.value, inst), _id]
                     continue
-                #assert _id.value in called.allocated_args, (_id, inst, called, self.ctx)
                 memloc = called.allocated_args[_id.value]
 
                 inst.operands = [memloc, _id]
