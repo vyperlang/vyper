@@ -88,7 +88,7 @@ class VenomOptimizationFlags:
     disable_remove_unused_variables: bool = False
 
     # Tuning parameters
-    inline_threshold: int = INLINE_THRESHOLD_DEFAULT
+    inline_threshold: Optional[int] = None
 
     def __post_init__(self):
         # Set default optimization level if not provided
