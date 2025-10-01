@@ -206,6 +206,7 @@ class FunctionInlinerPass(IRGlobalPass):
 
         call_site_bb.instructions = call_site_bb.instructions[:call_idx]
         call_site_bb.append_instruction("jmp", func_copy.entry.label)
+
         self._fix_phi(call_site_bb, call_site_return)
 
     def _fix_phi(self, orig: IRBasicBlock, new: IRBasicBlock) -> None:
