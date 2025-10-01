@@ -54,7 +54,7 @@ class OptimizationLevel(Enum):
 
     @classmethod
     def default(cls):
-        return cls.GAS
+        return cls.O2
 
     def __str__(self):
         return self._name_ if self._name_.startswith("O") else self._name_.lower()
