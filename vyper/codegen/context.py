@@ -56,7 +56,6 @@ class VariableRecord:
     defined_at: Any = None
     is_internal: bool = False
     alloca: Optional[Alloca] = None
-    system: bool = False
 
     # the following members are probably dead
     is_immutable: bool = False
@@ -234,8 +233,6 @@ class Context:
     def mark_for_deallocation(self, varname):
         # for variables get deallocated anyway
         if varname in self.forvars:
-            return
-        if self.vars[varname].system:
             return
         self._to_deallocate.add(varname)
 
