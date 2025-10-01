@@ -111,7 +111,7 @@ class LoadAnalysis(IRAnalysis):
                 self.inst_to_lattice[inst] = lattice.copy()
                 # mstore [val, ptr]
                 val, ptr = inst.operands
-                lit = self.get_literal(ptr)
+                lit = self.get_memloc(ptr)
                 if lit is None:
                     lattice.clear()
                     lattice[ptr] = OrderedSet([val])
@@ -121,7 +121,7 @@ class LoadAnalysis(IRAnalysis):
 
                 # kick out any conflicts
                 for existing_key in lattice.copy().keys():
-                    existing_lit = self.get_literal(existing_key)
+                    existing_lit = self.get_memloc(existing_key)
                     if existing_lit is None:
                         # a variable in the lattice. assign this ptr in the lattice
                         # and flush everything else.
