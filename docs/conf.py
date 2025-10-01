@@ -89,5 +89,5 @@ texinfo_documents = [
 intersphinx_mapping = {
     "brownie": ("https://eth-brownie.readthedocs.io/en/stable", None),
     "pytest": ("https://docs.pytest.org/en/latest/", None),
-    "python": ("https://docs.python.org/3.10/", None),
+    "python": ("https://docs.python.org/3.11/", None),
 }
