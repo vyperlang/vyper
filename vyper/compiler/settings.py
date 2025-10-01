@@ -31,7 +31,7 @@ class OptimizationLevel(Enum):
     O0 = 4  # No optimizations
     O1 = 5  # Basic optimizations
     O2 = 6  # Standard "stable" optimizations (default)
-    O3 = 7  # Aggressive optimizations -- experimental posibly unsafe
+    O3 = 7  # Aggressive optimizations -- experimental possibly unsafe
     Os = 8  # Optimize for size
     Oz = 9  # Extreme size optimization -- disregard performance completely
 
