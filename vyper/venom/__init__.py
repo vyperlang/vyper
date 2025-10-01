@@ -105,7 +105,7 @@ def _run_passes(
     AlgebraicOptimizationPass(ac, fn).run_pass()
 
     LoadElimination(ac, fn).run_pass()
-
+    
     SCCP(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
     RevertToAssert(ac, fn).run_pass()
