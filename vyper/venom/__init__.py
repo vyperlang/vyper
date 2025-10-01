@@ -253,6 +253,7 @@ PASS_FLAG_MAP = {
     "DeadStoreElimination": "disable_dead_store_elimination",
     "BranchOptimizationPass": "disable_branch_optimization",
     "CSE": "disable_cse",
+    "SimplifyCFGPass": "disable_simplify_cfg",
 }
 
 
