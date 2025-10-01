@@ -7,6 +7,7 @@ from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, FCGAnalysis, IRAnalys
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
+from vyper.venom.ir_node_to_venom import ENABLE_NEW_CALL_CONV
 from vyper.venom.passes import FloatAllocas
 from vyper.venom.passes.base_pass import IRGlobalPass
 
@@ -94,7 +95,56 @@ class FunctionInlinerPass(IRGlobalPass):
             self.analyses_caches[fn].invalidate_analysis(DFGAnalysis)
             self.analyses_caches[fn].invalidate_analysis(CFGAnalysis)
 
-    def _inline_call_site(self, func: IRFunction, call_site: IRInstruction) -> None:
+        caller_funcs = set([call_site.parent.parent for call_site in call_sites])
+        # match callocas to pallocas
+        for fn in caller_funcs:
+            callocas: dict[int, IRInstruction] = {}
+            found = set()
+            for bb in fn.get_basic_blocks():
+                for inst in bb.instructions:
+                    # we can see calloca allocated variables in the
+                    # called function via either alloca or calloca,
+                    # depending on if the called function itself has
+                    # inlined any callsites (see demotion of calloca
+                    # to alloca below). this handles both cases.
+                    if inst.opcode in ("alloca", "calloca"):
+                        _, _, alloca_id_op = inst.operands
+                        alloca_id = alloca_id_op.value
+                        assert isinstance(alloca_id, int)  # help mypy
+                        if alloca_id in callocas:
+                            # this can happen when we have a->b->c and a->c,
+                            # and both b and c get inlined.
+                            calloca_inst = callocas[alloca_id]
+                            assert calloca_inst.output is not None
+                            inst.opcode = "assign"
+                            inst.operands = [calloca_inst.output]
+                        else:
+                            callocas[alloca_id] = inst
+
+                    if inst.opcode == "palloca":
+                        _, _, alloca_id_op = inst.operands
+                        alloca_id = alloca_id_op.value
+                        assert isinstance(alloca_id, int)
+                        if alloca_id not in callocas:
+                            # this is our own palloca, not one that got
+                            # inlined
+                            continue
+                        inst.opcode = "assign"
+                        calloca_inst = callocas[alloca_id]
+                        assert calloca_inst.output is not None  # help mypy
+                        inst.operands = [calloca_inst.output]
+                        found.add(alloca_id)
+
+            for bb in fn.get_basic_blocks():
+                for inst in bb.instructions:
+                    if inst.opcode != "calloca":
+                        continue
+                    _, _, alloca_id = inst.operands
+                    if alloca_id in found:
+                        # demote to alloca so that mem2var will work
+                        inst.opcode = "alloca"
+
+    def _inline_call_site(self, func: IRFunction, call_site: IRInstruction):
         """
         Inline function into call site.
         """
@@ -129,24 +179,26 @@ class FunctionInlinerPass(IRGlobalPass):
             param_idx = 0
             for inst in bb.instructions:
                 if inst.opcode == "param":
-                    # NOTE: one of these params is the return pc. technically assigning
-                    # a variable to a label (e.g. %1 = @label) as we are doing here is
-                    # not valid venom code, but it will get removed in store elimination
-                    # (or unused variable elimination)
-                    inst.opcode = "store"
-                    val = call_site.operands[-param_idx - 1]
+                    # NOTE: one of these params is the return pc.
+                    inst.opcode = "assign"
+                    # handle return pc specially - it's at top of stack.
+                    ops = call_site.operands[1:] + [call_site.operands[0]]
+                    val = ops[param_idx]
                     inst.operands = [val]
                     param_idx += 1
                 elif inst.opcode == "palloca":
-                    inst.opcode = "store"
-                    inst.operands = [inst.operands[0]]
+                    # will be handled at the toplevel `inline_function`
+                    pass
                 elif inst.opcode == "ret":
+                    if len(inst.operands) > 1:
+                        # sanity check (should remove once new callconv stabilizes)
+                        assert ENABLE_NEW_CALL_CONV
+                        ret_value = inst.operands[0]
+                        bb.insert_instruction(
+                            IRInstruction("assign", [ret_value], call_site.output), -1
+                        )
                     inst.opcode = "jmp"
                     inst.operands = [call_site_return.label]
-                elif inst.opcode == "revert":
-                    bb.remove_instructions_after(inst)
-                    bb.append_instruction("stop")
-                    break
 
             for inst in bb.instructions:
                 if not inst.annotation:
@@ -154,6 +206,21 @@ class FunctionInlinerPass(IRGlobalPass):
 
         call_site_bb.instructions = call_site_bb.instructions[:call_idx]
         call_site_bb.append_instruction("jmp", func_copy.entry.label)
+        self._fix_phi(call_site_bb, call_site_return)
+
+    def _fix_phi(self, orig: IRBasicBlock, new: IRBasicBlock) -> None:
+        # when a function is inlined, the successors of the entry block
+        # may contain phis.
+        # these phis need to be updated to refer to the new block
+        # which is jumped to from the callsite of caller function.
+        orig_label = orig.label
+        new_label = new.label
+
+        for bb in new.out_bbs:
+            for inst in bb.instructions:
+                if inst.opcode != "phi":
+                    continue
+                inst.replace_label_operands({orig_label: new_label})
 
     def _build_call_walk(self, function: IRFunction) -> OrderedSet[IRFunction]:
         """
@@ -182,14 +249,14 @@ class FunctionInlinerPass(IRGlobalPass):
         clone = IRFunction(new_func_label)
         # clear the bb that is added by default
         # consider using func.copy() intead?
-        clone._basic_block_dict.clear()
+        clone.clear_basic_blocks()
         for bb in func.get_basic_blocks():
-            clone.append_basic_block(self._clone_basic_block(bb, prefix))
+            clone.append_basic_block(self._clone_basic_block(clone, bb, prefix))
         return clone
 
-    def _clone_basic_block(self, bb: IRBasicBlock, prefix: str) -> IRBasicBlock:
+    def _clone_basic_block(self, new_fn: IRFunction, bb: IRBasicBlock, prefix: str) -> IRBasicBlock:
         new_bb_label = IRLabel(f"{prefix}{bb.label.value}")
-        new_bb = IRBasicBlock(new_bb_label, bb.parent)
+        new_bb = IRBasicBlock(new_bb_label, new_fn)
         new_bb.instructions = [self._clone_instruction(inst, prefix) for inst in bb.instructions]
         for inst in new_bb.instructions:
             inst.parent = new_bb

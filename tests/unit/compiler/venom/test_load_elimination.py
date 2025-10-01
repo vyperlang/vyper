@@ -2,7 +2,7 @@ import pytest
 
 from tests.venom_utils import PrePostChecker
 from vyper.evm.address_space import CALLDATA, DATA, MEMORY, STORAGE, TRANSIENT
-from vyper.venom.passes import LoadElimination, StoreElimination
+from vyper.venom.passes import AssignElimination, LoadElimination
 
 pytestmark = pytest.mark.hevm
 
@@ -11,7 +11,7 @@ pytestmark = pytest.mark.hevm
 # and the second/in post is needed to create
 # easier equivalence in the test for pre and post
 _check_pre_post = PrePostChecker(
-    passes=[StoreElimination, LoadElimination, StoreElimination], post=[StoreElimination]
+    passes=[AssignElimination, LoadElimination, AssignElimination], post=[AssignElimination]
 )
 
 
@@ -283,7 +283,7 @@ def test_store_store_unknown_ptr_barrier():
     pre = """
     main:
         %ptr_mstore01 = 10
-        %ptr_mstore02 = param
+        %ptr_mstore02 = source
         mstore %ptr_mstore01, 10
 
         # barrier created with overlap
