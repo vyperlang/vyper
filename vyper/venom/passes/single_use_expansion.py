@@ -40,7 +40,7 @@ class SingleUseExpansion(IRPass):
                 if inst.opcode == "log" and j == 0:
                     continue
 
-                if isinstance(op, IRVariable):
+                if False and isinstance(op, IRVariable):
                     uses = self.dfg.get_uses(op)
                     # it's already only used once
                     if len(uses) == 1 and len([x for x in inst.operands if x == op]) == 1:
