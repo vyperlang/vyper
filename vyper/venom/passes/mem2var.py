@@ -19,6 +19,7 @@ class Mem2Var(IRPass):
         self.analyses_cache.request_analysis(CFGAnalysis)
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(dfg)
+        self.dfg = dfg
 
         self.var_name_count = 0
         for var, inst in dfg.outputs.copy().items():
@@ -138,5 +139,14 @@ class Mem2Var(IRPass):
         assert inst.output is not None
         assert len(inst.operands) == 2
         memloc = inst.operands[0]
+
+        assert isinstance(memloc, IRAbstractMemLoc)
+
+        if memloc.unused:
+            uses = self.dfg.get_uses(inst.output)
+            for use in uses.copy():
+                self.updater.nop(use)
+            self.updater.nop(inst)
+            return
 
         self.updater.mk_assign(inst, memloc)

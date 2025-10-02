@@ -179,16 +179,18 @@ class IRAbstractMemLoc(IROperand):
     _id: int
     size: int
     source: IRInstruction | None
+    unused: bool
 
     _curr_id: ClassVar[int]
     FREE_VAR1: ClassVar["IRAbstractMemLoc"]
     FREE_VAR2: ClassVar["IRAbstractMemLoc"]
 
-    def __init__(self, size: int, source: IRInstruction | None):
+    def __init__(self, size: int, source: IRInstruction | None, unused = False):
         self._id = IRAbstractMemLoc._curr_id
         IRAbstractMemLoc._curr_id += 1
         self.size = size
         self.source = source
+        self.unused = unused
 
     def __hash__(self) -> int:
         if self._hash is None:
