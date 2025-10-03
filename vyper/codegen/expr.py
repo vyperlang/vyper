@@ -216,6 +216,20 @@ class Expr:
     def parse_Attribute(self):
         typ = self.expr._metadata["type"]
 
+        # Flag.__values__: materialize a static array of all flag values in order
+        # Left side must be a flag type expression.
+        if self.expr.attr == "__values__" and is_type_t(self.expr.value._metadata["type"], FlagT):
+            flag_t = self.expr.value._metadata["type"].typedef
+            # Build the list of constant IR nodes for each flag value
+            # using declaration order from `_flag_members`.
+            elements = []
+            for idx in flag_t._flag_members.values():
+                value = 2**idx
+                elements.append(IRnode.from_list(value, typ=flag_t))
+
+            arr_t = SArrayT(flag_t, len(elements))
+            return IRnode.from_list(["multi"] + elements, typ=arr_t)
+
         # check if we have a flag constant, e.g.
         # [lib1].MyFlag.FOO
         if isinstance(typ, FlagT) and is_type_t(self.expr.value._metadata["type"], FlagT):
@@ -476,9 +490,10 @@ class Expr:
 
         ret = ["seq"]
 
-        with left.cache_when_complex("needle") as (b1, left), right.cache_when_complex(
-            "haystack"
-        ) as (b2, right):
+        with (
+            left.cache_when_complex("needle") as (b1, left),
+            right.cache_when_complex("haystack") as (b2, right),
+        ):
             # unroll the loop for compile-time list literals
             if right.value == "multi":
                 # empty list literals should be rejected at typechecking time
