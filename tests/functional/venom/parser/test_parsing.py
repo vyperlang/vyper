@@ -151,7 +151,7 @@ def test_multi_function():
     expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
 
     entry_bb = entry_fn.get_basic_block("entry")
-    entry_bb.append_invoke_instruction([IRLabel("check_cv")], returns=False)
+    entry_bb.append_invoke_instruction([IRLabel("check_cv")], returns=0)
     entry_bb.append_instruction("jmp", IRLabel("wow"))
 
     entry_fn.append_basic_block(wow_bb := IRBasicBlock(IRLabel("wow"), entry_fn))
@@ -213,7 +213,7 @@ def test_multi_function_and_data():
     expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
 
     entry_bb = entry_fn.get_basic_block("entry")
-    entry_bb.append_invoke_instruction([IRLabel("check_cv")], returns=False)
+    entry_bb.append_invoke_instruction([IRLabel("check_cv")], returns=0)
     entry_bb.append_instruction("jmp", IRLabel("wow"))
 
     entry_fn.append_basic_block(wow_bb := IRBasicBlock(IRLabel("wow"), entry_fn))
