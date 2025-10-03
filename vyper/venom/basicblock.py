@@ -185,9 +185,12 @@ class IRAbstractMemLoc(IROperand):
     FREE_VAR1: ClassVar["IRAbstractMemLoc"]
     FREE_VAR2: ClassVar["IRAbstractMemLoc"]
 
-    def __init__(self, size: int, source: IRInstruction | None, unused = False):
-        self._id = IRAbstractMemLoc._curr_id
-        IRAbstractMemLoc._curr_id += 1
+    def __init__(self, size: int, source: IRInstruction | None, unused = False, force_id = None):
+        if force_id is None:
+            self._id = IRAbstractMemLoc._curr_id
+            IRAbstractMemLoc._curr_id += 1
+        else:
+            self._id = force_id
         self.size = size
         self.source = source
         self.unused = unused
@@ -202,7 +205,7 @@ class IRAbstractMemLoc(IROperand):
         return self._id
 
     def __repr__(self) -> str:
-        return f"memloc({self._id})"
+        return f"[{self._id}]"
 
 
 IRAbstractMemLoc._curr_id = 0
