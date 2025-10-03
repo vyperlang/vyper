@@ -1,5 +1,7 @@
 from collections import deque
 
+from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
+from vyper.venom.basicblock import IRAbstractMemLoc, IRLiteral
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.analysis.analysis import IRAnalysis
@@ -10,12 +12,27 @@ from vyper.venom.passes.base_pass import InstUpdater, IRPass
 Lattice = dict[IROperand, OrderedSet[IROperand]]
 
 
-def _conflict(store_opcode: str, k1: IRLiteral, k2: IRLiteral):
+def _conflict_lit(store_opcode: str, k1: IRLiteral, k2: IRLiteral):
     ptr1, ptr2 = k1.value, k2.value
+    if store_opcode == "mstore":
+        return abs(ptr1 - ptr2) < 32
+    assert store_opcode in ("sstore", "tstore"), "unhandled store opcode"
+    return abs(ptr1 - ptr2) < 1
+
+
+def _conflict(
+    store_opcode: str, k1: IRLiteral | IRAbstractMemLoc, k2: IRLiteral | IRAbstractMemLoc, tmp=None
+):
     # hardcode the size of store opcodes for now. maybe refactor to use
     # vyper.evm.address_space
     if store_opcode == "mstore":
-        return abs(ptr1 - ptr2) < 32
+        if isinstance(k1, IRLiteral) and isinstance(k2, IRLiteral):
+            return _conflict_lit(store_opcode, k1, k2)
+        assert isinstance(k1, IRAbstractMemLoc) and isinstance(k2, IRAbstractMemLoc), (k1, k2, tmp)
+        return k1._id == k2._id
+
+    assert isinstance(k1, IRLiteral) and isinstance(k2, IRLiteral)
+    ptr1, ptr2 = k1.value, k2.value
     assert store_opcode in ("sstore", "tstore"), "unhandled store opcode"
     return abs(ptr1 - ptr2) < 1
 
@@ -71,8 +88,10 @@ class LoadAnalysis(IRAnalysis):
 
         return res
 
-    def get_literal(self, op):
+    def get_memloc(self, op):
         op = self.dfg._traverse_assign_chain(op)
+        if isinstance(op, IRAbstractMemLoc):
+            return op
         if isinstance(op, IRLiteral):
             return op
         return None
@@ -92,7 +111,7 @@ class LoadAnalysis(IRAnalysis):
                 self.inst_to_lattice[inst] = lattice.copy()
                 # mstore [val, ptr]
                 val, ptr = inst.operands
-                lit = self.get_literal(ptr)
+                lit = self.get_memloc(ptr)
                 if lit is None:
                     lattice.clear()
                     lattice[ptr] = OrderedSet([val])
@@ -102,7 +121,7 @@ class LoadAnalysis(IRAnalysis):
 
                 # kick out any conflicts
                 for existing_key in lattice.copy().keys():
-                    existing_lit = self.get_literal(existing_key)
+                    existing_lit = self.get_memloc(existing_key)
                     if existing_lit is None:
                         # a variable in the lattice. assign this ptr in the lattice
                         # and flush everything else.
@@ -210,6 +229,7 @@ class LoadElimination(IRPass):
         # mstore [val, ptr]
         val, ptr = inst.operands
 
+
         existing_value = self._lattice[inst].get(ptr, OrderedSet()).copy()
 
         # we found a redundant store, eliminate it
@@ -218,3 +238,4 @@ class LoadElimination(IRPass):
                 if not self.equivalent(val, tmp):
                     return
             self.updater.nop(inst)
+

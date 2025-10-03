@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Iterator, Optional, Union
 
 import vyper.venom.effects as effects
 from vyper.codegen.ir_node import IRnode
@@ -34,6 +34,7 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "extcodecopy",
         "returndatacopy",
         "codecopy",
+        "codecopyruntime",
         "dloadbytes",
         "return",
         "ret",
@@ -62,6 +63,7 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "mcopy",
         "returndatacopy",
         "codecopy",
+        "codecopyruntime",
         "extcodecopy",
         "return",
         "ret",
@@ -171,6 +173,44 @@ class IRLiteral(IROperand):
         if abs(self.value) < 1024:
             return str(self.value)
         return f"0x{self.value:x}"
+
+
+class IRAbstractMemLoc(IROperand):
+    _id: int
+    size: int
+    source: IRInstruction | None
+    unused: bool
+
+    _curr_id: ClassVar[int]
+    FREE_VAR1: ClassVar["IRAbstractMemLoc"]
+    FREE_VAR2: ClassVar["IRAbstractMemLoc"]
+
+    def __init__(self, size: int, source: IRInstruction | None, unused = False, force_id = None):
+        if force_id is None:
+            self._id = IRAbstractMemLoc._curr_id
+            IRAbstractMemLoc._curr_id += 1
+        else:
+            self._id = force_id
+        self.size = size
+        self.source = source
+        self.unused = unused
+
+    def __hash__(self) -> int:
+        if self._hash is None:
+            self._hash = hash(self.source)
+        return self._hash
+
+    @property
+    def value(self):
+        return self._id
+
+    def __repr__(self) -> str:
+        return f"[{self._id}]"
+
+
+IRAbstractMemLoc._curr_id = 0
+IRAbstractMemLoc.FREE_VAR1 = IRAbstractMemLoc(32, None)
+IRAbstractMemLoc.FREE_VAR2 = IRAbstractMemLoc(32, None)
 
 
 class IRVariable(IROperand):
