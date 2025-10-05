@@ -232,9 +232,6 @@ OPTIMIZATION_PASSES[OptimizationLevel.GAS] = OPTIMIZATION_PASSES[OptimizationLev
 OPTIMIZATION_PASSES[OptimizationLevel.CODESIZE] = OPTIMIZATION_PASSES[
     OptimizationLevel.Os
 ]  # codesize -> Os
-OPTIMIZATION_PASSES[OptimizationLevel.Oz] = OPTIMIZATION_PASSES[
-    OptimizationLevel.Os
-]  # Oz uses same passes as Os (differs in flags)
 
 
 def generate_assembly_experimental(

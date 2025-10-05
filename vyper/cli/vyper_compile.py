@@ -143,7 +143,7 @@ def _parse_args(argv):
         "--optimize",
         help="Optimization level (defaults to 'gas'). Valid options: "
         "0 (none), 1 (basic), 2 (gas/default), 3 (aggressive - experimental), "
-        "s (size), z (extreme size), or legacy names: none, gas, codesize",
+        "s (size), or legacy names: none, gas, codesize",
         metavar="LEVEL",
         dest="optimize",
     )
@@ -245,14 +245,12 @@ def _parse_args(argv):
     if args.no_optimize:
         optimize = OptimizationLevel.NONE
     elif args.optimize is not None:
-        # Handle both old-style (none, gas, codesize) and new-style (0, 1, 2, 3, s, z) arguments
+        # Handle both old-style (none, gas, codesize) and new-style (0, 1, 2, 3, s) arguments
         opt_level = args.optimize.lower()
         if opt_level in ["0", "1", "2", "3"]:
             opt_level = "O" + opt_level
         elif opt_level == "s":
             opt_level = "Os"
-        elif opt_level == "z":
-            opt_level = "Oz"
         optimize = OptimizationLevel.from_string(opt_level)
 
     settings = Settings(optimize=optimize)

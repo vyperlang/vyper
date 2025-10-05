@@ -33,7 +33,6 @@ class OptimizationLevel(Enum):
     O2 = 6  # Standard "stable" optimizations (default)
     O3 = 7  # Aggressive optimizations -- experimental possibly unsafe
     Os = 8  # Optimize for size
-    Oz = 9  # Extreme size optimization -- disregard performance completely
 
     @classmethod
     def from_string(cls, val):
@@ -48,8 +47,6 @@ class OptimizationLevel(Enum):
                 return cls.O1
             case "O3":
                 return cls.O3
-            case "Oz":
-                return cls.Oz
         raise ValueError(f"unrecognized optimization level: {val}")
 
     @classmethod
@@ -65,7 +62,6 @@ DEFAULT_ENABLE_DECIMALS = False
 # Inlining threshold constants
 INLINE_THRESHOLD_NONE = 0  # No inlining
 INLINE_THRESHOLD_SIZE = 5  # Conservative for size optimization
-INLINE_THRESHOLD_SIZE_AGGRESSIVE = 5
 INLINE_THRESHOLD_DEFAULT = 15  # Standard inlining
 INLINE_THRESHOLD_AGGRESSIVE = 30  # Aggressive inlining for O3
 
@@ -104,8 +100,6 @@ class VenomOptimizationFlags:
             return INLINE_THRESHOLD_AGGRESSIVE
         elif level in (OptimizationLevel.Os, OptimizationLevel.CODESIZE):
             return INLINE_THRESHOLD_SIZE
-        elif level == OptimizationLevel.Oz:
-            return INLINE_THRESHOLD_SIZE_AGGRESSIVE
         elif level in (OptimizationLevel.NONE, OptimizationLevel.O0):
             return INLINE_THRESHOLD_NONE
         else:
