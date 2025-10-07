@@ -1,13 +1,14 @@
-from vyper.venom.basicblock import IRAbstractMemLoc, IROperand, IRLabel, IRBasicBlock
+from vyper.venom.basicblock import IRAbstractMemLoc, IROperand, IRLabel, IRBasicBlock,IRInstruction
+from vyper.venom.function import IRFunction
 from vyper.venom.memory_allocator import MemoryAllocator
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.analysis import CFGAnalysis
 from collections import defaultdict, deque
+from vyper.utils import OrderedSet
 
 
 class ConcretizeMemLocPass(IRPass):
     allocated_in_bb: dict[IRBasicBlock, int]
-    orig: int
 
     def run_pass(self, mem_allocator: MemoryAllocator):
         self.allocator = mem_allocator
@@ -15,30 +16,31 @@ class ConcretizeMemLocPass(IRPass):
 
         mem_allocator.start_fn_allocation(self._get_used(mem_allocator))
 
-        tmp = mem_allocator.curr
-        self.orig = tmp
-        self.allocated_in_bb = defaultdict(lambda: tmp)
+        orig = mem_allocator.curr
 
-        worklist = deque(bb for bb in self.function.get_basic_blocks() if len(self.cfg.cfg_out(bb)) == 0)
-        visited = set()
-        while len(worklist) > 0:
-            bb = worklist.popleft()
-            self._allocate_bb(mem_allocator, bb)
-            for pred in self.cfg.cfg_in(bb):
-                if pred in visited:
-                    continue
-                visited.add(pred)
-                worklist.append(pred)
+        self.mem_liveness = MemLiveness(self.function, self.cfg)
+        self.mem_liveness.analyze()
+
+        livesets = list(self.mem_liveness.livesets.items())
+        livesets.sort(key = lambda x: len(x[1]), reverse=True)
+
+        for index, (mem, _) in enumerate(livesets):
+            curr = orig
+            for i in range(index):
+                before_mem, _ = livesets[i]
+                place = mem_allocator.get_place(before_mem)
+                assert place.offset is not None and place.size is not None
+                curr = max(place.offset + place.size, curr)
+            mem_allocator.curr = curr
+            mem_allocator.get_place(mem)
+            
+
+        for bb in self.function.get_basic_blocks():
+            self._handle_bb(mem_allocator, bb)
 
         mem_allocator.end_fn_allocation(self.function)
 
-    def _allocate_bb(self, mem_allocator: MemoryAllocator, bb: IRBasicBlock):
-        #print(bb.label)
-        if len(succs := self.cfg.cfg_out(bb)) > 0:
-            mem_allocator.curr = max(self.allocated_in_bb[succ] for succ in succs)
-        else:
-            mem_allocator.curr = self.orig
-
+    def _handle_bb(self, mem_allocator: MemoryAllocator, bb: IRBasicBlock):
         for inst in bb.instructions:
             if inst.opcode == "codecopyruntime":
                 inst.opcode = "codecopy"
@@ -49,8 +51,6 @@ class ConcretizeMemLocPass(IRPass):
                 inst.opcode = "add"
             elif inst.opcode == "mem_deploy_start":
                 inst.opcode = "assign"
-
-        self.allocated_in_bb[bb] = mem_allocator.curr
         
 
     def _handle_op(self, op: IROperand) -> IROperand:
@@ -73,3 +73,109 @@ class ConcretizeMemLocPass(IRPass):
                 max_used = max(max_used, mem_alloc.function_mem_used[callee])        
 
         return max_used
+
+class MemLiveness:
+    function: IRFunction
+    cfg: CFGAnalysis
+
+    liveat: dict[IRInstruction, OrderedSet[IRAbstractMemLoc]]
+    livesets: dict[IRAbstractMemLoc, OrderedSet[IRInstruction]]
+
+    def __init__(self, function: IRFunction, cfg: CFGAnalysis):
+        self.function = function
+        self.cfg = cfg
+        self.liveat = defaultdict(OrderedSet)
+
+    def analyze(self):
+        while True:
+            change = False
+            for bb in self.cfg.dfs_post_walk:
+                change |= self._handle_bb(bb)
+
+            if not change:
+                break
+        
+        self.livesets = defaultdict(OrderedSet)
+        for inst, mems in self.liveat.items():
+            for mem in mems:
+                self.livesets[mem].add(inst)
+    
+    def _handle_bb(self, bb: IRBasicBlock) -> bool:
+        curr = OrderedSet()
+        if len(succs := self.cfg.cfg_out(bb)) > 0:
+            for other in (self.liveat[succ.instructions[0]] for succ in succs):
+                curr.union(other)
+
+        before = self.liveat[bb.instructions[0]]
+
+        for inst in reversed(bb.instructions):
+            write_op = _get_memory_write_op(inst)
+            read_op = _get_memory_read_op(inst)
+            if write_op is not None and isinstance(write_op, IRAbstractMemLoc):
+                if write_op in curr:
+                    curr.remove(write_op)
+            if read_op is not None and isinstance(read_op, IRAbstractMemLoc):
+                curr.add(read_op)
+            self.liveat[inst] = curr.copy()
+        
+        if before != self.liveat[bb.instructions[0]]:
+            return True
+
+        return False
+
+def _get_memory_write_op(inst) -> IROperand | None:
+    opcode = inst.opcode
+    if opcode == "mstore":
+        dst = inst.operands[1]
+        return dst
+    elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
+        _, _, dst = inst.operands
+        return dst
+    elif opcode == "call":
+        _, dst, _, _, _, _, _ = inst.operands
+        return dst
+    elif opcode in ("delegatecall", "staticcall"):
+        _, dst, _, _, _, _ = inst.operands
+        return dst
+    elif opcode == "extcodecopy":
+        _, _, dst, _ = inst.operands
+        return dst
+
+    return None
+
+def _get_memory_read_op(inst) -> IROperand | None:
+    opcode = inst.opcode
+    if opcode == "mload":
+        return inst.operands[0]
+    elif opcode == "mcopy":
+        _, src, _ = inst.operands
+        return src
+    elif opcode == "call":
+        _, _, _, dst, _, _, _ = inst.operands
+        return dst
+    elif opcode in ("delegatecall", "staticcall"):
+        _, _, _, dst, _, _ = inst.operands
+        return dst
+    elif opcode == "return":
+        _, src = inst.operands
+        return src
+    elif opcode == "create":
+        _, src, _value = inst.operands
+        return src
+    elif opcode == "create2":
+        _salt, size, src, _value = inst.operands
+        return src
+    elif opcode == "sha3":
+        _, offset = inst.operands
+        return offset
+    elif opcode == "log":
+        _, src = inst.operands[-2:]
+        return src
+    elif opcode == "revert":
+        size, src = inst.operands
+        if size.value == 0:
+            return None
+        return src
+
+    return None
+
