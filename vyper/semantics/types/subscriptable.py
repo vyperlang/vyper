@@ -342,6 +342,12 @@ class TupleT(VyperType):
             return f"({t},)"
         return "(" + ", ".join(f"{t}" for t in self.member_types) + ")"
 
+    # TODO should we instead set _equality_attrs = ("member_types",)?
+    def _addl_dict_fields(self):
+        ret = {}
+        ret["member_types"] = [t.to_dict() for t in self.member_types]
+        return ret
+
     @property
     def length(self):
         return len(self.member_types)
