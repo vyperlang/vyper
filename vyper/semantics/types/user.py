@@ -11,6 +11,7 @@ from vyper.exceptions import (
     NamespaceCollision,
     StructureException,
     UnfoldableNode,
+    UnknownAttribute,
     VariableDeclarationException,
 )
 from vyper.semantics.analysis.base import Modifiability
@@ -65,18 +66,27 @@ class FlagT(_UserType):
 
         self._id = name
 
-        self._flag_members = members
+        self._flag_members = dict(members)
 
-        # use a VyperType for convenient access to the `get_member` function
-        # also conveniently checks well-formedness of the members namespace
-        self._helper = VyperType(members)
+        for member_name in self._flag_members:
+            self.add_member(member_name, self)
 
-        # set the name for exception handling in `get_member`
-        self._helper._id = name
+        from vyper.semantics.types.subscriptable import SArrayT
+
+        self.add_member("__values__", SArrayT(self, len(self._flag_members)))
 
     def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
-        self._helper.get_member(key, node)
-        return self
+        return super().get_member(key, node)
+
+    def get_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
+        if key in self.members:
+            msg = (
+                f"{self} members are available on the type. "
+                f"Use {self.name}.{key} instead."
+            )
+            raise UnknownAttribute(msg, node)
+
+        return super().get_member(key, node)
 
     def __str__(self):
         return f"{self.name}"
@@ -135,6 +145,10 @@ class FlagT(_UserType):
                 raise FlagDeclarationException("Invalid syntax for flag member", node)
 
             member_name = node.value.id
+            if member_name == "__values__":
+                raise FlagDeclarationException(
+                    "Flag member '__values__' is reserved", node.value
+                )
             if member_name in members:
                 raise FlagDeclarationException(
                     f"Flag member '{member_name}' has already been declared", node.value
