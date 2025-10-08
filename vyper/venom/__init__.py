@@ -94,6 +94,7 @@ def _run_passes(
     MemMergePass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
+    AssignElimination(ac, fn).run_pass()
     ConcretizeMemLocPass(ac, fn).run_pass(alloc)
     SCCP(ac, fn).run_pass()
 

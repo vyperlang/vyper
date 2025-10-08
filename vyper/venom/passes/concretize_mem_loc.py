@@ -1,8 +1,8 @@
-from vyper.venom.basicblock import IRAbstractMemLoc, IROperand, IRLabel, IRBasicBlock,IRInstruction
+from vyper.venom.basicblock import IRAbstractMemLoc, IROperand, IRLabel, IRBasicBlock,IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.memory_allocator import MemoryAllocator
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.analysis import CFGAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis
 from collections import defaultdict, deque
 from vyper.utils import OrderedSet
 
@@ -13,12 +13,13 @@ class ConcretizeMemLocPass(IRPass):
     def run_pass(self, mem_allocator: MemoryAllocator):
         self.allocator = mem_allocator
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
         mem_allocator.start_fn_allocation(self._get_used(mem_allocator))
 
         orig = mem_allocator.curr
 
-        self.mem_liveness = MemLiveness(self.function, self.cfg)
+        self.mem_liveness = MemLiveness(self.function, self.cfg, self.dfg)
         self.mem_liveness.analyze()
 
         livesets = list(self.mem_liveness.livesets.items())
@@ -36,11 +37,11 @@ class ConcretizeMemLocPass(IRPass):
             
 
         for bb in self.function.get_basic_blocks():
-            self._handle_bb(mem_allocator, bb)
+            self._handle_bb(bb)
 
         mem_allocator.end_fn_allocation(self.function)
 
-    def _handle_bb(self, mem_allocator: MemoryAllocator, bb: IRBasicBlock):
+    def _handle_bb(self, bb: IRBasicBlock):
         for inst in bb.instructions:
             if inst.opcode == "codecopyruntime":
                 inst.opcode = "codecopy"
@@ -81,9 +82,10 @@ class MemLiveness:
     liveat: dict[IRInstruction, OrderedSet[IRAbstractMemLoc]]
     livesets: dict[IRAbstractMemLoc, OrderedSet[IRInstruction]]
 
-    def __init__(self, function: IRFunction, cfg: CFGAnalysis):
+    def __init__(self, function: IRFunction, cfg: CFGAnalysis, dfg: DFGAnalysis):
         self.function = function
         self.cfg = cfg
+        self.dfg = dfg
         self.liveat = defaultdict(OrderedSet)
 
     def analyze(self):
@@ -110,7 +112,9 @@ class MemLiveness:
 
         for inst in reversed(bb.instructions):
             write_op = _get_memory_write_op(inst)
+            write_op = self._follow_op(write_op)
             read_op = _get_memory_read_op(inst)
+            read_op = self._follow_op(read_op)
             if write_op is not None and isinstance(write_op, IRAbstractMemLoc):
                 if write_op in curr:
                     curr.remove(write_op)
@@ -122,6 +126,23 @@ class MemLiveness:
             return True
 
         return False
+    
+    def _follow_op(self, op: IROperand | None) -> IRAbstractMemLoc | None:
+        if op is None:
+            return op
+        if isinstance(op, IRAbstractMemLoc):
+            return op
+        if not isinstance(op, IRVariable):
+            return None
+
+        inst = self.dfg.get_producing_instruction(op)
+        assert inst is not None
+        if inst.opcode == "gep":
+            mem = inst.operands[0]
+            return self._follow_op(mem)
+        
+        return None
+
 
 def _get_memory_write_op(inst) -> IROperand | None:
     opcode = inst.opcode
