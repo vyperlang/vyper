@@ -4,6 +4,7 @@ from vyper.venom.basicblock import IRAbstractMemLoc, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ENABLE_NEW_CALL_CONV
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
+from collections import deque
 
 
 class Mem2Var(IRPass):
@@ -143,10 +144,24 @@ class Mem2Var(IRPass):
         assert isinstance(memloc, IRAbstractMemLoc)
 
         if memloc.unused:
-            uses = self.dfg.get_uses(inst.output)
-            for use in uses.copy():
-                self.updater.nop(use)
-            self.updater.nop(inst)
+            self._removed_unused_calloca(inst)
             return
 
         self.updater.mk_assign(inst, memloc)
+
+    def _removed_unused_calloca(self, inst: IRInstruction):
+        assert inst.output is not None
+        to_remove = set()
+        worklist = deque()
+        worklist.append(inst)
+        while len(worklist) > 0:
+            curr = worklist.popleft()
+            if curr in to_remove:
+                continue
+            to_remove.add(curr)
+
+            if curr.output is not None:
+                uses = self.dfg.get_uses(curr.output)
+                worklist.extend(uses)
+        
+        self.updater.nop_multi(to_remove)
