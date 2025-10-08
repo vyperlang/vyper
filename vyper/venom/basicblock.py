@@ -196,9 +196,12 @@ class IRAbstractMemLoc(IROperand):
         self.unused = unused
 
     def __hash__(self) -> int:
-        if self._hash is None:
-            self._hash = hash(self.source)
-        return self._hash
+        return self._id
+
+    def __eq__(self, other) -> bool:
+        if type(self) != type(other):
+            return False
+        return self._id == other._id
 
     @property
     def value(self):

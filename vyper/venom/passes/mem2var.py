@@ -1,6 +1,6 @@
 from vyper.utils import all2
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRAbstractMemLoc, IRInstruction, IRVariable
+from vyper.venom.basicblock import IRAbstractMemLoc, IRInstruction, IRVariable, IROperand
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ENABLE_NEW_CALL_CONV
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
@@ -57,12 +57,9 @@ class Mem2Var(IRPass):
         self.updater.mk_assign(alloca_inst, mem_loc)
 
         if any(inst.opcode == "add" for inst in uses):
-            for inst in uses.copy():
-                if inst.opcode == "add":
-                    other = [op for op in inst.operands if op != alloca_inst.output]
-                    assert len(other) == 1
-                    self.updater.update(inst, "gep", [mem_loc, other[0]])
+            self._fix_adds(alloca_inst, mem_loc)
             return
+
         if not all2(inst.opcode in ["mstore", "mload", "return"] for inst in uses):
             return
 
@@ -96,11 +93,7 @@ class Mem2Var(IRPass):
 
         self.updater.mk_assign(palloca_inst, mem_loc)
         if any(inst.opcode == "add" for inst in uses):
-            for inst in uses.copy():
-                if inst.opcode == "add":
-                    other = [op for op in inst.operands if op != palloca_inst.output]
-                    assert len(other) == 1
-                    self.updater.update(inst, "gep", [mem_loc, other[0]])
+            self._fix_adds(palloca_inst, mem_loc)
             return
 
         if not all2(inst.opcode in ["mstore", "mload"] for inst in uses):
@@ -148,12 +141,7 @@ class Mem2Var(IRPass):
             return
 
         self.updater.mk_assign(inst, memloc)
-        uses = self.dfg.get_uses(inst.output)
-        for use in uses.copy():
-            if use.opcode == "add":
-                other = [op for op in use.operands if op != inst.output]
-                assert len(other) == 1, (use, other)
-                self.updater.update(use, "gep", [memloc, other[0]])
+        self._fix_adds(inst, memloc)
 
     def _removed_unused_calloca(self, inst: IRInstruction):
         assert inst.output is not None
@@ -171,3 +159,14 @@ class Mem2Var(IRPass):
                 worklist.extend(uses)
         
         self.updater.nop_multi(to_remove)
+
+    def _fix_adds(self, mem_src: IRInstruction, mem_op: IROperand):
+        assert mem_src.output is not None
+        uses = self.dfg.get_uses(mem_src.output)
+        for inst in uses.copy():
+            if inst.opcode != "add":
+                continue
+            other = [op for op in inst.operands if op != mem_src.output]
+            assert len(other) == 1
+            self.updater.update(inst, "gep", [mem_op, other[0]])
+            self._fix_adds(inst, inst.output)
