@@ -137,6 +137,8 @@ class Context:
 
         self.settings = get_global_settings()
 
+        self._to_deallocate = set()
+
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_range_expr
 
@@ -217,7 +219,7 @@ class Context:
 
         # sanity check the type's size hasn't changed since allocation.
         n = var.typ.memory_bytes_required
-        assert n == var.size
+        assert n == var.size, var
 
         if self.settings.experimental_codegen:
             # do not deallocate at this stage because this will break
@@ -227,6 +229,27 @@ class Context:
             self.memory_allocator.deallocate_memory(var.pos, var.size)
 
         del self.vars[var.name]
+
+    def mark_for_deallocation(self, varname):
+        # for variables get deallocated anyway
+        if varname in self.forvars:
+            return
+        self._to_deallocate.add(varname)
+
+    # "mark-and-sweep", haha
+    def sweep(self):
+        tmp = set()
+        for varname in self._to_deallocate:
+            var = self.vars[varname]
+            for s in self._scopes:
+                if s not in var.blockscopes:
+                    # defer deallocation until we hit the end of its scope
+                    tmp.add(varname)
+                    break
+            else:
+                self.deallocate_variable(varname, self.vars[varname])
+
+        self._to_deallocate = tmp
 
     def _new_variable(
         self,
