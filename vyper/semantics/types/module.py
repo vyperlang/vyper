@@ -366,6 +366,21 @@ class ModuleT(VyperType):
         # allow `module.__interface__` (in type position)
         self._helper.add_member("__interface__", TYPE_T(self.interface))
 
+    def _check_add_member(self, name, export_context=None):
+        if (prev_type := self.members.get(name)) is not None:
+            if export_context:
+                msg = f"Member '{name}' already exists in {self} (when exporting `{export_context}`)"
+            else:
+                msg = f"Member '{name}' already exists in {self}"
+            raise NamespaceCollision(msg, prev_decl=prev_type.decl_node)
+
+    def add_member_with_export_context(self, name: str, type_: "VyperType", export_context: str = None) -> None:
+        """Add a member with optional export context for better error messages."""
+        from vyper.ast.identifiers import validate_identifier
+        validate_identifier(name)
+        self._check_add_member(name, export_context)
+        self.members[name] = type_
+
     # __eq__ is very strict on ModuleT - object equality! this is because we
     # don't want to reason about where a module came from (i.e. input bundle,
     # search path, symlinked vs normalized path, etc.)
