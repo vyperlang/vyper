@@ -147,6 +147,12 @@ class Mem2Var(IRPass):
             self._removed_unused_calloca(inst)
             return
 
+        uses = self.dfg.get_uses(inst.output)
+        for inst in uses.copy():
+            if inst.opcode == "add":
+                other = [op for op in inst.operands if op != inst.output]
+                assert len(other) == 1
+                self.updater.update(inst, "gep", [memloc, other[0]])
         self.updater.mk_assign(inst, memloc)
 
     def _removed_unused_calloca(self, inst: IRInstruction):
