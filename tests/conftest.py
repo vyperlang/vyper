@@ -10,6 +10,7 @@ from hexbytes import HexBytes
 
 import tests.hevm
 import vyper.evm.opcodes as evm_opcodes
+from tests.dsl.code_model import CodeModel
 from tests.evm_backends.base_env import BaseEnv, ExecutionReverted
 from tests.evm_backends.pyevm_env import PyEvmEnv
 from tests.evm_backends.revm_env import RevmEnv
@@ -255,6 +256,9 @@ def hevm_marker(request):
 @pytest.fixture(scope="module")
 def get_contract(env, optimize, output_formats, compiler_settings, hevm, request):
     def fn(source_code, *args, **kwargs):
+        # support CodeModel instances
+        if isinstance(source_code, CodeModel):
+            source_code = source_code.build()
         if "override_opt_level" in kwargs:
             kwargs["compiler_settings"] = Settings(
                 **dict(compiler_settings.__dict__, optimize=kwargs.pop("override_opt_level"))
