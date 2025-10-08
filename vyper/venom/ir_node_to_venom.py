@@ -10,6 +10,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.ir.compile_ir import _runtime_code_offsets
 from vyper.venom.basicblock import (
+    IRAbstractMemLoc,
     IRBasicBlock,
     IRInstruction,
     IRLabel,
@@ -305,7 +306,9 @@ def _handle_internal_func(
             # buffer size of 32 bytes.
             # TODO: we don't need to use scratch space once the legacy optimizer
             # is disabled.
-            buf = bb.append_instruction("alloca", 0, 32, get_scratch_alloca_id())
+            buf = bb.append_instruction(
+                "alloca", IRAbstractMemLoc.FREE_VAR1, get_scratch_alloca_id()
+            )
         else:
             buf = bb.append_instruction("param")
             bb.instructions[-1].annotation = "return_buffer"
@@ -422,11 +425,13 @@ def _convert_ir_bb(fn, ir, symbols):
 
         bb = fn.get_basic_block()
 
+        mem_start_var = bb.append_instruction("mem_deploy_start", mem_deploy_start)
+
         bb.append_instruction(
-            "codecopy", runtime_codesize, IRLabel("runtime_begin"), mem_deploy_start
+            "codecopyruntime", runtime_codesize, IRLabel("runtime_begin"), mem_start_var
         )
         amount_to_return = bb.append_instruction("add", runtime_codesize, immutables_len)
-        bb.append_instruction("return", amount_to_return, mem_deploy_start)
+        bb.append_instruction("return", amount_to_return, mem_start_var)
         return None
     elif ir.value == "seq":
         if len(ir.args) == 0:
@@ -690,17 +695,19 @@ def _convert_ir_bb(fn, ir, symbols):
         if ir.value.startswith("$alloca"):
             alloca = ir.passthrough_metadata["alloca"]
             if alloca._id not in _alloca_table:
-                ptr = fn.get_basic_block().append_instruction(
-                    "alloca", alloca.offset, alloca.size, alloca._id
-                )
+                mem_loc_op = IRAbstractMemLoc(alloca.size, None)
+                ptr = fn.get_basic_block().append_instruction("alloca", mem_loc_op, alloca._id)
                 _alloca_table[alloca._id] = ptr
             return _alloca_table[alloca._id]
 
         elif ir.value.startswith("$palloca"):
+            assert isinstance(fn, IRFunction)
             alloca = ir.passthrough_metadata["alloca"]
             if alloca._id not in _alloca_table:
+                mem_loc_op = IRAbstractMemLoc(alloca.size, None)
+                fn.allocated_args[alloca._id] = mem_loc_op
                 bb = fn.get_basic_block()
-                ptr = bb.append_instruction("palloca", alloca.offset, alloca.size, alloca._id)
+                ptr = bb.append_instruction("palloca", mem_loc_op, alloca._id)
                 bb.instructions[-1].annotation = f"{alloca.name} (memory)"
                 if ENABLE_NEW_CALL_CONV and _pass_via_stack(_current_func_t)[alloca.name]:
                     param = fn.get_param_by_id(alloca._id)
@@ -717,11 +724,15 @@ def _convert_ir_bb(fn, ir, symbols):
 
                 callsite_func = ir.passthrough_metadata["callsite_func"]
                 if ENABLE_NEW_CALL_CONV and _pass_via_stack(callsite_func)[alloca.name]:
-                    ptr = bb.append_instruction("alloca", alloca.offset, alloca.size, alloca._id)
+                    ptr = bb.append_instruction(
+                        "alloca", IRAbstractMemLoc(alloca.size, None), alloca._id
+                    )
                 else:
                     # if we use alloca, mstores might get removed. convert
                     # to calloca until memory analysis is more sound.
-                    ptr = bb.append_instruction("calloca", alloca.offset, alloca.size, alloca._id)
+                    ptr = bb.append_instruction(
+                        "calloca", alloca.size, alloca._id, IRLabel(alloca._callsite)
+                    )
 
                 _alloca_table[alloca._id] = ptr
             ret = _alloca_table[alloca._id]

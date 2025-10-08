@@ -10,10 +10,12 @@ from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import AssemblyInstruction
 from vyper.venom.analysis import MemSSA
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRLabel, IRLiteral
+from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IRAbstractMemLoc
+from vyper.venom.check_venom import fix_mem_loc, no_concrete_locations_fn
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
+from vyper.venom.memory_allocator import MemoryAllocator
 from vyper.venom.passes import (
     CSE,
     SCCP,
@@ -21,7 +23,9 @@ from vyper.venom.passes import (
     AssignElimination,
     BranchOptimizationPass,
     CFGNormalization,
+    ConcretizeMemLocPass,
     DFTPass,
+    FixCalloca,
     FloatAllocas,
     FunctionInlinerPass,
     LoadElimination,
@@ -36,6 +40,7 @@ from vyper.venom.passes import (
     SimplifyCFGPass,
     SingleUseExpansion,
 )
+from vyper.venom.analysis import FCGAnalysis
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.venom_to_assembly import VenomCompiler
 
@@ -49,7 +54,9 @@ def generate_assembly_experimental(
     return compiler.generate_evm_assembly(optimize == OptimizationLevel.NONE)
 
 
-def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache) -> None:
+def _run_passes(
+    fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache, alloc: MemoryAllocator
+) -> None:
     # Run passes on Venom IR
     # TODO: Add support for optimization levels
 
@@ -66,7 +73,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     SimplifyCFGPass(ac, fn).run_pass()
 
     AssignElimination(ac, fn).run_pass()
-    Mem2Var(ac, fn).run_pass()
+    Mem2Var(ac, fn).run_pass(alloc)
     MakeSSA(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
@@ -79,6 +86,27 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     PhiEliminationPass(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
 
+    SCCP(ac, fn).run_pass()
+    AssignElimination(ac, fn).run_pass()
+    RevertToAssert(ac, fn).run_pass()
+
+    SimplifyCFGPass(ac, fn).run_pass()
+    MemMergePass(ac, fn).run_pass()
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
+
+    AssignElimination(ac, fn).run_pass()
+    ConcretizeMemLocPass(ac, fn).run_pass(alloc)
+    SCCP(ac, fn).run_pass()
+
+    PhiEliminationPass(ac, fn).run_pass()
+    SCCP(ac, fn).run_pass()
+
+    SimplifyCFGPass(ac, fn).run_pass()
+    AssignElimination(ac, fn).run_pass()
+    AlgebraicOptimizationPass(ac, fn).run_pass()
+
+    LoadElimination(ac, fn).run_pass()
+    
     SCCP(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
     RevertToAssert(ac, fn).run_pass()
@@ -116,6 +144,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 
 
 def _run_global_passes(ctx: IRContext, optimize: OptimizationLevel, ir_analyses: dict) -> None:
+    FixCalloca(ir_analyses, ctx).run_pass()
     FunctionInlinerPass(ir_analyses, ctx, optimize).run_pass()
 
 
@@ -130,9 +159,33 @@ def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
     for fn in ctx.functions.values():
         ir_analyses[fn] = IRAnalysesCache(fn)
 
-    for fn in ctx.functions.values():
-        _run_passes(fn, optimize, ir_analyses[fn])
+    assert ctx.entry_function is not None
+    fcg = ir_analyses[ctx.entry_function].force_analysis(FCGAnalysis)
+    
+    _run_fn_passes(ctx, fcg, ctx.entry_function, optimize, ir_analyses)
 
+
+def _run_fn_passes(ctx: IRContext, fcg: FCGAnalysis , fn: IRFunction, optimize: OptimizationLevel, ir_analyses: dict):
+    visited = set()
+    assert ctx.entry_function is not None
+    _run_fn_passes_r(ctx, fcg, ctx.entry_function, optimize, ir_analyses, visited)
+
+
+def _run_fn_passes_r(
+        ctx: IRContext,
+        fcg: FCGAnalysis, 
+        fn: IRFunction,
+        optimize: OptimizationLevel,
+        ir_analyses: dict,
+        visited: set
+    ):
+    if fn in visited:
+        return
+    visited.add(fn)
+    for next_fn in fcg.get_callees(fn):
+        _run_fn_passes_r(ctx, fcg, next_fn, optimize, ir_analyses, visited)
+
+    _run_passes(fn, optimize, ir_analyses[fn], ctx.mem_allocator)
 
 def generate_venom(
     ir: IRnode,
@@ -144,6 +197,14 @@ def generate_venom(
     constants = constants or {}
     starting_symbols = {k: IRLiteral(v) for k, v in constants.items()}
     ctx = ir_node_to_venom(ir, starting_symbols)
+
+    # these mem location are used sha3_64 instruction
+    # with concrete value so I need to allocate it here
+    ctx.mem_allocator.get_place(IRAbstractMemLoc.FREE_VAR1)
+    ctx.mem_allocator.get_place(IRAbstractMemLoc.FREE_VAR2)
+
+    for fn in ctx.functions.values():
+        fix_mem_loc(fn)
 
     data_sections = data_sections or {}
     for section_name, data in data_sections.items():

@@ -80,6 +80,14 @@ class MemoryLocation:
 
         return start1 <= start2 and end1 >= end2
 
+    def get_size_lit(self) -> IRLiteral:
+        assert self.is_size_fixed
+        return IRLiteral(self.size)
+
+    def get_offset_lit(self) -> IRLiteral:
+        assert self.is_offset_fixed
+        return IRLiteral(self.offset)
+
     @staticmethod
     def may_overlap(loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
         """
@@ -262,5 +270,28 @@ def _get_storage_read_location(inst, addr_space: AddrSpace) -> MemoryLocation:
         # "future" reads which could happen in the caller.
         # while not a "true" read, this case makes the code in DSE simpler.
         return MemoryLocation.UNDEFINED
+
+    return MemoryLocation.EMPTY
+
+
+def get_mem_ops_indexes(inst) -> list[int]:
+    opcode = inst.opcode
+    if opcode == "mstore":
+        dst = inst.operands[1]
+        return [1]
+    elif opcode == "mload":
+        return [0]
+    elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
+        size, _, dst = inst.operands
+        return [1, 2]
+    elif opcode == "call":
+        size, dst, _, _, _, _, _ = inst.operands
+        return MemoryLocation.from_operands(dst, size)
+    elif opcode in ("delegatecall", "staticcall"):
+        size, dst, _, _, _, _ = inst.operands
+        return MemoryLocation.from_operands(dst, size)
+    elif opcode == "extcodecopy":
+        size, _, dst, _ = inst.operands
+        return MemoryLocation.from_operands(dst, size)
 
     return MemoryLocation.EMPTY

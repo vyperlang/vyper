@@ -10,6 +10,7 @@ from vyper.venom.basicblock import (
     IRLiteral,
     IROperand,
     IRVariable,
+    IRAbstractMemLoc,
 )
 from vyper.venom.context import DataItem, DataSection, IRContext
 from vyper.venom.function import IRFunction
@@ -43,9 +44,10 @@ VENOM_GRAMMAR = """
 
     operands_list: operand ("," operand)*
 
-    operand: VAR_IDENT | CONST | label_ref
+    operand: VAR_IDENT | CONST | MEMLOC | label_ref
 
     VAR_IDENT: "%" (DIGIT|LETTER|"_"|":")+
+    MEMLOC: "[" (DIGIT)+ "," (DIGIT)+ "]"
 
     # non-terminal rules for different contexts
     func_name: IDENT | ESCAPED_STRING
@@ -211,7 +213,7 @@ class VenomTransformer(Transformer):
         if isinstance(value, IRInstruction):
             value.output = to
             return value
-        if isinstance(value, (IRLiteral, IRVariable, IRLabel)):
+        if isinstance(value, (IRLiteral, IRVariable, IRLabel, IRAbstractMemLoc)):
             return IRInstruction("assign", [value], output=to)
         raise TypeError(f"Unexpected value {value} of type {type(value)}")
 
@@ -268,6 +270,13 @@ class VenomTransformer(Transformer):
         if str(val).startswith("0x"):
             return IRLiteral(int(val, 16))
         return IRLiteral(int(val))
+    
+    def MEMLOC(self, memloc_ident) -> IRAbstractMemLoc:
+        data: str = memloc_ident[1:][:-1]
+        _id_str, size_str = data.split(",")
+        _id = int(_id_str)
+        size = int(size_str)
+        return IRAbstractMemLoc(size, None, force_id=_id)
 
     def IDENT(self, val) -> str:
         return val.value

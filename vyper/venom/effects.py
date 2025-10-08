@@ -45,6 +45,7 @@ _writes = {
     "returndatacopy": MEMORY,
     "calldatacopy": MEMORY,
     "codecopy": MEMORY,
+    "codecopyruntime": MEMORY,
     "extcodecopy": MEMORY,
     "mcopy": MEMORY,
 }
