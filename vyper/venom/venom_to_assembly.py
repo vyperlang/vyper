@@ -206,7 +206,9 @@ class VenomCompiler:
         if len(stack_ops) == 0:
             return 0
 
-        assert len(stack_ops) == len(set(stack_ops))  # precondition
+        assert len(stack_ops) == len(
+            set(stack_ops)
+        ), f"duplicated stack {stack_ops}"  # precondition
 
         cost = 0
         for i, op in enumerate(stack_ops):
@@ -271,7 +273,7 @@ class VenomCompiler:
                 self.dup_op(assembly, stack, op)
 
             # guaranteed by store expansion
-            assert op not in seen, (op, seen)
+            assert op not in seen, (inst, op, seen)
             seen.add(op)
 
     def _prepare_stack_for_function(self, asm, fn: IRFunction, stack: StackModel):
@@ -469,8 +471,6 @@ class VenomCompiler:
             assert len(self.cfg.cfg_in(next_bb)) > 1
 
             target_stack = self.liveness.input_vars_from(inst.parent, next_bb)
-            # NOTE: in general the stack can contain multiple copies of
-            # the same variable, however, before a jump that is not possible
             self._stack_reorder(assembly, stack, list(target_stack))
 
         if inst.is_commutative:
@@ -623,6 +623,11 @@ class VenomCompiler:
         if DEBUG_SHOW_COST:
             stack0 = stack.copy()
 
+        next_index = inst.parent.instructions.index(inst)
+        next_inst = inst.parent.instructions[next_index + 1]
+
+        if next_inst.is_bb_terminator:
+            return
         # if there are no live vars at the next point, nothing to schedule
         if len(next_liveness) == 0:
             return
