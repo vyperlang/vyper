@@ -90,15 +90,25 @@ class DFTPass(IRPass):
 
             if (x not in self.dda[inst] and x in self.eda[inst]) or inst.flippable:
                 ret = -1 * int(len(self.data_offspring[x]) > 0)
-            elif x.output in inst.operands:
-                assert x in self.dda[inst]  # sanity check
-                assert x.output is not None  # help mypy
-                ret = inst.operands.index(x.output) + len(self.order)
             else:
                 assert x in self.dda[inst]  # sanity check
-                assert x.output in self.order
-                assert x.output is not None  # help mypy
-                ret = self.order.index(x.output)
+                # locate operands that are produced by x and prefer earliest match
+                operand_idxs = [
+                    i
+                    for i, op in enumerate(inst.operands)
+                    if self.dfg.get_producing_instruction(op) is x
+                ]
+                if operand_idxs:
+                    ret = min(operand_idxs) + len(self.order)
+                else:
+                    out_var = x.output
+                    if out_var is not None and out_var in inst.operands:
+                        ret = inst.operands.index(out_var) + len(self.order)
+                    elif out_var is not None and out_var in self.order:
+                        ret = self.order.index(out_var)
+                    else:
+                        # fall back to a stable default when no operand is associated
+                        ret = len(self.order)
             return ret
 
         # heuristic: sort by size of child dependency graph
