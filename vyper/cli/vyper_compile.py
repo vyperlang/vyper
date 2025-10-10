@@ -141,9 +141,28 @@ def _parse_args(argv):
     parser.add_argument(
         "-O",
         "--optimize",
-        help="Optimization flag (defaults to 'gas')",
-        choices=["gas", "codesize", "none"],
+        help="Optimization level (defaults to 'gas'). Valid options: "
+        "0 (none), 1 (basic), 2 (gas/default), 3 (aggressive - experimental), "
+        "s (size), or legacy names: none, gas, codesize",
+        metavar="LEVEL",
+        dest="optimize",
     )
+    parser.add_argument(
+        "--no-inlining", help="Disable function inlining optimization", action="store_true"
+    )
+    parser.add_argument(
+        "--no-cse", help="Disable common subexpression elimination", action="store_true"
+    )
+    parser.add_argument(
+        "--no-sccp", help="Disable sparse conditional constant propagation", action="store_true"
+    )
+    parser.add_argument(
+        "--no-load-elimination", help="Disable load elimination optimization", action="store_true"
+    )
+    parser.add_argument(
+        "--no-dead-store-elimination", help="Disable dead store elimination", action="store_true"
+    )
+    parser.add_argument("--inline-threshold", help="Function inlining cost threshold", type=int)
     parser.add_argument("--debug", help="Compile in debug mode", action="store_true")
     parser.add_argument(
         "--no-bytecode-metadata", help="Do not add metadata to bytecode", action="store_true"
@@ -220,15 +239,35 @@ def _parse_args(argv):
         output_formats = ("archive_b64",)
 
     if args.no_optimize and args.optimize:
-        raise ValueError("Cannot use `--no-optimize` and `--optimize` at the same time!")
+        raise ValueError("Cannot use `--no-optimize` and `-O/--optimize` at the same time!")
 
-    settings = Settings()
-
-    # TODO: refactor to something like Settings.from_args()
+    optimize = None
     if args.no_optimize:
-        settings.optimize = OptimizationLevel.NONE
+        optimize = OptimizationLevel.NONE
     elif args.optimize is not None:
-        settings.optimize = OptimizationLevel.from_string(args.optimize)
+        # Handle both old-style (none, gas, codesize) and new-style (0, 1, 2, 3, s) arguments
+        opt_level = args.optimize.lower()
+        if opt_level in ["0", "1", "2", "3"]:
+            opt_level = "O" + opt_level
+        elif opt_level == "s":
+            opt_level = "Os"
+        optimize = OptimizationLevel.from_string(opt_level)
+
+    settings = Settings(optimize=optimize)
+
+    # Apply individual flag overrides
+    if args.no_inlining:
+        settings.venom_flags.disable_inlining = True
+    if args.no_cse:
+        settings.venom_flags.disable_cse = True
+    if args.no_sccp:
+        settings.venom_flags.disable_sccp = True
+    if args.no_load_elimination:
+        settings.venom_flags.disable_load_elimination = True
+    if args.no_dead_store_elimination:
+        settings.venom_flags.disable_dead_store_elimination = True
+    if args.inline_threshold is not None:
+        settings.venom_flags.inline_threshold = args.inline_threshold
 
     if args.evm_version:
         settings.evm_version = args.evm_version
