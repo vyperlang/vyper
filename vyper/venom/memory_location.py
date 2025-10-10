@@ -38,9 +38,9 @@ class MemoryLocation:
             raise CompilerPanic(f"invalid size: {size} ({type(size)})")
 
         if isinstance(_offset, IRAbstractMemLoc):
-            assert isinstance(_size, int)
-            assert _size < _offset.size
-            return MemoryLocationAbstract(_offset)
+            #assert isinstance(_size, int)
+            #assert _size <= _offset.size
+            return MemoryLocationAbstract(_offset, _size)
         return MemoryLocationConcrete(_offset, _size)
 
     @property
@@ -72,18 +72,61 @@ class MemoryLocation:
         if loc1 is MemoryLocation.UNDEFINED or loc2 is MemoryLocation.UNDEFINED:
             return True
         if type(loc1) != type(loc2):
-            return False
+            return True
         if isinstance(loc1, MemoryLocationConcrete):
             assert isinstance(loc2, MemoryLocationConcrete)
-            return MemoryLocationConcrete.may_overlap(loc1, loc2)
+            return MemoryLocationConcrete.may_overlap_concrete(loc1, loc2)
+        if isinstance(loc1, MemoryLocationAbstract):
+            assert isinstance(loc2, MemoryLocationAbstract)
+            return MemoryLocationAbstract.may_overlap_abstract(loc1, loc2)
         return False
 
     def create_volatile(self) -> MemoryLocation:
         raise NotImplemented
 
-@dataclass
+@dataclass(frozen=True)
 class MemoryLocationAbstract(MemoryLocation):
     op: IRAbstractMemLoc
+    _size: int | None
+    _is_volatile: bool = False
+
+    @property
+    def offset(self):
+        raise NotImplemented
+
+    @property
+    def size(self):
+        return self.op.size
+
+    @property
+    def is_offset_fixed(self) -> bool:
+        return True
+
+    @property
+    def is_size_fixed(self) -> bool:
+        return True
+
+    @property
+    def is_fixed(self) -> bool:
+        return True
+
+    @property
+    def is_volatile(self) -> bool:
+        return self._is_volatile
+
+    def create_volatile(self) -> MemoryLocationAbstract:
+        return dc.replace(self, _is_volatile=True)
+
+    @staticmethod
+    def may_overlap_abstract(loc1: MemoryLocationAbstract, loc2: MemoryLocationAbstract) -> bool:
+        return loc1.op._id == loc2.op._id
+
+    def completely_contains(self, other: MemoryLocation) -> bool:
+        if not isinstance(other, MemoryLocationAbstract):
+            return False
+        if self._size is None:
+            return False
+        return self.op._id == other.op._id and self._size == self.op.size
 
 @dataclass(frozen=True)
 class MemoryLocationConcrete(MemoryLocation):
@@ -136,6 +179,9 @@ class MemoryLocationConcrete(MemoryLocation):
         if not other.is_offset_fixed or not other.is_size_fixed:
             return False
 
+        if not isinstance(other, MemoryLocationConcrete):
+            return False
+
         # Both are known
         assert self.offset is not None and self.size is not None
         assert other.offset is not None and other.size is not None
@@ -153,7 +199,7 @@ class MemoryLocationConcrete(MemoryLocation):
         return IRLiteral(self._offset)
 
     @staticmethod
-    def may_overlap(loc1: MemoryLocationConcrete, loc2: MemoryLocationConcrete) -> bool:
+    def may_overlap_concrete(loc1: MemoryLocationConcrete, loc2: MemoryLocationConcrete) -> bool:
         """
         Determine if two memory locations may overlap
         """

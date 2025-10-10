@@ -95,6 +95,8 @@ def _run_passes(
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     AssignElimination(ac, fn).run_pass()
+    DeadStoreElimination(ac, fn).run_pass(addr_space=MEMORY)
+    AssignElimination(ac, fn).run_pass()
     ConcretizeMemLocPass(ac, fn).run_pass(alloc)
     SCCP(ac, fn).run_pass()
 

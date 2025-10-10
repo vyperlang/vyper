@@ -208,7 +208,7 @@ class IRAbstractMemLoc(IROperand):
         return self._id
 
     def __repr__(self) -> str:
-        return f"[{self._id}]"
+        return f"[{self._id},{self.size}]"
 
 
 IRAbstractMemLoc._curr_id = 0
