@@ -74,25 +74,26 @@ def _check_no_change(code, hevm=False):
     return _check_pre_post(code, code, hevm=hevm)
 
 
-def test_basic_dead_store():
-    pre = """
+@pytest.mark.parametrize("position", [0, "[0,32]"])
+def test_basic_dead_store(position):
+    pre = f"""
         _global:
             %val1 = 42
             %val2 = 24
-            mstore 0, %val1  ; Dead store - overwritten before read
-            mstore 0, 10     ; Dead store - overwritten before read
-            mstore 0, %val2
-            %loaded = mload 0  ; Only reads val2
+            mstore {position}, %val1  ; Dead store - overwritten before read
+            mstore {position}, 10     ; Dead store - overwritten before read
+            mstore {position}, %val2
+            %loaded = mload {position}  ; Only reads val2
             stop
     """
-    post = """
+    post = f"""
         _global:
             %val1 = 42
             %val2 = 24
             nop
             nop
-            mstore 0, %val2
-            %loaded = mload 0
+            mstore {position}, %val2
+            %loaded = mload {position}
             stop
     """
     _check_pre_post(pre, post)
@@ -117,49 +118,54 @@ def test_basic_not_dead_store():
     _check_pre_post(pre, post)
 
 
-def test_basic_not_dead_store_with_mload():
-    pre = """
+@pytest.mark.parametrize("positions", [(0, 32), ("[0,32]", "[1,32]")])
+def test_basic_not_dead_store_with_mload(positions):
+    a, b = positions
+    pre = f"""
         _global:
             %1 = source
-            mstore 0, 1
-            mstore 32, 2
-            %2 = mload 0
+            mstore {a}, 1
+            mstore {b}, 2
+            %2 = mload {a}
             stop
     """
-    post = """
+    post = f"""
         _global:
             %1 = source
-            mstore 0, 1
+            mstore {a}, 1
             nop
-            %2 = mload 0
+            %2 = mload {a}
             stop
     """
     _check_pre_post(pre, post)
 
 
-def test_basic_not_dead_store_with_return():
-    pre = """
+@pytest.mark.parametrize("positions", [(0, 32), ("[0,32]", "[1,32]"), ("[2,32]", "[3,32]")])
+def test_basic_not_dead_store_with_return(positions):
+    a, b = positions
+    pre = f"""
         _global:
             %1 = source
-            mstore 0, 1
-            mstore 32, 2
-            return 0, 32
+            mstore {a}, 1
+            mstore {b}, 2
+            return {a}, 32
     """
-    post = """
+    post = f"""
         _global:
             %1 = source
-            mstore 0, 1
+            mstore {a}, 1
             nop
-            return 0, 32
+            return {a}, 32
     """
     _check_pre_post(pre, post)
 
 
-def test_never_read_store():
-    pre = """
+@pytest.mark.parametrize("position", [0, 32, "[0,32]", "[1,32]"])
+def test_never_read_store(position):
+    pre = f"""
         _global:
             %val = 42
-            mstore 0, %val  ; Dead store - never read
+            mstore {position}, %val  ; Dead store - never read
             stop
     """
     post = """
@@ -171,34 +177,37 @@ def test_never_read_store():
     _check_pre_post(pre, post)
 
 
-def test_live_store():
-    pre = """
+@pytest.mark.parametrize("position", [0, 32, "[0,32]", "[1,32]"])
+def test_live_store(position):
+    pre = f"""
         _global:
             %val = 42
-            mstore 0, %val
-            %loaded = mload 0  ; Makes the store live
+            mstore {position}, %val
+            %loaded = mload {position}  ; Makes the store live
             stop
     """
     _check_pre_post(pre, pre)  # Should not change
 
 
-def test_dead_store_different_locations():
-    pre = """
+@pytest.mark.parametrize("positions", [(0, 32), ("[0,32]", "[1,32]"), ("[2,32]", "[3,32]")])
+def test_dead_store_different_locations(positions):
+    a, b = positions
+    pre = f"""
         _global:
             %val1 = 42
             %val2 = 24
-            mstore 0, %val1   ; Dead store - never read
-            mstore 32, %val2  ; Live store
-            %loaded = mload 32
+            mstore {a}, %val1   ; Dead store - never read
+            mstore {b}, %val2  ; Live store
+            %loaded = mload {b}
             stop
     """
-    post = """
+    post = f"""
         _global:
             %val1 = 42
             %val2 = 24
             nop
-            mstore 32, %val2
-            %loaded = mload 32
+            mstore {b}, %val2
+            %loaded = mload {b}
             stop
     """
     _check_pre_post(pre, post)
