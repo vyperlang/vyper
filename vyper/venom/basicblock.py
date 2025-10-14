@@ -178,21 +178,21 @@ class IRLiteral(IROperand):
 class IRAbstractMemLoc(IROperand):
     _id: int
     size: int
-    source: IRInstruction | None
+    offset: int
     unused: bool
 
     _curr_id: ClassVar[int]
     FREE_VAR1: ClassVar["IRAbstractMemLoc"]
     FREE_VAR2: ClassVar["IRAbstractMemLoc"]
 
-    def __init__(self, size: int, source: IRInstruction | None, unused = False, force_id = None):
+    def __init__(self, size: int, offset: int = 0, unused = False, force_id = None):
         if force_id is None:
             self._id = IRAbstractMemLoc._curr_id
             IRAbstractMemLoc._curr_id += 1
         else:
             self._id = force_id
         self.size = size
-        self.source = source
+        self.offset = offset
         self.unused = unused
 
     def __hash__(self) -> int:
@@ -208,12 +208,12 @@ class IRAbstractMemLoc(IROperand):
         return self._id
 
     def __repr__(self) -> str:
-        return f"[{self._id},{self.size}]"
+        return f"[{self._id},{self.size} + {self.offset}]"
 
 
 IRAbstractMemLoc._curr_id = 0
-IRAbstractMemLoc.FREE_VAR1 = IRAbstractMemLoc(32, None)
-IRAbstractMemLoc.FREE_VAR2 = IRAbstractMemLoc(32, None)
+IRAbstractMemLoc.FREE_VAR1 = IRAbstractMemLoc(32)
+IRAbstractMemLoc.FREE_VAR2 = IRAbstractMemLoc(32)
 
 
 class IRVariable(IROperand):

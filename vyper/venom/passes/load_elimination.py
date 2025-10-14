@@ -153,10 +153,11 @@ class LoadElimination(IRPass):
     updater: InstUpdater
 
     def run_pass(self):
+        print(self.function)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(self.dfg)
-        self.load_analysis = self.analyses_cache.request_analysis(LoadAnalysis)
+        self.load_analysis = self.analyses_cache.force_analysis(LoadAnalysis)
 
         self._run(Effects.MEMORY, "mload", "mstore")
         self._run(Effects.TRANSIENT, "tload", "tstore")

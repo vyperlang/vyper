@@ -26,7 +26,7 @@ class FixCalloca(IRGlobalPass):
 
                 called = self.ctx.get_function(IRLabel(called_name))
                 if _id.value not in called.allocated_args:
-                    inst.operands = [IRAbstractMemLoc(size.value, inst, unused=True), _id]
+                    inst.operands = [IRAbstractMemLoc(size.value, unused=True), _id]
                     continue
                 memloc = called.allocated_args[_id.value]
 

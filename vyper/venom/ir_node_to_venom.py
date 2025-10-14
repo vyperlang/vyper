@@ -695,7 +695,7 @@ def _convert_ir_bb(fn, ir, symbols):
         if ir.value.startswith("$alloca"):
             alloca = ir.passthrough_metadata["alloca"]
             if alloca._id not in _alloca_table:
-                mem_loc_op = IRAbstractMemLoc(alloca.size, None)
+                mem_loc_op = IRAbstractMemLoc(alloca.size)
                 ptr = fn.get_basic_block().append_instruction("alloca", mem_loc_op, alloca._id)
                 _alloca_table[alloca._id] = ptr
             return _alloca_table[alloca._id]
@@ -704,7 +704,7 @@ def _convert_ir_bb(fn, ir, symbols):
             assert isinstance(fn, IRFunction)
             alloca = ir.passthrough_metadata["alloca"]
             if alloca._id not in _alloca_table:
-                mem_loc_op = IRAbstractMemLoc(alloca.size, None)
+                mem_loc_op = IRAbstractMemLoc(alloca.size)
                 fn.allocated_args[alloca._id] = mem_loc_op
                 bb = fn.get_basic_block()
                 ptr = bb.append_instruction("palloca", mem_loc_op, alloca._id)
@@ -725,7 +725,7 @@ def _convert_ir_bb(fn, ir, symbols):
                 callsite_func = ir.passthrough_metadata["callsite_func"]
                 if ENABLE_NEW_CALL_CONV and _pass_via_stack(callsite_func)[alloca.name]:
                     ptr = bb.append_instruction(
-                        "alloca", IRAbstractMemLoc(alloca.size, None), alloca._id
+                        "alloca", IRAbstractMemLoc(alloca.size), alloca._id
                     )
                 else:
                     # if we use alloca, mstores might get removed. convert
