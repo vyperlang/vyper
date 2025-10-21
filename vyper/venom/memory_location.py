@@ -69,17 +69,21 @@ class MemoryLocation:
 
     @staticmethod
     def may_overlap(loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
+        if loc1.size == 0 or loc2.size == 0:
+            return False
+        if not loc1.is_offset_fixed or not loc2.is_offset_fixed:
+            return True
         if loc1 is MemoryLocation.UNDEFINED or loc2 is MemoryLocation.UNDEFINED:
             return True
         if type(loc1) != type(loc2):
-            return True
+            return False
         if isinstance(loc1, MemoryLocationConcrete):
             assert isinstance(loc2, MemoryLocationConcrete)
             return MemoryLocationConcrete.may_overlap_concrete(loc1, loc2)
         if isinstance(loc1, MemoryLocationAbstract):
             assert isinstance(loc2, MemoryLocationAbstract)
             return MemoryLocationAbstract.may_overlap_abstract(loc1, loc2)
-        return False
+        return True
 
     def create_volatile(self) -> MemoryLocation:
         raise NotImplemented
@@ -122,6 +126,8 @@ class MemoryLocationAbstract(MemoryLocation):
         return loc1.op._id == loc2.op._id
 
     def completely_contains(self, other: MemoryLocation) -> bool:
+        if other == MemoryLocation.UNDEFINED:
+            return True
         if not isinstance(other, MemoryLocationAbstract):
             return False
         if self._size is None:
@@ -194,9 +200,9 @@ class MemoryLocationConcrete(MemoryLocation):
         assert self.is_size_fixed
         return IRLiteral(self._size)
 
-    def get_offset_lit(self) -> IRLiteral:
+    def get_offset_lit(self, offset = 0) -> IRLiteral:
         assert self.is_offset_fixed
-        return IRLiteral(self._offset)
+        return IRLiteral(self._offset + offset)
 
     @staticmethod
     def may_overlap_concrete(loc1: MemoryLocationConcrete, loc2: MemoryLocationConcrete) -> bool:

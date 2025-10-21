@@ -4,7 +4,7 @@ from vyper.venom.function import IRFunction
 
 
 class MemoryAllocator:
-    allocated: dict[IRAbstractMemLoc, MemoryLocationConcrete]
+    allocated: dict[int, MemoryLocationConcrete]
     curr: int
     function_mem_used: dict[IRFunction, int]
 
@@ -21,10 +21,10 @@ class MemoryAllocator:
         return res
 
     def get_place(self, mem_loc: IRAbstractMemLoc) -> MemoryLocationConcrete:
-        if mem_loc in self.allocated:
-            return self.allocated[mem_loc]
+        if mem_loc._id in self.allocated:
+            return self.allocated[mem_loc._id]
         res = self.allocate(mem_loc.size)
-        self.allocated[mem_loc] = res
+        self.allocated[mem_loc._id] = res
         return res
 
     def start_fn_allocation(self, callsites_used: int):

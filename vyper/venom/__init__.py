@@ -99,7 +99,9 @@ def _run_passes(
     DeadStoreElimination(ac, fn).run_pass(addr_space=TRANSIENT)
     LowerDloadPass(ac, fn).run_pass()
 
+    PhiEliminationPass(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
+    print(fn)
     ConcretizeMemLocPass(ac, fn).run_pass(alloc)
     SCCP(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()

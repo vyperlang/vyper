@@ -196,12 +196,12 @@ class IRAbstractMemLoc(IROperand):
         self.unused = unused
 
     def __hash__(self) -> int:
-        return self._id
+        return self._id ^ self.offset
 
     def __eq__(self, other) -> bool:
         if type(self) != type(other):
             return False
-        return self._id == other._id
+        return self._id == other._id and self.offset == other.offset
 
     @property
     def value(self):
@@ -209,6 +209,13 @@ class IRAbstractMemLoc(IROperand):
 
     def __repr__(self) -> str:
         return f"[{self._id},{self.size} + {self.offset}]"
+
+    def no_offset(self) -> IRAbstractMemLoc:
+        return IRAbstractMemLoc(self.size, force_id=self._id)
+
+    def with_offset(self, offset: int) -> IRAbstractMemLoc:
+        return IRAbstractMemLoc(self.size, offset=offset, force_id=self._id)
+
 
 
 IRAbstractMemLoc._curr_id = 0

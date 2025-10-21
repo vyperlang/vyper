@@ -99,9 +99,6 @@ def _evm_sar(shift_len: int, value: int) -> int:
     return value >> shift_len
 
 
-def _gep(mem: IROperand, offset: IROperand):
-    pass
-
 ARITHMETIC_OPS: dict[str, Callable[[list[IRLiteral]], int]] = {
     "add": _wrap_binop(operator.add),
     "sub": _wrap_binop(operator.sub),

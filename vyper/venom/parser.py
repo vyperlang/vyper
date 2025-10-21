@@ -276,7 +276,7 @@ class VenomTransformer(Transformer):
         _id_str, size_str = data.split(",")
         _id = int(_id_str)
         size = int(size_str)
-        return IRAbstractMemLoc(size, None, force_id=_id)
+        return IRAbstractMemLoc(size, force_id=_id)
 
     def IDENT(self, val) -> str:
         return val.value

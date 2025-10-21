@@ -29,7 +29,7 @@ class ConcretizeMemLocPass(IRPass):
             curr = orig
             for i in range(index):
                 before_mem, _ = livesets[i]
-                place = mem_allocator.get_place(before_mem)
+                place = mem_allocator.allocated[before_mem._id]
                 assert place.offset is not None and place.size is not None
                 curr = max(place.offset + place.size, curr)
             mem_allocator.curr = curr
@@ -55,8 +55,11 @@ class ConcretizeMemLocPass(IRPass):
         
 
     def _handle_op(self, op: IROperand) -> IROperand:
-        if isinstance(op, IRAbstractMemLoc):
-            return self.allocator.get_place(op).get_offset_lit()
+        if isinstance(op, IRAbstractMemLoc) and op._id in self.allocator.allocated:
+            return self.allocator.allocated[op._id].get_offset_lit(op.offset)
+        elif isinstance(op, IRAbstractMemLoc):
+            return self.allocator.get_place(op).get_offset_lit(op.offset)
+            return op
         else:
             return op
     
@@ -103,7 +106,7 @@ class MemLiveness:
                 self.livesets[mem].add(inst)
     
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
-        curr = OrderedSet()
+        curr: OrderedSet[IRAbstractMemLoc] = OrderedSet()
         if len(succs := self.cfg.cfg_out(bb)) > 0:
             for other in (self.liveat[succ.instructions[0]] for succ in succs):
                 curr.union(other)
@@ -112,14 +115,16 @@ class MemLiveness:
 
         for inst in reversed(bb.instructions):
             write_op = _get_memory_write_op(inst)
-            write_op = self._follow_op(write_op)
+            write_ops = self._follow_op(write_op)
             read_op = _get_memory_read_op(inst)
-            read_op = self._follow_op(read_op)
-            if write_op is not None and isinstance(write_op, IRAbstractMemLoc):
+            read_ops = self._follow_op(read_op)
+            for write_op in write_ops:
+                assert isinstance(write_op, IRAbstractMemLoc)
                 if write_op in curr:
-                    curr.remove(write_op)
-            if read_op is not None and isinstance(read_op, IRAbstractMemLoc):
-                curr.add(read_op)
+                    curr.remove(write_op.no_offset())
+            for read_op in read_ops:
+                assert isinstance(read_op, IRAbstractMemLoc)
+                curr.add(read_op.no_offset())
             self.liveat[inst] = curr.copy()
         
         if before != self.liveat[bb.instructions[0]]:
@@ -127,21 +132,26 @@ class MemLiveness:
 
         return False
     
-    def _follow_op(self, op: IROperand | None) -> IRAbstractMemLoc | None:
+    def _follow_op(self, op: IROperand | None) -> set[IRAbstractMemLoc]:
         if op is None:
-            return op
+            return set()
         if isinstance(op, IRAbstractMemLoc):
-            return op
+            return {op} 
         if not isinstance(op, IRVariable):
-            return None
+            return set()
 
         inst = self.dfg.get_producing_instruction(op)
         assert inst is not None
         if inst.opcode == "gep":
             mem = inst.operands[0]
             return self._follow_op(mem)
-        
-        return None
+        elif inst.opcode == "phi":
+            res = set()
+            for _, var in inst.phi_operands:
+                src = self._follow_op(var)
+                res.update(src)
+            return res
+        return set()
 
 
 def _get_memory_write_op(inst) -> IROperand | None:

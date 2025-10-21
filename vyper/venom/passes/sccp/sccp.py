@@ -37,7 +37,7 @@ class FlowWorkItem:
 
 
 WorkListItem = Union[FlowWorkItem, SSAWorkListItem]
-LatticeItem = Union[LatticeEnum, IRLiteral, IRLabel]
+LatticeItem = Union[LatticeEnum, IRLiteral, IRLabel, IRAbstractMemLoc]
 Lattice = dict[IRVariable, LatticeItem]
 
 
@@ -190,6 +190,16 @@ class SCCP(IRPass):
             out = self._eval_from_lattice(inst.operands[0])
             self._set_lattice(inst.output, out)
             self._add_ssa_work_items(inst)
+        elif opcode == "gep":
+            assert inst.output is not None, inst
+            mem = self._eval_from_lattice(inst.operands[0])
+            offset = self._eval_from_lattice(inst.operands[1])
+            if not isinstance(mem, IRAbstractMemLoc) or not isinstance(offset, IRLiteral):
+                out = LatticeEnum.BOTTOM
+            else:
+                out = IRAbstractMemLoc(mem.size, offset=mem.offset + offset.value, force_id=mem._id)
+            self._set_lattice(inst.output, out)
+            self._add_ssa_work_items(inst)
         elif opcode == "jmp":
             target = self.fn.get_basic_block(inst.operands[0].value)
             self.work_list.append(FlowWorkItem(inst.parent, target))
@@ -323,7 +333,7 @@ class SCCP(IRPass):
         for i, op in enumerate(inst.operands):
             if isinstance(op, IRVariable):
                 lat = self.lattice[op]
-                if isinstance(lat, IRLiteral):
+                if isinstance(lat, (IRLiteral, IRAbstractMemLoc)):
                     inst.operands[i] = lat
 
 
