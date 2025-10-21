@@ -7,9 +7,8 @@ from vyper.venom.passes.dft import DFTPass
 from vyper.venom.passes.float_allocas import FloatAllocas
 from vyper.venom.passes.lower_dload import LowerDloadPass
 from vyper.venom.passes.make_ssa import MakeSSA
-from vyper.venom.passes.memmerging import MemMergePass
-from vyper.venom.passes.phi_elimination import PhiEliminationPass
 from vyper.venom.passes.revert_to_assert import RevertToAssert
+from vyper.venom.passes.sccp.sccp import SCCP
 from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
 from vyper.venom.passes.single_use_expansion import SingleUseExpansion
 
@@ -18,17 +17,11 @@ PASSES_O0: List[PassConfig] = [
     FloatAllocas,
     SimplifyCFGPass,
     MakeSSA,
-    PhiEliminationPass,
-    AssignElimination,
-    MakeSSA,
-    PhiEliminationPass,
+    SCCP,
     AssignElimination,
     RevertToAssert,
     SimplifyCFGPass,
-    MemMergePass,
     LowerDloadPass,
-    PhiEliminationPass,
-    AssignElimination,
     SingleUseExpansion,
     DFTPass,
     CFGNormalization,
