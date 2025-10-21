@@ -287,6 +287,7 @@ def _get_memory_write_location(inst) -> MemoryLocation:
     elif opcode == "sha3_64":
         return MemoryLocationConcrete(_offset=0, _size=64)
     elif opcode == "invoke":
+        return MemoryLocation.UNDEFINED
         return MemoryLocationConcrete(_offset=0, _size=None)
     elif opcode == "call":
         size, dst, _, _, _, _, _ = inst.operands
@@ -313,6 +314,7 @@ def _get_memory_read_location(inst) -> MemoryLocation:
     elif opcode == "dload":
         return MemoryLocationConcrete(_offset=0, _size=32)
     elif opcode == "invoke":
+        return MemoryLocation.UNDEFINED
         return MemoryLocationConcrete(_offset=0, _size=None)
     elif opcode == "call":
         _, _, size, dst, _, _, _ = inst.operands
