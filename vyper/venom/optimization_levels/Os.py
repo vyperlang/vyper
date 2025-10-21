@@ -1,29 +1,30 @@
-from passes.algebraic_optimization import AlgebraicOptimizationPass
-from passes.assign_elimination import AssignElimination
-from passes.branch_optimization import BranchOptimizationPass
-from passes.cfg_normalization import CFGNormalization
-from passes.common_subexpression_elimination import CSE
-from passes.dead_store_elimination import DeadStoreElimination
-from passes.dft import DFTPass
-from passes.float_allocas import FloatAllocas
-from passes.literals_codesize import ReduceLiteralsCodesize
-from passes.load_elimination import LoadElimination
-from passes.lower_dload import LowerDloadPass
-from passes.make_ssa import MakeSSA
-from passes.mem2var import Mem2Var
-from passes.memmerging import MemMergePass
-from passes.phi_elimination import PhiEliminationPass
-from passes.remove_unused_variables import RemoveUnusedVariablesPass
-from passes.revert_to_assert import RevertToAssert
-from passes.sccp.sccp import SCCP
-from passes.simplify_cfg import SimplifyCFGPass
-from passes.single_use_expansion import SingleUseExpansion
+from typing import List
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
+from vyper.venom.optimization_levels.types import PassConfig
+from vyper.venom.passes.algebraic_optimization import AlgebraicOptimizationPass
+from vyper.venom.passes.assign_elimination import AssignElimination
+from vyper.venom.passes.branch_optimization import BranchOptimizationPass
+from vyper.venom.passes.cfg_normalization import CFGNormalization
+from vyper.venom.passes.common_subexpression_elimination import CSE
+from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
+from vyper.venom.passes.dft import DFTPass
+from vyper.venom.passes.float_allocas import FloatAllocas
+from vyper.venom.passes.literals_codesize import ReduceLiteralsCodesize
+from vyper.venom.passes.load_elimination import LoadElimination
+from vyper.venom.passes.lower_dload import LowerDloadPass
+from vyper.venom.passes.make_ssa import MakeSSA
+from vyper.venom.passes.mem2var import Mem2Var
+from vyper.venom.passes.memmerging import MemMergePass
+from vyper.venom.passes.phi_elimination import PhiEliminationPass
+from vyper.venom.passes.remove_unused_variables import RemoveUnusedVariablesPass
+from vyper.venom.passes.revert_to_assert import RevertToAssert
+from vyper.venom.passes.sccp.sccp import SCCP
+from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
+from vyper.venom.passes.single_use_expansion import SingleUseExpansion
 
 # Optimize for size
-
-PASSES_Os = [
+PASSES_Os: List[PassConfig] = [
     FloatAllocas,
     SimplifyCFGPass,
     MakeSSA,

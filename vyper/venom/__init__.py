@@ -1,9 +1,7 @@
 # maybe rename this `main.py` or `venom.py`
 # (can have an `__init__.py` which exposes the API).
 
-from typing import Any, Dict, List, Tuple, Type, Union
-
-from optimization_levels import O0, O1, O2, O3, Os
+from typing import Any, Dict, List
 
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
@@ -13,22 +11,20 @@ from vyper.venom.basicblock import IRLabel, IRLiteral
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
+from vyper.venom.optimization_levels import PASSES_O0, PASSES_O1, PASSES_O2, PASSES_O3, PASSES_Os
+from vyper.venom.optimization_levels.types import PassConfig
 from vyper.venom.passes import FunctionInlinerPass
-from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
-# REVIEW: Should we just disable typechecking for this?
-PassConfig = Union[Type[IRPass], Tuple[Type[IRPass], Dict[str, Any]]]
-
 # Pass configuration for each optimization level
 OPTIMIZATION_PASSES: Dict[OptimizationLevel, List[PassConfig]] = {
-    OptimizationLevel.O0: O0,
-    OptimizationLevel.O1: O1,
-    OptimizationLevel.O2: O2,
-    OptimizationLevel.O3: O3,
-    OptimizationLevel.Os: Os,
+    OptimizationLevel.O0: PASSES_O0,
+    OptimizationLevel.O1: PASSES_O1,
+    OptimizationLevel.O2: PASSES_O2,
+    OptimizationLevel.O3: PASSES_O3,
+    OptimizationLevel.Os: PASSES_Os,
 }
 
 # Legacy aliases for backwards compatibility

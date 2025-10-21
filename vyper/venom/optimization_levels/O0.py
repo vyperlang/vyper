@@ -1,18 +1,20 @@
-from passes.assign_elimination import AssignElimination
-from passes.cfg_normalization import CFGNormalization
-from passes.dft import DFTPass
-from passes.float_allocas import FloatAllocas
-from passes.lower_dload import LowerDloadPass
-from passes.make_ssa import MakeSSA
-from passes.memmerging import MemMergePass
-from passes.phi_elimination import PhiEliminationPass
-from passes.revert_to_assert import RevertToAssert
-from passes.simplify_cfg import SimplifyCFGPass
-from passes.single_use_expansion import SingleUseExpansion
+from typing import List
+
+from vyper.venom.optimization_levels.types import PassConfig
+from vyper.venom.passes.assign_elimination import AssignElimination
+from vyper.venom.passes.cfg_normalization import CFGNormalization
+from vyper.venom.passes.dft import DFTPass
+from vyper.venom.passes.float_allocas import FloatAllocas
+from vyper.venom.passes.lower_dload import LowerDloadPass
+from vyper.venom.passes.make_ssa import MakeSSA
+from vyper.venom.passes.memmerging import MemMergePass
+from vyper.venom.passes.phi_elimination import PhiEliminationPass
+from vyper.venom.passes.revert_to_assert import RevertToAssert
+from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
+from vyper.venom.passes.single_use_expansion import SingleUseExpansion
 
 # No optimizations
-
-PASSES_O0 = [
+PASSES_O0: List[PassConfig] = [
     FloatAllocas,
     SimplifyCFGPass,
     MakeSSA,
