@@ -153,6 +153,8 @@ class VenomCompiler:
         self.ctx = ctx
         self.label_counter = 0
         self.visited_basicblocks = OrderedSet()
+        self._spill_next_slot = 0
+        self._spill_free_slots: list[int] = []
 
     def mklabel(self, name: str) -> Label:
         self.label_counter += 1
@@ -173,7 +175,10 @@ class VenomCompiler:
 
             assert self.cfg.is_normalized(), "Non-normalized CFG!"
 
-            self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
+            self._spill_next_slot = 0
+            self._spill_free_slots: list[int] = []
+
+            self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), {})
 
         asm.extend(_REVERT_POSTAMBLE)
         # Append data segment
@@ -197,11 +202,22 @@ class VenomCompiler:
         return asm
 
     def _stack_reorder(
-        self, assembly: list, stack: StackModel, stack_ops: list[IROperand], dry_run: bool = False
+        self,
+        assembly: list,
+        stack: StackModel,
+        stack_ops: list[IROperand],
+        spilled: dict[IROperand, int],
+        dry_run: bool = False,
     ) -> int:
         if dry_run:
             assert len(assembly) == 0, "Dry run should not work on assembly"
             stack = stack.copy()
+            spilled = spilled.copy()
+            spill_free_snapshot = self._spill_free_slots.copy()
+            spill_next_snapshot = self._spill_next_slot
+        else:
+            spill_free_snapshot = []
+            spill_next_snapshot = 0
 
         if len(stack_ops) == 0:
             return 0
@@ -213,10 +229,26 @@ class VenomCompiler:
         cost = 0
         for i, op in enumerate(stack_ops):
             final_stack_depth = -(len(stack_ops) - i - 1)
+
+            if isinstance(op, IRVariable) and op in spilled:
+                self._restore_spilled_operand(assembly, stack, spilled, op, dry_run=dry_run)
+
             depth = stack.get_depth(op)
 
             if depth == StackModel.NOT_IN_STACK:
-                raise CompilerPanic(f"Variable {op} not in stack")
+                if isinstance(op, IRVariable) and op in spilled:
+                    self._restore_spilled_operand(assembly, stack, spilled, op, dry_run=dry_run)
+                    depth = stack.get_depth(op)
+                else:
+                    raise CompilerPanic(f"Variable {op} not in stack")
+
+            if depth < -16:
+                if not self._reduce_depth_via_spill(
+                    assembly, stack, spilled, stack_ops, op, depth, dry_run
+                ):
+                    depth = stack.get_depth(op)
+                else:
+                    depth = stack.get_depth(op)
 
             if depth == final_stack_depth:
                 continue
@@ -233,7 +265,109 @@ class VenomCompiler:
 
         assert stack._stack[-len(stack_ops) :] == stack_ops, (stack, stack_ops)
 
+        if dry_run:
+            self._spill_free_slots = spill_free_snapshot
+            self._spill_next_slot = spill_next_snapshot
+
         return cost
+
+    def _reduce_depth_via_spill(
+        self,
+        assembly: list,
+        stack: StackModel,
+        spilled: dict[IROperand, int],
+        stack_ops: list[IROperand],
+        target_op: IROperand,
+        depth: int,
+        dry_run: bool,
+    ) -> bool:
+        while depth < -16:
+            candidate_depth = self._select_spill_candidate(stack, stack_ops, depth)
+            if candidate_depth is None:
+                return False
+            self._spill_operand(assembly, stack, spilled, candidate_depth, dry_run)
+            depth = stack.get_depth(target_op)
+            if depth == StackModel.NOT_IN_STACK:
+                if isinstance(target_op, IRVariable) and target_op in spilled:
+                    self._restore_spilled_operand(assembly, stack, spilled, target_op, dry_run)
+                    depth = stack.get_depth(target_op)
+                else:
+                    return False
+        return True
+
+    def _select_spill_candidate(
+        self, stack: StackModel, stack_ops: list[IROperand], target_depth: int
+    ) -> int | None:
+        forbidden = set(stack_ops)
+        max_offset = min(16, -target_depth - 1, stack.height - 1)
+        if max_offset < 0:
+            return None
+        for offset in range(0, max_offset + 1):
+            depth = -offset
+            candidate = stack.peek(depth)
+            if candidate in forbidden:
+                continue
+            if not isinstance(candidate, IRVariable):
+                continue
+            return depth
+        return None
+
+    def _spill_operand(
+        self,
+        assembly: list,
+        stack: StackModel,
+        spilled: dict[IROperand, int],
+        depth: int,
+        dry_run: bool,
+    ) -> None:
+        operand = stack.peek(depth)
+        assert isinstance(operand, IRVariable), operand
+
+        if depth != 0:
+            self.swap(assembly, stack, depth)
+
+        offset = self._get_spill_slot(operand, spilled, dry_run)
+        assembly.extend(PUSH(offset))
+        assembly.append("MSTORE")
+        stack.pop()
+        spilled[operand] = offset
+
+    def _restore_spilled_operand(
+        self,
+        assembly: list,
+        stack: StackModel,
+        spilled: dict[IROperand, int],
+        op: IRVariable,
+        dry_run: bool = False,
+    ) -> None:
+        offset = spilled.pop(op)
+        if not dry_run:
+            self._spill_free_slots.append(offset)
+        assembly.extend(PUSH(offset))
+        assembly.append("MLOAD")
+        stack.push(op)
+
+    def _get_spill_slot(
+        self, operand: IRVariable, spilled: dict[IROperand, int], dry_run: bool
+    ) -> int:
+        if operand in spilled:
+            return spilled[operand]
+        if dry_run:
+            return MemoryPositions.STACK_SPILL_BASE
+        if self._spill_free_slots:
+            return self._spill_free_slots.pop()
+        offset = MemoryPositions.STACK_SPILL_BASE + 32 * self._spill_next_slot
+        self._spill_next_slot += 1
+        return offset
+
+    def _release_dead_spills(
+        self, spilled: dict[IROperand, int], live_set: OrderedSet[IRVariable]
+    ) -> None:
+        for op in list(spilled.keys()):
+            if isinstance(op, IRVariable) and op in live_set:
+                continue
+            offset = spilled.pop(op)
+            self._spill_free_slots.append(offset)
 
     def _emit_input_operands(
         self,
@@ -242,6 +376,7 @@ class VenomCompiler:
         ops: list[IROperand],
         stack: StackModel,
         next_liveness: OrderedSet[IRVariable],
+        spilled: dict[IROperand, int],
     ) -> None:
         # PRE: we already have all the items on the stack that have
         # been scheduled to be killed. now it's just a matter of emitting
@@ -252,6 +387,9 @@ class VenomCompiler:
         seen: set[IROperand] = set()
 
         for op in ops:
+            if isinstance(op, IRVariable) and op in spilled:
+                self._restore_spilled_operand(assembly, stack, spilled, op)
+
             if isinstance(op, IRLabel):
                 # invoke emits the actual instruction itself so we don't need
                 # to emit it here but we need to add it to the stack map
@@ -318,7 +456,7 @@ class VenomCompiler:
             self.pop(asm, stack)
 
     def _generate_evm_for_basicblock_r(
-        self, asm: list, basicblock: IRBasicBlock, stack: StackModel
+        self, asm: list, basicblock: IRBasicBlock, stack: StackModel, spilled: dict[IROperand, int]
     ) -> None:
         if basicblock in self.visited_basicblocks:
             return
@@ -348,7 +486,7 @@ class VenomCompiler:
             else:
                 next_liveness = self.liveness.out_vars(basicblock)
 
-            asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
+            asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness, spilled))
 
         if DEBUG_SHOW_COST:
             print(" ".join(map(str, asm)), file=sys.stderr)
@@ -357,7 +495,7 @@ class VenomCompiler:
         ref.extend(asm)
 
         for bb in self.cfg.cfg_out(basicblock):
-            self._generate_evm_for_basicblock_r(ref, bb, stack.copy())
+            self._generate_evm_for_basicblock_r(ref, bb, stack.copy(), spilled.copy())
 
     # pop values from stack at entry to bb
     # note this produces the same result(!) no matter which basic block
@@ -382,7 +520,11 @@ class VenomCompiler:
         self.popmany(asm, to_pop, stack)
 
     def _generate_evm_for_instruction(
-        self, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet
+        self,
+        inst: IRInstruction,
+        stack: StackModel,
+        next_liveness: OrderedSet,
+        spilled: dict[IROperand, int],
     ) -> list[str]:
         assembly: list[AssemblyInstruction] = []
         opcode = inst.opcode
@@ -449,7 +591,7 @@ class VenomCompiler:
             return apply_line_numbers(inst, assembly)
 
         # Step 2: Emit instruction's input operands
-        self._emit_input_operands(assembly, inst, operands, stack, next_liveness)
+        self._emit_input_operands(assembly, inst, operands, stack, next_liveness, spilled)
 
         # Step 3: Reorder stack before join points
         if opcode == "jmp":
@@ -464,16 +606,16 @@ class VenomCompiler:
             assert len(self.cfg.cfg_in(next_bb)) > 1
 
             target_stack = self.liveness.input_vars_from(inst.parent, next_bb)
-            self._stack_reorder(assembly, stack, list(target_stack))
+            self._stack_reorder(assembly, stack, list(target_stack), spilled)
 
         if inst.is_commutative:
-            cost_no_swap = self._stack_reorder([], stack, operands, dry_run=True)
+            cost_no_swap = self._stack_reorder([], stack, operands, spilled, dry_run=True)
             operands[-1], operands[-2] = operands[-2], operands[-1]
-            cost_with_swap = self._stack_reorder([], stack, operands, dry_run=True)
+            cost_with_swap = self._stack_reorder([], stack, operands, spilled, dry_run=True)
             if cost_with_swap > cost_no_swap:
                 operands[-1], operands[-2] = operands[-2], operands[-1]
 
-        cost = self._stack_reorder([], stack, operands, dry_run=True)
+        cost = self._stack_reorder([], stack, operands, spilled, dry_run=True)
         if DEBUG_SHOW_COST and cost:
             print("ENTER", inst, file=sys.stderr)
             print("  HAVE", stack, file=sys.stderr)
@@ -482,7 +624,7 @@ class VenomCompiler:
 
         # final step to get the inputs to this instruction ordered
         # correctly on the stack
-        self._stack_reorder(assembly, stack, operands)
+        self._stack_reorder(assembly, stack, operands, spilled)
 
         # some instructions (i.e. invoke) need to do stack manipulations
         # with the stack model containing the return value(s), so we fiddle
@@ -595,6 +737,8 @@ class VenomCompiler:
                 self.pop(assembly, stack)
             else:
                 self._optimistic_swap(assembly, inst, next_liveness, stack)
+
+        self._release_dead_spills(spilled, next_liveness)
 
         return apply_line_numbers(inst, assembly)
 
