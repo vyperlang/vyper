@@ -1,18 +1,11 @@
-from __future__ import annotations
-
 import pytest
 
 from vyper.venom.basicblock import IRLiteral, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.stack_model import StackModel
 from vyper.venom.venom_to_assembly import VenomCompiler
-
-
-@pytest.fixture
-def compiler() -> VenomCompiler:
-    ctx = IRContext()
-    ctx.add_constant("mem_deploy_end", 0)
-    return VenomCompiler(ctx)
+from vyper.venom.parser import parse_venom
+from vyper.ir.compile_ir import Label
 
 
 def _build_stack(count: int) -> tuple[StackModel, list[IRLiteral]]:
@@ -35,7 +28,8 @@ def _dummy_dfg():
     return _DummyDFG()
 
 
-def test_swap_spills_deep_stack(compiler: VenomCompiler) -> None:
+def test_swap_spills_deep_stack() -> None:
+    compiler = VenomCompiler(IRContext())
     stack, ops = _build_stack(40)
     assembly: list = []
 
@@ -60,7 +54,8 @@ def test_swap_spills_deep_stack(compiler: VenomCompiler) -> None:
     assert all(int(op[4:]) <= 16 for op in ops_str if op.startswith("SWAP"))
 
 
-def test_dup_spills_deep_stack(compiler: VenomCompiler) -> None:
+def test_dup_spills_deep_stack() -> None:
+    compiler = VenomCompiler(IRContext())
     stack, ops = _build_stack(40)
     assembly: list = []
 
@@ -83,7 +78,8 @@ def test_dup_spills_deep_stack(compiler: VenomCompiler) -> None:
     assert all(int(op[3:]) <= 16 for op in ops_str if op.startswith("DUP"))
 
 
-def test_stack_reorder_spills_before_swap(compiler: VenomCompiler) -> None:
+def test_stack_reorder_spills_before_swap() -> None:
+    compiler = VenomCompiler(IRContext())
     compiler.dfg = _dummy_dfg()
     compiler._spill_next_slot = 0
     compiler._spill_free_slots = []
@@ -115,3 +111,95 @@ def test_stack_reorder_spills_before_swap(compiler: VenomCompiler) -> None:
     assert restore_ops.count("MLOAD") == 1
     assert spilled_var not in spilled
     assert stack.get_depth(spilled_var) == 0
+
+
+def test_branch_spill_integration() -> None:
+    venom_src = """
+    function spill_demo {
+        main:
+            %v0 = mload 0
+            %v1 = mload 32
+            %v2 = mload 64
+            %v3 = mload 96
+            %v4 = mload 128
+            %v5 = mload 160
+            %v6 = mload 192
+            %v7 = mload 224
+            %v8 = mload 256
+            %v9 = mload 288
+            %v10 = mload 320
+            %v11 = mload 352
+            %v12 = mload 384
+            %v13 = mload 416
+            %v14 = mload 448
+            %v15 = mload 480
+            %v16 = mload 512
+            %v17 = mload 544
+            %v18 = mload 576
+            %v19 = mload 608
+            %cond = mload 640
+            jnz %cond, @then, @else
+        then:
+            %then_sum = add %v0, %v19
+            %res_then = add %then_sum, %cond
+            jmp @join
+        else:
+            %else_sum = add %v1, %v19
+            %res_else = add %else_sum, %cond
+            jmp @join
+        join:
+            %phi = phi @then, %res_then, @else, %res_else
+            %acc1 = add %phi, %v1
+            %acc2 = add %acc1, %v2
+            %acc3 = add %acc2, %v3
+            %acc4 = add %acc3, %v4
+            %acc5 = add %acc4, %v5
+            %acc6 = add %acc5, %v6
+            %acc7 = add %acc6, %v7
+            %acc8 = add %acc7, %v8
+            %acc9 = add %acc8, %v9
+            %acc10 = add %acc9, %v10
+            %acc11 = add %acc10, %v11
+            %acc12 = add %acc11, %v12
+            %acc13 = add %acc12, %v13
+            %acc14 = add %acc13, %v14
+            %acc15 = add %acc14, %v15
+            %acc16 = add %acc15, %v16
+            %acc17 = add %acc16, %v17
+            %acc18 = add %acc17, %v18
+            return %acc18
+    }
+    """
+
+    ctx = parse_venom(venom_src)
+
+    asm = VenomCompiler(ctx).generate_evm_assembly()
+    opcodes = [op for op in asm if isinstance(op, str)]
+
+    for op in opcodes:
+        if op.startswith("SWAP"):
+            assert int(op[4:]) <= 16
+        if op.startswith("DUP"):
+            assert int(op[3:]) <= 16
+
+    def _count_spill(kind: str) -> list[int]:
+        seq = ["PUSH2", 2, 0, kind]
+        return [
+            idx
+            for idx in range(len(asm) - len(seq) + 1)
+            if asm[idx : idx + len(seq)] == seq
+        ]
+
+    store_indices = _count_spill("MSTORE")
+    load_indices = _count_spill("MLOAD")
+    assert store_indices
+    assert load_indices
+
+    join_idx = next(
+        idx for idx, op in enumerate(asm) if isinstance(op, Label) and str(op) == "LABEL join"
+    )
+
+    assert any(idx < join_idx for idx in store_indices)
+    assert any(idx > join_idx for idx in store_indices)
+    assert any(idx < join_idx for idx in load_indices)
+    assert any(idx > join_idx for idx in load_indices)
