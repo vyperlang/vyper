@@ -628,18 +628,90 @@ class VenomCompiler:
         stack.pop(num)
         assembly.extend(["POP"] * num)
 
+    def _spill_stack_segment(
+        self, assembly, stack, count: int, base_offset: int
+    ) -> tuple[list[IROperand], list[int], int]:
+        spill_ops: list[IROperand] = []
+        offsets: list[int] = []
+        cost = 0
+
+        for i in range(count):
+            op = stack.peek(0)
+            spill_ops.append(op)
+
+            offset = base_offset + 32 * i
+            offsets.append(offset)
+
+            assembly.extend(PUSH(offset))
+            assembly.append("MSTORE")
+            stack.pop()
+            cost += 2
+
+        return spill_ops, offsets, cost
+
+    def _restore_spilled_segment(
+        self,
+        assembly,
+        stack,
+        spill_ops: list[IROperand],
+        offsets: list[int],
+        desired_indices: list[int],
+    ) -> int:
+        cost = 0
+
+        for idx in reversed(desired_indices):
+            assembly.extend(PUSH(offsets[idx]))
+            assembly.append("MLOAD")
+            stack.push(spill_ops[idx])
+            cost += 2
+
+        return cost
+
     def swap(self, assembly, stack, depth) -> int:
         # Swaps of the top is no op
         if depth == 0:
             return 0
 
-        stack.swap(depth)
-        assembly.append(_evm_swap_for(depth))
-        return 1
+        swap_idx = -depth
+        if swap_idx < 1:
+            raise StackTooDeep(f"Unsupported swap depth {swap_idx}")
+        if swap_idx <= 16:
+            stack.swap(depth)
+            assembly.append(_evm_swap_for(depth))
+            return 1
+
+        chunk_size = swap_idx + 1
+        spill_ops, offsets, cost = self._spill_stack_segment(
+            assembly, stack, chunk_size, MemoryPositions.STACK_SPILL_BASE
+        )
+
+        indices = list(range(chunk_size))
+        if chunk_size == 1:
+            desired_indices = indices
+        else:
+            desired_indices = [indices[-1]] + indices[1:-1] + [indices[0]]
+
+        cost += self._restore_spilled_segment(assembly, stack, spill_ops, offsets, desired_indices)
+        return cost
 
     def dup(self, assembly, stack, depth):
-        stack.dup(depth)
-        assembly.append(_evm_dup_for(depth))
+        dup_idx = 1 - depth
+        if dup_idx < 1:
+            raise StackTooDeep(f"Unsupported dup depth {dup_idx}")
+        if dup_idx <= 16:
+            stack.dup(depth)
+            assembly.append(_evm_dup_for(depth))
+            return
+
+        chunk_size = dup_idx
+        spill_ops, offsets, _ = self._spill_stack_segment(
+            assembly, stack, chunk_size, MemoryPositions.STACK_SPILL_BASE
+        )
+
+        indices = list(range(chunk_size))
+        desired_indices = [indices[-1]] + indices
+
+        self._restore_spilled_segment(assembly, stack, spill_ops, offsets, desired_indices)
 
     def swap_op(self, assembly, stack, op):
         depth = stack.get_depth(op)
