@@ -108,6 +108,7 @@ def _run_passes(
     LoadElimination(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
+    SCCP(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
     MemMergePass(ac, fn).run_pass()
@@ -131,7 +132,6 @@ def _run_passes(
         ReduceLiteralsCodesize(ac, fn).run_pass()
 
     DFTPass(ac, fn).run_pass()
-
 
     CFGNormalization(ac, fn).run_pass()
 

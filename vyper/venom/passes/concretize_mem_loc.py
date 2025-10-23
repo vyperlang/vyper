@@ -112,7 +112,7 @@ class MemLiveness:
         curr: OrderedSet[IRAbstractMemLoc] = OrderedSet()
         if len(succs := self.cfg.cfg_out(bb)) > 0:
             for other in (self.liveat[succ.instructions[0]] for succ in succs):
-                curr = curr.union(other)
+                curr.update(other)
 
         before = self.liveat[bb.instructions[0]]
 
