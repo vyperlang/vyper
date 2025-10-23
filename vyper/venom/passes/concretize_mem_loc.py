@@ -1,4 +1,4 @@
-from vyper.venom.basicblock import IRAbstractMemLoc, IROperand, IRLabel, IRBasicBlock,IRInstruction, IRVariable
+from vyper.venom.basicblock import IRAbstractMemLoc, IROperand, IRLabel, IRBasicBlock,IRInstruction, IRVariable, IRLiteral
 from vyper.venom.function import IRFunction
 from vyper.venom.memory_allocator import MemoryAllocator
 from vyper.venom.passes.base_pass import IRPass
@@ -24,11 +24,14 @@ class ConcretizeMemLocPass(IRPass):
 
         livesets = list(self.mem_liveness.livesets.items())
         livesets.sort(key = lambda x: len(x[1]), reverse=True)
+        #print(livesets)
 
-        for index, (mem, _) in enumerate(livesets):
+        for index, (mem, insts) in enumerate(livesets):
             curr = orig
             for i in range(index):
-                before_mem, _ = livesets[i]
+                before_mem, before_insts = livesets[i]
+                if len(OrderedSet.intersection(insts, before_insts)) == 0:
+                    continue
                 place = mem_allocator.allocated[before_mem._id]
                 assert place.offset is not None and place.size is not None
                 curr = max(place.offset + place.size, curr)
@@ -109,7 +112,7 @@ class MemLiveness:
         curr: OrderedSet[IRAbstractMemLoc] = OrderedSet()
         if len(succs := self.cfg.cfg_out(bb)) > 0:
             for other in (self.liveat[succ.instructions[0]] for succ in succs):
-                curr.union(other)
+                curr = curr.union(other)
 
         before = self.liveat[bb.instructions[0]]
 
@@ -120,7 +123,12 @@ class MemLiveness:
             read_ops = self._follow_op(read_op)
             for write_op in write_ops:
                 assert isinstance(write_op, IRAbstractMemLoc)
-                if write_op in curr:
+                size = _get_write_size(inst)
+                if size is None:
+                    continue
+                if not isinstance(size, IRLiteral):
+                    continue
+                if write_op in curr and size == write_op.size:
                     curr.remove(write_op.no_offset())
             for read_op in read_ops:
                 assert isinstance(read_op, IRAbstractMemLoc)
@@ -210,3 +218,21 @@ def _get_memory_read_op(inst) -> IROperand | None:
 
     return None
 
+def _get_write_size(inst: IRInstruction) -> IROperand | None:
+    opcode = inst.opcode
+    if opcode == "mstore":
+        return IRLiteral(32)
+    elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
+        size, _, _ = inst.operands
+        return size
+    elif opcode == "call":
+        size, _, _, _, _, _, _ = inst.operands
+        return size
+    elif opcode in ("delegatecall", "staticcall"):
+        size, _, _, _, _, _ = inst.operands
+        return size
+    elif opcode == "extcodecopy":
+        size, _, _, _ = inst.operands
+        return size
+
+    return None

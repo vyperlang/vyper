@@ -132,6 +132,7 @@ def _run_passes(
 
     DFTPass(ac, fn).run_pass()
 
+
     CFGNormalization(ac, fn).run_pass()
 
 def _run_global_passes(ctx: IRContext, optimize: OptimizationLevel, ir_analyses: dict) -> None:
