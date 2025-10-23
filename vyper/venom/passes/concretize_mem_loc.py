@@ -23,7 +23,7 @@ class ConcretizeMemLocPass(IRPass):
         self.mem_liveness.analyze()
 
         livesets = list(self.mem_liveness.livesets.items())
-        livesets.sort(key = lambda x: len(x[1]), reverse=True)
+        livesets.sort(key = lambda x: len(x[1]), reverse=False)
         #print(livesets)
 
         for index, (mem, insts) in enumerate(livesets):
