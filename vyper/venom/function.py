@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
-from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
-from vyper.venom.memory_location import MemoryLocation, MemoryLocationConcrete, IRAbstractMemLoc
+from vyper.venom.basicblock import IRAbstractMemLoc, IRBasicBlock, IRLabel, IRVariable
+from vyper.venom.memory_location import MemoryLocation
 
 if TYPE_CHECKING:
     from vyper.venom.context import IRContext
@@ -220,6 +220,7 @@ class IRFunction:
         return ret
 
     def add_volatile_memory(self, offset: int, size: int) -> MemoryLocation:
+        from vyper.venom.memory_location import MemoryLocationConcrete
         """
         Add a volatile memory location with the given offset and size.
         Returns the created MemoryLocation object.
