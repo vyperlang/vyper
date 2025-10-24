@@ -10,7 +10,7 @@ from vyper.utils import (
     signed_to_unsigned,
     unsigned_to_signed,
 )
-from vyper.venom.basicblock import IRLiteral
+from vyper.venom.basicblock import IRLiteral, IROperand
 
 
 def _unsigned_to_signed(value: int) -> int:

@@ -161,7 +161,7 @@ class MemSSAAbstract(IRAnalysis):
         for bb in self.memory_defs:
             for mem_def in self.memory_defs[bb]:
                 if self.memalias.may_alias(mem_def.loc, loc):
-                    mem_def.loc = dc.replace(mem_def.loc, is_volatile=True)
+                    mem_def.loc = mem_def.loc.create_volatile()
 
         return volatile_loc
 

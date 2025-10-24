@@ -72,7 +72,7 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
         return result
 
     def mark_volatile(self, loc: MemoryLocation) -> MemoryLocation:
-        volatile_loc = dc.replace(loc, is_volatile=True)
+        volatile_loc = loc.create_volatile()
 
         if loc in self.alias_sets:
             self.alias_sets[volatile_loc] = OrderedSet([volatile_loc])

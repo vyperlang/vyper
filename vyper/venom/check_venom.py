@@ -103,6 +103,13 @@ def no_concrete_locations_fn(function: IRFunction):
                 assert isinstance(read_op, (IRVariable, IRAbstractMemLoc)), (inst, inst.parent)
 
 
+def in_free_var(var, offset):
+    return (
+        offset >= var and 
+        offset < (var + 32)
+    )
+
+
 def fix_mem_loc(function: IRFunction):
     for bb in function.get_basic_blocks():
         for inst in bb.instructions:
@@ -112,13 +119,15 @@ def fix_mem_loc(function: IRFunction):
             read_op = _get_memory_read_op(inst)
             if write_op is not None:
                 size = _get_write_size(inst)
-                if size is None or size.value != 32:
+                if size is None or not isinstance(write_op.value, int):
                     continue
 
-                if write_op.value == MemoryPositions.FREE_VAR_SPACE:
-                    _update_write_op(inst, IRAbstractMemLoc.FREE_VAR1)
-                elif write_op.value == MemoryPositions.FREE_VAR_SPACE2:
-                    _update_write_op(inst, IRAbstractMemLoc.FREE_VAR2)
+                if in_free_var(MemoryPositions.FREE_VAR_SPACE, write_op.value):
+                    offset = write_op.value - MemoryPositions.FREE_VAR_SPACE
+                    _update_write_op(inst, IRAbstractMemLoc.FREE_VAR1.with_offset(offset))
+                elif in_free_var(MemoryPositions.FREE_VAR_SPACE2, write_op.value):
+                    offset = write_op.value - MemoryPositions.FREE_VAR_SPACE2
+                    _update_write_op(inst, IRAbstractMemLoc.FREE_VAR2.with_offset(offset))
             if read_op is not None:
                 size = _get_read_size(inst)
                 if size is None or size.value != 32:

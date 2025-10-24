@@ -1,14 +1,14 @@
-from vyper.venom.memory_location import MemoryLocation
+from vyper.venom.memory_location import MemoryLocation, MemoryLocationConcrete
 
 
 def test_completely_overlaps():
     # Create memory locations with different offsets and sizes
-    loc1 = MemoryLocation(offset=0, size=32)
-    loc2 = MemoryLocation(offset=0, size=32)  # Same as loc1
-    loc3 = MemoryLocation(offset=0, size=64)  # Larger than loc1
-    loc4 = MemoryLocation(offset=16, size=16)  # Inside loc1
-    loc5 = MemoryLocation(offset=16, size=32)  # Partially overlaps loc1
-    loc6 = MemoryLocation(offset=32, size=32)  # Adjacent to loc1
+    loc1 = MemoryLocationConcrete(_offset=0, _size=32)
+    loc2 = MemoryLocationConcrete(_offset=0, _size=32)  # Same as loc1
+    loc3 = MemoryLocationConcrete(_offset=0, _size=64)  # Larger than loc1
+    loc4 = MemoryLocationConcrete(_offset=16, _size=16)  # Inside loc1
+    loc5 = MemoryLocationConcrete(_offset=16, _size=32)  # Partially overlaps loc1
+    loc6 = MemoryLocationConcrete(_offset=32, _size=32)  # Adjacent to loc1
 
     assert loc1.completely_contains(loc1)
     assert loc1.completely_contains(loc2)
@@ -21,7 +21,7 @@ def test_completely_overlaps():
     assert not loc1.completely_contains(loc6)
 
     # Test with EMPTY and FULL memory access
-    full_loc = MemoryLocation(offset=0, size=None)
+    full_loc = MemoryLocationConcrete(_offset=0, _size=None)
     assert not MemoryLocation.EMPTY.completely_contains(loc1)
     assert loc1.completely_contains(MemoryLocation.EMPTY)
     assert not full_loc.completely_contains(loc1)

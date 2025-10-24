@@ -178,42 +178,49 @@ class IRLiteral(IROperand):
 class IRAbstractMemLoc(IROperand):
     _id: int
     size: int
-    source: IRInstruction | None
+    offset: int
     unused: bool
 
     _curr_id: ClassVar[int]
     FREE_VAR1: ClassVar["IRAbstractMemLoc"]
     FREE_VAR2: ClassVar["IRAbstractMemLoc"]
 
-    def __init__(self, size: int, source: IRInstruction | None, unused = False, force_id = None):
+    def __init__(self, size: int, offset: int = 0, unused = False, force_id = None):
         if force_id is None:
             self._id = IRAbstractMemLoc._curr_id
             IRAbstractMemLoc._curr_id += 1
         else:
             self._id = force_id
         self.size = size
-        self.source = source
+        self.offset = offset
         self.unused = unused
 
     def __hash__(self) -> int:
-        return self._id
+        return self._id ^ self.offset
 
     def __eq__(self, other) -> bool:
         if type(self) != type(other):
             return False
-        return self._id == other._id
+        return self._id == other._id and self.offset == other.offset
 
     @property
     def value(self):
         return self._id
 
     def __repr__(self) -> str:
-        return f"[{self._id}]"
+        return f"[{self._id},{self.size} + {self.offset}]"
+
+    def no_offset(self) -> IRAbstractMemLoc:
+        return IRAbstractMemLoc(self.size, force_id=self._id)
+
+    def with_offset(self, offset: int) -> IRAbstractMemLoc:
+        return IRAbstractMemLoc(self.size, offset=offset, force_id=self._id)
+
 
 
 IRAbstractMemLoc._curr_id = 0
-IRAbstractMemLoc.FREE_VAR1 = IRAbstractMemLoc(32, None)
-IRAbstractMemLoc.FREE_VAR2 = IRAbstractMemLoc(32, None)
+IRAbstractMemLoc.FREE_VAR1 = IRAbstractMemLoc(32)
+IRAbstractMemLoc.FREE_VAR2 = IRAbstractMemLoc(32)
 
 
 class IRVariable(IROperand):
