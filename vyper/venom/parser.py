@@ -4,13 +4,13 @@ from typing import Optional
 from lark import Lark, Transformer
 
 from vyper.venom.basicblock import (
+    IRAbstractMemLoc,
     IRBasicBlock,
     IRInstruction,
     IRLabel,
     IRLiteral,
     IROperand,
     IRVariable,
-    IRAbstractMemLoc,
 )
 from vyper.venom.context import DataItem, DataSection, IRContext
 from vyper.venom.function import IRFunction
@@ -270,7 +270,7 @@ class VenomTransformer(Transformer):
         if str(val).startswith("0x"):
             return IRLiteral(int(val, 16))
         return IRLiteral(int(val))
-    
+
     def MEMLOC(self, memloc_ident) -> IRAbstractMemLoc:
         data: str = memloc_ident[1:][:-1]
         _id_str, size_str = data.split(",")

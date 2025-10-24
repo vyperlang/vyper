@@ -185,7 +185,7 @@ class IRAbstractMemLoc(IROperand):
     FREE_VAR1: ClassVar["IRAbstractMemLoc"]
     FREE_VAR2: ClassVar["IRAbstractMemLoc"]
 
-    def __init__(self, size: int, offset: int = 0, unused = False, force_id = None):
+    def __init__(self, size: int, offset: int = 0, unused=False, force_id=None):
         if force_id is None:
             self._id = IRAbstractMemLoc._curr_id
             IRAbstractMemLoc._curr_id += 1
@@ -199,7 +199,7 @@ class IRAbstractMemLoc(IROperand):
         return self._id ^ self.offset
 
     def __eq__(self, other) -> bool:
-        if type(self) != type(other):
+        if type(self) is not type(other):
             return False
         return self._id == other._id and self.offset == other.offset
 
@@ -215,7 +215,6 @@ class IRAbstractMemLoc(IROperand):
 
     def with_offset(self, offset: int) -> IRAbstractMemLoc:
         return IRAbstractMemLoc(self.size, offset=offset, force_id=self._id)
-
 
 
 IRAbstractMemLoc._curr_id = 0

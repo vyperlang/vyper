@@ -119,7 +119,7 @@ def test_store_load_elimination(addrspace, position: list):
 
     LOAD = addrspace.load_op
     STORE = addrspace.store_op
-    
+
     val, ptr = position
 
     pre = f"""
@@ -171,7 +171,7 @@ def test_store_load_overlap_barrier(position: tuple):
     Check for barrier between store/load done
     by overlap of the mstore and mload
     """
-    
+
     ptr_mload, ptr_mstore = position
 
     pre = f"""
@@ -194,7 +194,7 @@ def test_store_load_pair_memloc():
     Check for barrier between store/load done
     by overlap of the mstore and mload
     """
-    
+
     pre = """
     main:
         %ptr_mload = [1,32]
@@ -337,7 +337,7 @@ def test_store_store_unknown_ptr_barrier(position: list):
     Check for barrier between store/load done
     by overlap of the mstore and mload
     """
-    
+
     pre = f"""
     main:
         %ptr_mstore01 = {position}

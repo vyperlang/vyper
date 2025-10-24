@@ -1,6 +1,6 @@
 from vyper.venom.basicblock import IRAbstractMemLoc, IRLiteral
-from vyper.venom.memory_location import MemoryLocationConcrete
 from vyper.venom.function import IRFunction
+from vyper.venom.memory_location import MemoryLocationConcrete
 
 
 class MemoryAllocator:
@@ -30,8 +30,7 @@ class MemoryAllocator:
     def start_fn_allocation(self, callsites_used: int):
         self.before = self.curr
         self.curr = callsites_used
-    
+
     def end_fn_allocation(self, fn: IRFunction):
         self.function_mem_used[fn] = self.curr
         self.curr = self.before
-

@@ -1,10 +1,19 @@
-from vyper.venom.basicblock import IRAbstractMemLoc, IROperand, IRLabel, IRBasicBlock,IRInstruction, IRVariable, IRLiteral
+from collections import defaultdict
+
+from vyper.utils import OrderedSet
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis
+from vyper.venom.basicblock import (
+    IRAbstractMemLoc,
+    IRBasicBlock,
+    IRInstruction,
+    IRLabel,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+)
 from vyper.venom.function import IRFunction
 from vyper.venom.memory_allocator import MemoryAllocator
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis
-from collections import defaultdict, deque
-from vyper.utils import OrderedSet
 
 
 class ConcretizeMemLocPass(IRPass):
@@ -23,8 +32,8 @@ class ConcretizeMemLocPass(IRPass):
         self.mem_liveness.analyze()
 
         livesets = list(self.mem_liveness.livesets.items())
-        livesets.sort(key = lambda x: len(x[1]), reverse=False)
-        #print(livesets)
+        livesets.sort(key=lambda x: len(x[1]), reverse=False)
+        # print(livesets)
 
         for index, (mem, insts) in enumerate(livesets):
             curr = orig
@@ -37,7 +46,6 @@ class ConcretizeMemLocPass(IRPass):
                 curr = max(place.offset + place.size, curr)
             mem_allocator.curr = curr
             mem_allocator.get_place(mem)
-            
 
         for bb in self.function.get_basic_blocks():
             self._handle_bb(bb)
@@ -55,7 +63,6 @@ class ConcretizeMemLocPass(IRPass):
                 inst.opcode = "add"
             elif inst.opcode == "mem_deploy_start":
                 inst.opcode = "assign"
-        
 
     def _handle_op(self, op: IROperand) -> IROperand:
         if isinstance(op, IRAbstractMemLoc) and op._id in self.allocator.allocated:
@@ -65,7 +72,7 @@ class ConcretizeMemLocPass(IRPass):
             return op
         else:
             return op
-    
+
     def _get_used(self, mem_alloc: MemoryAllocator) -> int:
         max_used = mem_alloc.curr
         for bb in self.function.get_basic_blocks():
@@ -77,9 +84,10 @@ class ConcretizeMemLocPass(IRPass):
                 assert isinstance(callee_label, IRLabel)
                 callee = self.function.ctx.get_function(callee_label)
 
-                max_used = max(max_used, mem_alloc.function_mem_used[callee])        
+                max_used = max(max_used, mem_alloc.function_mem_used[callee])
 
         return max_used
+
 
 class MemLiveness:
     function: IRFunction
@@ -102,12 +110,12 @@ class MemLiveness:
 
             if not change:
                 break
-        
+
         self.livesets = defaultdict(OrderedSet)
         for inst, mems in self.liveat.items():
             for mem in mems:
                 self.livesets[mem].add(inst)
-    
+
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
         curr: OrderedSet[IRAbstractMemLoc] = OrderedSet()
         if len(succs := self.cfg.cfg_out(bb)) > 0:
@@ -134,17 +142,17 @@ class MemLiveness:
                 assert isinstance(read_op, IRAbstractMemLoc)
                 curr.add(read_op.no_offset())
             self.liveat[inst] = curr.copy()
-        
+
         if before != self.liveat[bb.instructions[0]]:
             return True
 
         return False
-    
+
     def _follow_op(self, op: IROperand | None) -> set[IRAbstractMemLoc]:
         if op is None:
             return set()
         if isinstance(op, IRAbstractMemLoc):
-            return {op} 
+            return {op}
         if not isinstance(op, IRVariable):
             return set()
 
@@ -182,6 +190,7 @@ def _get_memory_write_op(inst) -> IROperand | None:
 
     return None
 
+
 def _get_memory_read_op(inst) -> IROperand | None:
     opcode = inst.opcode
     if opcode == "mload":
@@ -217,6 +226,7 @@ def _get_memory_read_op(inst) -> IROperand | None:
         return src
 
     return None
+
 
 def _get_write_size(inst: IRInstruction) -> IROperand | None:
     opcode = inst.opcode

@@ -8,9 +8,9 @@ from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
 from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import AssemblyInstruction
-from vyper.venom.analysis import MemSSA
+from vyper.venom.analysis import FCGAnalysis, MemSSA
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IRAbstractMemLoc
+from vyper.venom.basicblock import IRAbstractMemLoc, IRInstruction, IRLabel, IRLiteral
 from vyper.venom.check_venom import fix_mem_loc, no_concrete_locations_fn
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
@@ -40,7 +40,6 @@ from vyper.venom.passes import (
     SimplifyCFGPass,
     SingleUseExpansion,
 )
-from vyper.venom.analysis import FCGAnalysis
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.venom_to_assembly import VenomCompiler
 
@@ -57,7 +56,7 @@ def generate_assembly_experimental(
 def _run_passes(
     fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache, alloc: MemoryAllocator
 ) -> None:
-        # Run passes on Venom IR
+    # Run passes on Venom IR
     # TODO: Add support for optimization levels
 
     FloatAllocas(ac, fn).run_pass()
@@ -135,6 +134,7 @@ def _run_passes(
 
     CFGNormalization(ac, fn).run_pass()
 
+
 def _run_global_passes(ctx: IRContext, optimize: OptimizationLevel, ir_analyses: dict) -> None:
     FixCalloca(ir_analyses, ctx).run_pass()
     FunctionInlinerPass(ir_analyses, ctx, optimize).run_pass()
@@ -153,24 +153,26 @@ def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
 
     assert ctx.entry_function is not None
     fcg = ir_analyses[ctx.entry_function].force_analysis(FCGAnalysis)
-    
+
     _run_fn_passes(ctx, fcg, ctx.entry_function, optimize, ir_analyses)
 
 
-def _run_fn_passes(ctx: IRContext, fcg: FCGAnalysis , fn: IRFunction, optimize: OptimizationLevel, ir_analyses: dict):
-    visited = set()
+def _run_fn_passes(
+    ctx: IRContext, fcg: FCGAnalysis, fn: IRFunction, optimize: OptimizationLevel, ir_analyses: dict
+):
+    visited: set[IRFunction] = set()
     assert ctx.entry_function is not None
     _run_fn_passes_r(ctx, fcg, ctx.entry_function, optimize, ir_analyses, visited)
 
 
 def _run_fn_passes_r(
-        ctx: IRContext,
-        fcg: FCGAnalysis, 
-        fn: IRFunction,
-        optimize: OptimizationLevel,
-        ir_analyses: dict,
-        visited: set
-    ):
+    ctx: IRContext,
+    fcg: FCGAnalysis,
+    fn: IRFunction,
+    optimize: OptimizationLevel,
+    ir_analyses: dict,
+    visited: set,
+):
     if fn in visited:
         return
     visited.add(fn)
@@ -178,6 +180,7 @@ def _run_fn_passes_r(
         _run_fn_passes_r(ctx, fcg, next_fn, optimize, ir_analyses, visited)
 
     _run_passes(fn, optimize, ir_analyses[fn], ctx.mem_allocator)
+
 
 def generate_venom(
     ir: IRnode,

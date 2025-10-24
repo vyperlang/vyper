@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import dataclasses as dc
 from dataclasses import dataclass
 from typing import ClassVar
-import dataclasses as dc
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.exceptions import CompilerPanic
-from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable, IRAbstractMemLoc
+from vyper.venom.basicblock import IRAbstractMemLoc, IRLiteral, IROperand, IRVariable
+
 
 class MemoryLocation:
     # Initialize after class definition
@@ -17,6 +18,7 @@ class MemoryLocation:
     def from_operands(
         cls, offset: IROperand | int, size: IROperand | int, /, is_volatile: bool = False
     ) -> MemoryLocation:
+        _offset: int | IRAbstractMemLoc | None = None
         if isinstance(offset, IRLiteral):
             _offset = offset.value
         elif isinstance(offset, IRVariable):
@@ -38,34 +40,34 @@ class MemoryLocation:
             raise CompilerPanic(f"invalid size: {size} ({type(size)})")
 
         if isinstance(_offset, IRAbstractMemLoc):
-            #assert isinstance(_size, int)
-            #assert _size <= _offset.size
+            # assert isinstance(_size, int)
+            # assert _size <= _offset.size
             return MemoryLocationAbstract(_offset, _size)
         return MemoryLocationConcrete(_offset, _size)
 
     @property
     def offset(self) -> int | None:
-        raise NotImplemented
+        raise NotImplementedError
 
     @property
     def size(self) -> int | None:
-        raise NotImplemented
+        raise NotImplementedError
 
     @property
     def is_offset_fixed(self) -> bool:
-        raise NotImplemented
+        raise NotImplementedError
 
     @property
     def is_size_fixed(self) -> bool:
-        raise NotImplemented
+        raise NotImplementedError
 
     @property
     def is_fixed(self) -> bool:
-        raise NotImplemented
+        raise NotImplementedError
 
     @property
     def is_volatile(self) -> bool:
-        raise NotImplemented
+        raise NotImplementedError
 
     @staticmethod
     def may_overlap(loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
@@ -75,7 +77,7 @@ class MemoryLocation:
             return True
         if loc1 is MemoryLocation.UNDEFINED or loc2 is MemoryLocation.UNDEFINED:
             return True
-        if type(loc1) != type(loc2):
+        if type(loc1) is not type(loc2):
             return False
         if isinstance(loc1, MemoryLocationConcrete):
             assert isinstance(loc2, MemoryLocationConcrete)
@@ -85,8 +87,12 @@ class MemoryLocation:
             return MemoryLocationAbstract.may_overlap_abstract(loc1, loc2)
         return True
 
+    def completely_contains(self, other: MemoryLocation) -> bool:
+        raise NotImplementedError
+
     def create_volatile(self) -> MemoryLocation:
-        raise NotImplemented
+        raise NotImplementedError
+
 
 @dataclass(frozen=True)
 class MemoryLocationAbstract(MemoryLocation):
@@ -96,7 +102,7 @@ class MemoryLocationAbstract(MemoryLocation):
 
     @property
     def offset(self):
-        raise NotImplemented
+        raise NotImplementedError
 
     @property
     def size(self):
@@ -133,6 +139,7 @@ class MemoryLocationAbstract(MemoryLocation):
         if self._size is None:
             return False
         return self.op._id == other.op._id and self._size == self.op.size
+
 
 @dataclass(frozen=True)
 class MemoryLocationConcrete(MemoryLocation):
@@ -197,11 +204,11 @@ class MemoryLocationConcrete(MemoryLocation):
         return start1 <= start2 and end1 >= end2
 
     def get_size_lit(self) -> IRLiteral:
-        assert self.is_size_fixed
+        assert self._size is not None
         return IRLiteral(self._size)
 
-    def get_offset_lit(self, offset = 0) -> IRLiteral:
-        assert self.is_offset_fixed
+    def get_offset_lit(self, offset=0) -> IRLiteral:
+        assert self._offset is not None
         return IRLiteral(self._offset + offset)
 
     @staticmethod
@@ -388,28 +395,5 @@ def _get_storage_read_location(inst, addr_space: AddrSpace) -> MemoryLocation:
         # "future" reads which could happen in the caller.
         # while not a "true" read, this case makes the code in DSE simpler.
         return MemoryLocation.UNDEFINED
-
-    return MemoryLocation.EMPTY
-
-
-def get_mem_ops_indexes(inst) -> list[int]:
-    opcode = inst.opcode
-    if opcode == "mstore":
-        dst = inst.operands[1]
-        return [1]
-    elif opcode == "mload":
-        return [0]
-    elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
-        size, _, dst = inst.operands
-        return [1, 2]
-    elif opcode == "call":
-        size, dst, _, _, _, _, _ = inst.operands
-        return MemoryLocation.from_operands(dst, size)
-    elif opcode in ("delegatecall", "staticcall"):
-        size, dst, _, _, _, _ = inst.operands
-        return MemoryLocation.from_operands(dst, size)
-    elif opcode == "extcodecopy":
-        size, _, dst, _ = inst.operands
-        return MemoryLocation.from_operands(dst, size)
 
     return MemoryLocation.EMPTY

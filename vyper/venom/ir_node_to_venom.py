@@ -724,9 +724,7 @@ def _convert_ir_bb(fn, ir, symbols):
 
                 callsite_func = ir.passthrough_metadata["callsite_func"]
                 if ENABLE_NEW_CALL_CONV and _pass_via_stack(callsite_func)[alloca.name]:
-                    ptr = bb.append_instruction(
-                        "alloca", IRAbstractMemLoc(alloca.size), alloca._id
-                    )
+                    ptr = bb.append_instruction("alloca", IRAbstractMemLoc(alloca.size), alloca._id)
                 else:
                     # if we use alloca, mstores might get removed. convert
                     # to calloca until memory analysis is more sound.

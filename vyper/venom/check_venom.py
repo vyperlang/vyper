@@ -104,10 +104,7 @@ def no_concrete_locations_fn(function: IRFunction):
 
 
 def in_free_var(var, offset):
-    return (
-        offset >= var and 
-        offset < (var + 32)
-    )
+    return offset >= var and offset < (var + 32)
 
 
 def fix_mem_loc(function: IRFunction):

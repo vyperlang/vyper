@@ -1,4 +1,3 @@
-import dataclasses as dc
 from typing import Optional
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace

@@ -1,11 +1,16 @@
 from collections import deque
 
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRAbstractMemLoc, IRLiteral
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.analysis.analysis import IRAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import (
+    IRAbstractMemLoc,
+    IRBasicBlock,
+    IRInstruction,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+)
 from vyper.venom.effects import Effects
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
@@ -229,7 +234,6 @@ class LoadElimination(IRPass):
         # mstore [val, ptr]
         val, ptr = inst.operands
 
-
         existing_value = self._lattice[inst].get(ptr, OrderedSet()).copy()
 
         # we found a redundant store, eliminate it
@@ -238,4 +242,3 @@ class LoadElimination(IRPass):
                 if not self.equivalent(val, tmp):
                     return
             self.updater.nop(inst)
-
