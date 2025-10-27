@@ -480,9 +480,7 @@ def test_cse_immutable_queries(opcode):
     _check_pre_post(pre, post, hevm=opcode != "codesize")
 
 
-@pytest.mark.parametrize(
-    "opcode", ("dloadbytes", "codecopy", "returndatacopy", "calldatacopy")
-)
+@pytest.mark.parametrize("opcode", ("dloadbytes", "codecopy", "returndatacopy", "calldatacopy"))
 def test_cse_other_mem_ops_elimination(opcode):
     pre = f"""
     main:
@@ -500,15 +498,16 @@ def test_cse_other_mem_ops_elimination(opcode):
 
     _check_pre_post(pre, post)
 
+
 def test_cse_other_mem_ops_elimination_extcodecopy():
-    pre = f"""
+    pre = """
     main:
         extcodecopy 10, 20, 30, 40
         extcodecopy 10, 20, 30, 40
         stop
     """
 
-    post = f"""
+    post = """
     main:
         extcodecopy 10, 20, 30, 40
         nop
