@@ -357,6 +357,16 @@ def test_cse_non_idempotent():
         %{var_name}1 = add 1, %{callname}1
         """
 
+    def call2(callname: str, i: int, var_name: str):
+        return f"""
+        %g{2*i} = gas
+        %{callname}0 = {callname} %g0, 0, 0, 0, 0, 0, 0
+        %{var_name}0 = add 1, %{callname}0
+        %g{2*i + 1} = gas
+        %{callname}1 = {callname} %g0, 0, 0, 0, 0, 0, 0
+        %{var_name}1 = add 1, %{callname}1
+        """
+
     pre = f"""
     main:
         ; staticcall
@@ -366,7 +376,7 @@ def test_cse_non_idempotent():
         {call("delegatecall", 1, "d")}
 
         ; call
-        {call("call", 2, "c")}
+        {call2("call", 2, "c")}
         sink %s0, %s1, %d0, %d1, %c0, %c1
     """
 
@@ -471,7 +481,7 @@ def test_cse_immutable_queries(opcode):
 
 
 @pytest.mark.parametrize(
-    "opcode", ("dloadbytes", "extcodecopy", "codecopy", "returndatacopy", "calldatacopy")
+    "opcode", ("dloadbytes", "codecopy", "returndatacopy", "calldatacopy")
 )
 def test_cse_other_mem_ops_elimination(opcode):
     pre = f"""
@@ -489,6 +499,23 @@ def test_cse_other_mem_ops_elimination(opcode):
     """
 
     _check_pre_post(pre, post)
+
+def test_cse_other_mem_ops_elimination_extcodecopy():
+    pre = f"""
+    main:
+        extcodecopy 10, 20, 30, 40
+        extcodecopy 10, 20, 30, 40
+        stop
+    """
+
+    post = f"""
+    main:
+        extcodecopy 10, 20, 30, 40
+        nop
+        stop
+    """
+
+    _check_pre_post(pre, post, hevm=False)
 
 
 def test_cse_self_conflicting_effects():
