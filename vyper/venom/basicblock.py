@@ -191,6 +191,7 @@ class IRAbstractMemLoc(IROperand):
             IRAbstractMemLoc._curr_id += 1
         else:
             self._id = force_id
+        super().__init__(self._id)
         self.size = size
         self.offset = offset
         self.unused = unused
@@ -202,10 +203,6 @@ class IRAbstractMemLoc(IROperand):
         if type(self) is not type(other):
             return False
         return self._id == other._id and self.offset == other.offset
-
-    @property
-    def value(self):
-        return self._id
 
     def __repr__(self) -> str:
         return f"[{self._id},{self.size} + {self.offset}]"
