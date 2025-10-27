@@ -1,11 +1,12 @@
+from typing import Any
+
 from vyper.venom.memory_location import MemoryLocationConcrete, IRAbstractMemLoc, IRLiteral
 
 
 class MemoryAllocator:
-    from vyper.venom.function import IRFunction
     allocated: dict[int, MemoryLocationConcrete]
     curr: int
-    function_mem_used: dict[IRFunction, int]
+    function_mem_used: dict[Any, int]
 
     def __init__(self):
         self.curr = 0
@@ -30,6 +31,6 @@ class MemoryAllocator:
         self.before = self.curr
         self.curr = callsites_used
 
-    def end_fn_allocation(self, fn: IRFunction):
+    def end_fn_allocation(self, fn):
         self.function_mem_used[fn] = self.curr
         self.curr = self.before
