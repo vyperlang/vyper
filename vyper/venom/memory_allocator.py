@@ -1,10 +1,10 @@
 from typing import Any
 
-from vyper.venom.memory_location import MemoryLocationConcrete, IRAbstractMemLoc, IRLiteral
+from vyper.venom.memory_location import IRAbstractMemLoc, IRLiteral
 
 
 class MemoryAllocator:
-    allocated: dict[int, MemoryLocationConcrete]
+    allocated: dict[int, tuple[int, int]]
     curr: int
     function_mem_used: dict[Any, int]
 
@@ -13,19 +13,19 @@ class MemoryAllocator:
         self.allocated = dict()
         self.function_mem_used = dict()
 
-    def allocate(self, size: int | IRLiteral) -> MemoryLocationConcrete:
+    def allocate(self, size: int | IRLiteral) -> tuple[int, int]:
         if isinstance(size, IRLiteral):
             size = size.value
-        res = MemoryLocationConcrete(self.curr, size)
+        res = self.curr
         self.curr += size
-        return res
+        return res, size
 
-    def get_place(self, mem_loc: IRAbstractMemLoc) -> MemoryLocationConcrete:
+    def get_place(self, mem_loc: IRAbstractMemLoc) -> int:
         if mem_loc._id in self.allocated:
-            return self.allocated[mem_loc._id]
+            return self.allocated[mem_loc._id][0]
         res = self.allocate(mem_loc.size)
         self.allocated[mem_loc._id] = res
-        return res
+        return res[0]
 
     def start_fn_allocation(self, callsites_used: int):
         self.before = self.curr

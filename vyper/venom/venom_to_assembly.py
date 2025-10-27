@@ -400,7 +400,7 @@ class VenomCompiler:
             assert len(inst.operands) == 3, inst
             _offset, size, _id = inst.operands
             assert isinstance(size, IRLiteral)
-            operands = [self.ctx.mem_allocator.allocate(size.value).offset]
+            operands = [IRLiteral(self.ctx.mem_allocator.allocate(size.value)[0])]
 
         # iload and istore are special cases because they can take a literal
         # that is handled specialy with the _OFST macro. Look below, after the

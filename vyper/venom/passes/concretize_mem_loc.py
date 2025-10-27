@@ -41,8 +41,7 @@ class ConcretizeMemLocPass(IRPass):
                 if len(OrderedSet.intersection(insts, before_insts)) == 0:
                     continue
                 place = mem_allocator.allocated[before_mem._id]
-                assert place.offset is not None and place.size is not None
-                curr = max(place.offset + place.size, curr)
+                curr = max(place[0] + place[1], curr)
             mem_allocator.curr = curr
             mem_allocator.get_place(mem)
 
@@ -65,9 +64,9 @@ class ConcretizeMemLocPass(IRPass):
 
     def _handle_op(self, op: IROperand) -> IROperand:
         if isinstance(op, IRAbstractMemLoc) and op._id in self.allocator.allocated:
-            return self.allocator.allocated[op._id].get_offset_lit(op.offset)
+            return IRLiteral(self.allocator.allocated[op._id][0] + op.offset)
         elif isinstance(op, IRAbstractMemLoc):
-            return self.allocator.get_place(op).get_offset_lit(op.offset)
+            return IRLiteral(self.allocator.get_place(op) + op.offset)
         else:
             return op
 
