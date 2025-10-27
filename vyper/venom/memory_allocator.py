@@ -1,6 +1,5 @@
-from vyper.venom.basicblock import IRAbstractMemLoc, IRLiteral
 from vyper.venom.function import IRFunction
-from vyper.venom.memory_location import MemoryLocationConcrete
+from vyper.venom.memory_location import MemoryLocationConcrete, IRAbstractMemLoc, IRLiteral
 
 
 class MemoryAllocator:
