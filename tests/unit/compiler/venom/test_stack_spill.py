@@ -1,5 +1,3 @@
-import pytest
-
 from vyper.venom.basicblock import IRLiteral, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.stack_model import StackModel
@@ -172,8 +170,13 @@ def test_branch_spill_integration() -> None:
     """
 
     ctx = parse_venom(venom_src)
+    compiler = VenomCompiler(ctx)
+    compiler.generate_evm_assembly()
 
-    asm = VenomCompiler(ctx).generate_evm_assembly()
+    fn = next(iter(ctx.functions.values()))
+    assert any(inst.opcode == "alloca" for inst in fn.entry.instructions)
+
+    asm = compiler.generate_evm_assembly()
     opcodes = [op for op in asm if isinstance(op, str)]
 
     for op in opcodes:
@@ -182,16 +185,26 @@ def test_branch_spill_integration() -> None:
         if op.startswith("DUP"):
             assert int(op[3:]) <= 16
 
-    def _count_spill(kind: str) -> list[int]:
-        seq = ["PUSH2", 2, 0, kind]
-        return [
-            idx
-            for idx in range(len(asm) - len(seq) + 1)
-            if asm[idx : idx + len(seq)] == seq
-        ]
+    def _find_spill_ops(kind: str) -> list[int]:
+        matches: list[int] = []
+        idx = 0
+        while idx < len(asm):
+            item = asm[idx]
+            if isinstance(item, str) and item.startswith("PUSH"):
+                try:
+                    push_bytes = int(item[4:])
+                except ValueError:
+                    push_bytes = 0
+                target_idx = idx + 1 + push_bytes
+                if target_idx < len(asm) and asm[target_idx] == kind:
+                    matches.append(idx)
+                idx = target_idx + 1
+            else:
+                idx += 1
+        return matches
 
-    store_indices = _count_spill("MSTORE")
-    load_indices = _count_spill("MLOAD")
+    store_indices = _find_spill_ops("MSTORE")
+    load_indices = _find_spill_ops("MLOAD")
     assert store_indices
     assert load_indices
 

@@ -153,8 +153,12 @@ class VenomCompiler:
         self.ctx = ctx
         self.label_counter = 0
         self.visited_basicblocks = OrderedSet()
-        self._spill_next_slot = 0
         self._spill_free_slots: list[int] = []
+        self._spill_slot_offsets: dict[IRFunction, list[int]] = {}
+        self._spill_insert_index: dict[IRFunction, int] = {}
+        self._next_spill_offset = 0
+        self._next_spill_alloca_id = 0
+        self._current_function: IRFunction | None = None
 
     def mklabel(self, name: str) -> Label:
         self.label_counter += 1
@@ -175,10 +179,12 @@ class VenomCompiler:
 
             assert self.cfg.is_normalized(), "Non-normalized CFG!"
 
-            self._spill_next_slot = 0
-            self._spill_free_slots: list[int] = []
+            self._current_function = fn
+            self._prepare_spill_state(fn)
+            self._spill_free_slots = []
 
             self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), {})
+            self._current_function = None
 
         asm.extend(_REVERT_POSTAMBLE)
         # Append data segment
@@ -214,10 +220,8 @@ class VenomCompiler:
             stack = stack.copy()
             spilled = spilled.copy()
             spill_free_snapshot = self._spill_free_slots.copy()
-            spill_next_snapshot = self._spill_next_slot
         else:
             spill_free_snapshot = []
-            spill_next_snapshot = 0
 
         if len(stack_ops) == 0:
             return 0
@@ -260,14 +264,13 @@ class VenomCompiler:
                 stack.poke(depth, to_swap)
                 continue
 
-            cost += self.swap(assembly, stack, depth)
-            cost += self.swap(assembly, stack, final_stack_depth)
+            cost += self.swap(assembly, stack, depth, dry_run)
+            cost += self.swap(assembly, stack, final_stack_depth, dry_run)
 
         assert stack._stack[-len(stack_ops) :] == stack_ops, (stack, stack_ops)
 
         if dry_run:
             self._spill_free_slots = spill_free_snapshot
-            self._spill_next_slot = spill_next_snapshot
 
         return cost
 
@@ -324,7 +327,7 @@ class VenomCompiler:
         assert isinstance(operand, IRVariable), operand
 
         if depth != 0:
-            self.swap(assembly, stack, depth)
+            self.swap(assembly, stack, depth, dry_run)
 
         offset = self._get_spill_slot(operand, spilled, dry_run)
         assembly.extend(PUSH(offset))
@@ -352,12 +355,7 @@ class VenomCompiler:
     ) -> int:
         if operand in spilled:
             return spilled[operand]
-        if dry_run:
-            return MemoryPositions.STACK_SPILL_BASE
-        if self._spill_free_slots:
-            return self._spill_free_slots.pop()
-        offset = MemoryPositions.STACK_SPILL_BASE + 32 * self._spill_next_slot
-        self._spill_next_slot += 1
+        offset = self._acquire_spill_offset(dry_run)
         return offset
 
     def _release_dead_spills(
@@ -440,6 +438,51 @@ class VenomCompiler:
         self.popmany(asm, to_pop, stack)
 
         self._optimistic_swap(asm, last_param, next_liveness, stack)
+
+    def _prepare_spill_state(self, fn: IRFunction) -> None:
+        if fn in self._spill_slot_offsets:
+            return
+
+        entry = fn.entry
+        insert_idx = 0
+        for inst in entry.instructions:
+            if inst.opcode == "param":
+                insert_idx += 1
+            else:
+                break
+
+        self._spill_slot_offsets[fn] = []
+        self._spill_insert_index[fn] = insert_idx
+
+    def _allocate_spill_slot(self, fn: IRFunction) -> int:
+        entry = fn.entry
+        insert_idx = self._spill_insert_index[fn]
+
+        offset = self._next_spill_offset
+        self._next_spill_offset += 32
+
+        offset_lit = IRLiteral(offset)
+        size_lit = IRLiteral(32)
+        id_lit = IRLiteral(self._next_spill_alloca_id)
+        self._next_spill_alloca_id += 1
+
+        output_var = fn.get_next_variable()
+        inst = IRInstruction("alloca", [offset_lit, size_lit, id_lit], output_var)
+        entry.insert_instruction(inst, insert_idx)
+        self._spill_insert_index[fn] += 1
+        self._spill_slot_offsets[fn].append(offset)
+        return offset
+
+    def _acquire_spill_offset(self, dry_run: bool) -> int:
+        if self._spill_free_slots:
+            return self._spill_free_slots.pop()
+        if dry_run:
+            return 0
+        if self._current_function is None:
+            offset = self._next_spill_offset
+            self._next_spill_offset += 32
+            return offset
+        return self._allocate_spill_slot(self._current_function)
 
     def popmany(self, asm, to_pop: Iterable[IRVariable], stack):
         to_pop = list(to_pop)
@@ -773,17 +816,17 @@ class VenomCompiler:
         assembly.extend(["POP"] * num)
 
     def _spill_stack_segment(
-        self, assembly, stack, count: int, base_offset: int
+        self, assembly, stack, count: int, dry_run: bool
     ) -> tuple[list[IROperand], list[int], int]:
         spill_ops: list[IROperand] = []
         offsets: list[int] = []
         cost = 0
 
-        for i in range(count):
+        for _ in range(count):
             op = stack.peek(0)
             spill_ops.append(op)
 
-            offset = base_offset + 32 * i
+            offset = self._acquire_spill_offset(dry_run)
             offsets.append(offset)
 
             assembly.extend(PUSH(offset))
@@ -800,6 +843,7 @@ class VenomCompiler:
         spill_ops: list[IROperand],
         offsets: list[int],
         desired_indices: list[int],
+        dry_run: bool,
     ) -> int:
         cost = 0
 
@@ -809,9 +853,13 @@ class VenomCompiler:
             stack.push(spill_ops[idx])
             cost += 2
 
+        if not dry_run:
+            for offset in offsets:
+                self._spill_free_slots.append(offset)
+
         return cost
 
-    def swap(self, assembly, stack, depth) -> int:
+    def swap(self, assembly, stack, depth, dry_run: bool = False) -> int:
         # Swaps of the top is no op
         if depth == 0:
             return 0
@@ -825,9 +873,7 @@ class VenomCompiler:
             return 1
 
         chunk_size = swap_idx + 1
-        spill_ops, offsets, cost = self._spill_stack_segment(
-            assembly, stack, chunk_size, MemoryPositions.STACK_SPILL_BASE
-        )
+        spill_ops, offsets, cost = self._spill_stack_segment(assembly, stack, chunk_size, dry_run)
 
         indices = list(range(chunk_size))
         if chunk_size == 1:
@@ -835,10 +881,12 @@ class VenomCompiler:
         else:
             desired_indices = [indices[-1]] + indices[1:-1] + [indices[0]]
 
-        cost += self._restore_spilled_segment(assembly, stack, spill_ops, offsets, desired_indices)
+        cost += self._restore_spilled_segment(
+            assembly, stack, spill_ops, offsets, desired_indices, dry_run
+        )
         return cost
 
-    def dup(self, assembly, stack, depth):
+    def dup(self, assembly, stack, depth, dry_run: bool = False):
         dup_idx = 1 - depth
         if dup_idx < 1:
             raise StackTooDeep(f"Unsupported dup depth {dup_idx}")
@@ -848,14 +896,12 @@ class VenomCompiler:
             return
 
         chunk_size = dup_idx
-        spill_ops, offsets, _ = self._spill_stack_segment(
-            assembly, stack, chunk_size, MemoryPositions.STACK_SPILL_BASE
-        )
+        spill_ops, offsets, _ = self._spill_stack_segment(assembly, stack, chunk_size, dry_run)
 
         indices = list(range(chunk_size))
         desired_indices = [indices[-1]] + indices
 
-        self._restore_spilled_segment(assembly, stack, spill_ops, offsets, desired_indices)
+        self._restore_spilled_segment(assembly, stack, spill_ops, offsets, desired_indices, dry_run)
 
     def swap_op(self, assembly, stack, op):
         depth = stack.get_depth(op)
