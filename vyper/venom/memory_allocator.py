@@ -1,8 +1,8 @@
-from vyper.venom.function import IRFunction
 from vyper.venom.memory_location import MemoryLocationConcrete, IRAbstractMemLoc, IRLiteral
 
 
 class MemoryAllocator:
+    from vyper.venom.function import IRFunction
     allocated: dict[int, MemoryLocationConcrete]
     curr: int
     function_mem_used: dict[IRFunction, int]
