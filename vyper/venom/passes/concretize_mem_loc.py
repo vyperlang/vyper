@@ -33,7 +33,6 @@ class ConcretizeMemLocPass(IRPass):
 
         livesets = list(self.mem_liveness.livesets.items())
         livesets.sort(key=lambda x: len(x[1]), reverse=False)
-        # print(livesets)
 
         for index, (mem, insts) in enumerate(livesets):
             curr = orig
@@ -69,7 +68,6 @@ class ConcretizeMemLocPass(IRPass):
             return self.allocator.allocated[op._id].get_offset_lit(op.offset)
         elif isinstance(op, IRAbstractMemLoc):
             return self.allocator.get_place(op).get_offset_lit(op.offset)
-            return op
         else:
             return op
 
