@@ -295,7 +295,6 @@ def _get_memory_write_location(inst) -> MemoryLocation:
         return MemoryLocationConcrete(_offset=0, _size=64)
     elif opcode == "invoke":
         return MemoryLocation.UNDEFINED
-        return MemoryLocationConcrete(_offset=0, _size=None)
     elif opcode == "call":
         size, dst, _, _, _, _, _ = inst.operands
         return MemoryLocation.from_operands(dst, size)
@@ -322,7 +321,6 @@ def _get_memory_read_location(inst) -> MemoryLocation:
         return MemoryLocationConcrete(_offset=0, _size=32)
     elif opcode == "invoke":
         return MemoryLocation.UNDEFINED
-        return MemoryLocationConcrete(_offset=0, _size=None)
     elif opcode == "call":
         _, _, size, dst, _, _, _ = inst.operands
         return MemoryLocation.from_operands(dst, size)
