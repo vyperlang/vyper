@@ -50,6 +50,8 @@ class ConcretizeMemLocPass(IRPass):
 
         mem_allocator.end_fn_allocation(self.function)
 
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
+
     def _handle_bb(self, bb: IRBasicBlock):
         for inst in bb.instructions:
             if inst.opcode == "codecopyruntime":
