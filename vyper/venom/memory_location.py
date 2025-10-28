@@ -85,7 +85,7 @@ class MemoryLocation:
         if isinstance(loc1, MemoryLocationAbstract):
             assert isinstance(loc2, MemoryLocationAbstract)
             return MemoryLocationAbstract.may_overlap_abstract(loc1, loc2)
-        return True
+        return False
 
     def completely_contains(self, other: MemoryLocation) -> bool:
         raise NotImplementedError
