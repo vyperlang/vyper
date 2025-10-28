@@ -138,7 +138,7 @@ class MemoryLocationAbstract(MemoryLocation):
 
     def completely_contains(self, other: MemoryLocation) -> bool:
         if other == MemoryLocation.UNDEFINED:
-            return True
+            return False
         if not isinstance(other, MemoryLocationAbstract):
             return False
         if self._size is None:
@@ -147,7 +147,6 @@ class MemoryLocationAbstract(MemoryLocation):
             conc1 = MemoryLocationConcrete(_offset=self.op.offset, _size=self.size)
             conc2 = MemoryLocationConcrete(_offset=other.op.offset, _size=other.size)
             return conc1.completely_contains(conc2)
-            return MemoryLocationConcrete.may_overlap_concrete(conc1, conc2)
         return False
 
 
