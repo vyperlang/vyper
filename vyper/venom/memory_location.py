@@ -106,7 +106,7 @@ class MemoryLocationAbstract(MemoryLocation):
 
     @property
     def size(self):
-        return self.op.size
+        return self._size
 
     @property
     def is_offset_fixed(self) -> bool:
