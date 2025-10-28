@@ -17,8 +17,8 @@ from vyper.venom.passes.base_pass import InstUpdater, IRPass
 Lattice = dict[IROperand, OrderedSet[IROperand]]
 
 
-def _conflict_lit(store_opcode: str, k1: IRLiteral, k2: IRLiteral):
-    ptr1, ptr2 = k1.value, k2.value
+def _conflict_lit(store_opcode: str, k1: int, k2: int):
+    ptr1, ptr2 = k1, k2
     if store_opcode == "mstore":
         return abs(ptr1 - ptr2) < 32
     assert store_opcode in ("sstore", "tstore"), "unhandled store opcode"
@@ -32,12 +32,15 @@ def _conflict(
     # vyper.evm.address_space
     if store_opcode == "mstore":
         if isinstance(k1, IRLiteral) and isinstance(k2, IRLiteral):
-            return _conflict_lit(store_opcode, k1, k2)
+            return _conflict_lit(store_opcode, k1.value, k2.value)
         if not isinstance(k1, IRAbstractMemLoc) or not isinstance(k2, IRAbstractMemLoc):
             # this used to be assert and it triggered the error
             # with --enable-compiler-debug-mode why
             return True
-        return k1._id == k2._id
+        if k1._id == k2._id:
+            return _conflict_lit(store_opcode, k1.offset, k2.offset)
+        else:
+            return False
 
     assert isinstance(k1, IRLiteral) and isinstance(k2, IRLiteral)
     ptr1, ptr2 = k1.value, k2.value
