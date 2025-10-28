@@ -143,6 +143,8 @@ class MemoryLocationAbstract(MemoryLocation):
             return False
         if self._size is None:
             return False
+        if other.size == 0:
+            return True
         if self.op._id == other.op._id:
             conc1 = MemoryLocationConcrete(_offset=self.op.offset, _size=self.size)
             conc2 = MemoryLocationConcrete(_offset=other.op.offset, _size=other.size)
