@@ -129,7 +129,12 @@ class MemoryLocationAbstract(MemoryLocation):
 
     @staticmethod
     def may_overlap_abstract(loc1: MemoryLocationAbstract, loc2: MemoryLocationAbstract) -> bool:
-        return loc1.op._id == loc2.op._id
+        if loc1.op._id == loc2.op._id:
+            conc1 = MemoryLocationConcrete(_offset=loc1.op.offset, _size=loc1.size)
+            conc2 = MemoryLocationConcrete(_offset=loc2.op.offset, _size=loc2.size)
+            return MemoryLocationConcrete.may_overlap_concrete(conc1, conc2)
+        else:
+            return False
 
     def completely_contains(self, other: MemoryLocation) -> bool:
         if other == MemoryLocation.UNDEFINED:
