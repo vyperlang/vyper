@@ -1,6 +1,6 @@
 from typing import Any
 
-from vyper.venom.memory_location import IRAbstractMemLoc, IRLiteral
+from vyper.venom.basicblock import IRAbstractMemLoc, IRLiteral
 
 
 class MemoryAllocator:
