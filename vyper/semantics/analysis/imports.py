@@ -151,7 +151,7 @@ class ImportAnalyzer:
         # don't handle things like `import x.y`
         if "." in alias:
             msg = "import requires an accompanying `as` statement"
-            suggested_alias = node.name[node.name.rfind(".") :]
+            suggested_alias = node.name[node.name.rfind(".")+1:]
             hint = f"try `import {node.name} as {suggested_alias}`"
             raise StructureException(msg, node, hint=hint)
 
