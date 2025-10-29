@@ -11,7 +11,7 @@ from vyper.venom.basicblock import IRLabel, IRLiteral
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
-from vyper.venom.optimization_levels import PASSES_O0, PASSES_O1, PASSES_O2, PASSES_O3, PASSES_Os
+from vyper.venom.optimization_levels import PASSES_O1, PASSES_O2, PASSES_O3, PASSES_Os
 from vyper.venom.optimization_levels.types import PassConfig
 from vyper.venom.passes import (
     CSE,
@@ -42,7 +42,6 @@ DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
 # Pass configuration for each optimization level
 OPTIMIZATION_PASSES: Dict[OptimizationLevel, List[PassConfig]] = {
-    OptimizationLevel.O0: PASSES_O0,
     OptimizationLevel.O1: PASSES_O1,
     OptimizationLevel.O2: PASSES_O2,
     OptimizationLevel.O3: PASSES_O3,
@@ -51,8 +50,8 @@ OPTIMIZATION_PASSES: Dict[OptimizationLevel, List[PassConfig]] = {
 
 # Legacy aliases for backwards compatibility
 OPTIMIZATION_PASSES[OptimizationLevel.NONE] = OPTIMIZATION_PASSES[
-    OptimizationLevel.O0
-]  # none -> O0
+    OptimizationLevel.O1
+]  # none -> O1
 OPTIMIZATION_PASSES[OptimizationLevel.GAS] = OPTIMIZATION_PASSES[OptimizationLevel.O2]  # gas -> O2
 OPTIMIZATION_PASSES[OptimizationLevel.CODESIZE] = OPTIMIZATION_PASSES[
     OptimizationLevel.Os
@@ -63,9 +62,7 @@ def generate_assembly_experimental(
     venom_ctx: IRContext, optimize: OptimizationLevel = DEFAULT_OPT_LEVEL
 ) -> list[AssemblyInstruction]:
     compiler = VenomCompiler(venom_ctx)
-    return compiler.generate_evm_assembly(
-        optimize in (OptimizationLevel.NONE, OptimizationLevel.O0)
-    )
+    return compiler.generate_evm_assembly(False)
 
 
 # Mapping of pass names to their disable flag names

@@ -4,6 +4,7 @@ from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
 from vyper.venom.optimization_levels.types import PassConfig
 from vyper.venom.passes.algebraic_optimization import AlgebraicOptimizationPass
 from vyper.venom.passes.assign_elimination import AssignElimination
+from vyper.venom.passes.branch_optimization import BranchOptimizationPass
 from vyper.venom.passes.cfg_normalization import CFGNormalization
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.passes.dft import DFTPass
@@ -44,6 +45,7 @@ PASSES_O1: List[PassConfig] = [
     (DeadStoreElimination, {"addr_space": STORAGE}),
     (DeadStoreElimination, {"addr_space": TRANSIENT}),
     LowerDloadPass,
+    BranchOptimizationPass,
     AlgebraicOptimizationPass,
     RemoveUnusedVariablesPass,
     PhiEliminationPass,

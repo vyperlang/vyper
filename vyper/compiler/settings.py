@@ -28,7 +28,6 @@ class OptimizationLevel(Enum):
     NONE = 1
     GAS = 2
     CODESIZE = 3
-    O0 = 4  # No optimizations
     O1 = 5  # Basic optimizations
     O2 = 6  # Standard "stable" optimizations (default)
     O3 = 7  # Aggressive optimizations -- experimental possibly unsafe
@@ -37,7 +36,7 @@ class OptimizationLevel(Enum):
     @classmethod
     def from_string(cls, val):
         match val:
-            case "none" | "O0":
+            case "none":
                 return cls.NONE
             case "gas" | "O2":
                 return cls.GAS
@@ -60,7 +59,6 @@ class OptimizationLevel(Enum):
 DEFAULT_ENABLE_DECIMALS = False
 
 # Inlining threshold constants
-INLINE_THRESHOLD_NONE = 0  # No inlining
 INLINE_THRESHOLD_SIZE = 5  # Conservative for size optimization
 INLINE_THRESHOLD_DEFAULT = 15  # Standard inlining
 INLINE_THRESHOLD_AGGRESSIVE = 30  # Aggressive inlining for O3
@@ -100,8 +98,8 @@ class VenomOptimizationFlags:
             return INLINE_THRESHOLD_AGGRESSIVE
         elif level in (OptimizationLevel.Os, OptimizationLevel.CODESIZE):
             return INLINE_THRESHOLD_SIZE
-        elif level in (OptimizationLevel.NONE, OptimizationLevel.O0):
-            return INLINE_THRESHOLD_NONE
+        elif level == OptimizationLevel.NONE:
+            return INLINE_THRESHOLD_DEFAULT
         else:
             return INLINE_THRESHOLD_DEFAULT
 
@@ -216,7 +214,7 @@ class Settings:
 
 
 def should_run_legacy_optimizer(settings: Settings):
-    if settings.optimize in (OptimizationLevel.NONE, OptimizationLevel.O0):
+    if settings.optimize == OptimizationLevel.NONE:
         return False
     if settings.experimental_codegen and not VENOM_ENABLE_LEGACY_OPTIMIZER:
         return False
@@ -310,7 +308,7 @@ def _opt_gas():
 
 
 def _opt_none():
-    return _settings.optimize in (OptimizationLevel.NONE, OptimizationLevel.O0)
+    return _settings.optimize == OptimizationLevel.NONE
 
 
 def _is_debug_mode():
