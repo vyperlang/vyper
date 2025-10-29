@@ -73,13 +73,12 @@ VENOM_PARSER = Lark(VENOM_GRAMMAR, parser="lalr")
 def _set_last_var(fn: IRFunction):
     for bb in fn.get_basic_blocks():
         for inst in bb.instructions:
-            if inst.output is None:
-                continue
-            value = inst.output.value
-            assert value.startswith("%")
-            varname = value[1:]
-            if varname.isdigit():
-                fn.last_variable = max(fn.last_variable, int(varname))
+            for output in inst.get_outputs():
+                value = output.value
+                assert value.startswith("%")
+                varname = value[1:]
+                if varname.isdigit():
+                    fn.last_variable = max(fn.last_variable, int(varname))
 
 
 def _set_last_label(ctx: IRContext):
