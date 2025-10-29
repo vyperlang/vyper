@@ -56,11 +56,12 @@ class InstUpdater:
                 self.dfg.add_use(op, inst)
 
         if opcode in NO_OUTPUT_INSTRUCTIONS:
-            if inst.output is not None:
+            for output in inst.get_outputs():
                 assert new_output is None
-                assert len(uses := self.dfg.get_uses(inst.output)) == 0, (inst, uses)
-                self.dfg.remove_producing_instruction(inst.output)
-                inst.output = None
+                assert len(uses := self.dfg.get_uses(output)) == 0, (inst, uses)
+                self.dfg.remove_producing_instruction(output)
+            inst.output = None
+            inst._extra_outputs = []
         else:
             # new_output is None is sentinel meaning "no change"
             if new_output is not None and new_output != inst.output:
@@ -89,10 +90,12 @@ class InstUpdater:
                 return
             # NOTE: this doesn't work for dfg cycles.
             inst = q.popleft()
-            if inst.output and len(self.dfg.get_uses(inst.output)) > 0:
+            # Check if ANY output has uses
+            has_uses = any(len(self.dfg.get_uses(output)) > 0 for output in inst.get_outputs())
+            if has_uses:
                 q.append(inst)
-                continue
-            self.nop(inst)
+            else:
+                self.nop(inst)
 
         # this should only happen if we try to delete a dfg cycle, cross
         # that bridge when we get to it.

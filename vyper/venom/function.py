@@ -118,15 +118,15 @@ class IRFunction:
         varmap: dict[IRVariable, IRVariable] = defaultdict(self.get_next_variable)
         for bb in self.get_basic_blocks():
             for inst in bb.instructions:
-                if inst.output:
-                    inst.output = varmap[inst.output]
-                # rename any extra outputs
-                outs = inst.get_outputs()[1:]
-                if outs:
-                    # only IRVariable items are valid as extra outputs
-                    extra_vars = [o for o in outs if isinstance(o, IRVariable)]
-                    if extra_vars:
-                        inst.set_extra_outputs([varmap[o] for o in extra_vars])
+                all_outputs = inst.get_outputs()
+                if not all_outputs:
+                    pass  # No outputs to rename
+                elif len(all_outputs) == 1:
+                    inst.output = varmap[all_outputs[0]]
+                    inst._extra_outputs = []
+                else:
+                    inst.output = None
+                    inst.set_extra_outputs([varmap[o] for o in all_outputs])
 
                 for i, op in enumerate(inst.operands):
                     if not isinstance(op, IRVariable):
