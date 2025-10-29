@@ -12,8 +12,8 @@ def test_invoke_two_returns_executes_correctly():
         f"""
         function main {{
             main:
-                %1, %2 = invoke @f
-                sink %1, %2
+                %a, %b = invoke @f
+                sink %a, %b
         }}
 
         function f {{
