@@ -288,6 +288,8 @@ class AvailableExpressionAnalysis(IRAnalysis):
         for inst in bb.instructions:
             if inst.opcode == "assign" or inst.is_pseudo or inst.is_bb_terminator:
                 continue
+            if inst.num_outputs() > 1:
+                continue
 
             if (
                 inst not in self.inst_to_available
@@ -340,6 +342,8 @@ class AvailableExpressionAnalysis(IRAnalysis):
             return op
         # source is a magic opcode for tests
         if inst.opcode == "source":
+            return op
+        if inst.num_outputs() > 1:
             return op
 
         assert inst in self.inst_to_expr, f"operand source was not handled, ({op}, {inst})"

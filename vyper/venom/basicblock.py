@@ -314,10 +314,17 @@ class IRInstruction:
 
     def get_outputs(self) -> list[IRVariable]:
         """
-        Get the output item for an instruction.
-        Returns a list for compatibility with multi-output instructions.
+        Get the outputs of the instruction.
+        Makes a copy to prevent external mutation, so
+        keep that in mind when performance matters.
         """
         return list(self._outputs)
+
+    def num_outputs(self) -> int:
+        """
+        Return how many outputs this instruction produces.
+        """
+        return len(self._outputs)
 
     def get_output(self) -> IRVariable:
         """
@@ -325,6 +332,12 @@ class IRInstruction:
         """
         assert len(self._outputs) == 1, f"expected single output for {self}"
         return self._outputs[0]
+
+    def has_outputs(self) -> bool:
+        """
+        Check whether this instruction produces any outputs.
+        """
+        return len(self._outputs) > 0
 
     def set_outputs(self, outputs: list[IRVariable]) -> None:
         """

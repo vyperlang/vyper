@@ -148,7 +148,8 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
         for bb in caller.get_basic_blocks():
             for inst in bb.instructions:
                 # Disallow multi-output except on invoke
-                if len(inst.get_outputs()) > 1 and inst.opcode != "invoke":
+                got_num = inst.num_outputs()
+                if inst.num_outputs() > 1 and inst.opcode != "invoke":
                     errors.append(MultiOutputNonInvoke(caller, inst))
                     continue
                 if inst.opcode != "invoke":
@@ -160,10 +161,9 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
                     callee = context.get_function(target)
                 except Exception:
                     continue
-                expected = ret_arities.get(callee, 0)
-                got = len(inst.get_outputs())
-                if got != expected:
-                    errors.append(InvokeArityMismatch(caller, inst, expected, got))
+                expected_num = ret_arities.get(callee, 0)
+                if got_num != expected_num:
+                    errors.append(InvokeArityMismatch(caller, inst, expected_num, got_num))
 
     return errors
 
