@@ -701,7 +701,7 @@ def _convert_ir_bb(fn, ir, symbols):
 
         fn.append_basic_block(incr_block)
         incr_block.insert_instruction(
-            IRInstruction("add", [counter_var, IRLiteral(1)], counter_var)
+            IRInstruction("add", [counter_var, IRLiteral(1)], [counter_var])
         )
         incr_block.append_instruction("jmp", cond_block.label)
 

@@ -286,8 +286,9 @@ class VenomCompiler:
 
             last_param = inst
 
-            assert inst.output is not None  # help mypy
-            stack.push(inst.output)
+            outputs = inst.get_outputs()
+            assert len(outputs) == 1  # help mypy
+            stack.push(outputs[0])
 
         # no params (only applies for global entry function)
         if last_param is None:
@@ -451,8 +452,9 @@ class VenomCompiler:
             ofst, label = inst.operands
             assert isinstance(label, IRLabel)  # help mypy
             assembly.extend(_ofst(_as_asm_symbol(label), ofst.value))
-            assert isinstance(inst.output, IROperand), "Offset must have output"
-            stack.push(inst.output)
+            outputs = inst.get_outputs()
+            assert len(outputs) == 1, "Offset must have output"
+            stack.push(outputs[0])
             return apply_line_numbers(inst, assembly)
 
         # Step 2: Emit instruction's input operands
@@ -498,9 +500,8 @@ class VenomCompiler:
         # Step 4: Push instruction's return value(s) to stack
         stack.pop(len(operands))
         outs = inst.get_outputs()
-        if outs:
-            for out in outs:
-                stack.push(out)
+        for out in outs:
+            stack.push(out)
 
         # Step 5: Emit the EVM instruction(s)
         if opcode in _ONE_TO_ONE_INSTRUCTIONS:
@@ -600,19 +601,20 @@ class VenomCompiler:
 
         # Step 6: Emit instructions output operands (if any)
         outs = inst.get_outputs()
-        if outs:
-            # For multi-output instructions, keep outputs on stack even if
-            # not immediately live; subsequent instructions may consume them.
-            if len(outs) == 1:
-                # Pop the single output if it is dead at the next point
-                out = outs[0]
-                if out not in next_liveness:
-                    self.pop(assembly, stack)
-            # Heuristic scheduling based on the next expected live var
-            # Use the top-most surviving output to schedule
-            alive_outs = [o for o in outs if o in next_liveness]
-            if alive_outs:
-                self._optimistic_swap(assembly, inst, next_liveness, stack)
+        num_outs = len(outs)
+        if num_outs == 0:
+            return apply_line_numbers(inst, assembly)
+
+        if num_outs == 1:
+            # Pop the single output if it is dead at the next point
+            out = outs[0]
+            if out not in next_liveness:
+                self.pop(assembly, stack)
+        # Heuristic scheduling based on the next expected live var
+        # Use the top-most surviving output to schedule
+        alive_outs = [o for o in outs if o in next_liveness]
+        if len(alive_outs) > 0:
+            self._optimistic_swap(assembly, inst, next_liveness, stack)
 
         return apply_line_numbers(inst, assembly)
 
@@ -635,9 +637,10 @@ class VenomCompiler:
         cost = 0
         # Use last output (top-of-stack) when available, else the single output
         outputs = inst.get_outputs()
-        current_top_out = outputs[-1] if outputs else inst.output
-        if not self.dfg.are_equivalent(current_top_out, next_scheduled):
-            cost = self.swap_op(assembly, stack, next_scheduled)
+        if len(outputs) > 0:
+            current_top_out = outputs[-1]
+            if not self.dfg.are_equivalent(current_top_out, next_scheduled):
+                cost = self.swap_op(assembly, stack, next_scheduled)
 
         if DEBUG_SHOW_COST and cost != 0:
             print("ENTER", inst, file=sys.stderr)

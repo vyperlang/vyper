@@ -119,15 +119,8 @@ class IRFunction:
         for bb in self.get_basic_blocks():
             for inst in bb.instructions:
                 all_outputs = inst.get_outputs()
-                if not all_outputs:
-                    pass  # No outputs to rename
-                elif len(all_outputs) == 1:
-                    out_var = all_outputs[0]
-                    inst.output = varmap[out_var]
-                    inst._extra_outputs = []
-                else:
-                    inst.output = None
-                    inst.set_extra_outputs([varmap[o] for o in all_outputs])
+                if len(all_outputs) > 0:
+                    inst.set_outputs([varmap[o] for o in all_outputs])
 
                 for i, op in enumerate(inst.operands):
                     if not isinstance(op, IRVariable):

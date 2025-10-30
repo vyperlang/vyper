@@ -24,8 +24,9 @@ class InstUpdater:
 
     # move the uses of old_var to new_inst
     def move_uses(self, old_var: IRVariable, new_inst: IRInstruction):
-        assert new_inst.output is not None
-        new_var = new_inst.output
+        new_outputs = new_inst.get_outputs()
+        assert len(new_outputs) == 1
+        new_var = new_outputs[0]
 
         for use in list(self.dfg.get_uses(old_var)):
             self.update_operands(use, {old_var: new_var})
@@ -55,20 +56,23 @@ class InstUpdater:
             if isinstance(op, IRVariable):
                 self.dfg.add_use(op, inst)
 
+        old_outputs = inst.get_outputs()
+
         if opcode in NO_OUTPUT_INSTRUCTIONS:
-            for output in inst.get_outputs():
+            for output in old_outputs:
                 assert new_output is None
                 assert len(uses := self.dfg.get_uses(output)) == 0, (inst, uses)
                 self.dfg.remove_producing_instruction(output)
-            inst.output = None
-            inst._extra_outputs = []
+            inst.set_outputs([])
         else:
             # new_output is None is sentinel meaning "no change"
-            if new_output is not None and new_output != inst.output:
-                if inst.output is not None:
-                    self.dfg.remove_producing_instruction(inst.output)
+            if new_output is not None:
+                old_primary = old_outputs[0] if len(old_outputs) > 0 else None
+                if old_primary is not None and old_primary != new_output:
+                    self.dfg.remove_producing_instruction(old_primary)
                 self.dfg.set_producing_instruction(new_output, inst)
-                inst.output = new_output
+                remaining_outputs = old_outputs[1:] if len(old_outputs) > 1 else []
+                inst.set_outputs([new_output, *remaining_outputs])
 
         inst.opcode = opcode
         inst.operands = new_operands
@@ -124,7 +128,7 @@ class InstUpdater:
             var = inst.parent.parent.get_next_variable()
 
         operands = list(args)
-        new_inst = IRInstruction(opcode, operands, output=var)
+        new_inst = IRInstruction(opcode, operands, [var] if var is not None else None)
         inst.parent.insert_instruction(new_inst, index)
         for op in new_inst.operands:
             if isinstance(op, IRVariable):

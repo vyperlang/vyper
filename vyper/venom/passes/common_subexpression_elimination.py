@@ -4,7 +4,7 @@ from vyper.venom.analysis.available_expression import (
 )
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IRVariable
+from vyper.venom.basicblock import IRInstruction
 from vyper.venom.passes.base_pass import IRPass
 
 # instruction that dont need to be stored in available expression
@@ -95,10 +95,12 @@ class CSE(IRPass):
             self._replace_inst(orig, to)
 
     def _replace_inst(self, orig_inst: IRInstruction, to_inst: IRInstruction):
-        if orig_inst.output is not None:
+        orig_outputs = orig_inst.get_outputs()
+        if len(orig_outputs) > 0:
             orig_inst.opcode = "assign"
-            assert isinstance(to_inst.output, IRVariable), f"not var {to_inst}"
-            orig_inst.operands = [to_inst.output]
+            to_outputs = to_inst.get_outputs()
+            assert len(to_outputs) == 1, f"multiple outputs for {to_inst}"
+            orig_inst.operands = [to_outputs[0]]
         else:
             orig_inst.opcode = "nop"
             orig_inst.operands = []

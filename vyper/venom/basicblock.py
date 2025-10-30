@@ -229,10 +229,7 @@ class IRInstruction:
 
     opcode: str
     operands: list[IROperand]
-    # Primary single output (legacy). For multi-output instructions, keep this
-    # as None and use _extra_outputs instead. Use get_outputs() to fetch all.
-    output: Optional[IRVariable]
-    _extra_outputs: list[IRVariable]
+    _outputs: list[IRVariable]
     parent: IRBasicBlock
     annotation: Optional[str]
     ast_source: Optional[IRnode]
@@ -242,27 +239,13 @@ class IRInstruction:
         self,
         opcode: str,
         operands: list[IROperand] | Iterator[IROperand],
-        output: Optional[IRVariable] = None,
         outputs: Optional[list[IRVariable]] = None,
     ):
         assert isinstance(opcode, str), "opcode must be an str"
         assert isinstance(operands, list | Iterator), "operands must be a list"
         self.opcode = opcode
         self.operands = list(operands)  # in case we get an iterator
-
-        if outputs is not None:
-            if len(outputs) == 0:
-                self.output = None
-                self._extra_outputs = []
-            elif len(outputs) == 1:
-                self.output = outputs[0]
-                self._extra_outputs = []
-            else:
-                self.output = None
-                self._extra_outputs = outputs
-        else:
-            self.output = output
-            self._extra_outputs = []
+        self._outputs = list(outputs) if outputs is not None else []
 
         self.annotation = None
         self.ast_source = None
@@ -334,26 +317,18 @@ class IRInstruction:
         Get the output item for an instruction.
         Returns a list for compatibility with multi-output instructions.
         """
-        ret: list[IRVariable] = []
-        if self.output is not None:
-            ret.append(self.output)
-        if self._extra_outputs:
-            ret.extend(self._extra_outputs)
-        return ret
+        return list(self._outputs)
 
-    def set_extra_outputs(self, outputs: list[IRVariable]) -> None:
+    def set_outputs(self, outputs: list[IRVariable]) -> None:
         """
-        Set additional outputs for a multi-output instruction.
-        For multi-output instructions, prefer leaving `output` as None and
-        specifying all outputs via this method.
+        Replace all outputs for this instruction.
         """
-        self._extra_outputs = outputs
+        self._outputs = list(outputs)
 
     def make_nop(self):
         self.annotation = str(self)  # Keep original instruction as annotation for debugging
         self.opcode = "nop"
-        self.output = None
-        self._extra_outputs = []
+        self._outputs = []
         self.operands = []
 
     def flip(self):
@@ -429,9 +404,7 @@ class IRInstruction:
         return self.parent.parent.ast_source
 
     def copy(self) -> IRInstruction:
-        ret = IRInstruction(self.opcode, self.operands.copy(), self.output)
-        if self._extra_outputs:
-            ret._extra_outputs = self._extra_outputs.copy()
+        ret = IRInstruction(self.opcode, self.operands.copy(), self.get_outputs())
         ret.annotation = self.annotation
         ret.ast_source = self.ast_source
         ret.error_msg = self.error_msg
@@ -440,11 +413,11 @@ class IRInstruction:
     def str_short(self) -> str:
         s = ""
         outs = self.get_outputs()
-        if outs:
-            if len(outs) == 1:
-                s += f"{outs[0]} = "
-            else:
-                s += f"{', '.join(map(str, outs))} = "
+        num_outs = len(outs)
+        if num_outs == 1:
+            s += f"{outs[0]} = "
+        elif num_outs > 1:
+            s += f"{', '.join(map(str, outs))} = "
         opcode = f"{self.opcode} " if self.opcode != "assign" else ""
         s += opcode
         operands = self.operands
@@ -456,11 +429,11 @@ class IRInstruction:
     def __repr__(self) -> str:
         s = ""
         outs = self.get_outputs()
-        if outs:
-            if len(outs) == 1:
-                s += f"{outs[0]} = "
-            else:
-                s += f"{', '.join(map(str, outs))} = "
+        num_outs = len(outs)
+        if num_outs == 1:
+            s += f"{outs[0]} = "
+        elif num_outs > 1:
+            s += f"{', '.join(map(str, outs))} = "
         opcode = f"{self.opcode} " if self.opcode != "assign" else ""
         s += opcode
         operands = self.operands
@@ -547,13 +520,14 @@ class IRBasicBlock:
         """
         assert not self.is_terminated, self
 
-        if ret is None:
-            ret = self.parent.get_next_variable() if opcode not in NO_OUTPUT_INSTRUCTIONS else None
+        if ret is None and opcode not in NO_OUTPUT_INSTRUCTIONS:
+            ret = self.parent.get_next_variable()
 
         # Wrap raw integers in IRLiterals
         inst_args = [_ir_operand_from_value(arg) for arg in args]
 
-        inst = IRInstruction(opcode, inst_args, ret)
+        outputs = [] if ret is None else [ret]
+        inst = IRInstruction(opcode, inst_args, outputs)
         inst.parent = self
         inst.ast_source = self.parent.ast_source
         inst.error_msg = self.parent.error_msg
@@ -571,26 +545,13 @@ class IRBasicBlock:
 
         # Determine outputs
         outputs: list[IRVariable] = [self.parent.get_next_variable() for _ in range(returns)]
-        single_output = None
-        extra_outputs: list[IRVariable] = []
-
-        if returns == 1:
-            # Single output goes to primary output field
-            single_output = outputs[0]
-            extra_outputs = []
-        else:
-            # Multiple outputs go to extra_outputs field
-            single_output = None
-            extra_outputs = outputs
 
         # Wrap raw integers in IRLiterals
         inst_args = [_ir_operand_from_value(arg) for arg in args]
 
         assert isinstance(inst_args[0], IRLabel), "Invoked non label"
 
-        inst = IRInstruction("invoke", inst_args, single_output)
-        if extra_outputs:
-            inst.set_extra_outputs(extra_outputs)
+        inst = IRInstruction("invoke", inst_args, outputs)
         inst.parent = self
         inst.ast_source = self.parent.ast_source
         inst.error_msg = self.parent.error_msg

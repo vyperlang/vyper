@@ -223,21 +223,16 @@ class VenomTransformer(Transformer):
             if not isinstance(value, IRInstruction):
                 raise TypeError("Multi-target assignment requires an instruction on RHS")
             outs = left
-            if len(outs) == 1:
-                value.output = outs[0]
-            elif len(outs) > 1:
-                # For multi-output instructions, prefer primary None + extra outputs
-                value.output = None
-                value.set_extra_outputs(outs)
+            value.set_outputs(outs)
             return value
 
         # Single-target assignment
         to = left
         if isinstance(value, IRInstruction):
-            value.output = to
+            value.set_outputs([to])
             return value
         if isinstance(value, (IRLiteral, IRVariable, IRLabel)):
-            return IRInstruction("assign", [value], output=to)
+            return IRInstruction("assign", [value], [to])
         raise TypeError(f"Unexpected value {value} of type {type(value)}")
 
     def expr(self, children) -> IRInstruction | IROperand:

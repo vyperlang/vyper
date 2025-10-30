@@ -101,14 +101,25 @@ class DFTPass(IRPass):
                 if operand_idxs:
                     ret = min(operand_idxs) + len(self.order)
                 else:
-                    out_var = x.output
-                    if out_var is not None and out_var in inst.operands:
-                        ret = inst.operands.index(out_var) + len(self.order)
-                    elif out_var is not None and out_var in self.order:
-                        ret = self.order.index(out_var)
+                    outputs = x.get_outputs()
+                    operand_positions = [
+                        inst.operands.index(out_var)
+                        for out_var in outputs
+                        if out_var in inst.operands
+                    ]
+                    if len(operand_positions) > 0:
+                        ret = min(operand_positions) + len(self.order)
                     else:
-                        # fall back to a stable default when no operand is associated
-                        ret = len(self.order)
+                        order_positions = [
+                            self.order.index(out_var)
+                            for out_var in outputs
+                            if out_var in self.order
+                        ]
+                        if len(order_positions) > 0:
+                            ret = min(order_positions)
+                        else:
+                            # fall back to a stable default when no operand is associated
+                            ret = len(self.order)
             return ret
 
         # heuristic: sort by size of child dependency graph

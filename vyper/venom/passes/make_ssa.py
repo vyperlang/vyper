@@ -69,7 +69,7 @@ class MakeSSA(IRPass):
             args.append(bb.label)  # type: ignore
             args.append(var)  # type: ignore
 
-        basic_block.insert_instruction(IRInstruction("phi", args, var), 0)
+        basic_block.insert_instruction(IRInstruction("phi", args, [var]), 0)
 
     def latest_version_of(self, var: IRVariable) -> IRVariable:
         og_var = self.original_vars[var]
@@ -103,21 +103,30 @@ class MakeSSA(IRPass):
 
                 inst.operands = new_ops
 
-            if inst.output is not None:
-                v_name = self.original_vars[inst.output].value
+            outputs = inst.get_outputs()
+            if len(outputs) == 0:
+                continue
+
+            new_outputs: list[IRVariable] = []
+            for output in outputs:
+                v_name = self.original_vars[output].value
                 i = self.var_name_counters[v_name]
 
                 self.var_name_stacks[v_name].append(i)
                 self.var_name_counters[v_name] += 1
 
-                inst.output = self.latest_version_of(inst.output)
-                outs.append(inst.output)
+                new_var = self.latest_version_of(output)
+                new_outputs.append(new_var)
+                outs.append(new_var)
+
+            inst.set_outputs(new_outputs)
 
         for bb in self.cfg.cfg_out(basic_block):
             for inst in bb.instructions:
                 if inst.opcode != "phi":
                     continue
-                assert inst.output is not None, inst  # phis should have output
+                phi_outputs = inst.get_outputs()
+                assert len(phi_outputs) == 1, inst  # phis should have output
                 for i, op in enumerate(inst.operands):
                     if op == basic_block.label:
                         var = inst.operands[i + 1]
@@ -140,8 +149,11 @@ class MakeSSA(IRPass):
                 continue
 
             new_ops: list[IROperand] = []
+            phi_outputs = inst.get_outputs()
+            assert len(phi_outputs) == 1
+            phi_out = phi_outputs[0]
             for label, op in inst.phi_operands:
-                if op == inst.output:
+                if op == phi_out:
                     continue
                 new_ops.extend([label, op])
             new_ops_len = len(new_ops)

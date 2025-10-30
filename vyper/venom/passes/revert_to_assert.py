@@ -35,8 +35,8 @@ class RevertToAssert(IRPass):
         cond, then_label, else_label = term.operands
         if then_label == revert_bb.label:
             new_cond = self.function.get_next_variable()
-            iszero_inst = IRInstruction("iszero", [cond], output=new_cond)
-            assert_inst = IRInstruction("assert", [iszero_inst.output])
+            iszero_inst = IRInstruction("iszero", [cond], [new_cond])
+            assert_inst = IRInstruction("assert", [iszero_inst.get_outputs()[0]])
             pred.insert_instruction(iszero_inst, index=-1)
             pred.insert_instruction(assert_inst, index=-1)
             # rewrite the jnz into a jmp

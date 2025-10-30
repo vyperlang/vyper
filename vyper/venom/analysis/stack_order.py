@@ -71,8 +71,7 @@ class StackOrderAnalysis:
                         inst.operands,
                     )
                 self.stack = self.stack[: -len(inst.operands)]
-            if inst.output is not None:
-                self.stack.append(inst.output)
+            self.stack.extend(inst.get_outputs())
 
         for pred in self.cfg.cfg_in(bb):
             self._from_to[(pred, bb)] = self.needed.copy()
@@ -97,7 +96,7 @@ class StackOrderAnalysis:
 
     def _handle_assign(self, inst: IRInstruction):
         assert inst.opcode == "assign"
-        assert inst.output is not None
+        assert len(inst.get_outputs()) == 1
 
         index = inst.parent.instructions.index(inst)
         next_inst = inst.parent.instructions[index + 1]
