@@ -533,8 +533,7 @@ class IRBasicBlock:
         # Wrap raw integers in IRLiterals
         inst_args = [_ir_operand_from_value(arg) for arg in args]
 
-        outputs = [] if ret is None else [ret]
-        inst = IRInstruction(opcode, inst_args, outputs)
+        inst = IRInstruction(opcode, inst_args, [ret] if ret else None)
         inst.parent = self
         inst.ast_source = self.parent.ast_source
         inst.error_msg = self.parent.error_msg

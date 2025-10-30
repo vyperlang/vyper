@@ -111,7 +111,7 @@ def find_semantic_errors_fn(fn: IRFunction) -> list[VenomError]:
     return errors
 
 
-def _collect_ret_arities(context: IRContext) -> dict[IRFunction, int] | dict:
+def _collect_ret_arities(context: IRContext) -> dict[IRFunction, int]:
     ret_arities: dict[IRFunction, int] = {}
     for fn in context.functions.values():
         arities: set[int] = set()

@@ -123,8 +123,7 @@ class AlgebraicOptimizationPass(IRPass):
 
     # "peephole", weakening algebraic optimizations
     def _handle_inst_peephole(self, inst: IRInstruction):
-        outputs = inst.get_outputs()
-        if len(outputs) != 1:
+        if len(inst.get_outputs()) != 1:
             return
         inst_out = inst.get_output()
         if inst.is_volatile:
