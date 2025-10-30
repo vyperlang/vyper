@@ -598,20 +598,24 @@ class VenomCompiler:
             raise Exception(f"Unknown opcode: {opcode}")
 
         # Step 6: Emit instruction output operands (if any)
-        num_outs = len(outputs)
-        if num_outs == 0:
+        if len(outputs) == 0:
             return apply_line_numbers(inst, assembly)
 
-        if num_outs == 1:
-            # Pop the single output if it is dead at the next point
-            out = outputs[0]
-            if out not in next_liveness:
-                self.pop(assembly, stack)
+        dead_outputs = [out for out in outputs if out not in next_liveness]
+        for out in reversed(dead_outputs):
+            depth = stack.get_depth(out)
+            assert depth is not StackModel.NOT_IN_STACK, "Stack out of sync"
+            if depth != 0:
+                self.swap(assembly, stack, depth)
+            self.pop(assembly, stack)
+
+        live_outputs = [out for out in outputs if out in next_liveness]
+        if len(live_outputs) == 0:
+            return apply_line_numbers(inst, assembly)
+
         # Heuristic scheduling based on the next expected live var
         # Use the top-most surviving output to schedule
-        alive_outs = [o for o in outputs if o in next_liveness]
-        if len(alive_outs) > 0:
-            self._optimistic_swap(assembly, inst, next_liveness, stack, outputs)
+        self._optimistic_swap(assembly, inst, next_liveness, stack, live_outputs)
 
         return apply_line_numbers(inst, assembly)
 
