@@ -277,19 +277,19 @@ class VenomCompiler:
             seen.add(op)
 
     def _prepare_stack_for_function(self, asm, fn: IRFunction, stack: StackModel):
-        last_param = None
+        last_param_inst = None
         for inst in fn.entry.instructions:
             if inst.opcode != "param":
                 # note: always well defined if the bb is terminated
                 next_liveness = self.liveness.live_vars_at(inst)
                 break
 
-            last_param = inst
+            last_param_inst = inst
 
             stack.push(inst.get_output())
 
         # no params (only applies for global entry function)
-        if last_param is None:
+        if last_param_inst is None:
             return
 
         to_pop: list[IRVariable] = []
@@ -300,7 +300,9 @@ class VenomCompiler:
 
         self.popmany(asm, to_pop, stack)
 
-        self._optimistic_swap(asm, last_param, next_liveness, stack)
+        self._optimistic_swap(
+            asm, last_param_inst, next_liveness, stack, last_param_inst.get_outputs()
+        )
 
     def popmany(self, asm, to_pop: Iterable[IRVariable], stack):
         to_pop = list(to_pop)
@@ -495,8 +497,8 @@ class VenomCompiler:
 
         # Step 4: Push instruction's return value(s) to stack
         stack.pop(len(operands))
-        outs = inst.get_outputs()
-        for out in outs:
+        outputs = inst.get_outputs()
+        for out in outputs:
             stack.push(out)
 
         # Step 5: Emit the EVM instruction(s)
@@ -596,25 +598,31 @@ class VenomCompiler:
             raise Exception(f"Unknown opcode: {opcode}")
 
         # Step 6: Emit instruction output operands (if any)
-        outs = inst.get_outputs()
-        num_outs = len(outs)
+        num_outs = len(outputs)
         if num_outs == 0:
             return apply_line_numbers(inst, assembly)
 
         if num_outs == 1:
             # Pop the single output if it is dead at the next point
-            out = outs[0]
+            out = outputs[0]
             if out not in next_liveness:
                 self.pop(assembly, stack)
         # Heuristic scheduling based on the next expected live var
         # Use the top-most surviving output to schedule
-        alive_outs = [o for o in outs if o in next_liveness]
+        alive_outs = [o for o in outputs if o in next_liveness]
         if len(alive_outs) > 0:
-            self._optimistic_swap(assembly, inst, next_liveness, stack)
+            self._optimistic_swap(assembly, inst, next_liveness, stack, outputs)
 
         return apply_line_numbers(inst, assembly)
 
-    def _optimistic_swap(self, assembly, inst, next_liveness, stack):
+    def _optimistic_swap(
+        self,
+        assembly,
+        inst,
+        next_liveness,
+        stack,
+        inst_outputs: list[IRVariable],  # optimization to avoid get_outputs call
+    ):
         # heuristic: peek at next_liveness to find the next scheduled
         # item, and optimistically swap with it
         if DEBUG_SHOW_COST:
@@ -632,9 +640,8 @@ class VenomCompiler:
         next_scheduled = next_liveness.last()
         cost = 0
         # Use last output (top-of-stack) when available, else the single output
-        outputs = inst.get_outputs()
-        if len(outputs) > 0:
-            current_top_out = outputs[-1]
+        if len(inst_outputs) > 0:
+            current_top_out = inst_outputs[-1]
             if not self.dfg.are_equivalent(current_top_out, next_scheduled):
                 cost = self.swap_op(assembly, stack, next_scheduled)
 
