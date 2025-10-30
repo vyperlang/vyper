@@ -1484,7 +1484,7 @@ class Pass(Stmt):
 
 
 class _ImportStmt(Stmt):
-    __slots__ = ("name", "alias")
+    __slots__ = ("names",)
 
     def to_dict(self):
         ret = super().to_dict()
@@ -1493,14 +1493,6 @@ class _ImportStmt(Stmt):
 
         return ret
 
-    def __init__(self, *args, **kwargs):
-        if len(kwargs["names"]) > 1:
-            _raise_syntax_exc("Assignment statement must have one target", kwargs)
-        names = kwargs.pop("names")[0]
-        kwargs["name"] = names.name
-        kwargs["alias"] = names.asname
-        super().__init__(*args, **kwargs)
-
 
 class Import(_ImportStmt):
     __slots__ = ()
@@ -1508,6 +1500,15 @@ class Import(_ImportStmt):
 
 class ImportFrom(_ImportStmt):
     __slots__ = ("level", "module")
+
+
+class alias(VyperNode):
+    """
+    Represents the `foo as bar` part of an import
+    Accessed from Import.names and ImportFrom.names
+    """
+
+    __slots__ = ("name", "asname")
 
 
 class ImplementsDecl(Stmt):

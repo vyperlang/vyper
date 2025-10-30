@@ -143,34 +143,31 @@ class ImportAnalyzer:
     def _handle_Import(self, node: vy_ast.Import):
         # import x.y[name] as y[alias]
 
-        alias = node.alias
-
-        if alias is None:
-            alias = node.name
+        name = node.names[0].name
+        alias = node.names[0].asname or name
 
         # don't handle things like `import x.y`
         if "." in alias:
             msg = "import requires an accompanying `as` statement"
-            suggested_alias = node.name[node.name.rfind(".")+1:]
-            hint = f"try `import {node.name} as {suggested_alias}`"
+            suggested_alias = name[name.rfind(".") + 1 :]
+            hint = f"try `import {name} as {suggested_alias}`"
             raise StructureException(msg, node, hint=hint)
 
-        self._add_import(node, 0, node.name, alias)
+        self._add_import(node, 0, name, alias)
 
     def _handle_ImportFrom(self, node: vy_ast.ImportFrom):
         # from m.n[module] import x[name] as y[alias]
-
-        alias = node.alias
-
-        if alias is None:
-            alias = node.name
 
         module = node.module or ""
         if module:
             module += "."
 
-        qualified_module_name = module + node.name
-        self._add_import(node, node.level, qualified_module_name, alias)
+        for aliasPair in node.names:
+            name = aliasPair.name
+            alias = aliasPair.asname or name
+
+            qualified_module_name = module + name
+            self._add_import(node, node.level, qualified_module_name, alias)
 
     def _add_import(
         self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
