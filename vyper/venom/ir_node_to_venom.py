@@ -24,7 +24,7 @@ from vyper.venom.function import IRFunction, IRParameter
 ENABLE_NEW_CALL_CONV = True
 # Experimental: allow returning multiple 32-byte values via the stack
 ENABLE_MULTI_RETURNS = True
-MAX_STACK_RETURNS = 4
+MAX_STACK_RETURNS = 3
 MAX_STACK_ARGS = 6
 
 # Instructions that are mapped to their inverse
@@ -334,6 +334,11 @@ def _handle_internal_func(
     # return buffer
     if does_return_data:
         if ENABLE_NEW_CALL_CONV and returns_count > 0:
+            # TODO: remove this once we have proper memory allocator
+            # functionality in venom. Currently, we hardcode the scratch
+            # buffer size of up to 32 * MAX_STACK_RETURNS (3) bytes.
+            # TODO: we don't need to use scratch space once the legacy optimizer
+            # is disabled.
             # allocate scratch return buffer sized to the number of stack-returned words
             buf = bb.append_instruction("alloca", 0, 32 * returns_count, get_scratch_alloca_id())
         else:
