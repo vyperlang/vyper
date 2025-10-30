@@ -144,7 +144,9 @@ class ImportAnalyzer:
         # import x.y[name] as y[alias]
 
         name = node.names[0].name
-        alias = node.names[0].asname or name
+        alias = node.names[0].asname
+        if alias is None:
+            alias = name
 
         # don't handle things like `import x.y`
         if "." in alias:
@@ -162,9 +164,11 @@ class ImportAnalyzer:
         if module:
             module += "."
 
-        for aliasPair in node.names:
-            name = aliasPair.name
-            alias = aliasPair.asname or name
+        for alias_node in node.names:
+            name = alias_node.name
+            alias = alias_node.asname
+            if alias is None:
+                alias = name
 
             qualified_module_name = module + name
             self._add_import(node, node.level, qualified_module_name, alias)
