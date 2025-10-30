@@ -98,9 +98,7 @@ class CSE(IRPass):
         orig_outputs = orig_inst.get_outputs()
         if len(orig_outputs) > 0:
             orig_inst.opcode = "assign"
-            to_outputs = to_inst.get_outputs()
-            assert len(to_outputs) == 1, f"multiple outputs for {to_inst}"
-            orig_inst.operands = [to_outputs[0]]
+            orig_inst.operands = [to_inst.get_output()]
         else:
             orig_inst.opcode = "nop"
             orig_inst.operands = []

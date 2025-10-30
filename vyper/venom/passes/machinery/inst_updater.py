@@ -24,9 +24,7 @@ class InstUpdater:
 
     # move the uses of old_var to new_inst
     def move_uses(self, old_var: IRVariable, new_inst: IRInstruction):
-        new_outputs = new_inst.get_outputs()
-        assert len(new_outputs) == 1
-        new_var = new_outputs[0]
+        new_var = new_inst.get_output()
 
         for use in list(self.dfg.get_uses(old_var)):
             self.update_operands(use, {old_var: new_var})

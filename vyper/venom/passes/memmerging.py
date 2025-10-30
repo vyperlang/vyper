@@ -157,7 +157,7 @@ class MemMergePass(IRPass):
                     # if the load is used by any instructions besides the ones
                     # we are removing, we can't delete it. (in the future this
                     # may be handled by "remove unused effects" pass).
-                    load_var = inst.get_outputs()[0]
+                    load_var = inst.get_output()
                     uses = self.dfg.get_uses(load_var)
                     if not all(use in copy.insts for use in uses):
                         continue
@@ -270,9 +270,7 @@ class MemMergePass(IRPass):
                     if len(copies) > 0:
                         _barrier_for(copies)
 
-                outputs = inst.get_outputs()
-                assert len(outputs) == 1, inst
-                load_var = outputs[0]
+                load_var = inst.get_output()
                 self._loads[load_var] = src_op.value
 
             elif inst.opcode == "mstore":
@@ -417,9 +415,7 @@ class MemMergePass(IRPass):
             dload = inst
             src = dload.operands[0]
 
-            dload_outputs = dload.get_outputs()
-            assert len(dload_outputs) == 1
-            dload_out = dload_outputs[0]
+            dload_out = dload.get_output()
             uses = self.dfg.get_uses(dload_out)
             if len(uses) == 1:
                 mstore: IRInstruction = uses.first()

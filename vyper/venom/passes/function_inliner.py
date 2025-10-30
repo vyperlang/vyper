@@ -114,10 +114,8 @@ class FunctionInlinerPass(IRGlobalPass):
                             # this can happen when we have a->b->c and a->c,
                             # and both b and c get inlined.
                             calloca_inst = callocas[alloca_id]
-                            calloca_outputs = calloca_inst.get_outputs()
-                            assert len(calloca_outputs) == 1
                             inst.opcode = "assign"
-                            inst.operands = [calloca_outputs[0]]
+                            inst.operands = [calloca_inst.get_output()]
                         else:
                             callocas[alloca_id] = inst
 
@@ -131,9 +129,7 @@ class FunctionInlinerPass(IRGlobalPass):
                             continue
                         inst.opcode = "assign"
                         calloca_inst = callocas[alloca_id]
-                        calloca_outputs = calloca_inst.get_outputs()
-                        assert len(calloca_outputs) == 1  # help mypy
-                        inst.operands = [calloca_outputs[0]]
+                        inst.operands = [calloca_inst.get_output()]
                         found.add(alloca_id)
 
             for bb in fn.get_basic_blocks():

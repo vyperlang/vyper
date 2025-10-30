@@ -149,9 +149,7 @@ class MakeSSA(IRPass):
                 continue
 
             new_ops: list[IROperand] = []
-            phi_outputs = inst.get_outputs()
-            assert len(phi_outputs) == 1
-            phi_out = phi_outputs[0]
+            phi_out = inst.get_output()
             for label, op in inst.phi_operands:
                 if op == phi_out:
                     continue

@@ -86,9 +86,7 @@ class LoadAnalysis(IRAnalysis):
             if inst.opcode == load_opcode:
                 self.inst_to_lattice[inst] = lattice.copy()
                 ptr = inst.operands[0]
-                outputs = inst.get_outputs()
-                assert len(outputs) == 1
-                lattice[ptr] = OrderedSet([outputs[0]])
+                lattice[ptr] = OrderedSet([inst.get_output()])
             elif inst.opcode == store_opcode:
                 self.inst_to_lattice[inst] = lattice.copy()
                 # mstore [val, ptr]

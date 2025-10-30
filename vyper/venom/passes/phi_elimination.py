@@ -29,9 +29,7 @@ class PhiEliminationPass(IRPass):
             src = srcs.pop()
             if src == inst:
                 return
-            src_outputs = src.get_outputs()
-            assert len(src_outputs) == 1
-            self.updater.mk_assign(inst, src_outputs[0])
+            self.updater.mk_assign(inst, src.get_output())
 
     def _calculate_phi_origins(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)

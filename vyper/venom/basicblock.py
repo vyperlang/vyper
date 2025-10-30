@@ -319,6 +319,13 @@ class IRInstruction:
         """
         return list(self._outputs)
 
+    def get_output(self) -> IRVariable:
+        """
+        Return the single output for instructions with exactly one.
+        """
+        assert len(self._outputs) == 1, f"expected single output for {self}"
+        return self._outputs[0]
+
     def set_outputs(self, outputs: list[IRVariable]) -> None:
         """
         Replace all outputs for this instruction.

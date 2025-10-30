@@ -286,9 +286,7 @@ class VenomCompiler:
 
             last_param = inst
 
-            outputs = inst.get_outputs()
-            assert len(outputs) == 1  # help mypy
-            stack.push(outputs[0])
+            stack.push(inst.get_output())
 
         # no params (only applies for global entry function)
         if last_param is None:
@@ -432,7 +430,7 @@ class VenomCompiler:
             operands = inst.operands
 
         if opcode == "phi":
-            ret = inst.get_outputs()[0]
+            ret = inst.get_output()
             phis = list(inst.get_input_variables())
             depth = stack.get_phi_depth(phis)
             # collapse the arguments to the phi node in the stack.
@@ -452,9 +450,7 @@ class VenomCompiler:
             ofst, label = inst.operands
             assert isinstance(label, IRLabel)  # help mypy
             assembly.extend(_ofst(_as_asm_symbol(label), ofst.value))
-            outputs = inst.get_outputs()
-            assert len(outputs) == 1, "Offset must have output"
-            stack.push(outputs[0])
+            stack.push(inst.get_output())
             return apply_line_numbers(inst, assembly)
 
         # Step 2: Emit instruction's input operands
@@ -599,7 +595,7 @@ class VenomCompiler:
         else:
             raise Exception(f"Unknown opcode: {opcode}")
 
-        # Step 6: Emit instructions output operands (if any)
+        # Step 6: Emit instruction output operands (if any)
         outs = inst.get_outputs()
         num_outs = len(outs)
         if num_outs == 0:
