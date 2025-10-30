@@ -1488,8 +1488,8 @@ class _ImportStmt(Stmt):
 
     def to_dict(self):
         ret = super().to_dict()
-        if (import_info := self._metadata.get("import_info")) is not None:
-            ret["import_info"] = import_info.to_dict()
+        if (import_infos := self._metadata.get("import_infos")) is not None:
+            ret["import_infos"] = [import_info.to_dict() for import_info in import_infos]
 
         return ret
 

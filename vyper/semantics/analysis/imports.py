@@ -117,13 +117,13 @@ class ImportAnalyzer:
     def _calculate_integrity_sum_r(self, module_ast: vy_ast.Module):
         acc = [sha256sum(module_ast.full_source_code)]
         for s in module_ast.get_children((vy_ast.Import, vy_ast.ImportFrom)):
-            info = s._metadata["import_info"]
+            for info in s._metadata["import_infos"]:
 
-            if info.compiler_input.path.suffix in (".vyi", ".json"):
-                # NOTE: this needs to be redone if interfaces can import other interfaces
-                acc.append(info.compiler_input.sha256sum)
-            else:
-                acc.append(self._calculate_integrity_sum_r(info.parsed))
+                if info.compiler_input.path.suffix in (".vyi", ".json"):
+                    # NOTE: this needs to be redone if interfaces can import other interfaces
+                    acc.append(info.compiler_input.sha256sum)
+                else:
+                    acc.append(self._calculate_integrity_sum_r(info.parsed))
 
         return sha256sum("".join(acc))
 
@@ -141,46 +141,49 @@ class ImportAnalyzer:
         self.seen.add(module_ast)
 
     def _handle_Import(self, node: vy_ast.Import):
-        # import x.y[name] as y[alias]
+        # import x.y as y
 
-        name = node.names[0].name
-        alias = node.names[0].asname
-        if alias is None:
-            alias = name
-
-        # don't handle things like `import x.y`
-        if "." in alias:
-            msg = "import requires an accompanying `as` statement"
-            suggested_alias = name[name.rfind(".") + 1 :]
-            hint = f"try `import {name} as {suggested_alias}`"
-            raise StructureException(msg, node, hint=hint)
-
-        self._add_import(node, 0, name, alias)
+        self._add_imports(node, 0, "")
 
     def _handle_ImportFrom(self, node: vy_ast.ImportFrom):
-        # from m.n[module] import x[name] as y[alias]
+        # from m.n[module_prefix] import x as y
 
-        module = node.module or ""
-        if module:
-            module += "."
+        module_prefix = node.module or ""
+        if module_prefix:
+            module_prefix += "."
 
-        for alias_node in node.names:
+        self._add_imports(node, node.level, module_prefix)
+
+    def _add_imports(
+        self, import_node: vy_ast.VyperNode, level: int, module_prefix: str
+    ) -> None:
+
+        for alias_node in import_node.names:
+            # x.y[name] as y[alias]
             name = alias_node.name
             alias = alias_node.asname
             if alias is None:
                 alias = name
 
-            qualified_module_name = module + name
-            self._add_import(node, node.level, qualified_module_name, alias)
+            # don't handle things like `import x.y`
+            if "." in alias:
+                msg = "import requires an accompanying `as` statement"
+                suggested_alias = name[name.rfind(".") + 1 :]
+                hint = f"try `import {name} as {suggested_alias}`"
+                raise StructureException(msg, node, hint=hint)
 
-    def _add_import(
-        self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
-    ) -> None:
-        compiler_input, ast = self._load_import(node, level, qualified_module_name, alias)
-        self._compiler_inputs[compiler_input] = ast
-        node._metadata["import_info"] = ImportInfo(
-            alias, qualified_module_name, compiler_input, ast
-        )
+            qualified_module_name = module_prefix + name
+
+            # Set on alias_node for more precise error messages
+            compiler_input, ast = self._load_import(alias_node, level, qualified_module_name, alias)
+            self._compiler_inputs[compiler_input] = ast
+
+            if "import_infos" not in import_node._metadata:
+                import_node._metadata["import_infos"] = list()
+
+            import_node._metadata["import_infos"].append(ImportInfo(
+                alias, qualified_module_name, compiler_input, ast
+            ))
 
     # load an InterfaceT or ModuleInfo from an import.
     # raises FileNotFoundError
