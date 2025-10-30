@@ -500,7 +500,6 @@ class VenomCompiler:
         outs = inst.get_outputs()
         if outs:
             for out in outs:
-                assert isinstance(out, IROperand)  # help mypy
                 stack.push(out)
 
         # Step 5: Emit the EVM instruction(s)

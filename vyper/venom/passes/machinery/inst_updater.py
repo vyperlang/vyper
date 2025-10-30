@@ -57,7 +57,6 @@ class InstUpdater:
 
         if opcode in NO_OUTPUT_INSTRUCTIONS:
             for output in inst.get_outputs():
-                assert isinstance(output, IRVariable)  # help mypy
                 assert new_output is None
                 assert len(uses := self.dfg.get_uses(output)) == 0, (inst, uses)
                 self.dfg.remove_producing_instruction(output)
@@ -92,7 +91,7 @@ class InstUpdater:
             # NOTE: this doesn't work for dfg cycles.
             inst = q.popleft()
             # Check if ANY output has uses
-            outputs = [o for o in inst.get_outputs() if isinstance(o, IRVariable)]
+            outputs = inst.get_outputs()
             has_uses = any(len(self.dfg.get_uses(output)) > 0 for output in outputs)
             if has_uses:
                 q.append(inst)

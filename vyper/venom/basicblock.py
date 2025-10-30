@@ -329,12 +329,12 @@ class IRInstruction:
         """
         return (op for op in self.operands if isinstance(op, IRVariable))
 
-    def get_outputs(self) -> list[IROperand]:
+    def get_outputs(self) -> list[IRVariable]:
         """
         Get the output item for an instruction.
         Returns a list for compatibility with multi-output instructions.
         """
-        ret: list[IROperand] = []
+        ret: list[IRVariable] = []
         if self.output is not None:
             ret.append(self.output)
         if self._extra_outputs:
@@ -683,9 +683,7 @@ class IRBasicBlock:
         ret: list[IRVariable] = []
         for inst in self.instructions:
             outs = inst.get_outputs()
-            for o in outs:
-                assert isinstance(o, IRVariable)
-                ret.append(o)
+            ret.extend(outs)
         return ret
 
     def get_uses(self) -> dict[IRVariable, OrderedSet[IRInstruction]]:

@@ -123,13 +123,11 @@ class IRFunction:
                     pass  # No outputs to rename
                 elif len(all_outputs) == 1:
                     out_var = all_outputs[0]
-                    assert isinstance(out_var, IRVariable)  # help mypy
                     inst.output = varmap[out_var]
                     inst._extra_outputs = []
                 else:
                     inst.output = None
-                    out_vars = [o for o in all_outputs if isinstance(o, IRVariable)]
-                    inst.set_extra_outputs([varmap[o] for o in out_vars])
+                    inst.set_extra_outputs([varmap[o] for o in all_outputs])
 
                 for i, op in enumerate(inst.operands):
                     if not isinstance(op, IRVariable):

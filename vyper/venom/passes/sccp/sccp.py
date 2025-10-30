@@ -271,9 +271,7 @@ class SCCP(IRPass):
     def _add_ssa_work_items(self, inst: IRInstruction):
         outputs = inst.get_outputs()
         for out in outputs:
-            if out is None:
-                continue
-            for target_inst in self.dfg.get_uses(out):  # type: ignore
+            for target_inst in self.dfg.get_uses(out):
                 self.work_list.append(SSAWorkListItem(target_inst))
 
     def _propagate_constants(self):

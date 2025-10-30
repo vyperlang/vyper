@@ -52,9 +52,8 @@ class VarDefinition(IRAnalysis):
             self.defined_vars[inst] = bb_defined.copy()
 
             outs = inst.get_outputs()
-            if outs:
-                for o in outs:
-                    bb_defined.add(o)  # type: ignore
+            for o in outs:
+                bb_defined.add(o)
 
         if self.defined_vars_bb[bb] != bb_defined:
             self.defined_vars_bb[bb] = bb_defined
