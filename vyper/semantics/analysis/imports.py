@@ -170,7 +170,7 @@ class ImportAnalyzer:
                 msg = "import requires an accompanying `as` statement"
                 suggested_alias = name[name.rfind(".") + 1 :]
                 hint = f"try `import {name} as {suggested_alias}`"
-                raise StructureException(msg, node, hint=hint)
+                raise StructureException(msg, alias_node, hint=hint)
 
             qualified_module_name = module_prefix + name
 
