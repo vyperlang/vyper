@@ -154,7 +154,8 @@ def foo():
 
 def test_absolute_import_works_with_multiple_interfaces(make_input_bundle):
     top = """
-import a, subdir.b as b
+import a
+import subdir.b as b
 @external
 def foo():
     a.foo()

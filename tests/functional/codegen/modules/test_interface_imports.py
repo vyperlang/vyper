@@ -1,4 +1,5 @@
 import pytest
+from vyper.exceptions import StructureException
 
 
 def test_import_interface_types(make_input_bundle, get_contract):
@@ -43,7 +44,8 @@ from ethereum.ercs import IERC20, IERC721
     """
 
     main = """
-import lib1, lib2 # valid but not recommended
+import lib1
+import lib2
 
 from ethereum.ercs import IERC20, IERC721
 
@@ -66,6 +68,21 @@ def foo() -> bool:
 
     assert c.foo() is True
 
+def test_multi_import_module_fails(make_input_bundle, get_contract):
+    lib1 = ""
+    lib2 = ""
+
+    main = """
+import lib1, lib2
+    """
+
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+    with pytest.raises(StructureException) as e:
+        c = get_contract(main, input_bundle=input_bundle)
+
+    assert "modules need to be imported one by one" in e.value.message
+    assert "import lib1" in e.value.hint
+    assert "import lib2" in e.value.hint
 
 @pytest.mark.parametrize("interface_syntax", ["__at__", "__interface__"])
 def test_intrinsic_interface(get_contract, make_input_bundle, interface_syntax):
