@@ -262,13 +262,15 @@ def foo():
         "body": [
             {
                 "ast_type": "Import",
-                "import_infos": [{
-                    "alias": "lib1",
-                    "file_sha256sum": lib1_file.sha256sum,
-                    "path": "lib1.vy",
-                    "qualified_module_name": "lib1",
-                    "source_id": 0,
-                }],
+                "import_infos": [
+                    {
+                        "alias": "lib1",
+                        "file_sha256sum": lib1_file.sha256sum,
+                        "path": "lib1.vy",
+                        "qualified_module_name": "lib1",
+                        "source_id": 0,
+                    }
+                ],
                 "names": [{"asname": None, "ast_type": "alias", "name": "lib1", "node_id": 2}],
                 "node_id": 1,
             },

@@ -76,6 +76,7 @@ def foo():
         compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
     assert "b.vy:" in str(e.value)
 
+
 def test_relative_import_works_with_multiple_interfaces(make_input_bundle):
     top = """
 from subdir import a, b
@@ -97,6 +98,7 @@ def bar():
 
     input_bundle = make_input_bundle({"top.vy": top, "subdir/a.vy": a, "subdir/b.vy": b})
     compiler.compile_from_file_input(top, input_bundle=input_bundle)
+
 
 def test_absolute_import_within_relative_import(make_input_bundle):
     top = """
@@ -151,6 +153,7 @@ def foo():
         {"top.vy": CODE_TOP, "subdir0/lib0.vy": lib0, "subdir0/subdir1/lib1.vy": CODE_LIB1}
     )
     compiler.compile_code(CODE_TOP, input_bundle=input_bundle)
+
 
 def test_absolute_import_works_with_multiple_interfaces(make_input_bundle):
     top = """

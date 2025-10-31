@@ -343,7 +343,6 @@ class ModuleT(VyperType):
 
         for i in self.import_stmts:
             for import_info in i._metadata["import_infos"]:
-
                 if hasattr(import_info.typ, "module_t"):
                     module_info = import_info.typ
                     # get_expr_info uses ModuleInfo

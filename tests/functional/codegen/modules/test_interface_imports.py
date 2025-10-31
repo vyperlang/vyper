@@ -68,6 +68,7 @@ def foo() -> bool:
 
     assert c.foo() is True
 
+
 def test_multi_import_module_fails(make_input_bundle, get_contract):
     lib1 = ""
     lib2 = ""
@@ -83,6 +84,7 @@ import lib1, lib2
     assert "modules need to be imported one by one" in e.value.message
     assert "import lib1" in e.value.hint
     assert "import lib2" in e.value.hint
+
 
 @pytest.mark.parametrize("interface_syntax", ["__at__", "__interface__"])
 def test_intrinsic_interface(get_contract, make_input_bundle, interface_syntax):

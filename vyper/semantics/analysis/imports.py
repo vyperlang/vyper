@@ -118,7 +118,6 @@ class ImportAnalyzer:
         acc = [sha256sum(module_ast.full_source_code)]
         for s in module_ast.get_children((vy_ast.Import, vy_ast.ImportFrom)):
             for info in s._metadata["import_infos"]:
-
                 if info.compiler_input.path.suffix in (".vyi", ".json"):
                     # NOTE: this needs to be redone if interfaces can import other interfaces
                     acc.append(info.compiler_input.sha256sum)
@@ -145,7 +144,9 @@ class ImportAnalyzer:
 
         if len(node.names) > 1:
             msg = "modules need to be imported one by one"
-            import_strings = '\n   '.join([ f"import {alias_node.node_source_code}" for alias_node in node.names ])
+            import_strings = "\n   ".join(
+                [f"import {alias_node.node_source_code}" for alias_node in node.names]
+            )
             hint = f"try\n   {import_strings}\n   "
             raise StructureException(msg, node, hint=hint)
 
@@ -161,9 +162,8 @@ class ImportAnalyzer:
         self._add_imports(node, node.level, module_prefix)
 
     def _add_imports(
-        self, import_node: vy_ast.VyperNode, level: int, module_prefix: str
+        self, import_node: vy_ast.Import | vy_ast.ImportFrom, level: int, module_prefix: str
     ) -> None:
-
         for alias_node in import_node.names:
             # x.y[name] as y[alias]
             name = alias_node.name
@@ -187,9 +187,9 @@ class ImportAnalyzer:
             if "import_infos" not in import_node._metadata:
                 import_node._metadata["import_infos"] = list()
 
-            import_node._metadata["import_infos"].append(ImportInfo(
-                alias, qualified_module_name, compiler_input, ast
-            ))
+            import_node._metadata["import_infos"].append(
+                ImportInfo(alias, qualified_module_name, compiler_input, ast)
+            )
 
     # load an InterfaceT or ModuleInfo from an import.
     # raises FileNotFoundError
