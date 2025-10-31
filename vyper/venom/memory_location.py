@@ -16,20 +16,8 @@ class MemoryLocation:
 
     @classmethod
     def from_operands(
-        cls, offset: IROperand | int, size: IROperand | int, /, is_volatile: bool = False
+            cls, offset: IROperand | int, size: IROperand | int, translates: dict, /, is_volatile: bool = False
     ) -> MemoryLocation:
-        _offset: int | IRAbstractMemLoc | None = None
-        if isinstance(offset, IRLiteral):
-            _offset = offset.value
-        elif isinstance(offset, IRVariable):
-            _offset = None
-        elif isinstance(offset, int):
-            _offset = offset
-        elif isinstance(offset, IRAbstractMemLoc):
-            _offset = offset
-        else:  # pragma: nocover
-            raise CompilerPanic(f"invalid offset: {offset} ({type(offset)})")
-
         if isinstance(size, IRLiteral):
             _size = size.value
         elif isinstance(size, IRVariable):
@@ -39,11 +27,26 @@ class MemoryLocation:
         else:  # pragma: nocover
             raise CompilerPanic(f"invalid size: {size} ({type(size)})")
 
-        if isinstance(_offset, IRAbstractMemLoc):
-            # assert isinstance(_size, int)
-            # assert _size <= _offset.size
-            return MemoryLocationAbstract(_offset, _size)
-        return MemoryLocationConcrete(_offset, _size)
+        _offset: int | IRAbstractMemLoc | None = None
+        if isinstance(offset, IRLiteral):
+            _offset = offset.value
+            return MemoryLocationConcrete(_offset, _size)
+        elif isinstance(offset, IRVariable):
+            _offset = None
+            op = translates.get(offset, None)
+            if op is None:
+                return MemoryLocationConcrete(_offset=None, _size=_size)
+            else:
+                return MemoryLocationAbstract(op=op, _offset=None, _size=_size)
+        elif isinstance(offset, int):
+            _offset = offset
+            return MemoryLocationConcrete(_offset, _size)
+        elif isinstance(offset, IRAbstractMemLoc):
+            op = offset
+            return MemoryLocationAbstract(op=op, _offset=op.offset, _size=_size)
+        else:  # pragma: nocover
+            raise CompilerPanic(f"invalid offset: {offset} ({type(offset)})")
+
 
     @property
     def offset(self) -> int | None:
@@ -97,6 +100,7 @@ class MemoryLocation:
 @dataclass(frozen=True)
 class MemoryLocationAbstract(MemoryLocation):
     op: IRAbstractMemLoc
+    _offset: int | None
     _size: int | None
     _is_volatile: bool = False
 
@@ -130,8 +134,8 @@ class MemoryLocationAbstract(MemoryLocation):
     @staticmethod
     def may_overlap_abstract(loc1: MemoryLocationAbstract, loc2: MemoryLocationAbstract) -> bool:
         if loc1.op._id == loc2.op._id:
-            conc1 = MemoryLocationConcrete(_offset=loc1.op.offset, _size=loc1.size)
-            conc2 = MemoryLocationConcrete(_offset=loc2.op.offset, _size=loc2.size)
+            conc1 = MemoryLocationConcrete(_offset=loc1._offset, _size=loc1.size)
+            conc2 = MemoryLocationConcrete(_offset=loc2._offset, _size=loc2.size)
             return MemoryLocationConcrete.may_overlap_concrete(conc1, conc2)
         else:
             return False
@@ -146,8 +150,8 @@ class MemoryLocationAbstract(MemoryLocation):
         if other.size == 0:
             return True
         if self.op._id == other.op._id:
-            conc1 = MemoryLocationConcrete(_offset=self.op.offset, _size=self.size)
-            conc2 = MemoryLocationConcrete(_offset=other.op.offset, _size=other.size)
+            conc1 = MemoryLocationConcrete(_offset=self._offset, _size=self.size)
+            conc2 = MemoryLocationConcrete(_offset=other._offset, _size=other.size)
             return conc1.completely_contains(conc2)
         return False
 
@@ -270,36 +274,36 @@ MemoryLocation.EMPTY = MemoryLocationConcrete(_offset=0, _size=0)
 MemoryLocation.UNDEFINED = MemoryLocationConcrete(_offset=None, _size=None)
 
 
-def get_write_location(inst, addr_space: AddrSpace) -> MemoryLocation:
+def get_write_location(inst, addr_space: AddrSpace, translates: dict) -> MemoryLocation:
     """Extract memory location info from an instruction"""
     if addr_space == MEMORY:
-        return _get_memory_write_location(inst)
+        return _get_memory_write_location(inst, translates)
     elif addr_space in (STORAGE, TRANSIENT):
-        return _get_storage_write_location(inst, addr_space)
+        return _get_storage_write_location(inst, addr_space, translates)
     else:  # pragma: nocover
         raise CompilerPanic(f"Invalid location type: {addr_space}")
 
 
-def get_read_location(inst, addr_space: AddrSpace) -> MemoryLocation:
+def get_read_location(inst, addr_space: AddrSpace, translates) -> MemoryLocation:
     """Extract memory location info from an instruction"""
     if addr_space == MEMORY:
-        return _get_memory_read_location(inst)
+        return _get_memory_read_location(inst, translates)
     elif addr_space in (STORAGE, TRANSIENT):
-        return _get_storage_read_location(inst, addr_space)
+        return _get_storage_read_location(inst, addr_space, translates)
     else:  # pragma: nocover
         raise CompilerPanic(f"Invalid location type: {addr_space}")
 
 
-def _get_memory_write_location(inst) -> MemoryLocation:
+def _get_memory_write_location(inst, translates: dict) -> MemoryLocation:
     opcode = inst.opcode
     if opcode == "mstore":
         dst = inst.operands[1]
-        return MemoryLocation.from_operands(dst, MEMORY.word_scale)
+        return MemoryLocation.from_operands(dst, MEMORY.word_scale, translates)
     elif opcode == "mload":
         return MemoryLocation.EMPTY
     elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
         size, _, dst = inst.operands
-        return MemoryLocation.from_operands(dst, size)
+        return MemoryLocation.from_operands(dst, size, translates)
     elif opcode == "dload":
         return MemoryLocationConcrete(_offset=0, _size=32)
     elif opcode == "sha3_64":
@@ -308,65 +312,65 @@ def _get_memory_write_location(inst) -> MemoryLocation:
         return MemoryLocation.UNDEFINED
     elif opcode == "call":
         size, dst, _, _, _, _, _ = inst.operands
-        return MemoryLocation.from_operands(dst, size)
+        return MemoryLocation.from_operands(dst, size, translates)
     elif opcode in ("delegatecall", "staticcall"):
         size, dst, _, _, _, _ = inst.operands
-        return MemoryLocation.from_operands(dst, size)
+        return MemoryLocation.from_operands(dst, size, translates)
     elif opcode == "extcodecopy":
         size, _, dst, _ = inst.operands
-        return MemoryLocation.from_operands(dst, size)
+        return MemoryLocation.from_operands(dst, size, translates)
 
     return MemoryLocationConcrete.EMPTY
 
 
-def _get_memory_read_location(inst) -> MemoryLocation:
+def _get_memory_read_location(inst, translates) -> MemoryLocation:
     opcode = inst.opcode
     if opcode == "mstore":
         return MemoryLocationConcrete.EMPTY
     elif opcode == "mload":
-        return MemoryLocation.from_operands(inst.operands[0], MEMORY.word_scale)
+        return MemoryLocation.from_operands(inst.operands[0], MEMORY.word_scale, translates)
     elif opcode == "mcopy":
         size, src, _ = inst.operands
-        return MemoryLocation.from_operands(src, size)
+        return MemoryLocation.from_operands(src, size, translates)
     elif opcode == "dload":
         return MemoryLocationConcrete(_offset=0, _size=32)
     elif opcode == "invoke":
         return MemoryLocation.UNDEFINED
     elif opcode == "call":
         _, _, size, dst, _, _, _ = inst.operands
-        return MemoryLocation.from_operands(dst, size)
+        return MemoryLocation.from_operands(dst, size, translates)
     elif opcode in ("delegatecall", "staticcall"):
         _, _, size, dst, _, _ = inst.operands
-        return MemoryLocation.from_operands(dst, size)
+        return MemoryLocation.from_operands(dst, size, translates)
     elif opcode == "return":
         size, src = inst.operands
-        return MemoryLocation.from_operands(src, size)
+        return MemoryLocation.from_operands(src, size, translates)
     elif opcode == "create":
         size, src, _value = inst.operands
-        return MemoryLocation.from_operands(src, size)
+        return MemoryLocation.from_operands(src, size, translates)
     elif opcode == "create2":
         _salt, size, src, _value = inst.operands
-        return MemoryLocation.from_operands(src, size)
+        return MemoryLocation.from_operands(src, size, translates)
     elif opcode == "sha3":
         size, offset = inst.operands
-        return MemoryLocation.from_operands(offset, size)
+        return MemoryLocation.from_operands(offset, size, translates)
     elif opcode == "sha3_64":
         return MemoryLocationConcrete(_offset=0, _size=64)
     elif opcode == "log":
         size, src = inst.operands[-2:]
-        return MemoryLocation.from_operands(src, size)
+        return MemoryLocation.from_operands(src, size, translates)
     elif opcode == "revert":
         size, src = inst.operands
-        return MemoryLocation.from_operands(src, size)
+        return MemoryLocation.from_operands(src, size, translates)
 
     return MemoryLocationConcrete.EMPTY
 
 
-def _get_storage_write_location(inst, addr_space: AddrSpace) -> MemoryLocation:
+def _get_storage_write_location(inst, addr_space: AddrSpace, translates) -> MemoryLocation:
     opcode = inst.opcode
     if opcode == addr_space.store_op:
         dst = inst.operands[1]
-        return MemoryLocation.from_operands(dst, addr_space.word_scale)
+        return MemoryLocation.from_operands(dst, addr_space.word_scale, translates)
     elif opcode == addr_space.load_op:
         return MemoryLocation.EMPTY
     elif opcode in ("call", "delegatecall", "staticcall"):
@@ -379,12 +383,12 @@ def _get_storage_write_location(inst, addr_space: AddrSpace) -> MemoryLocation:
     return MemoryLocation.EMPTY
 
 
-def _get_storage_read_location(inst, addr_space: AddrSpace) -> MemoryLocation:
+def _get_storage_read_location(inst, addr_space: AddrSpace, translates) -> MemoryLocation:
     opcode = inst.opcode
     if opcode == addr_space.store_op:
         return MemoryLocation.EMPTY
     elif opcode == addr_space.load_op:
-        return MemoryLocation.from_operands(inst.operands[0], addr_space.word_scale)
+        return MemoryLocation.from_operands(inst.operands[0], addr_space.word_scale, translates)
     elif opcode in ("call", "delegatecall", "staticcall"):
         return MemoryLocation.UNDEFINED
     elif opcode == "invoke":

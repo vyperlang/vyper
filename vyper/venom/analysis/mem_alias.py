@@ -3,7 +3,7 @@ from typing import Optional
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis
-from vyper.venom.basicblock import IRInstruction
+from vyper.venom.basicblock import IRInstruction, IRVariable, IRAbstractMemLoc
 from vyper.venom.memory_location import MemoryLocation, get_read_location, get_write_location
 
 
@@ -22,21 +22,47 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
 
         # Map from memory locations to sets of potentially aliasing locations
         self.alias_sets: dict[MemoryLocation, OrderedSet[MemoryLocation]] = {}
+        self.translates: dict[IRVariable, IRAbstractMemLoc] = {}
+
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                if inst.opcode != "gep":
+                    continue
+                place = self._follow_get(inst)
+                assert inst.output is not None
+                self.translates[inst.output] = place
 
         # Analyze all memory operations
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 self._analyze_instruction(inst)
 
+    def _follow_get(self, inst: IRInstruction):
+        assert inst.opcode == "gep"
+        place = inst.operands[0]
+        if isinstance(place, IRVariable):
+            next_inst = self.dfg.get_producing_instruction(place)
+            assert next_inst is not None
+            place = self._follow_get(next_inst)
+        
+        assert isinstance(place, IRAbstractMemLoc)
+        return place
+
+    def _get_read_location(self, inst: IRInstruction, addr_space: AddrSpace) -> MemoryLocation:
+        return get_read_location(inst, addr_space, self.translates)
+
+    def _get_write_location(self, inst: IRInstruction, addr_space: AddrSpace) -> MemoryLocation:
+        return get_write_location(inst, addr_space, self.translates)
+
     def _analyze_instruction(self, inst: IRInstruction):
         """Analyze a memory instruction to determine aliasing"""
         loc: Optional[MemoryLocation] = None
 
-        loc = get_read_location(inst, self.addr_space)
+        loc = get_read_location(inst, self.addr_space, self.translates)
         if loc is not None:
             self._analyze_mem_location(loc)
 
-        loc = get_write_location(inst, self.addr_space)
+        loc = get_write_location(inst, self.addr_space, self.translates)
         if loc is not None:
             self._analyze_mem_location(loc)
 

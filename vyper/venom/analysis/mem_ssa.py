@@ -71,10 +71,10 @@ class LiveOnEntry(MemoryAccess):
 class MemoryDef(MemoryAccess):
     """Represents a definition of memory state"""
 
-    def __init__(self, id: int, store_inst: IRInstruction, addr_space: AddrSpace):
+    def __init__(self, id: int, store_inst: IRInstruction, loc: MemoryLocation):
         super().__init__(id)
         self.store_inst = store_inst
-        self.loc = get_write_location(store_inst, addr_space)
+        self.loc = loc
 
     @property
     def inst(self):
@@ -84,10 +84,10 @@ class MemoryDef(MemoryAccess):
 class MemoryUse(MemoryAccess):
     """Represents a use of memory state"""
 
-    def __init__(self, id: int, load_inst: IRInstruction, addr_space: AddrSpace):
+    def __init__(self, id: int, load_inst: IRInstruction, loc: MemoryLocation):
         super().__init__(id)
         self.load_inst = load_inst
-        self.loc = get_read_location(load_inst, addr_space)
+        self.loc = loc
 
     @property
     def inst(self):
@@ -153,6 +153,7 @@ class MemSSAAbstract(IRAnalysis):
 
         # Clean up unnecessary phi nodes
         self._remove_redundant_phis()
+        self.analyses_cache.invalidate_analysis(self.mem_alias_type)
 
     def mark_location_volatile(self, loc: MemoryLocation) -> MemoryLocation:
         volatile_loc = self.memalias.mark_volatile(loc)
@@ -193,15 +194,15 @@ class MemSSAAbstract(IRAnalysis):
         """Process memory definitions and uses in a basic block"""
         for inst in block.instructions:
             # Check for memory reads
-            if get_read_location(inst, self.addr_space) != MemoryLocation.EMPTY:
-                mem_use = MemoryUse(self.next_id, inst, self.addr_space)
+            if (loc := self.memalias._get_read_location(inst, self.addr_space)) != MemoryLocation.EMPTY:
+                mem_use = MemoryUse(self.next_id, inst, loc)
                 self.next_id += 1
                 self.memory_uses.setdefault(block, []).append(mem_use)
                 self.inst_to_use[inst] = mem_use
 
             # Check for memory writes
-            if get_write_location(inst, self.addr_space) != MemoryLocation.EMPTY:
-                mem_def = MemoryDef(self.next_id, inst, self.addr_space)
+            if (loc := self.memalias._get_write_location(inst, self.addr_space)) != MemoryLocation.EMPTY:
+                mem_def = MemoryDef(self.next_id, inst, loc)
                 self.next_id += 1
                 self.memory_defs.setdefault(block, []).append(mem_def)
                 self.inst_to_def[inst] = mem_def
