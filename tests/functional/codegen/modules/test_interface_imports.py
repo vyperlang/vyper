@@ -43,8 +43,7 @@ from ethereum.ercs import IERC20, IERC721
     """
 
     main = """
-import lib1
-import lib2
+import lib1, lib2 # valid but not recommended
 
 from ethereum.ercs import IERC20, IERC721
 
