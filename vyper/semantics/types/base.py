@@ -169,7 +169,7 @@ class VyperType:
         """
         The ABI type corresponding to this type
         """
-        raise CompilerPanic("Method must be implemented by the inherited class")
+        raise CompilerPanic(f"{type(self).__name__} does not implement abi_type")
 
     def get_size_in(self, location: DataLocation) -> int:
         if location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
