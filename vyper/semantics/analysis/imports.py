@@ -88,11 +88,12 @@ class ImportAnalyzer:
     seen: OrderedSet[vy_ast.Module]
     _compiler_inputs: dict[CompilerInput, vy_ast.Module]
     toplevel_module: vy_ast.Module
-    importedBuiltins: dict[str, vy_ast.VyperNode] = dict()
+    importedBuiltins: dict[str, vy_ast.VyperNode]
 
     def __init__(self, input_bundle: InputBundle, graph: _ImportGraph, module_ast: vy_ast.Module):
         self.input_bundle = input_bundle
         self.graph = graph
+        self.importedBuiltins = {}
         self.toplevel_module = module_ast
         self._ast_of: dict[int, vy_ast.Module] = {}
 
