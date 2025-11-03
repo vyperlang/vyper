@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import ModuleNotFound
+from vyper.exceptions import ModuleNotFound, StructureException
 
 CODE_TOP = """
 import subdir0.lib0 as lib0
@@ -153,6 +153,23 @@ def foo():
         {"top.vy": CODE_TOP, "subdir0/lib0.vy": lib0, "subdir0/subdir1/lib1.vy": CODE_LIB1}
     )
     compiler.compile_code(CODE_TOP, input_bundle=input_bundle)
+
+
+def test_absolute_path_without_alias_fails(make_input_bundle):
+    top = """
+import subdir0.lib0
+@external
+def foo():
+    pass
+"""
+    lib0 = ""
+
+    input_bundle = make_input_bundle({"top.vy": top, "subdir0/lib0.vy": lib0})
+
+    with pytest.raises(StructureException) as e:
+        compiler.compile_code(top, input_bundle=input_bundle)
+
+    assert "import requires an accompanying `as` statement" in e.value.message
 
 
 def test_absolute_import_works_with_multiple_interfaces(make_input_bundle):
