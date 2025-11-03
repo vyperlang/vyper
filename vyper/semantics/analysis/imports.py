@@ -142,14 +142,6 @@ class ImportAnalyzer:
     def _handle_Import(self, node: vy_ast.Import):
         # import x.y as y
 
-        if len(node.names) > 1:
-            msg = "modules need to be imported one by one"
-            import_strings = "\n    ".join(
-                [f"import {alias_node.node_source_code}" for alias_node in node.names]
-            )
-            hint = f"try \n    ```\n    {import_strings}\n    ```\n  "
-            raise StructureException(msg, node, hint=hint)
-
         self._add_imports(node, 0, "")
 
     def _handle_ImportFrom(self, node: vy_ast.ImportFrom):

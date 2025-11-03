@@ -1497,6 +1497,15 @@ class _ImportStmt(Stmt):
 class Import(_ImportStmt):
     __slots__ = ()
 
+    def validate(self):
+        if len(self.names) > 1:
+            msg = "modules need to be imported one by one"
+            import_strings = "\n    ".join(
+                [f"import {alias_node.node_source_code}" for alias_node in self.names]
+            )
+            hint = f"try \n    ```\n    {import_strings}\n    ```\n  "
+            raise StructureException(msg, self, hint=hint)
+
 
 class ImportFrom(_ImportStmt):
     __slots__ = ("level", "module")
