@@ -9,14 +9,11 @@ Vyper is a statically typed language. The type of each variable (state and local
 
 In addition, types can interact with each other in expressions containing operators.
 
-.. index:: ! value
+Unlike in some other languages, there are no sub-categories of types. Values are always copied when assigned to a variable, or when passed to a function (also known as call-by-value). That means that, a calling function never needs to worry about a callee modifying the data of a passed structure.
 
-Value Types
-===========
+.. note::
 
-The following types are also called value types because variables of these
-types will always be passed by value, i.e. they are always copied when they
-are used as function arguments or in assignments.
+    However neither values nor variables are immutable. Variables can be reassigned to values of the same type. And values of some types (for example arrays and structs) have operations that modify them in place, usually by assigning to their members directly: `my_array[0] = 42`.
 
 .. index:: ! bool, ! true, ! false
 
@@ -475,17 +472,6 @@ The following code uses bitwise operations to add and revoke permissions from a 
         ret ^= Roles.USER  # flip the user bit between 0 and 1
         return ret
 
-.. index:: !reference
-
-Reference Types
-===============
-
-Reference types are those whose components can be assigned to in-place without copying. For instance, array and struct members can be individually assigned to without overwriting the whole data structure.
-
-.. note::
-
-  In terms of the calling convention, reference types are passed by value, not by reference. That means that, a calling function does not need to worry about a callee modifying the data of a passed structure.
-
 .. index:: !arrays
 
 Fixed-size Lists
@@ -631,7 +617,7 @@ Mapping types are declared as ``HashMap[_KeyType, _ValueType]``.
 .. _types-initial:
 
 Initial Values
-==============
+--------------
 
 Unlike most programming languages, Vyper does not have a concept of ``null``. Instead, every variable type has a default value. To check if a variable is empty, you must compare it to the default value for its given type.
 
@@ -666,7 +652,7 @@ Type        Default Value
 .. _type_conversions:
 
 Type Conversions
-================
+----------------
 
 All type conversions in Vyper must be made explicitly using the built-in ``convert(a: atype, btype)`` function. Type conversions in Vyper are designed to be safe and intuitive. All type conversions will check that the input is in bounds for the output type. The general principles are:
 
