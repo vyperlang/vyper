@@ -1,4 +1,6 @@
 import pytest
+
+from vyper import compiler
 from vyper.exceptions import StructureException
 
 
@@ -79,7 +81,7 @@ import lib1, lib2
 
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
     with pytest.raises(StructureException) as e:
-        get_contract(main, input_bundle=input_bundle)
+        compiler.compile_from_file_input(main, input_bundle=input_bundle)
 
     assert "modules need to be imported one by one" in e.value.message
     assert "import lib1" in e.value.hint
