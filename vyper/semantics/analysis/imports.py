@@ -88,12 +88,10 @@ class ImportAnalyzer:
     seen: OrderedSet[vy_ast.Module]
     _compiler_inputs: dict[CompilerInput, vy_ast.Module]
     toplevel_module: vy_ast.Module
-    importedBuiltins: dict[str, vy_ast.VyperNode]
 
     def __init__(self, input_bundle: InputBundle, graph: _ImportGraph, module_ast: vy_ast.Module):
         self.input_bundle = input_bundle
         self.graph = graph
-        self.importedBuiltins = {}
         self.toplevel_module = module_ast
         self._ast_of: dict[int, vy_ast.Module] = {}
 
@@ -188,16 +186,6 @@ class ImportAnalyzer:
     def _load_import(
         self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
     ) -> tuple[CompilerInput, Any]:
-        if _is_builtin(level, module_str):
-            if module_str in self.importedBuiltins:
-                previous_import_stmt = self.importedBuiltins[module_str]
-                raise DuplicateImport(
-                    f"{module_str} imported more than once!", previous_import_stmt, node
-                )
-
-            self.importedBuiltins[module_str] = node
-            return _load_builtin_import(level, module_str)
-
         path = _import_to_path(level, module_str)
 
         if path in self.graph.imported_modules:
@@ -205,6 +193,9 @@ class ImportAnalyzer:
             raise DuplicateImport(f"{alias} imported more than once!", previous_import_stmt, node)
 
         self.graph.imported_modules[path] = node
+
+        if _is_builtin(level, module_str):
+            return _load_builtin_import(level, module_str)
 
         err = None
 
