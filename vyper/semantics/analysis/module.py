@@ -730,13 +730,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._add_import(node)
 
     def _add_import(self, node: vy_ast.VyperNode) -> None:
-        import_info = node._metadata["import_info"]
-        # similar structure to import analyzer
-        module_info = self._load_import(import_info)
+        for import_info in node._metadata["import_infos"]:
+            # similar structure to import analyzer
+            module_info = self._load_import(import_info)
 
-        import_info._typ = module_info
+            import_info._typ = module_info
 
-        self.namespace[import_info.alias] = module_info
+            self.namespace[import_info.alias] = module_info
 
     def _load_import(self, import_info: ImportInfo) -> Any:
         path = import_info.compiler_input.path

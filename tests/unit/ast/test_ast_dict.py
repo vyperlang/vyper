@@ -261,16 +261,17 @@ def foo():
         "settings": {},
         "body": [
             {
-                "alias": None,
                 "ast_type": "Import",
-                "import_info": {
-                    "alias": "lib1",
-                    "file_sha256sum": lib1_file.sha256sum,
-                    "path": "lib1.vy",
-                    "qualified_module_name": "lib1",
-                    "source_id": 0,
-                },
-                "name": "lib1",
+                "import_infos": [
+                    {
+                        "alias": "lib1",
+                        "file_sha256sum": lib1_file.sha256sum,
+                        "path": "lib1.vy",
+                        "qualified_module_name": "lib1",
+                        "source_id": 0,
+                    }
+                ],
+                "names": [{"asname": None, "ast_type": "alias", "name": "lib1", "node_id": 2}],
                 "node_id": 1,
             },
             {
@@ -423,7 +424,7 @@ def foo():
             "type_decl_node": {"node_id": 0, "source_id": 1},
             "typeclass": "module",
         },
-    }
+    }, "main_ast comparison failed"
 
     # TODO: would be nice to refactor this into bunch of small test cases
     # TODO: write the test in a way which makes the links between nodes
@@ -1280,7 +1281,7 @@ def foo():
             "type_decl_node": {"node_id": 0, "source_id": 0},
             "typeclass": "module",
         },
-    }
+    }, "main_ast comparison failed"
 
 
 def test_output_variable_read_write_analysis(make_input_bundle, chdir_tmp_path):
