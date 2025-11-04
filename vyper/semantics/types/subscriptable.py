@@ -167,9 +167,9 @@ class SArrayT(_SequenceT):
         return f"{self.value_type}[{self.length}]"
 
     @property
-    def _as_array(self):
-        # a static array is arrayable if its value_type is arrayble.
-        return self.value_type._as_array
+    def is_valid_element_type(self):
+        # a static array is a valid array element if its value_type is.
+        return self.value_type.is_valid_element_type
 
     @property
     def abi_type(self) -> ABIType:
@@ -212,7 +212,7 @@ class SArrayT(_SequenceT):
 
         value_type = type_from_annotation(node.value)
 
-        if not value_type._as_array:
+        if not value_type.is_valid_element_type:
             raise StructureException(f"arrays of {value_type} are not allowed!")
 
         # note: validates index is a vy_ast.Int.
@@ -228,7 +228,7 @@ class DArrayT(_SequenceT):
     typeclass = "dynamic_array"
 
     _valid_literal = (vy_ast.List,)
-    _as_array = True
+    is_valid_element_type = True
 
     _id = "DynArray"  # CMC 2024-03-03 maybe this would be better as repr(self)
 

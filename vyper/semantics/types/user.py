@@ -336,7 +336,7 @@ class EventT(_UserType):
 
 class StructT(_UserType):
     typeclass = "struct"
-    _as_array = True
+    is_valid_element_type = True
 
     def __init__(self, _id, members, ast_def=None):
         super().__init__(members)

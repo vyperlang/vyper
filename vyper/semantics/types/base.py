@@ -48,8 +48,8 @@ class VyperType:
     ----------
     _id : str
         The name of the type.
-    _as_array: bool, optional
-        If `True`, this type can be used as the base member for an array.
+    is_valid_element_type: bool, optional
+        If `True`, this type can be used as the type of the elements of an array.
     _as_hashmap_key: bool, optional
         If `True`, this type can be used as a hashmap key
     is_valid_member_type: bool, optional
@@ -80,7 +80,7 @@ class VyperType:
     _is_array_type: bool = False
     _is_bytestring: bool = False  # is it a bytes or a string?
 
-    _as_array: bool = False  # rename to something like can_be_array_member
+    is_valid_element_type: bool = False
     _as_hashmap_key: bool = False
     is_valid_member_type: bool = True
 
@@ -153,7 +153,7 @@ class VyperType:
 
     @cached_property
     def _as_darray(self):
-        return self._as_array
+        return self.is_valid_element_type
 
     @property
     def getter_signature(self):
