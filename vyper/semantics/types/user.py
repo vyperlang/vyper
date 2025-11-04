@@ -31,6 +31,10 @@ from vyper.warnings import Deprecation, vyper_warn
 class _UserType(VyperType):
     def __init__(self, members=None):
         super().__init__(members=members)
+        if members is not None:
+            for mt in members.values():
+                if not mt._as_tuple_member:
+                    raise StructureException(f"not a valid {self.typeclass} member: {mt}")
 
     def __eq__(self, other):
         return self is other
@@ -336,10 +340,6 @@ class StructT(_UserType):
 
     def __init__(self, _id, members, ast_def=None):
         super().__init__(members)
-
-        for mt in members.values():
-            if not mt._as_tuple_member:
-                raise StructureException(f"not a valid struct member: {mt}")
 
         self._id = _id
 
