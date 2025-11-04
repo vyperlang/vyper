@@ -24,19 +24,26 @@ class ConcretizeMemLocPass(IRPass):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
-        mem_allocator.start_fn_allocation(self._get_used(mem_allocator))
+        mem_allocator.start_fn_allocation()
 
         orig = mem_allocator.curr
 
-        self.mem_liveness = MemLiveness(self.function, self.cfg, self.dfg)
+        self.mem_liveness = MemLiveness(self.function, self.cfg, self.dfg, mem_allocator)
         self.mem_liveness.analyze()
 
         livesets = list(self.mem_liveness.livesets.items())
+        already_allocated = [item for item in livesets if item[0]._id in mem_allocator.allocated]
+        livesets = [item for item in livesets if item[0]._id not in mem_allocator.allocated]
         livesets.sort(key=lambda x: len(x[1]), reverse=False)
 
         max_curr = 0
         for index, (mem, insts) in enumerate(livesets):
             curr = orig
+            for before_mem, before_insts in already_allocated:
+                if len(OrderedSet.intersection(insts, before_insts)) == 0:
+                    continue
+                place = mem_allocator.allocated[before_mem._id]
+                curr = max(place[0] + place[1], curr)
             for i in range(index):
                 before_mem, before_insts = livesets[i]
                 if len(OrderedSet.intersection(insts, before_insts)) == 0:
@@ -52,7 +59,10 @@ class ConcretizeMemLocPass(IRPass):
         for bb in self.function.get_basic_blocks():
             self._handle_bb(bb)
 
-        mem_allocator.end_fn_allocation(self.function)
+        all_allocated = [item[0] for item in already_allocated]
+        all_allocated.extend([item[0] for item in livesets])
+
+        mem_allocator.end_fn_allocation(all_allocated, fn=self.function)
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
@@ -95,18 +105,20 @@ class ConcretizeMemLocPass(IRPass):
 class MemLiveness:
     function: IRFunction
     cfg: CFGAnalysis
+    mem_allocator: MemoryAllocator
 
     liveat: dict[IRInstruction, OrderedSet[IRAbstractMemLoc]]
     livesets: dict[IRAbstractMemLoc, OrderedSet[IRInstruction]]
 
     used: dict[IRInstruction, OrderedSet[IRAbstractMemLoc]]
 
-    def __init__(self, function: IRFunction, cfg: CFGAnalysis, dfg: DFGAnalysis):
+    def __init__(self, function: IRFunction, cfg: CFGAnalysis, dfg: DFGAnalysis, mem_allocator: MemoryAllocator):
         self.function = function
         self.cfg = cfg
         self.dfg = dfg
         self.used = defaultdict(OrderedSet)
         self.liveat = defaultdict(OrderedSet)
+        self.mem_allocator = mem_allocator
 
     def analyze(self):
         while True:
@@ -148,6 +160,15 @@ class MemLiveness:
             for read_op in read_ops:
                 assert isinstance(read_op, IRAbstractMemLoc)
                 curr.add(read_op.no_offset())
+            if inst.opcode == "invoke":
+                label = inst.operands[0]
+                assert isinstance(label, IRLabel)
+                fn = self.function.ctx.get_function(label)
+                curr.addmany(self.mem_allocator.mems_used[fn])
+                for op in inst.operands:
+                    if not isinstance(op, IRAbstractMemLoc):
+                        continue
+                    curr.add(op.no_offset())
             self.liveat[inst] = curr.copy()
 
         if before != self.liveat[bb.instructions[0]]:
@@ -167,6 +188,11 @@ class MemLiveness:
                 if not isinstance(op, IRAbstractMemLoc):
                     continue
                 curr.add(op.no_offset())
+            if inst.opcode == "invoke":
+                label = inst.operands[0]
+                assert isinstance(label, IRLabel)
+                fn = self.function.ctx.get_function(label)
+                curr.addmany(self.mem_allocator.mems_used[fn])
             self.used[inst] = curr.copy()
         return before != curr
 

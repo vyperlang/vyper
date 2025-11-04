@@ -1,17 +1,18 @@
 from typing import Any
 
 from vyper.venom.basicblock import IRAbstractMemLoc, IRLiteral
+from vyper.utils import OrderedSet
 
 
 class MemoryAllocator:
     allocated: dict[int, tuple[int, int]]
     curr: int
-    function_mem_used: dict[Any, int]
+    mems_used: dict[Any, OrderedSet[IRAbstractMemLoc]]
 
     def __init__(self):
         self.curr = 0
         self.allocated = dict()
-        self.function_mem_used = dict()
+        self.mems_used = dict()
 
     def allocate(self, size: int | IRLiteral) -> tuple[int, int]:
         if isinstance(size, IRLiteral):
@@ -27,10 +28,8 @@ class MemoryAllocator:
         self.allocated[mem_loc._id] = res
         return res[0]
 
-    def start_fn_allocation(self, callsites_used: int):
-        self.before = self.curr
-        self.curr = callsites_used
+    def start_fn_allocation(self):
+        self.curr = 64
 
-    def end_fn_allocation(self, fn):
-        self.function_mem_used[fn] = self.curr
-        self.curr = self.before
+    def end_fn_allocation(self, mems: list[IRAbstractMemLoc], fn):
+        self.mems_used[fn] = OrderedSet(mems)
