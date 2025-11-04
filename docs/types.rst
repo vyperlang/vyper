@@ -9,11 +9,13 @@ Vyper is a statically typed language. The type of each variable (state and local
 
 In addition, types can interact with each other in expressions containing operators.
 
-Unlike in some other languages, there are no sub-categories of types. Values are always copied when assigned to a variable, or when passed to a function (also known as call-by-value). That means that, a calling function never needs to worry about a callee modifying the data of a passed structure.
+Unlike in some other languages, there are no sub-categories of types. Values are always copied, both when assigned to a variable and when passed to a function (also known as call-by-value). This means a calling function never needs to worry about a callee modifying the data of a passed structure.
 
 .. note::
 
-    However neither values nor variables are immutable. Variables can be reassigned to values of the same type. And values of some types (for example arrays and structs) have operations that modify them in place, usually by assigning to their members directly: `my_array[0] = 42`.
+    However neither parameters of :ref:`structure-functions-internal` nor variables are immutable. They can be reassigned to values of the same type. Furthermore, some types (for example arrays and structs) have operations that modify them in place, usually by assigning to their members directly (for example ``my_array[0] = 42``).
+
+    Parameters of :ref:`structure-functions-external` are immutable. They can neither be reassigned nor modified in place.
 
 .. index:: ! bool, ! true, ! false
 
