@@ -290,7 +290,7 @@ class ModuleT(VyperType):
     _attribute_in_annotation = True
     _as_array = False
     _as_hashmap_key = False
-    _as_tuple_member = False
+    is_valid_member_type = False
     _invalid_locations = (
         DataLocation.STORAGE,
         DataLocation.CALLDATA,

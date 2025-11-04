@@ -33,7 +33,7 @@ class _UserType(VyperType):
         super().__init__(members=members)
         if members is not None:
             for mt in members.values():
-                if not mt._as_tuple_member:
+                if not mt.is_valid_member_type:
                     raise StructureException(f"not a valid {self.typeclass} member: {mt}")
 
     def __eq__(self, other):
