@@ -34,6 +34,7 @@ class ConcretizeMemLocPass(IRPass):
         livesets = list(self.mem_liveness.livesets.items())
         livesets.sort(key=lambda x: len(x[1]), reverse=False)
 
+        max_curr = 0
         for index, (mem, insts) in enumerate(livesets):
             curr = orig
             for i in range(index):
@@ -44,6 +45,9 @@ class ConcretizeMemLocPass(IRPass):
                 curr = max(place[0] + place[1], curr)
             mem_allocator.curr = curr
             mem_allocator.get_place(mem)
+            max_curr = max(mem_allocator.curr, max_curr)
+
+        mem_allocator.curr = max_curr
 
         for bb in self.function.get_basic_blocks():
             self._handle_bb(bb)
@@ -95,10 +99,13 @@ class MemLiveness:
     liveat: dict[IRInstruction, OrderedSet[IRAbstractMemLoc]]
     livesets: dict[IRAbstractMemLoc, OrderedSet[IRInstruction]]
 
+    used: dict[IRInstruction, OrderedSet[IRAbstractMemLoc]]
+
     def __init__(self, function: IRFunction, cfg: CFGAnalysis, dfg: DFGAnalysis):
         self.function = function
         self.cfg = cfg
         self.dfg = dfg
+        self.used = defaultdict(OrderedSet)
         self.liveat = defaultdict(OrderedSet)
 
     def analyze(self):
@@ -113,7 +120,8 @@ class MemLiveness:
         self.livesets = defaultdict(OrderedSet)
         for inst, mems in self.liveat.items():
             for mem in mems:
-                self.livesets[mem].add(inst)
+                if mem in self.used[inst]:
+                    self.livesets[mem].add(inst)
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
         curr: OrderedSet[IRAbstractMemLoc] = OrderedSet()
@@ -145,7 +153,24 @@ class MemLiveness:
         if before != self.liveat[bb.instructions[0]]:
             return True
 
-        return False
+        return self._handle_used(bb)
+
+    def _handle_used(self, bb: IRBasicBlock) -> bool:
+        curr: OrderedSet[IRAbstractMemLoc] = OrderedSet(self.function.allocated_args.values())
+        if len(succs := self.cfg.cfg_in(bb)) > 0:
+            for other in (self.used[succ.instructions[-1]] for succ in succs):
+                curr.update(other)
+
+        before = self.used[bb.instructions[-1]]
+        for inst in bb.instructions:
+            for op in inst.operands:
+                if not isinstance(op, IRAbstractMemLoc):
+                    continue
+                curr.add(op.no_offset())
+            self.used[inst] = curr.copy()
+        return before != curr
+
+
 
     def _follow_op(self, op: IROperand | None) -> set[IRAbstractMemLoc]:
         if op is None:
