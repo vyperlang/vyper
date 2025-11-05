@@ -21,7 +21,6 @@ from vyper.venom.basicblock import (
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction, IRParameter
 
-ENABLE_NEW_CALL_CONV = True
 # Experimental: allow returning multiple 32-byte values via the stack
 ENABLE_MULTI_RETURNS = True
 MAX_STACK_RETURNS = 3
@@ -184,9 +183,6 @@ def _append_return_args(fn: IRFunction, ofst: int = 0, size: int = 0):
 def _pass_via_stack(func_t) -> dict[str, bool]:
     # returns a dict which returns True if a given argument (referred to
     # by name) should be passed via the stack
-    if not ENABLE_NEW_CALL_CONV:
-        return {arg.name: False for arg in func_t.arguments}
-
     arguments = {arg.name: arg for arg in func_t.arguments}
 
     stack_items = 0
@@ -216,9 +212,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     assert func_t is not None, "func_t not found in passthrough metadata"
 
     returns_word = _returns_word(func_t)
-    returns_count = (
-        _returns_stack_count(func_t) if ENABLE_NEW_CALL_CONV else (1 if returns_word else 0)
-    )
+    returns_count = _returns_stack_count(func_t)
 
     if setup_ir != goto_ir:
         _convert_ir_bb(fn, setup_ir, symbols)
@@ -235,7 +229,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     if len(converted_args) > 1:
         return_buf = converted_args[0]
     # For multi-return via stack without a provided buffer, synthesize one
-    if ENABLE_NEW_CALL_CONV and returns_count > 0 and return_buf is None:
+    if returns_count > 0 and return_buf is None:
         tmp_buf = bb.append_instruction("alloca", 0, 32 * returns_count, get_scratch_alloca_id())
         assert tmp_buf is not None
         return_buf = tmp_buf
@@ -243,33 +237,32 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     stack_args: list[IROperand] = [IRLabel(str(target_label))]
 
     if return_buf is not None:
-        if not ENABLE_NEW_CALL_CONV or returns_count == 0:
+        if returns_count == 0:
             stack_args.append(return_buf)  # type: ignore
 
     callsite_args = _callsites[callsite]
-    if ENABLE_NEW_CALL_CONV:
-        for alloca in callsite_args:
-            if not _pass_via_stack(func_t)[alloca.name]:
-                continue
-            ptr = _alloca_table[alloca._id]
-            stack_arg = bb.append_instruction("mload", ptr)
-            assert stack_arg is not None
-            stack_args.append(stack_arg)
+    for alloca in callsite_args:
+        if not _pass_via_stack(func_t)[alloca.name]:
+            continue
+        ptr = _alloca_table[alloca._id]
+        stack_arg = bb.append_instruction("mload", ptr)
+        assert stack_arg is not None
+        stack_args.append(stack_arg)
 
-        if returns_count > 0:
-            outs = bb.append_invoke_instruction(stack_args, returns=returns_count)  # type: ignore
-            assert isinstance(return_buf, IROperand)
-            for i, outv in enumerate(outs):
-                if i == 0:
-                    dst = return_buf
-                else:
-                    ofst = bb.append_instruction("assign", IRLiteral(32 * i))
-                    assert ofst is not None
-                    new_dst = bb.append_instruction("add", return_buf, ofst)
-                    assert new_dst is not None
-                    dst = new_dst
-                bb.append_instruction("mstore", outv, dst)
-            return return_buf
+    if returns_count > 0:
+        outs = bb.append_invoke_instruction(stack_args, returns=returns_count)  # type: ignore
+        assert isinstance(return_buf, IROperand)
+        for i, outv in enumerate(outs):
+            if i == 0:
+                dst = return_buf
+            else:
+                ofst = bb.append_instruction("assign", IRLiteral(32 * i))
+                assert ofst is not None
+                new_dst = bb.append_instruction("add", return_buf, ofst)
+                assert new_dst is not None
+                dst = new_dst
+            bb.append_instruction("mstore", outv, dst)
+        return return_buf
 
     bb.append_invoke_instruction(stack_args, returns=0)  # type: ignore
 
@@ -293,8 +286,6 @@ def _returns_word(func_t) -> bool:
 def _returns_stack_count(func_t) -> int:
     ret_t = func_t.return_type
     if ret_t is None:
-        return 0
-    if not ENABLE_NEW_CALL_CONV:
         return 0
     if ENABLE_MULTI_RETURNS and isinstance(ret_t, TupleT):
         members = ret_t.member_types
@@ -333,7 +324,7 @@ def _handle_internal_func(
 
     # return buffer
     if does_return_data:
-        if ENABLE_NEW_CALL_CONV and returns_count > 0:
+        if returns_count > 0:
             # TODO: remove this once we have proper memory allocator
             # functionality in venom. Currently, we hardcode the scratch
             # buffer size of up to 32 * MAX_STACK_RETURNS (3) bytes.
@@ -348,32 +339,31 @@ def _handle_internal_func(
         assert buf is not None  # help mypy
         symbols["return_buffer"] = buf
 
-    if ENABLE_NEW_CALL_CONV:
-        stack_index = 0
-        if func_t.return_type is not None and _returns_stack_count(func_t) == 0:
-            stack_index += 1
-        for arg in func_t.arguments:
-            if not _pass_via_stack(func_t)[arg.name]:
-                continue
+    stack_index = 0
+    if func_t.return_type is not None and _returns_stack_count(func_t) == 0:
+        stack_index += 1
+    for arg in func_t.arguments:
+        if not _pass_via_stack(func_t)[arg.name]:
+            continue
 
-            param = bb.append_instruction("param")
-            bb.instructions[-1].annotation = arg.name
-            assert param is not None  # help mypy
+        param = bb.append_instruction("param")
+        bb.instructions[-1].annotation = arg.name
+        assert param is not None  # help mypy
 
-            var = context.lookup_var(arg.name)
+        var = context.lookup_var(arg.name)
 
-            venom_arg = IRParameter(
-                name=var.name,
-                index=stack_index,
-                offset=var.alloca.offset,
-                size=var.alloca.size,
-                id_=var.alloca._id,
-                call_site_var=None,
-                func_var=param,
-                addr_var=None,
-            )
-            fn.args.append(venom_arg)
-            stack_index += 1
+        venom_arg = IRParameter(
+            name=var.name,
+            index=stack_index,
+            offset=var.alloca.offset,
+            size=var.alloca.size,
+            id_=var.alloca._id,
+            call_site_var=None,
+            func_var=param,
+            addr_var=None,
+        )
+        fn.args.append(venom_arg)
+        stack_index += 1
 
     # return address
     return_pc = bb.append_instruction("param")
@@ -608,7 +598,7 @@ def _convert_ir_bb(fn, ir, symbols):
         if label.value == "return_pc":
             label = symbols.get("return_pc")
             # return label should be top of stack
-            k = _returns_stack_count(_current_func_t) if ENABLE_NEW_CALL_CONV else 0
+            k = _returns_stack_count(_current_func_t)
             if k > 0:
                 buf = symbols["return_buffer"]
                 ret_vals: list[IROperand] = []
@@ -746,7 +736,7 @@ def _convert_ir_bb(fn, ir, symbols):
                 bb = fn.get_basic_block()
                 ptr = bb.append_instruction("palloca", alloca.offset, alloca.size, alloca._id)
                 bb.instructions[-1].annotation = f"{alloca.name} (memory)"
-                if ENABLE_NEW_CALL_CONV and _pass_via_stack(_current_func_t)[alloca.name]:
+                if _pass_via_stack(_current_func_t)[alloca.name]:
                     param = fn.get_param_by_id(alloca._id)
                     assert param is not None
                     bb.append_instruction("mstore", param.func_var, ptr)
@@ -760,7 +750,7 @@ def _convert_ir_bb(fn, ir, symbols):
                 bb = fn.get_basic_block()
 
                 callsite_func = ir.passthrough_metadata["callsite_func"]
-                if ENABLE_NEW_CALL_CONV and _pass_via_stack(callsite_func)[alloca.name]:
+                if _pass_via_stack(callsite_func)[alloca.name]:
                     ptr = bb.append_instruction("alloca", alloca.offset, alloca.size, alloca._id)
                 else:
                     # if we use alloca, mstores might get removed. convert
