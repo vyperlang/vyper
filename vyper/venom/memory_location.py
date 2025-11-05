@@ -43,9 +43,6 @@ class MemoryLocation:
                 return MemoryLocationConcrete(_offset=None, _size=_size)
             else:
                 return MemoryLocationAbstract(op=op, _offset=None, _size=_size)
-        elif isinstance(offset, int):
-            _offset = offset
-            return MemoryLocationConcrete(_offset, _size)
         elif isinstance(offset, IRAbstractMemLoc):
             op = offset
             return MemoryLocationAbstract(op=op, _offset=op.offset, _size=_size)
@@ -221,14 +218,6 @@ class MemoryLocationConcrete(MemoryLocation):
         start2, end2 = other.offset, other.offset + other.size
 
         return start1 <= start2 and end1 >= end2
-
-    def get_size_lit(self) -> IRLiteral:
-        assert self._size is not None
-        return IRLiteral(self._size)
-
-    def get_offset_lit(self, offset=0) -> IRLiteral:
-        assert self._offset is not None
-        return IRLiteral(self._offset + offset)
 
     @staticmethod
     def may_overlap_concrete(loc1: MemoryLocationConcrete, loc2: MemoryLocationConcrete) -> bool:
