@@ -396,12 +396,6 @@ class VenomCompiler:
         if opcode in ["jmp", "djmp", "jnz", "invoke"]:
             operands = list(inst.get_non_label_operands())
 
-        elif opcode in ("alloca", "palloca", "calloca"):
-            assert len(inst.operands) == 3, inst
-            _offset, size, _id = inst.operands
-            assert isinstance(size, IRLiteral)
-            operands = [IRLiteral(self.ctx.mem_allocator.allocate(size.value)[0])]
-
         # iload and istore are special cases because they can take a literal
         # that is handled specialy with the _OFST macro. Look below, after the
         # stack reordering.
