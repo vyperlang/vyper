@@ -54,7 +54,7 @@ def generate_assembly_experimental(
 
 
 def _run_passes(
-    fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache, alloc: MemoryAllocator
+    fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 ) -> None:
     # Run passes on Venom IR
     # TODO: Add support for optimization levels
@@ -72,7 +72,7 @@ def _run_passes(
     SimplifyCFGPass(ac, fn).run_pass()
 
     AssignElimination(ac, fn).run_pass()
-    Mem2Var(ac, fn).run_pass(alloc)
+    Mem2Var(ac, fn).run_pass()
     MakeSSA(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
@@ -100,7 +100,7 @@ def _run_passes(
 
     PhiEliminationPass(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
-    ConcretizeMemLocPass(ac, fn).run_pass(alloc)
+    ConcretizeMemLocPass(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
     DeadStoreElimination(ac, fn).run_pass(addr_space=MEMORY)
@@ -179,7 +179,7 @@ def _run_fn_passes_r(
     for next_fn in fcg.get_callees(fn):
         _run_fn_passes_r(ctx, fcg, next_fn, optimize, ir_analyses, visited)
 
-    _run_passes(fn, optimize, ir_analyses[fn], ctx.mem_allocator)
+    _run_passes(fn, optimize, ir_analyses[fn])
 
 
 def generate_venom(

@@ -19,21 +19,21 @@ from vyper.venom.passes.base_pass import IRPass
 class ConcretizeMemLocPass(IRPass):
     allocated_in_bb: dict[IRBasicBlock, int]
 
-    def run_pass(self, mem_allocator: MemoryAllocator):
-        self.allocator = mem_allocator
+    def run_pass(self):
+        self.allocator = self.function.ctx.mem_allocator
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
-        mem_allocator.start_fn_allocation()
+        self.allocator.start_fn_allocation()
 
-        orig = mem_allocator.curr
+        orig = self.allocator.curr
 
-        self.mem_liveness = MemLiveness(self.function, self.cfg, self.dfg, mem_allocator)
+        self.mem_liveness = MemLiveness(self.function, self.cfg, self.dfg, self.allocator)
         self.mem_liveness.analyze()
 
         livesets = list(self.mem_liveness.livesets.items())
-        already_allocated = [item for item in livesets if item[0]._id in mem_allocator.allocated]
-        livesets = [item for item in livesets if item[0]._id not in mem_allocator.allocated]
+        already_allocated = [item for item in livesets if item[0]._id in self.allocator.allocated]
+        livesets = [item for item in livesets if item[0]._id not in self.allocator.allocated]
         livesets.sort(key=lambda x: len(x[1]), reverse=False)
 
         max_curr = 0
@@ -42,19 +42,19 @@ class ConcretizeMemLocPass(IRPass):
             for before_mem, before_insts in already_allocated:
                 if len(OrderedSet.intersection(insts, before_insts)) == 0:
                     continue
-                place = mem_allocator.allocated[before_mem._id]
+                place = self.allocator.allocated[before_mem._id]
                 curr = max(place[0] + place[1], curr)
             for i in range(index):
                 before_mem, before_insts = livesets[i]
                 if len(OrderedSet.intersection(insts, before_insts)) == 0:
                     continue
-                place = mem_allocator.allocated[before_mem._id]
+                place = self.allocator.allocated[before_mem._id]
                 curr = max(place[0] + place[1], curr)
-            mem_allocator.curr = curr
-            mem_allocator.allocate(mem)
-            max_curr = max(mem_allocator.curr, max_curr)
+            self.allocator.curr = curr
+            self.allocator.allocate(mem)
+            max_curr = max(self.allocator.curr, max_curr)
 
-        mem_allocator.curr = max_curr
+        self.allocator.curr = max_curr
 
         for bb in self.function.get_basic_blocks():
             self._handle_bb(bb)
@@ -62,7 +62,7 @@ class ConcretizeMemLocPass(IRPass):
         all_allocated = [item[0] for item in already_allocated]
         all_allocated.extend([item[0] for item in livesets])
 
-        mem_allocator.end_fn_allocation(all_allocated, fn=self.function)
+        self.allocator.end_fn_allocation(all_allocated, fn=self.function)
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
@@ -86,6 +86,9 @@ class ConcretizeMemLocPass(IRPass):
         else:
             return op
 
+
+# 
+_CALL_OPCODES = frozenset(["invoke", "staticcall", "call", "delegatecall"])
 
 class MemLiveness:
     function: IRFunction
@@ -139,22 +142,26 @@ class MemLiveness:
             write_ops = self._follow_op(write_op)
             read_op = _get_memory_read_op(inst)
             read_ops = self._follow_op(read_op)
+
             for write_op in write_ops:
                 assert isinstance(write_op, IRAbstractMemLoc)
                 size = _get_write_size(inst)
                 assert size is not None
                 if not isinstance(size, IRLiteral):
                     continue
-                if write_op in curr and size == write_op.size:
+                if write_op in curr and size.value == write_op.size:
                     curr.remove(write_op.no_offset())
             for read_op in read_ops:
                 assert isinstance(read_op, IRAbstractMemLoc)
                 curr.add(read_op.no_offset())
+
             if inst.opcode == "invoke":
                 label = inst.operands[0]
                 assert isinstance(label, IRLabel)
                 fn = self.function.ctx.get_function(label)
                 curr.addmany(self.mem_allocator.mems_used[fn])
+            
+            if inst.opcode in _CALL_OPCODES:
                 for op in inst.operands:
                     if not isinstance(op, IRAbstractMemLoc):
                         continue

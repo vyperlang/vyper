@@ -16,8 +16,8 @@ class Mem2Var(IRPass):
 
     function: IRFunction
 
-    def run_pass(self, mem_alloc):
-        self.mem_alloc = mem_alloc
+    def run_pass(self):
+        self.mem_alloc = self.function.ctx.mem_allocator
         self.analyses_cache.request_analysis(CFGAnalysis)
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(dfg)
