@@ -195,8 +195,8 @@ def generate_venom(
 
     # these mem location are used sha3_64 instruction
     # with concrete value so I need to allocate it here
-    ctx.mem_allocator.get_place(IRAbstractMemLoc.FREE_VAR1)
-    ctx.mem_allocator.get_place(IRAbstractMemLoc.FREE_VAR2)
+    ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR1)
+    ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR2)
 
     for fn in ctx.functions.values():
         fix_mem_loc(fn)

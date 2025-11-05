@@ -51,7 +51,7 @@ class ConcretizeMemLocPass(IRPass):
                 place = mem_allocator.allocated[before_mem._id]
                 curr = max(place[0] + place[1], curr)
             mem_allocator.curr = curr
-            mem_allocator.get_place(mem)
+            mem_allocator.allocate(mem)
             max_curr = max(mem_allocator.curr, max_curr)
 
         mem_allocator.curr = max_curr
@@ -82,7 +82,7 @@ class ConcretizeMemLocPass(IRPass):
         if isinstance(op, IRAbstractMemLoc) and op._id in self.allocator.allocated:
             return IRLiteral(self.allocator.allocated[op._id][0] + op.offset)
         elif isinstance(op, IRAbstractMemLoc):
-            return IRLiteral(self.allocator.get_place(op) + op.offset)
+            return IRLiteral(self.allocator.allocate(op) + op.offset)
         else:
             return op
 

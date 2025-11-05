@@ -14,19 +14,11 @@ class MemoryAllocator:
         self.allocated = dict()
         self.mems_used = dict()
 
-    def allocate(self, size: int | IRLiteral) -> tuple[int, int]:
-        if isinstance(size, IRLiteral):
-            size = size.value
-        res = self.curr
-        self.curr += size
-        return res, size
-
-    def get_place(self, mem_loc: IRAbstractMemLoc) -> int:
-        if mem_loc._id in self.allocated:
-            return self.allocated[mem_loc._id][0]
-        res = self.allocate(mem_loc.size)
-        self.allocated[mem_loc._id] = res
-        return res[0]
+    def allocate(self, mem_loc: IRAbstractMemLoc) -> int:
+        ptr = self.curr
+        self.curr += mem_loc.size
+        self.allocated[mem_loc._id] = (ptr, mem_loc.size)
+        return ptr
 
     def start_fn_allocation(self):
         self.curr = 64
