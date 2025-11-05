@@ -3,7 +3,7 @@ from typing import Optional
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis
-from vyper.venom.basicblock import IRInstruction, IRVariable, IRAbstractMemLoc
+from vyper.venom.basicblock import IRAbstractMemLoc, IRInstruction, IRVariable
 from vyper.venom.memory_location import MemoryLocation, get_read_location, get_write_location
 
 
@@ -44,7 +44,7 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
             next_inst = self.dfg.get_producing_instruction(place)
             assert next_inst is not None
             place = self._follow_get(next_inst)
-        
+
         assert isinstance(place, IRAbstractMemLoc)
         return place
 

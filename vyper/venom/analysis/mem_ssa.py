@@ -11,7 +11,7 @@ from vyper.venom.analysis.mem_alias import (
     TransientAliasAnalysis,
 )
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
-from vyper.venom.memory_location import MemoryLocation, get_read_location, get_write_location
+from vyper.venom.memory_location import MemoryLocation
 
 
 class MemoryAccess:
@@ -194,14 +194,18 @@ class MemSSAAbstract(IRAnalysis):
         """Process memory definitions and uses in a basic block"""
         for inst in block.instructions:
             # Check for memory reads
-            if (loc := self.memalias._get_read_location(inst, self.addr_space)) != MemoryLocation.EMPTY:
+            if (
+                loc := self.memalias._get_read_location(inst, self.addr_space)
+            ) != MemoryLocation.EMPTY:
                 mem_use = MemoryUse(self.next_id, inst, loc)
                 self.next_id += 1
                 self.memory_uses.setdefault(block, []).append(mem_use)
                 self.inst_to_use[inst] = mem_use
 
             # Check for memory writes
-            if (loc := self.memalias._get_write_location(inst, self.addr_space)) != MemoryLocation.EMPTY:
+            if (
+                loc := self.memalias._get_write_location(inst, self.addr_space)
+            ) != MemoryLocation.EMPTY:
                 mem_def = MemoryDef(self.next_id, inst, loc)
                 self.next_id += 1
                 self.memory_defs.setdefault(block, []).append(mem_def)

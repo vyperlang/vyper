@@ -86,21 +86,6 @@ class ConcretizeMemLocPass(IRPass):
         else:
             return op
 
-    def _get_used(self, mem_alloc: MemoryAllocator) -> int:
-        max_used = mem_alloc.curr
-        for bb in self.function.get_basic_blocks():
-            for inst in bb.instructions:
-                if inst.opcode != "invoke":
-                    continue
-
-                callee_label = inst.operands[0]
-                assert isinstance(callee_label, IRLabel)
-                callee = self.function.ctx.get_function(callee_label)
-
-                max_used = max(max_used, mem_alloc.function_mem_used[callee])
-
-        return max_used
-
 
 class MemLiveness:
     function: IRFunction
@@ -112,7 +97,13 @@ class MemLiveness:
 
     used: dict[IRInstruction, OrderedSet[IRAbstractMemLoc]]
 
-    def __init__(self, function: IRFunction, cfg: CFGAnalysis, dfg: DFGAnalysis, mem_allocator: MemoryAllocator):
+    def __init__(
+        self,
+        function: IRFunction,
+        cfg: CFGAnalysis,
+        dfg: DFGAnalysis,
+        mem_allocator: MemoryAllocator,
+    ):
         self.function = function
         self.cfg = cfg
         self.dfg = dfg
@@ -195,8 +186,6 @@ class MemLiveness:
                 curr.addmany(self.mem_allocator.mems_used[fn])
             self.used[inst] = curr.copy()
         return before != curr
-
-
 
     def _follow_op(self, op: IROperand | None) -> set[IRAbstractMemLoc]:
         if op is None:

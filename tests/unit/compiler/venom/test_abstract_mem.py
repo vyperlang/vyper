@@ -1,5 +1,6 @@
-from vyper.venom.memory_location import MemoryLocationAbstract, MemoryLocation
 from vyper.venom.basicblock import IRAbstractMemLoc
+from vyper.venom.memory_location import MemoryLocation, MemoryLocationAbstract
+
 
 def test_abstract_may_overlap():
     op1 = IRAbstractMemLoc(256, offset=0, force_id=0)

@@ -16,7 +16,12 @@ class MemoryLocation:
 
     @classmethod
     def from_operands(
-            cls, offset: IROperand | int, size: IROperand | int, translates: dict, /, is_volatile: bool = False
+        cls,
+        offset: IROperand | int,
+        size: IROperand | int,
+        translates: dict,
+        /,
+        is_volatile: bool = False,
     ) -> MemoryLocation:
         if isinstance(size, IRLiteral):
             _size = size.value
@@ -46,7 +51,6 @@ class MemoryLocation:
             return MemoryLocationAbstract(op=op, _offset=op.offset, _size=_size)
         else:  # pragma: nocover
             raise CompilerPanic(f"invalid offset: {offset} ({type(offset)})")
-
 
     @property
     def offset(self) -> int | None:
