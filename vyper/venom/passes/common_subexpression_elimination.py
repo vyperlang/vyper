@@ -81,7 +81,7 @@ class CSE(IRPass):
                     continue
                 if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
                     continue
-                if inst.num_outputs() > 1:
+                if inst.num_outputs > 1:
                     continue
                 state = self.expression_analysis.get_expression(inst)
                 if state is None:

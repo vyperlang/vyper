@@ -320,6 +320,7 @@ class IRInstruction:
         """
         return list(self._outputs)
 
+    @property
     def num_outputs(self) -> int:
         """
         Return how many outputs this instruction produces.
@@ -546,7 +547,11 @@ class IRBasicBlock:
         # Wrap raw integers in IRLiterals
         inst_args = [_ir_operand_from_value(arg) for arg in args]
 
-        inst = IRInstruction(opcode, inst_args, [ret] if ret else None)
+        outputs = None
+        if ret is not None:
+            outputs = [ret]
+
+        inst = IRInstruction(opcode, inst_args, outputs)
         inst.parent = self
         inst.ast_source = self.parent.ast_source
         inst.error_msg = self.parent.error_msg

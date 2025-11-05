@@ -148,8 +148,8 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
         for bb in caller.get_basic_blocks():
             for inst in bb.instructions:
                 # Disallow multi-output except on invoke
-                got_num = inst.num_outputs()
-                if inst.num_outputs() > 1 and inst.opcode != "invoke":
+                got_num = inst.num_outputs
+                if got_num > 1 and inst.opcode != "invoke":
                     errors.append(MultiOutputNonInvoke(caller, inst))
                     continue
                 if inst.opcode != "invoke":
