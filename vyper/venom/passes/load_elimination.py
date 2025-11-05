@@ -17,8 +17,7 @@ from vyper.venom.passes.base_pass import InstUpdater, IRPass
 Lattice = dict[IROperand, OrderedSet[IROperand]]
 
 
-def _conflict_lit(store_opcode: str, k1: int, k2: int):
-    ptr1, ptr2 = k1, k2
+def _conflict_lit(store_opcode: str, ptr1: int, ptr2: int):
     if store_opcode == "mstore":
         return abs(ptr1 - ptr2) < 32
     assert store_opcode in ("sstore", "tstore"), "unhandled store opcode"
@@ -44,8 +43,7 @@ def _conflict(
 
     assert isinstance(k1, IRLiteral) and isinstance(k2, IRLiteral)
     ptr1, ptr2 = k1.value, k2.value
-    assert store_opcode in ("sstore", "tstore"), "unhandled store opcode"
-    return abs(ptr1 - ptr2) < 1
+    return _conflict_lit(store_opcode, ptr1, ptr2)
 
 
 class LoadAnalysis(IRAnalysis):
