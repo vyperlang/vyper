@@ -142,8 +142,7 @@ class MemLiveness:
             for write_op in write_ops:
                 assert isinstance(write_op, IRAbstractMemLoc)
                 size = _get_write_size(inst)
-                if size is None:
-                    continue
+                assert size is not None
                 if not isinstance(size, IRLiteral):
                     continue
                 if write_op in curr and size == write_op.size:
