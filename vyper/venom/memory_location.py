@@ -50,27 +50,27 @@ class MemoryLocation:
             raise CompilerPanic(f"invalid offset: {offset} ({type(offset)})")
 
     @property
-    def offset(self) -> int | None:
+    def offset(self) -> int | None: # pragma: nocover
         raise NotImplementedError
 
     @property
-    def size(self) -> int | None:
+    def size(self) -> int | None: # pragma: nocover
         raise NotImplementedError
 
     @property
-    def is_offset_fixed(self) -> bool:
+    def is_offset_fixed(self) -> bool: # pragma: nocover
         raise NotImplementedError
 
     @property
-    def is_size_fixed(self) -> bool:
+    def is_size_fixed(self) -> bool: # pragma: nocover
         raise NotImplementedError
 
     @property
-    def is_fixed(self) -> bool:
+    def is_fixed(self) -> bool: # pragma: nocover
         raise NotImplementedError
 
     @property
-    def is_volatile(self) -> bool:
+    def is_volatile(self) -> bool: # pragma: nocover
         raise NotImplementedError
 
     @staticmethod
@@ -91,10 +91,10 @@ class MemoryLocation:
             return MemoryLocationAbstract.may_overlap_abstract(loc1, loc2)
         return False
 
-    def completely_contains(self, other: MemoryLocation) -> bool:
+    def completely_contains(self, other: MemoryLocation) -> bool: # pragma: nocover
         raise NotImplementedError
 
-    def create_volatile(self) -> MemoryLocation:
+    def create_volatile(self) -> MemoryLocation: # pragma: nocover
         raise NotImplementedError
 
 
