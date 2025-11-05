@@ -1,7 +1,7 @@
 from typing import Any
 
 from vyper.utils import OrderedSet
-from vyper.venom.basicblock import IRAbstractMemLoc, IRLiteral
+from vyper.venom.basicblock import IRAbstractMemLoc
 
 
 class MemoryAllocator:

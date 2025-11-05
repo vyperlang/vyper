@@ -53,9 +53,7 @@ def generate_assembly_experimental(
     return compiler.generate_evm_assembly(optimize == OptimizationLevel.NONE)
 
 
-def _run_passes(
-    fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
-) -> None:
+def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache) -> None:
     # Run passes on Venom IR
     # TODO: Add support for optimization levels
 

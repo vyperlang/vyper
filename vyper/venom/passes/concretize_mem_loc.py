@@ -87,8 +87,9 @@ class ConcretizeMemLocPass(IRPass):
             return op
 
 
-# 
+#
 _CALL_OPCODES = frozenset(["invoke", "staticcall", "call", "delegatecall"])
+
 
 class MemLiveness:
     function: IRFunction
@@ -160,7 +161,7 @@ class MemLiveness:
                 assert isinstance(label, IRLabel)
                 fn = self.function.ctx.get_function(label)
                 curr.addmany(self.mem_allocator.mems_used[fn])
-            
+
             if inst.opcode in _CALL_OPCODES:
                 for op in inst.operands:
                     if not isinstance(op, IRAbstractMemLoc):

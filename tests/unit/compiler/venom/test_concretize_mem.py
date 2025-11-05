@@ -1,8 +1,8 @@
-from tests.venom_utils import PrePostChecker, parse_venom
+from tests.venom_utils import PrePostChecker
 from vyper.venom.passes import ConcretizeMemLocPass
 
-
 _check_pre_post = PrePostChecker([ConcretizeMemLocPass], default_hevm=False)
+
 
 def test_valid_overlap():
     pre = """
