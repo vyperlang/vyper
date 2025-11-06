@@ -581,6 +581,7 @@ def foobar():
     """,
 ]
 
+
 def test_interface_file_type_check(make_input_bundle):
     interface_code = """
 """
@@ -595,7 +596,10 @@ implements: Foo
     with pytest.raises(StructureException) as e:
         compiler.compile_code(code, input_bundle=input_bundle)
 
-    assert e.value._message == "Not an interface! (Since vyper v0.4.0, interface files are required to have a .vyi suffix.)"
+    assert (
+        e.value._message
+        == "Not an interface! (Since vyper v0.4.0, interface files are required to have a .vyi suffix.)"
+    )
 
 
 @pytest.mark.parametrize("code", invalid_visibility_code)
