@@ -581,6 +581,22 @@ def foobar():
     """,
 ]
 
+def test_interface_file_type_check(make_input_bundle):
+    interface_code = """
+"""
+
+    input_bundle = make_input_bundle({"foo.vy": interface_code})
+
+    code = """
+import foo as Foo
+
+implements: Foo
+"""
+    with pytest.raises(StructureException) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert e.value._message == "Not an interface! (Since vyper v0.4.0, interface files are required to have a .vyi suffix.)"
+
 
 @pytest.mark.parametrize("code", invalid_visibility_code)
 def test_internal_visibility_in_interface(make_input_bundle, code):
