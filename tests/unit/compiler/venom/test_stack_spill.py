@@ -1,3 +1,5 @@
+import pytest
+
 from vyper.ir.compile_ir import Label
 from vyper.venom.basicblock import IRLiteral, IRVariable
 from vyper.venom.context import IRContext
@@ -218,3 +220,42 @@ def test_branch_spill_integration() -> None:
     assert any(idx > join_idx for idx in store_indices)
     assert any(idx < join_idx for idx in load_indices)
     assert any(idx > join_idx for idx in load_indices)
+
+
+def test_dup_op_operand_not_in_stack() -> None:
+    compiler = VenomCompiler(IRContext())
+    stack = StackModel()
+    assembly: list = []
+
+    ops = [IRVariable(f"%{i}") for i in range(5)]
+    for op in ops:
+        stack.push(op)
+
+    not_in_stack = IRVariable("%99")
+
+    with pytest.raises(AssertionError):
+        compiler.dup_op(assembly, stack, not_in_stack)
+
+
+def test_stack_reorder_operand_not_in_stack_but_spilled() -> None:
+    ctx = IRContext()
+    compiler = VenomCompiler(ctx)
+    compiler.dfg = _dummy_dfg()
+
+    stack = StackModel()
+    for i in range(5):
+        stack.push(IRVariable(f"%{i}"))
+
+    spilled_var = IRVariable("%spilled")
+    spilled: dict = {spilled_var: 0x10000}
+
+    assembly: list = []
+
+    # Try to reorder with spilled_var as target (should restore it from memory)
+    compiler._stack_reorder(assembly, stack, [spilled_var], spilled, dry_run=False)
+
+    # Should have restored the spilled variable
+    assert stack.get_depth(spilled_var) == 0  # Should be on top of stack
+    assert spilled_var not in spilled  # Should have been removed from spilled dict
+    # Assembly should contain PUSH and MLOAD to restore
+    assert "MLOAD" in assembly
