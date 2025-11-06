@@ -115,7 +115,7 @@ class FunctionInlinerPass(IRGlobalPass):
                             # and both b and c get inlined.
                             calloca_inst = callocas[alloca_id]
                             inst.opcode = "assign"
-                            inst.operands = [calloca_inst.get_output()]
+                            inst.operands = [calloca_inst.output]
                         else:
                             callocas[alloca_id] = inst
 
@@ -129,7 +129,7 @@ class FunctionInlinerPass(IRGlobalPass):
                             continue
                         inst.opcode = "assign"
                         calloca_inst = callocas[alloca_id]
-                        inst.operands = [calloca_inst.get_output()]
+                        inst.operands = [calloca_inst.output]
                         found.add(alloca_id)
 
             for bb in fn.get_basic_blocks():

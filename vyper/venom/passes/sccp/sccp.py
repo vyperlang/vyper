@@ -171,7 +171,7 @@ class SCCP(IRPass):
             in_vars.append(self._lookup_from_lattice(var))
         value = reduce(_meet, in_vars, LatticeEnum.TOP)  # type: ignore
 
-        inst_out = inst.get_output()
+        inst_out = inst.output
         assert inst_out in self.lattice, "unreachable"  # sanity
 
         if value != self._lookup_from_lattice(inst_out):
@@ -189,7 +189,7 @@ class SCCP(IRPass):
 
         if opcode in store_opcodes:
             out = self._eval_from_lattice(inst.operands[0])
-            self._set_lattice(inst.get_output(), out)
+            self._set_lattice(inst.output, out)
             self._add_ssa_work_items(inst)
         elif opcode == "jmp":
             target = self.fn.get_basic_block(inst.operands[0].value)
@@ -233,7 +233,7 @@ class SCCP(IRPass):
         changed.
         """
 
-        out_var = inst.get_output()
+        out_var = inst.output
 
         def finalize(ret):
             # Update the lattice if the value changed

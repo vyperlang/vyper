@@ -55,7 +55,7 @@ class AlgebraicOptimizationPass(IRPass):
                 if iszero_count == 0:
                     continue
 
-                inst_out = inst.get_output()
+                inst_out = inst.output
                 for use_inst in self.dfg.get_uses(inst_out).copy():
                     opcode = use_inst.opcode
 
@@ -125,7 +125,7 @@ class AlgebraicOptimizationPass(IRPass):
     def _handle_inst_peephole(self, inst: IRInstruction):
         if inst.num_outputs != 1:
             return
-        inst_out = inst.get_output()
+        inst_out = inst.output
         if inst.is_volatile:
             return
         if inst.opcode == "assign":
@@ -302,7 +302,7 @@ class AlgebraicOptimizationPass(IRPass):
     def _optimize_comparator_instruction(self, inst, prefer_iszero):
         opcode, operands = inst.opcode, inst.operands
         assert opcode in COMPARATOR_INSTRUCTIONS  # sanity
-        inst_out = inst.get_output()
+        inst_out = inst.output
 
         # (x > x) == (x < x) -> 0
         if operands[0] == operands[1]:
@@ -370,7 +370,7 @@ class AlgebraicOptimizationPass(IRPass):
         if after.opcode == "iszero":
             # peer down the iszero chain to see if it actually makes sense
             # to remove the iszero.
-            n_uses = self.dfg.get_uses(after.get_output())
+            n_uses = self.dfg.get_uses(after.output)
             if len(n_uses) != 1:  # block the optimization
                 return
             # "assert" inserts an iszero in assembly, so we will have

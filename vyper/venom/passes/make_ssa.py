@@ -126,7 +126,7 @@ class MakeSSA(IRPass):
                 if inst.opcode != "phi":
                     continue
                 # Ensure phi has exactly one output
-                _ = inst.get_output()
+                _ = inst.output
                 for i, op in enumerate(inst.operands):
                     if op == basic_block.label:
                         var = inst.operands[i + 1]
@@ -149,7 +149,7 @@ class MakeSSA(IRPass):
                 continue
 
             new_ops: list[IROperand] = []
-            phi_out = inst.get_output()
+            phi_out = inst.output
             for label, op in inst.phi_operands:
                 if op == phi_out:
                     continue

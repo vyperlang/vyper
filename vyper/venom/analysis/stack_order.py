@@ -96,7 +96,7 @@ class StackOrderAnalysis:
 
     def _handle_assign(self, inst: IRInstruction):
         assert inst.opcode == "assign"
-        _ = inst.get_output()  # Assert single output
+        _ = inst.output  # Assert single output
 
         index = inst.parent.instructions.index(inst)
         next_inst = inst.parent.instructions[index + 1]

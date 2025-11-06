@@ -327,7 +327,8 @@ class IRInstruction:
         """
         return len(self._outputs)
 
-    def get_output(self) -> IRVariable:
+    @property
+    def output(self) -> IRVariable:
         """
         Return the single output for instructions with exactly one.
         """

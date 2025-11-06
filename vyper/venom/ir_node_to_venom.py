@@ -23,7 +23,7 @@ from vyper.venom.function import IRFunction, IRParameter
 
 # Experimental: allow returning multiple 32-byte values via the stack
 ENABLE_MULTI_RETURNS = True
-MAX_STACK_RETURNS = 3
+MAX_STACK_RETURNS = 2
 MAX_STACK_ARGS = 6
 
 # Instructions that are mapped to their inverse
@@ -211,7 +211,6 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     func_t = ir.passthrough_metadata["func_t"]
     assert func_t is not None, "func_t not found in passthrough metadata"
 
-    returns_word = _returns_word(func_t)
     returns_count = _returns_stack_count(func_t)
 
     if setup_ir != goto_ir:
