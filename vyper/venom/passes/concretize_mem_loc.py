@@ -144,14 +144,7 @@ class MemLiveness:
             read_op = _get_memory_read_op(inst)
             read_ops = self._follow_op(read_op)
 
-            for write_op in write_ops:
-                assert isinstance(write_op, IRAbstractMemLoc)
-                size = _get_write_size(inst)
-                assert size is not None
-                if not isinstance(size, IRLiteral):
-                    continue
-                if write_op in curr and size.value == write_op.size:
-                    curr.remove(write_op.no_offset())
+
             for read_op in read_ops:
                 assert isinstance(read_op, IRAbstractMemLoc)
                 curr.add(read_op.no_offset())
@@ -167,7 +160,19 @@ class MemLiveness:
                     if not isinstance(op, IRAbstractMemLoc):
                         continue
                     curr.add(op.no_offset())
+
             self.liveat[inst] = curr.copy()
+
+            for write_op in write_ops:
+                assert isinstance(write_op, IRAbstractMemLoc)
+                size = _get_write_size(inst)
+                assert size is not None
+                if not isinstance(size, IRLiteral):
+                    continue
+                if write_op in curr and size.value == write_op.size:
+                    curr.remove(write_op.no_offset())
+                if write_op._id in (op._id for op in read_ops):
+                    curr.add(write_op.no_offset())
 
         if before != self.liveat[bb.instructions[0]]:
             return True
