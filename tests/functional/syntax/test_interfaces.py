@@ -218,6 +218,23 @@ def protected_view_fn() -> String[100]:
     """,
         InterfaceViolation,
     ),
+    (
+        """
+interface ITestInterface:
+    def foo() -> uint256: view
+
+interface ITestInterface2:
+    def bar() -> uint256: view
+
+implements: (
+    ITestInterface,
+    ITestInterface2,
+)
+
+foo: public(constant(uint256)) = 1
+        """,
+        InterfaceViolation,
+    ),
 ]
 
 
@@ -379,6 +396,24 @@ def foo() -> uint256:
 
 @external
 def bar() -> uint256:
+    return 0
+    """,
+    # single method can implement multiple interfaces
+    """
+interface Foo:
+  def foo() -> uint256: nonpayable
+
+interface Foo2:
+  def foo() -> uint256: nonpayable
+
+
+implements: (
+    Foo,
+    Foo2,
+)
+
+@external
+def foo() -> uint256:
     return 0
     """,
     # no namespace collision of interface after storage variable
