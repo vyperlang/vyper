@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 from vyper.evm.assembler.instructions import DATA_ITEM, PUSH, DataHeader
-from vyper.exceptions import CompilerPanic, StackTooDeep
+from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import (
     PUSH_OFST,
     PUSHLABEL,
@@ -26,6 +26,7 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.context import IRContext, IRFunction
 from vyper.venom.stack_model import StackModel
+from vyper.venom.stack_spiller import StackSpiller
 
 DEBUG_SHOW_COST = False
 if DEBUG_SHOW_COST:
@@ -153,12 +154,7 @@ class VenomCompiler:
         self.ctx = ctx
         self.label_counter = 0
         self.visited_basicblocks = OrderedSet()
-        self._spill_free_slots: list[int] = []
-        self._spill_slot_offsets: dict[IRFunction, list[int]] = {}
-        self._spill_insert_index: dict[IRFunction, int] = {}
-        self._next_spill_offset = MemoryPositions.STACK_SPILL_BASE
-        self._next_spill_alloca_id = 0
-        self._current_function: IRFunction | None = None
+        self.spiller = StackSpiller(ctx)
 
     def mklabel(self, name: str) -> Label:
         self.label_counter += 1
@@ -179,12 +175,11 @@ class VenomCompiler:
 
             assert self.cfg.is_normalized(), "Non-normalized CFG!"
 
-            self._current_function = fn
-            self._prepare_spill_state(fn)
-            self._spill_free_slots = []
+            self.spiller.set_current_function(fn)
+            self.spiller.reset_spill_slots()
 
             self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), {})
-            self._current_function = None
+            self.spiller.set_current_function(None)
 
         asm.extend(_REVERT_POSTAMBLE)
         # Append data segment
@@ -219,7 +214,7 @@ class VenomCompiler:
             assert len(assembly) == 0, "Dry run should not work on assembly"
             stack = stack.copy()
             spilled = spilled.copy()
-            spill_free_snapshot = self._spill_free_slots.copy()
+            spill_free_snapshot = self.spiller._spill_free_slots.copy()
         else:
             spill_free_snapshot = []
 
@@ -238,7 +233,9 @@ class VenomCompiler:
 
             if depth == StackModel.NOT_IN_STACK:
                 if isinstance(op, IRVariable) and op in spilled:
-                    self._restore_spilled_operand(assembly, stack, spilled, op, dry_run=dry_run)
+                    self.spiller.restore_spilled_operand(
+                        assembly, stack, spilled, op, dry_run=dry_run
+                    )
                     depth = stack.get_depth(op)
                 else:
                     raise CompilerPanic(f"Variable {op} not in stack")
@@ -261,13 +258,13 @@ class VenomCompiler:
                 stack.poke(depth, to_swap)
                 continue
 
-            cost += self.swap(assembly, stack, depth, dry_run)
-            cost += self.swap(assembly, stack, final_stack_depth, dry_run)
+            cost += self.spiller.swap(assembly, stack, depth, dry_run)
+            cost += self.spiller.swap(assembly, stack, final_stack_depth, dry_run)
 
         assert stack._stack[-len(stack_ops) :] == stack_ops, (stack, stack_ops)
 
         if dry_run:
-            self._spill_free_slots = spill_free_snapshot
+            self.spiller._spill_free_slots = spill_free_snapshot
 
         return cost
 
@@ -285,11 +282,13 @@ class VenomCompiler:
             candidate_depth = self._select_spill_candidate(stack, stack_ops, depth)
             if candidate_depth is None:
                 return False
-            self._spill_operand(assembly, stack, spilled, candidate_depth, dry_run)
+            self.spiller.spill_operand(assembly, stack, spilled, candidate_depth, dry_run)
             depth = stack.get_depth(target_op)
             if depth == StackModel.NOT_IN_STACK:
                 if isinstance(target_op, IRVariable) and target_op in spilled:
-                    self._restore_spilled_operand(assembly, stack, spilled, target_op, dry_run)
+                    self.spiller.restore_spilled_operand(
+                        assembly, stack, spilled, target_op, dry_run
+                    )
                     depth = stack.get_depth(target_op)
                 else:
                     return False
@@ -312,58 +311,6 @@ class VenomCompiler:
             return depth
         return None
 
-    def _spill_operand(
-        self,
-        assembly: list,
-        stack: StackModel,
-        spilled: dict[IROperand, int],
-        depth: int,
-        dry_run: bool,
-    ) -> None:
-        operand = stack.peek(depth)
-        assert isinstance(operand, IRVariable), operand
-
-        if depth != 0:
-            self.swap(assembly, stack, depth, dry_run)
-
-        offset = self._get_spill_slot(operand, spilled, dry_run)
-        assembly.extend(PUSH(offset))
-        assembly.append("MSTORE")
-        stack.pop()
-        spilled[operand] = offset
-
-    def _restore_spilled_operand(
-        self,
-        assembly: list,
-        stack: StackModel,
-        spilled: dict[IROperand, int],
-        op: IRVariable,
-        dry_run: bool = False,
-    ) -> None:
-        offset = spilled.pop(op)
-        if not dry_run:
-            self._spill_free_slots.append(offset)
-        assembly.extend(PUSH(offset))
-        assembly.append("MLOAD")
-        stack.push(op)
-
-    def _get_spill_slot(
-        self, operand: IRVariable, spilled: dict[IROperand, int], dry_run: bool
-    ) -> int:
-        if operand in spilled:
-            return spilled[operand]
-        offset = self._acquire_spill_offset(dry_run)
-        return offset
-
-    def _release_dead_spills(
-        self, spilled: dict[IROperand, int], live_set: OrderedSet[IRVariable]
-    ) -> None:
-        for op in list(spilled.keys()):
-            if isinstance(op, IRVariable) and op in live_set:
-                continue
-            offset = spilled.pop(op)
-            self._spill_free_slots.append(offset)
-
     def _emit_input_operands(
         self,
         assembly: list,
@@ -383,7 +330,7 @@ class VenomCompiler:
 
         for op in ops:
             if isinstance(op, IRVariable) and op in spilled:
-                self._restore_spilled_operand(assembly, stack, spilled, op)
+                self.spiller.restore_spilled_operand(assembly, stack, spilled, op)
 
             if isinstance(op, IRLabel):
                 # invoke emits the actual instruction itself so we don't need
@@ -436,51 +383,6 @@ class VenomCompiler:
 
         self._optimistic_swap(asm, last_param, next_liveness, stack)
 
-    def _prepare_spill_state(self, fn: IRFunction) -> None:
-        if fn in self._spill_slot_offsets:
-            return
-
-        entry = fn.entry
-        insert_idx = 0
-        for inst in entry.instructions:
-            if inst.opcode == "param":
-                insert_idx += 1
-            else:
-                break
-
-        self._spill_slot_offsets[fn] = []
-        self._spill_insert_index[fn] = insert_idx
-
-    def _allocate_spill_slot(self, fn: IRFunction) -> int:
-        entry = fn.entry
-        insert_idx = self._spill_insert_index[fn]
-
-        offset = self._next_spill_offset
-        self._next_spill_offset += 32
-
-        offset_lit = IRLiteral(offset)
-        size_lit = IRLiteral(32)
-        id_lit = IRLiteral(self._next_spill_alloca_id)
-        self._next_spill_alloca_id += 1
-
-        output_var = fn.get_next_variable()
-        inst = IRInstruction("alloca", [offset_lit, size_lit, id_lit], output_var)
-        entry.insert_instruction(inst, insert_idx)
-        self._spill_insert_index[fn] += 1
-        self._spill_slot_offsets[fn].append(offset)
-        return offset
-
-    def _acquire_spill_offset(self, dry_run: bool) -> int:
-        if self._spill_free_slots:
-            return self._spill_free_slots.pop()
-        if dry_run:
-            return 0
-        if self._current_function is None:
-            offset = self._next_spill_offset
-            self._next_spill_offset += 32
-            return offset
-        return self._allocate_spill_slot(self._current_function)
-
     def popmany(self, asm, to_pop: Iterable[IRVariable], stack):
         to_pop = list(to_pop)
         # small heuristic: pop from shallowest first.
@@ -492,7 +394,7 @@ class VenomCompiler:
             depth = stack.get_depth(var)
 
             if depth != 0:
-                self.swap(asm, stack, depth)
+                self.spiller.swap(asm, stack, depth)
             self.pop(asm, stack)
 
     def _generate_evm_for_basicblock_r(
@@ -616,7 +518,7 @@ class VenomCompiler:
             if to_be_replaced in next_liveness:
                 # this branch seems unreachable (maybe due to make_ssa)
                 # %13/%14 is still live(!), so we make a copy of it
-                self.dup(assembly, stack, depth)
+                self.spiller.dup(assembly, stack, depth)
                 stack.poke(0, ret)
             else:
                 stack.poke(depth, ret)
@@ -778,7 +680,7 @@ class VenomCompiler:
             else:
                 self._optimistic_swap(assembly, inst, next_liveness, stack)
 
-        self._release_dead_spills(spilled, next_liveness)
+        self.spiller.release_dead_spills(spilled, next_liveness)
 
         return apply_line_numbers(inst, assembly)
 
@@ -802,7 +704,7 @@ class VenomCompiler:
         if not self.dfg.are_equivalent(inst.output, next_scheduled):
             depth = stack.get_depth(next_scheduled)
             if depth is not StackModel.NOT_IN_STACK:
-                cost = self.swap(assembly, stack, depth)
+                cost = self.spiller.swap(assembly, stack, depth)
 
         if DEBUG_SHOW_COST and cost != 0:
             print("ENTER", inst, file=sys.stderr)
@@ -814,114 +716,12 @@ class VenomCompiler:
         stack.pop(num)
         assembly.extend(["POP"] * num)
 
-    def _spill_stack_segment(
-        self, assembly, stack, count: int, dry_run: bool
-    ) -> tuple[list[IROperand], list[int], int]:
-        spill_ops: list[IROperand] = []
-        offsets: list[int] = []
-        cost = 0
-
-        for _ in range(count):
-            op = stack.peek(0)
-            spill_ops.append(op)
-
-            offset = self._acquire_spill_offset(dry_run)
-            offsets.append(offset)
-
-            assembly.extend(PUSH(offset))
-            assembly.append("MSTORE")
-            stack.pop()
-            cost += 2
-
-        return spill_ops, offsets, cost
-
-    def _restore_spilled_segment(
-        self,
-        assembly,
-        stack,
-        spill_ops: list[IROperand],
-        offsets: list[int],
-        desired_indices: list[int],
-        dry_run: bool,
-    ) -> int:
-        cost = 0
-
-        for idx in reversed(desired_indices):
-            assembly.extend(PUSH(offsets[idx]))
-            assembly.append("MLOAD")
-            stack.push(spill_ops[idx])
-            cost += 2
-
-        if not dry_run:
-            for offset in offsets:
-                self._spill_free_slots.append(offset)
-
-        return cost
-
-    def swap(self, assembly, stack, depth, dry_run: bool = False) -> int:
-        # Swaps of the top is no op
-        if depth == 0:
-            return 0
-
-        swap_idx = -depth
-        if swap_idx < 1:
-            raise StackTooDeep(f"Unsupported swap depth {swap_idx}")
-        if swap_idx <= 16:
-            stack.swap(depth)
-            assembly.append(_evm_swap_for(depth))
-            return 1
-
-        chunk_size = swap_idx + 1
-        spill_ops, offsets, cost = self._spill_stack_segment(assembly, stack, chunk_size, dry_run)
-
-        indices = list(range(chunk_size))
-        if chunk_size == 1:
-            desired_indices = indices
-        else:
-            desired_indices = [indices[-1]] + indices[1:-1] + [indices[0]]
-
-        cost += self._restore_spilled_segment(
-            assembly, stack, spill_ops, offsets, desired_indices, dry_run
-        )
-        return cost
-
-    def dup(self, assembly, stack, depth, dry_run: bool = False):
-        dup_idx = 1 - depth
-        if dup_idx < 1:
-            raise StackTooDeep(f"Unsupported dup depth {dup_idx}")
-        if dup_idx <= 16:
-            stack.dup(depth)
-            assembly.append(_evm_dup_for(depth))
-            return
-
-        chunk_size = dup_idx
-        spill_ops, offsets, _ = self._spill_stack_segment(assembly, stack, chunk_size, dry_run)
-
-        indices = list(range(chunk_size))
-        desired_indices = [indices[-1]] + indices
-
-        self._restore_spilled_segment(assembly, stack, spill_ops, offsets, desired_indices, dry_run)
-
     def swap_op(self, assembly, stack, op):
         depth = stack.get_depth(op)
         assert depth is not StackModel.NOT_IN_STACK, f"Cannot swap non-existent operand {op}"
-        return self.swap(assembly, stack, depth)
+        return self.spiller.swap(assembly, stack, depth)
 
     def dup_op(self, assembly, stack, op):
         depth = stack.get_depth(op)
         assert depth is not StackModel.NOT_IN_STACK, f"Cannot dup non-existent operand {op}"
-        self.dup(assembly, stack, depth)
-
-
-def _evm_swap_for(depth: int) -> str:
-    swap_idx = -depth
-    if not (1 <= swap_idx <= 16):
-        raise StackTooDeep(f"Unsupported swap depth {swap_idx}")
-    return f"SWAP{swap_idx}"
-
-
-def _evm_dup_for(depth: int) -> str:
-    dup_idx = 1 - depth
-    if not (1 <= dup_idx <= 16):
-        raise StackTooDeep(f"Unsupported dup depth {dup_idx}")
-    return f"DUP{dup_idx}"
+        self.spiller.dup(assembly, stack, depth)

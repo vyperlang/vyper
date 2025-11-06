@@ -3,6 +3,7 @@ from vyper.venom.basicblock import IRLiteral, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.parser import parse_venom
 from vyper.venom.stack_model import StackModel
+from vyper.venom.stack_spiller import StackSpiller
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 
@@ -38,7 +39,7 @@ def test_swap_spills_deep_stack() -> None:
     assert isinstance(depth, int) and depth < -16
     swap_idx = -depth
 
-    compiler.swap(assembly, stack, depth)
+    compiler.spiller.swap(assembly, stack, depth)
 
     expected = before.copy()
     top_index = len(expected) - 1
@@ -64,7 +65,7 @@ def test_dup_spills_deep_stack() -> None:
     assert isinstance(depth, int) and depth < -16
     dup_idx = 1 - depth
 
-    compiler.dup(assembly, stack, depth)
+    compiler.spiller.dup(assembly, stack, depth)
 
     expected = before.copy()
     expected.append(target)
@@ -77,10 +78,11 @@ def test_dup_spills_deep_stack() -> None:
 
 
 def test_stack_reorder_spills_before_swap() -> None:
-    compiler = VenomCompiler(IRContext())
+    ctx = IRContext()
+    compiler = VenomCompiler(ctx)
     compiler.dfg = _dummy_dfg()
-    compiler._spill_next_slot = 0
-    compiler._spill_free_slots = []
+
+    compiler.spiller = StackSpiller(ctx, initial_offset=0x10000)
 
     stack = StackModel()
     vars_on_stack = [IRVariable(f"%v{i}") for i in range(40)]
@@ -104,7 +106,7 @@ def test_stack_reorder_spills_before_swap() -> None:
     # restoring a spilled variable should reload it via MLOAD
     restore_assembly: list = []
     spilled_var = next(iter(spilled))
-    compiler._restore_spilled_operand(restore_assembly, stack, spilled, spilled_var)
+    compiler.spiller.restore_spilled_operand(restore_assembly, stack, spilled, spilled_var)
     restore_ops = _ops_only_strings(restore_assembly)
     assert restore_ops.count("MLOAD") == 1
     assert spilled_var not in spilled
