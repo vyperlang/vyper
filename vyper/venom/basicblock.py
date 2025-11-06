@@ -435,10 +435,7 @@ class IRInstruction:
     def str_short(self) -> str:
         s = ""
         outs = self.get_outputs()
-        num_outs = len(outs)
-        if num_outs == 1:
-            s += f"{outs[0]} = "
-        elif num_outs > 1:
+        if len(outs) > 0:
             s += f"{', '.join(map(str, outs))} = "
         opcode = f"{self.opcode} " if self.opcode != "assign" else ""
         s += opcode
@@ -451,10 +448,7 @@ class IRInstruction:
     def __repr__(self) -> str:
         s = ""
         outs = self.get_outputs()
-        num_outs = len(outs)
-        if num_outs == 1:
-            s += f"{outs[0]} = "
-        elif num_outs > 1:
+        if len(outs) > 0:
             s += f"{', '.join(map(str, outs))} = "
         opcode = f"{self.opcode} " if self.opcode != "assign" else ""
         s += opcode
