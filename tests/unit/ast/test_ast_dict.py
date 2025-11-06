@@ -99,16 +99,18 @@ def foo() -> uint256:
     dict_out = compiler.compile_code(code, output_formats=["ast_dict"], source_id=0)
     assert dict_out["ast_dict"]["ast"]["body"][1] == {
         "col_offset": 0,
-        "annotation": {
-            "col_offset": 12,
-            "end_col_offset": 15,
-            "node_id": 12,
-            "src": "60:3:0",
-            "ast_type": "Name",
-            "end_lineno": 5,
-            "lineno": 5,
-            "id": "Foo",
-        },
+        "children": [
+            {
+                "col_offset": 12,
+                "end_col_offset": 15,
+                "node_id": 12,
+                "src": "60:3:0",
+                "ast_type": "Name",
+                "end_lineno": 5,
+                "lineno": 5,
+                "id": "Foo",
+            }
+        ],
         "end_col_offset": 15,
         "node_id": 9,
         "src": "48:15:0",

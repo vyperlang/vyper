@@ -360,6 +360,27 @@ foo: public(immutable(uint256))
 def __init__(x: uint256):
     foo = x
     """,
+    """
+interface Foo:
+  def foo() -> uint256: nonpayable
+
+interface Bar:
+  def bar() -> uint256: nonpayable
+
+
+implements: (
+    Foo,
+    Bar,
+)
+
+@external
+def foo() -> uint256:
+    return 0
+
+@external
+def bar() -> uint256:
+    return 0
+    """,
     # no namespace collision of interface after storage variable
     """
 a: constant(uint256) = 1
