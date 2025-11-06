@@ -597,8 +597,8 @@ implements: Foo
         compiler.compile_code(code, input_bundle=input_bundle)
 
     assert (
-        e.value._message
-        == "Not an interface! (Since vyper v0.4.0, interface files are required to have a .vyi suffix.)"
+        e.value._message == "Not an interface!"
+        " (Since vyper v0.4.0, interface files are required to have a .vyi suffix.)"
     )
 
 
