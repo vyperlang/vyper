@@ -215,8 +215,6 @@ class VenomCompiler:
             stack = stack.copy()
             spilled = spilled.copy()
             spill_free_snapshot = self.spiller._spill_free_slots.copy()
-        else:
-            spill_free_snapshot = []
 
         if len(stack_ops) == 0:
             return 0
