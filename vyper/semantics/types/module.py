@@ -33,7 +33,7 @@ class InterfaceT(_UserType):
 
     _type_members = {"address": AddressT()}
     _is_prim_word = True
-    _as_array = True
+    is_valid_element_type = True
     _as_hashmap_key = True
     _supports_external_calls = True
     _attribute_in_annotation = True
@@ -288,9 +288,9 @@ class ModuleT(VyperType):
     typeclass = "module"
 
     _attribute_in_annotation = True
-    _as_array = False
+    is_valid_element_type = False
     _as_hashmap_key = False
-    _as_tuple_member = False
+    is_valid_member_type = False
     _invalid_locations = (
         DataLocation.STORAGE,
         DataLocation.CALLDATA,
@@ -342,17 +342,16 @@ class ModuleT(VyperType):
             self.add_member(v.target.id, v.target._metadata["varinfo"])
 
         for i in self.import_stmts:
-            import_info = i._metadata["import_info"]
-
-            if hasattr(import_info.typ, "module_t"):
-                module_info = import_info.typ
-                # get_expr_info uses ModuleInfo
-                self.add_member(import_info.alias, module_info)
-                # type_from_annotation uses TYPE_T
-                self._helper.add_member(import_info.alias, TYPE_T(module_info.module_t))
-            else:  # interfaces
-                assert isinstance(import_info.typ, InterfaceT)
-                self.add_member(import_info.alias, TYPE_T(import_info.typ))
+            for import_info in i._metadata["import_infos"]:
+                if hasattr(import_info.typ, "module_t"):
+                    module_info = import_info.typ
+                    # get_expr_info uses ModuleInfo
+                    self.add_member(import_info.alias, module_info)
+                    # type_from_annotation uses TYPE_T
+                    self._helper.add_member(import_info.alias, TYPE_T(module_info.module_t))
+                else:  # interfaces
+                    assert isinstance(import_info.typ, InterfaceT)
+                    self.add_member(import_info.alias, TYPE_T(import_info.typ))
 
         for name, interface_t in self.interfaces.items():
             # can access interfaces in type position
@@ -423,10 +422,10 @@ class ModuleT(VyperType):
             ret[i.name] = i._metadata["interface_type"]
 
         for i in self.import_stmts:
-            import_info = i._metadata["import_info"]
-            if isinstance(import_info.typ, InterfaceT):
-                assert import_info.alias not in ret  # precondition
-                ret[import_info.alias] = import_info.typ
+            for import_info in i._metadata["import_infos"]:
+                if isinstance(import_info.typ, InterfaceT):
+                    assert import_info.alias not in ret  # precondition
+                    ret[import_info.alias] = import_info.typ
 
         return ret
 
@@ -438,11 +437,11 @@ class ModuleT(VyperType):
     def imported_modules(self) -> dict[str, "ModuleInfo"]:
         ret = {}
         for s in self.import_stmts:
-            info = s._metadata["import_info"]
-            module_info = info.typ
-            if isinstance(module_info, InterfaceT):
-                continue
-            ret[info.alias] = module_info
+            for info in s._metadata["import_infos"]:
+                module_info = info.typ
+                if isinstance(module_info, InterfaceT):
+                    continue
+                ret[info.alias] = module_info
         return ret
 
     def find_module_info(self, needle: "ModuleT") -> Optional["ModuleInfo"]:
