@@ -1,9 +1,9 @@
+from vyper.ir.compile_ir import Label
 from vyper.venom.basicblock import IRLiteral, IRVariable
 from vyper.venom.context import IRContext
+from vyper.venom.parser import parse_venom
 from vyper.venom.stack_model import StackModel
 from vyper.venom.venom_to_assembly import VenomCompiler
-from vyper.venom.parser import parse_venom
-from vyper.ir.compile_ir import Label
 
 
 def _build_stack(count: int) -> tuple[StackModel, list[IRLiteral]]:

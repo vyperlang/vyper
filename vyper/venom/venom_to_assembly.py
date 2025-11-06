@@ -156,7 +156,7 @@ class VenomCompiler:
         self._spill_free_slots: list[int] = []
         self._spill_slot_offsets: dict[IRFunction, list[int]] = {}
         self._spill_insert_index: dict[IRFunction, int] = {}
-        self._next_spill_offset = 0
+        self._next_spill_offset = MemoryPositions.STACK_SPILL_BASE
         self._next_spill_alloca_id = 0
         self._current_function: IRFunction | None = None
 
@@ -233,9 +233,6 @@ class VenomCompiler:
         cost = 0
         for i, op in enumerate(stack_ops):
             final_stack_depth = -(len(stack_ops) - i - 1)
-
-            if isinstance(op, IRVariable) and op in spilled:
-                self._restore_spilled_operand(assembly, stack, spilled, op, dry_run=dry_run)
 
             depth = stack.get_depth(op)
 
@@ -803,7 +800,9 @@ class VenomCompiler:
         next_scheduled = next_liveness.last()
         cost = 0
         if not self.dfg.are_equivalent(inst.output, next_scheduled):
-            cost = self.swap_op(assembly, stack, next_scheduled)
+            depth = stack.get_depth(next_scheduled)
+            if depth is not StackModel.NOT_IN_STACK:
+                cost = self.swap(assembly, stack, depth)
 
         if DEBUG_SHOW_COST and cost != 0:
             print("ENTER", inst, file=sys.stderr)

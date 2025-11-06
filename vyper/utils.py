@@ -428,7 +428,7 @@ class MemoryPositions:
     FREE_VAR_SPACE = 0
     FREE_VAR_SPACE2 = 32
     RESERVED_MEMORY = 64
-    STACK_SPILL_BASE = 0x200  # scratch space used for spilling deep stacks
+    STACK_SPILL_BASE = 0x10000  # scratch space used for spilling deep stacks
 
 
 # Sizes of different data types. Used to clamp types.
