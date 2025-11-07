@@ -1526,16 +1526,26 @@ class ImplementsDecl(Stmt):
 
     Attributes
     ----------
-    annotation : Name
-        Name node for the interface to be implemented
+    children : List of (Name | Attribute)s
+        Name nodes for the interfaces to be implemented
     """
 
-    __slots__ = ("annotation",)
+    __slots__ = ("children",)
     _only_empty_fields = ("value",)
 
+    def __init__(self, *args, **kwargs):
+        tmp = kwargs.pop("annotation")
+        if isinstance(tmp, python_ast.Tuple):
+            kwargs["children"] = tmp.elts
+        else:
+            kwargs["children"] = [tmp]
+
+        super().__init__(*args, **kwargs)
+
     def validate(self):
-        if not isinstance(self.annotation, (Name, Attribute)):
-            raise StructureException("invalid implements", self.annotation)
+        for child in self.children:
+            if not isinstance(child, (Name, Attribute)):
+                raise StructureException("invalid implements", child)
 
 
 def as_tuple(node: VyperNode):

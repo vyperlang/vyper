@@ -407,7 +407,11 @@ class ModuleT(VyperType):
 
     @cached_property
     def implemented_interfaces(self):
-        ret = [node._metadata["interface_type"] for node in self.implements_decls]
+        ret = [
+            interface
+            for node in self.implements_decls
+            for interface in node._metadata["interface_types"]
+        ]
 
         # a module implicitly implements module.__interface__.
         ret.append(self.interface)
