@@ -599,8 +599,7 @@ def foo() -> uint256: ...
 def bar() -> uint256: ...
     """
     qux = """
-import foo as Foo
-import bar as Bar
+from interfaces import foo as Foo, bar as Bar
 
 implements: (
     Foo,
@@ -612,10 +611,12 @@ def bar() -> uint256: ...
 def qux() -> uint256: ...
     """
 
-    input_bundle = make_input_bundle({"foo.vyi": foo, "bar.vyi": bar, "qux.vyi": qux})
+    input_bundle = make_input_bundle(
+        {"interfaces/foo.vyi": foo, "interfaces/bar.vyi": bar, "interfaces/qux.vyi": qux}
+    )
 
     code = """
-import qux as Qux
+from interfaces import qux as Qux
 
 implements: (
     Qux,
