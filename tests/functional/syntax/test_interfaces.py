@@ -558,6 +558,87 @@ def baz():
     assert compiler.compile_code(code, input_bundle=input_bundle) is not None
 
 
+def test_interfaces_in_different_files_check(make_input_bundle):
+    foo = """
+def foo() -> uint256: ...
+    """
+    bar = """
+def bar() -> uint256: ...
+    """
+
+    input_bundle = make_input_bundle({"foo.vyi": foo, "bar.vyi": bar})
+
+    code = """
+import foo as Foo
+import bar as Bar
+
+implements: (
+    Foo,
+    Bar,
+)
+
+@external
+def foo() -> uint256:
+    return 0
+
+@external
+def bar() -> uint256:
+    return 0
+    """
+
+    res = compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert res is not None
+
+
+def test_implements_in_interface_file_check(make_input_bundle):
+    foo = """
+def foo() -> uint256: ...
+    """
+    bar = """
+def bar() -> uint256: ...
+    """
+    qux = """
+import foo as Foo
+import bar as Bar
+
+implements: (
+    Foo,
+    Bar,
+)
+
+def foo() -> uint256: ...
+def bar() -> uint256: ...
+def qux() -> uint256: ...
+    """
+
+    input_bundle = make_input_bundle({"foo.vyi": foo, "bar.vyi": bar, "qux.vyi": qux})
+
+    code = """
+import qux as Qux
+
+implements: (
+    Qux,
+)
+
+@external
+def foo() -> uint256:
+    return 0
+
+@external
+def bar() -> uint256:
+    return 0
+
+@external
+def qux() -> uint256:
+    return 0
+    """
+
+    res = compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert res is not None
+
+
 def test_interface_file_type_check(make_input_bundle):
     interface_code = """
 """
