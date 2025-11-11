@@ -35,12 +35,12 @@ class MemoryLocation:
         _offset: int | IRAbstractMemLoc | None = None
         if isinstance(offset, IRLiteral):
             _offset = offset.value
-            return MemoryLocationConcrete(_offset, _size)
+            return MemoryLocationSegment(_offset, _size)
         elif isinstance(offset, IRVariable):
             _offset = None
             op = var_base_pointers.get(offset, None)
             if op is None:
-                return MemoryLocationConcrete(_offset=None, _size=_size)
+                return MemoryLocationSegment(_offset=None, _size=_size)
             else:
                 return MemoryLocationAbstract(op=op, _offset=None, _size=_size)
         elif isinstance(offset, IRAbstractMemLoc):
@@ -83,9 +83,9 @@ class MemoryLocation:
             return True
         if type(loc1) is not type(loc2):
             return False
-        if isinstance(loc1, MemoryLocationConcrete):
-            assert isinstance(loc2, MemoryLocationConcrete)
-            return MemoryLocationConcrete.may_overlap_concrete(loc1, loc2)
+        if isinstance(loc1, MemoryLocationSegment):
+            assert isinstance(loc2, MemoryLocationSegment)
+            return MemoryLocationSegment.may_overlap_concrete(loc1, loc2)
         if isinstance(loc1, MemoryLocationAbstract):
             assert isinstance(loc2, MemoryLocationAbstract)
             return MemoryLocationAbstract.may_overlap_abstract(loc1, loc2)
@@ -135,9 +135,9 @@ class MemoryLocationAbstract(MemoryLocation):
     @staticmethod
     def may_overlap_abstract(loc1: MemoryLocationAbstract, loc2: MemoryLocationAbstract) -> bool:
         if loc1.op._id == loc2.op._id:
-            conc1 = MemoryLocationConcrete(_offset=loc1._offset, _size=loc1.size)
-            conc2 = MemoryLocationConcrete(_offset=loc2._offset, _size=loc2.size)
-            return MemoryLocationConcrete.may_overlap_concrete(conc1, conc2)
+            conc1 = MemoryLocationSegment(_offset=loc1._offset, _size=loc1.size)
+            conc2 = MemoryLocationSegment(_offset=loc2._offset, _size=loc2.size)
+            return MemoryLocationSegment.may_overlap_concrete(conc1, conc2)
         else:
             return False
 
@@ -151,14 +151,14 @@ class MemoryLocationAbstract(MemoryLocation):
         if other.size == 0:
             return True
         if self.op._id == other.op._id:
-            conc1 = MemoryLocationConcrete(_offset=self._offset, _size=self.size)
-            conc2 = MemoryLocationConcrete(_offset=other._offset, _size=other.size)
+            conc1 = MemoryLocationSegment(_offset=self._offset, _size=self.size)
+            conc2 = MemoryLocationSegment(_offset=other._offset, _size=other.size)
             return conc1.completely_contains(conc2)
         return False
 
 
 @dataclass(frozen=True)
-class MemoryLocationConcrete(MemoryLocation):
+class MemoryLocationSegment(MemoryLocation):
     """Represents a memory location that can be analyzed for aliasing"""
 
     _offset: int | None = None
@@ -191,7 +191,7 @@ class MemoryLocationConcrete(MemoryLocation):
     def is_volatile(self) -> bool:
         return self._is_volatile
 
-    def create_volatile(self) -> MemoryLocationConcrete:
+    def create_volatile(self) -> MemoryLocationSegment:
         return dc.replace(self, _is_volatile=True)
 
     # similar code to memmerging._Interval, but different data structure
@@ -208,7 +208,7 @@ class MemoryLocationConcrete(MemoryLocation):
         if not other.is_offset_fixed or not other.is_size_fixed:
             return False
 
-        if not isinstance(other, MemoryLocationConcrete):
+        if not isinstance(other, MemoryLocationSegment):
             return False
 
         # Both are known
@@ -220,7 +220,7 @@ class MemoryLocationConcrete(MemoryLocation):
         return start1 <= start2 and end1 >= end2
 
     @staticmethod
-    def may_overlap_concrete(loc1: MemoryLocationConcrete, loc2: MemoryLocationConcrete) -> bool:
+    def may_overlap_concrete(loc1: MemoryLocationSegment, loc2: MemoryLocationSegment) -> bool:
         """
         Determine if two memory locations may overlap
         """
@@ -263,8 +263,8 @@ class MemoryLocationConcrete(MemoryLocation):
         return True
 
 
-MemoryLocation.EMPTY = MemoryLocationConcrete(_offset=0, _size=0)
-MemoryLocation.UNDEFINED = MemoryLocationConcrete(_offset=None, _size=None)
+MemoryLocation.EMPTY = MemoryLocationSegment(_offset=0, _size=0)
+MemoryLocation.UNDEFINED = MemoryLocationSegment(_offset=None, _size=None)
 
 
 def get_write_location(inst, addr_space: AddrSpace, var_base_pointers: dict) -> MemoryLocation:
@@ -298,9 +298,9 @@ def _get_memory_write_location(inst, var_base_pointers: dict) -> MemoryLocation:
         size, _, dst = inst.operands
         return MemoryLocation.from_operands(dst, size, var_base_pointers)
     elif opcode == "dload":
-        return MemoryLocationConcrete(_offset=0, _size=32)
+        return MemoryLocationSegment(_offset=0, _size=32)
     elif opcode == "sha3_64":
-        return MemoryLocationConcrete(_offset=0, _size=64)
+        return MemoryLocationSegment(_offset=0, _size=64)
     elif opcode == "invoke":
         return MemoryLocation.UNDEFINED
     elif opcode == "call":
@@ -313,20 +313,20 @@ def _get_memory_write_location(inst, var_base_pointers: dict) -> MemoryLocation:
         size, _, dst, _ = inst.operands
         return MemoryLocation.from_operands(dst, size, var_base_pointers)
 
-    return MemoryLocationConcrete.EMPTY
+    return MemoryLocationSegment.EMPTY
 
 
 def _get_memory_read_location(inst, var_base_pointers) -> MemoryLocation:
     opcode = inst.opcode
     if opcode == "mstore":
-        return MemoryLocationConcrete.EMPTY
+        return MemoryLocationSegment.EMPTY
     elif opcode == "mload":
         return MemoryLocation.from_operands(inst.operands[0], MEMORY.word_scale, var_base_pointers)
     elif opcode == "mcopy":
         size, src, _ = inst.operands
         return MemoryLocation.from_operands(src, size, var_base_pointers)
     elif opcode == "dload":
-        return MemoryLocationConcrete(_offset=0, _size=32)
+        return MemoryLocationSegment(_offset=0, _size=32)
     elif opcode == "invoke":
         return MemoryLocation.UNDEFINED
     elif opcode == "call":
@@ -348,7 +348,7 @@ def _get_memory_read_location(inst, var_base_pointers) -> MemoryLocation:
         size, offset = inst.operands
         return MemoryLocation.from_operands(offset, size, var_base_pointers)
     elif opcode == "sha3_64":
-        return MemoryLocationConcrete(_offset=0, _size=64)
+        return MemoryLocationSegment(_offset=0, _size=64)
     elif opcode == "log":
         size, src = inst.operands[-2:]
         return MemoryLocation.from_operands(src, size, var_base_pointers)
@@ -356,7 +356,7 @@ def _get_memory_read_location(inst, var_base_pointers) -> MemoryLocation:
         size, src = inst.operands
         return MemoryLocation.from_operands(src, size, var_base_pointers)
 
-    return MemoryLocationConcrete.EMPTY
+    return MemoryLocationSegment.EMPTY
 
 
 def _get_storage_write_location(inst, addr_space: AddrSpace, var_base_pointers) -> MemoryLocation:

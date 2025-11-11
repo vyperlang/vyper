@@ -220,13 +220,13 @@ class IRFunction:
         return ret
 
     def add_volatile_memory(self, offset: int, size: int) -> MemoryLocation:
-        from vyper.venom.memory_location import MemoryLocationConcrete
+        from vyper.venom.memory_location import MemoryLocationSegment
 
         """
         Add a volatile memory location with the given offset and size.
         Returns the created MemoryLocation object.
         """
-        volatile_mem = MemoryLocationConcrete(_offset=offset, _size=size)
+        volatile_mem = MemoryLocationSegment(_offset=offset, _size=size)
         self._volatile_memory.append(volatile_mem)
         return volatile_mem
 
