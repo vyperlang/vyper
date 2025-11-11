@@ -127,13 +127,15 @@ def fix_mem_loc(function: IRFunction):
                     _update_write_op(inst, IRAbstractMemLoc.FREE_VAR2.with_offset(offset))
             if read_op is not None:
                 size = _get_read_size(inst)
-                if size is None or size.value != 32:
+                if size is None or not isinstance(read_op.value, int):
                     continue
 
-                if read_op.value == MemoryPositions.FREE_VAR_SPACE:
-                    _update_read_op(inst, IRAbstractMemLoc.FREE_VAR1)
-                elif read_op.value == MemoryPositions.FREE_VAR_SPACE2:
-                    _update_read_op(inst, IRAbstractMemLoc.FREE_VAR2)
+                if in_free_var(MemoryPositions.FREE_VAR_SPACE, read_op.value):
+                    offset = read_op.value - MemoryPositions.FREE_VAR_SPACE
+                    _update_read_op(inst, IRAbstractMemLoc.FREE_VAR1.with_offset(offset))
+                elif in_free_var(MemoryPositions.FREE_VAR_SPACE2, read_op.value):
+                    offset = read_op.value - MemoryPositions.FREE_VAR_SPACE2
+                    _update_read_op(inst, IRAbstractMemLoc.FREE_VAR2.with_offset(offset))
 
 
 def _get_memory_write_op(inst) -> IROperand | None:
