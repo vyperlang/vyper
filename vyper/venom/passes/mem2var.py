@@ -1,5 +1,3 @@
-from collections import deque
-
 from vyper.utils import all2
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRAbstractMemLoc, IRInstruction, IROperand, IRVariable

@@ -13,11 +13,7 @@ from vyper.venom.analysis.mem_ssa import (
 )
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.effects import Effects
-from vyper.venom.memory_location import (
-    MemoryLocationSegment,
-    get_read_location,
-    get_write_location,
-)
+from vyper.venom.memory_location import MemoryLocationSegment, get_read_location, get_write_location
 
 
 @pytest.fixture

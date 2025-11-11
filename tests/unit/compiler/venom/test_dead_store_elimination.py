@@ -41,9 +41,7 @@ class VolatilePrePostChecker(PrePostChecker):
             mem_ssa = ac.request_analysis(mem_ssa_type_factory(self.addr_space))
 
             for address, size in self.volatile_locations:
-                volatile_loc = MemoryLocationSegment(
-                    _offset=address, _size=size, _is_volatile=True
-                )
+                volatile_loc = MemoryLocationSegment(_offset=address, _size=size, _is_volatile=True)
                 mem_ssa.mark_location_volatile(volatile_loc)
 
             for p in self.passes:

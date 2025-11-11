@@ -1,9 +1,10 @@
-from vyper.venom.analysis import FCGAnalysis, DFGAnalysis
-from vyper.venom.basicblock import IRAbstractMemLoc, IRLabel, IRLiteral, IRInstruction
+from collections import deque
+
+from vyper.venom.analysis import DFGAnalysis, FCGAnalysis
+from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRGlobalPass
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
-from collections import deque
 
 
 class FixCalloca(IRGlobalPass):

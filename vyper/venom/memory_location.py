@@ -16,10 +16,7 @@ class MemoryLocation:
 
     @classmethod
     def from_operands(
-        cls,
-        offset: IROperand | int,
-        size: IROperand | int,
-        var_base_pointers: dict,
+        cls, offset: IROperand | int, size: IROperand | int, var_base_pointers: dict
     ) -> MemoryLocation:
         if isinstance(size, IRLiteral):
             _size = size.value
@@ -37,10 +34,12 @@ class MemoryLocation:
             if op is None:
                 return MemoryLocationSegment(_offset=None, _size=_size)
             else:
-                return MemoryLocationAbstract(op=op, _offset=None, _size=_size)
+                segment = MemoryLocationSegment(_offset=None, _size=_size)
+                return MemoryLocationAbstract(op=op, segment=segment)
         elif isinstance(offset, IRAbstractMemLoc):
             op = offset
-            return MemoryLocationAbstract(op=op, _offset=op.offset, _size=_size)
+            segment = MemoryLocationSegment(_offset=op.offset, _size=_size)
+            return MemoryLocationAbstract(op=op, segment=segment)
         else:  # pragma: nocover
             raise CompilerPanic(f"invalid offset: {offset} ({type(offset)})")
 
@@ -96,17 +95,15 @@ class MemoryLocation:
 @dataclass(frozen=True)
 class MemoryLocationAbstract(MemoryLocation):
     op: IRAbstractMemLoc
-    _offset: int | None
-    _size: int | None
-    _is_volatile: bool = False
+    segment: MemoryLocationSegment
 
     @property
     def offset(self):
-        raise NotImplementedError
+        return self.segment.offset
 
     @property
     def size(self):
-        return self._size
+        return self.segment.size
 
     @property
     def is_offset_fixed(self) -> bool:
@@ -122,17 +119,15 @@ class MemoryLocationAbstract(MemoryLocation):
 
     @property
     def is_volatile(self) -> bool:
-        return self._is_volatile
+        return self.segment.is_volatile
 
     def create_volatile(self) -> MemoryLocationAbstract:
-        return dc.replace(self, _is_volatile=True)
+        return dc.replace(self, segment=self.segment.create_volatile())
 
     @staticmethod
     def may_overlap_abstract(loc1: MemoryLocationAbstract, loc2: MemoryLocationAbstract) -> bool:
         if loc1.op._id == loc2.op._id:
-            conc1 = MemoryLocationSegment(_offset=loc1._offset, _size=loc1.size)
-            conc2 = MemoryLocationSegment(_offset=loc2._offset, _size=loc2.size)
-            return MemoryLocationSegment.may_overlap_concrete(conc1, conc2)
+            return MemoryLocationSegment.may_overlap_concrete(loc1.segment, loc2.segment)
         else:
             return False
 
@@ -141,14 +136,12 @@ class MemoryLocationAbstract(MemoryLocation):
             return False
         if not isinstance(other, MemoryLocationAbstract):
             return False
-        if self._size is None:
+        if self.size is None:
             return False
         if other.size == 0:
             return True
         if self.op._id == other.op._id:
-            conc1 = MemoryLocationSegment(_offset=self._offset, _size=self.size)
-            conc2 = MemoryLocationSegment(_offset=other._offset, _size=other.size)
-            return conc1.completely_contains(conc2)
+            return self.segment.completely_contains(other.segment)
         return False
 
 
@@ -376,7 +369,9 @@ def _get_storage_read_location(inst, addr_space: AddrSpace, var_base_pointers) -
     if opcode == addr_space.store_op:
         return MemoryLocation.EMPTY
     elif opcode == addr_space.load_op:
-        return MemoryLocation.from_operands(inst.operands[0], addr_space.word_scale, var_base_pointers)
+        return MemoryLocation.from_operands(
+            inst.operands[0], addr_space.word_scale, var_base_pointers
+        )
     elif opcode in ("call", "delegatecall", "staticcall"):
         return MemoryLocation.UNDEFINED
     elif opcode == "invoke":

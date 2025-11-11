@@ -1,5 +1,5 @@
 from tests.venom_utils import PrePostChecker
-from vyper.venom.passes import ConcretizeMemLocPass, Mem2Var, AssignElimination
+from vyper.venom.passes import AssignElimination, ConcretizeMemLocPass, Mem2Var
 
 _check_pre_post = PrePostChecker([ConcretizeMemLocPass], default_hevm=False)
 _check_pre_post_mem2var = PrePostChecker([Mem2Var, AssignElimination], default_hevm=False)
@@ -29,6 +29,7 @@ def test_valid_overlap():
 
     _check_pre_post(pre, post)
 
+
 def test_venom_allocation():
     pre = """
     main:
@@ -54,6 +55,7 @@ def test_venom_allocation():
 
     _check_pre_post_mem2var(pre, post1)
     _check_pre_post(post1, post2)
+
 
 def test_venom_allocation_branches():
     pre = """
@@ -85,7 +87,7 @@ def test_venom_allocation_branches():
         %2 = mload [4,128]
         sink %2
     """
-    
+
     post2 = """
     main:
         %cond = source
@@ -102,4 +104,3 @@ def test_venom_allocation_branches():
 
     _check_pre_post_mem2var(pre, post1)
     _check_pre_post(post1, post2)
-

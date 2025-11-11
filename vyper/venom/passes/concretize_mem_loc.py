@@ -144,7 +144,6 @@ class MemLiveness:
             read_op = _get_memory_read_op(inst)
             read_ops = self._follow_op(read_op)
 
-
             for read_op in read_ops:
                 assert isinstance(read_op, IRAbstractMemLoc)
                 curr.add(read_op.no_offset())
