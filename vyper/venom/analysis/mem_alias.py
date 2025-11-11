@@ -22,7 +22,7 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
 
         # Map from memory locations to sets of potentially aliasing locations
         self.alias_sets: dict[MemoryLocation, OrderedSet[MemoryLocation]] = {}
-        self.translates: dict[IRVariable, IRAbstractMemLoc] = {}
+        self.var_base_pointers: dict[IRVariable, IRAbstractMemLoc] = {}
 
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
@@ -30,7 +30,7 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
                     continue
                 place = self._follow_gep(inst)
                 assert inst.output is not None
-                self.translates[inst.output] = place
+                self.var_base_pointers[inst.output] = place
 
         # Analyze all memory operations
         for bb in self.function.get_basic_blocks():
@@ -49,20 +49,20 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
         return place
 
     def _get_read_location(self, inst: IRInstruction, addr_space: AddrSpace) -> MemoryLocation:
-        return get_read_location(inst, addr_space, self.translates)
+        return get_read_location(inst, addr_space, self.var_base_pointers)
 
     def _get_write_location(self, inst: IRInstruction, addr_space: AddrSpace) -> MemoryLocation:
-        return get_write_location(inst, addr_space, self.translates)
+        return get_write_location(inst, addr_space, self.var_base_pointers)
 
     def _analyze_instruction(self, inst: IRInstruction):
         """Analyze a memory instruction to determine aliasing"""
         loc: Optional[MemoryLocation] = None
 
-        loc = get_read_location(inst, self.addr_space, self.translates)
+        loc = get_read_location(inst, self.addr_space, self.var_base_pointers)
         if loc is not None:
             self._analyze_mem_location(loc)
 
-        loc = get_write_location(inst, self.addr_space, self.translates)
+        loc = get_write_location(inst, self.addr_space, self.var_base_pointers)
         if loc is not None:
             self._analyze_mem_location(loc)
 
