@@ -20,8 +20,6 @@ class MemoryLocation:
         offset: IROperand | int,
         size: IROperand | int,
         var_base_pointers: dict,
-        /,
-        is_volatile: bool = False,
     ) -> MemoryLocation:
         if isinstance(size, IRLiteral):
             _size = size.value
@@ -32,12 +30,9 @@ class MemoryLocation:
         else:  # pragma: nocover
             raise CompilerPanic(f"invalid size: {size} ({type(size)})")
 
-        _offset: int | IRAbstractMemLoc | None = None
         if isinstance(offset, IRLiteral):
-            _offset = offset.value
-            return MemoryLocationSegment(_offset, _size)
+            return MemoryLocationSegment(offset.value, _size)
         elif isinstance(offset, IRVariable):
-            _offset = None
             op = var_base_pointers.get(offset, None)
             if op is None:
                 return MemoryLocationSegment(_offset=None, _size=_size)
