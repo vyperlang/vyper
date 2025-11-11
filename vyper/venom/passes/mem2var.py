@@ -137,29 +137,10 @@ class Mem2Var(IRPass):
 
         assert isinstance(memloc, IRAbstractMemLoc)
 
-        if memloc.unused:
-            self._removed_unused_calloca(inst)
-            return
+        assert not memloc.unused
 
         self.updater.mk_assign(inst, memloc)
         self._fix_adds(inst, memloc)
-
-    def _removed_unused_calloca(self, inst: IRInstruction):
-        assert inst.output is not None
-        to_remove = set()
-        worklist: deque = deque()
-        worklist.append(inst)
-        while len(worklist) > 0:
-            curr = worklist.popleft()
-            if curr in to_remove:
-                continue
-            to_remove.add(curr)
-
-            if curr.output is not None:
-                uses = self.dfg.get_uses(curr.output)
-                worklist.extend(uses)
-
-        self.updater.nop_multi(to_remove)
 
     def _fix_adds(self, mem_src: IRInstruction, mem_op: IROperand):
         assert mem_src.output is not None
