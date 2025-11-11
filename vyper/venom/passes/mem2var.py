@@ -137,8 +137,6 @@ class Mem2Var(IRPass):
 
         assert isinstance(memloc, IRAbstractMemLoc)
 
-        assert not memloc.unused
-
         self.updater.mk_assign(inst, memloc)
         self._fix_adds(inst, memloc)
 
