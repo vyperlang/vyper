@@ -211,21 +211,3 @@ class IRFunction:
         ret = ret.strip() + "\n}"
         ret += f"  ; close function {self.name}"
         return ret
-
-    def add_volatile_memory(self, offset: int, size: int) -> MemoryLocation:
-        from vyper.venom.memory_location import MemoryLocationSegment
-
-        """
-        Add a volatile memory location with the given offset and size.
-        Returns the created MemoryLocation object.
-        """
-        volatile_mem = MemoryLocationSegment(_offset=offset, _size=size)
-        self._volatile_memory.append(volatile_mem)
-        return volatile_mem
-
-    def get_all_volatile_memory(self) -> list[MemoryLocation]:
-        """
-        Return all volatile memory locations.
-        """
-        assert False
-        return self._volatile_memory

@@ -6,7 +6,8 @@ from typing import ClassVar
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.exceptions import CompilerPanic
-from vyper.venom.basicblock import IRAbstractMemLoc, IRLiteral, IROperand, IRVariable, IRInstruction
+from vyper.utils import MemoryPositions
+from vyper.venom.basicblock import IRAbstractMemLoc, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.function import IRFunction
 
 
@@ -395,10 +396,10 @@ def _get_storage_read_location(inst, addr_space: AddrSpace, var_base_pointers) -
 
     return MemoryLocation.EMPTY
 
+
 def in_free_var(var, offset):
     return offset >= var and offset < (var + 32)
 
-from vyper.utils import MemoryPositions
 
 def fix_mem_loc(function: IRFunction):
     for bb in function.get_basic_blocks():

@@ -13,8 +13,8 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.function import IRFunction
 from vyper.venom.memory_allocator import MemoryAllocator
-from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.memory_location import get_memory_read_op, get_memory_write_op, get_write_size
+from vyper.venom.passes.base_pass import IRPass
 
 
 class ConcretizeMemLocPass(IRPass):

@@ -1,13 +1,5 @@
-from vyper.utils import MemoryPositions
 from vyper.venom.analysis import IRAnalysesCache, VarDefinition
-from vyper.venom.basicblock import (
-    IRAbstractMemLoc,
-    IRBasicBlock,
-    IRInstruction,
-    IRLiteral,
-    IROperand,
-    IRVariable,
-)
+from vyper.venom.basicblock import IRBasicBlock, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 
@@ -90,4 +82,3 @@ def check_venom_ctx(context: IRContext):
 
     if errors:
         raise ExceptionGroup("venom semantic errors", errors)
-
