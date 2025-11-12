@@ -121,10 +121,10 @@ def fix_mem_loc(function: IRFunction):
 
                 if in_free_var(MemoryPositions.FREE_VAR_SPACE, write_op.value):
                     offset = write_op.value - MemoryPositions.FREE_VAR_SPACE
-                    _update_write_op(inst, IRAbstractMemLoc.FREE_VAR1.with_offset(offset))
+                    _update_write_location(inst, IRAbstractMemLoc.FREE_VAR1.with_offset(offset))
                 elif in_free_var(MemoryPositions.FREE_VAR_SPACE2, write_op.value):
                     offset = write_op.value - MemoryPositions.FREE_VAR_SPACE2
-                    _update_write_op(inst, IRAbstractMemLoc.FREE_VAR2.with_offset(offset))
+                    _update_write_location(inst, IRAbstractMemLoc.FREE_VAR2.with_offset(offset))
             if read_op is not None:
                 size = _get_read_size(inst)
                 if size is None or not isinstance(read_op.value, int):
@@ -132,10 +132,10 @@ def fix_mem_loc(function: IRFunction):
 
                 if in_free_var(MemoryPositions.FREE_VAR_SPACE, read_op.value):
                     offset = read_op.value - MemoryPositions.FREE_VAR_SPACE
-                    _update_read_op(inst, IRAbstractMemLoc.FREE_VAR1.with_offset(offset))
+                    _update_read_location(inst, IRAbstractMemLoc.FREE_VAR1.with_offset(offset))
                 elif in_free_var(MemoryPositions.FREE_VAR_SPACE2, read_op.value):
                     offset = read_op.value - MemoryPositions.FREE_VAR_SPACE2
-                    _update_read_op(inst, IRAbstractMemLoc.FREE_VAR2.with_offset(offset))
+                    _update_read_location(inst, IRAbstractMemLoc.FREE_VAR2.with_offset(offset))
 
 
 def _get_memory_write_op(inst) -> IROperand | None:
@@ -253,12 +253,11 @@ def _get_read_size(inst: IRInstruction) -> IROperand | None:
     return None
 
 
-def _update_write_op(inst, new_op: IROperand):
+def _update_write_location(inst, new_op: IROperand):
     opcode = inst.opcode
     if opcode == "mstore":
         inst.operands[1] = new_op
     elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
-        _, _, dst = inst.operands
         inst.operands[2] = new_op
     elif opcode == "call":
         inst.operands[1] = new_op
@@ -268,7 +267,7 @@ def _update_write_op(inst, new_op: IROperand):
         inst.operands[2] = new_op
 
 
-def _update_read_op(inst, new_op: IROperand):
+def _update_read_location(inst, new_op: IROperand):
     opcode = inst.opcode
     if opcode == "mload":
         inst.operands[0] = new_op
