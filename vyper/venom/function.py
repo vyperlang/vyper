@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.venom.basicblock import IRAbstractMemLoc, IRBasicBlock, IRLabel, IRVariable
-from vyper.venom.memory_location import MemoryLocation
 
 if TYPE_CHECKING:
     from vyper.venom.context import IRContext
@@ -36,7 +35,6 @@ class IRFunction:
     allocated_args: dict[int, IRAbstractMemLoc]
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
-    _volatile_memory: list[MemoryLocation]
 
     # Used during code generation
     _ast_source_stack: list[IRnode]
@@ -48,7 +46,6 @@ class IRFunction:
         self.args = []
         self.allocated_args = dict()
         self._basic_block_dict = {}
-        self._volatile_memory = []
 
         self.last_variable = 0
 
@@ -167,10 +164,6 @@ class IRFunction:
             new_bb = bb.copy()
             new.append_basic_block(new_bb)
 
-        # Copy volatile memory locations
-        for mem in self._volatile_memory:
-            new.add_volatile_memory(mem.offset, mem.size)
-
         return new
 
     def as_graph(self, only_subgraph=False) -> str:
@@ -234,4 +227,5 @@ class IRFunction:
         """
         Return all volatile memory locations.
         """
+        assert False
         return self._volatile_memory

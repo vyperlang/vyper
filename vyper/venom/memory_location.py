@@ -6,7 +6,8 @@ from typing import ClassVar
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.exceptions import CompilerPanic
-from vyper.venom.basicblock import IRAbstractMemLoc, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRAbstractMemLoc, IRLiteral, IROperand, IRVariable, IRInstruction
+from vyper.venom.function import IRFunction
 
 
 class MemoryLocation:
@@ -393,3 +394,191 @@ def _get_storage_read_location(inst, addr_space: AddrSpace, var_base_pointers) -
         return MemoryLocation.UNDEFINED
 
     return MemoryLocation.EMPTY
+
+def in_free_var(var, offset):
+    return offset >= var and offset < (var + 32)
+
+from vyper.utils import MemoryPositions
+
+def fix_mem_loc(function: IRFunction):
+    for bb in function.get_basic_blocks():
+        for inst in bb.instructions:
+            if inst.opcode == "codecopyruntime":
+                continue
+            write_op = get_memory_write_op(inst)
+            read_op = get_memory_read_op(inst)
+            if write_op is not None:
+                size = get_write_size(inst)
+                if size is None or not isinstance(write_op.value, int):
+                    continue
+
+                if in_free_var(MemoryPositions.FREE_VAR_SPACE, write_op.value):
+                    offset = write_op.value - MemoryPositions.FREE_VAR_SPACE
+                    _update_write_location(inst, IRAbstractMemLoc.FREE_VAR1.with_offset(offset))
+                elif in_free_var(MemoryPositions.FREE_VAR_SPACE2, write_op.value):
+                    offset = write_op.value - MemoryPositions.FREE_VAR_SPACE2
+                    _update_write_location(inst, IRAbstractMemLoc.FREE_VAR2.with_offset(offset))
+            if read_op is not None:
+                size = _get_read_size(inst)
+                if size is None or not isinstance(read_op.value, int):
+                    continue
+
+                if in_free_var(MemoryPositions.FREE_VAR_SPACE, read_op.value):
+                    offset = read_op.value - MemoryPositions.FREE_VAR_SPACE
+                    _update_read_location(inst, IRAbstractMemLoc.FREE_VAR1.with_offset(offset))
+                elif in_free_var(MemoryPositions.FREE_VAR_SPACE2, read_op.value):
+                    offset = read_op.value - MemoryPositions.FREE_VAR_SPACE2
+                    _update_read_location(inst, IRAbstractMemLoc.FREE_VAR2.with_offset(offset))
+
+
+def get_memory_write_op(inst) -> IROperand | None:
+    opcode = inst.opcode
+    if opcode == "mstore":
+        dst = inst.operands[1]
+        return dst
+    elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
+        _, _, dst = inst.operands
+        return dst
+    elif opcode == "call":
+        _, dst, _, _, _, _, _ = inst.operands
+        return dst
+    elif opcode in ("delegatecall", "staticcall"):
+        _, dst, _, _, _, _ = inst.operands
+        return dst
+    elif opcode == "extcodecopy":
+        _, _, dst, _ = inst.operands
+        return dst
+
+    return None
+
+
+def get_write_size(inst: IRInstruction) -> IROperand | None:
+    opcode = inst.opcode
+    if opcode == "mstore":
+        return IRLiteral(32)
+    elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
+        size, _, _ = inst.operands
+        return size
+    elif opcode == "call":
+        size, _, _, _, _, _, _ = inst.operands
+        return size
+    elif opcode in ("delegatecall", "staticcall"):
+        size, _, _, _, _, _ = inst.operands
+        return size
+    elif opcode == "extcodecopy":
+        size, _, _, _ = inst.operands
+        return size
+
+    return None
+
+
+def get_memory_read_op(inst) -> IROperand | None:
+    opcode = inst.opcode
+    if opcode == "mload":
+        return inst.operands[0]
+    elif opcode == "mcopy":
+        _, src, _ = inst.operands
+        return src
+    elif opcode == "call":
+        _, _, _, dst, _, _, _ = inst.operands
+        return dst
+    elif opcode in ("delegatecall", "staticcall"):
+        _, _, _, dst, _, _ = inst.operands
+        return dst
+    elif opcode == "return":
+        _, src = inst.operands
+        return src
+    elif opcode == "create":
+        _, src, _value = inst.operands
+        return src
+    elif opcode == "create2":
+        _salt, size, src, _value = inst.operands
+        return src
+    elif opcode == "sha3":
+        _, offset = inst.operands
+        return offset
+    elif opcode == "log":
+        _, src = inst.operands[-2:]
+        return src
+    elif opcode == "revert":
+        size, src = inst.operands
+        if size.value == 0:
+            return None
+        return src
+
+    return None
+
+
+def _get_read_size(inst: IRInstruction) -> IROperand | None:
+    opcode = inst.opcode
+    if opcode == "mload":
+        return IRLiteral(32)
+    elif opcode == "mcopy":
+        size, _, _ = inst.operands
+        return size
+    elif opcode == "call":
+        _, _, size, _, _, _, _ = inst.operands
+        return size
+    elif opcode in ("delegatecall", "staticcall"):
+        _, _, size, _, _, _ = inst.operands
+        return size
+    elif opcode == "return":
+        size, _ = inst.operands
+        return size
+    elif opcode == "create":
+        size, _, _ = inst.operands
+        return size
+    elif opcode == "create2":
+        _, size, _, _ = inst.operands
+        return size
+    elif opcode == "sha3":
+        size, _ = inst.operands
+        return size
+    elif opcode == "log":
+        size, _ = inst.operands[-2:]
+        return size
+    elif opcode == "revert":
+        size, _ = inst.operands
+        if size.value == 0:
+            return None
+        return size
+
+    return None
+
+
+def _update_write_location(inst, new_op: IROperand):
+    opcode = inst.opcode
+    if opcode == "mstore":
+        inst.operands[1] = new_op
+    elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
+        inst.operands[2] = new_op
+    elif opcode == "call":
+        inst.operands[1] = new_op
+    elif opcode in ("delegatecall", "staticcall"):
+        inst.operands[1] = new_op
+    elif opcode == "extcodecopy":
+        inst.operands[2] = new_op
+
+
+def _update_read_location(inst, new_op: IROperand):
+    opcode = inst.opcode
+    if opcode == "mload":
+        inst.operands[0] = new_op
+    elif opcode == "mcopy":
+        inst.operands[1] = new_op
+    elif opcode == "call":
+        inst.operands[3] = new_op
+    elif opcode in ("delegatecall", "staticcall", "call"):
+        inst.operands[3] = new_op
+    elif opcode == "return":
+        inst.operands[1] = new_op
+    elif opcode == "create":
+        inst.operands[1] = new_op
+    elif opcode == "create2":
+        inst.operands[2] = new_op
+    elif opcode == "sha3":
+        inst.operands[1] = new_op
+    elif opcode == "log":
+        inst.operands[-1] = new_op
+    elif opcode == "revert":
+        inst.operands[1] = new_op

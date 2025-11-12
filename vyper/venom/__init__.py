@@ -6,16 +6,14 @@ from typing import Optional
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
-from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import AssemblyInstruction
-from vyper.venom.analysis import FCGAnalysis, MemSSA
+from vyper.venom.analysis import FCGAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRAbstractMemLoc, IRInstruction, IRLabel, IRLiteral
-from vyper.venom.check_venom import fix_mem_loc, no_concrete_locations_fn
+from vyper.venom.basicblock import IRAbstractMemLoc, IRLabel, IRLiteral
+from vyper.venom.memory_location import fix_mem_loc
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
-from vyper.venom.memory_allocator import MemoryAllocator
 from vyper.venom.passes import (
     CSE,
     SCCP,

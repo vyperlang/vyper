@@ -14,6 +14,7 @@ from vyper.venom.basicblock import (
 from vyper.venom.function import IRFunction
 from vyper.venom.memory_allocator import MemoryAllocator
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.memory_location import get_memory_read_op, get_memory_write_op, get_write_size
 
 
 class ConcretizeMemLocPass(IRPass):
@@ -139,9 +140,9 @@ class MemLiveness:
         before = self.liveat[bb.instructions[0]]
 
         for inst in reversed(bb.instructions):
-            write_op = _get_memory_write_op(inst)
+            write_op = get_memory_write_op(inst)
             write_ops = self._follow_op(write_op)
-            read_op = _get_memory_read_op(inst)
+            read_op = get_memory_read_op(inst)
             read_ops = self._follow_op(read_op)
 
             for read_op in read_ops:
@@ -164,7 +165,7 @@ class MemLiveness:
 
             for write_op in write_ops:
                 assert isinstance(write_op, IRAbstractMemLoc)
-                size = _get_write_size(inst)
+                size = get_write_size(inst)
                 assert size is not None
                 if not isinstance(size, IRLiteral):
                     continue
@@ -218,81 +219,3 @@ class MemLiveness:
                 res.update(src)
             return res
         return set()
-
-
-def _get_memory_write_op(inst) -> IROperand | None:
-    opcode = inst.opcode
-    if opcode == "mstore":
-        dst = inst.operands[1]
-        return dst
-    elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
-        _, _, dst = inst.operands
-        return dst
-    elif opcode == "call":
-        _, dst, _, _, _, _, _ = inst.operands
-        return dst
-    elif opcode in ("delegatecall", "staticcall"):
-        _, dst, _, _, _, _ = inst.operands
-        return dst
-    elif opcode == "extcodecopy":
-        _, _, dst, _ = inst.operands
-        return dst
-
-    return None
-
-
-def _get_memory_read_op(inst) -> IROperand | None:
-    opcode = inst.opcode
-    if opcode == "mload":
-        return inst.operands[0]
-    elif opcode == "mcopy":
-        _, src, _ = inst.operands
-        return src
-    elif opcode == "call":
-        _, _, _, dst, _, _, _ = inst.operands
-        return dst
-    elif opcode in ("delegatecall", "staticcall"):
-        _, _, _, dst, _, _ = inst.operands
-        return dst
-    elif opcode == "return":
-        _, src = inst.operands
-        return src
-    elif opcode == "create":
-        _, src, _value = inst.operands
-        return src
-    elif opcode == "create2":
-        _salt, size, src, _value = inst.operands
-        return src
-    elif opcode == "sha3":
-        _, offset = inst.operands
-        return offset
-    elif opcode == "log":
-        _, src = inst.operands[-2:]
-        return src
-    elif opcode == "revert":
-        size, src = inst.operands
-        if size.value == 0:
-            return None
-        return src
-
-    return None
-
-
-def _get_write_size(inst: IRInstruction) -> IROperand | None:
-    opcode = inst.opcode
-    if opcode == "mstore":
-        return IRLiteral(32)
-    elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
-        size, _, _ = inst.operands
-        return size
-    elif opcode == "call":
-        size, _, _, _, _, _, _ = inst.operands
-        return size
-    elif opcode in ("delegatecall", "staticcall"):
-        size, _, _, _, _, _ = inst.operands
-        return size
-    elif opcode == "extcodecopy":
-        size, _, _, _ = inst.operands
-        return size
-
-    return None
