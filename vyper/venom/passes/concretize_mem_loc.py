@@ -117,13 +117,19 @@ class MemLiveness:
         self.mem_allocator = mem_allocator
 
     def analyze(self):
-        while True:
+        found = False
+        upper_bound = (len(list(self.function.get_basic_blocks())) ** 2 + 1)
+        for _ in range(upper_bound):
             change = False
             for bb in self.cfg.dfs_post_walk:
                 change |= self._handle_bb(bb)
+                change |= self._handle_used(bb)
 
             if not change:
+                found = True
                 break
+
+        assert found, self.function
 
         self.livesets = defaultdict(OrderedSet)
         for inst, mems in self.liveat.items():
@@ -177,7 +183,7 @@ class MemLiveness:
         if before != self.liveat[bb.instructions[0]]:
             return True
 
-        return self._handle_used(bb)
+        return False
 
     def _handle_used(self, bb: IRBasicBlock) -> bool:
         curr: OrderedSet[IRAbstractMemLoc] = OrderedSet(self.function.allocated_args.values())
