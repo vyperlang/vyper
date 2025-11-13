@@ -118,7 +118,7 @@ class MemLiveness:
 
     def analyze(self):
         found = False
-        upper_bound = (len(list(self.function.get_basic_blocks())) ** 2 + 1)
+        upper_bound = len(list(self.function.get_basic_blocks())) ** 2 + 1
         for _ in range(upper_bound):
             change = False
             for bb in self.cfg.dfs_post_walk:
