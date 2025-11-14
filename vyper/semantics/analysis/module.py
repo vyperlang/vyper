@@ -364,23 +364,27 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             err_list.raise_if_not_empty()
 
     def visit_ImplementsDecl(self, node):
-        type_ = type_from_annotation(node.annotation)
+        interface_types = list()
+        for name in node.children:
+            type_ = type_from_annotation(name)
 
-        if not isinstance(type_, InterfaceT):
-            msg = "Not an interface!"
-            hint = None
-            if isinstance(type_, ModuleT):
-                path = type_._module.path
-                msg += " (Since vyper v0.4.0, interface files are required"
-                msg += " to have a .vyi suffix.)"
-                hint = f"try renaming `{path}` to `{path}i`"
-            raise StructureException(msg, node.annotation, hint=hint)
+            if not isinstance(type_, InterfaceT):
+                msg = "Not an interface!"
+                hint = None
+                if isinstance(type_, ModuleT):
+                    path = type_._module.path
+                    msg += " (Since vyper v0.4.0, interface files are required"
+                    msg += " to have a .vyi suffix.)"
+                    hint = f"try renaming `{path}` to `{path}i`"
+                raise StructureException(msg, name, hint=hint)
 
-        # grab exposed functions
-        funcs = {fn_t: node for fn_t, node in self._all_functions.items() if fn_t.is_external}
-        type_.validate_implements(node, funcs)
+            # grab exposed functions
+            funcs = {fn_t: node for fn_t, node in self._all_functions.items() if fn_t.is_external}
+            type_.validate_implements(node, funcs)
 
-        node._metadata["interface_type"] = type_
+            interface_types.append(type_)
+
+        node._metadata["interface_types"] = interface_types
 
     def visit_UsesDecl(self, node):
         # TODO: check duplicate uses declarations, e.g.
