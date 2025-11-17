@@ -301,11 +301,14 @@ def _handle_internal_func(
     # return buffer
     if does_return_data:
         if ENABLE_NEW_CALL_CONV and returns_word:
+            # REVIEW: can probably remove these comments(!)
             # TODO: remove this once we have proper memory allocator
             # functionality in venom. Currently, we hardcode the scratch
             # buffer size of 32 bytes.
             # TODO: we don't need to use scratch space once the legacy optimizer
             # is disabled.
+            # REVIEW: i don't think we even need to use FREE_VAR1 anymore,
+            # we can make this a proper alloca
             buf = bb.append_instruction(
                 "alloca", IRAbstractMemLoc.FREE_VAR1, get_scratch_alloca_id()
             )
@@ -427,6 +430,10 @@ def _convert_ir_bb(fn, ir, symbols):
 
         mem_start_var = bb.append_instruction("mem_deploy_start", mem_deploy_start)
 
+        # REVIEW: explain why we need codecopyruntime, e.g.
+        # codecopyruntime copies code to a specific memory location, we
+        # can't use abstract memory (which doesn't affect alias analysis,
+        # because it occurs after all other memory writes(!))
         bb.append_instruction(
             "codecopyruntime", runtime_codesize, IRLabel("runtime_begin"), mem_start_var
         )
@@ -696,6 +703,7 @@ def _convert_ir_bb(fn, ir, symbols):
             alloca = ir.passthrough_metadata["alloca"]
             if alloca._id not in _alloca_table:
                 mem_loc_op = IRAbstractMemLoc(alloca.size)
+                # REVIEW: do we need an `id` in the regular alloca instruction?
                 ptr = fn.get_basic_block().append_instruction("alloca", mem_loc_op, alloca._id)
                 _alloca_table[alloca._id] = ptr
             return _alloca_table[alloca._id]

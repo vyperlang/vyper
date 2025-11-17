@@ -34,6 +34,7 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "extcodecopy",
         "returndatacopy",
         "codecopy",
+        # REVIEW: maybe copyruntimecode?
         "codecopyruntime",
         "dloadbytes",
         "return",

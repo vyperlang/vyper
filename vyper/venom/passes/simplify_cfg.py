@@ -24,6 +24,8 @@ class SimplifyCFGPass(IRPass):
             self.cfg.add_cfg_in(next_bb, a)
 
             for inst in next_bb.instructions:
+                # REVIEW is this a separate bug? maybe worth splitting into
+                # its own PR
                 # assume phi instructions are at beginning of bb
                 if inst.opcode != "phi":
                     break

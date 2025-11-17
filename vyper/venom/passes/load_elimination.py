@@ -36,6 +36,7 @@ def _conflict(
             # this used to be assert and it triggered the error
             # with --enable-compiler-debug-mode why
             return True
+        # REVIEW: add comment that both k1 and k2 are now IRAbstractMemLoc
         if k1._id == k2._id:
             return _conflict_lit(store_opcode, k1.offset, k2.offset)
         else:

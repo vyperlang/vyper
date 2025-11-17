@@ -34,17 +34,38 @@ class ConcretizeMemLocPass(IRPass):
 
         livesets = list(self.mem_liveness.livesets.items())
         already_allocated = [item for item in livesets if item[0]._id in self.allocator.allocated]
+        # REVIEW: rename to to_allocate?
         livesets = [item for item in livesets if item[0]._id not in self.allocator.allocated]
+        # REVIEW: sort by size of liveset (allocate shortest-lived first)
+        # (note this is *heuristic*; our goal is to minimize conflicts
+        # between livesets)
         livesets.sort(key=lambda x: len(x[1]), reverse=False)
 
         max_curr = 0
+        # REVIEW: for ix, (mem, live_insts) in enumerate(livesets):
+        # REVIEW: note, this is O(n^2)
         for index, (mem, insts) in enumerate(livesets):
+
+
+            # REVIEW: deep magic! restart the allocator so that
+            # we can allocate from the smallest slot
             curr = orig
+
+
             for before_mem, before_insts in already_allocated:
                 if len(OrderedSet.intersection(insts, before_insts)) == 0:
                     continue
+                # REVIEW: please destructure this to `ptr, size`
                 place = self.allocator.allocated[before_mem._id]
+                # REVIEW: end = ptr + size
+                # REVIEW: explanation is, we have found an aliasing
+                # memory access, so we need to allocate a new slot.
+                # self.allocator.reserve_to(end)
+                # OR self.allocator.reserve_to(max(end, allocator.curr))
+                # actually:
+                # self.allocator.allocate(already_allocated=before_mems)
                 curr = max(place[0] + place[1], curr)
+            # REVIEW: push to already_allocated
             for i in range(index):
                 before_mem, before_insts = livesets[i]
                 if len(OrderedSet.intersection(insts, before_insts)) == 0:
@@ -53,6 +74,7 @@ class ConcretizeMemLocPass(IRPass):
                 curr = max(place[0] + place[1], curr)
             self.allocator.curr = curr
             self.allocator.allocate(mem)
+            # REVIEW: is this necessary?
             max_curr = max(self.allocator.curr, max_curr)
 
         self.allocator.curr = max_curr
@@ -61,6 +83,8 @@ class ConcretizeMemLocPass(IRPass):
             self._handle_bb(bb)
 
         all_allocated = [item[0] for item in already_allocated]
+        # TODO: this will not be necessary after change to
+        # push to already_allocated
         all_allocated.extend([item[0] for item in livesets])
 
         self.allocator.end_fn_allocation(all_allocated, fn=self.function)
@@ -83,6 +107,8 @@ class ConcretizeMemLocPass(IRPass):
         if isinstance(op, IRAbstractMemLoc) and op._id in self.allocator.allocated:
             return IRLiteral(self.allocator.allocated[op._id][0] + op.offset)
         elif isinstance(op, IRAbstractMemLoc):
+            # REVIEW: !!!! i think the invariant of the prior mem allocation
+            # is that *all* IRABstractMemLocs should already be allocated.
             return IRLiteral(self.allocator.allocate(op) + op.offset)
         else:
             return op
@@ -92,6 +118,7 @@ class ConcretizeMemLocPass(IRPass):
 _CALL_OPCODES = frozenset(["invoke", "staticcall", "call", "delegatecall"])
 
 
+# REVIEW: cool class!
 class MemLiveness:
     function: IRFunction
     cfg: CFGAnalysis
@@ -118,25 +145,36 @@ class MemLiveness:
 
     def analyze(self):
         found = False
+        # REVIEW: self.function.num_basic_blocks
         upper_bound = len(list(self.function.get_basic_blocks())) ** 2 + 1
         for _ in range(upper_bound):
             change = False
             for bb in self.cfg.dfs_post_walk:
+                # REVIEW: these don't need to be in the same loop, right?
+                # (if so please add note)
+                # REVIEW: note "natural" order for handle_bb (maybe should be
+                # renamed to compute_liveat) is post walk,
+                # natural order for handle_used is pre walk.
+                # REVIEW: kind of prefer a worklist, it's more "standard"
+                # / in line with the rest of the codebase
                 change |= self._handle_bb(bb)
                 change |= self._handle_used(bb)
 
             if not change:
                 found = True
                 break
+        # REVIEW: just use for/else: raise Panic(...)
 
         assert found, self.function
 
         self.livesets = defaultdict(OrderedSet)
         for inst, mems in self.liveat.items():
             for mem in mems:
+                # REVIEW: slick!
                 if mem in self.used[inst]:
                     self.livesets[mem].add(inst)
 
+    # def _handle_liveat?
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
         curr: OrderedSet[IRAbstractMemLoc] = OrderedSet()
         if len(succs := self.cfg.cfg_out(bb)) > 0:
@@ -159,12 +197,16 @@ class MemLiveness:
                 label = inst.operands[0]
                 assert isinstance(label, IRLabel)
                 fn = self.function.ctx.get_function(label)
+                # REVIEW: might be worth noting that this lets us
+                # deallocate internal function memory after it's dead
                 curr.addmany(self.mem_allocator.mems_used[fn])
 
             if inst.opcode in _CALL_OPCODES:
                 for op in inst.operands:
                     if not isinstance(op, IRAbstractMemLoc):
                         continue
+                    # REVIEW: why? should already be added from
+                    # read_ops and write_ops
                     curr.add(op.no_offset())
 
             self.liveat[inst] = curr.copy()
@@ -174,10 +216,13 @@ class MemLiveness:
                 size = get_write_size(inst)
                 assert size is not None
                 if not isinstance(size, IRLiteral):
+                    # REVIEW: this case should be explained
                     continue
                 if write_op in curr and size.value == write_op.size:
+                    # REVIEW: why?
                     curr.remove(write_op.no_offset())
                 if write_op._id in (op._id for op in read_ops):
+                    # REVIEW: why?
                     curr.add(write_op.no_offset())
 
         if before != self.liveat[bb.instructions[0]]:
@@ -186,7 +231,13 @@ class MemLiveness:
         return False
 
     def _handle_used(self, bb: IRBasicBlock) -> bool:
+        # REVIEW: please add 1-2 sentence docstring explaining purpose
+        # of this function
+        # find all memories which have been used at each point in the function.
+        # it's a hint to the allocator: don't need to allocate memory until
+        # first use.
         curr: OrderedSet[IRAbstractMemLoc] = OrderedSet(self.function.allocated_args.values())
+        # REVIEW: preds? since cfg_in
         if len(succs := self.cfg.cfg_in(bb)) > 0:
             for other in (self.used[succ.instructions[-1]] for succ in succs):
                 curr.update(other)
@@ -205,6 +256,8 @@ class MemLiveness:
             self.used[inst] = curr.copy()
         return before != curr
 
+    # REVIEW basically: find_base_pointers
+    # REVIEW: Optional[IROperand]
     def _follow_op(self, op: IROperand | None) -> set[IRAbstractMemLoc]:
         if op is None:
             return set()

@@ -67,16 +67,22 @@ class Mem2Var(IRPass):
 
         for inst in uses.copy():
             if inst.opcode == "mstore":
+                # REVIEW: when can size be less than 32? seems like we should
+                # panic if size < 32.
                 if size <= 32:
                     self.updater.mk_assign(inst, inst.operands[0], new_output=var)
                 else:
+                    # REVIEW: should this be part of sccp? pushing the
+                    # mem_loc down into the uses
                     self.updater.update_operands(inst, {alloca_inst.output: mem_loc})
             elif inst.opcode == "mload":
+                # REVIEW: ditto
                 if size <= 32:
                     self.updater.mk_assign(inst, var)
                 else:
                     self.updater.update_operands(inst, {alloca_inst.output: mem_loc})
             elif inst.opcode == "return":
+                # REVIEW: ditto?
                 if size <= 32:
                     self.updater.add_before(inst, "mstore", [var, mem_loc])
                 inst.operands[1] = mem_loc
@@ -117,11 +123,13 @@ class Mem2Var(IRPass):
 
         for inst in uses.copy():
             if inst.opcode == "mstore":
+                # REVIEW: ditto
                 if size <= 32:
                     self.updater.mk_assign(inst, inst.operands[0], new_output=var)
                 else:
                     self.updater.update_operands(inst, {palloca_inst.output: mem_loc})
             elif inst.opcode == "mload":
+                # REVIEW: ditto
                 if size <= 32:
                     self.updater.mk_assign(inst, var)
                 else:

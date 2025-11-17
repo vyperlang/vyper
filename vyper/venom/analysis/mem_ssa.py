@@ -153,6 +153,7 @@ class MemSSAAbstract(IRAnalysis):
 
         # Clean up unnecessary phi nodes
         self._remove_redundant_phis()
+        # REVIEW: why does it invalidate the memalias analysis?
         self.analyses_cache.invalidate_analysis(self.mem_alias_type)
 
     def mark_location_volatile(self, loc: MemoryLocation) -> MemoryLocation:
@@ -194,6 +195,8 @@ class MemSSAAbstract(IRAnalysis):
         """Process memory definitions and uses in a basic block"""
         for inst in block.instructions:
             # Check for memory reads
+            # REVIEW: long condition, move the loc assignment outside of the
+            # condition to separate line/statement
             if (
                 loc := self.memalias._get_read_location(inst, self.addr_space)
             ) != MemoryLocation.EMPTY:
@@ -203,6 +206,7 @@ class MemSSAAbstract(IRAnalysis):
                 self.inst_to_use[inst] = mem_use
 
             # Check for memory writes
+            # REVIEW: ditto
             if (
                 loc := self.memalias._get_write_location(inst, self.addr_space)
             ) != MemoryLocation.EMPTY:
