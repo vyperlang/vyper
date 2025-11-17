@@ -180,7 +180,7 @@ class IRAbstractMemLoc(IROperand):
     size: int
     offset: int
 
-    _curr_id: ClassVar[int]
+    _curr_id: ClassVar[int] = 0
     FREE_VAR1: ClassVar["IRAbstractMemLoc"]
     FREE_VAR2: ClassVar["IRAbstractMemLoc"]
 
@@ -195,7 +195,7 @@ class IRAbstractMemLoc(IROperand):
         self.offset = offset
 
     def __hash__(self) -> int:
-        return self._id ^ self.offset
+        return self._id
 
     def __eq__(self, other) -> bool:
         if type(self) is not type(other):
