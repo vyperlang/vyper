@@ -102,8 +102,6 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     ConcretizeMemLocPass(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
-    # REVIEW: we need to run DSE again?
-    DeadStoreElimination(ac, fn).run_pass(addr_space=MEMORY)
     # REVIEW: no-op?
     LoadElimination(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
