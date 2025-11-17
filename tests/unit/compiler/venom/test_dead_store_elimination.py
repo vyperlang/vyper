@@ -27,6 +27,7 @@ class VolatilePrePostChecker(PrePostChecker):
             self.volatile_locations = volatile_locations
 
     def __call__(self, pre: str, post: str, hevm: bool | None = None) -> list[IRPass]:
+        # REVIEW is there some reason this is an inline import?
         from vyper.venom.memory_location import MemoryLocationSegment
 
         self.pass_objects.clear()

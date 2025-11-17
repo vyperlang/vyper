@@ -77,6 +77,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     AssignElimination(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
 
+    # REVIEW: one of these LoadEliminations is likely a no-op
     LoadElimination(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
@@ -86,6 +87,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     RevertToAssert(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
+    # REVIEW: MemMerge is probably a no-op until concretization is run
     MemMergePass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
@@ -94,12 +96,15 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     DeadStoreElimination(ac, fn).run_pass(addr_space=TRANSIENT)
     LowerDloadPass(ac, fn).run_pass()
 
+    # REVIEW: phi elimination is probably only needed after MakeSSA/Load elim?
     PhiEliminationPass(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
     ConcretizeMemLocPass(ac, fn).run_pass()
     SCCP(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
+    # REVIEW: we need to run DSE again?
     DeadStoreElimination(ac, fn).run_pass(addr_space=MEMORY)
+    # REVIEW: no-op?
     LoadElimination(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
@@ -191,6 +196,8 @@ def generate_venom(
 
     # these mem location are used sha3_64 instruction
     # with concrete value so I need to allocate it here
+    # REVIEW: is sha3_64 the *only* place they are used? if so maybe
+    # we should lower sha3_64 at a higher level (like into alloca+sha3 instructions)
     ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR1)
     ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR2)
 

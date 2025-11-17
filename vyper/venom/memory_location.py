@@ -45,6 +45,9 @@ class MemoryLocation:
         else:  # pragma: nocover
             raise CompilerPanic(f"invalid offset: {offset} ({type(offset)})")
 
+    # REVIEW: maybe set these as class members? they can be overridden
+    # as properties in child classes
+    # offset: Optional[int]
     @property
     def offset(self) -> int | None:  # pragma: nocover
         raise NotImplementedError
@@ -151,6 +154,8 @@ class MemoryLocationAbstract(MemoryLocation):
 class MemoryLocationSegment(MemoryLocation):
     """Represents a memory location that can be analyzed for aliasing"""
 
+    # REVIEW i disagree with guido here, i find `int | None` harder to read than
+    # Optional[int]
     _offset: int | None = None
     _size: int | None = None
     _is_volatile: bool = False
@@ -461,6 +466,8 @@ def get_write_size(inst: IRInstruction) -> IROperand | None:
         size, _, _ = inst.operands
         return size
     elif opcode == "call":
+        # REVIEW (take it or leave it): maybe can do size, *_ = inst.operands
+        # (and also collapse several branches)
         size, _, _, _, _, _, _ = inst.operands
         return size
     elif opcode in ("delegatecall", "staticcall"):
@@ -474,6 +481,7 @@ def get_write_size(inst: IRInstruction) -> IROperand | None:
 
 
 def get_memory_read_op(inst) -> IROperand | None:
+    # REVIEW: kind of verbose and hard to audit, revisit this
     opcode = inst.opcode
     if opcode == "mload":
         return inst.operands[0]
@@ -481,9 +489,11 @@ def get_memory_read_op(inst) -> IROperand | None:
         _, src, _ = inst.operands
         return src
     elif opcode == "call":
+        # REVIEW: dst?
         _, _, _, dst, _, _, _ = inst.operands
         return dst
     elif opcode in ("delegatecall", "staticcall"):
+        # REVIEW: dst?
         _, _, _, dst, _, _ = inst.operands
         return dst
     elif opcode == "return":

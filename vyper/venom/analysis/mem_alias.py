@@ -28,6 +28,7 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
             for inst in bb.instructions:
                 if inst.opcode != "gep":
                     continue
+                # REVIEW: place -> base_ptr
                 place = self._follow_gep(inst)
                 assert inst.output is not None
                 self.var_base_pointers[inst.output] = place
@@ -39,6 +40,7 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
 
     def _follow_gep(self, inst: IRInstruction):
         assert inst.opcode == "gep"
+        # REVIEW: place -> base_ptr
         place = inst.operands[0]
         if isinstance(place, IRVariable):
             next_inst = self.dfg.get_producing_instruction(place)

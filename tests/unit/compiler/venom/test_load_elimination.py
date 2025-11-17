@@ -288,6 +288,7 @@ def test_store_store_no_overlap(addrspace, position: list):
     Test that if the mstores do not overlap it can still
     eliminate any possible repeated mstores
     """
+    # REVIEW: bit weird since position was already annotated as `list`
     if addrspace != MEMORY and not isinstance(position, int):
         return
 
