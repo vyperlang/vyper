@@ -6,6 +6,12 @@ _check_pre_post_mem2var = PrePostChecker([Mem2Var, AssignElimination], default_h
 
 
 def test_valid_overlap():
+    """
+    Test for case where two different memory location
+    do not overlap in the liveness, both of them should be
+    assign to the same address
+    """
+
     pre = """
     main:
         calldatacopy [3,256], 100, 256
