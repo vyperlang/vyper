@@ -88,7 +88,7 @@ class ConcretizeMemLocPass(IRPass):
             return op
 
 
-#
+# with there opcodes we do not have whole knowledge of memory location usage
 _CALL_OPCODES = frozenset(["invoke", "staticcall", "call", "delegatecall"])
 
 
