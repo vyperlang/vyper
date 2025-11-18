@@ -28,27 +28,25 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
             for inst in bb.instructions:
                 if inst.opcode != "gep":
                     continue
-                # REVIEW: place -> base_ptr
-                place = self._follow_gep(inst)
+                base_ptr = self._find_base_ptr(inst)
                 assert inst.output is not None
-                self.var_base_pointers[inst.output] = place
+                self.var_base_pointers[inst.output] = base_ptr
 
         # Analyze all memory operations
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 self._analyze_instruction(inst)
 
-    def _follow_gep(self, inst: IRInstruction):
+    def _find_base_ptr(self, inst: IRInstruction):
         assert inst.opcode == "gep"
-        # REVIEW: place -> base_ptr
-        place = inst.operands[0]
-        if isinstance(place, IRVariable):
-            next_inst = self.dfg.get_producing_instruction(place)
+        base_ptr = inst.operands[0]
+        if isinstance(base_ptr, IRVariable):
+            next_inst = self.dfg.get_producing_instruction(base_ptr)
             assert next_inst is not None
-            place = self._follow_gep(next_inst)
+            base_ptr = self._find_base_ptr(next_inst)
 
-        assert isinstance(place, IRAbstractMemLoc)
-        return place
+        assert isinstance(base_ptr, IRAbstractMemLoc)
+        return base_ptr
 
     def _get_read_location(self, inst: IRInstruction, addr_space: AddrSpace) -> MemoryLocation:
         return get_read_location(inst, addr_space, self.var_base_pointers)
