@@ -25,6 +25,7 @@ from vyper.venom.passes import (
     FloatAllocas,
     FunctionInlinerPass,
     LoadElimination,
+    LoopInvariantCodeMotionPass,
     LowerDloadPass,
     MakeSSA,
     Mem2Var,
@@ -93,6 +94,8 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     LowerDloadPass(ac, fn).run_pass()
 
     BranchOptimizationPass(ac, fn).run_pass()
+
+    LoopInvariantCodeMotionPass(ac, fn).run_pass()
 
     AlgebraicOptimizationPass(ac, fn).run_pass()
 
