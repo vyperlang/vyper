@@ -43,6 +43,23 @@ def test_optimistic_swap_params():
 def test_popmany_bulk_removal_of_suffix():
     compiler = VenomCompiler(IRContext())
     stack = StackModel()
+    keep1 = IRVariable("%keep1")
+    drop1 = IRVariable("%drop1")
+    keep = IRVariable("%keep")
+
+    stack.push(keep1) 
+    stack.push(drop1) 
+    stack.push(keep)
+
+    asm: list[str] = []
+    compiler.popmany(asm, [drop1], stack)
+
+    assert asm == ["SWAP1", "POP"]
+    assert stack._stack == [keep1, keep]
+
+def test_popmany_bulk_removal_of_suffix2():
+    compiler = VenomCompiler(IRContext())
+    stack = StackModel()
     drop2 = IRVariable("%drop2")
     drop1 = IRVariable("%drop1")
     keep = IRVariable("%keep")
