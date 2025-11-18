@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses as dc
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import ClassVar, Optional
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.exceptions import CompilerPanic
@@ -154,10 +154,8 @@ class MemoryLocationAbstract(MemoryLocation):
 class MemoryLocationSegment(MemoryLocation):
     """Represents a memory location that can be analyzed for aliasing"""
 
-    # REVIEW i disagree with guido here, i find `int | None` harder to read than
-    # Optional[int]
-    _offset: int | None = None
-    _size: int | None = None
+    _offset: Optional[int] = None
+    _size: Optional[int] = None
     _is_volatile: bool = False
     # Locations that should be considered volatile. Example usages of this would
     # be locations that are accessed outside of the current function.
@@ -489,13 +487,11 @@ def get_memory_read_op(inst) -> IROperand | None:
         _, src, _ = inst.operands
         return src
     elif opcode == "call":
-        # REVIEW: dst?
-        _, _, _, dst, _, _, _ = inst.operands
-        return dst
+        _, _, _, src, _, _, _ = inst.operands
+        return src
     elif opcode in ("delegatecall", "staticcall"):
-        # REVIEW: dst?
-        _, _, _, dst, _, _ = inst.operands
-        return dst
+        _, _, _, src, _, _ = inst.operands
+        return src
     elif opcode == "return":
         _, src = inst.operands
         return src
