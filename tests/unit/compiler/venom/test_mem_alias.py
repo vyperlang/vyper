@@ -4,7 +4,7 @@ from vyper.venom.basicblock import IRLabel
 from vyper.venom.memory_location import MemoryLocationSegment
 from vyper.venom.parser import parse_venom
 
-FULL_MEMORY_ACCESS = MemoryLocationSegment(_offset=0, _size=None)
+FULL_MEMORY_ACCESS = MemoryLocationSegment(offset=0, size=None)
 
 
 def test_may_alias_full_memory_access():
@@ -20,7 +20,7 @@ def test_may_alias_full_memory_access():
     alias = MemoryAliasAnalysis(ac, fn)
     alias.analyze()
 
-    loc1 = MemoryLocationSegment(_offset=0, _size=32)
+    loc1 = MemoryLocationSegment(offset=0, size=32)
     assert alias.may_alias(
         FULL_MEMORY_ACCESS, loc1
     ), "FULL_MEMORY_ACCESS should alias with regular location"
@@ -39,7 +39,7 @@ def test_may_alias_full_memory_access():
         FULL_MEMORY_ACCESS, FULL_MEMORY_ACCESS
     ), "FULL_MEMORY_ACCESS should alias with itself"
 
-    loc1 = MemoryLocationSegment(_offset=0, _size=32)
+    loc1 = MemoryLocationSegment(offset=0, size=32)
     assert not alias.may_alias(
         MemoryLocationSegment.EMPTY, loc1
     ), "EMPTY_MEMORY_ACCESS should not alias with regular location"
@@ -65,8 +65,8 @@ def test_may_alias_volatile():
     alias = MemoryAliasAnalysis(ac, fn)
     alias.analyze()
 
-    volatile_loc = MemoryLocationSegment(_offset=0, _size=32, _is_volatile=True)
-    regular_loc = MemoryLocationSegment(_offset=0, _size=32)
+    volatile_loc = MemoryLocationSegment(offset=0, size=32, _is_volatile=True)
+    regular_loc = MemoryLocationSegment(offset=0, size=32)
     assert alias.may_alias(
         volatile_loc, regular_loc
     ), "Volatile location should alias with overlapping regular location"
@@ -74,7 +74,7 @@ def test_may_alias_volatile():
         regular_loc, volatile_loc
     ), "Regular location should alias with overlapping volatile location"
 
-    non_overlapping_loc = MemoryLocationSegment(_offset=32, _size=32)
+    non_overlapping_loc = MemoryLocationSegment(offset=32, size=32)
     assert not alias.may_alias(
         volatile_loc, non_overlapping_loc
     ), "Volatile location should not alias with non-overlapping location"
@@ -96,9 +96,9 @@ def test_mark_volatile():
     alias = MemoryAliasAnalysis(ac, fn)
     alias.analyze()
 
-    loc1 = MemoryLocationSegment(_offset=0, _size=32)
-    loc2 = MemoryLocationSegment(_offset=0, _size=32)
-    loc3 = MemoryLocationSegment(_offset=32, _size=32)
+    loc1 = MemoryLocationSegment(offset=0, size=32)
+    loc2 = MemoryLocationSegment(offset=0, size=32)
+    loc3 = MemoryLocationSegment(offset=32, size=32)
 
     alias._analyze_mem_location(loc1)
     alias._analyze_mem_location(loc2)
@@ -141,9 +141,9 @@ def test_may_alias_with_alias_sets():
     alias = MemoryAliasAnalysis(ac, fn)
     alias.analyze()
 
-    loc1 = MemoryLocationSegment(_offset=0, _size=32)
-    loc2 = MemoryLocationSegment(_offset=0, _size=32)
-    loc3 = MemoryLocationSegment(_offset=32, _size=32)
+    loc1 = MemoryLocationSegment(offset=0, size=32)
+    loc2 = MemoryLocationSegment(offset=0, size=32)
+    loc3 = MemoryLocationSegment(offset=32, size=32)
 
     alias._analyze_mem_location(loc1)
     alias._analyze_mem_location(loc2)
@@ -153,7 +153,7 @@ def test_may_alias_with_alias_sets():
     assert not alias.may_alias(loc1, loc3), "Locations in different alias sets should not alias"
 
     # Test may_alias with new location not in alias sets
-    loc4 = MemoryLocationSegment(_offset=0, _size=32)
+    loc4 = MemoryLocationSegment(offset=0, size=32)
     assert alias.may_alias(loc1, loc4), "New location should alias with existing location"
     assert loc4 in alias.alias_sets, "New location should be added to alias sets"
 
@@ -172,7 +172,7 @@ def test_mark_volatile_edge_cases():
     alias.analyze()
 
     # Test marking a location not in alias sets
-    loc1 = MemoryLocationSegment(_offset=0, _size=32)
+    loc1 = MemoryLocationSegment(offset=0, size=32)
     volatile_loc = alias.mark_volatile(loc1)
     assert volatile_loc.is_volatile, "Marked location should be volatile"
     assert (
@@ -180,7 +180,7 @@ def test_mark_volatile_edge_cases():
     ), "Volatile location should not be in alias sets if original wasn't"
 
     # Test marking a location with no aliases
-    loc2 = MemoryLocationSegment(_offset=0, _size=32)
+    loc2 = MemoryLocationSegment(offset=0, size=32)
     alias._analyze_mem_location(loc2)
     volatile_loc2 = alias.mark_volatile(loc2)
     assert volatile_loc2 in alias.alias_sets, "Volatile location should be in alias sets"
@@ -215,7 +215,7 @@ def test_may_alias_edge_cases():
         MemoryLocationSegment.EMPTY, FULL_MEMORY_ACCESS
     ), "EMPTY_MEMORY_ACCESS should not alias with FULL_MEMORY_ACCESS"
 
-    loc1 = MemoryLocationSegment(_offset=0, _size=32)
+    loc1 = MemoryLocationSegment(offset=0, size=32)
     assert not alias.may_alias(
         MemoryLocationSegment.EMPTY, loc1
     ), "EMPTY_MEMORY_ACCESS should not alias with regular location"
@@ -223,21 +223,21 @@ def test_may_alias_edge_cases():
         loc1, MemoryLocationSegment.EMPTY
     ), "Regular location should not alias with EMPTY_MEMORY_ACCESS"
 
-    volatile_loc = MemoryLocationSegment(_offset=0, _size=32, _is_volatile=True)
-    non_overlapping_loc = MemoryLocationSegment(_offset=32, _size=32)
+    volatile_loc = MemoryLocationSegment(offset=0, size=32, _is_volatile=True)
+    non_overlapping_loc = MemoryLocationSegment(offset=32, size=32)
     assert not alias.may_alias(
         volatile_loc, non_overlapping_loc
     ), "Volatile location should not alias with non-overlapping location"
 
-    loc2 = MemoryLocationSegment(_offset=0, _size=32)
-    loc3 = MemoryLocationSegment(_offset=32, _size=32)
+    loc2 = MemoryLocationSegment(offset=0, size=32)
+    loc3 = MemoryLocationSegment(offset=32, size=32)
     assert alias.may_alias(loc2, loc3) == alias.may_alias(
         loc2, loc3
     ), "may_alias should use may_alias for locations not in alias sets"
 
-    loc4 = MemoryLocationSegment(_offset=0, _size=32)
-    loc5 = MemoryLocationSegment(_offset=0, _size=32)
-    loc6 = MemoryLocationSegment(_offset=32, _size=32)
+    loc4 = MemoryLocationSegment(offset=0, size=32)
+    loc5 = MemoryLocationSegment(offset=0, size=32)
+    loc6 = MemoryLocationSegment(offset=32, size=32)
     alias._analyze_mem_location(loc4)
     alias._analyze_mem_location(loc5)
     alias._analyze_mem_location(loc6)
@@ -263,7 +263,7 @@ def test_may_alias_edge_cases2():
     alias = MemoryAliasAnalysis(ac, fn)
     alias.analyze()
 
-    loc1 = MemoryLocationSegment(_offset=0, _size=32)
+    loc1 = MemoryLocationSegment(offset=0, size=32)
     assert alias.may_alias(
         FULL_MEMORY_ACCESS, loc1
     ), "FULL_MEMORY_ACCESS should alias with regular location"
@@ -272,22 +272,22 @@ def test_may_alias_edge_cases2():
         MemoryLocationSegment.EMPTY, loc1
     ), "EMPTY_MEMORY_ACCESS should not alias with regular location"
 
-    volatile_loc = MemoryLocationSegment(_offset=0, _size=32, _is_volatile=True)
-    overlapping_loc = MemoryLocationSegment(_offset=16, _size=32)
+    volatile_loc = MemoryLocationSegment(offset=0, size=32, _is_volatile=True)
+    overlapping_loc = MemoryLocationSegment(offset=16, size=32)
     assert alias.may_alias(
         volatile_loc, overlapping_loc
     ), "Volatile location should alias with overlapping location"
 
-    loc2 = MemoryLocationSegment(_offset=0, _size=64)
-    loc3 = MemoryLocationSegment(_offset=32, _size=64)
+    loc2 = MemoryLocationSegment(offset=0, size=64)
+    loc3 = MemoryLocationSegment(offset=32, size=64)
     result = alias.may_alias(loc2, loc3)
     assert result == alias.may_alias(
         loc2, loc3
     ), "may_alias should use may_alias for locations not in alias sets"
 
-    loc4 = MemoryLocationSegment(_offset=0, _size=32)
-    loc5 = MemoryLocationSegment(_offset=0, _size=32)
-    loc6 = MemoryLocationSegment(_offset=0, _size=32)
+    loc4 = MemoryLocationSegment(offset=0, size=32)
+    loc5 = MemoryLocationSegment(offset=0, size=32)
+    loc6 = MemoryLocationSegment(offset=0, size=32)
     alias._analyze_mem_location(loc4)
     alias._analyze_mem_location(loc5)
     alias._analyze_mem_location(loc6)

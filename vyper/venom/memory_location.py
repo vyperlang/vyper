@@ -30,30 +30,22 @@ class MemoryLocation:
             raise CompilerPanic(f"invalid size: {size} ({type(size)})")
 
         if isinstance(offset, IRLiteral):
-            return MemoryLocationSegment(offset.value, _size)
+            return MemoryLocationSegment(offset.value, size=_size)
         elif isinstance(offset, IRVariable):
             op = var_base_pointers.get(offset, None)
             if op is None:
-                return MemoryLocationSegment(_offset=None, _size=_size)
+                return MemoryLocationSegment(offset=None, size=_size)
             else:
-                segment = MemoryLocationSegment(_offset=None, _size=_size)
+                segment = MemoryLocationSegment(offset=None, size=_size)
                 return MemoryLocationAbstract(op=op, segment=segment)
         elif isinstance(offset, IRAbstractMemLoc):
             op = offset
-            segment = MemoryLocationSegment(_offset=op.offset, _size=_size)
+            segment = MemoryLocationSegment(offset=op.offset, size=_size)
             return MemoryLocationAbstract(op=op, segment=segment)
         else:  # pragma: nocover
             raise CompilerPanic(f"invalid offset: {offset} ({type(offset)})")
 
-    # REVIEW: maybe set these as class members? they can be overridden
-    # as properties in child classes
-    # offset: Optional[int]
-    @property
-    def offset(self) -> int | None:  # pragma: nocover
-        raise NotImplementedError
-
-    @property
-    def size(self) -> int | None:  # pragma: nocover
+    def is_empty(self) -> bool:  # pragma: nocover
         raise NotImplementedError
 
     @property
@@ -74,7 +66,7 @@ class MemoryLocation:
 
     @staticmethod
     def may_overlap(loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
-        if loc1.size == 0 or loc2.size == 0:
+        if loc1.is_empty() or loc2.is_empty():
             return False
         if not loc1.is_offset_fixed or not loc2.is_offset_fixed:
             return True
@@ -102,13 +94,8 @@ class MemoryLocationAbstract(MemoryLocation):
     op: IRAbstractMemLoc
     segment: MemoryLocationSegment
 
-    @property
-    def offset(self):
-        return self.segment.offset
-
-    @property
-    def size(self):
-        return self.segment.size
+    def is_empty(self):
+        return self.segment.is_empty()
 
     @property
     def is_offset_fixed(self) -> bool:
@@ -141,9 +128,9 @@ class MemoryLocationAbstract(MemoryLocation):
             return False
         if not isinstance(other, MemoryLocationAbstract):
             return False
-        if self.size is None:
+        if self.op.size is None:
             return False
-        if other.size == 0:
+        if other.is_empty():
             return True
         if self.op._id == other.op._id:
             return self.segment.completely_contains(other.segment)
@@ -154,19 +141,14 @@ class MemoryLocationAbstract(MemoryLocation):
 class MemoryLocationSegment(MemoryLocation):
     """Represents a memory location that can be analyzed for aliasing"""
 
-    _offset: Optional[int] = None
-    _size: Optional[int] = None
+    offset: Optional[int] = None
+    size: Optional[int] = None
     _is_volatile: bool = False
     # Locations that should be considered volatile. Example usages of this would
     # be locations that are accessed outside of the current function.
 
-    @property
-    def offset(self):
-        return self._offset
-
-    @property
-    def size(self):
-        return self._size
+    def is_empty(self):
+        return self.size == 0
 
     @property
     def is_offset_fixed(self) -> bool:
@@ -190,7 +172,7 @@ class MemoryLocationSegment(MemoryLocation):
     # similar code to memmerging._Interval, but different data structure
     def completely_contains(self, other: MemoryLocation) -> bool:
         # If other is empty (size 0), always contained
-        if other.size == 0:
+        if other.is_empty():
             return True
 
         # If self has unknown offset or size, can't guarantee containment
@@ -256,8 +238,8 @@ class MemoryLocationSegment(MemoryLocation):
         return True
 
 
-MemoryLocation.EMPTY = MemoryLocationSegment(_offset=0, _size=0)
-MemoryLocation.UNDEFINED = MemoryLocationSegment(_offset=None, _size=None)
+MemoryLocation.EMPTY = MemoryLocationSegment(offset=0, size=0)
+MemoryLocation.UNDEFINED = MemoryLocationSegment(offset=None, size=None)
 
 
 def get_write_location(inst, addr_space: AddrSpace, var_base_pointers: dict) -> MemoryLocation:
@@ -291,9 +273,9 @@ def _get_memory_write_location(inst, var_base_pointers: dict) -> MemoryLocation:
         size, _, dst = inst.operands
         return MemoryLocation.from_operands(dst, size, var_base_pointers)
     elif opcode == "dload":
-        return MemoryLocationSegment(_offset=0, _size=32)
+        return MemoryLocationSegment(offset=0, size=32)
     elif opcode == "sha3_64":
-        return MemoryLocationSegment(_offset=0, _size=64)
+        return MemoryLocationSegment(offset=0, size=64)
     elif opcode == "invoke":
         return MemoryLocation.UNDEFINED
     elif opcode == "call":
@@ -319,7 +301,7 @@ def _get_memory_read_location(inst, var_base_pointers) -> MemoryLocation:
         size, src, _ = inst.operands
         return MemoryLocation.from_operands(src, size, var_base_pointers)
     elif opcode == "dload":
-        return MemoryLocationSegment(_offset=0, _size=32)
+        return MemoryLocationSegment(offset=0, size=32)
     elif opcode == "invoke":
         return MemoryLocation.UNDEFINED
     elif opcode == "call":
@@ -341,7 +323,7 @@ def _get_memory_read_location(inst, var_base_pointers) -> MemoryLocation:
         size, offset = inst.operands
         return MemoryLocation.from_operands(offset, size, var_base_pointers)
     elif opcode == "sha3_64":
-        return MemoryLocationSegment(_offset=0, _size=64)
+        return MemoryLocationSegment(offset=0, size=64)
     elif opcode == "log":
         size, src = inst.operands[-2:]
         return MemoryLocation.from_operands(src, size, var_base_pointers)
