@@ -95,7 +95,10 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 
     BranchOptimizationPass(ac, fn).run_pass()
 
+    print(fn)
+    print("----------------------Running LICM----------------------")
     LoopInvariantCodeMotionPass(ac, fn).run_pass()
+    
 
     AlgebraicOptimizationPass(ac, fn).run_pass()
 
@@ -108,6 +111,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 
     AssignElimination(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
+    print(fn)
     SingleUseExpansion(ac, fn).run_pass()
 
     if optimize == OptimizationLevel.CODESIZE:
