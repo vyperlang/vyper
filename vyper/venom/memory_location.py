@@ -85,7 +85,7 @@ class MemoryLocation:
     def completely_contains(self, other: MemoryLocation) -> bool:  # pragma: nocover
         raise NotImplementedError
 
-    def create_volatile(self) -> MemoryLocation:  # pragma: nocover
+    def mk_volatile(self) -> MemoryLocation:  # pragma: nocover
         raise NotImplementedError
 
 
@@ -113,8 +113,8 @@ class MemoryLocationAbstract(MemoryLocation):
     def is_volatile(self) -> bool:
         return self.segment.is_volatile
 
-    def create_volatile(self) -> MemoryLocationAbstract:
-        return dc.replace(self, segment=self.segment.create_volatile())
+    def mk_volatile(self) -> MemoryLocationAbstract:
+        return dc.replace(self, segment=self.segment.mk_volatile())
 
     @staticmethod
     def may_overlap_abstract(loc1: MemoryLocationAbstract, loc2: MemoryLocationAbstract) -> bool:
@@ -166,7 +166,7 @@ class MemoryLocationSegment(MemoryLocation):
     def is_volatile(self) -> bool:
         return self._is_volatile
 
-    def create_volatile(self) -> MemoryLocationSegment:
+    def mk_volatile(self) -> MemoryLocationSegment:
         return dc.replace(self, _is_volatile=True)
 
     # similar code to memmerging._Interval, but different data structure
