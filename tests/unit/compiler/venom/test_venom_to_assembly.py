@@ -1,7 +1,6 @@
-from vyper.venom.parser import parse_venom
-from vyper.venom.venom_to_assembly import VenomCompiler
 from vyper.venom.basicblock import IRVariable
 from vyper.venom.context import IRContext
+from vyper.venom.parser import parse_venom
 from vyper.venom.stack_model import StackModel
 from vyper.venom.venom_to_assembly import VenomCompiler
 
@@ -47,8 +46,8 @@ def test_popmany_bulk_removal_of_suffix():
     drop1 = IRVariable("%drop1")
     keep = IRVariable("%keep")
 
-    stack.push(keep1) 
-    stack.push(drop1) 
+    stack.push(keep1)
+    stack.push(drop1)
     stack.push(keep)
 
     asm: list[str] = []
@@ -57,6 +56,7 @@ def test_popmany_bulk_removal_of_suffix():
     assert asm == ["SWAP1", "POP"]
     assert stack._stack == [keep1, keep]
 
+
 def test_popmany_bulk_removal_of_suffix2():
     compiler = VenomCompiler(IRContext())
     stack = StackModel()
@@ -64,8 +64,8 @@ def test_popmany_bulk_removal_of_suffix2():
     drop1 = IRVariable("%drop1")
     keep = IRVariable("%keep")
 
-    stack.push(drop2) 
-    stack.push(drop1) 
+    stack.push(drop2)
+    stack.push(drop1)
     stack.push(keep)
 
     asm: list[str] = []
@@ -76,7 +76,7 @@ def test_popmany_bulk_removal_of_suffix2():
 
 
 def test_popmany_falls_back_for_non_contiguous():
-    compiler = VenomCompiler(IRContext()) 
+    compiler = VenomCompiler(IRContext())
     stack = StackModel()
     drop3 = IRVariable("%drop3")
     keep_mid = IRVariable("%keep_mid")
