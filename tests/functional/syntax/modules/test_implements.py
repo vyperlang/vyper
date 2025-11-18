@@ -104,3 +104,39 @@ def foo():  # implementation
 
     assert e.value._message == "some_interface implemented more than once"
     assert e.value._hint is None
+
+
+def test_duplicate_implements_in_different_statement_with_mixed_syntax_fails(make_input_bundle):
+    some_interface = """
+@external
+def foo():
+    ...
+    """
+    other_interface = """
+@external
+def bar():
+    ...
+    """
+    main = """
+import some_interface
+import other_interface
+
+implements: some_interface
+implements: (
+    other_interface,
+    some_interface,
+)
+
+@external
+def foo():  # implementation
+    pass
+    """
+    input_bundle = make_input_bundle(
+        {"some_interface.vyi": some_interface, "other_interface.vyi": other_interface}
+    )
+
+    with pytest.raises(StructureException) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "some_interface implemented more than once"
+    assert e.value._hint is None

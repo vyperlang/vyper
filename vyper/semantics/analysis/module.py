@@ -375,8 +375,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 msg = f"{name.id} implemented more than once"
                 hint = None
                 raise StructureException(msg, self._all_implements[type_], name, hint=hint)
-            else:
-                self._all_implements[type_] = name
+
+            self._all_implements[type_] = name
 
             if not isinstance(type_, InterfaceT):
                 msg = "Not an interface!"
