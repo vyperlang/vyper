@@ -1,5 +1,9 @@
 from vyper.venom.parser import parse_venom
 from vyper.venom.venom_to_assembly import VenomCompiler
+from vyper.venom.basicblock import IRVariable
+from vyper.venom.context import IRContext
+from vyper.venom.stack_model import StackModel
+from vyper.venom.venom_to_assembly import VenomCompiler
 
 
 def test_dead_params():
@@ -34,3 +38,43 @@ def test_optimistic_swap_params():
 
     asm = VenomCompiler(ctx).generate_evm_assembly()
     assert asm == ["SWAP2", "PUSH1", 117, "POP", "MSTORE", "MSTORE", "JUMP"]
+
+
+def test_popmany_bulk_removal_of_suffix():
+    compiler = VenomCompiler(IRContext())
+    stack = StackModel()
+    drop2 = IRVariable("%drop2")
+    drop1 = IRVariable("%drop1")
+    keep = IRVariable("%keep")
+
+    stack.push(drop2) 
+    stack.push(drop1) 
+    stack.push(keep)
+
+    asm: list[str] = []
+    compiler.popmany(asm, [drop1, drop2], stack)
+
+    assert asm == ["SWAP2", "POP", "POP"]
+    assert stack._stack == [keep]
+
+
+def test_popmany_falls_back_for_non_contiguous():
+    compiler = VenomCompiler(IRContext()) 
+    stack = StackModel()
+    drop3 = IRVariable("%drop3")
+    keep_mid = IRVariable("%keep_mid")
+    drop2 = IRVariable("%drop2")
+    keep_top = IRVariable("%keep_top")
+
+    stack.push(drop3)
+    stack.push(keep_mid)
+    stack.push(drop2)
+    stack.push(keep_top)
+
+    asm: list[str] = []
+    compiler.popmany(asm, [drop3, drop2], stack)
+
+    assert asm == ["SWAP1", "POP", "SWAP2", "POP"]
+    assert len(stack._stack) == 2
+    assert keep_mid in stack._stack
+    assert keep_top in stack._stack
