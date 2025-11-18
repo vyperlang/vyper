@@ -130,6 +130,10 @@ implements: (
 @external
 def foo():  # implementation
     pass
+
+@external
+def bar():  # implementation
+    pass
     """
     input_bundle = make_input_bundle(
         {"some_interface.vyi": some_interface, "other_interface.vyi": other_interface}
