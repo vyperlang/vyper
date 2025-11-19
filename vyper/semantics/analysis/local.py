@@ -932,14 +932,12 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             for possible_type in possible_base_types:
                 if isinstance(possible_type, TupleT):
-                    # For tuples, each index leads to a different type, so it needs to be a constant
-                    # This is already checked by the parser, so no need for an error message
-                    assert isinstance(node.slice, vy_ast.Int)
-                    element_type = possible_type.member_types[node.slice.value]
+                    assert isinstance(node.slice, vy_ast.Int)  # help mypy
+                    value_type = possible_type.member_types[node.slice.value]
                 else:
-                    element_type = possible_type.value_type
+                    value_type = possible_type.value_type
 
-                if typ.compare_type(element_type):
+                if typ.compare_type(value_type):
                     base_type = possible_type
                     break
             else:
