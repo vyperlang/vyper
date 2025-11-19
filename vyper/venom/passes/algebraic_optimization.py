@@ -20,6 +20,10 @@ def lit_eq(op: IROperand, val: int) -> bool:
     return isinstance(op, IRLiteral) and wrap256(op.value) == wrap256(val)
 
 
+def is_negative(x):
+    return bool(x & (1 << 255))
+
+
 class AlgebraicOptimizationPass(IRPass):
     """
     This pass reduces algebraic evaluatable expressions.
@@ -139,10 +143,6 @@ class AlgebraicOptimizationPass(IRPass):
                 assert isinstance(op0, IRLiteral)  # help mypy
                 total = eval_arith("sub", [op0, IRLiteral(total)])
                 base_operand = op1
-            elif self._is_lit(op1) and not self._is_lit(op0):
-                assert isinstance(op1, IRLiteral)  # help mypy
-                total = eval_arith("sub", [IRLiteral(total), op1])
-                base_operand = op0
             else:
                 return False
 
@@ -200,11 +200,6 @@ class AlgebraicOptimizationPass(IRPass):
                     assert isinstance(op0, IRLiteral)  # help mypy
                     total = eval_arith("sub", [IRLiteral(total), op0])
                     current = op1
-                    continue
-                if self._is_lit(op1) and not self._is_lit(op0):
-                    assert isinstance(op1, IRLiteral)  # help mypy
-                    total = eval_arith("sub", [op1, IRLiteral(total)])
-                    current = op0
                     continue
                 break
 
@@ -311,10 +306,6 @@ class AlgebraicOptimizationPass(IRPass):
             # no more cases for this instruction
             return
 
-        if inst.opcode in {"add", "sub"}:
-            if self._fold_add_chain(inst):
-                return
-
         if inst.opcode in {"add", "sub", "xor"}:
             # (x - x) == (x ^ x) == 0
             if inst.opcode in ("xor", "sub") and operands[0] == operands[1]:
@@ -338,6 +329,10 @@ class AlgebraicOptimizationPass(IRPass):
             if inst.opcode == "xor" and lit_eq(operands[0], -1):
                 self.updater.update(inst, "not", [operands[1]])
                 return
+            
+            if inst.opcode in {"add", "sub"}:
+                if self._fold_add_chain(inst):
+                    return
 
             return
 
