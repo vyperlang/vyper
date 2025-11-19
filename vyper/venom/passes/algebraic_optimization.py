@@ -11,6 +11,7 @@ from vyper.venom.basicblock import (
     flip_comparison_opcode,
 )
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
+from vyper.venom.passes.sccp.eval import eval_arith
 
 TRUTHY_INSTRUCTIONS = ("iszero", "jnz", "assert", "assert_unreachable")
 
@@ -132,11 +133,16 @@ class AlgebraicOptimizationPass(IRPass):
             base_operand, literal = self._extract_value_and_literal_operands(inst)
             if literal is None or base_operand is None:
                 return False
-            total += literal.value
+            total = eval_arith("add", [IRLiteral(total), literal])
         else:  # sub
             if self._is_lit(op0) and not self._is_lit(op1):
-                total -= op0.value
+                assert isinstance(op0, IRLiteral)  # help mypy
+                total = eval_arith("sub", [op0, IRLiteral(total)])
                 base_operand = op1
+            elif self._is_lit(op1) and not self._is_lit(op0):
+                assert isinstance(op1, IRLiteral)  # help mypy
+                total = eval_arith("sub", [IRLiteral(total), op1])
+                base_operand = op0
             else:
                 return False
 
@@ -181,7 +187,8 @@ class AlgebraicOptimizationPass(IRPass):
                 if literal is None or value_op is None:
                     break
 
-                total += literal.value
+                assert isinstance(literal, IRLiteral)  # help mypy
+                total = eval_arith("add", [IRLiteral(total), literal])
                 current = value_op
                 continue
 
@@ -190,8 +197,14 @@ class AlgebraicOptimizationPass(IRPass):
                     break
                 op0, op1 = producer.operands
                 if self._is_lit(op0) and not self._is_lit(op1):
-                    total -= op0.value
+                    assert isinstance(op0, IRLiteral)  # help mypy
+                    total = eval_arith("sub", [IRLiteral(total), op0])
                     current = op1
+                    continue
+                if self._is_lit(op1) and not self._is_lit(op0):
+                    assert isinstance(op1, IRLiteral)  # help mypy
+                    total = eval_arith("sub", [op1, IRLiteral(total)])
+                    current = op0
                     continue
                 break
 
