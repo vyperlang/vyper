@@ -117,12 +117,8 @@ class AlgebraicOptimizationPass(IRPass):
                 shift_lit = op
             else:
                 value_op = op
+        assert isinstance(shift_lit, IRLiteral) or shift_lit is None  # help mypy
         return value_op, shift_lit
-
-    def _single_use(self, inst: IRInstruction) -> bool:
-        if inst.output is None:
-            return False
-        return len(self.dfg.get_uses(inst.output)) == 1
 
     def _fold_add_chain(self, inst: IRInstruction) -> bool:
         if inst.opcode not in {"add", "sub"}:
@@ -182,7 +178,7 @@ class AlgebraicOptimizationPass(IRPass):
                 break
 
             if producer.opcode == "add":
-                if not self._single_use(producer):
+                if not self.dfg.is_single_use(producer.output):
                     break
 
                 op0, op1 = producer.operands
@@ -197,7 +193,7 @@ class AlgebraicOptimizationPass(IRPass):
                 break
 
             if producer.opcode == "sub":
-                if not self._single_use(producer):
+                if not self.dfg.is_single_use(producer.output):
                     break
                 op0, op1 = producer.operands
                 if self._is_lit(op1) and not self._is_lit(op0):
@@ -278,7 +274,9 @@ class AlgebraicOptimizationPass(IRPass):
             if lit_eq(shift_lit, 0):
                 self.updater.mk_assign(inst, value_op)
                 return
-            if inst.opcode == "shr" and self._fold_shifted_add_chain(inst, value_op, shift_lit.value):
+            if inst.opcode == "shr" and self._fold_shifted_add_chain(
+                inst, value_op, shift_lit.value
+            ):
                 return
             # no more cases for these instructions
             return
