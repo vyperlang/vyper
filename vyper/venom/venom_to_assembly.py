@@ -311,9 +311,8 @@ class VenomCompiler:
         depths = [stack.get_depth(var) for var in to_pop]
         deepest = min(depths)
         expected = list(range(deepest, 0))
-        if sorted(depths) == expected:
-            if deepest < 0:
-                self.swap(asm, stack, deepest)
+        if deepest < 0 and -deepest <= 16 and sorted(depths) == expected:
+            self.swap(asm, stack, deepest)
             self.pop(asm, stack, len(to_pop))
             return
 

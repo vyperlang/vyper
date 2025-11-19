@@ -95,3 +95,38 @@ def test_popmany_falls_back_for_non_contiguous():
     assert len(stack._stack) == 2
     assert keep_mid in stack._stack
     assert keep_top in stack._stack
+
+
+def test_popmany_uses_swap16_for_contiguous_suffix():
+    compiler = VenomCompiler(IRContext())
+    stack = StackModel()
+    keep_bottom = IRVariable("%keep_bottom")
+    stack.push(keep_bottom)
+    drops = [IRVariable(f"%drop{i}") for i in range(16, 0, -1)]
+    for drop in drops:
+        stack.push(drop)
+    keep_top = IRVariable("%keep_top")
+    stack.push(keep_top)
+
+    asm: list[str] = []
+    compiler.popmany(asm, drops, stack)
+
+    assert asm == ["SWAP16"] + ["POP"] * len(drops)
+    assert stack._stack == [keep_bottom, keep_top]
+
+
+def test_popmany_falls_back_when_swap_depth_too_large():
+    compiler = VenomCompiler(IRContext())
+    stack = StackModel()
+    drops = [IRVariable(f"%drop{i}") for i in range(1, 18)]
+    keep = IRVariable("%keep")
+
+    for drop in drops:
+        stack.push(drop)
+    stack.push(keep)
+
+    asm: list[str] = []
+    compiler.popmany(asm, drops, stack)
+
+    assert asm == ["SWAP1", "POP"] * len(drops)
+    assert stack._stack == [keep]
