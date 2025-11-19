@@ -308,6 +308,9 @@ class VenomCompiler:
         if len(to_pop) == 0:
             return
 
+        # if the items to pop are contiguous, we can swap the top of
+        # stack to the middle of the stack and then just issue
+        # sequential pops
         depths = [stack.get_depth(var) for var in to_pop]
         deepest = min(depths)
         expected = list(range(deepest, 0))
