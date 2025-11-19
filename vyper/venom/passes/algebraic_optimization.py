@@ -105,6 +105,129 @@ class AlgebraicOptimizationPass(IRPass):
     def _is_lit(self, operand: IROperand) -> bool:
         return isinstance(operand, IRLiteral)
 
+    def _extract_shift_operands(
+        self, inst: IRInstruction
+    ) -> tuple[IROperand | None, IRLiteral | None]:
+        value_op = None
+        shift_lit = None
+        for op in inst.operands:
+            if self._is_lit(op):
+                if shift_lit is not None:
+                    return None, None
+                shift_lit = op
+            else:
+                value_op = op
+        return value_op, shift_lit
+
+    def _single_use(self, inst: IRInstruction) -> bool:
+        if inst.output is None:
+            return False
+        return len(self.dfg.get_uses(inst.output)) == 1
+
+    def _fold_add_chain(self, inst: IRInstruction) -> bool:
+        if inst.opcode not in {"add", "sub"}:
+            return False
+
+        op0, op1 = inst.operands
+        base_operand: IROperand | None = None
+        total = 0
+
+        if inst.opcode == "add":
+            if self._is_lit(op0) and not self._is_lit(op1):
+                total += op0.value
+                base_operand = op1
+            elif self._is_lit(op1) and not self._is_lit(op0):
+                total += op1.value
+                base_operand = op0
+            else:
+                return False
+        else:  # sub
+            if not self._is_lit(op0) and self._is_lit(op1):
+                total -= op1.value
+                base_operand = op0
+            else:
+                return False
+
+        base_operand, traced = self._trace_add_chain(base_operand)
+        total += traced
+
+        if total == 0:
+            self.updater.mk_assign(inst, base_operand)
+            return True
+
+        self.updater.update(inst, "add", [base_operand, IRLiteral(total)])
+        return True
+
+    def _fold_shifted_add_chain(self, inst: IRInstruction, value_op: IROperand, shift: int) -> bool:
+        if shift <= 0 or shift >= 256:
+            return False
+
+        traced = self._trace_shifted_add_chain(value_op, shift)
+        if traced is None:
+            return False
+
+        base_op, total = traced
+        add_const = total >> shift
+        new_ops = [base_op, IRLiteral(add_const)]
+        self.updater.update(inst, "add", new_ops)
+        return True
+
+    def _trace_add_chain(self, operand: IROperand) -> tuple[IROperand, int]:
+        total = 0
+        current = operand
+
+        while isinstance(current, IRVariable):
+            producer = self.dfg.get_producing_instruction(current)
+            if producer is None:
+                break
+
+            if producer.opcode == "add":
+                if not self._single_use(producer):
+                    break
+
+                op0, op1 = producer.operands
+                if self._is_lit(op0) and not self._is_lit(op1):
+                    total += op0.value
+                    current = op1
+                    continue
+                if self._is_lit(op1) and not self._is_lit(op0):
+                    total += op1.value
+                    current = op0
+                    continue
+                break
+
+            if producer.opcode == "sub":
+                if not self._single_use(producer):
+                    break
+                op0, op1 = producer.operands
+                if self._is_lit(op1) and not self._is_lit(op0):
+                    total -= op1.value
+                    current = op0
+                    continue
+                break
+
+            break
+
+        return current, total
+
+    def _trace_shifted_add_chain(
+        self, operand: IROperand, shift: int
+    ) -> tuple[IROperand, int] | None:
+        base_operand, total = self._trace_add_chain(operand)
+
+        if not isinstance(base_operand, IRVariable):
+            return None
+
+        producer = self.dfg.get_producing_instruction(base_operand)
+        if producer is None or producer.opcode != "shl":
+            return None
+
+        value_op, shl_shift = self._extract_shift_operands(producer)
+        if shl_shift is None or value_op is None or shl_shift.value != shift:
+            return None
+
+        return value_op, total
+
     def _algebraic_opt(self):
         self._algebraic_opt_pass()
 
@@ -148,9 +271,14 @@ class AlgebraicOptimizationPass(IRPass):
             operands = inst.operands
 
         if inst.opcode in {"shl", "shr", "sar"}:
+            value_op, shift_lit = self._extract_shift_operands(inst)
+            if shift_lit is None or value_op is None:
+                return
             # (x >> 0) == (x << 0) == x
-            if lit_eq(operands[1], 0):
-                self.updater.mk_assign(inst, operands[0])
+            if lit_eq(shift_lit, 0):
+                self.updater.mk_assign(inst, value_op)
+                return
+            if inst.opcode == "shr" and self._fold_shifted_add_chain(inst, value_op, shift_lit.value):
                 return
             # no more cases for these instructions
             return
@@ -178,6 +306,10 @@ class AlgebraicOptimizationPass(IRPass):
 
             # no more cases for this instruction
             return
+
+        if inst.opcode in {"add", "sub"}:
+            if self._fold_add_chain(inst):
+                return
 
         if inst.opcode in {"add", "sub", "xor"}:
             # (x - x) == (x ^ x) == 0
