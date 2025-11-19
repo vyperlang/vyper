@@ -105,20 +105,20 @@ class AlgebraicOptimizationPass(IRPass):
     def _is_lit(self, operand: IROperand) -> bool:
         return isinstance(operand, IRLiteral)
 
-    def _extract_shift_operands(
+    def _extract_value_and_literal_operands(
         self, inst: IRInstruction
     ) -> tuple[IROperand | None, IRLiteral | None]:
         value_op = None
-        shift_lit = None
+        literal_op = None
         for op in inst.operands:
             if self._is_lit(op):
-                if shift_lit is not None:
+                if literal_op is not None:
                     return None, None
-                shift_lit = op
+                literal_op = op
             else:
                 value_op = op
-        assert isinstance(shift_lit, IRLiteral) or shift_lit is None  # help mypy
-        return value_op, shift_lit
+        assert isinstance(literal_op, IRLiteral) or literal_op is None  # help mypy
+        return value_op, literal_op
 
     def _fold_add_chain(self, inst: IRInstruction) -> bool:
         if inst.opcode not in {"add", "sub"}:
@@ -181,16 +181,13 @@ class AlgebraicOptimizationPass(IRPass):
                 if not self.dfg.is_single_use(producer.output):
                     break
 
-                op0, op1 = producer.operands
-                if self._is_lit(op0) and not self._is_lit(op1):
-                    total += op0.value
-                    current = op1
-                    continue
-                if self._is_lit(op1) and not self._is_lit(op0):
-                    total += op1.value
-                    current = op0
-                    continue
-                break
+                value_op, literal = self._extract_value_and_literal_operands(producer)
+                if literal is None or value_op is None:
+                    break
+
+                total += literal.value
+                current = value_op
+                continue
 
             if producer.opcode == "sub":
                 if not self.dfg.is_single_use(producer.output):
@@ -218,7 +215,7 @@ class AlgebraicOptimizationPass(IRPass):
         if producer is None or producer.opcode != "shl":
             return None
 
-        value_op, shl_shift = self._extract_shift_operands(producer)
+        value_op, shl_shift = self._extract_value_and_literal_operands(producer)
         if shl_shift is None or value_op is None or shl_shift.value != shift:
             return None
 
@@ -267,7 +264,7 @@ class AlgebraicOptimizationPass(IRPass):
             operands = inst.operands
 
         if inst.opcode in {"shl", "shr", "sar"}:
-            value_op, shift_lit = self._extract_shift_operands(inst)
+            value_op, shift_lit = self._extract_value_and_literal_operands(inst)
             if shift_lit is None or value_op is None:
                 return
             # (x >> 0) == (x << 0) == x
