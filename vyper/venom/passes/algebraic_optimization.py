@@ -20,6 +20,16 @@ def lit_eq(op: IROperand, val: int) -> bool:
     return isinstance(op, IRLiteral) and wrap256(op.value) == wrap256(val)
 
 
+def lit_add(op: IROperand, val: int) -> int:
+    assert isinstance(op, IRLiteral)
+    return eval_arith("add", [op, IRLiteral(val)])
+
+
+def lit_sub(val: int, op: IROperand) -> int:
+    assert isinstance(op, IRLiteral)
+    return eval_arith("sub", [op, IRLiteral(val)])
+
+
 def is_negative(x):
     return bool(x & (1 << 255))
 
@@ -137,11 +147,10 @@ class AlgebraicOptimizationPass(IRPass):
             base_operand, literal = self._extract_value_and_literal_operands(inst)
             if literal is None or base_operand is None:
                 return False
-            total = eval_arith("add", [IRLiteral(total), literal])
+            total = lit_add(literal, total)
         else:  # sub
             if self._is_lit(op0) and not self._is_lit(op1):
-                assert isinstance(op0, IRLiteral)  # help mypy
-                total = eval_arith("sub", [op0, IRLiteral(total)])
+                total = lit_sub(total, op0)
                 base_operand = op1
             else:
                 return False
@@ -188,7 +197,7 @@ class AlgebraicOptimizationPass(IRPass):
                     break
 
                 assert isinstance(literal, IRLiteral)  # help mypy
-                total = eval_arith("add", [IRLiteral(total), literal])
+                total = lit_add(literal, total)
                 current = value_op
                 continue
 
@@ -197,8 +206,7 @@ class AlgebraicOptimizationPass(IRPass):
                     break
                 op0, op1 = producer.operands
                 if self._is_lit(op0) and not self._is_lit(op1):
-                    assert isinstance(op0, IRLiteral)  # help mypy
-                    total = eval_arith("sub", [IRLiteral(total), op0])
+                    total = lit_sub(total, op0)
                     current = op1
                     continue
                 break
@@ -329,7 +337,7 @@ class AlgebraicOptimizationPass(IRPass):
             if inst.opcode == "xor" and lit_eq(operands[0], -1):
                 self.updater.update(inst, "not", [operands[1]])
                 return
-            
+
             if inst.opcode in {"add", "sub"}:
                 if self._fold_add_chain(inst):
                     return
