@@ -129,18 +129,14 @@ class AlgebraicOptimizationPass(IRPass):
         total = 0
 
         if inst.opcode == "add":
-            if self._is_lit(op0) and not self._is_lit(op1):
-                total += op0.value
-                base_operand = op1
-            elif self._is_lit(op1) and not self._is_lit(op0):
-                total += op1.value
-                base_operand = op0
-            else:
+            base_operand, literal = self._extract_value_and_literal_operands(inst)
+            if literal is None or base_operand is None:
                 return False
+            total += literal.value
         else:  # sub
-            if not self._is_lit(op0) and self._is_lit(op1):
-                total -= op1.value
-                base_operand = op0
+            if self._is_lit(op0) and not self._is_lit(op1):
+                total -= op0.value
+                base_operand = op1
             else:
                 return False
 
@@ -193,9 +189,9 @@ class AlgebraicOptimizationPass(IRPass):
                 if not self.dfg.is_single_use(producer.output):
                     break
                 op0, op1 = producer.operands
-                if self._is_lit(op1) and not self._is_lit(op0):
-                    total -= op1.value
-                    current = op0
+                if self._is_lit(op0) and not self._is_lit(op1):
+                    total -= op0.value
+                    current = op1
                     continue
                 break
 
