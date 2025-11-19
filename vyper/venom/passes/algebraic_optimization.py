@@ -283,10 +283,14 @@ class AlgebraicOptimizationPass(IRPass):
             if lit_eq(shift_lit, 0):
                 self.updater.mk_assign(inst, value_op)
                 return
-            if inst.opcode == "shr" and self._fold_shifted_add_chain(
-                inst, value_op, shift_lit.value
-            ):
-                return
+            # 
+            # Disabled for now -- we need to know literal ranges to do this safely
+            #
+            # if inst.opcode == "shr" and self._fold_shifted_add_chain(
+            #     inst, value_op, shift_lit.value
+            # ):
+            #     return
+            
             # no more cases for these instructions
             return
 
