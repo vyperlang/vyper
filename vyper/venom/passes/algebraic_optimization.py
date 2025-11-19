@@ -156,21 +156,13 @@ class AlgebraicOptimizationPass(IRPass):
                 return False
 
         base_operand, traced = self._trace_add_chain(base_operand)
-        total = lit_add(IRLiteral(traced), total)
+        total += traced
 
         if total == 0:
             self.updater.mk_assign(inst, base_operand)
             return True
 
-        if is_negative(total):
-            opcode = "sub"
-            literal_val = SizeLimits.CEILING_UINT256 - total
-        else:
-            opcode = "add"
-            literal_val = total
-
-        literal = IRLiteral(literal_val)
-        self.updater.update(inst, opcode, [literal, base_operand])
+        self.updater.update(inst, "add", [base_operand, IRLiteral(total)])
         return True
 
     def _fold_shifted_add_chain(self, inst: IRInstruction, value_op: IROperand, shift: int) -> bool:

@@ -82,64 +82,6 @@ def test_sccp_algebraic_opt_sub_xor_max():
     _check_pre_post(pre, post, hevm=False)
 
 
-def test_sccp_algebraic_opt_sub_chain_negative_total():
-    pre = """
-    _global:
-        %par = source
-        %1 = add %par, 5
-        %2 = sub %1, 10
-        sink %2
-    """
-    post = """
-    _global:
-        %par = source
-        %1 = add 5, %par
-        %2 = sub %par, 5
-        sink %2
-    """
-
-    _check_pre_post(pre, post)
-
-
-def test_sccp_algebraic_opt_sub_chain_multi_step():
-    pre = """
-    _global:
-        %par = source
-        %1 = sub %par, 10
-        %2 = add %1, 3
-        %3 = sub %2, 1
-        sink %3
-    """
-    post = """
-    _global:
-        %par = source
-        %1 = sub %par, 10
-        %2 = sub %par, 7
-        %3 = sub %par, 8
-        sink %3
-    """
-
-    _check_pre_post(pre, post)
-
-
-def test_sccp_algebraic_opt_sub_chain_zero_result():
-    pre = """
-    _global:
-        %par = source
-        %1 = sub %par, 5
-        %2 = add %1, 5
-        sink %2
-    """
-    post = """
-    _global:
-        %par = source
-        %1 = sub %par, 5
-        sink %par
-    """
-
-    _check_pre_post(pre, post)
-
-
 def test_sccp_algebraic_opt_shift():
     # x << 0 == x >> 0 == x (sar) 0 -> x
     # sar is right arithmetic shift
