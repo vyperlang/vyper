@@ -189,6 +189,7 @@ class AlgebraicOptimizationPass(IRPass):
                 break
 
             if producer.opcode == "add":
+                assert producer.output is not None  # help mypy
                 if not self.dfg.is_single_use(producer.output):
                     break
 
@@ -202,6 +203,7 @@ class AlgebraicOptimizationPass(IRPass):
                 continue
 
             if producer.opcode == "sub":
+                assert producer.output is not None  # help mypy
                 if not self.dfg.is_single_use(producer.output):
                     break
                 op0, op1 = producer.operands

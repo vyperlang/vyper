@@ -20,9 +20,7 @@ class DFGAnalysis(IRAnalysis):
     def get_uses(self, op: IRVariable) -> OrderedSet[IRInstruction]:
         return self._dfg_inputs.get(op, OrderedSet())
 
-    def is_single_use(self, output: IRVariable | None) -> bool:
-        if output is None:
-            return False
+    def is_single_use(self, output: IRVariable) -> bool:
         return len(self.get_uses(output)) == 1
 
     def get_uses_in_bb(self, op: IRVariable, bb: IRBasicBlock):
