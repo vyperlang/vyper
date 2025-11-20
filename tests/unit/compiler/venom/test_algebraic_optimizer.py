@@ -202,6 +202,7 @@ def test_interleaved_case(interleave_point):
     _check_pre_post(pre, post)
 
 
+# TODO: enable when range analysis is available
 # def test_fold_shifted_add_chain():
 #     pre = """
 #     main:

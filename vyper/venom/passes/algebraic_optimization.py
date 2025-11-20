@@ -30,10 +30,6 @@ def lit_sub(val: int, op: IROperand) -> int:
     return eval_arith("sub", [op, IRLiteral(val)])
 
 
-def is_negative(x):
-    return bool(x & (1 << 255))
-
-
 class AlgebraicOptimizationPass(IRPass):
     """
     This pass reduces algebraic evaluatable expressions.
