@@ -65,7 +65,8 @@ def test_invoke_middle_output_unused():
     assert "RETURN" in asm, asm
     return_idx = asm.index("RETURN")
     assert return_idx > pop_idx and asm[return_idx - 1] == "SWAP1", asm
-    
+
+
 def test_popmany_bulk_removal_of_suffix():
     compiler = VenomCompiler(IRContext())
     stack = StackModel()
