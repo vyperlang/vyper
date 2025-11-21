@@ -306,6 +306,20 @@ class VenomCompiler:
 
     def popmany(self, asm, to_pop: Iterable[IRVariable], stack):
         to_pop = list(to_pop)
+        if len(to_pop) == 0:
+            return
+
+        # if the items to pop are contiguous, we can swap the top of
+        # stack to just below the lowest item-to-pop and then just issue
+        # sequential pops
+        depths = [stack.get_depth(var) for var in to_pop]
+        deepest = min(depths)
+        expected = list(range(deepest, 0))
+        if deepest < 0 and -deepest <= 16 and sorted(depths) == expected:
+            self.swap(asm, stack, deepest)
+            self.pop(asm, stack, len(to_pop))
+            return
+
         # small heuristic: pop from shallowest first.
         to_pop.sort(key=lambda var: -stack.get_depth(var))
 
