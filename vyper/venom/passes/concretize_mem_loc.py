@@ -34,9 +34,7 @@ class ConcretizeMemLocPass(IRPass):
 
         livesets = list(self.mem_liveness.livesets.items())
         already_allocated = [item for item in livesets if item[0]._id in self.allocator.allocated]
-        # REVIEW: rename to to_allocate?
         to_allocate = [item for item in livesets if item[0]._id not in self.allocator.allocated]
-        # REVIEW: sort by size of liveset (allocate shortest-lived first)
         # (note this is *heuristic*; our goal is to minimize conflicts
         # between livesets)
         to_allocate.sort(key=lambda x: len(x[1]), reverse=False)
@@ -44,7 +42,7 @@ class ConcretizeMemLocPass(IRPass):
         max_curr = 0
         # REVIEW: for ix, (mem, live_insts) in enumerate(livesets):
         # REVIEW: note, this is O(n^2)
-        for index, (mem, insts) in enumerate(to_allocate):
+        for mem, insts in to_allocate:
 
             self.allocator.reset()
 
@@ -52,13 +50,8 @@ class ConcretizeMemLocPass(IRPass):
                 if len(OrderedSet.intersection(insts, before_insts)) == 0:
                     continue
                 self.allocator.reserve(before_mem)
-            # REVIEW: push to already_allocated
-            for i in range(index):
-                before_mem, before_insts = to_allocate[i]
-                if len(OrderedSet.intersection(insts, before_insts)) == 0:
-                    continue
-                self.allocator.reserve(before_mem)
             self.allocator.allocate(mem)
+            already_allocated.append((mem, insts))
             # REVIEW: is this necessary?
             max_curr = max(self.allocator.curr, max_curr)
 
@@ -68,9 +61,6 @@ class ConcretizeMemLocPass(IRPass):
             self._handle_bb(bb)
 
         all_allocated = [item[0] for item in already_allocated]
-        # TODO: this will not be necessary after change to
-        # push to already_allocated
-        all_allocated.extend([item[0] for item in to_allocate])
 
         self.allocator.end_fn_allocation(all_allocated, fn=self.function)
 
