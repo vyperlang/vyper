@@ -17,7 +17,7 @@ class MemoryAllocator:
     def allocate(self, mem_loc: IRAbstractMemLoc) -> int:
         ptr = self.curr
         self.curr += mem_loc.size
-        # REVIEW: add assertion that mem_loc._id not in allocated
+        assert mem_loc._id not in self.allocated
         self.allocated[mem_loc._id] = (ptr, mem_loc.size)
         return ptr
 
@@ -29,3 +29,11 @@ class MemoryAllocator:
 
     def end_fn_allocation(self, mems: list[IRAbstractMemLoc], fn):
         self.mems_used[fn] = OrderedSet(mems)
+
+    def reset(self):
+        self.curr = 64
+    
+    def reserve(self, mem_loc: IRAbstractMemLoc):
+        assert mem_loc._id in self.allocated
+        ptr, size = self.allocated[mem_loc._id]
+        self.curr = max(ptr + size, self.curr)

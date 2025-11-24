@@ -46,33 +46,18 @@ class ConcretizeMemLocPass(IRPass):
         # REVIEW: note, this is O(n^2)
         for index, (mem, insts) in enumerate(to_allocate):
 
-
-            # REVIEW: deep magic! restart the allocator so that
-            # we can allocate from the smallest slot
-            curr = orig
-
+            self.allocator.reset()
 
             for before_mem, before_insts in already_allocated:
                 if len(OrderedSet.intersection(insts, before_insts)) == 0:
                     continue
-                # REVIEW: please destructure this to `ptr, size`
-                place = self.allocator.allocated[before_mem._id]
-                # REVIEW: end = ptr + size
-                # REVIEW: explanation is, we have found an aliasing
-                # memory access, so we need to allocate a new slot.
-                # self.allocator.reserve_to(end)
-                # OR self.allocator.reserve_to(max(end, allocator.curr))
-                # actually:
-                # self.allocator.allocate(already_allocated=before_mems)
-                curr = max(place[0] + place[1], curr)
+                self.allocator.reserve(before_mem)
             # REVIEW: push to already_allocated
             for i in range(index):
                 before_mem, before_insts = to_allocate[i]
                 if len(OrderedSet.intersection(insts, before_insts)) == 0:
                     continue
-                place = self.allocator.allocated[before_mem._id]
-                curr = max(place[0] + place[1], curr)
-            self.allocator.curr = curr
+                self.allocator.reserve(before_mem)
             self.allocator.allocate(mem)
             # REVIEW: is this necessary?
             max_curr = max(self.allocator.curr, max_curr)
