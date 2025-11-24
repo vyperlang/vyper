@@ -35,16 +35,16 @@ class ConcretizeMemLocPass(IRPass):
         livesets = list(self.mem_liveness.livesets.items())
         already_allocated = [item for item in livesets if item[0]._id in self.allocator.allocated]
         # REVIEW: rename to to_allocate?
-        livesets = [item for item in livesets if item[0]._id not in self.allocator.allocated]
+        to_allocate = [item for item in livesets if item[0]._id not in self.allocator.allocated]
         # REVIEW: sort by size of liveset (allocate shortest-lived first)
         # (note this is *heuristic*; our goal is to minimize conflicts
         # between livesets)
-        livesets.sort(key=lambda x: len(x[1]), reverse=False)
+        to_allocate.sort(key=lambda x: len(x[1]), reverse=False)
 
         max_curr = 0
         # REVIEW: for ix, (mem, live_insts) in enumerate(livesets):
         # REVIEW: note, this is O(n^2)
-        for index, (mem, insts) in enumerate(livesets):
+        for index, (mem, insts) in enumerate(to_allocate):
 
 
             # REVIEW: deep magic! restart the allocator so that
@@ -67,7 +67,7 @@ class ConcretizeMemLocPass(IRPass):
                 curr = max(place[0] + place[1], curr)
             # REVIEW: push to already_allocated
             for i in range(index):
-                before_mem, before_insts = livesets[i]
+                before_mem, before_insts = to_allocate[i]
                 if len(OrderedSet.intersection(insts, before_insts)) == 0:
                     continue
                 place = self.allocator.allocated[before_mem._id]
@@ -85,7 +85,7 @@ class ConcretizeMemLocPass(IRPass):
         all_allocated = [item[0] for item in already_allocated]
         # TODO: this will not be necessary after change to
         # push to already_allocated
-        all_allocated.extend([item[0] for item in livesets])
+        all_allocated.extend([item[0] for item in to_allocate])
 
         self.allocator.end_fn_allocation(all_allocated, fn=self.function)
 
