@@ -15,6 +15,7 @@ from vyper.venom.function import IRFunction
 from vyper.venom.memory_allocator import MemoryAllocator
 from vyper.venom.memory_location import get_memory_read_op, get_memory_write_op, get_write_size
 from vyper.venom.passes.base_pass import IRPass
+from vyper.exceptions import CompilerPanic
 
 
 class ConcretizeMemLocPass(IRPass):
@@ -116,7 +117,6 @@ class MemLiveness:
         self.mem_allocator = mem_allocator
 
     def analyze(self):
-        found = False
         upper_bound = self.function.num_basic_blocks ** 2 + 1
         for _ in range(upper_bound):
             change = False
@@ -132,16 +132,13 @@ class MemLiveness:
                 change |= self._handle_used(bb)
 
             if not change:
-                found = True
                 break
-        # REVIEW: just use for/else: raise Panic(...)
-
-        assert found, self.function
+        else:
+            raise CompilerPanic("Uppper bound in memory liveness reached")
 
         self.livesets = defaultdict(OrderedSet)
         for inst, mems in self.liveat.items():
             for mem in mems:
-                # REVIEW: slick!
                 if mem in self.used[inst]:
                     self.livesets[mem].add(inst)
 
@@ -168,8 +165,8 @@ class MemLiveness:
                 label = inst.operands[0]
                 assert isinstance(label, IRLabel)
                 fn = self.function.ctx.get_function(label)
-                # REVIEW: might be worth noting that this lets us
-                # deallocate internal function memory after it's dead
+                # this lets us deallocate internal 
+                # function memory after it's dead
                 curr.addmany(self.mem_allocator.mems_used[fn])
 
             if inst.opcode in _CALL_OPCODES:
