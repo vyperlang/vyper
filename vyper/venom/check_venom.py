@@ -111,8 +111,8 @@ def find_semantic_errors_fn(fn: IRFunction) -> list[VenomError]:
     return errors
 
 
-def _collect_ret_arities(context: IRContext) -> dict[IRFunction, int | None]:
-    ret_arities: dict[IRFunction, int | None] = {}
+def _collect_ret_arities(context: IRContext) -> dict[IRFunction, set[int]]:
+    ret_arities: dict[IRFunction, set[int]] = {}
     for fn in context.functions.values():
         arities: set[int] = set()
         for bb in fn.get_basic_blocks():
@@ -120,31 +120,22 @@ def _collect_ret_arities(context: IRContext) -> dict[IRFunction, int | None]:
                 if inst.opcode == "ret":
                     # last operand is return PC; all preceding (if any) are return values
                     arities.add(len(inst.operands) - 1)
-        if len(arities) == 1:
-            ret_arities[fn] = next(iter(arities))
-        elif len(arities) == 0:
-            ret_arities[fn] = 0
-        else:
-            # inconsistent return arity; will be reported as InconsistentReturnArity
-            ret_arities[fn] = None
+
+        ret_arities[fn] = arities
+
     return ret_arities
 
 
 def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
     errors: list[VenomError] = []
 
-    # Enforce fixed-arity returns per function (by 'ret' sites)
-    for fn in context.functions.values():
-        arities: set[int] = set()
-        for bb in fn.get_basic_blocks():
-            for inst in bb.instructions:
-                if inst.opcode == "ret":
-                    arities.add(len(inst.operands) - 1)
+    # Enforce invoke binding exactly callee arity
+    ret_arities = _collect_ret_arities(context)
+
+    for fn, arities in ret_arities.items():
         if len(arities) > 1:
             errors.append(InconsistentReturnArity(fn, arities))
 
-    # Enforce invoke binding exactly callee arity
-    ret_arities = _collect_ret_arities(context)
     for caller in context.functions.values():
         for bb in caller.get_basic_blocks():
             for inst in bb.instructions:
@@ -158,10 +149,17 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
                 target = inst.operands[0]
                 assert isinstance(target, IRLabel)
                 callee = context.get_function(target)
-                expected_num = ret_arities.get(callee, 0)
-                if expected_num is None:
-                    # callee has inconsistent return arity; skip check here
+                arities = ret_arities[callee]
+
+                if len(arities) == 0:
+                    expected_num = 0
+                elif len(arities) == 1:
+                    expected_num = next(iter(arities))
+                else:
+                    # a function with InconsistentReturnArity, we already
+                    # checked this above
                     continue
+
                 if got_num != expected_num:
                     errors.append(InvokeArityMismatch(caller, inst, expected_num, got_num))
 
