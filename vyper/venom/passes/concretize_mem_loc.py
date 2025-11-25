@@ -91,7 +91,6 @@ class ConcretizeMemLocPass(IRPass):
 _CALL_OPCODES = frozenset(["invoke", "staticcall", "call", "delegatecall"])
 
 
-# REVIEW: cool class!
 class MemLiveness:
     function: IRFunction
     cfg: CFGAnalysis
@@ -118,8 +117,7 @@ class MemLiveness:
 
     def analyze(self):
         found = False
-        # REVIEW: self.function.num_basic_blocks
-        upper_bound = len(list(self.function.get_basic_blocks())) ** 2 + 1
+        upper_bound = self.function.num_basic_blocks ** 2 + 1
         for _ in range(upper_bound):
             change = False
             for bb in self.cfg.dfs_post_walk:
