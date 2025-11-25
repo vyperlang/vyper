@@ -39,11 +39,12 @@ class ConcretizeMemLocPass(IRPass):
         # between livesets)
         to_allocate.sort(key=lambda x: len(x[1]), reverse=False)
 
+        self.allocator.already_allocated([mem for mem, _ in already_allocated])
+
         max_curr = 0
         # REVIEW: for ix, (mem, live_insts) in enumerate(livesets):
         # REVIEW: note, this is O(n^2)
         for mem, insts in to_allocate:
-
             self.allocator.reset()
 
             for before_mem, before_insts in already_allocated:
@@ -60,22 +61,20 @@ class ConcretizeMemLocPass(IRPass):
         for bb in self.function.get_basic_blocks():
             self._handle_bb(bb)
 
-        all_allocated = [item[0] for item in already_allocated]
-
-        self.allocator.end_fn_allocation(all_allocated, fn=self.function)
+        self.allocator.end_fn_allocation(fn=self.function)
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def _handle_bb(self, bb: IRBasicBlock):
         for inst in bb.instructions:
-            new_ops = [self._handle_op(op) for op in inst.operands]
+            new_ops = [self._handle_op(op, inst) for op in inst.operands]
             inst.operands = new_ops
             if inst.opcode == "gep":
                 inst.opcode = "add"
             elif inst.opcode == "mem_deploy_start":
                 inst.opcode = "assign"
 
-    def _handle_op(self, op: IROperand) -> IROperand:
+    def _handle_op(self, op: IROperand, inst: IRInstruction) -> IROperand:
         if isinstance(op, IRAbstractMemLoc) and op._id in self.allocator.allocated:
             return IRLiteral(self.allocator.allocated[op._id][0] + op.offset)
         elif isinstance(op, IRAbstractMemLoc):
@@ -241,6 +240,9 @@ class MemLiveness:
         inst = self.dfg.get_producing_instruction(op)
         assert inst is not None
         if inst.opcode == "gep":
+            mem = inst.operands[0]
+            return self._follow_op(mem)
+        elif inst.opcode == "assign":
             mem = inst.operands[0]
             return self._follow_op(mem)
         elif inst.opcode == "phi":

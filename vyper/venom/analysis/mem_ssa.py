@@ -122,6 +122,7 @@ class MemSSAAbstract(IRAnalysis):
 
     addr_space: AddrSpace
     mem_alias_type: type[MemoryAliasAnalysisAbstract]
+    volatiles: list[MemoryLocation]
 
     def __init__(self, analyses_cache, function):
         super().__init__(analyses_cache, function)
@@ -140,6 +141,8 @@ class MemSSAAbstract(IRAnalysis):
         self.inst_to_def: dict[IRInstruction, MemoryDef] = {}
         self.inst_to_use: dict[IRInstruction, MemoryUse] = {}
 
+        self.volatiles = []
+
     def analyze(self):
         # Request required analyses
         self.cfg: CFGAnalysis = self.analyses_cache.request_analysis(CFGAnalysis)
@@ -157,6 +160,7 @@ class MemSSAAbstract(IRAnalysis):
         self.analyses_cache.invalidate_analysis(self.mem_alias_type)
 
     def mark_location_volatile(self, loc: MemoryLocation) -> MemoryLocation:
+        self.volatiles.append(loc)
         volatile_loc = self.memalias.mark_volatile(loc)
 
         for bb in self.memory_defs:
