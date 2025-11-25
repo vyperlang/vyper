@@ -158,7 +158,7 @@ class MemLiveness:
 
             for read_op in read_ops:
                 assert isinstance(read_op, IRAbstractMemLoc)
-                curr.add(read_op.no_offset())
+                curr.add(read_op.without_offset())
 
             if inst.opcode == "invoke":
                 label = inst.operands[0]
@@ -174,7 +174,7 @@ class MemLiveness:
                         continue
                     # this case is for the memory places that are
                     # inlucluded as parameter as in stack parameters
-                    curr.add(op.no_offset())
+                    curr.add(op.without_offset())
 
             self.liveat[inst] = curr.copy()
 
@@ -192,7 +192,7 @@ class MemLiveness:
                     # before this point live since the value that
                     # is currently in there will be overriden
                     # either way
-                    curr.remove(write_op.no_offset())
+                    curr.remove(write_op.without_offset())
                 if write_op._id in (op._id for op in read_ops):
                     # this is the case for instruction
                     # with more then one mem location
@@ -200,7 +200,7 @@ class MemLiveness:
                     # both of them would be same abstract
                     # memloc you cannot remove it 
                     # so this is just to not allow it
-                    curr.add(write_op.no_offset())
+                    curr.add(write_op.without_offset())
 
         if before != self.liveat[bb.instructions[0]]:
             return True
@@ -221,7 +221,7 @@ class MemLiveness:
             for op in inst.operands:
                 if not isinstance(op, IRAbstractMemLoc):
                     continue
-                curr.add(op.no_offset())
+                curr.add(op.without_offset())
             if inst.opcode == "invoke":
                 label = inst.operands[0]
                 assert isinstance(label, IRLabel)

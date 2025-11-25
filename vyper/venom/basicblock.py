@@ -206,8 +206,7 @@ class IRAbstractMemLoc(IROperand):
     def __repr__(self) -> str:
         return f"[{self._id},{self.size} + {self.offset}]"
 
-    # REVIEW: maybe with_no_offset?
-    def no_offset(self) -> IRAbstractMemLoc:
+    def without_offset(self) -> IRAbstractMemLoc:
         return IRAbstractMemLoc(self.size, force_id=self._id)
 
     def with_offset(self, offset: int) -> IRAbstractMemLoc:
