@@ -120,6 +120,35 @@ def test_inconsistent_callee_return_arity():
     _assert_raises(excinfo.value, InconsistentReturnArity)
 
 
+def test_inconsistent_callee_return_arity_no_spurious_mismatch():
+    # When callee has inconsistent return arity, we should only report
+    # InconsistentReturnArity, not InvokeArityMismatch for the call site.
+    src = """
+    function main {
+    main:
+        %p = source
+        %ret = invoke @f, %p
+        sink %ret
+    }
+
+    function f {
+    entry:
+        %p = param
+        jnz %p, @then, @else
+    then:
+        %one = add %p, 1
+        ret %one, @retpc
+    else:
+        ret @retpc
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, InconsistentReturnArity)
+    assert not any(isinstance(err, InvokeArityMismatch) for err in excinfo.value.exceptions)
+
+
 def test_multi_lhs_non_invoke_rejected():
     src = """
     function main {

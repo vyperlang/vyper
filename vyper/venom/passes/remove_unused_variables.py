@@ -75,7 +75,7 @@ class RemoveUnusedVariablesPass(IRPass):
 
     def _process_instruction(self, inst):
         outputs = inst.get_outputs()
-        if not outputs:
+        if len(outputs) == 0:
             return
         if inst.is_volatile or inst.is_bb_terminator:
             return

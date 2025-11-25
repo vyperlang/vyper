@@ -326,7 +326,7 @@ def _handle_internal_func(
         if returns_count > 0:
             # TODO: remove this once we have proper memory allocator
             # functionality in venom. Currently, we hardcode the scratch
-            # buffer size of up to 32 * MAX_STACK_RETURNS (3) bytes.
+            # buffer size of up to 32 * MAX_STACK_RETURNS (2) bytes.
             # TODO: we don't need to use scratch space once the legacy optimizer
             # is disabled.
             # allocate scratch return buffer sized to the number of stack-returned words

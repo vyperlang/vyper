@@ -111,20 +111,22 @@ def find_semantic_errors_fn(fn: IRFunction) -> list[VenomError]:
     return errors
 
 
-def _collect_ret_arities(context: IRContext) -> dict[IRFunction, int]:
-    ret_arities: dict[IRFunction, int] = {}
+def _collect_ret_arities(context: IRContext) -> dict[IRFunction, int | None]:
+    ret_arities: dict[IRFunction, int | None] = {}
     for fn in context.functions.values():
         arities: set[int] = set()
         for bb in fn.get_basic_blocks():
             for inst in bb.instructions:
                 if inst.opcode == "ret":
                     # last operand is return PC; all preceding (if any) are return values
-                    arity = max(0, len(inst.operands) - 1)
-                    arities.add(arity)
+                    arities.add(len(inst.operands) - 1)
         if len(arities) == 1:
             ret_arities[fn] = next(iter(arities))
         elif len(arities) == 0:
             ret_arities[fn] = 0
+        else:
+            # inconsistent return arity; will be reported as InconsistentReturnArity
+            ret_arities[fn] = None
     return ret_arities
 
 
@@ -137,8 +139,7 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
         for bb in fn.get_basic_blocks():
             for inst in bb.instructions:
                 if inst.opcode == "ret":
-                    arity = max(0, len(inst.operands) - 1)
-                    arities.add(arity)
+                    arities.add(len(inst.operands) - 1)
         if len(arities) > 1:
             errors.append(InconsistentReturnArity(fn, arities))
 
@@ -155,13 +156,12 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
                 if inst.opcode != "invoke":
                     continue
                 target = inst.operands[0]
-                if not isinstance(target, IRLabel):
-                    continue
-                try:
-                    callee = context.get_function(target)
-                except Exception:
-                    continue
+                assert isinstance(target, IRLabel)
+                callee = context.get_function(target)
                 expected_num = ret_arities.get(callee, 0)
+                if expected_num is None:
+                    # callee has inconsistent return arity; skip check here
+                    continue
                 if got_num != expected_num:
                     errors.append(InvokeArityMismatch(caller, inst, expected_num, got_num))
 
