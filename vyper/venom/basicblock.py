@@ -34,8 +34,6 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "extcodecopy",
         "returndatacopy",
         "codecopy",
-        # REVIEW: maybe copyruntimecode?
-        "codecopyruntime",
         "dloadbytes",
         "return",
         "ret",
@@ -64,7 +62,6 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "mcopy",
         "returndatacopy",
         "codecopy",
-        "codecopyruntime",
         "extcodecopy",
         "return",
         "ret",

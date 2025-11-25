@@ -389,8 +389,6 @@ def in_free_var(var, offset):
 def fix_mem_loc(function: IRFunction):
     for bb in function.get_basic_blocks():
         for inst in bb.instructions:
-            if inst.opcode == "codecopyruntime":
-                continue
             write_op = get_memory_write_op(inst)
             read_op = get_memory_read_op(inst)
             if write_op is not None:

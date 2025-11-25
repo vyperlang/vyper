@@ -68,9 +68,6 @@ class ConcretizeMemLocPass(IRPass):
 
     def _handle_bb(self, bb: IRBasicBlock):
         for inst in bb.instructions:
-            if inst.opcode == "codecopyruntime":
-                inst.opcode = "codecopy"
-                continue
             new_ops = [self._handle_op(op) for op in inst.operands]
             inst.operands = new_ops
             if inst.opcode == "gep":

@@ -428,17 +428,11 @@ def _convert_ir_bb(fn, ir, symbols):
 
         bb = fn.get_basic_block()
 
-        mem_start_var = bb.append_instruction("mem_deploy_start", mem_deploy_start)
-
-        # REVIEW: explain why we need codecopyruntime, e.g.
-        # codecopyruntime copies code to a specific memory location, we
-        # can't use abstract memory (which doesn't affect alias analysis,
-        # because it occurs after all other memory writes(!))
         bb.append_instruction(
-            "codecopyruntime", runtime_codesize, IRLabel("runtime_begin"), mem_start_var
+            "codecopy", runtime_codesize, IRLabel("runtime_begin"), mem_deploy_start
         )
         amount_to_return = bb.append_instruction("add", runtime_codesize, immutables_len)
-        bb.append_instruction("return", amount_to_return, mem_start_var)
+        bb.append_instruction("return", amount_to_return, mem_deploy_start)
         return None
     elif ir.value == "seq":
         if len(ir.args) == 0:
