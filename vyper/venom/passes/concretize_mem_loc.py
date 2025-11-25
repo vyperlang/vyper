@@ -128,7 +128,7 @@ class MemLiveness:
                 # natural order for handle_used is pre walk.
                 # REVIEW: kind of prefer a worklist, it's more "standard"
                 # / in line with the rest of the codebase
-                change |= self._handle_bb(bb)
+                change |= self._handle_liveat(bb)
                 change |= self._handle_used(bb)
 
             if not change:
@@ -142,8 +142,7 @@ class MemLiveness:
                 if mem in self.used[inst]:
                     self.livesets[mem].add(inst)
 
-    # def _handle_liveat?
-    def _handle_bb(self, bb: IRBasicBlock) -> bool:
+    def _handle_liveat(self, bb: IRBasicBlock) -> bool:
         curr: OrderedSet[IRAbstractMemLoc] = OrderedSet()
         if len(succs := self.cfg.cfg_out(bb)) > 0:
             for other in (self.liveat[succ.instructions[0]] for succ in succs):
@@ -173,8 +172,8 @@ class MemLiveness:
                 for op in inst.operands:
                     if not isinstance(op, IRAbstractMemLoc):
                         continue
-                    # REVIEW: why? should already be added from
-                    # read_ops and write_ops
+                    # this case is for the memory places that are
+                    # inlucluded as parameter as in stack parameters
                     curr.add(op.no_offset())
 
             self.liveat[inst] = curr.copy()
@@ -187,7 +186,11 @@ class MemLiveness:
                     # REVIEW: this case should be explained
                     continue
                 if write_op in curr and size.value == write_op.size:
-                    # REVIEW: why?
+                    # if the memory is overriden completelly
+                    # you dont have to consider the memory location
+                    # before this point live since the value that
+                    # is currently in there will be overriden
+                    # either way
                     curr.remove(write_op.no_offset())
                 if write_op._id in (op._id for op in read_ops):
                     # REVIEW: why?
