@@ -27,8 +27,6 @@ class ConcretizeMemLocPass(IRPass):
 
         self.allocator.start_fn_allocation()
 
-        orig = self.allocator.curr
-
         self.mem_liveness = MemLiveness(self.function, self.cfg, self.dfg, self.allocator)
         self.mem_liveness.analyze()
 
@@ -53,7 +51,8 @@ class ConcretizeMemLocPass(IRPass):
                 self.allocator.reserve(before_mem)
             self.allocator.allocate(mem)
             already_allocated.append((mem, insts))
-            # REVIEW: is this necessary?
+            # this is necessary because of the case that is described
+            # in the _handle_op method
             max_curr = max(self.allocator.curr, max_curr)
 
         self.allocator.curr = max_curr
@@ -78,8 +77,11 @@ class ConcretizeMemLocPass(IRPass):
         if isinstance(op, IRAbstractMemLoc) and op._id in self.allocator.allocated:
             return IRLiteral(self.allocator.allocated[op._id][0] + op.offset)
         elif isinstance(op, IRAbstractMemLoc):
-            # REVIEW: !!!! i think the invariant of the prior mem allocation
-            # is that *all* IRABstractMemLocs should already be allocated.
+            # the invariant that all should be already allocated
+            # only holds if all the dead stores are eliminated
+            # but that does not seems like is a case so far
+            # so this is allocating the memory after all other mem
+            # if this case occurs
             return IRLiteral(self.allocator.allocate(op) + op.offset)
         else:
             return op
