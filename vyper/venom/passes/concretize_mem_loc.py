@@ -1,4 +1,5 @@
 from collections import defaultdict
+from typing import Optional
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis
@@ -152,9 +153,9 @@ class MemLiveness:
 
         for inst in reversed(bb.instructions):
             write_op = get_memory_write_op(inst)
-            write_ops = self._follow_op(write_op)
+            write_ops = self._find_base_ptrs(write_op)
             read_op = get_memory_read_op(inst)
-            read_ops = self._follow_op(read_op)
+            read_ops = self._find_base_ptrs(read_op)
 
             for read_op in read_ops:
                 assert isinstance(read_op, IRAbstractMemLoc)
@@ -183,7 +184,8 @@ class MemLiveness:
                 size = get_write_size(inst)
                 assert size is not None
                 if not isinstance(size, IRLiteral):
-                    # REVIEW: this case should be explained
+                    # if it is literal then
+                    # we do not handle it
                     continue
                 if write_op in curr and size.value == write_op.size:
                     # if the memory is overriden completelly
@@ -193,7 +195,12 @@ class MemLiveness:
                     # either way
                     curr.remove(write_op.no_offset())
                 if write_op._id in (op._id for op in read_ops):
-                    # REVIEW: why?
+                    # this is the case for instruction
+                    # with more then one mem location
+                    # and there could be the case that
+                    # both of them would be same abstract
+                    # memloc you cannot remove it 
+                    # so this is just to not allow it
                     curr.add(write_op.no_offset())
 
         if before != self.liveat[bb.instructions[0]]:
@@ -208,9 +215,8 @@ class MemLiveness:
         # it's a hint to the allocator: don't need to allocate memory until
         # first use.
         curr: OrderedSet[IRAbstractMemLoc] = OrderedSet(self.function.allocated_args.values())
-        # REVIEW: preds? since cfg_in
-        if len(succs := self.cfg.cfg_in(bb)) > 0:
-            for other in (self.used[succ.instructions[-1]] for succ in succs):
+        if len(preds := self.cfg.cfg_in(bb)) > 0:
+            for other in (self.used[pred.instructions[-1]] for pred in preds):
                 curr.update(other)
 
         before = self.used[bb.instructions[-1]]
@@ -227,9 +233,7 @@ class MemLiveness:
             self.used[inst] = curr.copy()
         return before != curr
 
-    # REVIEW basically: find_base_pointers
-    # REVIEW: Optional[IROperand]
-    def _follow_op(self, op: IROperand | None) -> set[IRAbstractMemLoc]:
+    def _find_base_ptrs(self, op: Optional[IROperand]) -> set[IRAbstractMemLoc]:
         if op is None:
             return set()
         if isinstance(op, IRAbstractMemLoc):
@@ -241,14 +245,14 @@ class MemLiveness:
         assert inst is not None
         if inst.opcode == "gep":
             mem = inst.operands[0]
-            return self._follow_op(mem)
+            return self._find_base_ptrs(mem)
         elif inst.opcode == "assign":
             mem = inst.operands[0]
-            return self._follow_op(mem)
+            return self._find_base_ptrs(mem)
         elif inst.opcode == "phi":
             res = set()
             for _, var in inst.phi_operands:
-                src = self._follow_op(var)
+                src = self._find_base_ptrs(var)
                 res.update(src)
             return res
         return set()
