@@ -209,11 +209,9 @@ class MemLiveness:
         return False
 
     def _handle_used(self, bb: IRBasicBlock) -> bool:
-        # REVIEW: please add 1-2 sentence docstring explaining purpose
-        # of this function
-        # find all memories which have been used at each point in the function.
-        # it's a hint to the allocator: don't need to allocate memory until
-        # first use.
+        # this is to get positions where the memory location
+        # are used/already used so we dont allocate
+        # memory before the place where it is firstly used
         curr: OrderedSet[IRAbstractMemLoc] = OrderedSet(self.function.allocated_args.values())
         if len(preds := self.cfg.cfg_in(bb)) > 0:
             for other in (self.used[pred.instructions[-1]] for pred in preds):
