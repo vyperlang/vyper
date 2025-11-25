@@ -4,6 +4,7 @@ from vyper.venom.basicblock import IRAbstractMemLoc, IRInstruction, IROperand, I
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ENABLE_NEW_CALL_CONV
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
+from vyper.exceptions import CompilerPanic
 
 
 class Mem2Var(IRPass):
@@ -67,22 +68,16 @@ class Mem2Var(IRPass):
 
         for inst in uses.copy():
             if inst.opcode == "mstore":
-                # REVIEW: when can size be less than 32? seems like we should
-                # panic if size < 32.
-                if size <= 32:
+                if size == 32:
                     self.updater.mk_assign(inst, inst.operands[0], new_output=var)
-                else:
-                    # REVIEW: should this be part of sccp? pushing the
-                    # mem_loc down into the uses
-                    self.updater.update_operands(inst, {alloca_inst.output: mem_loc})
+                elif size < 32:
+                    raise CompilerPanic("Trying to write with mstore to memory smaller then 32 bytes")
             elif inst.opcode == "mload":
-                # REVIEW: ditto
-                if size <= 32:
+                if size == 32:
                     self.updater.mk_assign(inst, var)
-                else:
-                    self.updater.update_operands(inst, {alloca_inst.output: mem_loc})
+                elif size < 32:
+                    raise CompilerPanic("Trying to read with mload to memory smaller then 32 bytes")
             elif inst.opcode == "return":
-                # REVIEW: ditto?
                 if size <= 32:
                     self.updater.add_before(inst, "mstore", [var, mem_loc])
                 inst.operands[1] = mem_loc
@@ -123,17 +118,15 @@ class Mem2Var(IRPass):
 
         for inst in uses.copy():
             if inst.opcode == "mstore":
-                # REVIEW: ditto
-                if size <= 32:
+                if size == 32:
                     self.updater.mk_assign(inst, inst.operands[0], new_output=var)
-                else:
-                    self.updater.update_operands(inst, {palloca_inst.output: mem_loc})
+                elif size < 32:
+                    raise CompilerPanic("Trying to write with mstore to memory smaller then 32 bytes")
             elif inst.opcode == "mload":
-                # REVIEW: ditto
-                if size <= 32:
+                if size == 32:
                     self.updater.mk_assign(inst, var)
-                else:
-                    self.updater.update_operands(inst, {palloca_inst.output: mem_loc})
+                elif size < 32:
+                    raise CompilerPanic("Trying to read with mload to memory smaller then 32 bytes")
 
     def _process_calloca(self, inst: IRInstruction):
         assert inst.opcode == "calloca"
