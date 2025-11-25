@@ -40,7 +40,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
-from vyper.semantics.types import TYPE_T, EventT, FlagT, InterfaceT, StructT, is_type_t
+from vyper.semantics.types import TYPE_T, EventT, FlagT, InterfaceT, StructT, VyperType, is_type_t
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
@@ -167,6 +167,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         # keep track of exported functions to prevent duplicate exports
         self._all_functions: dict[ContractFunctionT, vy_ast.VyperNode] = {}
+
+        # keep track of implemented modules to prevent duplicates
+        self._all_implements: dict[VyperType, vy_ast.VyperNode] = {}
 
         self._events: list[EventT] = []
 
@@ -364,23 +367,34 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             err_list.raise_if_not_empty()
 
     def visit_ImplementsDecl(self, node):
-        type_ = type_from_annotation(node.annotation)
+        interface_types = list()
+        for name in node.children:
+            type_ = type_from_annotation(name)
 
-        if not isinstance(type_, InterfaceT):
-            msg = "Not an interface!"
-            hint = None
-            if isinstance(type_, ModuleT):
-                path = type_._module.path
-                msg += " (Since vyper v0.4.0, interface files are required"
-                msg += " to have a .vyi suffix.)"
-                hint = f"try renaming `{path}` to `{path}i`"
-            raise StructureException(msg, node.annotation, hint=hint)
+            if type_ in self._all_implements:
+                msg = f"{name.id} implemented more than once"
+                hint = None
+                raise StructureException(msg, self._all_implements[type_], name, hint=hint)
 
-        # grab exposed functions
-        funcs = {fn_t: node for fn_t, node in self._all_functions.items() if fn_t.is_external}
-        type_.validate_implements(node, funcs)
+            self._all_implements[type_] = name
 
-        node._metadata["interface_type"] = type_
+            if not isinstance(type_, InterfaceT):
+                msg = "Not an interface!"
+                hint = None
+                if isinstance(type_, ModuleT):
+                    path = type_._module.path
+                    msg += " (Since vyper v0.4.0, interface files are required"
+                    msg += " to have a .vyi suffix.)"
+                    hint = f"try renaming `{path}` to `{path}i`"
+                raise StructureException(msg, name, hint=hint)
+
+            # grab exposed functions
+            funcs = {fn_t: node for fn_t, node in self._all_functions.items() if fn_t.is_external}
+            type_.validate_implements(node, funcs)
+
+            interface_types.append(type_)
+
+        node._metadata["interface_types"] = interface_types
 
     def visit_UsesDecl(self, node):
         # TODO: check duplicate uses declarations, e.g.
@@ -730,13 +744,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._add_import(node)
 
     def _add_import(self, node: vy_ast.VyperNode) -> None:
-        import_info = node._metadata["import_info"]
-        # similar structure to import analyzer
-        module_info = self._load_import(import_info)
+        for import_info in node._metadata["import_infos"]:
+            # similar structure to import analyzer
+            module_info = self._load_import(import_info)
 
-        import_info._typ = module_info
+            import_info._typ = module_info
 
-        self.namespace[import_info.alias] = module_info
+            self.namespace[import_info.alias] = module_info
 
     def _load_import(self, import_info: ImportInfo) -> Any:
         path = import_info.compiler_input.path
