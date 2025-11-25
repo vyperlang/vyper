@@ -42,7 +42,6 @@ class ConcretizeMemLocPass(IRPass):
         self.allocator.already_allocated([mem for mem, _ in already_allocated])
 
         max_curr = 0
-        # REVIEW: for ix, (mem, live_insts) in enumerate(livesets):
         # REVIEW: note, this is O(n^2)
         for mem, insts in to_allocate:
             self.allocator.reset()
