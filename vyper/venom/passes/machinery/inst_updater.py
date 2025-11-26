@@ -69,8 +69,9 @@ class InstUpdater:
                 if old_primary is not None and old_primary != new_output:
                     self.dfg.remove_producing_instruction(old_primary)
                 self.dfg.set_producing_instruction(new_output, inst)
-                remaining_outputs = old_outputs[1:] if len(old_outputs) > 1 else []
-                inst.set_outputs([new_output, *remaining_outputs])
+                # multi-output instructions are not currently updated this way
+                assert len(old_outputs) <= 1
+                inst.set_outputs([new_output])
 
         inst.opcode = opcode
         inst.operands = new_operands
