@@ -187,15 +187,18 @@ class FunctionInlinerPass(IRGlobalPass):
                     # will be handled at the toplevel `inline_function`
                     pass
                 elif inst.opcode == "ret":
-                    # Map callee returns to caller outputs (if any)
                     # ret may be: ret @return_pc  OR  ret v1, v2, ..., @return_pc
                     # The last operand is the return PC (label or variable);
                     # all preceding operands (if any) are return values.
                     ret_values = [op for op in inst.operands[:-1] if not isinstance(op, IRLabel)]
+
+                    inst.opcode = "jmp"
+                    inst.operands = [call_site_return.label]
+
+                    # Map each returned value to corresponding callsite outputs
                     if len(ret_values) == 0:
                         continue
 
-                    # Map each returned value to corresponding callsite outputs
                     callsite_outs = call_site.get_outputs()
                     assert len(ret_values) == len(
                         callsite_outs
@@ -205,8 +208,6 @@ class FunctionInlinerPass(IRGlobalPass):
                         bb.insert_instruction(
                             IRInstruction("assign", [ret_value], [target_out]), -1
                         )
-                    inst.opcode = "jmp"
-                    inst.operands = [call_site_return.label]
 
             for inst in bb.instructions:
                 if not inst.annotation:
