@@ -192,17 +192,19 @@ class FunctionInlinerPass(IRGlobalPass):
                     # The last operand is the return PC (label or variable);
                     # all preceding operands (if any) are return values.
                     ret_values = [op for op in inst.operands[:-1] if not isinstance(op, IRLabel)]
-                    if len(ret_values) > 0:
-                        # Map each returned value to corresponding callsite outputs
-                        callsite_outs = call_site.get_outputs()
-                        assert len(ret_values) == len(
-                            callsite_outs
-                        ), f"Return arity mismatch: {len(ret_values)} vs {len(callsite_outs)}"
-                        for idx, ret_value in enumerate(ret_values):
-                            target_out = callsite_outs[idx]
-                            bb.insert_instruction(
-                                IRInstruction("assign", [ret_value], [target_out]), -1
-                            )
+                    if len(ret_values) == 0:
+                        continue
+                    
+                    # Map each returned value to corresponding callsite outputs
+                    callsite_outs = call_site.get_outputs()
+                    assert len(ret_values) == len(
+                        callsite_outs
+                    ), f"Return arity mismatch: {len(ret_values)} vs {len(callsite_outs)}"
+                    for idx, ret_value in enumerate(ret_values):
+                        target_out = callsite_outs[idx]
+                        bb.insert_instruction(
+                            IRInstruction("assign", [ret_value], [target_out]), -1
+                        )
                     inst.opcode = "jmp"
                     inst.operands = [call_site_return.label]
 
