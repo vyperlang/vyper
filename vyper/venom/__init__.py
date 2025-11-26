@@ -96,8 +96,6 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     DeadStoreElimination(ac, fn).run_pass(addr_space=TRANSIENT)
     LowerDloadPass(ac, fn).run_pass()
 
-    # REVIEW: phi elimination is probably only needed after MakeSSA/Load elim?
-    PhiEliminationPass(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
     ConcretizeMemLocPass(ac, fn).run_pass()
