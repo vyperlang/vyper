@@ -10,7 +10,6 @@ from vyper.codegen.core import is_tuple_like
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.ir.compile_ir import _runtime_code_offsets
-from vyper.semantics.types.subscriptable import TupleT
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -258,7 +257,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
             else:
                 ofst = bb.append_instruction("assign", IRLiteral(32 * i))
                 assert ofst is not None
-                dst = bb.append_instruction("add", return_buf, ofst)
+                dst = bb.append_instruction("add", return_buf, ofst)  # type: ignore
                 assert dst is not None
             bb.append_instruction("mstore", outv, dst)
         return return_buf
