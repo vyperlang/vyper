@@ -6,6 +6,7 @@ from collections import defaultdict
 from typing import Optional
 
 from vyper.codegen.context import Alloca
+from vyper.codegen.core import is_tuple_like
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.ir.compile_ir import _runtime_code_offsets
@@ -285,9 +286,9 @@ def _returns_stack_count(func_t) -> int:
     ret_t = func_t.return_type
     if ret_t is None:
         return 0
-    if ENABLE_MULTI_RETURNS and isinstance(ret_t, TupleT):
-        members = ret_t.member_types
-        if 1 <= len(members) <= MAX_STACK_RETURNS and all(_is_word_type(t) for t in members):
+    if ENABLE_MULTI_RETURNS and is_tuple_like(ret_t):
+        members = ret_t.tuple_items()
+        if 1 <= len(members) <= MAX_STACK_RETURNS and all(_is_word_type(t) for (_k, t) in members):
             return len(members)
         return 0
     return 1 if _is_word_type(ret_t) else 0
