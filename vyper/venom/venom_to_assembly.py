@@ -438,10 +438,7 @@ class VenomCompiler:
         elif opcode == "ret":
             # For ret with values, we only treat the return PC as an input operand
             # The return values must remain on the stack and are not consumed here
-            if len(inst.operands) == 0:
-                operands = []
-            else:
-                operands = [inst.operands[-1]]
+            operands = [inst.operands[-1]]
         else:
             operands = inst.operands
 
