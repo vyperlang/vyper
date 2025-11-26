@@ -81,6 +81,7 @@ class CSE(IRPass):
                     continue
                 if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
                     continue
+                # skip multi-output instructions for now (not supported yet)
                 if inst.num_outputs > 1:
                     continue
                 state = self.expression_analysis.get_expression(inst)
