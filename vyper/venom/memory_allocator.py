@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, ClassVar
 
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import IRAbstractMemLoc
@@ -9,6 +9,7 @@ class MemoryAllocator:
     curr: int
     mems_used: dict[Any, OrderedSet[IRAbstractMemLoc]]
     allocated_fn: OrderedSet[IRAbstractMemLoc]
+    FN_START: ClassVar[int] = 64
 
     def __init__(self):
         self.curr = 0
@@ -25,10 +26,7 @@ class MemoryAllocator:
         return ptr
 
     def start_fn_allocation(self):
-        # REVIEW: more flexible to set the start pos in the ctor
-        # (e.g. self.start_ptr = 64)
-        # or even as a class variable (MemoryAllocator.START_POS)
-        self.curr = 64
+        self.curr = MemoryAllocator.FN_START
         self.allocated_fn = OrderedSet()
 
     def already_allocated(self, mems: list[IRAbstractMemLoc]):
@@ -38,7 +36,7 @@ class MemoryAllocator:
         self.mems_used[fn] = OrderedSet(self.allocated_fn)
 
     def reset(self):
-        self.curr = 64
+        self.curr = MemoryAllocator.FN_START
     
     def reserve(self, mem_loc: IRAbstractMemLoc):
         assert mem_loc._id in self.allocated
