@@ -257,9 +257,8 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
             else:
                 ofst = bb.append_instruction("assign", IRLiteral(32 * i))
                 assert ofst is not None
-                new_dst = bb.append_instruction("add", return_buf, ofst)
-                assert new_dst is not None
-                dst = new_dst
+                dst = bb.append_instruction("add", return_buf, ofst)
+                assert dst is not None
             bb.append_instruction("mstore", outv, dst)
         return return_buf
 
