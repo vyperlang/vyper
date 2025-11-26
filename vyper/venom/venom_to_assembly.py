@@ -300,9 +300,7 @@ class VenomCompiler:
 
         self.popmany(asm, to_pop, stack)
 
-        self._optimistic_swap(
-            asm, last_param_inst, next_liveness, stack, last_param_inst.get_outputs()
-        )
+        self._optimistic_swap(asm, last_param_inst, next_liveness, stack)
 
     def popmany(self, asm, to_pop: Iterable[IRVariable], stack):
         to_pop = list(to_pop)
@@ -621,18 +619,11 @@ class VenomCompiler:
 
         # Heuristic scheduling based on the next expected live var
         # Use the top-most surviving output to schedule
-        self._optimistic_swap(assembly, inst, next_liveness, stack, live_outputs)
+        self._optimistic_swap(assembly, inst, next_liveness, stack)
 
         return apply_line_numbers(inst, assembly)
 
-    def _optimistic_swap(
-        self,
-        assembly,
-        inst,
-        next_liveness,
-        stack,
-        inst_outputs: list[IRVariable],  # optimization to avoid get_outputs call
-    ):
+    def _optimistic_swap(self, assembly, inst, next_liveness, stack):
         # heuristic: peek at next_liveness to find the next scheduled
         # item, and optimistically swap with it
         if DEBUG_SHOW_COST:
@@ -650,6 +641,7 @@ class VenomCompiler:
         next_scheduled = next_liveness.last()
         cost = 0
         # Use last output (top-of-stack) when available, else the single output
+        inst_outputs = inst.get_outputs()
         if len(inst_outputs) > 0:
             current_top_out = inst_outputs[-1]
             if not self.dfg.are_equivalent(current_top_out, next_scheduled):

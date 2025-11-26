@@ -194,7 +194,7 @@ class FunctionInlinerPass(IRGlobalPass):
                     ret_values = [op for op in inst.operands[:-1] if not isinstance(op, IRLabel)]
                     if len(ret_values) == 0:
                         continue
-                    
+
                     # Map each returned value to corresponding callsite outputs
                     callsite_outs = call_site.get_outputs()
                     assert len(ret_values) == len(
