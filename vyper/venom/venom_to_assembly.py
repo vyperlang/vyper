@@ -613,12 +613,7 @@ class VenomCompiler:
             return apply_line_numbers(inst, assembly)
 
         dead_outputs = [out for out in outputs if out not in next_liveness]
-        for out in reversed(dead_outputs):
-            depth = stack.get_depth(out)
-            assert depth is not StackModel.NOT_IN_STACK, "Stack out of sync"
-            if depth != 0:
-                self.swap(assembly, stack, depth)
-            self.pop(assembly, stack)
+        self.popmany(assembly, dead_outputs, stack)
 
         live_outputs = [out for out in outputs if out in next_liveness]
         if len(live_outputs) == 0:
