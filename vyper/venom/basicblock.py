@@ -179,15 +179,12 @@ class IRAbstractMemLoc(IROperand):
     offset: int
 
     _curr_id: ClassVar[int] = 0
-    # REVIEW: from __future__ import annotation
-    FREE_VAR1: ClassVar["IRAbstractMemLoc"]
-    FREE_VAR2: ClassVar["IRAbstractMemLoc"]
+    FREE_VAR1: ClassVar[IRAbstractMemLoc]
+    FREE_VAR2: ClassVar[IRAbstractMemLoc]
 
     def __init__(self, size: int, offset: int = 0, force_id=None):
         if force_id is None:
             self._id = IRAbstractMemLoc._curr_id
-            # REVIEW: note this "leaks" if we have multiple compilations
-            # inside of one process
             IRAbstractMemLoc._curr_id += 1
         else:
             self._id = force_id
@@ -213,8 +210,7 @@ class IRAbstractMemLoc(IROperand):
         return IRAbstractMemLoc(self.size, offset=offset, force_id=self._id)
 
 
-# REVIEW: these should be in the class body
-IRAbstractMemLoc._curr_id = 0
+# cannot assing in class since it is not defined in that place
 IRAbstractMemLoc.FREE_VAR1 = IRAbstractMemLoc(32)
 IRAbstractMemLoc.FREE_VAR2 = IRAbstractMemLoc(32)
 

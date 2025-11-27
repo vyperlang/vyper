@@ -444,8 +444,6 @@ def get_write_size(inst: IRInstruction) -> IROperand | None:
         size, _, _ = inst.operands
         return size
     elif opcode == "call":
-        # REVIEW (take it or leave it): maybe can do size, *_ = inst.operands
-        # (and also collapse several branches)
         size, _, _, _, _, _, _ = inst.operands
         return size
     elif opcode in ("delegatecall", "staticcall"):
@@ -476,10 +474,10 @@ def get_memory_read_op(inst) -> IROperand | None:
         _, src = inst.operands
         return src
     elif opcode == "create":
-        _, src, _value = inst.operands
+        _, src, _ = inst.operands
         return src
     elif opcode == "create2":
-        _salt, size, src, _value = inst.operands
+        _, size, src, _ = inst.operands
         return src
     elif opcode == "sha3":
         _, offset = inst.operands

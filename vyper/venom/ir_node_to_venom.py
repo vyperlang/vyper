@@ -697,7 +697,7 @@ def _convert_ir_bb(fn, ir, symbols):
             alloca = ir.passthrough_metadata["alloca"]
             if alloca._id not in _alloca_table:
                 mem_loc_op = IRAbstractMemLoc(alloca.size)
-                # REVIEW: do we need an `id` in the regular alloca instruction?
+                # id is still needed for inlining
                 ptr = fn.get_basic_block().append_instruction("alloca", mem_loc_op, alloca._id)
                 _alloca_table[alloca._id] = ptr
             return _alloca_table[alloca._id]
