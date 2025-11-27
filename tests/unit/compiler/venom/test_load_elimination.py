@@ -283,19 +283,18 @@ def test_store_load_no_overlap_different_store():
 
 @pytest.mark.parametrize("position", [(10, 42), ("[2,32]", "[3,32]")])
 @pytest.mark.parametrize("addrspace", RW_ADDRESS_SPACES)
-def test_store_store_no_overlap(addrspace, position: list):
+def test_store_store_no_overlap(addrspace, position: tuple):
     """
     Test that if the mstores do not overlap it can still
     eliminate any possible repeated mstores
     """
-    # REVIEW: bit weird since position was already annotated as `list`
-    if addrspace != MEMORY and not isinstance(position, int):
+    ptr_1, ptr_2 = position
+    if addrspace != MEMORY and not isinstance(ptr_1, int):
         return
 
     LOAD = addrspace.load_op
     STORE = addrspace.store_op
 
-    ptr_1, ptr_2 = position
 
     pre = f"""
     main:
