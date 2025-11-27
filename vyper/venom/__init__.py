@@ -87,14 +87,11 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     RevertToAssert(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
-    # REVIEW: MemMerge is probably a no-op until concretization is run
-    MemMergePass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     DeadStoreElimination(ac, fn).run_pass(addr_space=MEMORY)
     DeadStoreElimination(ac, fn).run_pass(addr_space=STORAGE)
     DeadStoreElimination(ac, fn).run_pass(addr_space=TRANSIENT)
-    LowerDloadPass(ac, fn).run_pass()
 
     AssignElimination(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
@@ -102,7 +99,9 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     SCCP(ac, fn).run_pass()
     SimplifyCFGPass(ac, fn).run_pass()
 
+    # run memmerge before LowerDload
     MemMergePass(ac, fn).run_pass()
+    LowerDloadPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
     BranchOptimizationPass(ac, fn).run_pass()
 
