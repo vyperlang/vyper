@@ -36,11 +36,13 @@ def _conflict(
             # this used to be assert and it triggered the error
             # with --enable-compiler-debug-mode why
             return True
+
         assert isinstance(k1, IRAbstractMemLoc) and isinstance(k2, IRAbstractMemLoc)
-        if k1._id == k2._id:
-            return _conflict_lit(store_opcode, k1.offset, k2.offset)
-        else:
+        if k1._id != k2._id:
+            # different buffers, no possibility to alias
             return False
+
+        return _conflict_lit(store_opcode, k1.offset, k2.offset)
 
     assert isinstance(k1, IRLiteral) and isinstance(k2, IRLiteral)
     ptr1, ptr2 = k1.value, k2.value
