@@ -7,7 +7,6 @@ from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, FCGAnalysis, IRAnalys
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
-from vyper.venom.ir_node_to_venom import ENABLE_NEW_CALL_CONV
 from vyper.venom.passes import FloatAllocas
 from vyper.venom.passes.base_pass import IRGlobalPass
 
@@ -108,7 +107,6 @@ class FunctionInlinerPass(IRGlobalPass):
                             # this can happen when we have a->b->c and a->c,
                             # and both b and c get inlined.
                             calloca_inst = callocas[alloca_id]
-                            assert calloca_inst.output is not None
                             inst.opcode = "assign"
                             inst.operands = [calloca_inst.output]
                         else:
@@ -124,7 +122,6 @@ class FunctionInlinerPass(IRGlobalPass):
                             continue
                         inst.opcode = "assign"
                         calloca_inst = callocas[alloca_id]
-                        assert calloca_inst.output is not None  # help mypy
                         inst.operands = [calloca_inst.output]
                         found.add(alloca_id)
 
@@ -137,7 +134,7 @@ class FunctionInlinerPass(IRGlobalPass):
                         # demote to alloca so that mem2var will work
                         inst.opcode = "alloca"
 
-    def _inline_call_site(self, func: IRFunction, call_site: IRInstruction):
+    def _inline_call_site(self, func: IRFunction, call_site: IRInstruction) -> None:
         """
         Inline function into call site.
         """
@@ -183,13 +180,21 @@ class FunctionInlinerPass(IRGlobalPass):
                     # will be handled at the toplevel `inline_function`
                     pass
                 elif inst.opcode == "ret":
-                    if len(inst.operands) > 1:
-                        # sanity check (should remove once new callconv stabilizes)
-                        assert ENABLE_NEW_CALL_CONV
-                        ret_value = inst.operands[0]
-                        bb.insert_instruction(
-                            IRInstruction("assign", [ret_value], call_site.output), -1
-                        )
+                    # ret may be: ret @return_pc  OR  ret v1, v2, ..., @return_pc
+                    # The last operand is the return PC (label or variable);
+                    # all preceding operands (if any) are return values.
+                    ret_values = [op for op in inst.operands[:-1] if not isinstance(op, IRLabel)]
+
+                    # Map each returned value to corresponding callsite outputs
+                    if len(ret_values) > 0:
+                        callsite_outs = call_site.get_outputs()
+                        assert len(ret_values) == len(callsite_outs), (ret_values, call_site)
+                        for idx, ret_value in enumerate(ret_values):
+                            target_out = callsite_outs[idx]
+                            bb.insert_instruction(
+                                IRInstruction("assign", [ret_value], [target_out]), -1
+                            )
+
                     inst.opcode = "jmp"
                     inst.operands = [call_site_return.label]
 
@@ -273,11 +278,10 @@ class FunctionInlinerPass(IRGlobalPass):
             else:
                 ops.append(op)
 
-        output = None
-        if inst.output:
-            output = IRVariable(f"{prefix}{inst.output.plain_name}")
+        all_outputs = inst.get_outputs()
+        cloned_outputs = [IRVariable(f"{prefix}{o.plain_name}") for o in all_outputs]
 
-        clone = IRInstruction(inst.opcode, ops, output)
+        clone = IRInstruction(inst.opcode, ops, cloned_outputs)
         clone.parent = inst.parent
         clone.annotation = inst.annotation
         clone.ast_source = inst.ast_source

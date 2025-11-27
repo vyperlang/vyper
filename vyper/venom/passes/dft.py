@@ -88,18 +88,37 @@ class DFTPass(IRPass):
             #   indirect data dependencies (offspring of operands)
             #   direct data dependencies (order of operands)
 
-            if (x not in self.dda[inst] and x in self.eda[inst]) or inst.flippable:
-                ret = -1 * int(len(self.data_offspring[x]) > 0)
-            elif x.output in inst.operands:
-                assert x in self.dda[inst]  # sanity check
-                assert x.output is not None  # help mypy
-                ret = inst.operands.index(x.output) + len(self.order)
-            else:
-                assert x in self.dda[inst]  # sanity check
-                assert x.output in self.order
-                assert x.output is not None  # help mypy
-                ret = self.order.index(x.output)
-            return ret
+            is_effect_only = x not in self.dda[inst] and x in self.eda[inst]
+            if is_effect_only or inst.flippable:
+                has_data_offspring = len(self.data_offspring[x]) > 0
+                return -1 if has_data_offspring else 0
+
+            assert x in self.dda[inst]  # sanity check
+
+            # locate operands that are produced by x and prefer earliest match
+            operand_idxs = [
+                i
+                for i, op in enumerate(inst.operands)
+                if self.dfg.get_producing_instruction(op) is x
+            ]
+            if len(operand_idxs) > 0:
+                return min(operand_idxs) + len(self.order)
+
+            outputs = x.get_outputs()
+            operand_positions = [
+                inst.operands.index(out_var) for out_var in outputs if out_var in inst.operands
+            ]
+            if len(operand_positions) > 0:
+                return min(operand_positions) + len(self.order)
+
+            order_positions = [
+                self.order.index(out_var) for out_var in outputs if out_var in self.order
+            ]
+            if len(order_positions) > 0:
+                return min(order_positions)
+
+            # fall back to a stable default when no operand is associated
+            return len(self.order)
 
         # heuristic: sort by size of child dependency graph
         orig_children = children.copy()
