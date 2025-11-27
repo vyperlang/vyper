@@ -22,7 +22,7 @@ class LowerDloadPass(IRPass):
                 (ptr,) = inst.operands
                 var = fn.get_next_variable()
                 bb.insert_instruction(
-                    IRInstruction("add", [ptr, IRLabel("code_end")], output=var), index=idx
+                    IRInstruction("add", [ptr, IRLabel("code_end")], [var]), index=idx
                 )
                 idx += 1
                 dst = IRLiteral(MemoryPositions.FREE_VAR_SPACE)
@@ -36,7 +36,7 @@ class LowerDloadPass(IRPass):
                 _, src, _ = inst.operands
                 code_ptr = fn.get_next_variable()
                 bb.insert_instruction(
-                    IRInstruction("add", [src, IRLabel("code_end")], output=code_ptr), index=idx
+                    IRInstruction("add", [src, IRLabel("code_end")], [code_ptr]), index=idx
                 )
                 inst.opcode = "codecopy"
                 inst.operands[1] = code_ptr
