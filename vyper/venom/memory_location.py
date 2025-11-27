@@ -457,7 +457,6 @@ def get_write_size(inst: IRInstruction) -> IROperand | None:
 
 
 def get_memory_read_op(inst) -> IROperand | None:
-    # REVIEW: kind of verbose and hard to audit, revisit this
     opcode = inst.opcode
     if opcode == "mload":
         return inst.operands[0]

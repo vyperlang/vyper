@@ -156,8 +156,6 @@ class MemSSAAbstract(IRAnalysis):
 
         # Clean up unnecessary phi nodes
         self._remove_redundant_phis()
-        # REVIEW: why does it invalidate the memalias analysis?
-        #self.analyses_cache.invalidate_analysis(self.mem_alias_type)
 
     def mark_location_volatile(self, loc: MemoryLocation) -> MemoryLocation:
         self.volatiles.append(loc)

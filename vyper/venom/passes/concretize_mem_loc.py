@@ -120,15 +120,12 @@ class MemLiveness:
         upper_bound = self.function.num_basic_blocks ** 2 + 1
         for _ in range(upper_bound):
             change = False
+            # these parts of analysis are better (performance)
+            # in different orders so it is split into
+            # different loops
             for bb in self.cfg.dfs_post_walk:
-                # REVIEW: these don't need to be in the same loop, right?
-                # (if so please add note)
-                # REVIEW: note "natural" order for handle_bb (maybe should be
-                # renamed to compute_liveat) is post walk,
-                # natural order for handle_used is pre walk.
-                # REVIEW: kind of prefer a worklist, it's more "standard"
-                # / in line with the rest of the codebase
                 change |= self._handle_liveat(bb)
+            for bb in self.cfg.dfs_pre_walk:
                 change |= self._handle_used(bb)
 
             if not change:
