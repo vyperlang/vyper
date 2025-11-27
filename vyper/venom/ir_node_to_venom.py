@@ -227,17 +227,17 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     # If a return buffer pointer is supplied by upstream IR, use it
     if len(converted_args) > 1:
         return_buf = converted_args[0]
+
     # For multi-return via stack without a provided buffer, synthesize one
     if returns_count > 0 and return_buf is None:
-        tmp_buf = bb.append_instruction("alloca", 0, 32 * returns_count, get_scratch_alloca_id())
-        assert tmp_buf is not None
-        return_buf = tmp_buf
+        alloca_ofst = 32 * returns_count
+        return_buf = bb.append_instruction1("alloca", 0, alloca_ofst, get_scratch_alloca_id())
 
     stack_args: list[IROperand] = [IRLabel(str(target_label))]
 
     if return_buf is not None:
         if returns_count == 0:
-            stack_args.append(return_buf)  # type: ignore
+            stack_args.append(return_buf)
 
     callsite_args = _callsites[callsite]
     for alloca in callsite_args:
