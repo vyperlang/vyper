@@ -53,7 +53,7 @@ class SingleUseExpansion(IRPass):
                     continue
 
                 var = self.function.get_next_variable()
-                to_insert = IRInstruction("assign", [op], [var])
+                to_insert = IRInstruction("assign", [op], outputs=[var])
                 bb.insert_instruction(to_insert, index=i)
                 if len(inst.operands) > j:
                     inst.operands[j] = var
