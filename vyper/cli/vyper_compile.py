@@ -132,7 +132,7 @@ def _parse_args(argv):
         choices=list(evm.EVM_VERSIONS),
         dest="evm_version",
     )
-    parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
+    parser.add_argument("--disable-optimize", help="Do not optimize", action="store_true")
     parser.add_argument(
         "--base64",
         help="Base64 encode the output (only valid in conjunction with `-f archive`",
@@ -148,24 +148,24 @@ def _parse_args(argv):
         dest="optimize",
     )
     parser.add_argument(
-        "--no-inlining", help="Disable function inlining optimization", action="store_true"
+        "--disable-inlining", help="Disable function inlining optimization", action="store_true"
     )
     parser.add_argument(
-        "--no-cse", help="Disable common subexpression elimination", action="store_true"
+        "--disable-cse", help="Disable common subexpression elimination", action="store_true"
     )
     parser.add_argument(
-        "--no-sccp", help="Disable sparse conditional constant propagation", action="store_true"
+        "--disable-sccp", help="Disable sparse conditional constant propagation", action="store_true"
     )
     parser.add_argument(
-        "--no-load-elimination", help="Disable load elimination optimization", action="store_true"
+        "--disable-load-elimination", help="Disable load elimination optimization", action="store_true"
     )
     parser.add_argument(
-        "--no-dead-store-elimination", help="Disable dead store elimination", action="store_true"
+        "--disable-dead-store-elimination", help="Disable dead store elimination", action="store_true"
     )
     parser.add_argument("--inline-threshold", help="Function inlining cost threshold", type=int)
     parser.add_argument("--debug", help="Compile in debug mode", action="store_true")
     parser.add_argument(
-        "--no-bytecode-metadata", help="Do not add metadata to bytecode", action="store_true"
+        "--disable-bytecode-metadata", help="Do not add metadata to bytecode", action="store_true"
     )
     parser.add_argument(
         "--traceback-limit",
@@ -238,11 +238,11 @@ def _parse_args(argv):
     if args.base64:
         output_formats = ("archive_b64",)
 
-    if args.no_optimize and args.optimize:
-        raise ValueError("Cannot use `--no-optimize` and `-O/--optimize` at the same time!")
+    if args.disable_optimize and args.optimize:
+        raise ValueError("Cannot use `--disable-optimize` and `-O/--optimize` at the same time!")
 
     optimize = None
-    if args.no_optimize:
+    if args.disable_optimize:
         optimize = OptimizationLevel.NONE
     elif args.optimize is not None:
         # Handle both old-style (none, gas, codesize) and numeric (1, 2, 3, s) arguments
@@ -256,18 +256,14 @@ def _parse_args(argv):
     settings = Settings(optimize=optimize)
 
     # Apply individual flag overrides
-    if args.no_inlining:
-        settings.venom_flags.disable_inlining = True
-    if args.no_cse:
-        settings.venom_flags.disable_cse = True
-    if args.no_sccp:
-        settings.venom_flags.disable_sccp = True
-    if args.no_load_elimination:
-        settings.venom_flags.disable_load_elimination = True
-    if args.no_dead_store_elimination:
-        settings.venom_flags.disable_dead_store_elimination = True
+    flags = settings.venom_flags
+    flags.disable_inlining |= args.disable_inlining
+    flags.disable_cse |= args.disable_cse
+    flags.disable_sccp |= args.disable_sccp
+    flags.disable_load_elimination |= args.disable_load_elimination
+    flags.disable_dead_store_elimination |= args.disable_dead_store_elimination
     if args.inline_threshold is not None:
-        settings.venom_flags.inline_threshold = args.inline_threshold
+        flags.inline_threshold = args.inline_threshold
 
     if args.evm_version:
         settings.evm_version = args.evm_version
@@ -294,7 +290,7 @@ def _parse_args(argv):
         args.show_gas_estimates,
         settings,
         args.storage_layout,
-        args.no_bytecode_metadata,
+        args.disable_bytecode_metadata,
         args.warnings_control,
     )
 
