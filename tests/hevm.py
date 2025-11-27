@@ -5,15 +5,13 @@ import pytest
 
 from tests.venom_utils import parse_from_basic_block
 from vyper.ir.compile_ir import assembly_to_evm
-from vyper.venom import (
-    CFGNormalization,
-    LowerDloadPass,
-    SimplifyCFGPass,
-    SingleUseExpansion,
-    VenomCompiler,
-)
+from vyper.venom import VenomCompiler
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRInstruction, IRLiteral
+from vyper.venom.passes.cfg_normalization import CFGNormalization
+from vyper.venom.passes.lower_dload import LowerDloadPass
+from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
+from vyper.venom.passes.single_use_expansion import SingleUseExpansion
 
 HAS_HEVM: bool = False
 

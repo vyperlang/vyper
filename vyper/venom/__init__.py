@@ -13,29 +13,7 @@ from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.optimization_levels import PASSES_O2, PASSES_O3, PASSES_Os
 from vyper.venom.optimization_levels.types import PassConfig
-from vyper.venom.passes import (
-    CSE,
-    SCCP,
-    AlgebraicOptimizationPass,
-    AssignElimination,
-    BranchOptimizationPass,
-    CFGNormalization,
-    DeadStoreElimination,
-    DFTPass,
-    FloatAllocas,
-    FunctionInlinerPass,
-    LoadElimination,
-    LowerDloadPass,
-    MakeSSA,
-    Mem2Var,
-    MemMergePass,
-    PhiEliminationPass,
-    ReduceLiteralsCodesize,
-    RemoveUnusedVariablesPass,
-    RevertToAssert,
-    SimplifyCFGPass,
-    SingleUseExpansion,
-)
+from vyper.venom.passes import FunctionInlinerPass
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
