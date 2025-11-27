@@ -27,7 +27,7 @@ class ConcretizeMemLocPass(IRPass):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
-        self.allocator.start_fn_allocation()
+        self.allocator.start_fn_allocation(self.function)
 
         self.mem_liveness = MemLiveness(self.function, self.cfg, self.dfg, self.allocator)
         self.mem_liveness.analyze()
@@ -39,9 +39,9 @@ class ConcretizeMemLocPass(IRPass):
         # between livesets)
         to_allocate.sort(key=lambda x: len(x[1]), reverse=False)
 
-        self.allocator.already_allocated([mem for mem, _ in already_allocated])
+        self.allocator.add_allocated([mem for mem, _ in already_allocated])
 
-        max_curr = 0
+        max_eom = 0
         for mem, insts in to_allocate:
             self.allocator.reset()
 
@@ -53,14 +53,17 @@ class ConcretizeMemLocPass(IRPass):
             already_allocated.append((mem, insts))
             # this is necessary because of the case that is described
             # in the _handle_op method
-            max_curr = max(self.allocator.curr, max_curr)
+            max_eom = max(self.allocator.eom, max_eom)
 
-        self.allocator.curr = max_curr
+        # set allocator eom to end of currently allocated memory in function,
+        # so that allocate() in handle_op is able to allocate from proper
+        # starting place
+        self.allocator.eom = max_eom
 
         for bb in self.function.get_basic_blocks():
             self._handle_bb(bb)
 
-        self.allocator.end_fn_allocation(fn=self.function)
+        self.allocator.end_fn_allocation()
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
