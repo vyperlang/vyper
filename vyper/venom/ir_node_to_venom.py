@@ -252,13 +252,8 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
         outs = bb.append_invoke_instruction(stack_args, returns=returns_count)  # type: ignore
         assert isinstance(return_buf, IROperand)
         for i, outv in enumerate(outs):
-            if i == 0:
-                dst = return_buf
-            else:
-                ofst = bb.append_instruction("assign", IRLiteral(32 * i))
-                assert ofst is not None
-                dst = bb.append_instruction("add", return_buf, ofst)  # type: ignore
-                assert dst is not None
+            ofst = IRLiteral(32 * i)
+            dst = bb.append_instruction1("add", return_buf, ofst)
             bb.append_instruction("mstore", outv, dst)
         return return_buf
 
@@ -601,13 +596,10 @@ def _convert_ir_bb(fn, ir, symbols):
                 buf = symbols["return_buffer"]
                 ret_vals: list[IROperand] = []
                 for i in range(k):
-                    if i == 0:
-                        ptr = buf
-                    else:
-                        ofst = bb.append_instruction("assign", IRLiteral(32 * i))
-                        ptr = bb.append_instruction("add", buf, ofst)
-                    val = bb.append_instruction("mload", ptr)
-                    ret_vals.append(val)  # type: ignore[arg-type]
+                    ofst = IRLiteral(32 * i)
+                    ptr = bb.append_instruction1("add", buf, ofst)
+                    val = bb.append_instruction1("mload", ptr)
+                    ret_vals.append(val)
                 bb.append_instruction("ret", *ret_vals, label)
             else:
                 bb.append_instruction("ret", label)

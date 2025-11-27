@@ -536,8 +536,7 @@ class IRBasicBlock:
         """
         assert not self.is_terminated, self
 
-        if ret is None and opcode not in NO_OUTPUT_INSTRUCTIONS:
-            ret = self.parent.get_next_variable()
+        assert (ret is None) == (opcode in NO_OUTPUT_INSTRUCTIONS)
 
         # Wrap raw integers in IRLiterals
         inst_args = [_ir_operand_from_value(arg) for arg in args]
@@ -552,6 +551,21 @@ class IRBasicBlock:
         inst.error_msg = self.parent.error_msg
         inst.annotation = annotation
         self.instructions.append(inst)
+        return ret
+
+    def append_instruction1(
+        self, opcode: str, *args: Union[IROperand, int], ret: Optional[IRVariable] = None, **kwargs
+    ) -> IRVariable:
+        """
+        Same thing as append_instruction, but guarantees an output for
+        the typechecker
+        """
+        assert opcode not in NO_OUTPUT_INSTRUCTIONS
+        if ret is None:
+            ret = self.parent.get_next_variable()
+
+        ret = self.append_instruction(opcode, *args, ret=ret, **kwargs)
+        assert ret is not None  # help mypy
         return ret
 
     def append_invoke_instruction(
