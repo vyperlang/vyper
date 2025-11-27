@@ -154,13 +154,19 @@ def _parse_args(argv):
         "--disable-cse", help="Disable common subexpression elimination", action="store_true"
     )
     parser.add_argument(
-        "--disable-sccp", help="Disable sparse conditional constant propagation", action="store_true"
+        "--disable-sccp",
+        help="Disable sparse conditional constant propagation",
+        action="store_true",
     )
     parser.add_argument(
-        "--disable-load-elimination", help="Disable load elimination optimization", action="store_true"
+        "--disable-load-elimination",
+        help="Disable load elimination optimization",
+        action="store_true",
     )
     parser.add_argument(
-        "--disable-dead-store-elimination", help="Disable dead store elimination", action="store_true"
+        "--disable-dead-store-elimination",
+        help="Disable dead store elimination",
+        action="store_true",
     )
     parser.add_argument("--inline-threshold", help="Function inlining cost threshold", type=int)
     parser.add_argument("--debug", help="Compile in debug mode", action="store_true")
