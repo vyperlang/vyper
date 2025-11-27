@@ -73,7 +73,7 @@ def _check_no_change(code, hevm=False):
     return _check_pre_post(code, code, hevm=hevm)
 
 
-@pytest.mark.parametrize("position", [0, "[0,32]"])
+@pytest.mark.parametrize("position", [0, "{@0,32}"])
 def test_basic_dead_store(position):
     pre = f"""
         _global:
@@ -117,7 +117,7 @@ def test_basic_not_dead_store():
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("positions", [(0, 32), ("[0,32]", "[1,32]")])
+@pytest.mark.parametrize("positions", [(0, 32), ("{@0,32}", "{@1,32}")])
 def test_basic_not_dead_store_with_mload(positions):
     a, b = positions
     pre = f"""
@@ -139,7 +139,7 @@ def test_basic_not_dead_store_with_mload(positions):
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("positions", [(0, 32), ("[0,32]", "[1,32]"), ("[2,32]", "[3,32]")])
+@pytest.mark.parametrize("positions", [(0, 32), ("{@0,32}", "{@1,32}"), ("{@2,32}", "{@3,32}")])
 def test_basic_not_dead_store_with_return(positions):
     a, b = positions
     pre = f"""
@@ -159,7 +159,7 @@ def test_basic_not_dead_store_with_return(positions):
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("position", [0, 32, "[0,32]", "[1,32]"])
+@pytest.mark.parametrize("position", [0, 32, "{@0,32}", "{@1,32}"])
 def test_never_read_store(position):
     pre = f"""
         _global:
@@ -176,7 +176,7 @@ def test_never_read_store(position):
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("position", [0, 32, "[0,32]", "[1,32]"])
+@pytest.mark.parametrize("position", [0, 32, "{@0,32}", "{@1,32}"])
 def test_live_store(position):
     pre = f"""
         _global:
@@ -188,7 +188,7 @@ def test_live_store(position):
     _check_pre_post(pre, pre)  # Should not change
 
 
-@pytest.mark.parametrize("positions", [(0, 32), ("[0,32]", "[1,32]"), ("[2,32]", "[3,32]")])
+@pytest.mark.parametrize("positions", [(0, 32), ("{@0,32}", "{@1,32}"), ("{@2,32}", "{@3,32}")])
 def test_dead_store_different_locations(positions):
     a, b = positions
     pre = f"""

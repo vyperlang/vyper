@@ -14,12 +14,12 @@ def test_valid_overlap():
 
     pre = """
     main:
-        calldatacopy [3,256], 100, 256
-        %1 = mload [3,256]
-        calldatacopy [4,32], 200, 32
-        %2 = mload [4,32]
-        calldatacopy [3,256], 1000, 256
-        %3 = mload [3,256]
+        calldatacopy {@3,256}, 100, 256
+        %1 = mload {@3,256}
+        calldatacopy {@4,32}, 200, 32
+        %2 = mload {@4,32}
+        calldatacopy {@3,256}, 1000, 256
+        %3 = mload {@3,256}
         sink %1, %2, %3
     """
     post = """
@@ -39,7 +39,7 @@ def test_valid_overlap():
 def test_venom_allocation():
     pre = """
     main:
-        %ptr = alloca 0, [3,256]
+        %ptr = alloca 0, {@3,256}
         calldatacopy %ptr, 100, 256
         %1 = mload %ptr
         sink %1
@@ -47,8 +47,8 @@ def test_venom_allocation():
 
     post1 = """
     main:
-        calldatacopy [3,256], 100, 256
-        %1 = mload [3,256]
+        calldatacopy {@3,256}, 100, 256
+        %1 = mload {@3,256}
         sink %1
     """
 
@@ -66,8 +66,8 @@ def test_venom_allocation():
 def test_venom_allocation_branches():
     pre = """
     main:
-        %ptr1 = alloca 0, [3,256]
-        %ptr2 = alloca 1, [4,128]
+        %ptr1 = alloca 0, {@3,256}
+        %ptr2 = alloca 1, {@4,128}
         %cond = source
         jnz %cond, @then, @else
     then:
@@ -85,12 +85,12 @@ def test_venom_allocation_branches():
         %cond = source
         jnz %cond, @then, @else
     then:
-        calldatacopy [3,256], 100, 256
-        %1 = mload [3,256]
+        calldatacopy {@3,256}, 100, 256
+        %1 = mload {@3,256}
         sink %1
     else:
-        calldatacopy [4,128], 1000, 64
-        %2 = mload [4,128]
+        calldatacopy {@4,128}, 1000, 64
+        %2 = mload {@4,128}
         sink %2
     """
 
