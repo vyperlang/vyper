@@ -234,7 +234,7 @@ class StackSpiller:
 
         output_var = fn.get_next_variable()
 
-        inst = IRInstruction("alloca", [offset_lit, size_lit, id_lit], output_var)
+        inst = IRInstruction("alloca", [offset_lit, size_lit, id_lit], [output_var])
         entry.instructions.insert(insert_idx, inst)
         self._spill_insert_index[fn] += 1
 
