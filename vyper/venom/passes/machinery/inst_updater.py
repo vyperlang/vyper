@@ -65,12 +65,14 @@ class InstUpdater:
         else:
             # new_output is None is sentinel meaning "no change"
             if new_output is not None:
+                # multi-output instructions are not currently updated this way
+                assert len(old_outputs) <= 1
+
                 old_primary = old_outputs[0] if len(old_outputs) > 0 else None
+
                 if old_primary is not None and old_primary != new_output:
                     self.dfg.remove_producing_instruction(old_primary)
                 self.dfg.set_producing_instruction(new_output, inst)
-                # multi-output instructions are not currently updated this way
-                assert len(old_outputs) <= 1
                 inst.set_outputs([new_output])
 
         inst.opcode = opcode
