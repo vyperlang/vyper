@@ -392,7 +392,7 @@ class VenomCompiler:
         deepest = min(depths)
         expected = list(range(deepest, 0))
         if deepest < 0 and -deepest <= 16 and sorted(depths) == expected:
-            self.swap(asm, stack, deepest)
+            self.spiller.swap(asm, stack, deepest)
             self.pop(asm, stack, len(to_pop))
             return
 
