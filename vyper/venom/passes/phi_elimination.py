@@ -29,7 +29,6 @@ class PhiEliminationPass(IRPass):
             src = srcs.pop()
             if src == inst:
                 return
-            assert src.output is not None
             self.updater.mk_assign(inst, src.output)
 
     def _calculate_phi_origins(self):

@@ -87,8 +87,7 @@ class DFGAnalysis(IRAnalysis):
                     inputs = self._dfg_inputs.setdefault(op, OrderedSet())
                     inputs.add(inst)
 
-                for op in res:  # type: ignore
-                    assert isinstance(op, IRVariable)
+                for op in res:
                     self._dfg_outputs[op] = inst
 
     def as_graph(self) -> str:
@@ -99,8 +98,7 @@ class DFGAnalysis(IRAnalysis):
         for var, inputs in self._dfg_inputs.items():
             for input in inputs:
                 for op in input.get_outputs():
-                    if isinstance(op, IRVariable):
-                        lines.append(f'    " {var.name} " -> " {op.name} "')
+                    lines.append(f'    " {var.name} " -> " {op.name} "')
 
         lines.append("}")
         return "\n".join(lines)
