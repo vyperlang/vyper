@@ -28,7 +28,9 @@ class OptimizationLevel(Enum):
     NONE = 1
     GAS = 2
     CODESIZE = 3
-    O1 = 5  # Basic optimizations
+    # TODO: O1 (minimal passes) is currently disabled because it can cause
+    # "stack too deep" errors. Re-enable once stack spilling machinery is
+    # implemented to allow compilation with minimal optimization passes.
     O2 = 6  # Standard "stable" optimizations (default)
     O3 = 7  # Aggressive optimizations -- experimental possibly unsafe
     Os = 8  # Optimize for size
@@ -38,12 +40,11 @@ class OptimizationLevel(Enum):
         match val:
             case "none":
                 return cls.NONE
-            case "gas" | "O2":
+            # O1 maps to O2 for now until stack spilling is implemented
+            case "O1" | "O2" | "gas":
                 return cls.GAS
             case "codesize" | "Os":
                 return cls.CODESIZE
-            case "O1":
-                return cls.O1
             case "O3":
                 return cls.O3
         raise ValueError(f"unrecognized optimization level: {val}")

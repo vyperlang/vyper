@@ -11,7 +11,7 @@ from vyper.venom.basicblock import IRLabel, IRLiteral
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
-from vyper.venom.optimization_levels import PASSES_O1, PASSES_O2, PASSES_O3, PASSES_Os
+from vyper.venom.optimization_levels import PASSES_O2, PASSES_O3, PASSES_Os
 from vyper.venom.optimization_levels.types import PassConfig
 from vyper.venom.passes import (
     CSE,
@@ -41,17 +41,17 @@ from vyper.venom.venom_to_assembly import VenomCompiler
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
 # Pass configuration for each optimization level
+# TODO: O1 (minimal passes) is currently disabled because it can cause
+# "stack too deep" errors. Re-enable once stack spilling machinery is
+# implemented to allow compilation with minimal optimization passes.
 OPTIMIZATION_PASSES: Dict[OptimizationLevel, List[PassConfig]] = {
-    OptimizationLevel.O1: PASSES_O1,
     OptimizationLevel.O2: PASSES_O2,
     OptimizationLevel.O3: PASSES_O3,
     OptimizationLevel.Os: PASSES_Os,
 }
 
 # Legacy aliases for backwards compatibility
-OPTIMIZATION_PASSES[OptimizationLevel.NONE] = OPTIMIZATION_PASSES[
-    OptimizationLevel.O1
-]  # none -> O1
+OPTIMIZATION_PASSES[OptimizationLevel.NONE] = OPTIMIZATION_PASSES[OptimizationLevel.O2]  # none -> O2
 OPTIMIZATION_PASSES[OptimizationLevel.GAS] = OPTIMIZATION_PASSES[OptimizationLevel.O2]  # gas -> O2
 OPTIMIZATION_PASSES[OptimizationLevel.CODESIZE] = OPTIMIZATION_PASSES[
     OptimizationLevel.Os
