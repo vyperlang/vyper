@@ -210,7 +210,7 @@ class IRAbstractMemLoc(IROperand):
         return IRAbstractMemLoc(self.size, offset=offset, force_id=self._id)
 
 
-# cannot assing in class since it is not defined in that place
+# cannot assign in class since it is not defined in that place
 IRAbstractMemLoc.FREE_VAR1 = IRAbstractMemLoc(32)
 IRAbstractMemLoc.FREE_VAR2 = IRAbstractMemLoc(32)
 
