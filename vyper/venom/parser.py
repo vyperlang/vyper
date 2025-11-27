@@ -46,10 +46,10 @@ VENOM_GRAMMAR = """
 
     operands_list: operand ("," operand)*
 
-    operand: VAR_IDENT | CONST | MEMLOC | label_ref
+    operand: VAR_IDENT | CONST | memloc | label_ref
 
     VAR_IDENT: "%" (DIGIT|LETTER|"_"|":")+
-    MEMLOC: "[" (DIGIT)+ "," (DIGIT)+ "]"
+    memloc: "[" INT "," INT "]"
 
     # non-terminal rules for different contexts
     func_name: IDENT | ESCAPED_STRING
@@ -294,12 +294,11 @@ class VenomTransformer(Transformer):
             return IRLiteral(int(val, 16))
         return IRLiteral(int(val))
 
-    def MEMLOC(self, memloc_ident) -> IRAbstractMemLoc:
-        data: str = memloc_ident[1:][:-1]
-        _id_str, size_str = data.split(",")
-        _id = int(_id_str)
+    def memloc(self, children) -> IRAbstractMemLoc:
+        id_str, size_str = children
+        mem_id = int(id_str)
         size = int(size_str)
-        return IRAbstractMemLoc(size, force_id=_id)
+        return IRAbstractMemLoc(size, force_id=mem_id)
 
     def IDENT(self, val) -> str:
         return val.value
