@@ -32,10 +32,6 @@ def _conflict(
     if store_opcode == "mstore":
         if isinstance(k1, IRLiteral) and isinstance(k2, IRLiteral):
             return _conflict_lit(store_opcode, k1.value, k2.value)
-        if not isinstance(k1, IRAbstractMemLoc) or not isinstance(k2, IRAbstractMemLoc):
-            # this used to be assert and it triggered the error
-            # with --enable-compiler-debug-mode why
-            return True
 
         assert isinstance(k1, IRAbstractMemLoc) and isinstance(k2, IRAbstractMemLoc)
         if k1._id != k2._id:
