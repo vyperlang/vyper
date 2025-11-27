@@ -15,7 +15,11 @@ def parse_from_basic_block(source: str, funcname="_global"):
 
 
 def instructions_eq(i1: IRInstruction, i2: IRInstruction) -> bool:
-    return i1.output == i2.output and i1.opcode == i2.opcode and i1.operands == i2.operands
+    return (
+        i1.get_outputs() == i2.get_outputs()
+        and i1.opcode == i2.opcode
+        and i1.operands == i2.operands
+    )
 
 
 def assert_bb_eq(bb1: IRBasicBlock, bb2: IRBasicBlock):
