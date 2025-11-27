@@ -49,7 +49,7 @@ VENOM_GRAMMAR = """
     operand: VAR_IDENT | CONST | memloc | label_ref
 
     VAR_IDENT: "%" (DIGIT|LETTER|"_"|":")+
-    memloc: "[" INT "," INT "]"
+    memloc: "{" "@" INT "," INT "}"
 
     # non-terminal rules for different contexts
     func_name: IDENT | ESCAPED_STRING
