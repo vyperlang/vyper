@@ -6,6 +6,7 @@ from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.analysis.mem_ssa import mem_ssa_type_factory
 from vyper.venom.passes import DeadStoreElimination
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.memory_location import MemoryLocationSegment
 
 pytestmark = pytest.mark.hevm
 
@@ -27,9 +28,6 @@ class VolatilePrePostChecker(PrePostChecker):
             self.volatile_locations = volatile_locations
 
     def __call__(self, pre: str, post: str, hevm: bool | None = None) -> list[IRPass]:
-        # REVIEW is there some reason this is an inline import?
-        from vyper.venom.memory_location import MemoryLocationSegment
-
         self.pass_objects.clear()
 
         if hevm is None:

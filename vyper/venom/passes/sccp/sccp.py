@@ -191,9 +191,6 @@ class SCCP(IRPass):
             self._set_lattice(inst.output, out)
             self._add_ssa_work_items(inst)
         elif opcode == "gep":
-            # REVIEW: (a + b) + c == a + (b + c)
-            # maybe we don't need to handle gep specially actually?
-            # we just add associative rule into `add` instruction
             assert inst.output is not None, inst
             mem = self._eval_from_lattice(inst.operands[0])
             offset = self._eval_from_lattice(inst.operands[1])

@@ -77,7 +77,6 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     AssignElimination(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
 
-    # REVIEW: one of these LoadEliminations is likely a no-op
     LoadElimination(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
@@ -189,8 +188,6 @@ def generate_venom(
 
     # these mem location are used sha3_64 instruction
     # with concrete value so I need to allocate it here
-    # REVIEW: is sha3_64 the *only* place they are used? if so maybe
-    # we should lower sha3_64 at a higher level (like into alloca+sha3 instructions)
     ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR1)
     ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR2)
 
