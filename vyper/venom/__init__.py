@@ -10,7 +10,6 @@ from vyper.ir.compile_ir import AssemblyInstruction
 from vyper.venom.analysis import FCGAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRAbstractMemLoc, IRLabel, IRLiteral
-from vyper.venom.basicblock import IRLabel, IRLiteral
 from vyper.venom.check_venom import check_calling_convention
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction

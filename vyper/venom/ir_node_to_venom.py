@@ -321,9 +321,7 @@ def _handle_internal_func(
     # return buffer
     if does_return_data:
         if returns_count > 0:
-            buf = bb.append_instruction(
-                "alloca", IRAbstractMemLoc(32), get_scratch_alloca_id()
-            )
+            buf = bb.append_instruction("alloca", IRAbstractMemLoc(32), get_scratch_alloca_id())
         else:
             buf = bb.append_instruction("param")
             bb.instructions[-1].annotation = "return_buffer"

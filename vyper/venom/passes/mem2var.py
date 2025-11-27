@@ -1,9 +1,9 @@
+from vyper.exceptions import CompilerPanic
 from vyper.utils import all2
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRAbstractMemLoc, IRInstruction, IROperand, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
-from vyper.exceptions import CompilerPanic
 
 
 class Mem2Var(IRPass):
@@ -70,7 +70,9 @@ class Mem2Var(IRPass):
                 if size == 32:
                     self.updater.mk_assign(inst, inst.operands[0], new_output=var)
                 elif size < 32:
-                    raise CompilerPanic("Trying to write with mstore to memory smaller then 32 bytes")
+                    raise CompilerPanic(
+                        "Trying to write with mstore to memory smaller then 32 bytes"
+                    )
             elif inst.opcode == "mload":
                 if size == 32:
                     self.updater.mk_assign(inst, var)
@@ -117,7 +119,9 @@ class Mem2Var(IRPass):
                 if size == 32:
                     self.updater.mk_assign(inst, inst.operands[0], new_output=var)
                 elif size < 32:
-                    raise CompilerPanic("Trying to write with mstore to memory smaller then 32 bytes")
+                    raise CompilerPanic(
+                        "Trying to write with mstore to memory smaller then 32 bytes"
+                    )
             elif inst.opcode == "mload":
                 if size == 32:
                     self.updater.mk_assign(inst, var)

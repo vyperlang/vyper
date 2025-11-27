@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis
@@ -5,6 +7,9 @@ from vyper.venom.analysis.mem_ssa import MemoryDef, mem_ssa_type_factory
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.effects import NON_MEMORY_EFFECTS, NON_STORAGE_EFFECTS, NON_TRANSIENT_EFFECTS
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
+
+if TYPE_CHECKING:
+    from vyper.venom.memory_location import MemoryLocation
 
 
 class DeadStoreElimination(IRPass):
@@ -21,7 +26,7 @@ class DeadStoreElimination(IRPass):
         elif addr_space == TRANSIENT:
             self.NON_RELATED_EFFECTS = NON_TRANSIENT_EFFECTS
 
-        volatiles = []
+        volatiles: list[MemoryLocation] = []
         while True:
             change = False
             self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)

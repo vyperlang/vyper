@@ -4,9 +4,9 @@ from tests.venom_utils import PrePostChecker, assert_ctx_eq, parse_from_basic_bl
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.analysis.mem_ssa import mem_ssa_type_factory
+from vyper.venom.memory_location import MemoryLocationSegment
 from vyper.venom.passes import DeadStoreElimination
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.memory_location import MemoryLocationSegment
 
 pytestmark = pytest.mark.hevm
 

@@ -1,6 +1,7 @@
 from collections import defaultdict
 from typing import Optional
 
+from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis
 from vyper.venom.basicblock import (
@@ -16,7 +17,6 @@ from vyper.venom.function import IRFunction
 from vyper.venom.memory_allocator import MemoryAllocator
 from vyper.venom.memory_location import get_memory_read_op, get_memory_write_op, get_write_size
 from vyper.venom.passes.base_pass import IRPass
-from vyper.exceptions import CompilerPanic
 
 
 class ConcretizeMemLocPass(IRPass):
@@ -116,7 +116,7 @@ class MemLiveness:
         self.mem_allocator = mem_allocator
 
     def analyze(self):
-        upper_bound = self.function.num_basic_blocks ** 2 + 1
+        upper_bound = self.function.num_basic_blocks**2 + 1
         for _ in range(upper_bound):
             change = False
             # these parts of analysis are better (performance)
@@ -160,7 +160,7 @@ class MemLiveness:
                 label = inst.operands[0]
                 assert isinstance(label, IRLabel)
                 fn = self.function.ctx.get_function(label)
-                # this lets us deallocate internal 
+                # this lets us deallocate internal
                 # function memory after it's dead
                 curr.addmany(self.mem_allocator.mems_used[fn])
 
@@ -194,7 +194,7 @@ class MemLiveness:
                     # with more then one mem location
                     # and there could be the case that
                     # both of them would be same abstract
-                    # memloc you cannot remove it 
+                    # memloc you cannot remove it
                     # so this is just to not allow it
                     curr.add(write_op.without_offset())
 

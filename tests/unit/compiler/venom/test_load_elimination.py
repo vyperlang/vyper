@@ -295,7 +295,6 @@ def test_store_store_no_overlap(addrspace, position: tuple):
     LOAD = addrspace.load_op
     STORE = addrspace.store_op
 
-
     pre = f"""
     main:
         {_fill_symbolic(addrspace)}

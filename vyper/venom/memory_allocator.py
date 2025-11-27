@@ -37,7 +37,7 @@ class MemoryAllocator:
 
     def reset(self):
         self.curr = MemoryAllocator.FN_START
-    
+
     def reserve(self, mem_loc: IRAbstractMemLoc):
         assert mem_loc._id in self.allocated
         ptr, size = self.allocated[mem_loc._id]
