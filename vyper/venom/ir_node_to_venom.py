@@ -301,16 +301,8 @@ def _handle_internal_func(
     # return buffer
     if does_return_data:
         if ENABLE_NEW_CALL_CONV and returns_word:
-            # REVIEW: can probably remove these comments(!)
-            # TODO: remove this once we have proper memory allocator
-            # functionality in venom. Currently, we hardcode the scratch
-            # buffer size of 32 bytes.
-            # TODO: we don't need to use scratch space once the legacy optimizer
-            # is disabled.
-            # REVIEW: i don't think we even need to use FREE_VAR1 anymore,
-            # we can make this a proper alloca
             buf = bb.append_instruction(
-                "alloca", IRAbstractMemLoc.FREE_VAR1, get_scratch_alloca_id()
+                "alloca", IRAbstractMemLoc(32), get_scratch_alloca_id()
             )
         else:
             buf = bb.append_instruction("param")
