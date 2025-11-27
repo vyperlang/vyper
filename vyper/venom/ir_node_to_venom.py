@@ -249,15 +249,17 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
         stack_args.append(stack_arg)
 
     if returns_count > 0:
-        outs = bb.append_invoke_instruction(stack_args, returns=returns_count)  # type: ignore
-        assert isinstance(return_buf, IROperand)
+        outs = bb.append_invoke_instruction(stack_args, returns=returns_count)
+        assert return_buf is not None  # help mypy
+        # copy the output stack args into caller-provided memory (to
+        # be lifted by mem2var later)
         for i, outv in enumerate(outs):
             ofst = IRLiteral(32 * i)
             dst = bb.append_instruction1("add", return_buf, ofst)
             bb.append_instruction("mstore", outv, dst)
-        return return_buf
 
-    bb.append_invoke_instruction(stack_args, returns=0)  # type: ignore
+    else:
+        bb.append_invoke_instruction(stack_args, returns=0)
 
     return return_buf
 

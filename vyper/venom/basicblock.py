@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
+from typing import TYPE_CHECKING, Any, Iterator, Optional, Sequence, Union
 
 import vyper.venom.effects as effects
 from vyper.codegen.ir_node import IRnode
@@ -570,7 +570,7 @@ class IRBasicBlock:
         return ret
 
     def append_invoke_instruction(
-        self, args: list[IROperand | int], returns: int = 0
+        self, args: Sequence[IROperand | int], returns: int = 0
     ) -> list[IRVariable]:
         """
         Append an invoke to the basic block. Always returns a list of output variables.
