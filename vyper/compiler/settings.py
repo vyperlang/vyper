@@ -241,10 +241,7 @@ def merge_settings(
     for field in dataclasses.fields(Settings):
         if field.name == "compiler_version":
             continue
-        if field.name == "venom_flags":
-            # Skip venom_flags - we'll handle it after optimization level is merged
-            continue
-        else:
+        if field.name != "venom_flags":
             pretty_name = field.name.replace("_", "-")  # e.g. evm_version -> evm-version
             val = _merge_one(getattr(one, field.name), getattr(two, field.name), pretty_name)
         if val is not None:
