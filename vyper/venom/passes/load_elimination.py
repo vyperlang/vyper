@@ -33,6 +33,13 @@ def _conflict(
         if isinstance(k1, IRLiteral) and isinstance(k2, IRLiteral):
             return _conflict_lit(store_opcode, k1.value, k2.value)
 
+        if isinstance(k1, IRLiteral) or isinstance(k2, IRLiteral):
+            # code which mixes abstract and concrete memory locations,
+            # alias analysis fails.
+            # (frontend should not emit this kind of code, but it is
+            # technically valid venom)
+            return True
+
         assert isinstance(k1, IRAbstractMemLoc) and isinstance(k2, IRAbstractMemLoc)
         if k1._id != k2._id:
             # different buffers, no possibility to alias
