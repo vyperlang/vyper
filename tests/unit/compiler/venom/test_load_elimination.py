@@ -31,7 +31,7 @@ ADDRESS_SPACES = (MEMORY, STORAGE, TRANSIENT, CALLDATA, DATA)
 RW_ADDRESS_SPACES = (MEMORY, STORAGE, TRANSIENT)
 
 
-@pytest.mark.parametrize("position", [11, "{@2,32}"])
+@pytest.mark.parametrize("position", [11, "{@2,32}"])  # noqa: FS003
 @pytest.mark.parametrize("addrspace", ADDRESS_SPACES)
 def test_simple_load_elimination(addrspace, position):
     if addrspace != MEMORY and not isinstance(position, int):
@@ -57,7 +57,7 @@ def test_simple_load_elimination(addrspace, position):
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("position", [11, "{@2,32}"])
+@pytest.mark.parametrize("position", [11, "{@2,32}"])  # noqa: FS003
 @pytest.mark.parametrize("addrspace", ADDRESS_SPACES)
 def test_equivalent_var_elimination(addrspace, position):
     """
@@ -107,7 +107,7 @@ def test_elimination_barrier():
     _check_no_change(pre)
 
 
-@pytest.mark.parametrize("position", [[55, 11], ["{@1,32}", "{@2,32}"]])
+@pytest.mark.parametrize("position", [[55, 11], ["{@1,32}", "{@2,32}"]])  # noqa: FS003
 @pytest.mark.parametrize("addrspace", RW_ADDRESS_SPACES)
 def test_store_load_elimination(addrspace, position: list):
     """
@@ -215,7 +215,7 @@ def test_store_load_pair_memloc():
         # barrier created with overlap
         mstore %ptr_mstore, 11
         return %tmp01, %tmp01
-    """
+    """  # noqa: FS003
 
     _check_pre_post(pre, post)
 
@@ -281,7 +281,7 @@ def test_store_load_no_overlap_different_store():
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("position", [(10, 42), ("{@2,32}", "{@3,32}")])
+@pytest.mark.parametrize("position", [(10, 42), ("{@2,32}", "{@3,32}")])  # noqa: FS003
 @pytest.mark.parametrize("addrspace", RW_ADDRESS_SPACES)
 def test_store_store_no_overlap(addrspace, position: tuple):
     """
@@ -330,7 +330,7 @@ def test_store_store_no_overlap(addrspace, position: tuple):
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("position", [10, "{@2,32}"])
+@pytest.mark.parametrize("position", [10, "{@2,32}"])  # noqa: FS003
 def test_store_store_unknown_ptr_barrier(position: list):
     """
     Check for barrier between store/load done
@@ -353,7 +353,7 @@ def test_store_store_unknown_ptr_barrier(position: list):
     _check_no_change(pre)
 
 
-@pytest.mark.parametrize("position", [5, "{@2,32}"])
+@pytest.mark.parametrize("position", [5, "{@2,32}"])  # noqa: FS003
 def test_simple_load_elimination_inter(position):
     pre = f"""
     main:
@@ -388,7 +388,7 @@ def test_simple_load_elimination_inter(position):
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("position", [5, "{@2,32}"])
+@pytest.mark.parametrize("position", [5, "{@2,32}"])  # noqa: FS003
 def test_simple_load_elimination_inter_join(position):
     pre = f"""
     main:
@@ -426,7 +426,9 @@ def test_simple_load_elimination_inter_join(position):
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("position", [(5, 1000, 50), ("{@2,32}", "{@3,32}", "{@4,32}")])
+@pytest.mark.parametrize(
+    "position", [(5, 1000, 50), ("{@2,32}", "{@3,32}", "{@4,32}")]  # noqa: FS003
+)
 def test_load_elimination_inter_distant_bb(position):
     a, b, c = position
 
