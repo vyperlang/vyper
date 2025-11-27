@@ -11,6 +11,7 @@ from vyper.ir.compile_ir import AssemblyInstruction
 from vyper.venom.analysis import MemSSA
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLabel, IRLiteral
+from vyper.venom.check_venom import check_calling_convention
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
@@ -121,6 +122,8 @@ def _run_global_passes(ctx: IRContext, optimize: OptimizationLevel, ir_analyses:
 
 def run_passes_on(ctx: IRContext, optimize: OptimizationLevel) -> None:
     ir_analyses = {}
+    # Validate calling convention invariants before running passes
+    check_calling_convention(ctx)
     for fn in ctx.functions.values():
         ir_analyses[fn] = IRAnalysesCache(fn)
 
