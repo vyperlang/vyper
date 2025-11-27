@@ -25,7 +25,7 @@ def _conflict_lit(store_opcode: str, ptr1: int, ptr2: int):
 
 
 def _conflict(
-    store_opcode: str, k1: IRLiteral | IRAbstractMemLoc, k2: IRLiteral | IRAbstractMemLoc, tmp=None
+    store_opcode: str, k1: IRLiteral | IRAbstractMemLoc, k2: IRLiteral | IRAbstractMemLoc
 ):
     # hardcode the size of store opcodes for now. maybe refactor to use
     # vyper.evm.address_space
