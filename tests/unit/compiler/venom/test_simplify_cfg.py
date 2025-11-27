@@ -68,3 +68,43 @@ def test_block_merging():
     """
 
     _check_pre_post(pre, post)
+
+
+def test_phi_after_merge_jump():
+    pre = """
+    main:
+        %p = param
+        %cond = iszero %p
+        jnz %cond, @then, @else
+    then:
+        %1 = 5
+        jmp @then_continue
+    then_continue:
+        jmp @after
+    else:
+        %2 = 10
+        jmp @else_continue
+    else_continue:
+        jmp @after
+    after:
+        %res = phi @else_continue, %2, @then_continue, %1
+        sink %res
+    """
+
+    post = """
+    main:
+        %p = param
+        %cond = iszero %p
+        jnz %cond, @then, @else
+    then:
+        %1 = 5
+        jmp @after
+    else:
+        %2 = 10
+        jmp @after
+    after:
+        %res = phi @else, %2, @then, %1
+        sink %res
+    """
+
+    _check_pre_post(pre, post)
