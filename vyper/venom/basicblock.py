@@ -536,7 +536,8 @@ class IRBasicBlock:
         """
         assert not self.is_terminated, self
 
-        assert (ret is None) == (opcode in NO_OUTPUT_INSTRUCTIONS)
+        if ret is None and opcode not in NO_OUTPUT_INSTRUCTIONS:
+            ret = self.parent.get_next_variable()
 
         # Wrap raw integers in IRLiterals
         inst_args = [_ir_operand_from_value(arg) for arg in args]
