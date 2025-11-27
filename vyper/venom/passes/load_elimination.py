@@ -115,7 +115,6 @@ class LoadAnalysis(IRAnalysis):
             if inst.opcode == load_opcode:
                 self.inst_to_lattice[inst] = lattice.copy()
                 ptr = inst.operands[0]
-                assert inst.output is not None
                 lattice[ptr] = OrderedSet([inst.output])
             elif inst.opcode == store_opcode:
                 self.inst_to_lattice[inst] = lattice.copy()
@@ -197,8 +196,6 @@ class LoadElimination(IRPass):
         (ptr,) = inst.operands
 
         existing_value = self._lattice[inst].get(ptr, OrderedSet()).copy()
-
-        assert inst.output is not None  # help mypy
 
         if len(existing_value) == 1:
             self.updater.mk_assign(inst, existing_value.pop())

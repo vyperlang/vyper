@@ -172,10 +172,11 @@ class SCCP(IRPass):
             in_vars.append(self._lookup_from_lattice(var))
         value = reduce(_meet, in_vars, LatticeEnum.TOP)  # type: ignore
 
-        assert inst.output in self.lattice, "unreachable"  # sanity
+        inst_out = inst.output
+        assert inst_out in self.lattice, "unreachable"  # sanity
 
-        if value != self._lookup_from_lattice(inst.output):
-            self._set_lattice(inst.output, value)
+        if value != self._lookup_from_lattice(inst_out):
+            self._set_lattice(inst_out, value)
             self._add_ssa_work_items(inst)
 
     def _visit_expr(self, inst: IRInstruction):
@@ -185,8 +186,9 @@ class SCCP(IRPass):
         if self.remove_allocas:
             store_opcodes += ("alloca", "palloca", "calloca")
 
+        outputs = inst.get_outputs()
+
         if opcode in store_opcodes:
-            assert inst.output is not None, inst
             out = self._eval_from_lattice(inst.operands[0])
             self._set_lattice(inst.output, out)
             self._add_ssa_work_items(inst)
@@ -229,8 +231,9 @@ class SCCP(IRPass):
         elif opcode in ARITHMETIC_OPS:
             self._eval(inst)
         else:
-            if inst.output is not None:
-                self._set_lattice(inst.output, LatticeEnum.BOTTOM)
+            if len(outputs) > 0:
+                for out_var in outputs:
+                    self._set_lattice(out_var, LatticeEnum.BOTTOM)
                 self._add_ssa_work_items(inst)
 
     def _eval(self, inst) -> LatticeItem:
@@ -241,11 +244,13 @@ class SCCP(IRPass):
         changed.
         """
 
+        out_var = inst.output
+
         def finalize(ret):
             # Update the lattice if the value changed
-            old_val = self.lattice.get(inst.output, LatticeEnum.TOP)
+            old_val = self.lattice.get(out_var, LatticeEnum.TOP)
             if old_val != ret:
-                self.lattice[inst.output] = ret
+                self.lattice[out_var] = ret
                 self._add_ssa_work_items(inst)
             return ret
 
@@ -283,8 +288,10 @@ class SCCP(IRPass):
         return finalize(res)
 
     def _add_ssa_work_items(self, inst: IRInstruction):
-        for target_inst in self.dfg.get_uses(inst.output):  # type: ignore
-            self.work_list.append(SSAWorkListItem(target_inst))
+        outputs = inst.get_outputs()
+        for out in outputs:
+            for target_inst in self.dfg.get_uses(out):
+                self.work_list.append(SSAWorkListItem(target_inst))
 
     def _propagate_constants(self):
         """

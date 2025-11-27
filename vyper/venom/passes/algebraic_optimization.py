@@ -55,8 +55,8 @@ class AlgebraicOptimizationPass(IRPass):
                 if iszero_count == 0:
                     continue
 
-                assert isinstance(inst.output, IRVariable)
-                for use_inst in self.dfg.get_uses(inst.output).copy():
+                inst_out = inst.output
+                for use_inst in self.dfg.get_uses(inst_out).copy():
                     opcode = use_inst.opcode
 
                     if opcode == "iszero":
@@ -75,7 +75,7 @@ class AlgebraicOptimizationPass(IRPass):
                         continue
 
                     out_var = iszero_chain[keep_count].operands[0]
-                    self.updater.update_operands(use_inst, {inst.output: out_var})
+                    self.updater.update_operands(use_inst, {inst_out: out_var})
 
     def _get_iszero_chain(self, op: IROperand) -> list[IRInstruction]:
         chain: list[IRInstruction] = []
@@ -123,8 +123,9 @@ class AlgebraicOptimizationPass(IRPass):
 
     # "peephole", weakening algebraic optimizations
     def _handle_inst_peephole(self, inst: IRInstruction):
-        if inst.output is None:
+        if inst.num_outputs != 1:
             return
+        inst_out = inst.output
         if inst.is_volatile:
             return
         if inst.opcode == "assign":
@@ -248,8 +249,7 @@ class AlgebraicOptimizationPass(IRPass):
                     return
             return
 
-        assert inst.output is not None
-        uses = self.dfg.get_uses(inst.output)
+        uses = self.dfg.get_uses(inst_out)
 
         is_truthy = all(i.opcode in TRUTHY_INSTRUCTIONS for i in uses)
         prefer_iszero = all(i.opcode in ("assert", "iszero") for i in uses)
@@ -307,7 +307,7 @@ class AlgebraicOptimizationPass(IRPass):
     def _optimize_comparator_instruction(self, inst, prefer_iszero):
         opcode, operands = inst.opcode, inst.operands
         assert opcode in COMPARATOR_INSTRUCTIONS  # sanity
-        assert isinstance(inst.output, IRVariable)  # help mypy
+        inst_out = inst.output
 
         # (x > x) == (x < x) -> 0
         if operands[0] == operands[1]:
@@ -364,8 +364,7 @@ class AlgebraicOptimizationPass(IRPass):
 
         # rewrite comparisons by either inserting or removing an `iszero`,
         # e.g. `x > N` -> `x >= (N + 1)`
-        assert inst.output is not None
-        uses = self.dfg.get_uses(inst.output)
+        uses = self.dfg.get_uses(inst_out)
         if len(uses) != 1:
             return
 
@@ -406,9 +405,8 @@ class AlgebraicOptimizationPass(IRPass):
         if insert_iszero:
             # next instruction is an assert, so we insert an iszero so
             # that there will be two iszeros in the assembly.
-            assert inst.output is not None, inst
             assert len(after.operands) == 1, after
-            var = self.updater.add_before(after, "iszero", [inst.output])
+            var = self.updater.add_before(after, "iszero", [inst_out])
             self.updater.update_operands(after, {after.operands[0]: var})
         else:
             # remove the iszero!

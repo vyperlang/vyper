@@ -48,7 +48,7 @@ class DeadStoreElimination(IRPass):
         """
         Checks if the instruction's output is used in the DFG.
         """
-        return inst.output is not None and len(self.dfg.get_uses(inst.output)) > 0
+        return any(len(self.dfg.get_uses(output)) > 0 for output in inst.get_outputs())
 
     def _is_memory_def_live(self, query_def: MemoryDef) -> bool:
         """
