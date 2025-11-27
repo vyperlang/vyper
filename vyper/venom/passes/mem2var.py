@@ -50,7 +50,6 @@ class Mem2Var(IRPass):
         mem_loc, alloca_id = alloca_inst.operands
         var_name = self._mk_varname(var.value, alloca_id.value)
         var = IRVariable(var_name)
-        assert alloca_inst.output is not None
         uses = dfg.get_uses(alloca_inst.output)
 
         self.updater.mk_assign(alloca_inst, mem_loc)
@@ -89,7 +88,6 @@ class Mem2Var(IRPass):
         instructions, it is promoted to a stack variable. Otherwise, it is left as is.
         """
         mem_loc, alloca_id = palloca_inst.operands
-        assert palloca_inst.output is not None
         uses = dfg.get_uses(palloca_inst.output)
 
         self.updater.mk_assign(palloca_inst, mem_loc)
@@ -130,7 +128,6 @@ class Mem2Var(IRPass):
 
     def _process_calloca(self, inst: IRInstruction):
         assert inst.opcode == "calloca"
-        assert inst.output is not None
         assert len(inst.operands) == 2
         memloc = inst.operands[0]
 
@@ -140,7 +137,6 @@ class Mem2Var(IRPass):
         self._fix_adds(inst, memloc)
 
     def _fix_adds(self, mem_src: IRInstruction, mem_op: IROperand):
-        assert mem_src.output is not None
         uses = self.dfg.get_uses(mem_src.output)
         for inst in uses.copy():
             if inst.opcode != "add":
