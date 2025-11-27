@@ -51,7 +51,9 @@ OPTIMIZATION_PASSES: Dict[OptimizationLevel, List[PassConfig]] = {
 }
 
 # Legacy aliases for backwards compatibility
-OPTIMIZATION_PASSES[OptimizationLevel.NONE] = OPTIMIZATION_PASSES[OptimizationLevel.O2]  # none -> O2
+OPTIMIZATION_PASSES[OptimizationLevel.NONE] = OPTIMIZATION_PASSES[
+    OptimizationLevel.O2
+]  # none -> O2
 OPTIMIZATION_PASSES[OptimizationLevel.GAS] = OPTIMIZATION_PASSES[OptimizationLevel.O2]  # gas -> O2
 OPTIMIZATION_PASSES[OptimizationLevel.CODESIZE] = OPTIMIZATION_PASSES[
     OptimizationLevel.Os
