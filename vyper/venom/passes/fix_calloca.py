@@ -46,7 +46,7 @@ class FixCalloca(IRGlobalPass):
                 continue
             to_remove.add(curr)
 
-            if curr.has_outputs():
+            if curr.has_outputs:
                 uses = self.dfg.get_uses(curr.output)
                 worklist.extend(uses)
 
