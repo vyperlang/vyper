@@ -107,7 +107,8 @@ class FunctionInlinerPass(IRGlobalPass):
                     # inlined any callsites (see demotion of calloca
                     # to alloca below). this handles both cases.
                     if inst.opcode in ("alloca", "calloca"):
-                        _, _, alloca_id_op = inst.operands
+                        assert len(inst.operands) >= 2, inst
+                        alloca_id_op = inst.operands[1]
                         alloca_id = alloca_id_op.value
                         assert isinstance(alloca_id, int)  # help mypy
                         if alloca_id in callocas:
@@ -120,7 +121,7 @@ class FunctionInlinerPass(IRGlobalPass):
                             callocas[alloca_id] = inst
 
                     if inst.opcode == "palloca":
-                        _, _, alloca_id_op = inst.operands
+                        _, alloca_id_op = inst.operands
                         alloca_id = alloca_id_op.value
                         assert isinstance(alloca_id, int)
                         if alloca_id not in callocas:
@@ -136,7 +137,7 @@ class FunctionInlinerPass(IRGlobalPass):
                 for inst in bb.instructions:
                     if inst.opcode != "calloca":
                         continue
-                    _, _, alloca_id = inst.operands
+                    _, alloca_id = inst.operands
                     if alloca_id in found:
                         # demote to alloca so that mem2var will work
                         inst.opcode = "alloca"
