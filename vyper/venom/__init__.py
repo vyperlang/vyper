@@ -186,8 +186,9 @@ def generate_venom(
     starting_symbols = {k: IRLiteral(v) for k, v in constants.items()}
     ctx = ir_node_to_venom(ir, starting_symbols)
 
-    # these mem location are used sha3_64 instruction
-    # with concrete value so I need to allocate it here
+    # these mem location are used as magic values inside
+    # the compiler, they are globally shared slots so we allocate
+    # them here, in a context-global way.
     ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR1)
     ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR2)
 
