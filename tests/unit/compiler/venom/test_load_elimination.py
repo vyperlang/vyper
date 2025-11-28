@@ -2,7 +2,7 @@ import pytest
 
 from tests.venom_utils import PrePostChecker
 from vyper.evm.address_space import CALLDATA, DATA, MEMORY, STORAGE, TRANSIENT
-from vyper.venom.passes import LoadElimination, StoreElimination
+from vyper.venom.passes import AssignElimination, LoadElimination
 
 pytestmark = pytest.mark.hevm
 
@@ -11,7 +11,7 @@ pytestmark = pytest.mark.hevm
 # and the second/in post is needed to create
 # easier equivalence in the test for pre and post
 _check_pre_post = PrePostChecker(
-    passes=[StoreElimination, LoadElimination, StoreElimination], post=[StoreElimination]
+    passes=[AssignElimination, LoadElimination, AssignElimination], post=[AssignElimination]
 )
 
 
@@ -94,6 +94,7 @@ def test_elimination_barrier():
         # fence - writes to memory
         staticcall %3, %3, %3, %3
         %4 = mload %1
+        stop
     """
     _check_no_change(pre)
 
@@ -144,6 +145,7 @@ def test_store_load_barrier():
         # fence
         staticcall %3, %3, %3, %3
         %4 = mload %ptr
+        stop
     """
     _check_no_change(pre)
 
@@ -283,7 +285,7 @@ def test_store_store_unknown_ptr_barrier():
     pre = """
     main:
         %ptr_mstore01 = 10
-        %ptr_mstore02 = param
+        %ptr_mstore02 = source
         mstore %ptr_mstore01, 10
 
         # barrier created with overlap
@@ -294,3 +296,125 @@ def test_store_store_unknown_ptr_barrier():
     """
 
     _check_no_change(pre)
+
+
+def test_simple_load_elimination_inter():
+    pre = """
+    main:
+        %par = param
+        %1 = mload 5
+        %cond = iszero %par
+        jnz %cond, @then, @else
+    then:
+        jmp @join
+    else:
+        jmp @join
+    join:
+        %3 = mload 5
+        sink %3
+    """
+
+    post = """
+    main:
+        %par = param
+        %1 = mload 5
+        %cond = iszero %par
+        jnz %cond, @then, @else
+    then:
+        jmp @join
+    else:
+        jmp @join
+    join:
+        %3 = %1
+        sink %3
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_simple_load_elimination_inter_join():
+    pre = """
+    main:
+        %par = param
+        %cond = iszero %par
+        jnz %cond, @then, @else
+    then:
+        %1 = mload 5
+        jmp @join
+    else:
+        %2 = mload 5
+        jmp @join
+    join:
+        %3 = mload 5
+        sink %3
+    """
+
+    post = """
+    main:
+        %par = param
+        %cond = iszero %par
+        jnz %cond, @then, @else
+    then:
+        %1 = mload 5
+        jmp @join
+    else:
+        %2 = mload 5
+        jmp @join
+    join:
+        %4 = phi @then, %1, @else, %2
+        %3 = %4
+        sink %3
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_load_elimination_inter_distant_bb():
+    pre = """
+    main:
+        %par = param
+        %cond = iszero %par
+        jnz %cond, @then, @else
+    then:
+        %1 = mload 5
+        jmp @join
+    else:
+        %2 = mload 5
+        jmp @join
+    join:
+        %3 = mload 1000
+        %cond_end = iszero %3
+        jnz %cond_end, @end_a, @end_b
+    end_a:
+        %4 = mload 5
+        sink %4
+    end_b:
+        %5 = mload 50
+        sink %5
+    """
+
+    post = """
+    main:
+        %par = param
+        %cond = iszero %par
+        jnz %cond, @then, @else
+    then:
+        %1 = mload 5
+        jmp @join
+    else:
+        %2 = mload 5
+        jmp @join
+    join:
+        %6 = phi @then, %1, @else, %2
+        %3 = mload 1000
+        %cond_end = iszero %3
+        jnz %cond_end, @end_a, @end_b
+    end_a:
+        %4 = %6
+        sink %4
+    end_b:
+        %5 = mload 50
+        sink %5
+    """
+
+    _check_pre_post(pre, post)

@@ -10,7 +10,7 @@ import sys
 from typing import Any, Optional, Union
 
 from vyper.ast.metadata import NodeMetadata
-from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
+from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS, Settings
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
@@ -228,6 +228,7 @@ class VyperNode:
     _public_slots = [i for i in __slots__ if not i.startswith("_")]
     _only_empty_fields: tuple = ()
     _translated_fields: dict = {}
+    _special_decoders: dict = {}
 
     def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
         # this function is performance-sensitive
@@ -262,7 +263,9 @@ class VyperNode:
                 field_name = self._translated_fields[field_name]
 
             if field_name in self.get_fields():
-                if isinstance(value, list):
+                if field_name in self._special_decoders:
+                    value = self._special_decoders[field_name](value)
+                elif isinstance(value, list):
                     value = [_to_node(i, self) for i in value]
                 else:
                     value = _to_node(value, self)
@@ -275,7 +278,8 @@ class VyperNode:
                     kwargs,
                 )
 
-        # add to children of parent last to ensure an accurate hash is generated
+        # add to children of parent last so that child traversal order
+        # matches ast order
         if parent is not None:
             parent._children.append(self)
 
@@ -439,10 +443,13 @@ class VyperNode:
         Return the node as a dict. Child nodes and their descendants are also converted.
         """
         ast_dict = {}
-        for key in [i for i in self.get_fields() if i not in DICT_AST_SKIPLIST]:
+        fields = [i for i in self.get_fields() if i not in DICT_AST_SKIPLIST]
+        for key in sorted(fields):
             value = getattr(self, key, None)
             if isinstance(value, list):
                 ast_dict[key] = [_to_dict(i) for i in value]
+            elif isinstance(value, Settings):
+                ast_dict[key] = value.as_dict()
             else:
                 ast_dict[key] = _to_dict(value)
 
@@ -617,7 +624,12 @@ class TopLevel(VyperNode):
 
 class Module(TopLevel):
     # metadata
-    __slots__ = ("path", "resolved_path", "source_id", "is_interface")
+    __slots__ = ("path", "resolved_path", "source_id", "is_interface", "settings")
+    """
+    settings: Settings
+        settings result from parsing the compiler pragmas in the file.
+    """
+    _special_decoders = {"settings": Settings.from_dict}
 
     def to_dict(self):
         return dict(source_sha256sum=self.source_sha256sum, **super().to_dict())
@@ -737,6 +749,10 @@ class ExprNode(VyperNode):
 
     def to_dict(self):
         ret = super().to_dict()
+
+        if self.has_folded_value and self.get_folded_value() != self:
+            ret["folded_value"] = self.get_folded_value().to_dict()
+
         if self._expr_info is None:
             return ret
 
@@ -1368,6 +1384,7 @@ class VariableDecl(VyperNode):
         "is_public",
         "is_immutable",
         "is_transient",
+        "is_reentrant",
         "_expanded_getter",
     )
 
@@ -1378,6 +1395,7 @@ class VariableDecl(VyperNode):
         self.is_public = False
         self.is_immutable = False
         self.is_transient = False
+        self.is_reentrant = False
         self._expanded_getter = None
 
         def _check_args(annotation, call_name):
@@ -1390,10 +1408,21 @@ class VariableDecl(VyperNode):
         # `foo: public(constant(uint256))`
         # pretend we were parsing actual Vyper AST. annotation would be
         # TYPE | PUBLIC "(" TYPE | ((IMMUTABLE | CONSTANT) "(" TYPE ")") ")"
-        if self.annotation.get("func.id") == "public":
-            _check_args(self.annotation, "public")
-            self.is_public = True
+
+        # unwrap reentrant and public. they can be in any order
+        seen = []
+        for _ in range(2):
+            func_id = self.annotation.get("func.id")
+            if func_id in seen:
+                _raise_syntax_exc(
+                    f"Used variable annotation `{func_id}` multiple times", self.annotation
+                )
+            if func_id not in ("public", "reentrant"):
+                break
+            _check_args(self.annotation, func_id)
+            setattr(self, f"is_{func_id}", True)
             # unwrap one layer
+            seen.append(func_id)
             self.annotation = self.annotation.args[0]
 
         func_id = self.annotation.get("func.id")
@@ -1419,6 +1448,11 @@ class VariableDecl(VyperNode):
     def validate(self):
         if self.is_constant and self.value is None:
             raise VariableDeclarationException("Constant must be declared with a value", self)
+
+        if self.is_reentrant and not self.is_public:
+            raise VariableDeclarationException(
+                "Only public variables can be marked `reentrant`!", self
+            )
 
         if not self.is_constant and self.value is not None:
             raise VariableDeclarationException(
@@ -1450,30 +1484,40 @@ class Pass(Stmt):
 
 
 class _ImportStmt(Stmt):
-    __slots__ = ("name", "alias")
+    __slots__ = ("names",)
 
     def to_dict(self):
         ret = super().to_dict()
-        if (import_info := self._metadata.get("import_info")) is not None:
-            ret["import_info"] = import_info.to_dict()
+        if (import_infos := self._metadata.get("import_infos")) is not None:
+            ret["import_infos"] = [import_info.to_dict() for import_info in import_infos]
 
         return ret
-
-    def __init__(self, *args, **kwargs):
-        if len(kwargs["names"]) > 1:
-            _raise_syntax_exc("Assignment statement must have one target", kwargs)
-        names = kwargs.pop("names")[0]
-        kwargs["name"] = names.name
-        kwargs["alias"] = names.asname
-        super().__init__(*args, **kwargs)
 
 
 class Import(_ImportStmt):
     __slots__ = ()
 
+    def validate(self):
+        if len(self.names) > 1:
+            msg = "modules need to be imported one by one"
+            import_strings = "\n    ".join(
+                [f"import {alias_node.node_source_code}" for alias_node in self.names]
+            )
+            hint = f"try \n    ```\n    {import_strings}\n    ```\n  "
+            raise StructureException(msg, self, hint=hint)
+
 
 class ImportFrom(_ImportStmt):
     __slots__ = ("level", "module")
+
+
+class alias(VyperNode):
+    """
+    Represents the `foo as bar` part of an import
+    Accessed from Import.names and ImportFrom.names
+    """
+
+    __slots__ = ("name", "asname")
 
 
 class ImplementsDecl(Stmt):
@@ -1482,16 +1526,26 @@ class ImplementsDecl(Stmt):
 
     Attributes
     ----------
-    annotation : Name
-        Name node for the interface to be implemented
+    children : List of (Name | Attribute)s
+        Name nodes for the interfaces to be implemented
     """
 
-    __slots__ = ("annotation",)
+    __slots__ = ("children",)
     _only_empty_fields = ("value",)
 
+    def __init__(self, *args, **kwargs):
+        tmp = kwargs.pop("annotation")
+        if isinstance(tmp, python_ast.Tuple):
+            kwargs["children"] = tmp.elts
+        else:
+            kwargs["children"] = [tmp]
+
+        super().__init__(*args, **kwargs)
+
     def validate(self):
-        if not isinstance(self.annotation, (Name, Attribute)):
-            raise StructureException("invalid implements", self.annotation)
+        for child in self.children:
+            if not isinstance(child, (Name, Attribute)):
+                raise StructureException("invalid implements", child)
 
 
 def as_tuple(node: VyperNode):

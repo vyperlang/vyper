@@ -3,10 +3,11 @@ from vyper.venom.basicblock import IRVariable
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
-class StoreElimination(IRPass):
+class AssignElimination(IRPass):
     """
     This pass forwards variables to their uses though `store` instructions,
-    and removes the `store` instruction.
+    and removes the `store` instruction. In the future we will probably rename
+    the `store` instruction to `"assign"`.
     """
 
     # TODO: consider renaming `store` instruction, since it is confusing
@@ -16,8 +17,8 @@ class StoreElimination(IRPass):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(self.dfg)
 
-        for var, inst in self.dfg.outputs.items():
-            if inst.opcode != "store":
+        for var, inst in self.dfg.outputs.copy().items():
+            if inst.opcode != "assign":
                 continue
             self._process_store(inst, var, inst.operands[0])
 

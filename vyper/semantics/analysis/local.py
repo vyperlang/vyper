@@ -179,7 +179,8 @@ def _validate_pure_access(node: vy_ast.Attribute | vy_ast.Name, typ: VyperType) 
             raise StateAccessViolation(
                 "not allowed to query environment variables in pure functions"
             )
-        parent_info = get_expr_info(node.value)
+        # allow type exprs in the value node, e.g. MyFlag.A
+        parent_info = get_expr_info(node.value, is_callable=True)
         if isinstance(parent_info.typ, AddressT) and node.attr in AddressT._type_members:
             raise StateAccessViolation("not allowed to query address members in pure functions")
 
@@ -844,7 +845,19 @@ class ExprVisitor(VyperNodeVisitorBase):
             for arg, arg_type in zip(node.args, func_type.arg_types):
                 self.visit(arg, arg_type)
         else:
-            # builtin functions
+            # builtin functions and interfaces
+            if self.function_analyzer and hasattr(func_type, "mutability"):
+                from vyper.builtins.functions import RawCall
+
+                if isinstance(func_type, RawCall):
+                    # as opposed to other functions, raw_call's mutability
+                    # depends on its arguments, so we need to determine
+                    # it at each call site.
+                    mutability = func_type.get_mutability_at_call_site(node)
+                else:
+                    mutability = func_type.mutability
+                self._check_call_mutability(mutability)  # type: ignore
+
             arg_types = func_type.infer_arg_types(node, expected_return_typ=typ)  # type: ignore
             for arg, arg_type in zip(node.args, arg_types):
                 self.visit(arg, arg_type)

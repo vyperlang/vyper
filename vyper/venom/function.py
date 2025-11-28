@@ -1,21 +1,28 @@
+from __future__ import annotations
+
 import textwrap
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Iterator, Optional
+from typing import TYPE_CHECKING, Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
+from vyper.venom.memory_location import MemoryLocation
+
+if TYPE_CHECKING:
+    from vyper.venom.context import IRContext
 
 
-@dataclass
+@dataclass(frozen=True)
 class IRParameter:
     name: str
-    index: int
-    offset: int
-    size: int
-    call_site_var: Optional[IRVariable]
-    func_var: Optional[IRVariable]
-    addr_var: Optional[IRVariable]
+    index: int  # needed?
+    offset: int  # needed?
+    size: int  # needed?
+    id_: int
+    call_site_var: Optional[IRVariable]  # needed?
+    func_var: IRVariable
+    addr_var: Optional[IRVariable]  # needed?
 
 
 class IRFunction:
@@ -24,20 +31,22 @@ class IRFunction:
     """
 
     name: IRLabel  # symbol name
-    ctx: "IRContext"  # type: ignore # noqa: F821
+    ctx: IRContext
     args: list
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
+    _volatile_memory: list[MemoryLocation]
 
     # Used during code generation
     _ast_source_stack: list[IRnode]
     _error_msg_stack: list[str]
 
-    def __init__(self, name: IRLabel, ctx: "IRContext" = None) -> None:  # type: ignore # noqa: F821
-        self.ctx = ctx
+    def __init__(self, name: IRLabel, ctx: IRContext = None):
+        self.ctx = ctx  # type: ignore
         self.name = name
         self.args = []
         self._basic_block_dict = {}
+        self._volatile_memory = []
 
         self.last_variable = 0
 
@@ -92,14 +101,6 @@ class IRFunction:
     def code_size_cost(self) -> int:
         return sum(bb.code_size_cost for bb in self.get_basic_blocks())
 
-    def get_terminal_basicblocks(self) -> Iterator[IRBasicBlock]:
-        """
-        Get basic blocks that are terminal.
-        """
-        for bb in self.get_basic_blocks():
-            if bb.is_terminal:
-                yield bb
-
     def get_next_variable(self) -> IRVariable:
         self.last_variable += 1
         return IRVariable(f"%{self.last_variable}")
@@ -117,64 +118,13 @@ class IRFunction:
         varmap: dict[IRVariable, IRVariable] = defaultdict(self.get_next_variable)
         for bb in self.get_basic_blocks():
             for inst in bb.instructions:
-                if inst.output:
-                    inst.output = varmap[inst.output]
+                if inst.has_outputs:
+                    inst.set_outputs([varmap[o] for o in inst.get_outputs()])
 
                 for i, op in enumerate(inst.operands):
                     if not isinstance(op, IRVariable):
                         continue
                     inst.operands[i] = varmap[op]
-
-    def remove_unreachable_blocks(self) -> int:
-        # Remove unreachable basic blocks
-        # pre: requires CFG analysis!
-        # NOTE: should this be a pass?
-
-        removed = set()
-
-        for bb in self.get_basic_blocks():
-            if not bb.is_reachable:
-                removed.add(bb)
-
-        for bb in removed:
-            self.remove_basic_block(bb)
-
-        # Remove phi instructions that reference removed basic blocks
-        for bb in self.get_basic_blocks():
-            for in_bb in list(bb.cfg_in):
-                if in_bb not in removed:
-                    continue
-
-                bb.remove_cfg_in(in_bb)
-
-            # TODO: only run this if cfg_in changed
-            bb.fix_phi_instructions()
-
-        return len(removed)
-
-    @property
-    def normalized(self) -> bool:
-        """
-        Check if function is normalized. A function is normalized if in the
-        CFG, no basic block simultaneously has multiple inputs and outputs.
-        That is, a basic block can be jumped to *from* multiple blocks, or it
-        can jump *to* multiple blocks, but it cannot simultaneously do both.
-        Having a normalized CFG makes calculation of stack layout easier when
-        emitting assembly.
-        """
-        for bb in self.get_basic_blocks():
-            # Ignore if there are no multiple predecessors
-            if len(bb.cfg_in) <= 1:
-                continue
-
-            # Check if there is a branching jump at the end
-            # of one of the predecessors
-            for in_bb in bb.cfg_in:
-                if len(in_bb.cfg_out) > 1:
-                    return False
-
-        # The function is normalized
-        return True
 
     def push_source(self, ir):
         if isinstance(ir, IRnode):
@@ -187,9 +137,9 @@ class IRFunction:
         assert len(self._error_msg_stack) > 0, "Empty error stack"
         self._error_msg_stack.pop()
 
-    def get_param_at_offset(self, offset: int) -> Optional[IRParameter]:
+    def get_param_by_id(self, id_: int) -> Optional[IRParameter]:
         for param in self.args:
-            if param.offset == offset:
+            if param.id_ == id_:
                 return param
         return None
 
@@ -214,6 +164,11 @@ class IRFunction:
         for bb in self.get_basic_blocks():
             new_bb = bb.copy()
             new.append_basic_block(new_bb)
+
+        # Copy volatile memory locations
+        for mem in self._volatile_memory:
+            new.add_volatile_memory(mem.offset, mem.size)
+
         return new
 
     def as_graph(self, only_subgraph=False) -> str:
@@ -237,10 +192,10 @@ class IRFunction:
 
         if not only_subgraph:
             ret.append("digraph G {{")
-        ret.append(f'subgraph "{self.name}" {{')
+        ret.append(f"subgraph {repr(self.name)} {{")
 
         for bb in self.get_basic_blocks():
-            for out_bb in bb.cfg_out:
+            for out_bb in bb.out_bbs:
                 ret.append(f'    "{bb.label.value}" -> "{out_bb.label.value}"')
 
         for bb in self.get_basic_blocks():
@@ -261,3 +216,18 @@ class IRFunction:
         ret = ret.strip() + "\n}"
         ret += f"  ; close function {self.name}"
         return ret
+
+    def add_volatile_memory(self, offset: int, size: int) -> MemoryLocation:
+        """
+        Add a volatile memory location with the given offset and size.
+        Returns the created MemoryLocation object.
+        """
+        volatile_mem = MemoryLocation(offset=offset, size=size)
+        self._volatile_memory.append(volatile_mem)
+        return volatile_mem
+
+    def get_all_volatile_memory(self) -> list[MemoryLocation]:
+        """
+        Return all volatile memory locations.
+        """
+        return self._volatile_memory

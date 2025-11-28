@@ -1,5 +1,5 @@
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis, LivenessAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, DominatorTreeAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
@@ -10,25 +10,27 @@ class MakeSSA(IRPass):
     """
 
     dom: DominatorTreeAnalysis
+    cfg: CFGAnalysis
+    liveness: LivenessAnalysis
     defs: dict[IRVariable, OrderedSet[IRBasicBlock]]
 
     def run_pass(self):
         fn = self.function
 
-        self.analyses_cache.request_analysis(CFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
 
-        # Request liveness analysis so the `liveness_in_vars` field is valid
-        self.analyses_cache.request_analysis(LivenessAnalysis)
+        self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
 
         self._add_phi_nodes()
 
         self.var_name_counters = {var.name: 0 for var in self.defs.keys()}
-        self.var_name_stacks = {var.name: [0] for var in self.defs.keys()}
+        self.var_name_stacks = {var.value: [0] for var in self.defs.keys()}
         self._rename_vars(fn.entry)
         self._remove_degenerate_phis(fn.entry)
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def _add_phi_nodes(self):
         """
@@ -56,23 +58,30 @@ class MakeSSA(IRPass):
                         defs.append(dom)
 
     def _place_phi(self, var: IRVariable, basic_block: IRBasicBlock):
-        if var not in basic_block.liveness_in_vars:
+        if var not in self.liveness.liveness_in_vars(basic_block):
             return
 
         args: list[IROperand] = []
-        for bb in basic_block.cfg_in:
+        for bb in self.cfg.cfg_in(basic_block):
             if bb == basic_block:
                 continue
 
             args.append(bb.label)  # type: ignore
             args.append(var)  # type: ignore
 
-        basic_block.insert_instruction(IRInstruction("phi", args, var), 0)
+        basic_block.insert_instruction(IRInstruction("phi", args, [var]), 0)
 
     def latest_version_of(self, var: IRVariable) -> IRVariable:
-        name = var.name
+        og_var = self.original_vars[var]
+        name = og_var.value
         version = self.var_name_stacks[name][-1]
-        return var.with_version(version)
+
+        if version == 0:
+            return var
+
+        ret = IRVariable(f"{og_var.name}:{version}")
+        self.original_vars[ret] = var
+        return ret
 
     def _rename_vars(self, basic_block: IRBasicBlock):
         """
@@ -94,21 +103,30 @@ class MakeSSA(IRPass):
 
                 inst.operands = new_ops
 
-            if inst.output is not None:
-                v_name = inst.output.name
+            outputs = inst.get_outputs()
+            if len(outputs) == 0:
+                continue
+
+            new_outputs: list[IRVariable] = []
+            for output in outputs:
+                v_name = self.original_vars[output].value
                 i = self.var_name_counters[v_name]
 
                 self.var_name_stacks[v_name].append(i)
-                self.var_name_counters[v_name] = i + 1
+                self.var_name_counters[v_name] += 1
 
-                inst.output = self.latest_version_of(inst.output)
-                outs.append(inst.output.name)
+                new_var = self.latest_version_of(output)
+                new_outputs.append(new_var)
+                outs.append(new_var)
 
-        for bb in basic_block.cfg_out:
+            inst.set_outputs(new_outputs)
+
+        for bb in self.cfg.cfg_out(basic_block):
             for inst in bb.instructions:
                 if inst.opcode != "phi":
                     continue
-                assert inst.output is not None, "Phi instruction without output"
+                # Ensure phi has exactly one output
+                _ = inst.output
                 for i, op in enumerate(inst.operands):
                     if op == basic_block.label:
                         var = inst.operands[i + 1]
@@ -120,9 +138,10 @@ class MakeSSA(IRPass):
             self._rename_vars(bb)
 
         # Post-action
-        for op_name in outs:
+        for var in outs:
             # NOTE: each pop corresponds to an append in the pre-action above
-            self.var_name_stacks[op_name].pop()
+            og_name = self.original_vars[var].name
+            self.var_name_stacks[og_name].pop()
 
     def _remove_degenerate_phis(self, entry: IRBasicBlock):
         for inst in entry.instructions.copy():
@@ -130,8 +149,9 @@ class MakeSSA(IRPass):
                 continue
 
             new_ops: list[IROperand] = []
+            phi_out = inst.output
             for label, op in inst.phi_operands:
-                if op == inst.output:
+                if op == phi_out:
                     continue
                 new_ops.extend([label, op])
             new_ops_len = len(new_ops)
@@ -152,9 +172,11 @@ class MakeSSA(IRPass):
         Compute the definition points of variables in the function.
         """
         self.defs = {}
+        self.original_vars = {}
         for bb in self.dom.dom_post_order:
             assignments = bb.get_assignments()
             for var in assignments:
                 if var not in self.defs:
                     self.defs[var] = OrderedSet()
                 self.defs[var].add(bb)
+                self.original_vars[var] = var

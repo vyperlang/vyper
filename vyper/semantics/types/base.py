@@ -48,8 +48,12 @@ class VyperType:
     ----------
     _id : str
         The name of the type.
-    _as_array: bool, optional
-        If `True`, this type can be used as the base member for an array.
+    is_valid_element_type: bool, optional
+        If `True`, this type can be used as the type of the elements of an array.
+    _as_hashmap_key: bool, optional
+        If `True`, this type can be used as a hashmap key
+    is_valid_member_type: bool, optional
+        If `True`, this type can be used as a member type
     _valid_literal : Tuple
         A tuple of Vyper ast classes that may be assigned this type.
     _invalid_locations : Tuple
@@ -76,8 +80,9 @@ class VyperType:
     _is_array_type: bool = False
     _is_bytestring: bool = False  # is it a bytes or a string?
 
-    _as_array: bool = False  # rename to something like can_be_array_member
+    is_valid_element_type: bool = False
     _as_hashmap_key: bool = False
+    is_valid_member_type: bool = True
 
     _supports_external_calls: bool = False
     _attribute_in_annotation: bool = False
@@ -130,7 +135,7 @@ class VyperType:
             ret["typeclass"] = self.typeclass
 
         # use dict ctor to block duplicates
-        return dict(**self._addl_dict_fields(), **ret)
+        return dict(sorted(self._addl_dict_fields().items()), **ret)
 
     # for most types, this is a reasonable implementation, but it can
     # be overridden as needed.
@@ -148,7 +153,7 @@ class VyperType:
 
     @cached_property
     def _as_darray(self):
-        return self._as_array
+        return self.is_valid_element_type
 
     @property
     def getter_signature(self):
@@ -164,9 +169,9 @@ class VyperType:
         """
         The ABI type corresponding to this type
         """
-        raise CompilerPanic("Method must be implemented by the inherited class")
+        raise CompilerPanic(f"{type(self).__name__} does not implement abi_type")
 
-    def get_size_in(self, location: DataLocation):
+    def get_size_in(self, location: DataLocation) -> int:
         if location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
             return self.storage_size_in_words
         if location == DataLocation.MEMORY:

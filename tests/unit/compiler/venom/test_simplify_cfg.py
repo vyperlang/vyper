@@ -14,11 +14,11 @@ def test_phi_reduction_after_block_pruning():
     _global:
         jmp @then
     then:
-        %1 = param
+        %1 = source
         jmp @join
     else:
         ; dead block
-        %2 = param
+        %2 = source
         jmp @join
     join:
         %3 = phi @then, %1, @else, %2
@@ -26,7 +26,7 @@ def test_phi_reduction_after_block_pruning():
     """
     post = """
     _global:
-        %1 = param
+        %1 = source
         %3 = %1
         sink %3
     """
@@ -41,8 +41,8 @@ def test_block_merging():
     """
     pre = """
     _global:
-        %1 = param
-        %2 = param
+        %1 = source
+        %2 = source
         jmp @b
     a:
         ; demonstrate order of basic blocks
@@ -58,13 +58,69 @@ def test_block_merging():
     """
     post = """
     _global:
-        %1 = param
-        %2 = param
+        %1 = source
+        %2 = source
         %4 = %2
         sstore 1, %4
         %3 = %1
         sstore 0, %3
         sink %3, %4
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_phi_after_merge_jump():
+    pre = """
+    ; this is prelude to get the
+    ; condition that would trigger
+    ; fixing of the phis in the
+    ; _merge_jump method
+    main:
+        %p = param
+        jnz %p, @a, @b
+    a:
+        mstore %p, %p
+        jmp @start
+    b:
+        mstore %p, %p
+        jmp @start
+    start:
+        %cond = iszero %p
+        %1 = 5
+        jnz %cond, @then, @else
+    then:
+        jmp @after ; this jump will be merged in the start block
+    else:
+        %2 = 10
+        jmp @else_continue
+    else_continue:
+        jmp @after
+    after:
+        %res = phi @else_continue, %2, @then, %1 ; this phi must be correctly fixed
+        sink %res
+    """
+
+    post = """
+    main:
+        %p = param
+        jnz %p, @a, @b
+    a:
+        mstore %p, %p
+        jmp @start
+    b:
+        mstore %p, %p
+        jmp @start
+    start:
+        %cond = iszero %p
+        %1 = 5
+        jnz %cond, @after, @else
+    else:
+        %2 = 10
+        jmp @after
+    after:
+        %res = phi @else, %2, @start, %1
+        sink %res
     """
 
     _check_pre_post(pre, post)

@@ -5,9 +5,8 @@ from hexbytes import HexBytes
 
 import vyper.ir.compile_ir as compile_ir
 from tests.utils import ZERO_ADDRESS
-from vyper.codegen.ir_node import IRnode
 from vyper.compiler import compile_code
-from vyper.compiler.settings import OptimizationLevel
+from vyper.ir.compile_ir import DATA_ITEM, PUSH, PUSHLABEL, DataHeader, Label
 from vyper.utils import EIP_170_LIMIT, ERC5202_PREFIX, checksum_encode, keccak256
 
 
@@ -295,10 +294,19 @@ def test(code_ofst: uint256) -> address:
     # deploy a blueprint contract whose contained initcode contains only
     # zeroes (so no matter which offset, create_from_blueprint will
     # return empty code)
-    ir = IRnode.from_list(["deploy", 0, ["seq"] + ["stop"] * initcode_len, 0])
-    bytecode, _ = compile_ir.assembly_to_evm(
-        compile_ir.compile_to_assembly(ir, optimize=OptimizationLevel.NONE)
-    )
+    asm = [
+        *PUSH(initcode_len),
+        PUSHLABEL(Label("end")),
+        *PUSH(0),
+        "CODECOPY",
+        *PUSH(initcode_len),
+        *PUSH(0),
+        "RETURN",
+        DataHeader(Label("end")),
+        DATA_ITEM(b"\x00" * initcode_len),
+    ]
+    bytecode, _ = compile_ir.assembly_to_evm(asm)
+
     # manually deploy the bytecode
     c = env.deploy(abi=[], bytecode=bytecode)
     blueprint_address = c.address
@@ -785,6 +793,30 @@ def deploy_from_memory() -> address:
     assert env.get_code(res) == runtime
 
 
+# `initcode` and `value` arguments overlap
+def test_raw_create_memory_overlap(get_contract, env):
+    to_deploy_code = """
+foo: public(uint256)
+    """
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    deployer_code = """
+@external
+def deploy_from_calldata(s: Bytes[49152]) -> address:
+    v: DynArray[Bytes[49152], 2] = [s]
+    x: address = raw_create(v[0], value = 0 if v.pop() == b'' else 0, revert_on_failure=False)
+    return x
+    """
+
+    deployer = get_contract(deployer_code)
+
+    res = deployer.deploy_from_calldata(initcode)
+    assert env.get_code(res) == runtime
+
+
 def test_raw_create_double_eval(get_contract, env):
     to_deploy_code = """
 foo: public(uint256)
@@ -1095,6 +1127,8 @@ def __init__(arg: uint256):
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
     runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
 
+    # the implementation of `raw_create` firstly caches
+    # `value` and then `salt`, here the source order is `salt` then `value`
     deployer_code = """
 c: Bytes[1024]
 salt: bytes32
@@ -1122,3 +1156,33 @@ def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32, value_: ui
     assert HexBytes(res) == create2_address_of(deployer.address, salt, initcode)
     assert env.get_code(res) == runtime
     assert env.get_balance(res) == value
+
+
+# test vararg and kwarg order of evaluation
+# test fails because `value` gets evaluated
+# before the 1st vararg which doesn't follow
+# source code order
+@pytest.mark.xfail(raises=AssertionError)
+def test_raw_create_eval_order(get_contract):
+    code = """
+a: public(uint256)
+
+@deploy
+def __init__():
+    initcode: Bytes[100] = b"a"
+    res: address = raw_create(
+        initcode, self.test1(), value=self.test2(), revert_on_failure=False
+    )
+
+@internal
+def test1() -> uint256:
+    self.a = 1
+    return 1
+
+@internal
+def test2() -> uint256:
+    self.a = 2
+    return 2
+    """
+    c = get_contract(code)
+    assert c.a() == 2

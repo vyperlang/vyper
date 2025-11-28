@@ -1,5 +1,5 @@
 from vyper.venom.analysis import IRAnalysesCache, VarDefinition
-from vyper.venom.basicblock import IRBasicBlock, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 
@@ -28,6 +28,49 @@ class VarNotDefined(VenomError):
     def __str__(self):
         bb = self.inst.parent
         return f"var {self.var} not defined:\n  {self.inst}\n\n{bb}"
+
+
+class InconsistentReturnArity(VenomError):
+    message: str = "function has inconsistent return arity"
+
+    def __init__(self, function: IRFunction, arities: set[int]):
+        self.function = function
+        self.arities = arities
+
+    def __str__(self):
+        return (
+            f"function {self.function.name} has inconsistent 'ret' arities: {sorted(self.arities)}"
+        )
+
+
+class InvokeArityMismatch(VenomError):
+    message: str = "invoke outputs do not match callee return arity"
+
+    def __init__(self, caller: IRFunction, inst: IRInstruction, expected: int, got: int):
+        self.caller = caller
+        self.inst = inst
+        self.expected = expected
+        self.got = got
+
+    def __str__(self):
+        bb = self.inst.parent
+        return (
+            f"invoke arity mismatch in {self.caller.name}: "
+            f"expected {self.expected}, got {self.got}\n"
+            f"  {self.inst}\n\n{bb}"
+        )
+
+
+class MultiOutputNonInvoke(VenomError):
+    message: str = "multi-output assignment only supported for invoke"
+
+    def __init__(self, caller: IRFunction, inst: IRInstruction):
+        self.caller = caller
+        self.inst = inst
+
+    def __str__(self):
+        bb = self.inst.parent
+        return f"multi-output on non-invoke in {self.caller.name}:\n" f"  {self.inst}\n\n{bb}"
 
 
 def _handle_var_definition(
@@ -61,18 +104,77 @@ def find_semantic_errors_fn(fn: IRFunction) -> list[VenomError]:
         return errors
 
     ac = IRAnalysesCache(fn)
-    var_def: VarDefinition = ac.request_analysis(VarDefinition)  # type: ignore
+    var_def: VarDefinition = ac.request_analysis(VarDefinition)
     for bb in fn.get_basic_blocks():
         e = _handle_var_definition(fn, bb, var_def)
         errors.extend(e)
     return errors
 
 
+def _collect_ret_arities(context: IRContext) -> dict[IRFunction, set[int]]:
+    ret_arities: dict[IRFunction, set[int]] = {}
+    for fn in context.functions.values():
+        arities: set[int] = set()
+        for bb in fn.get_basic_blocks():
+            for inst in bb.instructions:
+                if inst.opcode == "ret":
+                    # last operand is return PC; all preceding (if any) are return values
+                    arities.add(len(inst.operands) - 1)
+
+        ret_arities[fn] = arities
+
+    return ret_arities
+
+
+def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
+    errors: list[VenomError] = []
+
+    # Enforce invoke binding exactly callee arity
+    ret_arities = _collect_ret_arities(context)
+
+    for fn, arities in ret_arities.items():
+        if len(arities) > 1:
+            errors.append(InconsistentReturnArity(fn, arities))
+
+    for caller in context.functions.values():
+        for bb in caller.get_basic_blocks():
+            for inst in bb.instructions:
+                # Disallow multi-output except on invoke
+                got_num = inst.num_outputs
+                if got_num > 1 and inst.opcode != "invoke":
+                    errors.append(MultiOutputNonInvoke(caller, inst))
+                    continue
+                if inst.opcode != "invoke":
+                    continue
+                target = inst.operands[0]
+                assert isinstance(target, IRLabel)
+                callee = context.get_function(target)
+                arities = ret_arities[callee]
+
+                if len(arities) == 0:
+                    expected_num = 0
+                elif len(arities) == 1:
+                    expected_num = next(iter(arities))
+                else:
+                    # a function with InconsistentReturnArity, we already
+                    # checked this above
+                    continue
+
+                if got_num != expected_num:
+                    errors.append(InvokeArityMismatch(caller, inst, expected_num, got_num))
+
+    return errors
+
+
 def find_semantic_errors(context: IRContext) -> list[VenomError]:
     errors: list[VenomError] = []
 
+    # Per-function basic checks (var definitions, bb termination, etc.)
     for fn in context.functions.values():
         errors.extend(find_semantic_errors_fn(fn))
+
+    # Calling convention errors can be reported too if desired
+    errors.extend(find_calling_convention_errors(context))
 
     return errors
 
@@ -82,3 +184,9 @@ def check_venom_ctx(context: IRContext):
 
     if errors:
         raise ExceptionGroup("venom semantic errors", errors)
+
+
+def check_calling_convention(context: IRContext):
+    errors = find_calling_convention_errors(context)
+    if errors:
+        raise ExceptionGroup("venom calling convention errors", errors)

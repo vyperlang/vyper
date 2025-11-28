@@ -1,9 +1,15 @@
+from __future__ import annotations
+
 import functools
 import re
+from collections import defaultdict
 from typing import Optional
 
+from vyper.codegen.context import Alloca
+from vyper.codegen.core import is_tuple_like
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
+from vyper.ir.compile_ir import _runtime_code_offsets
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -13,7 +19,12 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.context import IRContext
-from vyper.venom.function import IRFunction
+from vyper.venom.function import IRFunction, IRParameter
+
+# Experimental: allow returning multiple 32-byte values via the stack
+ENABLE_MULTI_RETURNS = True
+MAX_STACK_RETURNS = 2
+MAX_STACK_ARGS = 6
 
 # Instructions that are mapped to their inverse
 INVERSE_MAPPED_IR_INSTRUCTIONS = {"ne": "eq", "le": "gt", "sle": "sgt", "ge": "lt", "sge": "slt"}
@@ -63,9 +74,9 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "gasprice",
         "gaslimit",
         "returndatasize",
-        "mload",
         "iload",
         "istore",
+        "mload",
         "dload",
         "dloadbytes",
         "sload",
@@ -88,7 +99,6 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "selfdestruct",
         "assert",
         "assert_unreachable",
-        "exit",
         "calldatacopy",
         "mcopy",
         "extcodecopy",
@@ -109,21 +119,32 @@ NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_sym
 
 SymbolTable = dict[str, IROperand]
 _alloca_table: dict[int, IROperand]
+_callsites: dict[str, list[Alloca]]
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
+
+_scratch_alloca_id = 2**32
+
+
+def get_scratch_alloca_id() -> int:
+    global _scratch_alloca_id
+    _scratch_alloca_id += 1
+    return _scratch_alloca_id
 
 
 # convert IRnode directly to venom
-def ir_node_to_venom(ir: IRnode) -> IRContext:
+def ir_node_to_venom(ir: IRnode, symbols: Optional[dict] = None) -> IRContext:
     _ = ir.unique_symbols  # run unique symbols check
 
-    global _alloca_table
+    global _alloca_table, _callsites
     _alloca_table = {}
+    _callsites = defaultdict(list)
 
     ctx = IRContext()
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
     ctx.entry_function = fn
 
-    _convert_ir_bb(fn, ir, {})
+    symbols = symbols or {}
+    _convert_ir_bb(fn, ir, symbols)
 
     for fn in ctx.functions.values():
         for bb in fn.get_basic_blocks():
@@ -153,17 +174,44 @@ def _append_return_args(fn: IRFunction, ofst: int = 0, size: int = 0):
         fn.append_basic_block(bb)
     ret_ofst = IRVariable("ret_ofst")
     ret_size = IRVariable("ret_size")
-    bb.append_instruction("store", ofst, ret=ret_ofst)
-    bb.append_instruction("store", size, ret=ret_size)
+    bb.append_instruction("assign", ofst, ret=ret_ofst)
+    bb.append_instruction("assign", size, ret=ret_size)
+
+
+# func_t: ContractFunctionT
+@functools.lru_cache(maxsize=1024)
+def _pass_via_stack(func_t) -> dict[str, bool]:
+    # returns a dict which returns True if a given argument (referred to
+    # by name) should be passed via the stack
+    arguments = {arg.name: arg for arg in func_t.arguments}
+
+    stack_items = 0
+    returns_word = _returns_word(func_t)
+    if returns_word:
+        stack_items += 1
+
+    ret = {}
+
+    for arg in arguments.values():
+        if not _is_word_type(arg.typ) or stack_items > MAX_STACK_ARGS:
+            ret[arg.name] = False
+        else:
+            ret[arg.name] = True
+            stack_items += 1
+
+    return ret
 
 
 def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optional[IROperand]:
+    global _callsites
     setup_ir = ir.args[1]
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
-    ret_args: list[IROperand] = [IRLabel(target_label)]  # type: ignore
+
     func_t = ir.passthrough_metadata["func_t"]
     assert func_t is not None, "func_t not found in passthrough metadata"
+
+    returns_count = _returns_stack_count(func_t)
 
     if setup_ir != goto_ir:
         _convert_ir_bb(fn, setup_ir, symbols)
@@ -172,19 +220,74 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 
     callsite_op = converted_args[-1]
     assert isinstance(callsite_op, IRLabel), converted_args
+    callsite = callsite_op.value
 
     bb = fn.get_basic_block()
-    return_buf = None
-
+    return_buf: Optional[IROperand] = None
+    # If a return buffer pointer is supplied by upstream IR, use it
     if len(converted_args) > 1:
         return_buf = converted_args[0]
 
-    if return_buf is not None:
-        ret_args.append(return_buf)  # type: ignore
+    # For multi-return via stack without a provided buffer, synthesize one
+    if returns_count > 0 and return_buf is None:
+        alloca_ofst = 32 * returns_count
+        return_buf = bb.append_instruction1("alloca", 0, alloca_ofst, get_scratch_alloca_id())
 
-    bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
+    stack_args: list[IROperand] = [IRLabel(str(target_label))]
+
+    if return_buf is not None:
+        if returns_count == 0:
+            stack_args.append(return_buf)
+
+    callsite_args = _callsites[callsite]
+    for alloca in callsite_args:
+        if not _pass_via_stack(func_t)[alloca.name]:
+            continue
+        ptr = _alloca_table[alloca._id]
+        stack_arg = bb.append_instruction("mload", ptr)
+        assert stack_arg is not None
+        stack_args.append(stack_arg)
+
+    if returns_count > 0:
+        outs = bb.append_invoke_instruction(stack_args, returns=returns_count)
+        assert return_buf is not None  # help mypy
+        # copy the output stack args into caller-provided memory (to
+        # be lifted by mem2var later)
+        for i, outv in enumerate(outs):
+            ofst = IRLiteral(32 * i)
+            dst = bb.append_instruction1("add", return_buf, ofst)
+            bb.append_instruction("mstore", outv, dst)
+
+    else:
+        bb.append_invoke_instruction(stack_args, returns=0)
 
     return return_buf
+
+
+_current_func_t = None
+
+
+def _is_word_type(typ):
+    # we can pass it on the stack.
+    return typ.memory_bytes_required == 32
+
+
+# func_t: ContractFunctionT
+def _returns_word(func_t) -> bool:
+    return_t = func_t.return_type
+    return return_t is not None and _is_word_type(return_t)
+
+
+def _returns_stack_count(func_t) -> int:
+    ret_t = func_t.return_type
+    if ret_t is None:
+        return 0
+    if ENABLE_MULTI_RETURNS and is_tuple_like(ret_t):
+        members = ret_t.tuple_items()
+        if 1 <= len(members) <= MAX_STACK_RETURNS and all(_is_word_type(t) for (_k, t) in members):
+            return len(members)
+        return 0
+    return 1 if _is_word_type(ret_t) else 0
 
 
 def _handle_internal_func(
@@ -194,30 +297,76 @@ def _handle_internal_func(
     does_return_data: bool,
     symbols: SymbolTable,
 ) -> IRFunction:
-    global _alloca_table
+    global _alloca_table, _current_func_t
 
-    fn = fn.ctx.create_function(ir.args[0].args[0].value)
+    func_t = ir.passthrough_metadata["func_t"]
+    context = ir.passthrough_metadata["context"]
+    assert func_t is not None, "func_t not found in passthrough metadata"
+    assert context is not None, func_t.name
+
+    _current_func_t = func_t
+
+    funcname = ir.args[0].args[0].value
+    assert isinstance(funcname, str)
+    fn = fn.ctx.create_function(funcname)
 
     bb = fn.get_basic_block()
 
     _saved_alloca_table = _alloca_table
     _alloca_table = {}
 
+    returns_count = _returns_stack_count(func_t)
+
     # return buffer
     if does_return_data:
-        buf = bb.append_instruction("param")
-        bb.instructions[-1].annotation = "return_buffer"
+        if returns_count > 0:
+            # TODO: remove this once we have proper memory allocator
+            # functionality in venom. Currently, we hardcode the scratch
+            # buffer size of up to 32 * MAX_STACK_RETURNS (2) bytes.
+            # TODO: we don't need to use scratch space once the legacy optimizer
+            # is disabled.
+            # allocate scratch return buffer sized to the number of stack-returned words
+            buf = bb.append_instruction("alloca", 0, 32 * returns_count, get_scratch_alloca_id())
+        else:
+            buf = bb.append_instruction("param")
+            bb.instructions[-1].annotation = "return_buffer"
 
         assert buf is not None  # help mypy
         symbols["return_buffer"] = buf
+
+    stack_index = 0
+    if func_t.return_type is not None and _returns_stack_count(func_t) == 0:
+        stack_index += 1
+    for arg in func_t.arguments:
+        if not _pass_via_stack(func_t)[arg.name]:
+            continue
+
+        param = bb.append_instruction("param")
+        bb.instructions[-1].annotation = arg.name
+        assert param is not None  # help mypy
+
+        var = context.lookup_var(arg.name)
+
+        venom_arg = IRParameter(
+            name=var.name,
+            index=stack_index,
+            offset=var.alloca.offset,
+            size=var.alloca.size,
+            id_=var.alloca._id,
+            call_site_var=None,
+            func_var=param,
+            addr_var=None,
+        )
+        fn.args.append(venom_arg)
+        stack_index += 1
 
     # return address
     return_pc = bb.append_instruction("param")
     assert return_pc is not None  # help mypy
     symbols["return_pc"] = return_pc
-
     bb.instructions[-1].annotation = "return_pc"
 
+    # convert the body of the function
     _convert_ir_bb(fn, ir.args[0].args[2], symbols)
 
     _alloca_table = _saved_alloca_table
@@ -282,9 +431,22 @@ def _convert_ir_bb(fn, ir, symbols):
             "return", IRVariable("ret_size"), IRVariable("ret_ofst")
         )
     elif ir.value == "deploy":
-        ctx.ctor_mem_size = ir.args[0].value
-        ctx.immutables_len = ir.args[2].value
-        fn.get_basic_block().append_instruction("exit")
+        ctor_mem_size = ir.args[0].value
+        immutables_len = ir.args[2].value
+        runtime_codesize = symbols["runtime_codesize"].value
+        assert immutables_len == symbols["immutables_len"].value  # sanity
+
+        mem_deploy_start, mem_deploy_end = _runtime_code_offsets(ctor_mem_size, runtime_codesize)
+
+        fn.ctx.add_constant("mem_deploy_end", mem_deploy_end)
+
+        bb = fn.get_basic_block()
+
+        bb.append_instruction(
+            "codecopy", runtime_codesize, IRLabel("runtime_begin"), mem_deploy_start
+        )
+        amount_to_return = bb.append_instruction("add", runtime_codesize, immutables_len)
+        bb.append_instruction("return", amount_to_return, mem_deploy_start)
         return None
     elif ir.value == "seq":
         if len(ir.args) == 0:
@@ -335,7 +497,7 @@ def _convert_ir_bb(fn, ir, symbols):
         fn.append_basic_block(then_block)
         then_ret_val = _convert_ir_bb(fn, ir.args[1], cond_symbols)
         if isinstance(then_ret_val, IRLiteral):
-            then_ret_val = fn.get_basic_block().append_instruction("store", then_ret_val)
+            then_ret_val = fn.get_basic_block().append_instruction("assign", then_ret_val)
 
         then_block_finish = fn.get_basic_block()
 
@@ -347,7 +509,7 @@ def _convert_ir_bb(fn, ir, symbols):
             else_ret_val = _convert_ir_bb(fn, ir.args[2], cond_symbols)
             if isinstance(else_ret_val, IRLiteral):
                 assert isinstance(else_ret_val.value, int)  # help mypy
-                else_ret_val = fn.get_basic_block().append_instruction("store", else_ret_val)
+                else_ret_val = fn.get_basic_block().append_instruction("assign", else_ret_val)
 
         else_block_finish = fn.get_basic_block()
 
@@ -360,8 +522,8 @@ def _convert_ir_bb(fn, ir, symbols):
 
         if_ret = fn.get_next_variable()
         if then_ret_val is not None and else_ret_val is not None:
-            then_block_finish.append_instruction("store", then_ret_val, ret=if_ret)
-            else_block_finish.append_instruction("store", else_ret_val, ret=if_ret)
+            then_block_finish.append_instruction("assign", then_ret_val, ret=if_ret)
+            else_block_finish.append_instruction("assign", else_ret_val, ret=if_ret)
 
         if not else_block_finish.is_terminated:
             else_block_finish.append_instruction("jmp", exit_bb.label)
@@ -374,7 +536,7 @@ def _convert_ir_bb(fn, ir, symbols):
     elif ir.value == "with":
         ret = _convert_ir_bb(fn, ir.args[1], symbols)  # initialization
 
-        ret = fn.get_basic_block().append_instruction("store", ret)
+        ret = fn.get_basic_block().append_instruction("assign", ret)
 
         sym = ir.args[0]
         with_symbols = symbols.copy()
@@ -393,7 +555,7 @@ def _convert_ir_bb(fn, ir, symbols):
     elif ir.value == "set":
         sym = ir.args[0]
         arg_1 = _convert_ir_bb(fn, ir.args[1], symbols)
-        fn.get_basic_block().append_instruction("store", arg_1, ret=symbols[sym.value])
+        fn.get_basic_block().append_instruction("assign", arg_1, ret=symbols[sym.value])
     elif ir.value == "symbol":
         return IRLabel(ir.args[0].value, True)
     elif ir.value == "data":
@@ -431,7 +593,19 @@ def _convert_ir_bb(fn, ir, symbols):
         if label.value == "return_pc":
             label = symbols.get("return_pc")
             # return label should be top of stack
-            bb.append_instruction("ret", label)
+            k = _returns_stack_count(_current_func_t)
+            if k > 0:
+                buf = symbols["return_buffer"]
+                ret_vals: list[IROperand] = []
+                for i in range(k):
+                    ofst = IRLiteral(32 * i)
+                    ptr = bb.append_instruction1("add", buf, ofst)
+                    val = bb.append_instruction1("mload", ptr)
+                    ret_vals.append(val)
+                bb.append_instruction("ret", *ret_vals, label)
+            else:
+                bb.append_instruction("ret", label)
+
         else:
             bb.append_instruction("jmp", label)
 
@@ -439,8 +613,8 @@ def _convert_ir_bb(fn, ir, symbols):
         # some upstream code depends on reversed order of evaluation --
         # to fix upstream.
         val, ptr = _convert_ir_bb_list(fn, reversed(ir.args), symbols)
-
         return fn.get_basic_block().append_instruction("mstore", val, ptr)
+
     elif ir.value == "ceil32":
         x = ir.args[0]
         expanded = IRnode.from_list(["and", ["add", x, 31], ["not", 31]])
@@ -488,7 +662,7 @@ def _convert_ir_bb(fn, ir, symbols):
         bb.append_instruction("jmp", entry_block.label)
         fn.append_basic_block(entry_block)
 
-        counter_var = entry_block.append_instruction("store", start)
+        counter_var = entry_block.append_instruction("assign", start)
         symbols[sym.value] = counter_var
 
         if bound is not None:
@@ -514,7 +688,7 @@ def _convert_ir_bb(fn, ir, symbols):
 
         fn.append_basic_block(incr_block)
         incr_block.insert_instruction(
-            IRInstruction("add", [counter_var, IRLiteral(1)], counter_var)
+            IRInstruction("add", [counter_var, IRLiteral(1)], [counter_var])
         )
         incr_block.append_instruction("jmp", cond_block.label)
 
@@ -551,20 +725,36 @@ def _convert_ir_bb(fn, ir, symbols):
         elif ir.value.startswith("$palloca"):
             alloca = ir.passthrough_metadata["alloca"]
             if alloca._id not in _alloca_table:
-                ptr = fn.get_basic_block().append_instruction(
-                    "palloca", alloca.offset, alloca.size, alloca._id
-                )
-                _alloca_table[alloca._id] = ptr
-            return _alloca_table[alloca._id]
-
-        elif ir.value.startswith("$calloca"):
-            alloca = ir.passthrough_metadata["alloca"]
-            if alloca._id not in _alloca_table:
-                assert alloca._callsite is not None
                 bb = fn.get_basic_block()
-                ptr = bb.append_instruction("calloca", alloca.offset, alloca.size, alloca._id)
+                ptr = bb.append_instruction("palloca", alloca.offset, alloca.size, alloca._id)
+                bb.instructions[-1].annotation = f"{alloca.name} (memory)"
+                if _pass_via_stack(_current_func_t)[alloca.name]:
+                    param = fn.get_param_by_id(alloca._id)
+                    assert param is not None
+                    bb.append_instruction("mstore", param.func_var, ptr)
                 _alloca_table[alloca._id] = ptr
             return _alloca_table[alloca._id]
+        elif ir.value.startswith("$calloca"):
+            global _callsites
+            alloca = ir.passthrough_metadata["alloca"]
+            assert alloca._callsite is not None
+            if alloca._id not in _alloca_table:
+                bb = fn.get_basic_block()
+
+                callsite_func = ir.passthrough_metadata["callsite_func"]
+                if _pass_via_stack(callsite_func)[alloca.name]:
+                    ptr = bb.append_instruction("alloca", alloca.offset, alloca.size, alloca._id)
+                else:
+                    # if we use alloca, mstores might get removed. convert
+                    # to calloca until memory analysis is more sound.
+                    ptr = bb.append_instruction("calloca", alloca.offset, alloca.size, alloca._id)
+
+                _alloca_table[alloca._id] = ptr
+            ret = _alloca_table[alloca._id]
+            # assumption: callocas appear in the same order as the
+            # order of arguments to the function.
+            _callsites[alloca._callsite].append(alloca)
+            return ret
 
         return symbols.get(ir.value)
     elif ir.is_literal:

@@ -12,11 +12,6 @@ class Effects(Flag):
     BALANCE = auto()
     EXTCODE = auto()
 
-    def __iter__(self):
-        # python3.10 doesn't have an iter implementation. we can
-        # remove this once we drop python3.10 support.
-        return (m for m in self.__class__.__members__.values() if m in self)
-
 
 EMPTY = Effects(0)
 ALL = ~EMPTY
@@ -29,7 +24,9 @@ RETURNDATA = Effects.RETURNDATA
 LOG = Effects.LOG
 BALANCE = Effects.BALANCE
 EXTCODE = Effects.EXTCODE
-
+NON_MEMORY_EFFECTS = ~(Effects.MEMORY | Effects.MSIZE)
+NON_STORAGE_EFFECTS = ~Effects.STORAGE
+NON_TRANSIENT_EFFECTS = ~Effects.TRANSIENT
 
 _writes = {
     "sstore": STORAGE,
@@ -74,21 +71,21 @@ _reads = {
     "selfdestruct": BALANCE,  # may modify code, but after the transaction
     "log": MEMORY,
     "revert": MEMORY,
-    "return": MEMORY,
     "sha3": MEMORY,
     "sha3_64": MEMORY,
     "msize": MSIZE,
+    "return": MEMORY,
 }
 
 reads = _reads.copy()
 writes = _writes.copy()
 
 for k, v in reads.items():
-    if MEMORY in v:
+    if MEMORY in v or IMMUTABLES in v:
         if k not in writes:
             writes[k] = EMPTY
         writes[k] |= MSIZE
 
 for k, v in writes.items():
-    if MEMORY in v:
+    if MEMORY in v or IMMUTABLES in v:
         writes[k] |= MSIZE
