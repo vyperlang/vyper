@@ -261,6 +261,44 @@ class CompilerData:
         return generate_venom_runtime(self.global_ctx, self.settings)
 
     @cached_property
+    def assembly_runtime(self) -> list:
+        if self.settings.experimental_codegen:
+            assert self.settings.optimize is not None  # mypy hint
+            return generate_assembly_experimental(
+                self.venom_runtime, optimize=self.settings.optimize
+            )
+        else:
+            return generate_assembly(self.ir_runtime, self.settings.optimize)
+
+    @cached_property
+    def _bytecode_runtime(self) -> tuple[bytes, dict[str, Any]]:
+        return generate_bytecode(self.assembly_runtime)
+
+    @property
+    def bytecode_runtime(self) -> bytes:
+        return self._bytecode_runtime[0]
+
+    @property
+    def source_map_runtime(self) -> dict[str, Any]:
+        return self._bytecode_runtime[1]
+
+    @cached_property
+    def bytecode_metadata(self) -> Optional[bytes]:
+        if self.no_bytecode_metadata:
+            return None
+
+        runtime_asm = self.assembly_runtime
+        runtime_data_segment_lengths = compile_ir.get_data_segment_lengths(runtime_asm)
+
+        immutables_len = self.compilation_target._metadata["type"].immutable_section_bytes
+        runtime_codesize = len(self.bytecode_runtime)
+
+        metadata = bytes.fromhex(self.integrity_sum)
+        return compile_ir.generate_cbor_metadata(
+            metadata, runtime_codesize, runtime_data_segment_lengths, immutables_len
+        )
+
+    @cached_property
     def venom_deploytime(self):
         assert self.settings.experimental_codegen
         from vyper.codegen_venom import generate_venom_deploy
@@ -286,32 +324,6 @@ class CompilerData:
             )
 
     @cached_property
-    def bytecode_metadata(self) -> Optional[bytes]:
-        if self.no_bytecode_metadata:
-            return None
-
-        runtime_asm = self.assembly_runtime
-        runtime_data_segment_lengths = compile_ir.get_data_segment_lengths(runtime_asm)
-
-        immutables_len = self.compilation_target._metadata["type"].immutable_section_bytes
-        runtime_codesize = len(self.bytecode_runtime)
-
-        metadata = bytes.fromhex(self.integrity_sum)
-        return compile_ir.generate_cbor_metadata(
-            metadata, runtime_codesize, runtime_data_segment_lengths, immutables_len
-        )
-
-    @cached_property
-    def assembly_runtime(self) -> list:
-        if self.settings.experimental_codegen:
-            assert self.settings.optimize is not None  # mypy hint
-            return generate_assembly_experimental(
-                self.venom_runtime, optimize=self.settings.optimize
-            )
-        else:
-            return generate_assembly(self.ir_runtime, self.settings.optimize)
-
-    @cached_property
     def _bytecode(self) -> tuple[bytes, dict[str, Any]]:
         return generate_bytecode(self.assembly)
 
@@ -322,18 +334,6 @@ class CompilerData:
     @property
     def source_map(self) -> dict[str, Any]:
         return self._bytecode[1]
-
-    @cached_property
-    def _bytecode_runtime(self) -> tuple[bytes, dict[str, Any]]:
-        return generate_bytecode(self.assembly_runtime)
-
-    @property
-    def bytecode_runtime(self) -> bytes:
-        return self._bytecode_runtime[0]
-
-    @property
-    def source_map_runtime(self) -> dict[str, Any]:
-        return self._bytecode_runtime[1]
 
     @cached_property
     def blueprint_bytecode(self) -> bytes:
