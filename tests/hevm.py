@@ -12,6 +12,7 @@ from vyper.venom import (
     SimplifyCFGPass,
     SingleUseExpansion,
     VenomCompiler,
+    FCGAnalysis,
 )
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRInstruction, IRLiteral
@@ -27,57 +28,70 @@ def _prep_hevm_venom(venom_source_code, verbose=False):
     ctx = parse_from_basic_block(venom_source_code)
     return _prep_hevm_venom_ctx(ctx)
 
-
+num_calldataloads = 0
 def _prep_hevm_venom_ctx(ctx, verbose=False):
+    global num_calldataloads
     num_calldataloads = 0
-    for fn in ctx.functions.values():
-        for bb in fn.get_basic_blocks():
-            for inst in bb.instructions:
-                # transform `source` instructions into "symbolic" values for
-                # hevm via calldataload
-                if inst.opcode == "source":
-                    # hevm limit: 256 bytes of symbolic calldata
-                    assert num_calldataloads < 8
-
-                    inst.opcode = "calldataload"
-                    inst.operands = [IRLiteral(num_calldataloads * 32)]
-                    num_calldataloads += 1
-
-            term = bb.instructions[-1]
-            # test convention, terminate by `sink`ing the variables
-            # you want to check
-            if term.opcode != "sink":
-                continue
-
-            # testing convention: first 256 bytes can be symbolically filled
-            # with calldata
-            RETURN_START = 256
-
-            num_return_values = 0
-            for op in term.operands:
-                ptr = IRLiteral(RETURN_START + num_return_values * 32)
-                new_inst = IRInstruction("mstore", [op, ptr])
-                bb.insert_instruction(new_inst, index=-1)
-                num_return_values += 1
-
-            # return 0, 32 * num_variables
-            term.opcode = "return"
-            term.operands = [IRLiteral(num_return_values * 32), IRLiteral(RETURN_START)]
-
-        ac = IRAnalysesCache(fn)
-
-        # required for venom_to_assembly right now but should be removed
-        SimplifyCFGPass(ac, fn).run_pass()
-
-        # requirements for venom_to_assembly
-        LowerDloadPass(ac, fn).run_pass()
-        ConcretizeMemLocPass(ac, fn).run_pass()
-        SingleUseExpansion(ac, fn).run_pass()
-        CFGNormalization(ac, fn).run_pass()
+    visited = set()
+    _prep_hevm_venom_fn(ctx.entry_function, visited)
 
     compiler = VenomCompiler(ctx)
     asm = compiler.generate_evm_assembly(no_optimize=False)
     return assembly_to_evm(asm)[0].hex()
+
+
+def _prep_hevm_venom_fn(fn, visited):
+    ac = IRAnalysesCache(fn)
+    fcg = ac.force_analysis(FCGAnalysis)
+    if fn in visited:
+        return
+    visited.add(fn)
+    for next_fn in fcg.get_callees(fn):
+        _prep_hevm_venom_fn(next_fn, visited)
+
+    global num_calldataloads
+    for bb in fn.get_basic_blocks():
+        for inst in bb.instructions:
+            # transform `source` instructions into "symbolic" values for
+            # hevm via calldataload
+            if inst.opcode == "source":
+                # hevm limit: 256 bytes of symbolic calldata
+                assert num_calldataloads < 8
+
+                inst.opcode = "calldataload"
+                inst.operands = [IRLiteral(num_calldataloads * 32)]
+                num_calldataloads += 1
+
+        term = bb.instructions[-1]
+        # test convention, terminate by `sink`ing the variables
+        # you want to check
+        if term.opcode != "sink":
+            continue
+
+        # testing convention: first 256 bytes can be symbolically filled
+        # with calldata
+        RETURN_START = 256
+
+        num_return_values = 0
+        for op in term.operands:
+            ptr = IRLiteral(RETURN_START + num_return_values * 32)
+            new_inst = IRInstruction("mstore", [op, ptr])
+            bb.insert_instruction(new_inst, index=-1)
+            num_return_values += 1
+
+        # return 0, 32 * num_variables
+        term.opcode = "return"
+        term.operands = [IRLiteral(num_return_values * 32), IRLiteral(RETURN_START)]
+
+
+    # required for venom_to_assembly right now but should be removed
+    SimplifyCFGPass(ac, fn).run_pass()
+
+    # requirements for venom_to_assembly
+    LowerDloadPass(ac, fn).run_pass()
+    ConcretizeMemLocPass(ac, fn).run_pass()
+    SingleUseExpansion(ac, fn).run_pass()
+    CFGNormalization(ac, fn).run_pass()
 
 
 def hevm_check_venom(pre, post, verbose=False):
