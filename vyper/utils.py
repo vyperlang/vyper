@@ -425,6 +425,8 @@ def evm_pow(x, y):
 
 # memory used for system purposes, not for variables
 class MemoryPositions:
+    # CMC 2025-11-28 these are actually bad names. they should be
+    # RESERVED_SPACE1, RESERVED_SPACE2, and FREE_MEMORY.
     FREE_VAR_SPACE = 0
     FREE_VAR_SPACE2 = 32
     RESERVED_MEMORY = 64

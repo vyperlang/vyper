@@ -3,8 +3,10 @@ from .assign_elimination import AssignElimination
 from .branch_optimization import BranchOptimizationPass
 from .cfg_normalization import CFGNormalization
 from .common_subexpression_elimination import CSE
+from .concretize_mem_loc import ConcretizeMemLocPass
 from .dead_store_elimination import DeadStoreElimination
 from .dft import DFTPass
+from .fix_calloca import FixCalloca
 from .float_allocas import FloatAllocas
 from .function_inliner import FunctionInlinerPass
 from .literals_codesize import ReduceLiteralsCodesize
