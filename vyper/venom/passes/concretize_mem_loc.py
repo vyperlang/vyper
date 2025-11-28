@@ -185,11 +185,10 @@ class MemLiveness:
                     # if the size is not a literal then we do not handle it
                     continue
                 if write_op in live and size.value == write_op.size:
-                    # if the memory is overriden completely
-                    # you dont have to consider the memory location
-                    # before this point live since the value that
-                    # is currently in there will be overriden
-                    # either way
+                    # if the memory segment is overriden completely
+                    # we dont have to consider the memory location
+                    # before this point live, since any values that
+                    # are currently in there will be overriden either way
                     live.remove(write_op.without_offset())
                 if write_op._id in (op._id for op in read_ops):
                     # the instruction reads and writes from the same memory
