@@ -117,7 +117,7 @@ class IRFunction:
         varmap: dict[IRVariable, IRVariable] = defaultdict(self.get_next_variable)
         for bb in self.get_basic_blocks():
             for inst in bb.instructions:
-                if inst.has_outputs():
+                if inst.has_outputs:
                     inst.set_outputs([varmap[o] for o in inst.get_outputs()])
 
                 for i, op in enumerate(inst.operands):

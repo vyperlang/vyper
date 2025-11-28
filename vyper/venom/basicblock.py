@@ -377,6 +377,7 @@ class IRInstruction:
         assert len(self._outputs) == 1, f"expected single output for {self}"
         return self._outputs[0]
 
+    @property
     def has_outputs(self) -> bool:
         """
         Check whether this instruction produces any outputs.
