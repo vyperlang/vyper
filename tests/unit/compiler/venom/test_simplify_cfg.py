@@ -70,40 +70,57 @@ def test_block_merging():
     _check_pre_post(pre, post)
 
 
+
 def test_phi_after_merge_jump():
     pre = """
+    ; this is prelude to get the
+    ; condition that would trigger
+    ; fixing of the phis in the
+    ; _merge_jump method
     main:
         %p = param
+        jnz %p, @a, @b
+    a:
+        mstore %p, %p
+        jmp @start
+    b:
+        mstore %p, %p
+        jmp @start
+    start:
         %cond = iszero %p
+        %1 = 5
         jnz %cond, @then, @else
     then:
-        %1 = 5
-        jmp @then_continue
-    then_continue:
-        jmp @after
+        jmp @after ; this jump will be merged in the start block
     else:
         %2 = 10
         jmp @else_continue
     else_continue:
         jmp @after
     after:
-        %res = phi @else_continue, %2, @then_continue, %1
+        %res = phi @else_continue, %2, @then, %1 ; this phi must be correctly fixed
         sink %res
     """
 
     post = """
     main:
         %p = param
+        jnz %p, @a, @b
+    a:
+        mstore %p, %p
+        jmp @start
+    b:
+        mstore %p, %p
+        jmp @start
+    start:
         %cond = iszero %p
-        jnz %cond, @then, @else
-    then:
         %1 = 5
-        jmp @after
+        jnz %cond, @after, @else
     else:
         %2 = 10
         jmp @after
     after:
-        %res = phi @else, %2, @then, %1
+        %res = phi @else, %2, @start, %1
         sink %res
     """
 
