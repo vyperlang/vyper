@@ -107,7 +107,7 @@ def test_elimination_barrier():
     _check_no_change(pre)
 
 
-@pytest.mark.parametrize("position", [[55, 11], ["{@1,32}", "{@2,32}"]])  # noqa: FS003
+@pytest.mark.parametrize("position", [[55, 11], [55, "{@2,32}"]])  # noqa: FS003
 @pytest.mark.parametrize("addrspace", RW_ADDRESS_SPACES)
 def test_store_load_elimination(addrspace, position: list):
     """
