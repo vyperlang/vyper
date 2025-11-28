@@ -144,7 +144,7 @@ def _ofst(label: Label, value: int) -> list[Any]:
 # with the assembler. My suggestion is to let this be for now, and we can
 # refactor it later when we are finished phasing out the old IR.
 class VenomCompiler:
-    ctxs: list[IRContext]
+    ctx: IRContext
     label_counter = 0
     visited_basicblocks: OrderedSet  # {IRBasicBlock}
     liveness: LivenessAnalysis
@@ -421,11 +421,6 @@ class VenomCompiler:
 
         if opcode in ["jmp", "djmp", "jnz", "invoke"]:
             operands = list(inst.get_non_label_operands())
-
-        elif opcode in ("alloca", "palloca", "calloca"):
-            assert len(inst.operands) == 3, inst
-            offset, _size, _id = inst.operands
-            operands = [offset]
 
         # iload and istore are special cases because they can take a literal
         # that is handled specialy with the _OFST macro. Look below, after the
