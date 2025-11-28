@@ -178,6 +178,7 @@ class IRAbstractMemLoc(IROperand):
     operand representing an offset into an alloca'ed memory segment
     which has not be concretized (allocated) yet.
     """
+
     _id: int
 
     # size of the memory segment
