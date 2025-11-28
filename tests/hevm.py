@@ -8,11 +8,11 @@ from vyper.ir.compile_ir import assembly_to_evm
 from vyper.venom import (
     CFGNormalization,
     ConcretizeMemLocPass,
+    FCGAnalysis,
     LowerDloadPass,
     SimplifyCFGPass,
     SingleUseExpansion,
     VenomCompiler,
-    FCGAnalysis,
 )
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRInstruction, IRLiteral
@@ -28,39 +28,46 @@ def _prep_hevm_venom(venom_source_code, verbose=False):
     ctx = parse_from_basic_block(venom_source_code)
     return _prep_hevm_venom_ctx(ctx)
 
-num_calldataloads = 0
-def _prep_hevm_venom_ctx(ctx, verbose=False):
-    global num_calldataloads
+
+# small class to ensure correct function traversal order and help with
+# allocation
+class _FunctionVisitor:
     num_calldataloads = 0
-    visited = set()
-    _prep_hevm_venom_fn(ctx.entry_function, visited)
+    visited: set
+
+    def __init__(self):
+        self.visited = set()
+
+
+def _prep_hevm_venom_ctx(ctx, verbose=False):
+    visitor = _FunctionVisitor()
+    _prep_hevm_venom_fn(ctx.entry_function, visitor)
 
     compiler = VenomCompiler(ctx)
     asm = compiler.generate_evm_assembly(no_optimize=False)
     return assembly_to_evm(asm)[0].hex()
 
 
-def _prep_hevm_venom_fn(fn, visited):
+def _prep_hevm_venom_fn(fn, visitor):
     ac = IRAnalysesCache(fn)
     fcg = ac.force_analysis(FCGAnalysis)
-    if fn in visited:
+    if fn in visitor.visited:
         return
-    visited.add(fn)
+    visitor.visited.add(fn)
     for next_fn in fcg.get_callees(fn):
-        _prep_hevm_venom_fn(next_fn, visited)
+        _prep_hevm_venom_fn(next_fn, visitor)
 
-    global num_calldataloads
     for bb in fn.get_basic_blocks():
         for inst in bb.instructions:
             # transform `source` instructions into "symbolic" values for
             # hevm via calldataload
             if inst.opcode == "source":
                 # hevm limit: 256 bytes of symbolic calldata
-                assert num_calldataloads < 8
+                assert visitor.num_calldataloads < 8
 
                 inst.opcode = "calldataload"
-                inst.operands = [IRLiteral(num_calldataloads * 32)]
-                num_calldataloads += 1
+                inst.operands = [IRLiteral(visitor.num_calldataloads * 32)]
+                visitor.num_calldataloads += 1
 
         term = bb.instructions[-1]
         # test convention, terminate by `sink`ing the variables
@@ -82,7 +89,6 @@ def _prep_hevm_venom_fn(fn, visited):
         # return 0, 32 * num_variables
         term.opcode = "return"
         term.operands = [IRLiteral(num_return_values * 32), IRLiteral(RETURN_START)]
-
 
     # required for venom_to_assembly right now but should be removed
     SimplifyCFGPass(ac, fn).run_pass()
