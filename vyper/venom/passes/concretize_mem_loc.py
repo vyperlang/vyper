@@ -192,12 +192,8 @@ class MemLiveness:
                     # either way
                     live.remove(write_op.without_offset())
                 if write_op._id in (op._id for op in read_ops):
-                    # this is the case for instruction
-                    # with more then one mem location
-                    # and there could be the case that
-                    # both of them would be same abstract
-                    # memloc you cannot remove it
-                    # so this is just to not allow it
+                    # the instruction reads and writes from the same memory
+                    # location, we cannot remove it from the liveset
                     live.add(write_op.without_offset())
 
         if before != self.liveat[bb.instructions[0]]:
