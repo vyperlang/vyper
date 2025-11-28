@@ -142,10 +142,10 @@ class MemLiveness:
                     self.livesets[mem].add(inst)
 
     def _handle_liveat(self, bb: IRBasicBlock) -> bool:
-        curr: OrderedSet[IRAbstractMemLoc] = OrderedSet()
+        live: OrderedSet[IRAbstractMemLoc] = OrderedSet()
         if len(succs := self.cfg.cfg_out(bb)) > 0:
             for other in (self.liveat[succ.instructions[0]] for succ in succs):
-                curr.update(other)
+                live.update(other)
 
         before = self.liveat[bb.instructions[0]]
 
@@ -157,7 +157,7 @@ class MemLiveness:
 
             for read_op in read_ops:
                 assert isinstance(read_op, IRAbstractMemLoc)
-                curr.add(read_op.without_offset())
+                live.add(read_op.without_offset())
 
             if inst.opcode == "invoke":
                 label = inst.operands[0]
@@ -165,7 +165,7 @@ class MemLiveness:
                 fn = self.function.ctx.get_function(label)
                 # this lets us deallocate internal
                 # function memory after it's dead
-                curr.addmany(self.mem_allocator.mems_used[fn])
+                live.addmany(self.mem_allocator.mems_used[fn])
 
             if inst.opcode in _CALL_OPCODES:
                 for op in inst.operands:
@@ -173,25 +173,24 @@ class MemLiveness:
                         continue
                     # this case is for the memory places that are
                     # inlucluded as parameter as in stack parameters
-                    curr.add(op.without_offset())
+                    live.add(op.without_offset())
 
-            self.liveat[inst] = curr.copy()
+            self.liveat[inst] = live.copy()
 
             for write_op in write_ops:
                 assert isinstance(write_op, IRAbstractMemLoc)
                 size = get_write_size(inst)
                 assert size is not None
                 if not isinstance(size, IRLiteral):
-                    # if it is literal then
-                    # we do not handle it
+                    # if the size is not a literal then we do not handle it
                     continue
-                if write_op in curr and size.value == write_op.size:
-                    # if the memory is overriden completelly
+                if write_op in live and size.value == write_op.size:
+                    # if the memory is overriden completely
                     # you dont have to consider the memory location
                     # before this point live since the value that
                     # is currently in there will be overriden
                     # either way
-                    curr.remove(write_op.without_offset())
+                    live.remove(write_op.without_offset())
                 if write_op._id in (op._id for op in read_ops):
                     # this is the case for instruction
                     # with more then one mem location
@@ -199,7 +198,7 @@ class MemLiveness:
                     # both of them would be same abstract
                     # memloc you cannot remove it
                     # so this is just to not allow it
-                    curr.add(write_op.without_offset())
+                    live.add(write_op.without_offset())
 
         if before != self.liveat[bb.instructions[0]]:
             return True
