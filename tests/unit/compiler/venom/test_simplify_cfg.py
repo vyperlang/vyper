@@ -70,7 +70,6 @@ def test_block_merging():
     _check_pre_post(pre, post)
 
 
-
 def test_phi_after_merge_jump():
     pre = """
     ; this is prelude to get the
