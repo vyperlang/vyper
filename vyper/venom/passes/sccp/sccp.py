@@ -193,7 +193,6 @@ class SCCP(IRPass):
             self._set_lattice(inst.output, out)
             self._add_ssa_work_items(inst)
         elif opcode == "gep":
-            assert inst.output is not None, inst
             mem = self._eval_from_lattice(inst.operands[0])
             offset = self._eval_from_lattice(inst.operands[1])
             if not isinstance(mem, IRAbstractMemLoc) or not isinstance(offset, IRLiteral):

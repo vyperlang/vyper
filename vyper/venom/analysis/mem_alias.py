@@ -29,7 +29,6 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
                 if inst.opcode != "gep":
                     continue
                 base_ptr = self._find_base_ptr(inst)
-                assert inst.output is not None
                 self.var_base_pointers[inst.output] = base_ptr
 
         # Analyze all memory operations

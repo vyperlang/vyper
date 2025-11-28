@@ -21,7 +21,6 @@ class FixCalloca(IRGlobalPass):
                 if inst.opcode != "calloca":
                     continue
 
-                assert inst.output is not None
                 assert len(inst.operands) == 3
                 size, _id, callsite = inst.operands
                 assert isinstance(callsite, IRLabel)
@@ -38,7 +37,6 @@ class FixCalloca(IRGlobalPass):
                 inst.operands = [memloc, _id]
 
     def _removed_unused_calloca(self, inst: IRInstruction):
-        assert inst.output is not None
         to_remove = set()
         worklist: deque = deque()
         worklist.append(inst)
