@@ -27,10 +27,10 @@ class ConcretizeMemLocPass(IRPass):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
-        self.allocator.start_fn_allocation(self.function)
-
         self.mem_liveness = MemLiveness(self.function, self.cfg, self.dfg, self.allocator)
         self.mem_liveness.analyze()
+
+        self.allocator.start_fn_allocation(self.function)
 
         livesets = list(self.mem_liveness.livesets.items())
         already_allocated = [item for item in livesets if item[0]._id in self.allocator.allocated]
@@ -77,17 +77,26 @@ class ConcretizeMemLocPass(IRPass):
                 inst.opcode = "assign"
 
     def _handle_op(self, op: IROperand, inst: IRInstruction) -> IROperand:
-        if isinstance(op, IRAbstractMemLoc) and op._id in self.allocator.allocated:
-            return IRLiteral(self.allocator.allocated[op._id][0] + op.offset)
-        elif isinstance(op, IRAbstractMemLoc):
-            # the invariant that all should be already allocated
-            # only holds if all the dead stores are eliminated
-            # but that does not seems like is a case so far
-            # so this is allocating the memory after all other mem
-            # if this case occurs
-            return IRLiteral(self.allocator.allocate(op) + op.offset)
-        else:
+        """
+        rewrite IRAbstractMemLocs to IRLiterals
+        """
+        if not isinstance(op, IRAbstractMemLoc):
             return op
+
+        # common case, allocator already allocated
+        if op._id in self.allocator.allocated:
+            return IRLiteral(self.allocator.allocated[op._id][0] + op.offset)
+
+        else:
+            # unallocated AbstractMemLoc, we need to allocate it.
+            #
+            # the invariant that all abstract mem locs should be already
+            # allocated by this stage (due to how livesets are calculated)
+            # only holds if all the dead stores are eliminated.
+            # however, this doesn't always seem to be the case, so we allocate
+            # these memory locations now.
+            return IRLiteral(self.allocator.allocate(op) + op.offset)
+
 
 
 # with there opcodes we do not have whole knowledge of memory location usage
