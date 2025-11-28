@@ -98,11 +98,6 @@ class ConcretizeMemLocPass(IRPass):
             return IRLiteral(self.allocator.allocate(op) + op.offset)
 
 
-
-# with there opcodes we do not have whole knowledge of memory location usage
-_CALL_OPCODES = frozenset(["invoke", "staticcall", "call", "delegatecall"])
-
-
 class MemLiveness:
     function: IRFunction
     cfg: CFGAnalysis
@@ -176,13 +171,11 @@ class MemLiveness:
                 # function memory after it's dead
                 live.addmany(self.mem_allocator.mems_used[fn])
 
-            if inst.opcode in _CALL_OPCODES:
                 for op in inst.operands:
-                    if not isinstance(op, IRAbstractMemLoc):
-                        continue
-                    # this case is for the memory places that are
-                    # inlucluded as parameter as in stack parameters
-                    live.add(op.without_offset())
+                    if isinstance(op, IRAbstractMemLoc):
+                        # this case is for any buffers which are
+                        # passed to invoke as a stack parameter.
+                        live.add(op.without_offset())
 
             self.liveat[inst] = live.copy()
 
