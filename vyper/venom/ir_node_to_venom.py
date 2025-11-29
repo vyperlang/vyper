@@ -9,7 +9,6 @@ from vyper.codegen.context import Alloca
 from vyper.codegen.core import is_tuple_like
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
-from vyper.ir.compile_ir import _runtime_code_offsets
 from vyper.venom.basicblock import (
     IRAbstractMemLoc,
     IRBasicBlock,
@@ -75,8 +74,6 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "gasprice",
         "gaslimit",
         "returndatasize",
-        "iload",
-        "istore",
         "mload",
         "dload",
         "dloadbytes",
@@ -145,6 +142,17 @@ def ir_node_to_venom(ir: IRnode, symbols: Optional[dict] = None) -> IRContext:
     ctx.entry_function = fn
 
     symbols = symbols or {}
+
+    # For deploy contexts, create the deploy_mem IRAbstractMemLoc upfront
+    # so it's available when we encounter iload/istore instructions
+    # (which come before the deploy instruction in the IR)
+    if "runtime_codesize" in symbols and "immutables_len" in symbols:
+        runtime_codesize = symbols["runtime_codesize"].value
+        immutables_len = symbols["immutables_len"].value
+        deploy_size = runtime_codesize + immutables_len
+        ctx.deploy_mem = IRAbstractMemLoc(deploy_size)
+        ctx.runtime_codesize = runtime_codesize
+
     _convert_ir_bb(fn, ir, symbols)
 
     for fn in ctx.functions.values():
@@ -426,23 +434,60 @@ def _convert_ir_bb(fn, ir, symbols):
             "return", IRVariable("ret_size"), IRVariable("ret_ofst")
         )
     elif ir.value == "deploy":
-        ctor_mem_size = ir.args[0].value
         immutables_len = ir.args[2].value
         runtime_codesize = symbols["runtime_codesize"].value
         assert immutables_len == symbols["immutables_len"].value  # sanity
 
-        mem_deploy_start, mem_deploy_end = _runtime_code_offsets(ctor_mem_size, runtime_codesize)
-
-        fn.ctx.add_constant("mem_deploy_end", mem_deploy_end)
+        # deploy_mem was created at the start of ir_node_to_venom
+        deploy_mem = ctx.deploy_mem
+        assert deploy_mem is not None, "deploy without deploy_mem context"
+        deploy_size = runtime_codesize + immutables_len
 
         bb = fn.get_basic_block()
 
-        bb.append_instruction(
-            "codecopy", runtime_codesize, IRLabel("runtime_begin"), mem_deploy_start
-        )
-        amount_to_return = bb.append_instruction("add", runtime_codesize, immutables_len)
-        bb.append_instruction("return", amount_to_return, mem_deploy_start)
+        # codecopy runtime code to deploy_mem base
+        bb.append_instruction("codecopy", runtime_codesize, IRLabel("runtime_begin"), deploy_mem)
+        # return runtime_codesize + immutables_len bytes starting at deploy_mem
+        bb.append_instruction("return", deploy_size, deploy_mem)
         return None
+    elif ir.value == "istore":
+        # istore offset, value -> mstore value, deploy_mem + runtime_codesize + offset
+        offset = _convert_ir_bb(fn, ir.args[0], symbols)
+        value = _convert_ir_bb(fn, ir.args[1], symbols)
+        runtime_codesize = ctx.runtime_codesize
+
+        bb = fn.get_basic_block()
+        deploy_mem = ctx.deploy_mem
+        assert deploy_mem is not None, "istore without deploy context"
+
+        if isinstance(offset, IRLiteral):
+            # Static offset - use IRAbstractMemLoc with offset
+            mem_loc = deploy_mem.with_offset(runtime_codesize + offset.value)
+            bb.append_instruction("mstore", value, mem_loc)
+        else:
+            # Dynamic offset - compute address at runtime
+            imm_base = deploy_mem.with_offset(runtime_codesize)
+            addr = bb.append_instruction("add", offset, imm_base)
+            bb.append_instruction("mstore", value, addr)
+        return None
+    elif ir.value == "iload":
+        # iload offset -> mload deploy_mem + runtime_codesize + offset
+        offset = _convert_ir_bb(fn, ir.args[0], symbols)
+        runtime_codesize = ctx.runtime_codesize
+
+        bb = fn.get_basic_block()
+        deploy_mem = ctx.deploy_mem
+        assert deploy_mem is not None, "iload without deploy context"
+
+        if isinstance(offset, IRLiteral):
+            # Static offset - use IRAbstractMemLoc with offset
+            mem_loc = deploy_mem.with_offset(runtime_codesize + offset.value)
+            return bb.append_instruction("mload", mem_loc)
+        else:
+            # Dynamic offset - compute address at runtime
+            imm_base = deploy_mem.with_offset(runtime_codesize)
+            addr = bb.append_instruction("add", offset, imm_base)
+            return bb.append_instruction("mload", addr)
     elif ir.value == "seq":
         if len(ir.args) == 0:
             return None
