@@ -2,7 +2,7 @@ import textwrap
 from dataclasses import dataclass, field
 from typing import Iterator, Optional
 
-from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
+from vyper.venom.basicblock import IRAbstractMemLoc, IRBasicBlock, IRLabel, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.memory_allocator import MemoryAllocator
 
@@ -39,6 +39,10 @@ class IRContext:
     last_label: int
     last_variable: int
     mem_allocator: MemoryAllocator
+    # Memory location for deploy region (runtime code + immutables)
+    # Only set for deploy contexts
+    deploy_mem: Optional[IRAbstractMemLoc]
+    runtime_codesize: int
 
     def __init__(self) -> None:
         self.functions = {}
@@ -49,6 +53,8 @@ class IRContext:
         self.last_label = 0
         self.last_variable = 0
         self.mem_allocator = MemoryAllocator()
+        self.deploy_mem = None
+        self.runtime_codesize = 0
 
     def get_basic_blocks(self) -> Iterator[IRBasicBlock]:
         for fn in self.functions.values():
