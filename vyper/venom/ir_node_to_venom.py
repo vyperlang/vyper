@@ -20,6 +20,7 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction, IRParameter
+from vyper.venom.memory_allocator import MemoryAllocator
 
 # Experimental: allow returning multiple 32-byte values via the stack
 ENABLE_MULTI_RETURNS = True
@@ -143,7 +144,9 @@ def _find_ctor_mem_size(ir: IRnode) -> Optional[int]:
 
 
 # convert IRnode directly to venom
-def ir_node_to_venom(ir: IRnode, symbols: Optional[dict] = None) -> IRContext:
+def ir_node_to_venom(
+    ir: IRnode, symbols: Optional[dict] = None, ctor_mem_override: Optional[int] = None
+) -> IRContext:
     _ = ir.unique_symbols  # run unique symbols check
 
     global _alloca_table, _callsites
@@ -162,14 +165,18 @@ def ir_node_to_venom(ir: IRnode, symbols: Optional[dict] = None) -> IRContext:
     if "runtime_codesize" in symbols and "immutables_len" in symbols:
         runtime_codesize = symbols["runtime_codesize"].value
         immutables_len = symbols["immutables_len"].value
-        ctor_mem_size_ir = _find_ctor_mem_size(ir) or 0
+        if ctor_mem_override is not None:
+            ctor_mem_size_ir = ctor_mem_override
+        else:
+            ctor_mem_size_ir = _find_ctor_mem_size(ir) or 0
 
         # ctor_mem_size_ir is an upper bound before venom optimizations; we’ll
         # refine it after fn passes run using the allocator watermark.
-        runtime_code_end = max(ctor_mem_size_ir, runtime_codesize)
-        runtime_code_start = runtime_code_end - runtime_codesize
+        ctor_high = max(ctor_mem_size_ir, MemoryAllocator.FN_START)
+        runtime_code_start = max(ctor_high, MemoryAllocator.FN_START)
+        runtime_code_end = runtime_code_start + runtime_codesize
 
-        deploy_size = runtime_code_end + immutables_len
+        deploy_size = runtime_codesize + immutables_len
         ctx.deploy_mem = IRAbstractMemLoc(deploy_size)
         ctx.runtime_codesize = runtime_codesize
         ctx.runtime_code_start = runtime_code_start
@@ -180,11 +187,6 @@ def ir_node_to_venom(ir: IRnode, symbols: Optional[dict] = None) -> IRContext:
     for fn in ctx.functions.values():
         for bb in fn.get_basic_blocks():
             bb.ensure_well_formed()
-
-    # Update ctor watermark based on actual venom allocation
-    if ctx.entry_function is not None and ctx.ctor_mem_watermark:
-        peak = ctx.mem_allocator.eom
-        ctx.ctor_mem_watermark = max(ctx.ctor_mem_watermark, peak)
 
     return ctx
 
@@ -461,7 +463,6 @@ def _convert_ir_bb(fn, ir, symbols):
             "return", IRVariable("ret_size"), IRVariable("ret_ofst")
         )
     elif ir.value == "deploy":
-        ctor_mem_size = max(ir.args[0].value, ctx.ctor_mem_watermark)
         immutables_len = ir.args[2].value
         runtime_codesize = symbols["runtime_codesize"].value
         assert immutables_len == symbols["immutables_len"].value  # sanity
@@ -469,9 +470,9 @@ def _convert_ir_bb(fn, ir, symbols):
         # deploy_mem was created at the start of ir_node_to_venom
         deploy_mem = ctx.deploy_mem
         assert deploy_mem is not None, "deploy without deploy_mem context"
-        runtime_code_end = max(ctor_mem_size, runtime_codesize)
-        runtime_code_start = runtime_code_end - runtime_codesize
-        deploy_size = runtime_code_end + immutables_len
+        runtime_code_start = ctx.runtime_code_start
+        runtime_code_end = runtime_code_start + runtime_codesize
+        deploy_size = runtime_codesize + immutables_len
         ctx.runtime_code_start = runtime_code_start
 
         bb = fn.get_basic_block()
