@@ -130,19 +130,6 @@ def get_scratch_alloca_id() -> int:
     return _scratch_alloca_id
 
 
-def _find_ctor_mem_size(ir: IRnode) -> Optional[int]:
-    if ir.value == "deploy":
-        return ir.args[0].value
-
-    for arg in ir.args:
-        if isinstance(arg, IRnode):
-            ret = _find_ctor_mem_size(arg)
-            if ret is not None:
-                return ret
-
-    return None
-
-
 # convert IRnode directly to venom
 def ir_node_to_venom(
     ir: IRnode, symbols: Optional[dict] = None, ctor_mem_override: Optional[int] = None
@@ -168,7 +155,8 @@ def ir_node_to_venom(
         if ctor_mem_override is not None:
             ctor_mem_size_ir = ctor_mem_override
         else:
-            ctor_mem_size_ir = _find_ctor_mem_size(ir) or 0
+            # seed with allocator baseline, rebuilt later with ctor peak
+            ctor_mem_size_ir = MemoryAllocator.FN_START
 
         # ctor_mem_size_ir is an upper bound before venom optimizations; we’ll
         # refine it after fn passes run using the allocator watermark.
