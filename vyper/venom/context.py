@@ -43,6 +43,8 @@ class IRContext:
     # Only set for deploy contexts
     deploy_mem: Optional[IRAbstractMemLoc]
     runtime_codesize: int
+    runtime_code_start: int
+    ctor_mem_watermark: int
 
     def __init__(self) -> None:
         self.functions = {}
@@ -55,6 +57,8 @@ class IRContext:
         self.mem_allocator = MemoryAllocator()
         self.deploy_mem = None
         self.runtime_codesize = 0
+        self.runtime_code_start = 0
+        self.ctor_mem_watermark = 0
 
     def get_basic_blocks(self) -> Iterator[IRBasicBlock]:
         for fn in self.functions.values():
