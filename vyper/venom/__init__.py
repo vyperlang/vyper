@@ -181,30 +181,51 @@ def generate_venom(
     constants: dict[str, int] = None,
     data_sections: dict[str, bytes] = None,
 ) -> IRContext:
-    # Convert "old" IR to "new" IR
     constants = constants or {}
-    starting_symbols = {k: IRLiteral(v) for k, v in constants.items()}
-    ctx = ir_node_to_venom(ir, starting_symbols)
-
-    # these mem location are used as magic values inside
-    # the compiler, they are globally shared slots so we allocate
-    # them here, in a context-global way.
-    ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR1)
-    ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR2)
-
-    for fn in ctx.functions.values():
-        fix_mem_loc(fn)
-
     data_sections = data_sections or {}
-    for section_name, data in data_sections.items():
-        ctx.append_data_section(IRLabel(section_name))
-        ctx.append_data_item(data)
+    starting_symbols = {k: IRLiteral(v) for k, v in constants.items()}
 
-    for constname, value in constants.items():
-        ctx.add_constant(constname, value)
+    def _build_ctx(ctor_override: int | None) -> IRContext:
+        ctx = ir_node_to_venom(ir, starting_symbols, ctor_mem_override=ctor_override)
 
-    optimize = settings.optimize
-    assert optimize is not None  # help mypy
-    run_passes_on(ctx, optimize)
+        ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR1)
+        ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR2)
 
-    return ctx
+        # Pin deploy_mem at offset 0 so it doesn't inflate ctor allocations;
+        # offsets for codecopy/iload/istore are absolute via runtime_code_start.
+        if ctx.deploy_mem is not None:
+            old_eom = ctx.mem_allocator.eom
+            ctx.mem_allocator.allocate_fixed_at(ctx.deploy_mem, 0)
+            ctx.mem_allocator.eom = old_eom
+
+        for fn in ctx.functions.values():
+            fix_mem_loc(fn)
+
+        for section_name, data in data_sections.items():
+            ctx.append_data_section(IRLabel(section_name))
+            ctx.append_data_item(data)
+
+        for constname, value in constants.items():
+            ctx.add_constant(constname, value)
+
+        optimize = settings.optimize
+        assert optimize is not None  # help mypy
+        run_passes_on(ctx, optimize)
+        return ctx
+
+    # For deploy contexts, do a two-pass build: first to measure peak venom ctor
+    # memory (excluding the deploy region), then rebuild with that watermark.
+    if "runtime_codesize" in constants and "immutables_len" in constants:
+        first_ctx = _build_ctx(None)
+        peak = 0
+        skip_ids = {IRAbstractMemLoc.FREE_VAR1._id, IRAbstractMemLoc.FREE_VAR2._id}
+        if first_ctx.deploy_mem is not None:
+            skip_ids.add(first_ctx.deploy_mem._id)
+        for mem_id, (ptr, size) in first_ctx.mem_allocator.allocated.items():
+            if mem_id in skip_ids:
+                continue
+            peak = max(peak, ptr + size)
+
+        return _build_ctx(peak)
+
+    return _build_ctx(None)
