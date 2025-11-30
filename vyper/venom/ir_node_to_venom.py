@@ -162,13 +162,11 @@ def ir_node_to_venom(
         # refine it after fn passes run using the allocator watermark.
         ctor_high = max(ctor_mem_size_ir, MemoryAllocator.FN_START)
         runtime_code_start = max(ctor_high, MemoryAllocator.FN_START)
-        runtime_code_end = runtime_code_start + runtime_codesize
 
         deploy_size = runtime_codesize + immutables_len
         ctx.deploy_mem = IRAbstractMemLoc(deploy_size)
         ctx.runtime_codesize = runtime_codesize
         ctx.runtime_code_start = runtime_code_start
-        ctx.ctor_mem_watermark = ctor_mem_size_ir
 
     _convert_ir_bb(fn, ir, symbols)
 
@@ -459,7 +457,6 @@ def _convert_ir_bb(fn, ir, symbols):
         deploy_mem = ctx.deploy_mem
         assert deploy_mem is not None, "deploy without deploy_mem context"
         runtime_code_start = ctx.runtime_code_start
-        runtime_code_end = runtime_code_start + runtime_codesize
         deploy_size = runtime_codesize + immutables_len
         ctx.runtime_code_start = runtime_code_start
 
