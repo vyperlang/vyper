@@ -684,6 +684,22 @@ def test_call_does_not_overwrite_previous_stores():
 
     _check_no_change(pre)
 
+def test_staticcall_does_not_overwrite_previous_stores():
+    pre = """
+        _global:
+            mstore 64, 42
+
+            mstore 32, 24
+
+            %success = staticcall 1000, 0x12, 0, 32, 64, 32
+
+            %result = mload 64
+
+            return %result, 32
+    """
+
+    _check_no_change(pre)
+
 
 def test_calldatacopy_example():
     pre = """
