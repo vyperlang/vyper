@@ -18,29 +18,38 @@ class MemoryLocation:
 
     @classmethod
     def from_operands(
-        cls, offset: IROperand | int, size: Optional[IROperand | int], var_base_pointers: dict
+        cls,
+        offset: IROperand | int,
+        size: Optional[IROperand | int],
+        var_base_pointers: dict,
+        *,
+        upper_size: Optional[IROperand | int] = None,
     ) -> MemoryLocation:
-        if isinstance(size, IRLiteral):
-            _size = size.value
-        elif isinstance(size, IRVariable) or size is None:
-            _size = None
-        elif isinstance(size, int):
-            _size = size
-        else:  # pragma: nocover
-            raise CompilerPanic(f"invalid size: {size} ({type(size)})")
+        def _concretize(sz: Optional[IROperand | int]) -> Optional[int]:
+            if isinstance(sz, IRLiteral):
+                return sz.value
+            elif isinstance(sz, IRVariable) or sz is None:
+                return None
+            elif isinstance(sz, int):
+                return sz
+            else:  # pragma: nocover
+                raise CompilerPanic(f"invalid size: {sz} ({type(sz)})")
+
+        _size = _concretize(size)
+        _upper_size = _concretize(upper_size if upper_size is not None else size)
 
         if isinstance(offset, IRLiteral):
-            return MemoryLocationSegment(offset.value, size=_size)
+            return MemoryLocationSegment(offset.value, size=_size, max_size=_upper_size)
         elif isinstance(offset, IRVariable):
             op = var_base_pointers.get(offset, None)
             if op is None:
-                return MemoryLocationSegment(offset=None, size=_size)
+                return MemoryLocationSegment(offset=None, size=_size, max_size=_upper_size)
             else:
-                segment = MemoryLocationSegment(offset=None, size=_size)
+                segment = MemoryLocationSegment(offset=None, size=_size, max_size=_upper_size)
                 return MemoryLocationAbstract(op=op, segment=segment)
         elif isinstance(offset, IRAbstractMemLoc):
             op = offset
-            segment = MemoryLocationSegment(offset=op.offset, size=_size)
+            segment = MemoryLocationSegment(offset=op.offset, size=_size, max_size=_upper_size)
             return MemoryLocationAbstract(op=op, segment=segment)
         else:  # pragma: nocover
             raise CompilerPanic(f"invalid offset: {offset} ({type(offset)})")
@@ -143,11 +152,19 @@ class MemoryLocationSegment(MemoryLocation):
 
     offset: Optional[int] = None
     size: Optional[int] = None
+    max_size: Optional[int] = None
     _is_volatile: bool = False
     # Locations that should be considered volatile. Example usages of this would
     # be locations that are accessed outside of the current function.
 
+    def __post_init__(self):
+        # If caller didn't specify an upper bound, treat exact size as the bound.
+        if self.max_size is None and self.size is not None:
+            object.__setattr__(self, "max_size", self.size)
+
     def is_empty(self):
+        if self.size is None:
+            return self.max_size == 0
         return self.size == 0
 
     @property
@@ -199,8 +216,8 @@ class MemoryLocationSegment(MemoryLocation):
         """
         Determine if two memory locations may overlap
         """
-        o1, s1 = loc1.offset, loc1.size
-        o2, s2 = loc2.offset, loc2.size
+        o1, s1 = loc1.offset, loc1.max_size
+        o2, s2 = loc2.offset, loc2.max_size
 
         # If either size is zero, no alias
         if s1 == 0 or s2 == 0:
@@ -279,13 +296,13 @@ def _get_memory_write_location(inst, var_base_pointers: dict) -> MemoryLocation:
     elif opcode == "invoke":
         return MemoryLocation.UNDEFINED
     elif opcode == "call":
-        _size, dst, _, _, _, _, _ = inst.operands
+        out_size, dst, _, _, _, _, _ = inst.operands
         # size is indeterminate for *call opcodes
-        return MemoryLocation.from_operands(dst, None, var_base_pointers)
+        return MemoryLocation.from_operands(dst, None, var_base_pointers, upper_size=out_size)
     elif opcode in ("delegatecall", "staticcall"):
-        _size, dst, _, _, _, _ = inst.operands
+        out_size, dst, _, _, _, _ = inst.operands
         # size is indeterminate for *call opcodes
-        return MemoryLocation.from_operands(dst, None, var_base_pointers)
+        return MemoryLocation.from_operands(dst, None, var_base_pointers, upper_size=out_size)
     elif opcode == "extcodecopy":
         size, _, dst, _ = inst.operands
         return MemoryLocation.from_operands(dst, size, var_base_pointers)
