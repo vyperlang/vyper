@@ -355,13 +355,19 @@ class VenomCompiler:
 
         all_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
 
+        # Check if this block ends with a halting terminator (return, revert, stop)
+        # If so, we don't need to pop dead variables since execution halts anyway
+        is_halting_block = basicblock.is_halting
+
         for i, inst in enumerate(all_insts):
             if i + 1 < len(all_insts):
                 next_liveness = self.liveness.live_vars_at(all_insts[i + 1])
             else:
                 next_liveness = self.liveness.out_vars(basicblock)
 
-            asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
+            asm.extend(
+                self._generate_evm_for_instruction(inst, stack, next_liveness, is_halting_block)
+            )
 
         if DEBUG_SHOW_COST:
             print(" ".join(map(str, asm)), file=sys.stderr)
@@ -395,7 +401,11 @@ class VenomCompiler:
         self.popmany(asm, to_pop, stack)
 
     def _generate_evm_for_instruction(
-        self, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet
+        self,
+        inst: IRInstruction,
+        stack: StackModel,
+        next_liveness: OrderedSet,
+        skip_pops: bool = False,
     ) -> list[str]:
         assembly: list[AssemblyInstruction] = []
         opcode = inst.opcode
@@ -605,8 +615,10 @@ class VenomCompiler:
         if len(outputs) == 0:
             return apply_line_numbers(inst, assembly)
 
-        dead_outputs = [out for out in outputs if out not in next_liveness]
-        self.popmany(assembly, dead_outputs, stack)
+        # Skip popping dead outputs if we're in a halting block (return/revert/stop)
+        if not skip_pops:
+            dead_outputs = [out for out in outputs if out not in next_liveness]
+            self.popmany(assembly, dead_outputs, stack)
 
         live_outputs = [out for out in outputs if out in next_liveness]
         if len(live_outputs) == 0:
