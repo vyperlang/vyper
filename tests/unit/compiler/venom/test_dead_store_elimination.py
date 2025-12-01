@@ -658,10 +658,11 @@ def test_call_with_memory_and_other_effects():
 def test_call_overwrites_previous_stores():
     pre = """
         _global:
-            ; Store at the location that will be overwritten
-            ; by call and never read before overwriting
-            mstore 64, 42  ; This should be eliminated due to
-                           ; call overwriting it before any read
+            ; Store at the location uses same memory
+            ; as call and never read before call
+            mstore 64, 42  ; This however cannot be overiden
+                           ; since we dont know how much memory
+                           ; it will actually use
 
             ; Store value needed for call
             mstore 32, 24  ; This should remain as it's used by call
@@ -677,25 +678,7 @@ def test_call_overwrites_previous_stores():
             return %result, 32
     """
 
-    post = """
-        _global:
-            ; Store at the location that will be overwritten
-            ; by call and never read before overwriting
-            nop
-
-            ; Store value needed for call
-            mstore 32, 24  ; This should remain as it's used by call
-
-            ; Call has both memory read (32) and write (64) effects
-            %success = call 1000, 0x12, 0, 32, 32, 64, 32
-
-            ; Read the call result from memory (at the location
-            ; where val1 was stored but got overwritten)
-            %result = mload 64
-
-            return %result, 32
-    """
-    _check_pre_post(pre, post, hevm=False)
+    _check_no_change(pre)
 
 
 def test_calldatacopy_example():
