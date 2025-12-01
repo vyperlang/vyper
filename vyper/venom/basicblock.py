@@ -16,6 +16,9 @@ if TYPE_CHECKING:
 # instructions which can terminate a basic block
 BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "sink"])
 
+# Terminators that halt execution - no need to clean up stack before these
+_HALTING_TERMINATORS = frozenset(["return", "revert", "stop"])
+
 VOLATILE_INSTRUCTIONS = frozenset(
     [
         "param",
@@ -759,6 +762,15 @@ class IRBasicBlock:
         if len(self.instructions) == 0:
             return False
         return self.instructions[-1].is_bb_terminator
+
+    @property
+    def is_halting(self) -> bool:
+        """
+        Check if the basic block is halting
+        """
+        if len(self.instructions) == 0:
+            return False
+        return self.instructions[-1].opcode in _HALTING_TERMINATORS
 
     def copy(self) -> IRBasicBlock:
         bb = IRBasicBlock(self.label, self.parent)

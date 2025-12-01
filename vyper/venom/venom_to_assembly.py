@@ -111,9 +111,6 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
 
 _REVERT_POSTAMBLE = [Label("revert"), *PUSH(0), "DUP1", "REVERT"]
 
-# Terminators that halt execution - no need to clean up stack before these
-_HALTING_TERMINATORS = frozenset(["return", "revert", "stop"])
-
 
 def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
     ret = []
@@ -360,7 +357,7 @@ class VenomCompiler:
 
         # Check if this block ends with a halting terminator (return, revert, stop)
         # If so, we don't need to pop dead variables since execution halts anyway
-        is_halting_block = all_insts[-1].opcode in _HALTING_TERMINATORS
+        is_halting_block = basicblock.is_halting
 
         for i, inst in enumerate(all_insts):
             if i + 1 < len(all_insts):
