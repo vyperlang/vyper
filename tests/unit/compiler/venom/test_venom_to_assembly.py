@@ -44,7 +44,14 @@ def test_invoke_middle_output_unused():
     function main {
     main:
         %a, %b, %c = invoke @callee
-        return %a, %c
+        mstore %a, %c
+        jnz %a, @end1, @end2
+
+    end1:
+        stop
+
+    end2:
+        stop
     }
 
     function callee {
@@ -59,12 +66,10 @@ def test_invoke_middle_output_unused():
     ctx = parse_venom(code)
     asm = VenomCompiler(ctx).generate_evm_assembly()
 
-    assert "POP" in asm, f"expected POP to remove dead output, got {asm}"
+    assert "POP" in asm, asm
+    assert asm.count("POP") == 1, asm
     pop_idx = asm.index("POP")
     assert pop_idx > 0 and asm[pop_idx - 1] == "SWAP1", asm
-    assert "RETURN" in asm, asm
-    return_idx = asm.index("RETURN")
-    assert return_idx > pop_idx and asm[return_idx - 1] == "SWAP1", asm
 
 
 def test_popmany_bulk_removal_of_suffix():
