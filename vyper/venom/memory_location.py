@@ -18,7 +18,7 @@ class MemoryLocation:
 
     @classmethod
     def from_operands(
-        cls, offset: IROperand | int, size: IROperand | int, var_base_pointers: dict
+        cls, offset: IROperand | int, size: Optional[IROperand | int], var_base_pointers: dict
     ) -> MemoryLocation:
         if isinstance(size, IRLiteral):
             _size = size.value
