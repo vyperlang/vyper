@@ -655,14 +655,18 @@ def test_call_with_memory_and_other_effects():
     _check_pre_post(pre, post, hevm=False)
 
 
-def test_call_overwrites_previous_stores():
+def test_call_does_not_overwrite_previous_stores():
     pre = """
         _global:
             ; Store at the location uses same memory
-            ; as call and never read before call
-            mstore 64, 42  ; This however cannot be overiden
-                           ; since we dont know how much memory
-                           ; it will actually use
+            ; as the call instruction output buffer
+            ; and never read before the call
+            ; However, the mstore cannot be elided
+            ; since we don't know how much memory the call
+            ; will actually write to (calls are *bounded*
+            ; by the output buffer size, not guaranteed
+            ; to use all of it)
+            mstore 64, 42
 
             ; Store value needed for call
             mstore 32, 24  ; This should remain as it's used by call
