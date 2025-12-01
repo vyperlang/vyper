@@ -226,6 +226,20 @@ def generate_venom(
                 continue
             peak = max(peak, ptr + size)
 
-        return _build_ctx(peak)
+        final_ctx = _build_ctx(peak)
+
+        # sanity: ensure final peak does not exceed initial peak
+        final_peak = 0
+        if final_ctx.deploy_mem is not None:
+            skip_ids.add(final_ctx.deploy_mem._id)
+        for mem_id, (ptr, size) in final_ctx.mem_allocator.allocated.items():
+            if mem_id in skip_ids:
+                continue
+            final_peak = max(final_peak, ptr + size)
+        assert (
+            final_peak <= peak
+        ), f"ctor peak grew after override: initial {peak}, final {final_peak}"
+
+        return final_ctx
 
     return _build_ctx(None)
