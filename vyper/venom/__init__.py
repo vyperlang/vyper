@@ -191,8 +191,10 @@ def generate_venom(
         ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR1)
         ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR2)
 
-        # Pin deploy_mem at offset 0 so it doesn't inflate ctor allocations;
-        # offsets for codecopy/iload/istore are absolute via runtime_code_start.
+        # Pre-seed deploy_mem at offset 0 because codecopy/iload/istore 
+        # use runtime_code_start for absolute offsets. Restore eom so ctor scratch
+        # allocations start from the normal baseline 
+        # (deploy_mem shouldn't bump the ctor watermark).
         if ctx.deploy_mem is not None:
             old_eom = ctx.mem_allocator.eom
             ctx.mem_allocator.allocate_fixed_at(ctx.deploy_mem, 0)
