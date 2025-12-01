@@ -667,6 +667,7 @@ def test_call_does_not_overwrite_previous_stores():
             ; by the output buffer size, not guaranteed
             ; to use all of it)
             mstore 64, 42
+            mstore 96, 32
 
             ; Store value needed for call
             mstore 32, 24  ; This should remain as it's used by call
@@ -678,8 +679,9 @@ def test_call_does_not_overwrite_previous_stores():
             ; Read the call result from memory (at the
             ; location where val1 was stored but got overwritten)
             %result = mload 64
+            %size = mload 96
 
-            return %result, 32
+            return %result, %size
     """
 
     _check_no_change(pre)
