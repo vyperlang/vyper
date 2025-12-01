@@ -20,15 +20,21 @@ class MemoryAllocator:
     # current end of memory
     eom: int
 
+    reseved: set[tuple[int, int]]
+
     FN_START: ClassVar[int] = 64
 
     def __init__(self):
         # start from 0 so we can allocate FREE_VAR_SPACE in slots 0 and 32
         self.eom = 0
+        self.reserved = set()
 
         self.allocated = dict()
         self.mems_used = dict()
         self.allocated_fn = OrderedSet()
+
+    def set_position(self, mem_loc: IRAbstractMemLoc, position: int):
+        self.allocated[mem_loc._id] = (position, mem_loc._id)
 
     def allocate(self, mem_loc: IRAbstractMemLoc) -> int:
         ptr = self.eom
@@ -39,6 +45,7 @@ class MemoryAllocator:
         return ptr
 
     def start_fn_allocation(self, fn):
+        self.reserved = set()
         self.current_function = fn
         self.eom = MemoryAllocator.FN_START
         self.allocated_fn = OrderedSet()
@@ -50,9 +57,11 @@ class MemoryAllocator:
         self.mems_used[self.current_function] = OrderedSet(self.allocated_fn)
 
     def reset(self):
+        self.reserved = set()
         self.eom = MemoryAllocator.FN_START
 
     def reserve(self, mem_loc: IRAbstractMemLoc):
         assert mem_loc._id in self.allocated
         ptr, size = self.allocated[mem_loc._id]
+        self.reserved.add((ptr, size))
         self.eom = max(ptr + size, self.eom)
