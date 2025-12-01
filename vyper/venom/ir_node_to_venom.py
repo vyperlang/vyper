@@ -488,7 +488,7 @@ def _convert_ir_bb(fn, ir, symbols):
         else:
             # Dynamic offset - compute address at runtime
             imm_base = deploy_mem.with_offset(runtime_code_start + runtime_codesize)
-            addr = bb.append_instruction("add", offset, imm_base, annotation="istore_addr")
+            addr = bb.append_instruction("gep", imm_base, offset, annotation="istore_addr")
             bb.append_instruction("mstore", value, addr, annotation="istore")
         return None
     elif ir.value == "iload":
@@ -508,7 +508,7 @@ def _convert_ir_bb(fn, ir, symbols):
         else:
             # Dynamic offset - compute address at runtime
             imm_base = deploy_mem.with_offset(runtime_code_start + runtime_codesize)
-            addr = bb.append_instruction("add", offset, imm_base, annotation="iload_addr")
+            addr = bb.append_instruction("gep", imm_base, offset, annotation="iload_addr")
             return bb.append_instruction("mload", addr, annotation="iload")
     elif ir.value == "seq":
         if len(ir.args) == 0:
