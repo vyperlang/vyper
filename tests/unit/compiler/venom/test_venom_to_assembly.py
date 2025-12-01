@@ -40,6 +40,9 @@ def test_optimistic_swap_params():
 
 
 def test_invoke_middle_output_unused():
+    """
+    test pop of middle output of invoke
+    """
     code = """
     function main {
     main:
