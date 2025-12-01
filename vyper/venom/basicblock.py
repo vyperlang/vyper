@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "sink"])
 
 # Terminators that halt execution - no need to clean up stack before these
-_HALTING_TERMINATORS = frozenset(["return", "revert", "stop"])
+HALTING_TERMINATORS = frozenset(["return", "revert", "stop", "invalid"])
 
 VOLATILE_INSTRUCTIONS = frozenset(
     [
@@ -770,7 +770,7 @@ class IRBasicBlock:
         """
         if len(self.instructions) == 0:
             return False
-        return self.instructions[-1].opcode in _HALTING_TERMINATORS
+        return self.instructions[-1].opcode in HALTING_TERMINATORS
 
     def copy(self) -> IRBasicBlock:
         bb = IRBasicBlock(self.label, self.parent)
