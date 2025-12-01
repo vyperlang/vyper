@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 # instructions which can terminate a basic block
 BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "sink"])
 
-# Terminators that halt execution - no need to clean up stack before these
+# Terminators that halt program/message call execution
 HALTING_TERMINATORS = frozenset(["return", "revert", "stop", "invalid"])
 
 VOLATILE_INSTRUCTIONS = frozenset(
@@ -755,7 +755,8 @@ class IRBasicBlock:
     @property
     def is_terminated(self) -> bool:
         """
-        Check if the basic block is terminal, i.e. the last instruction is a terminator.
+        Check if the basic block is properly terminated, i.e. the
+        last instruction is a bb terminator instruction.
         """
         # it's ok to return False here, since we use this to check
         # if we can/need to append instructions to the basic block.
@@ -766,7 +767,7 @@ class IRBasicBlock:
     @property
     def is_halting(self) -> bool:
         """
-        Check if the basic block is halting
+        Check if the basic block halts program execution
         """
         if len(self.instructions) == 0:
             return False
