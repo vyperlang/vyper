@@ -866,31 +866,46 @@ def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
 
     for decorator in funcdef.decorator_list:
         # order of precedence for error checking
-        if decorator.get("id") == "nonreentrant":
-            ret.set_nonreentrant(decorator)
 
-        elif decorator.get("id") == "reentrant":
-            ret.set_reentrant(decorator)
+        def unknown_decorator(name: str) -> FunctionDeclarationException:
+            return FunctionDeclarationException(
+                f"Unknown decorator: {name}", decorator  # noqa: B023
+            )
 
-        elif isinstance(decorator, vy_ast.Call):
-            msg = "Decorator is not callable"
-            hint = None
-            if decorator.get("func.id") == "nonreentrant":
-                hint = "use `@nonreentrant` with no arguments. the "
-                hint += "`@nonreentrant` decorator does not accept any "
-                hint += "arguments since vyper 0.4.0."
-            raise StructureException(msg, decorator, hint=hint)
-
-        elif decorator.get("id") == "raw_return":
-            ret.set_raw_return(decorator)
-
-        elif isinstance(decorator, vy_ast.Name):
-            if FunctionVisibility.is_valid_value(decorator.id):
+        # Decorators without argument clause: `@something`
+        if isinstance(decorator, vy_ast.Name):
+            if decorator.id == "nonreentrant":
+                ret.set_nonreentrant(decorator)
+            elif decorator.id == "reentrant":
+                ret.set_reentrant(decorator)
+            elif decorator.id == "raw_return":
+                ret.set_raw_return(decorator)
+            elif FunctionVisibility.is_valid_value(decorator.id):
                 ret.set_visibility(decorator)
             elif StateMutability.is_valid_value(decorator.id):
                 ret.set_state_mutability(decorator)
             else:
-                raise FunctionDeclarationException(f"Unknown decorator: {decorator.id}", decorator)
+                raise unknown_decorator(decorator.id)
+
+        # Decorators with argument clause: `@something()`
+        elif isinstance(decorator, vy_ast.Call):
+            decorators_without_parameters = (
+                ["reentrant", "nonreentrant", "raw_return"]
+                + FunctionVisibility.values()
+                + StateMutability.values()
+            )
+
+            assert isinstance(decorator.func, vy_ast.Name)
+            if decorator.func.id in decorators_without_parameters:
+                msg = "Decorator does not take parameters"
+
+                hint = f"use `@{decorator.func.id}` with no arguments."
+                if decorator.func.id == "nonreentrant":
+                    hint += "the `@nonreentrant` decorator does not accept any "
+                    hint += "arguments since vyper 0.4.0."
+                raise StructureException(msg, decorator, hint=hint)
+            else:
+                raise unknown_decorator(decorator.func.id)
 
         else:
             raise StructureException("Bad decorator syntax", decorator)
