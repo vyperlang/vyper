@@ -9,7 +9,6 @@ from vyper.codegen.context import Alloca
 from vyper.codegen.core import is_tuple_like
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
-from vyper.ir.compile_ir import _runtime_code_offsets
 from vyper.venom.basicblock import (
     IRAbstractMemLoc,
     IRBasicBlock,
@@ -19,7 +18,7 @@ from vyper.venom.basicblock import (
     IROperand,
     IRVariable,
 )
-from vyper.venom.context import IRContext
+from vyper.venom.context import DeployInfo, IRContext
 from vyper.venom.function import IRFunction, IRParameter
 
 # Experimental: allow returning multiple 32-byte values via the stack
@@ -75,8 +74,6 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "gasprice",
         "gaslimit",
         "returndatasize",
-        "iload",
-        "istore",
         "mload",
         "dload",
         "dloadbytes",
@@ -133,18 +130,32 @@ def get_scratch_alloca_id() -> int:
 
 
 # convert IRnode directly to venom
-def ir_node_to_venom(ir: IRnode, symbols: Optional[dict] = None) -> IRContext:
+def ir_node_to_venom(ir: IRnode, deploy_info: Optional[DeployInfo] = None) -> IRContext:
     _ = ir.unique_symbols  # run unique symbols check
 
     global _alloca_table, _callsites
     _alloca_table = {}
     _callsites = defaultdict(list)
 
+    symbols: SymbolTable = {}
+
     ctx = IRContext()
+
+    # these memory locations are used as magic values inside the compiler,
+    # they are context-globally shared slots so we allocate them here,
+    # in a context-global way.
+    ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR1)
+    ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR2)
+
+    if deploy_info is not None:
+        immutables_memloc = IRAbstractMemLoc(deploy_info.immutables_len)
+        ctx.mem_allocator.allocate(immutables_memloc)
+        symbols["immutables_region"] = immutables_memloc
+        symbols["runtime_codesize"] = IRLiteral(deploy_info.runtime_codesize)
+
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
     ctx.entry_function = fn
 
-    symbols = symbols or {}
     _convert_ir_bb(fn, ir, symbols)
 
     for fn in ctx.functions.values():
@@ -426,22 +437,20 @@ def _convert_ir_bb(fn, ir, symbols):
             "return", IRVariable("ret_size"), IRVariable("ret_ofst")
         )
     elif ir.value == "deploy":
-        ctor_mem_size = ir.args[0].value
         immutables_len = ir.args[2].value
         runtime_codesize = symbols["runtime_codesize"].value
-        assert immutables_len == symbols["immutables_len"].value  # sanity
-
-        mem_deploy_start, mem_deploy_end = _runtime_code_offsets(ctor_mem_size, runtime_codesize)
-
-        fn.ctx.add_constant("mem_deploy_end", mem_deploy_end)
 
         bb = fn.get_basic_block()
 
-        bb.append_instruction(
-            "codecopy", runtime_codesize, IRLabel("runtime_begin"), mem_deploy_start
-        )
+        immutables_region = symbols["immutables_region"]
+
+        dst = 0  # copy runtime code to 0 location
+
+        bb.append_instruction("mcopy", immutables_len, immutables_region, runtime_codesize)
+
+        bb.append_instruction("codecopy", runtime_codesize, IRLabel("runtime_begin"), dst)
         amount_to_return = bb.append_instruction("add", runtime_codesize, immutables_len)
-        bb.append_instruction("return", amount_to_return, mem_deploy_start)
+        bb.append_instruction("return", amount_to_return, dst)
         return None
     elif ir.value == "seq":
         if len(ir.args) == 0:
@@ -609,6 +618,20 @@ def _convert_ir_bb(fn, ir, symbols):
         # to fix upstream.
         val, ptr = _convert_ir_bb_list(fn, reversed(ir.args), symbols)
         return fn.get_basic_block().append_instruction("mstore", val, ptr)
+
+    elif ir.value == "iload":
+        ofst = _convert_ir_bb(fn, ir.args[0], symbols)
+        bb = fn.get_basic_block()
+        immutables_region = symbols["immutables_region"]
+        ptr = bb.append_instruction("gep", immutables_region, ofst)
+        return bb.append_instruction("mload", ptr)
+
+    elif ir.value == "istore":
+        ofst, val = _convert_ir_bb_list(fn, ir.args, symbols)
+        bb = fn.get_basic_block()
+        immutables_region = symbols["immutables_region"]
+        ptr = bb.append_instruction("gep", immutables_region, ofst)
+        return bb.append_instruction("mstore", val, ptr)
 
     elif ir.value == "ceil32":
         x = ir.args[0]
