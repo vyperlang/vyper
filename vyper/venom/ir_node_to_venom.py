@@ -9,7 +9,6 @@ from vyper.codegen.context import Alloca
 from vyper.codegen.core import is_tuple_like
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
-from vyper.ir.compile_ir import _runtime_code_offsets
 from vyper.venom.basicblock import (
     IRAbstractMemLoc,
     IRBasicBlock,
@@ -19,8 +18,9 @@ from vyper.venom.basicblock import (
     IROperand,
     IRVariable,
 )
-from vyper.venom.context import IRContext
+from vyper.venom.context import DeployInfo, IRContext
 from vyper.venom.function import IRFunction, IRParameter
+from vyper.venom.memory_allocator import MemoryAllocator
 
 # Experimental: allow returning multiple 32-byte values via the stack
 ENABLE_MULTI_RETURNS = True
@@ -75,8 +75,6 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "gasprice",
         "gaslimit",
         "returndatasize",
-        "iload",
-        "istore",
         "mload",
         "dload",
         "dloadbytes",
@@ -133,7 +131,12 @@ def get_scratch_alloca_id() -> int:
 
 
 # convert IRnode directly to venom
-def ir_node_to_venom(ir: IRnode, symbols: Optional[dict] = None) -> IRContext:
+def ir_node_to_venom(
+    ir: IRnode,
+    symbols: Optional[dict] = None,
+    ctor_mem_override: Optional[int] = None,
+    deploy: Optional[DeployInfo] = None,
+) -> IRContext:
     _ = ir.unique_symbols  # run unique symbols check
 
     global _alloca_table, _callsites
@@ -145,6 +148,28 @@ def ir_node_to_venom(ir: IRnode, symbols: Optional[dict] = None) -> IRContext:
     ctx.entry_function = fn
 
     symbols = symbols or {}
+
+    # For deploy contexts, create the deploy_mem IRAbstractMemLoc upfront
+    # so it's available when we encounter iload/istore instructions
+    # (which come before the deploy instruction in the IR)
+    if deploy is not None:
+        ctx.deploy_info = deploy
+        runtime_codesize = deploy.runtime_codesize
+        immutables_len = deploy.immutables_len
+        if ctor_mem_override is not None:
+            ctor_mem_size_ir = ctor_mem_override
+        else:
+            # seed with allocator baseline, rebuilt later with ctor peak
+            ctor_mem_size_ir = MemoryAllocator.FN_START
+
+        # ctor_mem_size_ir is an upper bound before venom optimizations; we’ll
+        # refine it after fn passes run using the allocator peak.
+        runtime_code_start = max(ctor_mem_size_ir, MemoryAllocator.FN_START)
+
+        deploy_size = runtime_code_start + runtime_codesize + immutables_len
+        ctx.deploy_mem = IRAbstractMemLoc(deploy_size)
+        ctx.runtime_code_start = runtime_code_start
+
     _convert_ir_bb(fn, ir, symbols)
 
     for fn in ctx.functions.values():
@@ -426,23 +451,68 @@ def _convert_ir_bb(fn, ir, symbols):
             "return", IRVariable("ret_size"), IRVariable("ret_ofst")
         )
     elif ir.value == "deploy":
-        ctor_mem_size = ir.args[0].value
-        immutables_len = ir.args[2].value
-        runtime_codesize = symbols["runtime_codesize"].value
-        assert immutables_len == symbols["immutables_len"].value  # sanity
-
-        mem_deploy_start, mem_deploy_end = _runtime_code_offsets(ctor_mem_size, runtime_codesize)
-
-        fn.ctx.add_constant("mem_deploy_end", mem_deploy_end)
+        # deploy_mem was created at the start of ir_node_to_venom
+        deploy_mem = ctx.deploy_mem
+        assert deploy_mem is not None, "deploy without deploy_mem context"
+        assert ctx.deploy_info is not None, "deploy metadata missing"
+        runtime_codesize = ctx.deploy_info.runtime_codesize
+        runtime_code_start = ctx.runtime_code_start
+        deploy_size = runtime_codesize + ctx.deploy_info.immutables_len
 
         bb = fn.get_basic_block()
 
+        # codecopy runtime code to deploy_mem base
         bb.append_instruction(
-            "codecopy", runtime_codesize, IRLabel("runtime_begin"), mem_deploy_start
+            "codecopy",
+            runtime_codesize,
+            IRLabel("runtime_begin"),
+            deploy_mem.with_offset(runtime_code_start),
         )
-        amount_to_return = bb.append_instruction("add", runtime_codesize, immutables_len)
-        bb.append_instruction("return", amount_to_return, mem_deploy_start)
+        # return runtime_codesize + immutables_len bytes starting at runtime_code_start
+        bb.append_instruction("return", deploy_size, deploy_mem.with_offset(runtime_code_start))
         return None
+    elif ir.value == "istore":
+        # istore offset, value -> mstore value, deploy_mem + runtime_codesize + offset
+        offset = _convert_ir_bb(fn, ir.args[0], symbols)
+        value = _convert_ir_bb(fn, ir.args[1], symbols)
+        assert ctx.deploy_info is not None, "istore without deploy metadata"
+        runtime_codesize = ctx.deploy_info.runtime_codesize
+        runtime_code_start = ctx.runtime_code_start
+
+        bb = fn.get_basic_block()
+        deploy_mem = ctx.deploy_mem
+        assert deploy_mem is not None, "istore without deploy context"
+
+        if isinstance(offset, IRLiteral):
+            # Static offset - use IRAbstractMemLoc with offset
+            mem_loc = deploy_mem.with_offset(runtime_code_start + runtime_codesize + offset.value)
+            bb.append_instruction("mstore", value, mem_loc, annotation="istore")
+        else:
+            # Dynamic offset - compute address at runtime
+            imm_base = deploy_mem.with_offset(runtime_code_start + runtime_codesize)
+            addr = bb.append_instruction("gep", imm_base, offset, annotation="istore_addr")
+            bb.append_instruction("mstore", value, addr, annotation="istore")
+        return None
+    elif ir.value == "iload":
+        # iload offset -> mload deploy_mem + runtime_codesize + offset
+        offset = _convert_ir_bb(fn, ir.args[0], symbols)
+        assert ctx.deploy_info is not None, "iload without deploy metadata"
+        runtime_codesize = ctx.deploy_info.runtime_codesize
+        runtime_code_start = ctx.runtime_code_start
+
+        bb = fn.get_basic_block()
+        deploy_mem = ctx.deploy_mem
+        assert deploy_mem is not None, "iload without deploy context"
+
+        if isinstance(offset, IRLiteral):
+            # Static offset - use IRAbstractMemLoc with offset
+            mem_loc = deploy_mem.with_offset(runtime_code_start + runtime_codesize + offset.value)
+            return bb.append_instruction("mload", mem_loc, annotation="iload")
+        else:
+            # Dynamic offset - compute address at runtime
+            imm_base = deploy_mem.with_offset(runtime_code_start + runtime_codesize)
+            addr = bb.append_instruction("gep", imm_base, offset, annotation="iload_addr")
+            return bb.append_instruction("mload", addr, annotation="iload")
     elif ir.value == "seq":
         if len(ir.args) == 0:
             return None

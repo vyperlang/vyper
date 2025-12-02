@@ -419,21 +419,6 @@ class VenomCompiler:
         if opcode in ["jmp", "djmp", "jnz", "invoke"]:
             operands = list(inst.get_non_label_operands())
 
-        # iload and istore are special cases because they can take a literal
-        # that is handled specialy with the _OFST macro. Look below, after the
-        # stack reordering.
-        elif opcode == "iload":
-            addr = inst.operands[0]
-            if isinstance(addr, IRLiteral):
-                operands = []
-            else:
-                operands = inst.operands
-        elif opcode == "istore":
-            addr = inst.operands[1]
-            if isinstance(addr, IRLiteral):
-                operands = inst.operands[:1]
-            else:
-                operands = inst.operands
         elif opcode == "log":
             log_topic_count = inst.operands[0].value
             assert log_topic_count in [0, 1, 2, 3, 4], "Invalid topic count"
@@ -582,24 +567,6 @@ class VenomCompiler:
         elif opcode == "assert_unreachable":
             end_symbol = self.mklabel("reachable")
             assembly.extend([PUSHLABEL(end_symbol), "JUMPI", "INVALID", end_symbol])
-        elif opcode == "iload":
-            addr = inst.operands[0]
-            mem_deploy_end = self.ctx.constants["mem_deploy_end"]
-            if isinstance(addr, IRLiteral):
-                ptr = mem_deploy_end + addr.value
-                assembly.extend(PUSH(ptr))
-            else:
-                assembly.extend([*PUSH(mem_deploy_end), "ADD"])
-            assembly.append("MLOAD")
-        elif opcode == "istore":
-            addr = inst.operands[1]
-            mem_deploy_end = self.ctx.constants["mem_deploy_end"]
-            if isinstance(addr, IRLiteral):
-                ptr = mem_deploy_end + addr.value
-                assembly.extend(PUSH(ptr))
-            else:
-                assembly.extend([*PUSH(mem_deploy_end), "ADD"])
-            assembly.append("MSTORE")
         elif opcode == "log":
             assembly.extend([f"LOG{log_topic_count}"])
         elif opcode == "nop":

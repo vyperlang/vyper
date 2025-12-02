@@ -29,7 +29,6 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "create2",
         "invoke",
         "sstore",
-        "istore",
         "tstore",
         "mstore",
         "calldatacopy",
@@ -58,7 +57,6 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
     [
         "mstore",
         "sstore",
-        "istore",
         "tstore",
         "dloadbytes",
         "calldatacopy",

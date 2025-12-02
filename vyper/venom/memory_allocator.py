@@ -38,6 +38,12 @@ class MemoryAllocator:
         self.allocated_fn.add(mem_loc)
         return ptr
 
+    def allocate_fixed_at(self, mem_loc: IRAbstractMemLoc, ptr: int) -> None:
+        assert mem_loc._id not in self.allocated
+        self.allocated[mem_loc._id] = (ptr, mem_loc.size)
+        self.allocated_fn.add(mem_loc)
+        self.eom = max(self.eom, ptr + mem_loc.size)
+
     def start_fn_allocation(self, fn):
         self.current_function = fn
         self.eom = MemoryAllocator.FN_START
