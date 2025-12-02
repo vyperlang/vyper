@@ -73,6 +73,7 @@ class MemoryLocation:
         if loc1 is MemoryLocation.UNDEFINED or loc2 is MemoryLocation.UNDEFINED:
             return True
         if type(loc1) is not type(loc2):
+            # CMC 2025-12-02 -- this should return True, no?
             return False
         if isinstance(loc1, MemoryLocationSegment):
             assert isinstance(loc2, MemoryLocationSegment)
@@ -393,7 +394,7 @@ def fix_mem_loc(function: IRFunction):
             read_op = get_memory_read_op(inst)
             if write_op is not None:
                 size = get_write_size(inst)
-                if size is None or not isinstance(write_op.value, int):
+                if size is None or not isinstance(write_op, IRLiteral):
                     continue
 
                 if in_free_var(MemoryPositions.FREE_VAR_SPACE, write_op.value):
@@ -404,7 +405,7 @@ def fix_mem_loc(function: IRFunction):
                     _update_write_location(inst, IRAbstractMemLoc.FREE_VAR2.with_offset(offset))
             if read_op is not None:
                 size = _get_read_size(inst)
-                if size is None or not isinstance(read_op.value, int):
+                if size is None or not isinstance(read_op, IRLiteral):
                     continue
 
                 if in_free_var(MemoryPositions.FREE_VAR_SPACE, read_op.value):
