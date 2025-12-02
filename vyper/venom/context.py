@@ -8,6 +8,13 @@ from vyper.venom.memory_allocator import MemoryAllocator
 
 
 @dataclass
+class DeployInfo:
+    runtime_codesize: int
+    immutables_len: int
+    data_sections: dict[str, bytes] = field(default_factory=dict)
+
+
+@dataclass
 class DataItem:
     data: IRLabel | bytes  # can be raw data or bytes
 
@@ -41,8 +48,8 @@ class IRContext:
     mem_allocator: MemoryAllocator
     # Memory location for deploy region (runtime code + immutables)
     # Only set for deploy contexts
+    deploy_info: Optional[DeployInfo]
     deploy_mem: Optional[IRAbstractMemLoc]
-    runtime_codesize: int
     runtime_code_start: int
 
     def __init__(self) -> None:
@@ -54,8 +61,8 @@ class IRContext:
         self.last_label = 0
         self.last_variable = 0
         self.mem_allocator = MemoryAllocator()
+        self.deploy_info = None
         self.deploy_mem = None
-        self.runtime_codesize = 0
         self.runtime_code_start = 0
 
     def get_basic_blocks(self) -> Iterator[IRBasicBlock]:

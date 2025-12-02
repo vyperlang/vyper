@@ -18,7 +18,7 @@ from vyper.venom.basicblock import (
     IROperand,
     IRVariable,
 )
-from vyper.venom.context import IRContext
+from vyper.venom.context import DeployInfo, IRContext
 from vyper.venom.function import IRFunction, IRParameter
 from vyper.venom.memory_allocator import MemoryAllocator
 
@@ -132,7 +132,10 @@ def get_scratch_alloca_id() -> int:
 
 # convert IRnode directly to venom
 def ir_node_to_venom(
-    ir: IRnode, symbols: Optional[dict] = None, ctor_mem_override: Optional[int] = None
+    ir: IRnode,
+    symbols: Optional[dict] = None,
+    ctor_mem_override: Optional[int] = None,
+    deploy: Optional[DeployInfo] = None,
 ) -> IRContext:
     _ = ir.unique_symbols  # run unique symbols check
 
@@ -149,9 +152,10 @@ def ir_node_to_venom(
     # For deploy contexts, create the deploy_mem IRAbstractMemLoc upfront
     # so it's available when we encounter iload/istore instructions
     # (which come before the deploy instruction in the IR)
-    if "runtime_codesize" in symbols and "immutables_len" in symbols:
-        runtime_codesize = symbols["runtime_codesize"].value
-        immutables_len = symbols["immutables_len"].value
+    if deploy is not None:
+        ctx.deploy_info = deploy
+        runtime_codesize = deploy.runtime_codesize
+        immutables_len = deploy.immutables_len
         if ctor_mem_override is not None:
             ctor_mem_size_ir = ctor_mem_override
         else:
@@ -164,7 +168,6 @@ def ir_node_to_venom(
 
         deploy_size = runtime_code_start + runtime_codesize + immutables_len
         ctx.deploy_mem = IRAbstractMemLoc(deploy_size)
-        ctx.runtime_codesize = runtime_codesize
         ctx.runtime_code_start = runtime_code_start
 
     _convert_ir_bb(fn, ir, symbols)
@@ -448,15 +451,13 @@ def _convert_ir_bb(fn, ir, symbols):
             "return", IRVariable("ret_size"), IRVariable("ret_ofst")
         )
     elif ir.value == "deploy":
-        immutables_len = ir.args[2].value
-        runtime_codesize = symbols["runtime_codesize"].value
-        assert immutables_len == symbols["immutables_len"].value  # sanity
-
         # deploy_mem was created at the start of ir_node_to_venom
         deploy_mem = ctx.deploy_mem
         assert deploy_mem is not None, "deploy without deploy_mem context"
+        assert ctx.deploy_info is not None, "deploy metadata missing"
+        runtime_codesize = ctx.deploy_info.runtime_codesize
         runtime_code_start = ctx.runtime_code_start
-        deploy_size = runtime_codesize + immutables_len
+        deploy_size = runtime_codesize + ctx.deploy_info.immutables_len
 
         bb = fn.get_basic_block()
 
@@ -474,7 +475,8 @@ def _convert_ir_bb(fn, ir, symbols):
         # istore offset, value -> mstore value, deploy_mem + runtime_codesize + offset
         offset = _convert_ir_bb(fn, ir.args[0], symbols)
         value = _convert_ir_bb(fn, ir.args[1], symbols)
-        runtime_codesize = ctx.runtime_codesize
+        assert ctx.deploy_info is not None, "istore without deploy metadata"
+        runtime_codesize = ctx.deploy_info.runtime_codesize
         runtime_code_start = ctx.runtime_code_start
 
         bb = fn.get_basic_block()
@@ -494,7 +496,8 @@ def _convert_ir_bb(fn, ir, symbols):
     elif ir.value == "iload":
         # iload offset -> mload deploy_mem + runtime_codesize + offset
         offset = _convert_ir_bb(fn, ir.args[0], symbols)
-        runtime_codesize = ctx.runtime_codesize
+        assert ctx.deploy_info is not None, "iload without deploy metadata"
+        runtime_codesize = ctx.deploy_info.runtime_codesize
         runtime_code_start = ctx.runtime_code_start
 
         bb = fn.get_basic_block()

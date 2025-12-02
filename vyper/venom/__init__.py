@@ -1,6 +1,3 @@
-# maybe rename this `main.py` or `venom.py`
-# (can have an `__init__.py` which exposes the API).
-
 from typing import Optional
 
 from vyper.codegen.ir_node import IRnode
@@ -11,7 +8,7 @@ from vyper.venom.analysis import FCGAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRAbstractMemLoc, IRLabel, IRLiteral
 from vyper.venom.check_venom import check_calling_convention
-from vyper.venom.context import IRContext
+from vyper.venom.context import DeployInfo, IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.memory_location import fix_mem_loc
@@ -178,15 +175,18 @@ def _run_fn_passes_r(
 def generate_venom(
     ir: IRnode,
     settings: Settings,
-    constants: dict[str, int] = None,
-    data_sections: dict[str, bytes] = None,
+    constants: Optional[dict[str, int]] = None,
+    deploy: Optional[DeployInfo] = None,
 ) -> IRContext:
     constants = constants or {}
-    data_sections = data_sections or {}
+    data_sections = {}
+    if deploy is not None:
+        data_sections = deploy.data_sections
+
     starting_symbols = {k: IRLiteral(v) for k, v in constants.items()}
 
     def _build_ctx(ctor_override: int | None) -> IRContext:
-        ctx = ir_node_to_venom(ir, starting_symbols, ctor_mem_override=ctor_override)
+        ctx = ir_node_to_venom(ir, starting_symbols, ctor_mem_override=ctor_override, deploy=deploy)
 
         ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR1)
         ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR2)
@@ -217,7 +217,7 @@ def generate_venom(
 
     # For deploy contexts, do a two-pass build: first to measure peak venom ctor
     # memory (excluding the deploy region), then rebuild with that watermark.
-    if "runtime_codesize" in constants and "immutables_len" in constants:
+    if deploy is not None:
         first_ctx = _build_ctx(None)
         peak = 0
         skip_ids = {IRAbstractMemLoc.FREE_VAR1._id, IRAbstractMemLoc.FREE_VAR2._id}

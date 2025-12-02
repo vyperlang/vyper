@@ -24,7 +24,7 @@ from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
 from vyper.utils import ERC5202_PREFIX, sha256sum
-from vyper.venom import generate_assembly_experimental, generate_venom
+from vyper.venom import DeployInfo, generate_assembly_experimental, generate_venom
 from vyper.warnings import VyperWarning, vyper_warn
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
@@ -264,14 +264,13 @@ class CompilerData:
         if self.bytecode_metadata is not None:
             data_sections["cbor_metadata"] = self.bytecode_metadata
 
-        constants = {
-            "runtime_codesize": len(self.bytecode_runtime),
-            "immutables_len": self.compilation_target._metadata["type"].immutable_section_bytes,
-        }
-
-        venom_ctx = generate_venom(
-            self.ir_nodes, self.settings, constants=constants, data_sections=data_sections
+        deploy_info = DeployInfo(
+            runtime_codesize=len(self.bytecode_runtime),
+            immutables_len=self.compilation_target._metadata["type"].immutable_section_bytes,
+            data_sections=data_sections,
         )
+
+        venom_ctx = generate_venom(self.ir_nodes, self.settings, deploy=deploy_info)
         return venom_ctx
 
     @cached_property

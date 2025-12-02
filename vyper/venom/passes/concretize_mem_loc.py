@@ -32,8 +32,16 @@ class ConcretizeMemLocPass(IRPass):
 
         self.allocator.start_fn_allocation(self.function)
 
+        deploy_mem_id = (
+            self.function.ctx.deploy_mem._id if self.function.ctx.deploy_mem is not None else None
+        )
+
         livesets = list(self.mem_liveness.livesets.items())
-        already_allocated = [item for item in livesets if item[0]._id in self.allocator.allocated]
+        already_allocated = [
+            item
+            for item in livesets
+            if item[0]._id in self.allocator.allocated and item[0]._id != deploy_mem_id
+        ]
         to_allocate = [item for item in livesets if item[0]._id not in self.allocator.allocated]
         # (note this is *heuristic*; our goal is to minimize conflicts
         # between livesets)
@@ -46,6 +54,8 @@ class ConcretizeMemLocPass(IRPass):
             self.allocator.reset()
 
             for before_mem, before_insts in already_allocated:
+                if deploy_mem_id is not None and before_mem._id == deploy_mem_id:
+                    continue
                 if len(OrderedSet.intersection(insts, before_insts)) == 0:
                     continue
                 self.allocator.reserve(before_mem)
