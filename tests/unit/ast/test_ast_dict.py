@@ -134,6 +134,8 @@ import math
 
 def test_dict_to_ast():
     code = """
+import foo
+
 @external
 def test() -> int128:
     a: uint256 = 100
