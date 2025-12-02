@@ -118,6 +118,7 @@ NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_sym
 SymbolTable = dict[str, IROperand]
 _alloca_table: dict[int, IROperand]
 _callsites: dict[str, list[Alloca]]
+_immutables_region: IRAbstractMemLoc
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
 
 _scratch_alloca_id = 2**32
@@ -133,7 +134,7 @@ def get_scratch_alloca_id() -> int:
 def ir_node_to_venom(ir: IRnode, deploy_info: Optional[DeployInfo] = None) -> IRContext:
     _ = ir.unique_symbols  # run unique symbols check
 
-    global _alloca_table, _callsites
+    global _alloca_table, _callsites, _immutables_region
     _alloca_table = {}
     _callsites = defaultdict(list)
 
@@ -147,10 +148,10 @@ def ir_node_to_venom(ir: IRnode, deploy_info: Optional[DeployInfo] = None) -> IR
     ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR1)
     ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR2)
 
+    _immutables_region = None  # type: ignore
     if deploy_info is not None:
-        immutables_memloc = IRAbstractMemLoc(deploy_info.immutables_len)
-        ctx.mem_allocator.allocate(immutables_memloc)
-        symbols["immutables_region"] = immutables_memloc
+        _immutables_region = IRAbstractMemLoc(deploy_info.immutables_len)
+        ctx.mem_allocator.allocate(_immutables_region)
         symbols["runtime_codesize"] = IRLiteral(deploy_info.runtime_codesize)
 
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
@@ -161,6 +162,8 @@ def ir_node_to_venom(ir: IRnode, deploy_info: Optional[DeployInfo] = None) -> IR
     for fn in ctx.functions.values():
         for bb in fn.get_basic_blocks():
             bb.ensure_well_formed()
+
+    del _immutables_region  # hygiene
 
     return ctx
 
@@ -418,6 +421,7 @@ def _convert_ir_bb(fn, ir, symbols):
     assert isinstance(ir, IRnode), ir
     # TODO: refactor these to not be globals
     global _break_target, _continue_target, _alloca_table
+    global _immutables_region
 
     # keep a map from external functions to all possible entry points
 
@@ -442,11 +446,12 @@ def _convert_ir_bb(fn, ir, symbols):
 
         bb = fn.get_basic_block()
 
-        immutables_region = symbols["immutables_region"]
+        # copy runtime code to hardcode location
+        # (use a location *after* FREE_VAR_SPACE2, otherwise it gets
+        # mutilated by fix_mem_loc)
+        dst = 64
 
-        dst = 0  # copy runtime code to 0 location
-
-        bb.append_instruction("mcopy", immutables_len, immutables_region, runtime_codesize)
+        bb.append_instruction("mcopy", immutables_len, _immutables_region, 64 + runtime_codesize)
 
         bb.append_instruction("codecopy", runtime_codesize, IRLabel("runtime_begin"), dst)
         amount_to_return = bb.append_instruction("add", runtime_codesize, immutables_len)
@@ -622,15 +627,13 @@ def _convert_ir_bb(fn, ir, symbols):
     elif ir.value == "iload":
         ofst = _convert_ir_bb(fn, ir.args[0], symbols)
         bb = fn.get_basic_block()
-        immutables_region = symbols["immutables_region"]
-        ptr = bb.append_instruction("gep", immutables_region, ofst)
+        ptr = bb.append_instruction("gep", _immutables_region, ofst)
         return bb.append_instruction("mload", ptr)
 
     elif ir.value == "istore":
         ofst, val = _convert_ir_bb_list(fn, ir.args, symbols)
         bb = fn.get_basic_block()
-        immutables_region = symbols["immutables_region"]
-        ptr = bb.append_instruction("gep", immutables_region, ofst)
+        ptr = bb.append_instruction("gep", _immutables_region, ofst)
         return bb.append_instruction("mstore", val, ptr)
 
     elif ir.value == "ceil32":
