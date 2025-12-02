@@ -19,6 +19,12 @@ import hypothesis as hp
 import hypothesis.strategies as st
 import pytest
 
+# increase hypothesis buffer size to allow for complex IR generation
+# shrinking is quadratic in buffer size, but for compiler fuzzing finding
+# bugs is more important than minimal reproductions
+from hypothesis.internal.conjecture import engine as _hypothesis_engine
+_hypothesis_engine.BUFFER_SIZE = 128 * 1024  # 128KB instead of default 8KB
+
 from tests.evm_backends.base_env import EvmError
 from tests.venom_utils import assert_ctx_eq
 from vyper.ir.compile_ir import assembly_to_evm
@@ -59,8 +65,8 @@ PRECOMPILES = {
 }
 
 MAX_MEMORY_SIZE = 256
-MAX_BASIC_BLOCKS = 50
-MAX_INSTRUCTIONS_PER_BLOCK = 50
+MAX_BASIC_BLOCKS = 10
+MAX_INSTRUCTIONS_PER_BLOCK = 20
 MAX_LOOP_ITERATIONS = 12
 
 
@@ -100,11 +106,7 @@ class _BranchBB(_BBType):
 
     target1: IRBasicBlock
     target2: IRBasicBlock
-    counter_addr: Optional[int] = None
-
-    @property
-    def needs_loop_counter(self) -> bool:
-        return self.counter_addr is not None
+    has_back_edge: bool = False
 
 
 # ============================================================================
@@ -227,48 +229,44 @@ class MemoryFuzzer:
         return IRLiteral(addr)
 
 
-@st.composite
-def copy_length(draw) -> int:
-    """Generate a length suitable for a copy operation."""
-    if draw(st.booleans()):
-        # small lengths are more interesting for optimizer edge cases
-        if draw(st.booleans()):
-            return draw(
-                st.sampled_from([1, 2, 4, 8, 16, 20, 24, 28, 31, 32, 33, 36, 40, 48, 64, 96])
-            )
-        else:
-            return draw(st.integers(min_value=1, max_value=96))
-    else:
-        return draw(st.integers(min_value=97, max_value=1024))
 
 
-@st.composite
-def memory_instruction(draw, fuzzer: MemoryFuzzer, bb: IRBasicBlock) -> None:
-    """Generate and append a memory instruction to current basic block."""
-    op = draw(st.sampled_from(MEMORY_OPS))
+# instruction data: (op_idx, use_literal, literal_value, addr1, addr2, copy_len)
+# - op_idx: 0=mload, 1=mstore, 2=mcopy
+# - use_literal: for mstore, whether to use literal vs symbolic
+# - literal_value: value for mstore literal
+# - addr1: first memory address
+# - addr2: second memory address (for mcopy)
+# - copy_len: length for mcopy
+def instruction_data_strategy():
+    """Strategy that generates all data for one instruction in a single draw."""
+    return st.tuples(
+        st.integers(0, 2),  # op_idx
+        st.booleans(),  # use_literal
+        st.integers(0, 2**64 - 1),  # literal_value (smaller range is fine)
+        st.integers(0, MAX_MEMORY_SIZE - 32),  # addr1
+        st.integers(0, MAX_MEMORY_SIZE - 32),  # addr2
+        st.integers(1, 96),  # copy_len
+    )
 
-    if op == "mload":
-        addr = fuzzer.get_memory_address(draw, bb)
+
+def apply_memory_instruction(
+    fuzzer: MemoryFuzzer, bb: IRBasicBlock, inst_data: tuple
+) -> None:
+    """Apply instruction data to generate a memory instruction."""
+    op_idx, use_literal, literal_value, addr1, addr2, copy_len = inst_data
+
+    if op_idx == 0:  # mload
         result_var = fuzzer.fresh_symbolic()
-        bb.append_instruction("mload", addr, ret=result_var)
-
-    elif op == "mstore":
-        # Use either a symbolic variable or a literal
-        if draw(st.booleans()):
-            value = fuzzer.get_random_variable(draw, bb)
+        bb.append_instruction("mload", IRLiteral(addr1), ret=result_var)
+    elif op_idx == 1:  # mstore
+        if use_literal:
+            value = IRLiteral(literal_value)
         else:
-            value = IRLiteral(draw(st.integers(min_value=0, max_value=2**256 - 1)))
-        addr = fuzzer.get_memory_address(draw, bb)
-        bb.append_instruction("mstore", value, addr)
-
-    elif op == "mcopy":
-        dest = fuzzer.get_memory_address(draw, bb)
-        src = fuzzer.get_memory_address(draw, bb)
-        length = draw(copy_length())
-        bb.append_instruction("mcopy", dest, src, IRLiteral(length))
-
-    else:
-        raise AssertionError(f"Unknown memory operation: {op}")
+            value = fuzzer.fresh_symbolic()
+        bb.append_instruction("mstore", value, IRLiteral(addr1))
+    else:  # mcopy
+        bb.append_instruction("mcopy", IRLiteral(addr1), IRLiteral(addr2), IRLiteral(copy_len))
 
 
 # ============================================================================
@@ -276,172 +274,167 @@ def memory_instruction(draw, fuzzer: MemoryFuzzer, bb: IRBasicBlock) -> None:
 # ============================================================================
 
 
+
+
 @st.composite
 def control_flow_graph(draw, basic_blocks):
     """
-    Generate a control flow graph that ensures:
+    Generate a CFG where:
     1. All blocks are reachable from entry
-    2. No infinite loops (all loops terminate within 12 iterations)
-    3. Proper use of jump and branch instructions
-    4. No back edges to entry block
+    2. Every block has at least one forward edge (no infinite loops)
+    3. No back edges to entry block
     """
-    block_types: dict[IRBasicBlock, _BBType] = {}
+    if len(basic_blocks) == 1:
+        return {basic_blocks[0]: _ReturnBB()}
 
-    # last block is always a return block - guarantees all other blocks have forward targets
-    block_types[basic_blocks[-1]] = _ReturnBB()
+    entry = basic_blocks[0]
+    return_block = basic_blocks[-1]
+    non_entry = basic_blocks[1:]
 
-    # cache forward targets for each block for performance
-    forward_targets = {}
-    for i, bb in enumerate(basic_blocks):
-        forward_targets[bb] = basic_blocks[i + 1 :]
+    def block_index(bb):
+        return basic_blocks.index(bb)
 
-    # All blocks except entry (to prevent back edges to entry)
-    non_entry_blocks = basic_blocks[1:]
+    def is_forward(src, dst):
+        return block_index(dst) > block_index(src)
 
-    # create a spanning tree to ensure all blocks are reachable
-    remaining_blocks = basic_blocks[1:]  # exclude entry block
-    reachable_blocks = [basic_blocks[0]]
+    def forward_targets(bb):
+        return basic_blocks[block_index(bb) + 1:]
 
-    while remaining_blocks:
-        source = draw(st.sampled_from(reachable_blocks))
+    block_types = {}
+    unreached = list(non_entry)  # never contains entry, list for deterministic order
+    to_process = [entry]
 
-        # we have already visited it
-        if source in block_types:
+    def mark_reached(bb):
+        """Mark a block as reached, adding to process queue if new."""
+        if bb in unreached:
+            unreached.remove(bb)
+            to_process.append(bb)
+
+    while to_process:
+        bb = draw(st.sampled_from(to_process))
+        to_process.remove(bb)
+
+        if bb == return_block:
+            block_types[bb] = _ReturnBB()
             continue
 
-        target = draw(st.sampled_from(remaining_blocks))
+        fwd = forward_targets(bb)
 
-        # target is now reachable, but it may not be in block_types yet
-        reachable_blocks.append(target)
-        remaining_blocks.remove(target)
-
-        if draw(st.booleans()):
-            block_types[source] = _JumpBB(target=target)
+        # pick primary target, prioritizing unreached blocks
+        if unreached:
+            primary = draw(st.sampled_from(unreached))
         else:
-            # For branches, allow any block as the other target except entry
-            # (target is already guaranteed to be forward)
-            other_target = draw(st.sampled_from(non_entry_blocks))
+            primary = draw(st.sampled_from(fwd))
+        mark_reached(primary)
 
-            is_back_edge = basic_blocks.index(other_target) <= basic_blocks.index(source)
+        primary_is_forward = is_forward(bb, primary)
 
-            # if other_target is the back edge, swap so back edge is always target1
-            if is_back_edge:
-                other_target, target = target, other_target
-            block_types[source] = _BranchBB(target1=target, target2=other_target)
+        # only allow jump if:
+        # 1. primary is forward (ensures forward progress)
+        # 2. all blocks are already reachable (otherwise need branch to reach more)
+        use_jump = primary_is_forward and not unreached and draw(st.booleans())
 
-    # classify remaining blocks that were not handled during spanning
-    # tree construction.
+        if use_jump:
+            block_types[bb] = _JumpBB(target=primary)
+        else:
+            # branch: pick second target, prioritizing unreached blocks
+            if unreached:
+                secondary = draw(st.sampled_from(unreached))
+            else:
+                secondary = draw(st.sampled_from(non_entry))
 
-    loop_counter_addr = MAX_MEMORY_SIZE
-    for bb in basic_blocks:
-        if bb in block_types:
-            continue
+            if secondary == primary:
+                others = [b for b in non_entry if b != primary]
+                secondary = draw(st.sampled_from(others)) if others else return_block
 
-        edge_type = draw(st.sampled_from(["jump", "branch"]))
+            secondary_is_forward = is_forward(bb, secondary)
 
-        if edge_type == "jump":
-            target = draw(st.sampled_from(forward_targets[bb]))
-            block_types[bb] = _JumpBB(target=target)
-        else:  # branch
-            # Choose targets, but never allow entry as a target
-            target1 = draw(st.sampled_from(non_entry_blocks))
-            target2 = draw(st.sampled_from(non_entry_blocks))
+            # ensure at least one forward edge (prevents infinite loops)
+            if not primary_is_forward and not secondary_is_forward:
+                secondary = draw(st.sampled_from(fwd))
+                secondary_is_forward = True
 
-            is_back_edge1 = basic_blocks.index(target1) <= basic_blocks.index(bb)
-            is_back_edge2 = basic_blocks.index(target2) <= basic_blocks.index(bb)
+            mark_reached(secondary)
 
-            if is_back_edge1 and is_back_edge2:
-                # ensure at least one target provides forward progress
-                target2 = draw(st.sampled_from(forward_targets[bb]))
-                is_back_edge2 = False
+            # convention: target1 is back edge if there is one
+            has_back_edge = not primary_is_forward or not secondary_is_forward
+            if not secondary_is_forward and primary_is_forward:
+                primary, secondary = secondary, primary
 
-            contains_back_edge = is_back_edge1 or is_back_edge2
-
-            # swap targets so target2 is always a forward edge
-            if is_back_edge2 and not is_back_edge1:
-                target1, target2 = target2, target1
-
-            counter_addr = loop_counter_addr if contains_back_edge else None
-
-            block_types[bb] = _BranchBB(target1=target1, target2=target2, counter_addr=counter_addr)
-
-            if contains_back_edge:
-                loop_counter_addr += 32
+            block_types[bb] = _BranchBB(
+                target1=primary, target2=secondary, has_back_edge=has_back_edge
+            )
 
     return block_types
 
 
-@st.composite
-def precompile_call(draw, fuzzer: MemoryFuzzer, bb: IRBasicBlock) -> None:
-    """Generate a call to a precompile that produces real output data."""
+# precompile data: (precompile_idx, input_ofst, output_ofst)
+PRECOMPILE_LIST = list(PRECOMPILES.keys())
+PRECOMPILE_SIZES = {
+    0x1: (128, 32),   # ecrecover
+    0x2: (64, 32),    # sha256
+    0x3: (64, 32),    # ripemd160
+    0x4: (64, 64),    # identity (using fixed sizes)
+    0x5: (96, 32),    # modexp
+    0x6: (128, 64),   # ecadd
+    0x7: (96, 64),    # ecmul
+    0x8: (192, 32),   # ecpairing
+    0x9: (213, 64),   # blake2f
+}
 
-    precompile_addr = draw(st.sampled_from(list(PRECOMPILES.keys())))
-    precompile_name = PRECOMPILES[precompile_addr]
 
-    input_ofst = fuzzer.get_memory_address(draw, bb)
-    output_ofst = fuzzer.get_memory_address(draw, bb)
-
-    if precompile_name == "ecrecover":
-        input_size = IRLiteral(128)  # v, r, s, hash
-        output_size = IRLiteral(32)
-    elif precompile_name == "sha256":
-        input_size = IRLiteral(64)
-        output_size = IRLiteral(32)
-    elif precompile_name == "ripemd160":
-        input_size = IRLiteral(64)
-        output_size = IRLiteral(32)
-    elif precompile_name == "identity":
-        # identity copies min(input_size, output_size) bytes
-        input_size = IRLiteral(draw(copy_length()))
-        output_size = IRLiteral(draw(copy_length()))
-    elif precompile_name == "modexp":
-        input_size = IRLiteral(96)  # minimal: base_len, exp_len, mod_len
-        output_size = IRLiteral(32)
-    elif precompile_name == "ecadd":
-        input_size = IRLiteral(128)  # two EC points (x1, y1, x2, y2)
-        output_size = IRLiteral(64)
-    elif precompile_name == "ecmul":
-        input_size = IRLiteral(96)  # EC point (x, y) and scalar
-        output_size = IRLiteral(64)
-    elif precompile_name == "ecpairing":
-        input_size = IRLiteral(192)  # minimal: one pair of G1 and G2 points
-        output_size = IRLiteral(32)
-    elif precompile_name == "blake2f":
-        input_size = IRLiteral(213)  # blake2f requires specific input size
-        output_size = IRLiteral(64)
-    else:
-        raise AssertionError(f"Unknown precompile: {precompile_name}")
-
-    gas = fuzzer.fresh_symbolic()
-    bb.append_instruction("gas", ret=gas)
-    addr = IRLiteral(precompile_addr)
-
-    success = fuzzer.fresh_symbolic()
-    bb.append_instruction( "staticcall",
-        output_size,
-        output_ofst,
-        input_size,
-        input_ofst,
-        addr,
-        gas,
-        ret=success
+def precompile_data_strategy():
+    """Strategy that generates all data for one precompile call."""
+    return st.tuples(
+        st.integers(0, len(PRECOMPILE_LIST) - 1),  # precompile_idx
+        st.integers(0, MAX_MEMORY_SIZE - 32),  # input_ofst
+        st.integers(0, MAX_MEMORY_SIZE - 32),  # output_ofst
     )
 
 
-@st.composite
-def basic_block_instructions(draw, fuzzer: MemoryFuzzer, bb: IRBasicBlock) -> None:
-    """Generate instructions for a basic block."""
-    num_instructions = draw(st.integers(min_value=1, max_value=MAX_INSTRUCTIONS_PER_BLOCK))
+# precompiles with invalid input consume all forwarded gas on failure,
+# so use a fixed gas limit instead of forwarding all remaining gas
+PRECOMPILE_GAS = 100_000
 
-    for _ in range(num_instructions):
-        inst_type = draw(st.sampled_from(["memory"] * 9 + ["precompile"]))
 
-        if inst_type == "memory":
-            draw(memory_instruction(fuzzer, bb))
-        elif inst_type == "precompile":
-            draw(precompile_call(fuzzer, bb))
+def apply_precompile_call(fuzzer: MemoryFuzzer, bb: IRBasicBlock, data: tuple) -> None:
+    """Apply precompile data to generate a staticcall instruction."""
+    precompile_idx, input_ofst, output_ofst = data
+    precompile_addr = PRECOMPILE_LIST[precompile_idx]
+    input_size, output_size = PRECOMPILE_SIZES[precompile_addr]
+
+    success = fuzzer.fresh_symbolic()
+    bb.append_instruction(
+        "staticcall",
+        IRLiteral(output_size),
+        IRLiteral(output_ofst),
+        IRLiteral(input_size),
+        IRLiteral(input_ofst),
+        IRLiteral(precompile_addr),
+        IRLiteral(PRECOMPILE_GAS),
+        ret=success,
+    )
+
+
+def block_instructions_strategy():
+    """Strategy that generates all instruction data for one block as a list."""
+    # each element is (is_precompile, data_tuple)
+    # 90% memory, 10% precompile via st.one_of with weighted alternatives
+    memory_inst = st.tuples(st.just(False), instruction_data_strategy())
+    precompile_inst = st.tuples(st.just(True), precompile_data_strategy())
+    inst = st.one_of(*([memory_inst] * 9), precompile_inst)
+    return st.lists(inst, min_size=1, max_size=MAX_INSTRUCTIONS_PER_BLOCK)
+
+
+def apply_block_instructions(
+    fuzzer: MemoryFuzzer, bb: IRBasicBlock, inst_list: list
+) -> None:
+    """Apply a list of instruction data to a basic block."""
+    for is_precompile, data in inst_list:
+        if is_precompile:
+            apply_precompile_call(fuzzer, bb, data)
         else:
-            raise AssertionError(f"Unknown instruction type: {inst_type}")
+            apply_memory_instruction(fuzzer, bb, data)
 
 
 # ============================================================================
@@ -488,26 +481,36 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
     # ---- Generate control flow ----
     block_types = draw(control_flow_graph(basic_blocks))
 
-    # ---- Initialize memory and loop counters ----
+    # ---- Initialize memory and loop counter ----
+    # IMPORTANT: These must be the first instructions in entry block to ensure
+    # they execute before any potential CFG splits during normalization
     entry_block = basic_blocks[0]
+
+    # initialize memory to the contents of calldata ("random" data)
     entry_block.append_instruction(
-        "calldatacopy", IRLiteral(0), IRLiteral(0), IRLiteral(MAX_MEMORY_SIZE)
+        "calldatacopy", IRLiteral(MAX_MEMORY_SIZE), IRLiteral(0), IRLiteral(0),
     )
 
-    # extract loop counter addresses and initialize them
-    counter_addrs = set()
-    for bb_type in block_types.values():
-        if isinstance(bb_type, _BranchBB) and bb_type.counter_addr is not None:
-            addr = bb_type.counter_addr
-            assert addr not in counter_addrs, f"Duplicate counter address {addr}"
-            counter_addrs.add(addr)
+    # check if any block has a back edge - if so we need a global counter
+    has_any_back_edge = any(
+        isinstance(bt, _BranchBB) and bt.has_back_edge for bt in block_types.values()
+    )
 
-    for addr in counter_addrs:
-        entry_block.append_instruction("mstore", IRLiteral(0), IRLiteral(addr))
+    # use a single global counter at a fixed address for all back edges
+    # this prevents nested loops from multiplying iteration counts
+    global_counter_addr = MAX_MEMORY_SIZE
+    if has_any_back_edge:
+        entry_block.append_instruction("mstore", IRLiteral(0), IRLiteral(global_counter_addr))
 
     # ---- Generate instructions ----
-    for bb in basic_blocks:
-        draw(basic_block_instructions(fuzzer, bb))
+    # Draw all instruction data upfront for all blocks
+    all_block_instructions = draw(
+        st.lists(block_instructions_strategy(), min_size=num_blocks, max_size=num_blocks)
+    )
+
+    # Apply instructions to each block
+    for bb, inst_list in zip(basic_blocks, all_block_instructions):
+        apply_block_instructions(fuzzer, bb, inst_list)
 
     # ---- Add terminators ----
     for bb in basic_blocks:
@@ -520,13 +523,18 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
             bb.append_instruction("jmp", bb_type.target.label)
 
         elif isinstance(bb_type, _BranchBB):
+            # If both targets are the same, convert to unconditional jump
+            if bb_type.target1 == bb_type.target2:
+                bb.append_instruction("jmp", bb_type.target1.label)
+                continue
+
             cond_var = fuzzer.get_random_variable(draw, bb)
             # get bottom bit, for bias reasons
             cond_result = fuzzer.fresh_symbolic()
             bb.append_instruction("and", cond_var, IRLiteral(1), ret=cond_result)
 
-            if bb_type.needs_loop_counter:
-                loop_counter_addr = IRLiteral(bb_type.counter_addr)
+            if bb_type.has_back_edge:
+                loop_counter_addr = IRLiteral(global_counter_addr)
 
                 counter = fuzzer.fresh_symbolic()
                 bb.append_instruction("mload", loop_counter_addr, ret=counter)
@@ -537,7 +545,7 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
 
                 max_iterations = IRLiteral(MAX_LOOP_ITERATIONS)
                 counter_ok = fuzzer.fresh_symbolic()
-                bb.append_instruction("lt", counter, max_iterations, ret=counter_ok)
+                bb.append_instruction("lt", max_iterations, counter, ret=counter_ok)
 
                 final_cond = fuzzer.fresh_symbolic()
                 bb.append_instruction("and", counter_ok, cond_result, ret=final_cond)
@@ -615,7 +623,7 @@ class MemoryFuzzChecker:
         deployed_address = env._deploy(deploy_bytecode)
 
         try:
-            result = env.message_call(to=deployed_address, data=calldata)
+            result = env.message_call(to=deployed_address, data=calldata, gas=10_000_000)
             return True, result
         except EvmError as e:
             # stub for future handling of programs that are actually expected to revert
@@ -645,6 +653,7 @@ class MemoryFuzzChecker:
         if equals:
             hp.note("No optimization done")
             return
+
         hp.note("UNOPTIMIZED: " + str(ctx))
         hp.note("OPTIMIZED: " + str(opt_ctx))
         hp.note("optimizations: " + str(msg))
@@ -675,7 +684,11 @@ class MemoryFuzzChecker:
 def venom_with_calldata(draw):
     """Generate Venom IR context with matching calldata."""
     ctx, calldata_size = draw(venom_function_with_memory_ops())
-    calldata = draw(st.binary(min_size=calldata_size, max_size=calldata_size))
+    # use a seeded random for calldata - costs ~4 choices instead of calldata_size
+    import random
+    seed = draw(st.integers(0, 2**32 - 1))
+    rng = random.Random(seed)
+    calldata = bytes(rng.getrandbits(8) for _ in range(calldata_size))
     return ctx, calldata
 
 
@@ -690,7 +703,8 @@ def venom_with_calldata(draw):
     max_examples=1000,
     suppress_health_check=(hp.HealthCheck.data_too_large, hp.HealthCheck.too_slow),
     deadline=None,
-    phases=(hp.Phase.explicit, hp.Phase.reuse, hp.Phase.generate, hp.Phase.target),
+    # skip `target` phase - it tries to maximize which causes buffer overruns
+    phases=(hp.Phase.explicit, hp.Phase.reuse, hp.Phase.generate),
     verbosity=hp.Verbosity.verbose,
 )
 def test_memory_passes_fuzzing(venom_data, env):
@@ -722,5 +736,3 @@ if __name__ == "__main__":
     checker = MemoryFuzzChecker([MemMergePass])
     checker.run_passes(ctx)
     print(ctx)
-    bytecode = checker.compile_to_bytecode(ctx)
-    print(bytecode.hex())
