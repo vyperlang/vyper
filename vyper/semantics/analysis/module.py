@@ -317,7 +317,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 # refactor so that range() is properly tagged.
                 continue
 
-            call_t = call_node.func._expr_info.typ
+            call_t = expr_info.typ
 
             if not isinstance(call_t, ContractFunctionT):
                 continue
