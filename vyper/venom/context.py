@@ -4,6 +4,7 @@ from typing import Iterator, Optional
 
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 from vyper.venom.function import IRFunction
+from vyper.venom.memory_allocator import MemoryAllocator
 
 
 @dataclass
@@ -39,20 +40,21 @@ class DataSection:
 class IRContext:
     functions: dict[IRLabel, IRFunction]
     entry_function: Optional[IRFunction]
-    ctor_mem_size: Optional[int]
-    immutables_len: Optional[int]
+    constants: dict[str, int]  # globally defined constants
     data_segment: list[DataSection]
     last_label: int
     last_variable: int
+    mem_allocator: MemoryAllocator
 
     def __init__(self) -> None:
         self.functions = {}
         self.entry_function = None
-        self.ctor_mem_size = None
-        self.immutables_len = None
         self.data_segment = []
+        self.constants = {}
+
         self.last_label = 0
         self.last_variable = 0
+        self.mem_allocator = MemoryAllocator()
 
     def get_basic_blocks(self) -> Iterator[IRBasicBlock]:
         for fn in self.functions.values():
@@ -107,8 +109,6 @@ class IRContext:
 
     def copy(self) -> "IRContext":
         new_ctx = IRContext()
-        new_ctx.ctor_mem_size = self.ctor_mem_size
-        new_ctx.immutables_len = self.immutables_len
         new_ctx.last_label = self.last_label
         new_ctx.last_variable = self.last_variable
 
@@ -122,7 +122,13 @@ class IRContext:
         for section in self.data_segment:
             new_ctx.data_segment.append(section.copy())
 
+        new_ctx.constants = self.constants.copy()
+
         return new_ctx
+
+    def add_constant(self, name: str, value: int) -> None:
+        assert name not in self.constants
+        self.constants[name] = value
 
     def as_graph(self) -> str:
         s = ["digraph G {"]

@@ -24,7 +24,6 @@ class InstUpdater:
 
     # move the uses of old_var to new_inst
     def move_uses(self, old_var: IRVariable, new_inst: IRInstruction):
-        assert new_inst.output is not None
         new_var = new_inst.output
 
         for use in list(self.dfg.get_uses(old_var)):
@@ -55,19 +54,26 @@ class InstUpdater:
             if isinstance(op, IRVariable):
                 self.dfg.add_use(op, inst)
 
+        old_outputs = inst.get_outputs()
+
         if opcode in NO_OUTPUT_INSTRUCTIONS:
-            if inst.output is not None:
+            for output in old_outputs:
                 assert new_output is None
-                assert len(uses := self.dfg.get_uses(inst.output)) == 0, (inst, uses)
-                self.dfg.remove_producing_instruction(inst.output)
-                inst.output = None
+                assert len(uses := self.dfg.get_uses(output)) == 0, (inst, uses)
+                self.dfg.remove_producing_instruction(output)
+            inst.set_outputs([])
         else:
             # new_output is None is sentinel meaning "no change"
-            if new_output is not None and new_output != inst.output:
-                if inst.output is not None:
-                    self.dfg.remove_producing_instruction(inst.output)
+            if new_output is not None:
+                # multi-output instructions are not currently updated this way
+                assert len(old_outputs) <= 1
+
+                old_primary = old_outputs[0] if len(old_outputs) > 0 else None
+
+                if old_primary is not None and old_primary != new_output:
+                    self.dfg.remove_producing_instruction(old_primary)
                 self.dfg.set_producing_instruction(new_output, inst)
-                inst.output = new_output
+                inst.set_outputs([new_output])
 
         inst.opcode = opcode
         inst.operands = new_operands
@@ -89,10 +95,13 @@ class InstUpdater:
                 return
             # NOTE: this doesn't work for dfg cycles.
             inst = q.popleft()
-            if inst.output and len(self.dfg.get_uses(inst.output)) > 0:
+            # Check if ANY output has uses
+            outputs = inst.get_outputs()
+            has_uses = any(len(self.dfg.get_uses(output)) > 0 for output in outputs)
+            if has_uses:
                 q.append(inst)
-                continue
-            self.nop(inst)
+            else:
+                self.nop(inst)
 
         # this should only happen if we try to delete a dfg cycle, cross
         # that bridge when we get to it.
@@ -102,8 +111,10 @@ class InstUpdater:
         self.nop(inst)  # for dfg updates and checks
         inst.parent.remove_instruction(inst)
 
-    def store(self, inst: IRInstruction, op: IROperand, new_output: Optional[IRVariable] = None):
-        self.update(inst, "store", [op], new_output=new_output)
+    def mk_assign(
+        self, inst: IRInstruction, op: IROperand, new_output: Optional[IRVariable] = None
+    ):
+        self.update(inst, "assign", [op], new_output=new_output)
 
     def add_before(
         self, inst: IRInstruction, opcode: str, args: list[IROperand]
@@ -111,7 +122,6 @@ class InstUpdater:
         """
         Insert another instruction before the given instruction
         """
-        assert opcode != "phi"
         index = inst.parent.instructions.index(inst)
 
         var = None
@@ -119,7 +129,7 @@ class InstUpdater:
             var = inst.parent.parent.get_next_variable()
 
         operands = list(args)
-        new_inst = IRInstruction(opcode, operands, output=var)
+        new_inst = IRInstruction(opcode, operands, [var] if var is not None else None)
         inst.parent.insert_instruction(new_inst, index)
         for op in new_inst.operands:
             if isinstance(op, IRVariable):

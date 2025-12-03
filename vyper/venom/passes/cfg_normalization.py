@@ -59,7 +59,7 @@ class CFGNormalization(IRPass):
                     continue
 
                 if self._needs_forwarding_store(var, pred_bb):
-                    new_var = split_bb.append_instruction("store", var)
+                    new_var = split_bb.append_instruction("assign", var)
                     assert new_var is not None  # help mypy
                     var_replacements[var] = new_var
 
@@ -73,7 +73,7 @@ class CFGNormalization(IRPass):
 
     def _needs_forwarding_store(self, var: IRVariable, pred_bb: IRBasicBlock) -> bool:
         for inst in pred_bb.instructions:
-            if inst.output == var:
+            if var in inst.get_outputs():
                 # variable defined by phi needs forwarding
                 return inst.opcode == "phi"
         # variable not defined in predecessor needs forwarding

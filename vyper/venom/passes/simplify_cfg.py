@@ -45,6 +45,13 @@ class SimplifyCFGPass(IRPass):
         self.cfg.remove_cfg_in(next_bb, b)
         self.cfg.add_cfg_in(next_bb, a)
 
+        for next_bb in self.cfg.cfg_out(a):
+            for inst in next_bb.instructions:
+                # assume phi instructions are at beginning of bb
+                if inst.opcode != "phi":
+                    break
+                inst.operands[inst.operands.index(b.label)] = a.label
+
         self.function.remove_basic_block(b)
 
     def _collapse_chained_blocks_r(self, bb: IRBasicBlock):
@@ -132,7 +139,7 @@ class SimplifyCFGPass(IRPass):
 
             op_len = len(inst.operands)
             if op_len == 2:
-                inst.opcode = "store"
+                inst.opcode = "assign"
                 inst.operands = [inst.operands[1]]
             elif op_len == 0:
                 inst.make_nop()
