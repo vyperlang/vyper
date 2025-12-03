@@ -3,11 +3,6 @@
 
 from typing import Dict, List
 
-from optimization_levels.O2 import PASSES_O2
-from optimization_levels.O3 import PASSES_O3
-from optimization_levels.Os import PASSES_Os
-from optimization_levels.types import PassConfig
-
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
 from vyper.ir.compile_ir import AssemblyInstruction
@@ -19,6 +14,10 @@ from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.memory_location import fix_mem_loc
+from vyper.venom.optimization_levels.O2 import PASSES_O2
+from vyper.venom.optimization_levels.O3 import PASSES_O3
+from vyper.venom.optimization_levels.Os import PASSES_Os
+from vyper.venom.optimization_levels.types import PassConfig
 from vyper.venom.passes import FunctionInlinerPass
 from vyper.venom.passes.fix_calloca import FixCalloca
 from vyper.venom.venom_to_assembly import VenomCompiler
