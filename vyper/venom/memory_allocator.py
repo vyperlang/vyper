@@ -40,7 +40,28 @@ class MemoryAllocator:
         ptr = self.eom
         self.eom += mem_loc.size
         assert mem_loc._id not in self.allocated
-        self.allocated[mem_loc._id] = (ptr, mem_loc.size)
+
+        reserved = sorted(list(self.reserved))
+
+        ptr = MemoryAllocator.FN_START
+        size = mem_loc.size
+
+        for (resv_ptr, resv_size) in reserved:
+            # can happen if this allocation
+            # ovelaps with allocations that dont
+            # ovelap each other
+            if resv_ptr < ptr:
+                ptr = resv_ptr + resv_size
+                continue
+            
+            # found the place
+            if resv_ptr >= ptr + size:
+                break
+
+            ptr = resv_ptr + resv_size
+
+        
+        self.allocated[mem_loc._id] = (ptr, size)
         self.allocated_fn.add(mem_loc)
         return ptr
 
