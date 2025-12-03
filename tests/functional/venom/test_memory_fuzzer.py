@@ -27,6 +27,7 @@ _hypothesis_engine.BUFFER_SIZE = 128 * 1024  # 128KB instead of default 8KB
 
 from tests.evm_backends.base_env import EvmError
 from tests.venom_utils import assert_ctx_eq
+from vyper.evm.address_space import MEMORY
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.venom import VenomCompiler
 from vyper.venom.analysis import IRAnalysesCache
@@ -170,11 +171,11 @@ class MemoryFuzzer:
             for i, inst in enumerate(bb.instructions):
                 # First, handle output to allocate variable if needed
                 output_sym = None
-                if inst.output and isinstance(inst.output, SymbolicVar):
+                if inst.has_outputs and isinstance(inst.output, SymbolicVar):
                     output_sym = inst.output
                     if inst.output not in symbolic_mapping:
                         symbolic_mapping[inst.output] = self.get_next_variable()
-                    inst.output = symbolic_mapping[inst.output]
+                    inst.set_outputs([symbolic_mapping[output_sym]])
 
                 # Then resolve operands
                 new_operands = []
@@ -185,7 +186,7 @@ class MemoryFuzzer:
                             real_var = self.get_next_variable()
                             symbolic_mapping[op] = real_var
                             load_inst = IRInstruction(
-                                "calldataload", [IRLiteral(self.calldata_offset)], real_var
+                                "calldataload", [IRLiteral(self.calldata_offset)], [real_var]
                             )
                             insertions.append((i, load_inst))
                             self.calldata_offset += 32
@@ -587,10 +588,8 @@ class MemoryFuzzChecker:
             SingleUseExpansion(ac, fn).run_pass()
             CFGNormalization(ac, fn).run_pass()
 
-        # hp.note(str(ctx))
-
-        compiler = VenomCompiler([ctx])
-        asm = compiler.generate_evm()
+        compiler = VenomCompiler(ctx)
+        asm = compiler.generate_evm_assembly()
         bytecode, _ = assembly_to_evm(asm)
         return bytecode
 
@@ -607,7 +606,10 @@ class MemoryFuzzChecker:
 
             for pass_class in self.passes:
                 pass_obj = pass_class(ac, fn)
-                pass_obj.run_pass()
+                if pass_class == DeadStoreElimination:
+                    pass_obj.run_pass(addr_space=MEMORY)
+                else:
+                    pass_obj.run_pass()
 
         return optimized_ctx
 
@@ -713,7 +715,11 @@ def test_memory_passes_fuzzing(venom_data, env):
 
     Tests that memory passes preserve semantics by comparing EVM execution results.
     """
-    pass_list = [MemMergePass]
+    # NOTE: DeadStoreElimination has a bug where it treats call/staticcall output
+    # writes as unconditional clobbers. If a call fails, it doesn't write to the
+    # output buffer, but DSE assumes it always does. This causes DSE to incorrectly
+    # eliminate stores that are still needed when calls fail. Excluding DSE until fixed.
+    pass_list = [LoadElimination, MemMergePass]
     ctx, calldata = venom_data
 
     checker = MemoryFuzzChecker(pass_list)
@@ -733,6 +739,6 @@ def generate_sample_ir() -> IRContext:
 
 if __name__ == "__main__":
     ctx = generate_sample_ir()
-    checker = MemoryFuzzChecker([MemMergePass])
+    checker = MemoryFuzzChecker([LoadElimination, MemMergePass, DeadStoreElimination])
     checker.run_passes(ctx)
     print(ctx)
