@@ -394,8 +394,10 @@ def precompile_data_strategy():
 
 
 # precompiles with invalid input consume all forwarded gas on failure,
-# so use a fixed gas limit instead of forwarding all remaining gas
-PRECOMPILE_GAS = 100_000
+# so use a fixed gas limit instead of forwarding all remaining gas.
+# keep this low to avoid OOG when loops iterate multiple times with
+# many precompile calls per iteration.
+PRECOMPILE_GAS = 10_000
 
 
 def apply_precompile_call(fuzzer: MemoryFuzzer, bb: IRBasicBlock, data: tuple) -> None:
