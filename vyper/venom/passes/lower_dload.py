@@ -1,6 +1,6 @@
 from vyper.utils import MemoryPositions
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRAbstractMemLoc
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -25,7 +25,7 @@ class LowerDloadPass(IRPass):
                     IRInstruction("add", [ptr, IRLabel("code_end")], [var]), index=idx
                 )
                 idx += 1
-                dst = IRLiteral(MemoryPositions.FREE_VAR_SPACE)
+                dst = IRAbstractMemLoc.FREE_VAR1
                 bb.insert_instruction(
                     IRInstruction("codecopy", [IRLiteral(32), var, dst]), index=idx
                 )

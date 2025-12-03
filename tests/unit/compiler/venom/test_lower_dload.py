@@ -25,8 +25,8 @@ def test_lower_dload_basic():
     post = """
     main:
         %1 = add @code_end, 100
-        codecopy 0, %1, 32
-        %d1 = mload 0
+        codecopy {@0,32}, %1, 32
+        %d1 = mload {@0,32}
         sink %d1
     """
 
@@ -48,8 +48,8 @@ def test_lower_dload_var():
     main:
         %par = source
         %1 = add @code_end, %par
-        codecopy 0, %1, 32
-        %d1 = mload 0
+        codecopy {@0,32}, %1, 32
+        %d1 = mload {@0,32}
         sink %d1
     """
 
