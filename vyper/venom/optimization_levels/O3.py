@@ -19,7 +19,6 @@ from vyper.venom.passes import (
     Mem2Var,
     MemMergePass,
     PhiEliminationPass,
-    ReduceLiteralsCodesize,
     RemoveUnusedVariablesPass,
     RevertToAssert,
     SimplifyCFGPass,
@@ -50,7 +49,6 @@ PASSES_O3: List[PassConfig] = [
     AssignElimination,
     RevertToAssert,
     SimplifyCFGPass,
-    MemMergePass,
     RemoveUnusedVariablesPass,
     (DeadStoreElimination, {"addr_space": MEMORY}),
     (DeadStoreElimination, {"addr_space": STORAGE}),
@@ -74,7 +72,6 @@ PASSES_O3: List[PassConfig] = [
     AssignElimination,
     RemoveUnusedVariablesPass,
     SingleUseExpansion,
-    ReduceLiteralsCodesize,
     DFTPass,
     CFGNormalization,
 ]

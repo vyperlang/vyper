@@ -7,6 +7,7 @@ from vyper.venom.passes.assign_elimination import AssignElimination
 from vyper.venom.passes.branch_optimization import BranchOptimizationPass
 from vyper.venom.passes.cfg_normalization import CFGNormalization
 from vyper.venom.passes.common_subexpression_elimination import CSE
+from vyper.venom.passes.concretize_mem_loc import ConcretizeMemLocPass
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.passes.dft import DFTPass
 from vyper.venom.passes.float_allocas import FloatAllocas
@@ -47,14 +48,22 @@ PASSES_Os: List[PassConfig] = [
     AssignElimination,
     RevertToAssert,
     SimplifyCFGPass,
-    MemMergePass,
     RemoveUnusedVariablesPass,
     (DeadStoreElimination, {"addr_space": MEMORY}),
     (DeadStoreElimination, {"addr_space": STORAGE}),
     (DeadStoreElimination, {"addr_space": TRANSIENT}),
+    AssignElimination,
+    RemoveUnusedVariablesPass,
+    ConcretizeMemLocPass,
+    SCCP,
+    SimplifyCFGPass,
+    # run memmerge before LowerDload
+    MemMergePass,
     LowerDloadPass,
+    RemoveUnusedVariablesPass,
     BranchOptimizationPass,
     AlgebraicOptimizationPass,
+    # This improves the performance of cse
     RemoveUnusedVariablesPass,
     PhiEliminationPass,
     AssignElimination,
