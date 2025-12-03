@@ -107,7 +107,7 @@ class CSE(IRPass):
             self._replace_inst(orig, to)
 
     def _replace_inst(self, orig_inst: IRInstruction, to_inst: IRInstruction):
-        if orig_inst.has_outputs():
+        if orig_inst.has_outputs:
             orig_inst.opcode = "assign"
             orig_inst.operands = [to_inst.output]
         else:

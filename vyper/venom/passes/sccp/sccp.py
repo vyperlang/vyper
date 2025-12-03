@@ -7,6 +7,7 @@ from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import (
+    IRAbstractMemLoc,
     IRBasicBlock,
     IRInstruction,
     IRLabel,
@@ -36,7 +37,7 @@ class FlowWorkItem:
 
 
 WorkListItem = Union[FlowWorkItem, SSAWorkListItem]
-LatticeItem = Union[LatticeEnum, IRLiteral, IRLabel]
+LatticeItem = Union[LatticeEnum, IRLiteral, IRLabel, IRAbstractMemLoc]
 Lattice = dict[IRVariable, LatticeItem]
 
 
@@ -152,7 +153,7 @@ class SCCP(IRPass):
         self.lattice[op] = value
 
     def _eval_from_lattice(self, op: IROperand) -> LatticeItem:
-        if isinstance(op, (IRLiteral, IRLabel)):
+        if isinstance(op, (IRLiteral, IRLabel, IRAbstractMemLoc)):
             return op
 
         assert isinstance(op, IRVariable), f"Not a variable: {op}"
@@ -186,6 +187,15 @@ class SCCP(IRPass):
 
         if opcode in store_opcodes:
             out = self._eval_from_lattice(inst.operands[0])
+            self._set_lattice(inst.output, out)
+            self._add_ssa_work_items(inst)
+        elif opcode == "gep":
+            mem = self._eval_from_lattice(inst.operands[0])
+            offset = self._eval_from_lattice(inst.operands[1])
+            if not isinstance(mem, IRAbstractMemLoc) or not isinstance(offset, IRLiteral):
+                out = LatticeEnum.BOTTOM
+            else:
+                out = IRAbstractMemLoc(mem.size, offset=mem.offset + offset.value, force_id=mem._id)
             self._set_lattice(inst.output, out)
             self._add_ssa_work_items(inst)
         elif opcode == "jmp":
@@ -244,7 +254,7 @@ class SCCP(IRPass):
         ops: list[IRLiteral] = []
         for op in inst.operands:
             # Evaluate the operand according to the lattice
-            if isinstance(op, IRLabel):
+            if isinstance(op, (IRLabel, IRAbstractMemLoc)):
                 return finalize(LatticeEnum.BOTTOM)
             elif isinstance(op, IRVariable):
                 eval_result = self.lattice[op]
@@ -262,7 +272,10 @@ class SCCP(IRPass):
             if eval_result is LatticeEnum.TOP:
                 return finalize(LatticeEnum.TOP)
 
-            assert isinstance(eval_result, IRLiteral), (op, eval_result, inst.parent.label, inst)
+            if isinstance(eval_result, IRAbstractMemLoc):
+                return finalize(LatticeEnum.BOTTOM)
+
+            assert isinstance(eval_result, IRLiteral), (inst.parent.label, op, inst, eval_result)
             ops.append(eval_result)
 
         # If we haven't found BOTTOM yet, evaluate the operation
@@ -323,7 +336,7 @@ class SCCP(IRPass):
         for i, op in enumerate(inst.operands):
             if isinstance(op, IRVariable):
                 lat = self.lattice[op]
-                if isinstance(lat, IRLiteral):
+                if isinstance(lat, (IRLiteral, IRAbstractMemLoc)):
                     inst.operands[i] = lat
 
 

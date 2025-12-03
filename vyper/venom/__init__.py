@@ -3,18 +3,25 @@
 
 from typing import Any, Dict, List
 
+from optimization_levels.O2 import PASSES_O2
+from optimization_levels.O3 import PASSES_O3
+from optimization_levels.Os import PASSES_Os
+from optimization_levels.types import PassConfig
+from vyper.venom.memory_location import fix_mem_loc
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
+from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
+from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import AssemblyInstruction
+from vyper.venom.analysis import MemSSA
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRLabel, IRLiteral
+from vyper.venom.basicblock import IRAbstractMemLoc, IRLabel, IRLiteral
 from vyper.venom.check_venom import check_calling_convention
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
-from vyper.venom.optimization_levels import PASSES_O2, PASSES_O3, PASSES_Os
-from vyper.venom.optimization_levels.types import PassConfig
 from vyper.venom.passes import FunctionInlinerPass
+from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
@@ -86,7 +93,8 @@ def _run_passes(fn: IRFunction, flags: VenomOptimizationFlags, ac: IRAnalysesCac
 def _run_global_passes(
     ctx: IRContext, flags: VenomOptimizationFlags, ir_analyses: dict[IRFunction, IRAnalysesCache]
 ) -> None:
-    if not flags.disable_inlining:
+    FixCalloca(ir_analyses, ctx).run_pass()
+    if not flags.disable_inlining:        
         FunctionInlinerPass(ir_analyses, ctx, flags).run_pass()
 
 
@@ -103,8 +111,35 @@ def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags) -> None:
     for fn in ctx.functions.values():
         ir_analyses[fn] = IRAnalysesCache(fn)
 
-    for fn in ctx.functions.values():
-        _run_passes(fn, flags, ir_analyses[fn])
+    assert ctx.entry_function is not None
+    fcg = ir_analyses[ctx.entry_function].force_analysis(FCGAnalysis)
+
+    _run_fn_passes(ctx, fcg, ctx.entry_function, flags, ir_analyses)
+
+
+def _run_fn_passes(
+    ctx: IRContext, fcg: FCGAnalysis, fn: IRFunction, optimize: OptimizationLevel, ir_analyses: dict
+):
+    visited: set[IRFunction] = set()
+    assert ctx.entry_function is not None
+    _run_fn_passes_r(ctx, fcg, ctx.entry_function, optimize, ir_analyses, visited)
+
+
+def _run_fn_passes_r(
+    ctx: IRContext,
+    fcg: FCGAnalysis,
+    fn: IRFunction,
+    flags: VenomOptimizationFlags,
+    ir_analyses: dict,
+    visited: set,
+):
+    if fn in visited:
+        return
+    visited.add(fn)
+    for next_fn in fcg.get_callees(fn):
+        _run_fn_passes_r(ctx, fcg, next_fn, flags, ir_analyses, visited)
+
+    _run_passes(fn, flags, ir_analyses[fn])
 
 
 def generate_venom(
@@ -117,6 +152,15 @@ def generate_venom(
     constants = constants or {}
     starting_symbols = {k: IRLiteral(v) for k, v in constants.items()}
     ctx = ir_node_to_venom(ir, starting_symbols)
+
+    # these mem location are used as magic values inside
+    # the compiler, they are globally shared slots so we allocate
+    # them here, in a context-global way.
+    ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR1)
+    ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR2)
+
+    for fn in ctx.functions.values():
+        fix_mem_loc(fn)
 
     data_sections = data_sections or {}
     for section_name, data in data_sections.items():
