@@ -231,7 +231,11 @@ class LoadElimination(IRPass):
                     return
                 ops.extend([pred.label, val])
 
-            assert len(ops) == 2 * len(existing_value), (ops, existing_value, inst)
+            # we must have an operand for every predecessor to maintain
+            # the phi-CFG invariant
+            num_preds = len(self.cfg.cfg_in(bb))
+            if len(ops) != 2 * num_preds:
+                return
 
             join = self.updater.add_before(first_inst, "phi", ops)
             assert join is not None

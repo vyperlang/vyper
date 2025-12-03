@@ -24,6 +24,12 @@ class DataSection:
     label: IRLabel
     data_items: list[DataItem] = field(default_factory=list)
 
+    def copy(self) -> "DataSection":
+        new_section = DataSection(self.label)
+        for item in self.data_items:
+            new_section.data_items.append(DataItem(item.data))
+        return new_section
+
     def __str__(self):
         ret = [f"dbsection {self.label.value}:"]
         for item in self.data_items:
@@ -100,6 +106,25 @@ class IRContext:
         assert len(self.data_segment) > 0
         data_section = self.data_segment[-1]
         data_section.data_items.append(DataItem(data))
+
+    def copy(self) -> "IRContext":
+        new_ctx = IRContext()
+        new_ctx.last_label = self.last_label
+        new_ctx.last_variable = self.last_variable
+
+        for fn in self.functions.values():
+            new_fn = fn.copy()
+            new_ctx.add_function(new_fn)
+
+        if self.entry_function is not None:
+            new_ctx.entry_function = new_ctx.functions[self.entry_function.name]
+
+        for section in self.data_segment:
+            new_ctx.data_segment.append(section.copy())
+
+        new_ctx.constants = self.constants.copy()
+
+        return new_ctx
 
     def add_constant(self, name: str, value: int) -> None:
         assert name not in self.constants
