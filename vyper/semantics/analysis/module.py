@@ -302,11 +302,12 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if any(f.is_constructor for f in t.module_info.module_t.functions.values())
         }
 
+        constructor = module_t.init_function
+
+        # Methods called by the constructor
         init_calls = []
-        for f in self.ast.get_children(vy_ast.FunctionDef):
-            if f._metadata["func_type"].is_constructor:
-                init_calls = f.get_descendants(vy_ast.Call)
-                break
+        if constructor is not None:
+            init_calls = constructor.ast_def.get_descendants(vy_ast.Call)
 
         seen_initializers = {}
         for call_node in init_calls:
@@ -353,8 +354,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 # grab the init function AST node for error message
                 # (it could be None, it's ok since it's just for diagnostics)
                 init_func_node = None
-                if module_t.init_function:
-                    init_func_node = module_t.init_function.decl_node
+                if constructor is not None:
+                    init_func_node = constructor.decl_node
                 err_list.append(InitializerException(msg, init_func_node, s.node, hint=hint))
 
             err_list.raise_if_not_empty()
