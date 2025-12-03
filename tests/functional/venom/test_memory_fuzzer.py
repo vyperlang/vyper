@@ -111,6 +111,57 @@ class _BranchBB(_BBType):
 
 
 # ============================================================================
+# Dominance Computation
+# ============================================================================
+
+
+def compute_dominators(
+    basic_blocks: list[IRBasicBlock], block_types: dict[IRBasicBlock, _BBType]
+) -> dict[IRBasicBlock, set[IRBasicBlock]]:
+    """
+    Compute dominators for each block from the CFG structure.
+
+    Returns a dict mapping each block to the set of blocks that dominate it.
+    A block always dominates itself.
+    """
+    # build predecessor map from block_types
+    preds: dict[IRBasicBlock, list[IRBasicBlock]] = {bb: [] for bb in basic_blocks}
+    for bb, bb_type in block_types.items():
+        if isinstance(bb_type, _JumpBB):
+            preds[bb_type.target].append(bb)
+        elif isinstance(bb_type, _BranchBB):
+            preds[bb_type.target1].append(bb)
+            preds[bb_type.target2].append(bb)
+
+    entry = basic_blocks[0]
+    all_blocks = set(basic_blocks)
+
+    # initialize: entry dominated only by itself, others by all blocks
+    doms: dict[IRBasicBlock, set[IRBasicBlock]] = {}
+    doms[entry] = {entry}
+    for bb in basic_blocks[1:]:
+        doms[bb] = all_blocks.copy()
+
+    # iterate until fixed point
+    changed = True
+    while changed:
+        changed = False
+        for bb in basic_blocks[1:]:
+            if not preds[bb]:
+                continue
+            # dom(bb) = {bb} ∪ ∩{dom(p) for p in preds(bb)}
+            new_doms = all_blocks.copy()
+            for p in preds[bb]:
+                new_doms &= doms[p]
+            new_doms.add(bb)
+            if new_doms != doms[bb]:
+                doms[bb] = new_doms
+                changed = True
+
+    return doms
+
+
+# ============================================================================
 # Symbolic Variables
 # ============================================================================
 
@@ -147,8 +198,13 @@ class MemoryFuzzer:
         self.function = None
         self.bb_counter = 0
         self.calldata_offset = MAX_MEMORY_SIZE  # Start after memory seed data
-        self.allocated_memory_slots = set()
         self.symbolic_counter = 0
+        # track used addresses for aliasing opportunities
+        self.used_addresses: list[int] = []
+        # track mload outputs with their defining block for cross-block reuse
+        self.mload_outputs: list[tuple[SymbolicVar, IRBasicBlock]] = []
+        # dominators computed from CFG (set before instruction generation)
+        self.dominators: dict[IRBasicBlock, set[IRBasicBlock]] = {}
 
     def get_next_variable(self) -> IRVariable:
         """Generate a new unique variable using the function's allocator."""
@@ -160,29 +216,38 @@ class MemoryFuzzer:
         self.symbolic_counter += 1
         return SymbolicVar(f"%sym_{self.symbolic_counter}")
 
+    def get_available_mloads(self, bb: IRBasicBlock) -> list[SymbolicVar]:
+        """Get mload outputs that are available (dominate) in the given block."""
+        if not self.dominators:
+            return []
+        bb_doms = self.dominators.get(bb, set())
+        return [sym for sym, def_bb in self.mload_outputs if def_bb in bb_doms]
+
     def resolve_all_variables(self, block_types: dict[IRBasicBlock, _BBType]):
-        """After building all blocks, replace symbolic vars with real ones"""
-        # Simple global mapping - each symbolic var gets one real var
+        """After building all blocks, replace symbolic vars with real ones.
+
+        Each symbolic var gets one real var. If a symbolic is used as operand
+        before being defined as output, a calldataload is inserted to initialize it.
+        """
         symbolic_mapping = {}
 
         for bb in self.function.get_basic_blocks():
             insertions = []
 
             for i, inst in enumerate(bb.instructions):
-                # First, handle output to allocate variable if needed
-                output_sym = None
+                # handle outputs first - allocate variable
                 if inst.has_outputs and isinstance(inst.output, SymbolicVar):
                     output_sym = inst.output
-                    if inst.output not in symbolic_mapping:
-                        symbolic_mapping[inst.output] = self.get_next_variable()
+                    if output_sym not in symbolic_mapping:
+                        symbolic_mapping[output_sym] = self.get_next_variable()
                     inst.set_outputs([symbolic_mapping[output_sym]])
 
-                # Then resolve operands
+                # resolve operands
                 new_operands = []
                 for op in inst.operands:
                     if isinstance(op, SymbolicVar):
                         if op not in symbolic_mapping:
-                            # First use - create variable and schedule initialization
+                            # first use as operand - initialize from calldata
                             real_var = self.get_next_variable()
                             symbolic_mapping[op] = real_var
                             load_inst = IRInstruction(
@@ -194,7 +259,7 @@ class MemoryFuzzer:
                     new_operands.append(op)
                 inst.operands = new_operands
 
-            # Insert calldataloads
+            # insert calldataloads
             for idx, load_inst in reversed(insertions):
                 bb.insert_instruction(load_inst, index=idx)
 
@@ -203,42 +268,22 @@ class MemoryFuzzer:
         self.bb_counter += 1
         return IRLabel(f"bb{self.bb_counter}")
 
-    def get_random_variable(self, draw, bb: IRBasicBlock) -> SymbolicVar:
-        """Get a symbolic variable that will be resolved later."""
-        # Always return symbolic variables during generation phase
-        # They will be resolved to real variables with proper initialization
-        return self.fresh_symbolic()
-
-    def get_memory_address(self, draw, bb: IRBasicBlock) -> IRVariable | IRLiteral:
-        """Get a memory address, biased towards interesting optimizer-relevant locations."""
-        # Currently only returns literals to keep fuzzing patterns simple
-
-        if self.allocated_memory_slots and draw(st.booleans()):
-            # bias towards addresses near existing allocations to create aliasing opportunities
-            base_addr = draw(st.sampled_from(list(self.allocated_memory_slots)))
-
-            offset = draw(st.integers(min_value=-32, max_value=32))
-            if draw(st.booleans()):
-                # snap to word boundaries for more interesting aliasing patterns
-                offset = 0 if abs(offset) < 16 else (32 if offset > 0 else -32)
-
-            addr = max(0, min(MAX_MEMORY_SIZE - 32, base_addr + offset))
-        else:
-            addr = draw(st.integers(min_value=0, max_value=MAX_MEMORY_SIZE - 32))
-
-        self.allocated_memory_slots.add(addr)
-        return IRLiteral(addr)
 
 
 
 
-# instruction data: (op_idx, use_literal, literal_value, addr1, addr2, copy_len)
+# instruction data:
+# (op_idx, use_literal, literal_value, addr1, addr2, copy_len, reuse_val_idx,
+#  reuse_addr_flag, reuse_addr_idx)
 # - op_idx: 0=mload, 1=mstore, 2=mcopy
 # - use_literal: for mstore, whether to use literal vs symbolic
 # - literal_value: value for mstore literal
-# - addr1: first memory address
+# - addr1: first memory address (used if not reusing)
 # - addr2: second memory address (for mcopy)
-# - copy_len: length for mcopy
+# - copy_len: length for mcopy (also used as span for alias bounds)
+# - reuse_val_idx: index into available_values for reusing mload results
+# - reuse_addr_flag: whether to reuse an existing address
+# - reuse_addr_idx: index into used_addresses for address aliasing
 def instruction_data_strategy():
     """Strategy that generates all data for one instruction in a single draw."""
     return st.tuples(
@@ -248,6 +293,9 @@ def instruction_data_strategy():
         st.integers(0, MAX_MEMORY_SIZE - 32),  # addr1
         st.integers(0, MAX_MEMORY_SIZE - 32),  # addr2
         st.integers(1, 96),  # copy_len
+        st.integers(0, 1000),  # reuse_val_idx (mod len(available_values) when used)
+        st.booleans(),  # reuse_addr_flag
+        st.integers(0, 1000),  # reuse_addr_idx
     )
 
 
@@ -255,16 +303,32 @@ def apply_memory_instruction(
     fuzzer: MemoryFuzzer, bb: IRBasicBlock, inst_data: tuple
 ) -> None:
     """Apply instruction data to generate a memory instruction."""
-    op_idx, use_literal, literal_value, addr1, addr2, copy_len = inst_data
+    (op_idx, use_literal, literal_value, addr1, addr2, copy_len,
+     reuse_val_idx, reuse_addr_flag, reuse_addr_idx) = inst_data
+
+    # decide whether to reuse an existing address for aliasing
+    if reuse_addr_flag and fuzzer.used_addresses:
+        addr1 = fuzzer.used_addresses[reuse_addr_idx % len(fuzzer.used_addresses)]
+    else:
+        fuzzer.used_addresses.append(addr1)
 
     if op_idx == 0:  # mload
         result_var = fuzzer.fresh_symbolic()
         bb.append_instruction("mload", IRLiteral(addr1), ret=result_var)
+        # track for cross-block reuse with defining block
+        fuzzer.mload_outputs.append((result_var, bb))
     elif op_idx == 1:  # mstore
         if use_literal:
             value = IRLiteral(literal_value)
         else:
-            value = fuzzer.fresh_symbolic()
+            # get mload outputs from dominating blocks (including this one)
+            available = fuzzer.get_available_mloads(bb)
+            if available:
+                # reuse an mload output to test load-store dataflow
+                idx = reuse_val_idx % len(available)
+                value = available[idx]
+            else:
+                value = fuzzer.fresh_symbolic()
         bb.append_instruction("mstore", value, IRLiteral(addr1))
     else:  # mcopy
         bb.append_instruction("mcopy", IRLiteral(addr1), IRLiteral(addr2), IRLiteral(copy_len))
@@ -383,7 +447,6 @@ PRECOMPILE_SIZES = {
     0x9: (213, 64),   # blake2f
 }
 
-
 def precompile_data_strategy():
     """Strategy that generates all data for one precompile call."""
     return st.tuples(
@@ -484,6 +547,9 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
     # ---- Generate control flow ----
     block_types = draw(control_flow_graph(basic_blocks))
 
+    # ---- Compute dominators for cross-block dataflow ----
+    fuzzer.dominators = compute_dominators(basic_blocks, block_types)
+
     # ---- Initialize memory and loop counter ----
     # IMPORTANT: These must be the first instructions in entry block to ensure
     # they execute before any potential CFG splits during normalization
@@ -531,7 +597,7 @@ def venom_function_with_memory_ops(draw) -> tuple[IRContext, int]:
                 bb.append_instruction("jmp", bb_type.target1.label)
                 continue
 
-            cond_var = fuzzer.get_random_variable(draw, bb)
+            cond_var = fuzzer.fresh_symbolic()
             # get bottom bit, for bias reasons
             cond_result = fuzzer.fresh_symbolic()
             bb.append_instruction("and", cond_var, IRLiteral(1), ret=cond_result)
@@ -630,7 +696,7 @@ class MemoryFuzzChecker:
             result = env.message_call(to=deployed_address, data=calldata, gas=10_000_000)
             return True, result
         except EvmError as e:
-            # stub for future handling of programs that are actually expected to revert
+            # stub for future programs that are actually expected to revert
             raise
 
     def check_equivalence(self, ctx: IRContext, calldata: bytes, env) -> None:
