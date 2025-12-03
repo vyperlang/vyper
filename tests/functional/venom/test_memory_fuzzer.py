@@ -709,7 +709,7 @@ def venom_with_calldata(draw):
     deadline=None,
     # skip `target` phase - it tries to maximize which causes buffer overruns
     phases=(hp.Phase.explicit, hp.Phase.reuse, hp.Phase.generate),
-    verbosity=hp.Verbosity.verbose,
+    # verbosity=hp.Verbosity.verbose,
 )
 def test_memory_passes_fuzzing(venom_data, env):
     """
