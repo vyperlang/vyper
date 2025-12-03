@@ -148,19 +148,25 @@ class MakeSSA(IRPass):
             if inst.opcode != "phi":
                 continue
 
-            new_ops: list[IROperand] = []
             phi_out = inst.output
-            for label, op in inst.phi_operands:
-                if op == phi_out:
-                    continue
-                new_ops.extend([label, op])
-            new_ops_len = len(new_ops)
-            if new_ops_len == 0:
-                entry.instructions.remove(inst)
-            elif new_ops_len == 2:
-                entry.instructions.remove(inst)
-            else:
-                inst.operands = new_ops
+
+            # collect unique non-self-referential values
+            unique_values: list[IROperand] = []
+            for _, op in inst.phi_operands:
+                if op != phi_out and op not in unique_values:
+                    unique_values.append(op)
+
+            if len(unique_values) == 0:
+                # all operands are self-refs - phi is dead
+                entry.remove_instruction(inst)
+            elif len(unique_values) == 1:
+                # only one unique value after excluding self-refs.
+                # all uses of phi_out have already been renamed by _rename_vars,
+                # so this definition is dead and can be removed.
+                entry.remove_instruction(inst)
+            # else: multiple different values - keep phi unchanged
+            # (importantly, do NOT remove self-referential operands as they
+            # are needed to maintain the phi-CFG invariant)
 
         for bb in self.dom.dominated[entry]:
             if bb == entry:
