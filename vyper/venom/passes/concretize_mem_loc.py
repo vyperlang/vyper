@@ -73,8 +73,6 @@ class ConcretizeMemLocPass(IRPass):
             inst.operands = new_ops
             if inst.opcode == "gep":
                 inst.opcode = "add"
-            elif inst.opcode == "mem_deploy_start":
-                inst.opcode = "assign"
 
     def _handle_op(self, op: IROperand, inst: IRInstruction) -> IROperand:
         """

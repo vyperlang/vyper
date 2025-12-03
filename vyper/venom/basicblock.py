@@ -98,6 +98,7 @@ COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", 
 
 COMPARATOR_INSTRUCTIONS = ("gt", "lt", "sgt", "slt")
 
+
 ir_printer = ContextVar("ir_printer", default=None)
 
 
