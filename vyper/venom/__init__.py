@@ -10,10 +10,7 @@ from optimization_levels.types import PassConfig
 
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
-from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
-from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import AssemblyInstruction
-from vyper.venom.analysis import MemSSA
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.fcg import FCGAnalysis
 from vyper.venom.basicblock import IRAbstractMemLoc, IRLabel, IRLiteral
@@ -23,7 +20,6 @@ from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.memory_location import fix_mem_loc
 from vyper.venom.passes import FunctionInlinerPass
-from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.passes.fix_calloca import FixCalloca
 from vyper.venom.venom_to_assembly import VenomCompiler
 
