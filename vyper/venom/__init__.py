@@ -1,27 +1,30 @@
 # maybe rename this `main.py` or `venom.py`
 # (can have an `__init__.py` which exposes the API).
 
-from typing import Any, Dict, List
+from typing import Dict, List
 
 from optimization_levels.O2 import PASSES_O2
 from optimization_levels.O3 import PASSES_O3
 from optimization_levels.Os import PASSES_Os
 from optimization_levels.types import PassConfig
-from vyper.venom.memory_location import fix_mem_loc
+
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
 from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import AssemblyInstruction
 from vyper.venom.analysis import MemSSA
 from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis.fcg import FCGAnalysis
 from vyper.venom.basicblock import IRAbstractMemLoc, IRLabel, IRLiteral
 from vyper.venom.check_venom import check_calling_convention
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
+from vyper.venom.memory_location import fix_mem_loc
 from vyper.venom.passes import FunctionInlinerPass
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
+from vyper.venom.passes.fix_calloca import FixCalloca
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
@@ -94,7 +97,7 @@ def _run_global_passes(
     ctx: IRContext, flags: VenomOptimizationFlags, ir_analyses: dict[IRFunction, IRAnalysesCache]
 ) -> None:
     FixCalloca(ir_analyses, ctx).run_pass()
-    if not flags.disable_inlining:        
+    if not flags.disable_inlining:
         FunctionInlinerPass(ir_analyses, ctx, flags).run_pass()
 
 
@@ -118,11 +121,15 @@ def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags) -> None:
 
 
 def _run_fn_passes(
-    ctx: IRContext, fcg: FCGAnalysis, fn: IRFunction, optimize: OptimizationLevel, ir_analyses: dict
+    ctx: IRContext,
+    fcg: FCGAnalysis,
+    fn: IRFunction,
+    flags: VenomOptimizationFlags,
+    ir_analyses: dict,
 ):
     visited: set[IRFunction] = set()
     assert ctx.entry_function is not None
-    _run_fn_passes_r(ctx, fcg, ctx.entry_function, optimize, ir_analyses, visited)
+    _run_fn_passes_r(ctx, fcg, ctx.entry_function, flags, ir_analyses, visited)
 
 
 def _run_fn_passes_r(

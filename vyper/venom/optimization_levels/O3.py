@@ -2,7 +2,6 @@ from typing import List
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
 from vyper.venom.optimization_levels.types import PassConfig
-
 from vyper.venom.passes import (
     CSE,
     SCCP,
@@ -11,6 +10,7 @@ from vyper.venom.passes import (
     BranchOptimizationPass,
     CFGNormalization,
     ConcretizeMemLocPass,
+    DeadStoreElimination,
     DFTPass,
     FloatAllocas,
     LoadElimination,
@@ -24,7 +24,6 @@ from vyper.venom.passes import (
     RevertToAssert,
     SimplifyCFGPass,
     SingleUseExpansion,
-    DeadStoreElimination,
 )
 
 # Standard optimizations (default)
@@ -61,29 +60,21 @@ PASSES_O3: List[PassConfig] = [
     ConcretizeMemLocPass,
     SCCP,
     SimplifyCFGPass,
-
     # run memmerge before LowerDload
     MemMergePass,
     LowerDloadPass,
     RemoveUnusedVariablesPass,
     BranchOptimizationPass,
-
     AlgebraicOptimizationPass,
-
     # This improves the performance of cse
     RemoveUnusedVariablesPass,
-
     PhiEliminationPass,
     AssignElimination,
     CSE,
-
     AssignElimination,
     RemoveUnusedVariablesPass,
     SingleUseExpansion,
-
     ReduceLiteralsCodesize,
-
     DFTPass,
-
     CFGNormalization,
 ]

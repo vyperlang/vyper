@@ -5,7 +5,6 @@ import pytest
 
 from tests.venom_utils import parse_from_basic_block
 from vyper.ir.compile_ir import assembly_to_evm
-from vyper.venom import VenomCompiler
 from vyper.venom import (
     CFGNormalization,
     ConcretizeMemLocPass,
