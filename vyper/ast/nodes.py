@@ -449,7 +449,7 @@ class VyperNode:
             if isinstance(value, list):
                 ast_dict[key] = [_to_dict(i) for i in value]
             elif isinstance(value, Settings):
-                ast_dict[key] = value.as_dict()
+                ast_dict[key] = value.as_dict(include_venom_flags=False)
             else:
                 ast_dict[key] = _to_dict(value)
 
