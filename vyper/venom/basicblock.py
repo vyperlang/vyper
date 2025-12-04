@@ -210,7 +210,10 @@ class IRAbstractMemLoc(IROperand):
         return self._id == other._id and self.offset == other.offset
 
     def __repr__(self) -> str:
-        return f"[{self._id},{self.size} + {self.offset}]"
+        if self.offset != 0:
+            return f"{{@{self._id},{self.size} + {self.offset}}}"
+        else:
+            return f"{{@{self._id},{self.size}}}"
 
     def without_offset(self) -> IRAbstractMemLoc:
         return IRAbstractMemLoc(self.size, force_id=self._id)
