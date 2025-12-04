@@ -25,7 +25,7 @@ from vyper.venom.passes import (
     SingleUseExpansion,
 )
 
-# Aggressive optimizations (O3) 
+# Aggressive optimizations (O3)
 PASSES_O3: List[PassConfig] = [
     FloatAllocas,
     SimplifyCFGPass,

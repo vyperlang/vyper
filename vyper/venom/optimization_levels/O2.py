@@ -1,6 +1,5 @@
 from typing import List
 
-from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
 from vyper.venom.optimization_levels.types import PassConfig
 from vyper.venom.passes import (
     CSE,
@@ -10,7 +9,6 @@ from vyper.venom.passes import (
     BranchOptimizationPass,
     CFGNormalization,
     ConcretizeMemLocPass,
-    DeadStoreElimination,
     DFTPass,
     FloatAllocas,
     LoadElimination,
@@ -49,11 +47,6 @@ PASSES_O2: List[PassConfig] = [
     AssignElimination,
     RevertToAssert,
     SimplifyCFGPass,
-    RemoveUnusedVariablesPass,
-    (DeadStoreElimination, {"addr_space": MEMORY}),
-    (DeadStoreElimination, {"addr_space": STORAGE}),
-    (DeadStoreElimination, {"addr_space": TRANSIENT}),
-    AssignElimination,
     RemoveUnusedVariablesPass,
     ConcretizeMemLocPass,
     SCCP,
