@@ -59,6 +59,7 @@ class ConcretizeMemLocPass(IRPass):
         # so that allocate() in handle_op is able to allocate from proper
         # starting place
         self.allocator.eom = max_eom
+        self.allocator.reserve_all()
 
         for bb in self.function.get_basic_blocks():
             self._handle_bb(bb)

@@ -45,7 +45,7 @@ class MemoryAllocator:
 
         ptr = MemoryAllocator.FN_START
         size = mem_loc.size
-
+        
         for (resv_ptr, resv_size) in reserved:
             # can happen if this allocation
             # ovelaps with allocations that dont
@@ -86,3 +86,7 @@ class MemoryAllocator:
         ptr, size = self.allocated[mem_loc._id]
         self.reserved.add((ptr, size))
         self.eom = max(ptr + size, self.eom)
+
+    def reserve_all(self):
+        for mem in self.allocated_fn:
+            self.reserve(mem) 
