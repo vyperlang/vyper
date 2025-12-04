@@ -389,6 +389,8 @@ class _ExprAnalyser:
         try:
             t = self.namespace[node.id]
             # when this is a type, we want to lower it
+            if isinstance(t, TYPE_T):
+                return [t]
             if isinstance(t, VyperType):
                 # TYPE_T is used to handle cases where a type can occur in call or
                 # attribute conditions, like Flag.foo or MyStruct({...})

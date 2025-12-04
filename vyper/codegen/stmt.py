@@ -20,7 +20,7 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
 from vyper.exceptions import CodegenPanic, StructureException, TypeCheckFailure, tag_exceptions
-from vyper.semantics.types import DArrayT
+from vyper.semantics.types import DArrayT, ErrorT, TupleT
 from vyper.semantics.types.shortcuts import UINT256_T
 
 
@@ -123,6 +123,10 @@ class Stmt:
                     ["assert_unreachable", test_expr], error_msg="assert unreachable"
                 )
 
+        msg_type = msg._metadata.get("type") if hasattr(msg, "_metadata") else None
+        if isinstance(msg_type, ErrorT):
+            return self._assert_custom_error(test_expr, msg, msg_type)
+
         # set constant so that revert reason str is well behaved
         try:
             tmp = self.context.constancy
@@ -150,6 +154,61 @@ class Stmt:
                 ["revert", add_ofst(buf, 28), ["add", 4, encoded_length]],
             ]
             revert_seq = b1.resolve(revert_seq)
+
+        if is_raise:
+            ir_node = revert_seq
+        else:
+            ir_node = ["if", ["iszero", test_expr], revert_seq]
+        return IRnode.from_list(ir_node, error_msg="user revert with reason")
+
+    def _custom_error_args(
+        self, call: vy_ast.Call, error_t: ErrorT
+    ) -> list[vy_ast.VyperNode]:
+        if len(call.keywords) > 0:
+            kwarg_lookup = {kw.arg: kw.value for kw in call.keywords}
+            return [kwarg_lookup[name] for name in error_t.arguments.keys()]
+
+        return call.args
+
+    def _assert_custom_error(self, test_expr, msg: vy_ast.Call, error_t: ErrorT):
+        is_raise = test_expr is None
+
+        arg_nodes = self._custom_error_args(msg, error_t)
+        arg_irs = [Expr(arg, self.context).ir_node for arg in arg_nodes]
+
+        args_tuple_t = TupleT(tuple(error_t.arguments.values()))
+        args_as_tuple = IRnode.from_list(["multi", *arg_irs], typ=args_tuple_t)
+
+        abi_t = args_tuple_t.abi_type
+        buflen = abi_t.size_bound() + 32
+        buf = self.context.new_internal_variable(get_type_for_exact_size(buflen))
+
+        if len(arg_irs) == 0:
+            revert_seq = [
+                "seq",
+                ["mstore", buf, error_t.selector],
+                ["revert", add_ofst(buf, 28), 4],
+            ]
+        else:
+            payload_buf = add_ofst(buf, 32)
+            encode_buflen = buflen - 32
+            encoded_length = abi_encode(
+                payload_buf,
+                args_as_tuple,
+                self.context,
+                bufsz=encode_buflen,
+                returns_len=True,
+            )
+            with encoded_length.cache_when_complex("encoded_len") as (
+                b1,
+                encoded_length,
+            ):
+                revert_seq = [
+                    "seq",
+                    ["mstore", buf, error_t.selector],
+                    ["revert", add_ofst(buf, 28), ["add", 4, encoded_length]],
+                ]
+                revert_seq = b1.resolve(revert_seq)
 
         if is_raise:
             ir_node = revert_seq

@@ -12,6 +12,7 @@ module: ( DOCSTRING
         | variable_def
         | enum_def // TODO deprecate at some point in favor of flag
         | flag_def
+        | error_def
         | event_def
         | function_def
         | exports_decl
@@ -70,6 +71,13 @@ indexed_event_arg: NAME ":" "indexed" "(" type ")"
 // Events which use no args use a pass statement instead
 event_body: _NEWLINE _INDENT (((event_member | indexed_event_arg ) _NEWLINE)+ | _PASS _NEWLINE) _DEDENT
 event_def: _EVENT_DECL NAME ":" ( event_body | _PASS )
+
+// Custom errors mirror event syntax (without indexed fields)
+_ERROR_DECL: "error"
+error_member: NAME ":" type
+// Errors which use no args use a pass statement instead
+error_body: _NEWLINE _INDENT ((error_member _NEWLINE)+ | _PASS _NEWLINE) _DEDENT
+error_def: _ERROR_DECL NAME ":" ( error_body | _PASS )
 
 // TODO deprecate in favor of flag
 // Enums
