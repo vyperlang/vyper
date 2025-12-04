@@ -19,6 +19,7 @@ from vyper.venom.passes import (
     CSE,
     SCCP,
     AlgebraicOptimizationPass,
+    AssertEliminationPass,
     AssignElimination,
     BranchOptimizationPass,
     CFGNormalization,
@@ -77,6 +78,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     SimplifyCFGPass(ac, fn).run_pass()
     AssignElimination(ac, fn).run_pass()
     AlgebraicOptimizationPass(ac, fn).run_pass()
+    AssertEliminationPass(ac, fn).run_pass()
 
     LoadElimination(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
