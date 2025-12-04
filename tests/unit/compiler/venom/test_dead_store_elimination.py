@@ -655,13 +655,19 @@ def test_call_with_memory_and_other_effects():
     _check_pre_post(pre, post, hevm=False)
 
 
-def test_call_overwrites_previous_stores():
+def test_call_does_not_overwrite_previous_stores():
     pre = """
         _global:
-            ; Store at the location that will be overwritten
-            ; by call and never read before overwriting
-            mstore 64, 42  ; This should be eliminated due to
-                           ; call overwriting it before any read
+            ; Store at the location uses same memory
+            ; as the call instruction output buffer
+            ; and never read before the call
+            ; However, the mstore cannot be elided
+            ; since we don't know how much memory the call
+            ; will actually write to (calls are *bounded*
+            ; by the output buffer size, not guaranteed
+            ; to use all of it)
+            mstore 64, 42
+            mstore 96, 32
 
             ; Store value needed for call
             mstore 32, 24  ; This should remain as it's used by call
@@ -673,29 +679,30 @@ def test_call_overwrites_previous_stores():
             ; Read the call result from memory (at the
             ; location where val1 was stored but got overwritten)
             %result = mload 64
+            %size = mload 96
 
-            return %result, 32
+            return %result, %size
     """
 
-    post = """
+    _check_no_change(pre)
+
+
+def test_staticcall_does_not_overwrite_previous_stores():
+    pre = """
         _global:
-            ; Store at the location that will be overwritten
-            ; by call and never read before overwriting
-            nop
+            %addr = calldataload 0
+            mstore %addr, 42
 
-            ; Store value needed for call
-            mstore 32, 24  ; This should remain as it's used by call
+            mstore 32, 24
 
-            ; Call has both memory read (32) and write (64) effects
-            %success = call 1000, 0x12, 0, 32, 32, 64, 32
+            %success = staticcall 1000, 0x12, 0, 32, %addr, 32
 
-            ; Read the call result from memory (at the location
-            ; where val1 was stored but got overwritten)
-            %result = mload 64
+            %result = mload %addr
 
             return %result, 32
     """
-    _check_pre_post(pre, post, hevm=False)
+
+    _check_no_change(pre)
 
 
 def test_calldatacopy_example():
