@@ -37,11 +37,11 @@ class MemoryLocation:
                 return MemoryLocationSegment(offset=None, size=_size)
             else:
                 segment = MemoryLocationSegment(offset=None, size=_size)
-                return MemoryLocationAbstract(op=op, segment=segment)
+                return MemoryLocationAbstract(abstract_mem_id=op._id, maximum_size=op.size, segment=segment)
         elif isinstance(offset, IRAbstractMemLoc):
             op = offset
             segment = MemoryLocationSegment(offset=op.offset, size=_size)
-            return MemoryLocationAbstract(op=op, segment=segment)
+            return MemoryLocationAbstract(abstract_mem_id=op._id, maximum_size=op.size, segment=segment)
         else:  # pragma: nocover
             raise CompilerPanic(f"invalid offset: {offset} ({type(offset)})")
 
@@ -88,10 +88,14 @@ class MemoryLocation:
     def mk_volatile(self) -> MemoryLocation:  # pragma: nocover
         raise NotImplementedError
 
+    def offset_by(self, offset: Optional[int]) -> MemoryLocation:
+        raise NotImplementedError
+
 
 @dataclass(frozen=True)
 class MemoryLocationAbstract(MemoryLocation):
-    op: IRAbstractMemLoc
+    abstract_mem_id: int
+    maximum_size: int
     segment: MemoryLocationSegment
 
     def is_empty(self):
@@ -118,7 +122,7 @@ class MemoryLocationAbstract(MemoryLocation):
 
     @staticmethod
     def may_overlap_abstract(loc1: MemoryLocationAbstract, loc2: MemoryLocationAbstract) -> bool:
-        if loc1.op._id == loc2.op._id:
+        if loc1.abstract_mem_id == loc2.abstract_mem_id:
             return MemoryLocationSegment.may_overlap_concrete(loc1.segment, loc2.segment)
         else:
             return False
@@ -128,13 +132,16 @@ class MemoryLocationAbstract(MemoryLocation):
             return False
         if not isinstance(other, MemoryLocationAbstract):
             return False
-        if self.op.size is None:
+        if self.maximum_size is None:
             return False
         if other.is_empty():
             return True
-        if self.op._id == other.op._id:
+        if self.abstract_mem_id == other.abstract_mem_id:
             return self.segment.completely_contains(other.segment)
         return False
+
+    def offset_by(self, offset: Optional[int]) -> MemoryLocation:
+        return dc.replace(self, segment=self.segment.offset_by(offset))
 
 
 @dataclass(frozen=True)
@@ -236,6 +243,15 @@ class MemoryLocationSegment(MemoryLocation):
             return True
 
         return True
+
+    def offset_by(self, offset: Optional[int]) -> MemoryLocation:
+        if offset is None:
+            return dc.replace(self, offset=None)
+
+        if self.offset is None:
+            return dc.replace(self, offset=None)
+
+        return dc.replace(self, offset=self.offset + offset)
 
 
 MemoryLocation.EMPTY = MemoryLocationSegment(offset=0, size=0)
