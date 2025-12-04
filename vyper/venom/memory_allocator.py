@@ -34,7 +34,7 @@ class MemoryAllocator:
         self.allocated_fn = OrderedSet()
 
     def set_position(self, mem_loc: IRAbstractMemLoc, position: int):
-        self.allocated[mem_loc._id] = (position, mem_loc._id)
+        self.allocated[mem_loc._id] = (position, mem_loc.size)
 
     def allocate(self, mem_loc: IRAbstractMemLoc) -> int:
         ptr = self.eom

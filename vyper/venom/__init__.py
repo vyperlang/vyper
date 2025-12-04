@@ -191,8 +191,8 @@ def generate_venom(
     # these mem location are used as magic values inside
     # the compiler, they are globally shared slots so we allocate
     # them here, in a context-global way.
-    ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR1)
-    ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR2)
+    ctx.mem_allocator.set_position(IRAbstractMemLoc.FREE_VAR1, 0)
+    ctx.mem_allocator.set_position(IRAbstractMemLoc.FREE_VAR2, 32)
 
     for fn in ctx.functions.values():
         fix_mem_loc(fn)
