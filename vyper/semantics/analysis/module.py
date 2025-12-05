@@ -55,6 +55,9 @@ def analyze_module(root_module_ast: vy_ast.Module) -> ModuleT:
     add all module-level objects to the namespace, type-check/validate
     semantics and annotate with type and analysis info
     """
+    imports = _extract_imports(root_module_ast)
+    _annotate_overrides(imports)
+
     # Collect module members, partial validation
     ret = _compute_module_type_r(root_module_ast)
 
@@ -274,6 +277,102 @@ def _validate_exports_uses(module_ast: vy_ast.Module, module_t: ModuleT) -> None
                     assert module_info is not None
 
                     info.used_modules.add(module_info)
+
+
+# For each module, the module corresponding to each identifier
+ImportDict = dict[vy_ast.Module, dict[str, vy_ast.Module]]
+
+
+def _extract_imports(module_ast: vy_ast.Module, imports: ImportDict | None = None) -> ImportDict:
+    imports = imports if imports is not None else {}
+
+    if module_ast in imports:
+        # We have already seen this module, skip it
+        return imports
+
+    import_infos = [
+        import_info
+        for import_node in module_ast.get_children((vy_ast.Import, vy_ast.ImportFrom))
+        for import_info in import_node._metadata["import_infos"]
+    ]
+
+    imports[module_ast] = dict()
+
+    local_imports = imports[module_ast]
+
+    for import_info in import_infos:
+        if import_info.alias in local_imports:
+            # There is a name clash somewhere, but it will be reported later
+            pass
+        local_imports[import_info.alias] = import_info.parsed
+
+        if isinstance(import_info.parsed, list):
+            # It's a json abi, we don't need to recurse as it can import anything
+            continue
+
+        _extract_imports(import_info.parsed, imports)
+
+    return imports
+
+
+# Returns the (aliased!) names of modules whose method this method overrides
+# TODO: Check this handles correctly going through an import's import
+def _extract_overrides(func: vy_ast.FunctionDef) -> list[str]:
+    return [
+        decorator.args[0].id
+        for decorator in func.decorator_list
+        if isinstance(decorator, vy_ast.Call)
+        and decorator.func.id == "override"  # type: ignore[union-attr]
+    ]
+
+
+def _is_abstract(func: vy_ast.FunctionDef) -> bool:
+    return any(
+        isinstance(decorator, vy_ast.Name) and decorator.id == "abstract"
+        for decorator in func.decorator_list
+    )
+
+
+def _get_method(module_ast: vy_ast.Module, name: str) -> vy_ast.FunctionDef:
+    candidates = [func for func in module_ast.get_children(vy_ast.FunctionDef) if func.name == name]
+    assert len(candidates) == 1
+
+    return candidates[0]
+
+
+def _module_name_from_initializes_annot(annot: vy_ast.VyperNode) -> str:
+    if isinstance(annot, vy_ast.Name):
+        return annot.id
+    elif isinstance(annot, vy_ast.Subscript):
+        return _module_name_from_initializes_annot(annot.value)
+    raise AssertionError()
+
+
+# Adds overridden_by metadata to abstract methods, and perform validity checks
+def _annotate_overrides(imports: ImportDict) -> None:
+    for module_ast in imports:
+        # TODO: Handle cases other than annotation being a vy_ast.Name
+        initialized_modules = [
+            _module_name_from_initializes_annot(init_decl.annotation)
+            for init_decl in module_ast.get_children(vy_ast.InitializesDecl)
+        ]
+
+        for func in module_ast.get_children(vy_ast.FunctionDef):
+            for other_module_name in _extract_overrides(func):
+                other_module_ast = imports[module_ast][other_module_name]
+
+                # TODO: Overriding non-initialized module error
+                assert other_module_name in initialized_modules
+
+                other_func = _get_method(other_module_ast, func.name)
+
+                # TODO: Overriding non-abstract method error
+                assert _is_abstract(other_func)
+
+                # TODO: Duplicate override error
+                assert "overridden_by" not in other_func._metadata
+
+                other_func._metadata["overridden_by"] = func
 
 
 def _analyze_call_graph(module_ast: vy_ast.Module):
