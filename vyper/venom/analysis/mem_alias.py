@@ -2,9 +2,9 @@ from typing import Optional
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis
+from vyper.venom.memory_location import MemoryLocation
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis, BasePtrAnalysis
 from vyper.venom.basicblock import IRAbstractMemLoc, IRInstruction, IRVariable
-from vyper.venom.memory_location import MemoryLocation, get_read_location, get_write_location
 
 
 class MemoryAliasAnalysisAbstract(IRAnalysis):
@@ -19,6 +19,7 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
     def analyze(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
 
         # Map from memory locations to sets of potentially aliasing locations
         self.alias_sets: dict[MemoryLocation, OrderedSet[MemoryLocation]] = {}
@@ -47,21 +48,16 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
         assert isinstance(base_ptr, IRAbstractMemLoc)
         return base_ptr
 
-    def _get_read_location(self, inst: IRInstruction, addr_space: AddrSpace) -> MemoryLocation:
-        return get_read_location(inst, addr_space, self.var_base_pointers)
-
-    def _get_write_location(self, inst: IRInstruction, addr_space: AddrSpace) -> MemoryLocation:
-        return get_write_location(inst, addr_space, self.var_base_pointers)
 
     def _analyze_instruction(self, inst: IRInstruction):
         """Analyze a memory instruction to determine aliasing"""
         loc: Optional[MemoryLocation] = None
 
-        loc = get_read_location(inst, self.addr_space, self.var_base_pointers)
+        loc = self.base_ptr.get_read_location(inst, self.addr_space)
         if loc is not None:
             self._analyze_mem_location(loc)
 
-        loc = get_write_location(inst, self.addr_space, self.var_base_pointers)
+        loc = self.base_ptr.get_write_location(inst, self.addr_space)
         if loc is not None:
             self._analyze_mem_location(loc)
 

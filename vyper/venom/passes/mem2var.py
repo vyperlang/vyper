@@ -1,7 +1,7 @@
 from vyper.exceptions import CompilerPanic
 from vyper.utils import all2
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRAbstractMemLoc, IRInstruction, IROperand, IRVariable
+from vyper.venom.basicblock import IRAbstractMemLoc, IRInstruction, IROperand, IRVariable, IRLiteral
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
@@ -47,22 +47,21 @@ class Mem2Var(IRPass):
 
         assert len(alloca_inst.operands) == 2, (alloca_inst, alloca_inst.parent)
 
-        mem_loc, alloca_id = alloca_inst.operands
+        size, alloca_id = alloca_inst.operands
         var_name = self._mk_varname(var.value, alloca_id.value)
         var = IRVariable(var_name)
         uses = dfg.get_uses(alloca_inst.output)
 
-        self.updater.mk_assign(alloca_inst, mem_loc)
 
         if any(inst.opcode == "add" for inst in uses):
-            self._fix_adds(alloca_inst, mem_loc)
+            self._fix_adds(alloca_inst, alloca_inst.output)
             return
 
         if not all2(inst.opcode in ["mstore", "mload", "return"] for inst in uses):
             return
 
-        assert isinstance(mem_loc, IRAbstractMemLoc)
-        size = mem_loc.size
+        assert isinstance(size, IRLiteral)
+        size = size.value
 
         for inst in uses.copy():
             if inst.opcode == "mstore":
@@ -79,8 +78,8 @@ class Mem2Var(IRPass):
                     raise CompilerPanic("Trying to read with mload to memory smaller then 32 bytes")
             elif inst.opcode == "return":
                 if size <= 32:
-                    self.updater.add_before(inst, "mstore", [var, mem_loc])
-                inst.operands[1] = mem_loc
+                    self.updater.add_before(inst, "mstore", [var, alloca_inst.output])
+                inst.operands[1] = alloca_inst.output
 
     def _process_palloca_var(self, dfg: DFGAnalysis, palloca_inst: IRInstruction, var: IRVariable):
         """
@@ -128,13 +127,8 @@ class Mem2Var(IRPass):
 
     def _process_calloca(self, inst: IRInstruction):
         assert inst.opcode == "calloca"
-        assert len(inst.operands) == 2
-        memloc = inst.operands[0]
-
-        assert isinstance(memloc, IRAbstractMemLoc)
-
-        self.updater.mk_assign(inst, memloc)
-        self._fix_adds(inst, memloc)
+        assert len(inst.operands) == 3
+        self._fix_adds(inst, inst.output)
 
     def _fix_adds(self, mem_src: IRInstruction, mem_op: IROperand):
         uses = self.dfg.get_uses(mem_src.output)
