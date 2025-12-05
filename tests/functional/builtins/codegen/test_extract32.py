@@ -1,4 +1,6 @@
+import hypothesis.strategies as st
 import pytest
+from hypothesis import given, settings
 
 from vyper.evm.opcodes import version_check
 
@@ -141,3 +143,36 @@ def foo() -> bytes32:
 
     c = get_contract(slice_code)
     assert c.foo() == b"defghijklmnopqrstuvwxyz123456789"
+
+
+@pytest.mark.parametrize("m", list(range(1, 32)))
+@given(data_bytes=st.binary(min_size=32, max_size=32), valid=st.booleans())
+@settings(max_examples=100)
+@pytest.mark.fuzzing
+def test_extract32_bytesm_output(get_contract, tx_failed, m, data_bytes, valid):
+    code = f"""
+@external
+def foo(inp: Bytes[32]) -> bytes{m}:
+    return extract32(inp, 0, output_type=bytes{m})
+    """
+
+    c = get_contract(code)
+
+    head = data_bytes[:m]
+    tail_len = 32 - m
+
+    if valid:
+        # Valid case: m bytes of data + (32-m) zero bytes
+        bytesdata = head + b"\x00" * tail_len
+        result = c.foo(bytesdata)
+        assert result == head
+    else:
+        # Invalid case: m bytes of data + (32-m) bytes with at least one non-zero
+        tail = data_bytes[m:]
+        if tail == b"\x00" * tail_len:
+            # Randomizng the position of the invalid byte isn't necessary
+            # the tail is already fully random, and this is just a fixup of a special case
+            tail = b"\x01" + tail[1:]
+        bytesdata = head + tail
+        with tx_failed():
+            c.foo(bytesdata)
