@@ -137,17 +137,6 @@ jobs:
           - evm-version: shanghai
             opt-mode: codesize
 
-          # test pre-cancun with experimental pipeline + different opts
-          - evm-version: shanghai
-            experimental-codegen: true
-            opt-mode: gas
-          - evm-version: shanghai
-            experimental-codegen: true
-            opt-mode: none
-          - evm-version: shanghai
-            experimental-codegen: true
-            opt-mode: codesize
-
           # test py-evm
           - evm-backend: py-evm
             evm-version: shanghai
