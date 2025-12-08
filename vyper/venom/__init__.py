@@ -11,7 +11,7 @@ from vyper.venom.analysis import FCGAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRAbstractMemLoc, IRLabel, IRLiteral
 from vyper.venom.check_venom import check_calling_convention
-from vyper.venom.context import IRContext
+from vyper.venom.context import DeployInfo, IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.memory_location import fix_mem_loc
@@ -178,19 +178,12 @@ def _run_fn_passes_r(
 def generate_venom(
     ir: IRnode,
     settings: Settings,
-    constants: dict[str, int] = None,
     data_sections: dict[str, bytes] = None,
+    deploy_info: Optional[DeployInfo] = None,
 ) -> IRContext:
     # Convert "old" IR to "new" IR
-    constants = constants or {}
-    starting_symbols = {k: IRLiteral(v) for k, v in constants.items()}
-    ctx = ir_node_to_venom(ir, starting_symbols)
 
-    # these mem location are used as magic values inside
-    # the compiler, they are globally shared slots so we allocate
-    # them here, in a context-global way.
-    ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR1)
-    ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR2)
+    ctx = ir_node_to_venom(ir, deploy_info)
 
     for fn in ctx.functions.values():
         fix_mem_loc(fn)
@@ -199,9 +192,6 @@ def generate_venom(
     for section_name, data in data_sections.items():
         ctx.append_data_section(IRLabel(section_name))
         ctx.append_data_item(data)
-
-    for constname, value in constants.items():
-        ctx.add_constant(constname, value)
 
     optimize = settings.optimize
     assert optimize is not None  # help mypy
