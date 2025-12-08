@@ -8,7 +8,7 @@ from typing import Optional
 from vyper.codegen.context import Alloca
 from vyper.codegen.core import is_tuple_like
 from vyper.codegen.ir_node import IRnode
-from vyper.evm.opcodes import get_opcodes
+from vyper.evm.opcodes import get_opcodes,version_check
 from vyper.venom.basicblock import (
     IRAbstractMemLoc,
     IRBasicBlock,
@@ -450,8 +450,25 @@ def _convert_ir_bb(fn, ir, symbols):
         # (use a location *after* FREE_VAR_SPACE2, otherwise it gets
         # mutilated by fix_mem_loc)
         dst = 64
+        # copy immutables to end of runtime code
+        immutables_dst = dst + runtime_codesize
 
-        bb.append_instruction("mcopy", immutables_len, _immutables_region, 64 + runtime_codesize)
+        # see copy_bytes() in legacy pipeline
+        # TODO: maybe have a helper function for this
+        if version_check(begin="cancun"):
+            bb.append_instruction("mcopy", immutables_len, _immutables_region, immutables_dst)
+        else:
+            gas = bb.append_instruction("gas")
+            copy_success = bb.append_instruction(
+                "staticcall",
+                immutables_len,
+                immutables_dst,
+                immutables_len,
+                _immutables_region,
+                0x04,
+                gas,
+            )
+            bb.append_instruction("assert", copy_success)
 
         bb.append_instruction("codecopy", runtime_codesize, IRLabel("runtime_begin"), dst)
         amount_to_return = bb.append_instruction("add", runtime_codesize, immutables_len)
