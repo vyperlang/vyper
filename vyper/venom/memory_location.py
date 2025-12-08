@@ -18,11 +18,11 @@ class MemoryLocation:
 
     @classmethod
     def from_operands(
-        cls, offset: IROperand | int, size: IROperand | int, var_base_pointers: dict
+        cls, offset: IROperand | int, size: Optional[IROperand | int], var_base_pointers: dict
     ) -> MemoryLocation:
         if isinstance(size, IRLiteral):
             _size = size.value
-        elif isinstance(size, IRVariable):
+        elif isinstance(size, IRVariable) or size is None:
             _size = None
         elif isinstance(size, int):
             _size = size
@@ -279,11 +279,13 @@ def _get_memory_write_location(inst, var_base_pointers: dict) -> MemoryLocation:
     elif opcode == "invoke":
         return MemoryLocation.UNDEFINED
     elif opcode == "call":
-        size, dst, _, _, _, _, _ = inst.operands
-        return MemoryLocation.from_operands(dst, size, var_base_pointers)
+        _size, dst, _, _, _, _, _ = inst.operands
+        # size is indeterminate for *call opcodes
+        return MemoryLocation.from_operands(dst, None, var_base_pointers)
     elif opcode in ("delegatecall", "staticcall"):
-        size, dst, _, _, _, _ = inst.operands
-        return MemoryLocation.from_operands(dst, size, var_base_pointers)
+        _size, dst, _, _, _, _ = inst.operands
+        # size is indeterminate for *call opcodes
+        return MemoryLocation.from_operands(dst, None, var_base_pointers)
     elif opcode == "extcodecopy":
         size, _, dst, _ = inst.operands
         return MemoryLocation.from_operands(dst, size, var_base_pointers)
@@ -444,11 +446,14 @@ def get_write_size(inst: IRInstruction) -> IROperand | None:
         size, _, _ = inst.operands
         return size
     elif opcode == "call":
-        size, _, _, _, _, _, _ = inst.operands
-        return size
+        # number of bytes written is indeterminate -- could
+        # write anywhere between 0 and output_buffer_size bytes.
+        _size, _, _, _, _, _, _ = inst.operands
+        return None
     elif opcode in ("delegatecall", "staticcall"):
-        size, _, _, _, _, _ = inst.operands
-        return size
+        # ditto
+        _size, _, _, _, _, _ = inst.operands
+        return None
     elif opcode == "extcodecopy":
         size, _, _, _ = inst.operands
         return size
