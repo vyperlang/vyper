@@ -8,7 +8,7 @@ from typing import Optional
 from vyper.codegen.context import Alloca
 from vyper.codegen.core import is_tuple_like
 from vyper.codegen.ir_node import IRnode
-from vyper.evm.opcodes import get_opcodes,version_check
+from vyper.evm.opcodes import get_opcodes, version_check
 from vyper.venom.basicblock import (
     IRAbstractMemLoc,
     IRBasicBlock,
