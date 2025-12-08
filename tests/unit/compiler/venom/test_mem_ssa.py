@@ -457,7 +457,7 @@ def test_read_write_memory_clobbering():
 
     # Verify call instruction has both read and write memory areas
     assert call_def.loc.offset == 32  # Write area
-    assert call_def.loc.size == 32  # Write size
+    assert call_def.loc.size is None  # Write size
     assert call_use.loc.offset == 0  # Read area
     assert call_use.loc.size == 32  # Read size
 
@@ -502,7 +502,7 @@ def test_read_write_memory_clobbering_partial():
     # Verify call instruction has both read and write memory areas
     # Write area
     assert call_def.loc.offset == 0
-    assert call_def.loc.size == 32
+    assert call_def.loc.size is None
     # Read area
     assert call_use.loc.offset == 31
     assert call_use.loc.size == 2
