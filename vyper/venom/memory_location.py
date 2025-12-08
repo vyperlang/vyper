@@ -234,6 +234,7 @@ def in_free_var(var, offset):
 
 
 def fix_mem_loc(function: IRFunction):
+    return
     for bb in function.get_basic_blocks():
         for inst in bb.instructions:
             write_op = get_memory_write_op(inst)

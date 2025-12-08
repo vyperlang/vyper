@@ -20,37 +20,55 @@ class BasePtr:
 
 
 class BasePtrAnalysis(IRAnalysis):
-    var_to_mem: dict[IRVariable, BasePtr]
+    var_to_mem: dict[IRVariable, set[BasePtr]]
 
     def analyze(self):
         self.var_to_mem = dict()
 
-        for bb in self.function.get_basic_blocks():
-            for inst in bb.instructions:
-                self._handle_inst(inst)
+        while True:
+            changed = False
+            for bb in self.function.get_basic_blocks():
+                for inst in bb.instructions:
+                    changed |= self._handle_inst(inst)
 
-    def _handle_inst(self, inst: IRInstruction):
+            if not changed:
+                break
+
+    def _handle_inst(self, inst: IRInstruction) -> bool:
         if inst.num_outputs != 1:
-            return
+            return False
+
+        original = self.var_to_mem.get(inst.output, set())
 
         opcode = inst.opcode
         if opcode in ("alloca", "calloca", "palloca"):
             size = inst.operands[0]
             assert isinstance(size, IRLiteral)
-            self.var_to_mem[inst.output] = BasePtr(source=inst, offset=0, size=size.value)
+            self.var_to_mem[inst.output] = set([BasePtr(source=inst, offset=0, size=size.value)])
         elif opcode == "gep":
-            assert isinstance(inst.operands[0], IRVariable)
+            assert isinstance(inst.operands[0], IRVariable), inst.parent
             offset = None
             if isinstance(inst.operands[1], IRLiteral):
                 offset = inst.operands[1].value
-            self.var_to_mem[inst.output] = self.var_to_mem[inst.operands[0]].offset_by(offset)
+            sources = self.var_to_mem[inst.operands[0]]
+            self.var_to_mem[inst.output] = set(ptr.offset_by(offset) for ptr in sources)
         elif opcode == "phi":
-            pass
+            sources = set()
+            for _, var in inst.phi_operands:
+                assert isinstance(var, IRVariable) # mypy help
+                var_sources = self.var_to_mem[var]
+                sources.update(var_sources)
+            self.var_to_mem[inst.output] = sources
         elif opcode == "assign" and isinstance(inst.operands[0], IRVariable):
             self.var_to_mem[inst.output] = self.var_to_mem[inst.operands[0]]
 
+        return original != self.var_to_mem[inst.output]
+
     def base_ptr_from_op(self, op: IRVariable) -> Optional[BasePtr]:
-        return self.var_to_mem.get(op, None)
+        item = self.var_to_mem.get(op, set()).copy()
+        if len(item) == 1:
+            return item.pop()
+        return None 
     
     def from_operands(
         self, offset: IROperand | int, size: IROperand | int
@@ -214,4 +232,6 @@ class BasePtrAnalysis(IRAnalysis):
             return MemoryLocation.UNDEFINED
 
         return MemoryLocation.EMPTY
-
+    
+    def get_all_posible_memory(self, var: IRVariable) -> set[BasePtr]:
+        return self.var_to_mem.get(var, set())

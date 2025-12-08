@@ -59,6 +59,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     FloatAllocas(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
+    breakpoint()
 
     MakeSSA(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
@@ -94,6 +95,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     DeadStoreElimination(ac, fn).run_pass(addr_space=STORAGE)
     DeadStoreElimination(ac, fn).run_pass(addr_space=TRANSIENT)
     LowerDloadPass(ac, fn).run_pass()
+    FloatAllocas(ac, fn).run_pass()
 
     AssignElimination(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()

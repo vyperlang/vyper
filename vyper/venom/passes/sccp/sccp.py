@@ -60,7 +60,7 @@ class SCCP(IRPass):
     cfg_dirty: bool
 
     def __init__(
-        self, analyses_cache: IRAnalysesCache, function: IRFunction, /, remove_allocas=True
+        self, analyses_cache: IRAnalysesCache, function: IRFunction, /, remove_allocas=False
     ):
         super().__init__(analyses_cache, function)
         self.remove_allocas = remove_allocas

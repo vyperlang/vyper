@@ -86,12 +86,11 @@ class Mem2Var(IRPass):
         Process alloca allocated variable. If it is only used by mstore/mload
         instructions, it is promoted to a stack variable. Otherwise, it is left as is.
         """
-        mem_loc, alloca_id = palloca_inst.operands
+        size, alloca_id = palloca_inst.operands
         uses = dfg.get_uses(palloca_inst.output)
 
-        self.updater.mk_assign(palloca_inst, mem_loc)
         if any(inst.opcode == "add" for inst in uses):
-            self._fix_adds(palloca_inst, mem_loc)
+            self._fix_adds(palloca_inst, palloca_inst.output)
             return
 
         if not all2(inst.opcode in ["mstore", "mload"] for inst in uses):
@@ -104,12 +103,12 @@ class Mem2Var(IRPass):
         # on alloca_id) is a bit kludgey, but we will live.
         param = fn.get_param_by_id(alloca_id.value)
         if param is None:
-            self.updater.update(palloca_inst, "mload", [mem_loc], new_output=var)
+            self.updater.update(palloca_inst, "mload", [size], new_output=var)
         else:
             self.updater.update(palloca_inst, "assign", [param.func_var], new_output=var)
 
-        assert isinstance(mem_loc, IRAbstractMemLoc)
-        size = mem_loc.size
+        assert isinstance(size, IRLiteral)
+        size = size.value
 
         for inst in uses.copy():
             if inst.opcode == "mstore":
@@ -128,14 +127,15 @@ class Mem2Var(IRPass):
     def _process_calloca(self, inst: IRInstruction):
         assert inst.opcode == "calloca"
         assert len(inst.operands) == 3
-        self._fix_adds(inst, inst.output)
+        self._fix_adds(inst)
 
-    def _fix_adds(self, mem_src: IRInstruction, mem_op: IROperand):
+    def _fix_adds(self, mem_src: IRInstruction):
         uses = self.dfg.get_uses(mem_src.output)
+        output = mem_src.output
         for inst in uses.copy():
             if inst.opcode != "add":
                 continue
             other = [op for op in inst.operands if op != mem_src.output]
             assert len(other) == 1
-            self.updater.update(inst, "gep", [mem_op, other[0]])
-            self._fix_adds(inst, inst.output)
+            self.updater.update(inst, "gep", [output, other[0]])
+            self._fix_adds(inst)

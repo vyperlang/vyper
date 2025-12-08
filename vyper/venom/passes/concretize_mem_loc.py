@@ -3,7 +3,7 @@ from typing import Optional
 
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, BasePtrAnalysis
 from vyper.venom.basicblock import (
     IRAbstractMemLoc,
     IRBasicBlock,
@@ -26,8 +26,15 @@ class ConcretizeMemLocPass(IRPass):
         self.allocator = self.function.ctx.mem_allocator
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
 
-        self.mem_liveness = MemLiveness(self.function, self.cfg, self.dfg, self.allocator)
+        self.mem_liveness = MemLiveness(
+                self.function,
+                self.cfg,
+                self.dfg,
+                self.base_ptrs,
+                self.allocator,
+        )
         self.mem_liveness.analyze()
 
         self.allocator.start_fn_allocation(self.function)
@@ -70,14 +77,14 @@ class ConcretizeMemLocPass(IRPass):
 
     def _handle_bb(self, bb: IRBasicBlock):
         for inst in bb.instructions:
-            new_ops = [self._handle_op(op, inst) for op in inst.operands]
+            new_ops = [self._handle_op(op) for op in inst.operands]
             inst.operands = new_ops
             if inst.opcode == "gep":
                 inst.opcode = "add"
             elif inst.opcode == "mem_deploy_start":
                 inst.opcode = "assign"
 
-    def _handle_op(self, op: IROperand, inst: IRInstruction) -> IROperand:
+    def _handle_op(self, op: IROperand) -> IROperand:
         """
         rewrite IRAbstractMemLocs to IRLiterals
         """
@@ -114,11 +121,13 @@ class MemLiveness:
         function: IRFunction,
         cfg: CFGAnalysis,
         dfg: DFGAnalysis,
+        base_ptrs: BasePtrAnalysis,
         mem_allocator: MemoryAllocator,
     ):
         self.function = function
         self.cfg = cfg
         self.dfg = dfg
+        self.base_ptrs = base_ptrs
         self.used = defaultdict(OrderedSet)
         self.liveat = defaultdict(OrderedSet)
         self.mem_allocator = mem_allocator
@@ -226,26 +235,9 @@ class MemLiveness:
             self.used[inst] = curr.copy()
         return before != curr
 
-    def _find_base_ptrs(self, op: Optional[IROperand]) -> set[IRAbstractMemLoc]:
+    def _find_base_ptrs(self, op: Optional[IROperand]) -> set[BasePtr]:
         if op is None:
             return set()
-        if isinstance(op, IRAbstractMemLoc):
-            return {op}
         if not isinstance(op, IRVariable):
             return set()
-
-        inst = self.dfg.get_producing_instruction(op)
-        assert inst is not None
-        if inst.opcode == "gep":
-            mem = inst.operands[0]
-            return self._find_base_ptrs(mem)
-        elif inst.opcode == "assign":
-            mem = inst.operands[0]
-            return self._find_base_ptrs(mem)
-        elif inst.opcode == "phi":
-            res = set()
-            for _, var in inst.phi_operands:
-                src = self._find_base_ptrs(var)
-                res.update(src)
-            return res
-        return set()
+        return self.base_ptrs.get_all_posible_memory(op)
