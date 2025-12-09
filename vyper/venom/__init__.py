@@ -1,16 +1,16 @@
 # maybe rename this `main.py` or `venom.py`
 # (can have an `__init__.py` which exposes the API).
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
 from vyper.ir.compile_ir import AssemblyInstruction
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.fcg import FCGAnalysis
-from vyper.venom.basicblock import IRAbstractMemLoc, IRLabel, IRLiteral
+from vyper.venom.basicblock import IRLabel
 from vyper.venom.check_venom import check_calling_convention
-from vyper.venom.context import IRContext
+from vyper.venom.context import DeployInfo, IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.memory_location import fix_mem_loc
@@ -48,7 +48,7 @@ def generate_assembly_experimental(
     venom_ctx: IRContext, optimize: OptimizationLevel = DEFAULT_OPT_LEVEL
 ) -> list[AssemblyInstruction]:
     compiler = VenomCompiler(venom_ctx)
-    return compiler.generate_evm_assembly(False)
+    return compiler.generate_evm_assembly(optimize == OptimizationLevel.NONE)
 
 
 # Mapping of pass names to their disable flag names
@@ -97,7 +97,7 @@ def _run_global_passes(
 
 
 def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags) -> None:
-    ir_analyses = {}
+    ir_analyses: dict[IRFunction, IRAnalysesCache] = {}
     # Validate calling convention invariants before running passes
     check_calling_convention(ctx)
     for fn in ctx.functions.values():
@@ -120,7 +120,7 @@ def _run_fn_passes(
     fcg: FCGAnalysis,
     fn: IRFunction,
     flags: VenomOptimizationFlags,
-    ir_analyses: dict,
+    ir_analyses: dict[IRFunction, IRAnalysesCache],
 ):
     visited: set[IRFunction] = set()
     assert ctx.entry_function is not None
@@ -132,7 +132,7 @@ def _run_fn_passes_r(
     fcg: FCGAnalysis,
     fn: IRFunction,
     flags: VenomOptimizationFlags,
-    ir_analyses: dict,
+    ir_analyses: dict[IRFunction, IRAnalysesCache],
     visited: set,
 ):
     if fn in visited:
@@ -147,19 +147,12 @@ def _run_fn_passes_r(
 def generate_venom(
     ir: IRnode,
     settings: Settings,
-    constants: dict[str, int] = None,
     data_sections: dict[str, bytes] = None,
+    deploy_info: Optional[DeployInfo] = None,
 ) -> IRContext:
     # Convert "old" IR to "new" IR
-    constants = constants or {}
-    starting_symbols = {k: IRLiteral(v) for k, v in constants.items()}
-    ctx = ir_node_to_venom(ir, starting_symbols)
 
-    # these mem location are used as magic values inside
-    # the compiler, they are globally shared slots so we allocate
-    # them here, in a context-global way.
-    ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR1)
-    ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR2)
+    ctx = ir_node_to_venom(ir, deploy_info)
 
     for fn in ctx.functions.values():
         fix_mem_loc(fn)
@@ -169,10 +162,8 @@ def generate_venom(
         ctx.append_data_section(IRLabel(section_name))
         ctx.append_data_item(data)
 
-    for constname, value in constants.items():
-        ctx.add_constant(constname, value)
-
-    assert settings.venom_flags is not None
-    run_passes_on(ctx, settings.venom_flags)
+    flags = settings.venom_flags
+    assert flags is not None
+    run_passes_on(ctx, flags)
 
     return ctx
