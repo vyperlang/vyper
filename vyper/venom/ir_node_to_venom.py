@@ -245,8 +245,9 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 
     # For multi-return via stack without a provided buffer, synthesize one
     if returns_count > 0 and return_buf is None:
-        alloca_ofst = 32 * returns_count
-        return_buf = bb.append_instruction1("alloca", 0, alloca_ofst, get_scratch_alloca_id())
+        return_buf = bb.append_instruction1(
+            "alloca", IRAbstractMemLoc(32 * returns_count), get_scratch_alloca_id()
+        )
 
     stack_args: list[IROperand] = [IRLabel(str(target_label))]
 
@@ -335,7 +336,9 @@ def _handle_internal_func(
     # return buffer
     if does_return_data:
         if returns_count > 0:
-            buf = bb.append_instruction("alloca", IRAbstractMemLoc(32), get_scratch_alloca_id())
+            buf = bb.append_instruction(
+                "alloca", IRAbstractMemLoc(32 * returns_count), get_scratch_alloca_id()
+            )
         else:
             buf = bb.append_instruction("param")
             bb.instructions[-1].annotation = "return_buffer"
