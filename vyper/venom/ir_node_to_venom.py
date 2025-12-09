@@ -8,8 +8,7 @@ from typing import Optional
 from vyper.codegen.context import Alloca
 from vyper.codegen.core import is_tuple_like
 from vyper.codegen.ir_node import IRnode
-from vyper.evm.opcodes import get_opcodes
-from vyper.ir.compile_ir import _runtime_code_offsets
+from vyper.evm.opcodes import get_opcodes, version_check
 from vyper.venom.basicblock import (
     IRAbstractMemLoc,
     IRBasicBlock,
@@ -19,7 +18,7 @@ from vyper.venom.basicblock import (
     IROperand,
     IRVariable,
 )
-from vyper.venom.context import IRContext
+from vyper.venom.context import DeployInfo, IRContext
 from vyper.venom.function import IRFunction, IRParameter
 
 # Experimental: allow returning multiple 32-byte values via the stack
@@ -75,8 +74,6 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "gasprice",
         "gaslimit",
         "returndatasize",
-        "iload",
-        "istore",
         "mload",
         "dload",
         "dloadbytes",
@@ -121,6 +118,7 @@ NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_sym
 SymbolTable = dict[str, IROperand]
 _alloca_table: dict[int, IROperand]
 _callsites: dict[str, list[Alloca]]
+_immutables_region: IRAbstractMemLoc
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
 
 _scratch_alloca_id = 2**32
@@ -133,23 +131,39 @@ def get_scratch_alloca_id() -> int:
 
 
 # convert IRnode directly to venom
-def ir_node_to_venom(ir: IRnode, symbols: Optional[dict] = None) -> IRContext:
+def ir_node_to_venom(ir: IRnode, deploy_info: Optional[DeployInfo] = None) -> IRContext:
     _ = ir.unique_symbols  # run unique symbols check
 
-    global _alloca_table, _callsites
+    global _alloca_table, _callsites, _immutables_region
     _alloca_table = {}
     _callsites = defaultdict(list)
 
+    symbols: SymbolTable = {}
+
     ctx = IRContext()
+
+    # these memory locations are used as magic values inside the compiler,
+    # they are context-globally shared slots so we allocate them here,
+    # in a context-global way.
+    ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR1)
+    ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR2)
+
+    _immutables_region = None  # type: ignore
+    if deploy_info is not None:
+        _immutables_region = IRAbstractMemLoc(deploy_info.immutables_len)
+        ctx.mem_allocator.allocate(_immutables_region)
+        symbols["runtime_codesize"] = IRLiteral(deploy_info.runtime_codesize)
+
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
     ctx.entry_function = fn
 
-    symbols = symbols or {}
     _convert_ir_bb(fn, ir, symbols)
 
     for fn in ctx.functions.values():
         for bb in fn.get_basic_blocks():
             bb.ensure_well_formed()
+
+    del _immutables_region  # hygiene
 
     return ctx
 
@@ -410,6 +424,7 @@ def _convert_ir_bb(fn, ir, symbols):
     assert isinstance(ir, IRnode), ir
     # TODO: refactor these to not be globals
     global _break_target, _continue_target, _alloca_table
+    global _immutables_region
 
     # keep a map from external functions to all possible entry points
 
@@ -429,22 +444,38 @@ def _convert_ir_bb(fn, ir, symbols):
             "return", IRVariable("ret_size"), IRVariable("ret_ofst")
         )
     elif ir.value == "deploy":
-        ctor_mem_size = ir.args[0].value
         immutables_len = ir.args[2].value
         runtime_codesize = symbols["runtime_codesize"].value
-        assert immutables_len == symbols["immutables_len"].value  # sanity
-
-        mem_deploy_start, mem_deploy_end = _runtime_code_offsets(ctor_mem_size, runtime_codesize)
-
-        fn.ctx.add_constant("mem_deploy_end", mem_deploy_end)
 
         bb = fn.get_basic_block()
 
-        bb.append_instruction(
-            "codecopy", runtime_codesize, IRLabel("runtime_begin"), mem_deploy_start
-        )
+        # copy runtime code to hardcode location
+        # (use a location *after* FREE_VAR_SPACE2, otherwise it gets
+        # mutilated by fix_mem_loc)
+        dst = 64
+        # copy immutables to end of runtime code
+        immutables_dst = dst + runtime_codesize
+
+        # see copy_bytes() in legacy pipeline
+        # TODO: maybe have a helper function for this
+        if version_check(begin="cancun"):
+            bb.append_instruction("mcopy", immutables_len, _immutables_region, immutables_dst)
+        else:
+            gas = bb.append_instruction("gas")
+            copy_success = bb.append_instruction(
+                "staticcall",
+                immutables_len,
+                immutables_dst,
+                immutables_len,
+                _immutables_region,
+                0x04,
+                gas,
+            )
+            bb.append_instruction("assert", copy_success)
+
+        bb.append_instruction("codecopy", runtime_codesize, IRLabel("runtime_begin"), dst)
         amount_to_return = bb.append_instruction("add", runtime_codesize, immutables_len)
-        bb.append_instruction("return", amount_to_return, mem_deploy_start)
+        bb.append_instruction("return", amount_to_return, dst)
         return None
     elif ir.value == "seq":
         if len(ir.args) == 0:
@@ -612,6 +643,18 @@ def _convert_ir_bb(fn, ir, symbols):
         # to fix upstream.
         val, ptr = _convert_ir_bb_list(fn, reversed(ir.args), symbols)
         return fn.get_basic_block().append_instruction("mstore", val, ptr)
+
+    elif ir.value == "iload":
+        ofst = _convert_ir_bb(fn, ir.args[0], symbols)
+        bb = fn.get_basic_block()
+        ptr = bb.append_instruction("gep", _immutables_region, ofst)
+        return bb.append_instruction("mload", ptr)
+
+    elif ir.value == "istore":
+        ofst, val = _convert_ir_bb_list(fn, ir.args, symbols)
+        bb = fn.get_basic_block()
+        ptr = bb.append_instruction("gep", _immutables_region, ofst)
+        return bb.append_instruction("mstore", val, ptr)
 
     elif ir.value == "ceil32":
         x = ir.args[0]
