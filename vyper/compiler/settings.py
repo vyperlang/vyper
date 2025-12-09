@@ -157,10 +157,6 @@ class Settings:
             self.venom_flags = VenomOptimizationFlags(level=self.optimize)
         else:
             assert isinstance(self.venom_flags, VenomOptimizationFlags)
-            # Ensure consistency
-            if self.optimize is not None and self.venom_flags.level != self.optimize:
-                self.venom_flags.level = self.optimize
-                self.venom_flags._update_inline_threshold()
 
     # CMC 2024-04-10 consider hiding the `enable_decimals` member altogether
     def get_enable_decimals(self) -> bool:
