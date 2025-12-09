@@ -24,7 +24,7 @@ def _align_kwargs(func_t, args_ir):
     return [i.default_value for i in unprovided_kwargs]
 
 
-def ir_for_self_call(stmt_expr, context):
+def ir_for_self_call(stmt_expr: vy_ast.Call, context):
     from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
     # ** Internal Call **
