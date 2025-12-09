@@ -18,7 +18,18 @@ from vyper.venom.optimization_levels.O2 import PASSES_O2
 from vyper.venom.optimization_levels.O3 import PASSES_O3
 from vyper.venom.optimization_levels.Os import PASSES_Os
 from vyper.venom.optimization_levels.types import PassConfig
-from vyper.venom.passes import FunctionInlinerPass
+from vyper.venom.passes import (
+    CSE,
+    SCCP,
+    AlgebraicOptimizationPass,
+    BranchOptimizationPass,
+    DeadStoreElimination,
+    FunctionInlinerPass,
+    LoadElimination,
+    Mem2Var,
+    RemoveUnusedVariablesPass,
+    SimplifyCFGPass,
+)
 from vyper.venom.passes.fix_calloca import FixCalloca
 from vyper.venom.venom_to_assembly import VenomCompiler
 
@@ -51,18 +62,18 @@ def generate_assembly_experimental(
     return compiler.generate_evm_assembly(optimize == OptimizationLevel.NONE)
 
 
-# Mapping of pass names to their disable flag names
+# Mapping of pass classes to their disable flag names
 # Passes not in this map are considered essential and always run
 PASS_FLAG_MAP = {
-    "AlgebraicOptimizationPass": "disable_algebraic_optimization",
-    "SCCP": "disable_sccp",
-    "Mem2Var": "disable_mem2var",
-    "LoadElimination": "disable_load_elimination",
-    "RemoveUnusedVariablesPass": "disable_remove_unused_variables",
-    "DeadStoreElimination": "disable_dead_store_elimination",
-    "BranchOptimizationPass": "disable_branch_optimization",
-    "CSE": "disable_cse",
-    "SimplifyCFGPass": "disable_simplify_cfg",
+    AlgebraicOptimizationPass: "disable_algebraic_optimization",
+    SCCP: "disable_sccp",
+    Mem2Var: "disable_mem2var",
+    LoadElimination: "disable_load_elimination",
+    RemoveUnusedVariablesPass: "disable_remove_unused_variables",
+    DeadStoreElimination: "disable_dead_store_elimination",
+    BranchOptimizationPass: "disable_branch_optimization",
+    CSE: "disable_cse",
+    SimplifyCFGPass: "disable_simplify_cfg",
 }
 
 
@@ -77,10 +88,9 @@ def _run_passes(fn: IRFunction, flags: VenomOptimizationFlags, ac: IRAnalysesCac
             kwargs = {}
 
         # Check if pass should be skipped based on user flags
-        pass_name = pass_cls.__name__
-        flag_name = PASS_FLAG_MAP.get(pass_name)
+        flag_name = PASS_FLAG_MAP.get(pass_cls)
 
-        if flag_name and getattr(flags, flag_name):
+        if flag_name is not None and getattr(flags, flag_name):
             continue
 
         # Run the pass
