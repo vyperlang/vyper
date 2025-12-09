@@ -1,3 +1,7 @@
+# We keep thise in separate files to allow for
+# easier management of different optimization levels
+# and diffing between them.
+
 from typing import List
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
