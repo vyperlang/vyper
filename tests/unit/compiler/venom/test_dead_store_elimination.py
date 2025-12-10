@@ -74,26 +74,28 @@ def _check_no_change(code, hevm=False):
     return _check_pre_post(code, code, hevm=hevm)
 
 
-@pytest.mark.parametrize("position", [0, "{@0,32}"])  # noqa: FS003
+@pytest.mark.parametrize("position", [0, "alloca 32"])  # noqa: FS003
 def test_basic_dead_store(position):
     pre = f"""
         _global:
             %val1 = 42
             %val2 = 24
-            mstore {position}, %val1  ; Dead store - overwritten before read
-            mstore {position}, 10     ; Dead store - overwritten before read
-            mstore {position}, %val2
-            %loaded = mload {position}  ; Only reads val2
+            %ptr = {position}
+            mstore %ptr, %val1  ; Dead store - overwritten before read
+            mstore %ptr, 10     ; Dead store - overwritten before read
+            mstore %ptr, %val2
+            %loaded = mload %ptr  ; Only reads val2
             stop
     """
     post = f"""
         _global:
             %val1 = 42
             %val2 = 24
+            %ptr = {position}
             nop
             nop
-            mstore {position}, %val2
-            %loaded = mload {position}
+            mstore %ptr, %val2
+            %loaded = mload %ptr
             stop
     """
     _check_pre_post(pre, post)

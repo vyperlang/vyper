@@ -1,4 +1,4 @@
-from vyper.venom.analysis import IRAnalysis, DominatorTreeAnalysis
+from vyper.venom.analysis import IRAnalysis, DFGAnalysis
 from vyper.venom.memory_location import MemoryLocation, MemoryLocationAbstract, MemoryLocationSegment
 from vyper.venom.basicblock import IRVariable, IROperand, IRInstruction, IRLiteral, IRBasicBlock
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
@@ -34,7 +34,7 @@ class BasePtrAnalysis(IRAnalysis):
 
     def analyze(self):
         self.var_to_mem = dict()
-        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
         while True:
             changed = False
@@ -99,6 +99,7 @@ class BasePtrAnalysis(IRAnalysis):
         if isinstance(offset, IRLiteral):
             return MemoryLocationSegment(offset.value, size=_size)
         elif isinstance(offset, IRVariable):
+            offset = self.dfg._traverse_assign_chain(offset)
             base_ptr = self.base_ptr_from_op(offset)
             if base_ptr is None:
                 return MemoryLocationSegment(offset=None, size=_size)
