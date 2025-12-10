@@ -31,7 +31,7 @@ ADDRESS_SPACES = (MEMORY, STORAGE, TRANSIENT, CALLDATA, DATA)
 RW_ADDRESS_SPACES = (MEMORY, STORAGE, TRANSIENT)
 
 
-@pytest.mark.parametrize("position", [11, "{@2,32}"])  # noqa: FS003
+@pytest.mark.parametrize("position", [11, "alloca 32"])  # noqa: FS003
 @pytest.mark.parametrize("addrspace", ADDRESS_SPACES)
 def test_simple_load_elimination(addrspace, position):
     if addrspace != MEMORY and not isinstance(position, int):
@@ -57,7 +57,7 @@ def test_simple_load_elimination(addrspace, position):
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("position", [11, "{@2,32}"])  # noqa: FS003
+@pytest.mark.parametrize("position", [11, "alloca 32"])  # noqa: FS003
 @pytest.mark.parametrize("addrspace", ADDRESS_SPACES)
 def test_equivalent_var_elimination(addrspace, position):
     """
@@ -107,7 +107,7 @@ def test_elimination_barrier():
     _check_no_change(pre)
 
 
-@pytest.mark.parametrize("position", [[55, 11], [55, "{@2,32}"]])  # noqa: FS003
+@pytest.mark.parametrize("position", [[55, 11], [55, "alloca 32"]])  # noqa: FS003
 @pytest.mark.parametrize("addrspace", RW_ADDRESS_SPACES)
 def test_store_load_elimination(addrspace, position: list):
     """
@@ -197,8 +197,8 @@ def test_store_load_pair_memloc():
 
     pre = """
     main:
-        %ptr_mload = {@1,32}
-        %ptr_mstore = {@2,32}
+        %ptr_mload = alloca 32
+        %ptr_mstore = alloca 32
         %tmp01 = mload %ptr_mload
 
         # barrier created with overlap
@@ -208,8 +208,8 @@ def test_store_load_pair_memloc():
     """
     post = """
     main:
-        %ptr_mload = {@1,32}
-        %ptr_mstore = {@2,32}
+        %ptr_mload = alloca 32
+        %ptr_mstore = alloca 32
         %tmp01 = mload %ptr_mload
 
         # barrier created with overlap
@@ -281,7 +281,7 @@ def test_store_load_no_overlap_different_store():
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("position", [(10, 42), ("{@2,32}", "{@3,32}")])  # noqa: FS003
+@pytest.mark.parametrize("position", [(10, 42), ("alloca 32", "alloca 32")])  # noqa: FS003
 @pytest.mark.parametrize("addrspace", RW_ADDRESS_SPACES)
 def test_store_store_no_overlap(addrspace, position: tuple):
     """
@@ -330,7 +330,7 @@ def test_store_store_no_overlap(addrspace, position: tuple):
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("position", [10, "{@2,32}"])  # noqa: FS003
+@pytest.mark.parametrize("position", [10, "alloca 32"])  # noqa: FS003
 def test_store_store_unknown_ptr_barrier(position: list):
     """
     Check for barrier between store/load done
@@ -353,12 +353,13 @@ def test_store_store_unknown_ptr_barrier(position: list):
     _check_no_change(pre)
 
 
-@pytest.mark.parametrize("position", [5, "{@2,32}"])  # noqa: FS003
+@pytest.mark.parametrize("position", [5, "alloca 32"])  # noqa: FS003
 def test_simple_load_elimination_inter(position):
     pre = f"""
     main:
         %par = param
-        %1 = mload {position}
+        %ptr = {position}
+        %1 = mload %ptr
         %cond = iszero %par
         jnz %cond, @then, @else
     then:
@@ -366,14 +367,15 @@ def test_simple_load_elimination_inter(position):
     else:
         jmp @join
     join:
-        %3 = mload {position}
+        %3 = mload %ptr
         sink %3
     """
 
     post = f"""
     main:
         %par = param
-        %1 = mload {position}
+        %ptr = {position}
+        %1 = mload %ptr
         %cond = iszero %par
         jnz %cond, @then, @else
     then:
@@ -388,34 +390,36 @@ def test_simple_load_elimination_inter(position):
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("position", [5, "{@2,32}"])  # noqa: FS003
+@pytest.mark.parametrize("position", [5, "alloca 32"])  # noqa: FS003
 def test_simple_load_elimination_inter_join(position):
     pre = f"""
     main:
         %par = param
+        %ptr = {position}
         %cond = iszero %par
         jnz %cond, @then, @else
     then:
-        %1 = mload {position}
+        %1 = mload %ptr
         jmp @join
     else:
-        %2 = mload {position}
+        %2 = mload %ptr
         jmp @join
     join:
-        %3 = mload {position}
+        %3 = mload %ptr
         sink %3
     """
 
     post = f"""
     main:
         %par = param
+        %ptr = {position}
         %cond = iszero %par
         jnz %cond, @then, @else
     then:
-        %1 = mload {position}
+        %1 = mload %ptr
         jmp @join
     else:
-        %2 = mload {position}
+        %2 = mload %ptr
         jmp @join
     join:
         %4 = phi @then, %1, @else, %2
@@ -427,7 +431,7 @@ def test_simple_load_elimination_inter_join(position):
 
 
 @pytest.mark.parametrize(
-    "position", [(5, 1000, 50), ("{@2,32}", "{@3,32}", "{@4,32}")]  # noqa: FS003
+    "position", [(5, 1000, 50), ("alloc 32", "alloca 32", "alloca 32")]  # noqa: FS003
 )
 def test_load_elimination_inter_distant_bb(position):
     a, b, c = position
@@ -435,47 +439,53 @@ def test_load_elimination_inter_distant_bb(position):
     pre = f"""
     main:
         %par = param
+        %ptr_a = {a}
+        %ptr_b = {b}
+        %ptr_c = {c}
         %cond = iszero %par
         jnz %cond, @then, @else
     then:
-        %1 = mload {a}
+        %1 = mload %ptr_a
         jmp @join
     else:
-        %2 = mload {a}
+        %2 = mload %ptr_a
         jmp @join
     join:
-        %3 = mload {b}
+        %3 = mload %ptr_b
         %cond_end = iszero %3
         jnz %cond_end, @end_a, @end_b
     end_a:
-        %4 = mload {a}
+        %4 = mload %ptr_a
         sink %4
     end_b:
-        %5 = mload {c}
+        %5 = mload %ptr_c
         sink %5
     """
 
     post = f"""
     main:
         %par = param
+        %ptr_a = {a}
+        %ptr_b = {b}
+        %ptr_c = {c}
         %cond = iszero %par
         jnz %cond, @then, @else
     then:
-        %1 = mload {a}
+        %1 = mload %ptr_a
         jmp @join
     else:
-        %2 = mload {a}
+        %2 = mload %ptr_a
         jmp @join
     join:
         %6 = phi @then, %1, @else, %2
-        %3 = mload {b}
+        %3 = mload %ptr_b
         %cond_end = iszero %3
         jnz %cond_end, @end_a, @end_b
     end_a:
         %4 = %6
         sink %4
     end_b:
-        %5 = mload {c}
+        %5 = mload %ptr_c
         sink %5
     """
 

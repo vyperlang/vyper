@@ -56,8 +56,9 @@ class LoadAnalysis(IRAnalysis):
         assert space is not None
         self.space = space
 
-        mem_alias_type = mem_alias_type_factory(space)
-        self.mem_alias = self.analyses_cache.request_analysis(mem_alias_type)
+        if store_opcode is not None:
+            mem_alias_type = mem_alias_type_factory(space)
+            self.mem_alias = self.analyses_cache.request_analysis(mem_alias_type)
         self.inst_to_lattice: LoadAnalysis.InstToLattice = dict()
         self.bb_to_lattice: dict[IRBasicBlock, Lattice] = dict()
 
