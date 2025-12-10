@@ -1,6 +1,6 @@
-from vyper.venom.analysis import IRAnalysis
+from vyper.venom.analysis import IRAnalysis, DominatorTreeAnalysis
 from vyper.venom.memory_location import MemoryLocation, MemoryLocationAbstract, MemoryLocationSegment
-from vyper.venom.basicblock import IRVariable, IROperand, IRInstruction, IRLiteral
+from vyper.venom.basicblock import IRVariable, IROperand, IRInstruction, IRLiteral, IRBasicBlock
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 import dataclasses as dc
 from dataclasses import dataclass
@@ -18,12 +18,23 @@ class BasePtr:
             return dc.replace(self, offset=None)
         return dc.replace(self, offset=self.offset + offset)
 
+    def without_offset(self):
+        return BasePtr(source=self.source, offset=0, size=self.size)
+    
+    @staticmethod
+    def from_alloca(alloca_inst: IRInstruction):
+        assert alloca_inst.opcode in ("alloca", "palloca")
+        size = alloca_inst.operands[0]
+        assert isinstance(size, IRLiteral)
+        return BasePtr(source=alloca_inst, offset=0, size=size.value)
+
 
 class BasePtrAnalysis(IRAnalysis):
     var_to_mem: dict[IRVariable, set[BasePtr]]
 
     def analyze(self):
         self.var_to_mem = dict()
+        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
 
         while True:
             changed = False
@@ -50,21 +61,24 @@ class BasePtrAnalysis(IRAnalysis):
             offset = None
             if isinstance(inst.operands[1], IRLiteral):
                 offset = inst.operands[1].value
-            sources = self.var_to_mem[inst.operands[0]]
+            sources = self.get_all_posible_memory(inst.operands[0])
             self.var_to_mem[inst.output] = set(ptr.offset_by(offset) for ptr in sources)
         elif opcode == "phi":
             sources = set()
             for _, var in inst.phi_operands:
                 assert isinstance(var, IRVariable) # mypy help
-                var_sources = self.var_to_mem[var]
+                var_sources = self.get_all_posible_memory(var)
                 sources.update(var_sources)
             self.var_to_mem[inst.output] = sources
         elif opcode == "assign" and isinstance(inst.operands[0], IRVariable):
-            self.var_to_mem[inst.output] = self.var_to_mem[inst.operands[0]]
+            self.var_to_mem[inst.output] = self.get_all_posible_memory(inst.operands[0])
 
-        return original != self.var_to_mem[inst.output]
+        return original != self.var_to_mem.get(inst.output, set())
 
-    def base_ptr_from_op(self, op: IRVariable) -> Optional[BasePtr]:
+
+    def base_ptr_from_op(self, op: IROperand) -> Optional[BasePtr]:
+        if not isinstance(op, IRVariable):
+            return None
         item = self.var_to_mem.get(op, set()).copy()
         if len(item) == 1:
             return item.pop()

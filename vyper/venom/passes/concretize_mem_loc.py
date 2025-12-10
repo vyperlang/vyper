@@ -4,8 +4,8 @@ from typing import Optional
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, BasePtrAnalysis
+from vyper.venom.analysis.base_ptr_analysis import BasePtr
 from vyper.venom.basicblock import (
-    IRAbstractMemLoc,
     IRBasicBlock,
     IRInstruction,
     IRLabel,
@@ -40,11 +40,13 @@ class ConcretizeMemLocPass(IRPass):
         self.allocator.start_fn_allocation(self.function)
 
         livesets = list(self.mem_liveness.livesets.items())
-        already_allocated = [item for item in livesets if item[0]._id in self.allocator.allocated]
-        to_allocate = [item for item in livesets if item[0]._id not in self.allocator.allocated]
+        already_allocated = [item for item in livesets if self.allocator.is_allocated(item[0])]
+        to_allocate = [item for item in livesets if not self.allocator.is_allocated(item[0])]
         # (note this is *heuristic*; our goal is to minimize conflicts
         # between livesets)
         to_allocate.sort(key=lambda x: len(x[1]), reverse=False)
+        print(livesets)
+        print(self.function)
 
         self.allocator.add_allocated([mem for mem, _ in already_allocated])
 
@@ -55,7 +57,7 @@ class ConcretizeMemLocPass(IRPass):
             for before_mem, before_insts in already_allocated:
                 if len(OrderedSet.intersection(insts, before_insts)) == 0:
                     continue
-                self.allocator.reserve(before_mem)
+                self.allocator.reserve(BasePtr.from_alloca(before_mem))
             self.allocator.allocate(mem)
             already_allocated.append((mem, insts))
             # this is necessary because of the case that is described
@@ -88,22 +90,26 @@ class ConcretizeMemLocPass(IRPass):
         """
         rewrite IRAbstractMemLocs to IRLiterals
         """
-        if not isinstance(op, IRAbstractMemLoc):
+        base_ptr = self.base_ptrs.base_ptr_from_op(op)
+        if base_ptr is None:
+            return op
+        if base_ptr.offset is None:
             return op
 
         # common case, allocator already allocated
-        if op._id in self.allocator.allocated:
-            return IRLiteral(self.allocator.allocated[op._id][0] + op.offset)
+        if self.allocator.is_allocated(base_ptr):
+            return self.allocator.get_concrete(base_ptr)
 
         else:
-            # unallocated AbstractMemLoc, we need to allocate it.
+            # unallocated alloca, we need to allocate it.
             #
             # the invariant that all abstract mem locs should be already
             # allocated by this stage (due to how livesets are calculated)
             # only holds if all the dead stores are eliminated.
             # however, this doesn't always seem to be the case, so we allocate
             # these memory locations now.
-            return IRLiteral(self.allocator.allocate(op) + op.offset)
+            self.allocator.allocate(base_ptr)
+            return self.allocator.get_concrete(base_ptr)
 
 
 class MemLiveness:
@@ -111,10 +117,12 @@ class MemLiveness:
     cfg: CFGAnalysis
     mem_allocator: MemoryAllocator
 
-    liveat: dict[IRInstruction, OrderedSet[IRAbstractMemLoc]]
-    livesets: dict[IRAbstractMemLoc, OrderedSet[IRInstruction]]
+    # alloca/palloca which value is live at postion
+    liveat: dict[IRInstruction, OrderedSet[IRInstruction]]
+    # where is each alloca/palloca live
+    livesets: dict[IRInstruction, OrderedSet[IRInstruction]]
 
-    used: dict[IRInstruction, OrderedSet[IRAbstractMemLoc]]
+    used: dict[IRInstruction, OrderedSet[IRInstruction]]
 
     def __init__(
         self,
@@ -156,7 +164,7 @@ class MemLiveness:
                     self.livesets[mem].add(inst)
 
     def _handle_liveat(self, bb: IRBasicBlock) -> bool:
-        live: OrderedSet[IRAbstractMemLoc] = OrderedSet()
+        live: OrderedSet[IRInstruction] = OrderedSet()
         if len(succs := self.cfg.cfg_out(bb)) > 0:
             for other in (self.liveat[succ.instructions[0]] for succ in succs):
                 live.update(other)
@@ -170,8 +178,7 @@ class MemLiveness:
             read_ops = self._find_base_ptrs(read_op)
 
             for read_op in read_ops:
-                assert isinstance(read_op, IRAbstractMemLoc)
-                live.add(read_op.without_offset())
+                live.add(read_op.source)
 
             if inst.opcode == "invoke":
                 label = inst.operands[0]
@@ -182,15 +189,15 @@ class MemLiveness:
                 live.addmany(self.mem_allocator.mems_used[fn])
 
                 for op in inst.operands:
-                    if isinstance(op, IRAbstractMemLoc):
+                    ptr = self.base_ptrs.base_ptr_from_op(op)
+                    if ptr is not None:
                         # this case is for any buffers which are
                         # passed to invoke as a stack parameter.
-                        live.add(op.without_offset())
+                        live.add(ptr.source)
 
             self.liveat[inst] = live.copy()
 
             for write_op in write_ops:
-                assert isinstance(write_op, IRAbstractMemLoc)
                 size = get_write_size(inst)
                 assert size is not None
                 if not isinstance(size, IRLiteral):
@@ -201,11 +208,11 @@ class MemLiveness:
                     # we dont have to consider the memory location
                     # before this point live, since any values that
                     # are currently in there will be overriden either way
-                    live.remove(write_op.without_offset())
-                if write_op._id in (op._id for op in read_ops):
+                    live.remove(write_op.source)
+                if write_op.source in (op.source for op in read_ops):
                     # the instruction reads and writes from the same memory
                     # location, we cannot remove it from the liveset
-                    live.add(write_op.without_offset())
+                    live.add(write_op.source)
 
         if before != self.liveat[bb.instructions[0]]:
             return True
@@ -216,7 +223,7 @@ class MemLiveness:
         # this is to get positions where the memory location
         # are used/already used so we dont allocate
         # memory before the place where it is firstly used
-        curr: OrderedSet[IRAbstractMemLoc] = OrderedSet(self.function.allocated_args.values())
+        curr: OrderedSet[IRInstruction] = OrderedSet(self.function.allocated_args.values())
         if len(preds := self.cfg.cfg_in(bb)) > 0:
             for other in (self.used[pred.instructions[-1]] for pred in preds):
                 curr.update(other)
@@ -224,9 +231,10 @@ class MemLiveness:
         before = self.used[bb.instructions[-1]]
         for inst in bb.instructions:
             for op in inst.operands:
-                if not isinstance(op, IRAbstractMemLoc):
+                ptr = self.base_ptrs.base_ptr_from_op(op)
+                if ptr is None:
                     continue
-                curr.add(op.without_offset())
+                curr.add(ptr.source)
             if inst.opcode == "invoke":
                 label = inst.operands[0]
                 assert isinstance(label, IRLabel)

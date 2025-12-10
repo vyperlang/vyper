@@ -1,4 +1,6 @@
 from enum import Flag, auto
+from typing import Optional
+import vyper.evm.address_space as space 
 
 
 class Effects(Flag):
@@ -11,6 +13,15 @@ class Effects(Flag):
     LOG = auto()
     BALANCE = auto()
     EXTCODE = auto()
+
+def to_addr_space(eff: Effects) -> Optional[space.AddrSpace]:
+    translate = {
+        MEMORY: space.MEMORY,
+        STORAGE: space.STORAGE,
+        TRANSIENT: space.TRANSIENT,
+        IMMUTABLES: space.IMMUTABLES,
+    }
+    return translate.get(eff, None)
 
 
 EMPTY = Effects(0)

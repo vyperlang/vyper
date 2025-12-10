@@ -9,7 +9,7 @@ from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
 from vyper.ir.compile_ir import AssemblyInstruction
 from vyper.venom.analysis import FCGAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRAbstractMemLoc, IRLabel, IRLiteral
+from vyper.venom.basicblock import IRLabel, IRLiteral
 from vyper.venom.check_venom import check_calling_convention
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
@@ -59,7 +59,6 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     FloatAllocas(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
-    breakpoint()
 
     MakeSSA(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
@@ -189,12 +188,6 @@ def generate_venom(
     constants = constants or {}
     starting_symbols = {k: IRLiteral(v) for k, v in constants.items()}
     ctx = ir_node_to_venom(ir, starting_symbols)
-
-    # these mem location are used as magic values inside
-    # the compiler, they are globally shared slots so we allocate
-    # them here, in a context-global way.
-    ctx.mem_allocator.set_position(IRAbstractMemLoc.FREE_VAR1, 0)
-    ctx.mem_allocator.set_position(IRAbstractMemLoc.FREE_VAR2, 32)
 
     for fn in ctx.functions.values():
         fix_mem_loc(fn)

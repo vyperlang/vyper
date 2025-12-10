@@ -4,7 +4,7 @@ from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
 from vyper.venom.memory_location import MemoryLocation
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis, BasePtrAnalysis
-from vyper.venom.basicblock import IRAbstractMemLoc, IRInstruction, IRVariable
+from vyper.venom.basicblock import IRInstruction, IRVariable
 
 
 class MemoryAliasAnalysisAbstract(IRAnalysis):
@@ -23,30 +23,11 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
 
         # Map from memory locations to sets of potentially aliasing locations
         self.alias_sets: dict[MemoryLocation, OrderedSet[MemoryLocation]] = {}
-        self.var_base_pointers: dict[IRVariable, IRAbstractMemLoc] = {}
-
-        for bb in self.function.get_basic_blocks():
-            for inst in bb.instructions:
-                if inst.opcode != "gep":
-                    continue
-                base_ptr = self._find_base_ptr(inst)
-                self.var_base_pointers[inst.output] = base_ptr
 
         # Analyze all memory operations
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 self._analyze_instruction(inst)
-
-    def _find_base_ptr(self, inst: IRInstruction):
-        assert inst.opcode == "gep"
-        base_ptr = inst.operands[0]
-        if isinstance(base_ptr, IRVariable):
-            next_inst = self.dfg.get_producing_instruction(base_ptr)
-            assert next_inst is not None
-            base_ptr = self._find_base_ptr(next_inst)
-
-        assert isinstance(base_ptr, IRAbstractMemLoc)
-        return base_ptr
 
 
     def _analyze_instruction(self, inst: IRInstruction):

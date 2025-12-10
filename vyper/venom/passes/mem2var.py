@@ -1,7 +1,7 @@
 from vyper.exceptions import CompilerPanic
 from vyper.utils import all2
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRAbstractMemLoc, IRInstruction, IROperand, IRVariable, IRLiteral
+from vyper.venom.basicblock import IRInstruction, IROperand, IRVariable, IRLiteral
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
@@ -54,7 +54,7 @@ class Mem2Var(IRPass):
 
 
         if any(inst.opcode == "add" for inst in uses):
-            self._fix_adds(alloca_inst, alloca_inst.output)
+            self._fix_adds(alloca_inst)
             return
 
         if not all2(inst.opcode in ["mstore", "mload", "return"] for inst in uses):
@@ -90,7 +90,7 @@ class Mem2Var(IRPass):
         uses = dfg.get_uses(palloca_inst.output)
 
         if any(inst.opcode == "add" for inst in uses):
-            self._fix_adds(palloca_inst, palloca_inst.output)
+            self._fix_adds(palloca_inst)
             return
 
         if not all2(inst.opcode in ["mstore", "mload"] for inst in uses):

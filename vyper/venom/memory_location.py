@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import ClassVar, Optional
 
 from vyper.utils import MemoryPositions
-from vyper.venom.basicblock import IRAbstractMemLoc, IRInstruction, IRLiteral, IROperand
+from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand
 from vyper.venom.function import IRFunction
 
 

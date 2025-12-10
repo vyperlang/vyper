@@ -1,20 +1,20 @@
 from typing import ClassVar
 
 from vyper.utils import OrderedSet
-from vyper.venom.basicblock import IRAbstractMemLoc
+from vyper.venom.basicblock import IRInstruction, IRLiteral
 from vyper.venom.function import IRFunction
-
+from vyper.venom.analysis.base_ptr_analysis import BasePtr
 
 class MemoryAllocator:
     # global state:
-    #   all allocated mems, mem_id => (ptr, size)
-    allocated: dict[int, tuple[int, int]]
+    #   all allocated mems, alloca => (ptr, size)
+    allocated: dict[IRInstruction, tuple[int, int]]
     #   function => set of memlocs in that function
     # (free vars + union of all mems_used is equivalent to `allocated`)
-    mems_used: dict[IRFunction, OrderedSet[IRAbstractMemLoc]]
+    mems_used: dict[IRFunction, OrderedSet[IRInstruction]]
 
-    # mems allocated in current function
-    allocated_fn: OrderedSet[IRAbstractMemLoc]
+    # mems allocated in current function (allocas/pallocas)
+    allocated_fn: OrderedSet[BasePtr]
     # current function
     current_fn: IRFunction
     # current end of memory
@@ -33,18 +33,21 @@ class MemoryAllocator:
         self.mems_used = dict()
         self.allocated_fn = OrderedSet()
 
-    def set_position(self, mem_loc: IRAbstractMemLoc, position: int):
-        self.allocated[mem_loc._id] = (position, mem_loc.size)
+    def set_position(self, base_ptr: BasePtr, position: int):
+        assert base_ptr.source.opcode in ("alloca", "palloca")
+        self.allocated[base_ptr.source] = (position, base_ptr.size)
 
-    def allocate(self, mem_loc: IRAbstractMemLoc) -> int:
+    def allocate(self, base_ptr: BasePtr | IRInstruction) -> int:
+        if isinstance(base_ptr, IRInstruction):
+            base_ptr = BasePtr.from_alloca(base_ptr)
         ptr = self.eom
-        self.eom += mem_loc.size
-        assert mem_loc._id not in self.allocated
+        self.eom += base_ptr.size
+        assert base_ptr.source not in self.allocated
 
         reserved = sorted(list(self.reserved))
 
         ptr = MemoryAllocator.FN_START
-        size = mem_loc.size
+        size = base_ptr.size
         
         for (resv_ptr, resv_size) in reserved:
             # can happen if this allocation
@@ -61,9 +64,21 @@ class MemoryAllocator:
             ptr = resv_ptr + resv_size
 
         
-        self.allocated[mem_loc._id] = (ptr, size)
-        self.allocated_fn.add(mem_loc)
+        self.allocated[base_ptr.source] = (ptr, size)
+        self.allocated_fn.add(base_ptr)
         return ptr
+
+    def is_allocated(self, base_ptr: BasePtr | IRInstruction) -> bool:
+        if isinstance(base_ptr, BasePtr):
+            return base_ptr.source in self.allocated
+        else:
+            assert base_ptr.opcode in ("alloca", "palloca")
+            return base_ptr in self.allocated
+
+    def get_concrete(self, base_ptr: BasePtr) -> IRLiteral:
+        assert self.is_allocated(base_ptr)
+        assert base_ptr.offset is not None
+        return IRLiteral(self.allocated[base_ptr.source][0] + base_ptr.offset)
 
     def start_fn_allocation(self, fn):
         self.reserved = set()
@@ -71,7 +86,7 @@ class MemoryAllocator:
         self.eom = MemoryAllocator.FN_START
         self.allocated_fn = OrderedSet()
 
-    def add_allocated(self, mems: list[IRAbstractMemLoc]):
+    def add_allocated(self, mems: list[IRInstruction]):
         self.allocated_fn.addmany(mems)
 
     def end_fn_allocation(self):
@@ -81,9 +96,9 @@ class MemoryAllocator:
         self.reserved = set()
         self.eom = MemoryAllocator.FN_START
 
-    def reserve(self, mem_loc: IRAbstractMemLoc):
-        assert mem_loc._id in self.allocated
-        ptr, size = self.allocated[mem_loc._id]
+    def reserve(self, mem_loc: BasePtr):
+        assert mem_loc.source in self.allocated
+        ptr, size = self.allocated[mem_loc.source]
         self.reserved.add((ptr, size))
         self.eom = max(ptr + size, self.eom)
 

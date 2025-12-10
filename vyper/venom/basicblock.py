@@ -173,60 +173,6 @@ class IRLiteral(IROperand):
         return f"0x{self.value:x}"
 
 
-class IRAbstractMemLoc(IROperand):
-    """
-    operand representing an offset into an alloca'ed memory segment
-    which has not be concretized (allocated) yet.
-    """
-
-    _id: int
-
-    # size of the memory segment
-    size: int
-
-    # offset inside of a memory segment
-    offset: int
-
-    _curr_id: ClassVar[int] = 0
-    FREE_VAR1: ClassVar[IRAbstractMemLoc]
-    FREE_VAR2: ClassVar[IRAbstractMemLoc]
-
-    def __init__(self, size: int, offset: int = 0, force_id=None):
-        if force_id is None:
-            self._id = IRAbstractMemLoc._curr_id
-            IRAbstractMemLoc._curr_id += 1
-        else:
-            self._id = force_id
-        super().__init__(self._id)
-        self.size = size
-        self.offset = offset
-
-    def __hash__(self) -> int:
-        return self._id
-
-    def __eq__(self, other) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self._id == other._id and self.offset == other.offset
-
-    def __repr__(self) -> str:
-        if self.offset != 0:
-            return f"{{@{self._id},{self.size} + {self.offset}}}"
-        else:
-            return f"{{@{self._id},{self.size}}}"
-
-    def without_offset(self) -> IRAbstractMemLoc:
-        return IRAbstractMemLoc(self.size, force_id=self._id)
-
-    def with_offset(self, offset: int) -> IRAbstractMemLoc:
-        return IRAbstractMemLoc(self.size, offset=offset, force_id=self._id)
-
-
-# cannot assign in class since it is not defined in that place
-IRAbstractMemLoc.FREE_VAR1 = IRAbstractMemLoc(32)
-IRAbstractMemLoc.FREE_VAR2 = IRAbstractMemLoc(32)
-
-
 class IRVariable(IROperand):
     """
     IRVariable represents a variable in IR. A variable is a string that starts with a %.

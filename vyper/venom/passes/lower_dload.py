@@ -1,6 +1,6 @@
 from vyper.utils import MemoryPositions
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRAbstractMemLoc
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
@@ -26,6 +26,7 @@ class LowerDloadPass(IRPass):
                 var = fn.get_next_variable()
                 tmp_memory = self.updater.add_before(inst, "alloca", [IRLiteral(32)])
                 assert tmp_memory is not None
+                idx += 1
 
                 bb.insert_instruction(
                     IRInstruction("add", [ptr, IRLabel("code_end")], [var]), index=idx
