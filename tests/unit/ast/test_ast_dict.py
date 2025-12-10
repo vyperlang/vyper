@@ -99,16 +99,18 @@ def foo() -> uint256:
     dict_out = compiler.compile_code(code, output_formats=["ast_dict"], source_id=0)
     assert dict_out["ast_dict"]["ast"]["body"][1] == {
         "col_offset": 0,
-        "annotation": {
-            "col_offset": 12,
-            "end_col_offset": 15,
-            "node_id": 12,
-            "src": "60:3:0",
-            "ast_type": "Name",
-            "end_lineno": 5,
-            "lineno": 5,
-            "id": "Foo",
-        },
+        "children": [
+            {
+                "col_offset": 12,
+                "end_col_offset": 15,
+                "node_id": 12,
+                "src": "60:3:0",
+                "ast_type": "Name",
+                "end_lineno": 5,
+                "lineno": 5,
+                "id": "Foo",
+            }
+        ],
         "end_col_offset": 15,
         "node_id": 9,
         "src": "48:15:0",
@@ -261,16 +263,17 @@ def foo():
         "settings": {},
         "body": [
             {
-                "alias": None,
                 "ast_type": "Import",
-                "import_info": {
-                    "alias": "lib1",
-                    "file_sha256sum": lib1_file.sha256sum,
-                    "path": "lib1.vy",
-                    "qualified_module_name": "lib1",
-                    "source_id": 0,
-                },
-                "name": "lib1",
+                "import_infos": [
+                    {
+                        "alias": "lib1",
+                        "file_sha256sum": lib1_file.sha256sum,
+                        "path": "lib1.vy",
+                        "qualified_module_name": "lib1",
+                        "source_id": 0,
+                    }
+                ],
+                "names": [{"asname": None, "ast_type": "alias", "name": "lib1", "node_id": 2}],
                 "node_id": 1,
             },
             {
@@ -432,7 +435,7 @@ def foo():
             "type_decl_node": {"node_id": 0, "source_id": 1},
             "typeclass": "module",
         },
-    }
+    }, "main_ast comparison failed"
 
     # TODO: would be nice to refactor this into bunch of small test cases
     # TODO: write the test in a way which makes the links between nodes
@@ -1416,7 +1419,7 @@ def foo():
             "type_decl_node": {"node_id": 0, "source_id": 0},
             "typeclass": "module",
         },
-    }
+    }, "main_ast comparison failed"
 
 
 def test_output_variable_read_write_analysis(make_input_bundle, chdir_tmp_path):

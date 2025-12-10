@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis
@@ -5,6 +7,9 @@ from vyper.venom.analysis.mem_ssa import MemoryDef, mem_ssa_type_factory
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.effects import NON_MEMORY_EFFECTS, NON_STORAGE_EFFECTS, NON_TRANSIENT_EFFECTS
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
+
+if TYPE_CHECKING:
+    from vyper.venom.memory_location import MemoryLocation
 
 
 class DeadStoreElimination(IRPass):
@@ -21,23 +26,34 @@ class DeadStoreElimination(IRPass):
         elif addr_space == TRANSIENT:
             self.NON_RELATED_EFFECTS = NON_TRANSIENT_EFFECTS
 
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
-        self.mem_ssa = self.analyses_cache.request_analysis(mem_ssa_type)
-        self.updater = InstUpdater(self.dfg)
+        volatiles: list[MemoryLocation] = []
+        while True:
+            change = False
+            self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+            self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+            self.mem_ssa = self.analyses_cache.request_analysis(mem_ssa_type)
+            for volatile_loc in volatiles:
+                self.mem_ssa.mark_location_volatile(volatile_loc)
+            volatiles = self.mem_ssa.volatiles.copy()
+            self.updater = InstUpdater(self.dfg)
 
-        # Go through all memory definitions and eliminate dead stores
-        for mem_def in self.mem_ssa.get_memory_defs():
-            if self._is_dead_store(mem_def):
-                self.updater.nop(mem_def.store_inst, annotation="[dead store elimination]")
+            # Go through all memory definitions and eliminate dead stores
+            for mem_def in self.mem_ssa.get_memory_defs():
+                if self._is_dead_store(mem_def):
+                    change = True
+                    self.updater.nop(mem_def.store_inst, annotation="[dead store elimination]")
 
-        self.analyses_cache.invalidate_analysis(mem_ssa_type)
+            if not change:
+                break
+
+            self.analyses_cache.invalidate_analysis(DFGAnalysis)
+            self.analyses_cache.invalidate_analysis(mem_ssa_type)
 
     def _has_uses(self, inst: IRInstruction):
         """
         Checks if the instruction's output is used in the DFG.
         """
-        return inst.output is not None and len(self.dfg.get_uses(inst.output)) > 0
+        return any(len(self.dfg.get_uses(output)) > 0 for output in inst.get_outputs())
 
     def _is_memory_def_live(self, query_def: MemoryDef) -> bool:
         """

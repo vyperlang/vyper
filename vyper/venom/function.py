@@ -6,8 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
-from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
-from vyper.venom.memory_location import MemoryLocation
+from vyper.venom.basicblock import IRAbstractMemLoc, IRBasicBlock, IRLabel, IRVariable
 
 if TYPE_CHECKING:
     from vyper.venom.context import IRContext
@@ -33,9 +32,9 @@ class IRFunction:
     name: IRLabel  # symbol name
     ctx: IRContext
     args: list
+    allocated_args: dict[int, IRAbstractMemLoc]
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
-    _volatile_memory: list[MemoryLocation]
 
     # Used during code generation
     _ast_source_stack: list[IRnode]
@@ -45,8 +44,8 @@ class IRFunction:
         self.ctx = ctx  # type: ignore
         self.name = name
         self.args = []
+        self.allocated_args = dict()
         self._basic_block_dict = {}
-        self._volatile_memory = []
 
         self.last_variable = 0
 
@@ -118,8 +117,8 @@ class IRFunction:
         varmap: dict[IRVariable, IRVariable] = defaultdict(self.get_next_variable)
         for bb in self.get_basic_blocks():
             for inst in bb.instructions:
-                if inst.output:
-                    inst.output = varmap[inst.output]
+                if inst.has_outputs:
+                    inst.set_outputs([varmap[o] for o in inst.get_outputs()])
 
                 for i, op in enumerate(inst.operands):
                     if not isinstance(op, IRVariable):
@@ -164,10 +163,6 @@ class IRFunction:
         for bb in self.get_basic_blocks():
             new_bb = bb.copy()
             new.append_basic_block(new_bb)
-
-        # Copy volatile memory locations
-        for mem in self._volatile_memory:
-            new.add_volatile_memory(mem.offset, mem.size)
 
         return new
 
@@ -216,18 +211,3 @@ class IRFunction:
         ret = ret.strip() + "\n}"
         ret += f"  ; close function {self.name}"
         return ret
-
-    def add_volatile_memory(self, offset: int, size: int) -> MemoryLocation:
-        """
-        Add a volatile memory location with the given offset and size.
-        Returns the created MemoryLocation object.
-        """
-        volatile_mem = MemoryLocation(offset=offset, size=size)
-        self._volatile_memory.append(volatile_mem)
-        return volatile_mem
-
-    def get_all_volatile_memory(self) -> list[MemoryLocation]:
-        """
-        Return all volatile memory locations.
-        """
-        return self._volatile_memory

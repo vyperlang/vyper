@@ -151,7 +151,7 @@ def test_multi_function():
     expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
 
     entry_bb = entry_fn.get_basic_block("entry")
-    entry_bb.append_invoke_instruction([IRLabel("check_cv")], returns=False)
+    entry_bb.append_invoke_instruction([IRLabel("check_cv")], returns=0)
     entry_bb.append_instruction("jmp", IRLabel("wow"))
 
     entry_fn.append_basic_block(wow_bb := IRBasicBlock(IRLabel("wow"), entry_fn))
@@ -213,7 +213,7 @@ def test_multi_function_and_data():
     expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
 
     entry_bb = entry_fn.get_basic_block("entry")
-    entry_bb.append_invoke_instruction([IRLabel("check_cv")], returns=False)
+    entry_bb.append_invoke_instruction([IRLabel("check_cv")], returns=0)
     entry_bb.append_instruction("jmp", IRLabel("wow"))
 
     entry_fn.append_basic_block(wow_bb := IRBasicBlock(IRLabel("wow"), entry_fn))
@@ -366,3 +366,37 @@ def test_phis():
 
     parsed_fn = next(iter(ctx.functions.values()))
     assert_bb_eq(parsed_fn.get_basic_block(expect_bb.label.name), expect_bb)
+
+
+def test_multi_output_last_var():
+    source = """
+    function main {
+        main:
+            %1, %2 = invoke @f
+            %3, %4, %5 = invoke @g
+            sink %1, %2, %3, %4, %5
+    }
+
+    function f {
+        f:
+            %retpc = param
+            ret 10, 20, %retpc
+    }
+
+    function g {
+        g:
+            %retpc = param
+            ret 30, 40, 50, %retpc
+    }
+    """
+
+    parsed_ctx = parse_venom(source)
+
+    main_fn = parsed_ctx.get_function(IRLabel("main"))
+    assert main_fn.last_variable == 5
+
+    f_fn = parsed_ctx.get_function(IRLabel("f"))
+    assert f_fn.last_variable == 0
+
+    g_fn = parsed_ctx.get_function(IRLabel("g"))
+    assert g_fn.last_variable == 0

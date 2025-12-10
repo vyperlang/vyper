@@ -29,6 +29,7 @@ You can optionally declare a function's visibility by using a :ref:`decorator <f
     * ``@internal`` (default): can be invoked only from within this contract. Not available to external callers
     * ``@deploy``: constructor code. This is code which is invoked once in the lifetime of a contract, upon its deploy. It is not available at runtime to either external callers or internal call invocations. At this time, only the :ref:`__init__() function <init-function>` may be marked as ``@deploy``.
 
+.. _structure-functions-external:
 
 External Functions
 ******************

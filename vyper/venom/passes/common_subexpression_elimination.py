@@ -4,7 +4,7 @@ from vyper.venom.analysis.available_expression import (
 )
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IRVariable
+from vyper.venom.basicblock import IRInstruction
 from vyper.venom.passes.base_pass import IRPass
 
 # instruction that dont need to be stored in available expression
@@ -42,6 +42,15 @@ SMALL_EXPRESSION = 1
 
 
 class CSE(IRPass):
+    """
+    Common Subexpression Elimination pass.
+
+    NOTE: This pass does not support instructions with multiple outputs. Currently,
+    only `invoke` instructions have multiple outputs, and they are excluded from
+    substitution. But eventually, this pass should be extended to support multi-output
+    to support the folding of pure functions that return multiple values, etc.
+    """
+
     expression_analysis: AvailableExpressionAnalysis
 
     def run_pass(self):
@@ -72,6 +81,9 @@ class CSE(IRPass):
                     continue
                 if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
                     continue
+                # skip multi-output instructions for now (not supported yet)
+                if inst.num_outputs > 1:
+                    continue
                 state = self.expression_analysis.get_expression(inst)
                 if state is None:
                     continue
@@ -95,9 +107,8 @@ class CSE(IRPass):
             self._replace_inst(orig, to)
 
     def _replace_inst(self, orig_inst: IRInstruction, to_inst: IRInstruction):
-        if orig_inst.output is not None:
+        if orig_inst.has_outputs:
             orig_inst.opcode = "assign"
-            assert isinstance(to_inst.output, IRVariable), f"not var {to_inst}"
             orig_inst.operands = [to_inst.output]
         else:
             orig_inst.opcode = "nop"

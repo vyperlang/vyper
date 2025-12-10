@@ -1,9 +1,11 @@
+# noqa: FS003
 import pytest
 
 from tests.venom_utils import PrePostChecker, assert_ctx_eq, parse_from_basic_block
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.analysis.mem_ssa import mem_ssa_type_factory
+from vyper.venom.memory_location import MemoryLocationSegment
 from vyper.venom.passes import DeadStoreElimination
 from vyper.venom.passes.base_pass import IRPass
 
@@ -27,8 +29,6 @@ class VolatilePrePostChecker(PrePostChecker):
             self.volatile_locations = volatile_locations
 
     def __call__(self, pre: str, post: str, hevm: bool | None = None) -> list[IRPass]:
-        from vyper.venom.memory_location import MemoryLocation
-
         self.pass_objects.clear()
 
         if hevm is None:
@@ -41,7 +41,7 @@ class VolatilePrePostChecker(PrePostChecker):
             mem_ssa = ac.request_analysis(mem_ssa_type_factory(self.addr_space))
 
             for address, size in self.volatile_locations:
-                volatile_loc = MemoryLocation(offset=address, size=size, is_volatile=True)
+                volatile_loc = MemoryLocationSegment(offset=address, size=size, _is_volatile=True)
                 mem_ssa.mark_location_volatile(volatile_loc)
 
             for p in self.passes:
@@ -74,25 +74,26 @@ def _check_no_change(code, hevm=False):
     return _check_pre_post(code, code, hevm=hevm)
 
 
-def test_basic_dead_store():
-    pre = """
+@pytest.mark.parametrize("position", [0, "{@0,32}"])  # noqa: FS003
+def test_basic_dead_store(position):
+    pre = f"""
         _global:
             %val1 = 42
             %val2 = 24
-            mstore 0, %val1  ; Dead store - overwritten before read
-            mstore 0, 10     ; Dead store - overwritten before read
-            mstore 0, %val2
-            %loaded = mload 0  ; Only reads val2
+            mstore {position}, %val1  ; Dead store - overwritten before read
+            mstore {position}, 10     ; Dead store - overwritten before read
+            mstore {position}, %val2
+            %loaded = mload {position}  ; Only reads val2
             stop
     """
-    post = """
+    post = f"""
         _global:
             %val1 = 42
             %val2 = 24
             nop
             nop
-            mstore 0, %val2
-            %loaded = mload 0
+            mstore {position}, %val2
+            %loaded = mload {position}
             stop
     """
     _check_pre_post(pre, post)
@@ -117,49 +118,56 @@ def test_basic_not_dead_store():
     _check_pre_post(pre, post)
 
 
-def test_basic_not_dead_store_with_mload():
-    pre = """
+@pytest.mark.parametrize("positions", [(0, 32), ("{@0,32}", "{@1,32}")])  # noqa: FS003
+def test_basic_not_dead_store_with_mload(positions):
+    a, b = positions
+    pre = f"""
         _global:
             %1 = source
-            mstore 0, 1
-            mstore 32, 2
-            %2 = mload 0
+            mstore {a}, 1
+            mstore {b}, 2
+            %2 = mload {a}
             stop
     """
-    post = """
+    post = f"""
         _global:
             %1 = source
-            mstore 0, 1
+            mstore {a}, 1
             nop
-            %2 = mload 0
+            %2 = mload {a}
             stop
     """
     _check_pre_post(pre, post)
 
 
-def test_basic_not_dead_store_with_return():
-    pre = """
+@pytest.mark.parametrize(
+    "positions", [(0, 32), ("{@0,32}", "{@1,32}"), ("{@2,32}", "{@3,32}")]  # noqa: FS003
+)
+def test_basic_not_dead_store_with_return(positions):
+    a, b = positions
+    pre = f"""
         _global:
             %1 = source
-            mstore 0, 1
-            mstore 32, 2
-            return 0, 32
+            mstore {a}, 1
+            mstore {b}, 2
+            return {a}, 32
     """
-    post = """
+    post = f"""
         _global:
             %1 = source
-            mstore 0, 1
+            mstore {a}, 1
             nop
-            return 0, 32
+            return {a}, 32
     """
     _check_pre_post(pre, post)
 
 
-def test_never_read_store():
-    pre = """
+@pytest.mark.parametrize("position", [0, 32, "{@0,32}", "{@1,32}"])  # noqa: FS003
+def test_never_read_store(position):
+    pre = f"""
         _global:
             %val = 42
-            mstore 0, %val  ; Dead store - never read
+            mstore {position}, %val  ; Dead store - never read
             stop
     """
     post = """
@@ -171,34 +179,39 @@ def test_never_read_store():
     _check_pre_post(pre, post)
 
 
-def test_live_store():
-    pre = """
+@pytest.mark.parametrize("position", [0, 32, "{@0,32}", "{@1,32}"])  # noqa: FS003
+def test_live_store(position):
+    pre = f"""
         _global:
             %val = 42
-            mstore 0, %val
-            %loaded = mload 0  ; Makes the store live
+            mstore {position}, %val
+            %loaded = mload {position}  ; Makes the store live
             stop
     """
     _check_pre_post(pre, pre)  # Should not change
 
 
-def test_dead_store_different_locations():
-    pre = """
+@pytest.mark.parametrize(
+    "positions", [(0, 32), ("{@0,32}", "{@1,32}"), ("{@2,32}", "{@3,32}")]  # noqa: FS003
+)
+def test_dead_store_different_locations(positions):
+    a, b = positions
+    pre = f"""
         _global:
             %val1 = 42
             %val2 = 24
-            mstore 0, %val1   ; Dead store - never read
-            mstore 32, %val2  ; Live store
-            %loaded = mload 32
+            mstore {a}, %val1   ; Dead store - never read
+            mstore {b}, %val2  ; Live store
+            %loaded = mload {b}
             stop
     """
-    post = """
+    post = f"""
         _global:
             %val1 = 42
             %val2 = 24
             nop
-            mstore 32, %val2
-            %loaded = mload 32
+            mstore {b}, %val2
+            %loaded = mload {b}
             stop
     """
     _check_pre_post(pre, post)
@@ -642,13 +655,18 @@ def test_call_with_memory_and_other_effects():
     _check_pre_post(pre, post, hevm=False)
 
 
-def test_call_overwrites_previous_stores():
+def test_call_does_not_overwrite_previous_stores():
     pre = """
         _global:
-            ; Store at the location that will be overwritten
-            ; by call and never read before overwriting
-            mstore 64, 42  ; This should be eliminated due to
-                           ; call overwriting it before any read
+            ; Store at the location uses same memory
+            ; as the call instruction output buffer
+            ; and never read before the call
+            ; However, the mstore cannot be elided
+            ; since we don't know how much memory the call
+            ; will actually write to (calls are *bounded*
+            ; by the output buffer size, not guaranteed
+            ; to use all of it)
+            mstore 64, 42
 
             ; Store value needed for call
             mstore 32, 24  ; This should remain as it's used by call
@@ -664,25 +682,7 @@ def test_call_overwrites_previous_stores():
             return %result, 32
     """
 
-    post = """
-        _global:
-            ; Store at the location that will be overwritten
-            ; by call and never read before overwriting
-            nop
-
-            ; Store value needed for call
-            mstore 32, 24  ; This should remain as it's used by call
-
-            ; Call has both memory read (32) and write (64) effects
-            %success = call 1000, 0x12, 0, 32, 32, 64, 32
-
-            ; Read the call result from memory (at the location
-            ; where val1 was stored but got overwritten)
-            %result = mload 64
-
-            return %result, 32
-    """
-    _check_pre_post(pre, post, hevm=False)
+    _check_no_change(pre)
 
 
 def test_calldatacopy_example():

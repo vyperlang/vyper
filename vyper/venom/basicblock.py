@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Iterator, Optional, Sequence, Union
 
 import vyper.venom.effects as effects
 from vyper.codegen.ir_node import IRnode
@@ -14,9 +14,10 @@ if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(
-    ["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "exit", "sink"]
-)
+BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "sink"])
+
+# Terminators that halt program/message call execution
+HALTING_TERMINATORS = frozenset(["return", "revert", "stop", "invalid"])
 
 VOLATILE_INSTRUCTIONS = frozenset(
     [
@@ -50,7 +51,6 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "assert",
         "assert_unreachable",
         "stop",
-        "exit",
     ]
 )
 
@@ -79,7 +79,6 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "djmp",
         "jnz",
         "log",
-        "exit",
         "nop",
     ]
 )
@@ -98,6 +97,7 @@ CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz"])
 COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", "eq"])
 
 COMPARATOR_INSTRUCTIONS = ("gt", "lt", "sgt", "slt")
+
 
 ir_printer = ContextVar("ir_printer", default=None)
 
@@ -177,6 +177,57 @@ class IRLiteral(IROperand):
         return f"0x{self.value:x}"
 
 
+class IRAbstractMemLoc(IROperand):
+    """
+    operand representing an offset into an alloca'ed memory segment
+    which has not be concretized (allocated) yet.
+    """
+
+    _id: int
+
+    # size of the memory segment
+    size: int
+
+    # offset inside of a memory segment
+    offset: int
+
+    _curr_id: ClassVar[int] = 0
+    FREE_VAR1: ClassVar[IRAbstractMemLoc]
+    FREE_VAR2: ClassVar[IRAbstractMemLoc]
+
+    def __init__(self, size: int, offset: int = 0, force_id=None):
+        if force_id is None:
+            self._id = IRAbstractMemLoc._curr_id
+            IRAbstractMemLoc._curr_id += 1
+        else:
+            self._id = force_id
+        super().__init__(self._id)
+        self.size = size
+        self.offset = offset
+
+    def __hash__(self) -> int:
+        return self._id
+
+    def __eq__(self, other) -> bool:
+        if type(self) is not type(other):
+            return False
+        return self._id == other._id and self.offset == other.offset
+
+    def __repr__(self) -> str:
+        return f"[{self._id},{self.size} + {self.offset}]"
+
+    def without_offset(self) -> IRAbstractMemLoc:
+        return IRAbstractMemLoc(self.size, force_id=self._id)
+
+    def with_offset(self, offset: int) -> IRAbstractMemLoc:
+        return IRAbstractMemLoc(self.size, offset=offset, force_id=self._id)
+
+
+# cannot assign in class since it is not defined in that place
+IRAbstractMemLoc.FREE_VAR1 = IRAbstractMemLoc(32)
+IRAbstractMemLoc.FREE_VAR2 = IRAbstractMemLoc(32)
+
+
 class IRVariable(IROperand):
     """
     IRVariable represents a variable in IR. A variable is a string that starts with a %.
@@ -233,7 +284,7 @@ class IRInstruction:
 
     opcode: str
     operands: list[IROperand]
-    output: Optional[IRVariable]
+    _outputs: list[IRVariable]
     parent: IRBasicBlock
     annotation: Optional[str]
     ast_source: Optional[IRnode]
@@ -243,13 +294,14 @@ class IRInstruction:
         self,
         opcode: str,
         operands: list[IROperand] | Iterator[IROperand],
-        output: Optional[IRVariable] = None,
+        outputs: Optional[list[IRVariable]] = None,
     ):
         assert isinstance(opcode, str), "opcode must be an str"
         assert isinstance(operands, list | Iterator), "operands must be a list"
         self.opcode = opcode
         self.operands = list(operands)  # in case we get an iterator
-        self.output = output
+        self._outputs = list(outputs) if outputs is not None else []
+
         self.annotation = None
         self.ast_source = None
         self.error_msg = None
@@ -315,18 +367,46 @@ class IRInstruction:
         """
         return (op for op in self.operands if isinstance(op, IRVariable))
 
-    def get_outputs(self) -> list[IROperand]:
+    def get_outputs(self) -> list[IRVariable]:
         """
-        Get the output item for an instruction.
-        (Currently all instructions output at most one item, but write
-        it as a list to be generic for the future)
+        Get the outputs of the instruction.
+        Makes a copy to prevent external mutation, so
+        keep that in mind when performance matters.
         """
-        return [self.output] if self.output else []
+        return list(self._outputs)
+
+    @property
+    def num_outputs(self) -> int:
+        """
+        Return how many outputs this instruction produces.
+        """
+        return len(self._outputs)
+
+    @property
+    def output(self) -> IRVariable:
+        """
+        Return the single output for instructions with exactly one.
+        """
+        assert len(self._outputs) == 1, f"expected single output for {self}"
+        return self._outputs[0]
+
+    @property
+    def has_outputs(self) -> bool:
+        """
+        Check whether this instruction produces any outputs.
+        """
+        return len(self._outputs) > 0
+
+    def set_outputs(self, outputs: list[IRVariable]) -> None:
+        """
+        Replace all outputs for this instruction.
+        """
+        self._outputs = list(outputs)
 
     def make_nop(self):
         self.annotation = str(self)  # Keep original instruction as annotation for debugging
         self.opcode = "nop"
-        self.output = None
+        self._outputs = []
         self.operands = []
 
     def flip(self):
@@ -402,7 +482,7 @@ class IRInstruction:
         return self.parent.parent.ast_source
 
     def copy(self) -> IRInstruction:
-        ret = IRInstruction(self.opcode, self.operands.copy(), self.output)
+        ret = IRInstruction(self.opcode, self.operands.copy(), self.get_outputs())
         ret.annotation = self.annotation
         ret.ast_source = self.ast_source
         ret.error_msg = self.error_msg
@@ -410,8 +490,9 @@ class IRInstruction:
 
     def str_short(self) -> str:
         s = ""
-        if self.output:
-            s += f"{self.output} = "
+        outs = self.get_outputs()
+        if len(outs) > 0:
+            s += f"{', '.join(map(str, outs))} = "
         opcode = f"{self.opcode} " if self.opcode != "assign" else ""
         s += opcode
         operands = self.operands
@@ -422,8 +503,9 @@ class IRInstruction:
 
     def __repr__(self) -> str:
         s = ""
-        if self.output:
-            s += f"{self.output} = "
+        outs = self.get_outputs()
+        if len(outs) > 0:
+            s += f"{', '.join(map(str, outs))} = "
         opcode = f"{self.opcode} " if self.opcode != "assign" else ""
         s += opcode
         operands = self.operands
@@ -510,13 +592,17 @@ class IRBasicBlock:
         """
         assert not self.is_terminated, self
 
-        if ret is None:
-            ret = self.parent.get_next_variable() if opcode not in NO_OUTPUT_INSTRUCTIONS else None
+        if ret is None and opcode not in NO_OUTPUT_INSTRUCTIONS:
+            ret = self.parent.get_next_variable()
 
         # Wrap raw integers in IRLiterals
         inst_args = [_ir_operand_from_value(arg) for arg in args]
 
-        inst = IRInstruction(opcode, inst_args, ret)
+        outputs = None
+        if ret is not None:
+            outputs = [ret]
+
+        inst = IRInstruction(opcode, inst_args, outputs)
         inst.parent = self
         inst.ast_source = self.parent.ast_source
         inst.error_msg = self.parent.error_msg
@@ -524,28 +610,43 @@ class IRBasicBlock:
         self.instructions.append(inst)
         return ret
 
-    def append_invoke_instruction(
-        self, args: list[IROperand | int], returns: bool
-    ) -> Optional[IRVariable]:
+    def append_instruction1(
+        self, opcode: str, *args: Union[IROperand, int], ret: Optional[IRVariable] = None, **kwargs
+    ) -> IRVariable:
         """
-        Append an invoke to the basic block
+        Same thing as append_instruction, but guarantees an output for
+        the typechecker
+        """
+        assert opcode not in NO_OUTPUT_INSTRUCTIONS
+        if ret is None:
+            ret = self.parent.get_next_variable()
+
+        ret = self.append_instruction(opcode, *args, ret=ret, **kwargs)
+        assert ret is not None  # help mypy
+        return ret
+
+    def append_invoke_instruction(
+        self, args: Sequence[IROperand | int], returns: int = 0
+    ) -> list[IRVariable]:
+        """
+        Append an invoke to the basic block. Always returns a list of output variables.
         """
         assert not self.is_terminated, self
-        ret = None
-        if returns:
-            ret = self.parent.get_next_variable()
+
+        # Determine outputs
+        outputs: list[IRVariable] = [self.parent.get_next_variable() for _ in range(returns)]
 
         # Wrap raw integers in IRLiterals
         inst_args = [_ir_operand_from_value(arg) for arg in args]
 
         assert isinstance(inst_args[0], IRLabel), "Invoked non label"
 
-        inst = IRInstruction("invoke", inst_args, ret)
+        inst = IRInstruction("invoke", inst_args, outputs)
         inst.parent = self
         inst.ast_source = self.parent.ast_source
         inst.error_msg = self.parent.error_msg
         self.instructions.append(inst)
-        return ret
+        return outputs
 
     def insert_instruction(self, instruction: IRInstruction, index: Optional[int] = None) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
@@ -630,7 +731,11 @@ class IRBasicBlock:
         """
         Get all assignments in basic block.
         """
-        return [inst.output for inst in self.instructions if inst.output]
+        ret: list[IRVariable] = []
+        for inst in self.instructions:
+            outs = inst.get_outputs()
+            ret.extend(outs)
+        return ret
 
     def get_uses(self) -> dict[IRVariable, OrderedSet[IRInstruction]]:
         uses: dict[IRVariable, OrderedSet[IRInstruction]] = {}
@@ -651,13 +756,23 @@ class IRBasicBlock:
     @property
     def is_terminated(self) -> bool:
         """
-        Check if the basic block is terminal, i.e. the last instruction is a terminator.
+        Check if the basic block is properly terminated, i.e. the
+        last instruction is a bb terminator instruction.
         """
         # it's ok to return False here, since we use this to check
         # if we can/need to append instructions to the basic block.
         if len(self.instructions) == 0:
             return False
         return self.instructions[-1].is_bb_terminator
+
+    @property
+    def is_halting(self) -> bool:
+        """
+        Check if the basic block halts program execution
+        """
+        if len(self.instructions) == 0:
+            return False
+        return self.instructions[-1].opcode in HALTING_TERMINATORS
 
     def copy(self) -> IRBasicBlock:
         bb = IRBasicBlock(self.label, self.parent)

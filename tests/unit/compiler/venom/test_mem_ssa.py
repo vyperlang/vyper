@@ -13,7 +13,7 @@ from vyper.venom.analysis.mem_ssa import (
 )
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.effects import Effects
-from vyper.venom.memory_location import get_read_location, get_write_location
+from vyper.venom.memory_location import MemoryLocationSegment, get_read_location, get_write_location
 
 
 @pytest.fixture
@@ -327,16 +327,16 @@ def test_may_alias(dummy_mem_ssa):
     mem_ssa, _, _ = dummy_mem_ssa
 
     # Test non-overlapping memory locations
-    loc1 = MemoryLocation(offset=0, size=32)
-    loc2 = MemoryLocation(offset=32, size=32)
+    loc1 = MemoryLocationSegment(offset=0, size=32)
+    loc2 = MemoryLocationSegment(offset=32, size=32)
     assert not mem_ssa.memalias.may_alias(loc1, loc2), "Non-overlapping locations should not alias"
 
     # Test overlapping memory locations
-    loc3 = MemoryLocation(offset=0, size=16)
-    loc4 = MemoryLocation(offset=8, size=8)
+    loc3 = MemoryLocationSegment(offset=0, size=16)
+    loc4 = MemoryLocationSegment(offset=8, size=8)
     assert mem_ssa.memalias.may_alias(loc3, loc4), "Overlapping locations should alias"
 
-    full_loc = MemoryLocation(offset=0, size=None)
+    full_loc = MemoryLocationSegment(offset=0, size=None)
     assert mem_ssa.memalias.may_alias(full_loc, loc1), "should alias with any non-empty location"
     assert not mem_ssa.memalias.may_alias(
         full_loc, MemoryLocation.EMPTY
@@ -352,7 +352,7 @@ def test_may_alias(dummy_mem_ssa):
     ), "EMPTY_MEMORY_ACCESS should not alias"
 
     # Test zero/negative size locations
-    zero_size_loc = MemoryLocation(offset=0, size=0)
+    zero_size_loc = MemoryLocationSegment(offset=0, size=0)
     assert not mem_ssa.memalias.may_alias(
         zero_size_loc, loc1
     ), "Zero size location should not alias"
@@ -361,19 +361,19 @@ def test_may_alias(dummy_mem_ssa):
     ), "Zero size locations should not alias with each other"
 
     # Test partial overlap
-    loc5 = MemoryLocation(offset=0, size=64)
-    loc6 = MemoryLocation(offset=32, size=32)
+    loc5 = MemoryLocationSegment(offset=0, size=64)
+    loc6 = MemoryLocationSegment(offset=32, size=32)
     assert mem_ssa.memalias.may_alias(loc5, loc6), "Partially overlapping locations should alias"
     assert mem_ssa.memalias.may_alias(loc6, loc5), "Partially overlapping locations should alias"
 
     # Test exact same location
-    loc7 = MemoryLocation(offset=0, size=64)
-    loc8 = MemoryLocation(offset=0, size=64)
+    loc7 = MemoryLocationSegment(offset=0, size=64)
+    loc8 = MemoryLocationSegment(offset=0, size=64)
     assert mem_ssa.memalias.may_alias(loc7, loc8), "Identical locations should alias"
 
     # Test adjacent but non-overlapping locations
-    loc9 = MemoryLocation(offset=0, size=64)
-    loc10 = MemoryLocation(offset=64, size=64)
+    loc9 = MemoryLocationSegment(offset=0, size=64)
+    loc10 = MemoryLocationSegment(offset=64, size=64)
     assert not mem_ssa.memalias.may_alias(
         loc9, loc10
     ), "Adjacent but non-overlapping locations should not alias"
@@ -457,7 +457,7 @@ def test_read_write_memory_clobbering():
 
     # Verify call instruction has both read and write memory areas
     assert call_def.loc.offset == 32  # Write area
-    assert call_def.loc.size == 32  # Write size
+    assert call_def.loc.size is None  # Write size
     assert call_use.loc.offset == 0  # Read area
     assert call_use.loc.size == 32  # Read size
 
@@ -502,7 +502,7 @@ def test_read_write_memory_clobbering_partial():
     # Verify call instruction has both read and write memory areas
     # Write area
     assert call_def.loc.offset == 0
-    assert call_def.loc.size == 32
+    assert call_def.loc.size is None
     # Read area
     assert call_use.loc.offset == 31
     assert call_use.loc.size == 2
@@ -564,8 +564,8 @@ def test_analyze_instruction_with_no_memory_ops():
     assignment_inst = bb.instructions[0]  # %1 = 42
 
     # Verify that the instruction doesn't have memory operations
-    assert get_read_location(assignment_inst, MEMORY) is MemoryLocation.EMPTY
-    assert get_write_location(assignment_inst, MEMORY) is MemoryLocation.EMPTY
+    assert get_read_location(assignment_inst, MEMORY, {}) is MemoryLocation.EMPTY
+    assert get_write_location(assignment_inst, MEMORY, {}) is MemoryLocation.EMPTY
 
     assert mem_ssa.memalias.alias_sets is not None
 
@@ -826,7 +826,7 @@ def test_get_reaching_def_with_phi():
     # Create a new memory definition with the same location as the phi
     new_def = MemoryDef(mem_ssa.next_id, merge_block.instructions[0], MEMORY)
     mem_ssa.next_id += 1
-    new_def.loc = MemoryLocation(offset=0, size=32)  # Same location as the phi
+    new_def.loc = MemoryLocationSegment(offset=0, size=32)  # Same location as the phi
 
     result = mem_ssa._get_reaching_def(new_def)
     assert result == phi
@@ -846,7 +846,7 @@ def test_get_reaching_def_with_no_phi():
 
     new_def = MemoryDef(mem_ssa.next_id, entry_block.instructions[0], MEMORY)
     mem_ssa.next_id += 1
-    new_def.loc = MemoryLocation(offset=0, size=32)
+    new_def.loc = MemoryLocationSegment(offset=0, size=32)
 
     result = mem_ssa._get_reaching_def(new_def)
     assert result == mem_ssa.live_on_entry
