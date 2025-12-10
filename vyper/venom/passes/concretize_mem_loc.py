@@ -45,8 +45,6 @@ class ConcretizeMemLocPass(IRPass):
         # (note this is *heuristic*; our goal is to minimize conflicts
         # between livesets)
         to_allocate.sort(key=lambda x: len(x[1]), reverse=False)
-        print(livesets)
-        print(self.function)
 
         self.allocator.add_allocated([mem for mem, _ in already_allocated])
 
@@ -203,7 +201,7 @@ class MemLiveness:
                 if not isinstance(size, IRLiteral):
                     # if the size is not a literal then we do not handle it
                     continue
-                if write_op in live and size.value == write_op.size:
+                if write_op.source in live and size.value == write_op.size:
                     # if the memory segment is overriden completely
                     # we dont have to consider the memory location
                     # before this point live, since any values that
