@@ -155,8 +155,8 @@ class Settings:
         # Initialize venom_flags if not provided
         if self.venom_flags is None:
             self.venom_flags = VenomOptimizationFlags(level=self.optimize)
-        else:
-            assert isinstance(self.venom_flags, VenomOptimizationFlags)
+
+        assert isinstance(self.venom_flags, VenomOptimizationFlags)
 
     # CMC 2024-04-10 consider hiding the `enable_decimals` member altogether
     def get_enable_decimals(self) -> bool:
@@ -179,7 +179,7 @@ class Settings:
 
         return "".join(ret)
 
-    def as_dict(self, include_venom_flags=True):
+    def as_dict(self):
         ret = {}
         for field in dataclasses.fields(self):
             value = getattr(self, field.name)
@@ -188,9 +188,6 @@ class Settings:
             if field.name == "compiler_version":
                 # compiler_version is not a compiler input, it can only come from
                 # source code pragma.
-                continue
-            if field.name == "venom_flags" and not include_venom_flags:
-                # Skip venom_flags for AST output - it's an internal optimization detail
                 continue
             if field.name == "optimize":
                 ret["optimize"] = str(value)

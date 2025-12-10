@@ -341,9 +341,8 @@ def get_settings(input_dict: dict) -> Settings:
     # Check for Venom-specific settings
     venom_settings = input_dict["settings"].get("venom", {})
     if venom_settings:
-        if venom_flags is None:
-            venom_flags = VenomOptimizationFlags()
 
+        # TODO: refactor this
         flag_mapping = {
             "disableInlining": ("disable_inlining", bool),
             "disableCSE": ("disable_cse", bool),
@@ -358,7 +357,7 @@ def get_settings(input_dict: dict) -> Settings:
             "inlineThreshold": ("inline_threshold", int),
         }
 
-        # Apply settings from venom_settings
+        # merge user-provided settings into venom_flags
         for json_field, (attr_name, expected_type) in flag_mapping.items():
             if json_field in venom_settings:
                 value = venom_settings[json_field]
