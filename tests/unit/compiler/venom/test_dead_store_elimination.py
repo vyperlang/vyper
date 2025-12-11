@@ -123,81 +123,92 @@ def test_basic_not_dead_store():
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("positions", [(0, 32), ("{@0,32}", "{@1,32}")])  # noqa: FS003
+@pytest.mark.parametrize("positions", [(0, 32), ("alloca 32", "alloca 32")])
 def test_basic_not_dead_store_with_mload(positions):
     a, b = positions
     pre = f"""
         _global:
             %1 = source
-            mstore {a}, 1
-            mstore {b}, 2
-            %2 = mload {a}
+            %ptr_a = {a}
+            %ptr_b = {b}
+            mstore %ptr_a, 1
+            mstore %ptr_b, 2
+            %2 = mload %ptr_a
             stop
     """
     post = f"""
         _global:
             %1 = source
-            mstore {a}, 1
+            %ptr_a = {a}
+            %ptr_b = {b}
+            mstore %ptr_a, 1
             nop
-            %2 = mload {a}
+            %2 = mload %ptr_a
             stop
     """
     _check_pre_post(pre, post)
 
 
 @pytest.mark.parametrize(
-    "positions", [(0, 32), ("{@0,32}", "{@1,32}"), ("{@2,32}", "{@3,32}")]  # noqa: FS003
+    "positions", [(0, 32), ("alloca 32", "alloca 32")]
 )
 def test_basic_not_dead_store_with_return(positions):
     a, b = positions
     pre = f"""
         _global:
             %1 = source
-            mstore {a}, 1
-            mstore {b}, 2
-            return {a}, 32
+            %ptr_a = {a}
+            %ptr_b = {b}
+            mstore %ptr_a, 1
+            mstore %ptr_b, 2
+            return %ptr_a, 32
     """
     post = f"""
         _global:
             %1 = source
-            mstore {a}, 1
+            %ptr_a = {a}
+            %ptr_b = {b}
+            mstore %ptr_a, 1
             nop
-            return {a}, 32
+            return %ptr_a, 32
     """
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("position", [0, 32, "{@0,32}", "{@1,32}"])  # noqa: FS003
+@pytest.mark.parametrize("position", [0, 32, "alloca 32"])
 def test_never_read_store(position):
     pre = f"""
         _global:
             %val = 42
-            mstore {position}, %val  ; Dead store - never read
+            %ptr = {position}
+            mstore %ptr, %val  ; Dead store - never read
             stop
     """
-    post = """
+    post = f"""
         _global:
             %val = 42
+            %ptr = {position}
             nop
             stop
     """
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("position", [0, 32, "{@0,32}", "{@1,32}"])  # noqa: FS003
+@pytest.mark.parametrize("position", [0, 32, "alloca 32"])
 def test_live_store(position):
     pre = f"""
         _global:
             %val = 42
-            mstore {position}, %val
-            %loaded = mload {position}  ; Makes the store live
+            %ptr = {position}
+            mstore %ptr, %val
+            %loaded = mload %ptr  ; Makes the store live
             stop
     """
     _check_pre_post(pre, pre)  # Should not change
 
 
 @pytest.mark.parametrize(
-    "positions", [(0, 32), ("{@0,32}", "{@1,32}"), ("{@2,32}", "{@3,32}")]  # noqa: FS003
+    "positions", [(0, 32), ("alloca 32", "alloca 32")]
 )
 def test_dead_store_different_locations(positions):
     a, b = positions
@@ -205,18 +216,22 @@ def test_dead_store_different_locations(positions):
         _global:
             %val1 = 42
             %val2 = 24
-            mstore {a}, %val1   ; Dead store - never read
-            mstore {b}, %val2  ; Live store
-            %loaded = mload {b}
+            %ptr_a = {a}
+            %ptr_b = {b}
+            mstore %ptr_a, %val1   ; Dead store - never read
+            mstore %ptr_b, %val2  ; Live store
+            %loaded = mload %ptr_b
             stop
     """
     post = f"""
         _global:
             %val1 = 42
             %val2 = 24
+            %ptr_a = {a}
+            %ptr_b = {b}
             nop
-            mstore {b}, %val2
-            %loaded = mload {b}
+            mstore %ptr_b, %val2
+            %loaded = mload %ptr_b
             stop
     """
     _check_pre_post(pre, post)
