@@ -25,7 +25,7 @@ class DeadStoreElimination(IRPass):
             self.NON_RELATED_EFFECTS = NON_STORAGE_EFFECTS
         elif addr_space == TRANSIENT:
             self.NON_RELATED_EFFECTS = NON_TRANSIENT_EFFECTS
-
+        
         volatiles: list[MemoryLocation] = []
         while True:
             change = False

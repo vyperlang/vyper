@@ -6,7 +6,7 @@ from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.analysis.mem_ssa import mem_ssa_type_factory
 from vyper.venom.memory_location import MemoryLocationSegment
-from vyper.venom.passes import DeadStoreElimination
+from vyper.venom.passes import DeadStoreElimination, SCCP
 from vyper.venom.passes.base_pass import IRPass
 
 pytestmark = pytest.mark.hevm
@@ -37,12 +37,14 @@ class VolatilePrePostChecker(PrePostChecker):
         pre_ctx = parse_from_basic_block(pre)
         for fn in pre_ctx.functions.values():
             ac = IRAnalysesCache(fn)
+            SCCP(ac, fn).run_pass()
 
             mem_ssa = ac.request_analysis(mem_ssa_type_factory(self.addr_space))
 
             for address, size in self.volatile_locations:
                 volatile_loc = MemoryLocationSegment(offset=address, size=size, _is_volatile=True)
                 mem_ssa.mark_location_volatile(volatile_loc)
+            
 
             for p in self.passes:
                 obj = p(ac, fn)
@@ -52,6 +54,7 @@ class VolatilePrePostChecker(PrePostChecker):
         post_ctx = parse_from_basic_block(post)
         for fn in post_ctx.functions.values():
             ac = IRAnalysesCache(fn)
+            SCCP(ac, fn).run_pass()
             for p in self.post_passes:
                 obj = p(ac, fn)
                 self.pass_objects.append(obj)

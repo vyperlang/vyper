@@ -99,12 +99,11 @@ class BasePtrAnalysis(IRAnalysis):
         if isinstance(offset, IRLiteral):
             return MemoryLocationSegment(offset.value, size=_size)
         elif isinstance(offset, IRVariable):
-            offset = self.dfg._traverse_assign_chain(offset)
             base_ptr = self.base_ptr_from_op(offset)
             if base_ptr is None:
                 return MemoryLocationSegment(offset=None, size=_size)
             else:
-                segment = MemoryLocationSegment(offset=None, size=_size)
+                segment = MemoryLocationSegment(offset=base_ptr.offset, size=_size)
                 return MemoryLocationAbstract(source=base_ptr.source, maximum_size=base_ptr.size, segment=segment)
         else:  # pragma: nocover
             raise CompilerPanic(f"invalid offset: {offset} ({type(offset)})")
