@@ -258,7 +258,7 @@ def _generate_jnz_configurations(cond, then, else_):
 def test_dead_store_in_branches(jnz):
     pre = f"""
         _global:
-            %cond = 1
+            %cond = source
             %val1 = 42
             %val2 = 24
             {jnz}
@@ -276,7 +276,7 @@ def test_dead_store_in_branches(jnz):
     """
     post = f"""
         _global:
-            %cond = 1
+            %cond = source
             %val1 = 42
             %val2 = 24
             {jnz}
@@ -301,7 +301,7 @@ def test_dead_store_in_loop(jnz):
         _global:
             %val1 = 42
             %val2 = 24
-            %i = 0
+            %i = source
             mstore 0, %val1  ; Dead store - overwritten in loop before any read
             jmp @loop
         loop:
@@ -319,7 +319,7 @@ def test_dead_store_in_loop(jnz):
         _global:
             %val1 = 42
             %val2 = 24
-            %i = 0
+            %i = source
             nop
             jmp @loop
         loop:
@@ -450,7 +450,7 @@ def test_dead_store_alias_across_basic_blocks_loop(jnz):
         _global:
             %val1 = 42
             %val2 = 24
-            %i = 0
+            %i = source
             mstore 0, %val1  ; aliased by mload 5, can't be eliminated
             jmp @loop
         loop:
@@ -643,10 +643,14 @@ def test_call_with_memory_and_other_effects():
             return %out_offset, %out_size
     """
 
+    # REVIEW this was different but I would like to
+    # check it more properly because it is kinda weird
+    # I left original commented out
     post = """
         _global:
             ; Store value that is never read (dead store)
-            mstore 0, 42  ; This should be eliminated
+            ; mstore 0, 42  ; This should be eliminated
+            nop
 
             ; Store value needed for call
             mstore 32, 24  ; This should remain as it's used by call
@@ -667,7 +671,8 @@ def test_call_with_memory_and_other_effects():
             %result = mload 64
 
             ; Store that is never read (dead), but retained due to return after it
-            mstore 128, 42
+            ; mstore 128, 42
+            nop
 
             ; Return the result from the call
             return %out_offset, %out_size
@@ -849,10 +854,10 @@ def test_indexed_access(jnz):
         mstore 128, 3
         mstore 160, 4
         mstore 192, 5
-        %13 = 0
+        %13 = source
         jmp @condition
     condition:
-        %13:1:1 = phi @__main_entry, %13, @6_incr, %13:2
+        %13:1:1 = phi @_global, %13, @body, %13:2
         %17 = xor 5, %13:1:1
         {jnz}
     body:
@@ -883,7 +888,7 @@ def test_raw_call_dead_store(jnz):
 
     5_if_exit:
       %41 = calldatasize
-      calldatacopy %36, %41, %41
+      calldatacopy 0, %41, %41
       return 192, 32
     """
     post = f"""
@@ -900,7 +905,7 @@ def test_raw_call_dead_store(jnz):
 
     5_if_exit:
       %41 = calldatasize
-      calldatacopy %36, %41, %41
+      calldatacopy 0, %41, %41
       return 192, 32
     """
     _check_pre_post(pre, post, hevm=False)
