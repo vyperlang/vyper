@@ -86,7 +86,7 @@ class MemoryAllocator:
         self.eom = MemoryAllocator.FN_START
         self.allocated_fn = OrderedSet()
 
-    def add_allocated(self, mems: list[IRInstruction]):
+    def add_allocated(self, mems: list[BasePtr]):
         self.allocated_fn.addmany(mems)
 
     def end_fn_allocation(self):

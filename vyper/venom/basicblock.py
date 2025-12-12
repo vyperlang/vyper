@@ -431,6 +431,7 @@ class IRInstruction:
         ret.annotation = self.annotation
         ret.ast_source = self.ast_source
         ret.error_msg = self.error_msg
+        ret.parent = self.parent
         return ret
 
     def str_short(self) -> str:

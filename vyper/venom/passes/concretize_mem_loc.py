@@ -48,7 +48,7 @@ class ConcretizeMemLocPass(IRPass):
         # between livesets)
         to_allocate.sort(key=lambda x: len(x[1]), reverse=False)
 
-        self.allocator.add_allocated([mem for mem, _ in already_allocated])
+        self.allocator.add_allocated([BasePtr.from_alloca(mem) for mem, _ in already_allocated])
 
         max_eom = 0
         for mem, insts in to_allocate:
@@ -92,7 +92,7 @@ class ConcretizeMemLocPass(IRPass):
                     # these memory locations now.
                     self.allocator.allocate(base_ptr)
                 concrete = self.allocator.get_concrete(base_ptr)
-                self.updater.mk_assign(inst, concrete)
+                self.updater.replace(inst, "assign", [concrete])
             if inst.opcode == "gep":
                 inst.opcode = "add"
             elif inst.opcode == "mem_deploy_start":
