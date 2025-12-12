@@ -68,12 +68,12 @@ class MemoryAllocator:
         self.allocated_fn.add(base_ptr)
         return ptr
 
-    def is_allocated(self, base_ptr: BasePtr | IRInstruction) -> bool:
-        if isinstance(base_ptr, BasePtr):
-            return base_ptr.source in self.allocated
+    def is_allocated(self, alloc: BasePtr | IRInstruction) -> bool:
+        if isinstance(alloc, BasePtr):
+            return alloc.source in self.allocated
         else:
-            assert base_ptr.opcode in ("alloca", "palloca")
-            return base_ptr in self.allocated
+            assert alloc.opcode in ("alloca", "palloca"), alloc
+            return alloc in self.allocated
 
     def get_concrete(self, base_ptr: BasePtr) -> IRLiteral:
         assert self.is_allocated(base_ptr)
