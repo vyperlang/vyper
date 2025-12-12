@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, BasePtrAnalysis
 from vyper.venom.analysis.mem_ssa import MemoryDef, mem_ssa_type_factory
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.effects import NON_MEMORY_EFFECTS, NON_STORAGE_EFFECTS, NON_TRANSIENT_EFFECTS
@@ -48,6 +48,7 @@ class DeadStoreElimination(IRPass):
 
             self.analyses_cache.invalidate_analysis(DFGAnalysis)
             self.analyses_cache.invalidate_analysis(mem_ssa_type)
+        self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
 
     def _has_uses(self, inst: IRInstruction):
         """

@@ -164,6 +164,7 @@ class LoadElimination(IRPass):
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
+        self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
 
     def _run(self, eff, load_opcode, store_opcode):
         self._lattice = self.load_analysis.lattice[eff]

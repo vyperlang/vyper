@@ -17,6 +17,7 @@ from vyper.venom.function import IRFunction
 from vyper.venom.memory_allocator import MemoryAllocator
 from vyper.venom.memory_location import get_memory_read_op, get_memory_write_op, get_write_size
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
 
 class ConcretizeMemLocPass(IRPass):
@@ -26,6 +27,7 @@ class ConcretizeMemLocPass(IRPass):
         self.allocator = self.function.ctx.mem_allocator
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.updater = InstUpdater(self.dfg)
         self.base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
 
         self.mem_liveness = MemLiveness(
@@ -77,37 +79,24 @@ class ConcretizeMemLocPass(IRPass):
 
     def _handle_bb(self, bb: IRBasicBlock):
         for inst in bb.instructions:
-            new_ops = [self._handle_op(op) for op in inst.operands]
-            inst.operands = new_ops
+            if inst.opcode in ("alloca", "palloca", "calloca"):
+                base_ptr = self.base_ptrs.base_ptr_from_op(inst.output)
+                assert base_ptr is not None, (inst, base_ptr)
+                if not self.allocator.is_allocated(base_ptr):
+                    # unallocated alloca, we need to allocate it.
+                    #
+                    # the invariant that all abstract mem locs should be already
+                    # allocated by this stage (due to how livesets are calculated)
+                    # only holds if all the dead stores are eliminated.
+                    # however, this doesn't always seem to be the case, so we allocate
+                    # these memory locations now.
+                    self.allocator.allocate(base_ptr)
+                concrete = self.allocator.get_concrete(base_ptr)
+                self.updater.mk_assign(inst, concrete)
             if inst.opcode == "gep":
                 inst.opcode = "add"
             elif inst.opcode == "mem_deploy_start":
                 inst.opcode = "assign"
-
-    def _handle_op(self, op: IROperand) -> IROperand:
-        """
-        rewrite IRAbstractMemLocs to IRLiterals
-        """
-        base_ptr = self.base_ptrs.base_ptr_from_op(op)
-        if base_ptr is None:
-            return op
-        if base_ptr.offset is None:
-            return op
-
-        # common case, allocator already allocated
-        if self.allocator.is_allocated(base_ptr):
-            return self.allocator.get_concrete(base_ptr)
-
-        else:
-            # unallocated alloca, we need to allocate it.
-            #
-            # the invariant that all abstract mem locs should be already
-            # allocated by this stage (due to how livesets are calculated)
-            # only holds if all the dead stores are eliminated.
-            # however, this doesn't always seem to be the case, so we allocate
-            # these memory locations now.
-            self.allocator.allocate(base_ptr)
-            return self.allocator.get_concrete(base_ptr)
 
 
 class MemLiveness:
