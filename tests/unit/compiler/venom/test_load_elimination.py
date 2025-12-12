@@ -100,7 +100,7 @@ def test_elimination_barrier():
         %2 = mload %1
         %3 = %100
         # fence - writes to memory
-        staticcall %3, %3, %3, %3
+        staticcall %3, %3, %3, %3, %3, %3
         %4 = mload %1
         stop
     """
@@ -158,7 +158,7 @@ def test_store_load_barrier():
         mstore %ptr, %val
         %3 = %100  ; arbitrary
         # fence
-        staticcall %3, %3, %3, %3
+        staticcall %3, %3, %3, %3, %3, %3
         %4 = mload %ptr
         stop
     """
