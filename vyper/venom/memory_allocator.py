@@ -90,7 +90,7 @@ class MemoryAllocator:
         self.allocated_fn.addmany(mems)
 
     def end_fn_allocation(self):
-        self.mems_used[self.current_function] = OrderedSet(self.allocated_fn)
+        self.mems_used[self.current_function] = OrderedSet(base_ptr.source for base_ptr in self.allocated_fn)
 
     def reset(self):
         self.reserved = set()

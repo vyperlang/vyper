@@ -1,6 +1,6 @@
 from vyper.venom.analysis import IRAnalysis, DFGAnalysis
 from vyper.venom.memory_location import MemoryLocation, MemoryLocationAbstract, MemoryLocationSegment
-from vyper.venom.basicblock import IRVariable, IROperand, IRInstruction, IRLiteral, IRBasicBlock
+from vyper.venom.basicblock import IRVariable, IROperand, IRInstruction, IRLiteral, IRBasicBlock, IRLabel
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 import dataclasses as dc
 from dataclasses import dataclass
@@ -12,6 +12,10 @@ class BasePtr:
     source: IRInstruction
     offset: int | None
     size: int
+
+    def __post_init__(self):
+        # sanity check
+        assert self.source.opcode in ("alloca", "palloca")
     
     def offset_by(self, offset: int | None):
         if offset is None or self.offset is None:
@@ -52,10 +56,18 @@ class BasePtrAnalysis(IRAnalysis):
         original = self.var_to_mem.get(inst.output, set())
 
         opcode = inst.opcode
-        if opcode in ("alloca", "calloca", "palloca"):
+        if opcode in ("alloca", "palloca"):
             size = inst.operands[0]
             assert isinstance(size, IRLiteral)
             self.var_to_mem[inst.output] = set([BasePtr(source=inst, offset=0, size=size.value)])
+        elif opcode == "calloca":
+            size, _id, callee_label = inst.operands
+            assert isinstance(size, IRLiteral)
+            assert isinstance(callee_label, IRLabel)
+            callee = self.function.ctx.get_function(callee_label)
+            palloca = callee.allocated_args[_id.value]
+            assert isinstance(palloca, IRInstruction)
+            self.var_to_mem[inst.output] = set([BasePtr(source=palloca, offset=0, size=size.value)])
         elif opcode == "gep":
             assert isinstance(inst.operands[0], IRVariable), inst.parent
             offset = None

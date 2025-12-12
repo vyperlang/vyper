@@ -210,10 +210,10 @@ class MemLiveness:
         # this is to get positions where the memory location
         # are used/already used so we dont allocate
         # memory before the place where it is firstly used
-        curr: OrderedSet[IRInstruction] = OrderedSet(self.function.allocated_args.values())
+        used: OrderedSet[IRInstruction] = OrderedSet(self.function.allocated_args.values())
         if len(preds := self.cfg.cfg_in(bb)) > 0:
             for other in (self.used[pred.instructions[-1]] for pred in preds):
-                curr.update(other)
+                used.update(other)
 
         before = self.used[bb.instructions[-1]]
         for inst in bb.instructions:
@@ -221,14 +221,14 @@ class MemLiveness:
                 ptr = self.base_ptrs.base_ptr_from_op(op)
                 if ptr is None:
                     continue
-                curr.add(ptr.source)
+                used.add(ptr.source)
             if inst.opcode == "invoke":
                 label = inst.operands[0]
                 assert isinstance(label, IRLabel)
                 fn = self.function.ctx.get_function(label)
-                curr.addmany(self.mem_allocator.mems_used[fn])
-            self.used[inst] = curr.copy()
-        return before != curr
+                used.addmany(self.mem_allocator.mems_used[fn])
+            self.used[inst] = used.copy()
+        return before != used
 
     def _find_base_ptrs(self, op: Optional[IROperand]) -> set[BasePtr]:
         if op is None:
