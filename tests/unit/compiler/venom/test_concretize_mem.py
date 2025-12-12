@@ -1,8 +1,7 @@
 from tests.venom_utils import PrePostChecker
 from vyper.venom.passes import AssignElimination, ConcretizeMemLocPass, Mem2Var, RemoveUnusedVariablesPass
 
-_check_pre_post = PrePostChecker([ConcretizeMemLocPass, RemoveUnusedVariablesPass], default_hevm=False)
-_check_pre_post_mem2var = PrePostChecker([Mem2Var, AssignElimination], default_hevm=False)
+_check_pre_post = PrePostChecker([ConcretizeMemLocPass, AssignElimination, RemoveUnusedVariablesPass], default_hevm=False)
 
 
 def test_valid_overlap():
