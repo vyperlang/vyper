@@ -152,17 +152,20 @@ class Settings:
         if self.nonreentrancy_by_default is not None:
             assert isinstance(self.nonreentrancy_by_default, bool)
 
-        # Initialize venom_flags if not provided
-        if self.venom_flags is None:
-            self.venom_flags = VenomOptimizationFlags(level=self.optimize)
-
-        assert isinstance(self.venom_flags, VenomOptimizationFlags)
+        if self.venom_flags is not None:
+            assert isinstance(self.venom_flags, VenomOptimizationFlags)
 
     # CMC 2024-04-10 consider hiding the `enable_decimals` member altogether
     def get_enable_decimals(self) -> bool:
         if self.enable_decimals is None:
             return DEFAULT_ENABLE_DECIMALS
         return self.enable_decimals
+
+    def get_venom_flags(self) -> VenomOptimizationFlags:
+        if self.venom_flags is None:
+            assert self.optimize is not None  # help mypy
+            return VenomOptimizationFlags(level=self.optimize)
+        return self.venom_flags
 
     def as_cli(self):
         ret = []

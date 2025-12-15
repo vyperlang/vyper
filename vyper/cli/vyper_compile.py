@@ -14,7 +14,12 @@ import vyper.evm.opcodes as evm
 from vyper.cli import vyper_json
 from vyper.cli.compile_archive import NotZipInput, compile_from_zip
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
-from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
+from vyper.compiler.settings import (
+    VYPER_TRACEBACK_LIMIT,
+    OptimizationLevel,
+    Settings,
+    VenomOptimizationFlags,
+)
 from vyper.typing import ContractPath, OutputFormats
 from vyper.utils import uniq
 from vyper.warnings import warnings_filter
@@ -261,7 +266,9 @@ def _parse_args(argv):
 
     settings = Settings(optimize=optimize)
 
-    # Apply individual flag overrides
+    # Apply individual flag overrides - ensure venom_flags exists before mutation
+    if settings.venom_flags is None:
+        settings.venom_flags = VenomOptimizationFlags(level=settings.optimize)
     flags = settings.venom_flags
     flags.disable_inlining |= args.disable_inlining
     flags.disable_cse |= args.disable_cse

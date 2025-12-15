@@ -172,8 +172,7 @@ def generate_venom(
         ctx.append_data_section(IRLabel(section_name))
         ctx.append_data_item(data)
 
-    flags = settings.venom_flags
-    assert flags is not None
+    flags = settings.get_venom_flags()
     run_passes_on(ctx, flags)
 
     return ctx
