@@ -103,7 +103,7 @@ class Mem2Var(IRPass):
         # on alloca_id) is a bit kludgey, but we will live.
         param = fn.get_param_by_id(alloca_id.value)
         if param is None:
-            self.updater.update(palloca_inst, "mload", [size], new_output=var)
+            self.updater.replace(palloca_inst, "mload", [size], new_output=var)
         else:
             self.updater.update(palloca_inst, "assign", [param.func_var], new_output=var)
 

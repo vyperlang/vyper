@@ -15,7 +15,7 @@ class BasePtr:
 
     def __post_init__(self):
         # sanity check
-        assert self.source.opcode in ("alloca", "palloca")
+        assert self.source.opcode in ("alloca", "palloca"), self.source
     
     def offset_by(self, offset: int | None):
         if offset is None or self.offset is None:
@@ -27,7 +27,7 @@ class BasePtr:
     
     @staticmethod
     def from_alloca(alloca_inst: IRInstruction):
-        assert alloca_inst.opcode in ("alloca", "palloca")
+        assert alloca_inst.opcode in ("alloca", "palloca"), alloca_inst
         size = alloca_inst.operands[0]
         assert isinstance(size, IRLiteral)
         return BasePtr(source=alloca_inst, offset=0, size=size.value)
