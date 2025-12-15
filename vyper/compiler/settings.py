@@ -241,8 +241,8 @@ def merge_settings(
         if field.name != "venom_flags":
             pretty_name = field.name.replace("_", "-")  # e.g. evm_version -> evm-version
             val = _merge_one(getattr(one, field.name), getattr(two, field.name), pretty_name)
-        if val is not None:
-            values[field.name] = val
+            if val is not None:
+                values[field.name] = val
 
     # Now handle venom_flags based on the merged optimize value
     # If either source has explicit venom_flags with customizations, use it
