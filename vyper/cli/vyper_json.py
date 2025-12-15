@@ -341,7 +341,6 @@ def get_settings(input_dict: dict) -> Settings:
     # Check for Venom-specific settings
     venom_settings = input_dict["settings"].get("venom", {})
     if venom_settings:
-
         # TODO: refactor this
         flag_mapping = {
             "disableInlining": ("disable_inlining", bool),
