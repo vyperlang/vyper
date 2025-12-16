@@ -108,13 +108,21 @@ class LoadAnalysis(IRAnalysis):
 
     def get_read(self, inst: IRInstruction) -> IROperand | MemoryLocation:
         if self.space in (addr_space.MEMORY, addr_space.TRANSIENT, addr_space.STORAGE):
-            return self.base_ptrs.get_read_location(inst, self.space)
+            memloc = self.base_ptrs.get_read_location(inst, self.space)
+            if not memloc.is_fixed:
+                # assumes it is load
+                return inst.operands[0]
+            return memloc
         # assumes it is load
         return inst.operands[0]
 
     def get_write(self, inst: IRInstruction) -> IROperand | MemoryLocation:
         if self.space in (addr_space.MEMORY, addr_space.TRANSIENT, addr_space.STORAGE):
-            return self.base_ptrs.get_write_location(inst, self.space)
+            memloc = self.base_ptrs.get_write_location(inst, self.space)
+            if not memloc.is_fixed:
+                # assumes it is store
+                return inst.operands[1]
+            return memloc
         # assumes it is store
         return inst.operands[1]
 

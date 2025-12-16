@@ -37,8 +37,6 @@ class MemoryLocation:
     def may_overlap(loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
         if loc1.is_empty() or loc2.is_empty():
             return False
-        if not loc1.is_offset_fixed or not loc2.is_offset_fixed:
-            return True
         if loc1 is MemoryLocation.UNDEFINED or loc2 is MemoryLocation.UNDEFINED:
             return True
         if type(loc1) is not type(loc2):
@@ -72,15 +70,15 @@ class MemoryLocationAbstract(MemoryLocation):
 
     @property
     def is_offset_fixed(self) -> bool:
-        return True
+        return self.segment.is_offset_fixed
 
     @property
     def is_size_fixed(self) -> bool:
-        return True
+        return self.segment.is_size_fixed
 
     @property
     def is_fixed(self) -> bool:
-        return True
+        return self.segment.is_fixed
 
     @property
     def is_volatile(self) -> bool:
@@ -175,6 +173,9 @@ class MemoryLocationSegment(MemoryLocation):
         """
         Determine if two memory locations may overlap
         """
+        if not loc1.is_offset_fixed or not loc2.is_offset_fixed:
+            return True
+
         o1, s1 = loc1.offset, loc1.size
         o2, s2 = loc2.offset, loc2.size
 
