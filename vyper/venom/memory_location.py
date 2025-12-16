@@ -40,7 +40,7 @@ class MemoryLocation:
         if loc1 is MemoryLocation.UNDEFINED or loc2 is MemoryLocation.UNDEFINED:
             return True
         if type(loc1) is not type(loc2):
-            return False
+            return True
         if isinstance(loc1, MemoryLocationSegment):
             assert isinstance(loc2, MemoryLocationSegment)
             return MemoryLocationSegment.may_overlap_concrete(loc1, loc2)
