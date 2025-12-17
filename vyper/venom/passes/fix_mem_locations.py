@@ -1,21 +1,22 @@
-from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.basicblock import IRBasicBlock, IRLiteral, IRVariable, IRInstruction
-from vyper.venom.analysis import DFGAnalysis
-from vyper.venom.passes.machinery.inst_updater import InstUpdater
-from vyper.venom.memory_location import (
-        get_read_size,
-        get_write_size,
-        get_memory_read_op,
-        get_memory_write_op,
-        update_write_location,
-        update_read_location,
-)
 from vyper.utils import MemoryPositions
+from vyper.venom.analysis import DFGAnalysis
 from vyper.venom.analysis.base_ptr_analysis import BasePtr
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
+from vyper.venom.memory_location import (
+    get_memory_read_op,
+    get_memory_write_op,
+    get_read_size,
+    get_write_size,
+    update_read_location,
+    update_write_location,
+)
+from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
 
 def in_free_var(free_var, offset):
     return offset >= free_var and offset < (free_var + 32)
+
 
 class FixMemLocations(IRPass):
     free_ptr1: IRVariable

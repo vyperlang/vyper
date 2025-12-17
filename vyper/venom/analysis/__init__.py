@@ -1,7 +1,7 @@
 from .analysis import IRAnalysesCache, IRAnalysis
+from .base_ptr_analysis import BasePtrAnalysis
 from .cfg import CFGAnalysis
 from .dfg import DFGAnalysis
-from .base_ptr_analysis import BasePtrAnalysis
 from .dominators import DominatorTreeAnalysis
 from .fcg import FCGAnalysis
 from .liveness import LivenessAnalysis

@@ -5,7 +5,9 @@ from typing import Optional
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.exceptions import CompilerPanic
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis
+from vyper.venom.analysis.analysis import IRAnalysis
+from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,

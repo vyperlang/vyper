@@ -7,6 +7,7 @@ from .concretize_mem_loc import ConcretizeMemLocPass
 from .dead_store_elimination import DeadStoreElimination
 from .dft import DFTPass
 from .fix_calloca import FixCalloca
+from .fix_mem_locations import FixMemLocations
 from .float_allocas import FloatAllocas
 from .function_inliner import FunctionInlinerPass
 from .literals_codesize import ReduceLiteralsCodesize
@@ -21,4 +22,3 @@ from .revert_to_assert import RevertToAssert
 from .sccp import SCCP
 from .simplify_cfg import SimplifyCFGPass
 from .single_use_expansion import SingleUseExpansion
-from .fix_mem_locations import FixMemLocations

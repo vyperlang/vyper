@@ -4,9 +4,7 @@ import dataclasses as dc
 from dataclasses import dataclass
 from typing import ClassVar, Optional
 
-from vyper.utils import MemoryPositions
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand
-from vyper.venom.function import IRFunction
 
 
 class MemoryLocation:
@@ -107,7 +105,7 @@ class MemoryLocationAbstract(MemoryLocation):
             return self.segment.completely_contains(other.segment)
         return False
 
-    def offset_by(self, offset: Optional[int]) -> MemoryLocation:
+    def offset_by(self, offset: Optional[int]) -> MemoryLocationAbstract:
         return dc.replace(self, segment=self.segment.offset_by(offset))
 
 
@@ -214,7 +212,7 @@ class MemoryLocationSegment(MemoryLocation):
 
         return True
 
-    def offset_by(self, offset: Optional[int]) -> MemoryLocation:
+    def offset_by(self, offset: Optional[int]) -> MemoryLocationSegment:
         if offset is None:
             return dc.replace(self, offset=None)
 

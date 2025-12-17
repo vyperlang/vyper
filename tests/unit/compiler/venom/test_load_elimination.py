@@ -215,7 +215,7 @@ def test_store_load_pair_memloc():
         # barrier created with overlap
         mstore %ptr_mstore, 11
         return %tmp01, %tmp01
-    """ 
+    """
 
     _check_pre_post(pre, post)
 
@@ -430,9 +430,7 @@ def test_simple_load_elimination_inter_join(position):
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize(
-    "position", [(5, 1000, 50), ("alloca 32", "alloca 32", "alloca 32")]
-)
+@pytest.mark.parametrize("position", [(5, 1000, 50), ("alloca 32", "alloca 32", "alloca 32")])
 def test_load_elimination_inter_distant_bb(position):
     a, b, c = position
 

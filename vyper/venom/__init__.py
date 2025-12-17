@@ -24,6 +24,7 @@ from vyper.venom.passes import (
     ConcretizeMemLocPass,
     DFTPass,
     FixCalloca,
+    FixMemLocations,
     FloatAllocas,
     FunctionInlinerPass,
     LoadElimination,
@@ -37,7 +38,6 @@ from vyper.venom.passes import (
     RevertToAssert,
     SimplifyCFGPass,
     SingleUseExpansion,
-    FixMemLocations,
 )
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.venom_to_assembly import VenomCompiler
