@@ -5,17 +5,17 @@ import pytest
 
 from tests.venom_utils import parse_from_basic_block
 from vyper.ir.compile_ir import assembly_to_evm
-from vyper.venom import (
+from vyper.venom.analysis import IRAnalysesCache
+from vyper.venom.analysis.fcg import FCGAnalysis
+from vyper.venom.basicblock import IRInstruction, IRLiteral
+from vyper.venom.passes import (
     CFGNormalization,
     ConcretizeMemLocPass,
-    FCGAnalysis,
     LowerDloadPass,
     SimplifyCFGPass,
     SingleUseExpansion,
-    VenomCompiler,
 )
-from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRInstruction, IRLiteral
+from vyper.venom.venom_to_assembly import VenomCompiler
 
 HAS_HEVM: bool = False
 

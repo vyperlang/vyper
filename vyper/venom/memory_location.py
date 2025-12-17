@@ -18,11 +18,11 @@ class MemoryLocation:
 
     @classmethod
     def from_operands(
-        cls, offset: IROperand | int, size: IROperand | int, var_base_pointers: dict
+        cls, offset: IROperand | int, size: Optional[IROperand | int], var_base_pointers: dict
     ) -> MemoryLocation:
         if isinstance(size, IRLiteral):
             _size = size.value
-        elif isinstance(size, IRVariable):
+        elif isinstance(size, IRVariable) or size is None:
             _size = None
         elif isinstance(size, int):
             _size = size
@@ -73,7 +73,7 @@ class MemoryLocation:
         if loc1 is MemoryLocation.UNDEFINED or loc2 is MemoryLocation.UNDEFINED:
             return True
         if type(loc1) is not type(loc2):
-            return False
+            return True
         if isinstance(loc1, MemoryLocationSegment):
             assert isinstance(loc2, MemoryLocationSegment)
             return MemoryLocationSegment.may_overlap_concrete(loc1, loc2)
@@ -279,11 +279,13 @@ def _get_memory_write_location(inst, var_base_pointers: dict) -> MemoryLocation:
     elif opcode == "invoke":
         return MemoryLocation.UNDEFINED
     elif opcode == "call":
-        size, dst, _, _, _, _, _ = inst.operands
-        return MemoryLocation.from_operands(dst, size, var_base_pointers)
+        _size, dst, _, _, _, _, _ = inst.operands
+        # size is indeterminate for *call opcodes
+        return MemoryLocation.from_operands(dst, None, var_base_pointers)
     elif opcode in ("delegatecall", "staticcall"):
-        size, dst, _, _, _, _ = inst.operands
-        return MemoryLocation.from_operands(dst, size, var_base_pointers)
+        _size, dst, _, _, _, _ = inst.operands
+        # size is indeterminate for *call opcodes
+        return MemoryLocation.from_operands(dst, None, var_base_pointers)
     elif opcode == "extcodecopy":
         size, _, dst, _ = inst.operands
         return MemoryLocation.from_operands(dst, size, var_base_pointers)
@@ -393,7 +395,7 @@ def fix_mem_loc(function: IRFunction):
             read_op = get_memory_read_op(inst)
             if write_op is not None:
                 size = get_write_size(inst)
-                if size is None or not isinstance(write_op.value, int):
+                if size is None or not isinstance(write_op, IRLiteral):
                     continue
 
                 if in_free_var(MemoryPositions.FREE_VAR_SPACE, write_op.value):
@@ -404,7 +406,7 @@ def fix_mem_loc(function: IRFunction):
                     _update_write_location(inst, IRAbstractMemLoc.FREE_VAR2.with_offset(offset))
             if read_op is not None:
                 size = _get_read_size(inst)
-                if size is None or not isinstance(read_op.value, int):
+                if size is None or not isinstance(read_op, IRLiteral):
                     continue
 
                 if in_free_var(MemoryPositions.FREE_VAR_SPACE, read_op.value):
@@ -444,11 +446,14 @@ def get_write_size(inst: IRInstruction) -> IROperand | None:
         size, _, _ = inst.operands
         return size
     elif opcode == "call":
-        size, _, _, _, _, _, _ = inst.operands
-        return size
+        # number of bytes written is indeterminate -- could
+        # write anywhere between 0 and output_buffer_size bytes.
+        _size, _, _, _, _, _, _ = inst.operands
+        return None
     elif opcode in ("delegatecall", "staticcall"):
-        size, _, _, _, _, _ = inst.operands
-        return size
+        # ditto
+        _size, _, _, _, _, _ = inst.operands
+        return None
     elif opcode == "extcodecopy":
         size, _, _, _ = inst.operands
         return size
