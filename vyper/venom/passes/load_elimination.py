@@ -6,7 +6,6 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.analysis.analysis import IRAnalysis
-from vyper.venom.analysis.base_ptr_analysis import BasePtr
 from vyper.venom.analysis.mem_alias import mem_alias_type_factory
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.effects import Effects, to_addr_space

@@ -1,10 +1,5 @@
 from tests.venom_utils import PrePostChecker
-from vyper.venom.passes import (
-    AssignElimination,
-    ConcretizeMemLocPass,
-    Mem2Var,
-    RemoveUnusedVariablesPass,
-)
+from vyper.venom.passes import AssignElimination, ConcretizeMemLocPass, RemoveUnusedVariablesPass
 
 _check_pre_post = PrePostChecker(
     [ConcretizeMemLocPass, AssignElimination, RemoveUnusedVariablesPass], default_hevm=False

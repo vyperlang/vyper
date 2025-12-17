@@ -41,6 +41,7 @@ class MemoryAllocator:
     def allocate(self, base_ptr: BasePtr | IRInstruction) -> int:
         if isinstance(base_ptr, IRInstruction):
             base_ptr = BasePtr.from_alloca(base_ptr)
+        assert isinstance(base_ptr, BasePtr)
         ptr = self.eom
         self.eom += base_ptr.size
         assert base_ptr.source not in self.allocated

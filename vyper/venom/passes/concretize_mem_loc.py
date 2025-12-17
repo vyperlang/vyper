@@ -160,8 +160,8 @@ class MemLiveness:
             read_op = get_memory_read_op(inst)
             read_ops = self._find_base_ptrs(read_op)
 
-            for read_op in read_ops:
-                live.add(read_op.source)
+            for read_ptr in read_ops:
+                live.add(read_ptr.source)
 
             if inst.opcode == "invoke":
                 label = inst.operands[0]
@@ -180,22 +180,22 @@ class MemLiveness:
 
             self.liveat[inst] = live.copy()
 
-            for write_op in write_ops:
+            for write_ptr in write_ops:
                 size = get_write_size(inst)
                 assert size is not None
                 if not isinstance(size, IRLiteral):
                     # if the size is not a literal then we do not handle it
                     continue
-                if write_op.source in live and size.value == write_op.size:
+                if write_ptr.source in live and size.value == write_ptr.size:
                     # if the memory segment is overriden completely
                     # we dont have to consider the memory location
                     # before this point live, since any values that
                     # are currently in there will be overriden either way
-                    live.remove(write_op.source)
-                if write_op.source in (op.source for op in read_ops):
+                    live.remove(write_ptr.source)
+                if write_ptr.source in (op.source for op in read_ops):
                     # the instruction reads and writes from the same memory
                     # location, we cannot remove it from the liveset
-                    live.add(write_op.source)
+                    live.add(write_ptr.source)
 
         if before != self.liveat[bb.instructions[0]]:
             return True

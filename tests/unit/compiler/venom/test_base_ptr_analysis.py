@@ -7,7 +7,7 @@ from vyper.venom.memory_location import MemoryLocation
 
 
 def test_base_ptr_basic():
-    code = f"""
+    code = """
     main:
         %alloca1 = alloca 1, 256
         %2 = gep 32, %alloca1

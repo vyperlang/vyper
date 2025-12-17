@@ -557,10 +557,7 @@ def test_analyze_instruction_with_no_memory_ops():
     }
     """
 
-    mem_ssa, fn, _ = create_mem_ssa(pre)
-
-    # Get the block and instruction
-    bb = fn.get_basic_block("_global")
+    mem_ssa, _, _ = create_mem_ssa(pre)
 
     # more check for this scenarion in tests for BasePtrAnalysis
 

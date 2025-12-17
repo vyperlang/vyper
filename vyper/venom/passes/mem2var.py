@@ -1,7 +1,7 @@
 from vyper.exceptions import CompilerPanic
 from vyper.utils import all2
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRInstruction, IRLiteral, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
@@ -47,7 +47,7 @@ class Mem2Var(IRPass):
 
         assert len(alloca_inst.operands) == 2, (alloca_inst, alloca_inst.parent)
 
-        size, alloca_id = alloca_inst.operands
+        size_lit, alloca_id = alloca_inst.operands
         var_name = self._mk_varname(var.value, alloca_id.value)
         var = IRVariable(var_name)
         uses = dfg.get_uses(alloca_inst.output)
@@ -59,8 +59,8 @@ class Mem2Var(IRPass):
         if not all2(inst.opcode in ["mstore", "mload", "return"] for inst in uses):
             return
 
-        assert isinstance(size, IRLiteral)
-        size = size.value
+        assert isinstance(size_lit, IRLiteral)
+        size = size_lit.value
 
         for inst in uses.copy():
             if inst.opcode == "mstore":
@@ -85,7 +85,7 @@ class Mem2Var(IRPass):
         Process alloca allocated variable. If it is only used by mstore/mload
         instructions, it is promoted to a stack variable. Otherwise, it is left as is.
         """
-        size, alloca_id = palloca_inst.operands
+        size_lit, alloca_id = palloca_inst.operands
         uses = dfg.get_uses(palloca_inst.output)
 
         if any(inst.opcode == "add" for inst in uses):
@@ -102,12 +102,12 @@ class Mem2Var(IRPass):
         # on alloca_id) is a bit kludgey, but we will live.
         param = fn.get_param_by_id(alloca_id.value)
         if param is None:
-            self.updater.replace(palloca_inst, "mload", [size], new_output=var)
+            self.updater.replace(palloca_inst, "mload", [size_lit], new_output=var)
         else:
             self.updater.update(palloca_inst, "assign", [param.func_var], new_output=var)
 
-        assert isinstance(size, IRLiteral)
-        size = size.value
+        assert isinstance(size_lit, IRLiteral)
+        size = size_lit.value
 
         for inst in uses.copy():
             if inst.opcode == "mstore":
