@@ -50,6 +50,12 @@ class BasePtr:
 
 
 class BasePtrAnalysis(IRAnalysis):
+    """
+    Analysis to get every possible base pointer for variables.
+    The alloca/palloca are sources of base pointer and other instruction
+    (gep/assign/calloca) are used to manipulate these base pointers
+    """
+
     var_to_mem: dict[IRVariable, set[BasePtr]]
 
     def analyze(self):
