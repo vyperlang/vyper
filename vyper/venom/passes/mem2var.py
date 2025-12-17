@@ -32,9 +32,9 @@ class Mem2Var(IRPass):
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
-    def _mk_varname(self, varname: str, alloca_id: int):
+    def _mk_varname(self, varname: str):
         varname = varname.removeprefix("%")
-        varname = f"alloca_{alloca_id}_{varname}_{self.var_name_count}"
+        varname = f"alloca_{varname}_{self.var_name_count}"
         self.var_name_count += 1
         return varname
 
@@ -45,10 +45,10 @@ class Mem2Var(IRPass):
         Otherwise, it is left as is.
         """
 
-        assert len(alloca_inst.operands) == 2, (alloca_inst, alloca_inst.parent)
+        assert len(alloca_inst.operands) >= 1, (alloca_inst, alloca_inst.parent)
 
-        size_lit, alloca_id = alloca_inst.operands
-        var_name = self._mk_varname(var.value, alloca_id.value)
+        size_lit = alloca_inst.operands[0]
+        var_name = self._mk_varname(var.value)
         var = IRVariable(var_name)
         uses = dfg.get_uses(alloca_inst.output)
 

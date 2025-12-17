@@ -228,41 +228,6 @@ MemoryLocation.EMPTY = MemoryLocationSegment(offset=0, size=0)
 MemoryLocation.UNDEFINED = MemoryLocationSegment(offset=None, size=None)
 
 
-def in_free_var(var, offset):
-    return offset >= var and offset < (var + 32)
-
-
-def fix_mem_loc(function: IRFunction):
-    return
-    for bb in function.get_basic_blocks():
-        for inst in bb.instructions:
-            write_op = get_memory_write_op(inst)
-            read_op = get_memory_read_op(inst)
-            if write_op is not None:
-                size = get_write_size(inst)
-                if size is None or not isinstance(write_op.value, int):
-                    continue
-
-                if in_free_var(MemoryPositions.FREE_VAR_SPACE, write_op.value):
-                    print(inst.parent)
-                    offset = write_op.value - MemoryPositions.FREE_VAR_SPACE
-                    _update_write_location(inst, IRAbstractMemLoc.FREE_VAR1.with_offset(offset))
-                elif in_free_var(MemoryPositions.FREE_VAR_SPACE2, write_op.value):
-                    offset = write_op.value - MemoryPositions.FREE_VAR_SPACE2
-                    _update_write_location(inst, IRAbstractMemLoc.FREE_VAR2.with_offset(offset))
-            if read_op is not None:
-                size = _get_read_size(inst)
-                if size is None or not isinstance(read_op.value, int):
-                    continue
-
-                if in_free_var(MemoryPositions.FREE_VAR_SPACE, read_op.value):
-                    offset = read_op.value - MemoryPositions.FREE_VAR_SPACE
-                    _update_read_location(inst, IRAbstractMemLoc.FREE_VAR1.with_offset(offset))
-                elif in_free_var(MemoryPositions.FREE_VAR_SPACE2, read_op.value):
-                    offset = read_op.value - MemoryPositions.FREE_VAR_SPACE2
-                    _update_read_location(inst, IRAbstractMemLoc.FREE_VAR2.with_offset(offset))
-
-
 def get_memory_write_op(inst) -> IROperand | None:
     opcode = inst.opcode
     if opcode == "mstore":
@@ -341,7 +306,7 @@ def get_memory_read_op(inst) -> IROperand | None:
     return None
 
 
-def _get_read_size(inst: IRInstruction) -> IROperand | None:
+def get_read_size(inst: IRInstruction) -> IROperand | None:
     opcode = inst.opcode
     if opcode == "mload":
         return IRLiteral(32)
@@ -378,7 +343,7 @@ def _get_read_size(inst: IRInstruction) -> IROperand | None:
     return None
 
 
-def _update_write_location(inst, new_op: IROperand):
+def update_write_location(inst, new_op: IROperand):
     opcode = inst.opcode
     if opcode == "mstore":
         inst.operands[1] = new_op
@@ -392,7 +357,7 @@ def _update_write_location(inst, new_op: IROperand):
         inst.operands[2] = new_op
 
 
-def _update_read_location(inst, new_op: IROperand):
+def update_read_location(inst, new_op: IROperand):
     opcode = inst.opcode
     if opcode == "mload":
         inst.operands[0] = new_op

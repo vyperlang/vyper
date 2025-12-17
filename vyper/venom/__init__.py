@@ -14,7 +14,6 @@ from vyper.venom.check_venom import check_calling_convention
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
-from vyper.venom.memory_location import fix_mem_loc
 from vyper.venom.passes import (
     CSE,
     SCCP,
@@ -38,6 +37,7 @@ from vyper.venom.passes import (
     RevertToAssert,
     SimplifyCFGPass,
     SingleUseExpansion,
+    FixMemLocations,
 )
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.venom_to_assembly import VenomCompiler
@@ -56,6 +56,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     # Run passes on Venom IR
     # TODO: Add support for optimization levels
 
+    FixMemLocations(ac, fn).run_pass()
     FloatAllocas(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
@@ -188,9 +189,6 @@ def generate_venom(
     constants = constants or {}
     starting_symbols = {k: IRLiteral(v) for k, v in constants.items()}
     ctx = ir_node_to_venom(ir, starting_symbols)
-
-    for fn in ctx.functions.values():
-        fix_mem_loc(fn)
 
     data_sections = data_sections or {}
     for section_name, data in data_sections.items():
