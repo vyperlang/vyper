@@ -2,11 +2,10 @@ from typing import Optional
 
 from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import PUSH
-from vyper.utils import MemoryPositions, OrderedSet
+from vyper.utils import OrderedSet
 from vyper.venom.basicblock import IROperand, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
-from vyper.venom.memory_allocator import MemoryAllocator
 from vyper.venom.stack_model import StackModel
 
 
@@ -28,11 +27,7 @@ class StackSpiller:
         """Set the current function being processed."""
         self._current_function = fn
         if fn is not None and fn in self.ctx.mem_allocator.fn_eom:
-            eom = self.ctx.mem_allocator.fn_eom[fn]
-            if eom <= MemoryAllocator.FN_START:
-                self._next_spill_offset = MemoryPositions.STACK_SPILL_BASE
-            else:
-                self._next_spill_offset = eom
+            self._next_spill_offset = self.ctx.mem_allocator.fn_eom[fn]
 
     def reset_spill_slots(self) -> None:
         self._spill_free_slots = []
