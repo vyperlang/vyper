@@ -22,6 +22,9 @@ class FixMemLocations(IRPass):
     free_ptr2: IRVariable
 
     def run_pass(self):
+        # this dfg is here just for the updater since this is run before the
+        # MakeSSA it is not necessarily correct, but for the cases that are
+        # needed here it should be correct
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(self.dfg)
         inst = self.function.entry.instructions[0]
