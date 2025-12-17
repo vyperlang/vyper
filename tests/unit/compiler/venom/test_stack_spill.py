@@ -5,7 +5,6 @@ from vyper.venom.basicblock import IRLiteral, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.parser import parse_venom
 from vyper.venom.stack_model import StackModel
-from vyper.venom.stack_spiller import StackSpiller
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 
@@ -31,6 +30,7 @@ def _dummy_dfg():
 
 def test_swap_spills_deep_stack() -> None:
     compiler = VenomCompiler(IRContext())
+    compiler.spiller._next_spill_offset = 0x10000  # Set up for unit test
     stack, ops = _build_stack(40)
     assembly: list = []
 
@@ -57,6 +57,7 @@ def test_swap_spills_deep_stack() -> None:
 
 def test_dup_spills_deep_stack() -> None:
     compiler = VenomCompiler(IRContext())
+    compiler.spiller._next_spill_offset = 0x10000  # Set up for unit test
     stack, ops = _build_stack(40)
     assembly: list = []
 
@@ -83,8 +84,7 @@ def test_stack_reorder_spills_before_swap() -> None:
     ctx = IRContext()
     compiler = VenomCompiler(ctx)
     compiler.dfg = _dummy_dfg()
-
-    compiler.spiller = StackSpiller(ctx, initial_offset=0x10000)
+    compiler.spiller._next_spill_offset = 0x10000  # Set up for unit test
 
     stack = StackModel()
     vars_on_stack = [IRVariable(f"%v{i}") for i in range(40)]
@@ -174,12 +174,9 @@ def test_branch_spill_integration() -> None:
     """
 
     ctx = parse_venom(venom_src)
-    compiler = VenomCompiler(ctx)
-    compiler.generate_evm_assembly()
-
     fn = next(iter(ctx.functions.values()))
-    assert any(inst.opcode == "alloca" for inst in fn.entry.instructions)
-
+    compiler = VenomCompiler(ctx)
+    compiler.spiller._next_spill_offset = 0x10000
     asm = compiler.generate_evm_assembly()
     opcodes = [op for op in asm if isinstance(op, str)]
 

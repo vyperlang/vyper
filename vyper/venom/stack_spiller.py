@@ -1,8 +1,12 @@
+from typing import Optional
+
+from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import PUSH
 from vyper.utils import MemoryPositions, OrderedSet
-from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IROperand, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
+from vyper.venom.memory_allocator import MemoryAllocator
 from vyper.venom.stack_model import StackModel
 
 
@@ -14,40 +18,24 @@ class StackSpiller:
     - Managing spill slot allocation and deallocation
     """
 
-    def __init__(self, ctx: IRContext, initial_offset: int | None = None):
+    def __init__(self, ctx: IRContext):
         self.ctx = ctx
         self._spill_free_slots: list[int] = []
-        self._spill_slot_offsets: dict[IRFunction, list[int]] = {}
-        self._spill_insert_index: dict[IRFunction, int] = {}
-        self._next_spill_offset = MemoryPositions.STACK_SPILL_BASE
-        if initial_offset is not None:
-            self._next_spill_offset = initial_offset
-        self._next_spill_alloca_id = 0
-        self._current_function: IRFunction | None = None
+        self._next_spill_offset: Optional[int] = None
+        self._current_function: Optional[IRFunction] = None
 
-    def set_current_function(self, fn: IRFunction | None) -> None:
+    def set_current_function(self, fn: Optional[IRFunction]) -> None:
         """Set the current function being processed."""
         self._current_function = fn
-        if fn is not None:
-            self._prepare_spill_state(fn)
+        if fn is not None and fn in self.ctx.mem_allocator.fn_eom:
+            eom = self.ctx.mem_allocator.fn_eom[fn]
+            if eom <= MemoryAllocator.FN_START:
+                self._next_spill_offset = MemoryPositions.STACK_SPILL_BASE
+            else:
+                self._next_spill_offset = eom
 
     def reset_spill_slots(self) -> None:
         self._spill_free_slots = []
-
-    def _prepare_spill_state(self, fn: IRFunction) -> None:
-        if fn in self._spill_slot_offsets:
-            return
-
-        entry = fn.entry
-        insert_idx = 0
-        for inst in entry.instructions:
-            if inst.opcode == "param":
-                insert_idx += 1
-            else:
-                break
-
-        self._spill_slot_offsets[fn] = []
-        self._spill_insert_index[fn] = insert_idx
 
     def spill_operand(
         self,
@@ -172,7 +160,7 @@ class StackSpiller:
             op = stack.peek(0)
             spill_ops.append(op)
 
-            offset = self._acquire_spill_offset(dry_run)
+            offset = self._get_spill_slot(dry_run)
             offsets.append(offset)
 
             assembly.extend(PUSH(offset))
@@ -207,36 +195,16 @@ class StackSpiller:
         return cost
 
     def _get_spill_slot(self, dry_run: bool) -> int:
-        if dry_run:
-            return self._acquire_spill_offset(dry_run)
-        if self._current_function is None:
-            offset = self._next_spill_offset
-            self._next_spill_offset += 32
-            return offset
-        return self._allocate_spill_slot(self._current_function)
-
-    def _acquire_spill_offset(self, dry_run: bool) -> int:
-        if self._spill_free_slots:
-            return self._spill_free_slots.pop() if not dry_run else self._spill_free_slots[-1]
-        return self._get_spill_slot(dry_run)
-
-    def _allocate_spill_slot(self, fn: IRFunction) -> int:
-        entry = fn.entry
-        insert_idx = self._spill_insert_index[fn]
-
+        """Get a spill slot offset, reusing freed slots when available."""
+        if len(self._spill_free_slots) > 0:
+            if dry_run:
+                return self._spill_free_slots[-1]
+            return self._spill_free_slots.pop()
+        # Allocate a new slot
+        if self._next_spill_offset is None:
+            fn = self._current_function
+            raise CompilerPanic(f"Function {fn.name} needs to spill but is not in fn_eom")
         offset = self._next_spill_offset
-        self._next_spill_offset += 32
-
-        offset_lit = IRLiteral(offset)
-        size_lit = IRLiteral(32)
-        id_lit = IRLiteral(self._next_spill_alloca_id)
-        self._next_spill_alloca_id += 1
-
-        output_var = fn.get_next_variable()
-
-        inst = IRInstruction("alloca", [offset_lit, size_lit, id_lit], [output_var])
-        entry.instructions.insert(insert_idx, inst)
-        self._spill_insert_index[fn] += 1
-
-        self._spill_slot_offsets[fn].append(offset)
+        if not dry_run:
+            self._next_spill_offset += 32
         return offset
