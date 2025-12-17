@@ -73,8 +73,6 @@ class ConcretizeMemLocPass(IRPass):
             inst.operands = new_ops
             if inst.opcode == "gep":
                 inst.opcode = "add"
-            elif inst.opcode == "mem_deploy_start":
-                inst.opcode = "assign"
 
     def _handle_op(self, op: IROperand, inst: IRInstruction) -> IROperand:
         """
@@ -182,7 +180,6 @@ class MemLiveness:
             for write_op in write_ops:
                 assert isinstance(write_op, IRAbstractMemLoc)
                 size = get_write_size(inst)
-                assert size is not None
                 if not isinstance(size, IRLiteral):
                     # if the size is not a literal then we do not handle it
                     continue
