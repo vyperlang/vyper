@@ -1,5 +1,5 @@
 from tests.venom_utils import parse_venom
-from vyper.compiler.settings import OptimizationLevel
+from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.check_venom import check_venom_ctx
 from vyper.venom.passes import FunctionInlinerPass, SimplifyCFGPass
@@ -45,7 +45,8 @@ def test_inliner_phi_invalidation():
     for fn in ctx.functions.values():
         ir_analyses[fn] = IRAnalysesCache(fn)
 
-    FunctionInlinerPass(ir_analyses, ctx, OptimizationLevel.CODESIZE).run_pass()
+    flags = VenomOptimizationFlags(level=OptimizationLevel.CODESIZE)
+    FunctionInlinerPass(ir_analyses, ctx, flags).run_pass()
 
     for fn in ctx.get_functions():
         ac = IRAnalysesCache(fn)
@@ -100,7 +101,8 @@ def test_inliner_phi_invalidation_inner():
     for fn in ctx.functions.values():
         ir_analyses[fn] = IRAnalysesCache(fn)
 
-    FunctionInlinerPass(ir_analyses, ctx, OptimizationLevel.CODESIZE).run_pass()
+    flags = VenomOptimizationFlags(level=OptimizationLevel.CODESIZE)
+    FunctionInlinerPass(ir_analyses, ctx, flags).run_pass()
 
     for fn in ctx.get_functions():
         ac = IRAnalysesCache(fn)

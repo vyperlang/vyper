@@ -1,5 +1,5 @@
 from tests.venom_utils import parse_venom
-from vyper.compiler.settings import OptimizationLevel
+from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.venom import generate_assembly_experimental, run_passes_on
 
 
@@ -13,7 +13,8 @@ def test_empty_liveness_at_function_entry_param_then_stop():
     }
     """
     ctx = parse_venom(venom)
-    run_passes_on(ctx, OptimizationLevel.GAS)
+    flags = VenomOptimizationFlags(level=OptimizationLevel.GAS)
+    run_passes_on(ctx, flags)
     generate_assembly_experimental(ctx)
 
 
@@ -38,5 +39,6 @@ def test_empty_liveness_param_then_revert_immediates2():
     }
     """
     ctx = parse_venom(venom)
-    run_passes_on(ctx, OptimizationLevel.GAS)
+    flags = VenomOptimizationFlags(level=OptimizationLevel.GAS)
+    run_passes_on(ctx, flags)
     generate_assembly_experimental(ctx)
