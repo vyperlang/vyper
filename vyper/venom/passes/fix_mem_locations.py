@@ -19,6 +19,13 @@ def in_free_var(free_var, offset):
 
 
 class FixMemLocations(IRPass):
+    """
+    Pass that fixes cases of memory accesses where the target of read/write is
+    in the range of MemoryPosition.FREE_VAR_SPACE and MemoryPosition.FREE_VAR_SPACE2
+    and replaces it by pined allocation (allocation that is done with the alloca but
+    is pinned to specific position)
+    """
+
     free_ptr1: IRVariable
     free_ptr2: IRVariable
 
