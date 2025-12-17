@@ -1,4 +1,3 @@
-# noqa: FS003
 import pytest
 
 from tests.venom_utils import PrePostChecker, assert_ctx_eq, parse_from_basic_block
@@ -76,7 +75,7 @@ def _check_no_change(code, hevm=False):
     return _check_pre_post(code, code, hevm=hevm)
 
 
-@pytest.mark.parametrize("position", [0, "alloca 32"])  # noqa: FS003
+@pytest.mark.parametrize("position", [0, "alloca 32"])
 def test_basic_dead_store(position):
     pre = f"""
         _global:
