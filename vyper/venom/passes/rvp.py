@@ -113,7 +113,7 @@ class RangeValuePropagationPass(IRPass):
     lattice: Lattice
     work_list: list[WorkListItem]
     cfg_in_exec: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
-    branch_contexts: dict[IRBasicBlock, Lattice]  # Track lattices for each branch
+    branch_contexts: dict[IRBasicBlock, dict[IRVariable, Interval]]  # Track per-block overrides
     current_block: IRBasicBlock  # Track the current block being processed
 
     cfg_dirty: bool
@@ -208,20 +208,20 @@ class RangeValuePropagationPass(IRPass):
         elif len(self.cfg_in_exec[work_item.inst.parent]) > 0:
             self._visit_expr(work_item.inst)
 
-    def _get_lattice_for_block(self, bb: IRBasicBlock) -> Lattice:
-        return self.branch_contexts.get(bb, self.lattice)
-
     def _lookup_from_lattice(self, op: IROperand) -> LatticeItem:
         assert isinstance(op, IRVariable), f"Can't get lattice for non-variable ({op})"
-        current_lattice = self._get_lattice_for_block(self.current_block)
-        lat = current_lattice[op]
+        overrides = self.branch_contexts.get(self.current_block)
+        if overrides is not None:
+            override = overrides.get(op)
+            if override is not None:
+                return override
+        lat = self.lattice[op]
         assert lat is not None, f"Got undefined var {op}"
         return lat
 
     def _set_lattice(self, op: IROperand, value: LatticeItem):
         assert isinstance(op, IRVariable), f"Not a variable: {op}"
-        current_lattice = self._get_lattice_for_block(self.current_block)
-        current_lattice[op] = value
+        self.lattice[op] = value
 
     def _eval_from_lattice(self, op: IROperand) -> LatticeItem:
         if isinstance(op, IRLiteral):
@@ -241,10 +241,10 @@ class RangeValuePropagationPass(IRPass):
             in_vars.append(self._lookup_from_lattice(var))
         value = reduce(_meet, in_vars, LatticeEnum.TOP)  # type: ignore
 
-        assert inst.output in self.lattice, "unreachable"  # sanity
-
-        if value != self._lookup_from_lattice(inst.output):
-            self._set_lattice(inst.output, value)
+        assert inst.output is not None  # sanity
+        assert inst.output in self.lattice, "unreachable"
+        if value != self.lattice[inst.output]:
+            self.lattice[inst.output] = value
             self._add_ssa_work_items(inst)
 
     def _visit_expr(self, inst: IRInstruction):
@@ -275,19 +275,14 @@ class RangeValuePropagationPass(IRPass):
                     # For true branch, condition is non-zero
                     true_meet = Interval(-_inf, -1, 1, _inf)
                     
-                    # Create a copy of the lattice for the true branch
-                    true_lattice = self.lattice.copy()
-                    true_lattice[inst.operands[0]] = true_meet
-                    self.branch_contexts[true_target] = true_lattice
+                    assert isinstance(inst.operands[0], IRVariable)
+                    self.branch_contexts[true_target] = {inst.operands[0]: true_meet}
                     self.work_list.append(FlowWorkItem(inst.parent, true_target))
                     
                     # For false branch, condition is zero
                     false_meet = Interval(0, 0)
                     
-                    # Create a copy of the lattice for the false branch
-                    false_lattice = self.lattice.copy()
-                    false_lattice[inst.operands[0]] = false_meet
-                    self.branch_contexts[false_target] = false_lattice
+                    self.branch_contexts[false_target] = {inst.operands[0]: false_meet}
                     self.work_list.append(FlowWorkItem(inst.parent, false_target))
         elif opcode == "djmp":
             lat = self._eval_from_lattice(inst.operands[0])
@@ -306,39 +301,57 @@ class RangeValuePropagationPass(IRPass):
     def _apply_arithmetic(self, a: Interval, b: Interval, op: str) -> Interval:
         assert not (a.is_disjoint() and b.is_disjoint())
 
-        if a.is_disjoint() or b.is_disjoint():
+        def _union_interval(min1, max1, min2, max2) -> Interval:
+            if min2 < min1:
+                min1, max1, min2, max2 = min2, max2, min1, max1
+            # Overlap or touch -> contiguous interval.
+            if max1 >= min2:
+                return Interval(min1, max(max1, max2))
+            return Interval(min1, max1, min2, max2)
+
+        if not (a.is_disjoint() or b.is_disjoint()):
+            if op == "add":
+                return Interval(a.min + b.min, a.max + b.max)
+            if op == "sub":
+                return Interval(a.min - b.max, a.max - b.min)
+            raise ValueError(f"Unsupported operation: {op}")
+
+        # at most one disjoint operand
+        if op == "add":
+            disjoint = a if a.is_disjoint() else b
+            non_disjoint = b if a.is_disjoint() else a
+            assert disjoint.second_interval is not None  # mypy
+            min1 = disjoint.min + non_disjoint.min
+            max1 = disjoint.max + non_disjoint.max
+            min2 = disjoint.second_interval[0] + non_disjoint.min
+            max2 = disjoint.second_interval[1] + non_disjoint.max
+            return _union_interval(min1, max1, min2, max2)
+
+        if op == "sub":
             if a.is_disjoint():
+                # disjoint minuend
                 disjoint = a
                 non_disjoint = b
-            else:
-                disjoint = b
-                non_disjoint = a
+                assert disjoint.second_interval is not None  # mypy
+                min1 = disjoint.min - non_disjoint.max
+                max1 = disjoint.max - non_disjoint.min
+                min2 = disjoint.second_interval[0] - non_disjoint.max
+                max2 = disjoint.second_interval[1] - non_disjoint.min
+                return _union_interval(min1, max1, min2, max2)
 
-            if op == 'add':
-                min_val = disjoint.min + non_disjoint.min
-                max_val = disjoint.max + non_disjoint.min
-                second_min = disjoint.second_interval[0] + non_disjoint.min
-                second_max = disjoint.second_interval[1] + non_disjoint.min
-            elif op == 'sub':
-                min_val = disjoint.min - non_disjoint.max
-                max_val = disjoint.max - non_disjoint.min
-                second_min = disjoint.second_interval[0] - non_disjoint.max
-                second_max = disjoint.second_interval[1] - non_disjoint.min
-            else:
-                raise ValueError(f"Unsupported operation: {op}")
-                
-            return Interval(min_val, max_val, second_min, second_max)
-        else:
-            if op == 'add':
-                min_val = a.min + b.min
-                max_val = a.max + b.max
-            elif op == 'sub':
-                min_val = a.min - b.max
-                max_val = a.max - b.min
-            else:
-                raise ValueError(f"Unsupported operation: {op}")
-                
-            return Interval(min_val, max_val)
+            # disjoint subtrahend
+            disjoint = b
+            non_disjoint = a
+            assert disjoint.second_interval is not None  # mypy
+            b1_min, b1_max = disjoint.min, disjoint.max
+            b2_min, b2_max = disjoint.second_interval
+            min1 = non_disjoint.min - b1_max
+            max1 = non_disjoint.max - b1_min
+            min2 = non_disjoint.min - b2_max
+            max2 = non_disjoint.max - b2_min
+            return _union_interval(min1, max1, min2, max2)
+
+        raise ValueError(f"Unsupported operation: {op}")
 
     def _eval(self, inst) -> LatticeItem:
         """
@@ -432,9 +445,12 @@ class RangeValuePropagationPass(IRPass):
     def _get_context(self, bb_label: str) -> "RangeValuePropagationPass":
         """Used in tests for introspection"""
         bb = self.fn.get_basic_block(bb_label)
-        # Create a new pass instance with the branch-specific lattice
+        # Create a new pass instance with the block-specific overrides applied
         new_pass = RangeValuePropagationPass(self.analyses_cache, self.fn)
-        new_pass.lattice = self.branch_contexts.get(bb, self.lattice).copy()
+        new_pass.lattice = self.lattice.copy()
+        overrides = self.branch_contexts.get(bb)
+        if overrides is not None:
+            new_pass.lattice.update(overrides)
         return new_pass
 
 def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
@@ -443,14 +459,15 @@ def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
     if y == LatticeEnum.TOP:
         return x
     if isinstance(x, Interval) and isinstance(y, Interval):
-        if x.is_disjoint() or y.is_disjoint():
-            # For now, if either interval is disjoint, we just keep it
-            # This is a simplification that works for our current use case
-            # where disjoint intervals are only used for branch conditions
-            return x if x.is_disjoint() else y
-        min_val = max(x.min, y.min)
-        max_val = min(x.max, y.max)
-        if min_val <= max_val:
-            return Interval(min_val, max_val)
-        return Interval(-_inf, _inf)
+        mins = [x.min, y.min]
+        maxs = [x.max, y.max]
+        if x.is_disjoint():
+            assert x.second_interval is not None  # mypy
+            mins.append(x.second_interval[0])
+            maxs.append(x.second_interval[1])
+        if y.is_disjoint():
+            assert y.second_interval is not None  # mypy
+            mins.append(y.second_interval[0])
+            maxs.append(y.second_interval[1])
+        return Interval(min(mins), max(maxs))
     raise CompilerPanic("Invalid lattice items for meet")

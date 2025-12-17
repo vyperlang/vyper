@@ -1,6 +1,7 @@
 import pytest
 
-from tests.venom_utils import PrePostChecker
+from tests.venom_utils import PrePostChecker, parse_from_basic_block
+from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLabel, IRVariable
 from vyper.venom.passes.rvp import Interval, RangeValuePropagationPass, _inf
 
@@ -118,3 +119,64 @@ def test_branch_range_propagation():
     assert else_ctx.lattice[IRVariable("%1")] == Interval(0, 0)
     assert else_ctx.lattice[IRVariable("%2")] == Interval(0, 0)
     assert else_ctx.lattice[IRVariable("%4")] == Interval(0, 0)
+
+
+def test_phi_meet_does_not_underapproximate():
+    pre = """
+    main:
+        %cond = param
+        jnz %cond, @then, @else
+    then:
+        %a = add 0, 0
+        jmp @join
+    else:
+        %b = param
+        jmp @join
+    join:
+        %x = phi @then, %a, @else, %b
+        jnz %x, @T, @F
+    T:
+        exit
+    F:
+        exit
+    """
+
+    post = pre
+
+    passes = _check_pre_post(pre, post)
+    rvp = passes[0]
+
+    assert rvp.lattice[IRVariable("%x")] == Interval(-_inf, _inf)
+
+
+def test_disjoint_add_uses_non_disjoint_max():
+    ctx = parse_from_basic_block("main:\n    exit\n", funcname="_global")
+    fn = next(iter(ctx.functions.values()))
+    ac = IRAnalysesCache(fn)
+    rvp = RangeValuePropagationPass(ac, fn)
+
+    disjoint = Interval(-_inf, -1, 1, _inf)
+    non_disjoint = Interval(10, 11)
+    assert rvp._apply_arithmetic(disjoint, non_disjoint, "add") == Interval(-_inf, 10, 11, _inf)
+
+
+def test_contiguous_minus_disjoint_respects_operand_order():
+    ctx = parse_from_basic_block("main:\n    exit\n", funcname="_global")
+    fn = next(iter(ctx.functions.values()))
+    ac = IRAnalysesCache(fn)
+    rvp = RangeValuePropagationPass(ac, fn)
+
+    a = Interval(10, 10)
+    b = Interval(-_inf, -1, 1, _inf)
+    assert rvp._apply_arithmetic(a, b, "sub") == Interval(-_inf, 9, 11, _inf)
+
+
+def test_disjoint_add_merges_overlapping_segments():
+    ctx = parse_from_basic_block("main:\n    exit\n", funcname="_global")
+    fn = next(iter(ctx.functions.values()))
+    ac = IRAnalysesCache(fn)
+    rvp = RangeValuePropagationPass(ac, fn)
+
+    disjoint = Interval(-_inf, -1, 1, _inf)
+    non_disjoint = Interval(10, 20)
+    assert rvp._apply_arithmetic(disjoint, non_disjoint, "add") == Interval(-_inf, _inf)
