@@ -1,9 +1,10 @@
 from tests.venom_utils import parse_from_basic_block
-from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.evm.address_space import MEMORY
 from vyper.venom.analysis import BasePtrAnalysis
+from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRVariable
 from vyper.venom.memory_location import MemoryLocation
-from vyper.evm.address_space import MEMORY
+
 
 def test_base_ptr_basic():
     code = f"""
@@ -15,15 +16,15 @@ def test_base_ptr_basic():
         %4 = gep 32, %2
         stop
     """
-    
+
     ctx = parse_from_basic_block(code)
-    
+
     fn = next(ctx.get_functions())
     ac = IRAnalysesCache(fn)
     base_ptr_analysis = ac.request_analysis(BasePtrAnalysis)
 
     source = fn.entry.instructions[0]
-    
+
     base_ptr_1 = base_ptr_analysis.base_ptr_from_op(IRVariable("%alloca1"))
     base_ptr_2 = base_ptr_analysis.base_ptr_from_op(IRVariable("%2"))
     base_ptr_3 = base_ptr_analysis.base_ptr_from_op(IRVariable("%3"))
@@ -43,6 +44,7 @@ def test_base_ptr_basic():
     assert base_ptr_3.offset is None
     assert base_ptr_4.offset == 64
 
+
 def test_base_ptr_instruction_with_no_memory_ops():
     code = """
     _global:
@@ -51,7 +53,7 @@ def test_base_ptr_instruction_with_no_memory_ops():
     """
 
     ctx = parse_from_basic_block(code)
-    
+
     fn = next(ctx.get_functions())
     ac = IRAnalysesCache(fn)
     base_ptr_analysis = ac.request_analysis(BasePtrAnalysis)

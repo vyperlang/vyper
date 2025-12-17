@@ -228,8 +228,6 @@ MemoryLocation.EMPTY = MemoryLocationSegment(offset=0, size=0)
 MemoryLocation.UNDEFINED = MemoryLocationSegment(offset=None, size=None)
 
 
-
-
 def in_free_var(var, offset):
     return offset >= var and offset < (var + 32)
 

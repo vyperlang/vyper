@@ -1,9 +1,10 @@
 from typing import ClassVar
 
 from vyper.utils import OrderedSet
+from vyper.venom.analysis.base_ptr_analysis import BasePtr
 from vyper.venom.basicblock import IRInstruction, IRLiteral
 from vyper.venom.function import IRFunction
-from vyper.venom.analysis.base_ptr_analysis import BasePtr
+
 
 class MemoryAllocator:
     # global state:
@@ -48,22 +49,21 @@ class MemoryAllocator:
 
         ptr = MemoryAllocator.FN_START
         size = base_ptr.size
-        
-        for (resv_ptr, resv_size) in reserved:
+
+        for resv_ptr, resv_size in reserved:
             # can happen if this allocation
             # ovelaps with allocations that dont
             # ovelap each other
             if resv_ptr < ptr:
                 ptr = resv_ptr + resv_size
                 continue
-            
+
             # found the place
             if resv_ptr >= ptr + size:
                 break
 
             ptr = resv_ptr + resv_size
 
-        
         self.allocated[base_ptr.source] = (ptr, size)
         self.allocated_fn.add(base_ptr)
         return ptr
@@ -90,7 +90,9 @@ class MemoryAllocator:
         self.allocated_fn.addmany(mems)
 
     def end_fn_allocation(self):
-        self.mems_used[self.current_function] = OrderedSet(base_ptr.source for base_ptr in self.allocated_fn)
+        self.mems_used[self.current_function] = OrderedSet(
+            base_ptr.source for base_ptr in self.allocated_fn
+        )
 
     def reset(self):
         self.reserved = set()
@@ -104,4 +106,4 @@ class MemoryAllocator:
 
     def reserve_all(self):
         for mem in self.allocated_fn:
-            self.reserve(mem) 
+            self.reserve(mem)

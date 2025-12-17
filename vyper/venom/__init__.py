@@ -104,7 +104,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
 
     # run memmerge before LowerDload
     MemMergePass(ac, fn).run_pass()
-    #LowerDloadPass(ac, fn).run_pass()
+    # LowerDloadPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
     BranchOptimizationPass(ac, fn).run_pass()
 

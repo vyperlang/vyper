@@ -1,5 +1,5 @@
 from vyper.utils import MemoryPositions
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, BasePtrAnalysis
+from vyper.venom.analysis import BasePtrAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.machinery.inst_updater import InstUpdater

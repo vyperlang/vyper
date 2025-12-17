@@ -55,7 +55,7 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "smod",
         "exp",
         "sha3",
-        #"sha3_64",
+        # "sha3_64",
         "signextend",
         "chainid",
         "basefee",
@@ -428,7 +428,7 @@ def _convert_ir_bb(fn, ir, symbols):
         bb.append_instruction("mstore", second, buf)
         next_part = bb.append_instruction("gep", buf, 32)
         bb.append_instruction("mstore", first, next_part)
-        return bb.append_instruction("sha3",64, buf)
+        return bb.append_instruction("sha3", 64, buf)
     elif ir.value == "return":
         fn.get_basic_block().append_instruction(
             "return", IRVariable("ret_size"), IRVariable("ret_ofst")

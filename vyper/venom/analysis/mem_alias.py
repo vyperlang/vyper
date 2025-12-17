@@ -2,9 +2,9 @@ from typing import Optional
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
-from vyper.venom.memory_location import MemoryLocation
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis, BasePtrAnalysis
+from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis, IRAnalysis
 from vyper.venom.basicblock import IRInstruction, IRVariable
+from vyper.venom.memory_location import MemoryLocation
 
 
 class MemoryAliasAnalysisAbstract(IRAnalysis):
@@ -28,7 +28,6 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 self._analyze_instruction(inst)
-
 
     def _analyze_instruction(self, inst: IRInstruction):
         """Analyze a memory instruction to determine aliasing"""

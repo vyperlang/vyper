@@ -6,7 +6,7 @@ from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.analysis.mem_ssa import mem_ssa_type_factory
 from vyper.venom.memory_location import MemoryLocationSegment
-from vyper.venom.passes import DeadStoreElimination, SCCP
+from vyper.venom.passes import SCCP, DeadStoreElimination
 from vyper.venom.passes.base_pass import IRPass
 
 pytestmark = pytest.mark.hevm
@@ -44,7 +44,6 @@ class VolatilePrePostChecker(PrePostChecker):
             for address, size in self.volatile_locations:
                 volatile_loc = MemoryLocationSegment(offset=address, size=size, _is_volatile=True)
                 mem_ssa.mark_location_volatile(volatile_loc)
-            
 
             for p in self.passes:
                 obj = p(ac, fn)
@@ -149,9 +148,7 @@ def test_basic_not_dead_store_with_mload(positions):
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize(
-    "positions", [(0, 32), ("alloca 32", "alloca 32")]
-)
+@pytest.mark.parametrize("positions", [(0, 32), ("alloca 32", "alloca 32")])
 def test_basic_not_dead_store_with_return(positions):
     a, b = positions
     pre = f"""
@@ -207,9 +204,7 @@ def test_live_store(position):
     _check_pre_post(pre, pre)  # Should not change
 
 
-@pytest.mark.parametrize(
-    "positions", [(0, 32), ("alloca 32", "alloca 32")]
-)
+@pytest.mark.parametrize("positions", [(0, 32), ("alloca 32", "alloca 32")])
 def test_dead_store_different_locations(positions):
     a, b = positions
     pre = f"""

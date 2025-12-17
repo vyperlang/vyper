@@ -184,11 +184,11 @@ class SCCP(IRPass):
         store_opcodes: tuple[str, ...] = ("assign",)
         if self.remove_allocas:
             store_opcodes += ("alloca", "palloca", "calloca")
-        
+
         outputs = inst.get_outputs()
 
         if opcode in store_opcodes:
-            assert "alloca" not in opcode 
+            assert "alloca" not in opcode
             out = self._eval_from_lattice(inst.operands[0])
             self._set_lattice(inst.output, out)
             self._add_ssa_work_items(inst)

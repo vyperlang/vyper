@@ -1,12 +1,25 @@
-from vyper.venom.analysis import IRAnalysis, DFGAnalysis, CFGAnalysis
-from vyper.venom.memory_location import MemoryLocation, MemoryLocationAbstract, MemoryLocationSegment
-from vyper.venom.basicblock import IRVariable, IROperand, IRInstruction, IRLiteral, IRBasicBlock, IRLabel
-from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 import dataclasses as dc
+from collections import deque
 from dataclasses import dataclass
 from typing import Optional
+
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.exceptions import CompilerPanic
-from collections import deque
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis
+from vyper.venom.basicblock import (
+    IRBasicBlock,
+    IRInstruction,
+    IRLabel,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+)
+from vyper.venom.memory_location import (
+    MemoryLocation,
+    MemoryLocationAbstract,
+    MemoryLocationSegment,
+)
+
 
 @dataclass(frozen=True)
 class BasePtr:
@@ -17,7 +30,7 @@ class BasePtr:
     def __post_init__(self):
         # sanity check
         assert self.source.opcode in ("alloca", "palloca"), self.source
-    
+
     def offset_by(self, offset: int | None):
         if offset is None or self.offset is None:
             return dc.replace(self, offset=None)
@@ -25,7 +38,7 @@ class BasePtr:
 
     def without_offset(self):
         return BasePtr(source=self.source, offset=0, size=self.size)
-    
+
     @staticmethod
     def from_alloca(alloca_inst: IRInstruction):
         assert alloca_inst.opcode in ("alloca", "palloca"), alloca_inst
@@ -54,7 +67,6 @@ class BasePtrAnalysis(IRAnalysis):
             if changed:
                 for succ in self.cfg.cfg_out(bb):
                     worklist.append(succ)
-
 
     def _handle_inst(self, inst: IRInstruction) -> bool:
         if inst.num_outputs != 1:
@@ -85,7 +97,7 @@ class BasePtrAnalysis(IRAnalysis):
         elif opcode == "phi":
             sources = set()
             for _, var in inst.phi_operands:
-                assert isinstance(var, IRVariable) # mypy help
+                assert isinstance(var, IRVariable)  # mypy help
                 var_sources = self.get_all_posible_memory(var)
                 sources.update(var_sources)
             self.var_to_mem[inst.output] = sources
@@ -94,18 +106,15 @@ class BasePtrAnalysis(IRAnalysis):
 
         return original != self.var_to_mem.get(inst.output, set())
 
-
     def base_ptr_from_op(self, op: IROperand) -> Optional[BasePtr]:
         if not isinstance(op, IRVariable):
             return None
         item = self.var_to_mem.get(op, set()).copy()
         if len(item) == 1:
             return item.pop()
-        return None 
-    
-    def from_operands(
-        self, offset: IROperand | int, size: IROperand | int
-    ) -> MemoryLocation:
+        return None
+
+    def from_operands(self, offset: IROperand | int, size: IROperand | int) -> MemoryLocation:
         if isinstance(size, IRLiteral):
             _size = size.value
         elif isinstance(size, IRVariable):
@@ -123,7 +132,9 @@ class BasePtrAnalysis(IRAnalysis):
                 return MemoryLocationSegment(offset=None, size=_size)
             else:
                 segment = MemoryLocationSegment(offset=base_ptr.offset, size=_size)
-                return MemoryLocationAbstract(source=base_ptr.source, maximum_size=base_ptr.size, segment=segment)
+                return MemoryLocationAbstract(
+                    source=base_ptr.source, maximum_size=base_ptr.size, segment=segment
+                )
         else:  # pragma: nocover
             raise CompilerPanic(f"invalid offset: {offset} ({type(offset)})")
 
@@ -136,7 +147,6 @@ class BasePtrAnalysis(IRAnalysis):
         else:  # pragma: nocover
             raise CompilerPanic(f"Invalid location type: {addr_space}")
 
-
     def get_read_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:
         """Extract memory location info from an instruction"""
         if addr_space == MEMORY:
@@ -145,7 +155,6 @@ class BasePtrAnalysis(IRAnalysis):
             return self._get_storage_read_location(inst, addr_space)
         else:  # pragma: nocover
             raise CompilerPanic(f"Invalid location type: {addr_space}")
-
 
     def _get_memory_write_location(self, inst) -> MemoryLocation:
         opcode = inst.opcode
@@ -174,7 +183,6 @@ class BasePtrAnalysis(IRAnalysis):
             return self.from_operands(dst, size)
 
         return MemoryLocationSegment.EMPTY
-
 
     def _get_memory_read_location(self, inst) -> MemoryLocation:
         opcode = inst.opcode
@@ -218,7 +226,6 @@ class BasePtrAnalysis(IRAnalysis):
 
         return MemoryLocationSegment.EMPTY
 
-
     def _get_storage_write_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:
         opcode = inst.opcode
         if opcode == addr_space.store_op:
@@ -235,15 +242,12 @@ class BasePtrAnalysis(IRAnalysis):
 
         return MemoryLocation.EMPTY
 
-
     def _get_storage_read_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:
         opcode = inst.opcode
         if opcode == addr_space.store_op:
             return MemoryLocation.EMPTY
         elif opcode == addr_space.load_op:
-            return self.from_operands(
-                inst.operands[0], addr_space.word_scale
-            )
+            return self.from_operands(inst.operands[0], addr_space.word_scale)
         elif opcode in ("call", "delegatecall", "staticcall"):
             return MemoryLocation.UNDEFINED
         elif opcode == "invoke":
@@ -265,6 +269,6 @@ class BasePtrAnalysis(IRAnalysis):
             return MemoryLocation.UNDEFINED
 
         return MemoryLocation.EMPTY
-    
+
     def get_all_posible_memory(self, var: IRVariable) -> set[BasePtr]:
         return self.var_to_mem.get(var, set())

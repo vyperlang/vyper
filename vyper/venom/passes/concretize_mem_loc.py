@@ -3,7 +3,7 @@ from typing import Optional
 
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, BasePtrAnalysis
+from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis
 from vyper.venom.analysis.base_ptr_analysis import BasePtr
 from vyper.venom.basicblock import (
     IRBasicBlock,
@@ -31,11 +31,7 @@ class ConcretizeMemLocPass(IRPass):
         self.base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
 
         self.mem_liveness = MemLiveness(
-                self.function,
-                self.cfg,
-                self.dfg,
-                self.base_ptrs,
-                self.allocator,
+            self.function, self.cfg, self.dfg, self.base_ptrs, self.allocator
         )
         self.mem_liveness.analyze()
 

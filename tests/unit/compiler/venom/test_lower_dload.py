@@ -1,6 +1,6 @@
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.passes import LowerDloadPass, FloatAllocas
+from vyper.venom.passes import FloatAllocas, LowerDloadPass
 
 """
 test dload/dloadbytes -> codecopy pass

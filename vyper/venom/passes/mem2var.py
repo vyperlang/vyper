@@ -1,7 +1,7 @@
 from vyper.exceptions import CompilerPanic
 from vyper.utils import all2
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IROperand, IRVariable, IRLiteral
+from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
@@ -51,7 +51,6 @@ class Mem2Var(IRPass):
         var_name = self._mk_varname(var.value, alloca_id.value)
         var = IRVariable(var_name)
         uses = dfg.get_uses(alloca_inst.output)
-
 
         if any(inst.opcode == "add" for inst in uses):
             self._fix_adds(alloca_inst)

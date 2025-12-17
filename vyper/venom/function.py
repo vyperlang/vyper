@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
-from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable, IRInstruction
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRVariable
 
 if TYPE_CHECKING:
     from vyper.venom.context import IRContext
