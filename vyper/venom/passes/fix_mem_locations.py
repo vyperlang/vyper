@@ -18,7 +18,7 @@ def in_free_var(free_var, offset):
     return offset >= free_var and offset < (free_var + 32)
 
 
-class FixMemLocations(IRPass):
+class FixMemLocationsPass(IRPass):
     """
     Pass that fixes cases of memory accesses where the target of read/write is
     in the range of MemoryPosition.FREE_VAR_SPACE and MemoryPosition.FREE_VAR_SPACE2

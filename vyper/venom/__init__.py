@@ -24,7 +24,7 @@ from vyper.venom.passes import (
     ConcretizeMemLocPass,
     DFTPass,
     FixCalloca,
-    FixMemLocations,
+    FixMemLocationsPass,
     FloatAllocas,
     FunctionInlinerPass,
     LoadElimination,
@@ -56,7 +56,7 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel, ac: IRAnalysesCache
     # Run passes on Venom IR
     # TODO: Add support for optimization levels
 
-    FixMemLocations(ac, fn).run_pass()
+    FixMemLocationsPass(ac, fn).run_pass()
     FloatAllocas(ac, fn).run_pass()
 
     SimplifyCFGPass(ac, fn).run_pass()
