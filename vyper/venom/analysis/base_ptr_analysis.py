@@ -1,4 +1,4 @@
-from vyper.venom.analysis import IRAnalysis, DFGAnalysis
+from vyper.venom.analysis import IRAnalysis, DFGAnalysis, CFGAnalysis
 from vyper.venom.memory_location import MemoryLocation, MemoryLocationAbstract, MemoryLocationSegment
 from vyper.venom.basicblock import IRVariable, IROperand, IRInstruction, IRLiteral, IRBasicBlock, IRLabel
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
@@ -6,6 +6,7 @@ import dataclasses as dc
 from dataclasses import dataclass
 from typing import Optional
 from vyper.exceptions import CompilerPanic
+from collections import deque
 
 @dataclass(frozen=True)
 class BasePtr:
@@ -38,16 +39,22 @@ class BasePtrAnalysis(IRAnalysis):
 
     def analyze(self):
         self.var_to_mem = dict()
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
-        while True:
-            changed = False
-            for bb in self.function.get_basic_blocks():
-                for inst in bb.instructions:
-                    changed |= self._handle_inst(inst)
+        worklist = deque(self.cfg.dfs_pre_walk)
 
-            if not changed:
-                break
+        while len(worklist) > 0:
+            bb: IRBasicBlock = worklist.popleft()
+
+            changed = False
+            for inst in bb.instructions:
+                changed |= self._handle_inst(inst)
+
+            if changed:
+                for succ in self.cfg.cfg_out(bb):
+                    worklist.append(succ)
+
 
     def _handle_inst(self, inst: IRInstruction) -> bool:
         if inst.num_outputs != 1:
