@@ -83,6 +83,28 @@ class InstUpdater:
 
         return inst
 
+    # similar behaviour as update but it wont change the instruction
+    # it self but insert new instruction with new data
+    # this is so there is a way to change instruction without
+    # changing it inplace if there is such a case where the data
+    # would be needed in future such as palloca/calloca pairs
+    def replace(
+        self,
+        inst: IRInstruction,
+        opcode: str,
+        new_operands: list[IROperand],
+        new_output: Optional[IRVariable] = None,
+        annotation: str = "",
+    ) -> IRInstruction:
+        bb = inst.parent
+        index = bb.instructions.index(inst)
+        new_inst = inst.copy()
+        bb.instructions[index] = new_inst
+        self.update(new_inst, opcode, new_operands, new_output, annotation)
+        assert new_inst.output == inst.output
+        self.dfg.set_producing_instruction(new_inst.output, new_inst)
+        return inst
+
     def nop(self, inst: IRInstruction, annotation: str = ""):
         self.update(inst, "nop", [], annotation=annotation)
 

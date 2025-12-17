@@ -13,7 +13,7 @@ from vyper.venom.analysis.mem_ssa import (
 )
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.effects import Effects
-from vyper.venom.memory_location import MemoryLocationSegment, get_read_location, get_write_location
+from vyper.venom.memory_location import MemoryLocationSegment
 
 
 @pytest.fixture
@@ -557,15 +557,9 @@ def test_analyze_instruction_with_no_memory_ops():
     }
     """
 
-    mem_ssa, fn, _ = create_mem_ssa(pre)
+    mem_ssa, _, _ = create_mem_ssa(pre)
 
-    # Get the block and instruction
-    bb = fn.get_basic_block("_global")
-    assignment_inst = bb.instructions[0]  # %1 = 42
-
-    # Verify that the instruction doesn't have memory operations
-    assert get_read_location(assignment_inst, MEMORY, {}) is MemoryLocation.EMPTY
-    assert get_write_location(assignment_inst, MEMORY, {}) is MemoryLocation.EMPTY
+    # more check for this scenarion in tests for BasePtrAnalysis
 
     assert mem_ssa.memalias.alias_sets is not None
 

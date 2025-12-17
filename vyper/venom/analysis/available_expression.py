@@ -347,7 +347,9 @@ class AvailableExpressionAnalysis(IRAnalysis):
         if inst.num_outputs > 1:
             return op
 
-        assert inst in self.inst_to_expr, f"operand source was not handled, ({op}, {inst})"
+        assert (
+            inst in self.inst_to_expr
+        ), f"operand source was not handled, ({op}, {inst}), {inst.parent.parent}"
         return self.inst_to_expr[inst]
 
     def get_expression(self, inst: IRInstruction) -> tuple[_Expression, IRInstruction] | None:

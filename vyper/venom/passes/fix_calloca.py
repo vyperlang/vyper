@@ -38,9 +38,8 @@ class FixCalloca(IRGlobalPass):
                 if _id.value not in called.allocated_args:
                     self._removed_unused_calloca(inst)
                     continue
-                memloc = called.allocated_args[_id.value]
 
-                inst.operands = [memloc, _id]
+                inst.operands = [size, _id, called.name]
 
     def _removed_unused_calloca(self, inst: IRInstruction):
         to_remove = set()

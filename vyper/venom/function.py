@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
-from vyper.venom.basicblock import IRAbstractMemLoc, IRBasicBlock, IRLabel, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRVariable
 
 if TYPE_CHECKING:
     from vyper.venom.context import IRContext
@@ -32,7 +32,9 @@ class IRFunction:
     name: IRLabel  # symbol name
     ctx: IRContext
     args: list
-    allocated_args: dict[int, IRAbstractMemLoc]
+    # all the pallocas that are needed
+    # TODO try to use only args
+    allocated_args: dict[int, IRInstruction]
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
 

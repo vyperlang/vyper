@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Any, ClassVar, Iterator, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Iterator, Optional, Sequence, Union
 
 import vyper.venom.effects as effects
 from vyper.codegen.ir_node import IRnode
@@ -171,60 +171,6 @@ class IRLiteral(IROperand):
         if abs(self.value) < 1024:
             return str(self.value)
         return f"0x{self.value:x}"
-
-
-class IRAbstractMemLoc(IROperand):
-    """
-    operand representing an offset into an alloca'ed memory segment
-    which has not be concretized (allocated) yet.
-    """
-
-    _id: int
-
-    # size of the memory segment
-    size: int
-
-    # offset inside of a memory segment
-    offset: int
-
-    _curr_id: ClassVar[int] = 0
-    FREE_VAR1: ClassVar[IRAbstractMemLoc]
-    FREE_VAR2: ClassVar[IRAbstractMemLoc]
-
-    def __init__(self, size: int, offset: int = 0, force_id=None):
-        if force_id is None:
-            self._id = IRAbstractMemLoc._curr_id
-            IRAbstractMemLoc._curr_id += 1
-        else:
-            self._id = force_id
-        super().__init__(self._id)
-        self.size = size
-        self.offset = offset
-
-    def __hash__(self) -> int:
-        return self._id
-
-    def __eq__(self, other) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self._id == other._id and self.offset == other.offset
-
-    def __repr__(self) -> str:
-        if self.offset != 0:
-            return f"{{@{self._id},{self.size} + {self.offset}}}"
-        else:
-            return f"{{@{self._id},{self.size}}}"
-
-    def without_offset(self) -> IRAbstractMemLoc:
-        return IRAbstractMemLoc(self.size, force_id=self._id)
-
-    def with_offset(self, offset: int) -> IRAbstractMemLoc:
-        return IRAbstractMemLoc(self.size, offset=offset, force_id=self._id)
-
-
-# cannot assign in class since it is not defined in that place
-IRAbstractMemLoc.FREE_VAR1 = IRAbstractMemLoc(32)
-IRAbstractMemLoc.FREE_VAR2 = IRAbstractMemLoc(32)
 
 
 class IRVariable(IROperand):
@@ -485,6 +431,7 @@ class IRInstruction:
         ret.annotation = self.annotation
         ret.ast_source = self.ast_source
         ret.error_msg = self.error_msg
+        ret.parent = self.parent
         return ret
 
     def str_short(self) -> str:
