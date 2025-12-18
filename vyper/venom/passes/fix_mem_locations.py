@@ -48,7 +48,7 @@ class FixMemLocationsPass(IRPass):
             read_op = get_memory_read_op(inst)
             if write_op is not None:
                 size = get_write_size(inst)
-                if size is None or not isinstance(write_op.value, int):
+                if size is None or not isinstance(write_op, IRLiteral):
                     continue
 
                 if in_free_var(MemoryPositions.FREE_VAR_SPACE, write_op.value):
@@ -63,7 +63,7 @@ class FixMemLocationsPass(IRPass):
                     update_write_location(inst, ptr)
             if read_op is not None:
                 size = get_read_size(inst)
-                if size is None or not isinstance(read_op.value, int):
+                if size is None or not isinstance(read_op, IRLiteral):
                     continue
 
                 if in_free_var(MemoryPositions.FREE_VAR_SPACE, read_op.value):
