@@ -255,11 +255,14 @@ def get_write_size(inst: IRInstruction) -> IROperand | None:
         size, _, _ = inst.operands
         return size
     elif opcode == "call":
-        size, _, _, _, _, _, _ = inst.operands
-        return size
+        # number of bytes written is indeterminate -- could
+        # write anywhere between 0 and output_buffer_size bytes.
+        _size, _, _, _, _, _, _ = inst.operands
+        return None
     elif opcode in ("delegatecall", "staticcall"):
-        size, _, _, _, _, _ = inst.operands
-        return size
+        # ditto
+        _size, _, _, _, _, _ = inst.operands
+        return None
     elif opcode == "extcodecopy":
         size, _, _, _ = inst.operands
         return size

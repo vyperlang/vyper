@@ -91,8 +91,6 @@ class ConcretizeMemLocPass(IRPass):
                 self.updater.replace(inst, "assign", [concrete])
             if inst.opcode == "gep":
                 inst.opcode = "add"
-            elif inst.opcode == "mem_deploy_start":
-                inst.opcode = "assign"
 
 
 class MemLiveness:
@@ -182,7 +180,6 @@ class MemLiveness:
 
             for write_ptr in write_ops:
                 size = get_write_size(inst)
-                assert size is not None
                 if not isinstance(size, IRLiteral):
                     # if the size is not a literal then we do not handle it
                     continue

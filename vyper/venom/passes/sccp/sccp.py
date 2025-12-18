@@ -58,16 +58,13 @@ class SCCP(IRPass):
 
     cfg_dirty: bool
 
-    def __init__(
-        self, analyses_cache: IRAnalysesCache, function: IRFunction, /, remove_allocas=False
-    ):
+    def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
-        self.remove_allocas = remove_allocas
-
         self.lattice = {}
         self.work_list: list[WorkListItem] = []
 
-    def run_pass(self):
+    def run_pass(self, remove_allocas=True):
+        self.remove_allocas = remove_allocas
         self.fn = self.function
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
