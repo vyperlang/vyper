@@ -122,10 +122,10 @@ class BasePtrAnalysis(IRAnalysis):
             return item.pop()
         return None
 
-    def from_operands(self, offset: IROperand | int, size: IROperand | int) -> MemoryLocation:
+    def from_operands(self, offset: IROperand | int, size: Optional[IROperand | int]) -> MemoryLocation:
         if isinstance(size, IRLiteral):
             _size = size.value
-        elif isinstance(size, IRVariable):
+        elif isinstance(size, IRVariable) or size is None:
             _size = None
         elif isinstance(size, int):
             _size = size
@@ -179,11 +179,13 @@ class BasePtrAnalysis(IRAnalysis):
         elif opcode == "invoke":
             return MemoryLocation.UNDEFINED
         elif opcode == "call":
-            size, dst, _, _, _, _, _ = inst.operands
-            return self.from_operands(dst, size)
+            _size, dst, _, _, _, _, _ = inst.operands
+            # size is indeterminate for *call opcodes
+            return self.from_operands(dst, None)
         elif opcode in ("delegatecall", "staticcall"):
-            size, dst, _, _, _, _ = inst.operands
-            return self.from_operands(dst, size)
+            _size, dst, _, _, _, _ = inst.operands
+            # size is indeterminate for *call opcodes
+            return self.from_operands(dst, None)
         elif opcode == "extcodecopy":
             size, _, dst, _ = inst.operands
             return self.from_operands(dst, size)
