@@ -91,6 +91,41 @@ def _eval_sub(inst: IRInstruction, state: RangeState) -> ValueRange:
     return ValueRange((lo, hi))
 
 
+def _eval_mul(inst: IRInstruction, state: RangeState) -> ValueRange:
+    """Evaluate mul instruction."""
+    lhs = _operand_range(inst.operands[-1], state)
+    rhs = _operand_range(inst.operands[-2], state)
+    if lhs.is_empty or rhs.is_empty:
+        return ValueRange.empty()
+
+    # Handle constant zero case: 0 * anything = 0
+    if lhs.is_constant and lhs.lo == 0:
+        return ValueRange.constant(0)
+    if rhs.is_constant and rhs.lo == 0:
+        return ValueRange.constant(0)
+
+    if lhs.is_constant and rhs.is_constant:
+        result = lhs.lo * rhs.lo
+        if result < SIGNED_MIN or result > UNSIGNED_MAX:
+            result = wrap256(result)
+        return ValueRange.constant(result)
+    # For non-constant ranges, only handle non-negative values
+    if lhs.lo < 0 or rhs.lo < 0:
+        return ValueRange.top()
+    if (lhs.hi - lhs.lo) > RANGE_WIDTH_LIMIT or (rhs.hi - rhs.lo) > RANGE_WIDTH_LIMIT:
+        return ValueRange.top()
+
+    # Check for potential overflow before computing
+    if lhs.hi > 0 and rhs.hi > UNSIGNED_MAX // lhs.hi:
+        return ValueRange.top()
+
+    lo = lhs.lo * rhs.lo
+    hi = lhs.hi * rhs.hi
+    if hi > UNSIGNED_MAX:
+        return ValueRange.top()
+    return ValueRange((lo, hi))
+
+
 def _eval_and(inst: IRInstruction, state: RangeState) -> ValueRange:
     """Evaluate bitwise and instruction."""
     first = inst.operands[-1]
@@ -287,6 +322,7 @@ EVAL_DISPATCH: dict[str, RangeEvaluator] = {
     "assign": _eval_assign,
     "add": _eval_add,
     "sub": _eval_sub,
+    "mul": _eval_mul,
     "and": _eval_and,
     "byte": _eval_byte,
     "signextend": _eval_signextend,

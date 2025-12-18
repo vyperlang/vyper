@@ -630,3 +630,201 @@ def test_eq_false_branch_does_not_narrow_to_nothing():
     assert rng.hi == 999
     assert rng.lo == 999
     assert analysis.get_range(x_var, use_inst).is_top
+
+
+def test_mul_constants():
+    """Test multiplication of two constants."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = 7
+            %y = mul %x, 6
+            jmp @exit
+
+        exit:
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    mul_inst = entry.instructions[1]
+    rng = analysis.get_range(mul_inst.output, entry.instructions[-1])
+    assert rng.lo == 42
+    assert rng.hi == 42
+
+
+def test_mul_constant_by_range():
+    """Test multiplication of a constant by a bounded range."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw = calldataload 0
+            %x = mod %raw, 10
+            %y = mul %x, 5
+            jmp @exit
+
+        exit:
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    mul_inst = next(inst for inst in entry.instructions if inst.opcode == "mul")
+    rng = analysis.get_range(mul_inst.output, entry.instructions[-1])
+    assert rng.lo == 0
+    assert rng.hi == 45
+
+
+def test_mul_two_ranges():
+    """Test multiplication of two bounded ranges."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw1 = calldataload 0
+            %raw2 = calldataload 32
+            %x = mod %raw1, 5
+            %y = mod %raw2, 4
+            %z = mul %x, %y
+            jmp @exit
+
+        exit:
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    mul_inst = next(inst for inst in entry.instructions if inst.opcode == "mul")
+    rng = analysis.get_range(mul_inst.output, entry.instructions[-1])
+    # x in [0, 4], y in [0, 3] => z in [0, 12]
+    assert rng.lo == 0
+    assert rng.hi == 12
+
+
+def test_mul_overflow_goes_to_top():
+    """Test that multiplication with potential overflow returns TOP."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = calldataload 0
+            %y = mul %x, 2
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    mul_inst = next(inst for inst in entry.instructions if inst.opcode == "mul")
+    rng = analysis.get_range(mul_inst.output, entry.instructions[-1])
+    # x is unbounded, so multiplication can overflow
+    assert rng.is_top
+
+
+def test_mul_large_range_overflow():
+    """Test that multiplication of large ranges goes to TOP due to width limit."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw = calldataload 0
+            %x = mod %raw, 0x200000000000000000000000000000000
+            %y = mul %x, 2
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    mul_inst = next(inst for inst in entry.instructions if inst.opcode == "mul")
+    rng = analysis.get_range(mul_inst.output, entry.instructions[-1])
+    # Range width > 2^128, should go to TOP
+    assert rng.is_top
+
+
+def test_mul_by_zero():
+    """Test multiplication by zero constant."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = calldataload 0
+            %y = mul %x, 0
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    mul_inst = next(inst for inst in entry.instructions if inst.opcode == "mul")
+    rng = analysis.get_range(mul_inst.output, entry.instructions[-1])
+    assert rng.lo == 0
+    assert rng.hi == 0
+
+
+def test_mul_by_one():
+    """Test multiplication by one preserves range."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw = calldataload 0
+            %x = mod %raw, 100
+            %y = mul %x, 1
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    mul_inst = next(inst for inst in entry.instructions if inst.opcode == "mul")
+    rng = analysis.get_range(mul_inst.output, entry.instructions[-1])
+    assert rng.lo == 0
+    assert rng.hi == 99
+
+
+def test_mul_signed_goes_to_top():
+    """Test that multiplication with signed ranges goes to TOP."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw = calldataload 0
+            %x = signextend 0, %raw
+            %y = mul %x, 2
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    mul_inst = next(inst for inst in entry.instructions if inst.opcode == "mul")
+    rng = analysis.get_range(mul_inst.output, entry.instructions[-1])
+    # Signed range includes negatives, so goes to TOP
+    assert rng.is_top
+
+
+def test_mul_wraps_on_overflow_constants():
+    """Test that constant multiplication wraps correctly on overflow."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = -1
+            %y = mul %x, 2
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    mul_inst = next(inst for inst in entry.instructions if inst.opcode == "mul")
+    rng = analysis.get_range(mul_inst.output, entry.instructions[-1])
+    # -1 * 2 = -2
+    assert rng.lo == -2
+    assert rng.hi == -2
