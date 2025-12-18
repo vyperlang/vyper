@@ -176,8 +176,6 @@ class BasePtrAnalysis(IRAnalysis):
             return self.from_operands(dst, size)
         elif opcode == "dload":
             return MemoryLocationSegment(offset=0, size=32)
-        elif opcode == "sha3_64":
-            return MemoryLocationSegment(offset=0, size=64)
         elif opcode == "invoke":
             return MemoryLocation.UNDEFINED
         elif opcode == "call":
@@ -223,8 +221,6 @@ class BasePtrAnalysis(IRAnalysis):
         elif opcode == "sha3":
             size, offset = inst.operands
             return self.from_operands(offset, size)
-        elif opcode == "sha3_64":
-            return MemoryLocationSegment(offset=0, size=64)
         elif opcode == "log":
             size, src = inst.operands[-2:]
             return self.from_operands(src, size)
