@@ -174,7 +174,6 @@ def test_branch_spill_integration() -> None:
     """
 
     ctx = parse_venom(venom_src)
-    fn = next(iter(ctx.functions.values()))
     compiler = VenomCompiler(ctx)
     compiler.spiller._next_spill_offset = 0x10000
     asm = compiler.generate_evm_assembly()

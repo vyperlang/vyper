@@ -443,7 +443,9 @@ class VenomCompiler:
                 next_liveness = self.liveness.out_vars(basicblock)
 
             asm.extend(
-                self._generate_evm_for_instruction(inst, stack, next_liveness,spilled, is_halting_block)
+                self._generate_evm_for_instruction(
+                    inst, stack, next_liveness, spilled, is_halting_block
+                )
             )
 
         if DEBUG_SHOW_COST:

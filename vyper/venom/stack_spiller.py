@@ -198,6 +198,7 @@ class StackSpiller:
         # Allocate a new slot
         if self._next_spill_offset is None:
             fn = self._current_function
+            assert fn is not None
             raise CompilerPanic(f"Function {fn.name} needs to spill but is not in fn_eom")
         offset = self._next_spill_offset
         if not dry_run:
