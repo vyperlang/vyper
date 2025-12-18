@@ -116,12 +116,14 @@ class StackSpiller:
         )
         return cost
 
-    def dup(self, assembly: list, stack: StackModel, depth: int, dry_run: bool = False) -> None:
+    def dup(self, assembly: list, stack: StackModel, depth: int, dry_run: bool = False) -> int:
         """
         Dup operation that handles deep stacks via spilling.
 
         For stacks deeper than 16, spills the stack segment to memory,
         then restores it with duplication.
+
+        Returns the cost (number of operations emitted).
         """
         dup_idx = 1 - depth
         if dup_idx < 1:
@@ -132,16 +134,19 @@ class StackSpiller:
         if dup_idx <= 16:
             stack.dup(depth)
             assembly.append(f"DUP{dup_idx}")
-            return
+            return 1
 
         # For deep stacks, use spill/restore technique
         chunk_size = dup_idx
-        spill_ops, offsets, _ = self._spill_stack_segment(assembly, stack, chunk_size, dry_run)
+        spill_ops, offsets, cost = self._spill_stack_segment(assembly, stack, chunk_size, dry_run)
 
         indices = list(range(chunk_size))
         desired_indices = [indices[-1]] + indices
 
-        self._restore_spilled_segment(assembly, stack, spill_ops, offsets, desired_indices, dry_run)
+        cost += self._restore_spilled_segment(
+            assembly, stack, spill_ops, offsets, desired_indices, dry_run
+        )
+        return cost
 
     def _spill_stack_segment(
         self, assembly: list, stack: StackModel, count: int, dry_run: bool
