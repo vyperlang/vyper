@@ -19,6 +19,7 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.context import DeployInfo, IRContext
 from vyper.venom.function import IRFunction, IRParameter
+from vyper.venom.analysis.base_ptr_analysis import BasePtr
 
 # Experimental: allow returning multiple 32-byte values via the stack
 ENABLE_MULTI_RETURNS = True
@@ -116,7 +117,7 @@ NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_sym
 SymbolTable = dict[str, IROperand]
 _alloca_table: dict[int, IROperand]
 _callsites: dict[str, list[Alloca]]
-_immutables_region: IRAbstractMemLoc
+_immutables_region: IRVariable
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
 
 _scratch_alloca_id = 2**32
@@ -140,20 +141,19 @@ def ir_node_to_venom(ir: IRnode, deploy_info: Optional[DeployInfo] = None) -> IR
 
     ctx = IRContext()
 
-    # these memory locations are used as magic values inside the compiler,
-    # they are context-globally shared slots so we allocate them here,
-    # in a context-global way.
-    ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR1)
-    ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR2)
+    fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
+    ctx.entry_function = fn
 
     _immutables_region = None  # type: ignore
     if deploy_info is not None:
-        _immutables_region = IRAbstractMemLoc(deploy_info.immutables_len)
-        ctx.mem_allocator.allocate(_immutables_region)
+        bb = fn.get_basic_block()
+        inst = IRInstruction("alloca", [IRLiteral(deploy_info.immutables_len), IRLiteral(get_scratch_alloca_id())], outputs=[fn.get_next_variable()])
+        bb.insert_instruction(inst)
+        _immutables_region = inst.output
+        ctx.mem_allocator.set_position(BasePtr.from_alloca(inst), 0)
         symbols["runtime_codesize"] = IRLiteral(deploy_info.runtime_codesize)
 
-    fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
-    ctx.entry_function = fn
+
 
     _convert_ir_bb(fn, ir, symbols)
 
@@ -244,7 +244,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     # For multi-return via stack without a provided buffer, synthesize one
     if returns_count > 0 and return_buf is None:
         return_buf = bb.append_instruction1(
-            "alloca", IRAbstractMemLoc(32 * returns_count), get_scratch_alloca_id()
+            "alloca", 32 * returns_count, get_scratch_alloca_id()
         )
 
     stack_args: list[IROperand] = [IRLabel(str(target_label))]

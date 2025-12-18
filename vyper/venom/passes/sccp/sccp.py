@@ -63,7 +63,7 @@ class SCCP(IRPass):
         self.lattice = {}
         self.work_list: list[WorkListItem] = []
 
-    def run_pass(self, remove_allocas=True):
+    def run_pass(self, remove_allocas=False):
         self.remove_allocas = remove_allocas
         self.fn = self.function
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
