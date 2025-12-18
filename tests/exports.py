@@ -11,7 +11,9 @@ SEP = "__"
 
 def _base_name(unique: str) -> str:
     if SEP in unique:
-        return unique.rsplit(SEP, 1)[0]
+        base, suffix = unique.rsplit(SEP, 1)
+        if suffix.isdigit():
+            return base
     return unique
 
 
@@ -118,7 +120,7 @@ class TestExporter:
 
         # record it so later nodes see the latest fixture instantiation
         json_bucket = bucket.with_suffix(".json")
-        self._executed_fixtures.append(str(json_bucket / unique))
+        self._executed_fixtures.append((json_bucket / unique).as_posix())
 
     def _resolve_deps(self, node: Union[FixtureDef, Item]):
         wanted = set(node.fixturenames if isinstance(node, Item) else node.argnames)

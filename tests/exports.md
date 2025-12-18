@@ -1,8 +1,7 @@
-  
 ## How to run  
 - `pytest -n <NUM_PROCESSES> --export <EXPORT_PATH> <TEST_PATH>[::TEST_NAME] `  
   - <NUM_PROCESSES> – Number of processes to use (e.g., 1).   
-    - *currently not parallelized -> must use 1 process*  
+    - *currently not parallelized -> must use 1 process (override the repo default `-n auto`)*  
   - <EXPORT_PATH> – Directory to save export results (e.g., tests/export).  
   - <TEST_PATH> – Path to the test file or directory (e.g., tests/functional/codegen/modules/test_exports.py).  
   - ::TEST_NAME – (Optional) Specific test function to run (e.g., test_simple_export).  
@@ -27,6 +26,8 @@ The exported data is organized into JSON files that mirror the test directory st
       {
         "trace_type": "deployment",
         "deployment_type": "source" | "ir" | "blueprint" | "raw_bytecode",
+        "function_name": "constructor",
+        "python_args": {"args": [...], "kwargs": {...}},
         "contract_abi": [...],
         "initcode": "0x...",
         "calldata": "0x..." | null,
@@ -59,6 +60,8 @@ The exported data is organized into JSON files that mirror the test directory st
       {
         "trace_type": "call",
         "output": "0x..." | null,
+        "function_name": "foo" | null,
+        "python_args": {"args": [...], "kwargs": {...}},
         "call_args": {
           "to": "0x...",
           "calldata": "0x...",

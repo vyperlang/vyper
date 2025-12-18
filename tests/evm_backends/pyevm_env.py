@@ -38,7 +38,7 @@ class PyEvmEnv(BaseEnv):
         tracing: bool,
         block_number: int,
         evm_version: str,
-        exporter: TestExporter,
+        exporter: Optional[TestExporter],
     ) -> None:
         super().__init__(gas_limit, account_keys, exporter)
 

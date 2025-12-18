@@ -59,7 +59,7 @@ def pytest_addoption(parser):
         "--evm-backend", choices=["py-evm", "revm"], default="revm", help="set evm backend"
     )
 
-    parser.addoption("--export", help="enable test data exporting to specified JSON file")
+    parser.addoption("--export", help="enable test data exporting to specified directory")
 
 
 @pytest.fixture(scope="module")
