@@ -36,7 +36,7 @@ PASSES_O3: List[PassConfig] = [
     MakeSSA,
     PhiEliminationPass,
     AlgebraicOptimizationPass,
-    (SCCP, {"remove_allocas": False}),
+    SCCP,
     SimplifyCFGPass,
     AssignElimination,
     Mem2Var,
