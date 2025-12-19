@@ -12,7 +12,7 @@ from vyper.ir.compile_ir import (
     TaggedInstruction,
     optimize_assembly,
 )
-from vyper.utils import MemoryPositions, OrderedSet, wrap256
+from vyper.utils import OrderedSet, wrap256
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import (
     PSEUDO_INSTRUCTION,

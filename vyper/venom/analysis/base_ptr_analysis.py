@@ -122,7 +122,9 @@ class BasePtrAnalysis(IRAnalysis):
             return item.pop()
         return None
 
-    def from_operands(self, offset: IROperand | int, size: Optional[IROperand | int]) -> MemoryLocation:
+    def from_operands(
+        self, offset: IROperand | int, size: Optional[IROperand | int]
+    ) -> MemoryLocation:
         if isinstance(size, IRLiteral):
             _size = size.value
         elif isinstance(size, IRVariable) or size is None:

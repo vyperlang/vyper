@@ -9,6 +9,7 @@ from vyper.codegen.context import Alloca
 from vyper.codegen.core import is_tuple_like
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes, version_check
+from vyper.venom.analysis.base_ptr_analysis import BasePtr
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -19,7 +20,6 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.context import DeployInfo, IRContext
 from vyper.venom.function import IRFunction, IRParameter
-from vyper.venom.analysis.base_ptr_analysis import BasePtr
 
 # Experimental: allow returning multiple 32-byte values via the stack
 ENABLE_MULTI_RETURNS = True
@@ -150,13 +150,15 @@ def ir_node_to_venom(ir: IRnode, deploy_info: Optional[DeployInfo] = None) -> IR
     if deploy_info is not None:
         bb = fn.get_basic_block()
         _immutable_alloca_id = get_scratch_alloca_id()
-        inst = IRInstruction("alloca", [IRLiteral(deploy_info.immutables_len), IRLiteral(_immutable_alloca_id)], outputs=[fn.get_next_variable()])
+        inst = IRInstruction(
+            "alloca",
+            [IRLiteral(deploy_info.immutables_len), IRLiteral(_immutable_alloca_id)],
+            outputs=[fn.get_next_variable()],
+        )
         bb.insert_instruction(inst)
         _immutables_region_alloca = inst
         ctx.mem_allocator.set_position(BasePtr.from_alloca(_immutables_region_alloca), 0)
         symbols["runtime_codesize"] = IRLiteral(deploy_info.runtime_codesize)
-
-
 
     _convert_ir_bb(fn, ir, symbols)
 
@@ -164,8 +166,8 @@ def ir_node_to_venom(ir: IRnode, deploy_info: Optional[DeployInfo] = None) -> IR
         for bb in fn.get_basic_blocks():
             bb.ensure_well_formed()
 
-    del _immutable_alloca_id # hygiene
-    del _immutables_region_alloca # hygiene
+    del _immutable_alloca_id  # hygiene
+    del _immutables_region_alloca  # hygiene
 
     return ctx
 
@@ -247,9 +249,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 
     # For multi-return via stack without a provided buffer, synthesize one
     if returns_count > 0 and return_buf is None:
-        return_buf = bb.append_instruction1(
-            "alloca", 32 * returns_count, get_scratch_alloca_id()
-        )
+        return_buf = bb.append_instruction1("alloca", 32 * returns_count, get_scratch_alloca_id())
 
     stack_args: list[IROperand] = [IRLabel(str(target_label))]
 
@@ -338,7 +338,9 @@ def _handle_internal_func(
     if _immutable_alloca_id is not None:
         assert _immutables_region_alloca is not None
         size = _immutables_region_alloca.operands[0]
-        inst = IRInstruction("alloca", [size, IRLiteral(_immutable_alloca_id)], outputs=[fn.get_next_variable()])
+        inst = IRInstruction(
+            "alloca", [size, IRLiteral(_immutable_alloca_id)], outputs=[fn.get_next_variable()]
+        )
         bb.insert_instruction(inst)
         _immutables_region_alloca = inst
         fn.ctx.mem_allocator.set_position(BasePtr.from_alloca(inst), 0)
@@ -353,7 +355,6 @@ def _handle_internal_func(
 
         assert buf is not None  # help mypy
         symbols["return_buffer"] = buf
-
 
     stack_index = 0
     if func_t.return_type is not None and _returns_stack_count(func_t) == 0:
@@ -478,7 +479,9 @@ def _convert_ir_bb(fn, ir, symbols):
         # TODO: maybe have a helper function for this
         assert _immutables_region_alloca is not None
         if version_check(begin="cancun"):
-            bb.append_instruction("mcopy", immutables_len, _immutables_region_alloca.output, immutables_dst)
+            bb.append_instruction(
+                "mcopy", immutables_len, _immutables_region_alloca.output, immutables_dst
+            )
         else:
             gas = bb.append_instruction("gas")
             copy_success = bb.append_instruction(
