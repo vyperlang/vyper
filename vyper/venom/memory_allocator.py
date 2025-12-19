@@ -26,7 +26,6 @@ class MemoryAllocator:
     FN_START: ClassVar[int] = 0
 
     def __init__(self):
-        # start from 0 so we can allocate FREE_VAR_SPACE in slots 0 and 32
         self.eom = 0
         self.reserved = set()
 
