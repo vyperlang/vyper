@@ -117,7 +117,8 @@ NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_sym
 SymbolTable = dict[str, IROperand]
 _alloca_table: dict[int, IROperand]
 _callsites: dict[str, list[Alloca]]
-_immutables_region: IRVariable
+_immutable_alloca_id: Optional[int]
+_immutables_region_alloca: Optional[IRInstruction]
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
 
 _scratch_alloca_id = 2**32
@@ -133,7 +134,7 @@ def get_scratch_alloca_id() -> int:
 def ir_node_to_venom(ir: IRnode, deploy_info: Optional[DeployInfo] = None) -> IRContext:
     _ = ir.unique_symbols  # run unique symbols check
 
-    global _alloca_table, _callsites, _immutables_region
+    global _alloca_table, _callsites, _immutable_alloca_id, _immutables_region_alloca
     _alloca_table = {}
     _callsites = defaultdict(list)
 
@@ -144,13 +145,15 @@ def ir_node_to_venom(ir: IRnode, deploy_info: Optional[DeployInfo] = None) -> IR
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
     ctx.entry_function = fn
 
-    _immutables_region = None  # type: ignore
+    _immutable_alloca_id = None
+    _immutables_region_alloca = None
     if deploy_info is not None:
         bb = fn.get_basic_block()
-        inst = IRInstruction("alloca", [IRLiteral(deploy_info.immutables_len), IRLiteral(get_scratch_alloca_id())], outputs=[fn.get_next_variable()])
+        _immutable_alloca_id = get_scratch_alloca_id()
+        inst = IRInstruction("alloca", [IRLiteral(deploy_info.immutables_len), IRLiteral(_immutable_alloca_id)], outputs=[fn.get_next_variable()])
         bb.insert_instruction(inst)
-        _immutables_region = inst.output
-        ctx.mem_allocator.set_position(BasePtr.from_alloca(inst), 0)
+        _immutables_region_alloca = inst
+        ctx.mem_allocator.set_position(BasePtr.from_alloca(_immutables_region_alloca), 0)
         symbols["runtime_codesize"] = IRLiteral(deploy_info.runtime_codesize)
 
 
@@ -161,7 +164,8 @@ def ir_node_to_venom(ir: IRnode, deploy_info: Optional[DeployInfo] = None) -> IR
         for bb in fn.get_basic_blocks():
             bb.ensure_well_formed()
 
-    del _immutables_region  # hygiene
+    del _immutable_alloca_id # hygiene
+    del _immutables_region_alloca # hygiene
 
     return ctx
 
@@ -311,7 +315,7 @@ def _handle_internal_func(
     does_return_data: bool,
     symbols: SymbolTable,
 ) -> IRFunction:
-    global _alloca_table, _current_func_t
+    global _alloca_table, _current_func_t, _immutable_alloca_id, _immutables_region_alloca
 
     func_t = ir.passthrough_metadata["func_t"]
     context = ir.passthrough_metadata["context"]
@@ -331,6 +335,14 @@ def _handle_internal_func(
 
     returns_count = _returns_stack_count(func_t)
 
+    if _immutable_alloca_id is not None:
+        assert _immutables_region_alloca is not None
+        size = _immutables_region_alloca.operands[0]
+        inst = IRInstruction("alloca", [size, IRLiteral(_immutable_alloca_id)], outputs=[fn.get_next_variable()])
+        bb.insert_instruction(inst)
+        _immutables_region_alloca = inst
+        fn.ctx.mem_allocator.set_position(BasePtr.from_alloca(inst), 0)
+
     # return buffer
     if does_return_data:
         if returns_count > 0:
@@ -341,6 +353,7 @@ def _handle_internal_func(
 
         assert buf is not None  # help mypy
         symbols["return_buffer"] = buf
+
 
     stack_index = 0
     if func_t.return_type is not None and _returns_stack_count(func_t) == 0:
@@ -463,8 +476,9 @@ def _convert_ir_bb(fn, ir, symbols):
 
         # see copy_bytes() in legacy pipeline
         # TODO: maybe have a helper function for this
+        assert _immutables_region_alloca is not None
         if version_check(begin="cancun"):
-            bb.append_instruction("mcopy", immutables_len, _immutables_region, immutables_dst)
+            bb.append_instruction("mcopy", immutables_len, _immutables_region_alloca.output, immutables_dst)
         else:
             gas = bb.append_instruction("gas")
             copy_success = bb.append_instruction(
@@ -472,7 +486,7 @@ def _convert_ir_bb(fn, ir, symbols):
                 immutables_len,
                 immutables_dst,
                 immutables_len,
-                _immutables_region,
+                _immutables_region_alloca.output,
                 0x04,
                 gas,
             )
@@ -652,13 +666,15 @@ def _convert_ir_bb(fn, ir, symbols):
     elif ir.value == "iload":
         ofst = _convert_ir_bb(fn, ir.args[0], symbols)
         bb = fn.get_basic_block()
-        ptr = bb.append_instruction("gep", _immutables_region, ofst)
+        assert _immutables_region_alloca is not None
+        ptr = bb.append_instruction("gep", _immutables_region_alloca.output, ofst)
         return bb.append_instruction("mload", ptr)
 
     elif ir.value == "istore":
         ofst, val = _convert_ir_bb_list(fn, ir.args, symbols)
         bb = fn.get_basic_block()
-        ptr = bb.append_instruction("gep", _immutables_region, ofst)
+        assert _immutables_region_alloca is not None
+        ptr = bb.append_instruction("gep", _immutables_region_alloca.output, ofst)
         return bb.append_instruction("mstore", val, ptr)
 
     elif ir.value == "ceil32":
