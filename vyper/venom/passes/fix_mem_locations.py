@@ -6,7 +6,7 @@ from vyper.venom.memory_location import (
     get_memory_read_op,
     get_memory_write_op,
     get_read_size,
-    get_write_size,
+    get_write_max_size,
     update_read_location,
     update_write_location,
 )
@@ -47,20 +47,18 @@ class FixMemLocationsPass(IRPass):
             write_op = get_memory_write_op(inst)
             read_op = get_memory_read_op(inst)
             if write_op is not None:
-                size = get_write_size(inst)
-                if size is None or not isinstance(write_op, IRLiteral):
-                    continue
-
-                if in_free_var(MemoryPositions.FREE_VAR_SPACE, write_op.value):
-                    offset = write_op.value - MemoryPositions.FREE_VAR_SPACE
-                    ptr = self.updater.add_before(inst, "gep", [self.free_ptr1, IRLiteral(offset)])
-                    assert ptr is not None
-                    update_write_location(inst, ptr)
-                elif in_free_var(MemoryPositions.FREE_VAR_SPACE2, write_op.value):
-                    offset = write_op.value - MemoryPositions.FREE_VAR_SPACE2
-                    ptr = self.updater.add_before(inst, "gep", [self.free_ptr2, IRLiteral(offset)])
-                    assert ptr is not None
-                    update_write_location(inst, ptr)
+                size = get_write_max_size(inst)
+                if size is not None and isinstance(write_op, IRLiteral):
+                    if in_free_var(MemoryPositions.FREE_VAR_SPACE, write_op.value):
+                        offset = write_op.value - MemoryPositions.FREE_VAR_SPACE
+                        ptr = self.updater.add_before(inst, "gep", [self.free_ptr1, IRLiteral(offset)])
+                        assert ptr is not None
+                        update_write_location(inst, ptr)
+                    elif in_free_var(MemoryPositions.FREE_VAR_SPACE2, write_op.value):
+                        offset = write_op.value - MemoryPositions.FREE_VAR_SPACE2
+                        ptr = self.updater.add_before(inst, "gep", [self.free_ptr2, IRLiteral(offset)])
+                        assert ptr is not None
+                        update_write_location(inst, ptr)
             if read_op is not None:
                 size = get_read_size(inst)
                 if size is None or not isinstance(read_op, IRLiteral):

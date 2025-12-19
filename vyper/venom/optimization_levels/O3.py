@@ -27,10 +27,12 @@ from vyper.venom.passes import (
     RevertToAssert,
     SimplifyCFGPass,
     SingleUseExpansion,
+    FixMemLocationsPass,
 )
 
 # Aggressive optimizations (O3)
 PASSES_O3: List[PassConfig] = [
+    FixMemLocationsPass,
     FloatAllocas,
     SimplifyCFGPass,
     MakeSSA,
