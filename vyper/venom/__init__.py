@@ -176,3 +176,7 @@ def generate_venom(
     run_passes_on(ctx, flags)
 
     return ctx
+
+
+# backwards compatibility alias
+generate_ir = generate_venom
