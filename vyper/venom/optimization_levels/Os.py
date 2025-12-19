@@ -54,6 +54,9 @@ PASSES_Os: List[PassConfig] = [
     AssignElimination,
     RevertToAssert,
     SimplifyCFGPass,
+    # run memmerge before LowerDload
+    MemMergePass,
+    LowerDloadPass,
     RemoveUnusedVariablesPass,
     (DeadStoreElimination, {"addr_space": MEMORY}),
     (DeadStoreElimination, {"addr_space": STORAGE}),
@@ -63,9 +66,7 @@ PASSES_Os: List[PassConfig] = [
     ConcretizeMemLocPass,
     SCCP,
     SimplifyCFGPass,
-    # run memmerge before LowerDload
     MemMergePass,
-    LowerDloadPass,
     RemoveUnusedVariablesPass,
     BranchOptimizationPass,
     AlgebraicOptimizationPass,
