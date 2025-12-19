@@ -30,6 +30,11 @@ from vyper.utils import MemoryPositions
 from vyper.version import version_tuple
 
 
+# backwards compatibility for titanoboa
+def getpos(node):
+    return (node.lineno, node.col_offset, node.end_lineno, node.end_col_offset)
+
+
 def generate_cbor_metadata(
     compiler_metadata: Any,
     runtime_codesize: int,
