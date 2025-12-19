@@ -238,12 +238,12 @@ class VenomCompiler:
                     raise CompilerPanic(f"Variable {op} not in stack")
 
             if depth < -16:
-                if not self._reduce_depth_via_spill(
+                # Try to selectively spill items to bring target within SWAP16
+                # range. If this fails, swap() handles it via bulk spill/restore.
+                self._reduce_depth_via_spill(
                     assembly, stack, spilled, stack_ops, op, depth, dry_run
-                ):
-                    depth = stack.get_depth(op)
-                else:
-                    depth = stack.get_depth(op)
+                )
+                depth = stack.get_depth(op)
 
             if depth == final_stack_depth:
                 continue
