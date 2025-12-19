@@ -660,6 +660,7 @@ class VenomCompiler:
 
         # Step 6: Emit instruction output operands (if any)
         if len(outputs) == 0:
+            self.spiller.release_dead_spills(spilled, next_liveness)
             return apply_line_numbers(inst, assembly)
 
         # Skip popping dead outputs if we're in a halting block (return/revert/stop)
@@ -669,6 +670,7 @@ class VenomCompiler:
 
         live_outputs = [out for out in outputs if out in next_liveness]
         if len(live_outputs) == 0:
+            self.spiller.release_dead_spills(spilled, next_liveness)
             return apply_line_numbers(inst, assembly)
 
         # Heuristic scheduling based on the next expected live var
