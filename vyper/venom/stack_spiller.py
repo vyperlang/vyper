@@ -91,11 +91,6 @@ class StackSpiller:
             return 0
 
         swap_idx = -depth
-        if swap_idx < 1:
-            from vyper.exceptions import StackTooDeep
-
-            raise StackTooDeep(f"Unsupported swap depth {swap_idx}")
-
         if swap_idx <= 16:
             stack.swap(depth)
             assembly.append(f"SWAP{swap_idx}")
@@ -126,11 +121,6 @@ class StackSpiller:
         Returns the cost (number of operations emitted).
         """
         dup_idx = 1 - depth
-        if dup_idx < 1:
-            from vyper.exceptions import StackTooDeep
-
-            raise StackTooDeep(f"Unsupported dup depth {dup_idx}")
-
         if dup_idx <= 16:
             stack.dup(depth)
             assembly.append(f"DUP{dup_idx}")
