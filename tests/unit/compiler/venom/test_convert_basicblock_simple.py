@@ -54,6 +54,17 @@ class _DummyAlloca:
 
 @pytest.mark.xfail
 def test_sha3_64():
+    """
+    Test that was introduced because regression in the
+    PR https://github.com/vyperlang/vyper/pull/4795
+    it is caused by desugaring the sha3_64 early
+    and the optimizer cannot combine the these two
+    sha3_64 instruction into one
+
+    This test should pass in the commits before that
+    and we should try to make it pass again
+    """
+
     ir = ["seq",
         ["mstore", "$alloca_64_32", ["calldataload", 32]],
         ["mstore",
