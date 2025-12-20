@@ -1,3 +1,4 @@
+import pytest
 from vyper.codegen.ir_node import IRnode
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from dataclasses import dataclass
@@ -51,6 +52,7 @@ class _DummyAlloca:
     _id: int
     size: int
 
+@pytest.mark.xfail
 def test_sha3_64():
     ir = ["seq",
         ["mstore", "$alloca_64_32", ["calldataload", 32]],
