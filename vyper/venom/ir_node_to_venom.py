@@ -109,6 +109,7 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "call",
         "delegatecall",
         "staticcall",
+        "sink",
     ]
 )
 
