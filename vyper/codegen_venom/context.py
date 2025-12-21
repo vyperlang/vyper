@@ -3,10 +3,11 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
+from vyper.evm.opcodes import version_check
 from vyper.semantics.types import VyperType
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
-from vyper.venom.basicblock import IRLabel, IRVariable
+from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 
 
@@ -170,3 +171,90 @@ class VenomCodegenContext:
             constancy=Constancy.Constant if func_t.is_view else Constancy.Mutable,
             is_ctor_context=is_ctor or self.is_ctor_context,
         )
+
+    # === Memory Operations ===
+
+    def load_memory(self, ptr: IROperand, typ: VyperType) -> IROperand:
+        """Load value from memory pointer.
+
+        For primitive types (<=32 bytes), returns the loaded value.
+        For complex types (>32 bytes), returns the pointer itself
+        since caller will work with the pointer.
+        """
+        if typ.memory_bytes_required <= 32:
+            return self.builder.mload(ptr)
+        else:
+            # Complex types: return pointer (caller handles copy if needed)
+            return ptr
+
+    def store_memory(
+        self, val: IROperand, ptr: IROperand, typ: VyperType
+    ) -> None:
+        """Store value to memory pointer.
+
+        For primitive types (<=32 bytes), stores the value directly.
+        For complex types (>32 bytes), val is a source pointer and
+        we copy from val to ptr.
+        """
+        if typ.memory_bytes_required <= 32:
+            self.builder.mstore(val, ptr)
+        else:
+            # Complex type: val is a pointer, copy memory
+            self.copy_memory(ptr, val, typ.memory_bytes_required)
+
+    def copy_memory(self, dst: IROperand, src: IROperand, size: int) -> None:
+        """Copy memory region from src to dst.
+
+        Uses mcopy for Cancun+, otherwise word-by-word copy.
+        """
+        if size == 0:
+            return
+
+        # For Cancun+, use mcopy
+        if version_check(begin="cancun"):
+            self.builder.mcopy(IRLiteral(size), src, dst)
+            return
+
+        # Pre-Cancun: word-by-word copy
+        for offset in range(0, size, 32):
+            if isinstance(src, IRLiteral):
+                src_ptr = IRLiteral(src.value + offset)
+            else:
+                src_ptr = self.builder.add(src, IRLiteral(offset))
+
+            if isinstance(dst, IRLiteral):
+                dst_ptr = IRLiteral(dst.value + offset)
+            else:
+                dst_ptr = self.builder.add(dst, IRLiteral(offset))
+
+            val = self.builder.mload(src_ptr)
+            self.builder.mstore(val, dst_ptr)
+
+    def load_calldata(self, offset: IROperand, typ: VyperType) -> IROperand:
+        """Load from calldata.
+
+        For primitive types (<=32 bytes), returns calldataload value.
+        For complex types (>32 bytes), copies calldata to memory
+        and returns the memory pointer.
+        """
+        if typ.memory_bytes_required <= 32:
+            return self.builder.calldataload(offset)
+        else:
+            # Allocate buffer and copy calldata to it
+            size = typ.memory_bytes_required
+            buf = self.new_internal_variable(typ)
+            self.builder.calldatacopy(IRLiteral(size), offset, buf)
+            return buf
+
+    def allocate_buffer(self, size: int, name: str = "buf") -> IRVariable:
+        """Allocate a temporary memory buffer of given size.
+
+        Useful for ABI encoding/decoding buffers and other
+        temporary scratch space.
+        """
+        from vyper.semantics.types.shortcuts import BYTES32_T
+
+        # Create a dummy type for allocation purposes
+        # We just need the size - type doesn't matter for buffers
+        alloca_id = self.new_alloca_id()
+        return self.builder.alloca(size, alloca_id)
