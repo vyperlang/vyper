@@ -1205,10 +1205,9 @@ class Expr:
         node = self.node
         func_name = node.func.attr
 
-        # Get function type from semantic analysis
-        func_t = node._metadata.get("type")
-        if func_t is None:
-            func_t = node.func._metadata.get("type")
+        # Get function type from the function attribute's metadata
+        # node._metadata["type"] is the return type, we need the function type
+        func_t = node.func._metadata.get("type")
 
         returns_count = self.ctx.returns_stack_count(func_t)
         pass_via_stack = self.ctx.pass_via_stack(func_t)
