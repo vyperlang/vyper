@@ -301,7 +301,7 @@ class VenomCodegenContext:
             self.copy_memory(ptr, val, typ.memory_bytes_required)
 
     def copy_memory(self, dst: IROperand, src: IROperand, size: int) -> None:
-        """Copy memory region from src to dst.
+        """Copy memory region from src to dst (static size known at compile time).
 
         Uses mcopy for Cancun+, otherwise word-by-word copy.
         """
@@ -327,6 +327,32 @@ class VenomCodegenContext:
 
             val = self.builder.mload(src_ptr)
             self.builder.mstore(val, dst_ptr)
+
+    def copy_memory_dynamic(
+        self, dst: IROperand, src: IROperand, length: IROperand
+    ) -> None:
+        """Copy memory region with dynamic length (known at runtime).
+
+        Uses mcopy for Cancun+, otherwise identity precompile (address 4).
+        """
+        b = self.builder
+
+        # For Cancun+, use mcopy
+        if version_check(begin="cancun"):
+            b.mcopy(length, src, dst)
+            return
+
+        # Pre-Cancun: use identity precompile at address 4
+        # staticcall(gas, 4, src, length, dst, length)
+        success = b.staticcall(
+            b.gas(),
+            IRLiteral(4),  # identity precompile
+            src,
+            length,
+            dst,
+            length,
+        )
+        b.assert_(success)
 
     def load_calldata(self, offset: IROperand, typ: VyperType) -> IROperand:
         """Load from calldata.

@@ -1,0 +1,301 @@
+"""
+Byte manipulation built-in functions.
+
+- concat(a, b, ...) - concatenate bytes/strings
+- slice(b, start, length) - extract substring
+- extract32(b, start) - extract bytes32 from bytearray
+"""
+
+from vyper import ast as vy_ast
+from vyper.semantics.types import BytesM_T, BytesT, StringT
+from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.venom.basicblock import IRLiteral, IROperand
+
+if False:  # TYPE_CHECKING
+    from vyper.codegen_venom.context import VenomCodegenContext
+
+
+def lower_concat(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+    """
+    concat(a, b, ...) -> bytes | string
+
+    Concatenate 2+ bytes/string arguments.
+    BytesM args contribute fixed M bytes, bytestring args contribute
+    their dynamic length.
+    """
+    from vyper.codegen_venom.expr import Expr
+
+    b = ctx.builder
+    args = node.args
+
+    # Calculate max output length (for buffer allocation)
+    max_len = 0
+    for arg in args:
+        arg_t = arg._metadata["type"]
+        if isinstance(arg_t, _BytestringT):
+            max_len += arg_t.maxlen
+        else:  # BytesM_T
+            max_len += arg_t.m
+
+    # Determine output type (string or bytes)
+    first_t = args[0]._metadata["type"]
+    if isinstance(first_t, StringT):
+        out_typ = StringT(max_len)
+    else:
+        out_typ = BytesT(max_len)
+
+    # Allocate output buffer (length word + data)
+    out_buf = ctx.new_internal_variable(out_typ)
+    data_ptr = b.add(out_buf, IRLiteral(32))
+
+    # Track current offset as a variable
+    offset_var = ctx.new_internal_variable(BytesT(32))  # just need 32 bytes
+    b.mstore(IRLiteral(0), offset_var)
+
+    for arg_node in args:
+        arg = Expr(arg_node, ctx).lower()
+        arg_t = arg_node._metadata["type"]
+
+        if isinstance(arg_t, _BytestringT):
+            # Variable-length bytes/string: copy data, advance by actual length
+            arg_len = b.mload(arg)
+            arg_data = b.add(arg, IRLiteral(32))
+            offset = b.mload(offset_var)
+            dst = b.add(data_ptr, offset)
+            ctx.copy_memory_dynamic(dst, arg_data, arg_len)
+            new_offset = b.add(offset, arg_len)
+            b.mstore(new_offset, offset_var)
+        else:
+            # Fixed bytesM: the value is already left-aligned in 32 bytes
+            # Store full 32 bytes and advance by M
+            m = arg_t.m
+            offset = b.mload(offset_var)
+            dst = b.add(data_ptr, offset)
+            b.mstore(arg, dst)
+            new_offset = b.add(offset, IRLiteral(m))
+            b.mstore(new_offset, offset_var)
+
+    # Store final length at output buffer
+    final_len = b.mload(offset_var)
+    b.mstore(final_len, out_buf)
+    return out_buf
+
+
+def lower_slice(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+    """
+    slice(b, start, length) -> bytes | string
+
+    Extract substring from byte array or string.
+    Handles special cases: msg.data, self.code, <address>.code.
+    """
+    from vyper.codegen_venom.expr import Expr
+
+    b = ctx.builder
+
+    src_node = node.args[0]
+    start_node = node.args[1]
+    length_node = node.args[2]
+
+    src_t = src_node._metadata["type"]
+    out_t = node._metadata["type"]
+
+    # Check for adhoc slice macros (msg.data, self.code, <addr>.code)
+    if _is_adhoc_slice(src_node):
+        return _lower_adhoc_slice(node, ctx)
+
+    src = Expr(src_node, ctx).lower()
+    start = Expr(start_node, ctx).lower()
+    length = Expr(length_node, ctx).lower()
+
+    # Determine source length and data pointer
+    if isinstance(src_t, _BytestringT):
+        src_len = b.mload(src)
+        src_data = b.add(src, IRLiteral(32))
+    elif isinstance(src_t, BytesM_T):
+        # bytesM: fixed length, value is the data (left-aligned)
+        src_len = IRLiteral(src_t.m)
+        # Need to store to memory first to slice from it
+        tmp_buf = ctx.allocate_buffer(32)
+        b.mstore(src, tmp_buf)
+        src_data = tmp_buf
+    else:
+        # bytes32 or other 32-byte type
+        src_len = IRLiteral(32)
+        tmp_buf = ctx.allocate_buffer(32)
+        b.mstore(src, tmp_buf)
+        src_data = tmp_buf
+
+    # Bounds check: start + length <= src_length
+    end = b.add(start, length)
+    oob = b.gt(end, src_len)
+    b.assert_(b.iszero(oob))
+
+    # Allocate output buffer
+    out_buf = ctx.new_internal_variable(out_t)
+    out_data = b.add(out_buf, IRLiteral(32))
+
+    # Copy bytes from src_data + start to out_data
+    copy_src = b.add(src_data, start)
+    ctx.copy_memory_dynamic(out_data, copy_src, length)
+
+    # Store length
+    b.mstore(length, out_buf)
+    return out_buf
+
+
+def _is_adhoc_slice(node: vy_ast.VyperNode) -> bool:
+    """Check if node represents msg.data, self.code, or <addr>.code."""
+    if not isinstance(node, vy_ast.Attribute):
+        return False
+
+    # msg.data
+    if isinstance(node.value, vy_ast.Name):
+        if node.value.id == "msg" and node.attr == "data":
+            return True
+        if node.value.id == "self" and node.attr == "code":
+            return True
+
+    # <addr>.code
+    if node.attr == "code":
+        return True
+
+    return False
+
+
+def _lower_adhoc_slice(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+    """
+    Lower slice() for special sources: msg.data, self.code, <addr>.code.
+
+    These use specialized opcodes: calldatacopy, codecopy, extcodecopy.
+    """
+    from vyper.codegen_venom.expr import Expr
+
+    b = ctx.builder
+
+    src_node = node.args[0]
+    start_node = node.args[1]
+    length_node = node.args[2]
+
+    start = Expr(start_node, ctx).lower()
+    length = Expr(length_node, ctx).lower()
+
+    out_t = node._metadata["type"]
+    out_buf = ctx.new_internal_variable(out_t)
+    out_data = b.add(out_buf, IRLiteral(32))
+
+    # Determine which opcode to use
+    if isinstance(src_node.value, vy_ast.Name):
+        if src_node.value.id == "msg" and src_node.attr == "data":
+            # msg.data: use calldatacopy, bounds check against calldatasize
+            src_len = b.calldatasize()
+            end = b.add(start, length)
+            oob = b.gt(end, src_len)
+            b.assert_(b.iszero(oob))
+            # calldatacopy(destOffset, offset, size)
+            b.calldatacopy(length, start, out_data)
+            b.mstore(length, out_buf)
+            return out_buf
+
+        elif src_node.value.id == "self" and src_node.attr == "code":
+            # self.code: use codecopy, bounds check against codesize
+            src_len = b.codesize()
+            end = b.add(start, length)
+            oob = b.gt(end, src_len)
+            b.assert_(b.iszero(oob))
+            # codecopy(destOffset, offset, size)
+            b.codecopy(length, start, out_data)
+            b.mstore(length, out_buf)
+            return out_buf
+
+    # <addr>.code: use extcodecopy
+    addr = Expr(src_node.value, ctx).lower()
+    src_len = b.extcodesize(addr)
+    end = b.add(start, length)
+    oob = b.gt(end, src_len)
+    b.assert_(b.iszero(oob))
+    # extcodecopy(address, destOffset, offset, size)
+    b.extcodecopy(addr, length, start, out_data)
+    b.mstore(length, out_buf)
+    return out_buf
+
+
+def lower_extract32(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+    """
+    extract32(b, start, output_type=bytes32) -> bytes32 | int | address
+
+    Extract 32 bytes from bytearray at given position.
+    Result type can be specified via output_type kwarg.
+    """
+    from vyper.codegen_venom.expr import Expr
+
+    b = ctx.builder
+
+    src_node = node.args[0]
+    start_node = node.args[1]
+
+    src = Expr(src_node, ctx).lower()
+    start = Expr(start_node, ctx).lower()
+    src_t = src_node._metadata["type"]
+
+    # Determine source length and data pointer
+    if isinstance(src_t, _BytestringT):
+        src_len = b.mload(src)
+        src_data = b.add(src, IRLiteral(32))
+    else:
+        # bytes32 or other fixed type - shouldn't happen but handle it
+        src_len = IRLiteral(32)
+        tmp_buf = ctx.allocate_buffer(32)
+        b.mstore(src, tmp_buf)
+        src_data = tmp_buf
+
+    # Bounds check: start + 32 <= length
+    end = b.add(start, IRLiteral(32))
+    oob = b.gt(end, src_len)
+    b.assert_(b.iszero(oob))
+
+    # Load 32 bytes at offset
+    load_ptr = b.add(src_data, start)
+    result = b.mload(load_ptr)
+
+    # Apply type-specific clamping if needed
+    out_t = node._metadata["type"]
+    return _clamp_extract32_result(result, out_t, ctx)
+
+
+def _clamp_extract32_result(
+    val: IROperand, out_t, ctx: "VenomCodegenContext"
+) -> IROperand:
+    """Apply bounds check for extract32 output type."""
+    from vyper.semantics.types import AddressT, IntegerT
+
+    b = ctx.builder
+
+    if isinstance(out_t, IntegerT):
+        # Need to clamp to type bounds for signed/unsigned integers
+        if out_t.is_signed:
+            # For signed types, the value is already correct (no clamping needed
+            # as extract32 returns the raw bits which represent a signed value)
+            pass
+        else:
+            # For unsigned types smaller than 256 bits, mask to valid range
+            if out_t.bits < 256:
+                mask = (1 << out_t.bits) - 1
+                # Check value fits in type range
+                too_big = b.gt(val, IRLiteral(mask))
+                b.assert_(b.iszero(too_big))
+    elif isinstance(out_t, AddressT):
+        # Address is 160 bits, ensure high 96 bits are zero
+        mask = (1 << 160) - 1
+        too_big = b.gt(val, IRLiteral(mask))
+        b.assert_(b.iszero(too_big))
+
+    # bytes32 and bytesM need no clamping
+    return val
+
+
+# Export handlers
+HANDLERS = {
+    "concat": lower_concat,
+    "slice": lower_slice,
+    "extract32": lower_extract32,
+}
