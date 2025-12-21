@@ -254,20 +254,12 @@ class CompilerData:
         return {f.name: f._metadata["func_type"] for f in fs}
 
     @cached_property
-    def _venom_direct(self):
-        """Generate Venom IR directly from annotated AST (new path)."""
-        from vyper.codegen_venom import generate_venom_for_module
-
-        return generate_venom_for_module(
-            self.compilation_target,
-            self.global_ctx,
-            self.settings,
-        )
-
-    @cached_property
     def venom_runtime(self):
         if self.settings.experimental_codegen:
-            return self._venom_direct[1]  # runtime venom ctx
+            # Two-phase compilation: generate runtime first
+            from vyper.codegen_venom import generate_venom_runtime
+
+            return generate_venom_runtime(self.global_ctx, self.settings)
         else:
             runtime_venom = generate_venom(self.ir_runtime, self.settings)
             return runtime_venom
@@ -275,7 +267,14 @@ class CompilerData:
     @cached_property
     def venom_deploytime(self):
         if self.settings.experimental_codegen:
-            return self._venom_direct[0]  # deploy venom ctx
+            # Two-phase compilation: deploy needs runtime bytecode
+            from vyper.codegen_venom import generate_venom_deploy
+
+            return generate_venom_deploy(
+                self.global_ctx,
+                self.settings,
+                self.bytecode_runtime,
+            )
         else:
             data_sections = {"runtime_begin": self.bytecode_runtime}
             if self.bytecode_metadata is not None:
