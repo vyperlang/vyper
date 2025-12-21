@@ -1,7 +1,11 @@
 """
-Tests for Expr arithmetic/bitwise/unary lowering in codegen_venom.
+Tests for Expr variable/name lowering in codegen_venom.
 
-These tests use function parameters (Name nodes) to force runtime operations.
+These tests cover lower_Name and lower_Attribute for:
+- Local variables
+- self keyword
+- Environment variables (msg.sender, block.timestamp, etc.)
+- Address properties (.balance, .codesize, etc.)
 """
 import pytest
 
@@ -30,7 +34,12 @@ def _get_expr_context(source: str) -> tuple[VenomCodegenContext, "vy_ast.VyperNo
     codegen_ctx = VenomCodegenContext(module_t, builder)
 
     # Get first function definition
-    func_def = module_ast.body[0]
+    func_def = None
+    for item in module_ast.body:
+        if hasattr(item, "args"):
+            func_def = item
+            break
+    assert func_def is not None, "No function found in source"
 
     # Register function parameters in codegen context
     func_t = func_def._metadata["func_type"]
@@ -43,251 +52,28 @@ def _get_expr_context(source: str) -> tuple[VenomCodegenContext, "vy_ast.VyperNo
     return codegen_ctx, expr_node
 
 
-class TestBitwiseOps:
-    def test_and(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(a: uint256, b: uint256) -> uint256:
-    return a & b
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+class TestLocalVariables:
+    """Test lowering of local variable references."""
 
-        assert isinstance(result, IRVariable)
-
-    def test_or(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(a: uint256, b: uint256) -> uint256:
-    return a | b
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, IRVariable)
-
-    def test_xor(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(a: uint256, b: uint256) -> uint256:
-    return a ^ b
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, IRVariable)
-
-
-class TestShiftOps:
-    def test_lshift(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(a: uint256, b: uint256) -> uint256:
-    return a << b
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, IRVariable)
-
-    def test_rshift_unsigned(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(a: uint256, b: uint256) -> uint256:
-    return a >> b
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, IRVariable)
-
-    def test_rshift_signed(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(a: int256, b: uint256) -> int256:
-    return a >> b
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, IRVariable)
-
-
-class TestArithmeticOps:
-    def test_add_uint256(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(a: uint256, b: uint256) -> uint256:
-    return a + b
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, IRVariable)
-
-    def test_sub_uint256(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(a: uint256, b: uint256) -> uint256:
-    return a - b
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, IRVariable)
-
-    def test_mul_uint256(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(a: uint256, b: uint256) -> uint256:
-    return a * b
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, IRVariable)
-
-    def test_floordiv_uint256(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(a: uint256, b: uint256) -> uint256:
-    return a // b
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, IRVariable)
-
-    def test_mod_uint256(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(a: uint256, b: uint256) -> uint256:
-    return a % b
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, IRVariable)
-
-
-class TestDecimalOps:
-    def test_add_decimal(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(a: decimal, b: decimal) -> decimal:
-    return a + b
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, IRVariable)
-
-    def test_sub_decimal(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(a: decimal, b: decimal) -> decimal:
-    return a - b
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, IRVariable)
-
-    def test_mul_decimal(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(a: decimal, b: decimal) -> decimal:
-    return a * b
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, IRVariable)
-
-    def test_div_decimal(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(a: decimal, b: decimal) -> decimal:
-    return a / b
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, IRVariable)
-
-
-class TestPower:
-    def test_pow_literal_base(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(n: uint256) -> uint256:
-    return 2 ** n
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, IRVariable)
-
-    def test_pow_literal_exp(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(n: uint256) -> uint256:
-    return n ** 3
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, IRVariable)
-
-
-class TestUnaryOps:
-    def test_not_bool(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(x: bool) -> bool:
-    return not x
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, IRVariable)
-
-    def test_invert_uint256(self):
+    def test_simple_param(self):
         source = """
 # @version ^0.4.0
 @external
 def foo(x: uint256) -> uint256:
-    return ~x
+    return x
 """
         ctx, node = _get_expr_context(source)
         result = Expr(node, ctx).lower()
 
         assert isinstance(result, IRVariable)
 
-    def test_usub_int256(self):
+    def test_multiple_params(self):
+        """Variables are looked up correctly when multiple exist."""
         source = """
 # @version ^0.4.0
 @external
-def foo(x: int256) -> int256:
-    return -x
+def foo(a: uint256, b: uint256) -> uint256:
+    return b
 """
         ctx, node = _get_expr_context(source)
         result = Expr(node, ctx).lower()
@@ -295,25 +81,252 @@ def foo(x: int256) -> int256:
         assert isinstance(result, IRVariable)
 
 
-class TestInt256Special:
-    def test_add_int256(self):
+class TestSelfKeyword:
+    """Test lowering of 'self' keyword."""
+
+    def test_self_returns_address(self):
         source = """
 # @version ^0.4.0
 @external
-def foo(a: int256, b: int256) -> int256:
-    return a + b
+def foo() -> address:
+    return self
 """
         ctx, node = _get_expr_context(source)
         result = Expr(node, ctx).lower()
 
         assert isinstance(result, IRVariable)
 
-    def test_mul_int256(self):
+
+class TestMsgAttributes:
+    """Test lowering of msg.* environment variables."""
+
+    def test_msg_sender(self):
         source = """
 # @version ^0.4.0
 @external
-def foo(a: int256, b: int256) -> int256:
-    return a * b
+def foo() -> address:
+    return msg.sender
+"""
+        ctx, node = _get_expr_context(source)
+        result = Expr(node, ctx).lower()
+
+        assert isinstance(result, IRVariable)
+
+    def test_msg_value(self):
+        source = """
+# @version ^0.4.0
+@external
+@payable
+def foo() -> uint256:
+    return msg.value
+"""
+        ctx, node = _get_expr_context(source)
+        result = Expr(node, ctx).lower()
+
+        assert isinstance(result, IRVariable)
+
+    def test_msg_gas(self):
+        source = """
+# @version ^0.4.0
+@external
+def foo() -> uint256:
+    return msg.gas
+"""
+        ctx, node = _get_expr_context(source)
+        result = Expr(node, ctx).lower()
+
+        assert isinstance(result, IRVariable)
+
+
+class TestBlockAttributes:
+    """Test lowering of block.* environment variables."""
+
+    def test_block_timestamp(self):
+        source = """
+# @version ^0.4.0
+@external
+def foo() -> uint256:
+    return block.timestamp
+"""
+        ctx, node = _get_expr_context(source)
+        result = Expr(node, ctx).lower()
+
+        assert isinstance(result, IRVariable)
+
+    def test_block_number(self):
+        source = """
+# @version ^0.4.0
+@external
+def foo() -> uint256:
+    return block.number
+"""
+        ctx, node = _get_expr_context(source)
+        result = Expr(node, ctx).lower()
+
+        assert isinstance(result, IRVariable)
+
+    def test_block_coinbase(self):
+        source = """
+# @version ^0.4.0
+@external
+def foo() -> address:
+    return block.coinbase
+"""
+        ctx, node = _get_expr_context(source)
+        result = Expr(node, ctx).lower()
+
+        assert isinstance(result, IRVariable)
+
+    def test_block_gaslimit(self):
+        source = """
+# @version ^0.4.0
+@external
+def foo() -> uint256:
+    return block.gaslimit
+"""
+        ctx, node = _get_expr_context(source)
+        result = Expr(node, ctx).lower()
+
+        assert isinstance(result, IRVariable)
+
+    def test_block_basefee(self):
+        source = """
+# @version ^0.4.0
+@external
+def foo() -> uint256:
+    return block.basefee
+"""
+        ctx, node = _get_expr_context(source)
+        result = Expr(node, ctx).lower()
+
+        assert isinstance(result, IRVariable)
+
+    def test_block_prevhash(self):
+        source = """
+# @version ^0.4.0
+@external
+def foo() -> bytes32:
+    return block.prevhash
+"""
+        ctx, node = _get_expr_context(source)
+        result = Expr(node, ctx).lower()
+
+        assert isinstance(result, IRVariable)
+
+
+class TestTxAttributes:
+    """Test lowering of tx.* environment variables."""
+
+    def test_tx_origin(self):
+        source = """
+# @version ^0.4.0
+@external
+def foo() -> address:
+    return tx.origin
+"""
+        ctx, node = _get_expr_context(source)
+        result = Expr(node, ctx).lower()
+
+        assert isinstance(result, IRVariable)
+
+    def test_tx_gasprice(self):
+        source = """
+# @version ^0.4.0
+@external
+def foo() -> uint256:
+    return tx.gasprice
+"""
+        ctx, node = _get_expr_context(source)
+        result = Expr(node, ctx).lower()
+
+        assert isinstance(result, IRVariable)
+
+
+class TestChainAttributes:
+    """Test lowering of chain.* environment variables."""
+
+    def test_chain_id(self):
+        source = """
+# @version ^0.4.0
+@external
+def foo() -> uint256:
+    return chain.id
+"""
+        ctx, node = _get_expr_context(source)
+        result = Expr(node, ctx).lower()
+
+        assert isinstance(result, IRVariable)
+
+
+class TestAddressProperties:
+    """Test lowering of address property access."""
+
+    def test_balance(self):
+        source = """
+# @version ^0.4.0
+@external
+def foo(addr: address) -> uint256:
+    return addr.balance
+"""
+        ctx, node = _get_expr_context(source)
+        result = Expr(node, ctx).lower()
+
+        assert isinstance(result, IRVariable)
+
+    def test_self_balance(self):
+        source = """
+# @version ^0.4.0
+@external
+def foo() -> uint256:
+    return self.balance
+"""
+        ctx, node = _get_expr_context(source)
+        result = Expr(node, ctx).lower()
+
+        assert isinstance(result, IRVariable)
+
+    def test_codesize(self):
+        source = """
+# @version ^0.4.0
+@external
+def foo(addr: address) -> uint256:
+    return addr.codesize
+"""
+        ctx, node = _get_expr_context(source)
+        result = Expr(node, ctx).lower()
+
+        assert isinstance(result, IRVariable)
+
+    def test_self_codesize(self):
+        source = """
+# @version ^0.4.0
+@external
+def foo() -> uint256:
+    return self.codesize
+"""
+        ctx, node = _get_expr_context(source)
+        result = Expr(node, ctx).lower()
+
+        assert isinstance(result, IRVariable)
+
+    def test_codehash(self):
+        source = """
+# @version ^0.4.0
+@external
+def foo(addr: address) -> bytes32:
+    return addr.codehash
+"""
+        ctx, node = _get_expr_context(source)
+        result = Expr(node, ctx).lower()
+
+        assert isinstance(result, IRVariable)
+
+    def test_is_contract(self):
+        source = """
+# @version ^0.4.0
+@external
+def foo(addr: address) -> bool:
+    return addr.is_contract
 """
         ctx, node = _get_expr_context(source)
         result = Expr(node, ctx).lower()

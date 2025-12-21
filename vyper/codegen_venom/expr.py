@@ -16,11 +16,16 @@ from vyper.semantics.types import (
     IntegerT,
     StringT,
 )
+from vyper.semantics.types.shortcuts import UINT256_T
+from vyper.semantics.types.shortcuts import BYTES32_T
 from vyper.semantics.types.user import FlagT
 from vyper.utils import DECIMAL_DIVISOR, ceil32
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 from .context import VenomCodegenContext
+
+# Environment variable prefixes for attribute access
+ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
 
 class Expr:
@@ -450,3 +455,339 @@ class Expr:
             return self.builder.sub(IRLiteral(0), operand)
 
         raise CompilerPanic(f"Unsupported UnaryOp: {type(op)}")
+
+    # === Comparison Operations ===
+
+    def lower_Compare(self) -> IRVariable:
+        """Lower comparison operations.
+
+        Comparisons: <, <=, >, >=, ==, !=
+        Membership: in, not in (for flags)
+
+        Note: Array membership (in/not in for arrays) is handled separately
+        and requires loops, which will be implemented with control flow.
+        """
+        node = self.node
+        left = Expr(node.left, self.ctx).lower()
+        right = Expr(node.right, self.ctx).lower()
+        op = node.op
+        left_typ = node.left._metadata["type"]
+        right_typ = node.right._metadata["type"]
+
+        # Membership tests for Flag types
+        if isinstance(op, (vy_ast.In, vy_ast.NotIn)):
+            if isinstance(right_typ, FlagT):
+                # x in flags: check if (x & flags) != 0
+                # x not in flags: check if (x & flags) == 0
+                intersection = self.builder.and_(left, right)
+                if isinstance(op, vy_ast.In):
+                    # iszero(iszero(x)) = 1 if x != 0
+                    return self.builder.iszero(self.builder.iszero(intersection))
+                else:  # NotIn
+                    return self.builder.iszero(intersection)
+            else:
+                # Array membership requires loops - not yet implemented
+                raise CompilerPanic("Array membership not yet implemented")
+
+        # Determine if we need signed or unsigned comparison
+        # UINT256 uses unsigned comparisons; all other types use signed
+        use_unsigned = (
+            left_typ == UINT256_T
+            and right_typ == UINT256_T
+        )
+
+        # Dispatch to appropriate comparison
+        if isinstance(op, vy_ast.Lt):
+            if use_unsigned:
+                return self.builder.lt(left, right)
+            return self.builder.slt(left, right)
+
+        if isinstance(op, vy_ast.Gt):
+            if use_unsigned:
+                return self.builder.gt(left, right)
+            return self.builder.sgt(left, right)
+
+        if isinstance(op, vy_ast.Eq):
+            return self.builder.eq(left, right)
+
+        if isinstance(op, vy_ast.NotEq):
+            # ne = iszero(eq)
+            return self.builder.iszero(self.builder.eq(left, right))
+
+        if isinstance(op, vy_ast.LtE):
+            # le = iszero(gt)
+            if use_unsigned:
+                return self.builder.iszero(self.builder.gt(left, right))
+            return self.builder.iszero(self.builder.sgt(left, right))
+
+        if isinstance(op, vy_ast.GtE):
+            # ge = iszero(lt)
+            if use_unsigned:
+                return self.builder.iszero(self.builder.lt(left, right))
+            return self.builder.iszero(self.builder.slt(left, right))
+
+        raise CompilerPanic(f"Unsupported comparison op: {type(op)}")
+
+    # === Boolean Operations ===
+
+    def lower_BoolOp(self) -> IRVariable:
+        """Lower boolean operations with short-circuit evaluation.
+
+        And: if a is false, skip evaluation of remaining operands
+        Or: if a is true, skip evaluation of remaining operands
+
+        Uses control flow blocks to implement short-circuit:
+        - And: chain of conditional jumps, false branch short-circuits to 0
+        - Or: chain of conditional jumps, true branch short-circuits to 1
+        """
+        node = self.node
+        op = node.op
+        values = node.values
+
+        assert len(values) >= 2, "BoolOp needs at least 2 operands"
+
+        # Pre-allocate result variable
+        result = self.builder.new_variable()
+        exit_bb = self.builder.create_block("bool_exit")
+
+        if isinstance(op, vy_ast.And):
+            # a and b and c:
+            # evaluate a, if false -> result=0, jump to exit
+            # evaluate b, if false -> result=0, jump to exit
+            # ...
+            # evaluate last, result = last value, jump to exit
+            for val in values[:-1]:
+                cond = Expr(val, self.ctx).lower()
+                next_bb = self.builder.create_block("and_next")
+                false_bb = self.builder.create_block("and_false")
+
+                self.builder.jnz(cond, next_bb.label, false_bb.label)
+
+                # false branch: result = 0, jump to exit
+                self.builder.append_block(false_bb)
+                self.builder.set_block(false_bb)
+                self.builder.assign_to(IRLiteral(0), result)
+                self.builder.jmp(exit_bb.label)
+
+                # continue with next check
+                self.builder.append_block(next_bb)
+                self.builder.set_block(next_bb)
+
+            # Last value: result = value, jump to exit
+            last_val = Expr(values[-1], self.ctx).lower()
+            self.builder.assign_to(last_val, result)
+            self.builder.jmp(exit_bb.label)
+
+        elif isinstance(op, vy_ast.Or):
+            # a or b or c:
+            # evaluate a, if true -> result=1, jump to exit
+            # evaluate b, if true -> result=1, jump to exit
+            # ...
+            # evaluate last, result = last value, jump to exit
+            for val in values[:-1]:
+                cond = Expr(val, self.ctx).lower()
+                true_bb = self.builder.create_block("or_true")
+                next_bb = self.builder.create_block("or_next")
+
+                self.builder.jnz(cond, true_bb.label, next_bb.label)
+
+                # true branch: result = 1, jump to exit
+                self.builder.append_block(true_bb)
+                self.builder.set_block(true_bb)
+                self.builder.assign_to(IRLiteral(1), result)
+                self.builder.jmp(exit_bb.label)
+
+                # continue with next check
+                self.builder.append_block(next_bb)
+                self.builder.set_block(next_bb)
+
+            # Last value: result = value, jump to exit
+            last_val = Expr(values[-1], self.ctx).lower()
+            self.builder.assign_to(last_val, result)
+            self.builder.jmp(exit_bb.label)
+
+        else:
+            raise CompilerPanic(f"Unsupported BoolOp: {type(op)}")
+
+        # Continue from exit block
+        self.builder.append_block(exit_bb)
+        self.builder.set_block(exit_bb)
+
+        return result
+
+    # === Variable and Name Operations ===
+
+    def lower_Name(self) -> IROperand:
+        """Lower name reference.
+
+        Handles:
+        - `self` keyword -> address opcode
+        - Local variables (params, locals) -> mload from memory pointer
+        - Module constants -> evaluate constant expression
+        - Immutables -> iload or mload depending on context
+        """
+        varname = self.node.id
+
+        # Case 1: "self" keyword -> address opcode
+        if varname == "self":
+            return self.builder.address()
+
+        # Get variable info from semantic analysis
+        varinfo = self.node._expr_info.var_info
+        assert varinfo is not None
+
+        # Case 2: Local variable in context.variables
+        if varname in self.ctx.variables:
+            ptr = self.ctx.lookup_ptr(varname)
+            return self.builder.mload(ptr)
+
+        # Case 3: Module constant - recursively lower the constant's value
+        if varinfo.is_constant:
+            return Expr(varinfo.decl_node.value, self.ctx).lower()
+
+        # Case 4: Immutable - load from code or memory depending on context
+        if varinfo.is_immutable:
+            # In constructor: immutables are in memory (being written)
+            # After deploy: immutables are in code (read via iload)
+            if self.ctx.is_ctor_context:
+                # During constructor, immutable is in memory at varinfo.position
+                return self.builder.mload(IRLiteral(varinfo.position.position))
+            else:
+                # After deployment, use iload to read from deployed code
+                return self.builder.iload(IRLiteral(varinfo.position.position))
+
+        raise CompilerPanic(f"Unknown variable: {varname}")
+
+    def lower_Attribute(self) -> IROperand:
+        """Lower attribute access.
+
+        Handles:
+        - Flag constants (MyFlag.VALUE)
+        - Address properties (.balance, .codesize, .codehash, etc.)
+        - Environment variables (msg.sender, block.timestamp, etc.)
+        - State variables (self.x)
+        - Struct fields (x.field)
+        - Interface address (x.address)
+        """
+        typ = self.node._metadata["type"]
+
+        # Case 1: Flag constants (MyFlag.VALUE)
+        if isinstance(typ, FlagT):
+            from vyper.semantics.types.utils import type_from_annotation
+            value_typ = self.node.value._metadata.get("type")
+            # Check if this is a flag type access (e.g., MyFlag.VALUE)
+            if hasattr(value_typ, "_flag_members"):
+                flag_id = typ._flag_members[self.node.attr]
+                value = 2**flag_id  # 0 => 1, 1 => 2, 2 => 4, etc.
+                return IRLiteral(value)
+
+        # Case 2: Address properties
+        attr = self.node.attr
+        if attr == "balance":
+            sub = Expr(self.node.value, self.ctx).lower()
+            # Check if it's self.balance
+            if isinstance(self.node.value, vy_ast.Name) and self.node.value.id == "self":
+                return self.builder.selfbalance()
+            return self.builder.balance(sub)
+
+        if attr == "codesize":
+            if isinstance(self.node.value, vy_ast.Name) and self.node.value.id == "self":
+                return self.builder.codesize()
+            sub = Expr(self.node.value, self.ctx).lower()
+            return self.builder.extcodesize(sub)
+
+        if attr == "is_contract":
+            sub = Expr(self.node.value, self.ctx).lower()
+            codesize = self.builder.extcodesize(sub)
+            return self.builder.gt(codesize, IRLiteral(0))
+
+        if attr == "codehash":
+            sub = Expr(self.node.value, self.ctx).lower()
+            return self.builder.extcodehash(sub)
+
+        # Case 3: Environment variables (msg.*, block.*, tx.*, chain.*)
+        if isinstance(self.node.value, vy_ast.Name) and self.node.value.id in ENVIRONMENT_VARIABLES:
+            return self._lower_environment_attr()
+
+        # Case 4: State variables (self.x)
+        varinfo = self.node._expr_info.var_info
+        if varinfo is not None:
+            # Constant state variable - evaluate the constant expression
+            if varinfo.is_constant:
+                return Expr(varinfo.decl_node.value, self.ctx).lower()
+
+            # Immutable state variable
+            if varinfo.is_immutable:
+                if self.ctx.is_ctor_context:
+                    return self.builder.mload(IRLiteral(varinfo.position.position))
+                else:
+                    return self.builder.iload(IRLiteral(varinfo.position.position))
+
+            # Regular storage variable - return sload of storage slot
+            # Note: This is simplified for word-sized values. Complex types
+            # need pointer handling which will be done in later tasks.
+            slot = varinfo.position.position
+            return self.builder.sload(IRLiteral(slot))
+
+        # Case 5: Interface address (x.address where x is an interface)
+        from vyper.semantics.types import InterfaceT
+        sub = Expr(self.node.value, self.ctx).lower()
+        sub_typ = self.node.value._metadata.get("type")
+        if isinstance(sub_typ, InterfaceT) and attr == "address":
+            return sub
+
+        # Case 6: Struct field access - defer to later tasks
+        raise CompilerPanic(f"Unsupported attribute access: {self.node.attr}")
+
+    def _lower_environment_attr(self) -> IROperand:
+        """Lower environment variable attributes (msg.*, block.*, tx.*, chain.*)."""
+        key = f"{self.node.value.id}.{self.node.attr}"
+
+        # msg.* attributes
+        if key == "msg.sender":
+            return self.builder.caller()
+        if key == "msg.value":
+            # Note: payability check should be done at a higher level
+            return self.builder.callvalue()
+        if key in ("msg.gas", "msg.mana"):
+            return self.builder.gas()
+        if key == "msg.data":
+            # Adhoc node - replaced in Slice/Len. Return calldatasize for now.
+            raise CompilerPanic("msg.data requires Slice/Len context")
+
+        # block.* attributes
+        if key == "block.timestamp":
+            return self.builder.timestamp()
+        if key == "block.number":
+            return self.builder.number()
+        if key == "block.coinbase":
+            return self.builder.coinbase()
+        if key == "block.gaslimit":
+            return self.builder.gaslimit()
+        if key == "block.basefee":
+            return self.builder.basefee()
+        if key == "block.blobbasefee":
+            # Note: EVM version check should be done at a higher level
+            return self.builder.blobbasefee()
+        if key == "block.prevrandao":
+            return self.builder.prevrandao()
+        if key == "block.difficulty":
+            # Pre-Paris alias for prevrandao
+            return self.builder.prevrandao()
+        if key == "block.prevhash":
+            # blockhash(number - 1)
+            num = self.builder.number()
+            prev_num = self.builder.sub(num, IRLiteral(1))
+            return self.builder.blockhash(prev_num)
+
+        # tx.* attributes
+        if key == "tx.origin":
+            return self.builder.origin()
+        if key == "tx.gasprice":
+            return self.builder.gasprice()
+
+        # chain.* attributes
+        if key == "chain.id":
+            return self.builder.chainid()
+
+        raise CompilerPanic(f"Unknown environment variable: {key}")
