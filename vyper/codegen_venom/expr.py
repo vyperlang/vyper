@@ -5,6 +5,7 @@ This module handles the first stage of expression codegen: converting
 Vyper AST literal and expression nodes into Venom IR operands.
 """
 from vyper import ast as vy_ast
+from vyper.builtins._signatures import BuiltinFunctionT
 from vyper.codegen.arithmetic import calculate_largest_base, calculate_largest_power
 from vyper.codegen.core import DYNAMIC_ARRAY_OVERHEAD, address_space_to_data_location
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
@@ -17,9 +18,12 @@ from vyper.semantics.types import (
     BytesT,
     DecimalT,
     IntegerT,
+    InterfaceT,
     StringT,
+    is_type_t,
 )
 from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types.function import MemberFunctionT
 from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.semantics.types.user import FlagT, StructT
@@ -1172,21 +1176,36 @@ class Expr:
 
         Handles:
         - Internal function calls (self.func())
-        - Built-in functions (len, abs, etc.) - deferred to Task 16
+        - Built-in functions (len, abs, etc.)
+        - Struct constructors (MyStruct(...))
+        - Interface constructors (MyInterface(<address>))
+        - DynArray methods (.append(), .pop())
         - External calls (interface.method()) - deferred to Task 14
         """
         node = self.node
+        func = node.func
+        func_t = func._metadata.get("type")
 
         # Check if this is an internal call (self.func())
-        if isinstance(node.func, vy_ast.Attribute):
-            if isinstance(node.func.value, vy_ast.Name) and node.func.value.id == "self":
+        if isinstance(func, vy_ast.Attribute):
+            if isinstance(func.value, vy_ast.Name) and func.value.id == "self":
                 return self._lower_internal_call()
 
         # Built-in functions
-        func = node.func
-        if isinstance(func, vy_ast.Name):
-            if func.id in ("len", "abs", "min", "max", "sqrt", "convert", "range"):
-                raise CompilerPanic(f"Built-in {func.id} not yet implemented")
+        if isinstance(func_t, BuiltinFunctionT):
+            return self._lower_builtin_call(func_t)
+
+        # Struct constructor: MyStruct(field1=val1, field2=val2)
+        if is_type_t(func_t, StructT):
+            return self._lower_struct_constructor()
+
+        # Interface constructor: MyInterface(<address>)
+        if is_type_t(func_t, InterfaceT):
+            return self._lower_interface_constructor()
+
+        # DynArray methods: arr.append(val), arr.pop()
+        if isinstance(func_t, MemberFunctionT):
+            return self._lower_member_function_call(func_t)
 
         raise CompilerPanic(f"Unsupported call: {node.func}")
 
@@ -1273,3 +1292,43 @@ class Expr:
             return return_buf
 
         return IRLiteral(0)  # void return
+
+    # === Builtin Function Calls ===
+
+    def _lower_builtin_call(self, func_t: BuiltinFunctionT) -> IROperand:
+        """Dispatch builtin function calls to handlers in builtins/ submodule."""
+        from vyper.codegen_venom.builtins import lower_builtin
+
+        return lower_builtin(func_t._id, self.node, self.ctx)
+
+    # === Constructor and Member Function Calls ===
+
+    def _lower_struct_constructor(self) -> IROperand:
+        """Lower struct constructor call: MyStruct(field1=val1, ...).
+
+        Allocates memory for struct and stores field values.
+        """
+        raise CompilerPanic("Struct constructor not yet implemented")
+
+    def _lower_interface_constructor(self) -> IROperand:
+        """Lower interface constructor call: MyInterface(<address>).
+
+        Returns the address argument with interface type annotation.
+        """
+        raise CompilerPanic("Interface constructor not yet implemented")
+
+    def _lower_member_function_call(self, func_t: MemberFunctionT) -> IROperand:
+        """Lower DynArray member function calls: .append(), .pop().
+
+        - append(val): increment length, store value at end
+        - pop(): decrement length, optionally return popped value
+        """
+        func = self.node.func
+        attr = func.attr
+
+        if attr == "append":
+            raise CompilerPanic("DynArray.append() not yet implemented")
+        elif attr == "pop":
+            raise CompilerPanic("DynArray.pop() not yet implemented")
+        else:
+            raise CompilerPanic(f"Unknown member function: {attr}")

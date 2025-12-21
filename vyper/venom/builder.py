@@ -451,6 +451,20 @@ class VenomBuilder:
         """Create a label."""
         return IRLabel(name, is_symbol)
 
+    def select(self, cond: Operand, true_val: Operand, false_val: Operand) -> IRVariable:
+        """
+        Conditional selection: returns true_val if cond is nonzero, else false_val.
+
+        Equivalent to: cond ? true_val : false_val
+
+        Uses: xor(b, mul(cond, xor(a, b)))
+        Matches ir_node_to_venom.py implementation.
+        Requires cond to be exactly 0 or 1 (which Vyper comparisons guarantee).
+        """
+        diff = self.xor(true_val, false_val)
+        scaled = self.mul(cond, diff)
+        return self.xor(false_val, scaled)
+
     # === Source Tracking ===
     @contextmanager
     def source_context(self, ast_node):
