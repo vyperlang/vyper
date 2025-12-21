@@ -412,3 +412,49 @@ class Stmt:
 
         self.builder.assert_(ok)
         return val
+
+    # === Control Flow Statements ===
+
+    def lower_If(self) -> None:
+        """Lower if/elif/else statement."""
+        node = self.node
+
+        # Evaluate condition in current block
+        cond = Expr(node.test, self.ctx).lower()
+        cond_block = self.builder.current_block
+
+        # Create blocks
+        then_block = self.builder.create_block("then")
+        else_block = self.builder.create_block("else")
+
+        # Process then branch
+        self.builder.append_block(then_block)
+        self.builder.set_block(then_block)
+        self._lower_body(node.body)
+        then_block_finish = self.builder.current_block
+
+        # Process else branch
+        self.builder.append_block(else_block)
+        self.builder.set_block(else_block)
+        if node.orelse:
+            self._lower_body(node.orelse)  # handles elif via recursive If
+        else_block_finish = self.builder.current_block
+
+        # Add conditional jump to cond_block (AFTER processing branches)
+        cond_block.append_instruction("jnz", cond, then_block.label, else_block.label)
+
+        # Create exit/merge block
+        exit_block = self.builder.create_block("if_exit")
+        self.builder.append_block(exit_block)
+        self.builder.set_block(exit_block)
+
+        # Add jumps from finish blocks if not terminated
+        if not then_block_finish.is_terminated:
+            then_block_finish.append_instruction("jmp", exit_block.label)
+        if not else_block_finish.is_terminated:
+            else_block_finish.append_instruction("jmp", exit_block.label)
+
+    def _lower_body(self, stmts: list) -> None:
+        """Lower a list of statements."""
+        for stmt in stmts:
+            Stmt(stmt, self.ctx).lower()

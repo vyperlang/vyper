@@ -791,3 +791,45 @@ class Expr:
             return self.builder.chainid()
 
         raise CompilerPanic(f"Unknown environment variable: {key}")
+
+    # === Ternary Expression ===
+
+    def lower_IfExp(self) -> IRVariable:
+        """Lower ternary expression: x if cond else y"""
+        node = self.node
+
+        cond = Expr(node.test, self.ctx).lower()
+        cond_block = self.builder.current_block
+
+        then_block = self.builder.create_block("ternary_then")
+        else_block = self.builder.create_block("ternary_else")
+
+        # Pre-allocate result variable
+        result = self.builder.new_variable()
+
+        # Process then branch
+        self.builder.append_block(then_block)
+        self.builder.set_block(then_block)
+        then_val = Expr(node.body, self.ctx).lower()
+        then_block_finish = self.builder.current_block
+        then_block_finish.append_instruction("assign", then_val, ret=result)
+
+        # Process else branch
+        self.builder.append_block(else_block)
+        self.builder.set_block(else_block)
+        else_val = Expr(node.orelse, self.ctx).lower()
+        else_block_finish = self.builder.current_block
+        else_block_finish.append_instruction("assign", else_val, ret=result)
+
+        # Add jnz to cond_block
+        cond_block.append_instruction("jnz", cond, then_block.label, else_block.label)
+
+        # Create exit block and add jumps
+        exit_block = self.builder.create_block("ternary_exit")
+        self.builder.append_block(exit_block)
+        self.builder.set_block(exit_block)
+
+        then_block_finish.append_instruction("jmp", exit_block.label)
+        else_block_finish.append_instruction("jmp", exit_block.label)
+
+        return result
