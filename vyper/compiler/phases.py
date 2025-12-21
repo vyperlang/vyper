@@ -254,25 +254,42 @@ class CompilerData:
         return {f.name: f._metadata["func_type"] for f in fs}
 
     @cached_property
+    def _venom_direct(self):
+        """Generate Venom IR directly from annotated AST (new path)."""
+        from vyper.codegen_venom import generate_venom_for_module
+
+        return generate_venom_for_module(
+            self.compilation_target,
+            self.global_ctx,
+            self.settings,
+        )
+
+    @cached_property
     def venom_runtime(self):
-        runtime_venom = generate_venom(self.ir_runtime, self.settings)
-        return runtime_venom
+        if self.settings.experimental_codegen:
+            return self._venom_direct[1]  # runtime venom ctx
+        else:
+            runtime_venom = generate_venom(self.ir_runtime, self.settings)
+            return runtime_venom
 
     @cached_property
     def venom_deploytime(self):
-        data_sections = {"runtime_begin": self.bytecode_runtime}
-        if self.bytecode_metadata is not None:
-            data_sections["cbor_metadata"] = self.bytecode_metadata
+        if self.settings.experimental_codegen:
+            return self._venom_direct[0]  # deploy venom ctx
+        else:
+            data_sections = {"runtime_begin": self.bytecode_runtime}
+            if self.bytecode_metadata is not None:
+                data_sections["cbor_metadata"] = self.bytecode_metadata
 
-        deploy_info = DeployInfo(
-            runtime_codesize=len(self.bytecode_runtime),
-            immutables_len=self.compilation_target._metadata["type"].immutable_section_bytes,
-        )
+            deploy_info = DeployInfo(
+                runtime_codesize=len(self.bytecode_runtime),
+                immutables_len=self.compilation_target._metadata["type"].immutable_section_bytes,
+            )
 
-        venom_ctx = generate_venom(
-            self.ir_nodes, self.settings, data_sections=data_sections, deploy_info=deploy_info
-        )
-        return venom_ctx
+            venom_ctx = generate_venom(
+                self.ir_nodes, self.settings, data_sections=data_sections, deploy_info=deploy_info
+            )
+            return venom_ctx
 
     @cached_property
     def assembly(self) -> list:
