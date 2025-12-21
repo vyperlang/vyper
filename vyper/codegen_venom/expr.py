@@ -1164,3 +1164,113 @@ class Expr:
             return result
         else:
             return self.builder.iszero(result)
+
+    # === Function Calls ===
+
+    def lower_Call(self) -> IROperand:
+        """Lower function call.
+
+        Handles:
+        - Internal function calls (self.func())
+        - Built-in functions (len, abs, etc.) - deferred to Task 16
+        - External calls (interface.method()) - deferred to Task 14
+        """
+        node = self.node
+
+        # Check if this is an internal call (self.func())
+        if isinstance(node.func, vy_ast.Attribute):
+            if isinstance(node.func.value, vy_ast.Name) and node.func.value.id == "self":
+                return self._lower_internal_call()
+
+        # Built-in functions
+        func = node.func
+        if isinstance(func, vy_ast.Name):
+            if func.id in ("len", "abs", "min", "max", "sqrt", "convert", "range"):
+                raise CompilerPanic(f"Built-in {func.id} not yet implemented")
+
+        raise CompilerPanic(f"Unsupported call: {node.func}")
+
+    def _lower_internal_call(self) -> IROperand:
+        """Lower internal function call (self.func(...)).
+
+        Calling convention:
+        1. Allocate return buffer if needed
+        2. Store memory-passed args to calloca slots
+        3. Load stack-passed args to stack
+        4. Emit invoke instruction
+        5. For multi-return, copy stack outputs to caller memory
+        """
+        from vyper.venom.basicblock import IRLabel
+
+        node = self.node
+        func_name = node.func.attr
+
+        # Get function type from semantic analysis
+        func_t = node._metadata.get("type")
+        if func_t is None:
+            func_t = node.func._metadata.get("type")
+
+        returns_count = self.ctx.returns_stack_count(func_t)
+        pass_via_stack = self.ctx.pass_via_stack(func_t)
+
+        # Generate function label
+        # Format: "internal {function_id} {name}({arg_types})_runtime"
+        suffix = "_deploy" if self.ctx.is_ctor_context else "_runtime"
+        argz = ",".join([str(arg.typ) for arg in func_t.arguments])
+        target_label = f"internal {func_t._function_id} {func_name}({argz}){suffix}"
+
+        # Allocate return buffer
+        return_buf = None
+        if func_t.return_type is not None:
+            if returns_count > 0:
+                # Multi-return: allocate scratch buffer
+                alloca_id = self.ctx.new_alloca_id()
+                return_buf = self.builder.alloca(32 * returns_count, alloca_id)
+            else:
+                # Memory return: allocate buffer for full return type
+                return_buf = self.ctx.new_internal_variable(func_t.return_type)
+
+        # Prepare arguments
+        invoke_args = []  # Stack args for invoke
+
+        # First: return buffer pointer if memory return (not multi-return)
+        if return_buf is not None and returns_count == 0:
+            invoke_args.append(return_buf)
+
+        # Evaluate and stage arguments
+        for i, arg_node in enumerate(node.args):
+            arg_t = func_t.arguments[i]
+            arg_val = Expr(arg_node, self.ctx).lower()
+
+            if pass_via_stack[arg_t.name]:
+                # Stack-passed arg: load value
+                if arg_t.typ._is_prim_word:
+                    invoke_args.append(arg_val)
+                else:
+                    # Complex stack arg - load from memory
+                    invoke_args.append(self.builder.mload(arg_val))
+            else:
+                # Memory-passed arg: already in memory, callee will access via palloca
+                # Nothing to add to invoke_args for memory args
+                pass
+
+        # Emit invoke instruction
+        if returns_count > 0:
+            outs = self.builder.invoke(IRLabel(target_label), invoke_args, returns=returns_count)
+            # Copy stack returns to buffer
+            for i, outv in enumerate(outs):
+                if i == 0:
+                    dst = return_buf
+                else:
+                    dst = self.builder.add(return_buf, IRLiteral(i * 32))
+                self.builder.mstore(outv, dst)
+        else:
+            self.builder.invoke(IRLabel(target_label), invoke_args, returns=0)
+
+        # Return the return buffer (or load from it for single word)
+        if return_buf is not None:
+            if func_t.return_type._is_prim_word:
+                return self.builder.mload(return_buf)
+            return return_buf
+
+        return IRLiteral(0)  # void return

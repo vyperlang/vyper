@@ -757,3 +757,69 @@ class Stmt:
     def lower_Pass(self) -> None:
         """Lower pass statement - no-op."""
         pass
+
+    def lower_Return(self) -> None:
+        """Lower return statement.
+
+        For internal functions: loads return values to buffer, then ret to return_pc.
+        For external functions: handled separately (ABI encoding).
+        """
+        node = self.node
+        func_t = self.ctx.func_t
+
+        if func_t is None:
+            raise CompilerPanic("Return outside function")
+
+        returns_count = self.ctx.returns_stack_count(func_t)
+
+        if node.value is None:
+            # No return value - just return
+            if self.ctx.return_pc is not None:
+                self.builder.ret(self.ctx.return_pc)
+            return
+
+        # Evaluate return expression
+        ret_val = Expr(node.value, self.ctx).lower()
+
+        # Store return value(s) to return buffer
+        if returns_count > 0 and self.ctx.return_buffer is not None:
+            # Multi-return via stack: store to buffer, then load and ret
+            buf = self.ctx.return_buffer
+
+            # For tuple returns, need to unpack
+            ret_typ = func_t.return_type
+            if self.ctx.returns_stack_count(func_t) > 1 and hasattr(ret_typ, "tuple_items"):
+                # Tuple return - value should be a memory pointer
+                for i, (_k, elem_t) in enumerate(ret_typ.tuple_items()):
+                    if isinstance(ret_val, IRLiteral):
+                        src_ptr = IRLiteral(ret_val.value + i * 32)
+                    else:
+                        src_ptr = self.builder.add(ret_val, IRLiteral(i * 32))
+                    val = self.builder.mload(src_ptr)
+                    if i == 0:
+                        dst_ptr = buf
+                    else:
+                        dst_ptr = self.builder.add(buf, IRLiteral(i * 32))
+                    self.builder.mstore(val, dst_ptr)
+            else:
+                # Single value return
+                self.builder.mstore(ret_val, buf)
+
+            # Now load from buffer and ret
+            ret_vals = []
+            for i in range(returns_count):
+                if i == 0:
+                    ptr = buf
+                else:
+                    ptr = self.builder.add(buf, IRLiteral(i * 32))
+                ret_vals.append(self.builder.mload(ptr))
+
+            self.builder.ret(*ret_vals, self.ctx.return_pc)
+        elif self.ctx.return_buffer is not None:
+            # Memory return - store to buffer, caller reads it
+            ret_typ = func_t.return_type
+            self.ctx.store_memory(ret_val, self.ctx.return_buffer, ret_typ)
+            self.builder.ret(self.ctx.return_pc)
+        else:
+            # External function return - defer to later task
+            raise CompilerPanic("External function return not yet implemented")

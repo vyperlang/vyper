@@ -60,9 +60,14 @@ class VenomCodegenContext:
     # Return handling
     return_label: Optional[IRLabel] = None
     return_buffer: Optional[IRVariable] = None
+    return_pc: Optional[IRVariable] = None  # For internal function returns
 
     # Loop variable tracking (prevents assignment to loop variables)
     forvars: dict[str, bool] = field(default_factory=dict)
+
+    # Constants for internal function calling convention
+    MAX_STACK_ARGS: int = 6
+    MAX_STACK_RETURNS: int = 2
 
     def new_alloca_id(self) -> int:
         """Generate unique alloca ID."""
@@ -171,6 +176,99 @@ class VenomCodegenContext:
             constancy=Constancy.Constant if func_t.is_view else Constancy.Mutable,
             is_ctor_context=is_ctor or self.is_ctor_context,
         )
+
+    # === Internal Function Helpers ===
+
+    def is_word_type(self, typ: VyperType) -> bool:
+        """Check if type fits in one stack slot (32 bytes)."""
+        return typ.memory_bytes_required == 32
+
+    def pass_via_stack(self, func_t: ContractFunctionT) -> dict[str, bool]:
+        """Determine which args pass via stack vs memory.
+
+        Returns dict mapping arg name -> True if stack, False if memory.
+        Word types pass via stack up to MAX_STACK_ARGS.
+        """
+        ret = {}
+        stack_items = 0
+
+        # Return takes one stack slot if it's a word type
+        if func_t.return_type is not None and self.is_word_type(func_t.return_type):
+            stack_items += 1
+
+        for arg in func_t.arguments:
+            if not self.is_word_type(arg.typ) or stack_items > self.MAX_STACK_ARGS:
+                ret[arg.name] = False
+            else:
+                ret[arg.name] = True
+                stack_items += 1
+
+        return ret
+
+    def returns_stack_count(self, func_t: ContractFunctionT) -> int:
+        """How many values returned via stack (0, 1, or 2 for tuples)."""
+        from vyper.codegen.core import is_tuple_like
+
+        ret_t = func_t.return_type
+        if ret_t is None:
+            return 0
+
+        if is_tuple_like(ret_t):
+            members = ret_t.tuple_items()
+            if 1 <= len(members) <= self.MAX_STACK_RETURNS:
+                if all(self.is_word_type(t) for (_k, t) in members):
+                    return len(members)
+            return 0
+
+        return 1 if self.is_word_type(ret_t) else 0
+
+    # === Nonreentrant Lock Support ===
+
+    def emit_nonreentrant_lock(self, func_t: ContractFunctionT) -> None:
+        """Emit nonreentrant lock acquire (at function entry)."""
+        from vyper.semantics.types.function import StateMutability
+
+        if not func_t.nonreentrant:
+            return
+
+        nkey = func_t.reentrancy_key_position.position
+
+        if version_check(begin="cancun"):
+            LOAD = self.builder.tload
+            STORE = self.builder.tstore
+            temp_value = 1
+        else:
+            LOAD = self.builder.sload
+            STORE = self.builder.sstore
+            temp_value = 2
+
+        # Check not already locked
+        current = LOAD(IRLiteral(nkey))
+        not_locked = self.builder.iszero(self.builder.eq(current, IRLiteral(temp_value)))
+        self.builder.assert_(not_locked)
+
+        # Set lock (unless view function)
+        if func_t.mutability != StateMutability.VIEW:
+            STORE(IRLiteral(temp_value), IRLiteral(nkey))
+
+    def emit_nonreentrant_unlock(self, func_t: ContractFunctionT) -> None:
+        """Emit nonreentrant lock release (at function exit)."""
+        from vyper.semantics.types.function import StateMutability
+
+        if not func_t.nonreentrant:
+            return
+
+        if func_t.mutability == StateMutability.VIEW:
+            return  # View functions don't modify lock
+
+        nkey = func_t.reentrancy_key_position.position
+
+        if version_check(begin="cancun"):
+            final_value = 0
+            self.builder.tstore(IRLiteral(final_value), IRLiteral(nkey))
+        else:
+            final_value = 3
+            self.builder.sstore(IRLiteral(final_value), IRLiteral(nkey))
 
     # === Memory Operations ===
 
