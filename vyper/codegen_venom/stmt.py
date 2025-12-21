@@ -9,6 +9,7 @@ from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic, TypeCheckFailure
 from vyper.semantics.types import DecimalT, IntegerT
 from vyper.semantics.types.shortcuts import UINT256_T
+from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.venom.basicblock import IRLiteral, IROperand
 
 from .context import VenomCodegenContext
@@ -458,3 +459,253 @@ class Stmt:
         """Lower a list of statements."""
         for stmt in stmts:
             Stmt(stmt, self.ctx).lower()
+
+    # === For Loop Statements ===
+
+    def lower_For(self) -> None:
+        """Lower for loop - dispatches to range or iter loop."""
+        node = self.node
+        if self._is_range_call(node.iter):
+            self._lower_range_loop(node)
+        else:
+            self._lower_iter_loop(node)
+
+    def _is_range_call(self, node) -> bool:
+        """Check if node is a range() call."""
+        return isinstance(node, vy_ast.Call) and node.get("func.id") == "range"
+
+    def _lower_range_loop(self, node: vy_ast.For) -> None:
+        """Lower for i in range(n) or range(start, end).
+
+        Creates 5-block CFG structure:
+        - entry: initialize counter, bound check, compute end
+        - cond: check counter != end
+        - body: store counter to user var, execute body
+        - incr: increment counter
+        - exit: continue after loop
+        """
+        # Get loop variable info
+        target_type = node.target.target._metadata["type"]
+        varname = node.target.target.id
+
+        # Parse range arguments
+        range_call = node.iter
+        args = range_call.args
+
+        if len(args) == 1:
+            start = IRLiteral(0)
+            end_expr = Expr(args[0], self.ctx).lower()
+        else:
+            start = Expr(args[0], self.ctx).lower()
+            end_expr = Expr(args[1], self.ctx).lower()
+
+        # Handle bound kwarg for dynamic ranges
+        kwargs = {kw.arg: kw.value for kw in range_call.keywords}
+        has_bound = "bound" in kwargs
+
+        if has_bound:
+            # Dynamic range: compute rounds = end - start
+            # The bound check will catch if rounds > bound (including negative/underflow)
+            rounds_bound = kwargs["bound"].value  # literal int value
+            rounds = self.builder.sub(end_expr, start)
+        else:
+            # Static range: start and end must be literals
+            if isinstance(start, IRLiteral) and isinstance(end_expr, IRLiteral):
+                rounds = IRLiteral(end_expr.value - start.value)
+                rounds_bound = rounds.value
+            else:
+                # Non-literal but no bound - semantic analysis should catch this
+                raise CompilerPanic("range() with non-literal args requires bound=")
+
+        # Allocate counter variable in memory for user access
+        counter_ptr = self.ctx.new_variable(varname, target_type, mutable=False)
+        self.ctx.forvars[varname] = True
+
+        # Create blocks
+        entry_block = self.builder.create_block("for_entry")
+        cond_block = self.builder.create_block("for_cond")
+        body_block = self.builder.create_block("for_body")
+        incr_block = self.builder.create_block("for_incr")
+        exit_block = self.builder.create_block("for_exit")
+
+        # Jump to entry from current block
+        self.builder.jmp(entry_block.label)
+
+        # Entry block: initialize counter, check bound
+        self.builder.append_block(entry_block)
+        self.builder.set_block(entry_block)
+        counter_var = self.builder.assign(start)
+
+        # Bound check: assert rounds <= rounds_bound
+        if has_bound:
+            # assert iszero(gt(rounds, rounds_bound))
+            invalid = self.builder.gt(rounds, IRLiteral(rounds_bound))
+            valid = self.builder.iszero(invalid)
+            self.builder.assert_(valid)
+
+        # Compute end value: end = start + rounds
+        end_val = self.builder.add(start, rounds)
+        self.builder.jmp(cond_block.label)
+
+        # Condition block: check if counter == end
+        self.builder.append_block(cond_block)
+        self.builder.set_block(cond_block)
+        done = self.builder.eq(counter_var, end_val)
+        cond_finish = self.builder.current_block
+
+        # Set up loop targets for break/continue using context manager
+        with self.ctx.loop_scope(exit_block.label, incr_block.label):
+            # Body block: store counter to user var, execute body
+            self.builder.append_block(body_block)
+            self.builder.set_block(body_block)
+            self.builder.mstore(counter_var, counter_ptr)
+            self._lower_body(node.body)
+            body_finish = self.builder.current_block
+            if not body_finish.is_terminated:
+                body_finish.append_instruction("jmp", incr_block.label)
+
+        # Increment block
+        self.builder.append_block(incr_block)
+        self.builder.set_block(incr_block)
+        new_counter = self.builder.add(counter_var, IRLiteral(1))
+        # Update counter_var to new value for next iteration
+        self.builder.assign_to(new_counter, counter_var)
+        self.builder.jmp(cond_block.label)
+
+        # Add conditional jump to cond block (after body is processed)
+        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
+
+        # Exit block
+        self.builder.append_block(exit_block)
+        self.builder.set_block(exit_block)
+
+        # Cleanup
+        del self.ctx.forvars[varname]
+
+    def _lower_iter_loop(self, node: vy_ast.For) -> None:
+        """Lower for item in array.
+
+        Creates 5-block CFG structure similar to range loop but:
+        - Iterates over array elements
+        - Copies element to loop variable each iteration
+        """
+        # Get loop variable info
+        target_type = node.target.target._metadata["type"]
+        varname = node.target.target.id
+
+        # Evaluate array expression
+        array = Expr(node.iter, self.ctx).lower()
+        array_typ = node.iter._metadata["type"]
+
+        # Get length and bound
+        if isinstance(array_typ, DArrayT):
+            # Dynamic array: length is first word
+            length = self.builder.mload(array)
+            bound = array_typ.count
+        elif isinstance(array_typ, SArrayT):
+            # Static array: length is compile-time constant
+            length = IRLiteral(array_typ.count)
+            bound = array_typ.count
+        else:
+            raise CompilerPanic(f"Cannot iterate over type: {array_typ}")
+
+        # Element size
+        elem_size = array_typ.value_type.memory_bytes_required
+
+        # Allocate loop variable (copy of element, not reference)
+        item_ptr = self.ctx.new_variable(varname, target_type, mutable=False)
+        self.ctx.forvars[varname] = True
+
+        # Create blocks
+        entry_block = self.builder.create_block("iter_entry")
+        cond_block = self.builder.create_block("iter_cond")
+        body_block = self.builder.create_block("iter_body")
+        incr_block = self.builder.create_block("iter_incr")
+        exit_block = self.builder.create_block("iter_exit")
+
+        # Jump to entry
+        self.builder.jmp(entry_block.label)
+
+        # Entry block: initialize index, bound check
+        self.builder.append_block(entry_block)
+        self.builder.set_block(entry_block)
+        index_var = self.builder.assign(IRLiteral(0))
+
+        # Bound check for dynamic arrays: assert length <= bound
+        if isinstance(array_typ, DArrayT):
+            invalid = self.builder.gt(length, IRLiteral(bound))
+            valid = self.builder.iszero(invalid)
+            self.builder.assert_(valid)
+
+        self.builder.jmp(cond_block.label)
+
+        # Condition block: check if index == length
+        self.builder.append_block(cond_block)
+        self.builder.set_block(cond_block)
+        done = self.builder.eq(index_var, length)
+        cond_finish = self.builder.current_block
+
+        # Set up loop targets
+        with self.ctx.loop_scope(exit_block.label, incr_block.label):
+            # Body block: compute element address, copy to loop var
+            self.builder.append_block(body_block)
+            self.builder.set_block(body_block)
+
+            # Compute element address
+            # elem_addr = array + offset + index * elem_size
+            # For DArrayT, offset = 32 (skip length word)
+            # For SArrayT, offset = 0
+            offset_base = 32 if isinstance(array_typ, DArrayT) else 0
+            index_offset = self.builder.mul(index_var, IRLiteral(elem_size))
+            if offset_base > 0:
+                total_offset = self.builder.add(IRLiteral(offset_base), index_offset)
+            else:
+                total_offset = index_offset
+            elem_addr = self.builder.add(array, total_offset)
+
+            # Copy element to loop variable
+            if elem_size <= 32:
+                # Single word: simple load/store
+                val = self.builder.mload(elem_addr)
+                self.builder.mstore(val, item_ptr)
+            else:
+                # Multi-word: use mcopy (size, src, dst)
+                self.builder.mcopy(IRLiteral(elem_size), elem_addr, item_ptr)
+
+            self._lower_body(node.body)
+            body_finish = self.builder.current_block
+            if not body_finish.is_terminated:
+                body_finish.append_instruction("jmp", incr_block.label)
+
+        # Increment block
+        self.builder.append_block(incr_block)
+        self.builder.set_block(incr_block)
+        new_index = self.builder.add(index_var, IRLiteral(1))
+        self.builder.assign_to(new_index, index_var)
+        self.builder.jmp(cond_block.label)
+
+        # Add conditional jump
+        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
+
+        # Exit block
+        self.builder.append_block(exit_block)
+        self.builder.set_block(exit_block)
+
+        # Cleanup
+        del self.ctx.forvars[varname]
+
+    def lower_Break(self) -> None:
+        """Lower break statement - jump to loop exit."""
+        if self.ctx.break_target is None:
+            raise CompilerPanic("break outside loop")
+        self.builder.jmp(self.ctx.break_target)
+
+    def lower_Continue(self) -> None:
+        """Lower continue statement - jump to loop increment."""
+        if self.ctx.continue_target is None:
+            raise CompilerPanic("continue outside loop")
+        self.builder.jmp(self.ctx.continue_target)
+
+    def lower_Pass(self) -> None:
+        """Lower pass statement - no-op."""
+        pass

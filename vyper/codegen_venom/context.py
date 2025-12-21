@@ -60,6 +60,9 @@ class VenomCodegenContext:
     return_label: Optional[IRLabel] = None
     return_buffer: Optional[IRVariable] = None
 
+    # Loop variable tracking (prevents assignment to loop variables)
+    forvars: dict[str, bool] = field(default_factory=dict)
+
     def new_alloca_id(self) -> int:
         """Generate unique alloca ID."""
         self._alloca_id += 1

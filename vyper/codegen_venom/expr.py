@@ -16,6 +16,7 @@ from vyper.semantics.types import (
     IntegerT,
     StringT,
 )
+from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.shortcuts import BYTES32_T
 from vyper.semantics.types.user import FlagT
@@ -486,8 +487,8 @@ class Expr:
                 else:  # NotIn
                     return self.builder.iszero(intersection)
             else:
-                # Array membership requires loops - not yet implemented
-                raise CompilerPanic("Array membership not yet implemented")
+                # Array membership - use loop with early break
+                return self._lower_array_membership(left, right, right_typ, isinstance(op, vy_ast.In))
 
         # Determine if we need signed or unsigned comparison
         # UINT256 uses unsigned comparisons; all other types use signed
@@ -833,3 +834,105 @@ class Expr:
         else_block_finish.append_instruction("jmp", exit_block.label)
 
         return result
+
+    def _lower_array_membership(
+        self, needle: IROperand, haystack: IROperand, haystack_typ, is_in: bool
+    ) -> IRVariable:
+        """Lower array membership test: x in array or x not in array.
+
+        Uses a loop with early break:
+        - result = 0 (not found)
+        - for each element:
+            - if element == needle: result = 1, break
+        - return result (or iszero(result) for not in)
+        """
+        # Get array properties
+        if isinstance(haystack_typ, DArrayT):
+            length = self.builder.mload(haystack)
+            bound = haystack_typ.count
+            offset_base = 32  # skip length word
+        elif isinstance(haystack_typ, SArrayT):
+            length = IRLiteral(haystack_typ.count)
+            bound = haystack_typ.count
+            offset_base = 0
+        else:
+            raise CompilerPanic(f"Cannot check membership in type: {haystack_typ}")
+
+        elem_size = haystack_typ.value_type.memory_bytes_required
+
+        # Pre-allocate result variable
+        result = self.builder.new_variable()
+
+        # Create blocks
+        entry_block = self.builder.create_block("in_entry")
+        cond_block = self.builder.create_block("in_cond")
+        body_block = self.builder.create_block("in_body")
+        found_block = self.builder.create_block("in_found")
+        incr_block = self.builder.create_block("in_incr")
+        exit_block = self.builder.create_block("in_exit")
+
+        # Jump to entry
+        self.builder.jmp(entry_block.label)
+
+        # Entry: initialize index and result
+        self.builder.append_block(entry_block)
+        self.builder.set_block(entry_block)
+        index_var = self.builder.assign(IRLiteral(0))
+        self.builder.assign_to(IRLiteral(0), result)  # result = 0 (not found)
+
+        # Bound check for dynamic arrays
+        if isinstance(haystack_typ, DArrayT):
+            invalid = self.builder.gt(length, IRLiteral(bound))
+            valid = self.builder.iszero(invalid)
+            self.builder.assert_(valid)
+
+        self.builder.jmp(cond_block.label)
+
+        # Condition: check if index == length
+        self.builder.append_block(cond_block)
+        self.builder.set_block(cond_block)
+        done = self.builder.eq(index_var, length)
+        cond_finish = self.builder.current_block
+
+        # Body: load element and compare
+        self.builder.append_block(body_block)
+        self.builder.set_block(body_block)
+
+        # Compute element address
+        index_offset = self.builder.mul(index_var, IRLiteral(elem_size))
+        if offset_base > 0:
+            total_offset = self.builder.add(IRLiteral(offset_base), index_offset)
+        else:
+            total_offset = index_offset
+        elem_addr = self.builder.add(haystack, total_offset)
+
+        # Load element and compare
+        elem_val = self.builder.mload(elem_addr)
+        match = self.builder.eq(elem_val, needle)
+        self.builder.jnz(match, found_block.label, incr_block.label)
+
+        # Found block: set result = 1, jump to exit
+        self.builder.append_block(found_block)
+        self.builder.set_block(found_block)
+        self.builder.assign_to(IRLiteral(1), result)
+        self.builder.jmp(exit_block.label)
+
+        # Increment block
+        self.builder.append_block(incr_block)
+        self.builder.set_block(incr_block)
+        new_index = self.builder.add(index_var, IRLiteral(1))
+        self.builder.assign_to(new_index, index_var)
+        self.builder.jmp(cond_block.label)
+
+        # Add conditional jump to cond block
+        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
+
+        # Exit block
+        self.builder.append_block(exit_block)
+        self.builder.set_block(exit_block)
+
+        # For "not in", invert the result
+        if is_in:
+            return result
+        else:
+            return self.builder.iszero(result)
