@@ -258,3 +258,266 @@ class VenomCodegenContext:
         # We just need the size - type doesn't matter for buffers
         alloca_id = self.new_alloca_id()
         return self.builder.alloca(size, alloca_id)
+
+    # === Storage Operations ===
+
+    # Storage is word-addressed (word_scale=1): slot N is at slot N, not byte N*32.
+    # This differs from memory which is byte-addressed (word_scale=32).
+
+    DYNAMIC_ARRAY_OVERHEAD = 1  # Length word takes 1 slot (not 32 bytes)
+
+    def load_storage(self, slot: IROperand, typ: VyperType) -> IROperand:
+        """Load value from storage slot.
+
+        For primitive types (single word), returns sload result.
+        For multi-word types, allocates memory buffer and copies.
+        """
+        if typ.storage_size_in_words == 1:
+            return self.builder.sload(slot)
+        else:
+            # Multi-word: allocate memory and copy from storage
+            buf = self.new_internal_variable(typ)
+            self._load_storage_to_memory(slot, buf, typ.storage_size_in_words)
+            return buf
+
+    def store_storage(
+        self, val: IROperand, slot: IROperand, typ: VyperType
+    ) -> None:
+        """Store value to storage slot.
+
+        For primitive types, direct sstore.
+        For multi-word types, val is memory ptr, copy to storage.
+        """
+        if typ.storage_size_in_words == 1:
+            self.builder.sstore(val, slot)
+        else:
+            # Multi-word: val is memory pointer, copy to storage
+            self._store_memory_to_storage(val, slot, typ.storage_size_in_words)
+
+    def _load_storage_to_memory(
+        self, slot: IROperand, buf: IROperand, word_count: int
+    ) -> None:
+        """Load multi-word storage value to memory buffer.
+
+        Storage is word-addressed, memory is byte-addressed.
+        """
+        for i in range(word_count):
+            # Storage: slot + i (word-addressed)
+            if i == 0:
+                current_slot = slot
+            elif isinstance(slot, IRLiteral):
+                current_slot = IRLiteral(slot.value + i)
+            else:
+                current_slot = self.builder.add(slot, IRLiteral(i))
+
+            val = self.builder.sload(current_slot)
+
+            # Memory: buf + i*32 (byte-addressed)
+            if i == 0:
+                mem_offset = buf
+            elif isinstance(buf, IRLiteral):
+                mem_offset = IRLiteral(buf.value + i * 32)
+            else:
+                mem_offset = self.builder.add(buf, IRLiteral(i * 32))
+
+            self.builder.mstore(val, mem_offset)
+
+    def _store_memory_to_storage(
+        self, buf: IROperand, slot: IROperand, word_count: int
+    ) -> None:
+        """Store memory buffer to multi-word storage.
+
+        Memory is byte-addressed, storage is word-addressed.
+        """
+        for i in range(word_count):
+            # Memory: buf + i*32 (byte-addressed)
+            if i == 0:
+                mem_offset = buf
+            elif isinstance(buf, IRLiteral):
+                mem_offset = IRLiteral(buf.value + i * 32)
+            else:
+                mem_offset = self.builder.add(buf, IRLiteral(i * 32))
+
+            val = self.builder.mload(mem_offset)
+
+            # Storage: slot + i (word-addressed)
+            if i == 0:
+                current_slot = slot
+            elif isinstance(slot, IRLiteral):
+                current_slot = IRLiteral(slot.value + i)
+            else:
+                current_slot = self.builder.add(slot, IRLiteral(i))
+
+            self.builder.sstore(val, current_slot)
+
+    # === Transient Storage (EIP-1153, Cancun+) ===
+
+    def load_transient(self, slot: IROperand, typ: VyperType) -> IROperand:
+        """Load from transient storage (Cancun+).
+
+        For primitive types (single word), returns tload result.
+        For multi-word types, allocates memory buffer and copies.
+        """
+        if typ.storage_size_in_words == 1:
+            return self.builder.tload(slot)
+        else:
+            # Multi-word: allocate memory and copy from transient storage
+            buf = self.new_internal_variable(typ)
+            self._load_transient_to_memory(slot, buf, typ.storage_size_in_words)
+            return buf
+
+    def store_transient(
+        self, val: IROperand, slot: IROperand, typ: VyperType
+    ) -> None:
+        """Store to transient storage (Cancun+).
+
+        For primitive types, direct tstore.
+        For multi-word types, val is memory ptr, copy to transient storage.
+        """
+        if typ.storage_size_in_words == 1:
+            self.builder.tstore(val, slot)
+        else:
+            # Multi-word: val is memory pointer, copy to transient storage
+            self._store_memory_to_transient(val, slot, typ.storage_size_in_words)
+
+    def _load_transient_to_memory(
+        self, slot: IROperand, buf: IROperand, word_count: int
+    ) -> None:
+        """Load multi-word transient storage value to memory buffer."""
+        for i in range(word_count):
+            # Transient storage: slot + i (word-addressed)
+            if i == 0:
+                current_slot = slot
+            elif isinstance(slot, IRLiteral):
+                current_slot = IRLiteral(slot.value + i)
+            else:
+                current_slot = self.builder.add(slot, IRLiteral(i))
+
+            val = self.builder.tload(current_slot)
+
+            # Memory: buf + i*32 (byte-addressed)
+            if i == 0:
+                mem_offset = buf
+            elif isinstance(buf, IRLiteral):
+                mem_offset = IRLiteral(buf.value + i * 32)
+            else:
+                mem_offset = self.builder.add(buf, IRLiteral(i * 32))
+
+            self.builder.mstore(val, mem_offset)
+
+    def _store_memory_to_transient(
+        self, buf: IROperand, slot: IROperand, word_count: int
+    ) -> None:
+        """Store memory buffer to multi-word transient storage."""
+        for i in range(word_count):
+            # Memory: buf + i*32 (byte-addressed)
+            if i == 0:
+                mem_offset = buf
+            elif isinstance(buf, IRLiteral):
+                mem_offset = IRLiteral(buf.value + i * 32)
+            else:
+                mem_offset = self.builder.add(buf, IRLiteral(i * 32))
+
+            val = self.builder.mload(mem_offset)
+
+            # Transient storage: slot + i (word-addressed)
+            if i == 0:
+                current_slot = slot
+            elif isinstance(slot, IRLiteral):
+                current_slot = IRLiteral(slot.value + i)
+            else:
+                current_slot = self.builder.add(slot, IRLiteral(i))
+
+            self.builder.tstore(val, current_slot)
+
+    # === Immutables ===
+
+    # Immutables are stored in bytecode (CODE location), accessed via iload/istore.
+    # They are byte-addressed (word_scale=32), like memory.
+
+    def load_immutable(self, offset: IROperand, typ: VyperType) -> IROperand:
+        """Load immutable value from deployed bytecode.
+
+        For primitive types (<=32 bytes), returns iload result.
+        For multi-word types, allocates memory buffer and copies.
+        """
+        if typ.memory_bytes_required <= 32:
+            return self.builder.iload(offset)
+        else:
+            # Multi-word immutable: copy to memory buffer
+            buf = self.new_internal_variable(typ)
+            size = typ.memory_bytes_required
+            for i in range(0, size, 32):
+                # Immutables are byte-addressed
+                if i == 0:
+                    imm_offset = offset
+                elif isinstance(offset, IRLiteral):
+                    imm_offset = IRLiteral(offset.value + i)
+                else:
+                    imm_offset = self.builder.add(offset, IRLiteral(i))
+
+                val = self.builder.iload(imm_offset)
+
+                # Memory is byte-addressed
+                if i == 0:
+                    mem_ptr = buf
+                elif isinstance(buf, IRLiteral):
+                    mem_ptr = IRLiteral(buf.value + i)
+                else:
+                    mem_ptr = self.builder.add(buf, IRLiteral(i))
+
+                self.builder.mstore(val, mem_ptr)
+
+            return buf
+
+    def store_immutable(
+        self, val: IROperand, offset: IROperand, typ: VyperType
+    ) -> None:
+        """Store immutable value (during constructor only).
+
+        For primitive types (<=32 bytes), direct istore.
+        For multi-word types, val is memory ptr, copy to immutables.
+        """
+        if typ.memory_bytes_required <= 32:
+            self.builder.istore(val, offset)
+        else:
+            # Multi-word: val is memory pointer, copy to immutables
+            size = typ.memory_bytes_required
+            for i in range(0, size, 32):
+                # Memory is byte-addressed
+                if i == 0:
+                    mem_ptr = val
+                elif isinstance(val, IRLiteral):
+                    mem_ptr = IRLiteral(val.value + i)
+                else:
+                    mem_ptr = self.builder.add(val, IRLiteral(i))
+
+                word = self.builder.mload(mem_ptr)
+
+                # Immutables are byte-addressed
+                if i == 0:
+                    imm_offset = offset
+                elif isinstance(offset, IRLiteral):
+                    imm_offset = IRLiteral(offset.value + i)
+                else:
+                    imm_offset = self.builder.add(offset, IRLiteral(i))
+
+                self.builder.istore(word, imm_offset)
+
+    # === Dynamic Array in Storage ===
+
+    def get_storage_dyn_array_length(self, slot: IROperand) -> IRVariable:
+        """Get length of dynamic array in storage.
+
+        Length is stored at the base slot.
+        """
+        return self.builder.sload(slot)
+
+    def set_storage_dyn_array_length(
+        self, slot: IROperand, length: IROperand
+    ) -> None:
+        """Set length of dynamic array in storage.
+
+        Length is stored at the base slot.
+        """
+        self.builder.sstore(length, slot)
