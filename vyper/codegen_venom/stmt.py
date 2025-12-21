@@ -9,8 +9,9 @@ from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic, TypeCheckFailure
 from vyper.semantics.types import DecimalT, IntegerT
 from vyper.semantics.types.shortcuts import UINT256_T
-from vyper.semantics.types.subscriptable import DArrayT, SArrayT
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT
+from vyper.semantics.types.user import StructT
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 from .context import VenomCodegenContext
 from .expr import Expr
@@ -77,12 +78,13 @@ class Stmt:
         if isinstance(target, vy_ast.Tuple):
             raise CompilerPanic("Tuple unpacking not yet implemented")
 
-        # Get the destination pointer
+        # Get the destination pointer and determine storage vs memory
         dst_ptr = self._get_target_ptr(target)
+        is_storage = self._is_storage_target(target)
 
         # For primitive word types, no overlap concern - just store
         if target_typ._is_prim_word:
-            self._store_value(dst_ptr, src, target_typ)
+            self._store_value(dst_ptr, src, target_typ, is_storage)
         else:
             # Multi-word types need overlap detection - defer to later tasks
             raise CompilerPanic("Complex type assignment not yet implemented")
@@ -90,7 +92,7 @@ class Stmt:
     def lower_AugAssign(self) -> None:
         """Lower augmented assignment.
 
-        Example: `x += 5` or `self.x *= 2`
+        Example: `x += 5` or `self.x *= 2` or `self.arr[i] += 1`
 
         1. Load current value from target
         2. Apply binary operation
@@ -107,9 +109,12 @@ class Stmt:
         if not target_typ._is_prim_word:
             raise TypeCheckFailure("AugAssign only valid for primitive types")
 
-        # Get target pointer and load current value
+        # Get target pointer and determine storage vs memory
         dst_ptr = self._get_target_ptr(target)
-        left = self._load_value(dst_ptr, target_typ)
+        is_storage = self._is_storage_target(target)
+
+        # Load current value
+        left = self._load_value(dst_ptr, target_typ, is_storage)
 
         # Evaluate the RHS
         right = Expr(right_node, self.ctx).lower()
@@ -118,7 +123,7 @@ class Stmt:
         result = self._apply_augassign_op(op, left, right, target_typ, right_node)
 
         # Store result back
-        self._store_value(dst_ptr, result, target_typ)
+        self._store_value(dst_ptr, result, target_typ, is_storage)
 
     # === Helper Methods ===
 
@@ -127,8 +132,11 @@ class Stmt:
 
         Handles:
         - Name: local variable or state variable
-        - Subscript: array/mapping access (deferred)
+        - Subscript: array/mapping access
         - Attribute: struct field or state variable (self.x)
+
+        Returns pointer/slot. Caller uses _is_storage_target to determine
+        whether to use sload/sstore or mload/mstore.
         """
         if isinstance(target, vy_ast.Name):
             varname = target.id
@@ -144,10 +152,8 @@ class Stmt:
             varinfo = target._expr_info.var_info
 
             if varinfo is not None:
-                # Storage variable
+                # Storage variable - simple slot
                 if not varinfo.is_constant and not varinfo.is_immutable:
-                    # Return storage slot as the "pointer"
-                    # For storage, we use sstore(slot, value) directly
                     return IRLiteral(varinfo.position.position)
 
                 # Immutable in constructor context
@@ -159,18 +165,54 @@ class Stmt:
                 if varinfo.is_immutable:
                     raise TypeCheckFailure("Cannot assign to immutable outside constructor")
 
+            # Struct field access (point.x = ...)
+            sub_typ = target.value._metadata.get("type")
+            if isinstance(sub_typ, StructT) and target.attr in sub_typ.member_types:
+                # Use Expr to compute the field pointer
+                return Expr(target, self.ctx).lower()
+
             raise CompilerPanic(f"Unsupported attribute target: {target.attr}")
 
         elif isinstance(target, vy_ast.Subscript):
-            # x[i] = ... (array/mapping access) - defer to later tasks
-            raise CompilerPanic("Subscript assignment not yet implemented")
+            # x[i] = ... or self.arr[i] = ... or self.map[key] = ...
+            # Use Expr to compute the element pointer/slot
+            return Expr(target, self.ctx).lower()
 
         raise CompilerPanic(f"Unsupported assignment target: {type(target)}")
 
-    def _load_value(self, ptr: IROperand, typ) -> IROperand:
-        """Load a value from a pointer based on type context."""
-        # Check if this is a storage slot (IRLiteral) or memory pointer (IRVariable)
-        if isinstance(ptr, IRLiteral):
+    def _is_storage_target(self, target: vy_ast.VyperNode) -> bool:
+        """Check if assignment target is storage.
+
+        Returns True if the target is in storage/transient, False for memory.
+        """
+        # self.x -> storage
+        if isinstance(target, vy_ast.Attribute):
+            if isinstance(target.value, vy_ast.Name) and target.value.id == "self":
+                varinfo = target._expr_info.var_info
+                if varinfo is not None and not varinfo.is_constant and not varinfo.is_immutable:
+                    return True
+            # Nested: self.x.field
+            return self._is_storage_target(target.value)
+
+        # Subscript on storage: self.arr[i], self.map[key]
+        if isinstance(target, vy_ast.Subscript):
+            return self._is_storage_target(target.value)
+
+        # Local variables are in memory
+        if isinstance(target, vy_ast.Name):
+            return False
+
+        return False
+
+    def _load_value(self, ptr: IROperand, typ, is_storage: bool = False) -> IROperand:
+        """Load a value from a pointer.
+
+        Args:
+            ptr: Pointer to load from (memory ptr or storage slot)
+            typ: Type of value being loaded
+            is_storage: True if ptr is storage/transient, False for memory
+        """
+        if is_storage:
             # Storage/transient variable - use sload
             # TODO: Support transient storage
             return self.builder.sload(ptr)
@@ -178,10 +220,16 @@ class Stmt:
             # Memory variable - use mload
             return self.builder.mload(ptr)
 
-    def _store_value(self, ptr: IROperand, val: IROperand, typ) -> None:
-        """Store a value to a pointer based on type context."""
-        # Check if this is a storage slot (IRLiteral) or memory pointer (IRVariable)
-        if isinstance(ptr, IRLiteral):
+    def _store_value(self, ptr: IROperand, val: IROperand, typ, is_storage: bool = False) -> None:
+        """Store a value to a pointer.
+
+        Args:
+            ptr: Pointer to store to (memory ptr or storage slot)
+            val: Value to store
+            typ: Type of value being stored
+            is_storage: True if ptr is storage/transient, False for memory
+        """
+        if is_storage:
             # Storage variable - use sstore
             # TODO: Support transient storage
             self.builder.sstore(val, ptr)

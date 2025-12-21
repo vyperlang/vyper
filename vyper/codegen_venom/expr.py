@@ -6,7 +6,10 @@ Vyper AST literal and expression nodes into Venom IR operands.
 """
 from vyper import ast as vy_ast
 from vyper.codegen.arithmetic import calculate_largest_base, calculate_largest_power
+from vyper.codegen.core import DYNAMIC_ARRAY_OVERHEAD, address_space_to_data_location
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
 from vyper.exceptions import CompilerPanic, TypeCheckFailure
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     AddressT,
     BoolT,
@@ -16,11 +19,11 @@ from vyper.semantics.types import (
     IntegerT,
     StringT,
 )
-from vyper.semantics.types.subscriptable import DArrayT, SArrayT
-from vyper.semantics.types.shortcuts import UINT256_T
-from vyper.semantics.types.shortcuts import BYTES32_T
-from vyper.semantics.types.user import FlagT
-from vyper.utils import DECIMAL_DIVISOR, ceil32
+from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT
+from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
+from vyper.semantics.types.user import FlagT, StructT
+from vyper.utils import DECIMAL_DIVISOR, MemoryPositions, ceil32
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 from .context import VenomCodegenContext
@@ -732,12 +735,14 @@ class Expr:
 
         # Case 5: Interface address (x.address where x is an interface)
         from vyper.semantics.types import InterfaceT
-        sub = Expr(self.node.value, self.ctx).lower()
         sub_typ = self.node.value._metadata.get("type")
         if isinstance(sub_typ, InterfaceT) and attr == "address":
-            return sub
+            return Expr(self.node.value, self.ctx).lower()
 
-        # Case 6: Struct field access - defer to later tasks
+        # Case 6: Struct field access (point.x)
+        if isinstance(sub_typ, StructT) and attr in sub_typ.member_types:
+            return self._lower_struct_field()
+
         raise CompilerPanic(f"Unsupported attribute access: {self.node.attr}")
 
     def _lower_environment_attr(self) -> IROperand:
@@ -834,6 +839,229 @@ class Expr:
         else_block_finish.append_instruction("jmp", exit_block.label)
 
         return result
+
+    # === Subscript Operations ===
+
+    def lower_Subscript(self) -> IROperand:
+        """Lower subscript access: array[index], mapping[key], or tuple[N].
+
+        Returns a pointer/slot that the caller can load from or store to.
+        """
+        base_typ = self.node.value._metadata["type"]
+
+        if isinstance(base_typ, HashMapT):
+            return self._lower_mapping_subscript()
+        elif isinstance(base_typ, (SArrayT, DArrayT)):
+            return self._lower_array_subscript()
+        elif isinstance(base_typ, StructT):
+            # Tuple access on struct (struct[0], struct[1], etc.)
+            return self._lower_tuple_subscript()
+        else:
+            raise CompilerPanic(f"Unsupported subscript on {base_typ}")
+
+    def _lower_array_subscript(self, bounds_check: bool = True) -> IROperand:
+        """Lower array[index] access.
+
+        Computes element pointer with bounds checking:
+        - Static arrays: bounds check against compile-time count
+        - Dynamic arrays: load length from first word, skip 32/1 for data
+
+        Returns pointer to element (memory ptr or storage slot).
+        """
+        node = self.node
+        base = Expr(node.value, self.ctx).lower()
+        index = Expr(node.slice, self.ctx).lower()
+
+        # If index is from memory, load it
+        if isinstance(index, IRVariable):
+            # Check if it's a memory location (not already a value)
+            # For now, assume lower() already loads values
+            pass
+
+        base_typ = node.value._metadata["type"]
+        elem_typ = base_typ.value_type
+        index_typ = node.slice._metadata["type"]
+
+        # Determine location and element size
+        # For memory arrays: word_scale=32, sizes in bytes
+        # For storage arrays: word_scale=1, sizes in slots
+        is_storage = self._is_storage_access(node.value)
+        if is_storage:
+            data_loc = DataLocation.STORAGE
+            word_scale = 1
+        else:
+            data_loc = DataLocation.MEMORY
+            word_scale = 32
+
+        elem_size = elem_typ.get_size_in(data_loc)
+
+        # Bounds checking
+        if bounds_check:
+            if isinstance(base_typ, DArrayT):
+                # Dynamic array: load length from first word
+                if is_storage:
+                    length = self.builder.sload(base)
+                else:
+                    length = self.builder.mload(base)
+            else:
+                # Static array: compile-time length
+                length = IRLiteral(base_typ.count)
+
+            # Check: not (index < 0) and not (index >= length)
+            # For signed indices, check negativity; for unsigned, skip
+            if isinstance(index_typ, IntegerT) and index_typ.is_signed:
+                is_neg = self.builder.slt(index, IRLiteral(0))
+            else:
+                is_neg = IRLiteral(0)
+
+            # Always use unsigned comparison for out-of-bounds
+            # ge(a, b) = not lt(a, b)
+            is_oob = self.builder.iszero(self.builder.lt(index, length))
+            invalid = self.builder.or_(is_neg, is_oob)
+            valid = self.builder.iszero(invalid)
+            self.builder.assert_(valid)
+
+        # Compute data pointer (skip length word for dynamic arrays)
+        if isinstance(base_typ, DArrayT):
+            overhead = word_scale * DYNAMIC_ARRAY_OVERHEAD
+            data_ptr = self.builder.add(base, IRLiteral(overhead))
+        else:
+            data_ptr = base
+
+        # Compute element offset: index * elem_size
+        offset = self.builder.mul(index, IRLiteral(elem_size))
+        elem_ptr = self.builder.add(data_ptr, offset)
+
+        return elem_ptr
+
+    def _lower_mapping_subscript(self) -> IROperand:
+        """Lower mapping[key] access.
+
+        Computes storage slot via keccak256(slot || key):
+        - Simple keys (int, address, bytes32): use directly
+        - Complex keys (bytes, string): pre-hash with keccak256
+
+        Returns storage slot as IROperand.
+        """
+        node = self.node
+        base = Expr(node.value, self.ctx).lower()
+        key_typ = node.value._metadata["type"].key_type
+
+        # Handle bytes/string keys - need to hash them first
+        if isinstance(key_typ, _BytestringT):
+            key = self._lower_keccak256_key(node.slice)
+        else:
+            key = Expr(node.slice, self.ctx).lower()
+
+        # sha3_64(slot, key) = keccak256(concat(slot, key))
+        # Both are 32 bytes, concatenated and hashed
+        slot = self.builder.sha3_64(base, key)
+
+        return slot
+
+    def _lower_keccak256_key(self, key_node: vy_ast.VyperNode) -> IROperand:
+        """Hash a bytes/string key for use as mapping key.
+
+        For bytes32: mstore to scratch, sha3
+        For bytes/string: ensure in memory, sha3 data portion
+        """
+        key_typ = key_node._metadata["type"]
+
+        if key_typ == BYTES32_T:
+            # bytes32: mstore to free var space and hash
+            key = Expr(key_node, self.ctx).lower()
+            self.builder.mstore(key, IRLiteral(MemoryPositions.FREE_VAR_SPACE))
+            return self.builder.sha3(
+                IRLiteral(MemoryPositions.FREE_VAR_SPACE), IRLiteral(32)
+            )
+
+        # bytes/string: already in memory from lower(), hash the data portion
+        key_ptr = Expr(key_node, self.ctx).lower()
+        # Data starts at ptr+32 (after length word)
+        data_ptr = self.builder.add(key_ptr, IRLiteral(32))
+        # Length is at ptr
+        length = self.builder.mload(key_ptr)
+        return self.builder.sha3(data_ptr, length)
+
+    def _lower_tuple_subscript(self) -> IROperand:
+        """Lower tuple[N] or struct[N] access.
+
+        Index must be a compile-time constant. Computes offset by summing
+        sizes of preceding elements.
+        """
+        node = self.node
+        base = Expr(node.value, self.ctx).lower()
+        base_typ = node.value._metadata["type"]
+
+        # Get the compile-time index
+        index = node.slice.reduced().value
+        assert isinstance(index, int), f"Tuple index must be int literal, got {index}"
+
+        # Determine location
+        is_storage = self._is_storage_access(node.value)
+        data_loc = DataLocation.STORAGE if is_storage else DataLocation.MEMORY
+
+        # Compute offset by summing sizes of preceding elements
+        attrs = list(base_typ.tuple_keys())
+        offset = 0
+        for i in range(index):
+            t = base_typ.member_types[attrs[i]]
+            offset += t.get_size_in(data_loc)
+
+        if offset == 0:
+            return base
+        return self.builder.add(base, IRLiteral(offset))
+
+    def _lower_struct_field(self) -> IROperand:
+        """Lower struct.field access.
+
+        Computes field pointer by summing sizes of preceding fields.
+        """
+        node = self.node
+        base = Expr(node.value, self.ctx).lower()
+        base_typ = node.value._metadata["type"]
+        attr = node.attr
+
+        # Determine location
+        is_storage = self._is_storage_access(node.value)
+        data_loc = DataLocation.STORAGE if is_storage else DataLocation.MEMORY
+
+        # Find field index and compute offset
+        attrs = list(base_typ.tuple_keys())
+        field_index = attrs.index(attr)
+
+        offset = 0
+        for i in range(field_index):
+            t = base_typ.member_types[attrs[i]]
+            offset += t.get_size_in(data_loc)
+
+        if offset == 0:
+            return base
+        return self.builder.add(base, IRLiteral(offset))
+
+    def _is_storage_access(self, node: vy_ast.VyperNode) -> bool:
+        """Check if an expression refers to storage.
+
+        Returns True if the access is to storage/transient, False for memory.
+        """
+        # self.x -> storage
+        if isinstance(node, vy_ast.Attribute):
+            if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
+                varinfo = node._expr_info.var_info
+                if varinfo is not None and not varinfo.is_constant and not varinfo.is_immutable:
+                    return True
+            # Nested: self.x.field or self.x[i]
+            return self._is_storage_access(node.value)
+
+        # Subscript on storage: self.arr[i]
+        if isinstance(node, vy_ast.Subscript):
+            return self._is_storage_access(node.value)
+
+        # Local variables are in memory
+        if isinstance(node, vy_ast.Name):
+            return False
+
+        return False
 
     def _lower_array_membership(
         self, needle: IROperand, haystack: IROperand, haystack_typ, is_in: bool
