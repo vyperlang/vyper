@@ -107,6 +107,36 @@ class Expr:
         bytez = self.node.value.encode("utf-8")
         return self._lower_bytelike(StringT, bytez)
 
+    def lower_Tuple(self) -> IRVariable:
+        """Lower tuple literal: (a, b, c).
+
+        Allocates memory for the tuple and stores each element at the correct offset.
+        Returns pointer to the allocated tuple in memory.
+
+        Reference: vyper/codegen/expr.py:parse_Tuple
+        """
+        node = self.node
+        typ = node._metadata["type"]
+
+        # Allocate memory for the tuple
+        ptr = self.ctx.new_internal_variable(typ)
+
+        # Store each element at its correct offset
+        offset = 0
+        for i, elem_node in enumerate(node.elements):
+            elem_typ = typ.member_types[i]
+            elem_val = Expr(elem_node, self.ctx).lower()
+
+            if offset == 0:
+                dst = ptr
+            else:
+                dst = self.builder.add(ptr, IRLiteral(offset))
+
+            self.ctx.store_memory(elem_val, dst, elem_typ)
+            offset += elem_typ.memory_bytes_required
+
+        return ptr
+
     def _lower_bytelike(self, typeclass: type, bytez: bytes) -> IRVariable:
         """Allocate memory and store bytes/string literal.
 
@@ -1306,16 +1336,48 @@ class Expr:
     def _lower_struct_constructor(self) -> IROperand:
         """Lower struct constructor call: MyStruct(field1=val1, ...).
 
-        Allocates memory for struct and stores field values.
+        Allocates memory for struct and stores field values in field order.
+
+        Reference: vyper/codegen/expr.py:handle_struct_literal
         """
-        raise CompilerPanic("Struct constructor not yet implemented")
+        node = self.node
+        func_t = node.func._metadata.get("type")
+        struct_t = func_t.typedef  # Get the actual StructT
+
+        # Allocate memory for the struct
+        ptr = self.ctx.new_internal_variable(struct_t)
+
+        # Build map of field name -> value node from keywords
+        member_vals = {}
+        for kwarg in node.keywords:
+            member_vals[kwarg.arg] = kwarg.value
+
+        # Store each field at its correct offset (in struct field order)
+        offset = 0
+        for field_name in struct_t.tuple_keys():
+            field_typ = struct_t.member_types[field_name]
+            field_val = Expr(member_vals[field_name], self.ctx).lower()
+
+            if offset == 0:
+                dst = ptr
+            else:
+                dst = self.builder.add(ptr, IRLiteral(offset))
+
+            self.ctx.store_memory(field_val, dst, field_typ)
+            offset += field_typ.memory_bytes_required
+
+        return ptr
 
     def _lower_interface_constructor(self) -> IROperand:
         """Lower interface constructor call: MyInterface(<address>).
 
-        Returns the address argument with interface type annotation.
+        Returns the address value - interface types are just addresses at runtime.
+        The type annotation is used by the type system but doesn't affect codegen.
         """
-        raise CompilerPanic("Interface constructor not yet implemented")
+        node = self.node
+        # Interface constructor takes exactly one argument: the address
+        assert len(node.args) == 1
+        return Expr(node.args[0], self.ctx).lower()
 
     def _lower_member_function_call(self, func_t: MemberFunctionT) -> IROperand:
         """Lower DynArray member function calls: .append(), .pop().

@@ -64,20 +64,20 @@ class Stmt:
         Example: `x = 5` or `x[i] = 5` or `self.x = 5`
 
         For primitive types (single word), this is a simple store.
-        For complex types (multi-word), overlap detection is needed
-        to avoid trampling src during copy - but that's deferred to
-        later tasks.
-        """
-        # Evaluate source value
-        src = Expr(self.node.value, self.ctx).lower()
+        For complex types (multi-word), uses temp buffer to handle potential overlap.
 
-        # Get target pointer
+        Reference: vyper/codegen/core.py:make_setter
+        """
+        # Get target info first (need it for tuple unpack decision)
         target = self.node.target
         target_typ = target._metadata["type"]
 
         # Handle tuple unpacking separately
         if isinstance(target, vy_ast.Tuple):
-            raise CompilerPanic("Tuple unpacking not yet implemented")
+            return self._lower_tuple_unpack()
+
+        # Evaluate source value
+        src = Expr(self.node.value, self.ctx).lower()
 
         # Get the destination pointer and determine storage vs memory
         dst_ptr = self._get_target_ptr(target)
@@ -87,8 +87,81 @@ class Stmt:
         if target_typ._is_prim_word:
             self._store_value(dst_ptr, src, target_typ, is_storage)
         else:
-            # Multi-word types need overlap detection - defer to later tasks
-            raise CompilerPanic("Complex type assignment not yet implemented")
+            # Multi-word types: copy via temp buffer to handle overlap safely
+            # src is a memory pointer to the source data
+            self._copy_complex_type(src, dst_ptr, target_typ, is_storage)
+
+    def _copy_complex_type(
+        self, src: IROperand, dst: IROperand, typ, is_storage: bool
+    ) -> None:
+        """Copy complex type with overlap handling.
+
+        Uses a temp buffer to ensure correct semantics when src/dst may overlap.
+        For storage targets, uses word-by-word sstore.
+        For memory targets, uses mcopy (or word-by-word mstore pre-Cancun).
+
+        This is the conservative approach - always use temp buffer.
+        The optimizer can eliminate unnecessary copies later.
+        """
+        # Allocate temp buffer
+        tmp = self.ctx.new_internal_variable(typ)
+
+        # Copy src to temp (src is memory pointer)
+        self.ctx.copy_memory(tmp, src, typ.memory_bytes_required)
+
+        # Copy temp to dst
+        if is_storage:
+            self.ctx.store_storage(tmp, dst, typ)
+        else:
+            self.ctx.copy_memory(dst, tmp, typ.memory_bytes_required)
+
+    def _lower_tuple_unpack(self) -> None:
+        """Lower tuple unpacking assignment: a, b = expr.
+
+        Key insight: Must load ALL values from source FIRST before assigning
+        to any target. This handles cases like `a, b = b, a` correctly.
+
+        Reference: vyper/codegen/stmt.py:_get_target (for tuple targets)
+        Reference: vyper/codegen/core.py:make_setter (for multi handling)
+        """
+        target = self.node.target
+        src = Expr(self.node.value, self.ctx).lower()
+
+        # src is a pointer to the tuple in memory
+        tuple_typ = target._metadata["type"]
+        targets = target.elements
+
+        # First pass: load all values from source tuple to temp variables.
+        # This ensures correct semantics for overlapping cases like a,b = b,a.
+        temp_vals = []
+        offset = 0
+        for i, elem_typ in enumerate(tuple_typ.member_types.values()):
+            if offset == 0:
+                elem_ptr = src
+            elif isinstance(src, IRLiteral):
+                elem_ptr = IRLiteral(src.value + offset)
+            else:
+                elem_ptr = self.builder.add(src, IRLiteral(offset))
+
+            # Load the value
+            val = self.ctx.load_memory(elem_ptr, elem_typ)
+            temp_vals.append((val, elem_typ))
+
+            offset += elem_typ.memory_bytes_required
+
+        # Second pass: assign each loaded value to its target
+        for (val, elem_typ), target_node in zip(temp_vals, targets):
+            target_ptr = self._get_target_ptr(target_node)
+            is_storage = self._is_storage_target(target_node)
+
+            if elem_typ._is_prim_word:
+                self._store_value(target_ptr, val, elem_typ, is_storage)
+            else:
+                # Complex element type: val is a memory pointer
+                if is_storage:
+                    self.ctx.store_storage(val, target_ptr, elem_typ)
+                else:
+                    self.ctx.copy_memory(target_ptr, val, elem_typ.memory_bytes_required)
 
     def lower_AugAssign(self) -> None:
         """Lower augmented assignment.
