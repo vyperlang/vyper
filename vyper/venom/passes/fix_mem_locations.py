@@ -22,7 +22,7 @@ class FixMemLocationsPass(IRPass):
     """
     Pass that fixes cases of memory accesses where the target of read/write is
     in the range of MemoryPosition.FREE_VAR_SPACE and MemoryPosition.FREE_VAR_SPACE2
-    and replaces it by pined allocation (allocation that is done with the alloca but
+    and replaces it by pinned allocation (allocation that is done with the alloca but
     is pinned to specific position)
     """
 
@@ -36,8 +36,8 @@ class FixMemLocationsPass(IRPass):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(self.dfg)
         inst = self.function.entry.instructions[0]
-        self.free_ptr1 = self._create_pined_alloca(inst, MemoryPositions.FREE_VAR_SPACE)
-        self.free_ptr2 = self._create_pined_alloca(inst, MemoryPositions.FREE_VAR_SPACE2)
+        self.free_ptr1 = self._create_pinned_alloca(inst, MemoryPositions.FREE_VAR_SPACE)
+        self.free_ptr2 = self._create_pinned_alloca(inst, MemoryPositions.FREE_VAR_SPACE2)
 
         for bb in self.function.get_basic_blocks():
             self._process_bb(bb)
@@ -79,7 +79,7 @@ class FixMemLocationsPass(IRPass):
                     assert ptr is not None
                     update_read_location(inst, ptr)
 
-    def _create_pined_alloca(self, inst: IRInstruction, mem_position: int) -> IRVariable:
+    def _create_pinned_alloca(self, inst: IRInstruction, mem_position: int) -> IRVariable:
         """
         Creates alloca and sets its concrete position to
         expected memory position
