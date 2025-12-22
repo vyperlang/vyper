@@ -10,6 +10,7 @@ from vyper.exceptions import CompilerPanic
 from .abi import HANDLERS as ABI_HANDLERS
 from .bytes import HANDLERS as BYTES_HANDLERS
 from .convert import HANDLERS as CONVERT_HANDLERS
+from .create import HANDLERS as CREATE_HANDLERS
 from .hashing import HANDLERS as HASHING_HANDLERS
 from .math import HANDLERS as MATH_HANDLERS
 from .simple import HANDLERS as SIMPLE_HANDLERS
@@ -24,8 +25,8 @@ BUILTIN_HANDLERS: dict = {
     **CONVERT_HANDLERS,
     **ABI_HANDLERS,
     **SYSTEM_HANDLERS,
+    **CREATE_HANDLERS,
     # More will be added as implemented:
-    # **CREATE_HANDLERS,
     # **MISC_HANDLERS,
 }
 
