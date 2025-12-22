@@ -269,6 +269,7 @@ def get_write_size(inst: IRInstruction) -> IROperand | None:
 
     return None
 
+
 def get_write_max_size(inst: IRInstruction) -> IROperand | None:
     opcode = inst.opcode
     if opcode in ("call", "delegatecall", "staticcall"):

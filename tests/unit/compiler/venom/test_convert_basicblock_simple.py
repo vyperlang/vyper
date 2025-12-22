@@ -1,9 +1,12 @@
-import pytest
-from vyper.codegen.ir_node import IRnode
-from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from dataclasses import dataclass
-from vyper.venom import run_passes_on
+
+import pytest
+
+from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import VenomOptimizationFlags
+from vyper.venom import run_passes_on
+from vyper.venom.ir_node_to_venom import ir_node_to_venom
+
 
 def test_simple():
     ir = IRnode.from_list(["calldatacopy", 32, 0, ["calldatasize"]])
@@ -46,11 +49,11 @@ def test_simple_2():
     assert venom is not None
 
 
-
 @dataclass
 class _DummyAlloca:
     _id: int
     size: int
+
 
 @pytest.mark.xfail
 def test_sha3_64():
@@ -65,23 +68,20 @@ def test_sha3_64():
     and we should try to make it pass again
     """
 
-    ir = ["seq",
+    ir = [
+        "seq",
         ["mstore", "$alloca_64_32", ["calldataload", 32]],
-        ["mstore",
-          "$alloca_96_32",
-          ["sload",
-            ["sha3_64",
-              0,
-             ["mload", "$alloca_64_32"]]]],
-        ["seq",
-          ["seq",
-            ["unique_symbol", "sstore_1"],
-            ["sstore",
-              ["sha3_64",
-                0,
-                ["mload", "$alloca_64_32" ]],
-              0]]],
-          ["sink", ["mload", "$alloca_96_32"]]]
+        ["mstore", "$alloca_96_32", ["sload", ["sha3_64", 0, ["mload", "$alloca_64_32"]]]],
+        [
+            "seq",
+            [
+                "seq",
+                ["unique_symbol", "sstore_1"],
+                ["sstore", ["sha3_64", 0, ["mload", "$alloca_64_32"]], 0],
+            ],
+        ],
+        ["sink", ["mload", "$alloca_96_32"]],
+    ]
 
     ir_node = IRnode.from_list(ir)
     alloca0 = ir_node.args[0].args[0]
@@ -109,7 +109,6 @@ def test_sha3_64():
     assert "alloca" in alloca4.value, alloca4
     alloca4.passthrough_metadata["alloca"] = _DummyAlloca(_id=1, size=32)
 
-    
     venom = ir_node_to_venom(ir_node)
     flags = VenomOptimizationFlags()
     run_passes_on(venom, flags)

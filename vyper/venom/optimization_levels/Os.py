@@ -16,6 +16,7 @@ from vyper.venom.passes import (
     ConcretizeMemLocPass,
     DeadStoreElimination,
     DFTPass,
+    FixMemLocationsPass,
     FloatAllocas,
     LoadElimination,
     LowerDloadPass,
@@ -28,7 +29,6 @@ from vyper.venom.passes import (
     RevertToAssert,
     SimplifyCFGPass,
     SingleUseExpansion,
-    FixMemLocationsPass,
 )
 
 # Optimize for size
