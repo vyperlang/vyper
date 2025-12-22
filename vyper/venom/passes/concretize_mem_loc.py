@@ -228,4 +228,4 @@ class MemLiveness:
             return set()
         if not isinstance(op, IRVariable):
             return set()
-        return self.base_ptrs.get_all_posible_memory(op)
+        return self.base_ptrs.get_all_possible_memory(op)

@@ -100,17 +100,17 @@ class BasePtrAnalysis(IRAnalysis):
             offset = None
             if isinstance(inst.operands[1], IRLiteral):
                 offset = inst.operands[1].value
-            sources = self.get_all_posible_memory(inst.operands[0])
+            sources = self.get_all_possible_memory(inst.operands[0])
             self.var_to_mem[inst.output] = set(ptr.offset_by(offset) for ptr in sources)
         elif opcode == "phi":
             sources = set()
             for _, var in inst.phi_operands:
                 assert isinstance(var, IRVariable)  # mypy help
-                var_sources = self.get_all_posible_memory(var)
+                var_sources = self.get_all_possible_memory(var)
                 sources.update(var_sources)
             self.var_to_mem[inst.output] = sources
         elif opcode == "assign" and isinstance(inst.operands[0], IRVariable):
-            self.var_to_mem[inst.output] = self.get_all_posible_memory(inst.operands[0])
+            self.var_to_mem[inst.output] = self.get_all_possible_memory(inst.operands[0])
 
         return original != self.var_to_mem.get(inst.output, set())
 
@@ -278,5 +278,5 @@ class BasePtrAnalysis(IRAnalysis):
 
         return MemoryLocation.EMPTY
 
-    def get_all_posible_memory(self, var: IRVariable) -> set[BasePtr]:
+    def get_all_possible_memory(self, var: IRVariable) -> set[BasePtr]:
         return self.var_to_mem.get(var, set())
