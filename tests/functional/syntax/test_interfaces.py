@@ -218,6 +218,23 @@ def protected_view_fn() -> String[100]:
     """,
         InterfaceViolation,
     ),
+    (
+        """
+interface ITestInterface:
+    def foo() -> uint256: view
+
+interface ITestInterface2:
+    def bar() -> uint256: view
+
+implements: (
+    ITestInterface,
+    ITestInterface2,
+)
+
+foo: public(constant(uint256)) = 1
+        """,
+        InterfaceViolation,
+    ),
 ]
 
 
@@ -360,6 +377,45 @@ foo: public(immutable(uint256))
 def __init__(x: uint256):
     foo = x
     """,
+    """
+interface Foo:
+  def foo() -> uint256: nonpayable
+
+interface Bar:
+  def bar() -> uint256: nonpayable
+
+
+implements: (
+    Foo,
+    Bar,
+)
+
+@external
+def foo() -> uint256:
+    return 0
+
+@external
+def bar() -> uint256:
+    return 0
+    """,
+    # single method can implement multiple interfaces
+    """
+interface Foo:
+  def foo() -> uint256: nonpayable
+
+interface Foo2:
+  def foo() -> uint256: nonpayable
+
+
+implements: (
+    Foo,
+    Foo2,
+)
+
+@external
+def foo() -> uint256:
+    return 0
+    """,
     # no namespace collision of interface after storage variable
     """
 a: constant(uint256) = 1
@@ -500,6 +556,108 @@ def baz():
 """
 
     assert compiler.compile_code(code, input_bundle=input_bundle) is not None
+
+
+def test_interfaces_in_different_files_check(make_input_bundle):
+    foo = """
+def foo() -> uint256: ...
+    """
+    bar = """
+def bar() -> uint256: ...
+    """
+
+    input_bundle = make_input_bundle({"foo.vyi": foo, "bar.vyi": bar})
+
+    code = """
+import foo as Foo
+import bar as Bar
+
+implements: (
+    Foo,
+    Bar,
+)
+
+@external
+def foo() -> uint256:
+    return 0
+
+@external
+def bar() -> uint256:
+    return 0
+    """
+
+    res = compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert res is not None
+
+
+def test_implements_in_interface_file_check(make_input_bundle):
+    foo = """
+def foo() -> uint256: ...
+    """
+    bar = """
+def bar() -> uint256: ...
+    """
+    qux = """
+from interfaces import foo as Foo, bar as Bar
+
+implements: (
+    Foo,
+    Bar,
+)
+
+def foo() -> uint256: ...
+def bar() -> uint256: ...
+def qux() -> uint256: ...
+    """
+
+    input_bundle = make_input_bundle(
+        {"interfaces/foo.vyi": foo, "interfaces/bar.vyi": bar, "interfaces/qux.vyi": qux}
+    )
+
+    code = """
+from interfaces import qux as Qux
+
+implements: (
+    Qux,
+)
+
+@external
+def foo() -> uint256:
+    return 0
+
+@external
+def bar() -> uint256:
+    return 0
+
+@external
+def qux() -> uint256:
+    return 0
+    """
+
+    res = compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert res is not None
+
+
+def test_interface_file_type_check(make_input_bundle):
+    interface_code = """
+"""
+
+    input_bundle = make_input_bundle({"foo.vy": interface_code})
+
+    code = """
+import foo as Foo
+
+implements: Foo
+"""
+    with pytest.raises(StructureException) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert (
+        e.value._message == "Not an interface!"
+        " (Since vyper v0.4.0, interface files are required to have a .vyi suffix.)"
+    )
 
 
 invalid_visibility_code = [

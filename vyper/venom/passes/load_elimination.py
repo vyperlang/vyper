@@ -3,21 +3,53 @@ from collections import deque
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.analysis.analysis import IRAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import (
+    IRAbstractMemLoc,
+    IRBasicBlock,
+    IRInstruction,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+)
 from vyper.venom.effects import Effects
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 Lattice = dict[IROperand, OrderedSet[IROperand]]
 
 
-def _conflict(store_opcode: str, k1: IRLiteral, k2: IRLiteral):
-    ptr1, ptr2 = k1.value, k2.value
-    # hardcode the size of store opcodes for now. maybe refactor to use
-    # vyper.evm.address_space
+def _conflict_lit(store_opcode: str, ptr1: int, ptr2: int):
     if store_opcode == "mstore":
         return abs(ptr1 - ptr2) < 32
     assert store_opcode in ("sstore", "tstore"), "unhandled store opcode"
     return abs(ptr1 - ptr2) < 1
+
+
+def _conflict(
+    store_opcode: str, k1: IRLiteral | IRAbstractMemLoc, k2: IRLiteral | IRAbstractMemLoc
+):
+    # hardcode the size of store opcodes for now. maybe refactor to use
+    # vyper.evm.address_space
+    if store_opcode == "mstore":
+        if isinstance(k1, IRLiteral) and isinstance(k2, IRLiteral):
+            return _conflict_lit(store_opcode, k1.value, k2.value)
+
+        if isinstance(k1, IRLiteral) or isinstance(k2, IRLiteral):
+            # code which mixes abstract and concrete memory locations,
+            # alias analysis fails.
+            # (frontend should not emit this kind of code, but it is
+            # technically valid venom)
+            return True
+
+        assert isinstance(k1, IRAbstractMemLoc) and isinstance(k2, IRAbstractMemLoc)
+        if k1._id != k2._id:
+            # different buffers, no possibility to alias
+            return False
+
+        return _conflict_lit(store_opcode, k1.offset, k2.offset)
+
+    assert isinstance(k1, IRLiteral) and isinstance(k2, IRLiteral)
+    ptr1, ptr2 = k1.value, k2.value
+    return _conflict_lit(store_opcode, ptr1, ptr2)
 
 
 class LoadAnalysis(IRAnalysis):
@@ -71,8 +103,10 @@ class LoadAnalysis(IRAnalysis):
 
         return res
 
-    def get_literal(self, op):
+    def get_memloc(self, op):
         op = self.dfg._traverse_assign_chain(op)
+        if isinstance(op, IRAbstractMemLoc):
+            return op
         if isinstance(op, IRLiteral):
             return op
         return None
@@ -86,13 +120,12 @@ class LoadAnalysis(IRAnalysis):
             if inst.opcode == load_opcode:
                 self.inst_to_lattice[inst] = lattice.copy()
                 ptr = inst.operands[0]
-                assert inst.output is not None
                 lattice[ptr] = OrderedSet([inst.output])
             elif inst.opcode == store_opcode:
                 self.inst_to_lattice[inst] = lattice.copy()
                 # mstore [val, ptr]
                 val, ptr = inst.operands
-                lit = self.get_literal(ptr)
+                lit = self.get_memloc(ptr)
                 if lit is None:
                     lattice.clear()
                     lattice[ptr] = OrderedSet([val])
@@ -102,7 +135,7 @@ class LoadAnalysis(IRAnalysis):
 
                 # kick out any conflicts
                 for existing_key in lattice.copy().keys():
-                    existing_lit = self.get_literal(existing_key)
+                    existing_lit = self.get_memloc(existing_key)
                     if existing_lit is None:
                         # a variable in the lattice. assign this ptr in the lattice
                         # and flush everything else.
@@ -137,7 +170,7 @@ class LoadElimination(IRPass):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(self.dfg)
-        self.load_analysis = self.analyses_cache.request_analysis(LoadAnalysis)
+        self.load_analysis = self.analyses_cache.force_analysis(LoadAnalysis)
 
         self._run(Effects.MEMORY, "mload", "mstore")
         self._run(Effects.TRANSIENT, "tload", "tstore")
@@ -168,8 +201,6 @@ class LoadElimination(IRPass):
         (ptr,) = inst.operands
 
         existing_value = self._lattice[inst].get(ptr, OrderedSet()).copy()
-
-        assert inst.output is not None  # help mypy
 
         if len(existing_value) == 1:
             self.updater.mk_assign(inst, existing_value.pop())

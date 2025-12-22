@@ -40,7 +40,6 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "calldatacopy",
         "mcopy",
         "calldataload",
-        "codecopy",
         "gas",
         "gasprice",
         "gaslimit",
@@ -141,7 +140,7 @@ def _ofst(label: Label, value: int) -> list[Any]:
 # with the assembler. My suggestion is to let this be for now, and we can
 # refactor it later when we are finished phasing out the old IR.
 class VenomCompiler:
-    ctxs: list[IRContext]
+    ctx: IRContext
     label_counter = 0
     visited_basicblocks: OrderedSet  # {IRBasicBlock}
     liveness: LivenessAnalysis
@@ -277,20 +276,19 @@ class VenomCompiler:
             seen.add(op)
 
     def _prepare_stack_for_function(self, asm, fn: IRFunction, stack: StackModel):
-        last_param = None
+        last_param_inst = None
         for inst in fn.entry.instructions:
             if inst.opcode != "param":
                 # note: always well defined if the bb is terminated
                 next_liveness = self.liveness.live_vars_at(inst)
                 break
 
-            last_param = inst
+            last_param_inst = inst
 
-            assert inst.output is not None  # help mypy
             stack.push(inst.output)
 
         # no params (only applies for global entry function)
-        if last_param is None:
+        if last_param_inst is None:
             return
 
         to_pop: list[IRVariable] = []
@@ -301,10 +299,24 @@ class VenomCompiler:
 
         self.popmany(asm, to_pop, stack)
 
-        self._optimistic_swap(asm, last_param, next_liveness, stack)
+        self._optimistic_swap(asm, last_param_inst, next_liveness, stack)
 
     def popmany(self, asm, to_pop: Iterable[IRVariable], stack):
         to_pop = list(to_pop)
+        if len(to_pop) == 0:
+            return
+
+        # if the items to pop are contiguous, we can swap the top of
+        # stack to just below the lowest item-to-pop and then just issue
+        # sequential pops
+        depths = [stack.get_depth(var) for var in to_pop]
+        deepest = min(depths)
+        expected = list(range(deepest, 0))
+        if deepest < 0 and -deepest <= 16 and sorted(depths) == expected:
+            self.swap(asm, stack, deepest)
+            self.pop(asm, stack, len(to_pop))
+            return
+
         # small heuristic: pop from shallowest first.
         to_pop.sort(key=lambda var: -stack.get_depth(var))
 
@@ -342,13 +354,19 @@ class VenomCompiler:
 
         all_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
 
+        # Check if this block ends with a halting terminator (return, revert, stop)
+        # If so, we don't need to pop dead variables since execution halts anyway
+        is_halting_block = basicblock.is_halting
+
         for i, inst in enumerate(all_insts):
             if i + 1 < len(all_insts):
                 next_liveness = self.liveness.live_vars_at(all_insts[i + 1])
             else:
                 next_liveness = self.liveness.out_vars(basicblock)
 
-            asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
+            asm.extend(
+                self._generate_evm_for_instruction(inst, stack, next_liveness, is_halting_block)
+            )
 
         if DEBUG_SHOW_COST:
             print(" ".join(map(str, asm)), file=sys.stderr)
@@ -382,7 +400,11 @@ class VenomCompiler:
         self.popmany(asm, to_pop, stack)
 
     def _generate_evm_for_instruction(
-        self, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet
+        self,
+        inst: IRInstruction,
+        stack: StackModel,
+        next_liveness: OrderedSet,
+        skip_pops: bool = False,
     ) -> list[str]:
         assembly: list[AssemblyInstruction] = []
         opcode = inst.opcode
@@ -396,35 +418,19 @@ class VenomCompiler:
         if opcode in ["jmp", "djmp", "jnz", "invoke"]:
             operands = list(inst.get_non_label_operands())
 
-        elif opcode in ("alloca", "palloca", "calloca"):
-            assert len(inst.operands) == 3, inst
-            offset, _size, _id = inst.operands
-            operands = [offset]
-
-        # iload and istore are special cases because they can take a literal
-        # that is handled specialy with the _OFST macro. Look below, after the
-        # stack reordering.
-        elif opcode == "iload":
-            addr = inst.operands[0]
-            if isinstance(addr, IRLiteral):
-                operands = []
-            else:
-                operands = inst.operands
-        elif opcode == "istore":
-            addr = inst.operands[1]
-            if isinstance(addr, IRLiteral):
-                operands = inst.operands[:1]
-            else:
-                operands = inst.operands
         elif opcode == "log":
             log_topic_count = inst.operands[0].value
             assert log_topic_count in [0, 1, 2, 3, 4], "Invalid topic count"
             operands = inst.operands[1:]
+        elif opcode == "ret":
+            # For ret with values, we only treat the return PC as an input operand
+            # The return values must remain on the stack and are not consumed here
+            operands = [inst.operands[-1]]
         else:
             operands = inst.operands
 
         if opcode == "phi":
-            ret = inst.get_outputs()[0]
+            ret = inst.output
             phis = list(inst.get_input_variables())
             depth = stack.get_phi_depth(phis)
             # collapse the arguments to the phi node in the stack.
@@ -444,7 +450,6 @@ class VenomCompiler:
             ofst, label = inst.operands
             assert isinstance(label, IRLabel)  # help mypy
             assembly.extend(_ofst(_as_asm_symbol(label), ofst.value))
-            assert isinstance(inst.output, IROperand), "Offset must have output"
             stack.push(inst.output)
             return apply_line_numbers(inst, assembly)
 
@@ -488,10 +493,11 @@ class VenomCompiler:
         # with the stack model containing the return value(s), so we fiddle
         # with the stack model beforehand.
 
-        # Step 4: Push instruction's return value to stack
+        # Step 4: Push instruction's return value(s) to stack
         stack.pop(len(operands))
-        if inst.output is not None:
-            stack.push(inst.output)
+        outputs = inst.get_outputs()
+        for out in outputs:
+            stack.push(out)
 
         # Step 5: Emit the EVM instruction(s)
         if opcode in _ONE_TO_ONE_INSTRUCTIONS:
@@ -560,24 +566,6 @@ class VenomCompiler:
         elif opcode == "assert_unreachable":
             end_symbol = self.mklabel("reachable")
             assembly.extend([PUSHLABEL(end_symbol), "JUMPI", "INVALID", end_symbol])
-        elif opcode == "iload":
-            addr = inst.operands[0]
-            mem_deploy_end = self.ctx.constants["mem_deploy_end"]
-            if isinstance(addr, IRLiteral):
-                ptr = mem_deploy_end + addr.value
-                assembly.extend(PUSH(ptr))
-            else:
-                assembly.extend([*PUSH(mem_deploy_end), "ADD"])
-            assembly.append("MLOAD")
-        elif opcode == "istore":
-            addr = inst.operands[1]
-            mem_deploy_end = self.ctx.constants["mem_deploy_end"]
-            if isinstance(addr, IRLiteral):
-                ptr = mem_deploy_end + addr.value
-                assembly.extend(PUSH(ptr))
-            else:
-                assembly.extend([*PUSH(mem_deploy_end), "ADD"])
-            assembly.append("MSTORE")
         elif opcode == "log":
             assembly.extend([f"LOG{log_topic_count}"])
         elif opcode == "nop":
@@ -589,12 +577,22 @@ class VenomCompiler:
         else:
             raise Exception(f"Unknown opcode: {opcode}")
 
-        # Step 6: Emit instructions output operands (if any)
-        if inst.output is not None:
-            if inst.output not in next_liveness:
-                self.pop(assembly, stack)
-            else:
-                self._optimistic_swap(assembly, inst, next_liveness, stack)
+        # Step 6: Emit instruction output operands (if any)
+        if len(outputs) == 0:
+            return apply_line_numbers(inst, assembly)
+
+        # Skip popping dead outputs if we're in a halting block (return/revert/stop)
+        if not skip_pops:
+            dead_outputs = [out for out in outputs if out not in next_liveness]
+            self.popmany(assembly, dead_outputs, stack)
+
+        live_outputs = [out for out in outputs if out in next_liveness]
+        if len(live_outputs) == 0:
+            return apply_line_numbers(inst, assembly)
+
+        # Heuristic scheduling based on the next expected live var
+        # Use the top-most surviving output to schedule
+        self._optimistic_swap(assembly, inst, next_liveness, stack)
 
         return apply_line_numbers(inst, assembly)
 
@@ -615,8 +613,12 @@ class VenomCompiler:
 
         next_scheduled = next_liveness.last()
         cost = 0
-        if not self.dfg.are_equivalent(inst.output, next_scheduled):
-            cost = self.swap_op(assembly, stack, next_scheduled)
+        # Use last output (top-of-stack) when available, else the single output
+        inst_outputs = inst.get_outputs()
+        if len(inst_outputs) > 0:
+            current_top_out = inst_outputs[-1]
+            if not self.dfg.are_equivalent(current_top_out, next_scheduled):
+                cost = self.swap_op(assembly, stack, next_scheduled)
 
         if DEBUG_SHOW_COST and cost != 0:
             print("ENTER", inst, file=sys.stderr)
