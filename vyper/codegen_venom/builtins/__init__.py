@@ -13,6 +13,7 @@ from .convert import HANDLERS as CONVERT_HANDLERS
 from .hashing import HANDLERS as HASHING_HANDLERS
 from .math import HANDLERS as MATH_HANDLERS
 from .simple import HANDLERS as SIMPLE_HANDLERS
+from .system import HANDLERS as SYSTEM_HANDLERS
 
 # Combine all handlers
 BUILTIN_HANDLERS: dict = {
@@ -22,8 +23,8 @@ BUILTIN_HANDLERS: dict = {
     **BYTES_HANDLERS,
     **CONVERT_HANDLERS,
     **ABI_HANDLERS,
+    **SYSTEM_HANDLERS,
     # More will be added as implemented:
-    # **RAW_HANDLERS,
     # **CREATE_HANDLERS,
     # **MISC_HANDLERS,
 }
