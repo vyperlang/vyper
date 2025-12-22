@@ -7,6 +7,7 @@ Handler signature: (node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand
 
 from vyper.exceptions import CompilerPanic
 
+from .abi import HANDLERS as ABI_HANDLERS
 from .bytes import HANDLERS as BYTES_HANDLERS
 from .convert import HANDLERS as CONVERT_HANDLERS
 from .hashing import HANDLERS as HASHING_HANDLERS
@@ -20,8 +21,8 @@ BUILTIN_HANDLERS: dict = {
     **HASHING_HANDLERS,
     **BYTES_HANDLERS,
     **CONVERT_HANDLERS,
+    **ABI_HANDLERS,
     # More will be added as implemented:
-    # **ABI_HANDLERS,
     # **RAW_HANDLERS,
     # **CREATE_HANDLERS,
     # **MISC_HANDLERS,
