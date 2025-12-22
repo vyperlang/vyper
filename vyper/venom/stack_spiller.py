@@ -109,10 +109,8 @@ class StackSpiller:
         spill_ops, offsets, cost = self._spill_stack_segment(assembly, stack, chunk_size, dry_run)
 
         indices = list(range(chunk_size))
-        if chunk_size == 1:
-            desired_indices = indices
-        else:
-            desired_indices = [indices[-1]] + indices[1:-1] + [indices[0]]
+        assert len(indices) > 1  # due to chunk_size > 1
+        desired_indices = [indices[-1]] + indices[1:-1] + [indices[0]]
 
         cost += self._restore_spilled_segment(
             assembly, stack, spill_ops, offsets, desired_indices, dry_run
