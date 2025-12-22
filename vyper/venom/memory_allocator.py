@@ -21,7 +21,7 @@ class MemoryAllocator:
     # current end of memory
     eom: int
 
-    reseved: set[tuple[int, int]]
+    reserved: set[tuple[int, int]]
 
     FN_START: ClassVar[int] = 0
 
