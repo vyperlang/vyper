@@ -158,6 +158,46 @@ class Expr:
 
         return ptr
 
+    def lower_List(self) -> IRVariable:
+        """Lower list literal: [a, b, c].
+
+        Creates a DynArray in memory with the given elements.
+
+        Memory layout:
+            ptr+0:  length (32 bytes) - number of elements
+            ptr+32: element 0
+            ptr+32+elem_size: element 1
+            ...
+
+        Reference: vyper/codegen/expr.py:parse_List
+        """
+        node = self.node
+        typ = node._metadata["type"]  # DArrayT
+        elem_typ = typ.value_type
+        elem_size = elem_typ.memory_bytes_required
+        num_elements = len(node.elements)
+
+        # Allocate memory for the DynArray
+        ptr = self.ctx.new_internal_variable(typ)
+
+        # Store length word
+        self.builder.mstore(IRLiteral(num_elements), ptr)
+
+        # Store each element at its correct offset (after length word)
+        data_offset = 32  # Skip length word
+        for elem_node in node.elements:
+            elem_val = Expr(elem_node, self.ctx).lower()
+
+            if data_offset == 32:
+                dst = self.builder.add(ptr, IRLiteral(32))
+            else:
+                dst = self.builder.add(ptr, IRLiteral(data_offset))
+
+            self.ctx.store_memory(elem_val, dst, elem_typ)
+            data_offset += elem_size
+
+        return ptr
+
     def _lower_bytelike(self, typeclass: type, bytez: bytes) -> IRVariable:
         """Allocate memory and store bytes/string literal.
 
@@ -1404,17 +1444,150 @@ class Expr:
         """Lower DynArray member function calls: .append(), .pop().
 
         - append(val): increment length, store value at end
-        - pop(): decrement length, optionally return popped value
+        - pop(): decrement length, return popped value
         """
         func = self.node.func
         attr = func.attr
 
         if attr == "append":
-            raise CompilerPanic("DynArray.append() not yet implemented")
+            return self._lower_dynarray_append()
         elif attr == "pop":
-            raise CompilerPanic("DynArray.pop() not yet implemented")
+            return self._lower_dynarray_pop()
         else:
             raise CompilerPanic(f"Unknown member function: {attr}")
+
+    def _lower_dynarray_append(self) -> IROperand:
+        """Lower DynArray.append(val).
+
+        1. Load current length
+        2. Assert length < capacity (bounds check)
+        3. Compute element pointer: data_ptr + length * elem_size
+        4. Store element
+        5. Increment and store new length
+
+        Reference: vyper/codegen/core.py:append_dyn_array
+        """
+        node = self.node
+        func = node.func
+        darray_node = func.value  # The DynArray being appended to
+        darray_typ = darray_node._metadata["type"]
+        elem_typ = darray_typ.value_type
+
+        # Get the array pointer
+        darray_ptr = Expr(darray_node, self.ctx).lower()
+
+        # Get the element value
+        assert len(node.args) == 1
+        elem_val = Expr(node.args[0], self.ctx).lower()
+
+        # Determine if storage or memory
+        is_storage = self._is_storage_access(darray_node)
+
+        if is_storage:
+            data_loc = DataLocation.STORAGE
+            word_scale = 1  # Storage is word-addressed
+        else:
+            data_loc = DataLocation.MEMORY
+            word_scale = 32  # Memory is byte-addressed
+
+        elem_size = elem_typ.get_size_in(data_loc)
+        capacity = darray_typ.count  # Maximum length
+
+        # 1. Load current length
+        if is_storage:
+            length = self.ctx.get_storage_dyn_array_length(darray_ptr)
+        else:
+            length = self.ctx.get_memory_dyn_array_length(darray_ptr)
+
+        # 2. Assert length < capacity
+        valid = self.builder.lt(length, IRLiteral(capacity))
+        self.builder.assert_(valid)
+
+        # 3. Compute element pointer: data_ptr + length * elem_size
+        overhead = word_scale * DYNAMIC_ARRAY_OVERHEAD
+        data_ptr = self.builder.add(darray_ptr, IRLiteral(overhead))
+        offset = self.builder.mul(length, IRLiteral(elem_size))
+        elem_ptr = self.builder.add(data_ptr, offset)
+
+        # 4. Store element
+        if is_storage:
+            self.ctx.store_storage(elem_val, elem_ptr, elem_typ)
+        else:
+            self.ctx.store_memory(elem_val, elem_ptr, elem_typ)
+
+        # 5. Increment and store new length
+        new_length = self.builder.add(length, IRLiteral(1))
+        if is_storage:
+            self.ctx.set_storage_dyn_array_length(darray_ptr, new_length)
+        else:
+            self.ctx.set_memory_dyn_array_length(darray_ptr, new_length)
+
+        # append() returns nothing
+        return IRLiteral(0)
+
+    def _lower_dynarray_pop(self) -> IROperand:
+        """Lower DynArray.pop().
+
+        1. Load current length
+        2. Assert length > 0 (can't pop empty)
+        3. Compute new_length = length - 1
+        4. Store new length
+        5. Return pointer to element at new_length index
+
+        Reference: vyper/codegen/core.py:pop_dyn_array
+        """
+        node = self.node
+        func = node.func
+        darray_node = func.value  # The DynArray being popped from
+        darray_typ = darray_node._metadata["type"]
+        elem_typ = darray_typ.value_type
+
+        # Get the array pointer
+        darray_ptr = Expr(darray_node, self.ctx).lower()
+
+        # Determine if storage or memory
+        is_storage = self._is_storage_access(darray_node)
+
+        if is_storage:
+            data_loc = DataLocation.STORAGE
+            word_scale = 1  # Storage is word-addressed
+        else:
+            data_loc = DataLocation.MEMORY
+            word_scale = 32  # Memory is byte-addressed
+
+        elem_size = elem_typ.get_size_in(data_loc)
+
+        # 1. Load current length
+        if is_storage:
+            length = self.ctx.get_storage_dyn_array_length(darray_ptr)
+        else:
+            length = self.ctx.get_memory_dyn_array_length(darray_ptr)
+
+        # 2. Assert length > 0 (can't pop empty array)
+        valid = self.builder.iszero(self.builder.iszero(length))
+        self.builder.assert_(valid)
+
+        # 3. Compute new_length = length - 1
+        new_length = self.builder.sub(length, IRLiteral(1))
+
+        # 4. Store new length
+        if is_storage:
+            self.ctx.set_storage_dyn_array_length(darray_ptr, new_length)
+        else:
+            self.ctx.set_memory_dyn_array_length(darray_ptr, new_length)
+
+        # 5. Return element at new_length index (the popped element)
+        # We return the value, not the pointer
+        overhead = word_scale * DYNAMIC_ARRAY_OVERHEAD
+        data_ptr = self.builder.add(darray_ptr, IRLiteral(overhead))
+        offset = self.builder.mul(new_length, IRLiteral(elem_size))
+        elem_ptr = self.builder.add(data_ptr, offset)
+
+        # Load and return the value
+        if is_storage:
+            return self.ctx.load_storage(elem_ptr, elem_typ)
+        else:
+            return self.ctx.load_memory(elem_ptr, elem_typ)
 
     # === External Calls ===
 

@@ -645,3 +645,21 @@ class VenomCodegenContext:
         Length is stored at the base slot.
         """
         self.builder.sstore(length, slot)
+
+    # === Dynamic Array in Memory ===
+
+    def get_memory_dyn_array_length(self, ptr: IROperand) -> IRVariable:
+        """Get length of dynamic array in memory.
+
+        Length is stored at the base pointer.
+        """
+        return self.builder.mload(ptr)
+
+    def set_memory_dyn_array_length(
+        self, ptr: IROperand, length: IROperand
+    ) -> None:
+        """Set length of dynamic array in memory.
+
+        Length is stored at the base pointer.
+        """
+        self.builder.mstore(length, ptr)
