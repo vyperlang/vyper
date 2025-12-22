@@ -199,7 +199,7 @@ class StackSpiller:
                 return self._spill_free_slots[-1]
             return self._spill_free_slots.pop()
         # Allocate a new slot
-        if self._next_spill_offset is None:
+        if self._next_spill_offset is None:  # pragma: nocover
             fn = self._current_function
             assert fn is not None
             raise CompilerPanic(f"Function {fn.name} needs to spill but is not in fn_eom")

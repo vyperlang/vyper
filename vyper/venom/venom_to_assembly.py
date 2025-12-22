@@ -234,7 +234,7 @@ class VenomCompiler:
                         assembly, stack, spilled, op, dry_run=dry_run
                     )
                     depth = stack.get_depth(op)
-                else:
+                else:  # pragma: nocover
                     raise CompilerPanic(f"Variable {op} not in stack")
 
             if depth < -16:
@@ -274,30 +274,24 @@ class VenomCompiler:
         target_op: IROperand,
         depth: int,
         dry_run: bool,
-    ) -> bool:
+    ) -> None:
         while depth < -16:
             candidate_depth = self._select_spill_candidate(stack, stack_ops, depth)
             if candidate_depth is None:
-                return False
+                return
             self.spiller.spill_operand(assembly, stack, spilled, candidate_depth, dry_run)
             depth = stack.get_depth(target_op)
-            if depth == StackModel.NOT_IN_STACK:
-                if isinstance(target_op, IRVariable) and target_op in spilled:
-                    self.spiller.restore_spilled_operand(
-                        assembly, stack, spilled, target_op, dry_run
-                    )
-                    depth = stack.get_depth(target_op)
-                else:
-                    return False
-        return True
+            # target_op is in stack_ops which is excluded from spill candidates,
+            # so it should never be spilled
+            assert depth != StackModel.NOT_IN_STACK
 
     def _select_spill_candidate(
         self, stack: StackModel, stack_ops: list[IROperand], target_depth: int
     ) -> int | None:
         forbidden = set(stack_ops)
         max_offset = min(16, -target_depth - 1, stack.height - 1)
-        if max_offset < 0:
-            return None
+        # stack should never be empty when reordering operands
+        assert max_offset >= 0
         for offset in range(0, max_offset + 1):
             depth = -offset
             candidate = stack.peek(depth)
