@@ -23,7 +23,7 @@ def lower_len(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
 
     # Special case: len(msg.data) returns calldatasize
     if isinstance(arg_node, vy_ast.Attribute) and arg_node.attr == "data":
-        if isinstance(arg_node.value, vy_ast.Attribute) and arg_node.value.attr == "msg":
+        if isinstance(arg_node.value, vy_ast.Name) and arg_node.value.id == "msg":
             return ctx.builder.calldatasize()
 
     # For bytes/string/DynArray: length is stored at pointer
