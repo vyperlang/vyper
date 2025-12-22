@@ -46,7 +46,6 @@ class ConcretizeMemLocPass(IRPass):
 
         self.allocator.add_allocated([BasePtr.from_alloca(mem) for mem, _ in already_allocated])
 
-        max_eom = 0
         for mem, insts in to_allocate:
             self.allocator.reset()
 
@@ -58,12 +57,7 @@ class ConcretizeMemLocPass(IRPass):
             already_allocated.append((mem, insts))
             # this is necessary because of the case that is described
             # in the _handle_op method
-            max_eom = max(self.allocator.eom, max_eom)
 
-        # set allocator eom to end of currently allocated memory in function,
-        # so that allocate() in handle_op is able to allocate from proper
-        # starting place
-        self.allocator.eom = max_eom
         self.allocator.reserve_all()
 
         for bb in self.function.get_basic_blocks():

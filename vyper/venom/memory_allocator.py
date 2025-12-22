@@ -18,15 +18,12 @@ class MemoryAllocator:
     allocated_fn: OrderedSet[BasePtr]
     # current function
     current_fn: IRFunction
-    # current end of memory
-    eom: int
 
     reserved: set[tuple[int, int]]
 
     FN_START: ClassVar[int] = 0
 
     def __init__(self):
-        self.eom = 0
         self.reserved = set()
 
         self.allocated = dict()
@@ -41,8 +38,6 @@ class MemoryAllocator:
         if isinstance(base_ptr, IRInstruction):
             base_ptr = BasePtr.from_alloca(base_ptr)
         assert isinstance(base_ptr, BasePtr)
-        ptr = self.eom
-        self.eom += base_ptr.size
         assert base_ptr.source not in self.allocated
 
         reserved = sorted(list(self.reserved))
@@ -83,7 +78,6 @@ class MemoryAllocator:
     def start_fn_allocation(self, fn):
         self.reserved = set()
         self.current_function = fn
-        self.eom = MemoryAllocator.FN_START
         self.allocated_fn = OrderedSet()
 
     def add_allocated(self, mems: list[BasePtr]):
@@ -96,13 +90,11 @@ class MemoryAllocator:
 
     def reset(self):
         self.reserved = set()
-        self.eom = MemoryAllocator.FN_START
 
     def reserve(self, mem_loc: BasePtr):
         assert mem_loc.source in self.allocated
         ptr, size = self.allocated[mem_loc.source]
         self.reserved.add((ptr, size))
-        self.eom = max(ptr + size, self.eom)
 
     def reserve_all(self):
         for mem in self.allocated_fn:
