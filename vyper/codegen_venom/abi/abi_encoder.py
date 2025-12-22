@@ -12,8 +12,20 @@ The ABI encoding follows the Ethereum ABI spec:
 from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.core import is_tuple_like
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.types import DArrayT, SArrayT, VyperType, _BytestringT
-from vyper.semantics.types.shortcuts import UINT256_T
+from vyper.semantics.types import (
+    AddressT,
+    BoolT,
+    BytesM_T,
+    DArrayT,
+    DecimalT,
+    FlagT,
+    IntegerT,
+    InterfaceT,
+    SArrayT,
+    VyperType,
+    _BytestringT,
+)
+from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.utils import ceil32
 from vyper.venom.basicblock import IRLiteral, IROperand
 

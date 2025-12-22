@@ -838,7 +838,7 @@ class Stmt:
         3. Return encoded data
         """
         from vyper.codegen.core import calculate_type_for_external_return
-        from vyper.codegen_venom.abi_encoder import abi_encode_to_buf
+        from vyper.codegen_venom.abi import abi_encode_to_buf
 
         ret_typ = func_t.return_type
 

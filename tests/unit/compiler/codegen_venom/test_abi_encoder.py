@@ -7,7 +7,7 @@ ABI encoding of values for external function returns and abi_encode builtin.
 
 import pytest
 
-from vyper.codegen_venom.abi_encoder import abi_encode_to_buf
+from vyper.codegen_venom.abi import abi_encode_to_buf
 from vyper.semantics.types import BytesT, DArrayT, SArrayT, StringT, TupleT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.venom.basicblock import IRLiteral, IRVariable
