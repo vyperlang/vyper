@@ -47,8 +47,8 @@ class MemoryAllocator:
 
         for resv_ptr, resv_size in reserved:
             # can happen if this allocation
-            # ovelaps with allocations that dont
-            # ovelap each other
+            # overlaps with allocations that don't
+            # overlap each other
             if resv_ptr < ptr:
                 ptr = resv_ptr + resv_size
                 continue
