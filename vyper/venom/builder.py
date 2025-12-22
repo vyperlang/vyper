@@ -8,6 +8,7 @@ from vyper.venom.basicblock import (
     IRBasicBlock,
     IRLabel,
     IRLiteral,
+    IROperand,
     IRVariable,
 )
 from vyper.venom.function import IRFunction
@@ -15,8 +16,8 @@ from vyper.venom.function import IRFunction
 if TYPE_CHECKING:
     from vyper.venom.context import IRContext
 
-# Type alias matching the actual API expectations
-Operand = Union[IRVariable, IRLiteral, IRLabel, IRAbstractMemLoc, int]
+# IROperand is the base class for IRVariable, IRLiteral, IRLabel, IRAbstractMemLoc
+Operand = Union[IROperand, int]
 
 
 class VenomBuilder:
