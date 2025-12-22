@@ -1,0 +1,439 @@
+"""
+ABI encoding/decoding for Venom IR.
+
+Port of vyper/codegen/abi_encoder.py for direct AST-to-Venom codegen.
+
+The ABI encoding follows the Ethereum ABI spec:
+- Static types are encoded inline at fixed offsets
+- Dynamic types (bytes, string, arrays) store an offset in the static section
+  and the actual data in a dynamic tail section
+"""
+
+from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
+from vyper.codegen.core import is_tuple_like
+from vyper.exceptions import CompilerPanic
+from vyper.semantics.types import DArrayT, SArrayT, VyperType, _BytestringT
+from vyper.semantics.types.shortcuts import UINT256_T
+from vyper.utils import ceil32
+from vyper.venom.basicblock import IRLiteral, IROperand
+
+if False:  # TYPE_CHECKING
+    from vyper.codegen_venom.context import VenomCodegenContext
+
+
+def _is_complex_type(typ: VyperType) -> bool:
+    """Check if type is tuple/struct/static array (needs element-by-element encoding)."""
+    return is_tuple_like(typ) or isinstance(typ, SArrayT)
+
+
+def _get_element_ptr(
+    ctx: "VenomCodegenContext", parent_ptr: IROperand, key: IROperand, parent_typ: VyperType
+) -> tuple[IROperand, VyperType]:
+    """
+    Get pointer to element and its type.
+
+    For tuples/structs, key is an index/name, for arrays key is an index.
+    Returns (element_ptr, element_type).
+    """
+    b = ctx.builder
+
+    if is_tuple_like(parent_typ):
+        # key is an integer index into tuple/struct
+        # Calculate offset: sum of preceding element sizes
+        if isinstance(key, IRLiteral):
+            idx = key.value
+        else:
+            raise CompilerPanic("Dynamic tuple indexing not supported in ABI encode")
+
+        items = parent_typ.tuple_items()
+        offset = 0
+        for i, (k, t) in enumerate(items):
+            if i == idx:
+                elem_typ = t
+                break
+            offset += t.memory_bytes_required
+        else:
+            raise CompilerPanic(f"Tuple index {idx} out of range")
+
+        if offset == 0:
+            elem_ptr = parent_ptr
+        elif isinstance(parent_ptr, IRLiteral):
+            elem_ptr = IRLiteral(parent_ptr.value + offset)
+        else:
+            elem_ptr = b.add(parent_ptr, IRLiteral(offset))
+        return elem_ptr, elem_typ
+
+    elif isinstance(parent_typ, SArrayT):
+        # Static array: key is index, element size is fixed
+        elem_typ = parent_typ.value_type
+        elem_size = elem_typ.memory_bytes_required
+
+        if isinstance(key, IRLiteral):
+            offset = key.value * elem_size
+            if offset == 0:
+                elem_ptr = parent_ptr
+            elif isinstance(parent_ptr, IRLiteral):
+                elem_ptr = IRLiteral(parent_ptr.value + offset)
+            else:
+                elem_ptr = b.add(parent_ptr, IRLiteral(offset))
+        else:
+            # Dynamic index
+            offset = b.mul(key, IRLiteral(elem_size))
+            elem_ptr = b.add(parent_ptr, offset)
+        return elem_ptr, elem_typ
+
+    elif isinstance(parent_typ, DArrayT):
+        # Dynamic array: skip length word, then index * elem_size
+        elem_typ = parent_typ.value_type
+        elem_size = elem_typ.memory_bytes_required
+
+        # Skip length word (32 bytes)
+        data_ptr = b.add(parent_ptr, IRLiteral(32))
+
+        if isinstance(key, IRLiteral):
+            offset = key.value * elem_size
+            if offset == 0:
+                elem_ptr = data_ptr
+            else:
+                elem_ptr = b.add(data_ptr, IRLiteral(offset))
+        else:
+            offset = b.mul(key, IRLiteral(elem_size))
+            elem_ptr = b.add(data_ptr, offset)
+        return elem_ptr, elem_typ
+
+    else:
+        raise CompilerPanic(f"Cannot get element ptr of type {parent_typ}")
+
+
+def _zero_pad(ctx: "VenomCodegenContext", bytez_ptr: IROperand) -> None:
+    """
+    Zero-pad a bytestring according to ABI spec.
+
+    The bytestring at bytez_ptr has layout: [length_word][data...]
+    We need to zero-pad the data to a multiple of 32 bytes.
+    """
+    b = ctx.builder
+
+    # Get length
+    length = b.mload(bytez_ptr)
+
+    # dst = bytez_ptr + 32 + length (first byte after data)
+    dst = b.add(bytez_ptr, IRLiteral(32))
+    dst = b.add(dst, length)
+
+    # Number of zero bytes = (32 - (length % 32)) % 32
+    # Optimized form: (-length) % 32
+    num_zeros = b.mod(b.sub(IRLiteral(0), length), IRLiteral(32))
+
+    # Use a loop to write zeros (could be 0-31 bytes)
+    # For simplicity, write one full 32-byte zero word which handles all cases
+    # since we're allowed to write past the buffer (it will be within ABI bounds)
+    b.mstore(IRLiteral(0), dst)
+
+
+def _encode_child(
+    ctx: "VenomCodegenContext",
+    dst: IROperand,
+    child_ptr: IROperand,
+    child_typ: VyperType,
+    static_ofst: int,
+    dyn_ofst_ptr: IROperand,
+) -> None:
+    """
+    Encode a child element of a complex type.
+
+    Port of _encode_child_helper from abi_encoder.py.
+
+    Args:
+        ctx: Venom codegen context
+        dst: Base destination buffer
+        child_ptr: Pointer to child data in memory
+        child_typ: Type of child
+        static_ofst: Compile-time offset in static section
+        dyn_ofst_ptr: Pointer to memory variable tracking dynamic section offset
+    """
+    b = ctx.builder
+    child_abi_t = child_typ.abi_type
+
+    # Calculate static location
+    if static_ofst == 0:
+        static_loc = dst
+    elif isinstance(dst, IRLiteral):
+        static_loc = IRLiteral(dst.value + static_ofst)
+    else:
+        static_loc = b.add(dst, IRLiteral(static_ofst))
+
+    if not child_abi_t.is_dynamic():
+        # Static type: encode directly at static location
+        _abi_encode_to_buf(ctx, static_loc, child_ptr, child_typ)
+    else:
+        # Dynamic type:
+        # 1. Write current dyn_ofst to static section
+        dyn_ofst = b.mload(dyn_ofst_ptr)
+        b.mstore(dyn_ofst, static_loc)
+
+        # 2. Encode child to dynamic section
+        child_dst = b.add(dst, dyn_ofst)
+        child_len = _abi_encode_to_buf(ctx, child_dst, child_ptr, child_typ, returns_len=True)
+
+        # 3. Update dyn_ofst
+        new_dyn_ofst = b.add(dyn_ofst, child_len)
+        b.mstore(new_dyn_ofst, dyn_ofst_ptr)
+
+
+def _encode_dyn_array(
+    ctx: "VenomCodegenContext",
+    dst: IROperand,
+    src_ptr: IROperand,
+    src_typ: DArrayT,
+    dyn_ofst_ptr: IROperand,
+) -> None:
+    """
+    Encode a dynamic array.
+
+    Port of _encode_dyn_array_helper from abi_encoder.py.
+
+    The encoding is: [length_word] [encoded elements...]
+    Where elements follow the ABI nested encoding rules.
+    """
+    b = ctx.builder
+
+    subtyp = src_typ.value_type
+    child_abi_t = subtyp.abi_type
+    static_elem_size = child_abi_t.embedded_static_size()
+
+    # Get runtime length
+    length = b.mload(src_ptr)
+
+    # Write length word to dst
+    b.mstore(length, dst)
+
+    # Create loop blocks (but don't switch yet - we're still in entry block)
+    loop_header = b.create_block("dyn_encode_hdr")
+    b.append_block(loop_header)
+    loop_body = b.create_block("dyn_encode_body")
+    b.append_block(loop_body)
+    loop_exit = b.create_block("dyn_encode_exit")
+    b.append_block(loop_exit)
+
+    # Initialize loop counter in memory (still in entry block)
+    i_ptr = ctx.new_internal_variable(UINT256_T)
+    b.mstore(IRLiteral(0), i_ptr)
+
+    # Initialize child dynamic offset tracker if needed
+    if child_abi_t.is_dynamic():
+        # Start of dynamic section for children = length * static_elem_size
+        child_dyn_ofst_ptr = ctx.new_internal_variable(UINT256_T)
+        initial_child_dyn = b.mul(length, IRLiteral(static_elem_size))
+        b.mstore(initial_child_dyn, child_dyn_ofst_ptr)
+    else:
+        child_dyn_ofst_ptr = None
+
+    # Jump to header and switch
+    b.jmp(loop_header.label)
+
+    # --- Loop header: check i < length ---
+    b.set_block(loop_header)
+    i = b.mload(i_ptr)
+    done = b.lt(i, length)
+    done = b.iszero(done)
+    b.jnz(done, loop_exit.label, loop_body.label)
+
+    # --- Loop body ---
+    b.set_block(loop_body)
+
+    # Re-load i (we're in a new block, previous i is in different block)
+    i = b.mload(i_ptr)
+
+    # Get source element pointer
+    # Source elements start at src_ptr + 32 (skip length word)
+    elem_size = subtyp.memory_bytes_required
+    src_data = b.add(src_ptr, IRLiteral(32))
+    src_offset = b.mul(i, IRLiteral(elem_size))
+    child_src = b.add(src_data, src_offset)
+
+    # Get destination element position
+    # dst + 32 (skip length word) + i * static_elem_size
+    dst_data = b.add(dst, IRLiteral(32))
+    static_ofst = b.mul(i, IRLiteral(static_elem_size))
+
+    if child_abi_t.is_dynamic():
+        # Need to handle offset tracking
+        static_loc = b.add(dst_data, static_ofst)
+        dyn_ofst = b.mload(child_dyn_ofst_ptr)
+        b.mstore(dyn_ofst, static_loc)
+
+        child_dst = b.add(dst_data, dyn_ofst)
+        child_len = _abi_encode_to_buf(ctx, child_dst, child_src, subtyp, returns_len=True)
+
+        new_dyn_ofst = b.add(dyn_ofst, child_len)
+        b.mstore(new_dyn_ofst, child_dyn_ofst_ptr)
+    else:
+        # Static child: encode directly
+        child_dst = b.add(dst_data, static_ofst)
+        _abi_encode_to_buf(ctx, child_dst, child_src, subtyp)
+
+    # Increment counter
+    new_i = b.add(i, IRLiteral(1))
+    b.mstore(new_i, i_ptr)
+    b.jmp(loop_header.label)
+
+    # --- Exit block ---
+    b.set_block(loop_exit)
+
+    # Update parent dyn_ofst
+    # Total size = 32 (length word) + final child_dyn_ofst (or length * static_size for static)
+    # Note: need to reload length since we're in a new block
+    length_exit = b.mload(src_ptr)
+    if child_abi_t.is_dynamic():
+        final_child_dyn = b.mload(child_dyn_ofst_ptr)
+        total_size = b.add(IRLiteral(32), final_child_dyn)
+    else:
+        # Static elements: 32 + length * static_elem_size
+        total_size = b.add(IRLiteral(32), b.mul(length_exit, IRLiteral(static_elem_size)))
+
+    parent_dyn = b.mload(dyn_ofst_ptr)
+    new_parent_dyn = b.add(parent_dyn, total_size)
+    b.mstore(new_parent_dyn, dyn_ofst_ptr)
+
+
+def _abi_encode_to_buf(
+    ctx: "VenomCodegenContext",
+    dst: IROperand,
+    src: IROperand,
+    src_typ: VyperType,
+    returns_len: bool = False,
+) -> IROperand:
+    """
+    Encode src to ABI format at dst.
+
+    Port of abi_encode() from abi_encoder.py.
+
+    Args:
+        ctx: Venom codegen context
+        dst: Destination buffer pointer (in memory)
+        src: Source value/pointer
+        src_typ: Type of source
+        returns_len: If True, return encoded length
+
+    Returns:
+        Encoded length if returns_len=True, else None
+    """
+    b = ctx.builder
+    abi_t = src_typ.abi_type
+
+    # Fast path: if ABI encoding matches Vyper memory layout, just copy
+    if abi_encoding_matches_vyper(src_typ):
+        size = src_typ.memory_bytes_required
+        ctx.copy_memory(dst, src, size)
+        if returns_len:
+            return IRLiteral(abi_t.embedded_static_size())
+        return None
+
+    # Slow path: type-specific encoding
+    if src_typ._is_prim_word:
+        # Primitive word type: direct copy
+        val = b.mload(src)
+        b.mstore(val, dst)
+        if returns_len:
+            return IRLiteral(32)
+        return None
+
+    elif isinstance(src_typ, _BytestringT):
+        # Bytes/String: copy and zero-pad
+        # Layout: [length][data]
+        size = src_typ.memory_bytes_required
+        ctx.copy_memory(dst, src, size)
+        _zero_pad(ctx, dst)
+        if returns_len:
+            # ABI length = ceil32(32 + actual_length)
+            length = b.mload(dst)
+            padded_len = b.add(IRLiteral(32), length)
+            # ceil32: ((x + 31) // 32) * 32 = (x + 31) & ~31
+            padded_len = b.and_(b.add(padded_len, IRLiteral(31)), IRLiteral(~31 & ((1 << 256) - 1)))
+            return padded_len
+        return None
+
+    elif isinstance(src_typ, DArrayT):
+        # Dynamic array: use helper
+        # Need to set up dyn_ofst tracking for parent
+        dyn_ofst_ptr = ctx.new_internal_variable(UINT256_T)
+        b.mstore(IRLiteral(0), dyn_ofst_ptr)
+        _encode_dyn_array(ctx, dst, src, src_typ, dyn_ofst_ptr)
+        if returns_len:
+            return b.mload(dyn_ofst_ptr)
+        return None
+
+    elif _is_complex_type(src_typ):
+        # Tuple/Struct/SArray: encode element by element
+        if is_tuple_like(src_typ):
+            items = src_typ.tuple_items()
+        else:
+            # SArrayT
+            items = [(i, src_typ.value_type) for i in range(src_typ.count)]
+
+        # Set up dynamic offset tracking if needed
+        has_dynamic = abi_t.is_dynamic()
+        if has_dynamic:
+            dyn_ofst_ptr = ctx.new_internal_variable(UINT256_T)
+            dyn_section_start = abi_t.static_size()
+            b.mstore(IRLiteral(dyn_section_start), dyn_ofst_ptr)
+        else:
+            dyn_ofst_ptr = None
+
+        static_ofst = 0
+        for idx, (key, elem_typ) in enumerate(items):
+            # Get source element pointer
+            if is_tuple_like(src_typ):
+                elem_ptr, _ = _get_element_ptr(ctx, src, IRLiteral(idx), src_typ)
+            else:
+                elem_ptr, _ = _get_element_ptr(ctx, src, IRLiteral(key), src_typ)
+
+            if has_dynamic:
+                _encode_child(ctx, dst, elem_ptr, elem_typ, static_ofst, dyn_ofst_ptr)
+            else:
+                # All static, encode directly
+                if static_ofst == 0:
+                    child_dst = dst
+                elif isinstance(dst, IRLiteral):
+                    child_dst = IRLiteral(dst.value + static_ofst)
+                else:
+                    child_dst = b.add(dst, IRLiteral(static_ofst))
+                _abi_encode_to_buf(ctx, child_dst, elem_ptr, elem_typ)
+
+            static_ofst += elem_typ.abi_type.embedded_static_size()
+
+        if returns_len:
+            if has_dynamic:
+                return b.mload(dyn_ofst_ptr)
+            else:
+                return IRLiteral(abi_t.embedded_static_size())
+        return None
+
+    else:
+        raise CompilerPanic(f"Cannot ABI encode type: {src_typ}")
+
+
+def abi_encode_to_buf(
+    ctx: "VenomCodegenContext",
+    dst: IROperand,
+    src: IROperand,
+    src_typ: VyperType,
+    returns_len: bool = False,
+) -> IROperand:
+    """
+    Public entry point for ABI encoding.
+
+    Encode src to ABI format at dst.
+
+    Args:
+        ctx: Venom codegen context
+        dst: Destination buffer pointer (in memory)
+        src: Source value/pointer
+        src_typ: Type of source
+        returns_len: If True, return encoded length
+
+    Returns:
+        Encoded length if returns_len=True, else None
+    """
+    return _abi_encode_to_buf(ctx, dst, src, src_typ, returns_len)

@@ -837,10 +837,8 @@ class Stmt:
         2. ABI encode the return value
         3. Return encoded data
         """
-        from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
-        from vyper.codegen.core import calculate_type_for_external_return, needs_clamp
-        from vyper.codegen.ir_node import Encoding
-        from vyper.evm.address_space import MEMORY
+        from vyper.codegen.core import calculate_type_for_external_return
+        from vyper.codegen_venom.abi_encoder import abi_encode_to_buf
 
         ret_typ = func_t.return_type
 
@@ -851,33 +849,21 @@ class Stmt:
         external_return_type = calculate_type_for_external_return(ret_typ)
         maxlen = external_return_type.abi_type.size_bound()
 
-        # Check if we can skip encoding (value already ABI-compatible in memory)
-        # This is an optimization - for simple word types we can just return directly
+        # Optimization: single word types don't need full encoding
         if ret_typ._is_prim_word:
-            # Simple case: single word return
-            # Allocate buffer, store value, return
             buf = self.ctx.new_internal_variable(ret_typ)
             self.builder.mstore(ret_val, buf)
             self.builder.return_(IRLiteral(32), buf)
             return
 
-        # Complex type - need proper ABI encoding
-        # For now, handle simple cases; full ABI encoding is Task 16 (builtins)
-
-        # If value is already in memory and ABI-compatible, return it directly
-        # Otherwise allocate buffer and encode
-
         # Allocate return buffer
         buf = self.ctx.allocate_buffer(maxlen)
 
-        # Copy/encode to buffer
-        if ret_typ.memory_bytes_required <= 32:
-            # Simple scalar - store directly
-            self.builder.mstore(ret_val, buf)
-            self.builder.return_(IRLiteral(32), buf)
-        else:
-            # Complex type - copy to buffer
-            # For static types with matching layout, we can just copy
-            size = ret_typ.memory_bytes_required
-            self.ctx.copy_memory(buf, ret_val, size)
-            self.builder.return_(IRLiteral(size), buf)
+        # ABI encode to buffer
+        # ret_val is a pointer to the value in memory
+        encoded_len = abi_encode_to_buf(
+            self.ctx, buf, ret_val, ret_typ, returns_len=True
+        )
+
+        # Return encoded data
+        self.builder.return_(encoded_len, buf)
