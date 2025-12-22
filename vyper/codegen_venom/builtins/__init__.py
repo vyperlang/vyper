@@ -7,6 +7,7 @@ Handler signature: (node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand
 from __future__ import annotations
 
 from vyper.exceptions import CompilerPanic
+from vyper.venom.basicblock import IROperand
 
 from .abi import HANDLERS as ABI_HANDLERS
 from .bytes import HANDLERS as BYTES_HANDLERS
@@ -34,7 +35,7 @@ BUILTIN_HANDLERS: dict = {
 }
 
 
-def lower_builtin(builtin_id: str, node, ctx) -> "IROperand":  # noqa: F821
+def lower_builtin(builtin_id: str, node, ctx) -> IROperand:
     """
     Lower a built-in function call to Venom IR.
 

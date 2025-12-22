@@ -287,12 +287,12 @@ class TestHexBytesLiteral:
     """Test hex bytes literals (x'...')."""
 
     def test_hexbytes(self):
-        source = '''
+        source = """
 # @version ^0.4.0
 @external
 def foo() -> Bytes[4]:
     return x"DEADBEEF"
-'''
+"""
         ctx, node = _get_expr_context(source)
         result = Expr(node, ctx).lower()
 

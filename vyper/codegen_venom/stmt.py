@@ -19,12 +19,11 @@ from vyper.codegen_venom.arithmetic import (
     safe_sub,
 )
 from vyper.exceptions import CompilerPanic, TypeCheckFailure
-from vyper.semantics.types import DecimalT, IntegerT
+from vyper.semantics.types import IntegerT
 from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.shortcuts import UINT256_T
-from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT, TupleT
+from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.semantics.types.user import EventT, StructT
-from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRLiteral, IROperand
 
 from .context import Constancy, VenomCodegenContext
 from .expr import Expr
@@ -57,17 +56,19 @@ class Stmt:
         2. Evaluate the RHS expression
         3. Store the value at the allocated pointer
         """
-        ltyp = self.node.target._metadata["type"]
-        varname = self.node.target.id
+        node = self.node
+        assert isinstance(node, vy_ast.AnnAssign)
+        ltyp = node.target._metadata["type"]
+        varname = node.target.id
 
         # Allocate memory for the new variable
         ptr = self.ctx.new_variable(varname, ltyp)
 
         # AnnAssign always has a value in Vyper (semantic analysis ensures this)
-        assert self.node.value is not None
+        assert node.value is not None
 
         # Lower the RHS and store at the allocated pointer
-        rhs = Expr(self.node.value, self.ctx).lower()
+        rhs = Expr(node.value, self.ctx).lower()
         self._store_value(ptr, rhs, ltyp)
 
     def lower_Assign(self) -> None:
@@ -80,8 +81,10 @@ class Stmt:
 
         Reference: vyper/codegen/core.py:make_setter
         """
+        node = self.node
+        assert isinstance(node, vy_ast.Assign)
         # Get target info first (need it for tuple unpack decision)
-        target = self.node.target
+        target = node.target
         target_typ = target._metadata["type"]
 
         # Handle tuple unpacking separately
@@ -89,7 +92,7 @@ class Stmt:
             return self._lower_tuple_unpack()
 
         # Evaluate source value
-        src = Expr(self.node.value, self.ctx).lower()
+        src = Expr(node.value, self.ctx).lower()
 
         # Get the destination pointer and determine storage vs memory
         dst_ptr = self._get_target_ptr(target)
@@ -103,9 +106,7 @@ class Stmt:
             # src is a memory pointer to the source data
             self._copy_complex_type(src, dst_ptr, target_typ, is_storage)
 
-    def _copy_complex_type(
-        self, src: IROperand, dst: IROperand, typ, is_storage: bool
-    ) -> None:
+    def _copy_complex_type(self, src: IROperand, dst: IROperand, typ, is_storage: bool) -> None:
         """Copy complex type with overlap handling.
 
         Uses a temp buffer to ensure correct semantics when src/dst may overlap.
@@ -136,8 +137,11 @@ class Stmt:
         Reference: vyper/codegen/stmt.py:_get_target (for tuple targets)
         Reference: vyper/codegen/core.py:make_setter (for multi handling)
         """
-        target = self.node.target
-        src = Expr(self.node.value, self.ctx).lower()
+        node = self.node
+        assert isinstance(node, vy_ast.Assign)
+        assert isinstance(node.target, vy_ast.Tuple)
+        target = node.target
+        src = Expr(node.value, self.ctx).lower()
 
         # src is a pointer to the tuple in memory
         tuple_typ = target._metadata["type"]
@@ -147,7 +151,7 @@ class Stmt:
         # This ensures correct semantics for overlapping cases like a,b = b,a.
         temp_vals = []
         offset = 0
-        for i, elem_typ in enumerate(tuple_typ.member_types.values()):
+        for elem_typ in tuple_typ.member_types.values():
             if offset == 0:
                 elem_ptr = src
             elif isinstance(src, IRLiteral):
@@ -186,10 +190,12 @@ class Stmt:
 
         Only supports primitive word types (no structs/arrays).
         """
-        target = self.node.target
+        node = self.node
+        assert isinstance(node, vy_ast.AugAssign)
+        target = node.target
         target_typ = target._metadata["type"]
-        op = self.node.op
-        right_node = self.node.value
+        op = node.op
+        right_node = node.value
 
         # AugAssign only works on primitive word types
         if not target_typ._is_prim_word:
@@ -396,9 +402,7 @@ class Stmt:
         """Modulo with divisor check."""
         return safe_mod(self.builder, x, y, typ)
 
-    def _safe_pow(
-        self, x: IROperand, y: IROperand, typ, right_node: vy_ast.VyperNode
-    ) -> IROperand:
+    def _safe_pow(self, x: IROperand, y: IROperand, typ, right_node: vy_ast.VyperNode) -> IROperand:
         """Exponentiation - only with literal exponent for bounds checking."""
         # For AugAssign, we require a literal exponent for bounds check
         right_reduced = right_node.reduced()
@@ -417,6 +421,7 @@ class Stmt:
     def lower_If(self) -> None:
         """Lower if/elif/else statement."""
         node = self.node
+        assert isinstance(node, vy_ast.If)
 
         # Evaluate condition in current block
         cond = Expr(node.test, self.ctx).lower()
@@ -463,6 +468,7 @@ class Stmt:
     def lower_For(self) -> None:
         """Lower for loop - dispatches to range or iter loop."""
         node = self.node
+        assert isinstance(node, vy_ast.For)
         if self._is_range_call(node.iter):
             self._lower_range_loop(node)
         else:
@@ -483,13 +489,17 @@ class Stmt:
         - exit: continue after loop
         """
         # Get loop variable info
+        assert isinstance(node.target, vy_ast.AnnAssign)
         target_type = node.target.target._metadata["type"]
         varname = node.target.target.id
 
         # Parse range arguments
         range_call = node.iter
+        assert isinstance(range_call, vy_ast.Call)
         args = range_call.args
 
+        start: IROperand
+        rounds: IROperand
         if len(args) == 1:
             start = IRLiteral(0)
             end_expr = Expr(args[0], self.ctx).lower()
@@ -588,6 +598,7 @@ class Stmt:
         - Copies element to loop variable each iteration
         """
         # Get loop variable info
+        assert isinstance(node.target, vy_ast.AnnAssign)
         target_type = node.target.target._metadata["type"]
         varname = node.target.target.id
 
@@ -596,6 +607,7 @@ class Stmt:
         array_typ = node.iter._metadata["type"]
 
         # Get length and bound
+        length: IROperand
         if isinstance(array_typ, DArrayT):
             # Dynamic array: length is first word
             length = self.builder.mload(array)
@@ -710,8 +722,10 @@ class Stmt:
 
     def lower_Expr(self) -> None:
         """Lower expression statement (e.g., function call with no return value)."""
+        node = self.node
+        assert isinstance(node, vy_ast.Expr)
         # Evaluate the expression for its side effects
-        Expr(self.node.value, self.ctx).lower()
+        Expr(node.value, self.ctx).lower()
 
     def lower_Return(self) -> None:
         """Lower return statement.
@@ -720,6 +734,7 @@ class Stmt:
         For external functions: handled separately (ABI encoding).
         """
         node = self.node
+        assert isinstance(node, vy_ast.Return)
         func_t = self.ctx.func_t
 
         if func_t is None:
@@ -743,10 +758,14 @@ class Stmt:
 
             # For tuple returns, need to unpack
             ret_typ = func_t.return_type
+            assert ret_typ is not None
             if self.ctx.returns_stack_count(func_t) > 1 and hasattr(ret_typ, "tuple_items"):
                 # Tuple return - value should be a memory pointer
-                for i, (_k, elem_t) in enumerate(ret_typ.tuple_items()):
-                    if isinstance(ret_val, IRLiteral):
+                src_ptr: IROperand
+                for i, (_k, _elem_t) in enumerate(ret_typ.tuple_items()):
+                    if i == 0:
+                        src_ptr = ret_val
+                    elif isinstance(ret_val, IRLiteral):
                         src_ptr = IRLiteral(ret_val.value + i * 32)
                     else:
                         src_ptr = self.builder.add(ret_val, IRLiteral(i * 32))
@@ -769,10 +788,13 @@ class Stmt:
                     ptr = self.builder.add(buf, IRLiteral(i * 32))
                 ret_vals.append(self.builder.mload(ptr))
 
+            assert self.ctx.return_pc is not None
             self.builder.ret(*ret_vals, self.ctx.return_pc)
         elif self.ctx.return_buffer is not None:
             # Memory return - store to buffer, caller reads it
             ret_typ = func_t.return_type
+            assert ret_typ is not None
+            assert self.ctx.return_pc is not None
             self.ctx.store_memory(ret_val, self.ctx.return_buffer, ret_typ)
             self.builder.ret(self.ctx.return_pc)
         else:
@@ -811,11 +833,10 @@ class Stmt:
 
         # ABI encode to buffer
         # ret_val is a pointer to the value in memory
-        encoded_len = abi_encode_to_buf(
-            self.ctx, buf, ret_val, ret_typ, returns_len=True
-        )
+        encoded_len = abi_encode_to_buf(self.ctx, buf, ret_val, ret_typ, returns_len=True)
 
         # Return encoded data
+        assert encoded_len is not None
         self.builder.return_(encoded_len, buf)
 
     # === Event Logging ===
@@ -833,6 +854,7 @@ class Stmt:
         from vyper.codegen_venom.abi import abi_encode_to_buf
 
         node = self.node
+        assert isinstance(node, vy_ast.Log)
         event: EventT = node._metadata["type"]
 
         # Get arguments - can be keyword or positional
@@ -858,13 +880,15 @@ class Stmt:
                 data_typs.append(arg_typ)
 
         # Build topics list - starts with event signature hash
-        topics = [IRLiteral(event.event_id)]
+        topics: list[IROperand] = [IRLiteral(event.event_id)]
 
         for val, typ in topic_vals:
             topic = self._encode_log_topic(val, typ)
             topics.append(topic)
 
         # Encode non-indexed data to buffer
+        abi_buf: IROperand
+        encoded_len: IROperand
         if data_vals:
             # Create a tuple type from the data types
             tuple_typ = TupleT(tuple(data_typs))
@@ -887,9 +911,11 @@ class Stmt:
             abi_buf = self.ctx.allocate_buffer(bufsz)
 
             # ABI encode the tuple, returns encoded length
-            encoded_len = abi_encode_to_buf(
+            _encoded_len = abi_encode_to_buf(
                 self.ctx, abi_buf, data_buf, tuple_typ, returns_len=True
             )
+            assert _encoded_len is not None
+            encoded_len = _encoded_len
         else:
             # No data - use zero size
             abi_buf = IRLiteral(0)
@@ -938,6 +964,7 @@ class Stmt:
         Source: vyper/codegen/stmt.py:parse_Assert, _assert_reason
         """
         node = self.node
+        assert isinstance(node, vy_ast.Assert)
         cond = Expr(node.test, self.ctx).lower()
 
         if node.msg:
@@ -969,6 +996,7 @@ class Stmt:
         Source: vyper/codegen/stmt.py:parse_Raise
         """
         node = self.node
+        assert isinstance(node, vy_ast.Raise)
 
         if node.exc is None:
             # Bare raise: revert 0, 0
@@ -1073,5 +1101,6 @@ class Stmt:
 
         # Revert from buf+28 (so selector is at bytes 0-3) with length 4 + encoded_len
         revert_offset = self.builder.add(buf, IRLiteral(28))
+        assert encoded_len is not None
         revert_len = self.builder.add(IRLiteral(4), encoded_len)
         self.builder.revert(revert_len, revert_offset)

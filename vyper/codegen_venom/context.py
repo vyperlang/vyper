@@ -16,7 +16,7 @@ from typing import Optional
 
 from vyper.evm.opcodes import version_check
 from vyper.semantics.types import VyperType
-from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.codegen_venom.constants import IDENTITY_PRECOMPILE
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
@@ -86,12 +86,7 @@ class VenomCodegenContext:
         self._alloca_id += 1
         return self._alloca_id
 
-    def new_variable(
-        self,
-        name: str,
-        typ: VyperType,
-        mutable: bool = True,
-    ) -> IRVariable:
+    def new_variable(self, name: str, typ: VyperType, mutable: bool = True) -> IRVariable:
         """Allocate abstract memory for a variable, return pointer."""
         size = typ.memory_bytes_required
         alloca_id = self.new_alloca_id()
@@ -100,11 +95,7 @@ class VenomCodegenContext:
         ptr = self.builder.alloca(size, alloca_id)
 
         var = VenomVariable(
-            name=name,
-            typ=typ,
-            ptr=ptr,
-            mutable=mutable,
-            scopes=self._scopes.copy(),
+            name=name, typ=typ, ptr=ptr, mutable=mutable, scopes=self._scopes.copy()
         )
         self.variables[name] = var
         return ptr
@@ -119,12 +110,7 @@ class VenomCodegenContext:
         ptr = self.builder.alloca(size, alloca_id)
 
         var = VenomVariable(
-            name=name,
-            typ=typ,
-            ptr=ptr,
-            mutable=True,
-            is_internal=True,
-            scopes=self._scopes.copy(),
+            name=name, typ=typ, ptr=ptr, mutable=True, is_internal=True, scopes=self._scopes.copy()
         )
         self.variables[name] = var
         return ptr
@@ -153,11 +139,7 @@ class VenomCodegenContext:
             yield
         finally:
             # Remove variables scoped to this block
-            to_remove = [
-                name
-                for name, var in self.variables.items()
-                if scope_id in var.scopes
-            ]
+            to_remove = [name for name, var in self.variables.items() if scope_id in var.scopes]
             for name in to_remove:
                 del self.variables[name]
             self._scopes.remove(scope_id)
@@ -175,17 +157,16 @@ class VenomCodegenContext:
             self.break_target, self.continue_target = old_break, old_continue
 
     def child_for_function(
-        self,
-        func_t: ContractFunctionT,
-        builder: VenomBuilder,
-        is_ctor: bool = False,
+        self, func_t: ContractFunctionT, builder: VenomBuilder, is_ctor: bool = False
     ) -> "VenomCodegenContext":
         """Create child context for compiling a function."""
         return VenomCodegenContext(
             module_ctx=self.module_ctx,
             builder=builder,
             func_t=func_t,
-            constancy=Constancy.Constant if func_t.is_view else Constancy.Mutable,
+            constancy=Constancy.Constant
+            if func_t.mutability in (StateMutability.VIEW, StateMutability.PURE)
+            else Constancy.Mutable,
             is_ctor_context=is_ctor or self.is_ctor_context,
         )
 
@@ -226,7 +207,7 @@ class VenomCodegenContext:
             return 0
 
         if is_tuple_like(ret_t):
-            members = ret_t.tuple_items()
+            members = ret_t.tuple_items()  # type: ignore[attr-defined]
             if 1 <= len(members) <= self.MAX_STACK_RETURNS:
                 if all(self.is_word_type(t) for (_k, t) in members):
                     return len(members)
@@ -297,9 +278,7 @@ class VenomCodegenContext:
             # Complex types: return pointer (caller handles copy if needed)
             return ptr
 
-    def store_memory(
-        self, val: IROperand, ptr: IROperand, typ: VyperType
-    ) -> None:
+    def store_memory(self, val: IROperand, ptr: IROperand, typ: VyperType) -> None:
         """Store value to memory pointer.
 
         For primitive types (<=32 bytes), stores the value directly.
@@ -327,11 +306,13 @@ class VenomCodegenContext:
 
         # Pre-Cancun: word-by-word copy
         for offset in range(0, size, 32):
+            src_ptr: IROperand
             if isinstance(src, IRLiteral):
                 src_ptr = IRLiteral(src.value + offset)
             else:
                 src_ptr = self.builder.add(src, IRLiteral(offset))
 
+            dst_ptr: IROperand
             if isinstance(dst, IRLiteral):
                 dst_ptr = IRLiteral(dst.value + offset)
             else:
@@ -340,9 +321,7 @@ class VenomCodegenContext:
             val = self.builder.mload(src_ptr)
             self.builder.mstore(val, dst_ptr)
 
-    def copy_memory_dynamic(
-        self, dst: IROperand, src: IROperand, length: IROperand
-    ) -> None:
+    def copy_memory_dynamic(self, dst: IROperand, src: IROperand, length: IROperand) -> None:
         """Copy memory region with dynamic length (known at runtime).
 
         Uses mcopy for Cancun+, otherwise identity precompile (address 4).
@@ -356,14 +335,7 @@ class VenomCodegenContext:
 
         # Pre-Cancun: use identity precompile
         # staticcall(gas, IDENTITY_PRECOMPILE, src, length, dst, length)
-        success = b.staticcall(
-            b.gas(),
-            IRLiteral(IDENTITY_PRECOMPILE),
-            src,
-            length,
-            dst,
-            length,
-        )
+        success = b.staticcall(b.gas(), IRLiteral(IDENTITY_PRECOMPILE), src, length, dst, length)
         b.assert_(success)
 
     def load_calldata(self, offset: IROperand, typ: VyperType) -> IROperand:
@@ -388,8 +360,6 @@ class VenomCodegenContext:
         Useful for ABI encoding/decoding buffers and other
         temporary scratch space.
         """
-        from vyper.semantics.types.shortcuts import BYTES32_T
-
         # Create a dummy type for allocation purposes
         # We just need the size - type doesn't matter for buffers
         alloca_id = self.new_alloca_id()
@@ -416,9 +386,7 @@ class VenomCodegenContext:
             self._load_storage_to_memory(slot, buf, typ.storage_size_in_words)
             return buf
 
-    def store_storage(
-        self, val: IROperand, slot: IROperand, typ: VyperType
-    ) -> None:
+    def store_storage(self, val: IROperand, slot: IROperand, typ: VyperType) -> None:
         """Store value to storage slot.
 
         For primitive types, direct sstore.
@@ -430,9 +398,7 @@ class VenomCodegenContext:
             # Multi-word: val is memory pointer, copy to storage
             self._store_memory_to_storage(val, slot, typ.storage_size_in_words)
 
-    def _load_storage_to_memory(
-        self, slot: IROperand, buf: IROperand, word_count: int
-    ) -> None:
+    def _load_storage_to_memory(self, slot: IROperand, buf: IROperand, word_count: int) -> None:
         """Load multi-word storage value to memory buffer.
 
         Storage is word-addressed, memory is byte-addressed.
@@ -458,9 +424,7 @@ class VenomCodegenContext:
 
             self.builder.mstore(val, mem_offset)
 
-    def _store_memory_to_storage(
-        self, buf: IROperand, slot: IROperand, word_count: int
-    ) -> None:
+    def _store_memory_to_storage(self, buf: IROperand, slot: IROperand, word_count: int) -> None:
         """Store memory buffer to multi-word storage.
 
         Memory is byte-addressed, storage is word-addressed.
@@ -502,9 +466,7 @@ class VenomCodegenContext:
             self._load_transient_to_memory(slot, buf, typ.storage_size_in_words)
             return buf
 
-    def store_transient(
-        self, val: IROperand, slot: IROperand, typ: VyperType
-    ) -> None:
+    def store_transient(self, val: IROperand, slot: IROperand, typ: VyperType) -> None:
         """Store to transient storage (Cancun+).
 
         For primitive types, direct tstore.
@@ -516,9 +478,7 @@ class VenomCodegenContext:
             # Multi-word: val is memory pointer, copy to transient storage
             self._store_memory_to_transient(val, slot, typ.storage_size_in_words)
 
-    def _load_transient_to_memory(
-        self, slot: IROperand, buf: IROperand, word_count: int
-    ) -> None:
+    def _load_transient_to_memory(self, slot: IROperand, buf: IROperand, word_count: int) -> None:
         """Load multi-word transient storage value to memory buffer."""
         for i in range(word_count):
             # Transient storage: slot + i (word-addressed)
@@ -541,9 +501,7 @@ class VenomCodegenContext:
 
             self.builder.mstore(val, mem_offset)
 
-    def _store_memory_to_transient(
-        self, buf: IROperand, slot: IROperand, word_count: int
-    ) -> None:
+    def _store_memory_to_transient(self, buf: IROperand, slot: IROperand, word_count: int) -> None:
         """Store memory buffer to multi-word transient storage."""
         for i in range(word_count):
             # Memory: buf + i*32 (byte-addressed)
@@ -595,6 +553,7 @@ class VenomCodegenContext:
                 val = self.builder.iload(imm_offset)
 
                 # Memory is byte-addressed
+                mem_ptr: IROperand
                 if i == 0:
                     mem_ptr = buf
                 elif isinstance(buf, IRLiteral):
@@ -606,9 +565,7 @@ class VenomCodegenContext:
 
             return buf
 
-    def store_immutable(
-        self, val: IROperand, offset: IROperand, typ: VyperType
-    ) -> None:
+    def store_immutable(self, val: IROperand, offset: IROperand, typ: VyperType) -> None:
         """Store immutable value (during constructor only).
 
         For primitive types (<=32 bytes), direct istore.
@@ -649,9 +606,7 @@ class VenomCodegenContext:
         """
         return self.builder.sload(slot)
 
-    def set_storage_dyn_array_length(
-        self, slot: IROperand, length: IROperand
-    ) -> None:
+    def set_storage_dyn_array_length(self, slot: IROperand, length: IROperand) -> None:
         """Set length of dynamic array in storage.
 
         Length is stored at the base slot.
@@ -667,9 +622,7 @@ class VenomCodegenContext:
         """
         return self.builder.mload(ptr)
 
-    def set_memory_dyn_array_length(
-        self, ptr: IROperand, length: IROperand
-    ) -> None:
+    def set_memory_dyn_array_length(self, ptr: IROperand, length: IROperand) -> None:
         """Set length of dynamic array in memory.
 
         Length is stored at the base pointer.

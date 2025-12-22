@@ -15,21 +15,8 @@ from typing import TYPE_CHECKING
 from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.core import is_tuple_like
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.types import (
-    AddressT,
-    BoolT,
-    BytesM_T,
-    DArrayT,
-    DecimalT,
-    FlagT,
-    IntegerT,
-    InterfaceT,
-    SArrayT,
-    VyperType,
-    _BytestringT,
-)
-from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
-from vyper.utils import ceil32
+from vyper.semantics.types import DArrayT, SArrayT, VyperType, _BytestringT
+from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand
 
 if TYPE_CHECKING:
@@ -60,9 +47,9 @@ def _get_element_ptr(
         else:
             raise CompilerPanic("Dynamic tuple indexing not supported in ABI encode")
 
-        items = parent_typ.tuple_items()
+        items = parent_typ.tuple_items()  # type: ignore[attr-defined]
         offset = 0
-        for i, (k, t) in enumerate(items):
+        for i, (_k, t) in enumerate(items):
             if i == idx:
                 elem_typ = t
                 break
@@ -70,6 +57,7 @@ def _get_element_ptr(
         else:
             raise CompilerPanic(f"Tuple index {idx} out of range")
 
+        elem_ptr: IROperand
         if offset == 0:
             elem_ptr = parent_ptr
         elif isinstance(parent_ptr, IRLiteral):
@@ -84,18 +72,18 @@ def _get_element_ptr(
         elem_size = elem_typ.memory_bytes_required
 
         if isinstance(key, IRLiteral):
-            offset = key.value * elem_size
-            if offset == 0:
-                elem_ptr = parent_ptr
+            offset_val = key.value * elem_size
+            if offset_val == 0:
+                sarray_elem_ptr: IROperand = parent_ptr
             elif isinstance(parent_ptr, IRLiteral):
-                elem_ptr = IRLiteral(parent_ptr.value + offset)
+                sarray_elem_ptr = IRLiteral(parent_ptr.value + offset_val)
             else:
-                elem_ptr = b.add(parent_ptr, IRLiteral(offset))
+                sarray_elem_ptr = b.add(parent_ptr, IRLiteral(offset_val))
         else:
             # Dynamic index
-            offset = b.mul(key, IRLiteral(elem_size))
-            elem_ptr = b.add(parent_ptr, offset)
-        return elem_ptr, elem_typ
+            offset_ir = b.mul(key, IRLiteral(elem_size))
+            sarray_elem_ptr = b.add(parent_ptr, offset_ir)
+        return sarray_elem_ptr, elem_typ
 
     elif isinstance(parent_typ, DArrayT):
         # Dynamic array: skip length word, then index * elem_size
@@ -106,15 +94,15 @@ def _get_element_ptr(
         data_ptr = b.add(parent_ptr, IRLiteral(32))
 
         if isinstance(key, IRLiteral):
-            offset = key.value * elem_size
-            if offset == 0:
-                elem_ptr = data_ptr
+            offset_val = key.value * elem_size
+            if offset_val == 0:
+                darray_elem_ptr: IROperand = data_ptr
             else:
-                elem_ptr = b.add(data_ptr, IRLiteral(offset))
+                darray_elem_ptr = b.add(data_ptr, IRLiteral(offset_val))
         else:
-            offset = b.mul(key, IRLiteral(elem_size))
-            elem_ptr = b.add(data_ptr, offset)
-        return elem_ptr, elem_typ
+            offset_ir = b.mul(key, IRLiteral(elem_size))
+            darray_elem_ptr = b.add(data_ptr, offset_ir)
+        return darray_elem_ptr, elem_typ
 
     else:
         raise CompilerPanic(f"Cannot get element ptr of type {parent_typ}")
@@ -138,7 +126,9 @@ def _zero_pad(ctx: VenomCodegenContext, bytez_ptr: IROperand) -> None:
 
     # Number of zero bytes = (32 - (length % 32)) % 32
     # Optimized form: (-length) % 32
-    num_zeros = b.mod(b.sub(IRLiteral(0), length), IRLiteral(32))
+    # Note: We compute num_zeros but only use it conceptually - we just write a full 32-byte
+    # zero word which handles all cases since we're allowed to write past the buffer
+    b.mod(b.sub(IRLiteral(0), length), IRLiteral(32))
 
     # Use a loop to write zeros (could be 0-31 bytes)
     # For simplicity, write one full 32-byte zero word which handles all cases
@@ -190,6 +180,7 @@ def _encode_child(
         # 2. Encode child to dynamic section
         child_dst = b.add(dst, dyn_ofst)
         child_len = _abi_encode_to_buf(ctx, child_dst, child_ptr, child_typ, returns_len=True)
+        assert child_len is not None
 
         # 3. Update dyn_ofst
         new_dyn_ofst = b.add(dyn_ofst, child_len)
@@ -275,11 +266,13 @@ def _encode_dyn_array(
     if child_abi_t.is_dynamic():
         # Need to handle offset tracking
         static_loc = b.add(dst_data, static_ofst)
+        assert child_dyn_ofst_ptr is not None
         dyn_ofst = b.mload(child_dyn_ofst_ptr)
         b.mstore(dyn_ofst, static_loc)
 
         child_dst = b.add(dst_data, dyn_ofst)
         child_len = _abi_encode_to_buf(ctx, child_dst, child_src, subtyp, returns_len=True)
+        assert child_len is not None
 
         new_dyn_ofst = b.add(dyn_ofst, child_len)
         b.mstore(new_dyn_ofst, child_dyn_ofst_ptr)
@@ -301,6 +294,7 @@ def _encode_dyn_array(
     # Note: need to reload length since we're in a new block
     length_exit = b.mload(src_ptr)
     if child_abi_t.is_dynamic():
+        assert child_dyn_ofst_ptr is not None
         final_child_dyn = b.mload(child_dyn_ofst_ptr)
         total_size = b.add(IRLiteral(32), final_child_dyn)
     else:
@@ -318,7 +312,7 @@ def _abi_encode_to_buf(
     src: IROperand,
     src_typ: VyperType,
     returns_len: bool = False,
-) -> IROperand:
+) -> IROperand | None:
     """
     Encode src to ABI format at dst.
 
@@ -382,9 +376,10 @@ def _abi_encode_to_buf(
     elif _is_complex_type(src_typ):
         # Tuple/Struct/SArray: encode element by element
         if is_tuple_like(src_typ):
-            items = src_typ.tuple_items()
+            items = src_typ.tuple_items()  # type: ignore[attr-defined]
         else:
             # SArrayT
+            assert isinstance(src_typ, SArrayT)
             items = [(i, src_typ.value_type) for i in range(src_typ.count)]
 
         # Set up dynamic offset tracking if needed
@@ -435,7 +430,7 @@ def abi_encode_to_buf(
     src: IROperand,
     src_typ: VyperType,
     returns_len: bool = False,
-) -> IROperand:
+) -> IROperand | None:
     """
     Public entry point for ABI encoding.
 

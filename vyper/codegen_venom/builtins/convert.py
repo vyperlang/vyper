@@ -16,19 +16,10 @@ from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.types import (
-    AddressT,
-    BoolT,
-    BytesM_T,
-    BytesT,
-    DecimalT,
-    IntegerT,
-    StringT,
-)
+from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.user import FlagT
-from vyper.utils import DECIMAL_DIVISOR
 from vyper.venom.basicblock import IRLiteral, IROperand
 
 if TYPE_CHECKING:
@@ -80,13 +71,9 @@ def _to_bool(val: IROperand, in_t, ctx: VenomCodegenContext) -> IROperand:
     if isinstance(in_t, _BytestringT):
         # Load bytes data and check for nonzero
         # Length is at val, data at val+32
-        # Just check if any byte is nonzero - load first word of data
-        length = b.mload(val)
-        data_ptr = b.add(val, IRLiteral(32))
-        data = b.mload(data_ptr)
-        # Nonzero if length > 0 and data has bits set
-        # Actually, just check length > 0 for simple case
+        # Just check length > 0 for simple case
         # For proper check: hash and compare, or check length
+        length = b.mload(val)
         return b.iszero(b.iszero(length))
 
     # For numeric/address/bool/flag: iszero(iszero(x)) normalizes to 0 or 1
@@ -110,11 +97,7 @@ def _to_address(
 
 
 def _to_int(
-    val: IROperand,
-    in_t,
-    out_t: IntegerT,
-    arg_node: vy_ast.VyperNode,
-    ctx: VenomCodegenContext,
+    val: IROperand, in_t, out_t: IntegerT, arg_node: vy_ast.VyperNode, ctx: VenomCodegenContext
 ) -> IROperand:
     """
     Convert to integer type with clamping.
@@ -149,11 +132,11 @@ def _to_int(
 
     # From bytesM: right-shift by (32 - M) * 8 bits
     if isinstance(in_t, BytesM_T):
-        num_zero_bits = (32 - in_t.m) * 8
+        shift_bits = (32 - in_t.m) * 8
         if out_t.is_signed:
-            val = b.sar(IRLiteral(num_zero_bits), val)
+            val = b.sar(IRLiteral(shift_bits), val)
         else:
-            val = b.shr(IRLiteral(num_zero_bits), val)
+            val = b.shr(IRLiteral(shift_bits), val)
         # Clamp if bytesM could exceed output range
         if in_t.m * 8 > out_t.bits:
             val = _int_clamp(val, out_t, ctx)
@@ -168,7 +151,9 @@ def _to_int(
         # Scale output bounds by divisor for clamping the decimal value
         scaled_lo = out_lo * divisor
         scaled_hi = out_hi * divisor
-        val = _clamp_numeric_convert(val, (in_lo, in_hi), (scaled_lo, scaled_hi), in_t.is_signed, ctx)
+        val = _clamp_numeric_convert(
+            val, (in_lo, in_hi), (scaled_lo, scaled_hi), in_t.is_signed, ctx
+        )
         # Now divide
         val = b.sdiv(val, IRLiteral(divisor))
         return val
@@ -194,11 +179,7 @@ def _to_int(
 
 
 def _to_decimal(
-    val: IROperand,
-    in_t,
-    out_t: DecimalT,
-    arg_node: vy_ast.VyperNode,
-    ctx: VenomCodegenContext,
+    val: IROperand, in_t, out_t: DecimalT, arg_node: vy_ast.VyperNode, ctx: VenomCodegenContext
 ) -> IROperand:
     """
     Convert to decimal (fixed-point).
@@ -223,8 +204,8 @@ def _to_decimal(
 
     # From bytesM
     if isinstance(in_t, BytesM_T):
-        num_zero_bits = (32 - in_t.m) * 8
-        val = b.sar(IRLiteral(num_zero_bits), val)
+        shift_bits = (32 - in_t.m) * 8
+        val = b.sar(IRLiteral(shift_bits), val)
         if in_t.m * 8 > 168:
             val = _clamp_basetype(val, out_t, ctx)
         return val
@@ -249,9 +230,7 @@ def _to_decimal(
     return val
 
 
-def _to_bytes_m(
-    val: IROperand, in_t, out_t: BytesM_T, ctx: VenomCodegenContext
-) -> IROperand:
+def _to_bytes_m(val: IROperand, in_t, out_t: BytesM_T, ctx: VenomCodegenContext) -> IROperand:
     """
     Convert to fixed bytes (bytesM).
 
@@ -283,9 +262,7 @@ def _to_bytes_m(
     return b.shl(IRLiteral(shift_bits), val)
 
 
-def _to_bytes(
-    val: IROperand, in_t, out_t: BytesT, ctx: VenomCodegenContext
-) -> IROperand:
+def _to_bytes(val: IROperand, in_t, out_t: BytesT, ctx: VenomCodegenContext) -> IROperand:
     """
     Convert to dynamic bytes.
 
@@ -307,9 +284,7 @@ def _to_bytes(
     raise CompilerPanic(f"Cannot convert {in_t} to bytes")
 
 
-def _to_string(
-    val: IROperand, in_t, out_t: StringT, ctx: VenomCodegenContext
-) -> IROperand:
+def _to_string(val: IROperand, in_t, out_t: StringT, ctx: VenomCodegenContext) -> IROperand:
     """
     Convert to string.
 
@@ -329,9 +304,7 @@ def _to_string(
     raise CompilerPanic(f"Cannot convert {in_t} to string")
 
 
-def _to_flag(
-    val: IROperand, in_t, out_t: FlagT, ctx: VenomCodegenContext
-) -> IROperand:
+def _to_flag(val: IROperand, in_t, out_t: FlagT, ctx: VenomCodegenContext) -> IROperand:
     """
     Convert integer to flag type.
 
@@ -458,6 +431,4 @@ def _int_to_int(
 
 
 # Export handler
-HANDLERS = {
-    "convert": lower_convert,
-}
+HANDLERS = {"convert": lower_convert}

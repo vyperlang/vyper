@@ -42,6 +42,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Determine output type (string or bytes)
     first_t = args[0]._metadata["type"]
+    out_typ: _BytestringT
     if isinstance(first_t, StringT):
         out_typ = StringT(max_len)
     else:
@@ -111,6 +112,8 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     length = Expr(length_node, ctx).lower()
 
     # Determine source length and data pointer
+    src_len: IROperand
+    src_data: IROperand
     if isinstance(src_t, _BytestringT):
         src_len = b.mload(src)
         src_data = b.add(src, IRLiteral(32))
@@ -241,6 +244,8 @@ def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     src_t = src_node._metadata["type"]
 
     # Determine source length and data pointer
+    src_len: IROperand
+    src_data: IROperand
     if isinstance(src_t, _BytestringT):
         src_len = b.mload(src)
         src_data = b.add(src, IRLiteral(32))
@@ -265,9 +270,7 @@ def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     return _clamp_extract32_result(result, out_t, ctx)
 
 
-def _clamp_extract32_result(
-    val: IROperand, out_t, ctx: VenomCodegenContext
-) -> IROperand:
+def _clamp_extract32_result(val: IROperand, out_t, ctx: VenomCodegenContext) -> IROperand:
     """Apply bounds check for extract32 output type."""
     from vyper.semantics.types import AddressT, IntegerT
 
@@ -297,8 +300,4 @@ def _clamp_extract32_result(
 
 
 # Export handlers
-HANDLERS = {
-    "concat": lower_concat,
-    "slice": lower_slice,
-    "extract32": lower_extract32,
-}
+HANDLERS = {"concat": lower_concat, "slice": lower_slice, "extract32": lower_extract32}

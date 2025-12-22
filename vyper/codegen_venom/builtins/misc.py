@@ -14,11 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
-from vyper.codegen_venom.constants import (
-    BLOCKHASH_LOOKBACK_LIMIT,
-    ECRECOVER_PRECOMPILE,
-    SHA256_PRECOMPILE,
-)
+from vyper.codegen_venom.constants import BLOCKHASH_LOOKBACK_LIMIT, ECRECOVER_PRECOMPILE
 from vyper.semantics.types import DecimalT
 from vyper.utils import DECIMAL_DIVISOR
 from vyper.venom.basicblock import IRLiteral, IROperand
@@ -62,7 +58,12 @@ def lower_ecrecover(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Call ecrecover precompile
     success = b.staticcall(
-        b.gas(), IRLiteral(ECRECOVER_PRECOMPILE), input_buf, IRLiteral(128), output_buf, IRLiteral(32)
+        b.gas(),
+        IRLiteral(ECRECOVER_PRECOMPILE),
+        input_buf,
+        IRLiteral(128),
+        output_buf,
+        IRLiteral(32),
     )
     b.assert_(success)
 
@@ -91,9 +92,7 @@ def lower_ecmul(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     return _lower_ec_arith(node, ctx, precompile=7)
 
 
-def _lower_ec_arith(
-    node: vy_ast.Call, ctx: VenomCodegenContext, precompile: int
-) -> IROperand:
+def _lower_ec_arith(node: vy_ast.Call, ctx: VenomCodegenContext, precompile: int) -> IROperand:
     """
     Common implementation for ecadd/ecmul.
 
@@ -133,12 +132,7 @@ def _lower_ec_arith(
 
     # Call precompile
     success = b.staticcall(
-        b.gas(),
-        IRLiteral(precompile),
-        input_buf,
-        IRLiteral(input_size),
-        output_buf,
-        IRLiteral(64),
+        b.gas(), IRLiteral(precompile), input_buf, IRLiteral(input_size), output_buf, IRLiteral(64)
     )
     b.assert_(success)
 

@@ -316,9 +316,7 @@ class VenomBuilder:
     def create(self, val: Operand, offset: Operand, size: Operand) -> IRVariable:
         return self._emit1("create", val, offset, size)
 
-    def create2(
-        self, val: Operand, offset: Operand, size: Operand, salt: Operand
-    ) -> IRVariable:
+    def create2(self, val: Operand, offset: Operand, size: Operand, salt: Operand) -> IRVariable:
         return self._emit1("create2", val, offset, size, salt)
 
     # === Crypto ===
@@ -336,9 +334,7 @@ class VenomBuilder:
     def codecopy(self, size: Operand, src: Operand, dst: Operand) -> None:
         self._emit("codecopy", size, src, dst)
 
-    def extcodecopy(
-        self, addr: Operand, size: Operand, src: Operand, dst: Operand
-    ) -> None:
+    def extcodecopy(self, addr: Operand, size: Operand, src: Operand, dst: Operand) -> None:
         self._emit("extcodecopy", addr, size, src, dst)
 
     def returndatacopy(self, size: Operand, src: Operand, dst: Operand) -> None:

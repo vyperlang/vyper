@@ -83,7 +83,7 @@ class _FuncIRInfo:
 class EntryPointInfo:
     func_t: ContractFunctionT
     min_calldatasize: int  # the min calldata required for this entry point
-    ir_node: IRnode  # the ir for this entry point
+    ir_node: Optional[IRnode] = None  # the ir for this entry point (None for venom codegen)
 
     def __post_init__(self):
         # sanity check ABI v2 properties guaranteed by the spec.

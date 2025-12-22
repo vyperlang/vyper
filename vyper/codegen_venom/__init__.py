@@ -19,10 +19,7 @@ from vyper.venom.context import IRContext
 from vyper.venom.memory_location import fix_mem_loc
 
 from vyper.codegen_venom.context import VenomCodegenContext
-from vyper.codegen_venom.module import (
-    generate_runtime_venom,
-    generate_deploy_venom,
-)
+from vyper.codegen_venom.module import generate_runtime_venom, generate_deploy_venom
 
 
 MAIN_ENTRY_LABEL = "__main_entry"
@@ -41,10 +38,7 @@ def _finalize_venom_ctx(ctx: IRContext, settings: Settings) -> IRContext:
     return ctx
 
 
-def generate_venom_runtime(
-    module_t: ModuleT,
-    settings: Settings,
-) -> IRContext:
+def generate_venom_runtime(module_t: ModuleT, settings: Settings) -> IRContext:
     """
     Generate runtime Venom IR directly from annotated AST.
 
@@ -57,9 +51,7 @@ def generate_venom_runtime(
 
 
 def generate_venom_deploy(
-    module_t: ModuleT,
-    settings: Settings,
-    runtime_bytecode: bytes,
+    module_t: ModuleT, settings: Settings, runtime_bytecode: bytes
 ) -> IRContext:
     """
     Generate deploy Venom IR with embedded runtime bytecode.

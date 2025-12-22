@@ -12,9 +12,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
-from vyper.codegen.core import bytes_data_ptr, get_type_for_exact_size, ir_tuple_from_args
 from vyper.ir.compile_ir import assembly_to_evm
-from vyper.semantics.types import BytesT, TupleT
+from vyper.semantics.types import TupleT
 from vyper.utils import bytes_to_int
 from vyper.venom.basicblock import IRLiteral, IROperand
 
@@ -55,9 +54,7 @@ def _has_kwarg(node: vy_ast.Call, kwarg_name: str) -> bool:
     return any(kw.arg == kwarg_name for kw in node.keywords)
 
 
-def _check_create_result(
-    b, addr: IROperand, revert_on_failure: bool
-) -> IROperand:
+def _check_create_result(b, addr: IROperand, revert_on_failure: bool) -> IROperand:
     """Optionally check CREATE/CREATE2 result and revert on failure.
 
     CREATE/CREATE2 return 0 on failure (out of gas or constructor reverts).
@@ -196,7 +193,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     # With ctor args: need to ABI-encode and append to bytecode
     # Create tuple type for encoding
     ctor_arg_types = [arg._metadata["type"] for arg in ctor_arg_nodes]
-    ctor_tuple_typ = TupleT(ctor_arg_types)
+    ctor_tuple_typ = TupleT(tuple(ctor_arg_types))
     ctor_abi_size = ctor_tuple_typ.abi_type.size_bound()
 
     # Calculate buffer size: max bytecode len + ctor args size
@@ -207,9 +204,22 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     ctx.copy_memory_dynamic(buf, bytecode_ptr, bytecode_len)
 
     # Encode ctor args after bytecode
+    # First, store ctor args to a temp buffer
     ctor_arg_values = [Expr(arg, ctx).lower() for arg in ctor_arg_nodes]
+    ctor_args_buf = ctx.new_internal_variable(ctor_tuple_typ)
+    offset = 0
+    for val, arg_t in zip(ctor_arg_values, ctor_arg_types):
+        if offset == 0:
+            dst = ctor_args_buf
+        else:
+            dst = b.add(ctor_args_buf, IRLiteral(offset))
+        ctx.store_memory(val, dst, arg_t)
+        offset += arg_t.memory_bytes_required
+
+    # Now ABI encode from ctor_args_buf to args_start
     args_start = b.add(buf, bytecode_len)
-    args_len = abi_encode_to_buf(ctx, ctor_arg_values, ctor_arg_types, args_start)
+    args_len = abi_encode_to_buf(ctx, args_start, ctor_args_buf, ctor_tuple_typ, returns_len=True)
+    assert args_len is not None
 
     # Total length = bytecode_len + args_len
     total_len = b.add(bytecode_len, args_len)
@@ -224,9 +234,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     return _check_create_result(b, addr, revert_on_failure)
 
 
-def lower_create_minimal_proxy_to(
-    node: vy_ast.Call, ctx: VenomCodegenContext
-) -> IROperand:
+def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     create_minimal_proxy_to(target, value=0, salt=None, revert_on_failure=True)
 
@@ -270,9 +278,7 @@ def lower_create_minimal_proxy_to(
     )
 
     # Build post as a 32-byte value (left-aligned)
-    forwarder_post = bytes_to_int(
-        forwarder_post_evm + b"\x00" * (32 - len(forwarder_post_evm))
-    )
+    forwarder_post = bytes_to_int(forwarder_post_evm + b"\x00" * (32 - len(forwarder_post_evm)))
 
     # Store preamble at buf
     b.mstore(IRLiteral(forwarder_preamble), buf)
@@ -372,9 +378,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     return _check_create_result(b, addr, revert_on_failure)
 
 
-def lower_create_from_blueprint(
-    node: vy_ast.Call, ctx: VenomCodegenContext
-) -> IROperand:
+def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     create_from_blueprint(target, *ctor_args, value=0, salt=None,
                           raw_args=False, code_offset=3, revert_on_failure=True)
@@ -417,6 +421,8 @@ def lower_create_from_blueprint(
     b.assert_(has_code)
 
     # Handle constructor arguments
+    args_len: IROperand
+    args_ptr: IROperand
     if raw_args:
         # raw_args=True: single bytes argument contains raw constructor args
         if len(ctor_arg_nodes) != 1:
@@ -431,15 +437,30 @@ def lower_create_from_blueprint(
     elif len(ctor_arg_nodes) > 0:
         # ABI-encode constructor arguments
         ctor_arg_types = [arg._metadata["type"] for arg in ctor_arg_nodes]
-        ctor_tuple_typ = TupleT(ctor_arg_types)
+        ctor_tuple_typ = TupleT(tuple(ctor_arg_types))
         ctor_abi_size = ctor_tuple_typ.abi_type.size_bound()
 
         # Allocate buffer for encoded args
         args_buf = ctx.allocate_buffer(ctor_abi_size, "ctor_args_buf")
 
-        # Encode args to buffer
+        # First, store ctor args to a temp buffer
         ctor_arg_values = [Expr(arg, ctx).lower() for arg in ctor_arg_nodes]
-        args_len = abi_encode_to_buf(ctx, ctor_arg_values, ctor_arg_types, args_buf)
+        ctor_args_src = ctx.new_internal_variable(ctor_tuple_typ)
+        offset = 0
+        for val, arg_t in zip(ctor_arg_values, ctor_arg_types):
+            if offset == 0:
+                dst = ctor_args_src
+            else:
+                dst = b.add(ctor_args_src, IRLiteral(offset))
+            ctx.store_memory(val, dst, arg_t)
+            offset += arg_t.memory_bytes_required
+
+        # Now ABI encode from ctor_args_src to args_buf
+        encoded_len = abi_encode_to_buf(
+            ctx, args_buf, ctor_args_src, ctor_tuple_typ, returns_len=True
+        )
+        assert encoded_len is not None
+        args_len = encoded_len
         args_ptr = args_buf
     else:
         # No constructor arguments

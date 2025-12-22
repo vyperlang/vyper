@@ -23,16 +23,13 @@ from vyper.codegen_venom.arithmetic import (
 import vyper.utils as util
 from vyper import ast as vy_ast
 from vyper.builtins._signatures import BuiltinFunctionT
-from vyper.codegen.arithmetic import calculate_largest_base, calculate_largest_power
 from vyper.codegen.core import (
     DYNAMIC_ARRAY_OVERHEAD,
-    address_space_to_data_location,
     calculate_type_for_external_return,
     get_type_for_exact_size,
     needs_external_call_wrap,
 )
-from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
-from vyper.exceptions import CompilerPanic, TypeCheckFailure
+from vyper.exceptions import CompilerPanic
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     AddressT,
@@ -51,7 +48,7 @@ from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, S
 from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.semantics.types.user import FlagT, StructT
-from vyper.utils import DECIMAL_DIVISOR, MemoryPositions, ceil32
+from vyper.utils import DECIMAL_DIVISOR, MemoryPositions
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 from .context import VenomCodegenContext
@@ -65,6 +62,7 @@ class _CallKwargs:
     gas: IROperand  # Gas limit for the call
     skip_contract_check: bool  # Skip extcodesize check
     default_return_value: Optional[IROperand]  # Default if returndatasize==0
+
 
 # Environment variable prefixes for attribute access
 ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
@@ -90,14 +88,18 @@ class Expr:
 
     def lower_Int(self) -> IRLiteral:
         """Lower integer literal."""
-        return IRLiteral(self.node.value)
+        node = self.node
+        assert isinstance(node, vy_ast.Int)
+        return IRLiteral(node.value)
 
     def lower_Decimal(self) -> IRLiteral:
         """Lower decimal literal.
 
         Decimals are stored as fixed-point integers scaled by DECIMAL_DIVISOR (10^10).
         """
-        val = self.node.value * DECIMAL_DIVISOR
+        node = self.node
+        assert isinstance(node, vy_ast.Decimal)
+        val = node.value * DECIMAL_DIVISOR
         return IRLiteral(int(val))
 
     def lower_Hex(self) -> IRLiteral:
@@ -106,8 +108,10 @@ class Expr:
         For addresses: direct int conversion.
         For bytesN: left-padded (shifted left) to align in 32-byte word.
         """
-        hexstr = self.node.value
-        t = self.node._metadata["type"]
+        node = self.node
+        assert isinstance(node, vy_ast.Hex)
+        hexstr = node.value
+        t = node._metadata["type"]
 
         if t == AddressT():
             return IRLiteral(int(hexstr, 16))
@@ -122,23 +126,31 @@ class Expr:
 
     def lower_NameConstant(self) -> IRLiteral:
         """Lower True/False constants."""
-        assert isinstance(self.node.value, bool)
-        return IRLiteral(int(self.node.value))
+        node = self.node
+        assert isinstance(node, vy_ast.NameConstant)
+        assert isinstance(node.value, bool)
+        return IRLiteral(int(node.value))
 
     # === Bytelike Literals ===
 
     def lower_Bytes(self) -> IRVariable:
         """Lower bytes literal (b'...')."""
-        return self._lower_bytelike(BytesT, self.node.value)
+        node = self.node
+        assert isinstance(node, vy_ast.Bytes)
+        return self._lower_bytelike(BytesT, node.value)
 
     def lower_HexBytes(self) -> IRVariable:
         """Lower hex bytes literal (x'...')."""
-        assert isinstance(self.node.value, bytes)
-        return self._lower_bytelike(BytesT, self.node.value)
+        node = self.node
+        assert isinstance(node, vy_ast.HexBytes)
+        assert isinstance(node.value, bytes)
+        return self._lower_bytelike(BytesT, node.value)
 
     def lower_Str(self) -> IRVariable:
         """Lower string literal ('...')."""
-        bytez = self.node.value.encode("utf-8")
+        node = self.node
+        assert isinstance(node, vy_ast.Str)
+        bytez = node.value.encode("utf-8")
         return self._lower_bytelike(StringT, bytez)
 
     def lower_Tuple(self) -> IRVariable:
@@ -150,6 +162,7 @@ class Expr:
         Reference: vyper/codegen/expr.py:parse_Tuple
         """
         node = self.node
+        assert isinstance(node, vy_ast.Tuple)
         typ = node._metadata["type"]
 
         # Allocate memory for the tuple
@@ -185,6 +198,7 @@ class Expr:
         Reference: vyper/codegen/expr.py:parse_List
         """
         node = self.node
+        assert isinstance(node, vy_ast.List)
         typ = node._metadata["type"]  # DArrayT
         elem_typ = typ.value_type
         elem_size = elem_typ.memory_bytes_required
@@ -242,9 +256,10 @@ class Expr:
 
     # === Binary Operations ===
 
-    def lower_BinOp(self) -> IRVariable:
+    def lower_BinOp(self) -> IROperand:
         """Lower binary operations with appropriate overflow checking."""
         node = self.node
+        assert isinstance(node, vy_ast.BinOp)
         left = Expr(node.left, self.ctx).lower()
         right = Expr(node.right, self.ctx).lower()
         op = node.op
@@ -297,39 +312,31 @@ class Expr:
 
         raise CompilerPanic(f"Unsupported BinOp: {type(op)}")
 
-    def _safe_add(self, x: IROperand, y: IROperand, typ) -> IRVariable:
+    def _safe_add(self, x: IROperand, y: IROperand, typ) -> IROperand:
         """Add with overflow checking."""
         return safe_add(self.builder, x, y, typ)
 
-    def _safe_sub(self, x: IROperand, y: IROperand, typ) -> IRVariable:
+    def _safe_sub(self, x: IROperand, y: IROperand, typ) -> IROperand:
         """Subtract with overflow checking."""
         return safe_sub(self.builder, x, y, typ)
 
-    def _safe_mul(
-        self, x: IROperand, y: IROperand, typ, node: vy_ast.BinOp
-    ) -> IRVariable:
+    def _safe_mul(self, x: IROperand, y: IROperand, typ, node: vy_ast.BinOp) -> IROperand:
         """Multiply with overflow checking."""
         return safe_mul(self.builder, x, y, typ)
 
-    def _safe_div(
-        self, x: IROperand, y: IROperand, typ, node: vy_ast.BinOp
-    ) -> IRVariable:
+    def _safe_div(self, x: IROperand, y: IROperand, typ, node: vy_ast.BinOp) -> IROperand:
         """Decimal division with overflow checking."""
         return safe_div(self.builder, x, y, typ)
 
-    def _safe_floordiv(
-        self, x: IROperand, y: IROperand, typ, node: vy_ast.BinOp
-    ) -> IRVariable:
+    def _safe_floordiv(self, x: IROperand, y: IROperand, typ, node: vy_ast.BinOp) -> IROperand:
         """Integer floor division with overflow checking."""
         return safe_floordiv(self.builder, x, y, typ)
 
-    def _safe_mod(self, x: IROperand, y: IROperand, typ) -> IRVariable:
+    def _safe_mod(self, x: IROperand, y: IROperand, typ) -> IROperand:
         """Modulo with divisor check."""
         return safe_mod(self.builder, x, y, typ)
 
-    def _safe_pow(
-        self, x: IROperand, y: IROperand, typ, node: vy_ast.BinOp
-    ) -> IRVariable:
+    def _safe_pow(self, x: IROperand, y: IROperand, typ, node: vy_ast.BinOp) -> IROperand:
         """Exponentiation with bounds checking.
 
         Requires at least one operand to be a literal for bounds computation.
@@ -343,7 +350,7 @@ class Expr:
 
         return safe_pow(self.builder, x, y, typ, base_literal, exp_literal)
 
-    def _clamp_basetype(self, val: IRVariable, typ) -> IRVariable:
+    def _clamp_basetype(self, val: IROperand, typ) -> IROperand:
         """Clamp value to type bounds."""
         return clamp_basetype(self.builder, val, typ)
 
@@ -352,6 +359,7 @@ class Expr:
     def lower_UnaryOp(self) -> IRVariable:
         """Lower unary operations."""
         node = self.node
+        assert isinstance(node, vy_ast.UnaryOp)
         operand = Expr(node.operand, self.ctx).lower()
         typ = node.operand._metadata["type"]
         op = node.op
@@ -406,6 +414,7 @@ class Expr:
         and requires loops, which will be implemented with control flow.
         """
         node = self.node
+        assert isinstance(node, vy_ast.Compare)
         left = Expr(node.left, self.ctx).lower()
         right = Expr(node.right, self.ctx).lower()
         op = node.op
@@ -425,14 +434,13 @@ class Expr:
                     return self.builder.iszero(intersection)
             else:
                 # Array membership - use loop with early break
-                return self._lower_array_membership(left, right, right_typ, isinstance(op, vy_ast.In))
+                return self._lower_array_membership(
+                    left, right, right_typ, isinstance(op, vy_ast.In)
+                )
 
         # Determine if we need signed or unsigned comparison
         # UINT256 uses unsigned comparisons; all other types use signed
-        use_unsigned = (
-            left_typ == UINT256_T
-            and right_typ == UINT256_T
-        )
+        use_unsigned = left_typ == UINT256_T and right_typ == UINT256_T
 
         # Dispatch to appropriate comparison
         if isinstance(op, vy_ast.Lt):
@@ -479,6 +487,7 @@ class Expr:
         - Or: chain of conditional jumps, true branch short-circuits to 1
         """
         node = self.node
+        assert isinstance(node, vy_ast.BoolOp)
         op = node.op
         values = node.values
 
@@ -564,14 +573,16 @@ class Expr:
         - Module constants -> evaluate constant expression
         - Immutables -> iload or mload depending on context
         """
-        varname = self.node.id
+        node = self.node
+        assert isinstance(node, vy_ast.Name)
+        varname = node.id
 
         # Case 1: "self" keyword -> address opcode
         if varname == "self":
             return self.builder.address()
 
         # Get variable info from semantic analysis
-        varinfo = self.node._expr_info.var_info
+        varinfo = node._expr_info.var_info
         assert varinfo is not None
 
         # Case 2: Local variable in context.variables
@@ -607,48 +618,49 @@ class Expr:
         - Struct fields (x.field)
         - Interface address (x.address)
         """
-        typ = self.node._metadata["type"]
+        node = self.node
+        assert isinstance(node, vy_ast.Attribute)
+        typ = node._metadata["type"]
 
         # Case 1: Flag constants (MyFlag.VALUE)
         if isinstance(typ, FlagT):
-            from vyper.semantics.types.utils import type_from_annotation
-            value_typ = self.node.value._metadata.get("type")
+            value_typ = node.value._metadata.get("type")
             # Check if this is a flag type access (e.g., MyFlag.VALUE)
             if hasattr(value_typ, "_flag_members"):
-                flag_id = typ._flag_members[self.node.attr]
+                flag_id = typ._flag_members[node.attr]
                 value = 2**flag_id  # 0 => 1, 1 => 2, 2 => 4, etc.
                 return IRLiteral(value)
 
         # Case 2: Address properties
-        attr = self.node.attr
+        attr = node.attr
         if attr == "balance":
-            sub = Expr(self.node.value, self.ctx).lower()
+            sub = Expr(node.value, self.ctx).lower()
             # Check if it's self.balance
-            if isinstance(self.node.value, vy_ast.Name) and self.node.value.id == "self":
+            if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
                 return self.builder.selfbalance()
             return self.builder.balance(sub)
 
         if attr == "codesize":
-            if isinstance(self.node.value, vy_ast.Name) and self.node.value.id == "self":
+            if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
                 return self.builder.codesize()
-            sub = Expr(self.node.value, self.ctx).lower()
+            sub = Expr(node.value, self.ctx).lower()
             return self.builder.extcodesize(sub)
 
         if attr == "is_contract":
-            sub = Expr(self.node.value, self.ctx).lower()
+            sub = Expr(node.value, self.ctx).lower()
             codesize = self.builder.extcodesize(sub)
             return self.builder.gt(codesize, IRLiteral(0))
 
         if attr == "codehash":
-            sub = Expr(self.node.value, self.ctx).lower()
+            sub = Expr(node.value, self.ctx).lower()
             return self.builder.extcodehash(sub)
 
         # Case 3: Environment variables (msg.*, block.*, tx.*, chain.*)
-        if isinstance(self.node.value, vy_ast.Name) and self.node.value.id in ENVIRONMENT_VARIABLES:
+        if isinstance(node.value, vy_ast.Name) and node.value.id in ENVIRONMENT_VARIABLES:
             return self._lower_environment_attr()
 
         # Case 4: State variables (self.x)
-        varinfo = self.node._expr_info.var_info
+        varinfo = node._expr_info.var_info
         if varinfo is not None:
             # Constant state variable - evaluate the constant expression
             if varinfo.is_constant:
@@ -669,19 +681,23 @@ class Expr:
 
         # Case 5: Interface address (x.address where x is an interface)
         from vyper.semantics.types import InterfaceT
-        sub_typ = self.node.value._metadata.get("type")
+
+        sub_typ = node.value._metadata.get("type")
         if isinstance(sub_typ, InterfaceT) and attr == "address":
-            return Expr(self.node.value, self.ctx).lower()
+            return Expr(node.value, self.ctx).lower()
 
         # Case 6: Struct field access (point.x)
         if isinstance(sub_typ, StructT) and attr in sub_typ.member_types:
             return self._lower_struct_field()
 
-        raise CompilerPanic(f"Unsupported attribute access: {self.node.attr}")
+        raise CompilerPanic(f"Unsupported attribute access: {node.attr}")
 
     def _lower_environment_attr(self) -> IROperand:
         """Lower environment variable attributes (msg.*, block.*, tx.*, chain.*)."""
-        key = f"{self.node.value.id}.{self.node.attr}"
+        node = self.node
+        assert isinstance(node, vy_ast.Attribute)
+        assert isinstance(node.value, vy_ast.Name)
+        key = f"{node.value.id}.{node.attr}"
 
         # msg.* attributes
         if key == "msg.sender":
@@ -737,6 +753,7 @@ class Expr:
     def lower_IfExp(self) -> IRVariable:
         """Lower ternary expression: x if cond else y"""
         node = self.node
+        assert isinstance(node, vy_ast.IfExp)
 
         cond = Expr(node.test, self.ctx).lower()
         cond_block = self.builder.current_block
@@ -781,7 +798,9 @@ class Expr:
 
         Returns a pointer/slot that the caller can load from or store to.
         """
-        base_typ = self.node.value._metadata["type"]
+        node = self.node
+        assert isinstance(node, vy_ast.Subscript)
+        base_typ = node.value._metadata["type"]
 
         if isinstance(base_typ, HashMapT):
             return self._lower_mapping_subscript()
@@ -803,6 +822,7 @@ class Expr:
         Returns pointer to element (memory ptr or storage slot).
         """
         node = self.node
+        assert isinstance(node, vy_ast.Subscript)
         base = Expr(node.value, self.ctx).lower()
         index = Expr(node.slice, self.ctx).lower()
 
@@ -831,6 +851,7 @@ class Expr:
 
         # Bounds checking
         if bounds_check:
+            length: IROperand = IRLiteral(0)
             if isinstance(base_typ, DArrayT):
                 # Dynamic array: load length from first word
                 if is_storage:
@@ -843,6 +864,7 @@ class Expr:
 
             # Check: not (index < 0) and not (index >= length)
             # For signed indices, check negativity; for unsigned, skip
+            is_neg: IROperand
             if isinstance(index_typ, IntegerT) and index_typ.is_signed:
                 is_neg = self.builder.slt(index, IRLiteral(0))
             else:
@@ -856,6 +878,7 @@ class Expr:
             self.builder.assert_(valid)
 
         # Compute data pointer (skip length word for dynamic arrays)
+        data_ptr: IROperand
         if isinstance(base_typ, DArrayT):
             overhead = word_scale * DYNAMIC_ARRAY_OVERHEAD
             data_ptr = self.builder.add(base, IRLiteral(overhead))
@@ -878,6 +901,7 @@ class Expr:
         Returns storage slot as IROperand.
         """
         node = self.node
+        assert isinstance(node, vy_ast.Subscript)
         base = Expr(node.value, self.ctx).lower()
         key_typ = node.value._metadata["type"].key_type
 
@@ -905,9 +929,7 @@ class Expr:
             # bytes32: mstore to free var space and hash
             key = Expr(key_node, self.ctx).lower()
             self.builder.mstore(key, IRLiteral(MemoryPositions.FREE_VAR_SPACE))
-            return self.builder.sha3(
-                IRLiteral(MemoryPositions.FREE_VAR_SPACE), IRLiteral(32)
-            )
+            return self.builder.sha3(IRLiteral(MemoryPositions.FREE_VAR_SPACE), IRLiteral(32))
 
         # bytes/string: already in memory from lower(), hash the data portion
         key_ptr = Expr(key_node, self.ctx).lower()
@@ -924,13 +946,14 @@ class Expr:
         sizes of preceding elements.
         """
         node = self.node
+        assert isinstance(node, vy_ast.Subscript)
         base = Expr(node.value, self.ctx).lower()
         base_typ = node.value._metadata["type"]
 
         # Get the compile-time index
-        index = node.slice.reduced().value
-        if not isinstance(index, int):
-            raise CompilerPanic(f"Expected int index, got {type(index)}")
+        reduced_slice = node.slice.reduced()
+        assert isinstance(reduced_slice, vy_ast.Int)
+        index = reduced_slice.value
 
         # Determine location
         is_storage = self._is_storage_access(node.value)
@@ -953,6 +976,7 @@ class Expr:
         Computes field pointer by summing sizes of preceding fields.
         """
         node = self.node
+        assert isinstance(node, vy_ast.Attribute)
         base = Expr(node.value, self.ctx).lower()
         base_typ = node.value._metadata["type"]
         attr = node.attr
@@ -1010,6 +1034,7 @@ class Expr:
         - return result (or iszero(result) for not in)
         """
         # Get array properties
+        length: IROperand
         if isinstance(haystack_typ, DArrayT):
             length = self.builder.mload(haystack)
             bound = haystack_typ.count
@@ -1114,6 +1139,7 @@ class Expr:
         - External calls (interface.method()) - deferred to Task 14
         """
         node = self.node
+        assert isinstance(node, vy_ast.Call)
         func = node.func
         func_t = func._metadata.get("type")
 
@@ -1127,11 +1153,11 @@ class Expr:
             return self._lower_builtin_call(func_t)
 
         # Struct constructor: MyStruct(field1=val1, field2=val2)
-        if is_type_t(func_t, StructT):
+        if func_t is not None and is_type_t(func_t, StructT):
             return self._lower_struct_constructor()
 
         # Interface constructor: MyInterface(<address>)
-        if is_type_t(func_t, InterfaceT):
+        if func_t is not None and is_type_t(func_t, InterfaceT):
             return self._lower_interface_constructor()
 
         # DynArray methods: arr.append(val), arr.pop()
@@ -1153,11 +1179,14 @@ class Expr:
         from vyper.venom.basicblock import IRLabel
 
         node = self.node
+        assert isinstance(node, vy_ast.Call)
+        assert isinstance(node.func, vy_ast.Attribute)
         func_name = node.func.attr
 
         # Get function type from the function attribute's metadata
         # node._metadata["type"] is the return type, we need the function type
         func_t = node.func._metadata.get("type")
+        assert func_t is not None
 
         returns_count = self.ctx.returns_stack_count(func_t)
         pass_via_stack = self.ctx.pass_via_stack(func_t)
@@ -1180,7 +1209,7 @@ class Expr:
                 return_buf = self.ctx.new_internal_variable(func_t.return_type)
 
         # Prepare arguments
-        invoke_args = []  # Stack args for invoke
+        invoke_args: list[IROperand] = []  # Stack args for invoke
 
         # First: return buffer pointer if memory return (not multi-return)
         if return_buf is not None and returns_count == 0:
@@ -1207,6 +1236,7 @@ class Expr:
         if returns_count > 0:
             outs = self.builder.invoke(IRLabel(target_label), invoke_args, returns=returns_count)
             # Copy stack returns to buffer
+            assert return_buf is not None
             for i, outv in enumerate(outs):
                 if i == 0:
                     dst = return_buf
@@ -1242,7 +1272,9 @@ class Expr:
         Reference: vyper/codegen/expr.py:handle_struct_literal
         """
         node = self.node
+        assert isinstance(node, vy_ast.Call)
         func_t = node.func._metadata.get("type")
+        assert func_t is not None
         struct_t = func_t.typedef  # Get the actual StructT
 
         # Allocate memory for the struct
@@ -1276,6 +1308,7 @@ class Expr:
         The type annotation is used by the type system but doesn't affect codegen.
         """
         node = self.node
+        assert isinstance(node, vy_ast.Call)
         # Interface constructor takes exactly one argument: the address
         assert len(node.args) == 1
         return Expr(node.args[0], self.ctx).lower()
@@ -1286,7 +1319,10 @@ class Expr:
         - append(val): increment length, store value at end
         - pop(): decrement length, return popped value
         """
-        func = self.node.func
+        node = self.node
+        assert isinstance(node, vy_ast.Call)
+        assert isinstance(node.func, vy_ast.Attribute)
+        func = node.func
         attr = func.attr
 
         if attr == "append":
@@ -1308,6 +1344,8 @@ class Expr:
         Reference: vyper/codegen/core.py:append_dyn_array
         """
         node = self.node
+        assert isinstance(node, vy_ast.Call)
+        assert isinstance(node.func, vy_ast.Attribute)
         func = node.func
         darray_node = func.value  # The DynArray being appended to
         darray_typ = darray_node._metadata["type"]
@@ -1377,6 +1415,8 @@ class Expr:
         Reference: vyper/codegen/core.py:pop_dyn_array
         """
         node = self.node
+        assert isinstance(node, vy_ast.Call)
+        assert isinstance(node.func, vy_ast.Attribute)
         func = node.func
         darray_node = func.value  # The DynArray being popped from
         darray_typ = darray_node._metadata["type"]
@@ -1454,8 +1494,8 @@ class Expr:
             call_node: The Call AST node (from ExtCall.value or StaticCall.value)
         """
         # Default values
-        value = IRLiteral(0)
-        gas = self.builder.gas()
+        value: IROperand = IRLiteral(0)
+        gas: IROperand = self.builder.gas()
         skip_contract_check = False
         default_return_value = None
 
@@ -1500,9 +1540,11 @@ class Expr:
         b = self.builder
 
         # ExtCall and StaticCall nodes wrap a Call in their .value attribute
+        assert isinstance(node, (vy_ast.ExtCall, vy_ast.StaticCall))
         call_node = node.value
 
         # Get function type from the call expression
+        assert isinstance(call_node.func, vy_ast.Attribute)
         fn_type: ContractFunctionT = call_node.func._metadata["type"]
 
         # Evaluate contract address (the interface value)
@@ -1515,7 +1557,7 @@ class Expr:
         call_kwargs = self._parse_external_call_kwargs(call_node)
 
         # Calculate buffer size needed
-        args_tuple_t = TupleT([fn_type.arguments[i].typ for i in range(len(args))])
+        args_tuple_t = TupleT(tuple(fn_type.arguments[i].typ for i in range(len(args))))
         args_abi_t = args_tuple_t.abi_type
         args_abi_size = args_abi_t.size_bound()
 
@@ -1579,12 +1621,7 @@ class Expr:
 
         if use_staticcall:
             success = b.staticcall(
-                call_kwargs.gas,
-                contract_address,
-                args_ofst,
-                args_len,
-                ret_ofst,
-                ret_len,
+                call_kwargs.gas, contract_address, args_ofst, args_len, ret_ofst, ret_len
             )
         else:
             success = b.call(

@@ -43,6 +43,7 @@ def foo(data: String[100]) -> bytes32:
         result = Expr(node, ctx).lower()
         assert isinstance(result, IRVariable)
 
+
 class TestSha256:
     def test_sha256_bytes(self):
         source = """

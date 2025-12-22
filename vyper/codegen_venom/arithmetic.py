@@ -6,25 +6,19 @@ Used for binary operations and augmented assignment.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Union
+from typing import Union
 
 from vyper.exceptions import CompilerPanic, TypeCheckFailure
 from vyper.semantics.types import DecimalT, IntegerT
-from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRLiteral, IROperand
 from vyper.venom.builder import VenomBuilder
-
-if TYPE_CHECKING:
-    from vyper.codegen_venom.context import VenomCodegenContext
 
 
 def safe_add(
-    b: VenomBuilder,
-    x: IROperand,
-    y: IROperand,
-    typ: Union[IntegerT, DecimalT],
-) -> IRVariable:
+    b: VenomBuilder, x: IROperand, y: IROperand, typ: Union[IntegerT, DecimalT]
+) -> IROperand:
     """Add with overflow checking."""
-    res = b.add(x, y)
+    res: IROperand = b.add(x, y)
 
     if isinstance(typ, (IntegerT, DecimalT)) and typ.bits < 256:
         return clamp_basetype(b, res, typ)
@@ -45,13 +39,10 @@ def safe_add(
 
 
 def safe_sub(
-    b: VenomBuilder,
-    x: IROperand,
-    y: IROperand,
-    typ: Union[IntegerT, DecimalT],
-) -> IRVariable:
+    b: VenomBuilder, x: IROperand, y: IROperand, typ: Union[IntegerT, DecimalT]
+) -> IROperand:
     """Subtract with overflow checking."""
-    res = b.sub(x, y)
+    res: IROperand = b.sub(x, y)
 
     if isinstance(typ, (IntegerT, DecimalT)) and typ.bits < 256:
         return clamp_basetype(b, res, typ)
@@ -72,13 +63,10 @@ def safe_sub(
 
 
 def safe_mul(
-    b: VenomBuilder,
-    x: IROperand,
-    y: IROperand,
-    typ: Union[IntegerT, DecimalT],
-) -> IRVariable:
+    b: VenomBuilder, x: IROperand, y: IROperand, typ: Union[IntegerT, DecimalT]
+) -> IROperand:
     """Multiply with overflow checking."""
-    res = b.mul(x, y)
+    res: IROperand = b.mul(x, y)
 
     if isinstance(typ, (IntegerT, DecimalT)):
         is_signed = typ.is_signed
@@ -113,12 +101,7 @@ def safe_mul(
     return res
 
 
-def safe_div(
-    b: VenomBuilder,
-    x: IROperand,
-    y: IROperand,
-    typ: DecimalT,
-) -> IRVariable:
+def safe_div(b: VenomBuilder, x: IROperand, y: IROperand, typ: DecimalT) -> IROperand:
     """Decimal division with overflow checking."""
     if not isinstance(typ, DecimalT):
         raise CompilerPanic("/ operator only valid for decimals")
@@ -140,12 +123,7 @@ def safe_div(
     return clamp_basetype(b, res, typ)
 
 
-def safe_floordiv(
-    b: VenomBuilder,
-    x: IROperand,
-    y: IROperand,
-    typ: IntegerT,
-) -> IRVariable:
+def safe_floordiv(b: VenomBuilder, x: IROperand, y: IROperand, typ: IntegerT) -> IROperand:
     """Integer floor division with overflow checking."""
     if not isinstance(typ, IntegerT):
         raise CompilerPanic("// operator only valid for integers")
@@ -160,7 +138,7 @@ def safe_floordiv(
     b.assert_(y_gt_zero)
 
     DIV = b.sdiv if is_signed else b.div
-    res = DIV(x, y)
+    res: IROperand = DIV(x, y)
 
     # int256: check not (x == -2^255 and y == -1)
     if is_signed and typ.bits == 256:
@@ -177,12 +155,7 @@ def safe_floordiv(
     return res
 
 
-def safe_mod(
-    b: VenomBuilder,
-    x: IROperand,
-    y: IROperand,
-    typ: IntegerT,
-) -> IRVariable:
+def safe_mod(b: VenomBuilder, x: IROperand, y: IROperand, typ: IntegerT) -> IROperand:
     """Modulo with divisor check."""
     if not isinstance(typ, IntegerT):
         raise CompilerPanic("% operator only valid for integers")
@@ -207,7 +180,7 @@ def safe_pow(
     typ: IntegerT,
     base_literal: int | None = None,
     exp_literal: int | None = None,
-) -> IRVariable:
+) -> IROperand:
     """Exponentiation with bounds checking.
 
     Requires at least one operand to be a literal for bounds computation.
@@ -221,6 +194,7 @@ def safe_pow(
     is_signed = typ.is_signed
     bits = typ.bits
 
+    ok: IROperand
     if base_literal is not None:
         # Base is literal - compute max exponent at compile time
         base_val = base_literal
@@ -259,11 +233,7 @@ def safe_pow(
     return b.exp(x, y)
 
 
-def clamp_basetype(
-    b: VenomBuilder,
-    val: IROperand,
-    typ: Union[IntegerT, DecimalT],
-) -> IRVariable:
+def clamp_basetype(b: VenomBuilder, val: IROperand, typ: Union[IntegerT, DecimalT]) -> IROperand:
     """Clamp value to type bounds."""
     lo, hi = typ.int_bounds
 

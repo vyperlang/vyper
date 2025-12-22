@@ -119,12 +119,12 @@ class TestAssertWithReason:
     """Test assert with reason string."""
 
     def test_assert_with_literal_reason(self):
-        source = '''
+        source = """
 # @version ^0.4.0
 @external
 def foo(x: uint256):
     assert x > 0, "value must be positive"
-'''
+"""
         ctx, fn = _lower_all_stmts(source)
 
         block_labels = [bb.label.name for bb in fn._basic_block_dict.values()]
@@ -189,12 +189,12 @@ class TestRaiseWithReason:
     """Test raise with reason string."""
 
     def test_raise_with_literal_reason(self):
-        source = '''
+        source = """
 # @version ^0.4.0
 @external
 def foo():
     raise "something went wrong"
-'''
+"""
         ctx, fn = _lower_all_stmts(source)
 
         # Check that there's a revert instruction

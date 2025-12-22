@@ -78,9 +78,7 @@ def _parse_method_id(method_id_node: vy_ast.VyperNode) -> int | None:
 
 
 def _create_tuple_in_memory(
-    ctx: VenomCodegenContext,
-    args: list[IROperand],
-    types: list,
+    ctx: VenomCodegenContext, args: list[IROperand], types: list
 ) -> tuple[IROperand, TupleT]:
     """Create a tuple in memory from individual args."""
     b = ctx.builder
@@ -153,6 +151,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         # Encode data starting at offset 36
         data_dst = b.add(buf, IRLiteral(36))
         encoded_len = abi_encode_to_buf(ctx, data_dst, encode_input, encode_type, returns_len=True)
+        assert encoded_len is not None
 
         # Write total length (encoded_len + 4) at offset 0
         total_len = b.add(encoded_len, IRLiteral(4))
@@ -161,6 +160,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         # Encode data starting at offset 32
         data_dst = b.add(buf, IRLiteral(32))
         encoded_len = abi_encode_to_buf(ctx, data_dst, encode_input, encode_type, returns_len=True)
+        assert encoded_len is not None
 
         # Write length at offset 0
         b.mstore(encoded_len, buf)

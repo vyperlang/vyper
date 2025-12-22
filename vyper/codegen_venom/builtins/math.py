@@ -37,9 +37,7 @@ def lower_unsafe_div(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     return _lower_unsafe_binop(node, ctx, "div")
 
 
-def _lower_unsafe_binop(
-    node: vy_ast.Call, ctx: VenomCodegenContext, op: str
-) -> IROperand:
+def _lower_unsafe_binop(node: vy_ast.Call, ctx: VenomCodegenContext, op: str) -> IROperand:
     """
     Common implementation for unsafe binary operations.
 

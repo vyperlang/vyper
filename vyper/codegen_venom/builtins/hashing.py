@@ -65,6 +65,8 @@ def lower_sha256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     arg = Expr(arg_node, ctx).lower()
     arg_t = arg_node._metadata["type"]
 
+    data_ptr: IROperand
+    length: IROperand
     if isinstance(arg_t, _BytestringT):
         # Variable-length bytes/string
         data_ptr = b.add(arg, IRLiteral(32))
@@ -87,12 +89,7 @@ def lower_sha256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Call SHA256 precompile: staticcall(gas, 0x2, in_ptr, in_len, out_ptr, 32)
     success = b.staticcall(
-        b.gas(),
-        IRLiteral(2),  # SHA256 precompile address
-        data_ptr,
-        length,
-        out_buf,
-        IRLiteral(32),
+        b.gas(), IRLiteral(2), data_ptr, length, out_buf, IRLiteral(32)  # SHA256 precompile address
     )
 
     # Assert success (precompile should always succeed with valid input)
@@ -102,7 +99,4 @@ def lower_sha256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
 
 # Export handlers
-HANDLERS = {
-    "keccak256": lower_keccak256,
-    "sha256": lower_sha256,
-}
+HANDLERS = {"keccak256": lower_keccak256, "sha256": lower_sha256}

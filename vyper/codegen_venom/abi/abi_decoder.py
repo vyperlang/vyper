@@ -52,7 +52,7 @@ def needs_clamp(typ: VyperType) -> bool:
     if isinstance(typ, SArrayT):
         return needs_clamp(typ.value_type)
     if is_tuple_like(typ):
-        return any(needs_clamp(m) for m in typ.tuple_members())
+        return any(needs_clamp(m) for m in typ.tuple_members())  # type: ignore[attr-defined]
     if typ._is_prim_word:
         return typ not in (INT256_T, UINT256_T, BYTES32_T)
 
@@ -194,10 +194,7 @@ def clamp_dyn_array(
 
 
 def _getelemptr_abi(
-    ctx: VenomCodegenContext,
-    parent: IROperand,
-    member_typ: VyperType,
-    static_offset: int,
+    ctx: VenomCodegenContext, parent: IROperand, member_typ: VyperType, static_offset: int
 ) -> IROperand:
     """
     Navigate to ABI-encoded element.
@@ -232,14 +229,11 @@ def _getelemptr_abi(
 
 
 def _decode_primitive(
-    ctx: VenomCodegenContext,
-    dst: IROperand,
-    src: IROperand,
-    typ: VyperType,
+    ctx: VenomCodegenContext, dst: IROperand, src: IROperand, typ: VyperType
 ) -> None:
     """Decode a primitive (word-sized) type."""
     b = ctx.builder
-    val = b.mload(src)
+    val: IROperand = b.mload(src)
 
     if needs_clamp(typ):
         val = clamp_basetype(ctx, val, typ)
@@ -269,11 +263,7 @@ def _decode_bytestring(
 
 
 def _decode_dyn_array(
-    ctx: VenomCodegenContext,
-    dst: IROperand,
-    src: IROperand,
-    typ: DArrayT,
-    hi: IROperand = None,
+    ctx: VenomCodegenContext, dst: IROperand, src: IROperand, typ: DArrayT, hi: IROperand = None
 ) -> None:
     """
     Decode a dynamic array.
@@ -367,11 +357,7 @@ def _decode_dyn_array(
 
 
 def _decode_complex(
-    ctx: VenomCodegenContext,
-    dst: IROperand,
-    src: IROperand,
-    typ: VyperType,
-    hi: IROperand = None,
+    ctx: VenomCodegenContext, dst: IROperand, src: IROperand, typ: VyperType, hi: IROperand = None
 ) -> None:
     """
     Decode a complex type (tuple/struct/static array).
@@ -381,7 +367,7 @@ def _decode_complex(
     b = ctx.builder
 
     if is_tuple_like(typ):
-        items = list(typ.tuple_items())
+        items = list(typ.tuple_items())  # type: ignore[attr-defined]
     elif isinstance(typ, SArrayT):
         items = [(i, typ.value_type) for i in range(typ.count)]
     else:

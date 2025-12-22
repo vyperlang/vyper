@@ -8,12 +8,7 @@ ABI decoding of values from calldata, returndata, and user input.
 import pytest
 
 from vyper.codegen_venom.abi import abi_decode_to_buf
-from vyper.codegen_venom.abi.abi_decoder import (
-    bytes_clamp,
-    clamp_basetype,
-    int_clamp,
-    needs_clamp,
-)
+from vyper.codegen_venom.abi.abi_decoder import bytes_clamp, clamp_basetype, int_clamp, needs_clamp
 from vyper.semantics.types import (
     AddressT,
     BoolT,
@@ -28,13 +23,7 @@ from vyper.semantics.types import (
     TupleT,
 )
 from vyper.semantics.types.primitives import IntegerT
-from vyper.semantics.types.shortcuts import (
-    BYTES32_T,
-    INT128_T,
-    INT256_T,
-    UINT8_T,
-    UINT256_T,
-)
+from vyper.semantics.types.shortcuts import BYTES32_T, INT128_T, INT256_T, UINT8_T, UINT256_T
 
 # Create UINT128_T since it's not in shortcuts
 UINT128_T = IntegerT(False, 128)

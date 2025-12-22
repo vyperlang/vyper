@@ -60,9 +60,7 @@ def lower_max(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     return _lower_minmax(node, ctx, is_max=True)
 
 
-def _lower_minmax(
-    node: vy_ast.Call, ctx: VenomCodegenContext, is_max: bool
-) -> IROperand:
+def _lower_minmax(node: vy_ast.Call, ctx: VenomCodegenContext, is_max: bool) -> IROperand:
     """
     Common implementation for min/max.
 
