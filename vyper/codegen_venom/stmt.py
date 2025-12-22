@@ -8,9 +8,10 @@ are deferred to later tasks.
 from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic, TypeCheckFailure
 from vyper.semantics.types import DecimalT, IntegerT
+from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import UINT256_T
-from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT
-from vyper.semantics.types.user import StructT
+from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT, TupleT
+from vyper.semantics.types.user import EventT, StructT
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 from .context import VenomCodegenContext
@@ -867,3 +868,110 @@ class Stmt:
 
         # Return encoded data
         self.builder.return_(encoded_len, buf)
+
+    # === Event Logging ===
+
+    def lower_Log(self) -> None:
+        """Lower log statement (event emission).
+
+        Events in Vyper are emitted via LOG0-LOG4 opcodes:
+        - topic0: Always event signature hash (keccak256 of signature)
+        - topic1-3: Indexed parameters (up to 3)
+        - data: Non-indexed parameters, ABI-encoded
+
+        Source: vyper/codegen/stmt.py:parse_Log and vyper/codegen/events.py
+        """
+        from vyper.codegen_venom.abi import abi_encode_to_buf
+
+        node = self.node
+        event: EventT = node._metadata["type"]
+
+        # Get arguments - can be keyword or positional
+        call_node = node.value
+        if len(call_node.keywords) > 0:
+            arg_nodes = [arg.value for arg in call_node.keywords]
+        else:
+            arg_nodes = call_node.args
+
+        # Lower all argument expressions
+        args = [(Expr(arg, self.ctx).lower(), arg._metadata["type"]) for arg in arg_nodes]
+
+        # Split into indexed (topics) and non-indexed (data)
+        topic_vals = []
+        data_vals = []
+        data_typs = []
+
+        for (arg_val, arg_typ), is_indexed in zip(args, event.indexed):
+            if is_indexed:
+                topic_vals.append((arg_val, arg_typ))
+            else:
+                data_vals.append(arg_val)
+                data_typs.append(arg_typ)
+
+        # Build topics list - starts with event signature hash
+        topics = [IRLiteral(event.event_id)]
+
+        for val, typ in topic_vals:
+            topic = self._encode_log_topic(val, typ)
+            topics.append(topic)
+
+        # Encode non-indexed data to buffer
+        if data_vals:
+            # Create a tuple type from the data types
+            tuple_typ = TupleT(tuple(data_typs))
+            bufsz = tuple_typ.abi_type.size_bound()
+
+            # Allocate buffer for tuple data in memory
+            data_buf = self.ctx.allocate_buffer(tuple_typ.memory_bytes_required)
+
+            # Store each data value into the tuple buffer
+            offset = 0
+            for val, typ in zip(data_vals, data_typs):
+                if offset == 0:
+                    dst = data_buf
+                else:
+                    dst = self.builder.add(data_buf, IRLiteral(offset))
+                self.ctx.store_memory(val, dst, typ)
+                offset += typ.memory_bytes_required
+
+            # Allocate ABI encoding output buffer
+            abi_buf = self.ctx.allocate_buffer(bufsz)
+
+            # ABI encode the tuple, returns encoded length
+            encoded_len = abi_encode_to_buf(
+                self.ctx, abi_buf, data_buf, tuple_typ, returns_len=True
+            )
+        else:
+            # No data - use zero size
+            abi_buf = IRLiteral(0)
+            encoded_len = IRLiteral(0)
+
+        # Emit log instruction
+        assert len(topics) <= 4, "too many topics"
+
+        self.builder.log(len(topics), abi_buf, encoded_len, *topics)
+
+    def _encode_log_topic(self, val: IROperand, typ) -> IROperand:
+        """Encode a single indexed topic value.
+
+        Per Solidity ABI spec for indexed event encoding:
+        - Primitive word types (uint, int, address, bool, bytesN): use directly
+        - bytes/string: keccak256 hash of contents
+
+        Source: vyper/codegen/events.py:_encode_log_topics
+        """
+        if typ._is_prim_word:
+            # Primitive word type - use value directly
+            # If val is a memory pointer (for complex paths), we need to load it
+            # But in practice, indexed args are primitive words computed as values
+            return val
+
+        elif isinstance(typ, _BytestringT):
+            # bytes/string - must be keccak256 hashed per ABI spec
+            # val is a pointer to [length][data]
+            data_ptr = self.builder.add(val, IRLiteral(32))
+            length = self.builder.mload(val)
+            return self.builder.sha3(length, data_ptr)
+
+        else:
+            raise CompilerPanic(f"Event indexes may only be value types, got {typ}")

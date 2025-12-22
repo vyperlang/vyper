@@ -422,9 +422,20 @@ class VenomBuilder:
         return self._emit1("blobbasefee")
 
     # === Logging ===
-    def log(self, topic_count: int, *args: Operand) -> None:
-        """Emit log with N topics. Args: size, offset, topic0..topicN-1"""
-        self._emit("log", topic_count, *args)
+    def log(self, topic_count: int, offset: Operand, size: Operand, *topics: Operand) -> None:
+        """Emit log with N topics.
+
+        Args:
+            topic_count: Number of topics (0-4)
+            offset: Memory offset of data
+            size: Size of data to log
+            topics: topic0, topic1, ... (in logical order)
+
+        Matches EVM LOG opcode order: LOG(offset, size, topic0, ...).
+        Internally reorders to match venom IR format.
+        """
+        # Venom IR format: log topic_count, topic_n-1, ..., topic0, size, offset
+        self._emit("log", topic_count, *reversed(topics), size, offset)
 
     # === Other ===
     def selfdestruct(self, addr: Operand) -> None:

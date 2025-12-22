@@ -223,9 +223,8 @@ def lower_raw_log(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         data_len = b.mload(data)
         data_ptr = b.add(data, IRLiteral(32))
 
-    # Emit log based on number of topics
-    # VenomBuilder.log(topic_count, size, offset, topic0, topic1, ...)
-    b.log(n_topics, data_len, data_ptr, *topic_values)
+    # Emit log instruction
+    b.log(n_topics, data_ptr, data_len, *topic_values)
 
     return IRLiteral(0)  # Statement builtin, no return
 
