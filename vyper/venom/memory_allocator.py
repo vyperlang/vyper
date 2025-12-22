@@ -12,6 +12,8 @@ class MemoryAllocator:
     #   function => set of memlocs in that function
     # (free vars + union of all mems_used is equivalent to `allocated`)
     mems_used: dict[IRFunction, OrderedSet[IRAbstractMemLoc]]
+    #   function => end of memory for that function
+    fn_eom: dict[IRFunction, int]
 
     # mems allocated in current function
     allocated_fn: OrderedSet[IRAbstractMemLoc]
@@ -28,6 +30,7 @@ class MemoryAllocator:
 
         self.allocated = dict()
         self.mems_used = dict()
+        self.fn_eom = dict()
         self.allocated_fn = OrderedSet()
 
     def allocate(self, mem_loc: IRAbstractMemLoc) -> int:
@@ -48,6 +51,7 @@ class MemoryAllocator:
 
     def end_fn_allocation(self):
         self.mems_used[self.current_function] = OrderedSet(self.allocated_fn)
+        self.fn_eom[self.current_function] = self.eom
 
     def reset(self):
         self.eom = MemoryAllocator.FN_START
