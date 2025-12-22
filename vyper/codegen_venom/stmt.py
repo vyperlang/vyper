@@ -14,7 +14,7 @@ from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT, Tupl
 from vyper.semantics.types.user import EventT, StructT
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
-from .context import VenomCodegenContext
+from .context import Constancy, VenomCodegenContext
 from .expr import Expr
 
 
@@ -975,3 +975,154 @@ class Stmt:
 
         else:
             raise CompilerPanic(f"Event indexes may only be value types, got {typ}")
+
+    # === Error Handling (Assert/Raise) ===
+
+    def lower_Assert(self) -> None:
+        """Lower assert statement.
+
+        Handles three cases:
+        1. Simple assert (no msg): jnz cond, ok, fail; fail: revert 0,0; ok: continue
+        2. UNREACHABLE: jnz cond, ok, fail; fail: invalid; ok: continue
+        3. With reason string: encode Error(string) and revert
+
+        Source: vyper/codegen/stmt.py:parse_Assert, _assert_reason
+        """
+        node = self.node
+        cond = Expr(node.test, self.ctx).lower()
+
+        if node.msg:
+            self._assert_with_reason(cond, node.msg)
+        else:
+            # Simple assert - revert with no data on failure
+            ok_block = self.builder.create_block("assert_ok")
+            fail_block = self.builder.create_block("assert_fail")
+
+            self.builder.jnz(cond, ok_block.label, fail_block.label)
+
+            # Fail block: revert 0, 0
+            self.builder.append_block(fail_block)
+            self.builder.set_block(fail_block)
+            self.builder.revert(IRLiteral(0), IRLiteral(0))
+
+            # Ok block: continue
+            self.builder.append_block(ok_block)
+            self.builder.set_block(ok_block)
+
+    def lower_Raise(self) -> None:
+        """Lower raise statement.
+
+        Handles three cases:
+        1. Bare raise: revert 0, 0
+        2. UNREACHABLE: invalid
+        3. With reason: encode Error(string) and revert
+
+        Source: vyper/codegen/stmt.py:parse_Raise
+        """
+        node = self.node
+
+        if node.exc is None:
+            # Bare raise: revert 0, 0
+            self.builder.revert(IRLiteral(0), IRLiteral(0))
+        elif isinstance(node.exc, vy_ast.Name) and node.exc.id == "UNREACHABLE":
+            # UNREACHABLE: invalid opcode
+            self.builder.invalid()
+        else:
+            # Raise with reason string
+            self._revert_with_reason(node.exc)
+
+    def _assert_with_reason(self, cond: IROperand, msg: vy_ast.VyperNode) -> None:
+        """Handle assert with reason (including UNREACHABLE).
+
+        Source: vyper/codegen/stmt.py:_assert_reason
+        """
+        if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
+            # UNREACHABLE: use invalid opcode on failure
+            ok_block = self.builder.create_block("assert_ok")
+            fail_block = self.builder.create_block("assert_fail")
+
+            self.builder.jnz(cond, ok_block.label, fail_block.label)
+
+            # Fail block: invalid
+            self.builder.append_block(fail_block)
+            self.builder.set_block(fail_block)
+            self.builder.invalid()
+
+            # Ok block: continue
+            self.builder.append_block(ok_block)
+            self.builder.set_block(ok_block)
+        else:
+            # Assert with reason string - revert with Error(string) on failure
+            ok_block = self.builder.create_block("assert_ok")
+            fail_block = self.builder.create_block("assert_fail")
+
+            self.builder.jnz(cond, ok_block.label, fail_block.label)
+
+            # Fail block: revert with reason
+            self.builder.append_block(fail_block)
+            self.builder.set_block(fail_block)
+            self._revert_with_reason(msg)
+
+            # Ok block: continue
+            self.builder.append_block(ok_block)
+            self.builder.set_block(ok_block)
+
+    def _revert_with_reason(self, msg: vy_ast.VyperNode) -> None:
+        """Emit revert with Error(string) encoding.
+
+        Error(string) selector: 0x08c379a0
+        Buffer layout:
+        - buf+0: selector (left-padded in 32-byte word)
+        - buf+32: ABI-encoded (string,) tuple
+        Final revert: from buf+28 with length 4 + encoded_len
+
+        Source: vyper/codegen/stmt.py:_assert_reason
+        """
+        from vyper.codegen_venom.abi import abi_encode_to_buf
+        from vyper.semantics.types.subscriptable import TupleT
+        from vyper.utils import method_id_int
+
+        # Evaluate message in constant context (prevent state changes)
+        old_constancy = self.ctx.constancy
+        try:
+            self.ctx.constancy = Constancy.Constant
+            msg_val = Expr(msg, self.ctx).lower()
+        finally:
+            self.ctx.constancy = old_constancy
+
+        msg_typ = msg._metadata["type"]
+
+        # Wrap message as tuple for ABI encoding (matches wrap_value_for_external_return)
+        # Error(string) expects the string to be encoded as a tuple element
+        wrapped_typ = TupleT((msg_typ,))
+
+        # Buffer size: 64 (selector word + offset word minimum) + message data
+        bufsz = 64 + msg_typ.memory_bytes_required
+
+        # Allocate buffer
+        buf = self.ctx.allocate_buffer(bufsz)
+
+        # Error(string) selector
+        selector = method_id_int("Error(string)")
+
+        # Store selector at buf (left-padded in 32-byte word)
+        self.builder.mstore(IRLiteral(selector), buf)
+
+        # Payload buffer starts at buf + 32
+        payload_buf = self.builder.add(buf, IRLiteral(32))
+
+        # msg_val is a pointer to the string in memory
+        # We need to store it at a location so we can encode the tuple
+        # For a tuple (string,), we store the string pointer, then encode
+        tuple_buf = self.ctx.allocate_buffer(wrapped_typ.memory_bytes_required)
+        self.ctx.store_memory(msg_val, tuple_buf, msg_typ)
+
+        # ABI encode the wrapped message to payload buffer
+        encoded_len = abi_encode_to_buf(
+            self.ctx, payload_buf, tuple_buf, wrapped_typ, returns_len=True
+        )
+
+        # Revert from buf+28 (so selector is at bytes 0-3) with length 4 + encoded_len
+        revert_offset = self.builder.add(buf, IRLiteral(28))
+        revert_len = self.builder.add(IRLiteral(4), encoded_len)
+        self.builder.revert(revert_len, revert_offset)
