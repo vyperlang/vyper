@@ -4,10 +4,20 @@ Lower Vyper AST expressions to Venom IR.
 This module handles the first stage of expression codegen: converting
 Vyper AST literal and expression nodes into Venom IR operands.
 """
+from dataclasses import dataclass
+from typing import Optional
+
+import vyper.utils as util
 from vyper import ast as vy_ast
 from vyper.builtins._signatures import BuiltinFunctionT
 from vyper.codegen.arithmetic import calculate_largest_base, calculate_largest_power
-from vyper.codegen.core import DYNAMIC_ARRAY_OVERHEAD, address_space_to_data_location
+from vyper.codegen.core import (
+    DYNAMIC_ARRAY_OVERHEAD,
+    address_space_to_data_location,
+    calculate_type_for_external_return,
+    get_type_for_exact_size,
+    needs_external_call_wrap,
+)
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
 from vyper.exceptions import CompilerPanic, TypeCheckFailure
 from vyper.semantics.data_locations import DataLocation
@@ -20,10 +30,11 @@ from vyper.semantics.types import (
     IntegerT,
     InterfaceT,
     StringT,
+    TupleT,
     is_type_t,
 )
 from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.function import MemberFunctionT
+from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
 from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.semantics.types.user import FlagT, StructT
@@ -31,6 +42,16 @@ from vyper.utils import DECIMAL_DIVISOR, MemoryPositions, ceil32
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 from .context import VenomCodegenContext
+
+
+@dataclass
+class _CallKwargs:
+    """Keyword arguments for external calls."""
+
+    value: IROperand  # ETH value to send (CALL only)
+    gas: IROperand  # Gas limit for the call
+    skip_contract_check: bool  # Skip extcodesize check
+    default_return_value: Optional[IROperand]  # Default if returndatasize==0
 
 # Environment variable prefixes for attribute access
 ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
@@ -1394,3 +1415,276 @@ class Expr:
             raise CompilerPanic("DynArray.pop() not yet implemented")
         else:
             raise CompilerPanic(f"Unknown member function: {attr}")
+
+    # === External Calls ===
+
+    def lower_ExtCall(self) -> IROperand:
+        """Lower extcall statement (mutable external call).
+
+        extcall interface.method(args, value=..., gas=...)
+        """
+        return self._lower_external_call()
+
+    def lower_StaticCall(self) -> IROperand:
+        """Lower staticcall expression (view/pure external call).
+
+        result: T = staticcall interface.method(args, gas=...)
+        """
+        return self._lower_external_call()
+
+    def _parse_external_call_kwargs(self, call_node) -> _CallKwargs:
+        """Parse keyword arguments for external calls.
+
+        Handles: value, gas, skip_contract_check, default_return_value
+
+        Args:
+            call_node: The Call AST node (from ExtCall.value or StaticCall.value)
+        """
+        # Default values
+        value = IRLiteral(0)
+        gas = self.builder.gas()
+        skip_contract_check = False
+        default_return_value = None
+
+        for kw in call_node.keywords:
+            kw_val = Expr(kw.value, self.ctx).lower()
+            if kw.arg == "value":
+                value = kw_val
+            elif kw.arg == "gas":
+                gas = kw_val
+            elif kw.arg == "skip_contract_check":
+                # Must be a literal True/False
+                assert isinstance(kw_val, IRLiteral)
+                skip_contract_check = bool(kw_val.value)
+            elif kw.arg == "default_return_value":
+                default_return_value = kw_val
+            else:
+                raise CompilerPanic(f"Unexpected keyword argument: {kw.arg}")
+
+        return _CallKwargs(
+            value=value,
+            gas=gas,
+            skip_contract_check=skip_contract_check,
+            default_return_value=default_return_value,
+        )
+
+    def _lower_external_call(self) -> IROperand:
+        """Lower external call (extcall/staticcall).
+
+        Steps:
+        1. Evaluate contract address
+        2. Parse kwargs (value, gas, skip_contract_check, default_return_value)
+        3. Pack arguments with method selector
+        4. Check extcodesize if needed
+        5. Dispatch CALL or STATICCALL
+        6. Check success and propagate revert on failure
+        7. Unpack return value if present
+        """
+        from vyper.codegen_venom.abi import abi_decode_to_buf, abi_encode_to_buf
+
+        node = self.node
+        b = self.builder
+
+        # ExtCall and StaticCall nodes wrap a Call in their .value attribute
+        call_node = node.value
+
+        # Get function type from the call expression
+        fn_type: ContractFunctionT = call_node.func._metadata["type"]
+
+        # Evaluate contract address (the interface value)
+        contract_address = Expr(call_node.func.value, self.ctx).lower()
+
+        # Evaluate arguments
+        args = [Expr(arg, self.ctx).lower() for arg in call_node.args]
+
+        # Parse kwargs
+        call_kwargs = self._parse_external_call_kwargs(call_node)
+
+        # Calculate buffer size needed
+        args_tuple_t = TupleT([fn_type.arguments[i].typ for i in range(len(args))])
+        args_abi_t = args_tuple_t.abi_type
+        args_abi_size = args_abi_t.size_bound()
+
+        if fn_type.return_type is not None:
+            return_abi_t = calculate_type_for_external_return(fn_type.return_type).abi_type
+            return_abi_size = return_abi_t.size_bound()
+        else:
+            return_abi_size = 0
+
+        # Buffer size: max(args, return) + 32 for method ID padding
+        buf_size = max(args_abi_size, return_abi_size) + 32
+
+        # Allocate buffer
+        buf_t = get_type_for_exact_size(buf_size)
+        buf = self.ctx.new_internal_variable(buf_t)
+
+        # === Pack Arguments ===
+        # Store method ID at buf+28 (left-padded in 32-byte word)
+        # Method ID = first 4 bytes of keccak256(signature)
+        abi_signature = fn_type.name + args_tuple_t.abi_type.selector_name()
+        method_id = util.method_id_int(abi_signature)
+        b.mstore(IRLiteral(method_id), buf)
+
+        # ABI-encode arguments starting at buf+32
+        if len(args) > 0:
+            # Create temp buffer for args in memory
+            args_buf = self.ctx.new_internal_variable(args_tuple_t)
+
+            # Store each arg at its position in args_buf
+            offset = 0
+            for i, arg_val in enumerate(args):
+                arg_typ = fn_type.arguments[i].typ
+                if offset == 0:
+                    dst = args_buf
+                else:
+                    dst = b.add(args_buf, IRLiteral(offset))
+                self.ctx.store_memory(arg_val, dst, arg_typ)
+                offset += arg_typ.memory_bytes_required
+
+            # ABI-encode from args_buf to buf+32
+            encode_dst = b.add(buf, IRLiteral(32))
+            abi_encode_to_buf(self.ctx, encode_dst, args_buf, args_tuple_t)
+
+        # Call starts at buf+28, length = 4 + args_abi_size
+        args_ofst = b.add(buf, IRLiteral(28))
+        args_len = IRLiteral(4 + args_abi_size)
+
+        # === Contract Existence Check ===
+        # If function returns nothing and skip_contract_check is False,
+        # check extcodesize before call (can't rely on returndatasize check)
+        if fn_type.return_type is None and not call_kwargs.skip_contract_check:
+            codesize = b.extcodesize(contract_address)
+            b.assert_(codesize)
+
+        # === Dispatch CALL or STATICCALL ===
+        use_staticcall = fn_type.mutability in (StateMutability.VIEW, StateMutability.PURE)
+
+        # Return buffer location and size
+        ret_ofst = buf
+        ret_len = IRLiteral(return_abi_size) if return_abi_size > 0 else IRLiteral(0)
+
+        if use_staticcall:
+            success = b.staticcall(
+                call_kwargs.gas,
+                contract_address,
+                args_ofst,
+                args_len,
+                ret_ofst,
+                ret_len,
+            )
+        else:
+            success = b.call(
+                call_kwargs.gas,
+                contract_address,
+                call_kwargs.value,
+                args_ofst,
+                args_len,
+                ret_ofst,
+                ret_len,
+            )
+
+        # === Revert Propagation ===
+        # If call failed, propagate the revert data
+        fail_bb = b.create_block("extcall_fail")
+        cont_bb = b.create_block("extcall_cont")
+
+        b.jnz(success, cont_bb.label, fail_bb.label)
+
+        # Fail block: copy returndata and revert
+        b.append_block(fail_bb)
+        b.set_block(fail_bb)
+        rds = b.returndatasize()
+        b.returndatacopy(IRLiteral(0), IRLiteral(0), rds)
+        b.revert(IRLiteral(0), rds)
+
+        # Continue block
+        b.append_block(cont_bb)
+        b.set_block(cont_bb)
+
+        # === Unpack Return Value ===
+        if fn_type.return_type is None:
+            return IRLiteral(0)
+
+        return_t = fn_type.return_type
+        wrapped_return_t = calculate_type_for_external_return(return_t)
+        min_return_size = wrapped_return_t.abi_type.static_size()
+
+        # Allocate result buffer
+        result_buf = self.ctx.new_internal_variable(wrapped_return_t)
+
+        # Handle default_return_value
+        if call_kwargs.default_return_value is not None:
+            # If returndatasize == 0, use default value
+            rds = b.returndatasize()
+            is_zero = b.iszero(rds)
+
+            default_bb = b.create_block("extcall_default")
+            decode_bb = b.create_block("extcall_decode")
+            exit_bb = b.create_block("extcall_exit")
+
+            b.jnz(is_zero, default_bb.label, decode_bb.label)
+
+            # Default block: use default_return_value
+            b.append_block(default_bb)
+            b.set_block(default_bb)
+
+            # Store default value - needs wrapping if single value
+            if needs_external_call_wrap(return_t):
+                # Wrap single value in tuple
+                self.ctx.store_memory(call_kwargs.default_return_value, result_buf, return_t)
+            else:
+                self.ctx.store_memory(call_kwargs.default_return_value, result_buf, return_t)
+
+            # Check extcodesize if not skipped (contract might have selfdestructed)
+            if not call_kwargs.skip_contract_check:
+                codesize = b.extcodesize(contract_address)
+                b.assert_(codesize)
+
+            b.jmp(exit_bb.label)
+
+            # Decode block: normal ABI decode
+            b.append_block(decode_bb)
+            b.set_block(decode_bb)
+
+            # Check returndatasize >= min_return_size
+            rds = b.returndatasize()
+            ok = b.iszero(b.lt(rds, IRLiteral(min_return_size)))
+            b.assert_(ok)
+
+            # Copy returndata to buffer and decode
+            b.returndatacopy(buf, IRLiteral(0), rds)
+
+            # Compute hi bound for decode (prevents overread)
+            hi = b.add(buf, rds)
+            abi_decode_to_buf(self.ctx, result_buf, buf, wrapped_return_t, hi=hi)
+
+            b.jmp(exit_bb.label)
+
+            # Exit block
+            b.append_block(exit_bb)
+            b.set_block(exit_bb)
+
+        else:
+            # No default_return_value - simple decode path
+            # Check returndatasize >= min_return_size
+            rds = b.returndatasize()
+            ok = b.iszero(b.lt(rds, IRLiteral(min_return_size)))
+            b.assert_(ok)
+
+            # Copy returndata to buffer and decode
+            b.returndatacopy(buf, IRLiteral(0), rds)
+
+            # Compute hi bound for decode (prevents overread)
+            hi = b.add(buf, rds)
+            abi_decode_to_buf(self.ctx, result_buf, buf, wrapped_return_t, hi=hi)
+
+        # Unwrap if single return value
+        if needs_external_call_wrap(return_t):
+            # Return the first (only) element of the wrapper tuple
+            if return_t._is_prim_word:
+                return b.mload(result_buf)
+            else:
+                return result_buf
+        else:
+            # Multi-return tuple
+            return result_buf
