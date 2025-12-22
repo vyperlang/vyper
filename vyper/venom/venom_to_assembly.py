@@ -213,7 +213,7 @@ class VenomCompiler:
             assert len(assembly) == 0, "Dry run should not work on assembly"
             stack = stack.copy()
             spilled = spilled.copy()
-            spill_free_snapshot = self.spiller._spill_free_slots.copy()
+            snap = self.spiller.snapshot()
 
         if len(stack_ops) == 0:
             return 0
@@ -261,7 +261,7 @@ class VenomCompiler:
         assert stack._stack[-len(stack_ops) :] == stack_ops, (stack, stack_ops)
 
         if dry_run:
-            self.spiller._spill_free_slots = spill_free_snapshot
+            self.spiller.restore(snap)
 
         return cost
 

@@ -32,6 +32,14 @@ class StackSpiller:
     def reset_spill_slots(self) -> None:
         self._spill_free_slots = []
 
+    def snapshot(self):
+        """Snapshot mutable state for dry-run isolation."""
+        return (self._spill_free_slots.copy(), self._next_spill_offset)
+
+    def restore(self, snap) -> None:
+        """Restore from snapshot."""
+        self._spill_free_slots, self._next_spill_offset = snap
+
     def spill_operand(
         self,
         assembly: list,
