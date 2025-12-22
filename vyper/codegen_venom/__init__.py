@@ -1,3 +1,16 @@
+"""
+Direct AST-to-Venom IR code generation.
+
+Bypasses legacy IRnode, generating Venom IR directly from annotated AST.
+
+Public API:
+    generate_runtime_venom: Compile contract runtime code
+    generate_deploy_venom: Compile contract deployment code
+
+Enable via: vyper --experimental-codegen
+"""
+from __future__ import annotations
+
 from vyper import ast as vy_ast
 from vyper.compiler.settings import Settings
 from vyper.semantics.types.module import ModuleT

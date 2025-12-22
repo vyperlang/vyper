@@ -1,3 +1,14 @@
+"""
+Code generation context and state management.
+
+VenomCodegenContext tracks:
+- Current function/module being compiled
+- Variable locations (memory offsets, storage slots)
+- Memory allocation (free pointer, allocations)
+- VenomBuilder instance for IR emission
+"""
+from __future__ import annotations
+
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
@@ -7,6 +18,7 @@ from vyper.evm.opcodes import version_check
 from vyper.semantics.types import VyperType
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
+from vyper.codegen_venom.constants import IDENTITY_PRECOMPILE
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 
@@ -342,11 +354,11 @@ class VenomCodegenContext:
             b.mcopy(length, src, dst)
             return
 
-        # Pre-Cancun: use identity precompile at address 4
-        # staticcall(gas, 4, src, length, dst, length)
+        # Pre-Cancun: use identity precompile
+        # staticcall(gas, IDENTITY_PRECOMPILE, src, length, dst, length)
         success = b.staticcall(
             b.gas(),
-            IRLiteral(4),  # identity precompile
+            IRLiteral(IDENTITY_PRECOMPILE),
             src,
             length,
             dst,

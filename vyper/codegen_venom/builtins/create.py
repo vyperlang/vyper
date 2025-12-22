@@ -7,6 +7,9 @@ Contract creation built-in functions for Venom IR.
 - create_from_blueprint(target, *ctor_args, value=0, salt=None, raw_args=False,
                         code_offset=3, revert_on_failure=True)
 """
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
 from vyper.codegen.core import bytes_data_ptr, get_type_for_exact_size, ir_tuple_from_args
@@ -15,7 +18,7 @@ from vyper.semantics.types import BytesT, TupleT
 from vyper.utils import bytes_to_int
 from vyper.venom.basicblock import IRLiteral, IROperand
 
-if False:  # TYPE_CHECKING
+if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
@@ -145,7 +148,7 @@ def _create_preamble_bytes():
     return evm
 
 
-def lower_raw_create(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     raw_create(bytecode, *ctor_args, value=0, salt=None, revert_on_failure=True)
 
@@ -222,7 +225,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand
 
 
 def lower_create_minimal_proxy_to(
-    node: vy_ast.Call, ctx: "VenomCodegenContext"
+    node: vy_ast.Call, ctx: VenomCodegenContext
 ) -> IROperand:
     """
     create_minimal_proxy_to(target, value=0, salt=None, revert_on_failure=True)
@@ -295,7 +298,7 @@ def lower_create_minimal_proxy_to(
     return _check_create_result(b, addr, revert_on_failure)
 
 
-def lower_create_copy_of(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     create_copy_of(target, value=0, salt=None, revert_on_failure=True)
 
@@ -370,7 +373,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROpe
 
 
 def lower_create_from_blueprint(
-    node: vy_ast.Call, ctx: "VenomCodegenContext"
+    node: vy_ast.Call, ctx: VenomCodegenContext
 ) -> IROperand:
     """
     create_from_blueprint(target, *ctor_args, value=0, salt=None,

@@ -4,17 +4,20 @@ Hashing built-in functions.
 - keccak256(data) - native EVM SHA3 opcode
 - sha256(data) - SHA256 via precompile at address 0x2
 """
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
 from vyper.semantics.types import BytesM_T
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.venom.basicblock import IRLiteral, IROperand
 
-if False:  # TYPE_CHECKING
+if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
-def lower_keccak256(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_keccak256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     keccak256(data) -> bytes32
 
@@ -48,7 +51,7 @@ def lower_keccak256(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         return b.sha3(IRLiteral(32), buf)
 
 
-def lower_sha256(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_sha256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     sha256(data) -> bytes32
 

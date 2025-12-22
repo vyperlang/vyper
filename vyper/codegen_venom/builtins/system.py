@@ -6,13 +6,16 @@ System-level built-in functions for raw operations.
 - raw_log(topics, data) - low-level event emission
 - raw_revert(data) - revert with custom data
 """
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
 from vyper.semantics.types import BytesM_T, BytesT, TupleT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand
 
-if False:  # TYPE_CHECKING
+if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
@@ -44,7 +47,7 @@ def _get_literal_kwarg(node: vy_ast.Call, kwarg_name: str, default):
     return default
 
 
-def lower_raw_call(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     raw_call(to, data, max_outsize=0, gas=gas, value=0,
              is_delegate_call=False, is_static_call=False,
@@ -149,7 +152,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         return success
 
 
-def lower_send(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_send(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     send(to, value, gas=0)
 
@@ -187,7 +190,7 @@ def lower_send(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     return IRLiteral(0)  # Statement builtin, no return
 
 
-def lower_raw_log(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_raw_log(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     raw_log(topics, data)
 
@@ -229,7 +232,7 @@ def lower_raw_log(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     return IRLiteral(0)  # Statement builtin, no return
 
 
-def lower_raw_revert(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_raw_revert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     raw_revert(data)
 

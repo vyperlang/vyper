@@ -6,36 +6,39 @@ These operations skip overflow/underflow checks for performance.
 - pow_mod256 (unchecked exponentiation)
 - uint256_addmod, uint256_mulmod (modular arithmetic)
 """
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
 from vyper.venom.basicblock import IRLiteral, IROperand
 
-if False:  # TYPE_CHECKING
+if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
-def lower_unsafe_add(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_unsafe_add(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """unsafe_add(a, b) - unchecked addition."""
     return _lower_unsafe_binop(node, ctx, "add")
 
 
-def lower_unsafe_sub(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_unsafe_sub(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """unsafe_sub(a, b) - unchecked subtraction."""
     return _lower_unsafe_binop(node, ctx, "sub")
 
 
-def lower_unsafe_mul(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_unsafe_mul(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """unsafe_mul(a, b) - unchecked multiplication."""
     return _lower_unsafe_binop(node, ctx, "mul")
 
 
-def lower_unsafe_div(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_unsafe_div(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """unsafe_div(a, b) - unchecked division."""
     return _lower_unsafe_binop(node, ctx, "div")
 
 
 def _lower_unsafe_binop(
-    node: vy_ast.Call, ctx: "VenomCodegenContext", op: str
+    node: vy_ast.Call, ctx: VenomCodegenContext, op: str
 ) -> IROperand:
     """
     Common implementation for unsafe binary operations.
@@ -73,7 +76,7 @@ def _lower_unsafe_binop(
     return result
 
 
-def lower_pow_mod256(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_pow_mod256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     pow_mod256(base, exp) - unchecked exponentiation mod 2^256.
 
@@ -89,7 +92,7 @@ def lower_pow_mod256(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand
     return b.exp(base, exp)
 
 
-def lower_uint256_addmod(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_uint256_addmod(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     uint256_addmod(a, b, c) - (a + b) % c without intermediate overflow.
 
@@ -106,7 +109,7 @@ def lower_uint256_addmod(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROpe
     return b.addmod(a_val, b_val, c_val)
 
 
-def lower_uint256_mulmod(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_uint256_mulmod(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     uint256_mulmod(a, b, c) - (a * b) % c without intermediate overflow.
 

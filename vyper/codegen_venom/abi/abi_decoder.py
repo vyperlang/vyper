@@ -12,6 +12,9 @@ Security: When decoding untrusted data from memory, we need bounds checks
 to prevent buffer overruns. The `hi` parameter provides the upper bound
 of valid buffer data and must be passed through all recursive calls.
 """
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from vyper.codegen.core import is_tuple_like
 from vyper.exceptions import CompilerPanic
@@ -31,7 +34,7 @@ from vyper.semantics.types import (
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand
 
-if False:  # TYPE_CHECKING
+if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
@@ -56,7 +59,7 @@ def needs_clamp(typ: VyperType) -> bool:
     raise CompilerPanic(f"needs_clamp: unhandled type {typ}")
 
 
-def int_clamp(ctx: "VenomCodegenContext", val: IROperand, bits: int, signed: bool) -> IROperand:
+def int_clamp(ctx: VenomCodegenContext, val: IROperand, bits: int, signed: bool) -> IROperand:
     """
     Validate integer is in range.
 
@@ -84,7 +87,7 @@ def int_clamp(ctx: "VenomCodegenContext", val: IROperand, bits: int, signed: boo
     return val
 
 
-def bytes_clamp(ctx: "VenomCodegenContext", val: IROperand, m: int) -> IROperand:
+def bytes_clamp(ctx: VenomCodegenContext, val: IROperand, m: int) -> IROperand:
     """
     Validate bytesM has zero padding in low bits.
 
@@ -103,7 +106,7 @@ def bytes_clamp(ctx: "VenomCodegenContext", val: IROperand, m: int) -> IROperand
     return val
 
 
-def clamp_basetype(ctx: "VenomCodegenContext", val: IROperand, typ: VyperType) -> IROperand:
+def clamp_basetype(ctx: VenomCodegenContext, val: IROperand, typ: VyperType) -> IROperand:
     """
     Validate primitive value, return clamped value.
 
@@ -137,7 +140,7 @@ def clamp_basetype(ctx: "VenomCodegenContext", val: IROperand, typ: VyperType) -
 
 
 def clamp_bytestring(
-    ctx: "VenomCodegenContext", src: IROperand, typ: _BytestringT, hi: IROperand = None
+    ctx: VenomCodegenContext, src: IROperand, typ: _BytestringT, hi: IROperand = None
 ) -> None:
     """
     Validate bytestring length and bounds.
@@ -163,7 +166,7 @@ def clamp_bytestring(
 
 
 def clamp_dyn_array(
-    ctx: "VenomCodegenContext", src: IROperand, typ: DArrayT, hi: IROperand = None
+    ctx: VenomCodegenContext, src: IROperand, typ: DArrayT, hi: IROperand = None
 ) -> None:
     """
     Validate DynArray count and bounds.
@@ -191,7 +194,7 @@ def clamp_dyn_array(
 
 
 def _getelemptr_abi(
-    ctx: "VenomCodegenContext",
+    ctx: VenomCodegenContext,
     parent: IROperand,
     member_typ: VyperType,
     static_offset: int,
@@ -229,7 +232,7 @@ def _getelemptr_abi(
 
 
 def _decode_primitive(
-    ctx: "VenomCodegenContext",
+    ctx: VenomCodegenContext,
     dst: IROperand,
     src: IROperand,
     typ: VyperType,
@@ -245,7 +248,7 @@ def _decode_primitive(
 
 
 def _decode_bytestring(
-    ctx: "VenomCodegenContext",
+    ctx: VenomCodegenContext,
     dst: IROperand,
     src: IROperand,
     typ: _BytestringT,
@@ -266,7 +269,7 @@ def _decode_bytestring(
 
 
 def _decode_dyn_array(
-    ctx: "VenomCodegenContext",
+    ctx: VenomCodegenContext,
     dst: IROperand,
     src: IROperand,
     typ: DArrayT,
@@ -364,7 +367,7 @@ def _decode_dyn_array(
 
 
 def _decode_complex(
-    ctx: "VenomCodegenContext",
+    ctx: VenomCodegenContext,
     dst: IROperand,
     src: IROperand,
     typ: VyperType,
@@ -409,7 +412,7 @@ def _decode_complex(
 
 
 def _abi_decode_to_buf(
-    ctx: "VenomCodegenContext",
+    ctx: VenomCodegenContext,
     dst: IROperand,
     src: IROperand,
     src_typ: VyperType,
@@ -433,7 +436,7 @@ def _abi_decode_to_buf(
 
 
 def abi_decode_to_buf(
-    ctx: "VenomCodegenContext",
+    ctx: VenomCodegenContext,
     dst: IROperand,
     src: IROperand,
     src_typ: VyperType,

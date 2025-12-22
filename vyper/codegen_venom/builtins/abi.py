@@ -5,6 +5,9 @@ ABI encoding/decoding built-in functions.
 - abi_decode(data, output_type, unwrap_tuple=True) -> output_type
 - _abi_encode, _abi_decode: deprecated aliases
 """
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
 from vyper.codegen.core import calculate_type_for_external_return
@@ -13,7 +16,7 @@ from vyper.semantics.types import BytesT, TupleT
 from vyper.utils import fourbytes_to_int
 from vyper.venom.basicblock import IRLiteral, IROperand
 
-if False:  # TYPE_CHECKING
+if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
@@ -75,7 +78,7 @@ def _parse_method_id(method_id_node: vy_ast.VyperNode) -> int | None:
 
 
 def _create_tuple_in_memory(
-    ctx: "VenomCodegenContext",
+    ctx: VenomCodegenContext,
     args: list[IROperand],
     types: list,
 ) -> tuple[IROperand, TupleT]:
@@ -101,7 +104,7 @@ def _create_tuple_in_memory(
     return buf, tuple_t
 
 
-def lower_abi_encode(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     abi_encode(*args, ensure_tuple=True, method_id=None) -> Bytes[N]
 
@@ -165,7 +168,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand
     return buf
 
 
-def lower_abi_decode(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     abi_decode(data, output_type, unwrap_tuple=True) -> output_type
 

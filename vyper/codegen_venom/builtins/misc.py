@@ -9,13 +9,21 @@ Miscellaneous built-in functions.
 - isqrt: Integer square root
 - breakpoint: Debug interrupt
 """
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.constants import (
+    BLOCKHASH_LOOKBACK_LIMIT,
+    ECRECOVER_PRECOMPILE,
+    SHA256_PRECOMPILE,
+)
 from vyper.semantics.types import DecimalT
 from vyper.utils import DECIMAL_DIVISOR
 from vyper.venom.basicblock import IRLiteral, IROperand
 
-if False:  # TYPE_CHECKING
+if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
@@ -24,7 +32,7 @@ if False:  # TYPE_CHECKING
 # =============================================================================
 
 
-def lower_ecrecover(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_ecrecover(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     ecrecover(hash, v, r, s) -> address
 
@@ -52,16 +60,16 @@ def lower_ecrecover(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     output_buf = ctx.allocate_buffer(32)
     b.mstore(IRLiteral(0), output_buf)
 
-    # Call precompile 0x1
+    # Call ecrecover precompile
     success = b.staticcall(
-        b.gas(), IRLiteral(1), input_buf, IRLiteral(128), output_buf, IRLiteral(32)
+        b.gas(), IRLiteral(ECRECOVER_PRECOMPILE), input_buf, IRLiteral(128), output_buf, IRLiteral(32)
     )
     b.assert_(success)
 
     return b.mload(output_buf)
 
 
-def lower_ecadd(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_ecadd(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     ecadd(a, b) -> uint256[2]
 
@@ -72,7 +80,7 @@ def lower_ecadd(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     return _lower_ec_arith(node, ctx, precompile=6)
 
 
-def lower_ecmul(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_ecmul(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     ecmul(point, scalar) -> uint256[2]
 
@@ -84,7 +92,7 @@ def lower_ecmul(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
 
 
 def _lower_ec_arith(
-    node: vy_ast.Call, ctx: "VenomCodegenContext", precompile: int
+    node: vy_ast.Call, ctx: VenomCodegenContext, precompile: int
 ) -> IROperand:
     """
     Common implementation for ecadd/ecmul.
@@ -143,7 +151,7 @@ def _lower_ec_arith(
 # =============================================================================
 
 
-def lower_blockhash(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_blockhash(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     blockhash(block_num) -> bytes32
 
@@ -157,9 +165,9 @@ def lower_blockhash(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     block_num = Expr(node.args[0], ctx).lower()
 
     # Clamp block number to valid range:
-    # block_num >= block.number - 256 AND block_num < block.number
+    # block_num >= block.number - BLOCKHASH_LOOKBACK_LIMIT AND block_num < block.number
     current_block = b.number()
-    lower_bound = b.sub(current_block, IRLiteral(256))
+    lower_bound = b.sub(current_block, IRLiteral(BLOCKHASH_LOOKBACK_LIMIT))
 
     # Clamp: max(lower_bound, min(block_num, current_block - 1))
     # If block_num < lower_bound => use lower_bound (will return 0)
@@ -178,7 +186,7 @@ def lower_blockhash(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     return b.blockhash(clamped2)
 
 
-def lower_blobhash(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_blobhash(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     blobhash(index) -> bytes32
 
@@ -197,7 +205,7 @@ def lower_blobhash(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
 # =============================================================================
 
 
-def lower_floor(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_floor(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     floor(x) -> int256
 
@@ -221,7 +229,7 @@ def lower_floor(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     return b.sdiv(adjusted_or_orig, divisor)
 
 
-def lower_ceil(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_ceil(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     ceil(x) -> int256
 
@@ -250,7 +258,7 @@ def lower_ceil(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
 # =============================================================================
 
 
-def lower_as_wei_value(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_as_wei_value(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     as_wei_value(value, unit) -> uint256
 
@@ -306,7 +314,7 @@ def lower_as_wei_value(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROpera
 # =============================================================================
 
 
-def lower_min_value(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_min_value(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     min_value(T) -> T
 
@@ -317,7 +325,7 @@ def lower_min_value(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     return IRLiteral(typ.ast_bounds[0])
 
 
-def lower_max_value(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_max_value(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     max_value(T) -> T
 
@@ -328,7 +336,7 @@ def lower_max_value(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     return IRLiteral(typ.ast_bounds[1])
 
 
-def lower_epsilon(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_epsilon(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     epsilon(decimal) -> decimal
 
@@ -343,7 +351,7 @@ def lower_epsilon(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
 # =============================================================================
 
 
-def lower_isqrt(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_isqrt(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     isqrt(x) -> uint256
 
@@ -416,7 +424,7 @@ def lower_isqrt(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
 # =============================================================================
 
 
-def lower_breakpoint(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_breakpoint(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     breakpoint() -> None
 

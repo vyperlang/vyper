@@ -5,17 +5,20 @@ Byte manipulation built-in functions.
 - slice(b, start, length) - extract substring
 - extract32(b, start) - extract bytes32 from bytearray
 """
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
 from vyper.semantics.types import BytesM_T, BytesT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.venom.basicblock import IRLiteral, IROperand
 
-if False:  # TYPE_CHECKING
+if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
-def lower_concat(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     concat(a, b, ...) -> bytes | string
 
@@ -81,7 +84,7 @@ def lower_concat(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     return out_buf
 
 
-def lower_slice(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     slice(b, start, length) -> bytes | string
 
@@ -162,7 +165,7 @@ def _is_adhoc_slice(node: vy_ast.VyperNode) -> bool:
     return False
 
 
-def _lower_adhoc_slice(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     Lower slice() for special sources: msg.data, self.code, <addr>.code.
 
@@ -219,7 +222,7 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROpera
     return out_buf
 
 
-def lower_extract32(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     extract32(b, start, output_type=bytes32) -> bytes32 | int | address
 
@@ -263,7 +266,7 @@ def lower_extract32(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
 
 
 def _clamp_extract32_result(
-    val: IROperand, out_t, ctx: "VenomCodegenContext"
+    val: IROperand, out_t, ctx: VenomCodegenContext
 ) -> IROperand:
     """Apply bounds check for extract32 output type."""
     from vyper.semantics.types import AddressT, IntegerT

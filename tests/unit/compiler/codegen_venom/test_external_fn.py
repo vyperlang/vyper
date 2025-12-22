@@ -3,8 +3,15 @@ Tests for external function codegen and selector dispatch.
 """
 import pytest
 
-from vyper.codegen_venom.module import VenomModuleCompiler, generate_ir_for_module
+from vyper.codegen_venom.constants import SELECTOR_BYTES
+from vyper.codegen_venom.module import (
+    generate_runtime_venom,
+    IDGenerator,
+    _init_ir_info,
+    _generate_external_entry_points,
+)
 from vyper.compiler.phases import CompilerData
+from vyper.compiler.settings import Settings
 
 
 def _get_module_t(source: str):
@@ -13,8 +20,15 @@ def _get_module_t(source: str):
     return compiler_data.global_ctx
 
 
-class TestVenomModuleCompiler:
-    """Test VenomModuleCompiler class."""
+def _compile_source(source: str):
+    """Compile source and return runtime IR context."""
+    module_t = _get_module_t(source)
+    settings = Settings()
+    return generate_runtime_venom(module_t, settings)
+
+
+class TestRuntimeCodegen:
+    """Test runtime codegen via generate_runtime_venom."""
 
     def test_compile_simple_function(self):
         """Test compiling a simple external function."""
@@ -25,12 +39,9 @@ class TestVenomModuleCompiler:
 def foo() -> uint256:
     return 42
 """
-        module_t = _get_module_t(source)
-        compiler = VenomModuleCompiler(module_t)
-        deploy_ctx, runtime_ctx = compiler.compile()
+        runtime_ctx = _compile_source(source)
 
-        # Should have created IR contexts
-        assert deploy_ctx is not None
+        # Should have created IR context
         assert runtime_ctx is not None
 
         # Runtime should have a function
@@ -45,11 +56,7 @@ def foo() -> uint256:
 def add(a: uint256, b: uint256) -> uint256:
     return a + b
 """
-        module_t = _get_module_t(source)
-        compiler = VenomModuleCompiler(module_t)
-        deploy_ctx, runtime_ctx = compiler.compile()
-
-        assert deploy_ctx is not None
+        runtime_ctx = _compile_source(source)
         assert runtime_ctx is not None
 
     def test_compile_multiple_functions(self):
@@ -65,11 +72,7 @@ def foo() -> uint256:
 def bar() -> uint256:
     return 2
 """
-        module_t = _get_module_t(source)
-        compiler = VenomModuleCompiler(module_t)
-        deploy_ctx, runtime_ctx = compiler.compile()
-
-        assert deploy_ctx is not None
+        runtime_ctx = _compile_source(source)
         assert runtime_ctx is not None
 
     def test_compile_with_fallback(self):
@@ -85,11 +88,7 @@ def foo() -> uint256:
 def __default__():
     pass
 """
-        module_t = _get_module_t(source)
-        compiler = VenomModuleCompiler(module_t)
-        deploy_ctx, runtime_ctx = compiler.compile()
-
-        assert deploy_ctx is not None
+        runtime_ctx = _compile_source(source)
         assert runtime_ctx is not None
 
     def test_compile_payable_function(self):
@@ -102,11 +101,7 @@ def __default__():
 def deposit():
     pass
 """
-        module_t = _get_module_t(source)
-        compiler = VenomModuleCompiler(module_t)
-        deploy_ctx, runtime_ctx = compiler.compile()
-
-        assert deploy_ctx is not None
+        runtime_ctx = _compile_source(source)
         assert runtime_ctx is not None
 
     def test_compile_with_kwargs(self):
@@ -118,11 +113,7 @@ def deposit():
 def foo(a: uint256, b: uint256 = 10) -> uint256:
     return a + b
 """
-        module_t = _get_module_t(source)
-        compiler = VenomModuleCompiler(module_t)
-        deploy_ctx, runtime_ctx = compiler.compile()
-
-        assert deploy_ctx is not None
+        runtime_ctx = _compile_source(source)
         assert runtime_ctx is not None
 
     def test_compile_with_internal_function(self):
@@ -138,11 +129,7 @@ def _helper(x: uint256) -> uint256:
 def foo(a: uint256) -> uint256:
     return self._helper(a)
 """
-        module_t = _get_module_t(source)
-        compiler = VenomModuleCompiler(module_t)
-        deploy_ctx, runtime_ctx = compiler.compile()
-
-        assert deploy_ctx is not None
+        runtime_ctx = _compile_source(source)
         assert runtime_ctx is not None
 
     def test_compile_with_storage(self):
@@ -160,30 +147,7 @@ def get() -> uint256:
 def set(x: uint256):
     self.value = x
 """
-        module_t = _get_module_t(source)
-        compiler = VenomModuleCompiler(module_t)
-        deploy_ctx, runtime_ctx = compiler.compile()
-
-        assert deploy_ctx is not None
-        assert runtime_ctx is not None
-
-
-class TestGenerateIRForModule:
-    """Test generate_ir_for_module function."""
-
-    def test_simple_module(self):
-        """Test generating IR for a simple module."""
-        source = """
-# @version ^0.4.0
-
-@external
-def foo() -> uint256:
-    return 42
-"""
-        module_t = _get_module_t(source)
-        deploy_ctx, runtime_ctx = generate_ir_for_module(module_t)
-
-        assert deploy_ctx is not None
+        runtime_ctx = _compile_source(source)
         assert runtime_ctx is not None
 
 
@@ -204,32 +168,26 @@ def bar(x: uint256) -> uint256:
     return x
 """
         module_t = _get_module_t(source)
-        compiler = VenomModuleCompiler(module_t)
+        id_generator = IDGenerator()
 
-        # Get entry points for foo
+        # Get entry points for each function
         for fn_t in module_t.exposed_functions:
-            compiler.id_generator.ensure_id(fn_t)
-            from vyper.codegen_venom.module import _init_ir_info
+            id_generator.ensure_id(fn_t)
             _init_ir_info(fn_t)
 
-            from vyper.venom.context import IRContext
-            ir_ctx = IRContext()
-
-            entry_points = compiler._generate_external_entry_points(
-                ir_ctx, fn_t, fn_t.ast_def
-            )
+            entry_points = _generate_external_entry_points(fn_t)
 
             if fn_t.name == "foo":
                 # foo() - just selector
                 assert len(entry_points) == 1
                 for ep in entry_points.values():
-                    assert ep.min_calldatasize == 4
+                    assert ep.min_calldatasize == SELECTOR_BYTES
 
             if fn_t.name == "bar":
                 # bar(uint256) - selector + one word
                 assert len(entry_points) == 1
                 for ep in entry_points.values():
-                    assert ep.min_calldatasize == 4 + 32
+                    assert ep.min_calldatasize == SELECTOR_BYTES + 32
 
     def test_kwargs_create_multiple_entry_points(self):
         """Test that kwargs create multiple entry points."""
@@ -241,19 +199,13 @@ def foo(a: uint256, b: uint256 = 10, c: uint256 = 20) -> uint256:
     return a + b + c
 """
         module_t = _get_module_t(source)
-        compiler = VenomModuleCompiler(module_t)
+        id_generator = IDGenerator()
 
         for fn_t in module_t.exposed_functions:
-            compiler.id_generator.ensure_id(fn_t)
-            from vyper.codegen_venom.module import _init_ir_info
+            id_generator.ensure_id(fn_t)
             _init_ir_info(fn_t)
 
-            from vyper.venom.context import IRContext
-            ir_ctx = IRContext()
-
-            entry_points = compiler._generate_external_entry_points(
-                ir_ctx, fn_t, fn_t.ast_def
-            )
+            entry_points = _generate_external_entry_points(fn_t)
 
             if fn_t.name == "foo":
                 # Should have 3 entry points:
@@ -283,8 +235,6 @@ def bar():
 def _helper():
     pass
 """
-        from vyper.codegen_venom.module import IDGenerator
-
         module_t = _get_module_t(source)
         id_gen = IDGenerator()
 
@@ -311,9 +261,5 @@ class TestNonreentrantExternal:
 def foo():
     pass
 """
-        module_t = _get_module_t(source)
-        compiler = VenomModuleCompiler(module_t)
-        deploy_ctx, runtime_ctx = compiler.compile()
-
-        assert deploy_ctx is not None
+        runtime_ctx = _compile_source(source)
         assert runtime_ctx is not None

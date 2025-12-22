@@ -8,6 +8,9 @@ The ABI encoding follows the Ethereum ABI spec:
 - Dynamic types (bytes, string, arrays) store an offset in the static section
   and the actual data in a dynamic tail section
 """
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.core import is_tuple_like
@@ -29,7 +32,7 @@ from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.utils import ceil32
 from vyper.venom.basicblock import IRLiteral, IROperand
 
-if False:  # TYPE_CHECKING
+if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
@@ -39,7 +42,7 @@ def _is_complex_type(typ: VyperType) -> bool:
 
 
 def _get_element_ptr(
-    ctx: "VenomCodegenContext", parent_ptr: IROperand, key: IROperand, parent_typ: VyperType
+    ctx: VenomCodegenContext, parent_ptr: IROperand, key: IROperand, parent_typ: VyperType
 ) -> tuple[IROperand, VyperType]:
     """
     Get pointer to element and its type.
@@ -117,7 +120,7 @@ def _get_element_ptr(
         raise CompilerPanic(f"Cannot get element ptr of type {parent_typ}")
 
 
-def _zero_pad(ctx: "VenomCodegenContext", bytez_ptr: IROperand) -> None:
+def _zero_pad(ctx: VenomCodegenContext, bytez_ptr: IROperand) -> None:
     """
     Zero-pad a bytestring according to ABI spec.
 
@@ -144,7 +147,7 @@ def _zero_pad(ctx: "VenomCodegenContext", bytez_ptr: IROperand) -> None:
 
 
 def _encode_child(
-    ctx: "VenomCodegenContext",
+    ctx: VenomCodegenContext,
     dst: IROperand,
     child_ptr: IROperand,
     child_typ: VyperType,
@@ -194,7 +197,7 @@ def _encode_child(
 
 
 def _encode_dyn_array(
-    ctx: "VenomCodegenContext",
+    ctx: VenomCodegenContext,
     dst: IROperand,
     src_ptr: IROperand,
     src_typ: DArrayT,
@@ -310,7 +313,7 @@ def _encode_dyn_array(
 
 
 def _abi_encode_to_buf(
-    ctx: "VenomCodegenContext",
+    ctx: VenomCodegenContext,
     dst: IROperand,
     src: IROperand,
     src_typ: VyperType,
@@ -427,7 +430,7 @@ def _abi_encode_to_buf(
 
 
 def abi_encode_to_buf(
-    ctx: "VenomCodegenContext",
+    ctx: VenomCodegenContext,
     dst: IROperand,
     src: IROperand,
     src_typ: VyperType,

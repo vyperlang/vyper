@@ -4,8 +4,21 @@ Lower Vyper AST expressions to Venom IR.
 This module handles the first stage of expression codegen: converting
 Vyper AST literal and expression nodes into Venom IR operands.
 """
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Optional
+
+from vyper.codegen_venom.arithmetic import (
+    clamp_basetype,
+    safe_add,
+    safe_div,
+    safe_floordiv,
+    safe_mod,
+    safe_mul,
+    safe_pow,
+    safe_sub,
+)
 
 import vyper.utils as util
 from vyper import ast as vy_ast
@@ -286,156 +299,33 @@ class Expr:
 
     def _safe_add(self, x: IROperand, y: IROperand, typ) -> IRVariable:
         """Add with overflow checking."""
-        res = self.builder.add(x, y)
-
-        if isinstance(typ, (IntegerT, DecimalT)) and typ.bits < 256:
-            return self._clamp_basetype(res, typ)
-
-        # 256-bit overflow check
-        if isinstance(typ, (IntegerT, DecimalT)):
-            if typ.is_signed:
-                # (y < 0) == (res < x)
-                y_neg = self.builder.slt(y, IRLiteral(0))
-                res_lt_x = self.builder.slt(res, x)
-                ok = self.builder.eq(y_neg, res_lt_x)
-            else:
-                # res >= x
-                ok = self.builder.iszero(self.builder.lt(res, x))
-            self.builder.assert_(ok)
-
-        return res
+        return safe_add(self.builder, x, y, typ)
 
     def _safe_sub(self, x: IROperand, y: IROperand, typ) -> IRVariable:
         """Subtract with overflow checking."""
-        res = self.builder.sub(x, y)
-
-        if isinstance(typ, (IntegerT, DecimalT)) and typ.bits < 256:
-            return self._clamp_basetype(res, typ)
-
-        # 256-bit overflow check
-        if isinstance(typ, (IntegerT, DecimalT)):
-            if typ.is_signed:
-                # (y < 0) == (res > x)
-                y_neg = self.builder.slt(y, IRLiteral(0))
-                res_gt_x = self.builder.sgt(res, x)
-                ok = self.builder.eq(y_neg, res_gt_x)
-            else:
-                # res <= x
-                ok = self.builder.iszero(self.builder.gt(res, x))
-            self.builder.assert_(ok)
-
-        return res
+        return safe_sub(self.builder, x, y, typ)
 
     def _safe_mul(
         self, x: IROperand, y: IROperand, typ, node: vy_ast.BinOp
     ) -> IRVariable:
         """Multiply with overflow checking."""
-        res = self.builder.mul(x, y)
-
-        if isinstance(typ, (IntegerT, DecimalT)):
-            is_signed = typ.is_signed
-
-            if typ.bits > 128:
-                # Check overflow mod 256: (res / y == x) OR (y == 0)
-                DIV = self.builder.sdiv if is_signed else self.builder.div
-                div_check = self.builder.eq(DIV(res, y), x)
-                y_zero = self.builder.iszero(y)
-                ok = self.builder.or_(div_check, y_zero)
-
-                # int256 special case: not (x == -2^255 and y == -1)
-                if is_signed and typ.bits == 256:
-                    min_int = 1 << 255  # -2^255 in two's complement
-                    x_is_min = self.builder.eq(x, IRLiteral(min_int))
-                    y_is_neg1 = self.builder.iszero(self.builder.not_(y))
-                    special_case = self.builder.and_(x_is_min, y_is_neg1)
-                    not_special = self.builder.iszero(special_case)
-                    ok = self.builder.and_(ok, not_special)
-
-                self.builder.assert_(ok)
-
-            # For decimals, divide result by divisor
-            if isinstance(typ, DecimalT):
-                DIV = self.builder.sdiv if is_signed else self.builder.div
-                res = DIV(res, IRLiteral(typ.divisor))
-
-            # Clamp result if needed
-            if typ.bits < 256 or isinstance(typ, DecimalT):
-                res = self._clamp_basetype(res, typ)
-
-        return res
+        return safe_mul(self.builder, x, y, typ)
 
     def _safe_div(
         self, x: IROperand, y: IROperand, typ, node: vy_ast.BinOp
     ) -> IRVariable:
         """Decimal division with overflow checking."""
-        if not isinstance(typ, DecimalT):
-            raise CompilerPanic("/ operator only valid for decimals")
-
-        # Multiply numerator by divisor first
-        x_scaled = self.builder.mul(x, IRLiteral(typ.divisor))
-
-        # Clamp divisor > 0 for unsigned, or use sgt for signed
-        if typ.is_signed:
-            y_gt_zero = self.builder.sgt(y, IRLiteral(0))
-        else:
-            y_gt_zero = self.builder.gt(y, IRLiteral(0))
-        self.builder.assert_(y_gt_zero)
-
-        DIV = self.builder.sdiv if typ.is_signed else self.builder.div
-        res = DIV(x_scaled, y)
-
-        # Always clamp decimals
-        return self._clamp_basetype(res, typ)
+        return safe_div(self.builder, x, y, typ)
 
     def _safe_floordiv(
         self, x: IROperand, y: IROperand, typ, node: vy_ast.BinOp
     ) -> IRVariable:
         """Integer floor division with overflow checking."""
-        if not isinstance(typ, IntegerT):
-            raise CompilerPanic("// operator only valid for integers")
-
-        is_signed = typ.is_signed
-
-        # Clamp divisor > 0
-        if is_signed:
-            y_gt_zero = self.builder.sgt(y, IRLiteral(0))
-        else:
-            y_gt_zero = self.builder.gt(y, IRLiteral(0))
-        self.builder.assert_(y_gt_zero)
-
-        DIV = self.builder.sdiv if is_signed else self.builder.div
-        res = DIV(x, y)
-
-        # int256: check not (x == -2^255 and y == -1)
-        if is_signed and typ.bits == 256:
-            min_int = 1 << 255
-            x_is_min = self.builder.eq(x, IRLiteral(min_int))
-            y_is_neg1 = self.builder.iszero(self.builder.not_(y))
-            special_case = self.builder.and_(x_is_min, y_is_neg1)
-            ok = self.builder.iszero(special_case)
-            self.builder.assert_(ok)
-        elif is_signed and typ.bits < 256:
-            # For smaller signed types, clamp result
-            res = self._clamp_basetype(res, typ)
-
-        return res
+        return safe_floordiv(self.builder, x, y, typ)
 
     def _safe_mod(self, x: IROperand, y: IROperand, typ) -> IRVariable:
         """Modulo with divisor check."""
-        if not isinstance(typ, IntegerT):
-            raise CompilerPanic("% operator only valid for integers")
-
-        is_signed = typ.is_signed
-
-        # Clamp divisor > 0
-        if is_signed:
-            y_gt_zero = self.builder.sgt(y, IRLiteral(0))
-        else:
-            y_gt_zero = self.builder.gt(y, IRLiteral(0))
-        self.builder.assert_(y_gt_zero)
-
-        MOD = self.builder.smod if is_signed else self.builder.mod
-        return MOD(x, y)
+        return safe_mod(self.builder, x, y, typ)
 
     def _safe_pow(
         self, x: IROperand, y: IROperand, typ, node: vy_ast.BinOp
@@ -444,69 +334,18 @@ class Expr:
 
         Requires at least one operand to be a literal for bounds computation.
         """
-        if not isinstance(typ, IntegerT):
-            raise TypeCheckFailure("pow only valid for integers")
-
-        is_signed = typ.is_signed
-        bits = typ.bits
-
         # Get the reduced nodes to check for literals
         left_node = node.left.reduced()
         right_node = node.right.reduced()
 
-        if isinstance(left_node, vy_ast.Int):
-            # Base is literal - compute max exponent at compile time
-            base_val = left_node.value
-            if base_val in (-1, 0, 1):
-                # For special bases, just need y >= 0 for signed
-                if is_signed:
-                    # sge(y, 0) = iszero(slt(y, 0))
-                    ok = self.builder.iszero(self.builder.slt(y, IRLiteral(0)))
-                else:
-                    ok = IRLiteral(1)  # always ok for unsigned
-            else:
-                upper_bound = calculate_largest_power(base_val, bits, is_signed)
-                ok = self.builder.iszero(self.builder.gt(y, IRLiteral(upper_bound)))
-            self.builder.assert_(ok)
+        base_literal = left_node.value if isinstance(left_node, vy_ast.Int) else None
+        exp_literal = right_node.value if isinstance(right_node, vy_ast.Int) else None
 
-        elif isinstance(right_node, vy_ast.Int):
-            # Exponent is literal - compute max base at compile time
-            exp_val = right_node.value
-            if exp_val in (0, 1):
-                ok = IRLiteral(1)  # always ok
-            else:
-                lower_bound, upper_bound = calculate_largest_base(exp_val, bits, is_signed)
-                if is_signed:
-                    # sge(x, lower_bound) = iszero(slt(x, lower_bound))
-                    ge_lower = self.builder.iszero(self.builder.slt(x, IRLiteral(lower_bound)))
-                    le_upper = self.builder.iszero(self.builder.sgt(x, IRLiteral(upper_bound)))
-                    ok = self.builder.and_(ge_lower, le_upper)
-                else:
-                    ok = self.builder.iszero(self.builder.gt(x, IRLiteral(upper_bound)))
-            self.builder.assert_(ok)
-
-        else:
-            # Neither operand is literal - not currently supported
-            raise TypeCheckFailure("pow requires at least one literal operand")
-
-        return self.builder.exp(x, y)
+        return safe_pow(self.builder, x, y, typ, base_literal, exp_literal)
 
     def _clamp_basetype(self, val: IRVariable, typ) -> IRVariable:
         """Clamp value to type bounds."""
-        lo, hi = typ.int_bounds
-
-        if typ.is_signed:
-            # signed: lo <= val <= hi
-            # sge(val, lo) = iszero(slt(val, lo))
-            ge_lo = self.builder.iszero(self.builder.slt(val, IRLiteral(lo)))
-            le_hi = self.builder.iszero(self.builder.sgt(val, IRLiteral(hi)))
-            ok = self.builder.and_(ge_lo, le_hi)
-        else:
-            # unsigned: 0 <= val <= hi (val is always >= 0 in unsigned)
-            ok = self.builder.iszero(self.builder.gt(val, IRLiteral(hi)))
-
-        self.builder.assert_(ok)
-        return val
+        return clamp_basetype(self.builder, val, typ)
 
     # === Unary Operations ===
 
@@ -1090,7 +929,8 @@ class Expr:
 
         # Get the compile-time index
         index = node.slice.reduced().value
-        assert isinstance(index, int), f"Tuple index must be int literal, got {index}"
+        if not isinstance(index, int):
+            raise CompilerPanic(f"Expected int index, got {type(index)}")
 
         # Determine location
         is_storage = self._is_storage_access(node.value)
@@ -1627,7 +1467,8 @@ class Expr:
                 gas = kw_val
             elif kw.arg == "skip_contract_check":
                 # Must be a literal True/False
-                assert isinstance(kw_val, IRLiteral)
+                if not isinstance(kw_val, IRLiteral):
+                    raise CompilerPanic(f"Expected IRLiteral for keyword, got {type(kw_val)}")
                 skip_contract_check = bool(kw_val.value)
             elif kw.arg == "default_return_value":
                 default_return_value = kw_val

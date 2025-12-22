@@ -10,6 +10,9 @@ convert(value, type) handles all type conversions in Vyper:
 - to_bytes/to_string: Bytestring casts
 - to_flag: Integer -> Flag type
 """
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic
@@ -28,11 +31,11 @@ from vyper.semantics.types.user import FlagT
 from vyper.utils import DECIMAL_DIVISOR
 from vyper.venom.basicblock import IRLiteral, IROperand
 
-if False:  # TYPE_CHECKING
+if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
-def lower_convert(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     convert(value, type) - type conversion.
 
@@ -66,7 +69,7 @@ def lower_convert(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         raise CompilerPanic(f"Unsupported conversion target: {out_t}")
 
 
-def _to_bool(val: IROperand, in_t, ctx: "VenomCodegenContext") -> IROperand:
+def _to_bool(val: IROperand, in_t, ctx: VenomCodegenContext) -> IROperand:
     """
     Convert any type to bool.
 
@@ -91,7 +94,7 @@ def _to_bool(val: IROperand, in_t, ctx: "VenomCodegenContext") -> IROperand:
 
 
 def _to_address(
-    val: IROperand, in_t, arg_node: vy_ast.VyperNode, ctx: "VenomCodegenContext"
+    val: IROperand, in_t, arg_node: vy_ast.VyperNode, ctx: VenomCodegenContext
 ) -> IROperand:
     """
     Convert to address (160-bit unsigned).
@@ -111,7 +114,7 @@ def _to_int(
     in_t,
     out_t: IntegerT,
     arg_node: vy_ast.VyperNode,
-    ctx: "VenomCodegenContext",
+    ctx: VenomCodegenContext,
 ) -> IROperand:
     """
     Convert to integer type with clamping.
@@ -195,7 +198,7 @@ def _to_decimal(
     in_t,
     out_t: DecimalT,
     arg_node: vy_ast.VyperNode,
-    ctx: "VenomCodegenContext",
+    ctx: VenomCodegenContext,
 ) -> IROperand:
     """
     Convert to decimal (fixed-point).
@@ -247,7 +250,7 @@ def _to_decimal(
 
 
 def _to_bytes_m(
-    val: IROperand, in_t, out_t: BytesM_T, ctx: "VenomCodegenContext"
+    val: IROperand, in_t, out_t: BytesM_T, ctx: VenomCodegenContext
 ) -> IROperand:
     """
     Convert to fixed bytes (bytesM).
@@ -281,7 +284,7 @@ def _to_bytes_m(
 
 
 def _to_bytes(
-    val: IROperand, in_t, out_t: BytesT, ctx: "VenomCodegenContext"
+    val: IROperand, in_t, out_t: BytesT, ctx: VenomCodegenContext
 ) -> IROperand:
     """
     Convert to dynamic bytes.
@@ -305,7 +308,7 @@ def _to_bytes(
 
 
 def _to_string(
-    val: IROperand, in_t, out_t: StringT, ctx: "VenomCodegenContext"
+    val: IROperand, in_t, out_t: StringT, ctx: VenomCodegenContext
 ) -> IROperand:
     """
     Convert to string.
@@ -327,7 +330,7 @@ def _to_string(
 
 
 def _to_flag(
-    val: IROperand, in_t, out_t: FlagT, ctx: "VenomCodegenContext"
+    val: IROperand, in_t, out_t: FlagT, ctx: VenomCodegenContext
 ) -> IROperand:
     """
     Convert integer to flag type.
@@ -349,7 +352,7 @@ def _to_flag(
 # === Helper functions ===
 
 
-def _int_clamp(val: IROperand, out_t: IntegerT, ctx: "VenomCodegenContext") -> IROperand:
+def _int_clamp(val: IROperand, out_t: IntegerT, ctx: VenomCodegenContext) -> IROperand:
     """Clamp value to integer type bounds."""
     b = ctx.builder
     lo, hi = out_t.int_bounds
@@ -367,7 +370,7 @@ def _int_clamp(val: IROperand, out_t: IntegerT, ctx: "VenomCodegenContext") -> I
     return val
 
 
-def _clamp_basetype(val: IROperand, typ, ctx: "VenomCodegenContext") -> IROperand:
+def _clamp_basetype(val: IROperand, typ, ctx: VenomCodegenContext) -> IROperand:
     """Clamp value to type bounds (for DecimalT)."""
     b = ctx.builder
     lo, hi = typ.int_bounds
@@ -388,7 +391,7 @@ def _clamp_numeric_convert(
     arg_bounds: tuple,
     out_bounds: tuple,
     arg_is_signed: bool,
-    ctx: "VenomCodegenContext",
+    ctx: VenomCodegenContext,
 ) -> IROperand:
     """
     Clamp numeric value during conversion.
@@ -416,7 +419,7 @@ def _clamp_numeric_convert(
 
 
 def _int_to_int(
-    val: IROperand, in_t: IntegerT, out_t: IntegerT, ctx: "VenomCodegenContext"
+    val: IROperand, in_t: IntegerT, out_t: IntegerT, ctx: VenomCodegenContext
 ) -> IROperand:
     """
     Convert between integer types with appropriate clamping.

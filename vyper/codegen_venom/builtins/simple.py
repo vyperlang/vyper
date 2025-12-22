@@ -1,16 +1,19 @@
 """
 Simple built-in functions: len, empty, min, max, abs
 """
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand
 
-if False:  # TYPE_CHECKING
+if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
-def lower_len(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_len(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     len(x) for dynamic arrays, bytes, strings.
 
@@ -31,7 +34,7 @@ def lower_len(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     return ctx.builder.mload(arg)
 
 
-def lower_empty(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     empty(T) returns zero-initialized value of type T.
 
@@ -47,18 +50,18 @@ def lower_empty(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         return ctx.new_internal_variable(typ)
 
 
-def lower_min(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_min(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """min(a, b) - returns smaller of two values."""
     return _lower_minmax(node, ctx, is_max=False)
 
 
-def lower_max(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_max(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """max(a, b) - returns larger of two values."""
     return _lower_minmax(node, ctx, is_max=True)
 
 
 def _lower_minmax(
-    node: vy_ast.Call, ctx: "VenomCodegenContext", is_max: bool
+    node: vy_ast.Call, ctx: VenomCodegenContext, is_max: bool
 ) -> IROperand:
     """
     Common implementation for min/max.
@@ -82,7 +85,7 @@ def _lower_minmax(
     return b.select(cmp_result, a_val, b_val)
 
 
-def lower_abs(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_abs(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     abs(x) for int256 only.
 

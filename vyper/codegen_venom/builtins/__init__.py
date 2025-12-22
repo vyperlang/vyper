@@ -4,6 +4,7 @@ Built-in function lowering for Venom IR.
 Each submodule exports a HANDLERS dict mapping builtin_id -> handler function.
 Handler signature: (node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand
 """
+from __future__ import annotations
 
 from vyper.exceptions import CompilerPanic
 
@@ -16,6 +17,8 @@ from .math import HANDLERS as MATH_HANDLERS
 from .misc import HANDLERS as MISC_HANDLERS
 from .simple import HANDLERS as SIMPLE_HANDLERS
 from .system import HANDLERS as SYSTEM_HANDLERS
+
+__all__ = ["BUILTIN_HANDLERS", "lower_builtin"]
 
 # Combine all handlers
 BUILTIN_HANDLERS: dict = {
