@@ -7,7 +7,6 @@ from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -61,7 +60,6 @@ class BasePtrAnalysis(IRAnalysis):
     def analyze(self):
         self.var_to_mem = dict()
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
         worklist = deque(self.cfg.dfs_pre_walk)
 
