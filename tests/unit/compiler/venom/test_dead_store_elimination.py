@@ -4,7 +4,7 @@ from tests.venom_utils import PrePostChecker, assert_ctx_eq, parse_from_basic_bl
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.analysis.mem_ssa import mem_ssa_type_factory
-from vyper.venom.memory_location import MemoryLocationSegment
+from vyper.venom.memory_location import MemoryLocation
 from vyper.venom.passes import SCCP, DeadStoreElimination
 from vyper.venom.passes.base_pass import IRPass
 
@@ -41,7 +41,7 @@ class VolatilePrePostChecker(PrePostChecker):
             mem_ssa = ac.request_analysis(mem_ssa_type_factory(self.addr_space))
 
             for address, size in self.volatile_locations:
-                volatile_loc = MemoryLocationSegment(offset=address, size=size, _is_volatile=True)
+                volatile_loc = MemoryLocation(offset=address, size=size, _is_volatile=True)
                 mem_ssa.mark_location_volatile(volatile_loc)
 
             for p in self.passes:

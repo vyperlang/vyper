@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import dataclasses as dc
 from dataclasses import dataclass
-from functools import cached_property
 from typing import ClassVar, Optional
 
 from vyper.exceptions import CompilerPanic
@@ -15,6 +14,7 @@ class Allocation:
     a memory region which hasn't been allocated (assigned a concrete position) yet.
     (can be thought of thin wrapper around alloca)
     """
+
     # note this class is NOT robust to mutations to the alloca instruction!
 
     inst: IRInstruction  # the alloca instruction
@@ -31,64 +31,25 @@ class Allocation:
         return size.value
 
 
-# abstract / interface
-# TODO: rename to MemoryAccess
+@dataclass(frozen=True)
 class MemoryLocation:
+    """Represents a memory access that can be analyzed for aliasing"""
+
     # Initialize after class definition
     EMPTY: ClassVar[MemoryLocation]
     UNDEFINED: ClassVar[MemoryLocation]
 
-    def is_empty(self) -> bool:  # pragma: nocover
-        raise NotImplementedError
-
-    @property
-    def is_offset_fixed(self) -> bool:  # pragma: nocover
-        raise NotImplementedError
-
-    @property
-    def is_size_fixed(self) -> bool:  # pragma: nocover
-        raise NotImplementedError
-
-    @property
-    def is_fixed(self) -> bool:  # pragma: nocover
-        raise NotImplementedError
-
-    @property
-    def is_volatile(self) -> bool:  # pragma: nocover
-        raise NotImplementedError
-
-    @staticmethod
-    def may_overlap(loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
-        if loc1.is_empty() or loc2.is_empty():
-            return False
-        if loc1 is MemoryLocation.UNDEFINED or loc2 is MemoryLocation.UNDEFINED:
-            return True
-        if type(loc1) is not type(loc2):
-            return True
-        if isinstance(loc1, MemoryLocationSegment):
-            assert isinstance(loc2, MemoryLocationSegment)
-            return MemoryLocationSegment.may_overlap_concrete(loc1, loc2)
-        if isinstance(loc1, MemoryLocationAbstract):
-            assert isinstance(loc2, MemoryLocationAbstract)
-            return MemoryLocationAbstract.may_overlap_abstract(loc1, loc2)
-        return False
-
-    def completely_contains(self, other: MemoryLocation) -> bool:  # pragma: nocover
-        raise NotImplementedError
-
-    def mk_volatile(self) -> MemoryLocation:  # pragma: nocover
-        raise NotImplementedError
-
-
-@dataclass(frozen=True)
-class MemoryLocationSegment(MemoryLocation):
-    """Represents a memory location that can be analyzed for aliasing"""
-
     offset: Optional[int] = None
     size: Optional[int] = None
-    _is_volatile: bool = False
+
+    # the alloca this MemoryLocation is contained in.
+    # None indicates there is no alloca (it could be anywhere in
+    # global memory)
+    alloca: Optional[Allocation] = None
+
     # Locations that should be considered volatile. Example usages of this would
     # be locations that are accessed outside of the current function.
+    _is_volatile: bool = False
 
     def is_empty(self):
         return self.size == 0
@@ -109,15 +70,15 @@ class MemoryLocationSegment(MemoryLocation):
     def is_volatile(self) -> bool:
         return self._is_volatile
 
-    def mk_volatile(self) -> MemoryLocationSegment:
+    @property
+    def is_concrete(self) -> bool:
+        return self.alloca is None
+
+    def mk_volatile(self) -> MemoryLocation:
         return dc.replace(self, _is_volatile=True)
 
     # similar code to memmerging._Interval, but different data structure
     def completely_contains(self, other: MemoryLocation) -> bool:
-        # If other is empty (size 0), always contained
-        if other.is_empty():
-            return True
-
         # If self has unknown offset or size, can't guarantee containment
         if not self.is_offset_fixed or not self.is_size_fixed:
             return False
@@ -126,8 +87,18 @@ class MemoryLocationSegment(MemoryLocation):
         if not other.is_offset_fixed or not other.is_size_fixed:
             return False
 
-        if not isinstance(other, MemoryLocationSegment):
+        # redundant with the self.alloca != other.alloca check.
+        # for clarity.
+        if self.is_concrete != other.is_concrete:
             return False
+
+        if self.alloca != other.alloca:
+            return False
+
+        # If other is empty (size 0), always contained
+        # TODO: is this correct?
+        if other.is_empty():
+            return True
 
         # Both are known
         assert self.offset is not None and self.size is not None
@@ -137,23 +108,32 @@ class MemoryLocationSegment(MemoryLocation):
 
         return start1 <= start2 and end1 >= end2
 
+    # TODO: API inconsistency, completely_contains is a regular method,
+    # may_overlap is a staticmethod
     @staticmethod
-    def may_overlap_concrete(loc1: MemoryLocationSegment, loc2: MemoryLocationSegment) -> bool:
+    def may_overlap(loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
         """
         Determine if two memory locations may overlap
         """
-        if not loc1.is_offset_fixed or not loc2.is_offset_fixed:
-            return True
-
         o1, s1 = loc1.offset, loc1.size
         o2, s2 = loc2.offset, loc2.size
 
-        # If either size is zero, no alias
-        if s1 == 0 or s2 == 0:
+        if loc1.is_empty() or loc2.is_empty():
             return False
 
+        # if one is concrete and the other is abstract, no guarantees
+        if loc1.is_concrete != loc2.is_concrete:
+            return True
+
+        # different alloca regions, allocator guarantees no alias
+        if loc1.alloca is not None and loc2.alloca is not None:
+            if loc1.alloca != loc2.alloca:
+                return False
+
         if o1 is None or o2 is None:
-            # If offsets are unknown, can't be sure
+            # If offsets are unknown, can't be sure.
+            # (conservative, returns false even if they belong inside different
+            # allocas)
             return True
 
         # guaranteed now that o1 and o2 are not None
@@ -184,60 +164,8 @@ class MemoryLocationSegment(MemoryLocation):
         return True
 
 
-@dataclass(frozen=True)
-class MemoryLocationAbstract(MemoryLocation):
-    source: Allocation
-    segment: MemoryLocationSegment
-
-    def __post_init__(self) -> None:
-        # TODO: if we have segment.is_fixed, we can statically check for oob access
-        # at read or write time (but not during construction, we can have weird
-        # pointer arithmetics which are never read/written to)
-        pass
-
-    def is_empty(self) -> bool:
-        return self.segment.is_empty()
-
-    @property
-    def is_offset_fixed(self) -> bool:
-        return self.segment.is_offset_fixed
-
-    @property
-    def is_size_fixed(self) -> bool:
-        return self.segment.is_size_fixed
-
-    @property
-    def is_fixed(self) -> bool:
-        return self.segment.is_fixed
-
-    @property
-    def is_volatile(self) -> bool:
-        return self.segment.is_volatile
-
-    def mk_volatile(self) -> MemoryLocationAbstract:
-        return dc.replace(self, segment=self.segment.mk_volatile())
-
-    @staticmethod
-    def may_overlap_abstract(loc1: MemoryLocationAbstract, loc2: MemoryLocationAbstract) -> bool:
-        if loc1.source is loc2.source:
-            return MemoryLocationSegment.may_overlap_concrete(loc1.segment, loc2.segment)
-        else:
-            return False
-
-    def completely_contains(self, other: MemoryLocation) -> bool:
-        if other == MemoryLocation.UNDEFINED:
-            return False
-        if not isinstance(other, MemoryLocationAbstract):
-            return False
-        if other.is_empty():
-            return True
-        if self.source is other.source:
-            return self.segment.completely_contains(other.segment)
-        return False
-
-
-MemoryLocation.EMPTY = MemoryLocationSegment(offset=0, size=0)
-MemoryLocation.UNDEFINED = MemoryLocationSegment(offset=None, size=None)
+MemoryLocation.EMPTY = MemoryLocation(offset=0, size=0)
+MemoryLocation.UNDEFINED = MemoryLocation(offset=None, size=None)
 
 
 @dataclass

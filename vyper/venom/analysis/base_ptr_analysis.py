@@ -20,8 +20,6 @@ from vyper.venom.memory_location import (
     Allocation,
     InstAccessOps,
     MemoryLocation,
-    MemoryLocationAbstract,
-    MemoryLocationSegment,
     memory_read_ops,
     memory_write_ops,
 )
@@ -32,6 +30,7 @@ class Ptr:
     """
     class representing an offset (gep) into an Allocation
     """
+
     base_alloca: Allocation
 
     # the offset inside the allocated region
@@ -136,16 +135,14 @@ class BasePtrAnalysis(IRAnalysis):
         offset = ops.ofst
 
         if isinstance(offset, IRLiteral):
-            return MemoryLocationSegment(offset.value, size=size)
+            return MemoryLocation(offset.value, size=size)
 
         assert isinstance(offset, IRVariable)
-        base_ptr = self.ptr_from_op(offset)
-        if base_ptr is not None:
-            return MemoryLocationAbstract(
-                source=base_ptr.base_alloca,
-                segment=MemoryLocationSegment(offset=base_ptr.offset, size=size),
-            )
-        return MemoryLocationSegment(offset=None, size=size)
+        ptr = self.ptr_from_op(offset)
+        if ptr is None:
+            return MemoryLocation(offset=None, size=size)
+
+        return MemoryLocation(offset=ptr.offset, size=size, alloca=ptr.base_alloca)
 
     def get_write_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:
         """Extract memory location info from an instruction"""
@@ -167,23 +164,25 @@ class BasePtrAnalysis(IRAnalysis):
 
     def _get_memory_write_location(self, inst) -> MemoryLocation:
         if inst.opcode == "dload":
-            return MemoryLocationSegment(offset=0, size=32)
+            # TODO: use FreeVarSpace
+            return MemoryLocation(offset=0, size=32)
         if inst.opcode == "invoke":
             return MemoryLocation.UNDEFINED
 
         if inst.get_write_effects() & effects.MEMORY == effects.EMPTY:
-            return MemoryLocationSegment.EMPTY
+            return MemoryLocation.EMPTY
 
         return self.segment_from_ops(memory_write_ops(inst))
 
     def _get_memory_read_location(self, inst) -> MemoryLocation:
         if inst.opcode == "dload":
-            return MemoryLocationSegment(offset=0, size=32)
+            # TODO: use FreeVarSpace
+            return MemoryLocation(offset=0, size=32)
         if inst.opcode == "invoke":
             return MemoryLocation.UNDEFINED
 
         if inst.get_read_effects() & effects.MEMORY == effects.EMPTY:
-            return MemoryLocationSegment.EMPTY
+            return MemoryLocation.EMPTY
 
         return self.segment_from_ops(memory_read_ops(inst))
 

@@ -35,10 +35,10 @@ def test_base_ptr_basic():
     assert base_ptr_3 is not None
     assert base_ptr_4 is not None
 
-    assert base_ptr_1.source is source
-    assert base_ptr_2.source is source
-    assert base_ptr_3.source is source
-    assert base_ptr_4.source is source
+    assert base_ptr_1.base_alloca.inst is source
+    assert base_ptr_2.base_alloca.inst is source
+    assert base_ptr_3.base_alloca.inst is source
+    assert base_ptr_4.base_alloca.inst is source
     assert base_ptr_1.offset == 0
     assert base_ptr_2.offset == 32
     assert base_ptr_3.offset is None
