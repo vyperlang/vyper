@@ -96,7 +96,8 @@ class MemoryAllocator:
     def compute_fn_eom(self) -> int:
         eom = 0
         for base_ptr in self.allocated_fn:
-            eom = max(eom, base_ptr.offset + base_ptr.size)
+            offset, size = self.allocated[base_ptr.source]
+            eom = max(eom, offset + size)
         return eom
 
     def reset(self):
