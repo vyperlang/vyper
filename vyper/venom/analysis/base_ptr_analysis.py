@@ -133,10 +133,6 @@ class BasePtrAnalysis(IRAnalysis):
         else:  # pragma: nocover
             raise CompilerPanic(f"invalid size: {ops} ({type(size)})")
 
-        if size == 0:
-            # optimization(!)
-            return MemoryLocation.EMPTY
-
         offset = ops.ofst
 
         if isinstance(offset, IRLiteral):
