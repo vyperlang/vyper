@@ -9,8 +9,25 @@ from vyper.exceptions import CompilerPanic
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand
 
 
+# can be thought of thin wrapper around alloca
+# a memory region which hasn't been allocated (assigned a concrete position) yet.
+@dataclass(frozen=True)
+class Allocation:
+    inst: IRInstruction  # the alloca instruction
+
+    def __post_init__(self):
+        # sanity check
+        assert self.inst.opcode in ("alloca", "palloca"), self.inst
+
+    @cached_property
+    def alloca_size(self) -> int:
+        size = self.inst.operands[0]
+        assert isinstance(size, IRLiteral)
+        return size.value
+
+
 # abstract / interface
-# TODO: rename to MemorySegment
+# TODO: rename to MemoryAccess
 class MemoryLocation:
     # Initialize after class definition
     EMPTY: ClassVar[MemoryLocation]
@@ -164,24 +181,16 @@ class MemoryLocationSegment(MemoryLocation):
 
 @dataclass(frozen=True)
 class MemoryLocationAbstract(MemoryLocation):
-    source: IRInstruction  # *alloca instruction
+    source: Allocation
     segment: MemoryLocationSegment
 
-    def __post_init__(self):
-        assert self.source.opcode in ("alloca", "palloca"), self.source
-
+    def __post_init__(self) -> None:
         # TODO: if we have segment.is_fixed, we can statically check for oob access
         # at read or write time (but not during construction, we can have weird
         # pointer arithmetics which are never read/written to)
+        pass
 
-    # REVIEW: unused?
-    @cached_property
-    def source_size(self) -> int:
-        size = self.source.operands[0]
-        assert isinstance(size, IRLiteral)
-        return size.value
-
-    def is_empty(self):
+    def is_empty(self) -> bool:
         return self.segment.is_empty()
 
     @property

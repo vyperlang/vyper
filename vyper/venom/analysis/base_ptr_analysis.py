@@ -1,7 +1,6 @@
 import dataclasses as dc
 from collections import deque
 from dataclasses import dataclass
-from functools import cached_property
 from typing import Optional
 
 import vyper.venom.effects as effects
@@ -18,6 +17,7 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.memory_location import (
+    Allocation,
     InstAccessOps,
     MemoryLocation,
     MemoryLocationAbstract,
@@ -27,34 +27,14 @@ from vyper.venom.memory_location import (
 )
 
 
-# can be thought of thin wrapper around alloca
-# class Allocation
 @dataclass(frozen=True)
-class BasePtr:
-    source: IRInstruction  # the alloca instruction
+class Ptr:
+    """
+    class representing an offset (gep) into an Allocation
+    """
+    base_alloca: Allocation
 
-    def __post_init__(self):
-        # sanity check
-        assert self.source.opcode in ("alloca", "palloca"), self.source
-
-    @property
-    def is_base_ptr(self):
-        return True
-
-    @cached_property
-    def source_size(self) -> IRLiteral:
-        size = self.source.operands[0]
-        assert isinstance(size, IRLiteral)
-        return size
-
-    @classmethod
-    def from_alloca(cls, alloca_inst: IRInstruction):
-        return cls(source=alloca_inst)
-
-
-# don't inherit from BasePtr, instead compose .allocation inside of Ptr
-@dataclass(frozen=True)
-class Ptr(BasePtr):
+    # the offset inside the allocated region
     offset: int | None = 0  # None == unknown
 
     def offset_by(self, offset: int | None):
@@ -62,18 +42,9 @@ class Ptr(BasePtr):
             return dc.replace(self, offset=None)
         return dc.replace(self, offset=self.offset + offset)
 
-    # (not sure if this will be useful)
-    @property
-    def is_base_ptr(self):
-        return self.offset == 0
-
     @classmethod
-    def from_base_ptr(cls, base_ptr: BasePtr):
-        return cls(base_ptr.source, offset=0)
-
-    # TODO: dead? or useful
-    def get_base_ptr(self):
-        return BasePtr(source=self.source)
+    def from_alloca(cls, alloca: IRInstruction):
+        return cls(Allocation(alloca))
 
 
 class BasePtrAnalysis(IRAnalysis):
@@ -175,7 +146,7 @@ class BasePtrAnalysis(IRAnalysis):
         base_ptr = self.ptr_from_op(offset)
         if base_ptr is not None:
             return MemoryLocationAbstract(
-                source=base_ptr.source,
+                source=base_ptr.base_alloca,
                 segment=MemoryLocationSegment(offset=base_ptr.offset, size=size),
             )
         return MemoryLocationSegment(offset=None, size=size)

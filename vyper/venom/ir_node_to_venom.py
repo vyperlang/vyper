@@ -9,7 +9,6 @@ from vyper.codegen.context import Alloca
 from vyper.codegen.core import is_tuple_like
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes, version_check
-from vyper.venom.analysis.base_ptr_analysis import BasePtr
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -20,6 +19,7 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.context import DeployInfo, IRContext
 from vyper.venom.function import IRFunction, IRParameter
+from vyper.venom.memory_location import Allocation
 
 # Experimental: allow returning multiple 32-byte values via the stack
 ENABLE_MULTI_RETURNS = True
@@ -160,7 +160,7 @@ def ir_node_to_venom(ir: IRnode, deploy_info: Optional[DeployInfo] = None) -> IR
         )
         bb.insert_instruction(inst)
         _immutables_region_alloca = inst
-        ctx.mem_allocator.set_position(BasePtr.from_alloca(_immutables_region_alloca), 0)
+        ctx.mem_allocator.set_position(Allocation(_immutables_region_alloca), 0)
         symbols["runtime_codesize"] = IRLiteral(deploy_info.runtime_codesize)
 
     _convert_ir_bb(fn, ir, symbols)
@@ -351,7 +351,7 @@ def _handle_internal_func(
         )
         bb.insert_instruction(inst)
         _immutables_region_alloca = inst
-        fn.ctx.mem_allocator.set_position(BasePtr.from_alloca(inst), 0)
+        fn.ctx.mem_allocator.set_position(Allocation(inst), 0)
 
     # return buffer
     if does_return_data:

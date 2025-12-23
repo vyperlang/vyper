@@ -1,28 +1,29 @@
 from typing import ClassVar
 
 from vyper.utils import OrderedSet
-from vyper.venom.analysis.base_ptr_analysis import BasePtr, Ptr
-from vyper.venom.basicblock import IRInstruction, IRLiteral
+from vyper.venom.analysis.base_ptr_analysis import Ptr
+from vyper.venom.basicblock import IRLiteral
 from vyper.venom.function import IRFunction
+from vyper.venom.memory_location import Allocation
 
 
-# TODO: refactor this to work with BasePtr instead of raw IRInstructions
 class MemoryAllocator:
     # global state:
     #   all allocated mems, alloca => (ptr, size)
-    allocated: dict[IRInstruction, tuple[int, int]]
+    allocated: dict[Allocation, int]
     #   function => set of memlocs in that function
     # (free vars + union of all mems_used is equivalent to `allocated`)
-    mems_used: dict[IRFunction, OrderedSet[IRInstruction]]
+    mems_used: dict[IRFunction, OrderedSet[Allocation]]
 
     #   function => end of memory for that function
     fn_eom: dict[IRFunction, int]
 
     # mems allocated in current function (allocas/pallocas)
-    allocated_fn: OrderedSet[BasePtr]
+    allocated_fn: OrderedSet[Allocation]
     # current function
-    current_fn: IRFunction
+    current_function: IRFunction
 
+    # reserved positions: set[tuple[position, size]]
     reserved: set[tuple[int, int]]
 
     FN_START: ClassVar[int] = 0
@@ -35,18 +36,16 @@ class MemoryAllocator:
         self.fn_eom = dict()
         self.allocated_fn = OrderedSet()
 
-    def set_position(self, base_ptr: BasePtr, position: int):
-        self.allocated[base_ptr.source] = (position, base_ptr.source_size.value)
+    def set_position(self, alloca: Allocation, position: int):
+        self.allocated[alloca] = position
 
-    def allocate(self, alloca: IRInstruction) -> int:
-        base_ptr = BasePtr.from_alloca(alloca)
-        assert isinstance(base_ptr, BasePtr)
-        assert base_ptr.source not in self.allocated
+    def allocate(self, alloca: Allocation) -> int:
+        assert alloca not in self.allocated
 
         reserved = sorted(list(self.reserved))
 
         ptr = MemoryAllocator.FN_START
-        size = base_ptr.source_size.value
+        size = alloca.alloca_size
 
         for resv_ptr, resv_size in reserved:
             # can happen if this allocation
@@ -62,47 +61,46 @@ class MemoryAllocator:
 
             ptr = resv_ptr + resv_size
 
-        self.allocated[base_ptr.source] = (ptr, size)
-        self.allocated_fn.add(base_ptr)
+        self.allocated[alloca] = ptr
+        self.allocated_fn.add(alloca)
         return ptr
 
-    def is_allocated(self, alloca: IRInstruction) -> bool:
-        assert alloca.opcode in ("alloca", "palloca"), alloca
+    def is_allocated(self, alloca: Allocation) -> bool:
         return alloca in self.allocated
 
     def get_concrete(self, ptr: Ptr) -> IRLiteral:
-        assert self.is_allocated(ptr.source)
+        assert self.is_allocated(ptr.base_alloca)
         assert ptr.offset is not None
-        return IRLiteral(self.allocated[ptr.source][0] + ptr.offset)
+        return IRLiteral(self.allocated[ptr.base_alloca] + ptr.offset)
 
     def start_fn_allocation(self, fn):
         self.reserved = set()
         self.current_function = fn
         self.allocated_fn = OrderedSet()
 
-    def add_allocated(self, mems: list[BasePtr]):
+    def add_allocated(self, mems: list[Allocation]):
         self.allocated_fn.addmany(mems)
 
     def end_fn_allocation(self):
-        self.mems_used[self.current_function] = OrderedSet(
-            base_ptr.source for base_ptr in self.allocated_fn
-        )
+        # defensive copy
+        self.mems_used[self.current_function] = self.allocated_fn.copy()
+
         self.fn_eom[self.current_function] = self.compute_fn_eom()
 
     def compute_fn_eom(self) -> int:
         eom = 0
-        for base_ptr in self.allocated_fn:
-            offset, size = self.allocated[base_ptr.source]
-            eom = max(eom, offset + size)
+        for alloca in self.allocated_fn:
+            offset = self.allocated[alloca]
+            eom = max(eom, offset + alloca.alloca_size)
         return eom
 
     def reset(self):
         self.reserved = set()
 
-    def reserve(self, mem_loc: BasePtr):
-        assert mem_loc.source in self.allocated
-        ptr, size = self.allocated[mem_loc.source]
-        self.reserved.add((ptr, size))
+    def reserve(self, alloca: Allocation):
+        assert alloca in self.allocated
+        ptr = self.allocated[alloca]
+        self.reserved.add((ptr, alloca.alloca_size))
 
     def reserve_all(self):
         for mem in self.allocated_fn:

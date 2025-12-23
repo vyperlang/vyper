@@ -1,8 +1,8 @@
 from vyper.utils import MemoryPositions
 from vyper.venom.analysis import DFGAnalysis
-from vyper.venom.analysis.base_ptr_analysis import BasePtr
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
 from vyper.venom.memory_location import (
+    Allocation,
     get_memory_read_op,
     get_memory_write_op,
     get_read_size,
@@ -89,6 +89,5 @@ class FixMemLocationsPass(IRPass):
         alloca_inst = self.dfg.get_producing_instruction(ptr)
         alloca_inst.annotation = f"free var {mem_position}"
         assert alloca_inst is not None
-        base_ptr = BasePtr.from_alloca(alloca_inst)
-        self.function.ctx.mem_allocator.set_position(base_ptr, mem_position)
+        self.function.ctx.mem_allocator.set_position(Allocation(alloca_inst), mem_position)
         return ptr
