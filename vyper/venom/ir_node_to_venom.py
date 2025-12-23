@@ -150,6 +150,7 @@ def ir_node_to_venom(ir: IRnode, deploy_info: Optional[DeployInfo] = None) -> IR
     _immutables_region_alloca = None
     if deploy_info is not None:
         bb = fn.get_basic_block()
+        # TODO: get rid of the alloca_id -- maybe Context.global_allocations
         _immutable_alloca_id = get_scratch_alloca_id()
         inst = IRInstruction(
             "alloca",

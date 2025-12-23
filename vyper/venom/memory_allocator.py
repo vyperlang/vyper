@@ -1,11 +1,12 @@
 from typing import ClassVar
 
 from vyper.utils import OrderedSet
-from vyper.venom.analysis.base_ptr_analysis import BasePtr
+from vyper.venom.analysis.base_ptr_analysis import BasePtr, Ptr
 from vyper.venom.basicblock import IRInstruction, IRLiteral
 from vyper.venom.function import IRFunction
 
 
+# TODO: refactor this to work with BasePtr instead of raw IRInstructions
 class MemoryAllocator:
     # global state:
     #   all allocated mems, alloca => (ptr, size)
@@ -35,19 +36,17 @@ class MemoryAllocator:
         self.allocated_fn = OrderedSet()
 
     def set_position(self, base_ptr: BasePtr, position: int):
-        assert base_ptr.source.opcode in ("alloca", "palloca")
-        self.allocated[base_ptr.source] = (position, base_ptr.size)
+        self.allocated[base_ptr.source] = (position, base_ptr.source_size.value)
 
-    def allocate(self, base_ptr: BasePtr | IRInstruction) -> int:
-        if isinstance(base_ptr, IRInstruction):
-            base_ptr = BasePtr.from_alloca(base_ptr)
+    def allocate(self, alloca: IRInstruction) -> int:
+        base_ptr = BasePtr.from_alloca(alloca)
         assert isinstance(base_ptr, BasePtr)
         assert base_ptr.source not in self.allocated
 
         reserved = sorted(list(self.reserved))
 
         ptr = MemoryAllocator.FN_START
-        size = base_ptr.size
+        size = base_ptr.source_size.value
 
         for resv_ptr, resv_size in reserved:
             # can happen if this allocation
@@ -67,17 +66,14 @@ class MemoryAllocator:
         self.allocated_fn.add(base_ptr)
         return ptr
 
-    def is_allocated(self, alloc: BasePtr | IRInstruction) -> bool:
-        if isinstance(alloc, BasePtr):
-            return alloc.source in self.allocated
-        else:
-            assert alloc.opcode in ("alloca", "palloca"), alloc
-            return alloc in self.allocated
+    def is_allocated(self, alloca: IRInstruction) -> bool:
+        assert alloca.opcode in ("alloca", "palloca"), alloca
+        return alloca in self.allocated
 
-    def get_concrete(self, base_ptr: BasePtr) -> IRLiteral:
-        assert self.is_allocated(base_ptr)
-        assert base_ptr.offset is not None
-        return IRLiteral(self.allocated[base_ptr.source][0] + base_ptr.offset)
+    def get_concrete(self, ptr: Ptr) -> IRLiteral:
+        assert self.is_allocated(ptr.source)
+        assert ptr.offset is not None
+        return IRLiteral(self.allocated[ptr.source][0] + ptr.offset)
 
     def start_fn_allocation(self, fn):
         self.reserved = set()

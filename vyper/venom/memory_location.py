@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import dataclasses as dc
 from dataclasses import dataclass
+from functools import cached_property
 from typing import ClassVar, Optional
 
+from vyper.exceptions import CompilerPanic
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand
 
 
+# abstract / interface
+# TODO: rename to MemorySegment
 class MemoryLocation:
     # Initialize after class definition
     EMPTY: ClassVar[MemoryLocation]
@@ -52,61 +56,6 @@ class MemoryLocation:
 
     def mk_volatile(self) -> MemoryLocation:  # pragma: nocover
         raise NotImplementedError
-
-    def offset_by(self, offset: Optional[int]) -> MemoryLocation:
-        raise NotImplementedError
-
-
-@dataclass(frozen=True)
-class MemoryLocationAbstract(MemoryLocation):
-    source: IRInstruction
-    maximum_size: int
-    segment: MemoryLocationSegment
-
-    def is_empty(self):
-        return self.segment.is_empty()
-
-    @property
-    def is_offset_fixed(self) -> bool:
-        return self.segment.is_offset_fixed
-
-    @property
-    def is_size_fixed(self) -> bool:
-        return self.segment.is_size_fixed
-
-    @property
-    def is_fixed(self) -> bool:
-        return self.segment.is_fixed
-
-    @property
-    def is_volatile(self) -> bool:
-        return self.segment.is_volatile
-
-    def mk_volatile(self) -> MemoryLocationAbstract:
-        return dc.replace(self, segment=self.segment.mk_volatile())
-
-    @staticmethod
-    def may_overlap_abstract(loc1: MemoryLocationAbstract, loc2: MemoryLocationAbstract) -> bool:
-        if loc1.source is loc2.source:
-            return MemoryLocationSegment.may_overlap_concrete(loc1.segment, loc2.segment)
-        else:
-            return False
-
-    def completely_contains(self, other: MemoryLocation) -> bool:
-        if other == MemoryLocation.UNDEFINED:
-            return False
-        if not isinstance(other, MemoryLocationAbstract):
-            return False
-        if self.maximum_size is None:
-            return False
-        if other.is_empty():
-            return True
-        if self.source is other.source:
-            return self.segment.completely_contains(other.segment)
-        return False
-
-    def offset_by(self, offset: Optional[int]) -> MemoryLocationAbstract:
-        return dc.replace(self, segment=self.segment.offset_by(offset))
 
 
 @dataclass(frozen=True)
@@ -212,143 +161,176 @@ class MemoryLocationSegment(MemoryLocation):
 
         return True
 
-    def offset_by(self, offset: Optional[int]) -> MemoryLocationSegment:
-        if offset is None:
-            return dc.replace(self, offset=None)
 
-        if self.offset is None:
-            return dc.replace(self, offset=None)
+@dataclass(frozen=True)
+class MemoryLocationAbstract(MemoryLocation):
+    source: IRInstruction  # *alloca instruction
+    segment: MemoryLocationSegment
 
-        return dc.replace(self, offset=self.offset + offset)
+    def __post_init__(self):
+        assert self.source.opcode in ("alloca", "palloca"), self.source
+
+        # if we have segment.is_fixed, we can statically check for oob access
+        if self.segment.is_fixed:
+            if self.segment.offset + self.segment.size > self.source_size:
+                # the memory access is oob! (outside of the allocated region)
+                raise CompilerPanic(f"oob memory access, {self}")
+
+    # REVIEW: unused?
+    @cached_property
+    def source_size(self) -> int:
+        size = self.source.operands[0]
+        assert isinstance(size, IRLiteral)
+        return size.value
+
+    def is_empty(self):
+        return self.segment.is_empty()
+
+    @property
+    def is_offset_fixed(self) -> bool:
+        return self.segment.is_offset_fixed
+
+    @property
+    def is_size_fixed(self) -> bool:
+        return self.segment.is_size_fixed
+
+    @property
+    def is_fixed(self) -> bool:
+        return self.segment.is_fixed
+
+    @property
+    def is_volatile(self) -> bool:
+        return self.segment.is_volatile
+
+    def mk_volatile(self) -> MemoryLocationAbstract:
+        return dc.replace(self, segment=self.segment.mk_volatile())
+
+    @staticmethod
+    def may_overlap_abstract(loc1: MemoryLocationAbstract, loc2: MemoryLocationAbstract) -> bool:
+        if loc1.source is loc2.source:
+            return MemoryLocationSegment.may_overlap_concrete(loc1.segment, loc2.segment)
+        else:
+            return False
+
+    def completely_contains(self, other: MemoryLocation) -> bool:
+        if other == MemoryLocation.UNDEFINED:
+            return False
+        if not isinstance(other, MemoryLocationAbstract):
+            return False
+        if other.is_empty():
+            return True
+        if self.source is other.source:
+            return self.segment.completely_contains(other.segment)
+        return False
 
 
 MemoryLocation.EMPTY = MemoryLocationSegment(offset=0, size=0)
 MemoryLocation.UNDEFINED = MemoryLocationSegment(offset=None, size=None)
 
 
-def get_memory_write_op(inst) -> IROperand | None:
+@dataclass
+# TODO: come up with better name
+# TODO: maybe this should go in somewhere higher level?
+#   e.g. directly in basicblock.py or analysis/.
+class InstAccessOps:
+    ofst: Optional[IROperand]
+    size: Optional[IROperand]
+    max_size: Optional[IROperand] = None
+
+    def __post_init__(self):
+        if self.max_size is None:
+            self.max_size = self.size
+
+
+# REVIEW: rename to get_memory_write_ofst
+# or shorter: get_write_ofst, get_mem_write_ofst
+def memory_write_ops(inst) -> InstAccessOps:
     opcode = inst.opcode
     if opcode == "mstore":
         dst = inst.operands[1]
-        return dst
-    elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
-        _, _, dst = inst.operands
-        return dst
-    elif opcode == "call":
-        _, dst, _, _, _, _, _ = inst.operands
-        return dst
-    elif opcode in ("delegatecall", "staticcall"):
-        _, dst, _, _, _, _ = inst.operands
-        return dst
-    elif opcode == "extcodecopy":
-        _, _, dst, _ = inst.operands
-        return dst
-
-    return None
-
-
-def get_write_size(inst: IRInstruction) -> IROperand | None:
-    opcode = inst.opcode
-    if opcode == "mstore":
-        return IRLiteral(32)
-    elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
-        size, _, _ = inst.operands
-        return size
-    elif opcode == "call":
+        return InstAccessOps(ofst=dst, size=IRLiteral(32))
+    if opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
+        size, _, dst = inst.operands
+        return InstAccessOps(ofst=dst, size=size)
+    if opcode == "call":
+        max_size, dst, _, _, _, _, _ = inst.operands
         # number of bytes written is indeterminate -- could
         # write anywhere between 0 and output_buffer_size bytes.
-        _size, _, _, _, _, _, _ = inst.operands
-        return None
-    elif opcode in ("delegatecall", "staticcall"):
+        return InstAccessOps(ofst=dst, size=None, max_size=max_size)
+    if opcode in ("delegatecall", "staticcall"):
+        max_size, dst, _, _, _, _ = inst.operands
         # ditto
-        _size, _, _, _, _, _ = inst.operands
-        return None
-    elif opcode == "extcodecopy":
-        size, _, _, _ = inst.operands
-        return size
+        return InstAccessOps(ofst=dst, size=None, max_size=max_size)
+    if opcode == "extcodecopy":
+        size, _, dst, _ = inst.operands
+        return InstAccessOps(ofst=dst, size=size)
 
-    return None
-
-
-def get_write_max_size(inst: IRInstruction) -> IROperand | None:
-    opcode = inst.opcode
-    if opcode in ("call", "delegatecall", "staticcall"):
-        return inst.operands[0]
-    return get_write_size(inst)
+    return InstAccessOps(ofst=None, size=None)
 
 
-def get_memory_read_op(inst) -> IROperand | None:
+# REVIEW: rename (mem_write_ofst? get_mem_write_ofst?)
+def get_memory_write_op(inst: IRInstruction) -> Optional[IROperand]:
+    return memory_write_ops(inst).ofst
+
+
+# REVIEW: rename (mem_write_size? get_mem_write_size?)
+def get_write_size(inst: IRInstruction) -> Optional[IROperand]:
+    return memory_write_ops(inst).size
+
+
+def get_write_max_size(inst: IRInstruction) -> Optional[IROperand]:
+    return memory_write_ops(inst).max_size
+
+
+def memory_read_ops(inst) -> InstAccessOps:
     opcode = inst.opcode
     if opcode == "mload":
-        return inst.operands[0]
-    elif opcode == "mcopy":
-        _, src, _ = inst.operands
-        return src
-    elif opcode == "call":
-        _, _, _, src, _, _, _ = inst.operands
-        return src
-    elif opcode in ("delegatecall", "staticcall"):
-        _, _, _, src, _, _ = inst.operands
-        return src
-    elif opcode == "return":
-        _, src = inst.operands
-        return src
-    elif opcode == "create":
-        _, src, _ = inst.operands
-        return src
-    elif opcode == "create2":
+        ofst = inst.operands[0]
+        size = IRLiteral(32)
+        return InstAccessOps(ofst=ofst, size=size)
+
+    if opcode == "mcopy":
+        size, src, _ = inst.operands
+        return InstAccessOps(ofst=src, size=size)
+
+    if opcode == "call":
+        _, _, size, src, _, _, _ = inst.operands
+        return InstAccessOps(ofst=src, size=size)
+    if opcode in ("delegatecall", "staticcall"):
+        _, _, size, src, _, _ = inst.operands
+        return InstAccessOps(ofst=src, size=size)
+    if opcode == "return":
+        size, src = inst.operands
+        return InstAccessOps(ofst=src, size=size)
+    if opcode == "create":
+        size, _, _ = inst.operands
+        size, src, _ = inst.operands
+        return InstAccessOps(ofst=src, size=size)
+
+    if opcode == "create2":
         _, size, src, _ = inst.operands
-        return src
+        return InstAccessOps(ofst=src, size=size)
+
     elif opcode == "sha3":
-        _, offset = inst.operands
-        return offset
+        size, ofst = inst.operands
+        return InstAccessOps(ofst=ofst, size=size)
     elif opcode == "log":
-        _, src = inst.operands[-2:]
-        return src
+        size, src = inst.operands[-2:]
+        return InstAccessOps(ofst=src, size=size)
     elif opcode == "revert":
         size, src = inst.operands
-        if size.value == 0:
-            return None
-        return src
+        return InstAccessOps(ofst=src, size=size)
 
-    return None
+    return InstAccessOps(ofst=None, size=None)
 
 
-def get_read_size(inst: IRInstruction) -> IROperand | None:
-    opcode = inst.opcode
-    if opcode == "mload":
-        return IRLiteral(32)
-    elif opcode == "mcopy":
-        size, _, _ = inst.operands
-        return size
-    elif opcode == "call":
-        _, _, size, _, _, _, _ = inst.operands
-        return size
-    elif opcode in ("delegatecall", "staticcall"):
-        _, _, size, _, _, _ = inst.operands
-        return size
-    elif opcode == "return":
-        size, _ = inst.operands
-        return size
-    elif opcode == "create":
-        size, _, _ = inst.operands
-        return size
-    elif opcode == "create2":
-        _, size, _, _ = inst.operands
-        return size
-    elif opcode == "sha3":
-        size, _ = inst.operands
-        return size
-    elif opcode == "log":
-        size, _ = inst.operands[-2:]
-        return size
-    elif opcode == "revert":
-        size, _ = inst.operands
-        if size.value == 0:
-            return None
-        return size
+# REVIEW: get_mem_read_ofst
+def get_memory_read_op(inst) -> Optional[IROperand]:
+    return memory_read_ops(inst).ofst
 
-    return None
+
+def get_read_size(inst: IRInstruction) -> Optional[IROperand]:
+    return memory_read_ops(inst).size
 
 
 def update_write_location(inst, new_op: IROperand):
@@ -363,6 +345,9 @@ def update_write_location(inst, new_op: IROperand):
         inst.operands[1] = new_op
     elif opcode == "extcodecopy":
         inst.operands[2] = new_op
+
+    else:  # pragma: nocover
+        raise CompilerPanic("unreachable")
 
 
 def update_read_location(inst, new_op: IROperand):
@@ -387,3 +372,6 @@ def update_read_location(inst, new_op: IROperand):
         inst.operands[-1] = new_op
     elif opcode == "revert":
         inst.operands[1] = new_op
+
+    else:  # pragma: nocover
+        raise CompilerPanic("unreachable")

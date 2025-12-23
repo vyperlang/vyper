@@ -4,7 +4,7 @@ from typing import Optional
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis
-from vyper.venom.analysis.base_ptr_analysis import BasePtr
+from vyper.venom.analysis.base_ptr_analysis import BasePtr, Ptr
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -70,9 +70,10 @@ class ConcretizeMemLocPass(IRPass):
     def _handle_bb(self, bb: IRBasicBlock):
         for inst in bb.instructions:
             if inst.opcode in ("alloca", "palloca", "calloca"):
-                base_ptr = self.base_ptrs.base_ptr_from_op(inst.output)
+                # get palloca from calloca
+                base_ptr = self.base_ptrs.ptr_from_op(inst.output)
                 assert base_ptr is not None, (inst, base_ptr)
-                if not self.allocator.is_allocated(base_ptr):
+                if not self.allocator.is_allocated(base_ptr.source):
                     # unallocated alloca, we need to allocate it.
                     #
                     # the invariant that all abstract mem locs should be already
@@ -80,7 +81,7 @@ class ConcretizeMemLocPass(IRPass):
                     # only holds if all the dead stores are eliminated.
                     # however, this doesn't always seem to be the case, so we allocate
                     # these memory locations now.
-                    self.allocator.allocate(base_ptr)
+                    self.allocator.allocate(base_ptr.source)
                 concrete = self.allocator.get_concrete(base_ptr)
                 self.updater.replace(inst, "assign", [concrete])
             if inst.opcode == "gep":
@@ -148,11 +149,11 @@ class MemLiveness:
 
         for inst in reversed(bb.instructions):
             write_op = get_memory_write_op(inst)
-            write_ops = self._find_base_ptrs(write_op)
+            write_ptrs = self._find_base_ptrs(write_op)
             read_op = get_memory_read_op(inst)
-            read_ops = self._find_base_ptrs(read_op)
+            read_ptrs = self._find_base_ptrs(read_op)
 
-            for read_ptr in read_ops:
+            for read_ptr in read_ptrs:
                 live.add(read_ptr.source)
 
             if inst.opcode == "invoke":
@@ -164,7 +165,7 @@ class MemLiveness:
                 live.addmany(self.mem_allocator.mems_used[fn])
 
                 for op in inst.operands:
-                    ptr = self.base_ptrs.base_ptr_from_op(op)
+                    ptr = self.base_ptrs.ptr_from_op(op)
                     if ptr is not None:
                         # this case is for any buffers which are
                         # passed to invoke as a stack parameter.
@@ -172,18 +173,18 @@ class MemLiveness:
 
             self.liveat[inst] = live.copy()
 
-            for write_ptr in write_ops:
+            for write_ptr in write_ptrs:
                 size = get_write_size(inst)
                 if not isinstance(size, IRLiteral):
                     # if the size is not a literal then we do not handle it
                     continue
-                if write_ptr.source in live and size.value == write_ptr.size:
+                if write_ptr.source in live and size.value == write_ptr.source_size:
                     # if the memory segment is overriden completely
                     # we dont have to consider the memory location
                     # before this point live, since any values that
                     # are currently in there will be overriden either way
                     live.remove(write_ptr.source)
-                if write_ptr.source in (op.source for op in read_ops):
+                if write_ptr.source in (ptr.source for ptr in read_ptrs):
                     # the instruction reads and writes from the same memory
                     # location, we cannot remove it from the liveset
                     live.add(write_ptr.source)
@@ -205,10 +206,8 @@ class MemLiveness:
         before = self.used[bb.instructions[-1]]
         for inst in bb.instructions:
             for op in inst.operands:
-                ptr = self.base_ptrs.base_ptr_from_op(op)
-                if ptr is None:
-                    continue
-                used.add(ptr.source)
+                ptrs = self._find_base_ptrs(op)
+                used.addmany(ptr.source for ptr in ptrs)
             if inst.opcode == "invoke":
                 label = inst.operands[0]
                 assert isinstance(label, IRLabel)
@@ -217,9 +216,9 @@ class MemLiveness:
             self.used[inst] = used.copy()
         return before != used
 
-    def _find_base_ptrs(self, op: Optional[IROperand]) -> set[BasePtr]:
+    def _find_base_ptrs(self, op: Optional[IROperand]) -> set[Ptr]:
         if op is None:
             return set()
         if not isinstance(op, IRVariable):
             return set()
-        return self.base_ptrs.get_all_possible_memory(op)
+        return self.base_ptrs.get_possible_ptrs(op)

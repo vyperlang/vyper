@@ -25,10 +25,10 @@ def test_base_ptr_basic():
 
     source = fn.entry.instructions[0]
 
-    base_ptr_1 = base_ptr_analysis.base_ptr_from_op(IRVariable("%alloca1"))
-    base_ptr_2 = base_ptr_analysis.base_ptr_from_op(IRVariable("%2"))
-    base_ptr_3 = base_ptr_analysis.base_ptr_from_op(IRVariable("%3"))
-    base_ptr_4 = base_ptr_analysis.base_ptr_from_op(IRVariable("%4"))
+    base_ptr_1 = base_ptr_analysis.ptr_from_op(IRVariable("%alloca1"))
+    base_ptr_2 = base_ptr_analysis.ptr_from_op(IRVariable("%2"))
+    base_ptr_3 = base_ptr_analysis.ptr_from_op(IRVariable("%3"))
+    base_ptr_4 = base_ptr_analysis.ptr_from_op(IRVariable("%4"))
 
     assert base_ptr_1 is not None
     assert base_ptr_2 is not None
