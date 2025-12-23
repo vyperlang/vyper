@@ -9,18 +9,23 @@ from vyper.exceptions import CompilerPanic
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand
 
 
-# can be thought of thin wrapper around alloca
-# a memory region which hasn't been allocated (assigned a concrete position) yet.
 @dataclass(frozen=True)
 class Allocation:
+    """
+    a memory region which hasn't been allocated (assigned a concrete position) yet.
+    (can be thought of thin wrapper around alloca)
+    """
+    # note this class is NOT robust to mutations to the alloca instruction!
+
     inst: IRInstruction  # the alloca instruction
 
     def __post_init__(self):
         # sanity check
         assert self.inst.opcode in ("alloca", "palloca"), self.inst
 
-    @cached_property
+    @property
     def alloca_size(self) -> int:
+        assert self.inst.opcode in ("alloca", "palloca"), self.inst
         size = self.inst.operands[0]
         assert isinstance(size, IRLiteral)
         return size.value
