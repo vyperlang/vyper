@@ -55,10 +55,10 @@ def analyze_module(module_ast: vy_ast.Module) -> ModuleT:
     add all module-level objects to the namespace, type-check/validate
     semantics and annotate with type and analysis info
     """
-    return _analyze_module_r(module_ast, module_ast.is_interface)
+    return _analyze_module_r(module_ast)
 
 
-def _analyze_module_r(module_ast: vy_ast.Module, is_interface: bool = False):
+def _analyze_module_r(module_ast: vy_ast.Module):
     if "type" in module_ast._metadata:
         # we don't need to analyse again, skip out
         assert isinstance(module_ast._metadata["type"], ModuleT)
@@ -67,7 +67,7 @@ def _analyze_module_r(module_ast: vy_ast.Module, is_interface: bool = False):
     # validate semantics and annotate AST with type/semantics information
 
     with Namespace.new_scope():
-        analyzer = ModuleAnalyzer(module_ast, is_interface)
+        analyzer = ModuleAnalyzer(module_ast)
         analyzer.analyze_module_body()
 
         _analyze_call_graph(module_ast)
@@ -81,7 +81,7 @@ def _analyze_module_r(module_ast: vy_ast.Module, is_interface: bool = False):
 
         # if this is an interface, the function is already validated
         # in `ContractFunction.from_vyi()`
-        if not is_interface:
+        if not module_ast.is_interface:
             analyze_functions(module_ast)
             analyzer.validate_initialized_modules()
             analyzer.validate_used_modules()
@@ -162,9 +162,8 @@ def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT
 class ModuleAnalyzer(VyperNodeVisitorBase):
     scope_name = "module"
 
-    def __init__(self, module_node: vy_ast.Module, is_interface: bool = False) -> None:
+    def __init__(self, module_node: vy_ast.Module) -> None:
         self.ast = module_node
-        self.is_interface = is_interface
 
         # keep track of exported functions to prevent duplicate exports
         self._all_functions: dict[ContractFunctionT, vy_ast.VyperNode] = {}
@@ -721,7 +720,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._events.append(obj)
 
     def visit_FunctionDef(self, node):
-        if self.is_interface:
+        if self.ast.is_interface:
             func_t = ContractFunctionT.from_vyi(node)
             if not func_t.is_external:
                 # TODO test me!
@@ -756,13 +755,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if path.suffix == ".vy":
             module_ast = import_info.parsed
             with Namespace.new_scope():
-                module_t = _analyze_module_r(module_ast, is_interface=False)
+                module_t = _analyze_module_r(module_ast)
                 return ModuleInfo(module_t, import_info.alias)
 
         if path.suffix == ".vyi":
             module_ast = import_info.parsed
             with Namespace.new_scope():
-                module_t = _analyze_module_r(module_ast, is_interface=True)
+                module_t = _analyze_module_r(module_ast)
 
                 # NOTE: might be cleaner to return the whole module, so we
                 # have a ModuleInfo, that way we don't need to have different
