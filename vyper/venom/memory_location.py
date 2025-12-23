@@ -170,11 +170,9 @@ class MemoryLocationAbstract(MemoryLocation):
     def __post_init__(self):
         assert self.source.opcode in ("alloca", "palloca"), self.source
 
-        # if we have segment.is_fixed, we can statically check for oob access
-        if self.segment.is_fixed:
-            if self.segment.offset + self.segment.size > self.source_size:
-                # the memory access is oob! (outside of the allocated region)
-                raise CompilerPanic(f"oob memory access, {self}")
+        # TODO: if we have segment.is_fixed, we can statically check for oob access
+        # at read or write time (but not during construction, we can have weird
+        # pointer arithmetics which are never read/written to)
 
     # REVIEW: unused?
     @cached_property

@@ -9,7 +9,7 @@ from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.mem_alias import mem_alias_type_factory
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.effects import Effects, to_addr_space
-from vyper.venom.memory_location import MemoryLocation
+from vyper.venom.memory_location import MemoryLocation, InstAccessOps
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 # from position in the memory to the posible values
@@ -49,6 +49,7 @@ class LoadAnalysis(IRAnalysis):
 
     def _analyze_type(self, eff: Effects | str, load_opcode: str, store_opcode: str | None):
         if eff in (Effects.MEMORY, "dload", "calldataload"):
+            # TODO: rename to word_scale instead
             self.size = 32
         else:
             self.size = 1
@@ -95,7 +96,8 @@ class LoadAnalysis(IRAnalysis):
         if isinstance(op, IRVariable):
             op = self.dfg._traverse_assign_chain(op)
         assert isinstance(op, (IRVariable, IRLiteral))
-        return self.base_ptrs.from_operands(op, self.size)
+        access_ops = InstAccessOps(ofst=op, size=IRLiteral(self.size))
+        return self.base_ptrs.segment_from_ops(access_ops)
 
     def get_read(self, inst: IRInstruction) -> IROperand | MemoryLocation:
         if self.space in (addr_space.MEMORY, addr_space.TRANSIENT, addr_space.STORAGE):

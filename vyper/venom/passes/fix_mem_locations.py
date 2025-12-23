@@ -87,6 +87,7 @@ class FixMemLocationsPass(IRPass):
         ptr = self.updater.add_before(inst, "alloca", [IRLiteral(32)])
         assert ptr is not None
         alloca_inst = self.dfg.get_producing_instruction(ptr)
+        alloca_inst.annotation=f"free var {mem_position}"
         assert alloca_inst is not None
         base_ptr = BasePtr.from_alloca(alloca_inst)
         self.function.ctx.mem_allocator.set_position(base_ptr, mem_position)
