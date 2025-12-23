@@ -42,6 +42,10 @@ class ConcretizeMemLocPass(IRPass):
         self.allocator.add_allocated([mem for mem, _ in already_allocated])
 
         max_eom = 0
+        for mem, _ in already_allocated:
+            ptr, size = self.allocator.allocated[mem._id]
+            max_eom = max(ptr + size, max_eom)
+
         for mem, insts in to_allocate:
             self.allocator.reset()
 
