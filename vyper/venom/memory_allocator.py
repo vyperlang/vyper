@@ -91,7 +91,13 @@ class MemoryAllocator:
         self.mems_used[self.current_function] = OrderedSet(
             base_ptr.source for base_ptr in self.allocated_fn
         )
-        self.fn_eom[self.current_function] = self.eom
+        self.fn_eom[self.current_function] = self.compute_fn_eom()
+
+    def compute_fn_eom(self) -> int:
+        eom = 0
+        for base_ptr in self.allocated_fn:
+            eom = max(eom, base_ptr.offset + base_ptr.size)
+        return eom
 
     def reset(self):
         self.reserved = set()
