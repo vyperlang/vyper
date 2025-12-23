@@ -14,6 +14,9 @@ class MemoryAllocator:
     # (free vars + union of all mems_used is equivalent to `allocated`)
     mems_used: dict[IRFunction, OrderedSet[IRInstruction]]
 
+    #   function => end of memory for that function
+    fn_eom: dict[IRFunction, int]
+
     # mems allocated in current function (allocas/pallocas)
     allocated_fn: OrderedSet[BasePtr]
     # current function
@@ -28,6 +31,7 @@ class MemoryAllocator:
 
         self.allocated = dict()
         self.mems_used = dict()
+        self.fn_eom = dict()
         self.allocated_fn = OrderedSet()
 
     def set_position(self, base_ptr: BasePtr, position: int):
@@ -87,6 +91,7 @@ class MemoryAllocator:
         self.mems_used[self.current_function] = OrderedSet(
             base_ptr.source for base_ptr in self.allocated_fn
         )
+        self.fn_eom[self.current_function] = self.eom
 
     def reset(self):
         self.reserved = set()
