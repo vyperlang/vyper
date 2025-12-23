@@ -252,7 +252,9 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
 
     # For multi-return via stack without a provided buffer, synthesize one
     if returns_count > 0 and return_buf is None:
-        return_buf = bb.append_instruction1("alloca", 32 * returns_count, get_scratch_alloca_id(), annotation="return buffer")
+        return_buf = bb.append_instruction1(
+            "alloca", 32 * returns_count, get_scratch_alloca_id(), annotation="return buffer"
+        )
 
     stack_args: list[IROperand] = [IRLabel(str(target_label))]
 
@@ -342,7 +344,10 @@ def _handle_internal_func(
         assert _immutables_region_alloca is not None
         size = _immutables_region_alloca.operands[0]
         inst = IRInstruction(
-            "alloca", [size, IRLiteral(_immutable_alloca_id)], outputs=[fn.get_next_variable()], annotation="immutables region",
+            "alloca",
+            [size, IRLiteral(_immutable_alloca_id)],
+            outputs=[fn.get_next_variable()],
+            annotation="immutables region",
         )
         bb.insert_instruction(inst)
         _immutables_region_alloca = inst
@@ -351,7 +356,9 @@ def _handle_internal_func(
     # return buffer
     if does_return_data:
         if returns_count > 0:
-            buf = bb.append_instruction("alloca", 32 * returns_count, get_scratch_alloca_id(), annotation="return buffer")
+            buf = bb.append_instruction(
+                "alloca", 32 * returns_count, get_scratch_alloca_id(), annotation="return buffer"
+            )
         else:
             buf = bb.append_instruction("param")
             bb.instructions[-1].annotation = "return_buffer"
@@ -785,7 +792,9 @@ def _convert_ir_bb(fn, ir, symbols):
             alloca = ir.passthrough_metadata["alloca"]
             if alloca._id not in _alloca_table:
                 # id is still needed for inlining
-                ptr = fn.get_basic_block().append_instruction("alloca", alloca.size, alloca._id, annotation=alloca.name)
+                ptr = fn.get_basic_block().append_instruction(
+                    "alloca", alloca.size, alloca._id, annotation=alloca.name
+                )
                 _alloca_table[alloca._id] = ptr
             return _alloca_table[alloca._id]
 
@@ -794,7 +803,9 @@ def _convert_ir_bb(fn, ir, symbols):
             alloca = ir.passthrough_metadata["alloca"]
             if alloca._id not in _alloca_table:
                 bb = fn.get_basic_block()
-                ptr = bb.append_instruction("palloca", alloca.size, alloca._id, annotation=alloca.name)
+                ptr = bb.append_instruction(
+                    "palloca", alloca.size, alloca._id, annotation=alloca.name
+                )
                 bb.instructions[-1].annotation = f"{alloca.name} (memory)"
                 fn.allocated_args[alloca._id] = bb.instructions[-1]
                 if _pass_via_stack(_current_func_t)[alloca.name]:
@@ -812,12 +823,18 @@ def _convert_ir_bb(fn, ir, symbols):
 
                 callsite_func = ir.passthrough_metadata["callsite_func"]
                 if _pass_via_stack(callsite_func)[alloca.name]:
-                    ptr = bb.append_instruction("alloca", alloca.size, alloca._id, annotation=alloca.name)
+                    ptr = bb.append_instruction(
+                        "alloca", alloca.size, alloca._id, annotation=alloca.name
+                    )
                 else:
                     # if we use alloca, mstores might get removed. convert
                     # to calloca until memory analysis is more sound.
                     ptr = bb.append_instruction(
-                        "calloca", alloca.size, alloca._id, IRLabel(alloca._callsite), annotation=alloca.name
+                        "calloca",
+                        alloca.size,
+                        alloca._id,
+                        IRLabel(alloca._callsite),
+                        annotation=alloca.name,
                     )
 
                 _alloca_table[alloca._id] = ptr

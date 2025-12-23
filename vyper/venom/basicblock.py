@@ -243,7 +243,9 @@ class IRInstruction:
         self,
         opcode: str,
         operands: list[IROperand] | Iterator[IROperand],
+        /,
         outputs: Optional[list[IRVariable]] = None,
+        annotation: Optional[str] = None,
     ):
         assert isinstance(opcode, str), "opcode must be an str"
         assert isinstance(operands, list | Iterator), "operands must be a list"
@@ -251,7 +253,8 @@ class IRInstruction:
         self.operands = list(operands)  # in case we get an iterator
         self._outputs = list(outputs) if outputs is not None else []
 
-        self.annotation = None
+        self.annotation = annotation
+
         self.ast_source = None
         self.error_msg = None
 
@@ -531,6 +534,7 @@ class IRBasicBlock:
     def append_instruction(
         self,
         opcode: str,
+        /,
         *args: Union[IROperand, int],
         ret: Optional[IRVariable] = None,
         annotation: str = None,
