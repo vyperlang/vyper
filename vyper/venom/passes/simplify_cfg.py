@@ -29,6 +29,9 @@ class SimplifyCFGPass(IRPass):
                     break
                 inst.operands[inst.operands.index(b.label)] = a.label
 
+        # Schedule label replacement for data segment references
+        self._schedule_label_replacement(b.label, a.label)
+
         self.function.remove_basic_block(b)
 
     def _merge_jump(self, a: IRBasicBlock, b: IRBasicBlock):
@@ -97,6 +100,12 @@ class SimplifyCFGPass(IRPass):
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 inst.replace_operands(self.label_map)
+
+        # Also update labels in data segment
+        for data_section in self.function.ctx.data_segment:
+            for item in data_section.data_items:
+                if item.data in self.label_map:
+                    item.data = self.label_map[item.data]
 
     def remove_unreachable_blocks(self) -> int:
         # Remove unreachable basic blocks
