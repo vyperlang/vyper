@@ -37,17 +37,22 @@ class LoadAnalysis(IRAnalysis):
 
     def get_space(self, eff: Effects | str) -> AddrSpace:
         if isinstance(eff, Effects):
-            return to_addr_space(eff)
+            ret = to_addr_space(eff)
+            assert ret is not None
+            return ret
         if eff == "dload":
             return DATA
         if eff == "calldataload":
             return CALLDATA
 
-        raise CompilerPanic("invalid effect {eff}")  # pragma: nocover
+        raise CompilerPanic(f"invalid effect {eff}")  # pragma: nocover
+
+    @property
+    def word_scale(self) -> int:
+        return self.space.word_scale
 
     def _analyze_type(self, eff: Effects | str, load_opcode: str, store_opcode: str | None):
         self.space = self.get_space(eff)
-        self.size = self.space.word_scale
 
         if store_opcode is not None:
             mem_alias_type = mem_alias_type_factory(self.space)
@@ -90,11 +95,11 @@ class LoadAnalysis(IRAnalysis):
         if isinstance(op, IRVariable):
             op = self.dfg._traverse_assign_chain(op)
         assert isinstance(op, (IRVariable, IRLiteral))
-        access_ops = InstAccessOps(ofst=op, size=IRLiteral(self.size))
+        access_ops = InstAccessOps(ofst=op, size=IRLiteral(self.word_scale))
         return self.base_ptrs.segment_from_ops(access_ops)
 
     def get_read(self, inst: IRInstruction) -> IROperand | MemoryLocation:
-        assert inst.opcode == self.space.load_op
+        assert inst.opcode == self.space.load_op  # sanity
         if self.space in (addr_space.MEMORY, addr_space.TRANSIENT, addr_space.STORAGE):
             memloc = self.base_ptrs.get_read_location(inst, self.space)
             if memloc.is_fixed:
@@ -102,7 +107,7 @@ class LoadAnalysis(IRAnalysis):
         return inst.operands[0]
 
     def get_write(self, inst: IRInstruction) -> IROperand | MemoryLocation:
-        assert inst.opcode == self.space.store_op
+        assert inst.opcode == self.space.store_op  # sanity
         if self.space in (addr_space.MEMORY, addr_space.TRANSIENT, addr_space.STORAGE):
             memloc = self.base_ptrs.get_write_location(inst, self.space)
             if memloc.is_fixed:
