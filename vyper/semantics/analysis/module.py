@@ -181,7 +181,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         self._to_visit = self.ast.body.copy()
 
-        # handle imports; mutates `self._imported_modules`
+        # handle imports
         self._visit_nodes_linear((vy_ast.Import, vy_ast.ImportFrom))
 
         # we can resolve constants as soon as imports are handled.
