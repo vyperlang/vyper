@@ -37,15 +37,13 @@ class LoadAnalysis(IRAnalysis):
 
     def get_space(self, eff: Effects | str) -> AddrSpace:
         if isinstance(eff, Effects):
-            space = to_addr_space(eff)
-        elif eff == "dload":
-            space = DATA
-        elif eff == "calldataload":
-            space = CALLDATA
-        else:
-            raise CompilerPanic("Invalid effect type in load elimination")
-        assert space is not None
-        return space
+            return to_addr_space(eff)
+        if eff == "dload":
+            return DATA
+        if eff == "calldataload":
+            return CALLDATA
+
+        raise CompilerPanic("invalid effect {eff}")  # pragma: nocover
 
     def _analyze_type(self, eff: Effects | str, load_opcode: str, store_opcode: str | None):
         self.space = self.get_space(eff)
