@@ -188,9 +188,6 @@ class ImportAnalyzer:
     def _load_import(
         self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
     ) -> tuple[CompilerInput, Any]:
-        if _is_builtin(level, module_str):
-            return _load_builtin_import(level, module_str)
-
         path = _import_to_path(level, module_str)
 
         if path in self.graph.imported_modules:
@@ -198,6 +195,9 @@ class ImportAnalyzer:
             raise DuplicateImport(f"{alias} imported more than once!", previous_import_stmt, node)
 
         self.graph.imported_modules[path] = node
+
+        if _is_builtin(level, module_str):
+            return _load_builtin_import(level, module_str)
 
         err = None
 

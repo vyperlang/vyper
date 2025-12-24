@@ -323,6 +323,16 @@ import library as library2
         compiler.compile_code(contract_source, input_bundle=input_bundle)
 
 
+def test_reject_duplicate_builtin_imports(make_input_bundle):
+    contract_source = """
+import math
+import math as math2
+    """
+    input_bundle = make_input_bundle({"contract.vy": contract_source})
+    with pytest.raises(DuplicateImport):
+        compiler.compile_code(contract_source, input_bundle=input_bundle)
+
+
 def test_nested_module_access(get_contract, make_input_bundle):
     lib1 = """
 import lib2
