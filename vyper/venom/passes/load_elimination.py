@@ -94,23 +94,19 @@ class LoadAnalysis(IRAnalysis):
         return self.base_ptrs.segment_from_ops(access_ops)
 
     def get_read(self, inst: IRInstruction) -> IROperand | MemoryLocation:
+        assert inst.opcode == self.space.load_op
         if self.space in (addr_space.MEMORY, addr_space.TRANSIENT, addr_space.STORAGE):
             memloc = self.base_ptrs.get_read_location(inst, self.space)
-            if not memloc.is_fixed:
-                # assumes it is load
-                return inst.operands[0]
-            return memloc
-        # assumes it is load
+            if memloc.is_fixed:
+                return memloc
         return inst.operands[0]
 
     def get_write(self, inst: IRInstruction) -> IROperand | MemoryLocation:
+        assert inst.opcode == self.space.store_op
         if self.space in (addr_space.MEMORY, addr_space.TRANSIENT, addr_space.STORAGE):
             memloc = self.base_ptrs.get_write_location(inst, self.space)
-            if not memloc.is_fixed:
-                # assumes it is store
-                return inst.operands[1]
-            return memloc
-        # assumes it is store
+            if memloc.is_fixed:
+                return memloc
         return inst.operands[1]
 
     def _handle_bb(
