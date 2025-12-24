@@ -47,7 +47,7 @@ class FunctionInlinerPass(IRGlobalPass):
         for _ in range(function_count):
             candidate = self._select_inline_candidate()
             if candidate is None:
-                return
+                break
 
             # print(f"Inlining function {candidate.name} with cost {candidate.code_size_cost}")
 
