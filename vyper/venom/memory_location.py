@@ -79,6 +79,10 @@ class MemoryLocation:
 
     # similar code to memmerging._Interval, but different data structure
     def completely_contains(self, other: MemoryLocation) -> bool:
+        # If other is empty (size 0), always contained
+        if other.is_empty():
+            return True
+
         # If self has unknown offset or size, can't guarantee containment
         if not self.is_offset_fixed or not self.is_size_fixed:
             return False
@@ -94,11 +98,6 @@ class MemoryLocation:
 
         if self.alloca != other.alloca:
             return False
-
-        # If other is empty (size 0), always contained
-        # TODO: is this correct?
-        if other.is_empty():
-            return True
 
         # Both are known
         assert self.offset is not None and self.size is not None
