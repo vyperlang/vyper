@@ -102,7 +102,11 @@ class Mem2Var(IRPass):
         # on alloca_id) is a bit kludgey, but we will live.
         param = fn.get_param_by_id(alloca_id.value)
         if param is None:
-            self.updater.replace(palloca_inst, "mload", [size_lit], new_output=var)
+            # Memory-passed param: load the value from the palloca address.
+            # Keep palloca (provides address), insert mload after it.
+            inserted = self.updater.add_after(palloca_inst, "mload", [palloca_inst.output])
+            assert inserted is not None  # help mypy
+            var = inserted
         else:
             self.updater.update(palloca_inst, "assign", [param.func_var], new_output=var)
 

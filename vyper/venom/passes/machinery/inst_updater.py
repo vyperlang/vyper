@@ -144,7 +144,22 @@ class InstUpdater:
         """
         Insert another instruction before the given instruction
         """
+        return self._insert_instruction(inst, opcode, args, after=False)
+
+    def add_after(
+        self, inst: IRInstruction, opcode: str, args: list[IROperand]
+    ) -> Optional[IRVariable]:
+        """
+        Insert another instruction after the given instruction
+        """
+        return self._insert_instruction(inst, opcode, args, after=True)
+
+    def _insert_instruction(
+        self, inst: IRInstruction, opcode: str, args: list[IROperand], after: bool = False
+    ) -> Optional[IRVariable]:
         index = inst.parent.instructions.index(inst)
+        if after:
+            index += 1
 
         var = None
         if opcode not in NO_OUTPUT_INSTRUCTIONS:
