@@ -48,12 +48,8 @@ class LoadAnalysis(IRAnalysis):
         return space
 
     def _analyze_type(self, eff: Effects | str, load_opcode: str, store_opcode: str | None):
-        if eff in (Effects.MEMORY, "dload", "calldataload"):
-            # TODO: rename to word_scale instead
-            self.size = 32
-        else:
-            self.size = 1
         self.space = self.get_space(eff)
+        self.size = self.space.word_scale
 
         if store_opcode is not None:
             mem_alias_type = mem_alias_type_factory(self.space)
