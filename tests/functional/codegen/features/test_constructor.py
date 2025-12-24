@@ -1,7 +1,6 @@
-import contextlib
-
 import pytest
 
+from tests.dsl import CodeModel
 from tests.evm_backends.base_env import _compile
 from vyper.utils import method_id
 
@@ -294,27 +293,24 @@ def __init__():
     I_ADDR = CONST_ADDR
     I_BYTES32 = CONST_BYTES32
     """
-    print(code)
     c = get_contract(code)
     assert c.I_UINT() == CONST_UINT
     assert c.I_ADDR() == CONST_ADDR
     assert c.I_BYTES32() == bytes.fromhex(CONST_BYTES32.removeprefix("0x"))
 
 
-@pytest.mark.parametrize("should_fail", [True, False])
-def test_constructor_payability(env, get_contract, tx_failed, should_fail):
-    code = f"""
-@deploy
-{"" if should_fail else "@payable"}
-def __init__():
-    pass
-"""
+@pytest.mark.parametrize("is_payable", [False, True])
+def test_constructor_payability(env, get_contract, tx_failed, is_payable):
+    model = CodeModel()
     env.set_balance(env.deployer, 10)
 
-    if should_fail:
-        ctx = tx_failed
-    else:
-        ctx = contextlib.nullcontext
+    init = model.function("__init__()").deploy().body("pass")
 
-    with ctx():
-        _ = get_contract(code, value=10)
+    if is_payable:
+        # payable constructor should deploy successfully with value
+        init.payable()
+        get_contract(model, value=10)
+    else:
+        # non-payable constructor should fail when deployed with value
+        with tx_failed():
+            get_contract(model, value=10)
