@@ -144,6 +144,14 @@ class IRFunction:
                 return param
         return None
 
+    def get_live_pallocas(self) -> Iterator[IRInstruction]:
+        """
+        Return allocated_args that haven't been nop'd by earlier passes.
+        """
+        for inst in self.allocated_args.values():
+            if inst.opcode == "palloca":
+                yield inst
+
     def get_param_by_name(self, var: IRVariable | str) -> Optional[IRParameter]:
         if isinstance(var, str):
             var = IRVariable(var)

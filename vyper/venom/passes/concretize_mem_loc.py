@@ -208,7 +208,9 @@ class MemLiveness:
         # this is to get positions where the memory location
         # are used/already used so we dont allocate
         # memory before the place where it is firstly used
-        used: OrderedSet[Allocation] = OrderedSet(self.function.allocated_args.values())
+        used: OrderedSet[Allocation] = OrderedSet(
+            Allocation(inst) for inst in self.function.get_live_pallocas()
+        )
         if len(preds := self.cfg.cfg_in(bb)) > 0:
             for other in (self.used[pred.instructions[-1]] for pred in preds):
                 used.update(other)

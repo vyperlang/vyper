@@ -89,7 +89,9 @@ class BasePtrAnalysis(IRAnalysis):
             callee = self.function.ctx.get_function(callee_label)
             palloca = callee.allocated_args[_id.value]
             assert isinstance(palloca, IRInstruction)
-            self.var_to_mem[inst.output] = set([Ptr.from_alloca(palloca)])
+            # palloca may have been nop'd by earlier passes on the callee
+            if palloca.opcode == "palloca":
+                self.var_to_mem[inst.output] = set([Ptr.from_alloca(palloca)])
 
         elif opcode == "gep":
             assert isinstance(inst.operands[0], IRVariable), inst.parent
