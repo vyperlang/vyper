@@ -197,7 +197,7 @@ class MemSSAAbstract(IRAnalysis):
         """Process memory definitions and uses in a basic block"""
         for inst in block.instructions:
             # Check for memory reads
-            loc = self.memalias._get_read_location(inst, self.addr_space)
+            loc = self.memalias.base_ptr.get_read_location(inst, self.addr_space)
             if loc != MemoryLocation.EMPTY:
                 mem_use = MemoryUse(self.next_id, inst, loc)
                 self.next_id += 1
@@ -205,7 +205,7 @@ class MemSSAAbstract(IRAnalysis):
                 self.inst_to_use[inst] = mem_use
 
             # Check for memory writes
-            loc = self.memalias._get_write_location(inst, self.addr_space)
+            loc = self.memalias.base_ptr.get_write_location(inst, self.addr_space)
             if loc != MemoryLocation.EMPTY:
                 mem_def = MemoryDef(self.next_id, inst, loc)
                 self.next_id += 1

@@ -1,4 +1,5 @@
 from .analysis import IRAnalysesCache, IRAnalysis
+from .base_ptr_analysis import BasePtrAnalysis
 from .cfg import CFGAnalysis
 from .dfg import DFGAnalysis
 from .dominators import DominatorTreeAnalysis
