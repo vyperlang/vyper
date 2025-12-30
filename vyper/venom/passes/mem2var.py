@@ -86,7 +86,8 @@ class Mem2Var(IRPass):
         instructions, it is promoted to a stack variable. Otherwise, it is left as is.
         """
         size_lit, alloca_id = palloca_inst.operands
-        uses = dfg.get_uses(palloca_inst.output)
+        # snapshot uses before any insertion - add_after mutates the live set
+        uses = dfg.get_uses(palloca_inst.output).copy()
 
         if any(inst.opcode == "add" for inst in uses):
             self._fix_adds(palloca_inst)
@@ -113,7 +114,7 @@ class Mem2Var(IRPass):
         assert isinstance(size_lit, IRLiteral)
         size = size_lit.value
 
-        for inst in uses.copy():
+        for inst in uses:
             if inst.opcode == "mstore":
                 if size == 32:
                     self.updater.mk_assign(inst, inst.operands[0], new_output=var)

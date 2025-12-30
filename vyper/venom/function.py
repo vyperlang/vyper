@@ -34,7 +34,8 @@ class IRFunction:
     args: list
     # all the pallocas that are needed
     # TODO try to use only args
-    allocated_args: dict[int, IRInstruction]
+    # Pallocas created during IR construction, keyed by alloca_id.
+    _allocated_args: dict[int, IRInstruction]
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
 
@@ -46,7 +47,7 @@ class IRFunction:
         self.ctx = ctx  # type: ignore
         self.name = name
         self.args = []
-        self.allocated_args = dict()
+        self._allocated_args = dict()
         self._basic_block_dict = {}
 
         self.last_variable = 0
@@ -146,11 +147,26 @@ class IRFunction:
 
     def get_live_pallocas(self) -> Iterator[IRInstruction]:
         """
-        Return allocated_args that haven't been nop'd by earlier passes.
+        Return pallocas that haven't been nop'd by earlier passes.
         """
-        for inst in self.allocated_args.values():
+        for inst in self._allocated_args.values():
             if inst.opcode == "palloca":
                 yield inst
+
+    def get_palloca_inst(self, alloca_id: int) -> Optional[IRInstruction]:
+        """
+        Get the palloca instruction for the given alloca_id.
+        Returns None if not found.
+        """
+        return self._allocated_args.get(alloca_id)
+
+    def has_palloca(self, alloca_id: int) -> bool:
+        """Check if an alloca_id exists in the pallocas."""
+        return alloca_id in self._allocated_args
+
+    def set_palloca(self, alloca_id: int, inst: IRInstruction) -> None:
+        """Register a palloca instruction for the given alloca_id."""
+        self._allocated_args[alloca_id] = inst
 
     def get_param_by_name(self, var: IRVariable | str) -> Optional[IRParameter]:
         if isinstance(var, str):

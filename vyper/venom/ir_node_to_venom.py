@@ -807,7 +807,7 @@ def _convert_ir_bb(fn, ir, symbols):
                     "palloca", alloca.size, alloca._id, annotation=alloca.name
                 )
                 bb.instructions[-1].annotation = f"{alloca.name} (memory)"
-                fn.allocated_args[alloca._id] = bb.instructions[-1]
+                fn.set_palloca(alloca._id, bb.instructions[-1])
                 if _pass_via_stack(_current_func_t)[alloca.name]:
                     param = fn.get_param_by_id(alloca._id)
                     assert param is not None
