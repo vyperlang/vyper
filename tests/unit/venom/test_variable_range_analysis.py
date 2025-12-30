@@ -828,3 +828,337 @@ def test_mul_wraps_on_overflow_constants():
     # -1 * 2 = -2
     assert rng.lo == -2
     assert rng.hi == -2
+
+
+# =============================================================================
+# BUG REGRESSION TESTS
+# These tests document known bugs that need to be fixed.
+# =============================================================================
+
+
+def test_bug_lt_negative_constant_gives_wrong_result():
+    """
+    Bug: lt comparison with negative constant gives wrong result.
+
+    In EVM, -1 is 0xFF..FF (MAX_UINT), so `lt -1, 1` should be 0 (false)
+    because MAX_UINT > 1 in unsigned comparison.
+    But the analysis returns 1 because it compares -1 < 1 using signed arithmetic.
+    """
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = -1
+            %cmp = lt %x, 1
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    cmp_inst = entry.instructions[1]
+    rng = analysis.get_range(cmp_inst.output, entry.instructions[-1])
+    # Bug: Currently returns {1}, should return {0}
+    # In EVM unsigned comparison: 0xFF..FF > 1, so lt returns 0
+    assert rng.lo == 0 and rng.hi == 0, f"Expected {{0}}, got {rng}"
+
+
+def test_bug_unsigned_lt_false_branch_excludes_negatives():
+    """
+    Bug: When unsigned `lt %x, bound` is false and x has a signed range,
+    the false branch incorrectly excludes negative values.
+
+    If x is in [-128, 127] (from signextend 0), and `lt %x, 100` is false,
+    then x could be:
+    - [100, 127] in signed (same in unsigned)
+    - [-128, -1] in signed (0xFF80..0xFFFF in unsigned, all > 100)
+
+    The analysis should track both possibilities, but it only tracks [100, 127].
+    """
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw = calldataload 0
+            %x = signextend 0, %raw
+            %cmp = lt %x, 100
+            jnz %cmp, @small, @large
+
+        small:
+            stop
+
+        large:
+            %tmp = add %x, 0
+            stop
+        }
+        """
+    )
+
+    large_bb = fn.get_basic_block("large")
+    x_var = fn.get_basic_block("entry").instructions[1].output
+    x_range = analysis.get_range(x_var, large_bb.instructions[0])
+
+    # Bug: Currently returns [100, 127], missing negative values
+    # The range should include negative values (or be TOP/widened)
+    # because -128..-1 are large unsigned values that also satisfy "not lt 100"
+    assert x_range.lo < 0 or x_range.is_top, (
+        f"Expected range to include negatives or be TOP, got {x_range}"
+    )
+
+
+def test_bug_signextend_produces_bottom_for_out_of_range_input():
+    """
+    Bug: signextend produces bottom when input value is outside the target range.
+
+    signextend operates on the LOW BITS of the input, not the full value.
+    For signextend 0, %x where x=384 (0x180):
+    - Low byte is 0x80
+    - Sign-extended result is -128 (0xFF..80)
+
+    But the analysis intersects the input range [384, 384] with [-128, 127]
+    which gives bottom (empty intersection).
+    """
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = 384
+            %y = signextend 0, %x
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    se_inst = entry.instructions[1]
+    rng = analysis.get_range(se_inst.output, entry.instructions[-1])
+
+    # Bug: Currently returns bottom, should return {-128}
+    # The signextend of 0x180 takes low byte 0x80 and sign-extends to -128
+    assert not rng.is_empty, f"Expected non-empty range, got bottom"
+    assert rng.lo == -128 and rng.hi == -128, f"Expected {{-128}}, got {rng}"
+
+
+def test_bug_and_with_signed_range_gives_narrow_hi():
+    """
+    Bug: AND with a signed range gives an overly narrow upper bound.
+
+    For `and %x, 255` where x is in [-128, 127]:
+    - x in [0, 127]: result in [0, 127]
+    - x in [-128, -1]: unsigned [0xFF80, 0xFFFF], AND with 0xFF gives [0x80, 0xFF] = [128, 255]
+
+    So the result should be [0, 255], but analysis gives [0, 127].
+    """
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw = calldataload 0
+            %x = signextend 0, %raw
+            %y = and %x, 255
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    and_inst = entry.instructions[2]
+    rng = analysis.get_range(and_inst.output, entry.instructions[-1])
+
+    # Bug: Currently returns [0, 127], should return [0, 255]
+    # The AND of negative values like -128 (0xFF80) with 0xFF gives 0x80 = 128
+    assert rng.hi == 255, f"Expected hi=255, got {rng}"
+
+
+def test_bug_lt_false_branch_causes_assert_elimination_miscompile():
+    """
+    Miscompile: The lt false branch narrowing bug can cause
+    an assert that CAN FAIL at runtime to be incorrectly eliminated.
+
+    When `lt %x, bound` is false and x has a signed range including negatives,
+    the analysis incorrectly excludes negative values. This leads to wrong
+    constant folding of subsequent comparisons, which then causes
+    _range_excludes_zero to return True, eliminating an assert that can fail.
+    """
+    from vyper.venom.passes.assert_elimination import AssertEliminationPass
+
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw = calldataload 0
+            %x = signextend 0, %raw
+            %cmp = lt %x, 100
+            jnz %cmp, @under, @over
+
+        over:
+            %check = lt %x, 128
+            assert %check
+            stop
+
+        under:
+            stop
+        }
+        """
+    )
+
+    over_bb = fn.get_basic_block("over")
+    check_inst = over_bb.instructions[0]
+    assert_inst = over_bb.instructions[1]
+    check_var = check_inst.output
+
+    check_range = analysis.get_range(check_var, assert_inst)
+
+    # Runtime: if x = -1 (0xFF..FF), lt -1, 100 = 0 (takes @over),
+    # then check = lt -1, 128 = 0, assert 0 FAILS!
+    # Bug: Analysis gives check = {1}, so assert is eliminated
+    excludes = AssertEliminationPass._range_excludes_zero(check_range)
+    assert not excludes, (
+        f"Miscompile: Assert incorrectly eliminated! "
+        f"check_range={check_range}, but runtime can produce 0"
+    )
+
+
+def test_bug_gt_true_branch_causes_assert_elimination_miscompile():
+    """
+    Miscompile: The gt true branch has the same bug as lt false branch.
+
+    When `gt %x, bound` is true and x has a signed range including negatives,
+    the analysis incorrectly excludes negative values from the true branch.
+    """
+    from vyper.venom.passes.assert_elimination import AssertEliminationPass
+
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw = calldataload 0
+            %x = signextend 0, %raw
+            %cmp = gt %x, 50
+            jnz %cmp, @high, @low
+
+        high:
+            %check = gt %x, 200
+            %ok = iszero %check
+            assert %ok
+            stop
+
+        low:
+            stop
+        }
+        """
+    )
+
+    high_bb = fn.get_basic_block("high")
+    ok_inst = high_bb.instructions[1]
+    assert_inst = high_bb.instructions[2]
+    ok_var = ok_inst.output
+
+    ok_range = analysis.get_range(ok_var, assert_inst)
+
+    # Runtime: if x = -1, gt -1, 50 = 1 (takes @high),
+    # check = gt -1, 200 = 1, ok = iszero 1 = 0, assert 0 FAILS!
+    excludes = AssertEliminationPass._range_excludes_zero(ok_range)
+    assert not excludes, (
+        f"Miscompile: Assert incorrectly eliminated! "
+        f"ok_range={ok_range}, but runtime can produce 0"
+    )
+
+
+def test_bug_iszero_false_branch_causes_assert_elimination_miscompile():
+    """
+    Miscompile: iszero false branch excludes negative values,
+    leading to incorrect assert elimination.
+
+    When iszero is false (value is non-zero), the analysis intersects with
+    [1, UNSIGNED_MAX], which excludes negative values from the signed range.
+    """
+    from vyper.venom.passes.assert_elimination import AssertEliminationPass
+
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw = calldataload 0
+            %x = signextend 0, %raw
+            %flag = iszero %x
+            jnz %flag, @zero, @nonzero
+
+        nonzero:
+            %y = add %x, 128
+            assert %y
+            stop
+
+        zero:
+            stop
+        }
+        """
+    )
+
+    nonzero_bb = fn.get_basic_block("nonzero")
+    add_inst = nonzero_bb.instructions[0]
+    assert_inst = nonzero_bb.instructions[1]
+    y_var = add_inst.output
+
+    y_range = analysis.get_range(y_var, assert_inst)
+
+    # Runtime: if x = -128, iszero -128 = 0 (takes @nonzero),
+    # y = add -128, 128 = 0, assert 0 FAILS!
+    excludes = AssertEliminationPass._range_excludes_zero(y_range)
+    assert not excludes, (
+        f"Miscompile: Assert incorrectly eliminated! "
+        f"y_range={y_range}, but runtime can produce 0"
+    )
+
+
+def test_bug_phi_merge_with_bottom_causes_assert_elimination_miscompile():
+    """
+    Miscompile: signextend bottom bug propagates through phi,
+    causing the phi result to be missing one branch's values.
+
+    When signextend produces bottom (due to input outside result range),
+    and that bottom is merged in a phi with a valid range, the bottom
+    is treated as identity for union, losing that branch's contribution.
+    """
+    from vyper.venom.passes.assert_elimination import AssertEliminationPass
+
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %cond = calldataload 0
+            jnz %cond, @path1, @path2
+
+        path1:
+            %x1 = 384
+            %y1 = signextend 0, %x1
+            jmp @merge
+
+        path2:
+            %x2 = 1
+            %y2 = signextend 0, %x2
+            jmp @merge
+
+        merge:
+            %y = phi @path1, %y1, @path2, %y2
+            %check = eq %y, 1
+            assert %check
+            stop
+        }
+        """
+    )
+
+    merge_bb = fn.get_basic_block("merge")
+    check_inst = merge_bb.instructions[1]
+    assert_inst = merge_bb.instructions[2]
+    check_var = check_inst.output
+
+    check_range = analysis.get_range(check_var, assert_inst)
+
+    # Runtime via path1: y1 = signextend 0, 384 = -128,
+    # y = -128, check = eq -128, 1 = 0, assert 0 FAILS!
+    excludes = AssertEliminationPass._range_excludes_zero(check_range)
+    assert not excludes, (
+        f"Miscompile: Assert incorrectly eliminated! "
+        f"check_range={check_range}, but runtime can produce 0"
+    )
