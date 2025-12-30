@@ -863,6 +863,41 @@ def test_bug_lt_negative_constant_gives_wrong_result():
     assert rng.lo == 0 and rng.hi == 0, f"Expected {{0}}, got {rng}"
 
 
+def test_bug_eq_negative_constant_with_max_uint_miscompile():
+    """
+    Miscompile: eq with -1 vs MAX_UINT is true in EVM, but analysis treats
+    them as distinct and can eliminate a failing assert.
+    """
+    from vyper.venom.passes.assert_elimination import AssertEliminationPass
+
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = -1
+            %cmp = eq %x, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+            %ok = iszero %cmp
+            assert %ok
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    ok_inst = next(inst for inst in entry.instructions if inst.opcode == "iszero")
+    assert_inst = next(inst for inst in entry.instructions if inst.opcode == "assert")
+    ok_var = ok_inst.output
+
+    ok_range = analysis.get_range(ok_var, assert_inst)
+
+    # Runtime: eq(-1, MAX_UINT) = 1, ok = iszero 1 = 0, assert FAILS.
+    excludes = AssertEliminationPass._range_excludes_zero(ok_range)
+    assert not excludes, (
+        f"Miscompile: Assert incorrectly eliminated! "
+        f"ok_range={ok_range}, but runtime can produce 0"
+    )
+
+
 def test_bug_unsigned_lt_false_branch_excludes_negatives():
     """
     Bug: When unsigned `lt %x, bound` is false and x has a signed range,
