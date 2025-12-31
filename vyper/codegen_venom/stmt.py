@@ -7,6 +7,8 @@ are deferred to later tasks.
 """
 from __future__ import annotations
 
+from typing import Optional
+
 from vyper import ast as vy_ast
 from vyper.codegen_venom.arithmetic import (
     clamp_basetype,
@@ -21,6 +23,7 @@ from vyper.codegen_venom.arithmetic import (
 from vyper.exceptions import CompilerPanic, TypeCheckFailure
 from vyper.semantics.types import IntegerT
 from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.semantics.types.user import EventT, StructT
 from vyper.venom.basicblock import IRLiteral, IROperand
@@ -514,7 +517,11 @@ class Stmt:
         if has_bound:
             # Dynamic range: compute rounds = end - start
             # The bound check will catch if rounds > bound (including negative/underflow)
-            rounds_bound = kwargs["bound"].value  # literal int value
+            bound_node = kwargs["bound"]
+            # Handle both literal Int and constant Name (e.g., bound=MAX_SIZE)
+            if bound_node.has_folded_value:
+                bound_node = bound_node.get_folded_value()
+            rounds_bound = bound_node.value
             rounds = self.builder.sub(end_expr, start)
         else:
             # Static range: start and end must be literals
@@ -730,8 +737,7 @@ class Stmt:
     def lower_Return(self) -> None:
         """Lower return statement.
 
-        For internal functions: loads return values to buffer, then ret to return_pc.
-        For external functions: handled separately (ABI encoding).
+        Dispatches to internal or external return handling.
         """
         node = self.node
         assert isinstance(node, vy_ast.Return)
@@ -740,28 +746,43 @@ class Stmt:
         if func_t is None:
             raise CompilerPanic("Return outside function")
 
-        returns_count = self.ctx.returns_stack_count(func_t)
+        # Evaluate return value if present
+        ret_val: Optional[IROperand] = None
+        if node.value is not None:
+            ret_val = Expr(node.value, self.ctx).lower()
 
-        if node.value is None:
-            # No return value - just return
-            if self.ctx.return_pc is not None:
-                self.builder.ret(self.ctx.return_pc)
+        # Dispatch: internal vs external
+        if self.ctx.return_pc is not None:
+            self._lower_internal_return(ret_val, func_t)
+        else:
+            self._lower_external_return(ret_val, func_t)
+
+    def _lower_internal_return(
+        self, ret_val: Optional[IROperand], func_t: ContractFunctionT
+    ) -> None:
+        """Lower internal function return.
+
+        For internal functions:
+        - Load return values and pass on stack
+        - ret to return_pc
+        """
+        return_pc = self.ctx.return_pc
+        assert return_pc is not None  # Caller ensures this
+
+        if ret_val is None:
+            self.builder.ret(return_pc)
             return
 
-        # Evaluate return expression
-        ret_val = Expr(node.value, self.ctx).lower()
+        returns_count = self.ctx.returns_stack_count(func_t)
+        ret_typ = func_t.return_type
+        assert ret_typ is not None
 
-        # Store return value(s) to return buffer
-        if returns_count > 0 and self.ctx.return_buffer is not None:
-            # Multi-return via stack: store to buffer, then load and ret
-            buf = self.ctx.return_buffer
+        if returns_count > 0:
+            # Stack return - load values and pass to ret
+            ret_vals: list[IROperand] = []
 
-            # For tuple returns, need to unpack
-            ret_typ = func_t.return_type
-            assert ret_typ is not None
-            if self.ctx.returns_stack_count(func_t) > 1 and hasattr(ret_typ, "tuple_items"):
-                # Tuple return - value should be a memory pointer
-                src_ptr: IROperand
+            if returns_count > 1 and hasattr(ret_typ, "tuple_items"):
+                # Tuple return - load each element from memory pointer
                 for i, (_k, _elem_t) in enumerate(ret_typ.tuple_items()):
                     if i == 0:
                         src_ptr = ret_val
@@ -769,57 +790,48 @@ class Stmt:
                         src_ptr = IRLiteral(ret_val.value + i * 32)
                     else:
                         src_ptr = self.builder.add(ret_val, IRLiteral(i * 32))
-                    val = self.builder.mload(src_ptr)
-                    if i == 0:
-                        dst_ptr = buf
-                    else:
-                        dst_ptr = self.builder.add(buf, IRLiteral(i * 32))
-                    self.builder.mstore(val, dst_ptr)
+                    ret_vals.append(self.builder.mload(src_ptr))
             else:
-                # Single value return
-                self.builder.mstore(ret_val, buf)
-
-            # Now load from buffer and ret
-            ret_vals = []
-            for i in range(returns_count):
-                if i == 0:
-                    ptr = buf
+                # Single value - just use directly or load if pointer
+                if ret_typ.memory_bytes_required <= 32:
+                    ret_vals.append(ret_val)
                 else:
-                    ptr = self.builder.add(buf, IRLiteral(i * 32))
-                ret_vals.append(self.builder.mload(ptr))
+                    ret_vals.append(self.builder.mload(ret_val))
 
-            assert self.ctx.return_pc is not None
-            self.builder.ret(*ret_vals, self.ctx.return_pc)
+            self.builder.ret(*ret_vals, return_pc)
+
         elif self.ctx.return_buffer is not None:
             # Memory return - store to buffer, caller reads it
-            ret_typ = func_t.return_type
-            assert ret_typ is not None
-            assert self.ctx.return_pc is not None
             self.ctx.store_memory(ret_val, self.ctx.return_buffer, ret_typ)
-            self.builder.ret(self.ctx.return_pc)
+            self.builder.ret(return_pc)
+
         else:
-            # External function return - ABI encode and return
-            self._lower_external_return(ret_val, func_t)
+            raise CompilerPanic("Internal function missing return mechanism")
 
-    def _lower_external_return(self, ret_val: IROperand, func_t) -> None:
-        """Lower external function return with ABI encoding.
+    def _lower_external_return(
+        self, ret_val: Optional[IROperand], func_t: ContractFunctionT
+    ) -> None:
+        """Lower external function return.
 
-        For external functions, we need to:
+        For external functions:
         1. Nonreentrant unlock (if applicable)
-        2. ABI encode the return value
-        3. Return encoded data
+        2. ABI encode the return value (if any)
+        3. Return encoded data or stop
         """
+        # Nonreentrant unlock
+        self.ctx.emit_nonreentrant_unlock(func_t)
+
+        # Void return
+        if ret_val is None:
+            self.builder.stop()
+            return
+
+        # Valued return - ABI encode
         from vyper.codegen.core import calculate_type_for_external_return
         from vyper.codegen_venom.abi import abi_encode_to_buf
 
         ret_typ = func_t.return_type
-
-        # Nonreentrant unlock
-        self.ctx.emit_nonreentrant_unlock(func_t)
-
-        # Calculate max return size
-        external_return_type = calculate_type_for_external_return(ret_typ)
-        maxlen = external_return_type.abi_type.size_bound()
+        assert ret_typ is not None
 
         # Optimization: single word types don't need full encoding
         if ret_typ._is_prim_word:
@@ -828,11 +840,14 @@ class Stmt:
             self.builder.return_(IRLiteral(32), buf)
             return
 
+        # Calculate max return size
+        external_return_type = calculate_type_for_external_return(ret_typ)
+        maxlen = external_return_type.abi_type.size_bound()
+
         # Allocate return buffer
         buf = self.ctx.allocate_buffer(maxlen)
 
         # ABI encode to buffer
-        # ret_val is a pointer to the value in memory
         encoded_len = abi_encode_to_buf(self.ctx, buf, ret_val, ret_typ, returns_len=True)
 
         # Return encoded data
