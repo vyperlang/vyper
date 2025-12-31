@@ -130,10 +130,11 @@ class FunctionInlinerPass(IRGlobalPass):
                 for inst in bb.instructions:
                     if inst.opcode != "calloca":
                         continue
-                    _, alloca_id = inst.operands
-                    if alloca_id in found:
+                    size, alloca_id, callee = inst.operands
+                    if alloca_id.value in found:
                         # demote to alloca so that mem2var will work
                         inst.opcode = "alloca"
+                        inst.operands = [size, alloca_id]
 
     def _inline_call_site(self, func: IRFunction, call_site: IRInstruction) -> None:
         """
