@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Sequence, Union
 
+from vyper.exceptions import CompilerPanic
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.function import IRFunction
 
@@ -192,6 +193,33 @@ class VenomBuilder:
 
     def tstore(self, val: Operand, slot: Operand) -> None:
         self._emit("tstore", val, slot)
+
+    # === Location-aware load/store ===
+    def load(self, ptr: Operand, location: "DataLocation") -> IRVariable:
+        """Load from ptr, dispatching based on data location."""
+        from vyper.semantics.data_locations import DataLocation
+
+        if location == DataLocation.STORAGE:
+            return self.sload(ptr)
+        elif location == DataLocation.TRANSIENT:
+            return self.tload(ptr)
+        elif location == DataLocation.MEMORY:
+            return self.mload(ptr)
+        else:
+            raise CompilerPanic(f"Cannot load from location: {location}")
+
+    def store(self, val: Operand, ptr: Operand, location: "DataLocation") -> None:
+        """Store val to ptr, dispatching based on data location."""
+        from vyper.semantics.data_locations import DataLocation
+
+        if location == DataLocation.STORAGE:
+            self.sstore(val, ptr)
+        elif location == DataLocation.TRANSIENT:
+            self.tstore(val, ptr)
+        elif location == DataLocation.MEMORY:
+            self.mstore(val, ptr)
+        else:
+            raise CompilerPanic(f"Cannot store to location: {location}")
 
     # === Immutables / Data Section ===
     def dload(self, offset: Operand) -> IRVariable:

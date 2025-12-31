@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand
 
@@ -31,7 +32,8 @@ def lower_len(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # For bytes/string/DynArray: length is stored at pointer
     arg = Expr(arg_node, ctx).lower()
-    return ctx.builder.mload(arg)
+    location = arg_node._expr_info.location
+    return ctx.builder.load(arg, location)
 
 
 def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:

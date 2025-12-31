@@ -21,6 +21,7 @@ from vyper.codegen_venom.arithmetic import (
     safe_sub,
 )
 from vyper.exceptions import CompilerPanic, TypeCheckFailure
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import IntegerT
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT
@@ -612,12 +613,18 @@ class Stmt:
         # Evaluate array expression
         array = Expr(node.iter, self.ctx).lower()
         array_typ = node.iter._metadata["type"]
+        location = node.iter._expr_info.location
+
+        # Determine word scale based on location
+        # Storage: 1 slot per word, Memory: 32 bytes per word
+        is_storage = location == DataLocation.STORAGE
+        word_scale = 1 if is_storage else 32
 
         # Get length and bound
         length: IROperand
         if isinstance(array_typ, DArrayT):
             # Dynamic array: length is first word
-            length = self.builder.mload(array)
+            length = self.builder.load(array, location)
             bound = array_typ.count
         elif isinstance(array_typ, SArrayT):
             # Static array: length is compile-time constant
@@ -626,8 +633,8 @@ class Stmt:
         else:
             raise CompilerPanic(f"Cannot iterate over type: {array_typ}")
 
-        # Element size
-        elem_size = array_typ.value_type.memory_bytes_required
+        # Element size (in slots for storage, bytes for memory)
+        elem_size = array_typ.value_type.get_size_in(location)
 
         # Allocate loop variable (copy of element, not reference)
         item_ptr = self.ctx.new_variable(varname, target_type, mutable=False)
@@ -670,9 +677,9 @@ class Stmt:
 
             # Compute element address
             # elem_addr = array + offset + index * elem_size
-            # For DArrayT, offset = 32 (skip length word)
+            # For DArrayT, offset = word_scale (skip length word/slot)
             # For SArrayT, offset = 0
-            offset_base = 32 if isinstance(array_typ, DArrayT) else 0
+            offset_base = word_scale if isinstance(array_typ, DArrayT) else 0
             index_offset = self.builder.mul(index_var, IRLiteral(elem_size))
             if offset_base > 0:
                 total_offset = self.builder.add(IRLiteral(offset_base), index_offset)
@@ -680,14 +687,23 @@ class Stmt:
                 total_offset = index_offset
             elem_addr = self.builder.add(array, total_offset)
 
-            # Copy element to loop variable
-            if elem_size <= 32:
-                # Single word: simple load/store
-                val = self.builder.mload(elem_addr)
-                self.builder.mstore(val, item_ptr)
+            # Copy element to loop variable (always in memory)
+            if is_storage:
+                if elem_size == 1:
+                    # Single slot: sload from storage, mstore to memory
+                    val = self.builder.sload(elem_addr)
+                    self.builder.mstore(val, item_ptr)
+                else:
+                    # Multi-slot: use context helper
+                    self.ctx.storage_to_memory(elem_addr, item_ptr, elem_size)
             else:
-                # Multi-word: use mcopy (size, src, dst)
-                self.builder.mcopy(IRLiteral(elem_size), elem_addr, item_ptr)
+                if elem_size <= 32:
+                    # Single word: mload/mstore
+                    val = self.builder.mload(elem_addr)
+                    self.builder.mstore(val, item_ptr)
+                else:
+                    # Multi-word: use mcopy (size, src, dst)
+                    self.builder.mcopy(IRLiteral(elem_size), elem_addr, item_ptr)
 
             self._lower_body(node.body)
             body_finish = self.builder.current_block

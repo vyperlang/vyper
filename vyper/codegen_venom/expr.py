@@ -434,8 +434,9 @@ class Expr:
                     return self.builder.iszero(intersection)
             else:
                 # Array membership - use loop with early break
+                location = node.right._expr_info.location
                 return self._lower_array_membership(
-                    left, right, right_typ, isinstance(op, vy_ast.In)
+                    left, right, right_typ, location, isinstance(op, vy_ast.In)
                 )
 
         # Determine if we need signed or unsigned comparison
@@ -1023,7 +1024,8 @@ class Expr:
         return False
 
     def _lower_array_membership(
-        self, needle: IROperand, haystack: IROperand, haystack_typ, is_in: bool
+        self, needle: IROperand, haystack: IROperand, haystack_typ,
+        location: DataLocation, is_in: bool
     ) -> IRVariable:
         """Lower array membership test: x in array or x not in array.
 
@@ -1033,12 +1035,16 @@ class Expr:
             - if element == needle: result = 1, break
         - return result (or iszero(result) for not in)
         """
+        # Determine word scale based on location
+        # Storage: 1 slot per word, Memory: 32 bytes per word
+        word_scale = 1 if location == DataLocation.STORAGE else 32
+
         # Get array properties
         length: IROperand
         if isinstance(haystack_typ, DArrayT):
-            length = self.builder.mload(haystack)
+            length = self.builder.load(haystack, location)
             bound = haystack_typ.count
-            offset_base = 32  # skip length word
+            offset_base = word_scale * DYNAMIC_ARRAY_OVERHEAD
         elif isinstance(haystack_typ, SArrayT):
             length = IRLiteral(haystack_typ.count)
             bound = haystack_typ.count
@@ -1046,7 +1052,7 @@ class Expr:
         else:
             raise CompilerPanic(f"Cannot check membership in type: {haystack_typ}")
 
-        elem_size = haystack_typ.value_type.memory_bytes_required
+        elem_size = haystack_typ.value_type.get_size_in(location)
 
         # Pre-allocate result variable
         result = self.builder.new_variable()
@@ -1095,7 +1101,7 @@ class Expr:
         elem_addr = self.builder.add(haystack, total_offset)
 
         # Load element and compare
-        elem_val = self.builder.mload(elem_addr)
+        elem_val = self.builder.load(elem_addr, location)
         match = self.builder.eq(elem_val, needle)
         self.builder.jnz(match, found_block.label, incr_block.label)
 
