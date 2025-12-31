@@ -124,6 +124,10 @@ def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags) -> None:
     assert ctx.entry_function is not None
     fcg = ir_analyses[ctx.entry_function].force_analysis(FCGAnalysis)
 
+    # Remove functions not reachable from entry.
+    for fn in fcg.get_unreachable_functions():
+        ctx.remove_function(fn)
+
     _run_fn_passes(ctx, fcg, ctx.entry_function, flags, ir_analyses)
 
 
