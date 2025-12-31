@@ -968,6 +968,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         Namespace.add(node.name, struct_t)
 
 
+# TODO: rewrite using fn_t.called_functions
 def _function_call_graph_with_overrides(func: vy_ast.FunctionDef):
     fn_t = func._metadata["func_type"]
     function_calls = func.get_descendants(vy_ast.Call)
@@ -1005,6 +1006,7 @@ def _modules_call_graph_with_overrides(imports: ImportDict):
 
 
 # compute reachable set and validate the call graph (detect cycles)
+# Should put functions in an order such that dependencies always come before dependents
 def _function_compute_reachable_set_with_overrides(
     fn_t: ContractFunctionT, path: list[ContractFunctionT] = None
 ) -> None:
@@ -1025,7 +1027,7 @@ def _function_compute_reachable_set_with_overrides(
             message = " -> ".join([f.name for f in extended_path])
             raise CallViolation(f"Contract contains cyclic function call: {message}")
 
-        _compute_reachable_set(g, path=path)
+        _function_compute_reachable_set_with_overrides(g, path=path)
 
         g_reachable = g.reachable_internal_functions_with_overrides
         assert fn_t not in g_reachable  # sanity check
