@@ -3,20 +3,13 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Sequence, Union
 
-from vyper.venom.basicblock import (
-    IRAbstractMemLoc,
-    IRBasicBlock,
-    IRLabel,
-    IRLiteral,
-    IROperand,
-    IRVariable,
-)
+from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.function import IRFunction
 
 if TYPE_CHECKING:
     from vyper.venom.context import IRContext
 
-# IROperand is the base class for IRVariable, IRLiteral, IRLabel, IRAbstractMemLoc
+# IROperand is the base class for IRVariable, IRLiteral, IRLabel
 Operand = Union[IROperand, int]
 
 
@@ -166,13 +159,11 @@ class VenomBuilder:
 
     def alloca(self, size: int, alloca_id: int) -> IRVariable:
         """Allocate abstract memory. Returns pointer."""
-        mem_loc = IRAbstractMemLoc(size)
-        return self._emit1("alloca", mem_loc, alloca_id)
+        return self._emit1("alloca", size, alloca_id)
 
     def palloca(self, size: int, alloca_id: int) -> IRVariable:
         """Allocate parameter memory in callee frame. Returns pointer."""
-        mem_loc = IRAbstractMemLoc(size)
-        return self._emit1("palloca", mem_loc, alloca_id)
+        return self._emit1("palloca", size, alloca_id)
 
     def calloca(self, size: int, alloca_id: int, callsite: IRLabel) -> IRVariable:
         """Allocate argument staging memory at call site. Returns pointer.
@@ -180,15 +171,14 @@ class VenomBuilder:
         Used for memory-passed arguments when calling internal functions.
         The callsite label links this allocation to a specific invoke.
         """
-        mem_loc = IRAbstractMemLoc(size)
-        return self._emit1("calloca", mem_loc, alloca_id, callsite)
+        return self._emit1("calloca", size, alloca_id, callsite)
 
-    def gep(self, region: IRAbstractMemLoc, offset: Operand) -> IRVariable:
+    def gep(self, ptr: Operand, offset: Operand) -> IRVariable:
         """Get element pointer into memory region.
 
         Used for accessing elements within abstract memory (e.g., immutables).
         """
-        return self._emit1("gep", region, offset)
+        return self._emit1("gep", ptr, offset)
 
     # === Storage ===
     def sload(self, slot: Operand) -> IRVariable:

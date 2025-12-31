@@ -11,14 +11,11 @@ Enable via: vyper --experimental-codegen
 """
 from __future__ import annotations
 
-from vyper import ast as vy_ast
 from vyper.compiler.settings import Settings
 from vyper.semantics.types.module import ModuleT
 from vyper.venom import run_passes_on
 from vyper.venom.context import IRContext
-from vyper.venom.memory_location import fix_mem_loc
 
-from vyper.codegen_venom.context import VenomCodegenContext
 from vyper.codegen_venom.module import generate_runtime_venom, generate_deploy_venom
 
 
@@ -26,12 +23,8 @@ MAIN_ENTRY_LABEL = "__main_entry"
 
 
 def _finalize_venom_ctx(ctx: IRContext, settings: Settings) -> IRContext:
-    """Run post-generation fixups and optimization passes."""
-    # Fix memory location metadata (required for optimization passes)
-    for fn in ctx.functions.values():
-        fix_mem_loc(fn)
-
-    # Run optimization/normalization passes (required for assembly generation)
+    """Run optimization/normalization passes (required for assembly generation)."""
+    # FixMemLocationsPass is the first pass in PASSES_O2/O3/Os
     flags = settings.get_venom_flags()
     run_passes_on(ctx, flags)
 

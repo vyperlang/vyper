@@ -50,9 +50,6 @@ class VenomCodegenContext:
     # Variable tracking (name -> VenomVariable)
     variables: dict[str, VenomVariable] = field(default_factory=dict)
 
-    # Alloca ID counter (for abstract memory allocation)
-    _alloca_id: int = 0
-
     # Scope tracking
     _scopes: set[int] = field(default_factory=set)
     _scope_id: int = 0
@@ -83,8 +80,7 @@ class VenomCodegenContext:
 
     def new_alloca_id(self) -> int:
         """Generate unique alloca ID."""
-        self._alloca_id += 1
-        return self._alloca_id
+        return self.builder.ctx.get_next_alloca_id()
 
     def new_variable(self, name: str, typ: VyperType, mutable: bool = True) -> IRVariable:
         """Allocate abstract memory for a variable, return pointer."""
