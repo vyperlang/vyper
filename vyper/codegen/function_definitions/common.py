@@ -124,6 +124,8 @@ def initialize_context(
     # we start our function frame from the largest callee frame
     max_callee_frame_size = 0
     for c_func_t in callees:
+        if c_func_t.is_abstract:
+            continue
         frame_info = c_func_t._ir_info.frame_info
         max_callee_frame_size = max(max_callee_frame_size, frame_info.frame_size)
 

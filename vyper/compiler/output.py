@@ -238,7 +238,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
 
     for fn_t in exposed_fns:
         assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
-        for rif_t in fn_t.reachable_internal_functions:
+        for rif_t in fn_t.reachable_internal_functions_with_overrides:
             k = _fn_identifier(rif_t)
             if k in sigs:
                 # sanity check that keys are injective with functions

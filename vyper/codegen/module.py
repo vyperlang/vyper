@@ -24,7 +24,7 @@ def _runtime_reachable_functions(module_t, id_generator):
     for fn_t in module_t.exposed_functions:
         assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
 
-        ret.update(fn_t.reachable_internal_functions)
+        ret.update(fn_t.reachable_internal_functions_with_overrides)
         ret.add(fn_t)
 
     # create globally unique IDs for each function
@@ -435,6 +435,8 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
 
     # module_t internal functions first so we have the function info
     for func_ast in internal_functions:
+        if func_ast._metadata["func_type"].is_abstract:
+            continue
         func_ir = _ir_for_internal_function(func_ast, module_t, False)
         internal_functions_ir.append(IRnode.from_list(func_ir))
 
@@ -470,7 +472,7 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
         id_generator.ensure_id(init_func_t)
         ctor_internal_func_irs = []
 
-        reachable_from_ctor = init_func_t.reachable_internal_functions
+        reachable_from_ctor = init_func_t.reachable_internal_functions_with_overrides
         assert (
             reachable_from_ctor is not None
         ), "generate_ir_for_module was called before call graph construction"
@@ -523,7 +525,7 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
     for func_ast in module_t.function_defs:
         fn_t = func_ast._metadata["func_type"]
         if fn_t.is_internal:
-            to_visit.update(fn_t.reachable_internal_functions)
+            to_visit.update(fn_t.reachable_internal_functions_with_overrides)
             to_visit.add(fn_t)
 
     for fn_t in to_visit:
