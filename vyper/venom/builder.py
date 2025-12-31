@@ -72,25 +72,25 @@ class VenomBuilder:
         return self._emit1("add", a, b)
 
     def sub(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("sub", a, b)
+        return self._emit1("sub", b, a)  # reversed for EVM stack order
 
     def mul(self, a: Operand, b: Operand) -> IRVariable:
         return self._emit1("mul", a, b)
 
     def div(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("div", a, b)
+        return self._emit1("div", b, a)  # reversed for EVM stack order
 
     def sdiv(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("sdiv", a, b)
+        return self._emit1("sdiv", b, a)  # reversed for EVM stack order
 
     def mod(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("mod", a, b)
+        return self._emit1("mod", b, a)  # reversed for EVM stack order
 
     def smod(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("smod", a, b)
+        return self._emit1("smod", b, a)  # reversed for EVM stack order
 
     def exp(self, base: Operand, exponent: Operand) -> IRVariable:
-        return self._emit1("exp", base, exponent)
+        return self._emit1("exp", exponent, base)  # reversed for EVM stack order
 
     def addmod(self, a: Operand, b: Operand, n: Operand) -> IRVariable:
         return self._emit1("addmod", a, b, n)
@@ -99,7 +99,7 @@ class VenomBuilder:
         return self._emit1("mulmod", a, b, n)
 
     def signextend(self, byte_width: Operand, val: Operand) -> IRVariable:
-        return self._emit1("signextend", byte_width, val)
+        return self._emit1("signextend", val, byte_width)  # reversed for EVM stack order
 
     # === Bitwise ===
     def and_(self, a: Operand, b: Operand) -> IRVariable:
@@ -115,29 +115,29 @@ class VenomBuilder:
         return self._emit1("not", a)
 
     def shl(self, bits: Operand, val: Operand) -> IRVariable:
-        return self._emit1("shl", bits, val)
+        return self._emit1("shl", val, bits)  # reversed for EVM stack order
 
     def shr(self, bits: Operand, val: Operand) -> IRVariable:
-        return self._emit1("shr", bits, val)
+        return self._emit1("shr", val, bits)  # reversed for EVM stack order
 
     def sar(self, bits: Operand, val: Operand) -> IRVariable:
-        return self._emit1("sar", bits, val)
+        return self._emit1("sar", val, bits)  # reversed for EVM stack order
 
     # === Comparison ===
     def eq(self, a: Operand, b: Operand) -> IRVariable:
         return self._emit1("eq", a, b)
 
     def lt(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("lt", a, b)
+        return self._emit1("lt", b, a)  # reversed for EVM stack order
 
     def gt(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("gt", a, b)
+        return self._emit1("gt", b, a)  # reversed for EVM stack order
 
     def slt(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("slt", a, b)
+        return self._emit1("slt", b, a)  # reversed for EVM stack order
 
     def sgt(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("sgt", a, b)
+        return self._emit1("sgt", b, a)  # reversed for EVM stack order
 
     def iszero(self, a: Operand) -> IRVariable:
         return self._emit1("iszero", a)
