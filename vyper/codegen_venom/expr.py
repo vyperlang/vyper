@@ -992,6 +992,18 @@ class Expr:
 
         # Not a constant - compute at runtime
         vv = Expr(node, self.ctx).lower()
+
+        # sha3 only works on memory - copy storage data first
+        if vv.location == DataLocation.STORAGE:
+            typ = node._expr_info.typ
+            buf = self.ctx.new_internal_variable(typ)
+            self.ctx.storage_to_memory(vv.operand, buf, typ.storage_size_in_words)
+            # Now hash from memory buffer
+            data_ptr = self.builder.add(buf, IRLiteral(32))  # skip length word
+            length = self.builder.mload(buf)
+            return self.builder.sha3(length, data_ptr)
+
+        # Memory/calldata - hash directly
         data_ptr = self.ctx.bytes_data_ptr(vv)
         length = self.ctx.bytestring_length(vv)
         return self.builder.sha3(length, data_ptr)
