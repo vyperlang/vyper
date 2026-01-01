@@ -17,7 +17,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper.codegen.core import is_tuple_like
+from vyper.codegen_venom.value import VenomValue
 from vyper.exceptions import CompilerPanic
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     AddressT,
     BoolT,
@@ -140,7 +142,7 @@ def clamp_basetype(ctx: VenomCodegenContext, val: IROperand, typ: VyperType) -> 
 
 
 def clamp_bytestring(
-    ctx: VenomCodegenContext, src: IROperand, typ: _BytestringT, hi: IROperand = None
+    ctx: VenomCodegenContext, src: VenomValue, typ: _BytestringT, hi: IROperand = None
 ) -> None:
     """
     Validate bytestring length and bounds.
@@ -152,7 +154,7 @@ def clamp_bytestring(
     2. If hi is provided: item_end <= hi (prevents buffer overrun)
     """
     b = ctx.builder
-    length = b.mload(src)  # Length word at start
+    length = b.load(src.operand, src.location)  # Length word at start
 
     # Check length <= maxlen
     b.assert_(b.iszero(b.gt(length, IRLiteral(typ.maxlen))))
@@ -160,13 +162,13 @@ def clamp_bytestring(
     if hi is not None:
         # Check item_end <= hi
         # item_end = src + 32 + length
-        item_end = b.add(src, IRLiteral(32))
+        item_end = b.add(src.operand, IRLiteral(32))
         item_end = b.add(item_end, length)
         b.assert_(b.iszero(b.gt(item_end, hi)))
 
 
 def clamp_dyn_array(
-    ctx: VenomCodegenContext, src: IROperand, typ: DArrayT, hi: IROperand = None
+    ctx: VenomCodegenContext, src: VenomValue, typ: DArrayT, hi: IROperand = None
 ) -> None:
     """
     Validate DynArray count and bounds.
@@ -178,7 +180,7 @@ def clamp_dyn_array(
     2. If hi is provided: payload_end <= hi (prevents buffer overrun)
     """
     b = ctx.builder
-    count = b.mload(src)  # Count word at start
+    count = b.load(src.operand, src.location)  # Count word at start
 
     # Check count <= max_count
     b.assert_(b.iszero(b.gt(count, IRLiteral(typ.count))))
@@ -189,13 +191,13 @@ def clamp_dyn_array(
         elem_static_size = typ.value_type.abi_type.embedded_static_size()
         payload_size = b.mul(count, IRLiteral(elem_static_size))
         payload_size = b.add(payload_size, IRLiteral(32))
-        item_end = b.add(src, payload_size)
+        item_end = b.add(src.operand, payload_size)
         b.assert_(b.iszero(b.gt(item_end, hi)))
 
 
 def _getelemptr_abi(
-    ctx: VenomCodegenContext, parent: IROperand, member_typ: VyperType, static_offset: int
-) -> IROperand:
+    ctx: VenomCodegenContext, parent: VenomValue, member_typ: VyperType, static_offset: int
+) -> VenomValue:
     """
     Navigate to ABI-encoded element.
 
@@ -204,36 +206,39 @@ def _getelemptr_abi(
     For static types: returns parent + static_offset
     For dynamic types: reads offset at static location, adds to parent base
                       (double dereference pattern)
+
+    Returns VenomValue with same location as parent, typed as member_typ.
     """
     b = ctx.builder
+    loc = parent.location
 
     # Calculate static location
     if static_offset == 0:
-        static_loc = parent
-    elif isinstance(parent, IRLiteral):
-        static_loc = IRLiteral(parent.value + static_offset)
+        static_loc = parent.operand
+    elif isinstance(parent.operand, IRLiteral):
+        static_loc = IRLiteral(parent.operand.value + static_offset)
     else:
-        static_loc = b.add(parent, IRLiteral(static_offset))
+        static_loc = b.add(parent.operand, IRLiteral(static_offset))
 
     if member_typ.abi_type.is_dynamic():
         # Double dereference: read offset, add to parent base
-        offset_val = b.mload(static_loc)
-        actual_ptr = b.add(parent, offset_val)
+        offset_val = b.load(static_loc, loc)
+        actual_ptr = b.add(parent.operand, offset_val)
         # Security: prevent underflow attacks
         # assert actual_ptr >= parent
-        b.assert_(b.iszero(b.lt(actual_ptr, parent)))
-        return actual_ptr
+        b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
+        return VenomValue.loc(actual_ptr, loc, member_typ)
     else:
         # Static: data is inline
-        return static_loc
+        return VenomValue.loc(static_loc, loc, member_typ)
 
 
 def _decode_primitive(
-    ctx: VenomCodegenContext, dst: IROperand, src: IROperand, typ: VyperType
+    ctx: VenomCodegenContext, dst: IROperand, src: VenomValue, typ: VyperType
 ) -> None:
     """Decode a primitive (word-sized) type."""
     b = ctx.builder
-    val: IROperand = b.mload(src)
+    val: IROperand = b.load(src.operand, src.location)
 
     if needs_clamp(typ):
         val = clamp_basetype(ctx, val, typ)
@@ -244,7 +249,7 @@ def _decode_primitive(
 def _decode_bytestring(
     ctx: VenomCodegenContext,
     dst: IROperand,
-    src: IROperand,
+    src: VenomValue,
     typ: _BytestringT,
     hi: IROperand = None,
 ) -> None:
@@ -259,11 +264,11 @@ def _decode_bytestring(
 
     # Copy: length word + data (up to maxlen + 32 bytes)
     size = typ.memory_bytes_required
-    ctx.copy_memory(dst, src, size)
+    ctx.builder.copy_to_memory(IRLiteral(size), src.operand, dst, src.location)
 
 
 def _decode_dyn_array(
-    ctx: VenomCodegenContext, dst: IROperand, src: IROperand, typ: DArrayT, hi: IROperand = None
+    ctx: VenomCodegenContext, dst: IROperand, src: VenomValue, typ: DArrayT, hi: IROperand = None
 ) -> None:
     """
     Decode a dynamic array.
@@ -274,6 +279,7 @@ def _decode_dyn_array(
     from vyper.semantics.types.shortcuts import UINT256_T
 
     b = ctx.builder
+    loc = src.location
     elem_typ = typ.value_type
     elem_abi_t = elem_typ.abi_type
 
@@ -281,7 +287,7 @@ def _decode_dyn_array(
     clamp_dyn_array(ctx, src, typ, hi)
 
     # Copy count word
-    count = b.mload(src)
+    count = b.load(src.operand, loc)
     b.mstore(count, dst)
 
     # If element type doesn't need decoding, just copy
@@ -290,9 +296,9 @@ def _decode_dyn_array(
         elem_mem_size = elem_typ.memory_bytes_required
         # Size = count * elem_mem_size
         size = b.mul(count, IRLiteral(elem_mem_size))
-        src_data = b.add(src, IRLiteral(32))
+        src_data = b.add(src.operand, IRLiteral(32))
         dst_data = b.add(dst, IRLiteral(32))
-        ctx.copy_memory_dynamic(dst_data, src_data, size)
+        b.copy_to_memory(size, src_data, dst_data, loc)
         return
 
     # Need element-by-element decode
@@ -307,7 +313,7 @@ def _decode_dyn_array(
     loop_exit = b.create_block("darr_dec_exit")
     b.append_block(loop_exit)
 
-    # Initialize loop counter
+    # Initialize loop counter (always in memory)
     i_ptr = ctx.new_internal_variable(UINT256_T)
     b.mstore(IRLiteral(0), i_ptr)
 
@@ -316,36 +322,39 @@ def _decode_dyn_array(
 
     # --- Loop header: check i < count ---
     b.set_block(loop_header)
-    i = b.mload(i_ptr)
-    # Reload count (we're in a new block)
-    count_hdr = b.mload(src)
+    i = b.mload(i_ptr)  # Loop counter is in memory
+    # Reload count from source
+    count_hdr = b.load(src.operand, loc)
     done = b.iszero(b.lt(i, count_hdr))
     b.jnz(done, loop_exit.label, loop_body.label)
 
     # --- Loop body ---
     b.set_block(loop_body)
 
-    # Re-load i
+    # Re-load i (from memory)
     i = b.mload(i_ptr)
 
     # Get source element pointer (ABI layout)
-    src_data = b.add(src, IRLiteral(32))
+    src_data = b.add(src.operand, IRLiteral(32))
     if elem_abi_t.is_dynamic():
         # Navigate through offset
         static_loc = b.add(src_data, b.mul(i, IRLiteral(elem_static_size)))
-        offset_val = b.mload(static_loc)
-        elem_src = b.add(src_data, offset_val)
+        offset_val = b.load(static_loc, loc)
+        elem_src_ptr = b.add(src_data, offset_val)
         # Security check
-        b.assert_(b.iszero(b.lt(elem_src, src_data)))
+        b.assert_(b.iszero(b.lt(elem_src_ptr, src_data)))
     else:
-        elem_src = b.add(src_data, b.mul(i, IRLiteral(elem_static_size)))
+        elem_src_ptr = b.add(src_data, b.mul(i, IRLiteral(elem_static_size)))
+
+    # Wrap as VenomValue for recursive call
+    elem_src = VenomValue.loc(elem_src_ptr, loc, elem_typ)
 
     # Get destination element pointer (Vyper layout)
     dst_data = b.add(dst, IRLiteral(32))
     elem_dst = b.add(dst_data, b.mul(i, IRLiteral(elem_mem_size)))
 
     # Recursively decode element
-    _abi_decode_to_buf(ctx, elem_dst, elem_src, elem_typ, hi)
+    _abi_decode_to_buf(ctx, elem_dst, elem_src, hi)
 
     # Increment counter
     new_i = b.add(i, IRLiteral(1))
@@ -357,7 +366,7 @@ def _decode_dyn_array(
 
 
 def _decode_complex(
-    ctx: VenomCodegenContext, dst: IROperand, src: IROperand, typ: VyperType, hi: IROperand = None
+    ctx: VenomCodegenContext, dst: IROperand, src: VenomValue, typ: VyperType, hi: IROperand = None
 ) -> None:
     """
     Decode a complex type (tuple/struct/static array).
@@ -378,7 +387,7 @@ def _decode_complex(
     vyper_offset = 0
 
     for _key, elem_typ in items:
-        # Get source pointer (ABI layout)
+        # Get source pointer (ABI layout) - returns VenomValue
         elem_src = _getelemptr_abi(ctx, src, elem_typ, abi_offset)
 
         # Get destination pointer (Vyper layout)
@@ -390,7 +399,7 @@ def _decode_complex(
             elem_dst = b.add(dst, IRLiteral(vyper_offset))
 
         # Recursively decode element
-        _abi_decode_to_buf(ctx, elem_dst, elem_src, elem_typ, hi)
+        _abi_decode_to_buf(ctx, elem_dst, elem_src, hi)
 
         # Advance offsets
         abi_offset += elem_typ.abi_type.embedded_static_size()
@@ -400,15 +409,18 @@ def _decode_complex(
 def _abi_decode_to_buf(
     ctx: VenomCodegenContext,
     dst: IROperand,
-    src: IROperand,
-    src_typ: VyperType,
+    src: VenomValue,
     hi: IROperand = None,
 ) -> None:
     """
     Internal decoder dispatcher.
 
-    Decodes ABI-encoded src to Vyper-encoded dst based on type.
+    Decodes ABI-encoded src to Vyper-encoded dst based on src.typ.
     """
+    src_typ = src.typ
+    assert src_typ is not None, "src must have a type for ABI decoding"
+    assert src.location is not None, "src must have a location"
+
     if src_typ._is_prim_word:
         _decode_primitive(ctx, dst, src, src_typ)
     elif isinstance(src_typ, _BytestringT):
@@ -424,8 +436,7 @@ def _abi_decode_to_buf(
 def abi_decode_to_buf(
     ctx: VenomCodegenContext,
     dst: IROperand,
-    src: IROperand,
-    src_typ: VyperType,
+    src: VenomValue,
     hi: IROperand = None,
 ) -> None:
     """
@@ -437,9 +448,8 @@ def abi_decode_to_buf(
     Args:
         ctx: Venom codegen context
         dst: Destination buffer (Vyper memory layout)
-        src: Source ABI data pointer
-        src_typ: Type to decode as
+        src: Source ABI data (VenomValue with location and type)
         hi: Upper bound of valid buffer. Required when decoding untrusted data
             (calldata in memory, returndata, user Bytes). Prevents overread attacks.
     """
-    return _abi_decode_to_buf(ctx, dst, src, src_typ, hi)
+    return _abi_decode_to_buf(ctx, dst, src, hi)

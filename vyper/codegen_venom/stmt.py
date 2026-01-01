@@ -321,19 +321,29 @@ class Stmt:
     def _store_value(self, ptr: IROperand, val: IROperand, typ, is_storage: bool = False) -> None:
         """Store a value to a pointer.
 
+        For primitive types (single word), val is the value to store directly.
+        For complex types (multi-word), val is a source pointer to copy from.
+
         Args:
             ptr: Pointer to store to (memory ptr or storage slot)
-            val: Value to store
+            val: Value (primitives) or source pointer (complex types)
             typ: Type of value being stored
             is_storage: True if ptr is storage/transient, False for memory
         """
-        if is_storage:
-            # Storage variable - use sstore
-            # TODO: Support transient storage
-            self.builder.sstore(val, ptr)
+        if typ._is_prim_word:
+            # Primitive: val is the actual value to store
+            if is_storage:
+                self.builder.sstore(val, ptr)
+            else:
+                self.builder.mstore(val, ptr)
         else:
-            # Memory variable - use mstore
-            self.builder.mstore(val, ptr)
+            # Complex type: val is a source pointer, copy contents
+            if is_storage:
+                size_slots = typ.storage_size_in_words
+                self.ctx.memory_to_storage(val, ptr, size_slots)
+            else:
+                size_bytes = typ.memory_bytes_required
+                self.ctx.copy_memory(ptr, val, size_bytes)
 
     def _apply_augassign_op(
         self,
@@ -864,6 +874,8 @@ class Stmt:
             return
 
         # Calculate max return size
+        # For ABI conformance, single-element returns are wrapped in a tuple
+        # This is what provides the offset pointer for dynamic types
         external_return_type = calculate_type_for_external_return(ret_typ)
         maxlen = external_return_type.abi_type.size_bound()
 
@@ -871,7 +883,10 @@ class Stmt:
         buf = self.ctx.allocate_buffer(maxlen)
 
         # ABI encode to buffer
-        encoded_len = abi_encode_to_buf(self.ctx, buf, ret_val, ret_typ, returns_len=True)
+        # Use external_return_type (wrapped in tuple) for proper ABI encoding
+        encoded_len = abi_encode_to_buf(
+            self.ctx, buf, ret_val, external_return_type, returns_len=True
+        )
 
         # Return encoded data
         assert encoded_len is not None

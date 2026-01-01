@@ -34,9 +34,10 @@ def lower_keccak256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     if isinstance(arg_t, _BytestringT):
         # Variable-length bytes/string: ptr points to length word
         # Data starts at ptr + 32
-        arg_ptr = Expr(arg_node, ctx).lower().operand
-        data_ptr = b.add(arg_ptr, IRLiteral(32))
-        length = b.mload(arg_ptr)
+        # sha3(length, data_ptr) - builder emits in EVM order
+        arg_vv = Expr(arg_node, ctx).lower()
+        data_ptr = ctx.bytes_data_ptr(arg_vv)
+        length = ctx.bytestring_length(arg_vv)
         return b.sha3(length, data_ptr)
     elif isinstance(arg_t, BytesM_T):
         # Fixed bytesM: need to put value in memory first
@@ -70,9 +71,9 @@ def lower_sha256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     length: IROperand
     if isinstance(arg_t, _BytestringT):
         # Variable-length bytes/string
-        arg_ptr = Expr(arg_node, ctx).lower().operand
-        data_ptr = b.add(arg_ptr, IRLiteral(32))
-        length = b.mload(arg_ptr)
+        arg_vv = Expr(arg_node, ctx).lower()
+        data_ptr = ctx.bytes_data_ptr(arg_vv)
+        length = ctx.bytestring_length(arg_vv)
     elif isinstance(arg_t, BytesM_T):
         # Fixed bytesM
         arg_val = Expr(arg_node, ctx).lower_value()

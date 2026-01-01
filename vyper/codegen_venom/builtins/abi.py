@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING
 from vyper import ast as vy_ast
 from vyper.codegen.core import calculate_type_for_external_return
 from vyper.codegen_venom.abi import abi_decode_to_buf, abi_encode_to_buf
+from vyper.codegen_venom.value import VenomValue
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import BytesT, TupleT
 from vyper.utils import fourbytes_to_int
 from vyper.venom.basicblock import IRLiteral, IROperand
@@ -224,7 +226,8 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Decode with bounds checking
     hi = b.add(data_ptr, data_len)
-    abi_decode_to_buf(ctx, output_buf, data_ptr, wrapped_typ, hi=hi)
+    src = VenomValue.loc(data_ptr, DataLocation.MEMORY, wrapped_typ)
+    abi_decode_to_buf(ctx, output_buf, src, hi=hi)
 
     return output_buf
 

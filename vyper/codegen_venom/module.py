@@ -19,7 +19,10 @@ import vyper.ast as vy_ast
 from vyper.codegen.core import needs_clamp
 from vyper.codegen.function_definitions.common import EntryPointInfo, _FuncIRInfo
 from vyper.codegen.ir_node import Encoding
+from vyper.codegen_venom.abi.abi_decoder import _getelemptr_abi, abi_decode_to_buf
 from vyper.codegen_venom.constants import SELECTOR_BYTES, SELECTOR_SHIFT_BITS
+from vyper.codegen_venom.value import VenomValue
+from vyper.semantics.data_locations import DataLocation
 from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic
@@ -366,56 +369,34 @@ def _generate_external_function_body(
 def _register_positional_args(ctx: VenomCodegenContext, func_t: ContractFunctionT) -> None:
     """Register positional args from calldata.
 
-    For types that need clamping: copy to memory with validation.
-    For safe types: leave in calldata (no allocation).
+    Uses ABI decoder to properly handle dynamic types (String, Bytes, DynArray)
+    which require following offset pointers in the calldata.
     """
-    # Base args start after selector
-    base_offset = SELECTOR_BYTES
+    if not func_t.positional_args:
+        return
+
+    # Create a tuple type for the positional args
+    arg_types = [arg.typ for arg in func_t.positional_args]
+    args_tuple_t = TupleT(arg_types)
+
+    # Create VenomValue pointing to calldata tuple (starts at offset 4 after selector)
+    calldata_tuple = VenomValue.loc(IRLiteral(SELECTOR_BYTES), DataLocation.CALLDATA, args_tuple_t)
 
     for i, arg in enumerate(func_t.positional_args):
-        # Calculate offset into calldata tuple
+        # Calculate static offset for this element in the tuple
         static_offset = sum(
             func_t.positional_args[j].typ.abi_type.embedded_static_size() for j in range(i)
         )
-        calldata_offset = base_offset + static_offset
 
-        if needs_clamp(arg.typ, Encoding.ABI):
-            # Needs validation - copy to memory
-            ptr = ctx.new_variable(arg.name, arg.typ, mutable=False)
-            _copy_from_calldata(ctx, ptr, calldata_offset, arg.typ)
-        else:
-            # Safe to leave in calldata - just track the offset
-            # For now, we allocate memory for all args (simpler)
-            # TODO: Optimize to leave safe types in calldata
-            ptr = ctx.new_variable(arg.name, arg.typ, mutable=False)
-            val = ctx.load_calldata(IRLiteral(calldata_offset), arg.typ)
-            if arg.typ._is_prim_word:
-                ctx.builder.mstore(val, ptr)
-            else:
-                # Complex type already in memory from load_calldata
-                pass
+        # Allocate memory for the arg
+        ptr = ctx.new_variable(arg.name, arg.typ, mutable=False)
 
+        # Get the element location in calldata (handles ABI offset indirection for dynamic types)
+        elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
 
-def _copy_from_calldata(ctx: VenomCodegenContext, ptr, offset: int, typ: VyperType) -> None:
-    """Copy value from calldata to memory with ABI decoding.
-
-    For static types: simple calldataload/mstore.
-    For dynamic types: handle indirection and validate bounds.
-    """
-    builder = ctx.builder
-
-    if typ._is_prim_word:
-        # Simple 32-byte word
-        val = builder.calldataload(IRLiteral(offset))
-        # FIXME: Should call abi_decoder.clamp_basetype() here for types that
-        # need validation (e.g., bool, address, small integers)
-        builder.mstore(val, ptr)
-    else:
-        # Complex type - copy to memory
-        size = typ.memory_bytes_required
-        builder.calldatacopy(IRLiteral(size), IRLiteral(offset), ptr)
-        # FIXME: Should call abi_decoder functions (clamp_bytestring, etc.)
-        # for dynamic types that need bounds validation
+        # Decode from calldata to memory
+        # Note: No hi bound needed - calldata size already validated in dispatcher
+        abi_decode_to_buf(ctx, ptr, elem_src)
 
 
 def _handle_kwargs(
@@ -425,28 +406,36 @@ def _handle_kwargs(
 
     Some come from calldata, some use default values.
     """
+    if not func_t.keyword_args:
+        return
+
     # Calculate which kwargs come from calldata
     # Based on entry_info.min_calldatasize, we can determine how many
     # kwargs were provided
-
     positional_size = sum(arg.typ.abi_type.embedded_static_size() for arg in func_t.positional_args)
     kwargs_from_calldata = (entry_info.min_calldatasize - SELECTOR_BYTES - positional_size) // 32
 
-    # This is a simplification - real kwargs calculation is more complex
-    # for dynamic types. For now, allocate all kwargs and fill appropriately.
-
-    base_offset = SELECTOR_BYTES + positional_size
+    # Create tuple type for args that come from calldata (positional + provided kwargs)
+    if kwargs_from_calldata > 0:
+        calldata_arg_types = [arg.typ for arg in func_t.positional_args]
+        calldata_arg_types += [func_t.keyword_args[j].typ for j in range(kwargs_from_calldata)]
+        calldata_tuple_t = TupleT(calldata_arg_types)
+        calldata_tuple = VenomValue.loc(
+            IRLiteral(SELECTOR_BYTES), DataLocation.CALLDATA, calldata_tuple_t
+        )
 
     for i, arg in enumerate(func_t.keyword_args):
         ptr = ctx.new_variable(arg.name, arg.typ, mutable=False)
 
         if i < kwargs_from_calldata:
-            # Copy from calldata
+            # Copy from calldata using ABI decoder
+            # This kwarg's index in the full calldata tuple
+            tuple_index = len(func_t.positional_args) + i
             static_offset = sum(
-                func_t.keyword_args[j].typ.abi_type.embedded_static_size() for j in range(i)
+                calldata_arg_types[j].abi_type.embedded_static_size() for j in range(tuple_index)
             )
-            calldata_offset = base_offset + static_offset
-            _copy_from_calldata(ctx, ptr, calldata_offset, arg.typ)
+            elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
+            abi_decode_to_buf(ctx, ptr, elem_src)
         else:
             # Use default value
             default_node = func_t.default_values[arg.name]

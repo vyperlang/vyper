@@ -48,7 +48,7 @@ from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, S
 from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.semantics.types.user import FlagT, StructT
-from vyper.utils import DECIMAL_DIVISOR, MemoryPositions
+from vyper.utils import DECIMAL_DIVISOR, MemoryPositions, keccak256
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 from .context import VenomCodegenContext
@@ -208,36 +208,37 @@ class Expr:
     def lower_List(self) -> VenomValue:
         """Lower list literal: [a, b, c].
 
-        Creates a DynArray in memory with the given elements.
-
-        Memory layout:
-            ptr+0:  length (32 bytes) - number of elements
-            ptr+32: element 0
-            ptr+32+elem_size: element 1
-            ...
+        Creates an array in memory with the given elements.
+        Layout depends on the annotated type:
+        - DArrayT: length word at offset 0, elements at offset 32+
+        - SArrayT: no length word, elements at offset 0+
 
         Reference: vyper/codegen/expr.py:parse_List
         """
         node = self.node
         assert isinstance(node, vy_ast.List)
-        typ = node._metadata["type"]  # DArrayT
+        typ = node._metadata["type"]
         elem_typ = typ.value_type
         elem_size = elem_typ.memory_bytes_required
         num_elements = len(node.elements)
 
-        # Allocate memory for the DynArray
+        # Allocate memory for the array
         ptr = self.ctx.new_internal_variable(typ)
 
-        # Store length word
-        self.builder.mstore(IRLiteral(num_elements), ptr)
+        # DArrayT has a length word at offset 0
+        if isinstance(typ, DArrayT):
+            self.builder.mstore(IRLiteral(num_elements), ptr)
+            data_offset = 32  # Elements start after length word
+        else:
+            # SArrayT has no length word
+            data_offset = 0
 
-        # Store each element at its correct offset (after length word)
-        data_offset = 32  # Skip length word
+        # Store each element
         for elem_node in node.elements:
             elem_val = Expr(elem_node, self.ctx).lower_value()
 
-            if data_offset == 32:
-                dst = self.builder.add(ptr, IRLiteral(32))
+            if data_offset == 0:
+                dst = ptr
             else:
                 dst = self.builder.add(ptr, IRLiteral(data_offset))
 
@@ -436,11 +437,28 @@ class Expr:
         """
         node = self.node
         assert isinstance(node, vy_ast.Compare)
-        left = Expr(node.left, self.ctx).lower_value()
-        right = Expr(node.right, self.ctx).lower_value()
         op = node.op
         left_typ = node.left._metadata["type"]
         right_typ = node.right._metadata["type"]
+
+        # Bytestring comparison: compare keccak256 hashes
+        # Must handle before lower_value() since we need VenomValue with location
+        if isinstance(left_typ, _BytestringT) and isinstance(right_typ, _BytestringT):
+            if not isinstance(op, (vy_ast.Eq, vy_ast.NotEq)):
+                raise CompilerPanic(f"Unsupported comparison for bytestrings: {type(op)}")
+
+            # Get hash for each side - use compile-time hash for constants
+            left_hash = self._get_bytestring_hash(node.left)
+            right_hash = self._get_bytestring_hash(node.right)
+
+            if isinstance(op, vy_ast.Eq):
+                return VenomValue.val(self.builder.eq(left_hash, right_hash))
+            else:  # NotEq
+                return VenomValue.val(self.builder.iszero(self.builder.eq(left_hash, right_hash)))
+
+        # Non-bytestring: get values directly
+        left = Expr(node.left, self.ctx).lower_value()
+        right = Expr(node.right, self.ctx).lower_value()
 
         # Membership tests for Flag types
         if isinstance(op, (vy_ast.In, vy_ast.NotIn)):
@@ -936,18 +954,47 @@ class Expr:
 
         if key_typ == BYTES32_T:
             # bytes32: mstore to free var space and hash
+            # sha3(size, offset) - builder emits in EVM order where second arg is offset
             key = Expr(key_node, self.ctx).lower_value()
             self.builder.mstore(key, IRLiteral(MemoryPositions.FREE_VAR_SPACE))
-            return self.builder.sha3(IRLiteral(MemoryPositions.FREE_VAR_SPACE), IRLiteral(32))
+            return self.builder.sha3(IRLiteral(32), IRLiteral(MemoryPositions.FREE_VAR_SPACE))
 
         # bytes/string: get pointer (already in memory), hash the data portion
+        # sha3(length, data_ptr) - builder emits in EVM order
         key_vv = Expr(key_node, self.ctx).lower()
-        key_ptr = key_vv.operand  # Extract pointer
-        # Data starts at ptr+32 (after length word)
-        data_ptr = self.builder.add(key_ptr, IRLiteral(32))
-        # Length is at ptr
-        length = self.builder.mload(key_ptr)
-        return self.builder.sha3(data_ptr, length)
+        data_ptr = self.ctx.bytes_data_ptr(key_vv)
+        length = self.ctx.bytestring_length(key_vv)
+        return self.builder.sha3(length, data_ptr)
+
+    def _get_bytestring_hash(self, node: vy_ast.VyperNode) -> IROperand:
+        """Get keccak256 hash of a bytestring for comparison.
+
+        For constant literals (Str, Bytes), compute hash at compile time.
+        This avoids memory allocation issues where loop body literals
+        share memory with init phase literals.
+
+        For variables, compute hash at runtime.
+        """
+        reduced = node.reduced()
+
+        # Check if it's a constant literal we can hash at compile time
+        if isinstance(reduced, vy_ast.Str):
+            # String literal: encode to bytes and hash the raw bytes
+            bytez = reduced.value.encode("utf-8")
+            hash_val = int.from_bytes(keccak256(bytez), "big")
+            return IRLiteral(hash_val)
+
+        if isinstance(reduced, vy_ast.Bytes):
+            # Bytes literal: hash the raw bytes
+            bytez = reduced.value
+            hash_val = int.from_bytes(keccak256(bytez), "big")
+            return IRLiteral(hash_val)
+
+        # Not a constant - compute at runtime
+        vv = Expr(node, self.ctx).lower()
+        data_ptr = self.ctx.bytes_data_ptr(vv)
+        length = self.ctx.bytestring_length(vv)
+        return self.builder.sha3(length, data_ptr)
 
     def _lower_tuple_subscript(self) -> VenomValue:
         """Lower tuple[N] or struct[N] access.
@@ -1676,7 +1723,8 @@ class Expr:
 
             # Compute hi bound for decode (prevents overread)
             hi = b.add(buf, rds)
-            abi_decode_to_buf(self.ctx, result_buf, buf, wrapped_return_t, hi=hi)
+            src = VenomValue.loc(buf, DataLocation.MEMORY, wrapped_return_t)
+            abi_decode_to_buf(self.ctx, result_buf, src, hi=hi)
 
             b.jmp(exit_bb.label)
 
@@ -1696,7 +1744,8 @@ class Expr:
 
             # Compute hi bound for decode (prevents overread)
             hi = b.add(buf, rds)
-            abi_decode_to_buf(self.ctx, result_buf, buf, wrapped_return_t, hi=hi)
+            src = VenomValue.loc(buf, DataLocation.MEMORY, wrapped_return_t)
+            abi_decode_to_buf(self.ctx, result_buf, src, hi=hi)
 
         # Return as location in memory
         return VenomValue.loc(result_buf, DataLocation.MEMORY, return_t)

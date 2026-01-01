@@ -223,6 +223,21 @@ class VenomBuilder:
         else:
             raise CompilerPanic(f"Cannot store to location: {location}")
 
+    def copy_to_memory(
+        self, size: Operand, src: Operand, dst: Operand, src_location: "DataLocation"
+    ) -> None:
+        """Copy size bytes from src_location to memory at dst."""
+        from vyper.semantics.data_locations import DataLocation
+
+        if src_location == DataLocation.MEMORY:
+            self.mcopy(size, src, dst)
+        elif src_location == DataLocation.CALLDATA:
+            self.calldatacopy(size, src, dst)
+        elif src_location == DataLocation.CODE:
+            self.dloadbytes(size, src, dst)
+        else:
+            raise CompilerPanic(f"Cannot copy from location: {src_location}")
+
     # === Immutables / Data Section ===
     def dload(self, offset: Operand) -> IRVariable:
         """Load 32 bytes from data section."""

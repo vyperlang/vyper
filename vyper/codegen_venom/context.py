@@ -16,6 +16,7 @@ from typing import Optional
 
 from vyper.evm.opcodes import version_check
 from vyper.semantics.types import VyperType
+from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.codegen_venom.constants import IDENTITY_PRECOMPILE
@@ -147,6 +148,29 @@ class VenomCodegenContext:
         # Primitive word type: emit load based on location
         if vv.location == DataLocation.CODE:
             return self.builder.iload(vv.operand)
+        return self.builder.load(vv.operand, vv.location)
+
+    def bytes_data_ptr(self, vv: "VenomValue") -> IROperand:
+        """Get pointer to bytestring data (skipping length word).
+
+        Like legacy bytes_data_ptr: add_ofst(ptr, location.word_scale)
+        """
+        from vyper.semantics.data_locations import DataLocation
+
+        assert vv.location in (DataLocation.MEMORY, DataLocation.STORAGE), \
+            f"bytes_data_ptr expects MEMORY or STORAGE, got {vv.location}"
+        word_scale = 32 if vv.location == DataLocation.MEMORY else 1
+        return self.builder.add(vv.operand, IRLiteral(word_scale))
+
+    def bytestring_length(self, vv: "VenomValue") -> IROperand:
+        """Get length of bytestring from its pointer.
+
+        Like legacy get_bytearray_length: LOAD(ptr)
+        """
+        from vyper.semantics.data_locations import DataLocation
+
+        assert vv.location in (DataLocation.MEMORY, DataLocation.STORAGE), \
+            f"bytestring_length expects MEMORY or STORAGE, got {vv.location}"
         return self.builder.load(vv.operand, vv.location)
 
     def is_constant(self) -> bool:
@@ -310,9 +334,17 @@ class VenomCodegenContext:
         For primitive types (<=32 bytes), stores the value directly.
         For complex types (>32 bytes), val is a source pointer and
         we copy from val to ptr.
+        For bytestrings, copies actual length from source, not max size.
         """
         if typ.memory_bytes_required <= 32:
             self.builder.mstore(val, ptr)
+        elif isinstance(typ, _BytestringT):
+            # Bytestring: copy length word + actual data, not max size
+            # Length is at val+0, data starts at val+32
+            src_len = self.builder.mload(val)
+            # Copy length + 32 (length word) bytes
+            copy_len = self.builder.add(src_len, IRLiteral(32))
+            self.copy_memory_dynamic(ptr, val, copy_len)
         else:
             # Complex type: val is a pointer, copy memory
             self.copy_memory(ptr, val, typ.memory_bytes_required)
