@@ -31,9 +31,10 @@ def lower_len(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
             return ctx.builder.calldatasize()
 
     # For bytes/string/DynArray: length is stored at pointer
-    arg = Expr(arg_node, ctx).lower()
-    location = arg_node._expr_info.location
-    return ctx.builder.load(arg, location)
+    arg_vv = Expr(arg_node, ctx).lower()
+    # Use the location from the VenomValue
+    location = arg_vv.location or DataLocation.MEMORY
+    return ctx.builder.load(arg_vv.operand, location)
 
 
 def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
@@ -72,8 +73,8 @@ def _lower_minmax(node: vy_ast.Call, ctx: VenomCodegenContext, is_max: bool) -> 
 
     b = ctx.builder
 
-    a_val = Expr(node.args[0], ctx).lower()
-    b_val = Expr(node.args[1], ctx).lower()
+    a_val = Expr(node.args[0], ctx).lower_value()
+    b_val = Expr(node.args[1], ctx).lower_value()
     typ = node.args[0]._metadata["type"]
 
     # Choose comparison - signed for most types, unsigned only for uint256
@@ -96,7 +97,7 @@ def lower_abs(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     b = ctx.builder
 
-    val = Expr(node.args[0], ctx).lower()
+    val = Expr(node.args[0], ctx).lower_value()
 
     # Compute negation: neg_val = 0 - val
     neg_val = b.sub(IRLiteral(0), val)

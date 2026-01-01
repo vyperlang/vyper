@@ -57,13 +57,13 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     b.mstore(IRLiteral(0), offset_var)
 
     for arg_node in args:
-        arg = Expr(arg_node, ctx).lower()
         arg_t = arg_node._metadata["type"]
 
         if isinstance(arg_t, _BytestringT):
             # Variable-length bytes/string: copy data, advance by actual length
-            arg_len = b.mload(arg)
-            arg_data = b.add(arg, IRLiteral(32))
+            arg_ptr = Expr(arg_node, ctx).lower().operand
+            arg_len = b.mload(arg_ptr)
+            arg_data = b.add(arg_ptr, IRLiteral(32))
             offset = b.mload(offset_var)
             dst = b.add(data_ptr, offset)
             ctx.copy_memory_dynamic(dst, arg_data, arg_len)
@@ -72,10 +72,11 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         else:
             # Fixed bytesM: the value is already left-aligned in 32 bytes
             # Store full 32 bytes and advance by M
+            arg_val = Expr(arg_node, ctx).lower_value()
             m = arg_t.m
             offset = b.mload(offset_var)
             dst = b.add(data_ptr, offset)
-            b.mstore(arg, dst)
+            b.mstore(arg_val, dst)
             new_offset = b.add(offset, IRLiteral(m))
             b.mstore(new_offset, offset_var)
 
@@ -107,28 +108,30 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     if _is_adhoc_slice(src_node):
         return _lower_adhoc_slice(node, ctx)
 
-    src = Expr(src_node, ctx).lower()
-    start = Expr(start_node, ctx).lower()
-    length = Expr(length_node, ctx).lower()
+    start = Expr(start_node, ctx).lower_value()
+    length = Expr(length_node, ctx).lower_value()
 
     # Determine source length and data pointer
     src_len: IROperand
     src_data: IROperand
     if isinstance(src_t, _BytestringT):
-        src_len = b.mload(src)
-        src_data = b.add(src, IRLiteral(32))
+        src_ptr = Expr(src_node, ctx).lower().operand
+        src_len = b.mload(src_ptr)
+        src_data = b.add(src_ptr, IRLiteral(32))
     elif isinstance(src_t, BytesM_T):
         # bytesM: fixed length, value is the data (left-aligned)
+        src_val = Expr(src_node, ctx).lower_value()
         src_len = IRLiteral(src_t.m)
         # Need to store to memory first to slice from it
         tmp_buf = ctx.allocate_buffer(32)
-        b.mstore(src, tmp_buf)
+        b.mstore(src_val, tmp_buf)
         src_data = tmp_buf
     else:
         # bytes32 or other 32-byte type
+        src_val = Expr(src_node, ctx).lower_value()
         src_len = IRLiteral(32)
         tmp_buf = ctx.allocate_buffer(32)
-        b.mstore(src, tmp_buf)
+        b.mstore(src_val, tmp_buf)
         src_data = tmp_buf
 
     # Bounds check: start + length <= src_length
@@ -182,8 +185,8 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand
     start_node = node.args[1]
     length_node = node.args[2]
 
-    start = Expr(start_node, ctx).lower()
-    length = Expr(length_node, ctx).lower()
+    start = Expr(start_node, ctx).lower_value()
+    length = Expr(length_node, ctx).lower_value()
 
     out_t = node._metadata["type"]
     out_buf = ctx.new_internal_variable(out_t)
@@ -214,7 +217,7 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand
             return out_buf
 
     # <addr>.code: use extcodecopy
-    addr = Expr(src_node.value, ctx).lower()
+    addr = Expr(src_node.value, ctx).lower_value()
     src_len = b.extcodesize(addr)
     end = b.add(start, length)
     oob = b.gt(end, src_len)
@@ -239,21 +242,22 @@ def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     src_node = node.args[0]
     start_node = node.args[1]
 
-    src = Expr(src_node, ctx).lower()
-    start = Expr(start_node, ctx).lower()
+    start = Expr(start_node, ctx).lower_value()
     src_t = src_node._metadata["type"]
 
     # Determine source length and data pointer
     src_len: IROperand
     src_data: IROperand
     if isinstance(src_t, _BytestringT):
-        src_len = b.mload(src)
-        src_data = b.add(src, IRLiteral(32))
+        src_ptr = Expr(src_node, ctx).lower().operand
+        src_len = b.mload(src_ptr)
+        src_data = b.add(src_ptr, IRLiteral(32))
     else:
         # bytes32 or other fixed type - shouldn't happen but handle it
+        src_val = Expr(src_node, ctx).lower_value()
         src_len = IRLiteral(32)
         tmp_buf = ctx.allocate_buffer(32)
-        b.mstore(src, tmp_buf)
+        b.mstore(src_val, tmp_buf)
         src_data = tmp_buf
 
     # Bounds check: start + 32 <= length

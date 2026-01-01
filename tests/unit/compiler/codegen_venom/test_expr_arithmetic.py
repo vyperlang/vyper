@@ -52,7 +52,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     return a & b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -64,7 +64,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     return a | b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -76,7 +76,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     return a ^ b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -90,7 +90,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     return a << b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -102,7 +102,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     return a >> b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -114,7 +114,7 @@ def foo(a: int256, b: uint256) -> int256:
     return a >> b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -128,7 +128,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     return a + b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -140,7 +140,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     return a - b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -152,7 +152,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     return a * b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -164,7 +164,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     return a // b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -176,7 +176,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     return a % b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -190,7 +190,7 @@ def foo(a: decimal, b: decimal) -> decimal:
     return a + b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -202,7 +202,7 @@ def foo(a: decimal, b: decimal) -> decimal:
     return a - b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -214,7 +214,7 @@ def foo(a: decimal, b: decimal) -> decimal:
     return a * b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -226,7 +226,7 @@ def foo(a: decimal, b: decimal) -> decimal:
     return a / b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -240,7 +240,7 @@ def foo(n: uint256) -> uint256:
     return 2 ** n
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -252,7 +252,7 @@ def foo(n: uint256) -> uint256:
     return n ** 3
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -266,7 +266,7 @@ def foo(x: bool) -> bool:
     return not x
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -278,7 +278,7 @@ def foo(x: uint256) -> uint256:
     return ~x
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -290,7 +290,7 @@ def foo(x: int256) -> int256:
     return -x
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -304,7 +304,7 @@ def foo(a: int256, b: int256) -> int256:
     return a + b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -316,6 +316,6 @@ def foo(a: int256, b: int256) -> int256:
     return a * b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)

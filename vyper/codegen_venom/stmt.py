@@ -72,7 +72,10 @@ class Stmt:
         assert node.value is not None
 
         # Lower the RHS and store at the allocated pointer
-        rhs = Expr(node.value, self.ctx).lower()
+        if ltyp._is_prim_word:
+            rhs = Expr(node.value, self.ctx).lower_value()
+        else:
+            rhs = Expr(node.value, self.ctx).lower().operand
         self._store_value(ptr, rhs, ltyp)
 
     def lower_Assign(self) -> None:
@@ -95,19 +98,18 @@ class Stmt:
         if isinstance(target, vy_ast.Tuple):
             return self._lower_tuple_unpack()
 
-        # Evaluate source value
-        src = Expr(node.value, self.ctx).lower()
-
         # Get the destination pointer and determine storage vs memory
         dst_ptr = self._get_target_ptr(target)
         is_storage = self._is_storage_target(target)
 
         # For primitive word types, no overlap concern - just store
         if target_typ._is_prim_word:
+            src = Expr(node.value, self.ctx).lower_value()
             self._store_value(dst_ptr, src, target_typ, is_storage)
         else:
             # Multi-word types: copy via temp buffer to handle overlap safely
             # src is a memory pointer to the source data
+            src = Expr(node.value, self.ctx).lower().operand
             self._copy_complex_type(src, dst_ptr, target_typ, is_storage)
 
     def _copy_complex_type(self, src: IROperand, dst: IROperand, typ, is_storage: bool) -> None:
@@ -145,7 +147,7 @@ class Stmt:
         assert isinstance(node, vy_ast.Assign)
         assert isinstance(node.target, vy_ast.Tuple)
         target = node.target
-        src = Expr(node.value, self.ctx).lower()
+        src = Expr(node.value, self.ctx).lower().operand
 
         # src is a pointer to the tuple in memory
         tuple_typ = target._metadata["type"]
@@ -212,8 +214,8 @@ class Stmt:
         # Load current value
         left = self._load_value(dst_ptr, target_typ, is_storage)
 
-        # Evaluate the RHS
-        right = Expr(right_node, self.ctx).lower()
+        # Evaluate the RHS (AugAssign is always on primitives)
+        right = Expr(right_node, self.ctx).lower_value()
 
         # Apply the operation
         result = self._apply_augassign_op(op, left, right, target_typ, right_node)
@@ -265,14 +267,14 @@ class Stmt:
             sub_typ = target.value._metadata.get("type")
             if isinstance(sub_typ, StructT) and target.attr in sub_typ.member_types:
                 # Use Expr to compute the field pointer
-                return Expr(target, self.ctx).lower()
+                return Expr(target, self.ctx).lower().operand
 
             raise CompilerPanic(f"Unsupported attribute target: {target.attr}")
 
         elif isinstance(target, vy_ast.Subscript):
             # x[i] = ... or self.arr[i] = ... or self.map[key] = ...
             # Use Expr to compute the element pointer/slot
-            return Expr(target, self.ctx).lower()
+            return Expr(target, self.ctx).lower().operand
 
         raise CompilerPanic(f"Unsupported assignment target: {type(target)}")
 
@@ -427,8 +429,8 @@ class Stmt:
         node = self.node
         assert isinstance(node, vy_ast.If)
 
-        # Evaluate condition in current block
-        cond = Expr(node.test, self.ctx).lower()
+        # Evaluate condition in current block (bool is a primitive)
+        cond = Expr(node.test, self.ctx).lower_value()
         cond_block = self.builder.current_block
 
         # Create blocks
@@ -506,10 +508,10 @@ class Stmt:
         rounds: IROperand
         if len(args) == 1:
             start = IRLiteral(0)
-            end_expr = Expr(args[0], self.ctx).lower()
+            end_expr = Expr(args[0], self.ctx).lower_value()
         else:
-            start = Expr(args[0], self.ctx).lower()
-            end_expr = Expr(args[1], self.ctx).lower()
+            start = Expr(args[0], self.ctx).lower_value()
+            end_expr = Expr(args[1], self.ctx).lower_value()
 
         # Handle bound kwarg for dynamic ranges
         kwargs = {kw.arg: kw.value for kw in range_call.keywords}
@@ -610,10 +612,11 @@ class Stmt:
         target_type = node.target.target._metadata["type"]
         varname = node.target.target.id
 
-        # Evaluate array expression
-        array = Expr(node.iter, self.ctx).lower()
+        # Evaluate array expression (returns pointer)
+        array_vv = Expr(node.iter, self.ctx).lower()
+        array = array_vv.operand
         array_typ = node.iter._metadata["type"]
-        location = node.iter._expr_info.location
+        location = array_vv.location or node.iter._expr_info.location
 
         # Determine word scale based on location
         # Storage: 1 slot per word, Memory: 32 bytes per word
@@ -765,7 +768,11 @@ class Stmt:
         # Evaluate return value if present
         ret_val: Optional[IROperand] = None
         if node.value is not None:
-            ret_val = Expr(node.value, self.ctx).lower()
+            ret_typ = func_t.return_type
+            if ret_typ is not None and ret_typ._is_prim_word:
+                ret_val = Expr(node.value, self.ctx).lower_value()
+            else:
+                ret_val = Expr(node.value, self.ctx).lower().operand
 
         # Dispatch: internal vs external
         if self.ctx.return_pc is not None:
@@ -895,8 +902,14 @@ class Stmt:
         else:
             arg_nodes = call_node.args
 
-        # Lower all argument expressions
-        args = [(Expr(arg, self.ctx).lower(), arg._metadata["type"]) for arg in arg_nodes]
+        # Lower all argument expressions - primitives need values, complex need pointers
+        args = []
+        for arg in arg_nodes:
+            arg_typ = arg._metadata["type"]
+            if arg_typ._is_prim_word:
+                args.append((Expr(arg, self.ctx).lower_value(), arg_typ))
+            else:
+                args.append((Expr(arg, self.ctx).lower().operand, arg_typ))
 
         # Split into indexed (topics) and non-indexed (data)
         topic_vals = []
@@ -996,7 +1009,7 @@ class Stmt:
         """
         node = self.node
         assert isinstance(node, vy_ast.Assert)
-        cond = Expr(node.test, self.ctx).lower()
+        cond = Expr(node.test, self.ctx).lower_value()
 
         if node.msg:
             self._assert_with_reason(cond, node.msg)
@@ -1094,7 +1107,7 @@ class Stmt:
         old_constancy = self.ctx.constancy
         try:
             self.ctx.constancy = Constancy.Constant
-            msg_val = Expr(msg, self.ctx).lower()
+            msg_val = Expr(msg, self.ctx).lower().operand
         finally:
             self.ctx.constancy = old_constancy
 

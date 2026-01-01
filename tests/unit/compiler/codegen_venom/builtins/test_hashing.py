@@ -18,7 +18,7 @@ def foo(data: Bytes[100]) -> bytes32:
     return keccak256(data)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_keccak256_bytes32(self):
@@ -29,7 +29,7 @@ def foo(data: bytes32) -> bytes32:
     return keccak256(data)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_keccak256_string(self):
@@ -40,7 +40,7 @@ def foo(data: String[100]) -> bytes32:
     return keccak256(data)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
 
@@ -53,7 +53,7 @@ def foo(data: Bytes[100]) -> bytes32:
     return sha256(data)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_sha256_bytes32(self):
@@ -64,7 +64,7 @@ def foo(data: bytes32) -> bytes32:
     return sha256(data)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_sha256_string(self):
@@ -75,5 +75,5 @@ def foo(data: String[100]) -> bytes32:
     return sha256(data)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)

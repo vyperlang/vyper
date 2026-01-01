@@ -66,8 +66,8 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     b = ctx.builder
 
     # Parse positional args
-    to = Expr(node.args[0], ctx).lower()
-    data = Expr(node.args[1], ctx).lower()
+    to = Expr(node.args[0], ctx).lower_value()
+    data = Expr(node.args[1], ctx).lower().operand
 
     # Parse kwargs
     max_outsize = _get_literal_kwarg(node, "max_outsize", 0)
@@ -81,7 +81,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     if gas_node is None:
         gas = b.gas()
     else:
-        gas = Expr(gas_node, ctx).lower()
+        gas = Expr(gas_node, ctx).lower_value()
 
     # Handle value kwarg - only for regular call
     value_node = _get_kwarg_value(node, "value")
@@ -89,7 +89,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     if value_node is None:
         value = IRLiteral(0)
     else:
-        value = Expr(value_node, ctx).lower()
+        value = Expr(value_node, ctx).lower_value()
 
     # Get input data pointer and length
     # Bytes layout: [32-byte length][data...]
@@ -165,8 +165,8 @@ def lower_send(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     b = ctx.builder
 
-    to = Expr(node.args[0], ctx).lower()
-    value = Expr(node.args[1], ctx).lower()
+    to = Expr(node.args[0], ctx).lower_value()
+    value = Expr(node.args[1], ctx).lower_value()
 
     # Parse gas kwarg (default 0)
     gas_node = _get_kwarg_value(node, "gas")
@@ -174,7 +174,7 @@ def lower_send(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     if gas_node is None:
         gas = IRLiteral(0)
     else:
-        gas = Expr(gas_node, ctx).lower()
+        gas = Expr(gas_node, ctx).lower_value()
 
     # call(gas, to, value, 0, 0, 0, 0)
     success = b.call(
@@ -210,7 +210,7 @@ def lower_raw_log(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Get the reduced topics list (compile-time constant)
     topics_list = topics_node.reduced()
-    topic_values = [Expr(t, ctx).lower() for t in topics_list.elements]
+    topic_values = [Expr(t, ctx).lower_value() for t in topics_list.elements]
     n_topics = len(topic_values)
 
     # Get data type
@@ -221,13 +221,13 @@ def lower_raw_log(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     if data_typ == BYTES32_T:
         # For bytes32: store to temp memory, then log from there
         tmp = ctx.new_internal_variable(BYTES32_T)
-        data_val = Expr(data_node, ctx).lower()
+        data_val = Expr(data_node, ctx).lower_value()
         b.mstore(data_val, tmp)
         data_ptr = tmp
         data_len = IRLiteral(32)
     else:
         # For Bytes[N]: data starts at ptr+32, length at ptr
-        data = Expr(data_node, ctx).lower()
+        data = Expr(data_node, ctx).lower().operand
         data_len = b.mload(data)
         data_ptr = b.add(data, IRLiteral(32))
 
@@ -247,7 +247,7 @@ def lower_raw_revert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     b = ctx.builder
 
-    data = Expr(node.args[0], ctx).lower()
+    data = Expr(node.args[0], ctx).lower().operand
 
     # Get data pointer and length
     data_len = b.mload(data)

@@ -4,6 +4,7 @@ Tests for convert() built-in function.
 import pytest
 
 from vyper.codegen_venom.expr import Expr
+from vyper.codegen_venom.value import VenomValue
 from vyper.venom.basicblock import IRLiteral, IRVariable
 
 from .conftest import get_expr_context
@@ -18,7 +19,7 @@ def foo(x: uint256) -> bool:
     return convert(x, bool)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_address_to_bool(self):
@@ -29,7 +30,7 @@ def foo(x: address) -> bool:
     return convert(x, bool)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_bytes32_to_bool(self):
@@ -40,7 +41,7 @@ def foo(x: bytes32) -> bool:
     return convert(x, bool)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
 
@@ -53,7 +54,7 @@ def foo(x: bool) -> uint256:
     return convert(x, uint256)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         # Bool is 0 or 1, fits in any int
         assert isinstance(result, IRVariable)
 
@@ -65,7 +66,7 @@ def foo(x: address) -> uint256:
     return convert(x, uint256)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_bytes32_to_uint256(self):
@@ -76,7 +77,7 @@ def foo(x: bytes32) -> uint256:
     return convert(x, uint256)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_bytes32_to_int256(self):
@@ -87,7 +88,7 @@ def foo(x: bytes32) -> int256:
     return convert(x, int256)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_int256_to_uint256(self):
@@ -98,7 +99,7 @@ def foo(x: int256) -> uint256:
     return convert(x, uint256)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_uint256_to_int256(self):
@@ -109,7 +110,7 @@ def foo(x: uint256) -> int256:
     return convert(x, int256)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_bytes4_to_uint32(self):
@@ -120,7 +121,7 @@ def foo(x: bytes4) -> uint32:
     return convert(x, uint32)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
 
@@ -133,7 +134,7 @@ def foo(x: bytes32) -> address:
     return convert(x, address)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_uint256_to_address(self):
@@ -144,7 +145,7 @@ def foo(x: uint256) -> address:
     return convert(x, address)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_bytes20_to_address(self):
@@ -155,7 +156,7 @@ def foo(x: bytes20) -> address:
     return convert(x, address)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
 
@@ -168,7 +169,7 @@ def foo(x: uint256) -> bytes32:
     return convert(x, bytes32)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_address_to_bytes20(self):
@@ -179,7 +180,7 @@ def foo(x: address) -> bytes20:
     return convert(x, bytes20)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_bytes32_to_bytes4(self):
@@ -190,7 +191,7 @@ def foo(x: bytes32) -> bytes4:
     return convert(x, bytes4)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
 
@@ -203,7 +204,7 @@ def foo(x: int256) -> decimal:
     return convert(x, decimal)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_uint256_to_decimal(self):
@@ -214,7 +215,7 @@ def foo(x: uint256) -> decimal:
     return convert(x, decimal)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
 
@@ -228,7 +229,8 @@ def foo(x: Bytes[100]) -> String[100]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, IRVariable)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)
 
     def test_string_to_bytes(self):
         source = """
@@ -239,4 +241,5 @@ def foo(x: String[100]) -> Bytes[100]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, IRVariable)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)

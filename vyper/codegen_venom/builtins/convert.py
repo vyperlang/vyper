@@ -35,9 +35,14 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     from vyper.codegen_venom.expr import Expr
 
     arg_node = node.args[0]
-    arg = Expr(arg_node, ctx).lower()
     in_t = arg_node._metadata["type"]
     out_t = node.args[1]._metadata["type"].typedef
+
+    # For bytestrings we need pointer, for primitives we need value
+    if isinstance(in_t, _BytestringT):
+        arg = Expr(arg_node, ctx).lower().operand
+    else:
+        arg = Expr(arg_node, ctx).lower_value()
 
     # Dispatch based on output type
     if out_t == BoolT():

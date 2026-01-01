@@ -65,7 +65,7 @@ def foo(h: bytes32, v: uint256, r: uint256, s: uint256) -> address:
     return ecrecover(h, v, r, s)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
 
@@ -81,7 +81,7 @@ def foo(block_num: uint256) -> bytes32:
     return blockhash(block_num)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
 
@@ -96,7 +96,7 @@ def foo(x: decimal) -> int256:
     return floor(x)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
 
@@ -111,7 +111,7 @@ def foo(x: decimal) -> int256:
     return ceil(x)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
 
@@ -126,7 +126,7 @@ def foo(x: uint256) -> uint256:
     return as_wei_value(x, "ether")
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_as_wei_value_gwei(self):
@@ -137,7 +137,7 @@ def foo(x: uint256) -> uint256:
     return as_wei_value(x, "gwei")
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_as_wei_value_wei(self):
@@ -148,7 +148,7 @@ def foo(x: uint256) -> uint256:
     return as_wei_value(x, "wei")
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         # wei just returns the value unchanged
         assert isinstance(result, IRVariable)
 
@@ -164,7 +164,7 @@ def foo() -> uint256:
     return min_value(uint256)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRLiteral)
         assert result.value == 0
 
@@ -176,7 +176,7 @@ def foo() -> uint256:
     return max_value(uint256)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRLiteral)
         assert result.value == 2**256 - 1
 
@@ -188,7 +188,7 @@ def foo() -> int256:
     return min_value(int256)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRLiteral)
         assert result.value == -(2**255)
 
@@ -200,7 +200,7 @@ def foo() -> int256:
     return max_value(int256)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRLiteral)
         assert result.value == 2**255 - 1
 
@@ -216,7 +216,7 @@ def foo() -> decimal:
     return epsilon(decimal)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRLiteral)
         assert result.value == 1  # Smallest decimal unit
 
@@ -232,5 +232,5 @@ def foo(x: uint256) -> uint256:
     return isqrt(x)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)

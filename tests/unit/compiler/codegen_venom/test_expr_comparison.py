@@ -58,7 +58,7 @@ def foo(a: uint256, b: uint256) -> bool:
     return a < b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -70,7 +70,7 @@ def foo(a: uint256, b: uint256) -> bool:
     return a > b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -82,7 +82,7 @@ def foo(a: uint256, b: uint256) -> bool:
     return a <= b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -94,7 +94,7 @@ def foo(a: uint256, b: uint256) -> bool:
     return a >= b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -106,7 +106,7 @@ def foo(a: uint256, b: uint256) -> bool:
     return a == b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -118,7 +118,7 @@ def foo(a: uint256, b: uint256) -> bool:
     return a != b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -132,7 +132,7 @@ def foo(a: int256, b: int256) -> bool:
     return a < b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -144,7 +144,7 @@ def foo(a: int256, b: int256) -> bool:
     return a > b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -156,7 +156,7 @@ def foo(a: int256, b: int256) -> bool:
     return a <= b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -168,7 +168,7 @@ def foo(a: int256, b: int256) -> bool:
     return a >= b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -182,7 +182,7 @@ def foo(a: bool, b: bool) -> bool:
     return a and b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -194,7 +194,7 @@ def foo(a: bool, b: bool) -> bool:
     return a or b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -206,7 +206,7 @@ def foo(a: bool, b: bool, c: bool) -> bool:
     return a and b and c
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -218,7 +218,7 @@ def foo(a: bool, b: bool, c: bool) -> bool:
     return a or b or c
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -237,7 +237,7 @@ def foo(s: Status, check: Status) -> bool:
     return s in check
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -254,6 +254,6 @@ def foo(s: Status, check: Status) -> bool:
     return s not in check
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)

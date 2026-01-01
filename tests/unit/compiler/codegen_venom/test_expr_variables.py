@@ -63,7 +63,7 @@ def foo(x: uint256) -> uint256:
     return x
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -76,7 +76,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     return b
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -92,7 +92,7 @@ def foo() -> address:
     return self
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -108,7 +108,7 @@ def foo() -> address:
     return msg.sender
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -121,7 +121,7 @@ def foo() -> uint256:
     return msg.value
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -133,7 +133,7 @@ def foo() -> uint256:
     return msg.gas
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -149,7 +149,7 @@ def foo() -> uint256:
     return block.timestamp
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -161,7 +161,7 @@ def foo() -> uint256:
     return block.number
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -173,7 +173,7 @@ def foo() -> address:
     return block.coinbase
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -185,7 +185,7 @@ def foo() -> uint256:
     return block.gaslimit
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -197,7 +197,7 @@ def foo() -> uint256:
     return block.basefee
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -209,7 +209,7 @@ def foo() -> bytes32:
     return block.prevhash
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -225,7 +225,7 @@ def foo() -> address:
     return tx.origin
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -237,7 +237,7 @@ def foo() -> uint256:
     return tx.gasprice
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -253,7 +253,7 @@ def foo() -> uint256:
     return chain.id
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -269,7 +269,7 @@ def foo(addr: address) -> uint256:
     return addr.balance
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -281,7 +281,7 @@ def foo() -> uint256:
     return self.balance
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -293,7 +293,7 @@ def foo(addr: address) -> uint256:
     return addr.codesize
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -305,7 +305,7 @@ def foo() -> uint256:
     return self.codesize
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -317,7 +317,7 @@ def foo(addr: address) -> bytes32:
     return addr.codehash
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)
 
@@ -329,6 +329,6 @@ def foo(addr: address) -> bool:
     return addr.is_contract
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRVariable)

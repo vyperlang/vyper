@@ -40,10 +40,10 @@ def lower_ecrecover(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     b = ctx.builder
 
-    hash_val = Expr(node.args[0], ctx).lower()
-    v = Expr(node.args[1], ctx).lower()
-    r = Expr(node.args[2], ctx).lower()
-    s = Expr(node.args[3], ctx).lower()
+    hash_val = Expr(node.args[0], ctx).lower_value()
+    v = Expr(node.args[1], ctx).lower_value()
+    r = Expr(node.args[2], ctx).lower_value()
+    s = Expr(node.args[3], ctx).lower_value()
 
     # Prepare input buffer (128 bytes)
     input_buf = ctx.allocate_buffer(128)
@@ -112,18 +112,19 @@ def _lower_ec_arith(node: vy_ast.Call, ctx: VenomCodegenContext, precompile: int
     input_buf = ctx.allocate_buffer(input_size)
     offset = 0
     for arg in node.args:
-        arg_val = Expr(arg, ctx).lower()
         arg_typ = arg._metadata["type"]
 
         if arg_typ._is_prim_word:
             # Single 32-byte value
+            arg_val = Expr(arg, ctx).lower_value()
             b.mstore(arg_val, b.add(input_buf, IRLiteral(offset)))
             offset += 32
         else:
             # Array (uint256[2]) - copy from memory
             # arg_val is a pointer to the array in memory
+            arg_ptr = Expr(arg, ctx).lower().operand
             for i in range(arg_typ.count):
-                word = b.mload(b.add(arg_val, IRLiteral(i * 32)))
+                word = b.mload(b.add(arg_ptr, IRLiteral(i * 32)))
                 b.mstore(word, b.add(input_buf, IRLiteral(offset)))
                 offset += 32
 
@@ -156,7 +157,7 @@ def lower_blockhash(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     b = ctx.builder
 
-    block_num = Expr(node.args[0], ctx).lower()
+    block_num = Expr(node.args[0], ctx).lower_value()
 
     # Clamp block number to valid range:
     # block_num >= block.number - BLOCKHASH_LOOKBACK_LIMIT AND block_num < block.number
@@ -190,7 +191,7 @@ def lower_blobhash(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     b = ctx.builder
 
-    index = Expr(node.args[0], ctx).lower()
+    index = Expr(node.args[0], ctx).lower_value()
     return b.blobhash(index)
 
 
@@ -211,7 +212,7 @@ def lower_floor(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     b = ctx.builder
 
-    val = Expr(node.args[0], ctx).lower()
+    val = Expr(node.args[0], ctx).lower_value()
     divisor = IRLiteral(DECIMAL_DIVISOR)
 
     # For negative values: subtract (divisor - 1) before dividing
@@ -235,7 +236,7 @@ def lower_ceil(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     b = ctx.builder
 
-    val = Expr(node.args[0], ctx).lower()
+    val = Expr(node.args[0], ctx).lower_value()
     divisor = IRLiteral(DECIMAL_DIVISOR)
 
     # For positive values: add (divisor - 1) before dividing
@@ -264,7 +265,7 @@ def lower_as_wei_value(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand
 
     b = ctx.builder
 
-    value = Expr(node.args[0], ctx).lower()
+    value = Expr(node.args[0], ctx).lower_value()
     typ = node.args[0]._metadata["type"]
 
     # Get the denomination multiplier from the legacy builtin
@@ -358,7 +359,7 @@ def lower_isqrt(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     b = ctx.builder
 
-    x = Expr(node.args[0], ctx).lower()
+    x = Expr(node.args[0], ctx).lower_value()
 
     # Create mutable variables y and z
     # Legacy: ["with", y, x, ["with", z, 181, ...]]

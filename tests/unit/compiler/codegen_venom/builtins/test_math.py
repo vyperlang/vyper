@@ -18,7 +18,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     return unsafe_add(a, b)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_unsafe_sub(self):
@@ -29,7 +29,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     return unsafe_sub(a, b)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_unsafe_mul(self):
@@ -40,7 +40,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     return unsafe_mul(a, b)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_unsafe_div(self):
@@ -51,7 +51,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     return unsafe_div(a, b)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_unsafe_div_signed(self):
@@ -62,7 +62,7 @@ def foo(a: int256, b: int256) -> int256:
     return unsafe_div(a, b)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
 
@@ -75,7 +75,7 @@ def foo(base: uint256, exp: uint256) -> uint256:
     return pow_mod256(base, exp)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
 
@@ -88,7 +88,7 @@ def foo(a: uint256, b: uint256, c: uint256) -> uint256:
     return uint256_addmod(a, b, c)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_uint256_mulmod(self):
@@ -99,5 +99,5 @@ def foo(a: uint256, b: uint256, c: uint256) -> uint256:
     return uint256_mulmod(a, b, c)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)

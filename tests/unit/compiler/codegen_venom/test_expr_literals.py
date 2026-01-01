@@ -8,6 +8,7 @@ import pytest
 
 from vyper.codegen_venom.context import VenomCodegenContext
 from vyper.codegen_venom.expr import Expr
+from vyper.codegen_venom.value import VenomValue
 from vyper.compiler.phases import CompilerData
 from vyper.venom.basicblock import IRLiteral, IRVariable
 from vyper.venom.builder import VenomBuilder
@@ -47,7 +48,7 @@ def foo() -> uint256:
     return 42
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRLiteral)
         assert result.value == 42
@@ -60,7 +61,7 @@ def foo() -> uint256:
     return 0
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRLiteral)
         assert result.value == 0
@@ -73,7 +74,7 @@ def foo() -> uint256:
     return 115792089237316195423570985008687907853269984665640564039457584007913129639935
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRLiteral)
         assert result.value == 2**256 - 1
@@ -88,7 +89,7 @@ def foo() -> decimal:
     return 3.14
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRLiteral)
         # 3.14 * 10^10 = 31400000000
@@ -102,7 +103,7 @@ def foo() -> decimal:
     return 0.0
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRLiteral)
         assert result.value == 0
@@ -115,7 +116,7 @@ def foo() -> decimal:
     return -1.5
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRLiteral)
         # -1.5 * 10^10 = -15000000000
@@ -129,7 +130,7 @@ def foo() -> decimal:
     return 0.0000000001
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRLiteral)
         # Smallest positive: 10^-10 * 10^10 = 1
@@ -145,7 +146,7 @@ def foo() -> bool:
     return True
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRLiteral)
         assert result.value == 1
@@ -158,7 +159,7 @@ def foo() -> bool:
     return False
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRLiteral)
         assert result.value == 0
@@ -173,7 +174,7 @@ def foo() -> address:
     return 0xdEADBEeF00000000000000000000000000000000
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRLiteral)
         assert result.value == 0xDEADBEEF00000000000000000000000000000000
@@ -186,7 +187,7 @@ def foo() -> address:
     return 0x0000000000000000000000000000000000000000
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRLiteral)
         assert result.value == 0
@@ -203,7 +204,7 @@ def foo() -> bytes4:
     return 0xDEADBEEF
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRLiteral)
         # bytes4 is left-padded: 0xDEADBEEF << (28*8)
@@ -218,7 +219,7 @@ def foo() -> bytes1:
     return 0xFF
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRLiteral)
         # bytes1: 0xFF << (31*8)
@@ -233,7 +234,7 @@ def foo() -> bytes32:
     return 0x0102030405060708091011121314151617181920212223242526272829303132
 """
         ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
 
         assert isinstance(result, IRLiteral)
         # bytes32: no shift needed (32 - 32 = 0)
@@ -254,8 +255,9 @@ def foo() -> Bytes[10]:
         ctx, node = _get_expr_context(source)
         result = Expr(node, ctx).lower()
 
-        # Returns pointer (IRVariable), not literal
-        assert isinstance(result, IRVariable)
+        # Returns pointer (VenomValue), not literal
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)
 
     def test_simple_bytes(self):
         source = """
@@ -267,7 +269,8 @@ def foo() -> Bytes[10]:
         ctx, node = _get_expr_context(source)
         result = Expr(node, ctx).lower()
 
-        assert isinstance(result, IRVariable)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)
 
     def test_long_bytes(self):
         """Test bytes spanning multiple 32-byte words."""
@@ -280,7 +283,8 @@ def foo() -> Bytes[100]:
         ctx, node = _get_expr_context(source)
         result = Expr(node, ctx).lower()
 
-        assert isinstance(result, IRVariable)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)
 
 
 class TestHexBytesLiteral:
@@ -296,7 +300,8 @@ def foo() -> Bytes[4]:
         ctx, node = _get_expr_context(source)
         result = Expr(node, ctx).lower()
 
-        assert isinstance(result, IRVariable)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)
 
 
 class TestStringLiteral:
@@ -312,7 +317,8 @@ def foo() -> String[10]:
         ctx, node = _get_expr_context(source)
         result = Expr(node, ctx).lower()
 
-        assert isinstance(result, IRVariable)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)
 
     def test_simple_string(self):
         source = """
@@ -324,7 +330,8 @@ def foo() -> String[20]:
         ctx, node = _get_expr_context(source)
         result = Expr(node, ctx).lower()
 
-        assert isinstance(result, IRVariable)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)
 
     def test_long_string(self):
         """Test string spanning multiple 32-byte words."""
@@ -337,4 +344,5 @@ def foo() -> String[100]:
         ctx, node = _get_expr_context(source)
         result = Expr(node, ctx).lower()
 
-        assert isinstance(result, IRVariable)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)

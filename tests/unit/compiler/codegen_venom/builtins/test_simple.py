@@ -18,7 +18,7 @@ def foo(arr: DynArray[uint256, 10]) -> uint256:
     return len(arr)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_len_bytes(self):
@@ -29,7 +29,7 @@ def foo(b: Bytes[100]) -> uint256:
     return len(b)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_len_string(self):
@@ -40,7 +40,7 @@ def foo(s: String[100]) -> uint256:
     return len(s)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
 
@@ -53,7 +53,7 @@ def foo() -> uint256:
     return empty(uint256)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRLiteral)
         assert result.value == 0
 
@@ -65,7 +65,7 @@ def foo() -> address:
     return empty(address)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRLiteral)
         assert result.value == 0
 
@@ -79,7 +79,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     return min(a, b)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_max_uint256(self):
@@ -90,7 +90,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     return max(a, b)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_min_int256(self):
@@ -101,7 +101,7 @@ def foo(a: int256, b: int256) -> int256:
     return min(a, b)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_max_int256(self):
@@ -112,7 +112,7 @@ def foo(a: int256, b: int256) -> int256:
     return max(a, b)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
 
@@ -125,5 +125,5 @@ def foo(x: int256) -> int256:
     return abs(x)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)

@@ -120,8 +120,14 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     method_id_node = _get_kwarg_value(node, "method_id")
     method_id = _parse_method_id(method_id_node)
 
-    # Evaluate all args
-    args = [Expr(arg, ctx).lower() for arg in node.args]
+    # Evaluate all args - primitives get values, complex types get pointers
+    args = []
+    for arg in node.args:
+        arg_t = arg._metadata["type"]
+        if arg_t._is_prim_word:
+            args.append(Expr(arg, ctx).lower_value())
+        else:
+            args.append(Expr(arg, ctx).lower().operand)
     arg_types = [arg._metadata["type"] for arg in node.args]
 
     # Build input to encode
@@ -194,7 +200,7 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         wrapped_typ = calculate_type_for_external_return(output_typ)
 
     # Get data pointer and length
-    data = Expr(data_node, ctx).lower()
+    data = Expr(data_node, ctx).lower().operand
     data_len = b.mload(data)  # Length word at start of Bytes
     data_ptr = b.add(data, IRLiteral(32))  # Data starts after length word
 

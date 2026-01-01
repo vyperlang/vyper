@@ -4,6 +4,7 @@ Tests for byte manipulation built-in functions: concat, slice, extract32.
 import pytest
 
 from vyper.codegen_venom.expr import Expr
+from vyper.codegen_venom.value import VenomValue
 from vyper.venom.basicblock import IRVariable
 
 from .conftest import get_expr_context
@@ -19,7 +20,9 @@ def foo(a: Bytes[50], b: Bytes[50]) -> Bytes[100]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, IRVariable)
+        # concat returns a pointer (VenomValue)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)
 
     def test_concat_three_bytes(self):
         source = """
@@ -30,7 +33,8 @@ def foo(a: Bytes[30], b: Bytes[30], c: Bytes[40]) -> Bytes[100]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, IRVariable)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)
 
     def test_concat_two_strings(self):
         source = """
@@ -41,7 +45,8 @@ def foo(a: String[50], b: String[50]) -> String[100]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, IRVariable)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)
 
     def test_concat_bytes_with_bytes32(self):
         source = """
@@ -52,7 +57,8 @@ def foo(a: Bytes[50], b: bytes32) -> Bytes[82]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, IRVariable)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)
 
     def test_concat_bytes4_with_bytes(self):
         source = """
@@ -63,7 +69,8 @@ def foo(a: bytes4, b: Bytes[50]) -> Bytes[54]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, IRVariable)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)
 
     def test_concat_multiple_bytesM(self):
         source = """
@@ -74,7 +81,8 @@ def foo(a: bytes4, b: bytes8, c: bytes20) -> Bytes[32]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, IRVariable)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)
 
 
 class TestSlice:
@@ -87,7 +95,9 @@ def foo(b: Bytes[100]) -> Bytes[10]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, IRVariable)
+        # slice returns a pointer (VenomValue)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)
 
     def test_slice_bytes_dynamic_start(self):
         source = """
@@ -98,7 +108,8 @@ def foo(b: Bytes[100], start: uint256) -> Bytes[10]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, IRVariable)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)
 
     def test_slice_string(self):
         source = """
@@ -109,7 +120,8 @@ def foo(s: String[100]) -> String[20]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, IRVariable)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)
 
     def test_slice_bytes32(self):
         source = """
@@ -120,7 +132,8 @@ def foo(b: bytes32) -> Bytes[16]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, IRVariable)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)
 
     def test_slice_msg_data(self):
         source = """
@@ -131,7 +144,8 @@ def foo() -> Bytes[32]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, IRVariable)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)
 
     def test_slice_self_code(self):
         source = """
@@ -142,7 +156,8 @@ def foo() -> Bytes[32]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, IRVariable)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)
 
     def test_slice_extcode(self):
         source = """
@@ -153,7 +168,8 @@ def foo(addr: address) -> Bytes[32]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, IRVariable)
+        assert isinstance(result, VenomValue)
+        assert isinstance(result.operand, IRVariable)
 
 
 class TestExtract32:
@@ -165,7 +181,8 @@ def foo(b: Bytes[100]) -> bytes32:
     return extract32(b, 0)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        # extract32 returns a primitive (bytes32) - use lower_value
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_extract32_with_offset(self):
@@ -176,7 +193,7 @@ def foo(b: Bytes[100], pos: uint256) -> bytes32:
     return extract32(b, pos)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_extract32_output_type_int256(self):
@@ -187,7 +204,7 @@ def foo(b: Bytes[100]) -> int256:
     return extract32(b, 0, output_type=int256)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_extract32_output_type_uint256(self):
@@ -198,7 +215,7 @@ def foo(b: Bytes[100]) -> uint256:
     return extract32(b, 0, output_type=uint256)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)
 
     def test_extract32_output_type_address(self):
@@ -209,5 +226,5 @@ def foo(b: Bytes[100]) -> address:
     return extract32(b, 0, output_type=address)
 """
         ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower()
+        result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRVariable)

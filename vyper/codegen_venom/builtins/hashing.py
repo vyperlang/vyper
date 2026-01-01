@@ -29,25 +29,27 @@ def lower_keccak256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     b = ctx.builder
 
     arg_node = node.args[0]
-    arg = Expr(arg_node, ctx).lower()
     arg_t = arg_node._metadata["type"]
 
     if isinstance(arg_t, _BytestringT):
         # Variable-length bytes/string: ptr points to length word
         # Data starts at ptr + 32
-        data_ptr = b.add(arg, IRLiteral(32))
-        length = b.mload(arg)
+        arg_ptr = Expr(arg_node, ctx).lower().operand
+        data_ptr = b.add(arg_ptr, IRLiteral(32))
+        length = b.mload(arg_ptr)
         return b.sha3(length, data_ptr)
     elif isinstance(arg_t, BytesM_T):
         # Fixed bytesM: need to put value in memory first
         # The value is already left-aligned in 32 bytes
+        arg_val = Expr(arg_node, ctx).lower_value()
         buf = ctx.allocate_buffer(32)
-        b.mstore(arg, buf)
+        b.mstore(arg_val, buf)
         return b.sha3(IRLiteral(arg_t.m), buf)
     else:
         # bytes32 or other 32-byte type
+        arg_val = Expr(arg_node, ctx).lower_value()
         buf = ctx.allocate_buffer(32)
-        b.mstore(arg, buf)
+        b.mstore(arg_val, buf)
         return b.sha3(IRLiteral(32), buf)
 
 
@@ -62,25 +64,27 @@ def lower_sha256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     b = ctx.builder
 
     arg_node = node.args[0]
-    arg = Expr(arg_node, ctx).lower()
     arg_t = arg_node._metadata["type"]
 
     data_ptr: IROperand
     length: IROperand
     if isinstance(arg_t, _BytestringT):
         # Variable-length bytes/string
-        data_ptr = b.add(arg, IRLiteral(32))
-        length = b.mload(arg)
+        arg_ptr = Expr(arg_node, ctx).lower().operand
+        data_ptr = b.add(arg_ptr, IRLiteral(32))
+        length = b.mload(arg_ptr)
     elif isinstance(arg_t, BytesM_T):
         # Fixed bytesM
+        arg_val = Expr(arg_node, ctx).lower_value()
         buf = ctx.allocate_buffer(32)
-        b.mstore(arg, buf)
+        b.mstore(arg_val, buf)
         data_ptr = buf
         length = IRLiteral(arg_t.m)
     else:
         # bytes32 or other 32-byte type
+        arg_val = Expr(arg_node, ctx).lower_value()
         buf = ctx.allocate_buffer(32)
-        b.mstore(arg, buf)
+        b.mstore(arg_val, buf)
         data_ptr = buf
         length = IRLiteral(32)
 

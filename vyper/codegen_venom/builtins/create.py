@@ -164,7 +164,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     ctor_arg_nodes = node.args[1:]
 
     # Get bytecode (bytes type in memory)
-    bytecode = Expr(bytecode_node, ctx).lower()
+    bytecode = Expr(bytecode_node, ctx).lower().operand
     bytecode_typ = bytecode_node._metadata["type"]
 
     # Parse kwargs
@@ -173,7 +173,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     revert_on_failure = _get_literal_kwarg(node, "revert_on_failure", True)
 
     if value_node is not None:
-        value = Expr(value_node, ctx).lower()
+        value = Expr(value_node, ctx).lower_value()
     else:
         value = IRLiteral(0)
 
@@ -184,7 +184,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     # If no constructor args, just create with bytecode
     if len(ctor_arg_nodes) == 0:
         if salt_node is not None:
-            salt = Expr(salt_node, ctx).lower()
+            salt = Expr(salt_node, ctx).lower_value()
             addr = b.create2(value, bytecode_ptr, bytecode_len, salt)
         else:
             addr = b.create(value, bytecode_ptr, bytecode_len)
@@ -205,7 +205,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Encode ctor args after bytecode
     # First, store ctor args to a temp buffer
-    ctor_arg_values = [Expr(arg, ctx).lower() for arg in ctor_arg_nodes]
+    ctor_arg_values = [Expr(arg, ctx).lower_value() for arg in ctor_arg_nodes]
     ctor_args_buf = ctx.new_internal_variable(ctor_tuple_typ)
     offset = 0
     for val, arg_t in zip(ctor_arg_values, ctor_arg_types):
@@ -226,7 +226,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Create contract
     if salt_node is not None:
-        salt = Expr(salt_node, ctx).lower()
+        salt = Expr(salt_node, ctx).lower_value()
         addr = b.create2(value, buf, total_len, salt)
     else:
         addr = b.create(value, buf, total_len)
@@ -248,7 +248,7 @@ def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -
     b = ctx.builder
 
     # Parse args
-    target = Expr(node.args[0], ctx).lower()
+    target = Expr(node.args[0], ctx).lower_value()
 
     # Parse kwargs
     value_node = _get_kwarg_value(node, "value")
@@ -256,7 +256,7 @@ def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -
     revert_on_failure = _get_literal_kwarg(node, "revert_on_failure", True)
 
     if value_node is not None:
-        value = Expr(value_node, ctx).lower()
+        value = Expr(value_node, ctx).lower_value()
     else:
         value = IRLiteral(0)
 
@@ -296,7 +296,7 @@ def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -
 
     # Create contract
     if salt_node is not None:
-        salt = Expr(salt_node, ctx).lower()
+        salt = Expr(salt_node, ctx).lower_value()
         addr = b.create2(value, buf, IRLiteral(buf_len), salt)
     else:
         addr = b.create(value, buf, IRLiteral(buf_len))
@@ -318,7 +318,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     b = ctx.builder
 
     # Parse args
-    target = Expr(node.args[0], ctx).lower()
+    target = Expr(node.args[0], ctx).lower_value()
 
     # Parse kwargs
     value_node = _get_kwarg_value(node, "value")
@@ -326,7 +326,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     revert_on_failure = _get_literal_kwarg(node, "revert_on_failure", True)
 
     if value_node is not None:
-        value = Expr(value_node, ctx).lower()
+        value = Expr(value_node, ctx).lower_value()
     else:
         value = IRLiteral(0)
 
@@ -370,7 +370,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
 
     # Create contract
     if salt_node is not None:
-        salt = Expr(salt_node, ctx).lower()
+        salt = Expr(salt_node, ctx).lower_value()
         addr = b.create2(value, buf, buf_len, salt)
     else:
         addr = b.create(value, buf, buf_len)
@@ -396,7 +396,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     b = ctx.builder
 
     # Parse args: target is first, rest are ctor_args
-    target = Expr(node.args[0], ctx).lower()
+    target = Expr(node.args[0], ctx).lower_value()
     ctor_arg_nodes = node.args[1:]
 
     # Parse kwargs
@@ -407,7 +407,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     revert_on_failure = _get_literal_kwarg(node, "revert_on_failure", True)
 
     if value_node is not None:
-        value = Expr(value_node, ctx).lower()
+        value = Expr(value_node, ctx).lower_value()
     else:
         value = IRLiteral(0)
 
@@ -431,7 +431,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
 
             raise CompilerPanic("raw_args requires exactly 1 bytes argument")
 
-        raw_arg = Expr(ctor_arg_nodes[0], ctx).lower()
+        raw_arg = Expr(ctor_arg_nodes[0], ctx).lower().operand
         args_len = b.mload(raw_arg)
         args_ptr = b.add(raw_arg, IRLiteral(32))
     elif len(ctor_arg_nodes) > 0:
@@ -444,7 +444,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         args_buf = ctx.allocate_buffer(ctor_abi_size, "ctor_args_buf")
 
         # First, store ctor args to a temp buffer
-        ctor_arg_values = [Expr(arg, ctx).lower() for arg in ctor_arg_nodes]
+        ctor_arg_values = [Expr(arg, ctx).lower_value() for arg in ctor_arg_nodes]
         ctor_args_src = ctx.new_internal_variable(ctor_tuple_typ)
         offset = 0
         for val, arg_t in zip(ctor_arg_values, ctor_arg_types):
@@ -486,7 +486,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
 
     # Create contract
     if salt_node is not None:
-        salt = Expr(salt_node, ctx).lower()
+        salt = Expr(salt_node, ctx).lower_value()
         addr = b.create2(value, mem_ofst, total_len, salt)
     else:
         addr = b.create(value, mem_ofst, total_len)

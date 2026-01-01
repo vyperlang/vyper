@@ -22,6 +22,11 @@ from vyper.codegen_venom.constants import IDENTITY_PRECOMPILE
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from vyper.codegen_venom.value import VenomValue
+
 
 class Constancy(Enum):
     Mutable = 0
@@ -118,6 +123,31 @@ class VenomCodegenContext:
     def lookup_ptr(self, name: str) -> IRVariable:
         """Get variable's memory pointer."""
         return self.variables[name].ptr
+
+    def unwrap(self, vv: "VenomValue") -> IROperand:
+        """Unwrap a VenomValue, loading from location if needed.
+
+        - If already a value (location=None): return operand directly
+        - If complex type (>32 bytes): return operand as pointer (or copy for CODE)
+        - Otherwise: emit load instruction and return the loaded value
+        """
+        from vyper.semantics.data_locations import DataLocation
+
+        if vv.location is None:
+            return vv.operand
+
+        # Complex types (>32 bytes)
+        if vv.typ is not None and not vv.typ._is_prim_word:
+            # CODE location requires copy to memory (can't use pointer directly)
+            if vv.location == DataLocation.CODE:
+                return self.load_immutable(vv.operand, vv.typ)
+            # For other locations, return pointer
+            return vv.operand
+
+        # Primitive word type: emit load based on location
+        if vv.location == DataLocation.CODE:
+            return self.builder.iload(vv.operand)
+        return self.builder.load(vv.operand, vv.location)
 
     def is_constant(self) -> bool:
         """Check if in constant (view) context."""
@@ -393,6 +423,13 @@ class VenomCodegenContext:
         else:
             # Multi-word: val is memory pointer, copy to storage
             self._store_memory_to_storage(val, slot, typ.storage_size_in_words)
+
+    def storage_to_memory(self, slot: IROperand, buf: IROperand, word_count: int) -> None:
+        """Load multi-word storage value to memory buffer.
+
+        Public wrapper for iteration loops and other contexts.
+        """
+        self._load_storage_to_memory(slot, buf, word_count)
 
     def _load_storage_to_memory(self, slot: IROperand, buf: IROperand, word_count: int) -> None:
         """Load multi-word storage value to memory buffer.

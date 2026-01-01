@@ -49,8 +49,8 @@ def _lower_unsafe_binop(node: vy_ast.Call, ctx: VenomCodegenContext, op: str) ->
 
     b = ctx.builder
 
-    a_val = Expr(node.args[0], ctx).lower()
-    b_val = Expr(node.args[1], ctx).lower()
+    a_val = Expr(node.args[0], ctx).lower_value()
+    b_val = Expr(node.args[1], ctx).lower_value()
     typ = node.args[0]._metadata["type"]
 
     # Use signed division for signed types
@@ -84,8 +84,8 @@ def lower_pow_mod256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     b = ctx.builder
 
-    base = Expr(node.args[0], ctx).lower()
-    exp = Expr(node.args[1], ctx).lower()
+    base = Expr(node.args[0], ctx).lower_value()
+    exp = Expr(node.args[1], ctx).lower_value()
 
     return b.exp(base, exp)
 
@@ -100,9 +100,9 @@ def lower_uint256_addmod(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
 
     b = ctx.builder
 
-    a_val = Expr(node.args[0], ctx).lower()
-    b_val = Expr(node.args[1], ctx).lower()
-    c_val = Expr(node.args[2], ctx).lower()
+    a_val = Expr(node.args[0], ctx).lower_value()
+    b_val = Expr(node.args[1], ctx).lower_value()
+    c_val = Expr(node.args[2], ctx).lower_value()
 
     return b.addmod(a_val, b_val, c_val)
 
@@ -117,9 +117,9 @@ def lower_uint256_mulmod(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
 
     b = ctx.builder
 
-    a_val = Expr(node.args[0], ctx).lower()
-    b_val = Expr(node.args[1], ctx).lower()
-    c_val = Expr(node.args[2], ctx).lower()
+    a_val = Expr(node.args[0], ctx).lower_value()
+    b_val = Expr(node.args[1], ctx).lower_value()
+    c_val = Expr(node.args[2], ctx).lower_value()
 
     return b.mulmod(a_val, b_val, c_val)
 

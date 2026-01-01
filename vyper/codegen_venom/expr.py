@@ -52,6 +52,7 @@ from vyper.utils import DECIMAL_DIVISOR, MemoryPositions
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 from .context import VenomCodegenContext
+from .value import VenomValue
 
 
 @dataclass
@@ -71,28 +72,42 @@ ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 class Expr:
     """Lower Vyper expressions to Venom IR."""
 
-    def __init__(self, node: vy_ast.VyperNode, ctx: VenomCodegenContext):
+    def __init__(
+        self, node: vy_ast.VyperNode, ctx: VenomCodegenContext, as_ptr: bool = False
+    ):
         self.node = node.reduced()
         self.ctx = ctx
         self.builder = ctx.builder
+        self.as_ptr = as_ptr  # True = return pointer, False = return value (load if needed)
 
-    def lower(self) -> IROperand:
-        """Dispatch to type-specific lowering method."""
+    def lower(self) -> VenomValue:
+        """Dispatch to type-specific lowering method.
+
+        Returns VenomValue which may be a location (pointer/slot) or a value.
+        Use lower_value() when you need the loaded value.
+        """
         fn_name = f"lower_{type(self.node).__name__}"
         method = getattr(self, fn_name, None)
         if method is None:
             raise CompilerPanic(f"Unsupported expr: {type(self.node)}")
         return method()
 
+    def lower_value(self) -> IROperand:
+        """Lower and unwrap to get the value.
+
+        Convenience method for the common case where you need the loaded value.
+        """
+        return self.ctx.unwrap(self.lower())
+
     # === Literal Lowering ===
 
-    def lower_Int(self) -> IRLiteral:
+    def lower_Int(self) -> VenomValue:
         """Lower integer literal."""
         node = self.node
         assert isinstance(node, vy_ast.Int)
-        return IRLiteral(node.value)
+        return VenomValue.val(IRLiteral(node.value))
 
-    def lower_Decimal(self) -> IRLiteral:
+    def lower_Decimal(self) -> VenomValue:
         """Lower decimal literal.
 
         Decimals are stored as fixed-point integers scaled by DECIMAL_DIVISOR (10^10).
@@ -100,9 +115,9 @@ class Expr:
         node = self.node
         assert isinstance(node, vy_ast.Decimal)
         val = node.value * DECIMAL_DIVISOR
-        return IRLiteral(int(val))
+        return VenomValue.val(IRLiteral(int(val)))
 
-    def lower_Hex(self) -> IRLiteral:
+    def lower_Hex(self) -> VenomValue:
         """Lower hex literal (address or bytesN).
 
         For addresses: direct int conversion.
@@ -114,46 +129,52 @@ class Expr:
         t = node._metadata["type"]
 
         if t == AddressT():
-            return IRLiteral(int(hexstr, 16))
+            return VenomValue.val(IRLiteral(int(hexstr, 16)))
 
         elif isinstance(t, BytesM_T):
             n_bytes = (len(hexstr) - 2) // 2
             # Left-pad: shift value to occupy high bytes of 32-byte word
             val = int(hexstr, 16) << 8 * (32 - n_bytes)
-            return IRLiteral(val)
+            return VenomValue.val(IRLiteral(val))
 
         raise CompilerPanic(f"Unsupported Hex literal type: {t}")
 
-    def lower_NameConstant(self) -> IRLiteral:
+    def lower_NameConstant(self) -> VenomValue:
         """Lower True/False constants."""
         node = self.node
         assert isinstance(node, vy_ast.NameConstant)
         assert isinstance(node.value, bool)
-        return IRLiteral(int(node.value))
+        return VenomValue.val(IRLiteral(int(node.value)))
 
     # === Bytelike Literals ===
 
-    def lower_Bytes(self) -> IRVariable:
+    def lower_Bytes(self) -> VenomValue:
         """Lower bytes literal (b'...')."""
         node = self.node
         assert isinstance(node, vy_ast.Bytes)
-        return self._lower_bytelike(BytesT, node.value)
+        typ = node._metadata["type"]
+        ptr = self._lower_bytelike(BytesT, node.value)
+        return VenomValue.loc(ptr, DataLocation.MEMORY, typ)
 
-    def lower_HexBytes(self) -> IRVariable:
+    def lower_HexBytes(self) -> VenomValue:
         """Lower hex bytes literal (x'...')."""
         node = self.node
         assert isinstance(node, vy_ast.HexBytes)
         assert isinstance(node.value, bytes)
-        return self._lower_bytelike(BytesT, node.value)
+        typ = node._metadata["type"]
+        ptr = self._lower_bytelike(BytesT, node.value)
+        return VenomValue.loc(ptr, DataLocation.MEMORY, typ)
 
-    def lower_Str(self) -> IRVariable:
+    def lower_Str(self) -> VenomValue:
         """Lower string literal ('...')."""
         node = self.node
         assert isinstance(node, vy_ast.Str)
+        typ = node._metadata["type"]
         bytez = node.value.encode("utf-8")
-        return self._lower_bytelike(StringT, bytez)
+        ptr = self._lower_bytelike(StringT, bytez)
+        return VenomValue.loc(ptr, DataLocation.MEMORY, typ)
 
-    def lower_Tuple(self) -> IRVariable:
+    def lower_Tuple(self) -> VenomValue:
         """Lower tuple literal: (a, b, c).
 
         Allocates memory for the tuple and stores each element at the correct offset.
@@ -172,7 +193,7 @@ class Expr:
         offset = 0
         for i, elem_node in enumerate(node.elements):
             elem_typ = typ.member_types[i]
-            elem_val = Expr(elem_node, self.ctx).lower()
+            elem_val = Expr(elem_node, self.ctx).lower_value()
 
             if offset == 0:
                 dst = ptr
@@ -182,9 +203,9 @@ class Expr:
             self.ctx.store_memory(elem_val, dst, elem_typ)
             offset += elem_typ.memory_bytes_required
 
-        return ptr
+        return VenomValue.loc(ptr, DataLocation.MEMORY, typ)
 
-    def lower_List(self) -> IRVariable:
+    def lower_List(self) -> VenomValue:
         """Lower list literal: [a, b, c].
 
         Creates a DynArray in memory with the given elements.
@@ -213,7 +234,7 @@ class Expr:
         # Store each element at its correct offset (after length word)
         data_offset = 32  # Skip length word
         for elem_node in node.elements:
-            elem_val = Expr(elem_node, self.ctx).lower()
+            elem_val = Expr(elem_node, self.ctx).lower_value()
 
             if data_offset == 32:
                 dst = self.builder.add(ptr, IRLiteral(32))
@@ -223,7 +244,7 @@ class Expr:
             self.ctx.store_memory(elem_val, dst, elem_typ)
             data_offset += elem_size
 
-        return ptr
+        return VenomValue.loc(ptr, DataLocation.MEMORY, typ)
 
     def _lower_bytelike(self, typeclass: type, bytez: bytes) -> IRVariable:
         """Allocate memory and store bytes/string literal.
@@ -256,59 +277,59 @@ class Expr:
 
     # === Binary Operations ===
 
-    def lower_BinOp(self) -> IROperand:
+    def lower_BinOp(self) -> VenomValue:
         """Lower binary operations with appropriate overflow checking."""
         node = self.node
         assert isinstance(node, vy_ast.BinOp)
-        left = Expr(node.left, self.ctx).lower()
-        right = Expr(node.right, self.ctx).lower()
+        left = Expr(node.left, self.ctx).lower_value()
+        right = Expr(node.right, self.ctx).lower_value()
         op = node.op
         typ = node.left._metadata["type"]
 
         # Bitwise operations - no overflow checks needed
         if isinstance(op, vy_ast.BitAnd):
-            return self.builder.and_(left, right)
+            return VenomValue.val(self.builder.and_(left, right))
         if isinstance(op, vy_ast.BitOr):
-            return self.builder.or_(left, right)
+            return VenomValue.val(self.builder.or_(left, right))
         if isinstance(op, vy_ast.BitXor):
-            return self.builder.xor(left, right)
+            return VenomValue.val(self.builder.xor(left, right))
 
         # Shift operations - only 256-bit types allowed
         if isinstance(op, vy_ast.LShift):
             if not isinstance(typ, IntegerT) or typ.bits != 256:
                 raise CompilerPanic("Shift operations require 256-bit types")
             # shl(bits, value) - operand order is (bits, value)
-            return self.builder.shl(right, left)
+            return VenomValue.val(self.builder.shl(right, left))
 
         if isinstance(op, vy_ast.RShift):
             if not isinstance(typ, IntegerT) or typ.bits != 256:
                 raise CompilerPanic("Shift operations require 256-bit types")
             if typ.is_signed:
-                return self.builder.sar(right, left)
+                return VenomValue.val(self.builder.sar(right, left))
             else:
-                return self.builder.shr(right, left)
+                return VenomValue.val(self.builder.shr(right, left))
 
         # Arithmetic operations with overflow checks
         if isinstance(op, vy_ast.Add):
-            return self._safe_add(left, right, typ)
+            return VenomValue.val(self._safe_add(left, right, typ))
 
         if isinstance(op, vy_ast.Sub):
-            return self._safe_sub(left, right, typ)
+            return VenomValue.val(self._safe_sub(left, right, typ))
 
         if isinstance(op, vy_ast.Mult):
-            return self._safe_mul(left, right, typ, node)
+            return VenomValue.val(self._safe_mul(left, right, typ, node))
 
         if isinstance(op, vy_ast.Div):
-            return self._safe_div(left, right, typ, node)
+            return VenomValue.val(self._safe_div(left, right, typ, node))
 
         if isinstance(op, vy_ast.FloorDiv):
-            return self._safe_floordiv(left, right, typ, node)
+            return VenomValue.val(self._safe_floordiv(left, right, typ, node))
 
         if isinstance(op, vy_ast.Mod):
-            return self._safe_mod(left, right, typ)
+            return VenomValue.val(self._safe_mod(left, right, typ))
 
         if isinstance(op, vy_ast.Pow):
-            return self._safe_pow(left, right, typ, node)
+            return VenomValue.val(self._safe_pow(left, right, typ, node))
 
         raise CompilerPanic(f"Unsupported BinOp: {type(op)}")
 
@@ -356,11 +377,11 @@ class Expr:
 
     # === Unary Operations ===
 
-    def lower_UnaryOp(self) -> IRVariable:
+    def lower_UnaryOp(self) -> VenomValue:
         """Lower unary operations."""
         node = self.node
         assert isinstance(node, vy_ast.UnaryOp)
-        operand = Expr(node.operand, self.ctx).lower()
+        operand = Expr(node.operand, self.ctx).lower_value()
         typ = node.operand._metadata["type"]
         op = node.op
 
@@ -368,7 +389,7 @@ class Expr:
             # Boolean NOT
             if not isinstance(typ, BoolT):
                 raise CompilerPanic("Not operator only valid for bool")
-            return self.builder.iszero(operand)
+            return VenomValue.val(self.builder.iszero(operand))
 
         if isinstance(op, vy_ast.Invert):
             # Bitwise NOT (~x)
@@ -376,13 +397,13 @@ class Expr:
                 # For flags: xor with mask of all valid flag bits
                 n_members = len(typ._flag_members)
                 mask = (1 << n_members) - 1
-                return self.builder.xor(operand, IRLiteral(mask))
+                return VenomValue.val(self.builder.xor(operand, IRLiteral(mask)))
             elif isinstance(typ, IntegerT) and typ.bits == 256 and not typ.is_signed:
                 # For uint256: full bitwise not
-                return self.builder.not_(operand)
+                return VenomValue.val(self.builder.not_(operand))
             elif isinstance(typ, BytesM_T) and typ.m == 32:
                 # For bytes32: full bitwise not
-                return self.builder.not_(operand)
+                return VenomValue.val(self.builder.not_(operand))
             else:
                 raise CompilerPanic(f"Invert not supported for type {typ}")
 
@@ -398,13 +419,13 @@ class Expr:
             ok = self.builder.sgt(operand, IRLiteral(min_int_val))
             self.builder.assert_(ok)
 
-            return self.builder.sub(IRLiteral(0), operand)
+            return VenomValue.val(self.builder.sub(IRLiteral(0), operand))
 
         raise CompilerPanic(f"Unsupported UnaryOp: {type(op)}")
 
     # === Comparison Operations ===
 
-    def lower_Compare(self) -> IRVariable:
+    def lower_Compare(self) -> VenomValue:
         """Lower comparison operations.
 
         Comparisons: <, <=, >, >=, ==, !=
@@ -415,8 +436,8 @@ class Expr:
         """
         node = self.node
         assert isinstance(node, vy_ast.Compare)
-        left = Expr(node.left, self.ctx).lower()
-        right = Expr(node.right, self.ctx).lower()
+        left = Expr(node.left, self.ctx).lower_value()
+        right = Expr(node.right, self.ctx).lower_value()
         op = node.op
         left_typ = node.left._metadata["type"]
         right_typ = node.right._metadata["type"]
@@ -429,15 +450,15 @@ class Expr:
                 intersection = self.builder.and_(left, right)
                 if isinstance(op, vy_ast.In):
                     # iszero(iszero(x)) = 1 if x != 0
-                    return self.builder.iszero(self.builder.iszero(intersection))
+                    return VenomValue.val(self.builder.iszero(self.builder.iszero(intersection)))
                 else:  # NotIn
-                    return self.builder.iszero(intersection)
+                    return VenomValue.val(self.builder.iszero(intersection))
             else:
                 # Array membership - use loop with early break
                 location = node.right._expr_info.location
-                return self._lower_array_membership(
+                return VenomValue.val(self._lower_array_membership(
                     left, right, right_typ, location, isinstance(op, vy_ast.In)
-                )
+                ))
 
         # Determine if we need signed or unsigned comparison
         # UINT256 uses unsigned comparisons; all other types use signed
@@ -446,38 +467,38 @@ class Expr:
         # Dispatch to appropriate comparison
         if isinstance(op, vy_ast.Lt):
             if use_unsigned:
-                return self.builder.lt(left, right)
-            return self.builder.slt(left, right)
+                return VenomValue.val(self.builder.lt(left, right))
+            return VenomValue.val(self.builder.slt(left, right))
 
         if isinstance(op, vy_ast.Gt):
             if use_unsigned:
-                return self.builder.gt(left, right)
-            return self.builder.sgt(left, right)
+                return VenomValue.val(self.builder.gt(left, right))
+            return VenomValue.val(self.builder.sgt(left, right))
 
         if isinstance(op, vy_ast.Eq):
-            return self.builder.eq(left, right)
+            return VenomValue.val(self.builder.eq(left, right))
 
         if isinstance(op, vy_ast.NotEq):
             # ne = iszero(eq)
-            return self.builder.iszero(self.builder.eq(left, right))
+            return VenomValue.val(self.builder.iszero(self.builder.eq(left, right)))
 
         if isinstance(op, vy_ast.LtE):
             # le = iszero(gt)
             if use_unsigned:
-                return self.builder.iszero(self.builder.gt(left, right))
-            return self.builder.iszero(self.builder.sgt(left, right))
+                return VenomValue.val(self.builder.iszero(self.builder.gt(left, right)))
+            return VenomValue.val(self.builder.iszero(self.builder.sgt(left, right)))
 
         if isinstance(op, vy_ast.GtE):
             # ge = iszero(lt)
             if use_unsigned:
-                return self.builder.iszero(self.builder.lt(left, right))
-            return self.builder.iszero(self.builder.slt(left, right))
+                return VenomValue.val(self.builder.iszero(self.builder.lt(left, right)))
+            return VenomValue.val(self.builder.iszero(self.builder.slt(left, right)))
 
         raise CompilerPanic(f"Unsupported comparison op: {type(op)}")
 
     # === Boolean Operations ===
 
-    def lower_BoolOp(self) -> IRVariable:
+    def lower_BoolOp(self) -> VenomValue:
         """Lower boolean operations with short-circuit evaluation.
 
         And: if a is false, skip evaluation of remaining operands
@@ -505,7 +526,7 @@ class Expr:
             # ...
             # evaluate last, result = last value, jump to exit
             for val in values[:-1]:
-                cond = Expr(val, self.ctx).lower()
+                cond = Expr(val, self.ctx).lower_value()
                 next_bb = self.builder.create_block("and_next")
                 false_bb = self.builder.create_block("and_false")
 
@@ -522,7 +543,7 @@ class Expr:
                 self.builder.set_block(next_bb)
 
             # Last value: result = value, jump to exit
-            last_val = Expr(values[-1], self.ctx).lower()
+            last_val = Expr(values[-1], self.ctx).lower_value()
             self.builder.assign_to(last_val, result)
             self.builder.jmp(exit_bb.label)
 
@@ -533,7 +554,7 @@ class Expr:
             # ...
             # evaluate last, result = last value, jump to exit
             for val in values[:-1]:
-                cond = Expr(val, self.ctx).lower()
+                cond = Expr(val, self.ctx).lower_value()
                 true_bb = self.builder.create_block("or_true")
                 next_bb = self.builder.create_block("or_next")
 
@@ -550,7 +571,7 @@ class Expr:
                 self.builder.set_block(next_bb)
 
             # Last value: result = value, jump to exit
-            last_val = Expr(values[-1], self.ctx).lower()
+            last_val = Expr(values[-1], self.ctx).lower_value()
             self.builder.assign_to(last_val, result)
             self.builder.jmp(exit_bb.label)
 
@@ -561,18 +582,18 @@ class Expr:
         self.builder.append_block(exit_bb)
         self.builder.set_block(exit_bb)
 
-        return result
+        return VenomValue.val(result)
 
     # === Variable and Name Operations ===
 
-    def lower_Name(self) -> IROperand:
+    def lower_Name(self) -> VenomValue:
         """Lower name reference.
 
         Handles:
-        - `self` keyword -> address opcode
-        - Local variables (params, locals) -> mload from memory pointer
+        - `self` keyword -> address opcode (value)
+        - Local variables (params, locals) -> memory pointer (location)
         - Module constants -> evaluate constant expression
-        - Immutables -> iload or mload depending on context
+        - Immutables -> iload or mload depending on context (value)
         """
         node = self.node
         assert isinstance(node, vy_ast.Name)
@@ -580,16 +601,17 @@ class Expr:
 
         # Case 1: "self" keyword -> address opcode
         if varname == "self":
-            return self.builder.address()
+            return VenomValue.val(self.builder.address())
 
         # Get variable info from semantic analysis
         varinfo = node._expr_info.var_info
         assert varinfo is not None
 
         # Case 2: Local variable in context.variables
+        # Return pointer, caller will unwrap if needed
         if varname in self.ctx.variables:
-            ptr = self.ctx.lookup_ptr(varname)
-            return self.builder.mload(ptr)
+            var = self.ctx.lookup(varname)
+            return VenomValue.loc(var.ptr, DataLocation.MEMORY, var.typ)
 
         # Case 3: Module constant - recursively lower the constant's value
         if varinfo.is_constant:
@@ -597,27 +619,28 @@ class Expr:
 
         # Case 4: Immutable - load from code or memory depending on context
         if varinfo.is_immutable:
+            typ = node._metadata["type"]
             # In constructor: immutables are in memory (being written)
             # After deploy: immutables are in code (read via iload)
             if self.ctx.is_ctor_context:
                 # During constructor, immutable is in memory at varinfo.position
-                return self.builder.mload(IRLiteral(varinfo.position.position))
+                return VenomValue.loc(IRLiteral(varinfo.position.position), DataLocation.MEMORY, typ)
             else:
                 # After deployment, use iload to read from deployed code
-                return self.builder.iload(IRLiteral(varinfo.position.position))
+                return VenomValue.loc(IRLiteral(varinfo.position.position), DataLocation.CODE, typ)
 
         raise CompilerPanic(f"Unknown variable: {varname}")
 
-    def lower_Attribute(self) -> IROperand:
+    def lower_Attribute(self) -> VenomValue:
         """Lower attribute access.
 
         Handles:
-        - Flag constants (MyFlag.VALUE)
-        - Address properties (.balance, .codesize, .codehash, etc.)
-        - Environment variables (msg.sender, block.timestamp, etc.)
-        - State variables (self.x)
-        - Struct fields (x.field)
-        - Interface address (x.address)
+        - Flag constants (MyFlag.VALUE) → value
+        - Address properties (.balance, .codesize, .codehash, etc.) → value
+        - Environment variables (msg.sender, block.timestamp, etc.) → value
+        - State variables (self.x) → location (STORAGE/CODE/MEMORY)
+        - Struct fields (x.field) → location (inherited from base)
+        - Interface address (x.address) → value
         """
         node = self.node
         assert isinstance(node, vy_ast.Attribute)
@@ -630,35 +653,35 @@ class Expr:
             if hasattr(value_typ, "_flag_members"):
                 flag_id = typ._flag_members[node.attr]
                 value = 2**flag_id  # 0 => 1, 1 => 2, 2 => 4, etc.
-                return IRLiteral(value)
+                return VenomValue.val(IRLiteral(value))
 
         # Case 2: Address properties
         attr = node.attr
         if attr == "balance":
-            sub = Expr(node.value, self.ctx).lower()
             # Check if it's self.balance
             if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
-                return self.builder.selfbalance()
-            return self.builder.balance(sub)
+                return VenomValue.val(self.builder.selfbalance())
+            sub = Expr(node.value, self.ctx).lower_value()
+            return VenomValue.val(self.builder.balance(sub))
 
         if attr == "codesize":
             if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
-                return self.builder.codesize()
-            sub = Expr(node.value, self.ctx).lower()
-            return self.builder.extcodesize(sub)
+                return VenomValue.val(self.builder.codesize())
+            sub = Expr(node.value, self.ctx).lower_value()
+            return VenomValue.val(self.builder.extcodesize(sub))
 
         if attr == "is_contract":
-            sub = Expr(node.value, self.ctx).lower()
+            sub = Expr(node.value, self.ctx).lower_value()
             codesize = self.builder.extcodesize(sub)
-            return self.builder.gt(codesize, IRLiteral(0))
+            return VenomValue.val(self.builder.gt(codesize, IRLiteral(0)))
 
         if attr == "codehash":
-            sub = Expr(node.value, self.ctx).lower()
-            return self.builder.extcodehash(sub)
+            sub = Expr(node.value, self.ctx).lower_value()
+            return VenomValue.val(self.builder.extcodehash(sub))
 
         # Case 3: Environment variables (msg.*, block.*, tx.*, chain.*)
         if isinstance(node.value, vy_ast.Name) and node.value.id in ENVIRONMENT_VARIABLES:
-            return self._lower_environment_attr()
+            return VenomValue.val(self._lower_environment_attr())
 
         # Case 4: State variables (self.x)
         varinfo = node._expr_info.var_info
@@ -670,22 +693,18 @@ class Expr:
             # Immutable state variable
             if varinfo.is_immutable:
                 if self.ctx.is_ctor_context:
-                    return self.builder.mload(IRLiteral(varinfo.position.position))
+                    return VenomValue.loc(IRLiteral(varinfo.position.position), DataLocation.MEMORY, typ)
                 else:
-                    return self.builder.iload(IRLiteral(varinfo.position.position))
+                    return VenomValue.loc(IRLiteral(varinfo.position.position), DataLocation.CODE, typ)
 
-            # Regular storage variable - return sload of storage slot
-            # Note: This is simplified for word-sized values. Complex types
-            # need pointer handling which will be done in later tasks.
+            # Regular storage variable - return location, don't load!
             slot = varinfo.position.position
-            return self.builder.sload(IRLiteral(slot))
+            return VenomValue.loc(IRLiteral(slot), DataLocation.STORAGE, typ)
 
         # Case 5: Interface address (x.address where x is an interface)
-        from vyper.semantics.types import InterfaceT
-
         sub_typ = node.value._metadata.get("type")
         if isinstance(sub_typ, InterfaceT) and attr == "address":
-            return Expr(node.value, self.ctx).lower()
+            return VenomValue.val(Expr(node.value, self.ctx).lower_value())
 
         # Case 6: Struct field access (point.x)
         if isinstance(sub_typ, StructT) and attr in sub_typ.member_types:
@@ -751,12 +770,12 @@ class Expr:
 
     # === Ternary Expression ===
 
-    def lower_IfExp(self) -> IRVariable:
+    def lower_IfExp(self) -> VenomValue:
         """Lower ternary expression: x if cond else y"""
         node = self.node
         assert isinstance(node, vy_ast.IfExp)
 
-        cond = Expr(node.test, self.ctx).lower()
+        cond = Expr(node.test, self.ctx).lower_value()
         cond_block = self.builder.current_block
 
         then_block = self.builder.create_block("ternary_then")
@@ -768,14 +787,14 @@ class Expr:
         # Process then branch
         self.builder.append_block(then_block)
         self.builder.set_block(then_block)
-        then_val = Expr(node.body, self.ctx).lower()
+        then_val = Expr(node.body, self.ctx).lower_value()
         then_block_finish = self.builder.current_block
         then_block_finish.append_instruction("assign", then_val, ret=result)
 
         # Process else branch
         self.builder.append_block(else_block)
         self.builder.set_block(else_block)
-        else_val = Expr(node.orelse, self.ctx).lower()
+        else_val = Expr(node.orelse, self.ctx).lower_value()
         else_block_finish = self.builder.current_block
         else_block_finish.append_instruction("assign", else_val, ret=result)
 
@@ -790,14 +809,14 @@ class Expr:
         then_block_finish.append_instruction("jmp", exit_block.label)
         else_block_finish.append_instruction("jmp", exit_block.label)
 
-        return result
+        return VenomValue.val(result)
 
     # === Subscript Operations ===
 
-    def lower_Subscript(self) -> IROperand:
+    def lower_Subscript(self) -> VenomValue:
         """Lower subscript access: array[index], mapping[key], or tuple[N].
 
-        Returns a pointer/slot that the caller can load from or store to.
+        Returns VenomValue.loc() with element pointer and location.
         """
         node = self.node
         assert isinstance(node, vy_ast.Subscript)
@@ -813,40 +832,28 @@ class Expr:
         else:
             raise CompilerPanic(f"Unsupported subscript on {base_typ}")
 
-    def _lower_array_subscript(self, bounds_check: bool = True) -> IROperand:
+    def _lower_array_subscript(self, bounds_check: bool = True) -> VenomValue:
         """Lower array[index] access.
 
         Computes element pointer with bounds checking:
         - Static arrays: bounds check against compile-time count
         - Dynamic arrays: load length from first word, skip 32/1 for data
 
-        Returns pointer to element (memory ptr or storage slot).
+        Returns VenomValue.loc() with element pointer and inherited location.
         """
         node = self.node
         assert isinstance(node, vy_ast.Subscript)
-        base = Expr(node.value, self.ctx).lower()
-        index = Expr(node.slice, self.ctx).lower()
-
-        # If index is from memory, load it
-        if isinstance(index, IRVariable):
-            # Check if it's a memory location (not already a value)
-            # For now, assume lower() already loads values
-            pass
+        base_vv = Expr(node.value, self.ctx).lower()
+        base = base_vv.operand  # Extract pointer for address math
+        index = Expr(node.slice, self.ctx).lower_value()  # Need the value
 
         base_typ = node.value._metadata["type"]
         elem_typ = base_typ.value_type
         index_typ = node.slice._metadata["type"]
 
-        # Determine location and element size
-        # For memory arrays: word_scale=32, sizes in bytes
-        # For storage arrays: word_scale=1, sizes in slots
-        is_storage = self._is_storage_access(node.value)
-        if is_storage:
-            data_loc = DataLocation.STORAGE
-            word_scale = 1
-        else:
-            data_loc = DataLocation.MEMORY
-            word_scale = 32
+        # Propagate location from base (storage/memory/transient)
+        data_loc = base_vv.location or DataLocation.MEMORY
+        word_scale = 1 if data_loc == DataLocation.STORAGE else 32
 
         elem_size = elem_typ.get_size_in(data_loc)
 
@@ -855,10 +862,7 @@ class Expr:
             length: IROperand = IRLiteral(0)
             if isinstance(base_typ, DArrayT):
                 # Dynamic array: load length from first word
-                if is_storage:
-                    length = self.builder.sload(base)
-                else:
-                    length = self.builder.mload(base)
+                length = self.builder.load(base, data_loc)
             else:
                 # Static array: compile-time length
                 length = IRLiteral(base_typ.count)
@@ -890,33 +894,37 @@ class Expr:
         offset = self.builder.mul(index, IRLiteral(elem_size))
         elem_ptr = self.builder.add(data_ptr, offset)
 
-        return elem_ptr
+        return VenomValue.loc(elem_ptr, data_loc, elem_typ)
 
-    def _lower_mapping_subscript(self) -> IROperand:
+    def _lower_mapping_subscript(self) -> VenomValue:
         """Lower mapping[key] access.
 
         Computes storage slot via keccak256(slot || key):
         - Simple keys (int, address, bytes32): use directly
         - Complex keys (bytes, string): pre-hash with keccak256
 
-        Returns storage slot as IROperand.
+        Returns VenomValue.loc() with storage slot and value type.
+        Mappings are always in storage.
         """
         node = self.node
         assert isinstance(node, vy_ast.Subscript)
-        base = Expr(node.value, self.ctx).lower()
-        key_typ = node.value._metadata["type"].key_type
+        base_vv = Expr(node.value, self.ctx).lower()
+        base = base_vv.operand  # Extract slot for hash computation
+        map_typ = node.value._metadata["type"]
+        key_typ = map_typ.key_type
+        value_typ = map_typ.value_type
 
         # Handle bytes/string keys - need to hash them first
         if isinstance(key_typ, _BytestringT):
             key = self._lower_keccak256_key(node.slice)
         else:
-            key = Expr(node.slice, self.ctx).lower()
+            key = Expr(node.slice, self.ctx).lower_value()
 
         # sha3_64(slot, key) = keccak256(concat(slot, key))
         # Both are 32 bytes, concatenated and hashed
         slot = self.builder.sha3_64(base, key)
 
-        return slot
+        return VenomValue.loc(slot, DataLocation.STORAGE, value_typ)
 
     def _lower_keccak256_key(self, key_node: vy_ast.VyperNode) -> IROperand:
         """Hash a bytes/string key for use as mapping key.
@@ -928,27 +936,31 @@ class Expr:
 
         if key_typ == BYTES32_T:
             # bytes32: mstore to free var space and hash
-            key = Expr(key_node, self.ctx).lower()
+            key = Expr(key_node, self.ctx).lower_value()
             self.builder.mstore(key, IRLiteral(MemoryPositions.FREE_VAR_SPACE))
             return self.builder.sha3(IRLiteral(MemoryPositions.FREE_VAR_SPACE), IRLiteral(32))
 
-        # bytes/string: already in memory from lower(), hash the data portion
-        key_ptr = Expr(key_node, self.ctx).lower()
+        # bytes/string: get pointer (already in memory), hash the data portion
+        key_vv = Expr(key_node, self.ctx).lower()
+        key_ptr = key_vv.operand  # Extract pointer
         # Data starts at ptr+32 (after length word)
         data_ptr = self.builder.add(key_ptr, IRLiteral(32))
         # Length is at ptr
         length = self.builder.mload(key_ptr)
         return self.builder.sha3(data_ptr, length)
 
-    def _lower_tuple_subscript(self) -> IROperand:
+    def _lower_tuple_subscript(self) -> VenomValue:
         """Lower tuple[N] or struct[N] access.
 
         Index must be a compile-time constant. Computes offset by summing
         sizes of preceding elements.
+
+        Returns VenomValue.loc() with element pointer and inherited location.
         """
         node = self.node
         assert isinstance(node, vy_ast.Subscript)
-        base = Expr(node.value, self.ctx).lower()
+        base_vv = Expr(node.value, self.ctx).lower()
+        base = base_vv.operand  # Extract pointer for address math
         base_typ = node.value._metadata["type"]
 
         # Get the compile-time index
@@ -956,39 +968,45 @@ class Expr:
         assert isinstance(reduced_slice, vy_ast.Int)
         index = reduced_slice.value
 
-        # Determine location
-        is_storage = self._is_storage_access(node.value)
-        data_loc = DataLocation.STORAGE if is_storage else DataLocation.MEMORY
+        # Propagate location from base
+        data_loc = base_vv.location or DataLocation.MEMORY
 
         # Compute offset by summing sizes of preceding elements
         attrs = list(base_typ.tuple_keys())
+        elem_typ = base_typ.member_types[attrs[index]]
         offset = 0
         for i in range(index):
             t = base_typ.member_types[attrs[i]]
             offset += t.get_size_in(data_loc)
 
         if offset == 0:
-            return base
-        return self.builder.add(base, IRLiteral(offset))
+            elem_ptr = base
+        else:
+            elem_ptr = self.builder.add(base, IRLiteral(offset))
 
-    def _lower_struct_field(self) -> IROperand:
+        return VenomValue.loc(elem_ptr, data_loc, elem_typ)
+
+    def _lower_struct_field(self) -> VenomValue:
         """Lower struct.field access.
 
         Computes field pointer by summing sizes of preceding fields.
+
+        Returns VenomValue.loc() with field pointer and inherited location.
         """
         node = self.node
         assert isinstance(node, vy_ast.Attribute)
-        base = Expr(node.value, self.ctx).lower()
+        base_vv = Expr(node.value, self.ctx).lower()
+        base = base_vv.operand  # Extract pointer for address math
         base_typ = node.value._metadata["type"]
         attr = node.attr
 
-        # Determine location
-        is_storage = self._is_storage_access(node.value)
-        data_loc = DataLocation.STORAGE if is_storage else DataLocation.MEMORY
+        # Propagate location from base
+        data_loc = base_vv.location or DataLocation.MEMORY
 
         # Find field index and compute offset
         attrs = list(base_typ.tuple_keys())
         field_index = attrs.index(attr)
+        field_typ = base_typ.member_types[attr]
 
         offset = 0
         for i in range(field_index):
@@ -996,32 +1014,11 @@ class Expr:
             offset += t.get_size_in(data_loc)
 
         if offset == 0:
-            return base
-        return self.builder.add(base, IRLiteral(offset))
+            field_ptr = base
+        else:
+            field_ptr = self.builder.add(base, IRLiteral(offset))
 
-    def _is_storage_access(self, node: vy_ast.VyperNode) -> bool:
-        """Check if an expression refers to storage.
-
-        Returns True if the access is to storage/transient, False for memory.
-        """
-        # self.x -> storage
-        if isinstance(node, vy_ast.Attribute):
-            if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
-                varinfo = node._expr_info.var_info
-                if varinfo is not None and not varinfo.is_constant and not varinfo.is_immutable:
-                    return True
-            # Nested: self.x.field or self.x[i]
-            return self._is_storage_access(node.value)
-
-        # Subscript on storage: self.arr[i]
-        if isinstance(node, vy_ast.Subscript):
-            return self._is_storage_access(node.value)
-
-        # Local variables are in memory
-        if isinstance(node, vy_ast.Name):
-            return False
-
-        return False
+        return VenomValue.loc(field_ptr, data_loc, field_typ)
 
     def _lower_array_membership(
         self, needle: IROperand, haystack: IROperand, haystack_typ,
@@ -1133,7 +1130,7 @@ class Expr:
 
     # === Function Calls ===
 
-    def lower_Call(self) -> IROperand:
+    def lower_Call(self) -> VenomValue:
         """Lower function call.
 
         Handles:
@@ -1154,9 +1151,10 @@ class Expr:
             if isinstance(func.value, vy_ast.Name) and func.value.id == "self":
                 return self._lower_internal_call()
 
-        # Built-in functions
+        # Built-in functions (returns IROperand, wrap in VenomValue)
         if isinstance(func_t, BuiltinFunctionT):
-            return self._lower_builtin_call(func_t)
+            result = self._lower_builtin_call(func_t)
+            return VenomValue.val(result)
 
         # Struct constructor: MyStruct(field1=val1, field2=val2)
         if func_t is not None and is_type_t(func_t, StructT):
@@ -1172,7 +1170,7 @@ class Expr:
 
         raise CompilerPanic(f"Unsupported call: {node.func}")
 
-    def _lower_internal_call(self) -> IROperand:
+    def _lower_internal_call(self) -> VenomValue:
         """Lower internal function call (self.func(...)).
 
         Calling convention:
@@ -1224,15 +1222,11 @@ class Expr:
         # Evaluate and stage arguments
         for i, arg_node in enumerate(node.args):
             arg_t = func_t.arguments[i]
-            arg_val = Expr(arg_node, self.ctx).lower()
+            arg_val = Expr(arg_node, self.ctx).lower_value()
 
             if pass_via_stack[arg_t.name]:
-                # Stack-passed arg: load value
-                if arg_t.typ._is_prim_word:
-                    invoke_args.append(arg_val)
-                else:
-                    # Complex stack arg - load from memory
-                    invoke_args.append(self.builder.mload(arg_val))
+                # Stack-passed arg: use value directly
+                invoke_args.append(arg_val)
             else:
                 # Memory-passed arg: already in memory, callee will access via palloca
                 # Nothing to add to invoke_args for memory args
@@ -1252,13 +1246,11 @@ class Expr:
         else:
             self.builder.invoke(IRLabel(target_label), invoke_args, returns=0)
 
-        # Return the return buffer (or load from it for single word)
+        # Return the return buffer as a location, or void
         if return_buf is not None:
-            if func_t.return_type._is_prim_word:
-                return self.builder.mload(return_buf)
-            return return_buf
+            return VenomValue.loc(return_buf, DataLocation.MEMORY, func_t.return_type)
 
-        return IRLiteral(0)  # void return
+        return VenomValue.val(IRLiteral(0))  # void return
 
     # === Builtin Function Calls ===
 
@@ -1270,7 +1262,7 @@ class Expr:
 
     # === Constructor and Member Function Calls ===
 
-    def _lower_struct_constructor(self) -> IROperand:
+    def _lower_struct_constructor(self) -> VenomValue:
         """Lower struct constructor call: MyStruct(field1=val1, ...).
 
         Allocates memory for struct and stores field values in field order.
@@ -1295,7 +1287,7 @@ class Expr:
         offset = 0
         for field_name in struct_t.tuple_keys():
             field_typ = struct_t.member_types[field_name]
-            field_val = Expr(member_vals[field_name], self.ctx).lower()
+            field_val = Expr(member_vals[field_name], self.ctx).lower_value()
 
             if offset == 0:
                 dst = ptr
@@ -1305,9 +1297,9 @@ class Expr:
             self.ctx.store_memory(field_val, dst, field_typ)
             offset += field_typ.memory_bytes_required
 
-        return ptr
+        return VenomValue.loc(ptr, DataLocation.MEMORY, struct_t)
 
-    def _lower_interface_constructor(self) -> IROperand:
+    def _lower_interface_constructor(self) -> VenomValue:
         """Lower interface constructor call: MyInterface(<address>).
 
         Returns the address value - interface types are just addresses at runtime.
@@ -1317,9 +1309,9 @@ class Expr:
         assert isinstance(node, vy_ast.Call)
         # Interface constructor takes exactly one argument: the address
         assert len(node.args) == 1
-        return Expr(node.args[0], self.ctx).lower()
+        return VenomValue.val(Expr(node.args[0], self.ctx).lower_value())
 
-    def _lower_member_function_call(self, func_t: MemberFunctionT) -> IROperand:
+    def _lower_member_function_call(self, func_t: MemberFunctionT) -> VenomValue:
         """Lower DynArray member function calls: .append(), .pop().
 
         - append(val): increment length, store value at end
@@ -1338,7 +1330,7 @@ class Expr:
         else:
             raise CompilerPanic(f"Unknown member function: {attr}")
 
-    def _lower_dynarray_append(self) -> IROperand:
+    def _lower_dynarray_append(self) -> VenomValue:
         """Lower DynArray.append(val).
 
         1. Load current length
@@ -1357,31 +1349,23 @@ class Expr:
         darray_typ = darray_node._metadata["type"]
         elem_typ = darray_typ.value_type
 
-        # Get the array pointer
-        darray_ptr = Expr(darray_node, self.ctx).lower()
+        # Get the array VenomValue
+        darray_vv = Expr(darray_node, self.ctx).lower()
+        darray_ptr = darray_vv.operand
 
         # Get the element value
         assert len(node.args) == 1
-        elem_val = Expr(node.args[0], self.ctx).lower()
+        elem_val = Expr(node.args[0], self.ctx).lower_value()
 
-        # Determine if storage or memory
-        is_storage = self._is_storage_access(darray_node)
-
-        if is_storage:
-            data_loc = DataLocation.STORAGE
-            word_scale = 1  # Storage is word-addressed
-        else:
-            data_loc = DataLocation.MEMORY
-            word_scale = 32  # Memory is byte-addressed
+        # Get location from VenomValue
+        data_loc = darray_vv.location or DataLocation.MEMORY
+        word_scale = 1 if data_loc == DataLocation.STORAGE else 32
 
         elem_size = elem_typ.get_size_in(data_loc)
         capacity = darray_typ.count  # Maximum length
 
         # 1. Load current length
-        if is_storage:
-            length = self.ctx.get_storage_dyn_array_length(darray_ptr)
-        else:
-            length = self.ctx.get_memory_dyn_array_length(darray_ptr)
+        length = self.builder.load(darray_ptr, data_loc)
 
         # 2. Assert length < capacity
         valid = self.builder.lt(length, IRLiteral(capacity))
@@ -1394,29 +1378,23 @@ class Expr:
         elem_ptr = self.builder.add(data_ptr, offset)
 
         # 4. Store element
-        if is_storage:
-            self.ctx.store_storage(elem_val, elem_ptr, elem_typ)
-        else:
-            self.ctx.store_memory(elem_val, elem_ptr, elem_typ)
+        self.builder.store(elem_val, elem_ptr, data_loc)
 
         # 5. Increment and store new length
         new_length = self.builder.add(length, IRLiteral(1))
-        if is_storage:
-            self.ctx.set_storage_dyn_array_length(darray_ptr, new_length)
-        else:
-            self.ctx.set_memory_dyn_array_length(darray_ptr, new_length)
+        self.builder.store(new_length, darray_ptr, data_loc)
 
         # append() returns nothing
-        return IRLiteral(0)
+        return VenomValue.val(IRLiteral(0))
 
-    def _lower_dynarray_pop(self) -> IROperand:
+    def _lower_dynarray_pop(self) -> VenomValue:
         """Lower DynArray.pop().
 
         1. Load current length
         2. Assert length > 0 (can't pop empty)
         3. Compute new_length = length - 1
         4. Store new length
-        5. Return pointer to element at new_length index
+        5. Return element at new_length index (the popped element)
 
         Reference: vyper/codegen/core.py:pop_dyn_array
         """
@@ -1428,26 +1406,18 @@ class Expr:
         darray_typ = darray_node._metadata["type"]
         elem_typ = darray_typ.value_type
 
-        # Get the array pointer
-        darray_ptr = Expr(darray_node, self.ctx).lower()
+        # Get the array VenomValue
+        darray_vv = Expr(darray_node, self.ctx).lower()
+        darray_ptr = darray_vv.operand
 
-        # Determine if storage or memory
-        is_storage = self._is_storage_access(darray_node)
-
-        if is_storage:
-            data_loc = DataLocation.STORAGE
-            word_scale = 1  # Storage is word-addressed
-        else:
-            data_loc = DataLocation.MEMORY
-            word_scale = 32  # Memory is byte-addressed
+        # Get location from VenomValue
+        data_loc = darray_vv.location or DataLocation.MEMORY
+        word_scale = 1 if data_loc == DataLocation.STORAGE else 32
 
         elem_size = elem_typ.get_size_in(data_loc)
 
         # 1. Load current length
-        if is_storage:
-            length = self.ctx.get_storage_dyn_array_length(darray_ptr)
-        else:
-            length = self.ctx.get_memory_dyn_array_length(darray_ptr)
+        length = self.builder.load(darray_ptr, data_loc)
 
         # 2. Assert length > 0 (can't pop empty array)
         valid = self.builder.iszero(self.builder.iszero(length))
@@ -1457,34 +1427,27 @@ class Expr:
         new_length = self.builder.sub(length, IRLiteral(1))
 
         # 4. Store new length
-        if is_storage:
-            self.ctx.set_storage_dyn_array_length(darray_ptr, new_length)
-        else:
-            self.ctx.set_memory_dyn_array_length(darray_ptr, new_length)
+        self.builder.store(new_length, darray_ptr, data_loc)
 
         # 5. Return element at new_length index (the popped element)
-        # We return the value, not the pointer
         overhead = word_scale * DYNAMIC_ARRAY_OVERHEAD
         data_ptr = self.builder.add(darray_ptr, IRLiteral(overhead))
         offset = self.builder.mul(new_length, IRLiteral(elem_size))
         elem_ptr = self.builder.add(data_ptr, offset)
 
-        # Load and return the value
-        if is_storage:
-            return self.ctx.load_storage(elem_ptr, elem_typ)
-        else:
-            return self.ctx.load_memory(elem_ptr, elem_typ)
+        # Return as location - unwrap() will load for primitives
+        return VenomValue.loc(elem_ptr, data_loc, elem_typ)
 
     # === External Calls ===
 
-    def lower_ExtCall(self) -> IROperand:
+    def lower_ExtCall(self) -> VenomValue:
         """Lower extcall statement (mutable external call).
 
         extcall interface.method(args, value=..., gas=...)
         """
         return self._lower_external_call()
 
-    def lower_StaticCall(self) -> IROperand:
+    def lower_StaticCall(self) -> VenomValue:
         """Lower staticcall expression (view/pure external call).
 
         result: T = staticcall interface.method(args, gas=...)
@@ -1506,7 +1469,7 @@ class Expr:
         default_return_value = None
 
         for kw in call_node.keywords:
-            kw_val = Expr(kw.value, self.ctx).lower()
+            kw_val = Expr(kw.value, self.ctx).lower_value()
             if kw.arg == "value":
                 value = kw_val
             elif kw.arg == "gas":
@@ -1528,7 +1491,7 @@ class Expr:
             default_return_value=default_return_value,
         )
 
-    def _lower_external_call(self) -> IROperand:
+    def _lower_external_call(self) -> VenomValue:
         """Lower external call (extcall/staticcall).
 
         Steps:
@@ -1554,10 +1517,10 @@ class Expr:
         fn_type: ContractFunctionT = call_node.func._metadata["type"]
 
         # Evaluate contract address (the interface value)
-        contract_address = Expr(call_node.func.value, self.ctx).lower()
+        contract_address = Expr(call_node.func.value, self.ctx).lower_value()
 
         # Evaluate arguments
-        args = [Expr(arg, self.ctx).lower() for arg in call_node.args]
+        args = [Expr(arg, self.ctx).lower_value() for arg in call_node.args]
 
         # Parse kwargs
         call_kwargs = self._parse_external_call_kwargs(call_node)
@@ -1660,7 +1623,7 @@ class Expr:
 
         # === Unpack Return Value ===
         if fn_type.return_type is None:
-            return IRLiteral(0)
+            return VenomValue.val(IRLiteral(0))
 
         return_t = fn_type.return_type
         wrapped_return_t = calculate_type_for_external_return(return_t)
@@ -1735,13 +1698,5 @@ class Expr:
             hi = b.add(buf, rds)
             abi_decode_to_buf(self.ctx, result_buf, buf, wrapped_return_t, hi=hi)
 
-        # Unwrap if single return value
-        if needs_external_call_wrap(return_t):
-            # Return the first (only) element of the wrapper tuple
-            if return_t._is_prim_word:
-                return b.mload(result_buf)
-            else:
-                return result_buf
-        else:
-            # Multi-return tuple
-            return result_buf
+        # Return as location in memory
+        return VenomValue.loc(result_buf, DataLocation.MEMORY, return_t)

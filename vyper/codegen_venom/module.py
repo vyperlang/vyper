@@ -450,10 +450,11 @@ def _handle_kwargs(
         else:
             # Use default value
             default_node = func_t.default_values[arg.name]
-            default_val = Expr(default_node, ctx).lower()
             if arg.typ._is_prim_word:
+                default_val = Expr(default_node, ctx).lower_value()
                 ctx.builder.mstore(default_val, ptr)
             else:
+                default_val = Expr(default_node, ctx).lower().operand
                 ctx.store_memory(default_val, ptr, arg.typ)
 
 
