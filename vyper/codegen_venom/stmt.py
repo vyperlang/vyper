@@ -157,7 +157,10 @@ class Stmt:
         # This ensures correct semantics for overlapping cases like a,b = b,a.
         temp_vals = []
         offset = 0
-        for elem_typ in tuple_typ.member_types.values():
+        member_types = tuple_typ.member_types
+        if isinstance(member_types, dict):
+            member_types = member_types.values()
+        for elem_typ in member_types:
             if offset == 0:
                 elem_ptr = src
             elif isinstance(src, IRLiteral):
