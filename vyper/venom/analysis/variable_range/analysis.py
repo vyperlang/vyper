@@ -14,7 +14,7 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 
-from .evaluators import EVAL_DISPATCH, _range_spans_sign_boundary
+from .evaluators import EVAL_DISPATCH
 from .value_range import SIGNED_MAX, SIGNED_MIN, UNSIGNED_MAX, RangeState, ValueRange
 
 

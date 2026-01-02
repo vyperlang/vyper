@@ -28,6 +28,7 @@ def _range_spans_sign_boundary(r: ValueRange) -> bool:
         return r.is_top  # TOP spans everything, BOTTOM spans nothing
     return r.lo < 0 and r.hi >= 0
 
+
 # Type alias for range evaluator functions
 RangeEvaluator = Callable[[IRInstruction, RangeState], ValueRange]
 
