@@ -70,104 +70,104 @@ class VenomBuilder:
 
     # === Arithmetic ===
     def add(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("add", a, b)
+        return self._emit1_evm("add", a, b)
 
     def sub(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("sub", b, a)  # reversed for EVM stack order
+        return self._emit1_evm("sub", a, b)
 
     def mul(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("mul", a, b)
+        return self._emit1_evm("mul", a, b)
 
     def div(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("div", b, a)  # reversed for EVM stack order
+        return self._emit1_evm("div", a, b)
 
     def sdiv(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("sdiv", b, a)  # reversed for EVM stack order
+        return self._emit1_evm("sdiv", a, b)
 
     def mod(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("mod", b, a)  # reversed for EVM stack order
+        return self._emit1_evm("mod", a, b)
 
     def smod(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("smod", b, a)  # reversed for EVM stack order
+        return self._emit1_evm("smod", a, b)
 
     def exp(self, base: Operand, exponent: Operand) -> IRVariable:
-        return self._emit1("exp", exponent, base)  # reversed for EVM stack order
+        return self._emit1_evm("exp", base, exponent)
 
     def addmod(self, a: Operand, b: Operand, n: Operand) -> IRVariable:
-        return self._emit1("addmod", a, b, n)
+        return self._emit1_evm("addmod", a, b, n)
 
     def mulmod(self, a: Operand, b: Operand, n: Operand) -> IRVariable:
-        return self._emit1("mulmod", a, b, n)
+        return self._emit1_evm("mulmod", a, b, n)
 
     def signextend(self, byte_width: Operand, val: Operand) -> IRVariable:
-        return self._emit1("signextend", val, byte_width)  # reversed for EVM stack order
+        return self._emit1_evm("signextend", byte_width, val)
 
     # === Bitwise ===
     def and_(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("and", a, b)
+        return self._emit1_evm("and", a, b)
 
     def or_(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("or", a, b)
+        return self._emit1_evm("or", a, b)
 
     def xor(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("xor", a, b)
+        return self._emit1_evm("xor", a, b)
 
     def not_(self, a: Operand) -> IRVariable:
-        return self._emit1("not", a)
+        return self._emit1_evm("not", a)
 
     def shl(self, bits: Operand, val: Operand) -> IRVariable:
-        return self._emit1("shl", val, bits)  # reversed for EVM stack order
+        return self._emit1_evm("shl", bits, val)
 
     def shr(self, bits: Operand, val: Operand) -> IRVariable:
-        return self._emit1("shr", val, bits)  # reversed for EVM stack order
+        return self._emit1_evm("shr", bits, val)
 
     def sar(self, bits: Operand, val: Operand) -> IRVariable:
-        return self._emit1("sar", val, bits)  # reversed for EVM stack order
+        return self._emit1_evm("sar", bits, val)
 
     # === Comparison ===
     def eq(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("eq", a, b)
+        return self._emit1_evm("eq", a, b)
 
     def lt(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("lt", b, a)  # reversed for EVM stack order
+        return self._emit1_evm("lt", a, b)
 
     def gt(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("gt", b, a)  # reversed for EVM stack order
+        return self._emit1_evm("gt", a, b)
 
     def slt(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("slt", b, a)  # reversed for EVM stack order
+        return self._emit1_evm("slt", a, b)
 
     def sgt(self, a: Operand, b: Operand) -> IRVariable:
-        return self._emit1("sgt", b, a)  # reversed for EVM stack order
+        return self._emit1_evm("sgt", a, b)
 
     def iszero(self, a: Operand) -> IRVariable:
-        return self._emit1("iszero", a)
+        return self._emit1_evm("iszero", a)
 
     # === Memory ===
     def mload(self, ptr: Operand) -> IRVariable:
-        return self._emit1("mload", ptr)
+        return self._emit1_evm("mload", ptr)
 
-    def mstore(self, val: Operand, ptr: Operand) -> None:
-        """Store val at memory ptr. Note: val, ptr order matches EVM."""
-        self._emit("mstore", val, ptr)
+    def mstore(self, ptr: Operand, val: Operand) -> None:
+        """Store val at memory[ptr]."""
+        self._emit_evm("mstore", ptr, val)
 
-    def mcopy(self, size: Operand, src: Operand, dst: Operand) -> None:
-        """Copy size bytes from src to dst in memory."""
-        self._emit("mcopy", size, src, dst)
+    def mcopy(self, dst: Operand, src: Operand, size: Operand) -> None:
+        """Copy size bytes from memory[src] to memory[dst]."""
+        self._emit_evm("mcopy", dst, src, size)
 
     def msize(self) -> IRVariable:
-        return self._emit1("msize")
+        return self._emit1_evm("msize")
 
     def alloca(self, size: int, alloca_id: int) -> IRVariable:
-        """Allocate abstract memory. Returns pointer."""
+        """Allocate abstract memory. Returns pointer. (IR-specific)"""
         return self._emit1("alloca", size, alloca_id)
 
     def palloca(self, size: int, alloca_id: int) -> IRVariable:
-        """Allocate parameter memory in callee frame. Returns pointer."""
+        """Allocate parameter memory in callee frame. Returns pointer. (IR-specific)"""
         return self._emit1("palloca", size, alloca_id)
 
     def calloca(self, size: int, alloca_id: int, callsite: IRLabel) -> IRVariable:
-        """Allocate argument staging memory at call site. Returns pointer.
+        """Allocate argument staging memory at call site. Returns pointer. (IR-specific)
 
         Used for memory-passed arguments when calling internal functions.
         The callsite label links this allocation to a specific invoke.
@@ -175,7 +175,7 @@ class VenomBuilder:
         return self._emit1("calloca", size, alloca_id, callsite)
 
     def gep(self, ptr: Operand, offset: Operand) -> IRVariable:
-        """Get element pointer into memory region.
+        """Get element pointer into memory region. (IR-specific)
 
         Used for accessing elements within abstract memory (e.g., immutables).
         """
@@ -183,16 +183,18 @@ class VenomBuilder:
 
     # === Storage ===
     def sload(self, slot: Operand) -> IRVariable:
-        return self._emit1("sload", slot)
+        return self._emit1_evm("sload", slot)
 
-    def sstore(self, val: Operand, slot: Operand) -> None:
-        self._emit("sstore", val, slot)
+    def sstore(self, slot: Operand, val: Operand) -> None:
+        """Store val at storage[slot]."""
+        self._emit_evm("sstore", slot, val)
 
     def tload(self, slot: Operand) -> IRVariable:
-        return self._emit1("tload", slot)
+        return self._emit1_evm("tload", slot)
 
-    def tstore(self, val: Operand, slot: Operand) -> None:
-        self._emit("tstore", val, slot)
+    def tstore(self, slot: Operand, val: Operand) -> None:
+        """Store val at transient[slot]."""
+        self._emit_evm("tstore", slot, val)
 
     # === Location-aware load/store ===
     def load(self, ptr: Operand, location: "DataLocation") -> IRVariable:
@@ -210,56 +212,56 @@ class VenomBuilder:
         else:
             raise CompilerPanic(f"Cannot load from location: {location}")
 
-    def store(self, val: Operand, ptr: Operand, location: "DataLocation") -> None:
+    def store(self, ptr: Operand, val: Operand, location: "DataLocation") -> None:
         """Store val to ptr, dispatching based on data location."""
         from vyper.semantics.data_locations import DataLocation
 
         if location == DataLocation.STORAGE:
-            self.sstore(val, ptr)
+            self.sstore(ptr, val)
         elif location == DataLocation.TRANSIENT:
-            self.tstore(val, ptr)
+            self.tstore(ptr, val)
         elif location == DataLocation.MEMORY:
-            self.mstore(val, ptr)
+            self.mstore(ptr, val)
         else:
             raise CompilerPanic(f"Cannot store to location: {location}")
 
     def copy_to_memory(
-        self, size: Operand, src: Operand, dst: Operand, src_location: "DataLocation"
+        self, dst: Operand, src: Operand, size: Operand, src_location: "DataLocation"
     ) -> None:
         """Copy size bytes from src_location to memory at dst."""
         from vyper.semantics.data_locations import DataLocation
 
         if src_location == DataLocation.MEMORY:
-            self.mcopy(size, src, dst)
+            self.mcopy(dst, src, size)
         elif src_location == DataLocation.CALLDATA:
-            self.calldatacopy(size, src, dst)
+            self.calldatacopy(dst, src, size)
         elif src_location == DataLocation.CODE:
-            self.dloadbytes(size, src, dst)
+            self.dloadbytes(dst, src, size)
         else:
             raise CompilerPanic(f"Cannot copy from location: {src_location}")
 
     # === Immutables / Data Section ===
     def dload(self, offset: Operand) -> IRVariable:
-        """Load 32 bytes from data section."""
+        """Load 32 bytes from data section. (IR-specific)"""
         return self._emit1("dload", offset)
 
-    def dloadbytes(self, size: Operand, src: Operand, dst: Operand) -> None:
-        """Copy size bytes from data section (src) to memory (dst)."""
-        self._emit("dloadbytes", size, src, dst)
+    def dloadbytes(self, dst: Operand, src: Operand, size: Operand) -> None:
+        """Copy size bytes from data section (src) to memory (dst). (IR-specific)"""
+        self._emit("dloadbytes", dst, src, size)
 
     def iload(self, offset: Operand) -> IRVariable:
-        """Load from immutable memory region."""
+        """Load from immutable memory region. (IR-specific)"""
         return self._emit1("iload", offset)
 
-    def istore(self, val: Operand, offset: Operand) -> None:
-        """Store to immutable memory region (deploy-time only)."""
-        self._emit("istore", val, offset)
+    def istore(self, offset: Operand, val: Operand) -> None:
+        """Store val to immutable memory region at offset (deploy-time only). (IR-specific)"""
+        self._emit("istore", offset, val)
 
     def offset(self, label: IRLabel, operand: Operand) -> IRVariable:
-        """Compute static offset from label. Used for code position calculations."""
+        """Compute static offset from label. Used for code position calculations. (IR-specific)"""
         return self._emit1("offset", label, operand)
 
-    # === Control Flow ===
+    # === Control Flow (IR-specific) ===
     def jmp(self, target: IRLabel) -> None:
         """Unconditional jump. Terminates block."""
         self._emit("jmp", target)
@@ -276,23 +278,24 @@ class VenomBuilder:
         """Return from internal function. Terminates block."""
         self._emit("ret", *values)
 
-    def return_(self, size: Operand, offset: Operand) -> None:
+    # === EVM Terminators ===
+    def return_(self, offset: Operand, size: Operand) -> None:
         """Return from external call (EVM RETURN). Terminates block."""
-        self._emit("return", size, offset)
+        self._emit_evm("return", offset, size)
 
     def stop(self) -> None:
         """Halt execution. Terminates block."""
-        self._emit("stop")
+        self._emit_evm("stop")
 
-    def revert(self, size: Operand, offset: Operand) -> None:
+    def revert(self, offset: Operand, size: Operand) -> None:
         """Revert execution. Terminates block."""
-        self._emit("revert", size, offset)
+        self._emit_evm("revert", offset, size)
 
     def invalid(self) -> None:
         """Invalid opcode. Terminates block."""
-        self._emit("invalid")
+        self._emit_evm("invalid")
 
-    # === Assertions ===
+    # === Assertions (IR-specific) ===
     def assert_(self, cond: Operand) -> None:
         """Assert condition (reverts if false)."""
         self._emit("assert", cond)
@@ -301,7 +304,7 @@ class VenomBuilder:
         """Assert unreachable code path."""
         self._emit("assert_unreachable", cond)
 
-    # === Internal Calls ===
+    # === Internal Calls (IR-specific) ===
     def invoke(
         self, target: IRLabel, args: Sequence[Operand], returns: int = 0
     ) -> list[IRVariable]:
@@ -324,8 +327,8 @@ class VenomBuilder:
         retptr: Operand,
         retsz: Operand,
     ) -> IRVariable:
-        # Operands reversed for EVM stack order (retSize on top)
-        return self._emit1("call", retsz, retptr, argsz, argsptr, val, addr, gas)
+        """EVM CALL: call(gas, addr, value, argsOffset, argsSize, retOffset, retSize)."""
+        return self._emit1_evm("call", gas, addr, val, argsptr, argsz, retptr, retsz)
 
     def staticcall(
         self,
@@ -336,8 +339,8 @@ class VenomBuilder:
         retptr: Operand,
         retsz: Operand,
     ) -> IRVariable:
-        # Operands reversed for EVM stack order (retSize on top)
-        return self._emit1("staticcall", retsz, retptr, argsz, argsptr, addr, gas)
+        """EVM STATICCALL: staticcall(gas, addr, argsOffset, argsSize, retOffset, retSize)."""
+        return self._emit1_evm("staticcall", gas, addr, argsptr, argsz, retptr, retsz)
 
     def delegatecall(
         self,
@@ -348,115 +351,119 @@ class VenomBuilder:
         retptr: Operand,
         retsz: Operand,
     ) -> IRVariable:
-        # Operands reversed for EVM stack order (retSize on top)
-        return self._emit1("delegatecall", retsz, retptr, argsz, argsptr, addr, gas)
+        """EVM DELEGATECALL: delegatecall(gas, addr, argsOffset, argsSize, retOffset, retSize)."""
+        return self._emit1_evm("delegatecall", gas, addr, argsptr, argsz, retptr, retsz)
 
     def create(self, val: Operand, offset: Operand, size: Operand) -> IRVariable:
-        # Operands reversed for EVM stack order (size on top)
-        return self._emit1("create", size, offset, val)
+        """EVM CREATE: create(value, offset, size)."""
+        return self._emit1_evm("create", val, offset, size)
 
     def create2(self, val: Operand, offset: Operand, size: Operand, salt: Operand) -> IRVariable:
-        # Operands reversed for EVM stack order (salt on top)
-        return self._emit1("create2", salt, size, offset, val)
+        """EVM CREATE2: create2(value, offset, size, salt)."""
+        return self._emit1_evm("create2", val, offset, size, salt)
 
     # === Crypto ===
     def sha3(self, ptr: Operand, size: Operand) -> IRVariable:
-        return self._emit1("sha3", ptr, size)
+        return self._emit1_evm("sha3", ptr, size)
 
     def sha3_64(self, a: Operand, b: Operand) -> IRVariable:
-        """Hash two 32-byte values (optimized keccak)."""
+        """Hash two 32-byte values (optimized keccak). (IR-specific)"""
         return self._emit1("sha3_64", a, b)
 
     # === Data Copy ===
-    def calldatacopy(self, size: Operand, src: Operand, dst: Operand) -> None:
-        self._emit("calldatacopy", size, src, dst)
+    def calldatacopy(self, dst: Operand, src: Operand, size: Operand) -> None:
+        """Copy size bytes from calldata[src] to memory[dst]."""
+        self._emit_evm("calldatacopy", dst, src, size)
 
-    def codecopy(self, size: Operand, src: Operand, dst: Operand) -> None:
-        self._emit("codecopy", size, src, dst)
+    def codecopy(self, dst: Operand, src: Operand, size: Operand) -> None:
+        """Copy size bytes from code[src] to memory[dst]."""
+        self._emit_evm("codecopy", dst, src, size)
 
-    def extcodecopy(self, addr: Operand, size: Operand, src: Operand, dst: Operand) -> None:
-        self._emit("extcodecopy", addr, size, src, dst)
+    def extcodecopy(self, addr: Operand, dst: Operand, src: Operand, size: Operand) -> None:
+        """Copy size bytes from addr's code[src] to memory[dst]."""
+        self._emit_evm("extcodecopy", addr, dst, src, size)
 
-    def returndatacopy(self, size: Operand, src: Operand, dst: Operand) -> None:
-        self._emit("returndatacopy", size, src, dst)
+    def returndatacopy(self, dst: Operand, src: Operand, size: Operand) -> None:
+        """Copy size bytes from returndata[src] to memory[dst]."""
+        self._emit_evm("returndatacopy", dst, src, size)
 
     # === Environment ===
     def caller(self) -> IRVariable:
-        return self._emit1("caller")
+        return self._emit1_evm("caller")
 
     def callvalue(self) -> IRVariable:
-        return self._emit1("callvalue")
+        return self._emit1_evm("callvalue")
 
     def calldatasize(self) -> IRVariable:
-        return self._emit1("calldatasize")
+        return self._emit1_evm("calldatasize")
 
     def calldataload(self, offset: Operand) -> IRVariable:
-        return self._emit1("calldataload", offset)
+        return self._emit1_evm("calldataload", offset)
 
     def address(self) -> IRVariable:
-        return self._emit1("address")
+        return self._emit1_evm("address")
 
     def balance(self, addr: Operand) -> IRVariable:
-        return self._emit1("balance", addr)
+        return self._emit1_evm("balance", addr)
 
     def selfbalance(self) -> IRVariable:
-        return self._emit1("selfbalance")
+        return self._emit1_evm("selfbalance")
 
     def origin(self) -> IRVariable:
-        return self._emit1("origin")
+        return self._emit1_evm("origin")
 
     def gas(self) -> IRVariable:
-        return self._emit1("gas")
+        return self._emit1_evm("gas")
 
     def gasprice(self) -> IRVariable:
-        return self._emit1("gasprice")
+        return self._emit1_evm("gasprice")
 
     def codesize(self) -> IRVariable:
-        return self._emit1("codesize")
+        return self._emit1_evm("codesize")
 
     def extcodesize(self, addr: Operand) -> IRVariable:
-        return self._emit1("extcodesize", addr)
+        return self._emit1_evm("extcodesize", addr)
 
     def extcodehash(self, addr: Operand) -> IRVariable:
-        return self._emit1("extcodehash", addr)
+        return self._emit1_evm("extcodehash", addr)
 
     def returndatasize(self) -> IRVariable:
-        return self._emit1("returndatasize")
+        return self._emit1_evm("returndatasize")
 
     # === Block Info ===
     def blockhash(self, block_num: Operand) -> IRVariable:
-        return self._emit1("blockhash", block_num)
+        return self._emit1_evm("blockhash", block_num)
 
     def coinbase(self) -> IRVariable:
-        return self._emit1("coinbase")
+        return self._emit1_evm("coinbase")
 
     def timestamp(self) -> IRVariable:
-        return self._emit1("timestamp")
+        return self._emit1_evm("timestamp")
 
     def number(self) -> IRVariable:
-        return self._emit1("number")
+        return self._emit1_evm("number")
 
     def prevrandao(self) -> IRVariable:
-        return self._emit1("prevrandao")
+        return self._emit1_evm("prevrandao")
 
     def difficulty(self) -> IRVariable:
         """Deprecated: use prevrandao."""
-        return self._emit1("difficulty")
+        return self._emit1_evm("difficulty")
 
     def gaslimit(self) -> IRVariable:
-        return self._emit1("gaslimit")
+        return self._emit1_evm("gaslimit")
 
     def chainid(self) -> IRVariable:
-        return self._emit1("chainid")
+        return self._emit1_evm("chainid")
 
     def basefee(self) -> IRVariable:
-        return self._emit1("basefee")
+        return self._emit1_evm("basefee")
 
     def blobhash(self, index: Operand) -> IRVariable:
-        return self._emit1("blobhash", index)
+        return self._emit1_evm("blobhash", index)
 
     def blobbasefee(self) -> IRVariable:
-        return self._emit1("blobbasefee")
+        return self._emit1_evm("blobbasefee")
 
     # === Logging ===
     def log(self, topic_count: int, offset: Operand, size: Operand, *topics: Operand) -> None:
@@ -469,20 +476,20 @@ class VenomBuilder:
             topics: topic0, topic1, ... (in logical order)
 
         Matches EVM LOG opcode order: LOG(offset, size, topic0, ...).
-        Internally reorders to match venom IR format.
         """
         # Venom IR format: log topic_count, topic_n-1, ..., topic0, size, offset
-        self._emit("log", topic_count, *reversed(topics), size, offset)
+        # _emit_evm reverses args, so pass in reverse of target IR order
+        self._emit_evm("log", offset, size, *topics, topic_count)
 
     # === Other ===
     def selfdestruct(self, addr: Operand) -> None:
-        self._emit("selfdestruct", addr)
+        self._emit_evm("selfdestruct", addr)
 
     def nop(self) -> None:
-        """No operation. Placeholder instruction."""
+        """No operation. Placeholder instruction. (IR-specific)"""
         self._emit("nop")
 
-    # === Helpers ===
+    # === Helpers (IR-specific) ===
     def assign(self, val: Operand) -> IRVariable:
         """Copy value to new variable (SSA phi-like)."""
         return self._emit1("assign", val)
@@ -530,9 +537,17 @@ class VenomBuilder:
 
     # === Internal Implementation ===
     def _emit(self, opcode: str, *args: Operand) -> None:
-        """Emit instruction with no output."""
+        """Emit instruction with no output. Args passed directly to IR."""
         self._current_bb.append_instruction(opcode, *args)
 
     def _emit1(self, opcode: str, *args: Operand) -> IRVariable:
-        """Emit instruction that produces output, return the output variable."""
+        """Emit instruction with output. Args passed directly to IR."""
         return self._current_bb.append_instruction1(opcode, *args)
+
+    def _emit_evm(self, opcode: str, *args: Operand) -> None:
+        """Emit EVM instruction. Args in semantic order, reversed for IR stack order."""
+        self._current_bb.append_instruction(opcode, *reversed(args))
+
+    def _emit1_evm(self, opcode: str, *args: Operand) -> IRVariable:
+        """Emit EVM instruction with output. Args in semantic order, reversed for IR."""
+        return self._current_bb.append_instruction1(opcode, *reversed(args))

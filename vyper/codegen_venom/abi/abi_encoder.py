@@ -133,7 +133,7 @@ def _zero_pad(ctx: VenomCodegenContext, bytez_ptr: IROperand) -> None:
     # Use a loop to write zeros (could be 0-31 bytes)
     # For simplicity, write one full 32-byte zero word which handles all cases
     # since we're allowed to write past the buffer (it will be within ABI bounds)
-    b.mstore(IRLiteral(0), dst)
+    b.mstore(dst, IRLiteral(0))
 
 
 def _encode_child(
@@ -175,7 +175,7 @@ def _encode_child(
         # Dynamic type:
         # 1. Write current dyn_ofst to static section
         dyn_ofst = b.mload(dyn_ofst_ptr)
-        b.mstore(dyn_ofst, static_loc)
+        b.mstore(static_loc, dyn_ofst)
 
         # 2. Encode child to dynamic section
         child_dst = b.add(dst, dyn_ofst)
@@ -184,7 +184,7 @@ def _encode_child(
 
         # 3. Update dyn_ofst
         new_dyn_ofst = b.add(dyn_ofst, child_len)
-        b.mstore(new_dyn_ofst, dyn_ofst_ptr)
+        b.mstore(dyn_ofst_ptr, new_dyn_ofst)
 
 
 def _encode_dyn_array(
@@ -212,7 +212,7 @@ def _encode_dyn_array(
     length = b.mload(src_ptr)
 
     # Write length word to dst
-    b.mstore(length, dst)
+    b.mstore(dst, length)
 
     # Create loop blocks (but don't switch yet - we're still in entry block)
     loop_header = b.create_block("dyn_encode_hdr")
@@ -224,14 +224,14 @@ def _encode_dyn_array(
 
     # Initialize loop counter in memory (still in entry block)
     i_ptr = ctx.new_internal_variable(UINT256_T)
-    b.mstore(IRLiteral(0), i_ptr)
+    b.mstore(i_ptr, IRLiteral(0))
 
     # Initialize child dynamic offset tracker if needed
     if child_abi_t.is_dynamic():
         # Start of dynamic section for children = length * static_elem_size
         child_dyn_ofst_ptr = ctx.new_internal_variable(UINT256_T)
         initial_child_dyn = b.mul(length, IRLiteral(static_elem_size))
-        b.mstore(initial_child_dyn, child_dyn_ofst_ptr)
+        b.mstore(child_dyn_ofst_ptr, initial_child_dyn)
     else:
         child_dyn_ofst_ptr = None
 
@@ -268,14 +268,14 @@ def _encode_dyn_array(
         static_loc = b.add(dst_data, static_ofst)
         assert child_dyn_ofst_ptr is not None
         dyn_ofst = b.mload(child_dyn_ofst_ptr)
-        b.mstore(dyn_ofst, static_loc)
+        b.mstore(static_loc, dyn_ofst)
 
         child_dst = b.add(dst_data, dyn_ofst)
         child_len = _abi_encode_to_buf(ctx, child_dst, child_src, subtyp, returns_len=True)
         assert child_len is not None
 
         new_dyn_ofst = b.add(dyn_ofst, child_len)
-        b.mstore(new_dyn_ofst, child_dyn_ofst_ptr)
+        b.mstore(child_dyn_ofst_ptr, new_dyn_ofst)
     else:
         # Static child: encode directly
         child_dst = b.add(dst_data, static_ofst)
@@ -283,7 +283,7 @@ def _encode_dyn_array(
 
     # Increment counter
     new_i = b.add(i, IRLiteral(1))
-    b.mstore(new_i, i_ptr)
+    b.mstore(i_ptr, new_i)
     b.jmp(loop_header.label)
 
     # --- Exit block ---
@@ -303,7 +303,7 @@ def _encode_dyn_array(
 
     parent_dyn = b.mload(dyn_ofst_ptr)
     new_parent_dyn = b.add(parent_dyn, total_size)
-    b.mstore(new_parent_dyn, dyn_ofst_ptr)
+    b.mstore(dyn_ofst_ptr, new_parent_dyn)
 
 
 def _abi_encode_to_buf(
@@ -343,7 +343,7 @@ def _abi_encode_to_buf(
     if src_typ._is_prim_word:
         # Primitive word type: direct copy
         val = b.mload(src)
-        b.mstore(val, dst)
+        b.mstore(dst, val)
         if returns_len:
             return IRLiteral(32)
         return None
@@ -367,7 +367,7 @@ def _abi_encode_to_buf(
         # Dynamic array: use helper
         # Need to set up dyn_ofst tracking for parent
         dyn_ofst_ptr = ctx.new_internal_variable(UINT256_T)
-        b.mstore(IRLiteral(0), dyn_ofst_ptr)
+        b.mstore(dyn_ofst_ptr, IRLiteral(0))
         _encode_dyn_array(ctx, dst, src, src_typ, dyn_ofst_ptr)
         if returns_len:
             return b.mload(dyn_ofst_ptr)
@@ -387,7 +387,7 @@ def _abi_encode_to_buf(
         if has_dynamic:
             dyn_ofst_ptr = ctx.new_internal_variable(UINT256_T)
             dyn_section_start = abi_t.static_size()
-            b.mstore(IRLiteral(dyn_section_start), dyn_ofst_ptr)
+            b.mstore(dyn_ofst_ptr, IRLiteral(dyn_section_start))
         else:
             dyn_ofst_ptr = None
 

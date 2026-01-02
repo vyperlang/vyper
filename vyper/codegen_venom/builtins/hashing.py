@@ -38,20 +38,20 @@ def lower_keccak256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         arg_vv = Expr(arg_node, ctx).lower()
         data_ptr = ctx.bytes_data_ptr(arg_vv)
         length = ctx.bytestring_length(arg_vv)
-        return b.sha3(length, data_ptr)
+        return b.sha3(data_ptr, length)
     elif isinstance(arg_t, BytesM_T):
         # Fixed bytesM: need to put value in memory first
         # The value is already left-aligned in 32 bytes
         arg_val = Expr(arg_node, ctx).lower_value()
         buf = ctx.allocate_buffer(32)
-        b.mstore(arg_val, buf)
-        return b.sha3(IRLiteral(arg_t.m), buf)
+        b.mstore(buf, arg_val)
+        return b.sha3(buf, IRLiteral(arg_t.m))
     else:
         # bytes32 or other 32-byte type
         arg_val = Expr(arg_node, ctx).lower_value()
         buf = ctx.allocate_buffer(32)
-        b.mstore(arg_val, buf)
-        return b.sha3(IRLiteral(32), buf)
+        b.mstore(buf, arg_val)
+        return b.sha3(buf, IRLiteral(32))
 
 
 def lower_sha256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
@@ -78,14 +78,14 @@ def lower_sha256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         # Fixed bytesM
         arg_val = Expr(arg_node, ctx).lower_value()
         buf = ctx.allocate_buffer(32)
-        b.mstore(arg_val, buf)
+        b.mstore(buf, arg_val)
         data_ptr = buf
         length = IRLiteral(arg_t.m)
     else:
         # bytes32 or other 32-byte type
         arg_val = Expr(arg_node, ctx).lower_value()
         buf = ctx.allocate_buffer(32)
-        b.mstore(arg_val, buf)
+        b.mstore(buf, arg_val)
         data_ptr = buf
         length = IRLiteral(32)
 

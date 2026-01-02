@@ -227,7 +227,7 @@ class Expr:
 
         # DArrayT has a length word at offset 0
         if isinstance(typ, DArrayT):
-            self.builder.mstore(IRLiteral(num_elements), ptr)
+            self.builder.mstore(ptr, IRLiteral(num_elements))
             data_offset = 32  # Elements start after length word
         else:
             # SArrayT has no length word
@@ -265,14 +265,14 @@ class Expr:
         ptr = self.ctx.new_internal_variable(btype)
 
         # Store length at ptr
-        self.builder.mstore(IRLiteral(bytez_length), ptr)
+        self.builder.mstore(ptr, IRLiteral(bytez_length))
 
         # Store data in 32-byte chunks, right-padded with zeros
         for i in range(0, bytez_length, 32):
             chunk = (bytez + b"\x00" * 31)[i : i + 32]
             word = int.from_bytes(chunk, "big")
             offset = self.builder.add(ptr, IRLiteral(32 + i))
-            self.builder.mstore(IRLiteral(word), offset)
+            self.builder.mstore(offset, IRLiteral(word))
 
         return ptr
 
@@ -954,17 +954,17 @@ class Expr:
 
         if key_typ == BYTES32_T:
             # bytes32: mstore to free var space and hash
-            # sha3(size, offset) - builder emits in EVM order where second arg is offset
+            # sha3(offset, size) - builder emits in EVM order
             key = Expr(key_node, self.ctx).lower_value()
-            self.builder.mstore(key, IRLiteral(MemoryPositions.FREE_VAR_SPACE))
-            return self.builder.sha3(IRLiteral(32), IRLiteral(MemoryPositions.FREE_VAR_SPACE))
+            self.builder.mstore(IRLiteral(MemoryPositions.FREE_VAR_SPACE), key)
+            return self.builder.sha3(IRLiteral(MemoryPositions.FREE_VAR_SPACE), IRLiteral(32))
 
         # bytes/string: get pointer (already in memory), hash the data portion
-        # sha3(length, data_ptr) - builder emits in EVM order
+        # sha3(data_ptr, length) - builder emits in EVM order
         key_vv = Expr(key_node, self.ctx).lower()
         data_ptr = self.ctx.bytes_data_ptr(key_vv)
         length = self.ctx.bytestring_length(key_vv)
-        return self.builder.sha3(length, data_ptr)
+        return self.builder.sha3(data_ptr, length)
 
     def _get_bytestring_hash(self, node: vy_ast.VyperNode) -> IROperand:
         """Get keccak256 hash of a bytestring for comparison.
@@ -1001,12 +1001,12 @@ class Expr:
             # Now hash from memory buffer
             data_ptr = self.builder.add(buf, IRLiteral(32))  # skip length word
             length = self.builder.mload(buf)
-            return self.builder.sha3(length, data_ptr)
+            return self.builder.sha3(data_ptr, length)
 
         # Memory/calldata - hash directly
         data_ptr = self.ctx.bytes_data_ptr(vv)
         length = self.ctx.bytestring_length(vv)
-        return self.builder.sha3(length, data_ptr)
+        return self.builder.sha3(data_ptr, length)
 
     def _lower_tuple_subscript(self) -> VenomValue:
         """Lower tuple[N] or struct[N] access.
@@ -1302,7 +1302,7 @@ class Expr:
                     dst = return_buf
                 else:
                     dst = self.builder.add(return_buf, IRLiteral(i * 32))
-                self.builder.mstore(outv, dst)
+                self.builder.mstore(dst, outv)
         else:
             self.builder.invoke(IRLabel(target_label), invoke_args, returns=0)
 
@@ -1438,11 +1438,11 @@ class Expr:
         elem_ptr = self.builder.add(data_ptr, offset)
 
         # 4. Store element
-        self.builder.store(elem_val, elem_ptr, data_loc)
+        self.builder.store(elem_ptr, elem_val, data_loc)
 
         # 5. Increment and store new length
         new_length = self.builder.add(length, IRLiteral(1))
-        self.builder.store(new_length, darray_ptr, data_loc)
+        self.builder.store(darray_ptr, new_length, data_loc)
 
         # append() returns nothing
         return VenomValue.val(IRLiteral(0))
@@ -1487,7 +1487,7 @@ class Expr:
         new_length = self.builder.sub(length, IRLiteral(1))
 
         # 4. Store new length
-        self.builder.store(new_length, darray_ptr, data_loc)
+        self.builder.store(darray_ptr, new_length, data_loc)
 
         # 5. Return element at new_length index (the popped element)
         overhead = word_scale * DYNAMIC_ARRAY_OVERHEAD
@@ -1674,7 +1674,7 @@ class Expr:
         b.append_block(fail_bb)
         b.set_block(fail_bb)
         rds = b.returndatasize()
-        b.returndatacopy(rds, IRLiteral(0), IRLiteral(0))
+        b.returndatacopy(IRLiteral(0), IRLiteral(0), rds)
         b.revert(IRLiteral(0), rds)
 
         # Continue block
@@ -1732,7 +1732,7 @@ class Expr:
             b.assert_(ok)
 
             # Copy returndata to buffer and decode
-            b.returndatacopy(rds, IRLiteral(0), buf)
+            b.returndatacopy(buf, IRLiteral(0), rds)
 
             # Compute hi bound for decode (prevents overread)
             hi = b.add(buf, rds)
@@ -1753,7 +1753,7 @@ class Expr:
             b.assert_(ok)
 
             # Copy returndata to buffer and decode
-            b.returndatacopy(rds, IRLiteral(0), buf)
+            b.returndatacopy(buf, IRLiteral(0), rds)
 
             # Compute hi bound for decode (prevents overread)
             hi = b.add(buf, rds)

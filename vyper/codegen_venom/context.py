@@ -324,10 +324,10 @@ class VenomCodegenContext:
 
         if version_check(begin="cancun"):
             final_value = 0
-            self.builder.tstore(IRLiteral(final_value), IRLiteral(nkey))
+            self.builder.tstore(IRLiteral(nkey), IRLiteral(final_value))
         else:
             final_value = 3
-            self.builder.sstore(IRLiteral(final_value), IRLiteral(nkey))
+            self.builder.sstore(IRLiteral(nkey), IRLiteral(final_value))
 
     # === Memory Operations ===
 
@@ -353,7 +353,7 @@ class VenomCodegenContext:
         For bytestrings, copies actual length from source, not max size.
         """
         if typ.memory_bytes_required <= 32:
-            self.builder.mstore(val, ptr)
+            self.builder.mstore(ptr, val)
         elif isinstance(typ, _BytestringT):
             # Bytestring: copy length word + actual data, not max size
             # Length is at val+0, data starts at val+32
@@ -375,7 +375,7 @@ class VenomCodegenContext:
 
         # For Cancun+, use mcopy
         if version_check(begin="cancun"):
-            self.builder.mcopy(IRLiteral(size), src, dst)
+            self.builder.mcopy(dst, src, IRLiteral(size))
             return
 
         # Pre-Cancun: word-by-word copy
@@ -393,7 +393,7 @@ class VenomCodegenContext:
                 dst_ptr = self.builder.add(dst, IRLiteral(offset))
 
             val = self.builder.mload(src_ptr)
-            self.builder.mstore(val, dst_ptr)
+            self.builder.mstore(dst_ptr, val)
 
     def copy_memory_dynamic(self, dst: IROperand, src: IROperand, length: IROperand) -> None:
         """Copy memory region with dynamic length (known at runtime).
@@ -404,7 +404,7 @@ class VenomCodegenContext:
 
         # For Cancun+, use mcopy
         if version_check(begin="cancun"):
-            b.mcopy(length, src, dst)
+            b.mcopy(dst, src, length)
             return
 
         # Pre-Cancun: use identity precompile
@@ -425,7 +425,7 @@ class VenomCodegenContext:
             # Allocate buffer and copy calldata to it
             size = typ.memory_bytes_required
             buf = self.new_internal_variable(typ)
-            self.builder.calldatacopy(IRLiteral(size), offset, buf)
+            self.builder.calldatacopy(buf, offset, IRLiteral(size))
             return buf
 
     def allocate_buffer(self, size: int, name: str = "buf") -> IRVariable:
@@ -467,7 +467,7 @@ class VenomCodegenContext:
         For multi-word types, val is memory ptr, copy to storage.
         """
         if typ.storage_size_in_words == 1:
-            self.builder.sstore(val, slot)
+            self.builder.sstore(slot, val)
         else:
             # Multi-word: val is memory pointer, copy to storage
             self._store_memory_to_storage(val, slot, typ.storage_size_in_words)
@@ -503,7 +503,7 @@ class VenomCodegenContext:
             else:
                 mem_offset = self.builder.add(buf, IRLiteral(i * 32))
 
-            self.builder.mstore(val, mem_offset)
+            self.builder.mstore(mem_offset, val)
 
     def _store_memory_to_storage(self, buf: IROperand, slot: IROperand, word_count: int) -> None:
         """Store memory buffer to multi-word storage.
@@ -529,7 +529,7 @@ class VenomCodegenContext:
             else:
                 current_slot = self.builder.add(slot, IRLiteral(i))
 
-            self.builder.sstore(val, current_slot)
+            self.builder.sstore(current_slot, val)
 
     # === Transient Storage (EIP-1153, Cancun+) ===
 
@@ -554,7 +554,7 @@ class VenomCodegenContext:
         For multi-word types, val is memory ptr, copy to transient storage.
         """
         if typ.storage_size_in_words == 1:
-            self.builder.tstore(val, slot)
+            self.builder.tstore(slot, val)
         else:
             # Multi-word: val is memory pointer, copy to transient storage
             self._store_memory_to_transient(val, slot, typ.storage_size_in_words)
@@ -580,7 +580,7 @@ class VenomCodegenContext:
             else:
                 mem_offset = self.builder.add(buf, IRLiteral(i * 32))
 
-            self.builder.mstore(val, mem_offset)
+            self.builder.mstore(mem_offset, val)
 
     def _store_memory_to_transient(self, buf: IROperand, slot: IROperand, word_count: int) -> None:
         """Store memory buffer to multi-word transient storage."""
@@ -603,7 +603,7 @@ class VenomCodegenContext:
             else:
                 current_slot = self.builder.add(slot, IRLiteral(i))
 
-            self.builder.tstore(val, current_slot)
+            self.builder.tstore(current_slot, val)
 
     # === Immutables ===
 
@@ -642,7 +642,7 @@ class VenomCodegenContext:
                 else:
                     mem_ptr = self.builder.add(buf, IRLiteral(i))
 
-                self.builder.mstore(val, mem_ptr)
+                self.builder.mstore(mem_ptr, val)
 
             return buf
 
@@ -653,7 +653,7 @@ class VenomCodegenContext:
         For multi-word types, val is memory ptr, copy to immutables.
         """
         if typ.memory_bytes_required <= 32:
-            self.builder.istore(val, offset)
+            self.builder.istore(offset, val)
         else:
             # Multi-word: val is memory pointer, copy to immutables
             size = typ.memory_bytes_required
@@ -676,7 +676,7 @@ class VenomCodegenContext:
                 else:
                     imm_offset = self.builder.add(offset, IRLiteral(i))
 
-                self.builder.istore(word, imm_offset)
+                self.builder.istore(imm_offset, word)
 
     # === Dynamic Array in Storage ===
 
@@ -692,7 +692,7 @@ class VenomCodegenContext:
 
         Length is stored at the base slot.
         """
-        self.builder.sstore(length, slot)
+        self.builder.sstore(slot, length)
 
     # === Dynamic Array in Memory ===
 
@@ -708,4 +708,4 @@ class VenomCodegenContext:
 
         Length is stored at the base pointer.
         """
-        self.builder.mstore(length, ptr)
+        self.builder.mstore(ptr, length)

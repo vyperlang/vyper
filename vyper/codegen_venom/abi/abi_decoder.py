@@ -243,7 +243,7 @@ def _decode_primitive(
     if needs_clamp(typ):
         val = clamp_basetype(ctx, val, typ)
 
-    b.mstore(val, dst)
+    b.mstore(dst, val)
 
 
 def _decode_bytestring(
@@ -264,7 +264,7 @@ def _decode_bytestring(
 
     # Copy: length word + data (up to maxlen + 32 bytes)
     size = typ.memory_bytes_required
-    ctx.builder.copy_to_memory(IRLiteral(size), src.operand, dst, src.location)
+    ctx.builder.copy_to_memory(dst, src.operand, IRLiteral(size), src.location)
 
 
 def _decode_dyn_array(
@@ -288,7 +288,7 @@ def _decode_dyn_array(
 
     # Copy count word
     count = b.load(src.operand, loc)
-    b.mstore(count, dst)
+    b.mstore(dst, count)
 
     # If element type doesn't need decoding, just copy
     if not needs_clamp(elem_typ) and not elem_abi_t.is_dynamic():
@@ -298,7 +298,7 @@ def _decode_dyn_array(
         size = b.mul(count, IRLiteral(elem_mem_size))
         src_data = b.add(src.operand, IRLiteral(32))
         dst_data = b.add(dst, IRLiteral(32))
-        b.copy_to_memory(size, src_data, dst_data, loc)
+        b.copy_to_memory(dst_data, src_data, size, loc)
         return
 
     # Need element-by-element decode
@@ -315,7 +315,7 @@ def _decode_dyn_array(
 
     # Initialize loop counter (always in memory)
     i_ptr = ctx.new_internal_variable(UINT256_T)
-    b.mstore(IRLiteral(0), i_ptr)
+    b.mstore(i_ptr, IRLiteral(0))
 
     # Jump to header
     b.jmp(loop_header.label)
@@ -358,7 +358,7 @@ def _decode_dyn_array(
 
     # Increment counter
     new_i = b.add(i, IRLiteral(1))
-    b.mstore(new_i, i_ptr)
+    b.mstore(i_ptr, new_i)
     b.jmp(loop_header.label)
 
     # --- Exit block ---

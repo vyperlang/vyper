@@ -54,7 +54,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Track current offset as a variable
     offset_var = ctx.new_internal_variable(BytesT(32))  # just need 32 bytes
-    b.mstore(IRLiteral(0), offset_var)
+    b.mstore(offset_var, IRLiteral(0))
 
     for arg_node in args:
         arg_t = arg_node._metadata["type"]
@@ -69,7 +69,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
             dst = b.add(data_ptr, offset)
             ctx.copy_memory_dynamic(dst, arg_data, arg_len)
             new_offset = b.add(offset, arg_len)
-            b.mstore(new_offset, offset_var)
+            b.mstore(offset_var, new_offset)
         else:
             # Fixed bytesM: the value is already left-aligned in 32 bytes
             # Store full 32 bytes and advance by M
@@ -77,13 +77,13 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
             m = arg_t.m
             offset = b.mload(offset_var)
             dst = b.add(data_ptr, offset)
-            b.mstore(arg_val, dst)
+            b.mstore(dst, arg_val)
             new_offset = b.add(offset, IRLiteral(m))
-            b.mstore(new_offset, offset_var)
+            b.mstore(offset_var, new_offset)
 
     # Store final length at output buffer
     final_len = b.mload(offset_var)
-    b.mstore(final_len, out_buf)
+    b.mstore(out_buf, final_len)
     return out_buf
 
 
@@ -126,14 +126,14 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         src_len = IRLiteral(src_t.m)
         # Need to store to memory first to slice from it
         tmp_buf = ctx.allocate_buffer(32)
-        b.mstore(src_val, tmp_buf)
+        b.mstore(tmp_buf, src_val)
         src_data = tmp_buf
     else:
         # bytes32 or other 32-byte type
         src_val = Expr(src_node, ctx).lower_value()
         src_len = IRLiteral(32)
         tmp_buf = ctx.allocate_buffer(32)
-        b.mstore(src_val, tmp_buf)
+        b.mstore(tmp_buf, src_val)
         src_data = tmp_buf
 
     # Bounds check: start + length <= src_length
@@ -150,7 +150,7 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     ctx.copy_memory_dynamic(out_data, copy_src, length)
 
     # Store length
-    b.mstore(length, out_buf)
+    b.mstore(out_buf, length)
     return out_buf
 
 
@@ -203,8 +203,8 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand
             oob = b.gt(end, src_len)
             b.assert_(b.iszero(oob))
             # calldatacopy(destOffset, offset, size)
-            b.calldatacopy(length, start, out_data)
-            b.mstore(length, out_buf)
+            b.calldatacopy(out_data, start, length)
+            b.mstore(out_buf, length)
             return out_buf
 
         elif src_node.value.id == "self" and src_node.attr == "code":
@@ -214,8 +214,8 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand
             oob = b.gt(end, src_len)
             b.assert_(b.iszero(oob))
             # codecopy(destOffset, offset, size)
-            b.codecopy(length, start, out_data)
-            b.mstore(length, out_buf)
+            b.codecopy(out_data, start, length)
+            b.mstore(out_buf, length)
             return out_buf
 
     # <addr>.code: use extcodecopy
@@ -225,8 +225,8 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand
     oob = b.gt(end, src_len)
     b.assert_(b.iszero(oob))
     # extcodecopy(address, destOffset, offset, size)
-    b.extcodecopy(addr, length, start, out_data)
-    b.mstore(length, out_buf)
+    b.extcodecopy(addr, out_data, start, length)
+    b.mstore(out_buf, length)
     return out_buf
 
 
@@ -260,7 +260,7 @@ def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         src_val = Expr(src_node, ctx).lower_value()
         src_len = IRLiteral(32)
         tmp_buf = ctx.allocate_buffer(32)
-        b.mstore(src_val, tmp_buf)
+        b.mstore(tmp_buf, src_val)
         src_data = tmp_buf
 
     # Bounds check: start + 32 <= length

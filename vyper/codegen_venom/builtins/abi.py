@@ -95,7 +95,7 @@ def _create_tuple_in_memory(
             dst = b.add(buf, IRLiteral(offset))
 
         if typ._is_prim_word:
-            b.mstore(arg, dst)
+            b.mstore(dst, arg)
         else:
             ctx.copy_memory(dst, arg, typ.memory_bytes_required)
 
@@ -154,7 +154,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         # Write method_id at offset 4 (stored as 32 bytes, left-aligned)
         # method_id is 4 bytes, so shift left by 28 bytes = 224 bits
         method_id_word = method_id << 224
-        b.mstore(IRLiteral(method_id_word), b.add(buf, IRLiteral(4)))
+        b.mstore(b.add(buf, IRLiteral(4)), IRLiteral(method_id_word))
 
         # Encode data starting at offset 36
         data_dst = b.add(buf, IRLiteral(36))
@@ -163,7 +163,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
         # Write total length (encoded_len + 4) at offset 0
         total_len = b.add(encoded_len, IRLiteral(4))
-        b.mstore(total_len, buf)
+        b.mstore(buf, total_len)
     else:
         # Encode data starting at offset 32
         data_dst = b.add(buf, IRLiteral(32))
@@ -171,7 +171,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         assert encoded_len is not None
 
         # Write length at offset 0
-        b.mstore(encoded_len, buf)
+        b.mstore(buf, encoded_len)
 
     return buf
 

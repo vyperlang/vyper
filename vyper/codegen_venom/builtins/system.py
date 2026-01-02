@@ -128,7 +128,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
                 b.lt(ret_size, IRLiteral(max_outsize)), ret_size, IRLiteral(max_outsize)
             )
             assert out_buf is not None
-            b.mstore(capped, out_buf)
+            b.mstore(out_buf, capped)
             return out_buf
         # No return value (returns None in Vyper)
         return IRLiteral(0)
@@ -140,14 +140,14 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
                 b.lt(ret_size, IRLiteral(max_outsize)), ret_size, IRLiteral(max_outsize)
             )
             assert out_buf is not None
-            b.mstore(capped, out_buf)
+            b.mstore(out_buf, capped)
 
             # Return (success, data) tuple
             # Allocate tuple: [bool (32 bytes)][ptr (32 bytes)]
             tuple_t = TupleT((UINT256_T, BytesT(max_outsize)))
             tuple_buf = ctx.new_internal_variable(tuple_t)
-            b.mstore(success, tuple_buf)
-            b.mstore(out_buf, b.add(tuple_buf, IRLiteral(32)))
+            b.mstore(tuple_buf, success)
+            b.mstore(b.add(tuple_buf, IRLiteral(32)), out_buf)
             return tuple_buf
 
         # Just return success flag
@@ -222,7 +222,7 @@ def lower_raw_log(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         # For bytes32: store to temp memory, then log from there
         tmp = ctx.new_internal_variable(BYTES32_T)
         data_val = Expr(data_node, ctx).lower_value()
-        b.mstore(data_val, tmp)
+        b.mstore(tmp, data_val)
         data_ptr = tmp
         data_len = IRLiteral(32)
     else:
@@ -254,7 +254,7 @@ def lower_raw_revert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     data_ptr = b.add(data, IRLiteral(32))
 
     # Revert terminates execution
-    b.revert(data_len, data_ptr)
+    b.revert(data_ptr, data_len)
 
     return IRLiteral(0)  # Unreachable
 

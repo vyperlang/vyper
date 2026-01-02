@@ -281,18 +281,18 @@ def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -
     forwarder_post = bytes_to_int(forwarder_post_evm + b"\x00" * (32 - len(forwarder_post_evm)))
 
     # Store preamble at buf
-    b.mstore(IRLiteral(forwarder_preamble), buf)
+    b.mstore(buf, IRLiteral(forwarder_preamble))
 
     # Left-align target address (shift left by 96 bits = 12 bytes)
     aligned_target = b.shl(IRLiteral(96), target)
 
     # Store target at buf + preamble_length
     target_offset = b.add(buf, IRLiteral(preamble_length))
-    b.mstore(aligned_target, target_offset)
+    b.mstore(target_offset, aligned_target)
 
     # Store post at buf + preamble_length + 20
     post_offset = b.add(buf, IRLiteral(preamble_length + 20))
-    b.mstore(IRLiteral(forwarder_post), post_offset)
+    b.mstore(post_offset, IRLiteral(forwarder_post))
 
     # Create contract
     if salt_node is not None:
@@ -354,7 +354,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     mem_ofst = b.msize()
 
     # Store preamble at mem_ofst (will be stored as 32-byte word)
-    b.mstore(preamble_with_size, mem_ofst)
+    b.mstore(mem_ofst, preamble_with_size)
 
     # Copy target code after the preamble
     # Memory layout: [32-byte word with 11-byte preamble at end] [target code]
@@ -471,7 +471,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     mem_ofst = b.msize()
 
     # Copy blueprint code (skipping preamble) to memory
-    b.extcodecopy(target, mem_ofst, IRLiteral(code_offset), codesize)
+    b.extcodecopy(target, codesize, IRLiteral(code_offset), mem_ofst)
 
     # Append constructor args after code
     if not isinstance(args_len, IRLiteral) or args_len.value > 0:

@@ -441,7 +441,7 @@ def _handle_kwargs(
             default_node = func_t.default_values[arg.name]
             if arg.typ._is_prim_word:
                 default_val = Expr(default_node, ctx).lower_value()
-                ctx.builder.mstore(default_val, ptr)
+                ctx.builder.mstore(ptr, default_val)
             else:
                 default_val = Expr(default_node, ctx).lower().operand
                 ctx.store_memory(default_val, ptr, arg.typ)
@@ -510,7 +510,7 @@ def _generate_internal_function(
             # Stack-passed: receive value, allocate memory, store
             val = builder.param()
             ptr = codegen_ctx.new_variable(arg.name, arg.typ, mutable=False)
-            builder.mstore(val, ptr)
+            builder.mstore(ptr, val)
         else:
             # Memory-passed: receive pointer, register directly (no allocation)
             ptr = builder.param()
@@ -598,10 +598,10 @@ def _register_constructor_args(ctx: VenomCodegenContext, func_t: ContractFunctio
 
         if arg.typ._is_prim_word:
             val = ctx.builder.dload(IRLiteral(offset))
-            ctx.builder.mstore(val, ptr)
+            ctx.builder.mstore(ptr, val)
         else:
             size = arg.typ.memory_bytes_required
-            ctx.builder.dloadbytes(IRLiteral(size), IRLiteral(offset), ptr)
+            ctx.builder.dloadbytes(ptr, IRLiteral(offset), IRLiteral(size))
 
         offset += arg.typ.abi_type.embedded_static_size()
 
@@ -633,8 +633,8 @@ def _emit_deploy_epilogue(
 
         if version_check(begin="cancun"):
             # Cancun+: use mcopy
-            # mcopy(size, src, dst) - src is 0 (immutables at start of memory)
-            builder.mcopy(IRLiteral(immutables_len), IRLiteral(0), immutables_dst)
+            # mcopy(dst, src, size) - src is 0 (immutables at start of memory)
+            builder.mcopy(immutables_dst, IRLiteral(0), IRLiteral(immutables_len))
         else:
             # Pre-Cancun: use identity precompile (0x04)
             # staticcall(gas, 0x04, src, len, dst, len)
@@ -650,8 +650,8 @@ def _emit_deploy_epilogue(
             builder.assert_(copy_success)
 
     # Copy runtime bytecode from data section to memory
-    builder.codecopy(IRLiteral(runtime_codesize), IRLabel("runtime_begin"), IRLiteral(DST_OFFSET))
+    builder.codecopy(IRLiteral(DST_OFFSET), IRLabel("runtime_begin"), IRLiteral(runtime_codesize))
 
     # Return runtime + immutables
     total_size = builder.add(IRLiteral(runtime_codesize), IRLiteral(immutables_len))
-    builder.return_(total_size, IRLiteral(DST_OFFSET))
+    builder.return_(IRLiteral(DST_OFFSET), total_size)

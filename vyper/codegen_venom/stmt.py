@@ -334,9 +334,9 @@ class Stmt:
         if typ._is_prim_word:
             # Primitive: val is the actual value to store
             if is_storage:
-                self.builder.sstore(val, ptr)
+                self.builder.sstore(ptr, val)
             else:
-                self.builder.mstore(val, ptr)
+                self.builder.mstore(ptr, val)
         else:
             # Complex type: val is a source pointer, copy contents
             if is_storage:
@@ -587,7 +587,7 @@ class Stmt:
             # Body block: store counter to user var, execute body
             self.builder.append_block(body_block)
             self.builder.set_block(body_block)
-            self.builder.mstore(counter_var, counter_ptr)
+            self.builder.mstore(counter_ptr, counter_var)
             self._lower_body(node.body)
             body_finish = self.builder.current_block
             if not body_finish.is_terminated:
@@ -706,7 +706,7 @@ class Stmt:
                 if elem_size == 1:
                     # Single slot: sload from storage, mstore to memory
                     val = self.builder.sload(elem_addr)
-                    self.builder.mstore(val, item_ptr)
+                    self.builder.mstore(item_ptr, val)
                 else:
                     # Multi-slot: use context helper
                     self.ctx.storage_to_memory(elem_addr, item_ptr, elem_size)
@@ -714,10 +714,10 @@ class Stmt:
                 if elem_size <= 32:
                     # Single word: mload/mstore
                     val = self.builder.mload(elem_addr)
-                    self.builder.mstore(val, item_ptr)
+                    self.builder.mstore(item_ptr, val)
                 else:
-                    # Multi-word: use mcopy (size, src, dst)
-                    self.builder.mcopy(IRLiteral(elem_size), elem_addr, item_ptr)
+                    # Multi-word: use mcopy (dst, src, size)
+                    self.builder.mcopy(item_ptr, elem_addr, IRLiteral(elem_size))
 
             self._lower_body(node.body)
             body_finish = self.builder.current_block
@@ -868,8 +868,8 @@ class Stmt:
         # Optimization: single word types don't need full encoding
         if ret_typ._is_prim_word:
             buf = self.ctx.new_internal_variable(ret_typ)
-            self.builder.mstore(ret_val, buf)
-            self.builder.return_(IRLiteral(32), buf)
+            self.builder.mstore(buf, ret_val)
+            self.builder.return_(buf, IRLiteral(32))
             return
 
         # Calculate max return size
@@ -889,7 +889,7 @@ class Stmt:
 
         # Return encoded data
         assert encoded_len is not None
-        self.builder.return_(encoded_len, buf)
+        self.builder.return_(buf, encoded_len)
 
     # === Event Logging ===
 
@@ -1004,7 +1004,7 @@ class Stmt:
             # val is a pointer to [length][data]
             data_ptr = self.builder.add(val, IRLiteral(32))
             length = self.builder.mload(val)
-            return self.builder.sha3(length, data_ptr)
+            return self.builder.sha3(data_ptr, length)
 
         else:
             raise CompilerPanic(f"Event indexes may only be value types, got {typ}")
@@ -1141,7 +1141,7 @@ class Stmt:
         selector = method_id_int("Error(string)")
 
         # Store selector at buf (left-padded in 32-byte word)
-        self.builder.mstore(IRLiteral(selector), buf)
+        self.builder.mstore(buf, IRLiteral(selector))
 
         # Payload buffer starts at buf + 32
         payload_buf = self.builder.add(buf, IRLiteral(32))
@@ -1161,4 +1161,4 @@ class Stmt:
         revert_offset = self.builder.add(buf, IRLiteral(28))
         assert encoded_len is not None
         revert_len = self.builder.add(IRLiteral(4), encoded_len)
-        self.builder.revert(revert_len, revert_offset)
+        self.builder.revert(revert_offset, revert_len)
