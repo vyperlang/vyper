@@ -73,7 +73,12 @@ def test_branch_refines_lt_bounds():
     large_bb = fn.get_basic_block("large")
     large_jmp = large_bb.instructions[-1]
     large_range = analysis.get_range(x_var, large_jmp)
-    assert large_range.lo >= 10
+    # NOTE: For unsigned `lt` false branch with TOP input, we can't narrow because:
+    # - x >= 10 in unsigned includes both [10, SIGNED_MAX] AND negative values
+    #   (negative signed values are large unsigned values, all >= 10)
+    # - We can't represent this discontinuous range, so we return TOP
+    # This is the sound/correct behavior for unsigned comparisons.
+    assert large_range.is_top
 
 
 def test_eq_branch_sets_constant():

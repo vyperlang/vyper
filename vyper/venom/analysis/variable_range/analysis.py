@@ -14,7 +14,7 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 
-from .evaluators import EVAL_DISPATCH
+from .evaluators import EVAL_DISPATCH, _range_spans_sign_boundary
 from .value_range import SIGNED_MAX, SIGNED_MIN, UNSIGNED_MAX, RangeState, ValueRange
 
 
@@ -187,6 +187,21 @@ class VariableRangeAnalysis(IRAnalysis):
         return state
 
     def _apply_iszero(self, inst: IRInstruction, is_true: bool, state: RangeState) -> RangeState:
+        """Apply iszero-based branch refinement.
+
+        On the true branch: value == 0
+        On the false branch: value != 0
+
+        IMPORTANT: For the false branch, we cannot simply intersect with
+        [1, UNSIGNED_MAX] because that would exclude negative values.
+        Negative values like -128 are non-zero (they're 0xFF...FF80 in unsigned).
+
+        For ranges that include both negative and non-negative values,
+        "non-zero" means we can only exclude exactly 0 from the range.
+        If the range is [lo, hi] where lo <= 0 <= hi, we can narrow to
+        [lo, -1] U [1, hi], but since we can only represent contiguous ranges,
+        we have to be conservative.
+        """
         target = inst.operands[-1]
         if not isinstance(target, IRVariable):
             return state
@@ -194,11 +209,38 @@ class VariableRangeAnalysis(IRAnalysis):
             self._write_range(state, target, ValueRange.constant(0))
         else:
             current = state.get(target, ValueRange.top())
-            # On false branch, value is non-zero. Intersect with [1, UNSIGNED_MAX]
-            nonzero_range = ValueRange((1, UNSIGNED_MAX))
-            new_range = current.intersect(nonzero_range)
-            if not new_range.is_empty:
-                self._write_range(state, target, new_range)
+            # On false branch, value is non-zero.
+
+            if current.is_top:
+                # Can't narrow TOP meaningfully for non-zero
+                return state
+
+            if current.lo < 0:
+                # Range includes negative values (which are all non-zero)
+                if current.lo > 0 or current.hi < 0:
+                    # Range doesn't contain zero, no narrowing needed
+                    pass
+                elif current.lo == 0:
+                    # Range is [0, hi], narrow to [1, hi]
+                    new_range = current.clamp(1, None)
+                    if not new_range.is_empty:
+                        self._write_range(state, target, new_range)
+                elif current.hi == 0:
+                    # Range is [lo, 0], narrow to [lo, -1]
+                    new_range = current.clamp(None, -1)
+                    if not new_range.is_empty:
+                        self._write_range(state, target, new_range)
+                else:
+                    # Range spans zero: [lo, hi] where lo < 0 < hi
+                    # Non-zero means [lo, -1] ∪ [1, hi], which we can't represent
+                    # Be conservative: don't narrow
+                    pass
+            else:
+                # Range is entirely non-negative, intersect with [1, UNSIGNED_MAX]
+                nonzero_range = ValueRange((1, UNSIGNED_MAX))
+                new_range = current.intersect(nonzero_range)
+                if not new_range.is_empty:
+                    self._write_range(state, target, new_range)
         return state
 
     def _apply_eq(self, inst: IRInstruction, is_true: bool, state: RangeState) -> RangeState:
@@ -219,17 +261,66 @@ class VariableRangeAnalysis(IRAnalysis):
         return state
 
     def _apply_compare(self, inst: IRInstruction, is_true: bool, state: RangeState) -> RangeState:
+        """Apply comparison-based branch refinement.
+
+        IMPORTANT: For unsigned comparisons (lt, gt), if the variable's range
+        spans the signed/unsigned boundary, we need to be careful:
+
+        - `lt %x, bound` TRUE: x < bound in unsigned. Negative values are huge
+          in unsigned (>= 2^255), so they can never be < bound for reasonable
+          bounds. We CAN narrow to [0, bound-1].
+
+        - `lt %x, bound` FALSE: x >= bound in unsigned. This includes BOTH
+          values >= bound AND negative values (which are huge unsigned).
+          We CANNOT narrow because we'd lose the negative range.
+
+        - `gt %x, bound` TRUE: x > bound in unsigned. Negative values are huge
+          so they satisfy this. We CANNOT narrow.
+
+        - `gt %x, bound` FALSE: x <= bound in unsigned. Negative values don't
+          satisfy this. We CAN narrow to [0, bound].
+
+        In summary: for unsigned comparisons with ranges that could include
+        negatives, we can only narrow in cases where the narrowed range
+        would be purely non-negative.
+        """
         lhs, rhs = inst.operands[-1], inst.operands[-2]
         signed = inst.opcode in {"slt", "sgt"}
         min_bound = SIGNED_MIN if signed else 0
         max_bound = SIGNED_MAX if signed else UNSIGNED_MAX
 
         if isinstance(lhs, IRVariable) and isinstance(rhs, IRLiteral):
+            current = state.get(lhs, ValueRange.top())
+            # For unsigned comparisons with ranges that could include negatives
+            if not signed and (current.is_top or current.lo < 0):
+                # Check if this is a "safe" narrowing case
+                # lt true (var < bound): narrow to [0, bound-1] - safe, excludes negatives
+                # lt false (var >= bound): would keep negatives - unsafe
+                # gt true (var > bound): would keep negatives - unsafe
+                # gt false (var <= bound): narrow to [0, bound] - safe, excludes negatives
+                is_lt = inst.opcode == "lt"
+                safe_to_narrow = (is_lt and is_true) or (not is_lt and not is_true)
+                if not safe_to_narrow:
+                    return state
+                # For safe narrowing, use 0 as min_bound to exclude negatives
+                min_bound = 0
             bound = wrap256(rhs.value, signed=signed)
             self._narrow_var(
                 state, lhs, bound, inst.opcode, is_true, min_bound, max_bound, left_side=True
             )
         elif isinstance(lhs, IRLiteral) and isinstance(rhs, IRVariable):
+            current = state.get(rhs, ValueRange.top())
+            # Same logic but with left_side=False (bound on left of comparison)
+            # lt: bound < var, so var > bound => gt semantics for var
+            # gt: bound > var, so var < bound => lt semantics for var
+            if not signed and (current.is_top or current.lo < 0):
+                is_lt = inst.opcode == "lt"
+                # With bound on left: lt means var > bound, gt means var < bound
+                # Safe: gt true (var < bound), lt false (var <= bound)
+                safe_to_narrow = (not is_lt and is_true) or (is_lt and not is_true)
+                if not safe_to_narrow:
+                    return state
+                min_bound = 0
             bound = wrap256(lhs.value, signed=signed)
             self._narrow_var(
                 state, rhs, bound, inst.opcode, is_true, min_bound, max_bound, left_side=False

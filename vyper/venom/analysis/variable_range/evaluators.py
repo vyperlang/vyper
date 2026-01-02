@@ -14,6 +14,20 @@ from .value_range import (
     ValueRange,
 )
 
+
+def _range_spans_sign_boundary(r: ValueRange) -> bool:
+    """
+    Check if a range spans the signed/unsigned boundary.
+
+    A range spans the boundary if it contains both negative values
+    (which are large unsigned values >= 2^255) and non-negative values.
+    This is important because unsigned EVM operations like lt/gt treat
+    negative signed values as very large positive values.
+    """
+    if r.is_top or r.is_empty:
+        return r.is_top  # TOP spans everything, BOTTOM spans nothing
+    return r.lo < 0 and r.hi >= 0
+
 # Type alias for range evaluator functions
 RangeEvaluator = Callable[[IRInstruction, RangeState], ValueRange]
 
@@ -127,7 +141,19 @@ def _eval_mul(inst: IRInstruction, state: RangeState) -> ValueRange:
 
 
 def _eval_and(inst: IRInstruction, state: RangeState) -> ValueRange:
-    """Evaluate bitwise and instruction."""
+    """Evaluate bitwise and instruction.
+
+    For `and x, mask` where mask is a literal:
+    - Result is always in [0, mask] (for positive mask)
+    - If x can be negative (large unsigned), the low bits could be anything
+
+    Example: `and x, 255` where x ∈ [-128, 127]:
+    - x = 127: result = 127
+    - x = -128 (= 0xFF...FF80): result = 0x80 = 128
+    - x = -1 (= 0xFF...FF): result = 0xFF = 255
+
+    So the result should be [0, 255], not [0, 127].
+    """
     first = inst.operands[-1]
     second = inst.operands[-2]
     first_range = _operand_range(first, state)
@@ -145,6 +171,15 @@ def _eval_and(inst: IRInstruction, state: RangeState) -> ValueRange:
     if literal is None or other_range is None:
         return ValueRange.top()
 
+    # If the range includes negative values, those are large unsigned values
+    # with potentially all bits set in the low positions. The AND result
+    # could be any value from 0 to the mask.
+    if other_range.lo < 0:
+        # Range includes negative values, result could be [0, mask]
+        return ValueRange((0, literal))
+
+    # For non-negative ranges, the result is bounded by both the range
+    # maximum and the mask
     hi = min(other_range.hi, literal)
     return ValueRange((0, hi))
 
@@ -155,7 +190,18 @@ def _eval_byte(_inst: IRInstruction, _state: RangeState) -> ValueRange:
 
 
 def _eval_signextend(inst: IRInstruction, state: RangeState) -> ValueRange:
-    """Evaluate signextend instruction."""
+    """Evaluate signextend instruction.
+
+    SIGNEXTEND(b, x) sign-extends x from (b+1)*8 bits to 256 bits.
+    It operates on the LOW BITS of x, ignoring the high bits.
+
+    For example, signextend(0, 384) where 384 = 0x180:
+    - Low byte = 0x80 (bit 7 is set)
+    - Result = 0xFF...FF80 = -128 (sign-extended)
+
+    The old implementation incorrectly intersected the input range with
+    the output range, which would give BOTTOM for inputs like 384.
+    """
     index_op = inst.operands[-1]
     value_op = inst.operands[-2]
     value_range = _operand_range(value_op, state)
@@ -166,10 +212,34 @@ def _eval_signextend(inst: IRInstruction, state: RangeState) -> ValueRange:
         return value_range
 
     bits = 8 * (index + 1)
-    lo = -(1 << (bits - 1))
-    hi = (1 << (bits - 1)) - 1
-    target = ValueRange((lo, hi))
-    return value_range.intersect(target)
+    sign_bit = 1 << (bits - 1)
+    mask = (1 << bits) - 1
+    lo = -(1 << (bits - 1))  # e.g., -128 for index=0
+    hi = (1 << (bits - 1)) - 1  # e.g., 127 for index=0
+
+    # For constant inputs, compute the exact result
+    if value_range.is_constant:
+        val = value_range.lo
+        # Extract low bits and sign-extend
+        low_bits = val & mask
+        if low_bits & sign_bit:
+            # Sign bit is set, extend with 1s
+            result = low_bits - (1 << bits)
+        else:
+            # Sign bit is clear, result is just the low bits
+            result = low_bits
+        return ValueRange.constant(result)
+
+    # For ranges, if the range fits within the target signed range,
+    # we can intersect. Otherwise, the result could be any value
+    # in the signed output range since high bits are ignored.
+    if value_range.lo >= lo and value_range.hi <= hi:
+        # Input already within target range, sign extension is identity
+        return value_range
+
+    # For wide ranges or ranges outside target, the low bits could be
+    # anything, so return the full signed range for the given byte width
+    return ValueRange((lo, hi))
 
 
 def _eval_mod(inst: IRInstruction, _state: RangeState) -> ValueRange:
@@ -266,13 +336,53 @@ def _eval_smod(inst: IRInstruction, _state: RangeState) -> ValueRange:
 
 
 def _eval_compare(inst: IRInstruction, state: RangeState) -> ValueRange:
-    """Evaluate comparison instructions (lt, gt, slt, sgt)."""
+    """Evaluate comparison instructions (lt, gt, slt, sgt).
+
+    IMPORTANT: EVM lt/gt are UNSIGNED comparisons, while slt/sgt are SIGNED.
+    In unsigned interpretation, negative signed values (e.g., -1 = 0xFF...FF)
+    are very large positive values. This means:
+    - lt(-1, 1) = 0 (because MAX_UINT > 1 in unsigned)
+    - slt(-1, 1) = 1 (because -1 < 1 in signed)
+
+    When a range spans the signed/unsigned boundary (contains both negative
+    and non-negative values), unsigned comparisons cannot be resolved
+    definitively using signed range bounds.
+    """
     lhs = _operand_range(inst.operands[-1], state)
     rhs = _operand_range(inst.operands[-2], state)
     if lhs.is_empty or rhs.is_empty:
         return ValueRange.empty()
 
     opcode = inst.opcode
+    is_signed = opcode in {"slt", "sgt"}
+
+    # For unsigned comparisons, if either range spans the sign boundary,
+    # we cannot make definitive conclusions because negative values in
+    # signed representation are large positive values in unsigned.
+    if not is_signed:
+        if _range_spans_sign_boundary(lhs) or _range_spans_sign_boundary(rhs):
+            return ValueRange.bool_range()
+
+        # For unsigned comparisons with non-negative ranges, or purely
+        # negative ranges (both operands same sign), we can compare directly.
+        # But if one is negative and one is positive, the negative one is larger.
+        if lhs.hi < 0 and rhs.lo >= 0:
+            # lhs is all negative (large unsigned), rhs is all non-negative
+            # In unsigned: lhs > rhs always
+            if opcode == "lt":
+                return ValueRange.constant(0)
+            else:  # gt
+                return ValueRange.constant(1)
+        if lhs.lo >= 0 and rhs.hi < 0:
+            # lhs is all non-negative, rhs is all negative (large unsigned)
+            # In unsigned: lhs < rhs always
+            if opcode == "lt":
+                return ValueRange.constant(1)
+            else:  # gt
+                return ValueRange.constant(0)
+
+    # Now we can use signed comparison logic (works for both signed ops
+    # and unsigned ops where both ranges have the same sign)
     if opcode in {"lt", "slt"}:
         if lhs.hi < rhs.lo:
             return ValueRange.constant(1)
@@ -288,7 +398,15 @@ def _eval_compare(inst: IRInstruction, state: RangeState) -> ValueRange:
 
 
 def _eval_eq(inst: IRInstruction, state: RangeState) -> ValueRange:
-    """Evaluate eq (equality) instruction."""
+    """Evaluate eq (equality) instruction.
+
+    IMPORTANT: In EVM, eq compares 256-bit values directly. -1 and MAX_UINT
+    are the same bit pattern (0xFF...FF), so eq(-1, MAX_UINT) = 1.
+
+    We need to normalize values to unsigned representation for comparison
+    since the same value can be represented as both -1 (signed) and
+    MAX_UINT (unsigned) in our range representation.
+    """
     lhs = _operand_range(inst.operands[-1], state)
     rhs = _operand_range(inst.operands[-2], state)
 
@@ -296,8 +414,21 @@ def _eval_eq(inst: IRInstruction, state: RangeState) -> ValueRange:
         return ValueRange.empty()
 
     if lhs.is_constant and rhs.is_constant:
-        return ValueRange.constant(int(lhs.lo == rhs.lo))
+        # Normalize both values to unsigned for comparison
+        # wrap256 without signed=True gives unsigned representation
+        lhs_val = wrap256(lhs.lo)
+        rhs_val = wrap256(rhs.lo)
+        return ValueRange.constant(int(lhs_val == rhs_val))
 
+    # For non-constant ranges, check for non-overlap
+    # But we need to be careful: ranges that appear disjoint in signed
+    # representation might overlap in unsigned (e.g., [-1, -1] and [MAX_UINT, MAX_UINT])
+    # This is complex to handle properly, so be conservative
+    if _range_spans_sign_boundary(lhs) or _range_spans_sign_boundary(rhs):
+        # Ranges span sign boundary, can't easily determine non-overlap
+        return ValueRange.bool_range()
+
+    # Both ranges are on the same side of the sign boundary
     if lhs.hi < rhs.lo or rhs.hi < lhs.lo:
         return ValueRange.constant(0)
 
