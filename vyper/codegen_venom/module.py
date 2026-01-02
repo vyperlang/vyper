@@ -442,7 +442,7 @@ def _handle_kwargs(
             default_node = func_t.default_values[arg.name]
             if arg.typ._is_prim_word:
                 default_val = Expr(default_node, ctx).lower_value()
-                ctx.builder.mstore(var.value.operand, default_val)
+                ctx.ptr_store(var.value.ptr(), default_val)
             else:
                 default_val = Expr(default_node, ctx).lower().operand
                 ctx.store_memory(default_val, var.value.operand, arg.typ)
@@ -511,7 +511,7 @@ def _generate_internal_function(
             # Stack-passed: receive value, allocate memory, store
             val = builder.param()
             var = codegen_ctx.new_variable(arg.name, arg.typ, mutable=False)
-            builder.mstore(var.value.operand, val)
+            codegen_ctx.ptr_store(var.value.ptr(), val)
         else:
             # Memory-passed: receive pointer, register directly (no allocation)
             ptr = builder.param()
@@ -599,7 +599,7 @@ def _register_constructor_args(ctx: VenomCodegenContext, func_t: ContractFunctio
 
         if arg.typ._is_prim_word:
             val = ctx.builder.dload(IRLiteral(offset))
-            ctx.builder.mstore(var.value.operand, val)
+            ctx.ptr_store(var.value.ptr(), val)
         else:
             size = arg.typ.memory_bytes_required
             ctx.builder.dloadbytes(var.value.operand, IRLiteral(offset), IRLiteral(size))

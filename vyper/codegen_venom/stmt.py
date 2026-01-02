@@ -587,7 +587,7 @@ class Stmt:
             # Body block: store counter to user var, execute body
             self.builder.append_block(body_block)
             self.builder.set_block(body_block)
-            self.builder.mstore(counter_local.value.operand, counter_var)
+            self.ctx.ptr_store(counter_local.value.ptr(), counter_var)
             self._lower_body(node.body)
             body_finish = self.builder.current_block
             if not body_finish.is_terminated:
@@ -868,7 +868,7 @@ class Stmt:
         # Optimization: single word types don't need full encoding
         if ret_typ._is_prim_word:
             buf_val = self.ctx.new_temporary_value(ret_typ)
-            self.builder.mstore(buf_val.operand, ret_val)
+            self.ctx.ptr_store(buf_val.ptr(), ret_val)
             self.builder.return_(buf_val.operand, IRLiteral(32))
             return
 

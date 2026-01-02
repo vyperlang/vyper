@@ -224,7 +224,7 @@ class Expr:
 
         # DArrayT has a length word at offset 0
         if isinstance(typ, DArrayT):
-            self.builder.mstore(val.operand, IRLiteral(num_elements))
+            self.ctx.ptr_store(val.ptr(), IRLiteral(num_elements))
             data_offset = 32  # Elements start after length word
         else:
             # SArrayT has no length word
@@ -262,7 +262,7 @@ class Expr:
         val = self.ctx.new_temporary_value(btype)
 
         # Store length at ptr
-        self.builder.mstore(val.operand, IRLiteral(bytez_length))
+        self.ctx.ptr_store(val.ptr(), IRLiteral(bytez_length))
 
         # Store data in 32-byte chunks, right-padded with zeros
         for i in range(0, bytez_length, 32):
