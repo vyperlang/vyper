@@ -281,18 +281,18 @@ def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -
     forwarder_post = bytes_to_int(forwarder_post_evm + b"\x00" * (32 - len(forwarder_post_evm)))
 
     # Store preamble at buf
-    ctx.ptr_store(buf.base_ptr(), IRLiteral(forwarder_preamble))
+    b.mstore(buf._ptr, IRLiteral(forwarder_preamble))
 
     # Left-align target address (shift left by 96 bits = 12 bytes)
     aligned_target = b.shl(IRLiteral(96), target)
 
     # Store target at buf + preamble_length
-    target_ptr = ctx.add_offset(buf.base_ptr(), IRLiteral(preamble_length))
-    ctx.ptr_store(target_ptr, aligned_target)
+    target_offset = b.add(buf._ptr, IRLiteral(preamble_length))
+    b.mstore(target_offset, aligned_target)
 
     # Store post at buf + preamble_length + 20
-    post_ptr = ctx.add_offset(buf.base_ptr(), IRLiteral(preamble_length + 20))
-    ctx.ptr_store(post_ptr, IRLiteral(forwarder_post))
+    post_offset = b.add(buf._ptr, IRLiteral(preamble_length + 20))
+    b.mstore(post_offset, IRLiteral(forwarder_post))
 
     # Create contract
     if salt_node is not None:
