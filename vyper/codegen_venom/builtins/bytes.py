@@ -53,11 +53,11 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     # Allocate output buffer (length word + data)
     out_val = ctx.new_temporary_value(out_typ)
-    data_ptr = b.add(out_val.operand, IRLiteral(32))
+    data_ptr = ctx.add_offset(out_val.ptr(), IRLiteral(32))
 
     # Track current offset as a variable
     offset_local = ctx.new_temporary_value(BytesT(32))  # just need 32 bytes
-    b.mstore(offset_local.operand, IRLiteral(0))
+    ctx.ptr_store(offset_local.ptr(), IRLiteral(0))
 
     for arg_node in args:
         arg_t = arg_node._metadata["type"]
@@ -68,25 +68,25 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             arg_ptr = Expr(arg_node, ctx).lower_value()
             arg_len = b.mload(arg_ptr)
             arg_data = b.add(arg_ptr, IRLiteral(32))
-            offset = b.mload(offset_local.operand)
-            dst = b.add(data_ptr, offset)
+            offset = ctx.ptr_load(offset_local.ptr())
+            dst = b.add(data_ptr.operand, offset)
             ctx.copy_memory_dynamic(dst, arg_data, arg_len)
             new_offset = b.add(offset, arg_len)
-            b.mstore(offset_local.operand, new_offset)
+            ctx.ptr_store(offset_local.ptr(), new_offset)
         else:
             # Fixed bytesM: the value is already left-aligned in 32 bytes
             # Store full 32 bytes and advance by M
             arg_val = Expr(arg_node, ctx).lower_value()
             m = arg_t.m
-            offset = b.mload(offset_local.operand)
-            dst = b.add(data_ptr, offset)
+            offset = ctx.ptr_load(offset_local.ptr())
+            dst = b.add(data_ptr.operand, offset)
             b.mstore(dst, arg_val)
             new_offset = b.add(offset, IRLiteral(m))
-            b.mstore(offset_local.operand, new_offset)
+            ctx.ptr_store(offset_local.ptr(), new_offset)
 
     # Store final length at output buffer
-    final_len = b.mload(offset_local.operand)
-    b.mstore(out_val.operand, final_len)
+    final_len = ctx.ptr_load(offset_local.ptr())
+    ctx.ptr_store(out_val.ptr(), final_len)
     return out_val
 
 
@@ -146,14 +146,14 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     # Allocate output buffer
     out_val = ctx.new_temporary_value(out_t)
-    out_data = b.add(out_val.operand, IRLiteral(32))
+    out_data = ctx.add_offset(out_val.ptr(), IRLiteral(32))
 
     # Copy bytes from src_data + start to out_data
     copy_src = b.add(src_data, start)
-    ctx.copy_memory_dynamic(out_data, copy_src, length)
+    ctx.copy_memory_dynamic(out_data.operand, copy_src, length)
 
     # Store length
-    b.mstore(out_val.operand, length)
+    ctx.ptr_store(out_val.ptr(), length)
     return out_val
 
 
@@ -195,7 +195,7 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
 
     out_t = node._metadata["type"]
     out_val = ctx.new_temporary_value(out_t)
-    out_data = b.add(out_val.operand, IRLiteral(32))
+    out_data = ctx.add_offset(out_val.ptr(), IRLiteral(32))
 
     # Determine which opcode to use
     if isinstance(src_node.value, vy_ast.Name):
@@ -206,8 +206,8 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
             oob = b.gt(end, src_len)
             b.assert_(b.iszero(oob))
             # calldatacopy(destOffset, offset, size)
-            b.calldatacopy(out_data, start, length)
-            b.mstore(out_val.operand, length)
+            b.calldatacopy(out_data.operand, start, length)
+            ctx.ptr_store(out_val.ptr(), length)
             return out_val
 
         elif src_node.value.id == "self" and src_node.attr == "code":
@@ -217,8 +217,8 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
             oob = b.gt(end, src_len)
             b.assert_(b.iszero(oob))
             # codecopy(destOffset, offset, size)
-            b.codecopy(out_data, start, length)
-            b.mstore(out_val.operand, length)
+            b.codecopy(out_data.operand, start, length)
+            ctx.ptr_store(out_val.ptr(), length)
             return out_val
 
     # <addr>.code: use extcodecopy
@@ -228,8 +228,8 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
     oob = b.gt(end, src_len)
     b.assert_(b.iszero(oob))
     # extcodecopy(address, destOffset, offset, size)
-    b.extcodecopy(addr, out_data, start, length)
-    b.mstore(out_val.operand, length)
+    b.extcodecopy(addr, out_data.operand, start, length)
+    ctx.ptr_store(out_val.ptr(), length)
     return out_val
 
 

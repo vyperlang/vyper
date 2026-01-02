@@ -1009,9 +1009,10 @@ class Expr:
             buf_val = self.ctx.new_temporary_value(typ)
             self.ctx.storage_to_memory(vv.operand, buf_val.operand, typ.storage_size_in_words)
             # Now hash from memory buffer
-            data_ptr = self.builder.add(buf_val.operand, IRLiteral(32))  # skip length word
-            length = self.builder.mload(buf_val.operand)
-            return self.builder.sha3(data_ptr, length)
+            buf_ptr = buf_val.ptr()
+            data_ptr = self.ctx.add_offset(buf_ptr, IRLiteral(32))  # skip length word
+            length = self.ctx.ptr_load(buf_ptr)
+            return self.builder.sha3(data_ptr.operand, length)
 
         # Memory/calldata - hash directly
         data_ptr = self.ctx.bytes_data_ptr(vv)

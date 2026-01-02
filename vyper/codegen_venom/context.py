@@ -471,6 +471,13 @@ class VenomCodegenContext:
         """
         self._load_storage_to_memory(slot, buf, word_count)
 
+    def memory_to_storage(self, buf: IROperand, slot: IROperand, word_count: int) -> None:
+        """Store memory buffer to multi-word storage.
+
+        Public wrapper for assignment contexts.
+        """
+        self._store_memory_to_storage(buf, slot, word_count)
+
     def _load_storage_to_memory(self, slot: IROperand, buf: IROperand, word_count: int) -> None:
         """Load multi-word storage value to memory buffer.
 

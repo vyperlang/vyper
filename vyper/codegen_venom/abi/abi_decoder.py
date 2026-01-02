@@ -326,14 +326,14 @@ def _decode_dyn_array(
 
     # Initialize loop counter (always in memory)
     i_val = ctx.new_temporary_value(UINT256_T)
-    b.mstore(i_val.operand, IRLiteral(0))
+    ctx.ptr_store(i_val.ptr(), IRLiteral(0))
 
     # Jump to header
     b.jmp(loop_header.label)
 
     # --- Loop header: check i < count ---
     b.set_block(loop_header)
-    i = b.mload(i_val.operand)  # Loop counter is in memory
+    i = ctx.ptr_load(i_val.ptr())  # Loop counter is in memory
     # Reload count from source
     count_hdr = b.load(src.operand, loc)
     done = b.iszero(b.lt(i, count_hdr))
@@ -343,7 +343,7 @@ def _decode_dyn_array(
     b.set_block(loop_body)
 
     # Re-load i (from memory)
-    i = b.mload(i_val.operand)
+    i = ctx.ptr_load(i_val.ptr())
 
     # Get source element pointer (ABI layout)
     src_data = b.add(src.operand, IRLiteral(32))
@@ -369,7 +369,7 @@ def _decode_dyn_array(
 
     # Increment counter
     new_i = b.add(i, IRLiteral(1))
-    b.mstore(i_val.operand, new_i)
+    ctx.ptr_store(i_val.ptr(), new_i)
     b.jmp(loop_header.label)
 
     # --- Exit block ---

@@ -21,6 +21,7 @@ from vyper.venom.basicblock import IRLiteral, IROperand
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
+    from vyper.codegen_venom.types import VyperValue
 
 
 def _is_complex_type(typ: VyperType) -> bool:
@@ -142,7 +143,7 @@ def _encode_child(
     child_ptr: IROperand,
     child_typ: VyperType,
     static_ofst: int,
-    dyn_ofst_ptr: IROperand,
+    dyn_ofst_val: VyperValue,
 ) -> None:
     """
     Encode a child element of a complex type.
@@ -174,7 +175,7 @@ def _encode_child(
     else:
         # Dynamic type:
         # 1. Write current dyn_ofst to static section
-        dyn_ofst = b.mload(dyn_ofst_ptr)
+        dyn_ofst = ctx.ptr_load(dyn_ofst_val.ptr())
         b.mstore(static_loc, dyn_ofst)
 
         # 2. Encode child to dynamic section
@@ -184,7 +185,7 @@ def _encode_child(
 
         # 3. Update dyn_ofst
         new_dyn_ofst = b.add(dyn_ofst, child_len)
-        b.mstore(dyn_ofst_ptr, new_dyn_ofst)
+        ctx.ptr_store(dyn_ofst_val.ptr(), new_dyn_ofst)
 
 
 def _encode_dyn_array(
@@ -192,7 +193,7 @@ def _encode_dyn_array(
     dst: IROperand,
     src_ptr: IROperand,
     src_typ: DArrayT,
-    dyn_ofst_ptr: IROperand,
+    dyn_ofst_val: VyperValue,
 ) -> None:
     """
     Encode a dynamic array.
@@ -224,14 +225,14 @@ def _encode_dyn_array(
 
     # Initialize loop counter in memory (still in entry block)
     i_val = ctx.new_temporary_value(UINT256_T)
-    b.mstore(i_val.operand, IRLiteral(0))
+    ctx.ptr_store(i_val.ptr(), IRLiteral(0))
 
     # Initialize child dynamic offset tracker if needed
     if child_abi_t.is_dynamic():
         # Start of dynamic section for children = length * static_elem_size
         child_dyn_ofst_val = ctx.new_temporary_value(UINT256_T)
         initial_child_dyn = b.mul(length, IRLiteral(static_elem_size))
-        b.mstore(child_dyn_ofst_val.operand, initial_child_dyn)
+        ctx.ptr_store(child_dyn_ofst_val.ptr(), initial_child_dyn)
     else:
         child_dyn_ofst_val = None
 
@@ -240,7 +241,7 @@ def _encode_dyn_array(
 
     # --- Loop header: check i < length ---
     b.set_block(loop_header)
-    i = b.mload(i_val.operand)
+    i = ctx.ptr_load(i_val.ptr())
     done = b.lt(i, length)
     done = b.iszero(done)
     b.jnz(done, loop_exit.label, loop_body.label)
@@ -249,7 +250,7 @@ def _encode_dyn_array(
     b.set_block(loop_body)
 
     # Re-load i (we're in a new block, previous i is in different block)
-    i = b.mload(i_val.operand)
+    i = ctx.ptr_load(i_val.ptr())
 
     # Get source element pointer
     # Source elements start at src_ptr + 32 (skip length word)
@@ -267,7 +268,7 @@ def _encode_dyn_array(
         # Need to handle offset tracking
         static_loc = b.add(dst_data, static_ofst)
         assert child_dyn_ofst_val is not None
-        dyn_ofst = b.mload(child_dyn_ofst_val.operand)
+        dyn_ofst = ctx.ptr_load(child_dyn_ofst_val.ptr())
         b.mstore(static_loc, dyn_ofst)
 
         child_dst = b.add(dst_data, dyn_ofst)
@@ -275,7 +276,7 @@ def _encode_dyn_array(
         assert child_len is not None
 
         new_dyn_ofst = b.add(dyn_ofst, child_len)
-        b.mstore(child_dyn_ofst_val.operand, new_dyn_ofst)
+        ctx.ptr_store(child_dyn_ofst_val.ptr(), new_dyn_ofst)
     else:
         # Static child: encode directly
         child_dst = b.add(dst_data, static_ofst)
@@ -283,7 +284,7 @@ def _encode_dyn_array(
 
     # Increment counter
     new_i = b.add(i, IRLiteral(1))
-    b.mstore(i_val.operand, new_i)
+    ctx.ptr_store(i_val.ptr(), new_i)
     b.jmp(loop_header.label)
 
     # --- Exit block ---
@@ -295,15 +296,15 @@ def _encode_dyn_array(
     length_exit = b.mload(src_ptr)
     if child_abi_t.is_dynamic():
         assert child_dyn_ofst_val is not None
-        final_child_dyn = b.mload(child_dyn_ofst_val.operand)
+        final_child_dyn = ctx.ptr_load(child_dyn_ofst_val.ptr())
         total_size = b.add(IRLiteral(32), final_child_dyn)
     else:
         # Static elements: 32 + length * static_elem_size
         total_size = b.add(IRLiteral(32), b.mul(length_exit, IRLiteral(static_elem_size)))
 
-    parent_dyn = b.mload(dyn_ofst_ptr)
+    parent_dyn = ctx.ptr_load(dyn_ofst_val.ptr())
     new_parent_dyn = b.add(parent_dyn, total_size)
-    b.mstore(dyn_ofst_ptr, new_parent_dyn)
+    ctx.ptr_store(dyn_ofst_val.ptr(), new_parent_dyn)
 
 
 def _abi_encode_to_buf(
@@ -367,10 +368,10 @@ def _abi_encode_to_buf(
         # Dynamic array: use helper
         # Need to set up dyn_ofst tracking for parent
         dyn_ofst_val = ctx.new_temporary_value(UINT256_T)
-        b.mstore(dyn_ofst_val.operand, IRLiteral(0))
-        _encode_dyn_array(ctx, dst, src, src_typ, dyn_ofst_val.operand)
+        ctx.ptr_store(dyn_ofst_val.ptr(), IRLiteral(0))
+        _encode_dyn_array(ctx, dst, src, src_typ, dyn_ofst_val)
         if returns_len:
-            return b.mload(dyn_ofst_val.operand)
+            return ctx.ptr_load(dyn_ofst_val.ptr())
         return None
 
     elif _is_complex_type(src_typ):
@@ -387,7 +388,7 @@ def _abi_encode_to_buf(
         if has_dynamic:
             dyn_ofst_val = ctx.new_temporary_value(UINT256_T)
             dyn_section_start = abi_t.static_size()
-            b.mstore(dyn_ofst_val.operand, IRLiteral(dyn_section_start))
+            ctx.ptr_store(dyn_ofst_val.ptr(), IRLiteral(dyn_section_start))
         else:
             dyn_ofst_val = None
 
@@ -401,7 +402,7 @@ def _abi_encode_to_buf(
 
             if has_dynamic:
                 assert dyn_ofst_val is not None
-                _encode_child(ctx, dst, elem_ptr, elem_typ, static_ofst, dyn_ofst_val.operand)
+                _encode_child(ctx, dst, elem_ptr, elem_typ, static_ofst, dyn_ofst_val)
             else:
                 # All static, encode directly
                 if static_ofst == 0:
@@ -417,7 +418,7 @@ def _abi_encode_to_buf(
         if returns_len:
             if has_dynamic:
                 assert dyn_ofst_val is not None
-                return b.mload(dyn_ofst_val.operand)
+                return ctx.ptr_load(dyn_ofst_val.ptr())
             else:
                 return IRLiteral(abi_t.embedded_static_size())
         return None
