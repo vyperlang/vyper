@@ -137,10 +137,6 @@ class VenomCodegenContext:
         """Get variable by name."""
         return self.variables[name]
 
-    def lookup_ptr(self, name: str) -> IRVariable:
-        """Get variable's memory pointer."""
-        return self.variables[name].value.operand
-
     def unwrap(self, vv: VyperValue) -> IROperand:
         """Unwrap a VyperValue, loading from location if needed.
 

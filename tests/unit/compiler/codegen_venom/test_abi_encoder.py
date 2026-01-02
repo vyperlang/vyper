@@ -28,7 +28,7 @@ def foo(x: uint256) -> uint256:
 """
         ctx, node = get_expr_context(source)
         # Get the x variable pointer
-        src_ptr = ctx.lookup_ptr("x")
+        src_ptr = ctx.lookup("x").value.operand
         dst_buf = ctx.allocate_buffer(32)
 
         result = abi_encode_to_buf(ctx, dst_buf._ptr, src_ptr, UINT256_T, returns_len=True)
@@ -45,7 +45,7 @@ def foo(arr: uint256[3]) -> uint256[3]:
     return arr
 """
         ctx, node = get_expr_context(source)
-        src_ptr = ctx.lookup_ptr("arr")
+        src_ptr = ctx.lookup("arr").value.operand
         arr_typ = SArrayT(UINT256_T, 3)
         dst_buf = ctx.allocate_buffer(96)  # 3 * 32 bytes
 
@@ -67,7 +67,7 @@ def foo(data: Bytes[100]) -> Bytes[100]:
     return data
 """
         ctx, node = get_expr_context(source)
-        src_ptr = ctx.lookup_ptr("data")
+        src_ptr = ctx.lookup("data").value.operand
         typ = BytesT(100)
         max_size = typ.abi_type.size_bound()
         dst_buf = ctx.allocate_buffer(max_size)
@@ -85,7 +85,7 @@ def foo(data: String[100]) -> String[100]:
     return data
 """
         ctx, node = get_expr_context(source)
-        src_ptr = ctx.lookup_ptr("data")
+        src_ptr = ctx.lookup("data").value.operand
         typ = StringT(100)
         max_size = typ.abi_type.size_bound()
         dst_buf = ctx.allocate_buffer(max_size)
@@ -148,7 +148,7 @@ def foo(arr: DynArray[uint256, 10]) -> DynArray[uint256, 10]:
     return arr
 """
         ctx, node = get_expr_context(source)
-        src_ptr = ctx.lookup_ptr("arr")
+        src_ptr = ctx.lookup("arr").value.operand
         typ = DArrayT(UINT256_T, 10)
         max_size = typ.abi_type.size_bound()
         dst_buf = ctx.allocate_buffer(max_size)
@@ -166,7 +166,7 @@ def foo(arr: DynArray[Bytes[32], 5]) -> DynArray[Bytes[32], 5]:
     return arr
 """
         ctx, node = get_expr_context(source)
-        src_ptr = ctx.lookup_ptr("arr")
+        src_ptr = ctx.lookup("arr").value.operand
         typ = DArrayT(BytesT(32), 5)
         max_size = typ.abi_type.size_bound()
         dst_buf = ctx.allocate_buffer(max_size)
@@ -188,7 +188,7 @@ def foo(x: uint256) -> uint256:
     return x
 """
         ctx, node = get_expr_context(source)
-        src_ptr = ctx.lookup_ptr("x")
+        src_ptr = ctx.lookup("x").value.operand
         dst_buf = ctx.allocate_buffer(32)
 
         result = abi_encode_to_buf(ctx, dst_buf._ptr, src_ptr, UINT256_T, returns_len=False)
