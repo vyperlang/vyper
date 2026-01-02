@@ -5,12 +5,14 @@ These tests cover:
 - load_storage / store_storage for primitive and multi-word types
 - load_transient / store_transient (EIP-1153)
 - load_immutable / store_immutable
-- get_storage_dyn_array_length / set_storage_dyn_array_length
+- get_dyn_array_length / set_dyn_array_length (generic, uses Ptr)
 """
 import pytest
 
+from vyper.codegen_venom.buffer import Ptr
 from vyper.codegen_venom.context import VenomCodegenContext
 from vyper.compiler.phases import CompilerData
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.shortcuts import UINT256_T, BYTES32_T, INT256_T
 from vyper.semantics.types.bytestrings import BytesT
 from vyper.semantics.types.user import StructT
@@ -234,26 +236,46 @@ class TestStoreImmutable:
         ctx.store_immutable(buf_val.operand, offset, multi_word_typ)
 
 
-class TestDynArrayStorage:
-    """Test dynamic array storage operations."""
+class TestDynArrayLength:
+    """Test dynamic array length operations (location-agnostic)."""
 
-    def test_get_dyn_array_length(self):
-        """Getting length should emit sload."""
+    def test_get_dyn_array_length_storage(self):
+        """Getting storage dynarray length should emit sload."""
         ctx = _make_context()
-        slot = IRLiteral(0)
+        ptr = Ptr(operand=IRLiteral(0), location=DataLocation.STORAGE)
 
-        result = ctx.get_storage_dyn_array_length(slot)
+        result = ctx.get_dyn_array_length(ptr)
 
         assert isinstance(result, IRVariable)
 
-    def test_set_dyn_array_length(self):
-        """Setting length should emit sstore."""
+    def test_set_dyn_array_length_storage(self):
+        """Setting storage dynarray length should emit sstore."""
         ctx = _make_context()
-        slot = IRLiteral(0)
+        ptr = Ptr(operand=IRLiteral(0), location=DataLocation.STORAGE)
         length = IRLiteral(10)
 
         # Should not raise
-        ctx.set_storage_dyn_array_length(slot, length)
+        ctx.set_dyn_array_length(ptr, length)
+
+    def test_get_dyn_array_length_memory(self):
+        """Getting memory dynarray length should emit mload."""
+        ctx = _make_context()
+        buf = ctx.allocate_buffer(64)
+        ptr = buf.base_ptr()
+
+        result = ctx.get_dyn_array_length(ptr)
+
+        assert isinstance(result, IRVariable)
+
+    def test_set_dyn_array_length_memory(self):
+        """Setting memory dynarray length should emit mstore."""
+        ctx = _make_context()
+        buf = ctx.allocate_buffer(64)
+        ptr = buf.base_ptr()
+        length = IRLiteral(10)
+
+        # Should not raise
+        ctx.set_dyn_array_length(ptr, length)
 
     def test_dyn_array_overhead_constant(self):
         """DYNAMIC_ARRAY_OVERHEAD should be 1 (one slot)."""

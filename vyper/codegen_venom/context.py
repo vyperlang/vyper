@@ -678,37 +678,15 @@ class VenomCodegenContext:
 
                 self.builder.istore(imm_offset, word)
 
-    # === Dynamic Array in Storage ===
+    # === Dynamic Array Length ===
 
-    def get_storage_dyn_array_length(self, slot: IROperand) -> IRVariable:
-        """Get length of dynamic array in storage.
+    def get_dyn_array_length(self, ptr: Ptr) -> IROperand:
+        """Get length of dynamic array. Works for any location."""
+        return self.ptr_load(ptr)
 
-        Length is stored at the base slot.
-        """
-        return self.builder.sload(slot)
-
-    def set_storage_dyn_array_length(self, slot: IROperand, length: IROperand) -> None:
-        """Set length of dynamic array in storage.
-
-        Length is stored at the base slot.
-        """
-        self.builder.sstore(slot, length)
-
-    # === Dynamic Array in Memory ===
-
-    def get_memory_dyn_array_length(self, ptr: IROperand) -> IRVariable:
-        """Get length of dynamic array in memory.
-
-        Length is stored at the base pointer.
-        """
-        return self.builder.mload(ptr)
-
-    def set_memory_dyn_array_length(self, ptr: IROperand, length: IROperand) -> None:
-        """Set length of dynamic array in memory.
-
-        Length is stored at the base pointer.
-        """
-        self.builder.mstore(ptr, length)
+    def set_dyn_array_length(self, ptr: Ptr, length: IROperand) -> None:
+        """Set length of dynamic array. Works for any location."""
+        self.ptr_store(ptr, length)
 
     # === Ptr Operations ===
 
