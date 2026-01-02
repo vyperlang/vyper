@@ -354,6 +354,7 @@ def get_settings(input_dict: dict) -> Settings:
             "disableSimplifyCFG": ("disable_simplify_cfg", bool),
             "disableRemoveUnusedVariables": ("disable_remove_unused_variables", bool),
             "inlineThreshold": ("inline_threshold", int),
+            "disableAssertElimination": ("disable_assert_elimination", bool),
         }
 
         # merge user-provided settings into venom_flags
