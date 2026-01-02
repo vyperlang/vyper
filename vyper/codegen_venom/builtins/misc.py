@@ -47,14 +47,14 @@ def lower_ecrecover(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Prepare input buffer (128 bytes)
     input_buf = ctx.allocate_buffer(128)
-    b.mstore(input_buf._ptr, hash_val)
-    b.mstore(b.add(input_buf._ptr, IRLiteral(32)), v)
-    b.mstore(b.add(input_buf._ptr, IRLiteral(64)), r)
-    b.mstore(b.add(input_buf._ptr, IRLiteral(96)), s)
+    ctx.ptr_store(input_buf.base_ptr(), hash_val)
+    ctx.ptr_store(ctx.add_offset(input_buf.base_ptr(), IRLiteral(32)), v)
+    ctx.ptr_store(ctx.add_offset(input_buf.base_ptr(), IRLiteral(64)), r)
+    ctx.ptr_store(ctx.add_offset(input_buf.base_ptr(), IRLiteral(96)), s)
 
     # Output buffer (32 bytes) - clear first since ecrecover may return 0 bytes
     output_buf = ctx.allocate_buffer(32)
-    b.mstore(output_buf._ptr, IRLiteral(0))
+    ctx.ptr_store(output_buf.base_ptr(), IRLiteral(0))
 
     # Call ecrecover precompile
     success = b.staticcall(
@@ -117,7 +117,7 @@ def _lower_ec_arith(node: vy_ast.Call, ctx: VenomCodegenContext, precompile: int
         if arg_typ._is_prim_word:
             # Single 32-byte value
             arg_val = Expr(arg, ctx).lower_value()
-            b.mstore(b.add(input_buf._ptr, IRLiteral(offset)), arg_val)
+            ctx.ptr_store(ctx.add_offset(input_buf.base_ptr(), IRLiteral(offset)), arg_val)
             offset += 32
         else:
             # Array (uint256[2]) - copy from memory
@@ -125,7 +125,7 @@ def _lower_ec_arith(node: vy_ast.Call, ctx: VenomCodegenContext, precompile: int
             arg_ptr = Expr(arg, ctx).lower().operand
             for i in range(arg_typ.count):
                 word = b.mload(b.add(arg_ptr, IRLiteral(i * 32)))
-                b.mstore(b.add(input_buf._ptr, IRLiteral(offset)), word)
+                ctx.ptr_store(ctx.add_offset(input_buf.base_ptr(), IRLiteral(offset)), word)
                 offset += 32
 
     # Output buffer (64 bytes for resulting point)
