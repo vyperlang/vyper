@@ -47,7 +47,7 @@ from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, S
 from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.semantics.types.user import FlagT, StructT
-from vyper.utils import DECIMAL_DIVISOR, MemoryPositions, keccak256
+from vyper.utils import DECIMAL_DIVISOR, keccak256
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 from .buffer import Buffer, Ptr
@@ -963,11 +963,11 @@ class Expr:
         key_typ = key_node._metadata["type"]
 
         if key_typ == BYTES32_T:
-            # bytes32: mstore to free var space and hash
-            # sha3(offset, size) - builder emits in EVM order
+            # bytes32: mstore to temp buffer and hash
             key = Expr(key_node, self.ctx).lower_value()
-            self.builder.mstore(IRLiteral(MemoryPositions.FREE_VAR_SPACE), key)
-            return self.builder.sha3(IRLiteral(MemoryPositions.FREE_VAR_SPACE), IRLiteral(32))
+            buf = self.ctx.allocate_buffer(32, "mapping_key")
+            self.ctx.ptr_store(buf.base_ptr(), key)
+            return self.builder.sha3(buf._ptr, IRLiteral(32))
 
         # bytes/string: get pointer (already in memory), hash the data portion
         # sha3(data_ptr, length) - builder emits in EVM order
