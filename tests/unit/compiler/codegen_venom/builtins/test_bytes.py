@@ -4,7 +4,7 @@ Tests for byte manipulation built-in functions: concat, slice, extract32.
 import pytest
 
 from vyper.codegen_venom.expr import Expr
-from vyper.codegen_venom.value import VenomValue
+from vyper.codegen_venom.value import VyperValue
 from vyper.venom.basicblock import IRVariable
 
 from .conftest import get_expr_context
@@ -20,8 +20,8 @@ def foo(a: Bytes[50], b: Bytes[50]) -> Bytes[100]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        # concat returns a pointer (VenomValue)
-        assert isinstance(result, VenomValue)
+        # concat returns a pointer (VyperValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)
 
     def test_concat_three_bytes(self):
@@ -33,7 +33,7 @@ def foo(a: Bytes[30], b: Bytes[30], c: Bytes[40]) -> Bytes[100]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, VenomValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)
 
     def test_concat_two_strings(self):
@@ -45,7 +45,7 @@ def foo(a: String[50], b: String[50]) -> String[100]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, VenomValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)
 
     def test_concat_bytes_with_bytes32(self):
@@ -57,7 +57,7 @@ def foo(a: Bytes[50], b: bytes32) -> Bytes[82]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, VenomValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)
 
     def test_concat_bytes4_with_bytes(self):
@@ -69,7 +69,7 @@ def foo(a: bytes4, b: Bytes[50]) -> Bytes[54]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, VenomValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)
 
     def test_concat_multiple_bytesM(self):
@@ -81,7 +81,7 @@ def foo(a: bytes4, b: bytes8, c: bytes20) -> Bytes[32]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, VenomValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)
 
 
@@ -95,8 +95,8 @@ def foo(b: Bytes[100]) -> Bytes[10]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        # slice returns a pointer (VenomValue)
-        assert isinstance(result, VenomValue)
+        # slice returns a pointer (VyperValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)
 
     def test_slice_bytes_dynamic_start(self):
@@ -108,7 +108,7 @@ def foo(b: Bytes[100], start: uint256) -> Bytes[10]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, VenomValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)
 
     def test_slice_string(self):
@@ -120,7 +120,7 @@ def foo(s: String[100]) -> String[20]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, VenomValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)
 
     def test_slice_bytes32(self):
@@ -132,7 +132,7 @@ def foo(b: bytes32) -> Bytes[16]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, VenomValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)
 
     def test_slice_msg_data(self):
@@ -144,7 +144,7 @@ def foo() -> Bytes[32]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, VenomValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)
 
     def test_slice_self_code(self):
@@ -156,7 +156,7 @@ def foo() -> Bytes[32]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, VenomValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)
 
     def test_slice_extcode(self):
@@ -168,7 +168,7 @@ def foo(addr: address) -> Bytes[32]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, VenomValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)
 
 

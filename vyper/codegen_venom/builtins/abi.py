@@ -12,7 +12,8 @@ from typing import TYPE_CHECKING
 from vyper import ast as vy_ast
 from vyper.codegen.core import calculate_type_for_external_return
 from vyper.codegen_venom.abi import abi_decode_to_buf, abi_encode_to_buf
-from vyper.codegen_venom.value import VenomValue
+from vyper.codegen_venom.buffer import Buffer, Ptr
+from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import BytesT, TupleT
 from vyper.utils import fourbytes_to_int
@@ -85,14 +86,14 @@ def _create_tuple_in_memory(
     """Create a tuple in memory from individual args."""
     b = ctx.builder
     tuple_t = TupleT(tuple(types))
-    buf = ctx.new_internal_variable(tuple_t)
+    val = ctx.new_temporary_value(tuple_t)
 
     offset = 0
     for arg, typ in zip(args, types):
         if offset == 0:
-            dst = buf
+            dst = val.operand
         else:
-            dst = b.add(buf, IRLiteral(offset))
+            dst = b.add(val.operand, IRLiteral(offset))
 
         if typ._is_prim_word:
             b.mstore(dst, arg)
@@ -101,10 +102,10 @@ def _create_tuple_in_memory(
 
         offset += typ.memory_bytes_required
 
-    return buf, tuple_t
+    return val.operand, tuple_t
 
 
-def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VenomValue:
+def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     """
     abi_encode(*args, ensure_tuple=True, method_id=None) -> Bytes[N]
 
@@ -148,35 +149,35 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VenomValue:
 
     # Allocate output buffer: [32-byte length] | [optional 4-byte method_id] | [data]
     buf_t = BytesT(maxlen)
-    buf = ctx.new_internal_variable(buf_t)
+    buf_val = ctx.new_temporary_value(buf_t)
 
     if method_id is not None:
         # Write method_id at offset 4 (stored as 32 bytes, left-aligned)
         # method_id is 4 bytes, so shift left by 28 bytes = 224 bits
         method_id_word = method_id << 224
-        b.mstore(b.add(buf, IRLiteral(4)), IRLiteral(method_id_word))
+        b.mstore(b.add(buf_val.operand, IRLiteral(4)), IRLiteral(method_id_word))
 
         # Encode data starting at offset 36
-        data_dst = b.add(buf, IRLiteral(36))
+        data_dst = b.add(buf_val.operand, IRLiteral(36))
         encoded_len = abi_encode_to_buf(ctx, data_dst, encode_input, encode_type, returns_len=True)
         assert encoded_len is not None
 
         # Write total length (encoded_len + 4) at offset 0
         total_len = b.add(encoded_len, IRLiteral(4))
-        b.mstore(buf, total_len)
+        b.mstore(buf_val.operand, total_len)
     else:
         # Encode data starting at offset 32
-        data_dst = b.add(buf, IRLiteral(32))
+        data_dst = b.add(buf_val.operand, IRLiteral(32))
         encoded_len = abi_encode_to_buf(ctx, data_dst, encode_input, encode_type, returns_len=True)
         assert encoded_len is not None
 
         # Write length at offset 0
-        b.mstore(buf, encoded_len)
+        b.mstore(buf_val.operand, encoded_len)
 
-    return VenomValue.loc(buf, DataLocation.MEMORY, buf_t)
+    return buf_val
 
 
-def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VenomValue:
+def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     """
     abi_decode(data, output_type, unwrap_tuple=True) -> output_type
 
@@ -222,15 +223,17 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VenomValue:
         b.assert_(b.and_(ge_min, le_max))
 
     # Allocate output buffer
-    output_buf = ctx.new_internal_variable(wrapped_typ)
+    output_val = ctx.new_temporary_value(wrapped_typ)
 
     # Decode with bounds checking
     hi = b.add(data_ptr, data_len)
-    src = VenomValue.loc(data_ptr, DataLocation.MEMORY, wrapped_typ)
-    abi_decode_to_buf(ctx, output_buf, src, hi=hi)
+    buf = Buffer(_ptr=data_ptr, size=wrapped_typ.memory_bytes_required, annotation="abi_decode_src")
+    ptr = Ptr(operand=data_ptr, location=DataLocation.MEMORY, buf=buf)
+    src = VyperValue.from_ptr(ptr, wrapped_typ)
+    abi_decode_to_buf(ctx, output_val.operand, src, hi=hi)
 
     # Return with output_typ (unwrapped type if applicable)
-    return VenomValue.loc(output_buf, DataLocation.MEMORY, output_typ)
+    return output_val
 
 
 HANDLERS = {

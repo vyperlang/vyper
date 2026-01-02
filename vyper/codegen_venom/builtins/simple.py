@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Union
 
 from vyper import ast as vy_ast
-from vyper.codegen_venom.value import VenomValue
+from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand
@@ -33,12 +33,12 @@ def lower_len(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # For bytes/string/DynArray: length is stored at pointer
     arg_vv = Expr(arg_node, ctx).lower()
-    # Use the location from the VenomValue
+    # Use the location from the VyperValue
     location = arg_vv.location or DataLocation.MEMORY
     return ctx.builder.load(arg_vv.operand, location)
 
 
-def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand, VenomValue]:
+def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand, VyperValue]:
     """
     empty(T) returns zero-initialized value of type T.
 
@@ -51,8 +51,7 @@ def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand,
         return IRLiteral(0)
     else:
         # Allocate memory buffer - memory is zero-initialized
-        buf = ctx.new_internal_variable(typ)
-        return VenomValue.loc(buf, DataLocation.MEMORY, typ)
+        return ctx.new_temporary_value(typ)
 
 
 def lower_min(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:

@@ -17,7 +17,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper.codegen.core import is_tuple_like
-from vyper.codegen_venom.value import VenomValue
+from vyper.codegen_venom.buffer import Buffer, Ptr
+from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
@@ -142,7 +143,7 @@ def clamp_basetype(ctx: VenomCodegenContext, val: IROperand, typ: VyperType) -> 
 
 
 def clamp_bytestring(
-    ctx: VenomCodegenContext, src: VenomValue, typ: _BytestringT, hi: IROperand = None
+    ctx: VenomCodegenContext, src: VyperValue, typ: _BytestringT, hi: IROperand = None
 ) -> None:
     """
     Validate bytestring length and bounds.
@@ -168,7 +169,7 @@ def clamp_bytestring(
 
 
 def clamp_dyn_array(
-    ctx: VenomCodegenContext, src: VenomValue, typ: DArrayT, hi: IROperand = None
+    ctx: VenomCodegenContext, src: VyperValue, typ: DArrayT, hi: IROperand = None
 ) -> None:
     """
     Validate DynArray count and bounds.
@@ -196,8 +197,8 @@ def clamp_dyn_array(
 
 
 def _getelemptr_abi(
-    ctx: VenomCodegenContext, parent: VenomValue, member_typ: VyperType, static_offset: int
-) -> VenomValue:
+    ctx: VenomCodegenContext, parent: VyperValue, member_typ: VyperType, static_offset: int
+) -> VyperValue:
     """
     Navigate to ABI-encoded element.
 
@@ -207,7 +208,7 @@ def _getelemptr_abi(
     For dynamic types: reads offset at static location, adds to parent base
                       (double dereference pattern)
 
-    Returns VenomValue with same location as parent, typed as member_typ.
+    Returns VyperValue with same location as parent, typed as member_typ.
     """
     b = ctx.builder
     loc = parent.location
@@ -227,14 +228,24 @@ def _getelemptr_abi(
         # Security: prevent underflow attacks
         # assert actual_ptr >= parent
         b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
-        return VenomValue.loc(actual_ptr, loc, member_typ)
+        return _make_ptr_value(actual_ptr, loc, member_typ)
     else:
         # Static: data is inline
-        return VenomValue.loc(static_loc, loc, member_typ)
+        return _make_ptr_value(static_loc, loc, member_typ)
+
+
+def _make_ptr_value(operand, location: DataLocation, typ) -> VyperValue:
+    """Create a VyperValue with Ptr for a computed pointer."""
+    if location == DataLocation.MEMORY:
+        buf = Buffer(_ptr=operand, size=typ.memory_bytes_required, annotation="abi_decoder")
+        ptr = Ptr(operand=operand, location=location, buf=buf)
+    else:
+        ptr = Ptr(operand=operand, location=location)
+    return VyperValue.from_ptr(ptr, typ)
 
 
 def _decode_primitive(
-    ctx: VenomCodegenContext, dst: IROperand, src: VenomValue, typ: VyperType
+    ctx: VenomCodegenContext, dst: IROperand, src: VyperValue, typ: VyperType
 ) -> None:
     """Decode a primitive (word-sized) type."""
     b = ctx.builder
@@ -249,7 +260,7 @@ def _decode_primitive(
 def _decode_bytestring(
     ctx: VenomCodegenContext,
     dst: IROperand,
-    src: VenomValue,
+    src: VyperValue,
     typ: _BytestringT,
     hi: IROperand = None,
 ) -> None:
@@ -268,7 +279,7 @@ def _decode_bytestring(
 
 
 def _decode_dyn_array(
-    ctx: VenomCodegenContext, dst: IROperand, src: VenomValue, typ: DArrayT, hi: IROperand = None
+    ctx: VenomCodegenContext, dst: IROperand, src: VyperValue, typ: DArrayT, hi: IROperand = None
 ) -> None:
     """
     Decode a dynamic array.
@@ -314,15 +325,15 @@ def _decode_dyn_array(
     b.append_block(loop_exit)
 
     # Initialize loop counter (always in memory)
-    i_ptr = ctx.new_internal_variable(UINT256_T)
-    b.mstore(i_ptr, IRLiteral(0))
+    i_val = ctx.new_temporary_value(UINT256_T)
+    b.mstore(i_val.operand, IRLiteral(0))
 
     # Jump to header
     b.jmp(loop_header.label)
 
     # --- Loop header: check i < count ---
     b.set_block(loop_header)
-    i = b.mload(i_ptr)  # Loop counter is in memory
+    i = b.mload(i_val.operand)  # Loop counter is in memory
     # Reload count from source
     count_hdr = b.load(src.operand, loc)
     done = b.iszero(b.lt(i, count_hdr))
@@ -332,7 +343,7 @@ def _decode_dyn_array(
     b.set_block(loop_body)
 
     # Re-load i (from memory)
-    i = b.mload(i_ptr)
+    i = b.mload(i_val.operand)
 
     # Get source element pointer (ABI layout)
     src_data = b.add(src.operand, IRLiteral(32))
@@ -346,8 +357,8 @@ def _decode_dyn_array(
     else:
         elem_src_ptr = b.add(src_data, b.mul(i, IRLiteral(elem_static_size)))
 
-    # Wrap as VenomValue for recursive call
-    elem_src = VenomValue.loc(elem_src_ptr, loc, elem_typ)
+    # Wrap as VyperValue for recursive call
+    elem_src = _make_ptr_value(elem_src_ptr, loc, elem_typ)
 
     # Get destination element pointer (Vyper layout)
     dst_data = b.add(dst, IRLiteral(32))
@@ -358,7 +369,7 @@ def _decode_dyn_array(
 
     # Increment counter
     new_i = b.add(i, IRLiteral(1))
-    b.mstore(i_ptr, new_i)
+    b.mstore(i_val.operand, new_i)
     b.jmp(loop_header.label)
 
     # --- Exit block ---
@@ -366,7 +377,7 @@ def _decode_dyn_array(
 
 
 def _decode_complex(
-    ctx: VenomCodegenContext, dst: IROperand, src: VenomValue, typ: VyperType, hi: IROperand = None
+    ctx: VenomCodegenContext, dst: IROperand, src: VyperValue, typ: VyperType, hi: IROperand = None
 ) -> None:
     """
     Decode a complex type (tuple/struct/static array).
@@ -387,7 +398,7 @@ def _decode_complex(
     vyper_offset = 0
 
     for _key, elem_typ in items:
-        # Get source pointer (ABI layout) - returns VenomValue
+        # Get source pointer (ABI layout) - returns VyperValue
         elem_src = _getelemptr_abi(ctx, src, elem_typ, abi_offset)
 
         # Get destination pointer (Vyper layout)
@@ -409,7 +420,7 @@ def _decode_complex(
 def _abi_decode_to_buf(
     ctx: VenomCodegenContext,
     dst: IROperand,
-    src: VenomValue,
+    src: VyperValue,
     hi: IROperand = None,
 ) -> None:
     """
@@ -436,7 +447,7 @@ def _abi_decode_to_buf(
 def abi_decode_to_buf(
     ctx: VenomCodegenContext,
     dst: IROperand,
-    src: VenomValue,
+    src: VyperValue,
     hi: IROperand = None,
 ) -> None:
     """
@@ -448,7 +459,7 @@ def abi_decode_to_buf(
     Args:
         ctx: Venom codegen context
         dst: Destination buffer (Vyper memory layout)
-        src: Source ABI data (VenomValue with location and type)
+        src: Source ABI data (VyperValue with location and type)
         hi: Upper bound of valid buffer. Required when decoding untrusted data
             (calldata in memory, returndata, user Bytes). Prevents overread attacks.
     """

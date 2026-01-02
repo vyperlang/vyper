@@ -198,27 +198,27 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Calculate buffer size: max bytecode len + ctor args size
     buf_size = bytecode_typ.maxlen + ctor_abi_size
-    buf = ctx.allocate_buffer(buf_size, "raw_create_buf")
+    buf = ctx.allocate_buffer(buf_size, annotation="raw_create_buf")
 
     # Copy bytecode to buffer
-    ctx.copy_memory_dynamic(buf, bytecode_ptr, bytecode_len)
+    ctx.copy_memory_dynamic(buf._ptr, bytecode_ptr, bytecode_len)
 
     # Encode ctor args after bytecode
     # First, store ctor args to a temp buffer
     ctor_arg_values = [Expr(arg, ctx).lower_value() for arg in ctor_arg_nodes]
-    ctor_args_buf = ctx.new_internal_variable(ctor_tuple_typ)
+    ctor_args_val = ctx.new_temporary_value(ctor_tuple_typ)
     offset = 0
     for val, arg_t in zip(ctor_arg_values, ctor_arg_types):
         if offset == 0:
-            dst = ctor_args_buf
+            dst = ctor_args_val.operand
         else:
-            dst = b.add(ctor_args_buf, IRLiteral(offset))
+            dst = b.add(ctor_args_val.operand, IRLiteral(offset))
         ctx.store_memory(val, dst, arg_t)
         offset += arg_t.memory_bytes_required
 
-    # Now ABI encode from ctor_args_buf to args_start
-    args_start = b.add(buf, bytecode_len)
-    args_len = abi_encode_to_buf(ctx, args_start, ctor_args_buf, ctor_tuple_typ, returns_len=True)
+    # Now ABI encode from ctor_args_val to args_start
+    args_start = b.add(buf._ptr, bytecode_len)
+    args_len = abi_encode_to_buf(ctx, args_start, ctor_args_val.operand, ctor_tuple_typ, returns_len=True)
     assert args_len is not None
 
     # Total length = bytecode_len + args_len
@@ -227,9 +227,9 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     # Create contract
     if salt_node is not None:
         salt = Expr(salt_node, ctx).lower_value()
-        addr = b.create2(value, buf, total_len, salt)
+        addr = b.create2(value, buf._ptr, total_len, salt)
     else:
-        addr = b.create(value, buf, total_len)
+        addr = b.create(value, buf._ptr, total_len)
 
     return _check_create_result(b, addr, revert_on_failure)
 
@@ -270,7 +270,7 @@ def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -
     buf_len = preamble_length + 20 + len(forwarder_post_evm)  # 19 + 20 + 15 = 54 bytes total
 
     # Allocate 96-byte buffer (to fit 3 x 32-byte stores)
-    buf = ctx.allocate_buffer(96, "proxy_buf")
+    buf = ctx.allocate_buffer(96, annotation="proxy_buf")
 
     # Build the preamble as a 32-byte value (left-aligned)
     forwarder_preamble = bytes_to_int(
@@ -281,25 +281,25 @@ def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -
     forwarder_post = bytes_to_int(forwarder_post_evm + b"\x00" * (32 - len(forwarder_post_evm)))
 
     # Store preamble at buf
-    b.mstore(buf, IRLiteral(forwarder_preamble))
+    b.mstore(buf._ptr, IRLiteral(forwarder_preamble))
 
     # Left-align target address (shift left by 96 bits = 12 bytes)
     aligned_target = b.shl(IRLiteral(96), target)
 
     # Store target at buf + preamble_length
-    target_offset = b.add(buf, IRLiteral(preamble_length))
+    target_offset = b.add(buf._ptr, IRLiteral(preamble_length))
     b.mstore(target_offset, aligned_target)
 
     # Store post at buf + preamble_length + 20
-    post_offset = b.add(buf, IRLiteral(preamble_length + 20))
+    post_offset = b.add(buf._ptr, IRLiteral(preamble_length + 20))
     b.mstore(post_offset, IRLiteral(forwarder_post))
 
     # Create contract
     if salt_node is not None:
         salt = Expr(salt_node, ctx).lower_value()
-        addr = b.create2(value, buf, IRLiteral(buf_len), salt)
+        addr = b.create2(value, buf._ptr, IRLiteral(buf_len), salt)
     else:
-        addr = b.create(value, buf, IRLiteral(buf_len))
+        addr = b.create(value, buf._ptr, IRLiteral(buf_len))
 
     return _check_create_result(b, addr, revert_on_failure)
 
@@ -441,27 +441,27 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         ctor_abi_size = ctor_tuple_typ.abi_type.size_bound()
 
         # Allocate buffer for encoded args
-        args_buf = ctx.allocate_buffer(ctor_abi_size, "ctor_args_buf")
+        args_buf = ctx.allocate_buffer(ctor_abi_size, annotation="ctor_args_buf")
 
         # First, store ctor args to a temp buffer
         ctor_arg_values = [Expr(arg, ctx).lower_value() for arg in ctor_arg_nodes]
-        ctor_args_src = ctx.new_internal_variable(ctor_tuple_typ)
+        ctor_args_src = ctx.new_temporary_value(ctor_tuple_typ)
         offset = 0
         for val, arg_t in zip(ctor_arg_values, ctor_arg_types):
             if offset == 0:
-                dst = ctor_args_src
+                dst = ctor_args_src.operand
             else:
-                dst = b.add(ctor_args_src, IRLiteral(offset))
+                dst = b.add(ctor_args_src.operand, IRLiteral(offset))
             ctx.store_memory(val, dst, arg_t)
             offset += arg_t.memory_bytes_required
 
         # Now ABI encode from ctor_args_src to args_buf
         encoded_len = abi_encode_to_buf(
-            ctx, args_buf, ctor_args_src, ctor_tuple_typ, returns_len=True
+            ctx, args_buf._ptr, ctor_args_src.operand, ctor_tuple_typ, returns_len=True
         )
         assert encoded_len is not None
         args_len = encoded_len
-        args_ptr = args_buf
+        args_ptr = args_buf._ptr
     else:
         # No constructor arguments
         args_len = IRLiteral(0)

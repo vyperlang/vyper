@@ -9,8 +9,18 @@ import pytest
 
 from vyper.codegen_venom.abi import abi_decode_to_buf
 from vyper.codegen_venom.abi.abi_decoder import bytes_clamp, clamp_basetype, int_clamp, needs_clamp
-from vyper.codegen_venom.value import VenomValue
+from vyper.codegen_venom.buffer import Buffer, Ptr
+from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.data_locations import DataLocation
+
+
+def make_memory_value(operand, typ):
+    """Create a VyperValue for memory location."""
+    buf = Buffer(_ptr=operand, size=typ.memory_bytes_required, annotation="test")
+    ptr = Ptr(operand=operand, location=DataLocation.MEMORY, buf=buf)
+    return VyperValue.from_ptr(ptr, typ)
+
+
 from vyper.semantics.types import (
     AddressT,
     BoolT,
@@ -238,11 +248,11 @@ def foo(x: uint256) -> uint256:
 """
         ctx, node = get_expr_context(source)
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(32)
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, UINT256_T)
+        dst_buf = ctx.allocate_buffer(32)
+        src = make_memory_value(src_ptr, UINT256_T)
 
         # Should not raise
-        abi_decode_to_buf(ctx, dst_ptr, src)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src)
 
     def test_decode_uint8(self):
         """Decode uint8 - needs clamping."""
@@ -254,10 +264,10 @@ def foo(x: uint256) -> uint256:
 """
         ctx, node = get_expr_context(source)
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(32)
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, UINT8_T)
+        dst_buf = ctx.allocate_buffer(32)
+        src = make_memory_value(src_ptr, UINT8_T)
 
-        abi_decode_to_buf(ctx, dst_ptr, src)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src)
 
     def test_decode_int128(self):
         """Decode int128 - needs signed clamping."""
@@ -269,10 +279,10 @@ def foo(x: uint256) -> uint256:
 """
         ctx, node = get_expr_context(source)
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(32)
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, INT128_T)
+        dst_buf = ctx.allocate_buffer(32)
+        src = make_memory_value(src_ptr, INT128_T)
 
-        abi_decode_to_buf(ctx, dst_ptr, src)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src)
 
     def test_decode_bool(self):
         """Decode bool - only 0 or 1 valid."""
@@ -284,10 +294,10 @@ def foo(x: uint256) -> uint256:
 """
         ctx, node = get_expr_context(source)
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(32)
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, BoolT())
+        dst_buf = ctx.allocate_buffer(32)
+        src = make_memory_value(src_ptr, BoolT())
 
-        abi_decode_to_buf(ctx, dst_ptr, src)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src)
 
     def test_decode_address(self):
         """Decode address - 160-bit clamping."""
@@ -299,10 +309,10 @@ def foo(x: uint256) -> uint256:
 """
         ctx, node = get_expr_context(source)
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(32)
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, AddressT())
+        dst_buf = ctx.allocate_buffer(32)
+        src = make_memory_value(src_ptr, AddressT())
 
-        abi_decode_to_buf(ctx, dst_ptr, src)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src)
 
     def test_decode_bytes4(self):
         """Decode bytes4 - left-aligned, low bits must be zero."""
@@ -314,10 +324,10 @@ def foo(x: uint256) -> uint256:
 """
         ctx, node = get_expr_context(source)
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(32)
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, BytesM_T(4))
+        dst_buf = ctx.allocate_buffer(32)
+        src = make_memory_value(src_ptr, BytesM_T(4))
 
-        abi_decode_to_buf(ctx, dst_ptr, src)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src)
 
 
 class TestABIDecodeBytestring:
@@ -334,10 +344,10 @@ def foo(data: Bytes[100]) -> Bytes[100]:
         ctx, node = get_expr_context(source)
         typ = BytesT(100)
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(typ.memory_bytes_required)
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, typ)
+        dst_buf = ctx.allocate_buffer(typ.memory_bytes_required)
+        src = make_memory_value(src_ptr, typ)
 
-        abi_decode_to_buf(ctx, dst_ptr, src)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src)
 
     def test_decode_string(self):
         """Decode String type."""
@@ -350,10 +360,10 @@ def foo(data: String[50]) -> String[50]:
         ctx, node = get_expr_context(source)
         typ = StringT(50)
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(typ.memory_bytes_required)
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, typ)
+        dst_buf = ctx.allocate_buffer(typ.memory_bytes_required)
+        src = make_memory_value(src_ptr, typ)
 
-        abi_decode_to_buf(ctx, dst_ptr, src)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src)
 
     def test_decode_bytes_with_hi_bound(self):
         """Decode Bytes with buffer bounds checking."""
@@ -366,11 +376,11 @@ def foo(data: Bytes[100]) -> Bytes[100]:
         ctx, node = get_expr_context(source)
         typ = BytesT(100)
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(typ.memory_bytes_required)
+        dst_buf = ctx.allocate_buffer(typ.memory_bytes_required)
         hi = IRLiteral(256)  # Upper bound of buffer
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, typ)
+        src = make_memory_value(src_ptr, typ)
 
-        abi_decode_to_buf(ctx, dst_ptr, src, hi=hi)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src, hi=hi)
 
 
 class TestABIDecodeDynArray:
@@ -387,10 +397,10 @@ def foo(arr: DynArray[uint256, 10]) -> DynArray[uint256, 10]:
         ctx, node = get_expr_context(source)
         typ = DArrayT(UINT256_T, 10)
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(typ.memory_bytes_required)
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, typ)
+        dst_buf = ctx.allocate_buffer(typ.memory_bytes_required)
+        src = make_memory_value(src_ptr, typ)
 
-        abi_decode_to_buf(ctx, dst_ptr, src)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src)
 
     def test_decode_dynarray_needs_clamp_elements(self):
         """Decode DynArray of elements that need clamping."""
@@ -403,10 +413,10 @@ def foo(arr: DynArray[uint8, 5]) -> DynArray[uint8, 5]:
         ctx, node = get_expr_context(source)
         typ = DArrayT(UINT8_T, 5)
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(typ.memory_bytes_required)
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, typ)
+        dst_buf = ctx.allocate_buffer(typ.memory_bytes_required)
+        src = make_memory_value(src_ptr, typ)
 
-        abi_decode_to_buf(ctx, dst_ptr, src)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src)
 
     def test_decode_dynarray_dynamic_elements(self):
         """Decode DynArray of dynamic elements (Bytes)."""
@@ -419,10 +429,10 @@ def foo(arr: DynArray[Bytes[32], 3]) -> DynArray[Bytes[32], 3]:
         ctx, node = get_expr_context(source)
         typ = DArrayT(BytesT(32), 3)
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(typ.memory_bytes_required)
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, typ)
+        dst_buf = ctx.allocate_buffer(typ.memory_bytes_required)
+        src = make_memory_value(src_ptr, typ)
 
-        abi_decode_to_buf(ctx, dst_ptr, src)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src)
 
     def test_decode_dynarray_with_hi_bound(self):
         """Decode DynArray with buffer bounds checking."""
@@ -435,11 +445,11 @@ def foo(arr: DynArray[uint256, 10]) -> DynArray[uint256, 10]:
         ctx, node = get_expr_context(source)
         typ = DArrayT(UINT256_T, 10)
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(typ.memory_bytes_required)
+        dst_buf = ctx.allocate_buffer(typ.memory_bytes_required)
         hi = IRLiteral(512)
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, typ)
+        src = make_memory_value(src_ptr, typ)
 
-        abi_decode_to_buf(ctx, dst_ptr, src, hi=hi)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src, hi=hi)
 
 
 class TestABIDecodeComplex:
@@ -456,10 +466,10 @@ def foo(a: uint256, b: uint256) -> (uint256, uint256):
         ctx, node = get_expr_context(source)
         typ = TupleT([UINT256_T, UINT256_T])
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(typ.memory_bytes_required)
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, typ)
+        dst_buf = ctx.allocate_buffer(typ.memory_bytes_required)
+        src = make_memory_value(src_ptr, typ)
 
-        abi_decode_to_buf(ctx, dst_ptr, src)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src)
 
     def test_decode_tuple_with_subword(self):
         """Decode tuple containing sub-256-bit types."""
@@ -472,10 +482,10 @@ def foo(a: uint256, b: uint256) -> (uint256, uint256):
         ctx, node = get_expr_context(source)
         typ = TupleT([UINT256_T, UINT8_T, AddressT()])
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(typ.memory_bytes_required)
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, typ)
+        dst_buf = ctx.allocate_buffer(typ.memory_bytes_required)
+        src = make_memory_value(src_ptr, typ)
 
-        abi_decode_to_buf(ctx, dst_ptr, src)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src)
 
     def test_decode_tuple_with_dynamic_member(self):
         """Decode tuple containing dynamic type."""
@@ -488,10 +498,10 @@ def foo(x: uint256, data: Bytes[32]) -> (uint256, Bytes[32]):
         ctx, node = get_expr_context(source)
         typ = TupleT([UINT256_T, BytesT(32)])
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(typ.memory_bytes_required)
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, typ)
+        dst_buf = ctx.allocate_buffer(typ.memory_bytes_required)
+        src = make_memory_value(src_ptr, typ)
 
-        abi_decode_to_buf(ctx, dst_ptr, src)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src)
 
     def test_decode_static_array(self):
         """Decode static array."""
@@ -504,10 +514,10 @@ def foo(arr: uint256[3]) -> uint256[3]:
         ctx, node = get_expr_context(source)
         typ = SArrayT(UINT256_T, 3)
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(typ.memory_bytes_required)
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, typ)
+        dst_buf = ctx.allocate_buffer(typ.memory_bytes_required)
+        src = make_memory_value(src_ptr, typ)
 
-        abi_decode_to_buf(ctx, dst_ptr, src)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src)
 
     def test_decode_static_array_of_subword(self):
         """Decode static array of sub-256-bit types."""
@@ -520,10 +530,10 @@ def foo(arr: uint256[3]) -> uint256[3]:
         ctx, node = get_expr_context(source)
         typ = SArrayT(UINT8_T, 5)
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(typ.memory_bytes_required)
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, typ)
+        dst_buf = ctx.allocate_buffer(typ.memory_bytes_required)
+        src = make_memory_value(src_ptr, typ)
 
-        abi_decode_to_buf(ctx, dst_ptr, src)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src)
 
 
 class TestABIDecodeNested:
@@ -541,10 +551,10 @@ def foo(x: uint256) -> uint256:
         inner_typ = TupleT([UINT256_T, UINT256_T])
         typ = SArrayT(inner_typ, 2)
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(typ.memory_bytes_required)
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, typ)
+        dst_buf = ctx.allocate_buffer(typ.memory_bytes_required)
+        src = make_memory_value(src_ptr, typ)
 
-        abi_decode_to_buf(ctx, dst_ptr, src)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src)
 
     def test_decode_dynarray_of_tuples(self):
         """Decode dynamic array of tuples."""
@@ -558,10 +568,10 @@ def foo(x: uint256) -> uint256:
         inner_typ = TupleT([UINT256_T, AddressT()])
         typ = DArrayT(inner_typ, 5)
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(typ.memory_bytes_required)
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, typ)
+        dst_buf = ctx.allocate_buffer(typ.memory_bytes_required)
+        src = make_memory_value(src_ptr, typ)
 
-        abi_decode_to_buf(ctx, dst_ptr, src)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src)
 
     def test_decode_tuple_of_arrays(self):
         """Decode tuple containing arrays."""
@@ -574,7 +584,7 @@ def foo(x: uint256) -> uint256:
         ctx, node = get_expr_context(source)
         typ = TupleT([SArrayT(UINT256_T, 2), DArrayT(UINT256_T, 3)])
         src_ptr = IRLiteral(0)
-        dst_ptr = ctx.allocate_buffer(typ.memory_bytes_required)
-        src = VenomValue.loc(src_ptr, DataLocation.MEMORY, typ)
+        dst_buf = ctx.allocate_buffer(typ.memory_bytes_required)
+        src = make_memory_value(src_ptr, typ)
 
-        abi_decode_to_buf(ctx, dst_ptr, src)
+        abi_decode_to_buf(ctx, dst_buf._ptr, src)

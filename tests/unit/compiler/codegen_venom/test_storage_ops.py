@@ -100,10 +100,10 @@ class TestStoreStorage:
         multi_word_typ = BytesT(64)
         slot = IRLiteral(5)
         # Create a memory buffer as source
-        buf = ctx.new_internal_variable(multi_word_typ)
+        buf_val = ctx.new_temporary_value(multi_word_typ)
 
         # Should not raise
-        ctx.store_storage(buf, slot, multi_word_typ)
+        ctx.store_storage(buf_val.operand, slot, multi_word_typ)
 
 
 class TestStorageToMemoryCopy:
@@ -114,30 +114,30 @@ class TestStorageToMemoryCopy:
         ctx = _make_context()
         multi_word_typ = BytesT(96)  # 3 words
         slot = IRLiteral(10)
-        buf = ctx.new_internal_variable(multi_word_typ)
+        buf_val = ctx.new_temporary_value(multi_word_typ)
 
         # Should not raise
-        ctx._load_storage_to_memory(slot, buf, 3)
+        ctx._load_storage_to_memory(slot, buf_val.operand, 3)
 
     def test_store_memory_to_storage_literals(self):
         """Test storing multiple words with literal slot."""
         ctx = _make_context()
         multi_word_typ = BytesT(96)  # 3 words
         slot = IRLiteral(10)
-        buf = ctx.new_internal_variable(multi_word_typ)
+        buf_val = ctx.new_temporary_value(multi_word_typ)
 
         # Should not raise
-        ctx._store_memory_to_storage(buf, slot, 3)
+        ctx._store_memory_to_storage(buf_val.operand, slot, 3)
 
     def test_load_storage_variable_slot(self):
         """Test loading with variable slot (should emit add)."""
         ctx = _make_context()
         # Computed slot
         slot = ctx.builder.add(IRLiteral(5), IRLiteral(10))
-        buf = ctx.new_internal_variable(BytesT(64))
+        buf_val = ctx.new_temporary_value(BytesT(64))
 
         # Should not raise
-        ctx._load_storage_to_memory(slot, buf, 2)
+        ctx._load_storage_to_memory(slot, buf_val.operand, 2)
 
 
 class TestLoadTransient:
@@ -181,10 +181,10 @@ class TestStoreTransient:
         ctx = _make_context()
         multi_word_typ = BytesT(64)
         slot = IRLiteral(5)
-        buf = ctx.new_internal_variable(multi_word_typ)
+        buf_val = ctx.new_temporary_value(multi_word_typ)
 
         # Should not raise
-        ctx.store_transient(buf, slot, multi_word_typ)
+        ctx.store_transient(buf_val.operand, slot, multi_word_typ)
 
 
 class TestLoadImmutable:
@@ -228,10 +228,10 @@ class TestStoreImmutable:
         ctx = _make_context()
         multi_word_typ = BytesT(64)
         offset = IRLiteral(32)
-        buf = ctx.new_internal_variable(multi_word_typ)
+        buf_val = ctx.new_temporary_value(multi_word_typ)
 
         # Should not raise
-        ctx.store_immutable(buf, offset, multi_word_typ)
+        ctx.store_immutable(buf_val.operand, offset, multi_word_typ)
 
 
 class TestDynArrayStorage:

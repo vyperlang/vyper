@@ -44,14 +44,14 @@ def lower_keccak256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         # The value is already left-aligned in 32 bytes
         arg_val = Expr(arg_node, ctx).lower_value()
         buf = ctx.allocate_buffer(32)
-        b.mstore(buf, arg_val)
-        return b.sha3(buf, IRLiteral(arg_t.m))
+        b.mstore(buf._ptr, arg_val)
+        return b.sha3(buf._ptr, IRLiteral(arg_t.m))
     else:
         # bytes32 or other 32-byte type
         arg_val = Expr(arg_node, ctx).lower_value()
         buf = ctx.allocate_buffer(32)
-        b.mstore(buf, arg_val)
-        return b.sha3(buf, IRLiteral(32))
+        b.mstore(buf._ptr, arg_val)
+        return b.sha3(buf._ptr, IRLiteral(32))
 
 
 def lower_sha256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
@@ -78,15 +78,15 @@ def lower_sha256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         # Fixed bytesM
         arg_val = Expr(arg_node, ctx).lower_value()
         buf = ctx.allocate_buffer(32)
-        b.mstore(buf, arg_val)
-        data_ptr = buf
+        b.mstore(buf._ptr, arg_val)
+        data_ptr = buf._ptr
         length = IRLiteral(arg_t.m)
     else:
         # bytes32 or other 32-byte type
         arg_val = Expr(arg_node, ctx).lower_value()
         buf = ctx.allocate_buffer(32)
-        b.mstore(buf, arg_val)
-        data_ptr = buf
+        b.mstore(buf._ptr, arg_val)
+        data_ptr = buf._ptr
         length = IRLiteral(32)
 
     # Allocate output buffer (32 bytes for hash result)
@@ -94,13 +94,13 @@ def lower_sha256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Call SHA256 precompile: staticcall(gas, 0x2, in_ptr, in_len, out_ptr, 32)
     success = b.staticcall(
-        b.gas(), IRLiteral(2), data_ptr, length, out_buf, IRLiteral(32)  # SHA256 precompile address
+        b.gas(), IRLiteral(2), data_ptr, length, out_buf._ptr, IRLiteral(32)  # SHA256 precompile address
     )
 
     # Assert success (precompile should always succeed with valid input)
     b.assert_(success)
 
-    return b.mload(out_buf)
+    return b.mload(out_buf._ptr)
 
 
 # Export handlers

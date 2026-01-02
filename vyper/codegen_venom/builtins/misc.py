@@ -47,27 +47,27 @@ def lower_ecrecover(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Prepare input buffer (128 bytes)
     input_buf = ctx.allocate_buffer(128)
-    b.mstore(input_buf, hash_val)
-    b.mstore(b.add(input_buf, IRLiteral(32)), v)
-    b.mstore(b.add(input_buf, IRLiteral(64)), r)
-    b.mstore(b.add(input_buf, IRLiteral(96)), s)
+    b.mstore(input_buf._ptr, hash_val)
+    b.mstore(b.add(input_buf._ptr, IRLiteral(32)), v)
+    b.mstore(b.add(input_buf._ptr, IRLiteral(64)), r)
+    b.mstore(b.add(input_buf._ptr, IRLiteral(96)), s)
 
     # Output buffer (32 bytes) - clear first since ecrecover may return 0 bytes
     output_buf = ctx.allocate_buffer(32)
-    b.mstore(output_buf, IRLiteral(0))
+    b.mstore(output_buf._ptr, IRLiteral(0))
 
     # Call ecrecover precompile
     success = b.staticcall(
         b.gas(),
         IRLiteral(ECRECOVER_PRECOMPILE),
-        input_buf,
+        input_buf._ptr,
         IRLiteral(128),
-        output_buf,
+        output_buf._ptr,
         IRLiteral(32),
     )
     b.assert_(success)
 
-    return b.mload(output_buf)
+    return b.mload(output_buf._ptr)
 
 
 def lower_ecadd(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
@@ -117,7 +117,7 @@ def _lower_ec_arith(node: vy_ast.Call, ctx: VenomCodegenContext, precompile: int
         if arg_typ._is_prim_word:
             # Single 32-byte value
             arg_val = Expr(arg, ctx).lower_value()
-            b.mstore(b.add(input_buf, IRLiteral(offset)), arg_val)
+            b.mstore(b.add(input_buf._ptr, IRLiteral(offset)), arg_val)
             offset += 32
         else:
             # Array (uint256[2]) - copy from memory
@@ -125,7 +125,7 @@ def _lower_ec_arith(node: vy_ast.Call, ctx: VenomCodegenContext, precompile: int
             arg_ptr = Expr(arg, ctx).lower().operand
             for i in range(arg_typ.count):
                 word = b.mload(b.add(arg_ptr, IRLiteral(i * 32)))
-                b.mstore(b.add(input_buf, IRLiteral(offset)), word)
+                b.mstore(b.add(input_buf._ptr, IRLiteral(offset)), word)
                 offset += 32
 
     # Output buffer (64 bytes for resulting point)
@@ -133,12 +133,12 @@ def _lower_ec_arith(node: vy_ast.Call, ctx: VenomCodegenContext, precompile: int
 
     # Call precompile
     success = b.staticcall(
-        b.gas(), IRLiteral(precompile), input_buf, IRLiteral(input_size), output_buf, IRLiteral(64)
+        b.gas(), IRLiteral(precompile), input_buf._ptr, IRLiteral(input_size), output_buf._ptr, IRLiteral(64)
     )
     b.assert_(success)
 
     # Return pointer to output buffer (it's a memory location with the result array)
-    return output_buf
+    return output_buf._ptr
 
 
 # =============================================================================

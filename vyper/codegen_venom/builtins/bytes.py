@@ -10,7 +10,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
-from vyper.codegen_venom.value import VenomValue
+from vyper.codegen_venom.buffer import Buffer, Ptr
+from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import BytesM_T, BytesT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
-def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VenomValue:
+def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     """
     concat(a, b, ...) -> bytes | string
 
@@ -51,12 +52,12 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VenomValue:
         out_typ = BytesT(max_len)
 
     # Allocate output buffer (length word + data)
-    out_buf = ctx.new_internal_variable(out_typ)
-    data_ptr = b.add(out_buf, IRLiteral(32))
+    out_val = ctx.new_temporary_value(out_typ)
+    data_ptr = b.add(out_val.operand, IRLiteral(32))
 
     # Track current offset as a variable
-    offset_var = ctx.new_internal_variable(BytesT(32))  # just need 32 bytes
-    b.mstore(offset_var, IRLiteral(0))
+    offset_local = ctx.new_temporary_value(BytesT(32))  # just need 32 bytes
+    b.mstore(offset_local.operand, IRLiteral(0))
 
     for arg_node in args:
         arg_t = arg_node._metadata["type"]
@@ -67,29 +68,29 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VenomValue:
             arg_ptr = Expr(arg_node, ctx).lower_value()
             arg_len = b.mload(arg_ptr)
             arg_data = b.add(arg_ptr, IRLiteral(32))
-            offset = b.mload(offset_var)
+            offset = b.mload(offset_local.operand)
             dst = b.add(data_ptr, offset)
             ctx.copy_memory_dynamic(dst, arg_data, arg_len)
             new_offset = b.add(offset, arg_len)
-            b.mstore(offset_var, new_offset)
+            b.mstore(offset_local.operand, new_offset)
         else:
             # Fixed bytesM: the value is already left-aligned in 32 bytes
             # Store full 32 bytes and advance by M
             arg_val = Expr(arg_node, ctx).lower_value()
             m = arg_t.m
-            offset = b.mload(offset_var)
+            offset = b.mload(offset_local.operand)
             dst = b.add(data_ptr, offset)
             b.mstore(dst, arg_val)
             new_offset = b.add(offset, IRLiteral(m))
-            b.mstore(offset_var, new_offset)
+            b.mstore(offset_local.operand, new_offset)
 
     # Store final length at output buffer
-    final_len = b.mload(offset_var)
-    b.mstore(out_buf, final_len)
-    return VenomValue.loc(out_buf, DataLocation.MEMORY, out_typ)
+    final_len = b.mload(offset_local.operand)
+    b.mstore(out_val.operand, final_len)
+    return out_val
 
 
-def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VenomValue:
+def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     """
     slice(b, start, length) -> bytes | string
 
@@ -128,15 +129,15 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VenomValue:
         src_len = IRLiteral(src_t.m)
         # Need to store to memory first to slice from it
         tmp_buf = ctx.allocate_buffer(32)
-        b.mstore(tmp_buf, src_val)
-        src_data = tmp_buf
+        b.mstore(tmp_buf._ptr, src_val)
+        src_data = tmp_buf._ptr
     else:
         # bytes32 or other 32-byte type
         src_val = Expr(src_node, ctx).lower_value()
         src_len = IRLiteral(32)
         tmp_buf = ctx.allocate_buffer(32)
-        b.mstore(tmp_buf, src_val)
-        src_data = tmp_buf
+        b.mstore(tmp_buf._ptr, src_val)
+        src_data = tmp_buf._ptr
 
     # Bounds check: start + length <= src_length
     end = b.add(start, length)
@@ -144,16 +145,16 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VenomValue:
     b.assert_(b.iszero(oob))
 
     # Allocate output buffer
-    out_buf = ctx.new_internal_variable(out_t)
-    out_data = b.add(out_buf, IRLiteral(32))
+    out_val = ctx.new_temporary_value(out_t)
+    out_data = b.add(out_val.operand, IRLiteral(32))
 
     # Copy bytes from src_data + start to out_data
     copy_src = b.add(src_data, start)
     ctx.copy_memory_dynamic(out_data, copy_src, length)
 
     # Store length
-    b.mstore(out_buf, length)
-    return VenomValue.loc(out_buf, DataLocation.MEMORY, out_t)
+    b.mstore(out_val.operand, length)
+    return out_val
 
 
 def _is_adhoc_slice(node: vy_ast.VyperNode) -> bool:
@@ -175,7 +176,7 @@ def _is_adhoc_slice(node: vy_ast.VyperNode) -> bool:
     return False
 
 
-def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VenomValue:
+def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     """
     Lower slice() for special sources: msg.data, self.code, <addr>.code.
 
@@ -193,8 +194,8 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VenomValu
     length = Expr(length_node, ctx).lower_value()
 
     out_t = node._metadata["type"]
-    out_buf = ctx.new_internal_variable(out_t)
-    out_data = b.add(out_buf, IRLiteral(32))
+    out_val = ctx.new_temporary_value(out_t)
+    out_data = b.add(out_val.operand, IRLiteral(32))
 
     # Determine which opcode to use
     if isinstance(src_node.value, vy_ast.Name):
@@ -206,8 +207,8 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VenomValu
             b.assert_(b.iszero(oob))
             # calldatacopy(destOffset, offset, size)
             b.calldatacopy(out_data, start, length)
-            b.mstore(out_buf, length)
-            return VenomValue.loc(out_buf, DataLocation.MEMORY, out_t)
+            b.mstore(out_val.operand, length)
+            return out_val
 
         elif src_node.value.id == "self" and src_node.attr == "code":
             # self.code: use codecopy, bounds check against codesize
@@ -217,8 +218,8 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VenomValu
             b.assert_(b.iszero(oob))
             # codecopy(destOffset, offset, size)
             b.codecopy(out_data, start, length)
-            b.mstore(out_buf, length)
-            return VenomValue.loc(out_buf, DataLocation.MEMORY, out_t)
+            b.mstore(out_val.operand, length)
+            return out_val
 
     # <addr>.code: use extcodecopy
     addr = Expr(src_node.value, ctx).lower_value()
@@ -228,8 +229,8 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VenomValu
     b.assert_(b.iszero(oob))
     # extcodecopy(address, destOffset, offset, size)
     b.extcodecopy(addr, out_data, start, length)
-    b.mstore(out_buf, length)
-    return VenomValue.loc(out_buf, DataLocation.MEMORY, out_t)
+    b.mstore(out_val.operand, length)
+    return out_val
 
 
 def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
@@ -262,8 +263,8 @@ def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         src_val = Expr(src_node, ctx).lower_value()
         src_len = IRLiteral(32)
         tmp_buf = ctx.allocate_buffer(32)
-        b.mstore(tmp_buf, src_val)
-        src_data = tmp_buf
+        b.mstore(tmp_buf._ptr, src_val)
+        src_data = tmp_buf._ptr
 
     # Bounds check: start + 32 <= length
     end = b.add(start, IRLiteral(32))

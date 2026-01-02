@@ -10,7 +10,8 @@ These tests cover:
 """
 import pytest
 
-from vyper.codegen_venom.context import VenomCodegenContext
+from vyper.codegen_venom.buffer import Buffer
+from vyper.codegen_venom.context import LocalVariable, VenomCodegenContext, VyperValue
 from vyper.compiler.phases import CompilerData
 from vyper.semantics.types.shortcuts import UINT256_T, BYTES32_T
 from vyper.semantics.types.bytestrings import BytesT
@@ -43,9 +44,9 @@ class TestLoadMemory:
     def test_load_primitive_type(self):
         """Loading a primitive type should emit mload."""
         ctx = _make_context()
-        ptr = ctx.new_internal_variable(UINT256_T)
+        val = ctx.new_temporary_value(UINT256_T)
 
-        result = ctx.load_memory(ptr, UINT256_T)
+        result = ctx.load_memory(val.operand, UINT256_T)
 
         # Should return an IRVariable (result of mload)
         assert isinstance(result, IRVariable)
@@ -54,12 +55,12 @@ class TestLoadMemory:
         """Loading a complex type should return the pointer itself."""
         ctx = _make_context()
         complex_typ = BytesT(100)  # 100-byte string
-        ptr = ctx.new_internal_variable(complex_typ)
+        val = ctx.new_temporary_value(complex_typ)
 
-        result = ctx.load_memory(ptr, complex_typ)
+        result = ctx.load_memory(val.operand, complex_typ)
 
         # Should return the same pointer (complex types pass by reference)
-        assert result == ptr
+        assert result == val.operand
 
 
 class TestStoreMemory:
@@ -68,21 +69,21 @@ class TestStoreMemory:
     def test_store_primitive_type(self):
         """Storing a primitive type should emit mstore."""
         ctx = _make_context()
-        ptr = ctx.new_internal_variable(UINT256_T)
+        dst = ctx.new_temporary_value(UINT256_T)
         val = IRLiteral(42)
 
         # Should not raise
-        ctx.store_memory(val, ptr, UINT256_T)
+        ctx.store_memory(val, dst.operand, UINT256_T)
 
     def test_store_complex_type_copies_memory(self):
         """Storing a complex type should copy memory."""
         ctx = _make_context()
         complex_typ = BytesT(100)  # 100-byte string
-        src_ptr = ctx.new_internal_variable(complex_typ)
-        dst_ptr = ctx.new_internal_variable(complex_typ)
+        src_val = ctx.new_temporary_value(complex_typ)
+        dst_val = ctx.new_temporary_value(complex_typ)
 
         # Should not raise (will emit copy instructions)
-        ctx.store_memory(src_ptr, dst_ptr, complex_typ)
+        ctx.store_memory(src_val.operand, dst_val.operand, complex_typ)
 
 
 class TestCopyMemory:
@@ -118,11 +119,11 @@ class TestCopyMemory:
     def test_copy_with_variable_pointers(self):
         """Copying with variable pointers should use add for offsets."""
         ctx = _make_context()
-        src = ctx.new_internal_variable(UINT256_T)
-        dst = ctx.new_internal_variable(UINT256_T)
+        src_val = ctx.new_temporary_value(UINT256_T)
+        dst_val = ctx.new_temporary_value(UINT256_T)
 
         # Should not raise
-        ctx.copy_memory(dst, src, 64)  # 2 words
+        ctx.copy_memory(dst_val.operand, src_val.operand, 64)  # 2 words
 
 
 class TestLoadCalldata:
@@ -158,7 +159,7 @@ class TestAllocateBuffer:
 
         buf = ctx.allocate_buffer(32)
 
-        assert isinstance(buf, IRVariable)
+        assert isinstance(buf, Buffer)
 
     def test_allocate_large_buffer(self):
         """Should allocate larger buffer correctly."""
@@ -166,7 +167,7 @@ class TestAllocateBuffer:
 
         buf = ctx.allocate_buffer(256)
 
-        assert isinstance(buf, IRVariable)
+        assert isinstance(buf, Buffer)
 
     def test_multiple_allocations(self):
         """Multiple allocations should return different pointers."""
@@ -176,7 +177,7 @@ class TestAllocateBuffer:
         buf2 = ctx.allocate_buffer(32)
 
         # Different allocations should have different alloca IDs
-        assert buf1 != buf2
+        assert buf1._ptr != buf2._ptr
 
 
 class TestNewVariableIntegration:
@@ -186,19 +187,21 @@ class TestNewVariableIntegration:
         """Test allocating variable and storing to it."""
         ctx = _make_context()
 
-        ptr = ctx.new_variable("x", UINT256_T)
-        ctx.store_memory(IRLiteral(100), ptr, UINT256_T)
+        var = ctx.new_variable("x", UINT256_T)
+        assert isinstance(var, LocalVariable)
+        ctx.store_memory(IRLiteral(100), var.value.operand, UINT256_T)
 
         # Should be able to load back
-        val = ctx.load_memory(ptr, UINT256_T)
+        val = ctx.load_memory(var.value.operand, UINT256_T)
         assert isinstance(val, IRVariable)
 
-    def test_internal_variable_allocation(self):
-        """Test allocating internal variable."""
+    def test_temporary_value_allocation(self):
+        """Test allocating temporary value."""
         ctx = _make_context()
 
-        ptr = ctx.new_internal_variable(UINT256_T)
-        ctx.store_memory(IRLiteral(42), ptr, UINT256_T)
+        val = ctx.new_temporary_value(UINT256_T)
+        assert isinstance(val, VyperValue)
+        ctx.store_memory(IRLiteral(42), val.operand, UINT256_T)
 
-        val = ctx.load_memory(ptr, UINT256_T)
-        assert isinstance(val, IRVariable)
+        loaded = ctx.load_memory(val.operand, UINT256_T)
+        assert isinstance(loaded, IRVariable)

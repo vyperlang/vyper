@@ -12,21 +12,23 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from vyper.evm.opcodes import version_check
+from vyper.exceptions import CompilerPanic
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
+from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.constants import IDENTITY_PRECOMPILE
+from vyper.codegen_venom.value import VyperValue
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 
-from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:
-    from vyper.codegen_venom.value import VenomValue
+    pass
 
 
 class Constancy(Enum):
@@ -35,15 +37,26 @@ class Constancy(Enum):
 
 
 @dataclass
-class VenomVariable:
+class LocalVariable:
     """Tracks a variable during Venom codegen."""
-
     name: str
-    typ: VyperType
-    ptr: IRVariable  # pointer to memory location
+    value: VyperValue  # must be located in MEMORY
     mutable: bool = True
-    is_internal: bool = False
     scopes: set = field(default_factory=set)
+
+    def __post_init__(self):
+        if self.value.is_stack_value:
+            raise CompilerPanic("LocalVariable.value must be located")
+        if self.value.location != DataLocation.MEMORY:
+            raise CompilerPanic("LocalVariable must be in MEMORY")
+
+    @property
+    def typ(self) -> VyperType:
+        return self.value.typ
+
+    @property
+    def buf(self) -> Buffer:
+        return self.value.ptr().buf
 
 
 @dataclass
@@ -53,15 +66,12 @@ class VenomCodegenContext:
     module_ctx: ModuleT
     builder: VenomBuilder
 
-    # Variable tracking (name -> VenomVariable)
-    variables: dict[str, VenomVariable] = field(default_factory=dict)
+    # Variable tracking (name -> LocalVariable)
+    variables: dict[str, LocalVariable] = field(default_factory=dict)
 
     # Scope tracking
     _scopes: set[int] = field(default_factory=set)
     _scope_id: int = 0
-
-    # Internal variable counter
-    _internal_var_id: int = 0
 
     # Function context
     func_t: Optional[ContractFunctionT] = None
@@ -88,19 +98,13 @@ class VenomCodegenContext:
         """Generate unique alloca ID."""
         return self.builder.ctx.get_next_alloca_id()
 
-    def new_variable(self, name: str, typ: VyperType, mutable: bool = True) -> IRVariable:
-        """Allocate abstract memory for a variable, return pointer."""
-        size = typ.memory_bytes_required
-        alloca_id = self.new_alloca_id()
-
-        # Use builder to emit alloca instruction
-        ptr = self.builder.alloca(size, alloca_id)
-
-        var = VenomVariable(
-            name=name, typ=typ, ptr=ptr, mutable=mutable, scopes=self._scopes.copy()
-        )
+    def new_variable(self, name: str, typ: VyperType, mutable: bool = True) -> LocalVariable:
+        """Allocate memory for a named variable, register it, return the variable."""
+        buf = self.allocate_buffer(typ.memory_bytes_required, annotation=name)
+        value = VyperValue.from_ptr(buf.base_ptr(), typ)
+        var = LocalVariable(name=name, value=value, mutable=mutable, scopes=self._scopes.copy())
         self.variables[name] = var
-        return ptr
+        return var
 
     def register_variable(
         self, name: str, typ: VyperType, ptr: IRVariable, mutable: bool = True
@@ -110,43 +114,40 @@ class VenomCodegenContext:
         Used for internal function parameters where memory is already
         allocated by the caller.
         """
-        var = VenomVariable(
-            name=name, typ=typ, ptr=ptr, mutable=mutable, scopes=self._scopes.copy()
+        # Create a dummy buffer for the existing pointer
+        buf = Buffer(_ptr=ptr, size=typ.memory_bytes_required, annotation=name)
+        value = VyperValue.from_ptr(buf.base_ptr(), typ)
+        var = LocalVariable(
+            name=name, value=value, mutable=mutable, scopes=self._scopes.copy()
         )
         self.variables[name] = var
 
-    def new_internal_variable(self, typ: VyperType) -> IRVariable:
-        """Allocate memory for compiler-internal variable."""
-        self._internal_var_id += 1
-        name = f"#internal{self._internal_var_id}"
+    def new_temporary_value(self, typ: VyperType, annotation: str | None = None) -> VyperValue:
+        """
+        Allocate typed scratch memory.
 
-        size = typ.memory_bytes_required
-        alloca_id = self.new_alloca_id()
-        ptr = self.builder.alloca(size, alloca_id)
+        Returns VyperValue pointing to a new buffer. Not registered anywhere -
+        caller holds the only reference. Use for temporary/intermediate values
+        during code generation.
+        """
+        buf = self.allocate_buffer(typ.memory_bytes_required, annotation)
+        return VyperValue.from_ptr(buf.base_ptr(), typ)
 
-        var = VenomVariable(
-            name=name, typ=typ, ptr=ptr, mutable=True, is_internal=True, scopes=self._scopes.copy()
-        )
-        self.variables[name] = var
-        return ptr
-
-    def lookup(self, name: str) -> VenomVariable:
+    def lookup(self, name: str) -> LocalVariable:
         """Get variable by name."""
         return self.variables[name]
 
     def lookup_ptr(self, name: str) -> IRVariable:
         """Get variable's memory pointer."""
-        return self.variables[name].ptr
+        return self.variables[name].value.operand
 
-    def unwrap(self, vv: "VenomValue") -> IROperand:
-        """Unwrap a VenomValue, loading from location if needed.
+    def unwrap(self, vv: VyperValue) -> IROperand:
+        """Unwrap a VyperValue, loading from location if needed.
 
         - If already a value (location=None): return operand directly
         - If complex type (>32 bytes): return operand as pointer (or copy for CODE)
         - Otherwise: emit load instruction and return the loaded value
         """
-        from vyper.semantics.data_locations import DataLocation
-
         if vv.location is None:
             return vv.operand
 
@@ -166,25 +167,21 @@ class VenomCodegenContext:
             return self.builder.iload(vv.operand)
         return self.builder.load(vv.operand, vv.location)
 
-    def bytes_data_ptr(self, vv: "VenomValue") -> IROperand:
+    def bytes_data_ptr(self, vv: VyperValue) -> IROperand:
         """Get pointer to bytestring data (skipping length word).
 
         Like legacy bytes_data_ptr: add_ofst(ptr, location.word_scale)
         """
-        from vyper.semantics.data_locations import DataLocation
-
         assert vv.location in (DataLocation.MEMORY, DataLocation.STORAGE), \
             f"bytes_data_ptr expects MEMORY or STORAGE, got {vv.location}"
         word_scale = 32 if vv.location == DataLocation.MEMORY else 1
         return self.builder.add(vv.operand, IRLiteral(word_scale))
 
-    def bytestring_length(self, vv: "VenomValue") -> IROperand:
+    def bytestring_length(self, vv: VyperValue) -> IROperand:
         """Get length of bytestring from its pointer.
 
         Like legacy get_bytearray_length: LOAD(ptr)
         """
-        from vyper.semantics.data_locations import DataLocation
-
         assert vv.location in (DataLocation.MEMORY, DataLocation.STORAGE), \
             f"bytestring_length expects MEMORY or STORAGE, got {vv.location}"
         return self.builder.load(vv.operand, vv.location)
@@ -424,20 +421,15 @@ class VenomCodegenContext:
         else:
             # Allocate buffer and copy calldata to it
             size = typ.memory_bytes_required
-            buf = self.new_internal_variable(typ)
-            self.builder.calldatacopy(buf, offset, IRLiteral(size))
-            return buf
+            val = self.new_temporary_value(typ)
+            self.builder.calldatacopy(val.operand, offset, IRLiteral(size))
+            return val.operand
 
-    def allocate_buffer(self, size: int, name: str = "buf") -> IRVariable:
-        """Allocate a temporary memory buffer of given size.
-
-        Useful for ABI encoding/decoding buffers and other
-        temporary scratch space.
-        """
-        # Create a dummy type for allocation purposes
-        # We just need the size - type doesn't matter for buffers
+    def allocate_buffer(self, size: int, annotation: str | None = None) -> Buffer:
+        """Allocate anonymous memory buffer. Use buf.base_ptr() to get a Ptr."""
         alloca_id = self.new_alloca_id()
-        return self.builder.alloca(size, alloca_id)
+        ptr = self.builder.alloca(size, alloca_id)
+        return Buffer(_ptr=ptr, size=size, annotation=annotation)
 
     # === Storage Operations ===
 
@@ -456,9 +448,9 @@ class VenomCodegenContext:
             return self.builder.sload(slot)
         else:
             # Multi-word: allocate memory and copy from storage
-            buf = self.new_internal_variable(typ)
-            self._load_storage_to_memory(slot, buf, typ.storage_size_in_words)
-            return buf
+            val = self.new_temporary_value(typ)
+            self._load_storage_to_memory(slot, val.operand, typ.storage_size_in_words)
+            return val.operand
 
     def store_storage(self, val: IROperand, slot: IROperand, typ: VyperType) -> None:
         """Store value to storage slot.
@@ -543,9 +535,9 @@ class VenomCodegenContext:
             return self.builder.tload(slot)
         else:
             # Multi-word: allocate memory and copy from transient storage
-            buf = self.new_internal_variable(typ)
-            self._load_transient_to_memory(slot, buf, typ.storage_size_in_words)
-            return buf
+            val = self.new_temporary_value(typ)
+            self._load_transient_to_memory(slot, val.operand, typ.storage_size_in_words)
+            return val.operand
 
     def store_transient(self, val: IROperand, slot: IROperand, typ: VyperType) -> None:
         """Store to transient storage (Cancun+).
@@ -620,7 +612,8 @@ class VenomCodegenContext:
             return self.builder.iload(offset)
         else:
             # Multi-word immutable: copy to memory buffer
-            buf = self.new_internal_variable(typ)
+            val = self.new_temporary_value(typ)
+            buf = val.operand
             size = typ.memory_bytes_required
             for i in range(0, size, 32):
                 # Immutables are byte-addressed
@@ -709,3 +702,34 @@ class VenomCodegenContext:
         Length is stored at the base pointer.
         """
         self.builder.mstore(ptr, length)
+
+    # === Ptr Operations ===
+
+    def add_offset(self, p: Ptr, n: IROperand) -> Ptr:
+        """Add an offset to a pointer. Preserves location and buf."""
+        new_operand = self.builder.add(p.operand, n)
+        return Ptr(operand=new_operand, location=p.location, buf=p.buf)
+
+    def ptr_load(self, src: Ptr) -> IROperand:
+        """Load 32-byte value from pointer. Dispatches on location."""
+        if src.location == DataLocation.MEMORY:
+            return self.builder.mload(src.operand)
+        elif src.location == DataLocation.STORAGE:
+            return self.builder.sload(src.operand)
+        elif src.location == DataLocation.TRANSIENT:
+            return self.builder.tload(src.operand)
+        elif src.location == DataLocation.CALLDATA:
+            return self.builder.calldataload(src.operand)
+        else:
+            raise CompilerPanic(f"cannot load from: {src.location}")
+
+    def ptr_store(self, dst: Ptr, val: IROperand) -> None:
+        """Store 32-byte value to pointer. Dispatches on location."""
+        if dst.location == DataLocation.MEMORY:
+            self.builder.mstore(dst.operand, val)
+        elif dst.location == DataLocation.STORAGE:
+            self.builder.sstore(dst.operand, val)
+        elif dst.location == DataLocation.TRANSIENT:
+            self.builder.tstore(dst.operand, val)
+        else:
+            raise CompilerPanic(f"cannot store to: {dst.location}")

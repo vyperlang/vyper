@@ -8,7 +8,7 @@ import pytest
 
 from vyper.codegen_venom.context import VenomCodegenContext
 from vyper.codegen_venom.expr import Expr
-from vyper.codegen_venom.value import VenomValue
+from vyper.codegen_venom.value import VyperValue
 from vyper.compiler.phases import CompilerData
 from vyper.venom.basicblock import IRLiteral, IRVariable
 from vyper.venom.builder import VenomBuilder
@@ -255,8 +255,8 @@ def foo() -> Bytes[10]:
         ctx, node = _get_expr_context(source)
         result = Expr(node, ctx).lower()
 
-        # Returns pointer (VenomValue), not literal
-        assert isinstance(result, VenomValue)
+        # Returns pointer (VyperValue), not literal
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)
 
     def test_simple_bytes(self):
@@ -269,7 +269,7 @@ def foo() -> Bytes[10]:
         ctx, node = _get_expr_context(source)
         result = Expr(node, ctx).lower()
 
-        assert isinstance(result, VenomValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)
 
     def test_long_bytes(self):
@@ -283,7 +283,7 @@ def foo() -> Bytes[100]:
         ctx, node = _get_expr_context(source)
         result = Expr(node, ctx).lower()
 
-        assert isinstance(result, VenomValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)
 
 
@@ -300,7 +300,7 @@ def foo() -> Bytes[4]:
         ctx, node = _get_expr_context(source)
         result = Expr(node, ctx).lower()
 
-        assert isinstance(result, VenomValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)
 
 
@@ -317,7 +317,7 @@ def foo() -> String[10]:
         ctx, node = _get_expr_context(source)
         result = Expr(node, ctx).lower()
 
-        assert isinstance(result, VenomValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)
 
     def test_simple_string(self):
@@ -330,7 +330,7 @@ def foo() -> String[20]:
         ctx, node = _get_expr_context(source)
         result = Expr(node, ctx).lower()
 
-        assert isinstance(result, VenomValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)
 
     def test_long_string(self):
@@ -344,5 +344,5 @@ def foo() -> String[100]:
         ctx, node = _get_expr_context(source)
         result = Expr(node, ctx).lower()
 
-        assert isinstance(result, VenomValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)

@@ -29,9 +29,9 @@ def foo(x: uint256) -> uint256:
         ctx, node = get_expr_context(source)
         # Get the x variable pointer
         src_ptr = ctx.lookup_ptr("x")
-        dst_ptr = ctx.allocate_buffer(32)
+        dst_buf = ctx.allocate_buffer(32)
 
-        result = abi_encode_to_buf(ctx, dst_ptr, src_ptr, UINT256_T, returns_len=True)
+        result = abi_encode_to_buf(ctx, dst_buf._ptr, src_ptr, UINT256_T, returns_len=True)
         # Fast path returns literal 32
         assert isinstance(result, IRLiteral)
         assert result.value == 32
@@ -47,9 +47,9 @@ def foo(arr: uint256[3]) -> uint256[3]:
         ctx, node = get_expr_context(source)
         src_ptr = ctx.lookup_ptr("arr")
         arr_typ = SArrayT(UINT256_T, 3)
-        dst_ptr = ctx.allocate_buffer(96)  # 3 * 32 bytes
+        dst_buf = ctx.allocate_buffer(96)  # 3 * 32 bytes
 
-        result = abi_encode_to_buf(ctx, dst_ptr, src_ptr, arr_typ, returns_len=True)
+        result = abi_encode_to_buf(ctx, dst_buf._ptr, src_ptr, arr_typ, returns_len=True)
         # Fast path returns literal static size
         assert isinstance(result, IRLiteral)
         assert result.value == 96
@@ -70,9 +70,9 @@ def foo(data: Bytes[100]) -> Bytes[100]:
         src_ptr = ctx.lookup_ptr("data")
         typ = BytesT(100)
         max_size = typ.abi_type.size_bound()
-        dst_ptr = ctx.allocate_buffer(max_size)
+        dst_buf = ctx.allocate_buffer(max_size)
 
-        result = abi_encode_to_buf(ctx, dst_ptr, src_ptr, typ, returns_len=True)
+        result = abi_encode_to_buf(ctx, dst_buf._ptr, src_ptr, typ, returns_len=True)
         # Dynamic type returns IRVariable (computed at runtime)
         assert isinstance(result, IRVariable)
 
@@ -88,9 +88,9 @@ def foo(data: String[100]) -> String[100]:
         src_ptr = ctx.lookup_ptr("data")
         typ = StringT(100)
         max_size = typ.abi_type.size_bound()
-        dst_ptr = ctx.allocate_buffer(max_size)
+        dst_buf = ctx.allocate_buffer(max_size)
 
-        result = abi_encode_to_buf(ctx, dst_ptr, src_ptr, typ, returns_len=True)
+        result = abi_encode_to_buf(ctx, dst_buf._ptr, src_ptr, typ, returns_len=True)
         # Dynamic type returns IRVariable
         assert isinstance(result, IRVariable)
 
@@ -109,10 +109,10 @@ def foo(a: uint256, b: uint256) -> (uint256, uint256):
         ctx, node = get_expr_context(source)
         # Create a tuple in memory
         typ = TupleT([UINT256_T, UINT256_T])
-        src_ptr = ctx.new_internal_variable(typ)
-        dst_ptr = ctx.allocate_buffer(64)
+        src_val = ctx.new_temporary_value(typ)
+        dst_buf = ctx.allocate_buffer(64)
 
-        result = abi_encode_to_buf(ctx, dst_ptr, src_ptr, typ, returns_len=True)
+        result = abi_encode_to_buf(ctx, dst_buf._ptr, src_val.operand, typ, returns_len=True)
         # Static tuple returns literal size
         assert isinstance(result, IRLiteral)
         assert result.value == 64
@@ -127,11 +127,11 @@ def foo(x: uint256, data: Bytes[32]) -> (uint256, Bytes[32]):
 """
         ctx, node = get_expr_context(source)
         typ = TupleT([UINT256_T, BytesT(32)])
-        src_ptr = ctx.new_internal_variable(typ)
+        src_val = ctx.new_temporary_value(typ)
         max_size = typ.abi_type.size_bound()
-        dst_ptr = ctx.allocate_buffer(max_size)
+        dst_buf = ctx.allocate_buffer(max_size)
 
-        result = abi_encode_to_buf(ctx, dst_ptr, src_ptr, typ, returns_len=True)
+        result = abi_encode_to_buf(ctx, dst_buf._ptr, src_val.operand, typ, returns_len=True)
         # Dynamic content means runtime-computed length
         assert isinstance(result, IRVariable)
 
@@ -151,9 +151,9 @@ def foo(arr: DynArray[uint256, 10]) -> DynArray[uint256, 10]:
         src_ptr = ctx.lookup_ptr("arr")
         typ = DArrayT(UINT256_T, 10)
         max_size = typ.abi_type.size_bound()
-        dst_ptr = ctx.allocate_buffer(max_size)
+        dst_buf = ctx.allocate_buffer(max_size)
 
-        result = abi_encode_to_buf(ctx, dst_ptr, src_ptr, typ, returns_len=True)
+        result = abi_encode_to_buf(ctx, dst_buf._ptr, src_ptr, typ, returns_len=True)
         # DynArray encoding has runtime-computed length
         assert isinstance(result, IRVariable)
 
@@ -169,9 +169,9 @@ def foo(arr: DynArray[Bytes[32], 5]) -> DynArray[Bytes[32], 5]:
         src_ptr = ctx.lookup_ptr("arr")
         typ = DArrayT(BytesT(32), 5)
         max_size = typ.abi_type.size_bound()
-        dst_ptr = ctx.allocate_buffer(max_size)
+        dst_buf = ctx.allocate_buffer(max_size)
 
-        result = abi_encode_to_buf(ctx, dst_ptr, src_ptr, typ, returns_len=True)
+        result = abi_encode_to_buf(ctx, dst_buf._ptr, src_ptr, typ, returns_len=True)
         # Nested dynamic encoding
         assert isinstance(result, IRVariable)
 
@@ -189,7 +189,7 @@ def foo(x: uint256) -> uint256:
 """
         ctx, node = get_expr_context(source)
         src_ptr = ctx.lookup_ptr("x")
-        dst_ptr = ctx.allocate_buffer(32)
+        dst_buf = ctx.allocate_buffer(32)
 
-        result = abi_encode_to_buf(ctx, dst_ptr, src_ptr, UINT256_T, returns_len=False)
+        result = abi_encode_to_buf(ctx, dst_buf._ptr, src_ptr, UINT256_T, returns_len=False)
         assert result is None

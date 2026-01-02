@@ -2,10 +2,10 @@
 Built-in function lowering for Venom IR.
 
 Each submodule exports a HANDLERS dict mapping builtin_id -> handler function.
-Handler signature: (node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand | VenomValue
+Handler signature: (node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand | VyperValue
 
 Builtins that return memory-located data (abi_decode, concat, slice, etc.)
-should return VenomValue.loc() to preserve location info. Builtins that return
+should return VyperValue.from_ptr() to preserve location info. Builtins that return
 stack values can return IROperand directly.
 """
 from __future__ import annotations
@@ -15,7 +15,7 @@ from typing import Union
 from vyper.exceptions import CompilerPanic
 from vyper.venom.basicblock import IROperand
 
-from vyper.codegen_venom.value import VenomValue
+from vyper.codegen_venom.value import VyperValue
 
 from .abi import HANDLERS as ABI_HANDLERS
 from .bytes import HANDLERS as BYTES_HANDLERS
@@ -43,7 +43,7 @@ BUILTIN_HANDLERS: dict = {
 }
 
 
-def lower_builtin(builtin_id: str, node, ctx) -> Union[IROperand, VenomValue]:
+def lower_builtin(builtin_id: str, node, ctx) -> Union[IROperand, VyperValue]:
     """
     Lower a built-in function call to Venom IR.
 
@@ -53,7 +53,7 @@ def lower_builtin(builtin_id: str, node, ctx) -> Union[IROperand, VenomValue]:
         ctx: VenomCodegenContext
 
     Returns:
-        IROperand for stack values, or VenomValue for memory-located results
+        IROperand for stack values, or VyperValue for memory-located results
     """
     handler = BUILTIN_HANDLERS.get(builtin_id)
     if handler is None:

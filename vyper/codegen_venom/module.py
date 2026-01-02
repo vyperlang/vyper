@@ -20,8 +20,9 @@ from vyper.codegen.core import needs_clamp
 from vyper.codegen.function_definitions.common import EntryPointInfo, _FuncIRInfo
 from vyper.codegen.ir_node import Encoding
 from vyper.codegen_venom.abi.abi_decoder import _getelemptr_abi, abi_decode_to_buf
+from vyper.codegen_venom.buffer import Ptr
 from vyper.codegen_venom.constants import SELECTOR_BYTES, SELECTOR_SHIFT_BITS
-from vyper.codegen_venom.value import VenomValue
+from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.data_locations import DataLocation
 from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import version_check
@@ -379,8 +380,9 @@ def _register_positional_args(ctx: VenomCodegenContext, func_t: ContractFunction
     arg_types = [arg.typ for arg in func_t.positional_args]
     args_tuple_t = TupleT(arg_types)
 
-    # Create VenomValue pointing to calldata tuple (starts at offset 4 after selector)
-    calldata_tuple = VenomValue.loc(IRLiteral(SELECTOR_BYTES), DataLocation.CALLDATA, args_tuple_t)
+    # Create VyperValue pointing to calldata tuple (starts at offset 4 after selector)
+    ptr = Ptr(operand=IRLiteral(SELECTOR_BYTES), location=DataLocation.CALLDATA)
+    calldata_tuple = VyperValue.from_ptr(ptr, args_tuple_t)
 
     for i, arg in enumerate(func_t.positional_args):
         # Calculate static offset for this element in the tuple
@@ -389,14 +391,14 @@ def _register_positional_args(ctx: VenomCodegenContext, func_t: ContractFunction
         )
 
         # Allocate memory for the arg
-        ptr = ctx.new_variable(arg.name, arg.typ, mutable=False)
+        var = ctx.new_variable(arg.name, arg.typ, mutable=False)
 
         # Get the element location in calldata (handles ABI offset indirection for dynamic types)
         elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
 
         # Decode from calldata to memory
         # Note: No hi bound needed - calldata size already validated in dispatcher
-        abi_decode_to_buf(ctx, ptr, elem_src)
+        abi_decode_to_buf(ctx, var.value.operand, elem_src)
 
 
 def _handle_kwargs(
@@ -420,12 +422,11 @@ def _handle_kwargs(
         calldata_arg_types = [arg.typ for arg in func_t.positional_args]
         calldata_arg_types += [func_t.keyword_args[j].typ for j in range(kwargs_from_calldata)]
         calldata_tuple_t = TupleT(calldata_arg_types)
-        calldata_tuple = VenomValue.loc(
-            IRLiteral(SELECTOR_BYTES), DataLocation.CALLDATA, calldata_tuple_t
-        )
+        ptr = Ptr(operand=IRLiteral(SELECTOR_BYTES), location=DataLocation.CALLDATA)
+        calldata_tuple = VyperValue.from_ptr(ptr, calldata_tuple_t)
 
     for i, arg in enumerate(func_t.keyword_args):
-        ptr = ctx.new_variable(arg.name, arg.typ, mutable=False)
+        var = ctx.new_variable(arg.name, arg.typ, mutable=False)
 
         if i < kwargs_from_calldata:
             # Copy from calldata using ABI decoder
@@ -435,16 +436,16 @@ def _handle_kwargs(
                 calldata_arg_types[j].abi_type.embedded_static_size() for j in range(tuple_index)
             )
             elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
-            abi_decode_to_buf(ctx, ptr, elem_src)
+            abi_decode_to_buf(ctx, var.value.operand, elem_src)
         else:
             # Use default value
             default_node = func_t.default_values[arg.name]
             if arg.typ._is_prim_word:
                 default_val = Expr(default_node, ctx).lower_value()
-                ctx.builder.mstore(ptr, default_val)
+                ctx.builder.mstore(var.value.operand, default_val)
             else:
                 default_val = Expr(default_node, ctx).lower().operand
-                ctx.store_memory(default_val, ptr, arg.typ)
+                ctx.store_memory(default_val, var.value.operand, arg.typ)
 
 
 def _generate_fallback_body(
@@ -509,8 +510,8 @@ def _generate_internal_function(
         if pass_via_stack[arg.name]:
             # Stack-passed: receive value, allocate memory, store
             val = builder.param()
-            ptr = codegen_ctx.new_variable(arg.name, arg.typ, mutable=False)
-            builder.mstore(ptr, val)
+            var = codegen_ctx.new_variable(arg.name, arg.typ, mutable=False)
+            builder.mstore(var.value.operand, val)
         else:
             # Memory-passed: receive pointer, register directly (no allocation)
             ptr = builder.param()
@@ -522,7 +523,7 @@ def _generate_internal_function(
     # Allocate return buffer if needed
     if func_t.return_type is not None:
         if returns_count > 0:
-            codegen_ctx.return_buffer = codegen_ctx.new_internal_variable(func_t.return_type)
+            codegen_ctx.return_buffer = codegen_ctx.new_temporary_value(func_t.return_type).operand
 
     # Nonreentrant lock
     codegen_ctx.emit_nonreentrant_lock(func_t)
@@ -594,14 +595,14 @@ def _register_constructor_args(ctx: VenomCodegenContext, func_t: ContractFunctio
     offset = 0
 
     for arg in func_t.positional_args:
-        ptr = ctx.new_variable(arg.name, arg.typ, mutable=False)
+        var = ctx.new_variable(arg.name, arg.typ, mutable=False)
 
         if arg.typ._is_prim_word:
             val = ctx.builder.dload(IRLiteral(offset))
-            ctx.builder.mstore(ptr, val)
+            ctx.builder.mstore(var.value.operand, val)
         else:
             size = arg.typ.memory_bytes_required
-            ctx.builder.dloadbytes(ptr, IRLiteral(offset), IRLiteral(size))
+            ctx.builder.dloadbytes(var.value.operand, IRLiteral(offset), IRLiteral(size))
 
         offset += arg.typ.abi_type.embedded_static_size()
 

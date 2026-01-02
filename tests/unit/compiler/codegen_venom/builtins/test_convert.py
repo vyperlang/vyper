@@ -4,7 +4,7 @@ Tests for convert() built-in function.
 import pytest
 
 from vyper.codegen_venom.expr import Expr
-from vyper.codegen_venom.value import VenomValue
+from vyper.codegen_venom.value import VyperValue
 from vyper.venom.basicblock import IRLiteral, IRVariable
 
 from .conftest import get_expr_context
@@ -229,7 +229,7 @@ def foo(x: Bytes[100]) -> String[100]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, VenomValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)
 
     def test_string_to_bytes(self):
@@ -241,5 +241,5 @@ def foo(x: String[100]) -> Bytes[100]:
 """
         ctx, node = get_expr_context(source)
         result = Expr(node, ctx).lower()
-        assert isinstance(result, VenomValue)
+        assert isinstance(result, VyperValue)
         assert isinstance(result.operand, IRVariable)

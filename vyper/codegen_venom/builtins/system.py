@@ -11,11 +11,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Union
 
 from vyper import ast as vy_ast
-from vyper.codegen_venom.value import VenomValue
-from vyper.semantics.data_locations import DataLocation
+from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.types import BytesT, TupleT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
-from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRLiteral, IROperand
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -51,7 +50,7 @@ def _get_literal_kwarg(node: vy_ast.Call, kwarg_name: str, default):
 
 def lower_raw_call(
     node: vy_ast.Call, ctx: VenomCodegenContext
-) -> Union[IROperand, VenomValue]:
+) -> Union[IROperand, VyperValue]:
     """
     raw_call(to, data, max_outsize=0, gas=gas, value=0,
              is_delegate_call=False, is_static_call=False,
@@ -101,13 +100,13 @@ def lower_raw_call(
     data_ptr = b.add(data, IRLiteral(32))
 
     # Allocate output buffer if needed
-    out_buf: IRVariable | None
+    out_val: "VyperValue | None"
     out_ptr: IROperand
     if max_outsize > 0:
-        out_buf = ctx.new_internal_variable(BytesT(max_outsize))
-        out_ptr = b.add(out_buf, IRLiteral(32))
+        out_val = ctx.new_temporary_value(BytesT(max_outsize))
+        out_ptr = b.add(out_val.operand, IRLiteral(32))
     else:
-        out_buf = None
+        out_val = None
         out_ptr = IRLiteral(0)
 
     # Build the call instruction
@@ -131,10 +130,9 @@ def lower_raw_call(
             capped = b.select(
                 b.lt(ret_size, IRLiteral(max_outsize)), ret_size, IRLiteral(max_outsize)
             )
-            assert out_buf is not None
-            b.mstore(out_buf, capped)
-            out_t = BytesT(max_outsize)
-            return VenomValue.loc(out_buf, DataLocation.MEMORY, out_t)
+            assert out_val is not None
+            b.mstore(out_val.operand, capped)
+            return out_val
         # No return value (returns None in Vyper)
         return IRLiteral(0)
     else:
@@ -144,16 +142,16 @@ def lower_raw_call(
             capped = b.select(
                 b.lt(ret_size, IRLiteral(max_outsize)), ret_size, IRLiteral(max_outsize)
             )
-            assert out_buf is not None
-            b.mstore(out_buf, capped)
+            assert out_val is not None
+            b.mstore(out_val.operand, capped)
 
             # Return (success, data) tuple
             # Allocate tuple: [bool (32 bytes)][ptr (32 bytes)]
             tuple_t = TupleT((UINT256_T, BytesT(max_outsize)))
-            tuple_buf = ctx.new_internal_variable(tuple_t)
-            b.mstore(tuple_buf, success)
-            b.mstore(b.add(tuple_buf, IRLiteral(32)), out_buf)
-            return VenomValue.loc(tuple_buf, DataLocation.MEMORY, tuple_t)
+            tuple_local = ctx.new_temporary_value(tuple_t)
+            b.mstore(tuple_local.operand, success)
+            b.mstore(b.add(tuple_local.operand, IRLiteral(32)), out_val.operand)
+            return tuple_local
 
         # Just return success flag
         return success
@@ -225,10 +223,10 @@ def lower_raw_log(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     data_len: IROperand
     if data_typ == BYTES32_T:
         # For bytes32: store to temp memory, then log from there
-        tmp = ctx.new_internal_variable(BYTES32_T)
+        tmp_val = ctx.new_temporary_value(BYTES32_T)
         data_val = Expr(data_node, ctx).lower_value()
-        b.mstore(tmp, data_val)
-        data_ptr = tmp
+        b.mstore(tmp_val.operand, data_val)
+        data_ptr = tmp_val.operand
         data_len = IRLiteral(32)
     else:
         # For Bytes[N]: data starts at ptr+32, length at ptr

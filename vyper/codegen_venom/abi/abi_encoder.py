@@ -223,24 +223,24 @@ def _encode_dyn_array(
     b.append_block(loop_exit)
 
     # Initialize loop counter in memory (still in entry block)
-    i_ptr = ctx.new_internal_variable(UINT256_T)
-    b.mstore(i_ptr, IRLiteral(0))
+    i_val = ctx.new_temporary_value(UINT256_T)
+    b.mstore(i_val.operand, IRLiteral(0))
 
     # Initialize child dynamic offset tracker if needed
     if child_abi_t.is_dynamic():
         # Start of dynamic section for children = length * static_elem_size
-        child_dyn_ofst_ptr = ctx.new_internal_variable(UINT256_T)
+        child_dyn_ofst_val = ctx.new_temporary_value(UINT256_T)
         initial_child_dyn = b.mul(length, IRLiteral(static_elem_size))
-        b.mstore(child_dyn_ofst_ptr, initial_child_dyn)
+        b.mstore(child_dyn_ofst_val.operand, initial_child_dyn)
     else:
-        child_dyn_ofst_ptr = None
+        child_dyn_ofst_val = None
 
     # Jump to header and switch
     b.jmp(loop_header.label)
 
     # --- Loop header: check i < length ---
     b.set_block(loop_header)
-    i = b.mload(i_ptr)
+    i = b.mload(i_val.operand)
     done = b.lt(i, length)
     done = b.iszero(done)
     b.jnz(done, loop_exit.label, loop_body.label)
@@ -249,7 +249,7 @@ def _encode_dyn_array(
     b.set_block(loop_body)
 
     # Re-load i (we're in a new block, previous i is in different block)
-    i = b.mload(i_ptr)
+    i = b.mload(i_val.operand)
 
     # Get source element pointer
     # Source elements start at src_ptr + 32 (skip length word)
@@ -266,8 +266,8 @@ def _encode_dyn_array(
     if child_abi_t.is_dynamic():
         # Need to handle offset tracking
         static_loc = b.add(dst_data, static_ofst)
-        assert child_dyn_ofst_ptr is not None
-        dyn_ofst = b.mload(child_dyn_ofst_ptr)
+        assert child_dyn_ofst_val is not None
+        dyn_ofst = b.mload(child_dyn_ofst_val.operand)
         b.mstore(static_loc, dyn_ofst)
 
         child_dst = b.add(dst_data, dyn_ofst)
@@ -275,7 +275,7 @@ def _encode_dyn_array(
         assert child_len is not None
 
         new_dyn_ofst = b.add(dyn_ofst, child_len)
-        b.mstore(child_dyn_ofst_ptr, new_dyn_ofst)
+        b.mstore(child_dyn_ofst_val.operand, new_dyn_ofst)
     else:
         # Static child: encode directly
         child_dst = b.add(dst_data, static_ofst)
@@ -283,7 +283,7 @@ def _encode_dyn_array(
 
     # Increment counter
     new_i = b.add(i, IRLiteral(1))
-    b.mstore(i_ptr, new_i)
+    b.mstore(i_val.operand, new_i)
     b.jmp(loop_header.label)
 
     # --- Exit block ---
@@ -294,8 +294,8 @@ def _encode_dyn_array(
     # Note: need to reload length since we're in a new block
     length_exit = b.mload(src_ptr)
     if child_abi_t.is_dynamic():
-        assert child_dyn_ofst_ptr is not None
-        final_child_dyn = b.mload(child_dyn_ofst_ptr)
+        assert child_dyn_ofst_val is not None
+        final_child_dyn = b.mload(child_dyn_ofst_val.operand)
         total_size = b.add(IRLiteral(32), final_child_dyn)
     else:
         # Static elements: 32 + length * static_elem_size
@@ -366,11 +366,11 @@ def _abi_encode_to_buf(
     elif isinstance(src_typ, DArrayT):
         # Dynamic array: use helper
         # Need to set up dyn_ofst tracking for parent
-        dyn_ofst_ptr = ctx.new_internal_variable(UINT256_T)
-        b.mstore(dyn_ofst_ptr, IRLiteral(0))
-        _encode_dyn_array(ctx, dst, src, src_typ, dyn_ofst_ptr)
+        dyn_ofst_val = ctx.new_temporary_value(UINT256_T)
+        b.mstore(dyn_ofst_val.operand, IRLiteral(0))
+        _encode_dyn_array(ctx, dst, src, src_typ, dyn_ofst_val.operand)
         if returns_len:
-            return b.mload(dyn_ofst_ptr)
+            return b.mload(dyn_ofst_val.operand)
         return None
 
     elif _is_complex_type(src_typ):
@@ -385,11 +385,11 @@ def _abi_encode_to_buf(
         # Set up dynamic offset tracking if needed
         has_dynamic = abi_t.is_dynamic()
         if has_dynamic:
-            dyn_ofst_ptr = ctx.new_internal_variable(UINT256_T)
+            dyn_ofst_val = ctx.new_temporary_value(UINT256_T)
             dyn_section_start = abi_t.static_size()
-            b.mstore(dyn_ofst_ptr, IRLiteral(dyn_section_start))
+            b.mstore(dyn_ofst_val.operand, IRLiteral(dyn_section_start))
         else:
-            dyn_ofst_ptr = None
+            dyn_ofst_val = None
 
         static_ofst = 0
         for idx, (key, elem_typ) in enumerate(items):
@@ -400,7 +400,8 @@ def _abi_encode_to_buf(
                 elem_ptr, _ = _get_element_ptr(ctx, src, IRLiteral(key), src_typ)
 
             if has_dynamic:
-                _encode_child(ctx, dst, elem_ptr, elem_typ, static_ofst, dyn_ofst_ptr)
+                assert dyn_ofst_val is not None
+                _encode_child(ctx, dst, elem_ptr, elem_typ, static_ofst, dyn_ofst_val.operand)
             else:
                 # All static, encode directly
                 if static_ofst == 0:
@@ -415,7 +416,8 @@ def _abi_encode_to_buf(
 
         if returns_len:
             if has_dynamic:
-                return b.mload(dyn_ofst_ptr)
+                assert dyn_ofst_val is not None
+                return b.mload(dyn_ofst_val.operand)
             else:
                 return IRLiteral(abi_t.embedded_static_size())
         return None

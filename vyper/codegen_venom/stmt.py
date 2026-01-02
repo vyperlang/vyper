@@ -66,7 +66,7 @@ class Stmt:
         varname = node.target.id
 
         # Allocate memory for the new variable
-        ptr = self.ctx.new_variable(varname, ltyp)
+        var = self.ctx.new_variable(varname, ltyp)
 
         # AnnAssign always has a value in Vyper (semantic analysis ensures this)
         assert node.value is not None
@@ -74,7 +74,7 @@ class Stmt:
         # Lower the RHS and store at the allocated pointer
         # lower_value() handles storage/code -> memory copy for complex types
         rhs = Expr(node.value, self.ctx).lower_value()
-        self._store_value(ptr, rhs, ltyp)
+        self._store_value(var.value.operand, rhs, ltyp)
 
     def lower_Assign(self) -> None:
         """Lower regular assignment.
@@ -121,16 +121,16 @@ class Stmt:
         The optimizer can eliminate unnecessary copies later.
         """
         # Allocate temp buffer
-        tmp = self.ctx.new_internal_variable(typ)
+        tmp_val = self.ctx.new_temporary_value(typ)
 
         # Copy src to temp (src is memory pointer)
-        self.ctx.copy_memory(tmp, src, typ.memory_bytes_required)
+        self.ctx.copy_memory(tmp_val.operand, src, typ.memory_bytes_required)
 
         # Copy temp to dst
         if is_storage:
-            self.ctx.store_storage(tmp, dst, typ)
+            self.ctx.store_storage(tmp_val.operand, dst, typ)
         else:
-            self.ctx.copy_memory(dst, tmp, typ.memory_bytes_required)
+            self.ctx.copy_memory(dst, tmp_val.operand, typ.memory_bytes_required)
 
     def _lower_tuple_unpack(self) -> None:
         """Lower tuple unpacking assignment: a, b = expr.
@@ -547,7 +547,7 @@ class Stmt:
                 raise CompilerPanic("range() with non-literal args requires bound=")
 
         # Allocate counter variable in memory for user access
-        counter_ptr = self.ctx.new_variable(varname, target_type, mutable=False)
+        counter_local = self.ctx.new_variable(varname, target_type, mutable=False)
         self.ctx.forvars[varname] = True
 
         # Create blocks
@@ -587,7 +587,7 @@ class Stmt:
             # Body block: store counter to user var, execute body
             self.builder.append_block(body_block)
             self.builder.set_block(body_block)
-            self.builder.mstore(counter_ptr, counter_var)
+            self.builder.mstore(counter_local.value.operand, counter_var)
             self._lower_body(node.body)
             body_finish = self.builder.current_block
             if not body_finish.is_terminated:
@@ -651,7 +651,7 @@ class Stmt:
         elem_size = array_typ.value_type.get_size_in(location)
 
         # Allocate loop variable (copy of element, not reference)
-        item_ptr = self.ctx.new_variable(varname, target_type, mutable=False)
+        item_local = self.ctx.new_variable(varname, target_type, mutable=False)
         self.ctx.forvars[varname] = True
 
         # Create blocks
@@ -706,18 +706,18 @@ class Stmt:
                 if elem_size == 1:
                     # Single slot: sload from storage, mstore to memory
                     val = self.builder.sload(elem_addr)
-                    self.builder.mstore(item_ptr, val)
+                    self.builder.mstore(item_local.value.operand, val)
                 else:
                     # Multi-slot: use context helper
-                    self.ctx.storage_to_memory(elem_addr, item_ptr, elem_size)
+                    self.ctx.storage_to_memory(elem_addr, item_local.value.operand, elem_size)
             else:
                 if elem_size <= 32:
                     # Single word: mload/mstore
                     val = self.builder.mload(elem_addr)
-                    self.builder.mstore(item_ptr, val)
+                    self.builder.mstore(item_local.value.operand, val)
                 else:
                     # Multi-word: use mcopy (dst, src, size)
-                    self.builder.mcopy(item_ptr, elem_addr, IRLiteral(elem_size))
+                    self.builder.mcopy(item_local.value.operand, elem_addr, IRLiteral(elem_size))
 
             self._lower_body(node.body)
             body_finish = self.builder.current_block
@@ -867,9 +867,9 @@ class Stmt:
 
         # Optimization: single word types don't need full encoding
         if ret_typ._is_prim_word:
-            buf = self.ctx.new_internal_variable(ret_typ)
-            self.builder.mstore(buf, ret_val)
-            self.builder.return_(buf, IRLiteral(32))
+            buf_val = self.ctx.new_temporary_value(ret_typ)
+            self.builder.mstore(buf_val.operand, ret_val)
+            self.builder.return_(buf_val.operand, IRLiteral(32))
             return
 
         # Calculate max return size
@@ -884,12 +884,12 @@ class Stmt:
         # ABI encode to buffer
         # Use external_return_type (wrapped in tuple) for proper ABI encoding
         encoded_len = abi_encode_to_buf(
-            self.ctx, buf, ret_val, external_return_type, returns_len=True
+            self.ctx, buf._ptr, ret_val, external_return_type, returns_len=True
         )
 
         # Return encoded data
         assert encoded_len is not None
-        self.builder.return_(buf, encoded_len)
+        self.builder.return_(buf._ptr, encoded_len)
 
     # === Event Logging ===
 
@@ -959,9 +959,9 @@ class Stmt:
             offset = 0
             for val, typ in zip(data_vals, data_typs):
                 if offset == 0:
-                    dst = data_buf
+                    dst = data_buf._ptr
                 else:
-                    dst = self.builder.add(data_buf, IRLiteral(offset))
+                    dst = self.builder.add(data_buf._ptr, IRLiteral(offset))
                 self.ctx.store_memory(val, dst, typ)
                 offset += typ.memory_bytes_required
 
@@ -970,19 +970,20 @@ class Stmt:
 
             # ABI encode the tuple, returns encoded length
             _encoded_len = abi_encode_to_buf(
-                self.ctx, abi_buf, data_buf, tuple_typ, returns_len=True
+                self.ctx, abi_buf._ptr, data_buf._ptr, tuple_typ, returns_len=True
             )
             assert _encoded_len is not None
             encoded_len = _encoded_len
+            abi_buf_ptr = abi_buf._ptr
         else:
             # No data - use zero size
-            abi_buf = IRLiteral(0)
+            abi_buf_ptr = IRLiteral(0)
             encoded_len = IRLiteral(0)
 
         # Emit log instruction
         assert len(topics) <= 4, "too many topics"
 
-        self.builder.log(len(topics), abi_buf, encoded_len, *topics)
+        self.builder.log(len(topics), abi_buf_ptr, encoded_len, *topics)
 
     def _encode_log_topic(self, val: IROperand, typ) -> IROperand:
         """Encode a single indexed topic value.
@@ -1141,24 +1142,24 @@ class Stmt:
         selector = method_id_int("Error(string)")
 
         # Store selector at buf (left-padded in 32-byte word)
-        self.builder.mstore(buf, IRLiteral(selector))
+        self.builder.mstore(buf._ptr, IRLiteral(selector))
 
         # Payload buffer starts at buf + 32
-        payload_buf = self.builder.add(buf, IRLiteral(32))
+        payload_buf = self.builder.add(buf._ptr, IRLiteral(32))
 
         # msg_val is a pointer to the string in memory
         # We need to store it at a location so we can encode the tuple
         # For a tuple (string,), we store the string pointer, then encode
         tuple_buf = self.ctx.allocate_buffer(wrapped_typ.memory_bytes_required)
-        self.ctx.store_memory(msg_val, tuple_buf, msg_typ)
+        self.ctx.store_memory(msg_val, tuple_buf._ptr, msg_typ)
 
         # ABI encode the wrapped message to payload buffer
         encoded_len = abi_encode_to_buf(
-            self.ctx, payload_buf, tuple_buf, wrapped_typ, returns_len=True
+            self.ctx, payload_buf, tuple_buf._ptr, wrapped_typ, returns_len=True
         )
 
         # Revert from buf+28 (so selector is at bytes 0-3) with length 4 + encoded_len
-        revert_offset = self.builder.add(buf, IRLiteral(28))
+        revert_offset = self.builder.add(buf._ptr, IRLiteral(28))
         assert encoded_len is not None
         revert_len = self.builder.add(IRLiteral(4), encoded_len)
         self.builder.revert(revert_offset, revert_len)
