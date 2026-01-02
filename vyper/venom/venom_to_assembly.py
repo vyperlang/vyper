@@ -12,7 +12,7 @@ from vyper.ir.compile_ir import (
     TaggedInstruction,
     optimize_assembly,
 )
-from vyper.utils import MemoryPositions, OrderedSet, wrap256
+from vyper.utils import OrderedSet, wrap256
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import (
     PSEUDO_INSTRUCTION,
@@ -624,18 +624,6 @@ class VenomCompiler:
             pass
         elif opcode == "sha3":
             assembly.append("SHA3")
-        elif opcode == "sha3_64":
-            assembly.extend(
-                [
-                    *PUSH(MemoryPositions.FREE_VAR_SPACE),
-                    "MSTORE",
-                    *PUSH(MemoryPositions.FREE_VAR_SPACE2),
-                    "MSTORE",
-                    *PUSH(64),
-                    *PUSH(MemoryPositions.FREE_VAR_SPACE),
-                    "SHA3",
-                ]
-            )
         elif opcode == "assert":
             assembly.extend(["ISZERO", PUSHLABEL(Label("revert")), "JUMPI"])
         elif opcode == "assert_unreachable":

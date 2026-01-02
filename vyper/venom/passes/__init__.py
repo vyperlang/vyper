@@ -8,6 +8,7 @@ from .concretize_mem_loc import ConcretizeMemLocPass
 from .dead_store_elimination import DeadStoreElimination
 from .dft import DFTPass
 from .fix_calloca import FixCalloca
+from .fix_mem_locations import FixMemLocationsPass
 from .float_allocas import FloatAllocas
 from .function_inliner import FunctionInlinerPass
 from .literals_codesize import ReduceLiteralsCodesize
