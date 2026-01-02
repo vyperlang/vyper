@@ -32,7 +32,7 @@ event Transfer:
 
 @external
 def emit_transfer(sender: address, receiver: address, amount: uint256):
-    log Transfer(sender, receiver, amount)
+    log Transfer(sender=sender, receiver=receiver, amount=amount)
         """
         _compile_experimental(source)
 
@@ -46,7 +46,7 @@ event Transfer:
 
 @external
 def emit_transfer(sender: address, receiver: address, amount: uint256):
-    log Transfer(sender, receiver, amount)
+    log Transfer(sender=sender, receiver=receiver, amount=amount)
         """
         _compile_experimental(source)
 
@@ -60,7 +60,7 @@ event Approval:
 
 @external
 def emit_approval(owner: address, spender: address, amount: uint256):
-    log Approval(owner, spender, amount)
+    log Approval(owner=owner, spender=spender, amount=amount)
         """
         _compile_experimental(source)
 
@@ -86,7 +86,7 @@ event Deposit:
 
 @external
 def emit_deposit(depositor: address, amount: uint256, memo: uint256):
-    log Deposit(depositor, amount, memo)
+    log Deposit(depositor=depositor, amount=amount, memo=memo)
         """
         _compile_experimental(source)
 
@@ -127,7 +127,7 @@ event StatusChanged:
 
 @external
 def emit_status(account: address, active: bool):
-    log StatusChanged(account, active)
+    log StatusChanged(account=account, active=active)
         """
         _compile_experimental(source)
 
@@ -153,7 +153,7 @@ event HashStored:
 
 @external
 def emit_hash(slot: uint256, hash: bytes32):
-    log HashStored(slot, hash)
+    log HashStored(slot=slot, hash=hash)
         """
         _compile_experimental(source)
 
@@ -172,11 +172,11 @@ event Approval:
 
 @external
 def emit_transfer(sender: address, receiver: address, amount: uint256):
-    log Transfer(sender, receiver, amount)
+    log Transfer(sender=sender, receiver=receiver, amount=amount)
 
 @external
 def emit_approval(owner: address, spender: address, amount: uint256):
-    log Approval(owner, spender, amount)
+    log Approval(owner=owner, spender=spender, amount=amount)
         """
         _compile_experimental(source)
 
@@ -188,7 +188,7 @@ event Fixed:
 
 @external
 def emit_fixed():
-    log Fixed(42)
+    log Fixed(value=42)
         """
         _compile_experimental(source)
 
@@ -200,7 +200,7 @@ event Result:
 
 @external
 def emit_result(a: uint256, b: uint256):
-    log Result(a + b)
+    log Result(value=a + b)
         """
         _compile_experimental(source)
 
@@ -214,7 +214,7 @@ event TransferWithCheck:
 @external
 def emit_if_positive(sender: address, amount: uint256):
     if amount > 0:
-        log TransferWithCheck(sender, amount)
+        log TransferWithCheck(sender=sender, amount=amount)
         """
         _compile_experimental(source)
 
@@ -229,7 +229,7 @@ def emit_ticks(count: uint256):
     for i: uint256 in range(10):
         if i >= count:
             break
-        log Tick(i)
+        log Tick(counter=i)
         """
         _compile_experimental(source)
 
@@ -245,7 +245,7 @@ event AddressEvent:
 
 @external
 def emit_addr(addr: address):
-    log AddressEvent(addr)
+    log AddressEvent(addr=addr)
         """
         _compile_experimental(source)
 
@@ -269,7 +269,7 @@ event Bytes32Event:
 
 @external
 def emit_hash(hash: bytes32):
-    log Bytes32Event(hash)
+    log Bytes32Event(hash=hash)
         """
         _compile_experimental(source)
 
@@ -281,7 +281,7 @@ event BoolEvent:
 
 @external
 def emit_bool(flag: bool):
-    log BoolEvent(flag)
+    log BoolEvent(flag=flag)
         """
         _compile_experimental(source)
 
@@ -311,7 +311,7 @@ event MultiUint:
 
 @external
 def emit_multi(a: uint256, b: uint256, c: uint256):
-    log MultiUint(a, b, c)
+    log MultiUint(a=a, b=b, c=c)
         """
         _compile_experimental(source)
 
@@ -338,7 +338,7 @@ event AddressData:
 
 @external
 def emit_addr(addr: address):
-    log AddressData(addr)
+    log AddressData(addr=addr)
         """
         _compile_experimental(source)
 
@@ -350,6 +350,6 @@ event BoolData:
 
 @external
 def emit_bool(flag: bool):
-    log BoolData(flag)
+    log BoolData(flag=flag)
         """
         _compile_experimental(source)
