@@ -781,11 +781,9 @@ class Stmt:
         # Evaluate return value if present
         ret_val: Optional[IROperand] = None
         if node.value is not None:
-            ret_typ = func_t.return_type
-            if ret_typ is not None and ret_typ._is_prim_word:
-                ret_val = Expr(node.value, self.ctx).lower_value()
-            else:
-                ret_val = Expr(node.value, self.ctx).lower().operand
+            # lower_value() handles all locations (storage, memory, code)
+            # and returns a usable value (loaded for primitives, memory ptr for complex)
+            ret_val = Expr(node.value, self.ctx).lower_value()
 
         # Dispatch: internal vs external
         if self.ctx.return_pc is not None:

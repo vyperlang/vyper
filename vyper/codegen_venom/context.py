@@ -102,6 +102,19 @@ class VenomCodegenContext:
         self.variables[name] = var
         return ptr
 
+    def register_variable(
+        self, name: str, typ: VyperType, ptr: IRVariable, mutable: bool = True
+    ) -> None:
+        """Register a variable with an existing pointer (no allocation).
+
+        Used for internal function parameters where memory is already
+        allocated by the caller.
+        """
+        var = VenomVariable(
+            name=name, typ=typ, ptr=ptr, mutable=mutable, scopes=self._scopes.copy()
+        )
+        self.variables[name] = var
+
     def new_internal_variable(self, typ: VyperType) -> IRVariable:
         """Allocate memory for compiler-internal variable."""
         self._internal_var_id += 1
@@ -142,7 +155,10 @@ class VenomCodegenContext:
             # CODE location requires copy to memory (can't use pointer directly)
             if vv.location == DataLocation.CODE:
                 return self.load_immutable(vv.operand, vv.typ)
-            # For other locations, return pointer
+            # STORAGE location requires copy to memory
+            if vv.location == DataLocation.STORAGE:
+                return self.load_storage(vv.operand, vv.typ)
+            # MEMORY location: return pointer directly
             return vv.operand
 
         # Primitive word type: emit load based on location

@@ -61,7 +61,8 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
         if isinstance(arg_t, _BytestringT):
             # Variable-length bytes/string: copy data, advance by actual length
-            arg_ptr = Expr(arg_node, ctx).lower().operand
+            # lower_value() handles storage -> memory copy if needed
+            arg_ptr = Expr(arg_node, ctx).lower_value()
             arg_len = b.mload(arg_ptr)
             arg_data = b.add(arg_ptr, IRLiteral(32))
             offset = b.mload(offset_var)
@@ -115,7 +116,8 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     src_len: IROperand
     src_data: IROperand
     if isinstance(src_t, _BytestringT):
-        src_ptr = Expr(src_node, ctx).lower().operand
+        # lower_value() handles storage -> memory copy if needed
+        src_ptr = Expr(src_node, ctx).lower_value()
         src_len = b.mload(src_ptr)
         src_data = b.add(src_ptr, IRLiteral(32))
     elif isinstance(src_t, BytesM_T):
@@ -249,7 +251,8 @@ def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     src_len: IROperand
     src_data: IROperand
     if isinstance(src_t, _BytestringT):
-        src_ptr = Expr(src_node, ctx).lower().operand
+        # lower_value() handles storage -> memory copy if needed
+        src_ptr = Expr(src_node, ctx).lower_value()
         src_len = b.mload(src_ptr)
         src_data = b.add(src_ptr, IRLiteral(32))
     else:

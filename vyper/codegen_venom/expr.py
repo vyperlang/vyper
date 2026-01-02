@@ -1287,9 +1287,10 @@ class Expr:
                 # Stack-passed arg: use value directly
                 invoke_args.append(arg_val)
             else:
-                # Memory-passed arg: already in memory, callee will access via palloca
-                # Nothing to add to invoke_args for memory args
-                pass
+                # Memory-passed arg: allocate buffer, copy value, pass pointer
+                buf = self.ctx.new_internal_variable(arg_t.typ)
+                self.ctx.store_memory(arg_val, buf, arg_t.typ)
+                invoke_args.append(buf)
 
         # Emit invoke instruction
         if returns_count > 0:

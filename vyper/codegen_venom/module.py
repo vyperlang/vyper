@@ -504,12 +504,17 @@ def _generate_internal_function(
     if func_t.return_type is not None and returns_count == 0:
         codegen_ctx.return_buffer = builder.param()
 
-    # Stack-passed args come as params
+    # Handle function arguments
     for arg in func_t.arguments:
         if pass_via_stack[arg.name]:
+            # Stack-passed: receive value, allocate memory, store
             val = builder.param()
             ptr = codegen_ctx.new_variable(arg.name, arg.typ, mutable=False)
             builder.mstore(val, ptr)
+        else:
+            # Memory-passed: receive pointer, register directly (no allocation)
+            ptr = builder.param()
+            codegen_ctx.register_variable(arg.name, arg.typ, ptr, mutable=False)
 
     # Return PC is last param
     codegen_ctx.return_pc = builder.param()
