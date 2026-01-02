@@ -10,6 +10,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.value import VenomValue
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import BytesM_T, BytesT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.venom.basicblock import IRLiteral, IROperand
@@ -18,7 +20,7 @@ if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
-def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VenomValue:
     """
     concat(a, b, ...) -> bytes | string
 
@@ -84,10 +86,10 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     # Store final length at output buffer
     final_len = b.mload(offset_var)
     b.mstore(out_buf, final_len)
-    return out_buf
+    return VenomValue.loc(out_buf, DataLocation.MEMORY, out_typ)
 
 
-def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VenomValue:
     """
     slice(b, start, length) -> bytes | string
 
@@ -151,7 +153,7 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Store length
     b.mstore(out_buf, length)
-    return out_buf
+    return VenomValue.loc(out_buf, DataLocation.MEMORY, out_t)
 
 
 def _is_adhoc_slice(node: vy_ast.VyperNode) -> bool:
@@ -173,7 +175,7 @@ def _is_adhoc_slice(node: vy_ast.VyperNode) -> bool:
     return False
 
 
-def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VenomValue:
     """
     Lower slice() for special sources: msg.data, self.code, <addr>.code.
 
@@ -205,7 +207,7 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand
             # calldatacopy(destOffset, offset, size)
             b.calldatacopy(out_data, start, length)
             b.mstore(out_buf, length)
-            return out_buf
+            return VenomValue.loc(out_buf, DataLocation.MEMORY, out_t)
 
         elif src_node.value.id == "self" and src_node.attr == "code":
             # self.code: use codecopy, bounds check against codesize
@@ -216,7 +218,7 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand
             # codecopy(destOffset, offset, size)
             b.codecopy(out_data, start, length)
             b.mstore(out_buf, length)
-            return out_buf
+            return VenomValue.loc(out_buf, DataLocation.MEMORY, out_t)
 
     # <addr>.code: use extcodecopy
     addr = Expr(src_node.value, ctx).lower_value()
@@ -227,7 +229,7 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand
     # extcodecopy(address, destOffset, offset, size)
     b.extcodecopy(addr, out_data, start, length)
     b.mstore(out_buf, length)
-    return out_buf
+    return VenomValue.loc(out_buf, DataLocation.MEMORY, out_t)
 
 
 def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:

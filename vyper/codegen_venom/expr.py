@@ -1210,9 +1210,12 @@ class Expr:
             if isinstance(func.value, vy_ast.Name) and func.value.id == "self":
                 return self._lower_internal_call()
 
-        # Built-in functions (returns IROperand, wrap in VenomValue)
+        # Built-in functions
+        # Builtins may return VenomValue (for memory-located results) or IROperand (for stack values)
         if isinstance(func_t, BuiltinFunctionT):
             result = self._lower_builtin_call(func_t)
+            if isinstance(result, VenomValue):
+                return result
             return VenomValue.val(result)
 
         # Struct constructor: MyStruct(field1=val1, field2=val2)
@@ -1314,8 +1317,11 @@ class Expr:
 
     # === Builtin Function Calls ===
 
-    def _lower_builtin_call(self, func_t: BuiltinFunctionT) -> IROperand:
-        """Dispatch builtin function calls to handlers in builtins/ submodule."""
+    def _lower_builtin_call(self, func_t: BuiltinFunctionT) -> "IROperand | VenomValue":
+        """Dispatch builtin function calls to handlers in builtins/ submodule.
+
+        Returns IROperand for stack values, VenomValue for memory-located results.
+        """
         from vyper.codegen_venom.builtins import lower_builtin
 
         return lower_builtin(func_t._id, self.node, self.ctx)

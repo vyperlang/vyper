@@ -104,7 +104,7 @@ def _create_tuple_in_memory(
     return buf, tuple_t
 
 
-def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VenomValue:
     """
     abi_encode(*args, ensure_tuple=True, method_id=None) -> Bytes[N]
 
@@ -173,10 +173,10 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         # Write length at offset 0
         b.mstore(buf, encoded_len)
 
-    return buf
+    return VenomValue.loc(buf, DataLocation.MEMORY, buf_t)
 
 
-def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VenomValue:
     """
     abi_decode(data, output_type, unwrap_tuple=True) -> output_type
 
@@ -229,7 +229,8 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     src = VenomValue.loc(data_ptr, DataLocation.MEMORY, wrapped_typ)
     abi_decode_to_buf(ctx, output_buf, src, hi=hi)
 
-    return output_buf
+    # Return with output_typ (unwrapped type if applicable)
+    return VenomValue.loc(output_buf, DataLocation.MEMORY, output_typ)
 
 
 HANDLERS = {

@@ -3,9 +3,10 @@ Simple built-in functions: len, empty, min, max, abs
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.value import VenomValue
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand
@@ -37,7 +38,7 @@ def lower_len(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     return ctx.builder.load(arg_vv.operand, location)
 
 
-def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand, VenomValue]:
     """
     empty(T) returns zero-initialized value of type T.
 
@@ -50,7 +51,8 @@ def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         return IRLiteral(0)
     else:
         # Allocate memory buffer - memory is zero-initialized
-        return ctx.new_internal_variable(typ)
+        buf = ctx.new_internal_variable(typ)
+        return VenomValue.loc(buf, DataLocation.MEMORY, typ)
 
 
 def lower_min(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:

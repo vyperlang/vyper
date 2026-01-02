@@ -8,9 +8,11 @@ System-level built-in functions for raw operations.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.value import VenomValue
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import BytesT, TupleT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
@@ -47,7 +49,9 @@ def _get_literal_kwarg(node: vy_ast.Call, kwarg_name: str, default):
     return default
 
 
-def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_raw_call(
+    node: vy_ast.Call, ctx: VenomCodegenContext
+) -> Union[IROperand, VenomValue]:
     """
     raw_call(to, data, max_outsize=0, gas=gas, value=0,
              is_delegate_call=False, is_static_call=False,
@@ -129,7 +133,8 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
             )
             assert out_buf is not None
             b.mstore(out_buf, capped)
-            return out_buf
+            out_t = BytesT(max_outsize)
+            return VenomValue.loc(out_buf, DataLocation.MEMORY, out_t)
         # No return value (returns None in Vyper)
         return IRLiteral(0)
     else:
@@ -148,7 +153,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
             tuple_buf = ctx.new_internal_variable(tuple_t)
             b.mstore(tuple_buf, success)
             b.mstore(b.add(tuple_buf, IRLiteral(32)), out_buf)
-            return tuple_buf
+            return VenomValue.loc(tuple_buf, DataLocation.MEMORY, tuple_t)
 
         # Just return success flag
         return success
