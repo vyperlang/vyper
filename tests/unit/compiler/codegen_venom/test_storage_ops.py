@@ -277,11 +277,6 @@ class TestDynArrayLength:
         # Should not raise
         ctx.set_dyn_array_length(ptr, length)
 
-    def test_dyn_array_overhead_constant(self):
-        """DYNAMIC_ARRAY_OVERHEAD should be 1 (one slot)."""
-        ctx = _make_context()
-        assert ctx.DYNAMIC_ARRAY_OVERHEAD == 1
-
 
 class TestStorageIntegration:
     """Integration tests for storage operations."""

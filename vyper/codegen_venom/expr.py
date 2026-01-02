@@ -370,10 +370,6 @@ class Expr:
 
         return safe_pow(self.builder, x, y, typ, base_literal, exp_literal)
 
-    def _clamp_basetype(self, val: IROperand, typ) -> IROperand:
-        """Clamp value to type bounds."""
-        return clamp_basetype(self.builder, val, typ)
-
     # === Unary Operations ===
 
     def lower_UnaryOp(self) -> VyperValue:

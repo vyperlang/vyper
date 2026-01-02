@@ -359,10 +359,6 @@ class Stmt:
         exp_literal = right_reduced.value
         return safe_pow(self.builder, x, y, typ, base_literal=None, exp_literal=exp_literal)
 
-    def _clamp_basetype(self, val: IROperand, typ) -> IROperand:
-        """Clamp value to type bounds."""
-        return clamp_basetype(self.builder, val, typ)
-
     # === Control Flow Statements ===
 
     def lower_If(self) -> None:

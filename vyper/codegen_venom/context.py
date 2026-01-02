@@ -83,7 +83,6 @@ class VenomCodegenContext:
     continue_target: Optional[IRLabel] = None
 
     # Return handling
-    return_label: Optional[IRLabel] = None
     return_buffer: Optional[IRVariable] = None
     return_pc: Optional[IRVariable] = None  # For internal function returns
 
@@ -431,8 +430,6 @@ class VenomCodegenContext:
 
     # Storage is word-addressed (word_scale=1): slot N is at slot N, not byte N*32.
     # This differs from memory which is byte-addressed (word_scale=32).
-
-    DYNAMIC_ARRAY_OVERHEAD = 1  # Length word takes 1 slot (not 32 bytes)
 
     def load_storage(self, slot: IROperand, typ: VyperType) -> IROperand:
         """Load value from storage slot.
