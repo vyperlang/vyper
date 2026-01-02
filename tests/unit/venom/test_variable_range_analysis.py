@@ -936,9 +936,9 @@ def test_bug_unsigned_lt_false_branch_excludes_negatives():
     # Bug: Currently returns [100, 127], missing negative values
     # The range should include negative values (or be TOP/widened)
     # because -128..-1 are large unsigned values that also satisfy "not lt 100"
-    assert x_range.lo < 0 or x_range.is_top, (
-        f"Expected range to include negatives or be TOP, got {x_range}"
-    )
+    assert (
+        x_range.lo < 0 or x_range.is_top
+    ), f"Expected range to include negatives or be TOP, got {x_range}"
 
 
 def test_bug_signextend_produces_bottom_for_out_of_range_input():
@@ -970,7 +970,7 @@ def test_bug_signextend_produces_bottom_for_out_of_range_input():
 
     # Bug: Currently returns bottom, should return {-128}
     # The signextend of 0x180 takes low byte 0x80 and sign-extends to -128
-    assert not rng.is_empty, f"Expected non-empty range, got bottom"
+    assert not rng.is_empty, "Expected non-empty range, got bottom"
     assert rng.lo == -128 and rng.hi == -128, f"Expected {{-128}}, got {rng}"
 
 
