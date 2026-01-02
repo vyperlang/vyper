@@ -72,10 +72,8 @@ class Stmt:
         assert node.value is not None
 
         # Lower the RHS and store at the allocated pointer
-        if ltyp._is_prim_word:
-            rhs = Expr(node.value, self.ctx).lower_value()
-        else:
-            rhs = Expr(node.value, self.ctx).lower().operand
+        # lower_value() handles storage/code -> memory copy for complex types
+        rhs = Expr(node.value, self.ctx).lower_value()
         self._store_value(ptr, rhs, ltyp)
 
     def lower_Assign(self) -> None:
@@ -102,14 +100,14 @@ class Stmt:
         dst_ptr = self._get_target_ptr(target)
         is_storage = self._is_storage_target(target)
 
+        # lower_value() handles storage/code -> memory copy for complex types
+        src = Expr(node.value, self.ctx).lower_value()
+
         # For primitive word types, no overlap concern - just store
         if target_typ._is_prim_word:
-            src = Expr(node.value, self.ctx).lower_value()
             self._store_value(dst_ptr, src, target_typ, is_storage)
         else:
             # Multi-word types: copy via temp buffer to handle overlap safely
-            # src is a memory pointer to the source data
-            src = Expr(node.value, self.ctx).lower().operand
             self._copy_complex_type(src, dst_ptr, target_typ, is_storage)
 
     def _copy_complex_type(self, src: IROperand, dst: IROperand, typ, is_storage: bool) -> None:
