@@ -1637,11 +1637,11 @@ class Expr:
         buf = self.ctx.allocate_buffer(buf_size, annotation="external_call_buf")
 
         # === Pack Arguments ===
-        # Store method ID at buf+28 (left-padded in 32-byte word)
+        # Store method ID at buf (right-aligned in 32-byte word, so selector at buf+28)
         # Method ID = first 4 bytes of keccak256(signature)
         abi_signature = fn_type.name + args_tuple_t.abi_type.selector_name()
         method_id = util.method_id_int(abi_signature)
-        b.mstore(IRLiteral(method_id), buf._ptr)
+        self.ctx.ptr_store(buf.base_ptr(), IRLiteral(method_id))
 
         # ABI-encode arguments starting at buf+32
         if len(args) > 0:
