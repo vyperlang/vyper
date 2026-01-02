@@ -29,6 +29,7 @@ from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.semantics.types.user import EventT, StructT
 from vyper.venom.basicblock import IRLiteral, IROperand
 
+from .buffer import Ptr
 from .context import Constancy, VenomCodegenContext
 from .expr import Expr
 
@@ -74,7 +75,7 @@ class Stmt:
         # Lower the RHS and store at the allocated pointer
         # lower_value() handles storage/code -> memory copy for complex types
         rhs = Expr(node.value, self.ctx).lower_value()
-        self._store_value(var.value.operand, rhs, ltyp)
+        self.ctx.ptr_store(var.value.ptr(), rhs)
 
     def lower_Assign(self) -> None:
         """Lower regular assignment.
@@ -96,21 +97,20 @@ class Stmt:
         if isinstance(target, vy_ast.Tuple):
             return self._lower_tuple_unpack()
 
-        # Get the destination pointer and determine storage vs memory
+        # Get the destination pointer (with location info)
         dst_ptr = self._get_target_ptr(target)
-        is_storage = self._is_storage_target(target)
 
         # lower_value() handles storage/code -> memory copy for complex types
         src = Expr(node.value, self.ctx).lower_value()
 
         # For primitive word types, no overlap concern - just store
         if target_typ._is_prim_word:
-            self._store_value(dst_ptr, src, target_typ, is_storage)
+            self.ctx.ptr_store(dst_ptr, src)
         else:
             # Multi-word types: copy via temp buffer to handle overlap safely
-            self._copy_complex_type(src, dst_ptr, target_typ, is_storage)
+            self._copy_complex_type(src, dst_ptr, target_typ)
 
-    def _copy_complex_type(self, src: IROperand, dst: IROperand, typ, is_storage: bool) -> None:
+    def _copy_complex_type(self, src: IROperand, dst_ptr: Ptr, typ) -> None:
         """Copy complex type with overlap handling.
 
         Uses a temp buffer to ensure correct semantics when src/dst may overlap.
@@ -127,10 +127,10 @@ class Stmt:
         self.ctx.copy_memory(tmp_val.operand, src, typ.memory_bytes_required)
 
         # Copy temp to dst
-        if is_storage:
-            self.ctx.store_storage(tmp_val.operand, dst, typ)
+        if dst_ptr.location == DataLocation.STORAGE:
+            self.ctx.store_storage(tmp_val.operand, dst_ptr.operand, typ)
         else:
-            self.ctx.copy_memory(dst, tmp_val.operand, typ.memory_bytes_required)
+            self.ctx.copy_memory(dst_ptr.operand, tmp_val.operand, typ.memory_bytes_required)
 
     def _lower_tuple_unpack(self) -> None:
         """Lower tuple unpacking assignment: a, b = expr.
@@ -175,16 +175,15 @@ class Stmt:
         # Second pass: assign each loaded value to its target
         for (val, elem_typ), target_node in zip(temp_vals, targets):
             target_ptr = self._get_target_ptr(target_node)
-            is_storage = self._is_storage_target(target_node)
 
             if elem_typ._is_prim_word:
-                self._store_value(target_ptr, val, elem_typ, is_storage)
+                self.ctx.ptr_store(target_ptr, val)
             else:
                 # Complex element type: val is a memory pointer
-                if is_storage:
-                    self.ctx.store_storage(val, target_ptr, elem_typ)
+                if target_ptr.location == DataLocation.STORAGE:
+                    self.ctx.store_storage(val, target_ptr.operand, elem_typ)
                 else:
-                    self.ctx.copy_memory(target_ptr, val, elem_typ.memory_bytes_required)
+                    self.ctx.copy_memory(target_ptr.operand, val, elem_typ.memory_bytes_required)
 
     def lower_AugAssign(self) -> None:
         """Lower augmented assignment.
@@ -208,12 +207,11 @@ class Stmt:
         if not target_typ._is_prim_word:
             raise TypeCheckFailure("AugAssign only valid for primitive types")
 
-        # Get target pointer and determine storage vs memory
+        # Get target pointer (with location info)
         dst_ptr = self._get_target_ptr(target)
-        is_storage = self._is_storage_target(target)
 
         # Load current value
-        left = self._load_value(dst_ptr, target_typ, is_storage)
+        left = self.ctx.ptr_load(dst_ptr)
 
         # Evaluate the RHS (AugAssign is always on primitives)
         right = Expr(right_node, self.ctx).lower_value()
@@ -222,27 +220,26 @@ class Stmt:
         result = self._apply_augassign_op(op, left, right, target_typ, right_node)
 
         # Store result back
-        self._store_value(dst_ptr, result, target_typ, is_storage)
+        self.ctx.ptr_store(dst_ptr, result)
 
     # === Helper Methods ===
 
-    def _get_target_ptr(self, target: vy_ast.VyperNode) -> IROperand:
+    def _get_target_ptr(self, target: vy_ast.VyperNode) -> Ptr:
         """Get pointer to assignment target.
 
         Handles:
-        - Name: local variable or state variable
-        - Subscript: array/mapping access
+        - Name: local variable (memory)
+        - Subscript: array/mapping access (memory or storage)
         - Attribute: struct field or state variable (self.x)
 
-        Returns pointer/slot. Caller uses _is_storage_target to determine
-        whether to use sload/sstore or mload/mstore.
+        Returns Ptr with location info for dispatch.
         """
         if isinstance(target, vy_ast.Name):
             varname = target.id
 
             # Check if it's a local variable
             if varname in self.ctx.variables:
-                return self.ctx.lookup_ptr(varname)
+                return self.ctx.variables[varname].value.ptr()
 
             raise CompilerPanic(f"Unknown variable: {varname}")
 
@@ -253,11 +250,11 @@ class Stmt:
             if varinfo is not None:
                 # Storage variable - simple slot
                 if not varinfo.is_constant and not varinfo.is_immutable:
-                    return IRLiteral(varinfo.position.position)
+                    return Ptr(IRLiteral(varinfo.position.position), DataLocation.STORAGE)
 
                 # Immutable in constructor context
                 if varinfo.is_immutable and self.ctx.is_ctor_context:
-                    return IRLiteral(varinfo.position.position)
+                    return Ptr(IRLiteral(varinfo.position.position), DataLocation.STORAGE)
 
                 if varinfo.is_constant:
                     raise TypeCheckFailure("Cannot assign to constant")
@@ -268,83 +265,16 @@ class Stmt:
             sub_typ = target.value._metadata.get("type")
             if isinstance(sub_typ, StructT) and target.attr in sub_typ.member_types:
                 # Use Expr to compute the field pointer
-                return Expr(target, self.ctx).lower().operand
+                return Expr(target, self.ctx).lower().ptr()
 
             raise CompilerPanic(f"Unsupported attribute target: {target.attr}")
 
         elif isinstance(target, vy_ast.Subscript):
             # x[i] = ... or self.arr[i] = ... or self.map[key] = ...
             # Use Expr to compute the element pointer/slot
-            return Expr(target, self.ctx).lower().operand
+            return Expr(target, self.ctx).lower().ptr()
 
         raise CompilerPanic(f"Unsupported assignment target: {type(target)}")
-
-    def _is_storage_target(self, target: vy_ast.VyperNode) -> bool:
-        """Check if assignment target is storage.
-
-        Returns True if the target is in storage/transient, False for memory.
-        """
-        # self.x -> storage
-        if isinstance(target, vy_ast.Attribute):
-            if isinstance(target.value, vy_ast.Name) and target.value.id == "self":
-                varinfo = target._expr_info.var_info
-                if varinfo is not None and not varinfo.is_constant and not varinfo.is_immutable:
-                    return True
-            # Nested: self.x.field
-            return self._is_storage_target(target.value)
-
-        # Subscript on storage: self.arr[i], self.map[key]
-        if isinstance(target, vy_ast.Subscript):
-            return self._is_storage_target(target.value)
-
-        # Local variables are in memory
-        if isinstance(target, vy_ast.Name):
-            return False
-
-        return False
-
-    def _load_value(self, ptr: IROperand, typ, is_storage: bool = False) -> IROperand:
-        """Load a value from a pointer.
-
-        Args:
-            ptr: Pointer to load from (memory ptr or storage slot)
-            typ: Type of value being loaded
-            is_storage: True if ptr is storage/transient, False for memory
-        """
-        if is_storage:
-            # Storage/transient variable - use sload
-            # TODO: Support transient storage
-            return self.builder.sload(ptr)
-        else:
-            # Memory variable - use mload
-            return self.builder.mload(ptr)
-
-    def _store_value(self, ptr: IROperand, val: IROperand, typ, is_storage: bool = False) -> None:
-        """Store a value to a pointer.
-
-        For primitive types (single word), val is the value to store directly.
-        For complex types (multi-word), val is a source pointer to copy from.
-
-        Args:
-            ptr: Pointer to store to (memory ptr or storage slot)
-            val: Value (primitives) or source pointer (complex types)
-            typ: Type of value being stored
-            is_storage: True if ptr is storage/transient, False for memory
-        """
-        if typ._is_prim_word:
-            # Primitive: val is the actual value to store
-            if is_storage:
-                self.builder.sstore(ptr, val)
-            else:
-                self.builder.mstore(ptr, val)
-        else:
-            # Complex type: val is a source pointer, copy contents
-            if is_storage:
-                size_slots = typ.storage_size_in_words
-                self.ctx.memory_to_storage(val, ptr, size_slots)
-            else:
-                size_bytes = typ.memory_bytes_required
-                self.ctx.copy_memory(ptr, val, size_bytes)
 
     def _apply_augassign_op(
         self,
