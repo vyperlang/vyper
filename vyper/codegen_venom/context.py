@@ -690,8 +690,10 @@ class VenomCodegenContext:
 
     # === Ptr Operations ===
 
-    def add_offset(self, p: Ptr, n: IROperand) -> Ptr:
+    def add_offset(self, p: Ptr, n: IROperand | int) -> Ptr:
         """Add an offset to a pointer. Preserves location and buf."""
+        if isinstance(n, int):
+            n = IRLiteral(n)
         new_operand = self.builder.add(p.operand, n)
         return Ptr(operand=new_operand, location=p.location, buf=p.buf)
 
