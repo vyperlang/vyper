@@ -1673,7 +1673,7 @@ class Expr:
         b.append_block(fail_bb)
         b.set_block(fail_bb)
         rds = b.returndatasize()
-        b.returndatacopy(IRLiteral(0), IRLiteral(0), rds)
+        b.returndatacopy(rds, IRLiteral(0), IRLiteral(0))
         b.revert(IRLiteral(0), rds)
 
         # Continue block
@@ -1731,7 +1731,7 @@ class Expr:
             b.assert_(ok)
 
             # Copy returndata to buffer and decode
-            b.returndatacopy(buf, IRLiteral(0), rds)
+            b.returndatacopy(rds, IRLiteral(0), buf)
 
             # Compute hi bound for decode (prevents overread)
             hi = b.add(buf, rds)
@@ -1752,7 +1752,7 @@ class Expr:
             b.assert_(ok)
 
             # Copy returndata to buffer and decode
-            b.returndatacopy(buf, IRLiteral(0), rds)
+            b.returndatacopy(rds, IRLiteral(0), buf)
 
             # Compute hi bound for decode (prevents overread)
             hi = b.add(buf, rds)

@@ -324,7 +324,8 @@ class VenomBuilder:
         retptr: Operand,
         retsz: Operand,
     ) -> IRVariable:
-        return self._emit1("call", gas, addr, val, argsptr, argsz, retptr, retsz)
+        # Operands reversed for EVM stack order (retSize on top)
+        return self._emit1("call", retsz, retptr, argsz, argsptr, val, addr, gas)
 
     def staticcall(
         self,
@@ -335,7 +336,8 @@ class VenomBuilder:
         retptr: Operand,
         retsz: Operand,
     ) -> IRVariable:
-        return self._emit1("staticcall", gas, addr, argsptr, argsz, retptr, retsz)
+        # Operands reversed for EVM stack order (retSize on top)
+        return self._emit1("staticcall", retsz, retptr, argsz, argsptr, addr, gas)
 
     def delegatecall(
         self,
@@ -346,13 +348,16 @@ class VenomBuilder:
         retptr: Operand,
         retsz: Operand,
     ) -> IRVariable:
-        return self._emit1("delegatecall", gas, addr, argsptr, argsz, retptr, retsz)
+        # Operands reversed for EVM stack order (retSize on top)
+        return self._emit1("delegatecall", retsz, retptr, argsz, argsptr, addr, gas)
 
     def create(self, val: Operand, offset: Operand, size: Operand) -> IRVariable:
-        return self._emit1("create", val, offset, size)
+        # Operands reversed for EVM stack order (size on top)
+        return self._emit1("create", size, offset, val)
 
     def create2(self, val: Operand, offset: Operand, size: Operand, salt: Operand) -> IRVariable:
-        return self._emit1("create2", val, offset, size, salt)
+        # Operands reversed for EVM stack order (salt on top)
+        return self._emit1("create2", salt, size, offset, val)
 
     # === Crypto ===
     def sha3(self, ptr: Operand, size: Operand) -> IRVariable:
