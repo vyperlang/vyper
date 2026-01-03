@@ -16,6 +16,11 @@ General
 - `Vyper greatest hits smart contract examples <https://github.com/pynchmeister/vyper-greatest-hits/tree/main/contracts>`_
 - `A curated list of Vyper resources, libraries, tools, and more <https://github.com/stars/pcaversaccio/lists/vyper>`_
 
+Getting started
+---------------
+
+- `Vyper and Ape starter kit for Chainlink <https://github.com/smartcontractkit/apeworx-starter-kit>`__ - easily get started with Chainlink smart contract integration
+
 Frameworks and tooling
 ----------------------
 
