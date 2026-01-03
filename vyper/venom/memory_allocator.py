@@ -48,18 +48,15 @@ class MemoryAllocator:
         size = alloca.alloca_size
 
         for resv_ptr, resv_size in reserved:
-            # can happen if this allocation
-            # overlaps with allocations that don't
-            # overlap each other
-            if resv_ptr < ptr:
-                ptr = resv_ptr + resv_size
+            resv_end = resv_ptr + resv_size
+            if resv_end <= ptr:
                 continue
 
             # found the place
             if resv_ptr >= ptr + size:
                 break
 
-            ptr = resv_ptr + resv_size
+            ptr = resv_end
 
         self.allocated[alloca] = ptr
         self.allocated_fn.add(alloca)
