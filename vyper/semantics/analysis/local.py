@@ -628,7 +628,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if not isinstance(iter_type, (DArrayT, SArrayT)):
             raise InvalidType("Not an iterable type", iter_node)
 
-        if not target_type.compare_type(iter_type.value_type):
+        if not iter_type.value_type.is_subtype_of(target_type):
+            # Isn't the expected type the target type ?
             raise TypeMismatch(f"Expected type of {iter_type.value_type}", target_node)
 
         self.expr_visitor.visit(iter_node, iter_type)

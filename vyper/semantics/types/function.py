@@ -582,10 +582,13 @@ class ContractFunctionT(VyperType):
         if len(arguments) != len(other_arguments):
             return False
         for atyp, btyp in zip(arguments, other_arguments):
-            if not atyp.compare_type(btyp):
+            if not btyp.is_subtype_of(atyp):
                 return False
 
-        if return_type and not return_type.compare_type(other_return_type):  # type: ignore
+        # TODO: This is the wrong way round !
+        # It should be:
+        # if return_type and not return_type.is_subtype_of(other_return_type):  # type: ignore
+        if return_type and not other_return_type.is_subtype_of(return_type):  # type: ignore
             return False
 
         return self.mutability == other.mutability
