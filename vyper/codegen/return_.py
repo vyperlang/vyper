@@ -81,7 +81,6 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
         can_skip_encode = (
             abi_encoding_matches_vyper(ir_val.typ)
             and ir_val.location == MEMORY
-            and not ir_val.contains_risky_call
             # ensure it has already been validated - could be
             # unvalidated ABI encoded returndata for example
             and not needs_clamp(ir_val.typ, ir_val.encoding)
