@@ -4,7 +4,6 @@ from typing import Optional
 from lark import Lark, Transformer
 
 from vyper.venom.basicblock import (
-    IRAbstractMemLoc,
     IRBasicBlock,
     IRInstruction,
     IRLabel,
@@ -46,10 +45,9 @@ VENOM_GRAMMAR = """
 
     operands_list: operand ("," operand)*
 
-    operand: VAR_IDENT | CONST | memloc | label_ref
+    operand: VAR_IDENT | CONST | label_ref
 
     VAR_IDENT: "%" (DIGIT|LETTER|"_"|":")+
-    memloc: "{" "@" INT "," INT "}"
 
     # non-terminal rules for different contexts
     func_name: IDENT | ESCAPED_STRING
@@ -235,7 +233,7 @@ class VenomTransformer(Transformer):
             value.set_outputs([to])
             return value
 
-        if isinstance(value, (IRLiteral, IRVariable, IRLabel, IRAbstractMemLoc)):
+        if isinstance(value, (IRLiteral, IRVariable, IRLabel)):
             return IRInstruction("assign", [value], outputs=[to])
 
         raise TypeError(f"Unexpected value {value} of type {type(value)}")
@@ -293,12 +291,6 @@ class VenomTransformer(Transformer):
         if str(val).startswith("0x"):
             return IRLiteral(int(val, 16))
         return IRLiteral(int(val))
-
-    def memloc(self, children) -> IRAbstractMemLoc:
-        id_str, size_str = children
-        mem_id = int(id_str)
-        size = int(size_str)
-        return IRAbstractMemLoc(size, force_id=mem_id)
 
     def IDENT(self, val) -> str:
         return val.value

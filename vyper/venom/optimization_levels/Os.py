@@ -16,6 +16,7 @@ from vyper.venom.passes import (
     ConcretizeMemLocPass,
     DeadStoreElimination,
     DFTPass,
+    FixMemLocationsPass,
     FloatAllocas,
     LoadElimination,
     LowerDloadPass,
@@ -32,12 +33,13 @@ from vyper.venom.passes import (
 
 # Optimize for size
 PASSES_Os: List[PassConfig] = [
+    FixMemLocationsPass,
     FloatAllocas,
     SimplifyCFGPass,
     MakeSSA,
     PhiEliminationPass,
     AlgebraicOptimizationPass,
-    (SCCP, {"remove_allocas": False}),
+    SCCP,
     SimplifyCFGPass,
     AssignElimination,
     Mem2Var,
@@ -54,6 +56,9 @@ PASSES_Os: List[PassConfig] = [
     AssignElimination,
     RevertToAssert,
     SimplifyCFGPass,
+    # run memmerge before LowerDload
+    MemMergePass,
+    LowerDloadPass,
     RemoveUnusedVariablesPass,
     (DeadStoreElimination, {"addr_space": MEMORY}),
     (DeadStoreElimination, {"addr_space": STORAGE}),
@@ -63,9 +68,7 @@ PASSES_Os: List[PassConfig] = [
     ConcretizeMemLocPass,
     SCCP,
     SimplifyCFGPass,
-    # run memmerge before LowerDload
     MemMergePass,
-    LowerDloadPass,
     RemoveUnusedVariablesPass,
     BranchOptimizationPass,
     AlgebraicOptimizationPass,
