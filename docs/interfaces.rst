@@ -76,6 +76,7 @@ Keyword                         Description
 ``value``                       Specify amount of ether sent with the call
 ``skip_contract_check``         Drop ``EXTCODESIZE`` check (but keep ``RETURNDATASIZE`` check)
 ``default_return_value``        Specify a default return value if no value is returned
+``revert_on_failure``           If ``False``, return a success flag instead of reverting
 =============================== ==============================================================
 
 The ``default_return_value`` parameter can be used to handle ERC20 tokens affected by the missing return value bug in a way similar to OpenZeppelin's ``safeTransfer`` for Solidity:
@@ -84,6 +85,9 @@ The ``default_return_value`` parameter can be used to handle ERC20 tokens affect
 
     extcall IERC20(USDT).transfer(msg.sender, 1, default_return_value=True) # returns True
     extcall IERC20(USDT).transfer(msg.sender, 1) # reverts because nothing returned
+
+When ``revert_on_failure=False`` is set, external calls return a tuple of ``(success, value)``,
+where ``success`` is a ``bool`` and ``value`` is the original return type.
 
 Built-in Interfaces
 ===================

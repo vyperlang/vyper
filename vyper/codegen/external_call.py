@@ -14,6 +14,7 @@ from vyper.codegen.core import (
     eval_once_check,
     get_type_for_exact_size,
     make_setter,
+    mzero,
     needs_clamp,
     unwrap_location,
     wrap_value_for_external_return,
@@ -79,7 +80,9 @@ def _pack_arguments(fn_type, args, call_kwargs, context):
     if len(args) != 0:
         encode_buf = add_ofst(buf, 32)
         encode_buflen = buflen - 32
-        pack_args.append(abi_encode(encode_buf, args_as_tuple, context, bufsz=encode_buflen))
+        pack_args.append(
+            abi_encode(encode_buf, args_as_tuple, context, bufsz=encode_buflen)
+        )
 
     return buf, pack_args, args_ofst, args_len
 
@@ -88,7 +91,7 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
     return_t = fn_type.return_type
 
     if return_t is None:
-        return ["pass"], 0, 0
+        return ["pass"], 0, 0, None
 
     wrapped_return_t = calculate_type_for_external_return(return_t)
 
@@ -100,13 +103,15 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
 
     ret_ofst = buf
     ret_len = max_return_size
+    decode_buf = buf
     if not call_kwargs.revert_on_failure:
         ret_ofst = add_ofst(ret_ofst, BoolT().memory_bytes_required)
+        decode_buf = ret_ofst
 
     encoding = Encoding.ABI
 
-    assert buf.location == MEMORY
-    buf = copy.copy(buf)
+    assert decode_buf.location == MEMORY
+    buf = copy.copy(decode_buf)
     buf.typ = wrapped_return_t
     buf.encoding = encoding
     buf.annotation = f"{expr.node_source_code} returndata buffer"
@@ -114,6 +119,8 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
     unpacker = ["seq"]
 
     assert isinstance(wrapped_return_t, TupleT)
+
+    tuple_buf = None
 
     # unpack strictly
     if not needs_clamp(wrapped_return_t, encoding):
@@ -140,20 +147,26 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
 
         return_buf = buf
     else:
-        return_buf = context.new_internal_variable(wrapped_return_t)
+        if not call_kwargs.revert_on_failure:
+            tuple_size = (
+                BoolT().memory_bytes_required + wrapped_return_t.memory_bytes_required
+            )
+            tuple_buf_t = get_type_for_exact_size(tuple_size)
+            tuple_buf = context.new_internal_variable(tuple_buf_t)
+            return_buf = add_ofst(tuple_buf, BoolT().memory_bytes_required)
+            return_buf.typ = wrapped_return_t
+        else:
+            return_buf = context.new_internal_variable(wrapped_return_t)
 
         # note: make_setter does ABI decoding and clamps
         payload_bound = IRnode.from_list(
             ["select", ["lt", ret_len, "returndatasize"], ret_len, "returndatasize"]
         )
         with payload_bound.cache_when_complex("payload_bound") as (b1, payload_bound):
-            if not call_kwargs.revert_on_failure:
-                # first 32 bytes of the buffer is reserved for the success flag
-                return_buf = add_ofst(return_buf, BoolT().memory_bytes_required)
-                return_buf.typ = wrapped_return_t
-
             unpacker.append(
-                b1.resolve(make_setter(return_buf, buf, hi=add_ofst(buf, payload_bound)))
+                b1.resolve(
+                    make_setter(return_buf, buf, hi=add_ofst(buf, payload_bound))
+                )
             )
 
     if call_kwargs.default_return_value is not None:
@@ -162,7 +175,9 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
         # else:
         #    do the other stuff
 
-        override_value = wrap_value_for_external_return(call_kwargs.default_return_value)
+        override_value = wrap_value_for_external_return(
+            call_kwargs.default_return_value
+        )
         stomp_return_buffer = ["seq"]
         if not call_kwargs.skip_contract_check:
             stomp_return_buffer.append(_extcodesize_check(contract_address))
@@ -171,7 +186,7 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
 
     unpacker = ["seq", unpacker, return_buf]
 
-    return unpacker, ret_ofst, ret_len
+    return unpacker, ret_ofst, ret_len, tuple_buf
 
 
 def _parse_kwargs(call_expr, context):
@@ -189,7 +204,9 @@ def _parse_kwargs(call_expr, context):
         gas=unwrap_location(call_kwargs.pop("gas", IRnode("gas"))),
         skip_contract_check=_bool(call_kwargs.pop("skip_contract_check", IRnode(0))),
         default_return_value=call_kwargs.pop("default_return_value", None),
-        revert_on_failure=_bool(call_kwargs.pop("revert_on_failure", IRnode(1))),  # Default to True
+        revert_on_failure=_bool(
+            call_kwargs.pop("revert_on_failure", IRnode(1))
+        ),  # Default to True
     )
 
     if len(call_kwargs) != 0:  # pragma: nocover
@@ -199,7 +216,9 @@ def _parse_kwargs(call_expr, context):
 
 
 def _extcodesize_check(address):
-    return IRnode.from_list(["assert", ["extcodesize", address]], error_msg="extcodesize is zero")
+    return IRnode.from_list(
+        ["assert", ["extcodesize", address]], error_msg="extcodesize is zero"
+    )
 
 
 def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, context):
@@ -221,11 +240,12 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
     ret.append(eval_once_check(_freshname(call_expr.node_source_code)))
 
     # Pack the arguments
-    buf, arg_packer, args_ofst, args_len = _pack_arguments(fn_type, args_ir, call_kwargs, context)
+    buf, arg_packer, args_ofst, args_len = _pack_arguments(
+        fn_type, args_ir, call_kwargs, context
+    )
     ret += arg_packer
 
-    # Process the return data unpacker for return types
-    ret_unpacker, ret_ofst, ret_len = _unpack_returndata(
+    ret_unpacker, ret_ofst, ret_len, tuple_buf = _unpack_returndata(
         buf, fn_type, call_kwargs, contract_address, context, call_expr
     )
 
@@ -250,9 +270,26 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
 
     # Create the call operation
     if use_staticcall:
-        call_op = ["staticcall", gas, contract_address, args_ofst, args_len, ret_ofst, ret_len]
+        call_op = [
+            "staticcall",
+            gas,
+            contract_address,
+            args_ofst,
+            args_len,
+            ret_ofst,
+            ret_len,
+        ]
     else:
-        call_op = ["call", gas, contract_address, value, args_ofst, args_len, ret_ofst, ret_len]
+        call_op = [
+            "call",
+            gas,
+            contract_address,
+            value,
+            args_ofst,
+            args_len,
+            ret_ofst,
+            ret_len,
+        ]
 
     # Handle standard case (revert_on_failure=True)
     if revert_on_failure:
@@ -268,18 +305,28 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
         ret.append(call_op)
         return IRnode.from_list(ret, typ=bool_ty)
 
-    # return a tuple of (bool, function return type)
     tuple_t = TupleT([bool_ty, return_t])
 
-    call_op = IRnode.from_list(call_op)
-    with call_op.cache_when_complex("success") as (b1, success):
-        s = ["seq"]
-        s.append(["if", success, ret_unpacker])
-        success_buf = buf  # unsafe cast
-        s.append(STORE(success_buf, success))
-        ret.append(b1.resolve(s))
+    result_buf = tuple_buf if tuple_buf is not None else buf
 
-    ret.append(ret_ofst)
+    call_op = IRnode.from_list(call_op)
+    ret_data_size = return_t.memory_bytes_required
+    with call_op.cache_when_complex("success") as (b1, success):
+        success_flag = IRnode.from_list(["eq", success, 1], typ=bool_ty)
+        s = ["seq"]
+        s.append(["if", success_flag, ret_unpacker])
+        s.append(STORE(result_buf, success_flag))
+        ret_data_ofst = add_ofst(result_buf, BoolT().memory_bytes_required)
+        s.append(
+            [
+                "if",
+                ["iszero", success_flag],
+                mzero(ret_data_ofst, ret_data_size),
+            ]
+        )
+    ret.append(b1.resolve(s))
+
+    ret.append(result_buf)
 
     return IRnode.from_list(ret, typ=tuple_t, location=MEMORY)
 
@@ -292,7 +339,12 @@ def ir_for_external_call(call_expr, context):
     args_ir = [Expr(x, context).ir_node for x in call_expr.args]
     call_kwargs = _parse_kwargs(call_expr, context)
 
-    with contract_address.cache_when_complex("external_contract") as (b1, contract_address):
+    with contract_address.cache_when_complex("external_contract") as (
+        b1,
+        contract_address,
+    ):
         return b1.resolve(
-            _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, context)
+            _external_call_helper(
+                contract_address, args_ir, call_kwargs, call_expr, context
+            )
         )
