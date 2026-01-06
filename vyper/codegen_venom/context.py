@@ -475,53 +475,95 @@ class VenomCodegenContext:
         """Load multi-word storage value to memory buffer.
 
         Storage is word-addressed, memory is byte-addressed.
+        Always emits IR loop (matches legacy `repeat` behavior).
         """
-        for i in range(word_count):
-            # Storage: slot + i (word-addressed)
-            if i == 0:
-                current_slot = slot
-            elif isinstance(slot, IRLiteral):
-                current_slot = IRLiteral(slot.value + i)
-            else:
-                current_slot = self.builder.add(slot, IRLiteral(i))
+        b = self.builder
 
-            val = self.builder.sload(current_slot)
+        # Create blocks
+        cond_block = b.create_block("s2m_cond")
+        body_block = b.create_block("s2m_body")
+        exit_block = b.create_block("s2m_exit")
 
-            # Memory: buf + i*32 (byte-addressed)
-            if i == 0:
-                mem_offset = buf
-            elif isinstance(buf, IRLiteral):
-                mem_offset = IRLiteral(buf.value + i * 32)
-            else:
-                mem_offset = self.builder.add(buf, IRLiteral(i * 32))
+        # Entry: counter = 0, jump to cond
+        counter = b.assign(IRLiteral(0))
+        b.jmp(cond_block.label)
 
-            self.builder.mstore(mem_offset, val)
+        # Condition block: if counter == word_count, goto exit, else goto body
+        b.append_block(cond_block)
+        b.set_block(cond_block)
+        done = b.eq(counter, IRLiteral(word_count))
+        cond_finish = b.current_block
+
+        # Body block
+        b.append_block(body_block)
+        b.set_block(body_block)
+
+        # Storage slot = base_slot + counter (storage is word-addressed)
+        current_slot = b.add(slot, counter)
+        val = b.sload(current_slot)
+
+        # Memory offset = buf + counter * 32 (memory is byte-addressed)
+        mem_offset = b.add(buf, b.mul(counter, IRLiteral(32)))
+        b.mstore(mem_offset, val)
+
+        # Increment counter and jump back to cond
+        new_counter = b.add(counter, IRLiteral(1))
+        b.assign_to(new_counter, counter)
+        b.jmp(cond_block.label)
+
+        # Add conditional jump from cond block (after body processed)
+        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
+
+        # Exit block
+        b.append_block(exit_block)
+        b.set_block(exit_block)
 
     def _store_memory_to_storage(self, buf: IROperand, slot: IROperand, word_count: int) -> None:
         """Store memory buffer to multi-word storage.
 
         Memory is byte-addressed, storage is word-addressed.
+        Always emits IR loop (matches legacy `repeat` behavior).
         """
-        for i in range(word_count):
-            # Memory: buf + i*32 (byte-addressed)
-            if i == 0:
-                mem_offset = buf
-            elif isinstance(buf, IRLiteral):
-                mem_offset = IRLiteral(buf.value + i * 32)
-            else:
-                mem_offset = self.builder.add(buf, IRLiteral(i * 32))
+        b = self.builder
 
-            val = self.builder.mload(mem_offset)
+        # Create blocks
+        cond_block = b.create_block("m2s_cond")
+        body_block = b.create_block("m2s_body")
+        exit_block = b.create_block("m2s_exit")
 
-            # Storage: slot + i (word-addressed)
-            if i == 0:
-                current_slot = slot
-            elif isinstance(slot, IRLiteral):
-                current_slot = IRLiteral(slot.value + i)
-            else:
-                current_slot = self.builder.add(slot, IRLiteral(i))
+        # Entry: counter = 0, jump to cond
+        counter = b.assign(IRLiteral(0))
+        b.jmp(cond_block.label)
 
-            self.builder.sstore(current_slot, val)
+        # Condition block: if counter == word_count, goto exit, else goto body
+        b.append_block(cond_block)
+        b.set_block(cond_block)
+        done = b.eq(counter, IRLiteral(word_count))
+        cond_finish = b.current_block
+
+        # Body block
+        b.append_block(body_block)
+        b.set_block(body_block)
+
+        # Memory offset = buf + counter * 32 (memory is byte-addressed)
+        mem_offset = b.add(buf, b.mul(counter, IRLiteral(32)))
+        val = b.mload(mem_offset)
+
+        # Storage slot = base_slot + counter (storage is word-addressed)
+        current_slot = b.add(slot, counter)
+        b.sstore(current_slot, val)
+
+        # Increment counter and jump back to cond
+        new_counter = b.add(counter, IRLiteral(1))
+        b.assign_to(new_counter, counter)
+        b.jmp(cond_block.label)
+
+        # Add conditional jump from cond block (after body processed)
+        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
+
+        # Exit block
+        b.append_block(exit_block)
+        b.set_block(exit_block)
 
     # === Transient Storage (EIP-1153, Cancun+) ===
 
@@ -552,50 +594,96 @@ class VenomCodegenContext:
             self._store_memory_to_transient(val, slot, typ.storage_size_in_words)
 
     def _load_transient_to_memory(self, slot: IROperand, buf: IROperand, word_count: int) -> None:
-        """Load multi-word transient storage value to memory buffer."""
-        for i in range(word_count):
-            # Transient storage: slot + i (word-addressed)
-            if i == 0:
-                current_slot = slot
-            elif isinstance(slot, IRLiteral):
-                current_slot = IRLiteral(slot.value + i)
-            else:
-                current_slot = self.builder.add(slot, IRLiteral(i))
+        """Load multi-word transient storage value to memory buffer.
 
-            val = self.builder.tload(current_slot)
+        Always emits IR loop (matches legacy `repeat` behavior).
+        """
+        b = self.builder
 
-            # Memory: buf + i*32 (byte-addressed)
-            if i == 0:
-                mem_offset = buf
-            elif isinstance(buf, IRLiteral):
-                mem_offset = IRLiteral(buf.value + i * 32)
-            else:
-                mem_offset = self.builder.add(buf, IRLiteral(i * 32))
+        # Create blocks
+        cond_block = b.create_block("t2m_cond")
+        body_block = b.create_block("t2m_body")
+        exit_block = b.create_block("t2m_exit")
 
-            self.builder.mstore(mem_offset, val)
+        # Entry: counter = 0, jump to cond
+        counter = b.assign(IRLiteral(0))
+        b.jmp(cond_block.label)
+
+        # Condition block: if counter == word_count, goto exit, else goto body
+        b.append_block(cond_block)
+        b.set_block(cond_block)
+        done = b.eq(counter, IRLiteral(word_count))
+        cond_finish = b.current_block
+
+        # Body block
+        b.append_block(body_block)
+        b.set_block(body_block)
+
+        # Transient slot = base_slot + counter (word-addressed)
+        current_slot = b.add(slot, counter)
+        val = b.tload(current_slot)
+
+        # Memory offset = buf + counter * 32 (byte-addressed)
+        mem_offset = b.add(buf, b.mul(counter, IRLiteral(32)))
+        b.mstore(mem_offset, val)
+
+        # Increment counter and jump back to cond
+        new_counter = b.add(counter, IRLiteral(1))
+        b.assign_to(new_counter, counter)
+        b.jmp(cond_block.label)
+
+        # Add conditional jump from cond block (after body processed)
+        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
+
+        # Exit block
+        b.append_block(exit_block)
+        b.set_block(exit_block)
 
     def _store_memory_to_transient(self, buf: IROperand, slot: IROperand, word_count: int) -> None:
-        """Store memory buffer to multi-word transient storage."""
-        for i in range(word_count):
-            # Memory: buf + i*32 (byte-addressed)
-            if i == 0:
-                mem_offset = buf
-            elif isinstance(buf, IRLiteral):
-                mem_offset = IRLiteral(buf.value + i * 32)
-            else:
-                mem_offset = self.builder.add(buf, IRLiteral(i * 32))
+        """Store memory buffer to multi-word transient storage.
 
-            val = self.builder.mload(mem_offset)
+        Always emits IR loop (matches legacy `repeat` behavior).
+        """
+        b = self.builder
 
-            # Transient storage: slot + i (word-addressed)
-            if i == 0:
-                current_slot = slot
-            elif isinstance(slot, IRLiteral):
-                current_slot = IRLiteral(slot.value + i)
-            else:
-                current_slot = self.builder.add(slot, IRLiteral(i))
+        # Create blocks
+        cond_block = b.create_block("m2t_cond")
+        body_block = b.create_block("m2t_body")
+        exit_block = b.create_block("m2t_exit")
 
-            self.builder.tstore(current_slot, val)
+        # Entry: counter = 0, jump to cond
+        counter = b.assign(IRLiteral(0))
+        b.jmp(cond_block.label)
+
+        # Condition block: if counter == word_count, goto exit, else goto body
+        b.append_block(cond_block)
+        b.set_block(cond_block)
+        done = b.eq(counter, IRLiteral(word_count))
+        cond_finish = b.current_block
+
+        # Body block
+        b.append_block(body_block)
+        b.set_block(body_block)
+
+        # Memory offset = buf + counter * 32 (byte-addressed)
+        mem_offset = b.add(buf, b.mul(counter, IRLiteral(32)))
+        val = b.mload(mem_offset)
+
+        # Transient slot = base_slot + counter (word-addressed)
+        current_slot = b.add(slot, counter)
+        b.tstore(current_slot, val)
+
+        # Increment counter and jump back to cond
+        new_counter = b.add(counter, IRLiteral(1))
+        b.assign_to(new_counter, counter)
+        b.jmp(cond_block.label)
+
+        # Add conditional jump from cond block (after body processed)
+        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
+
+        # Exit block
+        b.append_block(exit_block)
+        b.set_block(exit_block)
 
     # === Immutables ===
 
