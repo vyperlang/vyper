@@ -166,14 +166,6 @@ def build_interface_output(compiler_data: CompilerData) -> str:
     return out
 
 
-def build_bb_output(compiler_data: CompilerData) -> IRnode:
-    return compiler_data.venom_deploytime
-
-
-def build_bb_runtime_output(compiler_data: CompilerData) -> IRnode:
-    return compiler_data.venom_runtime
-
-
 def build_cfg_output(compiler_data: CompilerData) -> str:
     return compiler_data.venom_deploytime.as_graph()
 
@@ -182,13 +174,17 @@ def build_cfg_runtime_output(compiler_data: CompilerData) -> str:
     return compiler_data.venom_runtime.as_graph()
 
 
-def build_ir_output(compiler_data: CompilerData) -> IRnode:
+def build_ir_output(compiler_data: CompilerData):
+    if compiler_data.settings.experimental_codegen:
+        return compiler_data.venom_deploytime
     if compiler_data.show_gas_estimates:
         IRnode.repr_show_gas = True
     return compiler_data.ir_nodes
 
 
-def build_ir_runtime_output(compiler_data: CompilerData) -> IRnode:
+def build_ir_runtime_output(compiler_data: CompilerData):
+    if compiler_data.settings.experimental_codegen:
+        return compiler_data.venom_runtime
     if compiler_data.show_gas_estimates:
         IRnode.repr_show_gas = True
     return compiler_data.ir_runtime

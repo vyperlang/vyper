@@ -221,8 +221,6 @@ def test_compile_json(input_json, input_bundle, experimental_codegen):
         }
         if experimental_codegen:
             expected["venom"] = {
-                "bb": repr(data["bb"]),
-                "bb_runtime": repr(data["bb_runtime"]),
                 "cfg": data["cfg"],
                 "cfg_runtime": data["cfg_runtime"],
             }
@@ -399,8 +397,6 @@ def test_compile_json_with_experimental_codegen():
     output_json = compile_json(code)
     assert "venom" in output_json["contracts"]["foo.vy"]["foo"]
     venom = output_json["contracts"]["foo.vy"]["foo"]["venom"]
-    assert venom["bb"] == repr(expected["bb"])
-    assert venom["bb_runtime"] == repr(expected["bb_runtime"])
     assert venom["cfg"] == expected["cfg"]
     assert venom["cfg_runtime"] == expected["cfg_runtime"]
 
