@@ -125,10 +125,12 @@ Value-returning external call:
     interface Target:
         def value(should_raise: bool) -> uint256: nonpayable
 
-    @external
-    def call_target_value(target: address, should_raise: bool) -> (bool, uint256):
-        success, result = extcall Target(target).value(should_raise, revert_on_failure=False)
-        return success, result
+@external
+def call_target_value(target: address, should_raise: bool) -> (bool, uint256):
+    success: bool = False
+    result: uint256 = 0
+    success, result = extcall Target(target).value(should_raise, revert_on_failure=False)
+    return success, result
 
 Multi-return external call:
 

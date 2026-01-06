@@ -1370,6 +1370,39 @@ def call_target_return(target: address, should_raise: bool) -> (bool, uint256):
     assert result == 0
 
 
+def test_external_contract_call_revert_on_failure_value_example(get_contract):
+    target_source = """
+@external
+def value(should_raise: bool) -> uint256:
+    if should_raise:
+        raise "fail"
+    return 123
+    """
+
+    caller_source = """
+interface Target:
+    def value(should_raise: bool) -> uint256: nonpayable
+
+@external
+def call_target_value(target: address, should_raise: bool) -> (bool, uint256):
+    success: bool = False
+    result: uint256 = 0
+    success, result = extcall Target(target).value(should_raise, revert_on_failure=False)
+    return success, result
+    """
+
+    target = get_contract(target_source)
+    caller = get_contract(caller_source)
+
+    success, result = caller.call_target_value(target.address, False)
+    assert success is True
+    assert result == 123
+
+    success, result = caller.call_target_value(target.address, True)
+    assert success is False
+    assert result == 0
+
+
 def test_external_contract_call_revert_on_failure_multi_return(get_contract):
     target_source = """
 @external
@@ -1433,6 +1466,36 @@ def call_target_return(target: address, should_raise: bool) -> (bool, uint256):
     assert result == 123
 
     success, result = caller.call_target_return(target.address, True)
+    assert success is False
+    assert result == 0
+
+
+def test_external_contract_call_revert_on_failure_staticcall_direct_return(get_contract):
+    target_source = """
+@external
+def value(should_raise: bool) -> uint256:
+    if should_raise:
+        raise "fail"
+    return 123
+    """
+
+    caller_source = """
+interface Target:
+    def value(should_raise: bool) -> uint256: view
+
+@external
+def call_target_value(target: address, should_raise: bool) -> (bool, uint256):
+    return staticcall Target(target).value(should_raise, revert_on_failure=False)
+    """
+
+    target = get_contract(target_source)
+    caller = get_contract(caller_source)
+
+    success, result = caller.call_target_value(target.address, False)
+    assert success is True
+    assert result == 123
+
+    success, result = caller.call_target_value(target.address, True)
     assert success is False
     assert result == 0
 
