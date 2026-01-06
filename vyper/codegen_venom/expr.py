@@ -1302,8 +1302,15 @@ class Expr:
         if return_buf is not None and returns_count == 0:
             invoke_args.append(return_buf)
 
-        # Evaluate and stage arguments
-        for i, arg_node in enumerate(node.args):
+        # Evaluate and stage arguments (including defaults for unprovided kwargs)
+        # Get default values for unprovided kwargs
+        num_provided = len(node.args)
+        num_provided_kwargs = num_provided - func_t.n_positional_args
+        unprovided_kwargs = func_t.keyword_args[num_provided_kwargs:]
+        default_nodes = [kwarg.default_value for kwarg in unprovided_kwargs]
+        all_arg_nodes = list(node.args) + default_nodes
+
+        for i, arg_node in enumerate(all_arg_nodes):
             arg_t = func_t.arguments[i]
             arg_val = Expr(arg_node, self.ctx).lower_value()
 
