@@ -1280,6 +1280,30 @@ def call_target_fail(target: address, should_raise: bool) -> bool:
     assert caller.call_target_fail(target.address, True) is False
 
 
+def test_external_contract_call_revert_on_failure_noreturn_direct_return(get_contract):
+    target_source = """
+@external
+def fail(should_raise: bool):
+    if should_raise:
+        raise "fail"
+    """
+
+    caller_source = """
+interface Target:
+    def fail(should_raise: bool): nonpayable
+
+@external
+def call_target_fail(target: address, should_raise: bool) -> bool:
+    return extcall Target(target).fail(should_raise, revert_on_failure=False)
+    """
+
+    target = get_contract(target_source)
+    caller = get_contract(caller_source)
+
+    assert caller.call_target_fail(target.address, False) is True
+    assert caller.call_target_fail(target.address, True) is False
+
+
 def test_external_contract_call_revert_on_failure(get_contract, tx_failed):
     target_source = """
 @external
@@ -1314,6 +1338,103 @@ def call_target_return(target: address, should_raise: bool) -> (bool, uint256):
     success, result = caller.call_target_return(target.address, True)
     assert success is False
     assert result == 0  # Default value
+
+
+def test_external_contract_call_revert_on_failure_direct_return(get_contract):
+    target_source = """
+@external
+def return_value(should_raise: bool) -> uint256:
+    if should_raise:
+        raise "fail"
+    return 123
+    """
+
+    caller_source = """
+interface Target:
+    def return_value(should_raise: bool) -> uint256: nonpayable
+
+@external
+def call_target_return(target: address, should_raise: bool) -> (bool, uint256):
+    return extcall Target(target).return_value(should_raise, revert_on_failure=False)
+    """
+
+    target = get_contract(target_source)
+    caller = get_contract(caller_source)
+
+    success, result = caller.call_target_return(target.address, False)
+    assert success is True
+    assert result == 123
+
+    success, result = caller.call_target_return(target.address, True)
+    assert success is False
+    assert result == 0
+
+
+def test_external_contract_call_revert_on_failure_multi_return(get_contract):
+    target_source = """
+@external
+def return_values(should_raise: bool) -> (uint256, bytes32):
+    if should_raise:
+        raise "fail"
+    return 123, 0x0101010101010101010101010101010101010101010101010101010101010101
+    """
+
+    caller_source = """
+interface Target:
+    def return_values(should_raise: bool) -> (uint256, bytes32): nonpayable
+
+@external
+def call_target_return(target: address, should_raise: bool) -> (bool, (uint256, bytes32)):
+    return extcall Target(target).return_values(should_raise, revert_on_failure=False)
+    """
+
+    target = get_contract(target_source)
+    caller = get_contract(caller_source)
+
+    success, result = caller.call_target_return(target.address, False)
+    assert success is True
+    assert result[0] == 123
+    assert result[1] == b"\x01" * 32
+
+    success, result = caller.call_target_return(target.address, True)
+    assert success is False
+    assert result[0] == 0
+    assert result[1] == b"\x00" * 32
+
+
+def test_external_contract_call_revert_on_failure_staticcall(get_contract):
+    target_source = """
+@external
+def return_value(should_raise: bool) -> uint256:
+    if should_raise:
+        raise "fail"
+    return 123
+    """
+
+    caller_source = """
+interface Target:
+    def return_value(should_raise: bool) -> uint256: view
+
+@external
+def call_target_return(target: address, should_raise: bool) -> (bool, uint256):
+    success: bool = False
+    result: uint256 = 0
+    success, result = staticcall Target(target).return_value(
+        should_raise, revert_on_failure=False
+    )
+    return success, result
+    """
+
+    target = get_contract(target_source)
+    caller = get_contract(caller_source)
+
+    success, result = caller.call_target_return(target.address, False)
+    assert success is True
+    assert result == 123
+
+    success, result = caller.call_target_return(target.address, True)
+    assert success is False
+    assert result == 0
 
 
 def test_external_call_with_struct_return_type_revert_on_failure(get_contract):
