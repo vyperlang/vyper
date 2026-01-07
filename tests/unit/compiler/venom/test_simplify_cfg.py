@@ -124,3 +124,70 @@ def test_phi_after_merge_jump():
     """
 
     _check_pre_post(pre, post)
+
+
+def test_merge_jump_other_successor_has_phi():
+    """
+    Regression test: _merge_jump iterates ALL successors of block `a` to update
+    phis, but only the bypassed block's target should have its phi updated.
+    Other successors may have phis that don't contain the bypassed block's label,
+    causing ValueError from index().
+
+    CFG:
+        _global -> entry, other_source
+        entry -> passthrough, branched
+        other_source -> branched
+        passthrough -> join
+        branched -> join
+
+    When entry's passthrough is bypassed, entry's successors become {branched, join}.
+    The loop incorrectly tries to update phis in `branched`, which has @entry and
+    @other_source but NOT @passthrough.
+    """
+    pre = """
+    _global:
+        %cond = source
+        jnz %cond, @entry, @other_source
+
+    entry:
+        jnz %cond, @passthrough, @branched
+
+    other_source:
+        jmp @branched
+
+    passthrough:
+        jmp @join
+
+    branched:
+        %x = phi @entry, %cond, @other_source, %cond
+        jmp @join
+
+    join:
+        %y = phi @passthrough, %cond, @branched, %x
+        sink %y
+    """
+
+    # After optimization:
+    # - passthrough bypassed, entry jumps directly to join
+    # - join's phi updated: @passthrough -> @entry
+    post = """
+    _global:
+        %cond = source
+        jnz %cond, @entry, @other_source
+
+    entry:
+        jnz %cond, @join, @branched
+
+    other_source:
+        jmp @branched
+
+    branched:
+        %x = phi @entry, %cond, @other_source, %cond
+        jmp @join
+
+    join:
+        %y = phi @entry, %cond, @branched, %x
+        sink %y
+    """
+
+    _check_pre_post(pre, post)
