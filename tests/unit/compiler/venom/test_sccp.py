@@ -719,9 +719,9 @@ def test_sccp_sar_large_shift():
     Test SAR with large shift amount (>= 256).
     Regression test for bug where shift >= 2^255 caused AssertionError.
     """
+    from vyper.utils import SizeLimits
     from vyper.venom.basicblock import IRLiteral
     from vyper.venom.passes.sccp.eval import eval_arith
-    from vyper.utils import SizeLimits
 
     # Test: sar 300, -1 should return MAX_UINT256 (all ones, -1 signed)
     # because shift >= 256 and value < 0
@@ -750,9 +750,9 @@ def test_sccp_sar_large_shift():
 
 def test_sccp_overflow_add():
     """Test that addition wraps at 2^256"""
+    from vyper.utils import SizeLimits
     from vyper.venom.basicblock import IRLiteral
     from vyper.venom.passes.sccp.eval import eval_arith
-    from vyper.utils import SizeLimits
 
     # MAX_UINT256 + 1 should wrap to 0
     max_stored = SizeLimits.MAX_UINT256 - 2**256  # stored as -1
@@ -763,9 +763,9 @@ def test_sccp_overflow_add():
 
 def test_sccp_underflow_sub():
     """Test that subtraction wraps at 2^256"""
+    from vyper.utils import SizeLimits
     from vyper.venom.basicblock import IRLiteral
     from vyper.venom.passes.sccp.eval import eval_arith
-    from vyper.utils import SizeLimits
 
     # 0 - 1 should wrap to MAX_UINT256
     ops = [IRLiteral(1), IRLiteral(0)]
@@ -830,3 +830,74 @@ def test_sccp_loop_phi_constant():
     assert isinstance(sccp, SCCP)
     # %i should be BOTTOM because it depends on loop iteration
     assert sccp.lattice[IRVariable("%i")] == LatticeEnum.BOTTOM
+
+
+# =============================================================================
+# Ternary Operation Tests (addmod, mulmod)
+# =============================================================================
+
+
+def test_sccp_addmod():
+    """Test addmod constant folding"""
+    pre = """
+    _global:
+        %a = 10
+        %b = 20
+        %n = 7
+        %r = addmod %a, %b, %n
+        sink %r
+    """
+    post = """
+    _global:
+        %a = 10
+        %b = 20
+        %n = 7
+        %r = addmod 10, 20, 7
+        sink 2
+    """
+    # (10 + 20) % 7 = 30 % 7 = 2
+    _check_pre_post(pre, post)
+
+
+def test_sccp_addmod_zero_mod():
+    """Test addmod with zero modulus returns 0"""
+    from vyper.venom.basicblock import IRLiteral
+    from vyper.venom.passes.sccp.eval import eval_arith
+
+    # addmod(10, 20, 0) = 0 per EVM semantics
+    ops = [IRLiteral(0), IRLiteral(20), IRLiteral(10)]
+    result = eval_arith("addmod", ops)
+    assert result == 0
+
+
+def test_sccp_mulmod():
+    """Test mulmod constant folding"""
+    pre = """
+    _global:
+        %a = 10
+        %b = 20
+        %n = 7
+        %r = mulmod %a, %b, %n
+        sink %r
+    """
+    post = """
+    _global:
+        %a = 10
+        %b = 20
+        %n = 7
+        %r = mulmod 10, 20, 7
+        sink 4
+    """
+    # (10 * 20) % 7 = 200 % 7 = 4
+    _check_pre_post(pre, post)
+
+
+def test_sccp_mulmod_zero_mod():
+    """Test mulmod with zero modulus returns 0"""
+    from vyper.venom.basicblock import IRLiteral
+    from vyper.venom.passes.sccp.eval import eval_arith
+
+    # mulmod(10, 20, 0) = 0 per EVM semantics
+    ops = [IRLiteral(0), IRLiteral(20), IRLiteral(10)]
+    result = eval_arith("mulmod", ops)
+    assert result == 0

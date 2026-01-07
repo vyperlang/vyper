@@ -45,6 +45,18 @@ def _wrap_binop(operation):
     return wrapper
 
 
+def _wrap_ternop(operation):
+    def wrapper(ops: list[IRLiteral]) -> int:
+        assert len(ops) == 3
+        first = _signed_to_unsigned(ops[-1].value)
+        second = _signed_to_unsigned(ops[-2].value)
+        third = _signed_to_unsigned(ops[-3].value)
+        ret = operation(first, second, third)
+        return ret & SizeLimits.MAX_UINT256
+
+    return wrapper
+
+
 def _wrap_unop(operation):
     def wrapper(ops: list[IRLiteral]) -> int:
         assert len(ops) == 1
@@ -54,6 +66,20 @@ def _wrap_unop(operation):
         return ret & SizeLimits.MAX_UINT256
 
     return wrapper
+
+
+def _evm_addmod(a: int, b: int, N: int) -> int:
+    """EVM ADDMOD: (a + b) % N, returns 0 if N == 0"""
+    if N == 0:
+        return 0
+    return (a + b) % N
+
+
+def _evm_mulmod(a: int, b: int, N: int) -> int:
+    """EVM MULMOD: (a * b) % N, returns 0 if N == 0"""
+    if N == 0:
+        return 0
+    return (a * b) % N
 
 
 def _evm_signextend(nbytes, value) -> int:
@@ -105,6 +131,7 @@ def _evm_sar(shift_len: int, value: int) -> int:
 
 def _wrap_sar(operation):
     """Special wrapper for SAR: shift_len is unsigned, value is signed."""
+
     def wrapper(ops: list[IRLiteral]) -> int:
         assert len(ops) == 2
         # ops[1] is shift_len (unsigned), ops[0] is value (signed)
@@ -138,6 +165,8 @@ ARITHMETIC_OPS: dict[str, Callable[[list[IRLiteral]], int]] = {
     "shr": _wrap_binop(_evm_shr),
     "shl": _wrap_binop(_evm_shl),
     "sar": _wrap_sar(_evm_sar),
+    "addmod": _wrap_ternop(_evm_addmod),
+    "mulmod": _wrap_ternop(_evm_mulmod),
 }
 
 
