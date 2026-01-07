@@ -943,9 +943,13 @@ class Expr:
         else:
             key = Expr(node.slice, self.ctx).lower_value()
 
-        # sha3_64(slot, key) = keccak256(concat(slot, key))
+        # sha3_64(base, key) = keccak256(base || key)
         # Both are 32 bytes, concatenated and hashed
-        slot = self.builder.sha3_64(base, key)
+        buf = self.ctx.allocate_buffer(64, "sha3_64")
+        ptr = buf.base_ptr()
+        self.ctx.ptr_store(ptr, base)
+        self.ctx.ptr_store(self.ctx.add_offset(ptr, 32), key)
+        slot = self.builder.sha3(ptr.operand, IRLiteral(64))
 
         ptr = Ptr(operand=slot, location=DataLocation.STORAGE)
         return VyperValue.from_ptr(ptr, value_typ)
