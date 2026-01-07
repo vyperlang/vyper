@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.analysis.variable_range import VariableRangeAnalysis
+from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX, SIGNED_MIN
 from vyper.venom.parser import parse_venom
 
 
@@ -550,7 +551,7 @@ def test_iszero_false_branch_narrows_when_proven_nonnegative():
 
 
 def test_iszero_false_branch_with_zero_constant_is_bottom():
-    """iszero false branch with {0} input should produce BOTTOM (unreachable)."""
+    """iszero false branch with 0 input should produce BOTTOM (unreachable)."""
     analysis, fn = _analyze(
         """
         function test {
@@ -1563,7 +1564,6 @@ def test_add_at_signed_min_boundary():
 
 def test_sub_at_signed_min_boundary():
     """Test sub that would underflow past SIGNED_MIN."""
-    from vyper.venom.analysis.variable_range.value_range import SIGNED_MIN, SIGNED_MAX
 
     analysis, fn = _analyze(
         f"""

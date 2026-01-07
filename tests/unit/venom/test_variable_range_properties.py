@@ -10,33 +10,34 @@ from __future__ import annotations
 
 from typing import Callable
 
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from vyper.utils import wrap256
+from vyper.venom.analysis.variable_range.evaluators import (
+    _eval_add,
+    _eval_and,
+    _eval_byte,
+    _eval_compare,
+    _eval_div,
+    _eval_eq,
+    _eval_iszero,
+    _eval_mod,
+    _eval_mul,
+    _eval_not,
+    _eval_or,
+    _eval_sar,
+    _eval_shl,
+    _eval_shr,
+    _eval_signextend,
+    _eval_sub,
+    _eval_xor,
+)
 from vyper.venom.analysis.variable_range.value_range import (
     SIGNED_MAX,
     SIGNED_MIN,
     UNSIGNED_MAX,
     ValueRange,
-)
-from vyper.venom.analysis.variable_range.evaluators import (
-    _eval_add,
-    _eval_sub,
-    _eval_mul,
-    _eval_div,
-    _eval_mod,
-    _eval_and,
-    _eval_or,
-    _eval_xor,
-    _eval_not,
-    _eval_shr,
-    _eval_shl,
-    _eval_sar,
-    _eval_byte,
-    _eval_signextend,
-    _eval_compare,
-    _eval_eq,
-    _eval_iszero,
 )
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IRVariable
 
@@ -87,7 +88,9 @@ def value_range_strategy(draw: st.DrawFn, allow_empty: bool = False) -> ValueRan
         A valid ValueRange object
     """
     # Choose range type
-    range_type = draw(st.sampled_from(["top", "constant", "range"] + (["empty"] if allow_empty else [])))
+    range_type = draw(
+        st.sampled_from(["top", "constant", "range"] + (["empty"] if allow_empty else []))
+    )
 
     if range_type == "top":
         return ValueRange.top()
@@ -669,9 +672,9 @@ class TestArithmeticSoundness:
         inst = make_inst("add", a, b)
         result_range = _eval_add(inst, {})
         actual = eval_evm_add(a, b)
-        assert value_in_range(actual, result_range), (
-            f"ADD unsound: {a} + {b} = {actual}, range = {result_range}"
-        )
+        assert value_in_range(
+            actual, result_range
+        ), f"ADD unsound: {a} + {b} = {actual}, range = {result_range}"
 
     @given(a=small_uint_strategy, b=small_uint_strategy)
     @settings(deadline=None, max_examples=200)
@@ -681,9 +684,9 @@ class TestArithmeticSoundness:
         inst = make_inst("sub", b, a)
         result_range = _eval_sub(inst, {})
         actual = eval_evm_sub(a, b)
-        assert value_in_range(actual, result_range), (
-            f"SUB unsound: {a} - {b} = {actual}, range = {result_range}"
-        )
+        assert value_in_range(
+            actual, result_range
+        ), f"SUB unsound: {a} - {b} = {actual}, range = {result_range}"
 
     @given(a=small_uint_strategy, b=small_uint_strategy)
     @settings(deadline=None, max_examples=200)
@@ -692,9 +695,9 @@ class TestArithmeticSoundness:
         inst = make_inst("mul", a, b)
         result_range = _eval_mul(inst, {})
         actual = eval_evm_mul(a, b)
-        assert value_in_range(actual, result_range), (
-            f"MUL unsound: {a} * {b} = {actual}, range = {result_range}"
-        )
+        assert value_in_range(
+            actual, result_range
+        ), f"MUL unsound: {a} * {b} = {actual}, range = {result_range}"
 
     @given(a=small_uint_strategy, b=small_uint_strategy)
     @settings(deadline=None, max_examples=200)
@@ -704,9 +707,9 @@ class TestArithmeticSoundness:
         inst = make_inst("div", b, a)
         result_range = _eval_div(inst, {})
         actual = eval_evm_div(a, b)
-        assert value_in_range(actual, result_range), (
-            f"DIV unsound: {a} / {b} = {actual}, range = {result_range}"
-        )
+        assert value_in_range(
+            actual, result_range
+        ), f"DIV unsound: {a} / {b} = {actual}, range = {result_range}"
 
     @given(a=small_uint_strategy, b=small_uint_strategy)
     @settings(deadline=None, max_examples=200)
@@ -716,9 +719,9 @@ class TestArithmeticSoundness:
         inst = make_inst("mod", b, a)
         result_range = _eval_mod(inst, {})
         actual = eval_evm_mod(a, b)
-        assert value_in_range(actual, result_range), (
-            f"MOD unsound: {a} % {b} = {actual}, range = {result_range}"
-        )
+        assert value_in_range(
+            actual, result_range
+        ), f"MOD unsound: {a} % {b} = {actual}, range = {result_range}"
 
     def test_div_by_zero_returns_zero(self) -> None:
         """DIV by zero must return 0 (EVM spec)."""
@@ -755,9 +758,9 @@ class TestComparisonSoundness:
         result_range = _eval_compare(inst, state)
         # EVM lt is unsigned
         actual = eval_evm_lt(to_unsigned(a), to_unsigned(b))
-        assert value_in_range(actual, result_range), (
-            f"LT unsound: lt({a}, {b}) = {actual}, range = {result_range}"
-        )
+        assert value_in_range(
+            actual, result_range
+        ), f"LT unsound: lt({a}, {b}) = {actual}, range = {result_range}"
 
     @given(a=int256_strategy, b=int256_strategy)
     @settings(deadline=None, max_examples=200)
@@ -770,9 +773,9 @@ class TestComparisonSoundness:
         state = {var_a: ValueRange.constant(a), var_b: ValueRange.constant(b)}
         result_range = _eval_compare(inst, state)
         actual = eval_evm_gt(to_unsigned(a), to_unsigned(b))
-        assert value_in_range(actual, result_range), (
-            f"GT unsound: gt({a}, {b}) = {actual}, range = {result_range}"
-        )
+        assert value_in_range(
+            actual, result_range
+        ), f"GT unsound: gt({a}, {b}) = {actual}, range = {result_range}"
 
     @given(a=int256_strategy, b=int256_strategy)
     @settings(deadline=None, max_examples=200)
@@ -785,9 +788,9 @@ class TestComparisonSoundness:
         state = {var_a: ValueRange.constant(a), var_b: ValueRange.constant(b)}
         result_range = _eval_compare(inst, state)
         actual = eval_evm_slt(to_unsigned(a), to_unsigned(b))
-        assert value_in_range(actual, result_range), (
-            f"SLT unsound: slt({a}, {b}) = {actual}, range = {result_range}"
-        )
+        assert value_in_range(
+            actual, result_range
+        ), f"SLT unsound: slt({a}, {b}) = {actual}, range = {result_range}"
 
     @given(a=int256_strategy, b=int256_strategy)
     @settings(deadline=None, max_examples=200)
@@ -800,9 +803,9 @@ class TestComparisonSoundness:
         state = {var_a: ValueRange.constant(a), var_b: ValueRange.constant(b)}
         result_range = _eval_compare(inst, state)
         actual = eval_evm_sgt(to_unsigned(a), to_unsigned(b))
-        assert value_in_range(actual, result_range), (
-            f"SGT unsound: sgt({a}, {b}) = {actual}, range = {result_range}"
-        )
+        assert value_in_range(
+            actual, result_range
+        ), f"SGT unsound: sgt({a}, {b}) = {actual}, range = {result_range}"
 
     @given(a=int256_strategy, b=int256_strategy)
     @settings(deadline=None, max_examples=200)
@@ -815,9 +818,9 @@ class TestComparisonSoundness:
         state = {var_a: ValueRange.constant(a), var_b: ValueRange.constant(b)}
         result_range = _eval_eq(inst, state)
         actual = eval_evm_eq(to_unsigned(a), to_unsigned(b))
-        assert value_in_range(actual, result_range), (
-            f"EQ unsound: eq({a}, {b}) = {actual}, range = {result_range}"
-        )
+        assert value_in_range(
+            actual, result_range
+        ), f"EQ unsound: eq({a}, {b}) = {actual}, range = {result_range}"
 
     @given(a=int256_strategy)
     @settings(deadline=None, max_examples=200)
@@ -828,9 +831,9 @@ class TestComparisonSoundness:
         state = {var_a: ValueRange.constant(a)}
         result_range = _eval_iszero(inst, state)
         actual = eval_evm_iszero(to_unsigned(a))
-        assert value_in_range(actual, result_range), (
-            f"ISZERO unsound: iszero({a}) = {actual}, range = {result_range}"
-        )
+        assert value_in_range(
+            actual, result_range
+        ), f"ISZERO unsound: iszero({a}) = {actual}, range = {result_range}"
 
     def test_lt_minus_one_vs_one(self) -> None:
         """Critical: lt(-1, 1) must be 0 (unsigned: MAX_UINT > 1)."""
@@ -841,9 +844,7 @@ class TestComparisonSoundness:
         state = {var_a: ValueRange.constant(-1), var_b: ValueRange.constant(1)}
         result_range = _eval_compare(inst, state)
         # -1 as unsigned is MAX_UINT, MAX_UINT > 1, so lt returns 0
-        assert value_in_range(0, result_range), (
-            f"lt(-1, 1) must include 0, got {result_range}"
-        )
+        assert value_in_range(0, result_range), f"lt(-1, 1) must include 0, got {result_range}"
 
     def test_eq_minus_one_and_max_uint(self) -> None:
         """Critical: eq(-1, MAX_UINT) must be 1 (same bit pattern)."""
@@ -854,9 +855,7 @@ class TestComparisonSoundness:
         # Both -1 and UNSIGNED_MAX are the same 256-bit pattern
         state = {var_a: ValueRange.constant(-1), var_b: ValueRange.constant(-1)}
         result_range = _eval_eq(inst, state)
-        assert value_in_range(1, result_range), (
-            f"eq(-1, -1) must include 1, got {result_range}"
-        )
+        assert value_in_range(1, result_range), f"eq(-1, -1) must include 1, got {result_range}"
 
 
 # =============================================================================
@@ -876,9 +875,9 @@ class TestBitwiseSoundness:
         state = {var_x: ValueRange.constant(value)}
         result_range = _eval_and(inst, state)
         actual = eval_evm_and(value, mask)
-        assert value_in_range(actual, result_range), (
-            f"AND unsound: {value} & {mask} = {actual}, range = {result_range}"
-        )
+        assert value_in_range(
+            actual, result_range
+        ), f"AND unsound: {value} & {mask} = {actual}, range = {result_range}"
 
     @given(shift=shift_strategy, value=small_uint_strategy)
     @settings(deadline=None, max_examples=200)
@@ -889,9 +888,9 @@ class TestBitwiseSoundness:
         state = {var_x: ValueRange.constant(value)}
         result_range = _eval_shr(inst, state)
         actual = eval_evm_shr(shift, value)
-        assert value_in_range(actual, result_range), (
-            f"SHR unsound: {value} >> {shift} = {actual}, range = {result_range}"
-        )
+        assert value_in_range(
+            actual, result_range
+        ), f"SHR unsound: {value} >> {shift} = {actual}, range = {result_range}"
 
     @given(shift=shift_strategy, value=small_uint_strategy)
     @settings(deadline=None, max_examples=200)
@@ -902,9 +901,9 @@ class TestBitwiseSoundness:
         state = {var_x: ValueRange.constant(value)}
         result_range = _eval_shl(inst, state)
         actual = eval_evm_shl(shift, value)
-        assert value_in_range(actual, result_range), (
-            f"SHL unsound: {value} << {shift} = {actual}, range = {result_range}"
-        )
+        assert value_in_range(
+            actual, result_range
+        ), f"SHL unsound: {value} << {shift} = {actual}, range = {result_range}"
 
     @given(shift=shift_strategy, value=int256_strategy)
     @settings(deadline=None, max_examples=200)
@@ -915,9 +914,9 @@ class TestBitwiseSoundness:
         state = {var_x: ValueRange.constant(value)}
         result_range = _eval_sar(inst, state)
         actual = eval_evm_sar(shift, to_unsigned(value))
-        assert value_in_range(actual, result_range), (
-            f"SAR unsound: sar({shift}, {value}) = {actual}, range = {result_range}"
-        )
+        assert value_in_range(
+            actual, result_range
+        ), f"SAR unsound: sar({shift}, {value}) = {actual}, range = {result_range}"
 
     @given(n=byte_strategy, value=uint256_strategy)
     @settings(deadline=None, max_examples=200)
@@ -928,9 +927,9 @@ class TestBitwiseSoundness:
         state = {var_x: ValueRange.constant(to_signed(value))}
         result_range = _eval_byte(inst, state)
         actual = eval_evm_byte(n, value)
-        assert value_in_range(actual, result_range), (
-            f"BYTE unsound: byte({n}, {value}) = {actual}, range = {result_range}"
-        )
+        assert value_in_range(
+            actual, result_range
+        ), f"BYTE unsound: byte({n}, {value}) = {actual}, range = {result_range}"
 
     def test_shift_by_256_returns_zero(self) -> None:
         """Shift by 256 must return 0."""
@@ -939,9 +938,7 @@ class TestBitwiseSoundness:
             inst = make_inst(opcode, 256, var_x)
             state = {var_x: ValueRange.constant(UINT256_MAX)}
             result_range = eval_fn(inst, state)
-            assert value_in_range(0, result_range), (
-                f"{opcode} by 256 must include 0"
-            )
+            assert value_in_range(0, result_range), f"{opcode} by 256 must include 0"
 
     @given(a=uint256_strategy, b=uint256_strategy)
     @settings(deadline=None, max_examples=200)
@@ -953,9 +950,9 @@ class TestBitwiseSoundness:
         state = {var_a: ValueRange.constant(to_signed(a)), var_b: ValueRange.constant(to_signed(b))}
         result_range = _eval_or(inst, state)
         actual = eval_evm_or(a, b)
-        assert value_in_range(actual, result_range), (
-            f"OR unsound: {a} | {b} = {actual}, range = {result_range}"
-        )
+        assert value_in_range(
+            actual, result_range
+        ), f"OR unsound: {a} | {b} = {actual}, range = {result_range}"
 
     @given(a=uint256_strategy, b=uint256_strategy)
     @settings(deadline=None, max_examples=200)
@@ -967,9 +964,9 @@ class TestBitwiseSoundness:
         state = {var_a: ValueRange.constant(to_signed(a)), var_b: ValueRange.constant(to_signed(b))}
         result_range = _eval_xor(inst, state)
         actual = eval_evm_xor(a, b)
-        assert value_in_range(actual, result_range), (
-            f"XOR unsound: {a} ^ {b} = {actual}, range = {result_range}"
-        )
+        assert value_in_range(
+            actual, result_range
+        ), f"XOR unsound: {a} ^ {b} = {actual}, range = {result_range}"
 
     @given(a=uint256_strategy)
     @settings(deadline=None, max_examples=200)
@@ -980,9 +977,9 @@ class TestBitwiseSoundness:
         state = {var_a: ValueRange.constant(to_signed(a))}
         result_range = _eval_not(inst, state)
         actual = eval_evm_not(a)
-        assert value_in_range(actual, result_range), (
-            f"NOT unsound: ~{a} = {actual}, range = {result_range}"
-        )
+        assert value_in_range(
+            actual, result_range
+        ), f"NOT unsound: ~{a} = {actual}, range = {result_range}"
 
     def test_or_with_zero_identity(self) -> None:
         """OR with 0 should return the other operand's range."""
@@ -991,9 +988,9 @@ class TestBitwiseSoundness:
         inst = make_inst("or", var_x, 0)
         state = {var_x: test_range}
         result_range = _eval_or(inst, state)
-        assert result_range.bounds == test_range.bounds, (
-            f"OR with 0 should preserve range, got {result_range}"
-        )
+        assert (
+            result_range.bounds == test_range.bounds
+        ), f"OR with 0 should preserve range, got {result_range}"
 
     def test_or_with_all_ones_absorbing(self) -> None:
         """OR with -1 (all bits set) should return -1."""
@@ -1001,9 +998,9 @@ class TestBitwiseSoundness:
         inst = make_inst("or", var_x, -1)
         state = {var_x: ValueRange.top()}
         result_range = _eval_or(inst, state)
-        assert result_range.is_constant and result_range.lo == -1, (
-            f"OR with -1 should give -1, got {result_range}"
-        )
+        assert (
+            result_range.is_constant and result_range.lo == -1
+        ), f"OR with -1 should give -1, got {result_range}"
 
     def test_xor_self_is_zero(self) -> None:
         """XOR of variable with itself should be 0."""
@@ -1011,9 +1008,9 @@ class TestBitwiseSoundness:
         inst = make_inst("xor", var_x, var_x)
         state = {var_x: ValueRange.top()}
         result_range = _eval_xor(inst, state)
-        assert result_range.is_constant and result_range.lo == 0, (
-            f"XOR self should be 0, got {result_range}"
-        )
+        assert (
+            result_range.is_constant and result_range.lo == 0
+        ), f"XOR self should be 0, got {result_range}"
 
     def test_not_involution(self) -> None:
         """NOT(NOT(x)) should equal x for constants."""
@@ -1031,9 +1028,9 @@ class TestBitwiseSoundness:
         state2 = {var_y: result1}
         result2 = _eval_not(inst2, state2)
 
-        assert result2.is_constant and result2.lo == test_val, (
-            f"NOT(NOT({test_val})) should be {test_val}, got {result2}"
-        )
+        assert (
+            result2.is_constant and result2.lo == test_val
+        ), f"NOT(NOT({test_val})) should be {test_val}, got {result2}"
 
 
 # =============================================================================
@@ -1074,12 +1071,12 @@ class TestSignextendSoundness:
         state = {var_x: ValueRange.top()}
         result_range = _eval_signextend(inst, state)
 
-        assert result_range.lo == expected_lo, (
-            f"signextend({b}) lo: expected {expected_lo}, got {result_range.lo}"
-        )
-        assert result_range.hi == expected_hi, (
-            f"signextend({b}) hi: expected {expected_hi}, got {result_range.hi}"
-        )
+        assert (
+            result_range.lo == expected_lo
+        ), f"signextend({b}) lo: expected {expected_lo}, got {result_range.lo}"
+        assert (
+            result_range.hi == expected_hi
+        ), f"signextend({b}) hi: expected {expected_hi}, got {result_range.hi}"
 
     def test_signextend_constant_folding(self) -> None:
         """SIGNEXTEND with constant input should give exact result."""
@@ -1092,9 +1089,9 @@ class TestSignextendSoundness:
         result_range = _eval_signextend(inst, state)
 
         expected = -128
-        assert result_range.is_constant and result_range.lo == expected, (
-            f"signextend(0, 384) should be {expected}, got {result_range}"
-        )
+        assert (
+            result_range.is_constant and result_range.lo == expected
+        ), f"signextend(0, 384) should be {expected}, got {result_range}"
 
     def test_signextend_31_is_identity(self) -> None:
         """SIGNEXTEND with b >= 31 should be identity."""
@@ -1105,6 +1102,6 @@ class TestSignextendSoundness:
         state = {var_x: ValueRange.constant(test_val)}
         result_range = _eval_signextend(inst, state)
 
-        assert result_range.is_constant and result_range.lo == test_val, (
-            f"signextend(31, {test_val}) should be identity"
-        )
+        assert (
+            result_range.is_constant and result_range.lo == test_val
+        ), f"signextend(31, {test_val}) should be identity"
