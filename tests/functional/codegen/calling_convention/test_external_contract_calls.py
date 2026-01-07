@@ -1403,6 +1403,39 @@ def call_target_value(target: address, should_raise: bool) -> (bool, uint256):
     assert result == 0
 
 
+def test_external_contract_call_revert_on_failure_with_default_return_value(get_contract):
+    target_source = """
+@external
+def transfer(should_raise: bool):
+    if should_raise:
+        raise "fail"
+    """
+
+    caller_source = """
+interface Target:
+    def transfer(should_raise: bool) -> bool: nonpayable
+
+@external
+def call_target_transfer(target: address, should_raise: bool) -> (bool, bool):
+    return extcall Target(target).transfer(
+        should_raise,
+        default_return_value=True,
+        revert_on_failure=False,
+    )
+    """
+
+    target = get_contract(target_source)
+    caller = get_contract(caller_source)
+
+    success, result = caller.call_target_transfer(target.address, False)
+    assert success is True
+    assert result is True
+
+    success, result = caller.call_target_transfer(target.address, True)
+    assert success is False
+    assert result is False
+
+
 def test_external_contract_call_revert_on_failure_multi_return(get_contract):
     target_source = """
 @external
