@@ -550,7 +550,7 @@ def test_nested_diamond_with_restore():
               \            /
                C  <- inner join
               / \
-             D   E   <- both store new values
+             D   E   <- both store new values (using variables)
               \ /
                F  <- outer join
                |
@@ -572,11 +572,13 @@ def test_nested_diamond_with_restore():
         ; inner join
         jnz %cond2, @D, @E
     D:
-        %v3 = add %cond1, 10
+        ; define a new variable here (source = symbolic)
+        %v3 = source
         mstore %ptr, %v3
         jmp @F
     E:
-        %v4 = add %cond2, 20
+        ; define a new variable here
+        %v4 = source
         mstore %ptr, %v4
         jmp @F
     F:
@@ -599,11 +601,11 @@ def test_nested_diamond_with_restore():
     C:
         jnz %cond2, @D, @E
     D:
-        %v3 = add %cond1, 10
+        %v3 = source
         mstore %ptr, %v3
         jmp @F
     E:
-        %v4 = add %cond2, 20
+        %v4 = source
         mstore %ptr, %v4
         jmp @F
     F:
