@@ -212,25 +212,27 @@ class LoadElimination(IRPass):
             for pred in self.cfg.cfg_in(bb):
                 pred_lattice = self._bb_lattice[pred]
                 if ptr not in pred_lattice:
-                    continue
+                    # can't determine value from this predecessor
+                    return
                 val = pred_lattice[ptr]
                 if len(val) == 0:
-                    continue
+                    # no value available from this predecessor
+                    return
                 if len(val) > 1:
-                    # could be handled
-                    # but if would require
-                    # more phis
+                    # could be handled but would require more phis
                     return
                 val = val.first()
-                assert val in existing_value
+                if val not in existing_value:
+                    # value doesn't match expected set
+                    return
                 if not isinstance(val, IRVariable):
-                    # could be extended by
-                    # adding stores to source
-                    # basicblocks
+                    # could be extended by adding stores to source basicblocks
                     return
                 ops.extend([pred.label, val])
 
-            assert len(ops) == 2 * len(existing_value), (ops, existing_value, inst)
+            if len(ops) != 2 * len(existing_value):
+                # couldn't collect all expected values
+                return
 
             join = self.updater.add_before(first_inst, "phi", ops)
             assert join is not None
