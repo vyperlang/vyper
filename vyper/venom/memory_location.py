@@ -188,6 +188,11 @@ def memory_write_ops(inst) -> InstAccessOps:
     if opcode == "mstore":
         dst = inst.operands[1]
         return InstAccessOps(ofst=dst, size=IRLiteral(32))
+    if opcode == "istore":
+        # istore offset, val -> writes to memory at offset
+        # operands = [offset, val]
+        dst = inst.operands[0]
+        return InstAccessOps(ofst=dst, size=IRLiteral(32))
     if opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
         size, _, dst = inst.operands
         return InstAccessOps(ofst=dst, size=size)
@@ -224,6 +229,12 @@ def get_write_max_size(inst: IRInstruction) -> Optional[IROperand]:
 def memory_read_ops(inst) -> InstAccessOps:
     opcode = inst.opcode
     if opcode == "mload":
+        ofst = inst.operands[0]
+        size = IRLiteral(32)
+        return InstAccessOps(ofst=ofst, size=size)
+
+    if opcode == "iload":
+        # iload offset -> reads from memory at offset
         ofst = inst.operands[0]
         size = IRLiteral(32)
         return InstAccessOps(ofst=ofst, size=size)
@@ -276,6 +287,8 @@ def update_write_location(inst, new_op: IROperand):
     opcode = inst.opcode
     if opcode == "mstore":
         inst.operands[1] = new_op
+    elif opcode == "istore":
+        inst.operands[0] = new_op
     elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
         inst.operands[2] = new_op
     elif opcode == "call":
@@ -292,6 +305,8 @@ def update_write_location(inst, new_op: IROperand):
 def update_read_location(inst, new_op: IROperand):
     opcode = inst.opcode
     if opcode == "mload":
+        inst.operands[0] = new_op
+    elif opcode == "iload":
         inst.operands[0] = new_op
     elif opcode == "mcopy":
         inst.operands[1] = new_op

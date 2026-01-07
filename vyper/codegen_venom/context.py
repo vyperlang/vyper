@@ -159,7 +159,7 @@ class VenomCodegenContext:
 
         # Primitive word type: emit load based on location
         if vv.location == DataLocation.CODE:
-            return self.builder.iload(vv.operand)
+            return self.builder.dload(vv.operand)
         return self.builder.load(vv.operand, vv.location)
 
     def bytes_data_ptr(self, vv: VyperValue) -> IROperand:
@@ -693,11 +693,11 @@ class VenomCodegenContext:
     def load_immutable(self, offset: IROperand, typ: VyperType) -> IROperand:
         """Load immutable value from deployed bytecode.
 
-        For primitive types (<=32 bytes), returns iload result.
+        For primitive types (<=32 bytes), returns dload result.
         For multi-word types, allocates memory buffer and copies.
         """
         if typ.memory_bytes_required <= 32:
-            return self.builder.iload(offset)
+            return self.builder.dload(offset)
         else:
             # Multi-word immutable: copy to memory buffer
             val = self.new_temporary_value(typ)
@@ -712,7 +712,7 @@ class VenomCodegenContext:
                 else:
                     imm_offset = self.builder.add(offset, IRLiteral(i))
 
-                val = self.builder.iload(imm_offset)
+                val = self.builder.dload(imm_offset)
 
                 # Memory is byte-addressed
                 mem_ptr: IROperand
@@ -799,5 +799,8 @@ class VenomCodegenContext:
             self.builder.sstore(dst.operand, val)
         elif dst.location == DataLocation.TRANSIENT:
             self.builder.tstore(dst.operand, val)
+        elif dst.location == DataLocation.CODE:
+            # Immutables in constructor context
+            self.builder.istore(dst.operand, val)
         else:
             raise CompilerPanic(f"cannot store to: {dst.location}")

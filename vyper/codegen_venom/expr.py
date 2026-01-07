@@ -28,7 +28,7 @@ from vyper.codegen.core import (
     calculate_type_for_external_return,
     needs_external_call_wrap,
 )
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import CompilerPanic, UnimplementedException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     AddressT,
@@ -401,7 +401,7 @@ class Expr:
                 # For bytes32: full bitwise not
                 return VyperValue.from_stack_op(self.builder.not_(operand), result_typ)
             else:
-                raise CompilerPanic(f"Invert not supported for type {typ}")
+                raise UnimplementedException(f"Bitwise not is not supported for type {typ}")
 
         if isinstance(op, vy_ast.USub):
             # Unary minus (-x) - only for signed integers

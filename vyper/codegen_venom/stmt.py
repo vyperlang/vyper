@@ -241,6 +241,11 @@ class Stmt:
             if varname in self.ctx.variables:
                 return self.ctx.variables[varname].value.ptr()
 
+            # Check if it's an immutable assignment in constructor
+            varinfo = target._expr_info.var_info
+            if varinfo is not None and varinfo.is_immutable and self.ctx.is_ctor_context:
+                return Ptr(IRLiteral(varinfo.position.position), DataLocation.CODE)
+
             raise CompilerPanic(f"Unknown variable: {varname}")
 
         elif isinstance(target, vy_ast.Attribute):
@@ -254,7 +259,7 @@ class Stmt:
 
                 # Immutable in constructor context
                 if varinfo.is_immutable and self.ctx.is_ctor_context:
-                    return Ptr(IRLiteral(varinfo.position.position), DataLocation.STORAGE)
+                    return Ptr(IRLiteral(varinfo.position.position), DataLocation.CODE)
 
                 if varinfo.is_constant:
                     raise TypeCheckFailure("Cannot assign to constant")

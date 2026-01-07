@@ -567,7 +567,7 @@ def _generate_constructor(
     # This is needed because immutable writes use istore which
     # relies on msize tracking the immutables region
     if immutables_len > 0:
-        builder.iload(IRLiteral(max(0, immutables_len - 32)))
+        builder.mload(IRLiteral(max(0, immutables_len - 32)))
 
     # Register constructor args from DATA section (not calldata)
     # Constructor args are appended to the deploy code

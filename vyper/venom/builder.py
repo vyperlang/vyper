@@ -209,6 +209,8 @@ class VenomBuilder:
             return self.mload(ptr)
         elif location == DataLocation.CALLDATA:
             return self.calldataload(ptr)
+        elif location == DataLocation.CODE:
+            return self.dload(ptr)
         else:
             raise CompilerPanic(f"Cannot load from location: {location}")
 
