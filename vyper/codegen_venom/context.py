@@ -303,7 +303,7 @@ class VenomCodegenContext:
 
         # Set lock (unless view function)
         if func_t.mutability != StateMutability.VIEW:
-            STORE(IRLiteral(temp_value), IRLiteral(nkey))
+            STORE(IRLiteral(nkey), IRLiteral(temp_value))
 
     def emit_nonreentrant_unlock(self, func_t: ContractFunctionT) -> None:
         """Emit nonreentrant lock release (at function exit)."""
