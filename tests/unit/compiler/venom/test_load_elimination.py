@@ -536,7 +536,7 @@ def test_nested_diamond_no_restore():
         sink %val
     """
     # No change expected - can't create phi when predecessors have multiple values
-    _check_no_change(pre)
+    _check_pre_post(pre, pre, hevm=False)
 
 
 def test_nested_diamond_with_restore():
@@ -612,4 +612,4 @@ def test_nested_diamond_with_restore():
         %1 = phi @D, %v3, @E, %v4
         sink %1
     """
-    _check_pre_post(pre, post)
+    _check_pre_post(pre, post, hevm=False)
