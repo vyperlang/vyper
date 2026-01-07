@@ -30,23 +30,32 @@ def _get_kwarg_value(node: vy_ast.Call, kwarg_name: str, default=None):
 
 
 def _get_literal_kwarg(node: vy_ast.Call, kwarg_name: str, default):
-    """Extract a literal value from a keyword argument."""
+    """Extract a literal value from a keyword argument.
+
+    Returns (value, is_literal) tuple. If is_literal is False, the value is None
+    and the caller should evaluate the kwarg at runtime.
+    """
+    from vyper.exceptions import UnfoldableNode
+
     kw_node = _get_kwarg_value(node, kwarg_name)
     if kw_node is None:
-        return default
+        return default, True
     # Try to get folded value
-    if hasattr(kw_node, "get_folded_value"):
+    try:
         folded = kw_node.get_folded_value()
         if isinstance(folded, vy_ast.Int):
-            return folded.value
+            return folded.value, True
         if isinstance(folded, vy_ast.NameConstant):
-            return folded.value
+            return folded.value, True
+    except (KeyError, UnfoldableNode):
+        # Not foldable - caller needs to evaluate at runtime
+        pass
     # Try direct value
     if isinstance(kw_node, vy_ast.Int):
-        return kw_node.value
+        return kw_node.value, True
     if isinstance(kw_node, vy_ast.NameConstant):
-        return kw_node.value
-    return default
+        return kw_node.value, True
+    return None, False
 
 
 def _has_kwarg(node: vy_ast.Call, kwarg_name: str) -> bool:
@@ -170,7 +179,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     # Parse kwargs
     value_node = _get_kwarg_value(node, "value")
     salt_node = _get_kwarg_value(node, "salt")
-    revert_on_failure = _get_literal_kwarg(node, "revert_on_failure", True)
+    revert_on_failure, _ = _get_literal_kwarg(node, "revert_on_failure", True)
 
     if value_node is not None:
         value = Expr(value_node, ctx).lower_value()
@@ -253,7 +262,7 @@ def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -
     # Parse kwargs
     value_node = _get_kwarg_value(node, "value")
     salt_node = _get_kwarg_value(node, "salt")
-    revert_on_failure = _get_literal_kwarg(node, "revert_on_failure", True)
+    revert_on_failure, _ = _get_literal_kwarg(node, "revert_on_failure", True)
 
     if value_node is not None:
         value = Expr(value_node, ctx).lower_value()
@@ -323,7 +332,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     # Parse kwargs
     value_node = _get_kwarg_value(node, "value")
     salt_node = _get_kwarg_value(node, "salt")
-    revert_on_failure = _get_literal_kwarg(node, "revert_on_failure", True)
+    revert_on_failure, _ = _get_literal_kwarg(node, "revert_on_failure", True)
 
     if value_node is not None:
         value = Expr(value_node, ctx).lower_value()
@@ -402,18 +411,27 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     # Parse kwargs
     value_node = _get_kwarg_value(node, "value")
     salt_node = _get_kwarg_value(node, "salt")
-    code_offset = _get_literal_kwarg(node, "code_offset", 3)
-    raw_args = _get_literal_kwarg(node, "raw_args", False)
-    revert_on_failure = _get_literal_kwarg(node, "revert_on_failure", True)
+    code_offset_node = _get_kwarg_value(node, "code_offset")
+    code_offset_lit, code_offset_is_literal = _get_literal_kwarg(node, "code_offset", 3)
+    raw_args, _ = _get_literal_kwarg(node, "raw_args", False)
+    revert_on_failure, _ = _get_literal_kwarg(node, "revert_on_failure", True)
 
     if value_node is not None:
         value = Expr(value_node, ctx).lower_value()
     else:
         value = IRLiteral(0)
 
+    # Get code_offset as IROperand (literal or runtime value)
+    code_offset: IROperand
+    if code_offset_is_literal:
+        code_offset = IRLiteral(code_offset_lit)
+    else:
+        assert code_offset_node is not None
+        code_offset = Expr(code_offset_node, ctx).lower_value()
+
     # Get blueprint code size (minus preamble)
     full_codesize = b.extcodesize(target)
-    codesize = b.sub(full_codesize, IRLiteral(code_offset))
+    codesize = b.sub(full_codesize, code_offset)
 
     # Assert blueprint has code after preamble (codesize > 0)
     # Use sgt since codesize could underflow if code_offset > extcodesize
@@ -471,7 +489,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     mem_ofst = b.msize()
 
     # Copy blueprint code (skipping preamble) to memory
-    b.extcodecopy(target, codesize, IRLiteral(code_offset), mem_ofst)
+    b.extcodecopy(target, codesize, code_offset, mem_ofst)
 
     # Append constructor args after code
     if not isinstance(args_len, IRLiteral) or args_len.value > 0:
