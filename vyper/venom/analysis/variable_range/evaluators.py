@@ -457,6 +457,98 @@ def _eval_iszero(inst: IRInstruction, state: RangeState) -> ValueRange:
     return ValueRange.bool_range()
 
 
+def _eval_or(inst: IRInstruction, state: RangeState) -> ValueRange:
+    """Evaluate bitwise or instruction.
+
+    For `or x, y`:
+    - If both are constants: return x | y
+    - If either operand is 0: return the other
+    - If either operand is -1 (all bits set): return -1
+    - Otherwise: return TOP (hard to bound precisely)
+    """
+    first = inst.operands[-1]
+    second = inst.operands[-2]
+    first_range = _operand_range(first, state)
+    second_range = _operand_range(second, state)
+
+    if first_range.is_empty or second_range.is_empty:
+        return ValueRange.empty()
+
+    # Both constants: compute exact result
+    if first_range.is_constant and second_range.is_constant:
+        # Convert to unsigned for bitwise op, then wrap result
+        a = wrap256(first_range.lo)
+        b = wrap256(second_range.lo)
+        return ValueRange.constant(wrap256(a | b, signed=True))
+
+    # If either is constant 0: return the other
+    if first_range.is_constant and first_range.lo == 0:
+        return second_range
+    if second_range.is_constant and second_range.lo == 0:
+        return first_range
+
+    # If either is -1 (all bits set): result is -1
+    if first_range.is_constant and wrap256(first_range.lo) == UNSIGNED_MAX:
+        return ValueRange.constant(-1)
+    if second_range.is_constant and wrap256(second_range.lo) == UNSIGNED_MAX:
+        return ValueRange.constant(-1)
+
+    return ValueRange.top()
+
+
+def _eval_xor(inst: IRInstruction, state: RangeState) -> ValueRange:
+    """Evaluate bitwise xor instruction.
+
+    For `xor x, y`:
+    - If x and y are the same variable: return 0
+    - If both are constants: return x ^ y
+    - Otherwise: return TOP
+    """
+    first = inst.operands[-1]
+    second = inst.operands[-2]
+
+    # Self-xor optimization: xor %x, %x = 0
+    if isinstance(first, IRVariable) and isinstance(second, IRVariable):
+        if first == second:
+            return ValueRange.constant(0)
+
+    first_range = _operand_range(first, state)
+    second_range = _operand_range(second, state)
+
+    if first_range.is_empty or second_range.is_empty:
+        return ValueRange.empty()
+
+    # Both constants: compute exact result
+    if first_range.is_constant and second_range.is_constant:
+        a = wrap256(first_range.lo)
+        b = wrap256(second_range.lo)
+        return ValueRange.constant(wrap256(a ^ b, signed=True))
+
+    return ValueRange.top()
+
+
+def _eval_not(inst: IRInstruction, state: RangeState) -> ValueRange:
+    """Evaluate bitwise not instruction.
+
+    EVM NOT: ~x = UNSIGNED_MAX ^ x (flips all bits)
+
+    For constant input: return exact result
+    Otherwise: return TOP
+    """
+    operand = inst.operands[-1]
+    operand_range = _operand_range(operand, state)
+
+    if operand_range.is_empty:
+        return ValueRange.empty()
+
+    if operand_range.is_constant:
+        val = wrap256(operand_range.lo)
+        result = UNSIGNED_MAX ^ val
+        return ValueRange.constant(wrap256(result, signed=True))
+
+    return ValueRange.top()
+
+
 # Dispatch table mapping opcodes to their evaluator functions
 EVAL_DISPATCH: dict[str, RangeEvaluator] = {
     "assign": _eval_assign,
@@ -464,6 +556,9 @@ EVAL_DISPATCH: dict[str, RangeEvaluator] = {
     "sub": _eval_sub,
     "mul": _eval_mul,
     "and": _eval_and,
+    "or": _eval_or,
+    "xor": _eval_xor,
+    "not": _eval_not,
     "byte": _eval_byte,
     "signextend": _eval_signextend,
     "mod": _eval_mod,
