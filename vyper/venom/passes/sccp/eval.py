@@ -94,9 +94,25 @@ def _evm_shl(shift_len: int, value: int) -> int:
 
 
 def _evm_sar(shift_len: int, value: int) -> int:
+    # shift_len is unsigned, value is signed
+    # For large shifts (>= 256), result is 0 if value >= 0, else -1
     assert SizeLimits.MIN_INT256 <= value <= SizeLimits.MAX_INT256, "Value out of bounds"
-    assert shift_len >= 0
+    assert 0 <= shift_len <= SizeLimits.MAX_UINT256, "Shift out of bounds"
+    if shift_len >= 256:
+        return -1 if value < 0 else 0
     return value >> shift_len
+
+
+def _wrap_sar(operation):
+    """Special wrapper for SAR: shift_len is unsigned, value is signed."""
+    def wrapper(ops: list[IRLiteral]) -> int:
+        assert len(ops) == 2
+        # ops[1] is shift_len (unsigned), ops[0] is value (signed)
+        shift_len = _signed_to_unsigned(ops[1].value)  # normalize to unsigned
+        value = _unsigned_to_signed(_signed_to_unsigned(ops[0].value))  # normalize to signed
+        return _signed_to_unsigned(operation(shift_len, value))
+
+    return wrapper
 
 
 ARITHMETIC_OPS: dict[str, Callable[[list[IRLiteral]], int]] = {
@@ -121,7 +137,7 @@ ARITHMETIC_OPS: dict[str, Callable[[list[IRLiteral]], int]] = {
     "iszero": _wrap_unop(_evm_iszero),
     "shr": _wrap_binop(_evm_shr),
     "shl": _wrap_binop(_evm_shl),
-    "sar": _wrap_signed_binop(_evm_sar),
+    "sar": _wrap_sar(_evm_sar),
 }
 
 
