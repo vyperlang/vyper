@@ -177,7 +177,7 @@ class BaseEnv:
             ):
                 compiler_settings_dict[
                     "enable_decimals"
-                ] = compiler_settings.DEFAULT_ENABLE_DECIMALS
+                ] = compiler_settings_module.DEFAULT_ENABLE_DECIMALS
 
             export_metadata = {
                 "source_code": source_code,
