@@ -203,6 +203,10 @@ def _eval_byte(inst: IRInstruction, state: RangeState) -> ValueRange:
     When N >= 32, the result is always 0.
     """
     index_op = inst.operands[-1]
+    value_op = inst.operands[-2]
+    value_range = _operand_range(value_op, state)
+    if value_range.is_empty:
+        return ValueRange.empty()
     index = _get_uint_literal(index_op)
     if index is not None and index >= 32:
         return ValueRange.constant(0)
@@ -262,9 +266,13 @@ def _eval_signextend(inst: IRInstruction, state: RangeState) -> ValueRange:
     return ValueRange((lo, hi))
 
 
-def _eval_mod(inst: IRInstruction, _state: RangeState) -> ValueRange:
+def _eval_mod(inst: IRInstruction, state: RangeState) -> ValueRange:
     """Evaluate mod instruction."""
+    dividend_op = inst.operands[-1]
     divisor_op = inst.operands[-2]
+    dividend_range = _operand_range(dividend_op, state)
+    if dividend_range.is_empty:
+        return ValueRange.empty()
     divisor = _get_uint_literal(divisor_op)
     if divisor is None:
         return ValueRange.top()
@@ -277,13 +285,15 @@ def _eval_div(inst: IRInstruction, state: RangeState) -> ValueRange:
     """Evaluate div instruction."""
     dividend_op = inst.operands[-1]
     divisor_op = inst.operands[-2]
+    dividend_range = _operand_range(dividend_op, state)
+    if dividend_range.is_empty:
+        return ValueRange.empty()
     divisor = _get_uint_literal(divisor_op)
     if divisor is None:
         return ValueRange.top()
     if divisor == 0:
         return ValueRange.constant(0)
-    dividend_range = _operand_range(dividend_op, state)
-    if dividend_range.is_empty or dividend_range.lo < 0:
+    if dividend_range.lo < 0:
         return ValueRange.top()
     return ValueRange((dividend_range.lo // divisor, dividend_range.hi // divisor))
 
@@ -292,11 +302,13 @@ def _eval_shr(inst: IRInstruction, state: RangeState) -> ValueRange:
     """Evaluate shr (shift right) instruction."""
     shift_op = inst.operands[-1]
     value_op = inst.operands[-2]
-    shift = _get_uint_literal(shift_op)
     value_range = _operand_range(value_op, state)
+    if value_range.is_empty:
+        return ValueRange.empty()
+    shift = _get_uint_literal(shift_op)
     if shift is None:
         return ValueRange.top()
-    if value_range.is_empty or value_range.lo < 0:
+    if value_range.lo < 0:
         return ValueRange.top()
     if shift >= 256:
         return ValueRange.constant(0)
@@ -308,18 +320,28 @@ def _eval_shl(inst: IRInstruction, state: RangeState) -> ValueRange:
     """Evaluate shl (shift left) instruction."""
     shift_op = inst.operands[-1]
     value_op = inst.operands[-2]
-    shift = _get_uint_literal(shift_op)
     value_range = _operand_range(value_op, state)
+    if value_range.is_empty:
+        return ValueRange.empty()
+    shift = _get_uint_literal(shift_op)
     if shift is None:
         return ValueRange.top()
-    if value_range.is_empty or value_range.lo < 0:
+    if value_range.lo < 0:
         return ValueRange.top()
     if shift >= 256:
         return ValueRange.constant(0)
     max_input = UNSIGNED_MAX >> shift
     if value_range.hi > max_input:
         return ValueRange.top()
-    return ValueRange((value_range.lo << shift, value_range.hi << shift))
+    result_lo = value_range.lo << shift
+    result_hi = value_range.hi << shift
+    # Convert to signed representation for consistency with range system
+    result_lo = wrap256(result_lo, signed=True)
+    result_hi = wrap256(result_hi, signed=True)
+    # If conversion causes lo > hi (range wraps around), return TOP
+    if result_lo > result_hi:
+        return ValueRange.top()
+    return ValueRange((result_lo, result_hi))
 
 
 def _eval_sar(inst: IRInstruction, state: RangeState) -> ValueRange:
@@ -343,9 +365,13 @@ def _eval_sar(inst: IRInstruction, state: RangeState) -> ValueRange:
     return ValueRange((value_range.lo >> shift, value_range.hi >> shift))
 
 
-def _eval_smod(inst: IRInstruction, _state: RangeState) -> ValueRange:
+def _eval_smod(inst: IRInstruction, state: RangeState) -> ValueRange:
     """Evaluate smod (signed modulo) instruction."""
+    dividend_op = inst.operands[-1]
     divisor_op = inst.operands[-2]
+    dividend_range = _operand_range(dividend_op, state)
+    if dividend_range.is_empty:
+        return ValueRange.empty()
     divisor = _get_signed_literal(divisor_op)
     if divisor is None:
         return ValueRange.top()
