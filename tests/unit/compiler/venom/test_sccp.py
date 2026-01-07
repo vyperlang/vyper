@@ -107,6 +107,28 @@ def test_assert_elimination():
     _check_pre_post(pre, post)
 
 
+def test_assert_negative_truthy():
+    """
+    Test of compile time evaluation of asserts
+    with negative nonzero constants.
+    """
+    pre = """
+    main:
+        assert -1
+        assert_unreachable -1
+        sink 1
+    """
+
+    post = """
+    main:
+        nop
+        nop
+        sink 1
+    """
+
+    _check_pre_post(pre, post, hevm=False)
+
+
 @pytest.mark.parametrize("asserter", ("assert", "assert_unreachable"))
 def test_assert_false(asserter):
     """
