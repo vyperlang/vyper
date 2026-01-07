@@ -502,6 +502,26 @@ class TestValueRangeBasics:
         result = ValueRange.empty().intersect(rng)
         assert result.is_empty
 
+    def test_bottom_canonical_representation(self) -> None:
+        """All BOTTOM representations should be equal (canonical form)."""
+        # Different ways to create BOTTOM (lo > hi)
+        bottom1 = ValueRange((1, 0))
+        bottom2 = ValueRange((2, 1))
+        bottom3 = ValueRange((100, 0))
+        bottom4 = ValueRange.empty()
+
+        # All should be equal due to canonical normalization
+        assert bottom1 == bottom2
+        assert bottom2 == bottom3
+        assert bottom3 == bottom4
+        assert bottom1 == bottom4
+
+        # All should have canonical bounds (1, 0)
+        assert bottom1.bounds == (1, 0)
+        assert bottom2.bounds == (1, 0)
+        assert bottom3.bounds == (1, 0)
+        assert bottom4.bounds == (1, 0)
+
     @given(int256_strategy)
     @settings(deadline=None)
     def test_constant_range_contains_value(self, val: int) -> None:

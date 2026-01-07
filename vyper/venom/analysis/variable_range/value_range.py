@@ -29,6 +29,13 @@ class ValueRange:
 
     bounds: Optional[tuple[int, int]] = None
 
+    def __post_init__(self):
+        # Normalize BOTTOM to canonical form (1, 0) for consistent equality
+        if self.bounds is not None:
+            lo, hi = self.bounds
+            if lo > hi:
+                object.__setattr__(self, "bounds", (1, 0))
+
     @property
     def lo(self) -> int:
         """Lower bound. For top ranges, returns SIGNED_MIN."""
