@@ -29,6 +29,10 @@ class MakeSSA(IRPass):
         self._rename_vars(fn.entry)
         self._remove_degenerate_phis(fn.entry)
 
+        # Ensure phis remain at top of blocks after converting some to stores
+        for bb in fn.get_basic_blocks():
+            bb.ensure_well_formed()
+
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
@@ -63,9 +67,6 @@ class MakeSSA(IRPass):
 
         args: list[IROperand] = []
         for bb in self.cfg.cfg_in(basic_block):
-            if bb == basic_block:
-                continue
-
             args.append(bb.label)  # type: ignore
             args.append(var)  # type: ignore
 
@@ -158,7 +159,9 @@ class MakeSSA(IRPass):
             if new_ops_len == 0:
                 entry.instructions.remove(inst)
             elif new_ops_len == 2:
-                entry.instructions.remove(inst)
+                # Single incoming value - convert to assign to preserve uses
+                inst.opcode = "assign"
+                inst.operands = [new_ops[1]]  # new_ops is [label, value]
             else:
                 inst.operands = new_ops
 
