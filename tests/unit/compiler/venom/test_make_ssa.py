@@ -191,6 +191,49 @@ def test_self_loop_no_undefined_vars():
                         assert op in defined, f"{op} used in [{inst}] but never defined"
 
 
+def test_self_assignment_in_loop():
+    """
+    Regression test for liveness analysis bug.
+
+    When a variable is both used and defined in the same instruction
+    (e.g., %x = add %x, 1), the liveness analysis must mark %x as live-in.
+    The bug was computing (live U uses) - defs instead of (live - defs) U uses,
+    which incorrectly removed %x from the live set.
+
+    This caused MakeSSA to miss phi placement for tight self-loops.
+    """
+    pre = """
+    function self_assign {
+    entry:
+        %x = mload 0
+        %cond = mload 32
+        jmp @loop
+    loop:
+        %x = add %x, 1
+        jnz %cond, @loop, @exit
+    exit:
+        sink %x
+    }
+    """
+    # The phi MUST be placed in loop block because %x is live-in
+    # (used in add before being redefined)
+    post = """
+    function self_assign {
+    entry:
+        %x = mload 0
+        %cond = mload 32
+        jmp @loop
+    loop:
+        %x:1 = phi @entry, %x, @loop, %x:2
+        %x:2 = add %x:1, 1
+        jnz %cond, @loop, @exit
+    exit:
+        sink %x:2
+    }
+    """
+    _check_pre_post(pre, post)
+
+
 @pytest.mark.hevm
 def test_make_ssa_error():
     code = """
