@@ -24,8 +24,6 @@ def test_remove_overflow_assert():
         %len = mod %input, 1000
         %scaled = shl 5, %len
         %target = add 4096, %scaled
-        %overflow = lt %target, 4096
-        %ok = iszero %overflow
         sink %target
     """
 

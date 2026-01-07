@@ -1,3 +1,4 @@
+from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
 from vyper.venom.analysis.variable_range import ValueRange, VariableRangeAnalysis
 from vyper.venom.basicblock import IRInstruction
 from vyper.venom.passes.base_pass import IRPass
@@ -24,7 +25,10 @@ class AssertEliminationPass(IRPass):
                 inst.make_nop()
                 changes += 1
 
-        self.analyses_cache.invalidate_analysis(VariableRangeAnalysis)
+        if changes > 0:
+            self.analyses_cache.invalidate_analysis(VariableRangeAnalysis)
+            self.analyses_cache.invalidate_analysis(DFGAnalysis)
+            self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         return changes
 
     @staticmethod
