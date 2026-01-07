@@ -11,6 +11,7 @@ from eth.vm.forks.cancun.state import fake_exponential
 from eth_keys.datatypes import PrivateKey
 from eth_utils import to_checksum_address
 
+import vyper.compiler.settings as compiler_settings_module
 from tests.evm_backends.abi import abi_decode
 from tests.evm_backends.abi_contract import ABIContract, ABIContractFactory, ABIFunction
 from tests.exports import TestExporter
@@ -107,6 +108,7 @@ class BaseEnv:
                 "source_code": export_metadata.get("source_code"),
                 "annotated_ast": export_metadata.get("annotated_ast"),
                 "solc_json": export_metadata.get("solc_json"),
+                "compiler_settings": export_metadata.get("compiler_settings"),
                 "raw_ir": export_metadata.get("raw_ir"),
                 "blueprint_initcode_prefix": export_metadata.get("blueprint_initcode_prefix"),
                 "python_args": python_args,
@@ -150,6 +152,8 @@ class BaseEnv:
         if self.exporter:
             # solc_json is useful for exporting the whole input bundle (including imports)
             output_formats["solc_json"] = True
+            # settings_dict exports the resolved compiler settings used for compilation
+            output_formats["settings_dict"] = True
 
         out = _compile(
             source_code,
@@ -166,10 +170,20 @@ class BaseEnv:
         # note that tests where compilation fails (e.g. `syntax` tests) aren't
         # propagated to the export yet
         if self.exporter:
+            compiler_settings_dict = out.get("settings_dict")
+            if (
+                compiler_settings_dict is not None
+                and "enable_decimals" not in compiler_settings_dict
+            ):
+                compiler_settings_dict[
+                    "enable_decimals"
+                ] = compiler_settings.DEFAULT_ENABLE_DECIMALS
+
             export_metadata = {
                 "source_code": source_code,
                 "annotated_ast": out.get("annotated_ast_dict"),
                 "solc_json": out.get("solc_json"),
+                "compiler_settings": compiler_settings_dict,
                 "deployment_origin": DeploymentOrigin.SOURCE,
             }
 
@@ -186,6 +200,10 @@ class BaseEnv:
         initcode_prefix: bytes = ERC5202_PREFIX,
     ):
         """Deploy a contract with a blueprint pattern."""
+        if self.exporter:
+            output_formats["solc_json"] = True
+            output_formats["settings_dict"] = True
+
         out = _compile(source_code, output_formats, input_bundle)
         abi, bytecode = out["abi"], bytes.fromhex(out["bytecode"].removeprefix("0x"))
         bytecode = initcode_prefix + bytecode
@@ -199,10 +217,20 @@ class BaseEnv:
 
         export_metadata = None
         if self.exporter:
+            compiler_settings_dict = out.get("settings_dict")
+            if (
+                compiler_settings_dict is not None
+                and "enable_decimals" not in compiler_settings_dict
+            ):
+                compiler_settings_dict[
+                    "enable_decimals"
+                ] = compiler_settings_module.DEFAULT_ENABLE_DECIMALS
+
             export_metadata = {
                 "source_code": source_code,
                 "annotated_ast": out.get("annotated_ast_dict"),
                 "solc_json": out.get("solc_json"),
+                "compiler_settings": compiler_settings_dict,
                 "blueprint_initcode_prefix": initcode_prefix.hex(),
                 "deployment_origin": DeploymentOrigin.BLUEPRINT,
             }

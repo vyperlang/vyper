@@ -35,6 +35,7 @@ The exported data is organized into JSON files that mirror the test directory st
         "source_code": "contract code..." | null,
         "annotated_ast": {...} | null,
         "solc_json": {...} | null,
+        "compiler_settings": {...} | null,
         "raw_ir": "IR representation" | null,
         "blueprint_initcode_prefix": "0x..." | null,
         "deployed_address": "0x...",
@@ -107,6 +108,7 @@ The exported data is organized into JSON files that mirror the test directory st
 - `initcode` is `concat(bytecode, abi_encode(ctor_args))`
 - `calldata` is `abi_encode(ctor_args)`
 - `source_code` is the source of the compilation target, imported modules are accessible from `solc_json`
+- `compiler_settings` contains the resolved compiler settings used for compilation. Non-null only for `deployment_type: "source" | "blueprint"`. Note: `enable_decimals` is always present (resolved default). See [Compiler Settings Schema](#compiler-settings-schema) below.
 - `deployment_type` denotes how the contract was deployed
   - this was added because some tests deploy directly from `ir` or from directly from `bytecode`
 - `env` field contains transaction and block environment data:
@@ -124,6 +126,64 @@ The exported data is organized into JSON files that mirror the test directory st
 - `clear_transient_storage` traces capture when transient storage is cleared between calls
   - this was added because a test runs in 1 global transcation context and all calls within the test are run as `message_calls`
   - as such, transient storage isn't clear after a call (nor are nonces increased etc.)
+
+### Compiler Settings Schema
+
+The `compiler_settings` field contains the resolved compiler settings used for compilation.
+
+It is based on `Settings.as_dict()`, except `enable_decimals` is always included (resolved using the current default at compile time). Other fields are optional (only non-null values are included).
+
+```json
+{
+  "optimize": <string>,
+  "evm_version": <string>,
+  "experimental_codegen": <bool>,
+  "debug": <bool>,
+  "enable_decimals": <bool>,
+  "nonreentrancy_by_default": <bool>,
+  "venom_flags": {
+    "level": <string>,
+    "disable_inlining": <bool>,
+    "disable_cse": <bool>,
+    "disable_sccp": <bool>,
+    "disable_load_elimination": <bool>,
+    "disable_dead_store_elimination": <bool>,
+    "disable_algebraic_optimization": <bool>,
+    "disable_branch_optimization": <bool>,
+    "disable_mem2var": <bool>,
+    "disable_simplify_cfg": <bool>,
+    "disable_remove_unused_variables": <bool>,
+    "inline_threshold": <uint> | null
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `optimize` | `string` | Optimization level: `"none"`, `"gas"`, `"codesize"` |
+| `evm_version` | `string` | Target EVM version: `"cancun"`, `"shanghai"`, `"prague"`, etc. |
+| `experimental_codegen` | `bool` | Whether Venom (experimental codegen) is enabled |
+| `debug` | `bool` | Whether debug mode is enabled |
+| `enable_decimals` | `bool` | Whether decimal type is enabled |
+| `nonreentrancy_by_default` | `bool` | Whether functions are non-reentrant by default |
+| `venom_flags` | `object` | Venom-specific optimization flags (see below) |
+
+**Venom Flags:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `level` | `string` | Optimization level (same as top-level `optimize`) |
+| `disable_inlining` | `bool` | Disable function inlining |
+| `disable_cse` | `bool` | Disable common subexpression elimination |
+| `disable_sccp` | `bool` | Disable sparse conditional constant propagation |
+| `disable_load_elimination` | `bool` | Disable load elimination |
+| `disable_dead_store_elimination` | `bool` | Disable dead store elimination |
+| `disable_algebraic_optimization` | `bool` | Disable algebraic optimizations |
+| `disable_branch_optimization` | `bool` | Disable branch optimization |
+| `disable_mem2var` | `bool` | Disable memory-to-variable promotion |
+| `disable_simplify_cfg` | `bool` | Disable control flow graph simplification |
+| `disable_remove_unused_variables` | `bool` | Disable unused variable removal |
+| `inline_threshold` | `uint \| null` | Inlining size threshold |
 
   
 ## How it works  
