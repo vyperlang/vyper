@@ -236,10 +236,10 @@ def test_self_assignment_in_loop():
 
 def test_phi_all_same_values():
     """
-    Test phi where all incoming values are identical.
+    Test phi where both branches define %x independently.
 
-    When multiple CFG predecessors all provide the same value,
-    the phi should be simplified to an assign.
+    Both edges define %x with the same expression structure,
+    but they're different SSA variables, so phi is needed.
     """
     pre = """
     function diamond {
@@ -257,8 +257,9 @@ def test_phi_all_same_values():
         sink %x
     }
     """
-    # Both edges define %x with the same expression structure,
-    # but they're different SSA variables, so phi is needed
+    # Variable numbering depends on dominator tree traversal order:
+    # - join's phi gets %x:1 (phis placed first)
+    # - right gets %x:2, left gets %x:3
     post = """
     function diamond {
     entry:
@@ -266,14 +267,14 @@ def test_phi_all_same_values():
         %cond = mload 32
         jnz %cond, @left, @right
     left:
-        %x:1 = add %x, 1
+        %x:3 = add %x, 1
         jmp @join
     right:
         %x:2 = add %x, 1
         jmp @join
     join:
-        %x:3 = phi @left, %x:1, @right, %x:2
-        sink %x:3
+        %x:1 = phi @left, %x:3, @right, %x:2
+        sink %x:1
     }
     """
     _check_pre_post(pre, post)
