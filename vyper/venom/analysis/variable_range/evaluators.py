@@ -185,8 +185,16 @@ def _eval_and(inst: IRInstruction, state: RangeState) -> ValueRange:
     return ValueRange((0, hi))
 
 
-def _eval_byte(_inst: IRInstruction, _state: RangeState) -> ValueRange:
-    """Evaluate byte instruction."""
+def _eval_byte(inst: IRInstruction, state: RangeState) -> ValueRange:
+    """Evaluate byte instruction.
+
+    EVM byte(N, x) returns the N-th byte (from high end, big-endian).
+    When N >= 32, the result is always 0.
+    """
+    index_op = inst.operands[-1]
+    index = _get_uint_literal(index_op)
+    if index is not None and index >= 32:
+        return ValueRange.constant(0)
     return ValueRange.bytes_range()
 
 

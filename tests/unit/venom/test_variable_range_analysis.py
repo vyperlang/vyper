@@ -202,6 +202,29 @@ def test_byte_range():
     assert rng.hi == 255
 
 
+def test_byte_out_of_range_index():
+    """byte(N, x) returns 0 when N >= 32."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = calldataload 0
+            %b = byte 32, %x
+            jmp @exit
+
+        exit:
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    byte_inst = entry.instructions[1]
+    assert byte_inst.output is not None
+    rng = analysis.get_range(byte_inst.output, entry.instructions[-1])
+    assert rng.lo == 0 and rng.hi == 0
+
+
 def test_signextend_range():
     analysis, fn = _analyze(
         """
