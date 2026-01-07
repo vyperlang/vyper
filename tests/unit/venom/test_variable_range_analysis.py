@@ -393,7 +393,7 @@ def test_iszero_false_branch_does_not_force_positive_when_signed():
 
     nonzero_bb = fn.get_basic_block("nonzero")
     use_inst = nonzero_bb.instructions[0]
-    x_var = fn.get_basic_block("entry").instructions[0].output
+    x_var = fn.get_basic_block("entry").instructions[1].output  # signextend output
 
     rng = analysis.get_range(x_var, use_inst)
     # Must still include negative values — lo must be negative
