@@ -491,7 +491,7 @@ def test_load_elimination_inter_distant_bb(position):
 
 
 def test_nested_diamond_no_restore():
-    """
+    r"""
     Test nested diamond CFG where values diverge at inner join.
     The outer join predecessors each have len > 1, so we should bail out
     (no phi insertion, load remains).
@@ -540,7 +540,7 @@ def test_nested_diamond_no_restore():
 
 
 def test_nested_diamond_with_restore():
-    """
+    r"""
     Test nested diamond CFG where both paths at outer level re-store.
     Each predecessor of outer join has exactly 1 value, so phi can be created.
 
