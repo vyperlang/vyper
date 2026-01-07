@@ -415,7 +415,17 @@ def _handle_kwargs(
     # Based on entry_info.min_calldatasize, we can determine how many
     # kwargs were provided
     positional_size = sum(arg.typ.abi_type.embedded_static_size() for arg in func_t.positional_args)
-    kwargs_from_calldata = (entry_info.min_calldatasize - SELECTOR_BYTES - positional_size) // 32
+    kwarg_bytes_from_calldata = entry_info.min_calldatasize - SELECTOR_BYTES - positional_size
+
+    # Count kwargs by iterating and summing their actual ABI sizes
+    # (can't divide by 32 since complex types like arrays have different sizes)
+    kwargs_from_calldata = 0
+    accumulated_size = 0
+    for arg in func_t.keyword_args:
+        if accumulated_size >= kwarg_bytes_from_calldata:
+            break
+        accumulated_size += arg.typ.abi_type.embedded_static_size()
+        kwargs_from_calldata += 1
 
     # Create tuple type for args that come from calldata (positional + provided kwargs)
     if kwargs_from_calldata > 0:
