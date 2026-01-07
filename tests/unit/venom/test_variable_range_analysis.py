@@ -486,6 +486,34 @@ def test_iszero_false_branch_narrows_when_proven_nonnegative():
     assert rng.lo >= 1  # zero excluded!
 
 
+def test_iszero_false_branch_with_zero_constant_is_bottom():
+    """iszero false branch with {0} input should produce BOTTOM (unreachable)."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = 0
+            %flag = iszero %x
+            jnz %flag, @zero, @nonzero
+
+        nonzero:
+            %tmp = add %x, 1
+            stop
+        zero:
+            stop
+        }
+        """
+    )
+
+    nonzero_bb = fn.get_basic_block("nonzero")
+    use_inst = nonzero_bb.instructions[0]
+    x_var = fn.get_basic_block("entry").instructions[0].output
+
+    rng = analysis.get_range(x_var, use_inst)
+    # False branch of iszero 0 is unreachable, so range should be BOTTOM
+    assert rng.is_empty
+
+
 def test_add_large_positive_ranges_go_to_top():
     analysis, fn = _analyze(
         """

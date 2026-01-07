@@ -237,10 +237,10 @@ class VariableRangeAnalysis(IRAnalysis):
                     pass
             else:
                 # Range is entirely non-negative, intersect with [1, UNSIGNED_MAX]
+                # Write even if empty (BOTTOM) - means false branch is unreachable
                 nonzero_range = ValueRange((1, UNSIGNED_MAX))
                 new_range = current.intersect(nonzero_range)
-                if not new_range.is_empty:
-                    self._write_range(state, target, new_range)
+                self._write_range(state, target, new_range)
         return state
 
     def _apply_eq(self, inst: IRInstruction, is_true: bool, state: RangeState) -> RangeState:
