@@ -950,6 +950,220 @@ def test_mul_wraps_on_overflow_constants():
 
 
 # =============================================================================
+# BITWISE OPERATION TESTS (or, xor, not)
+# =============================================================================
+
+
+def test_or_constants():
+    """Test OR of two constants."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = 0xF0
+            %y = or %x, 0x0F
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    or_inst = entry.instructions[1]
+    rng = analysis.get_range(or_inst.output, entry.instructions[-1])
+    # 0xF0 | 0x0F = 0xFF = 255
+    assert rng.lo == 255
+    assert rng.hi == 255
+
+
+def test_or_with_zero():
+    """Test OR with zero returns the other operand's range."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw = calldataload 0
+            %x = mod %raw, 256
+            %y = or %x, 0
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    or_inst = next(inst for inst in entry.instructions if inst.opcode == "or")
+    rng = analysis.get_range(or_inst.output, entry.instructions[-1])
+    # x in [0, 255], OR with 0 should preserve the range
+    assert rng.lo == 0
+    assert rng.hi == 255
+
+
+def test_or_with_all_ones():
+    """Test OR with -1 (all bits set) returns -1."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = calldataload 0
+            %y = or %x, -1
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    or_inst = next(inst for inst in entry.instructions if inst.opcode == "or")
+    rng = analysis.get_range(or_inst.output, entry.instructions[-1])
+    # OR with -1 (all bits set) always gives -1
+    assert rng.lo == -1
+    assert rng.hi == -1
+
+
+def test_xor_constants():
+    """Test XOR of two constants."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = 0xFF
+            %y = xor %x, 0x0F
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    xor_inst = entry.instructions[1]
+    rng = analysis.get_range(xor_inst.output, entry.instructions[-1])
+    # 0xFF ^ 0x0F = 0xF0 = 240
+    assert rng.lo == 240
+    assert rng.hi == 240
+
+
+def test_xor_self_is_zero():
+    """Test XOR of a variable with itself is 0."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = calldataload 0
+            %y = xor %x, %x
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    xor_inst = next(inst for inst in entry.instructions if inst.opcode == "xor")
+    rng = analysis.get_range(xor_inst.output, entry.instructions[-1])
+    # x ^ x = 0 always
+    assert rng.lo == 0
+    assert rng.hi == 0
+
+
+def test_xor_with_all_ones():
+    """Test XOR with -1 flips all bits (same as NOT)."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = 0
+            %y = xor %x, -1
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    xor_inst = next(inst for inst in entry.instructions if inst.opcode == "xor")
+    rng = analysis.get_range(xor_inst.output, entry.instructions[-1])
+    # 0 ^ -1 = -1 (all bits set)
+    assert rng.lo == -1
+    assert rng.hi == -1
+
+
+def test_not_constant():
+    """Test NOT of a constant."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = 0
+            %y = not %x
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    not_inst = entry.instructions[1]
+    rng = analysis.get_range(not_inst.output, entry.instructions[-1])
+    # ~0 = -1 (all bits set)
+    assert rng.lo == -1
+    assert rng.hi == -1
+
+
+def test_not_all_ones():
+    """Test NOT of -1 (all bits set) gives 0."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = -1
+            %y = not %x
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    not_inst = entry.instructions[1]
+    rng = analysis.get_range(not_inst.output, entry.instructions[-1])
+    # ~(-1) = 0
+    assert rng.lo == 0
+    assert rng.hi == 0
+
+
+def test_not_specific_value():
+    """Test NOT of a specific non-zero value."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = 255
+            %y = not %x
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    not_inst = entry.instructions[1]
+    rng = analysis.get_range(not_inst.output, entry.instructions[-1])
+    # ~255 = UNSIGNED_MAX - 255 = ...FFFFFF00 which is -256 in signed
+    assert rng.lo == -256
+    assert rng.hi == -256
+
+
+def test_not_unknown_is_top():
+    """Test NOT of unknown value gives TOP."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = calldataload 0
+            %y = not %x
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    not_inst = next(inst for inst in entry.instructions if inst.opcode == "not")
+    rng = analysis.get_range(not_inst.output, entry.instructions[-1])
+    assert rng.is_top
+
+
+# =============================================================================
 # BUG REGRESSION TESTS
 # These tests document known bugs that need to be fixed.
 # =============================================================================

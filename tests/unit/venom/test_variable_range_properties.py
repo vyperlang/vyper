@@ -26,6 +26,9 @@ from vyper.venom.analysis.variable_range.evaluators import (
     _eval_div,
     _eval_mod,
     _eval_and,
+    _eval_or,
+    _eval_xor,
+    _eval_not,
     _eval_shr,
     _eval_shl,
     _eval_sar,
@@ -939,6 +942,98 @@ class TestBitwiseSoundness:
             assert value_in_range(0, result_range), (
                 f"{opcode} by 256 must include 0"
             )
+
+    @given(a=uint256_strategy, b=uint256_strategy)
+    @settings(deadline=None, max_examples=200)
+    def test_or_soundness(self, a: int, b: int) -> None:
+        """OR: result must be in computed range."""
+        var_a = IRVariable("%a")
+        var_b = IRVariable("%b")
+        inst = make_inst("or", var_b, var_a)
+        state = {var_a: ValueRange.constant(to_signed(a)), var_b: ValueRange.constant(to_signed(b))}
+        result_range = _eval_or(inst, state)
+        actual = eval_evm_or(a, b)
+        assert value_in_range(actual, result_range), (
+            f"OR unsound: {a} | {b} = {actual}, range = {result_range}"
+        )
+
+    @given(a=uint256_strategy, b=uint256_strategy)
+    @settings(deadline=None, max_examples=200)
+    def test_xor_soundness(self, a: int, b: int) -> None:
+        """XOR: result must be in computed range."""
+        var_a = IRVariable("%a")
+        var_b = IRVariable("%b")
+        inst = make_inst("xor", var_b, var_a)
+        state = {var_a: ValueRange.constant(to_signed(a)), var_b: ValueRange.constant(to_signed(b))}
+        result_range = _eval_xor(inst, state)
+        actual = eval_evm_xor(a, b)
+        assert value_in_range(actual, result_range), (
+            f"XOR unsound: {a} ^ {b} = {actual}, range = {result_range}"
+        )
+
+    @given(a=uint256_strategy)
+    @settings(deadline=None, max_examples=200)
+    def test_not_soundness(self, a: int) -> None:
+        """NOT: result must be in computed range."""
+        var_a = IRVariable("%a")
+        inst = make_inst("not", var_a)
+        state = {var_a: ValueRange.constant(to_signed(a))}
+        result_range = _eval_not(inst, state)
+        actual = eval_evm_not(a)
+        assert value_in_range(actual, result_range), (
+            f"NOT unsound: ~{a} = {actual}, range = {result_range}"
+        )
+
+    def test_or_with_zero_identity(self) -> None:
+        """OR with 0 should return the other operand's range."""
+        var_x = IRVariable("%x")
+        test_range = ValueRange((10, 20))
+        inst = make_inst("or", var_x, 0)
+        state = {var_x: test_range}
+        result_range = _eval_or(inst, state)
+        assert result_range.bounds == test_range.bounds, (
+            f"OR with 0 should preserve range, got {result_range}"
+        )
+
+    def test_or_with_all_ones_absorbing(self) -> None:
+        """OR with -1 (all bits set) should return -1."""
+        var_x = IRVariable("%x")
+        inst = make_inst("or", var_x, -1)
+        state = {var_x: ValueRange.top()}
+        result_range = _eval_or(inst, state)
+        assert result_range.is_constant and result_range.lo == -1, (
+            f"OR with -1 should give -1, got {result_range}"
+        )
+
+    def test_xor_self_is_zero(self) -> None:
+        """XOR of variable with itself should be 0."""
+        var_x = IRVariable("%x")
+        inst = make_inst("xor", var_x, var_x)
+        state = {var_x: ValueRange.top()}
+        result_range = _eval_xor(inst, state)
+        assert result_range.is_constant and result_range.lo == 0, (
+            f"XOR self should be 0, got {result_range}"
+        )
+
+    def test_not_involution(self) -> None:
+        """NOT(NOT(x)) should equal x for constants."""
+        test_val = 12345
+        var_x = IRVariable("%x")
+
+        # First NOT
+        inst1 = make_inst("not", var_x)
+        state1 = {var_x: ValueRange.constant(test_val)}
+        result1 = _eval_not(inst1, state1)
+
+        # Second NOT
+        var_y = IRVariable("%y")
+        inst2 = make_inst("not", var_y)
+        state2 = {var_y: result1}
+        result2 = _eval_not(inst2, state2)
+
+        assert result2.is_constant and result2.lo == test_val, (
+            f"NOT(NOT({test_val})) should be {test_val}, got {result2}"
+        )
 
 
 # =============================================================================
