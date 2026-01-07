@@ -468,7 +468,14 @@ class Expr:
                 else:  # NotIn
                     return VyperValue.from_stack_op(self.builder.iszero(intersection), result_typ)
             else:
-                # Array membership - use loop with early break
+                # Array membership
+                # For list literals, unroll to equality chain (more efficient)
+                if isinstance(node.right, vy_ast.List):
+                    return VyperValue.from_stack_op(
+                        self._lower_list_literal_membership(left, node.right, isinstance(op, vy_ast.In)),
+                        result_typ
+                    )
+                # For storage/memory arrays, use loop with early break
                 location = node.right._expr_info.location
                 return VyperValue.from_stack_op(self._lower_array_membership(
                     left, right, right_typ, location, isinstance(op, vy_ast.In)
@@ -668,7 +675,8 @@ class Expr:
         if isinstance(typ, FlagT):
             value_typ = node.value._metadata.get("type")
             # Check if this is a flag type access (e.g., MyFlag.VALUE)
-            if hasattr(value_typ, "_flag_members"):
+            # value_typ is TYPE_T(FlagT), not FlagT directly
+            if is_type_t(value_typ, FlagT):
                 flag_id = typ._flag_members[node.attr]
                 value = 2**flag_id  # 0 => 1, 1 => 2, 2 => 4, etc.
                 return VyperValue.from_stack_op(IRLiteral(value), typ)
@@ -718,9 +726,9 @@ class Expr:
                     ptr = Ptr(operand=IRLiteral(varinfo.position.position), location=DataLocation.CODE)
                     return VyperValue.from_ptr(ptr, typ)
 
-            # Regular storage variable - return location, don't load!
+            # Regular storage/transient variable - return location, don't load!
             slot = varinfo.position.position
-            ptr = Ptr(operand=IRLiteral(slot), location=DataLocation.STORAGE)
+            ptr = Ptr(operand=IRLiteral(slot), location=varinfo.location)
             return VyperValue.from_ptr(ptr, typ)
 
         # Case 5: Interface address (x.address where x is an interface)
@@ -849,8 +857,8 @@ class Expr:
             return self._lower_mapping_subscript()
         elif isinstance(base_typ, (SArrayT, DArrayT)):
             return self._lower_array_subscript()
-        elif isinstance(base_typ, StructT):
-            # Tuple access on struct (struct[0], struct[1], etc.)
+        elif isinstance(base_typ, (StructT, TupleT)):
+            # Tuple access on struct/tuple (struct[0], tuple[1], etc.)
             return self._lower_tuple_subscript()
         else:
             raise CompilerPanic(f"Unsupported subscript on {base_typ}")
@@ -876,7 +884,7 @@ class Expr:
 
         # Propagate location from base (storage/memory/transient)
         data_loc = base_vv.location or DataLocation.MEMORY
-        word_scale = 1 if data_loc == DataLocation.STORAGE else 32
+        word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
         elem_size = elem_typ.get_size_in(data_loc)
 
@@ -951,7 +959,9 @@ class Expr:
         self.ctx.ptr_store(self.ctx.add_offset(ptr, 32), key)
         slot = self.builder.sha3(ptr.operand, IRLiteral(64))
 
-        ptr = Ptr(operand=slot, location=DataLocation.STORAGE)
+        # Preserve location from base (storage or transient)
+        location = base_vv.location or DataLocation.STORAGE
+        ptr = Ptr(operand=slot, location=location)
         return VyperValue.from_ptr(ptr, value_typ)
 
     def _lower_keccak256_key(self, key_node: vy_ast.VyperNode) -> IROperand:
@@ -1103,6 +1113,49 @@ class Expr:
             ptr = Ptr(operand=operand, location=location)
         return VyperValue.from_ptr(ptr, typ)
 
+    def _lower_list_literal_membership(
+        self, needle: IROperand, list_node: vy_ast.List, is_in: bool
+    ) -> IRVariable:
+        """Lower membership test for list literals: x in [a, b, c].
+
+        Unrolls to:
+        - For 'in': (x == a) or (x == b) or (x == c)
+        - For 'not in': (x != a) and (x != b) and (x != c)
+
+        More efficient than loop for compile-time known list literals.
+
+        NOTE: All elements are evaluated FIRST before any comparisons,
+        so side effects are NOT short-circuited. This matches legacy
+        behavior (expr.py:486 does unwrap_location on ALL elements first).
+        The or_/and_ IR ops combine already-computed results.
+        """
+        b = self.builder
+
+        if not list_node.elements:
+            # Empty list: x in [] is always False, x not in [] is always True
+            return IRLiteral(0 if is_in else 1)
+
+        # Evaluate ALL elements first to preserve side effects
+        elem_vals = [Expr(elem, self.ctx).lower_value() for elem in list_node.elements]
+
+        # Then build comparison chain
+        comparisons = [b.eq(needle, elem_val) for elem_val in elem_vals]
+
+        # Combine comparisons
+        if is_in:
+            # x in [a, b, c] = (x == a) or (x == b) or (x == c)
+            result = comparisons[0]
+            for cmp in comparisons[1:]:
+                result = b.or_(result, cmp)
+        else:
+            # x not in [a, b, c] = (x != a) and (x != b) and (x != c)
+            # = iszero(eq(x, a)) and iszero(eq(x, b)) and ...
+            result = b.iszero(comparisons[0])
+            for cmp in comparisons[1:]:
+                result = b.and_(result, b.iszero(cmp))
+
+        return result
+
     def _lower_array_membership(
         self, needle: IROperand, haystack: IROperand, haystack_typ,
         location: DataLocation, is_in: bool
@@ -1117,7 +1170,7 @@ class Expr:
         """
         # Determine word scale based on location
         # Storage: 1 slot per word, Memory: 32 bytes per word
-        word_scale = 1 if location == DataLocation.STORAGE else 32
+        word_scale = 1 if location in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
         # Get array properties
         length: IROperand
@@ -1229,9 +1282,9 @@ class Expr:
         func = node.func
         func_t = func._metadata.get("type")
 
-        # Check if this is an internal call (self.func())
-        if isinstance(func, vy_ast.Attribute):
-            if isinstance(func.value, vy_ast.Name) and func.value.id == "self":
+        # Check if this is an internal call (self.func() or module.func())
+        if isinstance(func_t, ContractFunctionT):
+            if func_t.is_internal or func_t.is_constructor:
                 return self._lower_internal_call()
 
         # Built-in functions
@@ -1459,7 +1512,7 @@ class Expr:
 
         # Get location from VyperValue
         data_loc = darray_vv.location or DataLocation.MEMORY
-        word_scale = 1 if data_loc == DataLocation.STORAGE else 32
+        word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
         elem_size = elem_typ.get_size_in(data_loc)
         capacity = darray_typ.count  # Maximum length
@@ -1513,7 +1566,7 @@ class Expr:
 
         # Get location from VyperValue
         data_loc = darray_vv.location or DataLocation.MEMORY
-        word_scale = 1 if data_loc == DataLocation.STORAGE else 32
+        word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
         elem_size = elem_typ.get_size_in(data_loc)
 
@@ -1801,5 +1854,8 @@ class Expr:
             src = self._make_ptr_value(buf._ptr, DataLocation.MEMORY, wrapped_return_t)
             abi_decode_to_buf(self.ctx, result_val.operand, src, hi=hi)
 
-        # Return as location in memory
+        # Return as location in memory with unwrapped type
+        # The data is at offset 0 in the wrapped tuple, so pointer is correct
+        if needs_external_call_wrap(return_t):
+            return VyperValue.from_ptr(result_val.ptr(), return_t)
         return result_val

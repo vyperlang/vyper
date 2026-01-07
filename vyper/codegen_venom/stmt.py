@@ -134,7 +134,19 @@ class Stmt:
 
         # Copy temp to dst
         if dst_ptr.location == DataLocation.STORAGE:
-            self.ctx.store_storage(tmp_val.operand, dst_ptr.operand, typ)
+            # For single-word types, store_storage expects the value, not pointer
+            if typ.storage_size_in_words == 1:
+                val = self.builder.mload(tmp_val.operand)
+                self.builder.sstore(dst_ptr.operand, val)
+            else:
+                self.ctx.store_storage(tmp_val.operand, dst_ptr.operand, typ)
+        elif dst_ptr.location == DataLocation.TRANSIENT:
+            # For single-word types, store_transient expects the value, not pointer
+            if typ.storage_size_in_words == 1:
+                val = self.builder.mload(tmp_val.operand)
+                self.builder.tstore(dst_ptr.operand, val)
+            else:
+                self.ctx.store_transient(tmp_val.operand, dst_ptr.operand, typ)
         else:
             self.ctx.copy_memory(dst_ptr.operand, tmp_val.operand, typ.memory_bytes_required)
 
@@ -187,7 +199,19 @@ class Stmt:
             else:
                 # Complex element type: val is a memory pointer
                 if target_ptr.location == DataLocation.STORAGE:
-                    self.ctx.store_storage(val, target_ptr.operand, elem_typ)
+                    # For single-word types, need to load value from memory
+                    if elem_typ.storage_size_in_words == 1:
+                        loaded_val = self.builder.mload(val)
+                        self.builder.sstore(target_ptr.operand, loaded_val)
+                    else:
+                        self.ctx.store_storage(val, target_ptr.operand, elem_typ)
+                elif target_ptr.location == DataLocation.TRANSIENT:
+                    # For single-word types, need to load value from memory
+                    if elem_typ.storage_size_in_words == 1:
+                        loaded_val = self.builder.mload(val)
+                        self.builder.tstore(target_ptr.operand, loaded_val)
+                    else:
+                        self.ctx.store_transient(val, target_ptr.operand, elem_typ)
                 else:
                     self.ctx.copy_memory(target_ptr.operand, val, elem_typ.memory_bytes_required)
 
@@ -259,9 +283,9 @@ class Stmt:
             varinfo = target._expr_info.var_info
 
             if varinfo is not None:
-                # Storage variable - simple slot
+                # Storage/transient variable - use actual location from varinfo
                 if not varinfo.is_constant and not varinfo.is_immutable:
-                    return Ptr(IRLiteral(varinfo.position.position), DataLocation.STORAGE)
+                    return Ptr(IRLiteral(varinfo.position.position), varinfo.location)
 
                 # Immutable in constructor context
                 if varinfo.is_immutable and self.ctx.is_ctor_context:
@@ -401,16 +425,19 @@ class Stmt:
         # Add conditional jump to cond_block (AFTER processing branches)
         cond_block.append_instruction("jnz", cond, then_block.label, else_block.label)
 
-        # Create exit/merge block
-        exit_block = self.builder.create_block("if_exit")
-        self.builder.append_block(exit_block)
-        self.builder.set_block(exit_block)
+        # Create exit/merge block only if at least one branch needs it
+        then_needs_exit = not then_block_finish.is_terminated
+        else_needs_exit = not else_block_finish.is_terminated
 
-        # Add jumps from finish blocks if not terminated
-        if not then_block_finish.is_terminated:
-            then_block_finish.append_instruction("jmp", exit_block.label)
-        if not else_block_finish.is_terminated:
-            else_block_finish.append_instruction("jmp", exit_block.label)
+        if then_needs_exit or else_needs_exit:
+            exit_block = self.builder.create_block("if_exit")
+            self.builder.append_block(exit_block)
+            self.builder.set_block(exit_block)
+
+            if then_needs_exit:
+                then_block_finish.append_instruction("jmp", exit_block.label)
+            if else_needs_exit:
+                else_block_finish.append_instruction("jmp", exit_block.label)
 
     def _lower_body(self, stmts: list) -> None:
         """Lower a list of statements."""
@@ -567,9 +594,9 @@ class Stmt:
         location = array_vv.location or node.iter._expr_info.location
 
         # Determine word scale based on location
-        # Storage: 1 slot per word, Memory: 32 bytes per word
-        is_storage = location == DataLocation.STORAGE
-        word_scale = 1 if is_storage else 32
+        # Storage/Transient: 1 slot per word, Memory: 32 bytes per word
+        is_slot_addressed = location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
+        word_scale = 1 if is_slot_addressed else 32
 
         # Get length and bound
         length: IROperand
@@ -639,14 +666,14 @@ class Stmt:
             elem_addr = self.builder.add(array, total_offset)
 
             # Copy element to loop variable (always in memory)
-            if is_storage:
+            if is_slot_addressed:
                 if elem_size == 1:
-                    # Single slot: sload from storage, mstore to memory
-                    val = self.builder.sload(elem_addr)
+                    # Single slot: load from storage/transient, mstore to memory
+                    val = self.builder.load(elem_addr, location)
                     self.builder.mstore(item_local.value.operand, val)
                 else:
-                    # Multi-slot: use context helper
-                    self.ctx.storage_to_memory(elem_addr, item_local.value.operand, elem_size)
+                    # Multi-slot: use generic helper that dispatches on location
+                    self.ctx.slot_to_memory(elem_addr, item_local.value.operand, elem_size, location)
             else:
                 if elem_size <= 32:
                     # Single word: mload/mstore

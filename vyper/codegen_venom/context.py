@@ -154,6 +154,9 @@ class VenomCodegenContext:
             # STORAGE location requires copy to memory
             if vv.location == DataLocation.STORAGE:
                 return self.load_storage(vv.operand, vv.typ)
+            # TRANSIENT location requires copy to memory
+            if vv.location == DataLocation.TRANSIENT:
+                return self.load_transient(vv.operand, vv.typ)
             # MEMORY location: return pointer directly
             return vv.operand
 
@@ -167,8 +170,8 @@ class VenomCodegenContext:
 
         Like legacy bytes_data_ptr: add_ofst(ptr, location.word_scale)
         """
-        assert vv.location in (DataLocation.MEMORY, DataLocation.STORAGE), \
-            f"bytes_data_ptr expects MEMORY or STORAGE, got {vv.location}"
+        assert vv.location in (DataLocation.MEMORY, DataLocation.STORAGE, DataLocation.TRANSIENT), \
+            f"bytes_data_ptr expects MEMORY, STORAGE, or TRANSIENT, got {vv.location}"
         word_scale = 32 if vv.location == DataLocation.MEMORY else 1
         return self.builder.add(vv.operand, IRLiteral(word_scale))
 
@@ -177,8 +180,8 @@ class VenomCodegenContext:
 
         Like legacy get_bytearray_length: LOAD(ptr)
         """
-        assert vv.location in (DataLocation.MEMORY, DataLocation.STORAGE), \
-            f"bytestring_length expects MEMORY or STORAGE, got {vv.location}"
+        assert vv.location in (DataLocation.MEMORY, DataLocation.STORAGE, DataLocation.TRANSIENT), \
+            f"bytestring_length expects MEMORY, STORAGE, or TRANSIENT, got {vv.location}"
         return self.builder.load(vv.operand, vv.location)
 
     def is_constant(self) -> bool:
@@ -434,15 +437,23 @@ class VenomCodegenContext:
     def load_storage(self, slot: IROperand, typ: VyperType) -> IROperand:
         """Load value from storage slot.
 
-        For primitive types (single word), returns sload result.
-        For multi-word types, allocates memory buffer and copies.
+        For primitive types, returns sload result directly.
+        For complex types (structs, etc.), allocates memory buffer and copies,
+        even for single-word types (needed for ABI encoding and return handling).
         """
-        if typ.storage_size_in_words == 1:
+        if typ._is_prim_word:
+            # Primitive types: return value directly
             return self.builder.sload(slot)
         else:
-            # Multi-word: allocate memory and copy from storage
+            # Complex types: always need memory buffer for struct/tuple handling
             val = self.new_temporary_value(typ)
-            self._load_storage_to_memory(slot, val.operand, typ.storage_size_in_words)
+            if typ.storage_size_in_words == 1:
+                # Single-word complex type: sload and store to memory
+                loaded = self.builder.sload(slot)
+                self.builder.mstore(val.operand, loaded)
+            else:
+                # Multi-word: copy from storage to memory
+                self._load_storage_to_memory(slot, val.operand, typ.storage_size_in_words)
             return val.operand
 
     def store_storage(self, val: IROperand, slot: IROperand, typ: VyperType) -> None:
@@ -463,6 +474,18 @@ class VenomCodegenContext:
         Public wrapper for iteration loops and other contexts.
         """
         self._load_storage_to_memory(slot, buf, word_count)
+
+    def slot_to_memory(self, slot: IROperand, buf: IROperand, word_count: int, location: DataLocation) -> None:
+        """Load multi-word slot-addressed value to memory buffer.
+
+        Generic helper that dispatches based on location (STORAGE or TRANSIENT).
+        """
+        if location == DataLocation.STORAGE:
+            self._load_storage_to_memory(slot, buf, word_count)
+        elif location == DataLocation.TRANSIENT:
+            self._load_transient_to_memory(slot, buf, word_count)
+        else:
+            raise CompilerPanic(f"slot_to_memory: unexpected location {location}")
 
     def memory_to_storage(self, buf: IROperand, slot: IROperand, word_count: int) -> None:
         """Store memory buffer to multi-word storage.
@@ -570,15 +593,23 @@ class VenomCodegenContext:
     def load_transient(self, slot: IROperand, typ: VyperType) -> IROperand:
         """Load from transient storage (Cancun+).
 
-        For primitive types (single word), returns tload result.
-        For multi-word types, allocates memory buffer and copies.
+        For primitive types, returns tload result directly.
+        For complex types (structs, etc.), allocates memory buffer and copies,
+        even for single-word types (needed for ABI encoding and return handling).
         """
-        if typ.storage_size_in_words == 1:
+        if typ._is_prim_word:
+            # Primitive types: return value directly
             return self.builder.tload(slot)
         else:
-            # Multi-word: allocate memory and copy from transient storage
+            # Complex types: always need memory buffer for struct/tuple handling
             val = self.new_temporary_value(typ)
-            self._load_transient_to_memory(slot, val.operand, typ.storage_size_in_words)
+            if typ.storage_size_in_words == 1:
+                # Single-word complex type: tload and store to memory
+                loaded = self.builder.tload(slot)
+                self.builder.mstore(val.operand, loaded)
+            else:
+                # Multi-word: copy from transient storage to memory
+                self._load_transient_to_memory(slot, val.operand, typ.storage_size_in_words)
             return val.operand
 
     def store_transient(self, val: IROperand, slot: IROperand, typ: VyperType) -> None:
