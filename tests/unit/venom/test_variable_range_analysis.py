@@ -1316,3 +1316,433 @@ def test_bug_phi_merge_with_bottom_causes_assert_elimination_miscompile():
         f"Miscompile: Assert incorrectly eliminated! "
         f"check_range={check_range}, but runtime can produce 0"
     )
+
+
+# =============================================================================
+# BOUNDARY VALUE TESTS
+# These tests verify correct behavior at extreme boundaries.
+# =============================================================================
+
+
+def test_add_at_signed_min_boundary():
+    """Test add with SIGNED_MIN constant (using negative literal)."""
+    from vyper.venom.analysis.variable_range.value_range import SIGNED_MIN
+
+    analysis, fn = _analyze(
+        f"""
+        function test {{
+        entry:
+            %min = {SIGNED_MIN}
+            %y = add %min, 1
+            stop
+        }}
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    add_inst = entry.instructions[1]
+    rng = analysis.get_range(add_inst.output, entry.instructions[-1])
+    # SIGNED_MIN + 1 = SIGNED_MIN + 1 (just above min)
+    expected = SIGNED_MIN + 1
+    assert rng.lo == expected and rng.hi == expected
+
+
+def test_sub_at_signed_min_boundary():
+    """Test sub that would underflow past SIGNED_MIN."""
+    from vyper.venom.analysis.variable_range.value_range import SIGNED_MIN, SIGNED_MAX
+
+    analysis, fn = _analyze(
+        f"""
+        function test {{
+        entry:
+            %min = {SIGNED_MIN}
+            %y = sub %min, 1
+            stop
+        }}
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    sub_inst = entry.instructions[1]
+    rng = analysis.get_range(sub_inst.output, entry.instructions[-1])
+    # SIGNED_MIN - 1 wraps to SIGNED_MAX
+    expected = SIGNED_MAX
+    assert rng.lo == expected and rng.hi == expected
+
+
+def test_add_at_unsigned_max_boundary():
+    """Test add at UNSIGNED_MAX that wraps to 0."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+            %y = add %x, 1
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    add_inst = entry.instructions[1]
+    rng = analysis.get_range(add_inst.output, entry.instructions[-1])
+    assert rng.lo == 0 and rng.hi == 0
+
+
+def test_shr_by_255():
+    """Test SHR by 255 bits on a large positive value."""
+    from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX
+
+    analysis, fn = _analyze(
+        f"""
+        function test {{
+        entry:
+            %x = {SIGNED_MAX}
+            %y = shr 255, %x
+            stop
+        }}
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    shr_inst = entry.instructions[1]
+    rng = analysis.get_range(shr_inst.output, entry.instructions[-1])
+    # SIGNED_MAX >> 255 = 0 (because bit 255 is 0 in SIGNED_MAX)
+    assert rng.lo == 0 and rng.hi == 0
+
+
+def test_shr_by_256():
+    """Test SHR by 256 bits - should always give 0."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+            %y = shr 256, %x
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    shr_inst = entry.instructions[1]
+    rng = analysis.get_range(shr_inst.output, entry.instructions[-1])
+    assert rng.lo == 0 and rng.hi == 0
+
+
+def test_shl_by_255():
+    """Test SHL by 255 bits."""
+    from vyper.venom.analysis.variable_range.value_range import SIGNED_MIN
+
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = 1
+            %y = shl 255, %x
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    shl_inst = entry.instructions[1]
+    rng = analysis.get_range(shl_inst.output, entry.instructions[-1])
+    # 1 << 255 = 2^255
+    # In signed representation: SIGNED_MIN (-2^255)
+    # In unsigned representation: 2^255
+    # The result should be constant and equal to 2^255 (either representation)
+    assert rng.is_constant
+    # Accept either signed or unsigned representation
+    expected_unsigned = 2**255
+    expected_signed = SIGNED_MIN
+    assert rng.lo == expected_signed or rng.lo == expected_unsigned
+
+
+def test_shl_by_256():
+    """Test SHL by 256 bits - should always give 0."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+            %y = shl 256, %x
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    shl_inst = entry.instructions[1]
+    rng = analysis.get_range(shl_inst.output, entry.instructions[-1])
+    assert rng.lo == 0 and rng.hi == 0
+
+
+def test_sar_by_255():
+    """Test SAR by 255 bits on negative value."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = -1
+            %y = sar 255, %x
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    sar_inst = entry.instructions[1]
+    rng = analysis.get_range(sar_inst.output, entry.instructions[-1])
+    # -1 >> 255 = -1 (sign extension preserves -1)
+    assert rng.lo == -1 and rng.hi == -1
+
+
+def test_sar_by_256():
+    """Test SAR by 256 bits - returns 0 or -1 based on sign."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = -100
+            %y = sar 256, %x
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    sar_inst = entry.instructions[1]
+    rng = analysis.get_range(sar_inst.output, entry.instructions[-1])
+    # Negative value >> 256 = -1 (all sign bits)
+    assert rng.lo == -1 and rng.hi == -1
+
+
+def test_div_by_zero_returns_zero():
+    """Test that DIV by zero returns 0 (EVM spec)."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = 12345
+            %y = div %x, 0
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    div_inst = entry.instructions[1]
+    rng = analysis.get_range(div_inst.output, entry.instructions[-1])
+    assert rng.lo == 0 and rng.hi == 0
+
+
+def test_mod_by_zero_returns_zero():
+    """Test that MOD by zero returns 0 (EVM spec)."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = 12345
+            %y = mod %x, 0
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    mod_inst = entry.instructions[1]
+    rng = analysis.get_range(mod_inst.output, entry.instructions[-1])
+    assert rng.lo == 0 and rng.hi == 0
+
+
+def test_byte_index_32():
+    """Test byte with index exactly 32 (should return 0)."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+            %b = byte 32, %x
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    byte_inst = entry.instructions[1]
+    rng = analysis.get_range(byte_inst.output, entry.instructions[-1])
+    assert rng.lo == 0 and rng.hi == 0
+
+
+def test_byte_index_255():
+    """Test byte with large index (should return 0)."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+            %b = byte 255, %x
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    byte_inst = entry.instructions[1]
+    rng = analysis.get_range(byte_inst.output, entry.instructions[-1])
+    assert rng.lo == 0 and rng.hi == 0
+
+
+def test_nested_conditional_refinement_3_levels():
+    """Test refinement through 3 levels of nested conditionals."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = calldataload 0
+            %c1 = lt %x, 1000
+            jnz %c1, @level1, @exit
+
+        level1:
+            %c2 = lt %x, 100
+            jnz %c2, @level2, @exit
+
+        level2:
+            %c3 = lt %x, 10
+            jnz %c3, @innermost, @exit
+
+        innermost:
+            %tmp = add %x, 0
+            stop
+
+        exit:
+            stop
+        }
+        """
+    )
+
+    innermost_bb = fn.get_basic_block("innermost")
+    x_var = fn.get_basic_block("entry").instructions[0].output
+    rng = analysis.get_range(x_var, innermost_bb.instructions[0])
+    # After 3 levels: x < 1000, x < 100, x < 10 => x in [0, 9]
+    assert rng.hi == 9
+
+
+def test_phi_merge_4_branches():
+    """Test phi merging values from 4 different branches."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %sel = calldataload 0
+            %c1 = lt %sel, 25
+            jnz %c1, @b1, @check2
+
+        check2:
+            %c2 = lt %sel, 50
+            jnz %c2, @b2, @check3
+
+        check3:
+            %c3 = lt %sel, 75
+            jnz %c3, @b3, @b4
+
+        b1:
+            %v1 = 10
+            jmp @merge
+        b2:
+            %v2 = 20
+            jmp @merge
+        b3:
+            %v3 = 30
+            jmp @merge
+        b4:
+            %v4 = 40
+            jmp @merge
+
+        merge:
+            %v = phi @b1, %v1, @b2, %v2, @b3, %v3, @b4, %v4
+            %sink = add %v, 0
+            stop
+        }
+        """
+    )
+
+    merge_bb = fn.get_basic_block("merge")
+    v_var = merge_bb.instructions[0].output
+    rng = analysis.get_range(v_var, merge_bb.instructions[1])
+    # Phi merges [10, 10], [20, 20], [30, 30], [40, 40] => [10, 40]
+    assert rng.lo == 10 and rng.hi == 40
+
+
+def test_signextend_then_unsigned_comparison():
+    """Test combination of signextend followed by unsigned comparison."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw = calldataload 0
+            %x = signextend 0, %raw
+            %cmp = lt %x, 200
+            jnz %cmp, @under, @over
+
+        under:
+            %tmp = add %x, 0
+            stop
+
+        over:
+            stop
+        }
+        """
+    )
+
+    under_bb = fn.get_basic_block("under")
+    x_var = fn.get_basic_block("entry").instructions[1].output
+    under_range = analysis.get_range(x_var, under_bb.instructions[0])
+    # x in [-128, 127] initially
+    # Unsigned lt 200: values [0, 127] satisfy lt 200
+    # But negative values [-128, -1] are large unsigned (>= 2^255) so don't satisfy lt 200
+    # So under branch should have x in [0, 127] (or could be narrower)
+    # Actually the analysis may return TOP or a wider range due to sign boundary issues
+    # The key thing is soundness - if we get a narrow range, it should be correct
+    assert under_range.hi <= 199 or under_range.is_top
+
+
+def test_loop_counter_bounds():
+    """Test that loop counter ranges are properly tracked through back edges."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %i = 0
+            jmp @loop
+
+        loop:
+            %counter = phi @entry, %i, @body, %next
+            %done = lt %counter, 10
+            jnz %done, @body, @exit
+
+        body:
+            %next = add %counter, 1
+            jmp @loop
+
+        exit:
+            %sink = add %counter, 0
+            stop
+        }
+        """
+    )
+
+    # In the body, counter should be in [0, 9] (since lt 10 was true)
+    body_bb = fn.get_basic_block("body")
+    counter_var = fn.get_basic_block("loop").instructions[0].output
+    body_range = analysis.get_range(counter_var, body_bb.instructions[0])
+    # Counter in body: must satisfy lt 10, so in [0, 9]
+    assert body_range.hi <= 9 or body_range.is_top
+
+    # At exit, counter should be >= 10 (since lt 10 was false)
+    exit_bb = fn.get_basic_block("exit")
+    exit_range = analysis.get_range(counter_var, exit_bb.instructions[0])
+    # Counter at exit: must NOT satisfy lt 10
+    # This might be TOP or a range >= 10
+    assert exit_range.lo >= 10 or exit_range.is_top
