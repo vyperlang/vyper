@@ -488,3 +488,126 @@ def test_load_elimination_inter_distant_bb(position):
     """
 
     _check_pre_post(pre, post)
+
+
+def test_nested_diamond_no_restore():
+    """
+    Test nested diamond CFG where values diverge at inner join.
+    The outer join predecessors each have len > 1, so we should bail out
+    (no phi insertion, load remains).
+
+    CFG:
+        A (store v1)    B (store v2)
+             \              /
+              \            /
+               C  <- inner join, lattice = {v1, v2}
+              / \
+             D   E   <- no stores, inherit {v1, v2}
+              \ /
+               F  <- outer join, lattice = {v1, v2}
+               |
+               G (load)
+    """
+    pre = """
+    main:
+        %ptr = 100
+        %cond1 = param
+        %cond2 = param
+        jnz %cond1, @A, @B
+    A:
+        mstore %ptr, 1
+        jmp @C
+    B:
+        mstore %ptr, 2
+        jmp @C
+    C:
+        ; inner join - lattice has {1, 2}
+        jnz %cond2, @D, @E
+    D:
+        ; no store, inherits {1, 2}
+        jmp @F
+    E:
+        ; no store, inherits {1, 2}
+        jmp @F
+    F:
+        ; outer join - predecessors D and E both have {1, 2}
+        ; algorithm should bail out (no phi)
+        %val = mload %ptr
+        sink %val
+    """
+    # No change expected - can't create phi when predecessors have multiple values
+    _check_no_change(pre)
+
+
+def test_nested_diamond_with_restore():
+    """
+    Test nested diamond CFG where both paths at outer level re-store.
+    Each predecessor of outer join has exactly 1 value, so phi can be created.
+
+    CFG:
+        A (store v1)    B (store v2)
+             \              /
+              \            /
+               C  <- inner join
+              / \
+             D   E   <- both store new values
+              \ /
+               F  <- outer join
+               |
+               G (load)
+    """
+    pre = """
+    main:
+        %ptr = 100
+        %cond1 = param
+        %cond2 = param
+        jnz %cond1, @A, @B
+    A:
+        mstore %ptr, 1
+        jmp @C
+    B:
+        mstore %ptr, 2
+        jmp @C
+    C:
+        ; inner join
+        jnz %cond2, @D, @E
+    D:
+        %v3 = add %cond1, 10
+        mstore %ptr, %v3
+        jmp @F
+    E:
+        %v4 = add %cond2, 20
+        mstore %ptr, %v4
+        jmp @F
+    F:
+        ; outer join - D has {%v3}, E has {%v4}
+        %val = mload %ptr
+        sink %val
+    """
+    post = """
+    main:
+        %ptr = 100
+        %cond1 = param
+        %cond2 = param
+        jnz %cond1, @A, @B
+    A:
+        mstore %ptr, 1
+        jmp @C
+    B:
+        mstore %ptr, 2
+        jmp @C
+    C:
+        jnz %cond2, @D, @E
+    D:
+        %v3 = add %cond1, 10
+        mstore %ptr, %v3
+        jmp @F
+    E:
+        %v4 = add %cond2, 20
+        mstore %ptr, %v4
+        jmp @F
+    F:
+        %1 = phi @D, %v3, @E, %v4
+        sink %1
+    """
+    _check_pre_post(pre, post)
