@@ -25,6 +25,7 @@ from .hashing import HANDLERS as HASHING_HANDLERS
 from .math import HANDLERS as MATH_HANDLERS
 from .misc import HANDLERS as MISC_HANDLERS
 from .simple import HANDLERS as SIMPLE_HANDLERS
+from .strings import HANDLERS as STRINGS_HANDLERS
 from .system import HANDLERS as SYSTEM_HANDLERS
 
 __all__ = ["BUILTIN_HANDLERS", "lower_builtin"]
@@ -40,6 +41,7 @@ BUILTIN_HANDLERS: dict = {
     **SYSTEM_HANDLERS,
     **CREATE_HANDLERS,
     **MISC_HANDLERS,
+    **STRINGS_HANDLERS,
 }
 
 
