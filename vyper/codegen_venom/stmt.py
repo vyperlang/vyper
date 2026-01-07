@@ -75,7 +75,13 @@ class Stmt:
         # Lower the RHS and store at the allocated pointer
         # lower_value() handles storage/code -> memory copy for complex types
         rhs = Expr(node.value, self.ctx).lower_value()
-        self.ctx.ptr_store(var.value.ptr(), rhs)
+
+        # For primitive word types, just store
+        if ltyp._is_prim_word:
+            self.ctx.ptr_store(var.value.ptr(), rhs)
+        else:
+            # Multi-word types: copy via temp buffer to handle overlap safely
+            self._copy_complex_type(rhs, var.value.ptr(), ltyp)
 
     def lower_Assign(self) -> None:
         """Lower regular assignment.
