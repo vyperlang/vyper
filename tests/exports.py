@@ -192,6 +192,10 @@ class TestExporter:
 
         return True
 
+    def finalize_test(self):
+        assert self._item_stack, "finalize_test() called without a current test item"
+        self._item_stack.pop()
+
     def finalize_item(self, node: Union[FixtureDef, Item]):
         if isinstance(node, Item):
             return
