@@ -1537,8 +1537,19 @@ class Expr:
         offset = self.builder.mul(length, IRLiteral(elem_size))
         elem_ptr = self.builder.add(data_ptr, offset)
 
-        # 4. Store element
-        self.builder.store(elem_ptr, elem_val, data_loc)
+        # 4. Store element - handle complex types properly
+        # For primitive types, use single-word store
+        # For complex types, elem_val is a memory pointer - need to copy data
+        if elem_typ._is_prim_word:
+            self.builder.store(elem_ptr, elem_val, data_loc)
+        elif data_loc == DataLocation.MEMORY:
+            self.ctx.store_memory(elem_val, elem_ptr, elem_typ)
+        elif data_loc == DataLocation.STORAGE:
+            self.ctx.store_storage(elem_val, elem_ptr, elem_typ)
+        elif data_loc == DataLocation.TRANSIENT:
+            self.ctx.store_transient(elem_val, elem_ptr, elem_typ)
+        else:
+            raise CompilerPanic(f"Unsupported location for append: {data_loc}")
 
         # 5. Increment and store new length
         new_length = self.builder.add(length, IRLiteral(1))
