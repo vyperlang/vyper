@@ -287,6 +287,77 @@ def check_module_uses(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
 
 
 class FunctionAnalyzer(VyperNodeVisitorBase):
+    """
+    Semantic analyzer for Vyper function definitions.
+
+    This class performs comprehensive semantic analysis and validation of function bodies
+    in Vyper contracts. It traverses the AST of a function definition to enforce language
+    rules, track variable access, and ensure correctness of the function implementation.
+
+    Primary Responsibilities:
+    -------------------------
+    1. **Type Checking**: Validates that all expressions and statements within the function
+       use correct types and that assignments are type-compatible.
+
+    2. **Mutability Enforcement**: Ensures functions adhere to their declared mutability:
+       - Pure functions cannot access state or environment variables
+       - View functions cannot modify state
+       - Nonpayable functions cannot access msg.value
+       - Payable functions can perform all operations
+
+    3. **Variable Scope Management**: Manages nested scopes within the function (if/for blocks)
+       and tracks variable declarations, ensuring variables are properly scoped.
+
+    4. **Control Flow Analysis**: Validates control flow statements (return, break, continue)
+       and ensures functions with return types have proper return statements on all paths.
+
+    5. **Loop Variable Protection**: Prevents modification of loop iteration variables within
+       the loop body to maintain loop integrity.
+
+    6. **Module Access Tracking**: Tracks and validates access to imported modules, ensuring
+       proper 'uses' or 'initializes' declarations for stateful module access.
+
+    7. **Variable Access Logging**: Records all variable reads and writes for dependency
+       analysis and optimization purposes.
+
+    8. **Immutability Validation**: Enforces immutability constraints on constants, immutables
+       (after construction), and calldata parameters.
+
+    Usage:
+    ------
+    The FunctionAnalyzer is instantiated and used within the semantic analysis phase:
+
+    1. Called from `analyze_functions()` for each function in a module
+    2. Recursively analyzes called functions to ensure complete validation
+    3. Works in conjunction with ExprVisitor for expression-level analysis
+
+    The analyzer is created with:
+    - vyper_module: The module containing the function
+    - fn_node: The FunctionDef AST node to analyze
+    - namespace: Current namespace for variable resolution
+
+    Key Attributes:
+    --------------
+    - func: The ContractFunctionT type object for the function being analyzed
+    - expr_visitor: ExprVisitor instance for analyzing expressions
+    - loop_variables: Stack of loop iteration variables to prevent modification
+    - namespace: Variable namespace for the current scope
+
+    Analysis Process:
+    ----------------
+    1. Mark function as analyzed to prevent re-analysis
+    2. Set up function parameters in the namespace with appropriate mutability
+    3. Visit each statement in the function body
+    4. Validate return statements exist for functions with return types
+    5. Analyze default parameter values for keyword arguments
+
+    Integration:
+    -----------
+    - Used by: `_analyze_function_r()` in the recursive function analysis
+    - Uses: ExprVisitor for expression analysis, namespace for variable tracking
+    - Collaborates with: Type system, mutability checker, module system
+    """
+
     ignored_types = (vy_ast.Pass,)
     scope_name = "function"
 
@@ -642,6 +713,25 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
 
 class ExprVisitor(VyperNodeVisitorBase):
+    """
+    Expression visitor for semantic analysis and type checking of Vyper expressions.
+
+    This visitor class traverses expression nodes in the Vyper AST and performs:
+    1. Type validation - ensures expressions have correct and compatible types
+    2. Type annotation - annotates each expression node with its computed type
+    3. Access tracking - tracks variable reads and writes for dependency analysis
+    4. Mutability checking - enforces function mutability constraints (pure/view/nonpayable)
+    5. Loop variable immutability - prevents modification of loop iteration variables
+    6. Module access validation - ensures proper module usage declarations
+    7. Constant folding validation - validates compile-time constant expressions
+
+    The visitor is used in two contexts:
+    - With a FunctionAnalyzer: for analyzing expressions within function bodies,
+      enforcing function-specific constraints like mutability and tracking variable access
+    - Standalone: for analyzing module-level constant expressions where function
+      context is not applicable
+    """
+
     def __init__(self, function_analyzer: Optional[FunctionAnalyzer] = None):
         self.function_analyzer = function_analyzer
 
