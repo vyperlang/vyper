@@ -339,6 +339,14 @@ class VariableRangeAnalysis(IRAnalysis):
         *,
         left_side: bool,
     ) -> None:
+        """Narrow variable range based on comparison result.
+
+        Note on boundary arithmetic: When bound == min_bound, `bound - 1` produces
+        a value below min_bound. When bound == max_bound, `bound + 1` produces a
+        value above max_bound. In both cases, clamp() correctly produces BOTTOM
+        (empty range) since the resulting interval has lo > hi. This handles
+        impossible conditions like `x < 0` (unsigned) or `x slt SIGNED_MIN`.
+        """
         current = state.get(var, ValueRange.top())
         if opcode in {"lt", "slt"}:
             if left_side:

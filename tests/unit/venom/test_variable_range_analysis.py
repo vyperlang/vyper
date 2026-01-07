@@ -112,6 +112,69 @@ def test_eq_branch_sets_constant():
     assert rng.hi == 5
 
 
+def test_lt_boundary_zero_true_branch_is_bottom():
+    """lt %x, 0 true means x < 0 unsigned, which is impossible → BOTTOM."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %x = calldataload 0
+            %x_mod = mod %x, 100      ; x in [0, 99], ensures non-negative
+            %cmp = lt %x_mod, 0
+            jnz %cmp, @impossible, @exit
+
+        impossible:
+            %sink = add %x_mod, 1
+            stop
+
+        exit:
+            stop
+        }
+        """
+    )
+
+    impossible_bb = fn.get_basic_block("impossible")
+    sink_inst = impossible_bb.instructions[0]
+    x_var = next(
+        inst for inst in fn.get_basic_block("entry").instructions if inst.opcode == "mod"
+    ).output
+
+    rng = analysis.get_range(x_var, sink_inst)
+    # True branch of `lt %x, 0` is unreachable since nothing is < 0 unsigned
+    assert rng.is_empty
+
+
+def test_slt_boundary_signed_min_true_branch_is_bottom():
+    """slt %x, SIGNED_MIN true means x < SIGNED_MIN signed, impossible → BOTTOM."""
+    from vyper.venom.analysis.variable_range.value_range import SIGNED_MIN
+
+    analysis, fn = _analyze(
+        f"""
+        function test {{
+        entry:
+            %x = calldataload 0
+            %cmp = slt %x, {SIGNED_MIN}
+            jnz %cmp, @impossible, @exit
+
+        impossible:
+            %sink = add %x, 1
+            stop
+
+        exit:
+            stop
+        }}
+        """
+    )
+
+    impossible_bb = fn.get_basic_block("impossible")
+    sink_inst = impossible_bb.instructions[0]
+    x_var = fn.get_basic_block("entry").instructions[0].output
+
+    rng = analysis.get_range(x_var, sink_inst)
+    # True branch of `slt %x, SIGNED_MIN` is unreachable
+    assert rng.is_empty
+
+
 def test_iszero_true_branch_forces_zero():
     analysis, fn = _analyze(
         """
