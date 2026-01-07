@@ -8,16 +8,11 @@ from pytest import FixtureDef, Item
 
 SEP = "__"
 
-
-def _base_name(unique: str) -> str:
-    if SEP in unique:
-        base, suffix = unique.rsplit(SEP, 1)
-        if suffix.isdigit():
-            return base
-    return unique
+# Export path for a module: tests/functional/foo/test_bar.py -> <export_dir>/functional/foo/test_bar
+# All items (tests/fixtures) defined in the same module share an export path (and output JSON).
 
 
-def _bucket_path_for(
+def _module_export_path(
     node: Union[FixtureDef, Item], test_root: Path, export_root: Path
 ) -> Optional[Path]:
     if isinstance(node, Item):
@@ -42,103 +37,183 @@ class TracedItem:
     item_type: str
 
 
+@dataclass
+class PendingFixture:
+    """
+    Temporary state held while a fixture is executing.
+    Stores scope and requesting context needed to later register in the timeline.
+    """
+
+    traced_item: TracedItem
+    definition_module_path: Path
+    unique_name: str
+    scope: str
+    requesting_module_path: Optional[Path]
+    requesting_test_nodeid: Optional[str]
+
+
+@dataclass(frozen=True)
+class ActiveFixture:
+    """
+    An executed fixture in the chronological timeline.
+    Used by _deps_for() to compute dependencies filtered by scope/requester.
+    """
+
+    ref: str
+    scope: str
+    requesting_module_path: Optional[Path]
+    requesting_test_nodeid: Optional[str]
+
+
 class TestExporter:
     def __init__(self, export_dir: Path, test_root: Path):
         self.export_dir = export_dir
         self.test_root = test_root
 
-        # session-wide state
-        self.data: dict[Path, list[TracedItem]] = {}  # bucket → items
-        self._counts: dict[tuple[Path, str], int] = {}  # (bucket,base_name)
-        self._last_unique: dict[tuple[Path, str], str] = {}  # (bucket,base_name)
-        self._executed_fixtures: list[str] = []  # [path/unique_name]
-
-        # (id(fixturedef) -> (bucket_path, unique_name, will_execute))
-        self._pending: dict[int, tuple[Path, str, bool]] = {}
-
-        self._current_bucket: Optional[Path] = None
+        self.data: dict[Path, list[TracedItem]] = {}
+        self._counts: dict[tuple[Path, str], int] = {}
+        self._active_fixtures: list[ActiveFixture] = []
+        self._pending: dict[int, PendingFixture] = {}
+        self._item_stack: list[TracedItem] = []
 
     @property
     def current_item(self) -> TracedItem:
-        assert self._current_bucket, "set_item() not called yet"
-        bucket = self.data[self._current_bucket]
-        return bucket[-1]
+        assert self._item_stack, "set_item() not called yet"
+        return self._item_stack[-1]
 
-    def set_item(self, node: Union[FixtureDef, Item], will_execute: bool = True) -> bool:
-        bucket = _bucket_path_for(node, self.test_root, self.export_dir)
+    def _get_requesting_module_path(self, request) -> Optional[Path]:
+        try:
+            mod_file = Path(request.node.module.__file__).resolve()
+        except AttributeError:
+            nodeid = request.node.nodeid
+            mod_path_str = nodeid.split("::", 1)[0]
+            project_root = self.test_root.parent
+            mod_file = (project_root / mod_path_str).resolve()
 
-        if bucket is None:
+        try:
+            rel = mod_file.relative_to(self.test_root)
+        except ValueError:
+            return None
+
+        return self.export_dir / rel
+
+    # Dependencies should reflect the chronological execution timeline
+    # of fixtures that affect chain state, filtered by fixture scope,
+    # not by what the test explicitly requests.
+    # NOTE: O(items × active_fixtures) - pruning old fixtures by scope would help.
+    def _deps_for(
+        self, requesting_module_path: Optional[Path], requesting_test_nodeid: Optional[str]
+    ) -> list[str]:
+        out: list[str] = []
+        seen: set[str] = set()
+
+        for af in self._active_fixtures:
+            if af.scope == "session":
+                ref = af.ref
+            elif af.scope == "module":
+                if (
+                    requesting_module_path is None
+                    or af.requesting_module_path != requesting_module_path
+                ):
+                    continue
+                ref = af.ref
+            elif af.scope == "function":
+                if (
+                    requesting_test_nodeid is None
+                    or af.requesting_test_nodeid != requesting_test_nodeid
+                ):
+                    continue
+                ref = af.ref
+            else:
+                continue
+
+            if ref not in seen:
+                seen.add(ref)
+                out.append(ref)
+
+        return out
+
+    def set_item(
+        self, node: Union[FixtureDef, Item], will_execute: bool = True, *, request=None
+    ) -> bool:
+        module_path = _module_export_path(node, self.test_root, self.export_dir)
+
+        if module_path is None:
             return False
 
-        lst = self.data.setdefault(bucket, [])
-        self._current_bucket = bucket
+        lst = self.data.setdefault(module_path, [])
 
         if isinstance(node, Item):
-            lst.append(TracedItem(node.name, [], [], "test"))
-            self._resolve_deps(node)
+            traced_item = TracedItem(node.name, [], [], "test")
+            lst.append(traced_item)
+            self._item_stack.append(traced_item)
+            test_nodeid = node.nodeid
+            traced_item.deps = self._deps_for(module_path, test_nodeid)
             return True
 
         assert isinstance(node, FixtureDef)
 
         base = node.argname
-        key = (bucket, base)
+        key = (module_path, base)
+        scope = str(node.scope) if hasattr(node, "scope") else "function"
 
-        if will_execute:
-            count = self._counts.get(key, 0) + 1
-            self._counts[key] = count
-            unique = base if count == 1 else f"{base}{SEP}{count}"
-            lst.append(TracedItem(unique, [], [], "fixture"))
-            self._last_unique[key] = unique
-        else:  # fixture was cached from some previous run
-            unique = self._last_unique[key]
+        requesting_module_path: Optional[Path] = None
+        requesting_test_nodeid: Optional[str] = None
 
-        self._pending[id(node)] = (bucket, unique, will_execute)
+        if request is not None:
+            if scope == "session":
+                pass
+            elif scope == "module":
+                requesting_module_path = self._get_requesting_module_path(request)
+            else:
+                requesting_module_path = self._get_requesting_module_path(request)
+                requesting_test_nodeid = request.node.nodeid
 
-        # resolve its own dependencies now (all required fixtures
-        # already ran - guaranteed by pytest)
-        if will_execute:
-            self._resolve_deps(node)
+        assert (
+            will_execute
+        ), "pytest_fixture_setup hook should only be called for non-cached fixtures"
+
+        count = self._counts.get(key, 0) + 1
+        self._counts[key] = count
+        unique = base if count == 1 else f"{base}{SEP}{count}"
+        traced_item = TracedItem(unique, [], [], "fixture")
+        lst.append(traced_item)
+        self._item_stack.append(traced_item)
+        traced_item.deps = self._deps_for(requesting_module_path, requesting_test_nodeid)
+
+        self._pending[id(node)] = PendingFixture(
+            traced_item=traced_item,
+            definition_module_path=module_path,
+            unique_name=unique,
+            scope=scope,
+            requesting_module_path=requesting_module_path,
+            requesting_test_nodeid=requesting_test_nodeid,
+        )
+
         return True
 
     def finalize_item(self, node: Union[FixtureDef, Item]):
-        # test items currently don't need any finalization
         if isinstance(node, Item):
             return
 
-        bucket, unique, executed = self._pending.pop(id(node))
-        lst = self.data[bucket]
+        pending = self._pending.pop(id(node))
+        self._item_stack.pop()
 
-        if not executed:  # cached call – already resolved
+        if not pending.traced_item.traces:
+            self.data[pending.definition_module_path].remove(pending.traced_item)
             return
 
-        # The freshly added TracedItem is lst[-1]
-        # this ordering is guaranteed by pytest
-        ti = lst[-1]
-        if not ti.traces:  # ran but produced no traces, discard
-            lst.pop()
-            return
+        json_path = pending.definition_module_path.with_suffix(".json")
+        ref = (json_path / pending.unique_name).as_posix()
 
-        # record it so later nodes see the latest fixture instantiation
-        json_bucket = bucket.with_suffix(".json")
-        self._executed_fixtures.append((json_bucket / unique).as_posix())
-
-    def _resolve_deps(self, node: Union[FixtureDef, Item]):
-        wanted = set(node.fixturenames if isinstance(node, Item) else node.argnames)
-        deps: list[str] = []
-
-        # walk the executed list backwards – first match for every base wins
-        # alternatively we could clear the fixtures, but this approach seems easier
-        for ref in reversed(self._executed_fixtures):
-            base = _base_name(Path(ref).name)
-            if base in wanted:
-                deps.append(ref)
-                wanted.remove(base)
-                if not wanted:
-                    break
-        # `reversed(self._executed_fixtures)` iterates from newest to oldest
-        # the oldest are the first executed, and we want to maintain the
-        # execution order
-        self.current_item.deps = list(reversed(deps))
+        self._active_fixtures.append(
+            ActiveFixture(
+                ref=ref,
+                scope=pending.scope,
+                requesting_module_path=pending.requesting_module_path,
+                requesting_test_nodeid=pending.requesting_test_nodeid,
+            )
+        )
 
     def trace_deployment(self, **kwargs):
         self.current_item.traces.append({"trace_type": "deployment", **kwargs})
@@ -173,8 +248,8 @@ class TestExporter:
         self.current_item.traces.append({"trace_type": "clear_transient_storage"})
 
     def finalize_export(self):
-        for bucket_path, items in self.data.items():
-            out = bucket_path.with_suffix(".json")
+        for module_path, items in self.data.items():
+            out = module_path.with_suffix(".json")
             out.parent.mkdir(parents=True, exist_ok=True)
 
             by_name = {
