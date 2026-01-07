@@ -98,13 +98,19 @@ class LoadAnalysis(IRAnalysis):
         access_ops = InstAccessOps(ofst=op, size=IRLiteral(self.word_scale))
         return self.base_ptrs.segment_from_ops(access_ops)
 
+    def _normalize_operand(self, op: IROperand) -> IROperand:
+        """Normalize operand through assign chain for consistent lattice keys."""
+        if isinstance(op, IRVariable):
+            return self.dfg._traverse_assign_chain(op)
+        return op
+
     def get_read(self, inst: IRInstruction) -> IROperand | MemoryLocation:
         assert inst.opcode == self.space.load_op  # sanity
         if self.space in (addr_space.MEMORY, addr_space.TRANSIENT, addr_space.STORAGE):
             memloc = self.base_ptrs.get_read_location(inst, self.space)
             if memloc.is_fixed:
                 return memloc
-        return inst.operands[0]
+        return self._normalize_operand(inst.operands[0])
 
     def get_write(self, inst: IRInstruction) -> IROperand | MemoryLocation:
         assert inst.opcode == self.space.store_op  # sanity
@@ -112,7 +118,7 @@ class LoadAnalysis(IRAnalysis):
             memloc = self.base_ptrs.get_write_location(inst, self.space)
             if memloc.is_fixed:
                 return memloc
-        return inst.operands[1]
+        return self._normalize_operand(inst.operands[1])
 
     def _handle_bb(
         self, eff: Effects | str, load_opcode: str, store_opcode: str | None, bb: IRBasicBlock
@@ -130,20 +136,12 @@ class LoadAnalysis(IRAnalysis):
                 val, _ = inst.operands
                 ptr = self.get_write(inst)
                 memloc = self.get_memloc(ptr)
-                if memloc is None:
-                    lattice.clear()
-                    lattice[ptr] = OrderedSet([val])
-                    continue
-
-                assert memloc is not None
 
                 # kick out any conflicts
                 for existing_key in lattice.copy().keys():
                     existing_loc = self.get_memloc(existing_key)
-
-                    if store_opcode is not None:
-                        if self.mem_alias.may_alias(existing_loc, memloc):
-                            del lattice[existing_key]
+                    if self.mem_alias.may_alias(existing_loc, memloc):
+                        del lattice[existing_key]
 
                 lattice[ptr] = OrderedSet([val])
             elif isinstance(eff, Effects) and eff in inst.get_write_effects():
