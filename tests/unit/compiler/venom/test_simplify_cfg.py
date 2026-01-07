@@ -168,21 +168,19 @@ def test_merge_jump_other_successor_has_phi():
     """
 
     # After optimization:
+    # - other_source bypassed, _global jumps directly to branched
     # - passthrough bypassed, entry jumps directly to join
-    # - join's phi updated: @passthrough -> @entry
+    # - phis updated accordingly
     post = """
     _global:
         %cond = source
-        jnz %cond, @entry, @other_source
+        jnz %cond, @entry, @branched
 
     entry:
         jnz %cond, @join, @branched
 
-    other_source:
-        jmp @branched
-
     branched:
-        %x = phi @entry, %cond, @other_source, %cond
+        %x = phi @entry, %cond, @_global, %cond
         jmp @join
 
     join:
