@@ -884,7 +884,8 @@ class TestBitwiseSoundness:
     def test_shr_soundness(self, shift: int, value: int) -> None:
         """SHR: result must be in computed range."""
         var_x = IRVariable("%x")
-        inst = make_inst("shr", shift, var_x)
+        # Syntax: shr SHIFT, VALUE -> operands[-1]=SHIFT, operands[-2]=VALUE
+        inst = make_inst("shr", var_x, shift)
         state = {var_x: ValueRange.constant(value)}
         result_range = _eval_shr(inst, state)
         actual = eval_evm_shr(shift, value)
@@ -897,7 +898,7 @@ class TestBitwiseSoundness:
     def test_shl_soundness(self, shift: int, value: int) -> None:
         """SHL: result must be in computed range."""
         var_x = IRVariable("%x")
-        inst = make_inst("shl", shift, var_x)
+        inst = make_inst("shl", var_x, shift)
         state = {var_x: ValueRange.constant(value)}
         result_range = _eval_shl(inst, state)
         actual = eval_evm_shl(shift, value)
@@ -910,7 +911,7 @@ class TestBitwiseSoundness:
     def test_sar_soundness(self, shift: int, value: int) -> None:
         """SAR (arithmetic shift): result must be in computed range."""
         var_x = IRVariable("%x")
-        inst = make_inst("sar", shift, var_x)
+        inst = make_inst("sar", var_x, shift)
         state = {var_x: ValueRange.constant(value)}
         result_range = _eval_sar(inst, state)
         actual = eval_evm_sar(shift, to_unsigned(value))
@@ -923,7 +924,7 @@ class TestBitwiseSoundness:
     def test_byte_soundness(self, n: int, value: int) -> None:
         """BYTE: result must be in computed range."""
         var_x = IRVariable("%x")
-        inst = make_inst("byte", n, var_x)
+        inst = make_inst("byte", var_x, n)
         state = {var_x: ValueRange.constant(to_signed(value))}
         result_range = _eval_byte(inst, state)
         actual = eval_evm_byte(n, value)
@@ -935,7 +936,7 @@ class TestBitwiseSoundness:
         """Shift by 256 must return 0."""
         var_x = IRVariable("%x")
         for opcode, eval_fn in [("shr", _eval_shr), ("shl", _eval_shl)]:
-            inst = make_inst(opcode, 256, var_x)
+            inst = make_inst(opcode, var_x, 256)
             state = {var_x: ValueRange.constant(UINT256_MAX)}
             result_range = eval_fn(inst, state)
             assert value_in_range(0, result_range), f"{opcode} by 256 must include 0"
@@ -1031,6 +1032,52 @@ class TestBitwiseSoundness:
         assert (
             result2.is_constant and result2.lo == test_val
         ), f"NOT(NOT({test_val})) should be {test_val}, got {result2}"
+
+    def test_and_with_all_ones_identity(self) -> None:
+        """AND with -1 (all bits set) should be identity.
+
+        Regression test: Previously returned [0, UNSIGNED_MAX] which doesn't
+        include negative values in signed range comparison.
+        """
+        var_x = IRVariable("%x")
+        # Input range includes negatives
+        test_range = ValueRange((-128, 127))
+        inst = make_inst("and", var_x, -1)
+        state = {var_x: test_range}
+        result_range = _eval_and(inst, state)
+
+        # AND with -1 is identity, should preserve input range
+        assert (
+            result_range.bounds == test_range.bounds
+        ), f"AND with -1 should be identity, expected {test_range}, got {result_range}"
+
+        # Verify a negative value is in range
+        assert value_in_range(to_unsigned(-128), result_range), "-128 should be in result of AND -1"
+
+    def test_xor_self_with_bottom_returns_bottom(self) -> None:
+        """XOR of variable with itself when variable is BOTTOM should return BOTTOM.
+
+        Regression test: Previously returned 0 without checking for BOTTOM input.
+        """
+        var_x = IRVariable("%x")
+        inst = make_inst("xor", var_x, var_x)
+        state = {var_x: ValueRange.empty()}
+        result_range = _eval_xor(inst, state)
+
+        assert (
+            result_range.is_empty
+        ), f"XOR self with BOTTOM input should return BOTTOM, got {result_range}"
+
+    def test_and_with_bottom_returns_bottom(self) -> None:
+        """AND with BOTTOM input should return BOTTOM."""
+        var_x = IRVariable("%x")
+        inst = make_inst("and", var_x, 255)
+        state = {var_x: ValueRange.empty()}
+        result_range = _eval_and(inst, state)
+
+        assert (
+            result_range.is_empty
+        ), f"AND with BOTTOM input should return BOTTOM, got {result_range}"
 
 
 # =============================================================================
