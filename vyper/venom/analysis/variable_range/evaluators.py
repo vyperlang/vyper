@@ -154,11 +154,18 @@ def _eval_and(inst: IRInstruction, state: RangeState) -> ValueRange:
     - x = -1 (= 0xFF...FF): result = 0xFF = 255
 
     So the result should be [0, 255], not [0, 127].
+
+    Special case: AND with -1 (all bits set) is identity, so return
+    the input range unchanged.
     """
     first = inst.operands[-1]
     second = inst.operands[-2]
     first_range = _operand_range(first, state)
     second_range = _operand_range(second, state)
+
+    if first_range.is_empty or second_range.is_empty:
+        return ValueRange.empty()
+
     literal: Optional[int] = None
     other_range: Optional[ValueRange] = None
 
@@ -171,6 +178,10 @@ def _eval_and(inst: IRInstruction, state: RangeState) -> ValueRange:
 
     if literal is None or other_range is None:
         return ValueRange.top()
+
+    # AND with -1 (all bits set) is identity
+    if literal == UNSIGNED_MAX:
+        return other_range
 
     # If the range includes negative values, those are large unsigned values
     # with potentially all bits set in the low positions. The AND result
@@ -506,17 +517,17 @@ def _eval_xor(inst: IRInstruction, state: RangeState) -> ValueRange:
     """
     first = inst.operands[-1]
     second = inst.operands[-2]
-
-    # Self-xor optimization: xor %x, %x = 0
-    if isinstance(first, IRVariable) and isinstance(second, IRVariable):
-        if first == second:
-            return ValueRange.constant(0)
-
     first_range = _operand_range(first, state)
     second_range = _operand_range(second, state)
 
     if first_range.is_empty or second_range.is_empty:
         return ValueRange.empty()
+
+    # Self-xor optimization: xor %x, %x = 0
+    # Must check after empty check to return BOTTOM for unreachable code
+    if isinstance(first, IRVariable) and isinstance(second, IRVariable):
+        if first == second:
+            return ValueRange.constant(0)
 
     # Both constants: compute exact result
     if first_range.is_constant and second_range.is_constant:
