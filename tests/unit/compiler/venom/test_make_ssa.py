@@ -234,6 +234,91 @@ def test_self_assignment_in_loop():
     _check_pre_post(pre, post)
 
 
+def test_phi_all_same_values():
+    """
+    Test phi where all incoming values are identical.
+
+    When multiple CFG predecessors all provide the same value,
+    the phi should be simplified to an assign.
+    """
+    pre = """
+    function diamond {
+    entry:
+        %x = mload 0
+        %cond = mload 32
+        jnz %cond, @left, @right
+    left:
+        %x = add %x, 1
+        jmp @join
+    right:
+        %x = add %x, 1
+        jmp @join
+    join:
+        sink %x
+    }
+    """
+    # Both edges define %x with the same expression structure,
+    # but they're different SSA variables, so phi is needed
+    post = """
+    function diamond {
+    entry:
+        %x = mload 0
+        %cond = mload 32
+        jnz %cond, @left, @right
+    left:
+        %x:1 = add %x, 1
+        jmp @join
+    right:
+        %x:2 = add %x, 1
+        jmp @join
+    join:
+        %x:3 = phi @left, %x:1, @right, %x:2
+        sink %x:3
+    }
+    """
+    _check_pre_post(pre, post)
+
+
+def test_phi_all_same_values_simplify():
+    """
+    Test phi simplification when all incoming values are actually the same variable.
+
+    This covers the optimization path where after removing self-references,
+    all remaining phi operands have identical values.
+    """
+    pre = """
+    function diamond_same {
+    entry:
+        %x = mload 0
+        %cond = mload 32
+        jnz %cond, @left, @right
+    left:
+        jmp @join
+    right:
+        jmp @join
+    join:
+        sink %x
+    }
+    """
+    # %x is not redefined in either branch, so no phi needed at join
+    # (liveness check in _place_phi prevents phi placement)
+    post = """
+    function diamond_same {
+    entry:
+        %x = mload 0
+        %cond = mload 32
+        jnz %cond, @left, @right
+    left:
+        jmp @join
+    right:
+        jmp @join
+    join:
+        sink %x
+    }
+    """
+    _check_pre_post(pre, post)
+
+
 @pytest.mark.hevm
 def test_make_ssa_error():
     code = """
