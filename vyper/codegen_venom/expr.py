@@ -452,15 +452,14 @@ class Expr:
             else:  # NotEq
                 return VyperValue.from_stack_op(self.builder.iszero(self.builder.eq(left_hash, right_hash)), result_typ)
 
-        # Non-bytestring: get values directly
-        left = Expr(node.left, self.ctx).lower_value()
-        right = Expr(node.right, self.ctx).lower_value()
-
-        # Membership tests for Flag types
+        # Handle membership tests (In/NotIn) - need special handling for arrays
         if isinstance(op, (vy_ast.In, vy_ast.NotIn)):
+            left = Expr(node.left, self.ctx).lower_value()
+
             if isinstance(right_typ, FlagT):
                 # x in flags: check if (x & flags) != 0
                 # x not in flags: check if (x & flags) == 0
+                right = Expr(node.right, self.ctx).lower_value()
                 intersection = self.builder.and_(left, right)
                 if isinstance(op, vy_ast.In):
                     # iszero(iszero(x)) = 1 if x != 0
@@ -476,10 +475,14 @@ class Expr:
                         result_typ
                     )
                 # For storage/memory arrays, use loop with early break
-                location = node.right._expr_info.location
+                right_val = Expr(node.right, self.ctx).lower()
                 return VyperValue.from_stack_op(self._lower_array_membership(
-                    left, right, right_typ, location, isinstance(op, vy_ast.In)
+                    left, self.ctx.unwrap(right_val), right_typ, right_val.location, isinstance(op, vy_ast.In)
                 ), result_typ)
+
+        # Non-bytestring: get values directly
+        left = Expr(node.left, self.ctx).lower_value()
+        right = Expr(node.right, self.ctx).lower_value()
 
         # Determine if we need signed or unsigned comparison
         # UINT256 uses unsigned comparisons; all other types use signed
