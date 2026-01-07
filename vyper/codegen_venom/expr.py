@@ -1168,6 +1168,10 @@ class Expr:
             - if element == needle: result = 1, break
         - return result (or iszero(result) for not in)
         """
+        # Constants have UNSET location - use MEMORY sizing (same as CODE)
+        if location == DataLocation.UNSET:
+            location = DataLocation.MEMORY
+
         # Determine word scale based on location
         # Storage: 1 slot per word, Memory: 32 bytes per word
         word_scale = 1 if location in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
