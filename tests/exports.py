@@ -133,9 +133,7 @@ class TestExporter:
 
         return out
 
-    def set_item(
-        self, node: Union[FixtureDef, Item], will_execute: bool = True, *, request=None
-    ) -> bool:
+    def set_item(self, node: Union[FixtureDef, Item], *, request=None) -> bool:
         module_path = _module_export_path(node, self.test_root, self.export_dir)
 
         if module_path is None:
@@ -157,6 +155,12 @@ class TestExporter:
         key = (module_path, base)
         scope = str(node.scope) if hasattr(node, "scope") else "function"
 
+        assert scope in (
+            "session",
+            "module",
+            "function",
+        ), f"unsupported fixture scope {scope!r} for {base!r}"
+
         requesting_module_path: Optional[Path] = None
         requesting_test_nodeid: Optional[str] = None
 
@@ -168,10 +172,6 @@ class TestExporter:
             else:
                 requesting_module_path = self._get_requesting_module_path(request)
                 requesting_test_nodeid = request.node.nodeid
-
-        assert (
-            will_execute
-        ), "pytest_fixture_setup hook should only be called for non-cached fixtures"
 
         count = self._counts.get(key, 0) + 1
         self._counts[key] = count
