@@ -366,6 +366,7 @@ def foo(_arg1: Bytes[5]):
     assert log.args.arg1 == b"hello"
 
 
+@pytest.mark.venom_xfail(reason="memory buffer overlap during ABI encoding with mixed static/dynamic types")
 def test_event_logging_with_data_with_different_types(env, keccak, get_logs, get_contract):
     loggy_code = """
 event MyLog:

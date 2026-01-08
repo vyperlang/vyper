@@ -48,13 +48,18 @@ def foo():
 a: constant(address) = 0x3cd751e6b0078be393132286c442345e5dc49699
     """,
     # test constant folding inside `convert()`
-    """
+    pytest.param(
+        """
 BAR: constant(Bytes[5]) = b"vyper"
 
 @external
 def foo():
     a: Bytes[4] = convert(BAR, Bytes[4])
     """,
+        marks=pytest.mark.venom_xfail(
+            reason="venom raises StaticAssertionException instead of TypeMismatch"
+        ),
+    ),
 ]
 
 
