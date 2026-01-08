@@ -546,6 +546,33 @@ class VenomCodegenContext:
         """
         self._store_memory_to_storage(buf, slot, word_count)
 
+    def code_to_memory(self, offset: IROperand, dst: IROperand, word_count: int) -> None:
+        """Copy multi-word immutable from CODE to memory."""
+        b = self.builder
+        for i in range(word_count):
+            byte_offset = i * 32
+            if byte_offset == 0:
+                imm_offset = offset
+            elif isinstance(offset, IRLiteral):
+                imm_offset = IRLiteral(offset.value + byte_offset)
+            else:
+                imm_offset = b.add(offset, IRLiteral(byte_offset))
+
+            if self.immutables_alloca is not None:
+                ptr = b.gep(self.immutables_alloca, imm_offset)
+                word = b.mload(ptr)
+            else:
+                word = b.dload(imm_offset)
+
+            if byte_offset == 0:
+                mem_ptr = dst
+            elif isinstance(dst, IRLiteral):
+                mem_ptr = IRLiteral(dst.value + byte_offset)
+            else:
+                mem_ptr = b.add(dst, IRLiteral(byte_offset))
+
+            b.mstore(mem_ptr, word)
+
     def _load_storage_to_memory(self, slot: IROperand, buf: IROperand, word_count: int) -> None:
         """Load multi-word storage value to memory buffer.
 
@@ -776,10 +803,10 @@ class VenomCodegenContext:
     def load_immutable(self, offset: IROperand, typ: VyperType) -> IROperand:
         """Load immutable value from deployed bytecode (runtime).
 
-        For primitive types (<=32 bytes), returns dload result.
-        For multi-word types, allocates memory buffer and copies.
+        For primitive word types, returns dload result directly.
+        For complex types (structs, arrays), allocates memory buffer and copies.
         """
-        if typ.memory_bytes_required <= 32:
+        if typ._is_prim_word:
             return self.builder.dload(offset)
         else:
             # Multi-word immutable: copy to memory buffer
@@ -813,10 +840,10 @@ class VenomCodegenContext:
     def load_immutable_ctor(self, offset: IROperand, typ: VyperType) -> IROperand:
         """Load immutable value during constructor (uses GEP + mload).
 
-        For primitive types (<=32 bytes), returns single mload result.
-        For multi-word types, allocates memory buffer and copies using mload.
+        For primitive word types, returns single mload result directly.
+        For complex types (structs, arrays), allocates memory buffer and copies.
         """
-        if typ.memory_bytes_required <= 32:
+        if typ._is_prim_word:
             if self.immutables_alloca is not None:
                 ptr = self.builder.gep(self.immutables_alloca, offset)
                 return self.builder.mload(ptr)

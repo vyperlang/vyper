@@ -38,11 +38,17 @@ def lower_keccak256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         # sha3(length, data_ptr) - builder emits in EVM order
         arg_vv = Expr(arg_node, ctx).lower()
 
-        # sha3 only works on memory - copy storage/transient data first
+        # sha3 only works on memory - copy storage/transient/code data first
         if arg_vv.location is not None and arg_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
             buf_val = ctx.new_temporary_value(arg_t)
             ctx.slot_to_memory(arg_vv.operand, buf_val.operand, arg_t.storage_size_in_words, arg_vv.location)
             # Hash from memory buffer
+            data_ptr = ctx.bytes_data_ptr(buf_val)
+            length = ctx.bytestring_length(buf_val)
+        elif arg_vv.location is not None and arg_vv.location == DataLocation.CODE:
+            # Immutable bytestring: copy to memory first
+            buf_val = ctx.new_temporary_value(arg_t)
+            ctx.code_to_memory(arg_vv.operand, buf_val.operand, arg_t.storage_size_in_words)
             data_ptr = ctx.bytes_data_ptr(buf_val)
             length = ctx.bytestring_length(buf_val)
         else:
@@ -84,11 +90,17 @@ def lower_sha256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         # Variable-length bytes/string
         arg_vv = Expr(arg_node, ctx).lower()
 
-        # staticcall only works with memory - copy storage/transient data first
+        # staticcall only works with memory - copy storage/transient/code data first
         if arg_vv.location is not None and arg_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
             buf_val = ctx.new_temporary_value(arg_t)
             ctx.slot_to_memory(arg_vv.operand, buf_val.operand, arg_t.storage_size_in_words, arg_vv.location)
             # Hash from memory buffer
+            data_ptr = ctx.bytes_data_ptr(buf_val)
+            length = ctx.bytestring_length(buf_val)
+        elif arg_vv.location is not None and arg_vv.location == DataLocation.CODE:
+            # Immutable bytestring: copy to memory first
+            buf_val = ctx.new_temporary_value(arg_t)
+            ctx.code_to_memory(arg_vv.operand, buf_val.operand, arg_t.storage_size_in_words)
             data_ptr = ctx.bytes_data_ptr(buf_val)
             length = ctx.bytestring_length(buf_val)
         else:
