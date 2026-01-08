@@ -155,10 +155,12 @@ def safe_floordiv(b: VenomBuilder, x: IROperand, y: IROperand, typ: IntegerT) ->
     return res
 
 
-def safe_mod(b: VenomBuilder, x: IROperand, y: IROperand, typ: IntegerT) -> IROperand:
+def safe_mod(
+    b: VenomBuilder, x: IROperand, y: IROperand, typ: Union[IntegerT, DecimalT]
+) -> IROperand:
     """Modulo with divisor check."""
-    if not isinstance(typ, IntegerT):
-        raise CompilerPanic("% operator only valid for integers")
+    if not isinstance(typ, (IntegerT, DecimalT)):
+        raise CompilerPanic("% operator only valid for integers and decimals")
 
     is_signed = typ.is_signed
 
