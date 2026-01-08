@@ -488,3 +488,237 @@ def bar({params_abstract}){with_arrow(return_type_abstract)}: ...
         get_contract(contract, input_bundle=input_bundle)
 
     assert message in e.value.message
+
+
+VALID_DECORATOR_OVERRIDES = [
+    # abstract_decorators, override_decorators
+    # Mutability only - same mutability
+    ("@payable", "@payable"),
+    ("@nonpayable", "@nonpayable"),
+    ("@view", "@view"),
+    ("@pure", "@pure"),
+    ("", ""),
+    # Mutability only - stricter mutability (valid)
+    ("@payable", "@nonpayable"),
+    ("@payable", ""),
+    ("@payable", "@view"),
+    ("@payable", "@pure"),
+    ("@nonpayable", "@view"),
+    ("@nonpayable", "@pure"),
+    ("", "@view"),
+    ("", "@pure"),
+    ("@view", "@pure"),
+    # Nonreentrant only - matching
+    ("@nonreentrant", "@nonreentrant"),
+    # Nonreentrant + mutability combinations (valid)
+    ("@nonreentrant\n@nonpayable", "@nonreentrant\n@nonpayable"),
+    ("@nonreentrant\n@view", "@nonreentrant\n@view"),
+    ("@nonreentrant\n@payable", "@nonreentrant\n@nonpayable"),
+    ("@nonreentrant\n@payable", "@nonreentrant"),
+    ("@nonreentrant", "@nonreentrant\n@view"),
+    ("@nonreentrant\n@nonpayable", "@nonreentrant\n@view"),
+    ("@nonreentrant\n@payable", "@nonreentrant\n@view"),
+]
+
+
+@pytest.mark.parametrize("abstract_decorators,override_decorators", VALID_DECORATOR_OVERRIDES)
+def test_decorator_override_valid(
+    get_contract, make_input_bundle, abstract_decorators, override_decorators
+):
+    """Test valid decorator overrides (including mutability and nonreentrant)"""
+
+    contract = f"""
+import foo
+
+initializes: foo
+
+@override(foo)
+{override_decorators}
+def bar() -> uint256:
+    return 42
+    """
+
+    foo = f"""
+@abstract
+{abstract_decorators}
+def bar() -> uint256: ...
+    """
+
+    input_bundle = make_input_bundle({"foo.vy": foo})
+    # Should compile without errors
+    get_contract(contract, input_bundle=input_bundle)
+
+
+INVALID_DECORATOR_OVERRIDES = [
+    # abstract_decorators, override_decorators, expected_message, expected_hint
+    # Mutability only - less strict (invalid)
+    (
+        "@nonpayable",
+        "@payable",
+        "Override mutability mismatch: Got payable, but expected nonpayable (or stricter)",
+        None,
+    ),
+    (
+        "",
+        "@payable",
+        "Override mutability mismatch: Got payable, but expected nonpayable (or stricter)",
+        None,
+    ),
+    (
+        "@view",
+        "@nonpayable",
+        "Override mutability mismatch: Got nonpayable, but expected view (or stricter)",
+        None,
+    ),
+    (
+        "@view",
+        "",
+        "Override mutability mismatch: Got nonpayable, but expected view (or stricter)",
+        None,
+    ),
+    (
+        "@view",
+        "@payable",
+        "Override mutability mismatch: Got payable, but expected view (or stricter)",
+        None,
+    ),
+    ("@pure", "@view", "Override mutability mismatch: Got view, but expected pure", None),
+    (
+        "@pure",
+        "@nonpayable",
+        "Override mutability mismatch: Got nonpayable, but expected pure",
+        None,
+    ),
+    ("@pure", "", "Override mutability mismatch: Got nonpayable, but expected pure", None),
+    ("@pure", "@payable", "Override mutability mismatch: Got payable, but expected pure", None),
+    # Nonreentrant mismatch
+    (
+        "@nonreentrant",
+        "",
+        "Override reentrancy mismatch: Override isn't non-reentrant, unlike the method it is"
+        " overriding.",
+        "add a @nonreentrant decorator",
+    ),
+    (
+        "@nonreentrant",
+        "@nonpayable",
+        "Override reentrancy mismatch: Override isn't non-reentrant, unlike the method it is"
+        " overriding.",
+        "add a @nonreentrant decorator",
+    ),
+    (
+        "",
+        "@nonreentrant",
+        "Override reentrancy mismatch: Override is non-reentrant, unlike the method it is"
+        " overriding.",
+        "remove the @nonreentrant decorator",
+    ),
+    (
+        "@nonpayable",
+        "@nonreentrant\n@nonpayable",
+        "Override reentrancy mismatch: Override is non-reentrant, unlike the method it is"
+        " overriding.",
+        "remove the @nonreentrant decorator",
+    ),
+    # Combined decorator mismatches - nonreentrant missing
+    (
+        "@nonreentrant\n@nonpayable",
+        "@nonpayable",
+        "Override reentrancy mismatch: Override isn't non-reentrant, unlike the method it is"
+        " overriding.",
+        "add a @nonreentrant decorator",
+    ),
+    (
+        "@nonreentrant\n@view",
+        "@view",
+        "Override reentrancy mismatch: Override isn't non-reentrant, unlike the method it is"
+        " overriding.",
+        "add a @nonreentrant decorator",
+    ),
+    (
+        "@nonreentrant\n@payable",
+        "@payable",
+        "Override reentrancy mismatch: Override isn't non-reentrant, unlike the method it is"
+        " overriding.",
+        "add a @nonreentrant decorator",
+    ),
+    # Combined decorator mismatches - nonreentrant added
+    (
+        "@view",
+        "@nonreentrant\n@view",
+        "Override reentrancy mismatch: Override is non-reentrant, unlike the method it is"
+        " overriding.",
+        "remove the @nonreentrant decorator",
+    ),
+    (
+        "@payable",
+        "@nonreentrant\n@payable",
+        "Override reentrancy mismatch: Override is non-reentrant, unlike the method it is"
+        " overriding.",
+        "remove the @nonreentrant decorator",
+    ),
+    # Combined decorator mismatches - mutability less strict
+    (
+        "@nonreentrant",
+        "@nonreentrant\n@payable",
+        "Override mutability mismatch: Got payable, but expected nonpayable (or stricter)",
+        None,
+    ),
+    (
+        "@nonreentrant\n@nonpayable",
+        "@nonreentrant\n@payable",
+        "Override mutability mismatch: Got payable, but expected nonpayable (or stricter)",
+        None,
+    ),
+    (
+        "@nonreentrant\n@view",
+        "@nonreentrant\n@nonpayable",
+        "Override mutability mismatch: Got nonpayable, but expected view (or stricter)",
+        None,
+    ),
+    (
+        "@nonreentrant\n@view",
+        "@nonreentrant\n@payable",
+        "Override mutability mismatch: Got payable, but expected view (or stricter)",
+        None,
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "abstract_decorators,override_decorators,expected_message,expected_hint",
+    INVALID_DECORATOR_OVERRIDES,
+)
+def test_decorator_override_invalid(
+    get_contract,
+    make_input_bundle,
+    abstract_decorators,
+    override_decorators,
+    expected_message,
+    expected_hint,
+):
+    """Test invalid decorator overrides (including mutability and nonreentrant)"""
+
+    contract = f"""
+import foo
+
+initializes: foo
+
+@override(foo)
+{override_decorators}
+def bar() -> uint256:
+    return 42
+    """
+
+    foo = f"""
+@abstract
+{abstract_decorators}
+def bar() -> uint256: ...
+    """
+
+    input_bundle = make_input_bundle({"foo.vy": foo})
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    assert e.value.message == expected_message
+    assert e.value.hint == expected_hint

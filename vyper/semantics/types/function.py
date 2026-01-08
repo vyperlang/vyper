@@ -721,6 +721,35 @@ class ContractFunctionT(VyperType):
                     )
                 )
 
+        if self.mutability > abstract_t.mutability:
+            # There is nothing stricter than @pure
+            or_stricter = " (or stricter)" if abstract_t.mutability != StateMutability.PURE else ""
+
+            discrepancies.append(
+                FunctionDeclarationException(
+                    "Override mutability mismatch: "
+                    f"Got {self.mutability}, but expected {abstract_t.mutability}{or_stricter}",
+                    self.ast_def,
+                    abstract_t.ast_def,
+                )
+            )
+
+        if self.nonreentrant != abstract_t.nonreentrant:
+
+            def _is(b: bool) -> str:
+                return "is" if b else "isn't"
+
+            action = "add a" if abstract_t.nonreentrant else "remove the"
+            discrepancies.append(
+                FunctionDeclarationException(
+                    f"Override reentrancy mismatch: Override {_is(self.nonreentrant)} non-reentrant"
+                    f", unlike the method it is overriding.",
+                    self.ast_def,
+                    abstract_t.ast_def,
+                    hint=f"{action} @nonreentrant decorator",
+                )
+            )
+
         return discrepancies
 
     @cached_property
