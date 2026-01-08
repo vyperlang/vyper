@@ -232,6 +232,48 @@ def test_offsets():
     _check_pre_post(pre, post)
 
 
+@pytest.mark.parametrize("iszero_count", range(5))
+def test_assert_unreachable_iszero_chain(iszero_count):
+    """
+    Test that iszero chains are optimized for assert_unreachable
+    the same way they are for jnz (truthy context)
+    """
+    iszero_chain = ""
+    for i in range(iszero_count):
+        new = i + 1
+        iszero_chain += f"""
+        %cond{new} = iszero %cond{i}"""
+    iszero_chain_output = f"cond{iszero_count}"
+
+    pre = f"""
+    main:
+        %par = source
+        %cond0 = add %par, 64
+        {iszero_chain}
+        assert_unreachable %{iszero_chain_output}
+        sink %par
+    """
+
+    if iszero_count % 2 == 1:
+        post_chain = "%cond1 = iszero %cond0"
+        assert_cond = "cond1"
+    else:
+        post_chain = ""
+        assert_cond = "cond0"
+
+    # note: add operands flipped due to commutative normalization
+    post = f"""
+    main:
+        %par = source
+        %cond0 = add 64, %par
+        {post_chain}
+        assert_unreachable %{assert_cond}
+        sink %par
+    """
+
+    _check_pre_post(pre, post)
+
+
 # Test the case of https://github.com/vyperlang/vyper/issues/4288
 def test_ssa_after_algebraic_optimization():
     code = """
