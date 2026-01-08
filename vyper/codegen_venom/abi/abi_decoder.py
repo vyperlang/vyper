@@ -352,8 +352,12 @@ def _decode_dyn_array(
         static_loc = b.add(src_data, b.mul(i, IRLiteral(elem_static_size)))
         offset_val = b.load(static_loc, loc)
         elem_src_ptr = b.add(src_data, offset_val)
-        # Security check
+        # Security check: prevent underflow
         b.assert_(b.iszero(b.lt(elem_src_ptr, src_data)))
+        # Bounds check: ensure element static footprint fits within buffer
+        if hi is not None:
+            elem_end = b.add(elem_src_ptr, IRLiteral(elem_static_size))
+            b.assert_(b.iszero(b.gt(elem_end, hi)))
     else:
         elem_src_ptr = b.add(src_data, b.mul(i, IRLiteral(elem_static_size)))
 
@@ -385,6 +389,12 @@ def _decode_complex(
     Iterates over members and decodes each one.
     """
     b = ctx.builder
+
+    # Bounds check: ensure the static footprint fits within the buffer
+    if hi is not None:
+        static_size = typ.abi_type.static_size()
+        item_end = b.add(src.operand, IRLiteral(static_size))
+        b.assert_(b.iszero(b.gt(item_end, hi)))
 
     if is_tuple_like(typ):
         items = list(typ.tuple_items())  # type: ignore[attr-defined]

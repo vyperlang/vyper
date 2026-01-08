@@ -1882,7 +1882,12 @@ class Expr:
             b.returndatacopy(buf._ptr, IRLiteral(0), rds)
 
             # Compute hi bound for decode (prevents overread)
-            hi = b.add(buf._ptr, rds)
+            # Cap at return_abi_size to handle truncation case
+            max_return_size = wrapped_return_t.abi_type.size_bound()
+            payload_bound = b.select(
+                b.lt(rds, IRLiteral(max_return_size)), rds, IRLiteral(max_return_size)
+            )
+            hi = b.add(buf._ptr, payload_bound)
             src = self._make_ptr_value(buf._ptr, DataLocation.MEMORY, wrapped_return_t)
             abi_decode_to_buf(self.ctx, result_val.operand, src, hi=hi)
 
@@ -1903,7 +1908,12 @@ class Expr:
             b.returndatacopy(buf._ptr, IRLiteral(0), rds)
 
             # Compute hi bound for decode (prevents overread)
-            hi = b.add(buf._ptr, rds)
+            # Cap at return_abi_size to handle truncation case
+            max_return_size = wrapped_return_t.abi_type.size_bound()
+            payload_bound = b.select(
+                b.lt(rds, IRLiteral(max_return_size)), rds, IRLiteral(max_return_size)
+            )
+            hi = b.add(buf._ptr, payload_bound)
             src = self._make_ptr_value(buf._ptr, DataLocation.MEMORY, wrapped_return_t)
             abi_decode_to_buf(self.ctx, result_val.operand, src, hi=hi)
 
