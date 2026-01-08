@@ -9,6 +9,10 @@ pytestmark = pytest.mark.hevm
 _check_pre_post = PrePostChecker([SimplifyCFGPass])
 
 
+def _check_no_change(pre: str, hevm: bool = True):
+    _check_pre_post(pre, pre, hevm=hevm)
+
+
 def test_phi_reduction_after_block_pruning():
     pre = """
     _global:
@@ -189,3 +193,117 @@ def test_merge_jump_other_successor_has_phi():
     """
 
     _check_pre_post(pre, post)
+
+
+def test_merge_jump_missing_phi_label():
+    """
+    If the phi in the jump target does not mention the bypassed block,
+    the merge should still succeed without raising.
+    """
+    pre = """
+    _global:
+        %cond = source
+        jnz %cond, @passthrough, @other
+
+    other:
+        %x = source
+        jmp @join
+
+    passthrough:
+        jmp @join
+
+    join:
+        %y = phi @other, %x
+        sink %y
+    """
+
+    post = """
+    _global:
+        %cond = source
+        jnz %cond, @join, @other
+
+    other:
+        %x = source
+        jmp @join
+
+    join:
+        %y = %x
+        sink %y
+    """
+
+    _check_pre_post(pre, post, hevm=False)
+
+
+def test_merge_jump_dedup_phi_when_direct_edge():
+    """
+    If the bypassed block's target is already a successor, avoid duplicating phi labels.
+    """
+    pre = """
+    _global:
+        %cond = source
+        jnz %cond, @entry, @other
+
+    entry:
+        %x = source
+        jnz %cond, @passthrough, @join
+
+    other:
+        %o = source
+        jmp @join
+
+    passthrough:
+        jmp @join
+
+    join:
+        %y = phi @entry, %x, @passthrough, %x, @other, %o
+        sink %y
+    """
+
+    post = """
+    _global:
+        %cond = source
+        jnz %cond, @entry, @other
+
+    entry:
+        %x = source
+        jnz %cond, @join, @join
+
+    other:
+        %o = source
+        jmp @join
+
+    join:
+        %y = phi @entry, %x, @other, %o
+        sink %y
+    """
+
+    _check_pre_post(pre, post, hevm=False)
+
+
+def test_merge_jump_conflicting_phi_operands():
+    """
+    Skip merging when the same predecessor would imply different phi operands.
+    """
+    pre = """
+    _global:
+        %cond = source
+        jnz %cond, @entry, @other
+
+    entry:
+        %x = source
+        %y = source
+        jnz %cond, @passthrough, @join
+
+    other:
+        %o = source
+        jmp @join
+
+    passthrough:
+        jmp @join
+
+    join:
+        %z = phi @entry, %x, @passthrough, %y, @other, %o
+        sink %z
+    """
+
+    _check_no_change(pre, hevm=False)
