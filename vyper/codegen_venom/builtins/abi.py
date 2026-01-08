@@ -136,7 +136,14 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     # Build input to encode
     if len(args) == 1 and not ensure_tuple:
         # Single arg without tuple wrapping
-        encode_input = args[0]
+        if arg_types[0]._is_prim_word:
+            # abi_encode_to_buf expects a memory pointer, not a value.
+            # Store the value to a temporary memory location.
+            tmp = ctx.new_temporary_value(arg_types[0])
+            b.mstore(tmp.operand, args[0])
+            encode_input = tmp.operand
+        else:
+            encode_input = args[0]
         encode_type = arg_types[0]
     else:
         # Create tuple from args
@@ -152,10 +159,10 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     buf_val = ctx.new_temporary_value(buf_t)
 
     if method_id is not None:
-        # Write method_id at offset 4 (stored as 32 bytes, left-aligned)
+        # Write method_id at offset 32 (start of data area, after 32-byte length field)
         # method_id is 4 bytes, so shift left by 28 bytes = 224 bits
         method_id_word = method_id << 224
-        b.mstore(b.add(buf_val.operand, IRLiteral(4)), IRLiteral(method_id_word))
+        b.mstore(b.add(buf_val.operand, IRLiteral(32)), IRLiteral(method_id_word))
 
         # Encode data starting at offset 36
         data_dst = b.add(buf_val.operand, IRLiteral(36))
