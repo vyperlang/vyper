@@ -68,10 +68,27 @@ def _check_create_result(b, addr: IROperand, revert_on_failure: bool) -> IROpera
     """Optionally check CREATE/CREATE2 result and revert on failure.
 
     CREATE/CREATE2 return 0 on failure (out of gas or constructor reverts).
-    If revert_on_failure is True, we assert addr != 0.
+    If revert_on_failure is True, we check addr != 0 and bubble up revert data.
     """
     if revert_on_failure:
-        b.assert_(addr)
+        # Check if creation succeeded (addr != 0)
+        # If failed, copy and propagate revert data from the failed constructor
+        fail_bb = b.create_block("create_fail")
+        b.append_block(fail_bb)
+        exit_bb = b.create_block("create_ok")
+        b.append_block(exit_bb)
+
+        # jnz: if addr != 0, jump to exit (success), else fall through to fail
+        b.jnz(addr, exit_bb.label, fail_bb.label)
+
+        # Failure path: bubble up revert data
+        b.set_block(fail_bb)
+        revert_size = b.returndatasize()
+        b.returndatacopy(IRLiteral(0), IRLiteral(0), revert_size)
+        b.revert(IRLiteral(0), revert_size)
+
+        # Success path
+        b.set_block(exit_bb)
     return addr
 
 
