@@ -10,6 +10,7 @@ from vyper.exceptions import (
     ArgumentException,
     CallViolation,
     CompilerPanic,
+    ExceptionList,
     FunctionDeclarationException,
     InvalidLiteral,
     InvalidType,
@@ -208,6 +209,7 @@ class ContractFunctionT(VyperType):
     def get_variable_accesses(self):
         return self._variable_reads | self._variable_writes
 
+    # TODO: Update to use reachable_internal_functions_with_overrides ?
     def uses_state(self):
         return (
             self.nonreentrant
@@ -645,6 +647,81 @@ class ContractFunctionT(VyperType):
             return False
 
         return self.mutability == other.mutability
+
+    def override_discrepancies(self, abstract_t: "ContractFunctionT") -> ExceptionList:
+        assert self.is_internal
+        assert abstract_t.is_internal
+        assert abstract_t.is_abstract
+
+        parameters_override = self.arguments
+        return_type_override = self.return_type
+
+        parameters_abstract = abstract_t.arguments
+        return_type_abstract = abstract_t.return_type
+
+        discrepancies: ExceptionList = ExceptionList()
+
+        if len(parameters_override) != len(parameters_abstract):
+            discrepancies.append(
+                FunctionDeclarationException(
+                    "Override does not have the correct number of parameters. "
+                    f"Has {len(parameters_override)}, should have {len(parameters_abstract)}",
+                    self.ast_def,
+                    abstract_t.ast_def,
+                )
+            )
+        else:
+
+            def pretty_param(param: _FunctionArg) -> str:
+                return f"`{param.name}: {param.typ._id}`"
+
+            for param_override, param_abstract in zip(parameters_override, parameters_abstract):
+                if (
+                    param_override.name != param_abstract.name
+                    or not param_override.typ.is_supertype_of(param_abstract.typ)
+                ):
+                    discrepancies.append(
+                        FunctionDeclarationException(
+                            "Override parameter mismatch: "
+                            f"Got {pretty_param(param_override)}, "
+                            f"but expected {pretty_param(param_abstract)} (or a supertype)",
+                            param_override.ast_source,
+                            param_abstract.ast_source,
+                        )
+                    )
+
+        if return_type_abstract:
+            if return_type_override:
+                if not return_type_override.is_subtype_of(return_type_abstract):
+                    discrepancies.append(
+                        FunctionDeclarationException(
+                            "Override return type mismatch: "
+                            f"Got {return_type_override}, but expected {return_type_abstract}",
+                            self.ast_def,
+                            abstract_t.ast_def,
+                        )
+                    )
+            else:
+                discrepancies.append(
+                    FunctionDeclarationException(
+                        "Override return type mismatch: "
+                        f"Got no return type, but expected {return_type_abstract}",
+                        self.ast_def,
+                        abstract_t.ast_def,
+                    )
+                )
+        else:
+            if return_type_override:
+                discrepancies.append(
+                    FunctionDeclarationException(
+                        "Override return type mismatch: "
+                        f"Got {return_type_override}, but expected no return type",
+                        self.ast_def,
+                        abstract_t.ast_def,
+                    )
+                )
+
+        return discrepancies
 
     @cached_property
     def default_values(self) -> dict[str, vy_ast.VyperNode]:

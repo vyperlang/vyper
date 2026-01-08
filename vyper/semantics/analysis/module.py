@@ -68,6 +68,8 @@ def analyze_module(root_module_ast: vy_ast.Module) -> ModuleT:
     for module_ast in all_modules:
         _analyze_module_bodies(module_ast)
 
+    _modules_check_overrides(imports)
+
     _modules_call_graph_with_overrides(imports)
     _modules_compute_reachable_set_with_overrides(imports)
 
@@ -966,6 +968,16 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         struct_t = StructT.from_StructDef(node)
         node._metadata["struct_type"] = struct_t
         Namespace.add(node.name, struct_t)
+
+
+def _modules_check_overrides(imports: ImportDict):
+    for module_ast in imports:
+        for func in module_ast.get_children(vy_ast.FunctionDef):
+            abstract_t = func._metadata["func_type"]
+            if abstract_t.is_abstract:
+                override_t = abstract_t.overridden_by._metadata["func_type"]
+
+                override_t.override_discrepancies(abstract_t).raise_if_not_empty()
 
 
 # TODO: rewrite using fn_t.called_functions
