@@ -4,7 +4,15 @@ from vyper.compiler.settings import Settings
 TEST_CODE = """
 @internal
 def foo(a: uint256) -> uint256:
-    return a + 1
+    # make function large enough to prevent inlining by venom
+    b: uint256 = a + 1
+    c: uint256 = b * 2
+    d: uint256 = c + b
+    e: uint256 = d * c
+    f: uint256 = e + d
+    g: uint256 = f * e
+    h: uint256 = g + f
+    return h + g
 
 # force foo to not be inlined
 @external
