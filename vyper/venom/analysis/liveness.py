@@ -54,8 +54,9 @@ class LivenessAnalysis(IRAnalysis):
             if ins or outs:
                 # perf: only copy if changed
                 liveness = liveness.copy()
-                liveness.update(ins)
+                # liveness update: live_in = (live_out - defs) U uses
                 liveness.dropmany(outs)
+                liveness.update(ins)
 
             self.inst_to_liveness[instruction] = liveness
 
