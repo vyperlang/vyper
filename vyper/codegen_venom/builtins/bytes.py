@@ -139,9 +139,12 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         b.mstore(tmp_buf._ptr, src_val)
         src_data = tmp_buf._ptr
 
-    # Bounds check: start + length <= src_length
+    # Bounds check: start + length <= src_length, with overflow check
     end = b.add(start, length)
-    oob = b.gt(end, src_len)
+    # Check for arithmetic overflow (if end wrapped around, end < start)
+    arithmetic_overflow = b.lt(end, start)
+    buffer_oob = b.gt(end, src_len)
+    oob = b.or_(arithmetic_overflow, buffer_oob)
     b.assert_(b.iszero(oob))
 
     # Allocate output buffer
@@ -203,7 +206,10 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
             # msg.data: use calldatacopy, bounds check against calldatasize
             src_len = b.calldatasize()
             end = b.add(start, length)
-            oob = b.gt(end, src_len)
+            # Check for arithmetic overflow (if end wrapped around, end < start)
+            arithmetic_overflow = b.lt(end, start)
+            buffer_oob = b.gt(end, src_len)
+            oob = b.or_(arithmetic_overflow, buffer_oob)
             b.assert_(b.iszero(oob))
             # calldatacopy(destOffset, offset, size)
             b.calldatacopy(out_data.operand, start, length)
@@ -214,7 +220,10 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
             # self.code: use codecopy, bounds check against codesize
             src_len = b.codesize()
             end = b.add(start, length)
-            oob = b.gt(end, src_len)
+            # Check for arithmetic overflow (if end wrapped around, end < start)
+            arithmetic_overflow = b.lt(end, start)
+            buffer_oob = b.gt(end, src_len)
+            oob = b.or_(arithmetic_overflow, buffer_oob)
             b.assert_(b.iszero(oob))
             # codecopy(destOffset, offset, size)
             b.codecopy(out_data.operand, start, length)
@@ -225,7 +234,10 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
     addr = Expr(src_node.value, ctx).lower_value()
     src_len = b.extcodesize(addr)
     end = b.add(start, length)
-    oob = b.gt(end, src_len)
+    # Check for arithmetic overflow (if end wrapped around, end < start)
+    arithmetic_overflow = b.lt(end, start)
+    buffer_oob = b.gt(end, src_len)
+    oob = b.or_(arithmetic_overflow, buffer_oob)
     b.assert_(b.iszero(oob))
     # extcodecopy(address, destOffset, offset, size)
     b.extcodecopy(addr, out_data.operand, start, length)
