@@ -91,7 +91,12 @@ class Stmt:
         For primitive types (single word), this is a simple store.
         For complex types (multi-word), uses temp buffer to handle potential overlap.
 
+        IMPORTANT: RHS must be evaluated BEFORE LHS target pointer is computed.
+        This ensures proper semantics for cases like `c[0] = c.pop()` where
+        the RHS modifies the array length before the LHS bounds check.
+
         Reference: vyper/codegen/core.py:make_setter
+        Reference: vyper/codegen/stmt.py:parse_Assign (for evaluation order)
         """
         node = self.node
         assert isinstance(node, vy_ast.Assign)
@@ -103,11 +108,14 @@ class Stmt:
         if isinstance(target, vy_ast.Tuple):
             return self._lower_tuple_unpack()
 
-        # Get the destination pointer (with location info)
-        dst_ptr = self._get_target_ptr(target)
-
+        # IMPORTANT: Evaluate RHS first, then compute LHS target pointer.
+        # This matches legacy codegen and ensures proper semantics for cases
+        # like `c[0] = c.pop()` where RHS modifies array length.
         # lower_value() handles storage/code -> memory copy for complex types
         src = Expr(node.value, self.ctx).lower_value()
+
+        # Get the destination pointer (with location info)
+        dst_ptr = self._get_target_ptr(target)
 
         # For primitive word types, no overlap concern - just store
         if target_typ._is_prim_word:
@@ -900,14 +908,12 @@ class Stmt:
         else:
             arg_nodes = call_node.args
 
-        # Lower all argument expressions - primitives need values, complex need pointers
+        # Lower all argument expressions
+        # lower_value() handles storage/code -> memory copy for complex types
         args = []
         for arg in arg_nodes:
             arg_typ = arg._metadata["type"]
-            if arg_typ._is_prim_word:
-                args.append((Expr(arg, self.ctx).lower_value(), arg_typ))
-            else:
-                args.append((Expr(arg, self.ctx).lower().operand, arg_typ))
+            args.append((Expr(arg, self.ctx).lower_value(), arg_typ))
 
         # Split into indexed (topics) and non-indexed (data)
         topic_vals = []
