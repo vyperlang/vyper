@@ -132,11 +132,52 @@ def lower_uint256_mulmod(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     return b.mulmod(a_val, b_val, c_val)
 
 
+def lower_shift(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+    """
+    shift(x, bits) - bit shift operation (deprecated in favor of << / >> operators).
+
+    If bits < 0: right shift (sar for signed, shr for unsigned)
+    If bits >= 0: left shift (shl)
+    """
+    from vyper.codegen_venom.expr import Expr
+
+    b = ctx.builder
+
+    val = Expr(node.args[0], ctx).lower_value()
+    bits = Expr(node.args[1], ctx).lower_value()
+    val_typ = node.args[0]._metadata["type"]
+
+    # Generalized right shift: sar for signed, shr for unsigned
+    is_signed = val_typ.is_signed
+
+    # Check if bits < 0 at runtime
+    # EVM: slt(bits, 0) returns 1 if bits < 0
+    is_negative = b.slt(bits, IRLiteral(0))
+
+    # neg_bits = -bits = sub(0, bits)
+    neg_bits = b.sub(IRLiteral(0), bits)
+
+    # Right shift (when bits < 0)
+    if is_signed:
+        right_shifted = b.sar(neg_bits, val)
+    else:
+        right_shifted = b.shr(neg_bits, val)
+
+    # Left shift (when bits >= 0)
+    left_shifted = b.shl(bits, val)
+
+    # Select based on sign of bits
+    result = b.select(is_negative, right_shifted, left_shifted)
+
+    return result
+
+
 # Export handlers
 HANDLERS = {
     "unsafe_add": lower_unsafe_add,
     "unsafe_sub": lower_unsafe_sub,
     "unsafe_mul": lower_unsafe_mul,
+    "shift": lower_shift,
     "unsafe_div": lower_unsafe_div,
     "pow_mod256": lower_pow_mod256,
     "uint256_addmod": lower_uint256_addmod,
