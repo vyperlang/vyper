@@ -816,7 +816,7 @@ class Stmt:
 
         For external functions:
         1. Nonreentrant unlock (if applicable)
-        2. ABI encode the return value (if any)
+        2. ABI encode the return value (if any), unless @raw_return
         3. Return encoded data or stop
         """
         # Nonreentrant unlock
@@ -827,12 +827,27 @@ class Stmt:
             self.builder.stop()
             return
 
+        ret_typ = func_t.return_type
+        assert ret_typ is not None
+
+        # Raw return: return bytes directly without ABI encoding
+        # The @raw_return decorator bypasses ABI encoding for proxy patterns
+        if func_t.do_raw_return:
+            # ret_val is a pointer to [length (32 bytes)][data...]
+            # Copy to a fresh buffer to ensure it's in memory
+            buf_val = self.ctx.new_temporary_value(ret_typ)
+            self.ctx.store_memory(ret_val, buf_val.operand, ret_typ)
+
+            # Get length from first 32 bytes
+            return_len = self.builder.mload(buf_val.operand)
+            # Data starts at buf + 32
+            return_offset = self.builder.add(buf_val.operand, IRLiteral(32))
+            self.builder.return_(return_offset, return_len)
+            return
+
         # Valued return - ABI encode
         from vyper.codegen.core import calculate_type_for_external_return
         from vyper.codegen_venom.abi import abi_encode_to_buf
-
-        ret_typ = func_t.return_type
-        assert ret_typ is not None
 
         # Optimization: single word types don't need full encoding
         if ret_typ._is_prim_word:
