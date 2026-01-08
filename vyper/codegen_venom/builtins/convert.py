@@ -56,9 +56,9 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     elif isinstance(out_t, BytesM_T):
         return _to_bytes_m(arg, in_t, out_t, arg_node, ctx)
     elif isinstance(out_t, BytesT):
-        return _to_bytes(arg, in_t, out_t, ctx)
+        return _to_bytes(arg, in_t, out_t, arg_node, ctx)
     elif isinstance(out_t, StringT):
-        return _to_string(arg, in_t, out_t, ctx)
+        return _to_string(arg, in_t, out_t, arg_node, ctx)
     elif isinstance(out_t, FlagT):
         return _to_flag(arg, in_t, out_t, ctx)
     else:
@@ -279,46 +279,70 @@ def _to_bytes_m(
     return b.shl(IRLiteral(shift_bits), val)
 
 
-def _to_bytes(val: IROperand, in_t, out_t: BytesT, ctx: VenomCodegenContext) -> IROperand:
+def _to_bytes(
+    val: IROperand, in_t, out_t: BytesT, arg_node: vy_ast.VyperNode, ctx: VenomCodegenContext
+) -> IROperand:
     """
     Convert to dynamic bytes.
 
     From string: just reinterpret (check length)
     """
+    # Only bytestring types can be converted to Bytes
+    if not isinstance(in_t, _BytestringT):
+        raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
+
+    # Ban converting same type (e.g. Bytes[20] to Bytes[21] upcast is not a real conversion)
+    if isinstance(in_t, BytesT) and in_t.maxlen <= out_t.maxlen:
+        raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
+
+    # Can't downcast literals with known length (e.g. b"abc" to Bytes[2])
+    if isinstance(arg_node, vy_ast.Constant) and in_t.maxlen > out_t.maxlen:
+        raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
+
     b = ctx.builder
 
     # Both string->bytes and bytes->bytes are pointer casts
     # Just check length bounds
-    if isinstance(in_t, _BytestringT):
-        if out_t.maxlen < in_t.maxlen:
-            # Downcast: check actual length <= max
-            length = b.mload(val)
-            oob = b.gt(length, IRLiteral(out_t.maxlen))
-            b.assert_(b.iszero(oob))
-        # Return same pointer (reinterpreted)
-        return val
+    if out_t.maxlen < in_t.maxlen:
+        # Downcast: check actual length <= max
+        length = b.mload(val)
+        oob = b.gt(length, IRLiteral(out_t.maxlen))
+        b.assert_(b.iszero(oob))
 
-    raise CompilerPanic(f"Cannot convert {in_t} to bytes")
+    # Return same pointer (reinterpreted)
+    return val
 
 
-def _to_string(val: IROperand, in_t, out_t: StringT, ctx: VenomCodegenContext) -> IROperand:
+def _to_string(
+    val: IROperand, in_t, out_t: StringT, arg_node: vy_ast.VyperNode, ctx: VenomCodegenContext
+) -> IROperand:
     """
     Convert to string.
 
     From bytes: just reinterpret (check length)
     """
+    # Only bytestring types can be converted to String
+    if not isinstance(in_t, _BytestringT):
+        raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
+
+    # Ban converting same type (e.g. String[20] to String[21] upcast is not a real conversion)
+    if isinstance(in_t, StringT) and in_t.maxlen <= out_t.maxlen:
+        raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
+
+    # Can't downcast literals with known length (e.g. "abc" to String[2])
+    if isinstance(arg_node, vy_ast.Constant) and in_t.maxlen > out_t.maxlen:
+        raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
+
     b = ctx.builder
 
     # bytes->string and string->string are pointer casts
-    if isinstance(in_t, _BytestringT):
-        if out_t.maxlen < in_t.maxlen:
-            # Downcast: check actual length <= max
-            length = b.mload(val)
-            oob = b.gt(length, IRLiteral(out_t.maxlen))
-            b.assert_(b.iszero(oob))
-        return val
+    if out_t.maxlen < in_t.maxlen:
+        # Downcast: check actual length <= max
+        length = b.mload(val)
+        oob = b.gt(length, IRLiteral(out_t.maxlen))
+        b.assert_(b.iszero(oob))
 
-    raise CompilerPanic(f"Cannot convert {in_t} to string")
+    return val
 
 
 def _to_flag(val: IROperand, in_t, out_t: FlagT, ctx: VenomCodegenContext) -> IROperand:
