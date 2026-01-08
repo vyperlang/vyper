@@ -279,14 +279,18 @@ def lower_as_wei_value(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand
     if denom == 1:
         # No multiplication needed for "wei"
         if isinstance(typ, DecimalT):
-            # Decimal case: just divide by DECIMAL_DIVISOR
+            # Decimal case: check non-negative and divide by DECIMAL_DIVISOR
+            is_non_negative = b.iszero(b.slt(value, IRLiteral(0)))
+            b.assert_(is_non_negative)
             return b.div(value, IRLiteral(DECIMAL_DIVISOR))
         else:
             return value
 
     if isinstance(typ, DecimalT):
-        # Decimal: multiply first, then divide by DECIMAL_DIVISOR
+        # Decimal: check non-negative, multiply, then divide by DECIMAL_DIVISOR
         # This maintains precision: (value * denom) / DECIMAL_DIVISOR
+        is_non_negative = b.iszero(b.slt(value, IRLiteral(0)))
+        b.assert_(is_non_negative)
         product = b.mul(value, IRLiteral(denom))
         return b.div(product, IRLiteral(DECIMAL_DIVISOR))
 
