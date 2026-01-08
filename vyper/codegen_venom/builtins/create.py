@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
 from vyper.ir.compile_ir import assembly_to_evm
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import TupleT
 from vyper.utils import bytes_to_int
 from vyper.venom.basicblock import IRLiteral, IROperand
@@ -174,9 +175,25 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     bytecode_node = node.args[0]
     ctor_arg_nodes = node.args[1:]
 
-    # Get bytecode (bytes type in memory)
-    bytecode = Expr(bytecode_node, ctx).lower().operand
+    # Get bytecode - may be in memory, storage, or transient
+    bytecode_vv = Expr(bytecode_node, ctx).lower()
     bytecode_typ = bytecode_node._metadata["type"]
+
+    # Ensure bytecode is in memory. Storage/transient data needs to be copied first.
+    # This is critical when ctor args might modify the storage location that holds
+    # the bytecode (cf. test_raw_create_change_initcode_size).
+    if bytecode_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
+        # Allocate memory buffer and copy from storage/transient
+        mem_buf = ctx.new_temporary_value(bytecode_typ)
+        ctx.slot_to_memory(
+            bytecode_vv.operand,
+            mem_buf.operand,
+            bytecode_typ.storage_size_in_words,
+            bytecode_vv.location,
+        )
+        bytecode = mem_buf.operand
+    else:
+        bytecode = bytecode_vv.operand
 
     # Parse kwargs
     value_node = _get_kwarg_value(node, "value")
