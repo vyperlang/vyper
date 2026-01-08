@@ -31,7 +31,7 @@ from vyper.semantics.types import TupleT, VyperType
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.utils import OrderedSet, method_id_int
-from vyper.venom.basicblock import IRLabel, IRLiteral
+from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 from vyper.venom.context import IRContext
 
@@ -168,15 +168,23 @@ def generate_deploy_venom(
         for func_t in init_func_t.reachable_internal_functions:
             id_generator.ensure_id(func_t)
 
+        # Create shared alloca_id for immutables region
+        # This ensures all ctor-context functions use the same memory region
+        immutables_alloca_id = deploy_ctx.get_next_alloca_id() if immutables_len > 0 else None
+
         # Generate constructor
         assert isinstance(init_func_t.ast_def, vy_ast.FunctionDef)
         _generate_constructor(
-            deploy_builder, module_t, init_func_t.ast_def, len(runtime_bytecode), immutables_len
+            deploy_builder, module_t, init_func_t.ast_def, len(runtime_bytecode), immutables_len,
+            immutables_alloca_id
         )
 
         # Generate internal functions reachable from constructor
         for func_t in init_func_t.reachable_internal_functions:
-            _generate_internal_function(deploy_ctx, module_t, func_t.ast_def, is_ctor_context=True)
+            _generate_internal_function(
+                deploy_ctx, module_t, func_t.ast_def, is_ctor_context=True,
+                immutables_len=immutables_len, immutables_alloca_id=immutables_alloca_id
+            )
     else:
         # No constructor - just deploy runtime
         _generate_simple_deploy(deploy_builder, len(runtime_bytecode), immutables_len)
@@ -501,7 +509,8 @@ def _generate_fallback_body(
 
 
 def _generate_internal_function(
-    ir_ctx: IRContext, module_t: ModuleT, func_ast: vy_ast.FunctionDef, is_ctor_context: bool
+    ir_ctx: IRContext, module_t: ModuleT, func_ast: vy_ast.FunctionDef, is_ctor_context: bool,
+    immutables_len: int = 0, immutables_alloca_id: Optional[int] = None
 ) -> None:
     """Generate an internal function."""
     func_t = func_ast._metadata["func_type"]
@@ -524,6 +533,18 @@ def _generate_internal_function(
         constancy=_get_constancy(func_t),
         is_ctor_context=is_ctor_context,
     )
+
+    # Reserve immutables region for ctor context internal functions.
+    # Uses the SHARED alloca_id and explicitly sets position 0 to match
+    # the constructor's allocation. This ensures all ctor-context functions
+    # access immutables at the same memory location.
+    if is_ctor_context and immutables_len > 0 and immutables_alloca_id is not None:
+        from vyper.venom.memory_location import Allocation
+        codegen_ctx.immutables_alloca = builder.alloca(immutables_len, immutables_alloca_id)
+        # Get the alloca instruction (just appended) and force position 0
+        alloca_inst = builder._current_bb.instructions[-1]
+        assert alloca_inst.opcode == "alloca", f"Expected alloca, got {alloca_inst.opcode}"
+        builder.ctx.mem_allocator.set_position(Allocation(alloca_inst), 0)
 
     # Set up return handling
     pass_via_stack = codegen_ctx.pass_via_stack(func_t)
@@ -576,6 +597,7 @@ def _generate_constructor(
     func_ast: vy_ast.FunctionDef,
     runtime_codesize: int,
     immutables_len: int,
+    immutables_alloca_id: Optional[int],
 ) -> None:
     """Generate constructor (deploy) code."""
     func_t = func_ast._metadata["func_type"]
@@ -596,11 +618,22 @@ def _generate_constructor(
         is_zero = builder.iszero(callvalue)
         builder.assert_(is_zero)
 
-    # Ensure msize covers immutables (GH issue 3101)
-    # This is needed because immutable writes use istore which
-    # relies on msize tracking the immutables region
-    if immutables_len > 0:
-        builder.mload(IRLiteral(max(0, immutables_len - 32)))
+    # Reserve immutables region at memory position 0.
+    # Immutables MUST be at position 0 because:
+    # 1. The deploy epilogue copies from position 0 to the bytecode
+    # 2. Runtime dload(0) reads from code_end + 0
+    #
+    # We explicitly set the position to 0 using mem_allocator.set_position()
+    # to bypass the normal allocation algorithm. This matches the legacy
+    # codegen behavior.
+    # (GH issue 3101)
+    if immutables_len > 0 and immutables_alloca_id is not None:
+        from vyper.venom.memory_location import Allocation
+        codegen_ctx.immutables_alloca = builder.alloca(immutables_len, immutables_alloca_id)
+        # Get the alloca instruction (just appended) and force position 0
+        alloca_inst = builder._current_bb.instructions[-1]
+        assert alloca_inst.opcode == "alloca", f"Expected alloca, got {alloca_inst.opcode}"
+        builder.ctx.mem_allocator.set_position(Allocation(alloca_inst), 0)
 
     # Register constructor args from DATA section (not calldata)
     # Constructor args are appended to the deploy code
@@ -618,38 +651,54 @@ def _generate_constructor(
         codegen_ctx.emit_nonreentrant_unlock(func_t)
 
     # Deploy epilogue: copy runtime code to memory and return
-    _emit_deploy_epilogue(builder, runtime_codesize, immutables_len)
+    _emit_deploy_epilogue(builder, runtime_codesize, immutables_len, codegen_ctx.immutables_alloca)
 
 
 def _register_constructor_args(ctx: VenomCodegenContext, func_t: ContractFunctionT) -> None:
-    """Register constructor args from DATA section."""
-    # Constructor args are at offset 0 in the DATA section
-    # (appended after deploy code)
-    offset = 0
+    """Register constructor args from DATA section.
 
-    for arg in func_t.positional_args:
+    Uses ABI decoder to properly handle dynamic types (String, Bytes, DynArray)
+    which require following offset pointers in the data section.
+    """
+    if not func_t.positional_args:
+        return
+
+    # Create a tuple type for the positional args
+    arg_types = [arg.typ for arg in func_t.positional_args]
+    args_tuple_t = TupleT(arg_types)
+
+    # Create VyperValue pointing to data section tuple (starts at offset 0)
+    ptr = Ptr(operand=IRLiteral(0), location=DataLocation.CODE)
+    data_tuple = VyperValue.from_ptr(ptr, args_tuple_t)
+
+    for i, arg in enumerate(func_t.positional_args):
+        # Calculate static offset for this element in the tuple
+        static_offset = sum(
+            func_t.positional_args[j].typ.abi_type.embedded_static_size() for j in range(i)
+        )
+
+        # Allocate memory for the arg
         var = ctx.new_variable(arg.name, arg.typ, mutable=False)
 
-        if arg.typ._is_prim_word:
-            val = ctx.builder.dload(IRLiteral(offset))
-            ctx.ptr_store(var.value.ptr(), val)
-        else:
-            size = arg.typ.memory_bytes_required
-            ctx.builder.dloadbytes(var.value.operand, IRLiteral(offset), IRLiteral(size))
+        # Get the element location in data section (handles ABI offset indirection for dynamic types)
+        elem_src = _getelemptr_abi(ctx, data_tuple, arg.typ, static_offset)
 
-        offset += arg.typ.abi_type.embedded_static_size()
+        # Decode from data section to memory
+        # Note: No hi bound needed for constructor args from trusted bytecode
+        abi_decode_to_buf(ctx, var.value.operand, elem_src)
 
 
 def _generate_simple_deploy(
     builder: VenomBuilder, runtime_codesize: int, immutables_len: int
 ) -> None:
     """Generate simple deploy code (no constructor)."""
-    # Just emit the deploy epilogue
-    _emit_deploy_epilogue(builder, runtime_codesize, immutables_len)
+    # Just emit the deploy epilogue - no immutables alloca since no constructor
+    _emit_deploy_epilogue(builder, runtime_codesize, immutables_len, None)
 
 
 def _emit_deploy_epilogue(
-    builder: VenomBuilder, runtime_codesize: int, immutables_len: int
+    builder: VenomBuilder, runtime_codesize: int, immutables_len: int,
+    immutables_alloca: Optional[IRVariable]
 ) -> None:
     """
     Copy runtime bytecode to memory and return it.
@@ -665,10 +714,12 @@ def _emit_deploy_epilogue(
     if immutables_len > 0:
         immutables_dst = IRLiteral(DST_OFFSET + runtime_codesize)
 
+        # Source is the immutables_alloca if available, otherwise offset 0
+        immutables_src: IROperand = immutables_alloca if immutables_alloca is not None else IRLiteral(0)
+
         if version_check(begin="cancun"):
             # Cancun+: use mcopy
-            # mcopy(dst, src, size) - src is 0 (immutables at start of memory)
-            builder.mcopy(immutables_dst, IRLiteral(0), IRLiteral(immutables_len))
+            builder.mcopy(immutables_dst, immutables_src, IRLiteral(immutables_len))
         else:
             # Pre-Cancun: use identity precompile (0x04)
             # staticcall(gas, 0x04, src, len, dst, len)
@@ -676,7 +727,7 @@ def _emit_deploy_epilogue(
             copy_success = builder.staticcall(
                 gas,
                 IRLiteral(0x04),  # Identity precompile
-                IRLiteral(0),  # Source (immutables region)
+                immutables_src,
                 IRLiteral(immutables_len),
                 immutables_dst,
                 IRLiteral(immutables_len),

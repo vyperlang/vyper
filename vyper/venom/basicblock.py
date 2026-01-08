@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "sink"])
+BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "sink", "invalid"])
 
 # Terminators that halt program/message call execution
 HALTING_TERMINATORS = frozenset(["return", "revert", "stop", "invalid"])

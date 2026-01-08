@@ -249,7 +249,9 @@ class VenomBuilder:
 
     def dloadbytes(self, dst: Operand, src: Operand, size: Operand) -> None:
         """Copy size bytes from data section (src) to memory (dst). (IR-specific)"""
-        self._emit("dloadbytes", dst, src, size)
+        # Use _emit_evm for consistent operand order with codecopy
+        # Stored as [size, src, dst] (reversed from semantic order)
+        self._emit_evm("dloadbytes", dst, src, size)
 
     def iload(self, offset: Operand) -> IRVariable:
         """Load from immutable memory region. (IR-specific)"""

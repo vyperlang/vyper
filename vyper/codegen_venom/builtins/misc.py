@@ -113,23 +113,35 @@ def _lower_ec_arith(node: vy_ast.Call, ctx: VenomCodegenContext, precompile: int
     args_typ = [arg._metadata["type"] for arg in node.args]
     input_size = sum(t.memory_bytes_required for t in args_typ)
 
-    # Allocate input buffer and store arguments
-    input_buf = ctx.allocate_buffer(input_size)
-    offset = 0
+    # CRITICAL: Evaluate ALL arguments FIRST before any copying.
+    # This ensures correct evaluation order when arguments have side effects
+    # (e.g., ecadd(self.x, self.bar()) where bar() modifies self.x).
+    # For arrays from storage/transient, unwrap() copies them to memory first.
+    evaluated_args = []
     for arg in node.args:
         arg_typ = arg._metadata["type"]
+        if arg_typ._is_prim_word:
+            # Primitive: get value directly
+            evaluated_args.append(Expr(arg, ctx).lower_value())
+        else:
+            # Array: unwrap handles storage/transient/code -> memory conversion
+            arg_vv = Expr(arg, ctx).lower()
+            evaluated_args.append(ctx.unwrap(arg_vv))
+
+    # Now copy evaluated arguments to input buffer
+    input_buf = ctx.allocate_buffer(input_size)
+    offset = 0
+    for i, arg_typ in enumerate(args_typ):
+        arg_val = evaluated_args[i]
 
         if arg_typ._is_prim_word:
             # Single 32-byte value
-            arg_val = Expr(arg, ctx).lower_value()
             b.mstore(b.add(input_buf._ptr, IRLiteral(offset)), arg_val)
             offset += 32
         else:
-            # Array (uint256[2]) - copy from memory
-            # arg_val is a pointer to the array in memory
-            arg_ptr = Expr(arg, ctx).lower().operand
-            for i in range(arg_typ.count):
-                word = b.mload(b.add(arg_ptr, IRLiteral(i * 32)))
+            # Array (uint256[2]) - arg_val is now a memory pointer
+            for j in range(arg_typ.count):
+                word = b.mload(b.add(arg_val, IRLiteral(j * 32)))
                 b.mstore(b.add(input_buf._ptr, IRLiteral(offset)), word)
                 offset += 32
 
@@ -157,6 +169,7 @@ def lower_blockhash(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     Returns block hash for given block number.
     Only works for the 256 most recent blocks (excluding current).
+    Reverts if block_num is out of valid range.
     """
     from vyper.codegen_venom.expr import Expr
 
@@ -164,26 +177,23 @@ def lower_blockhash(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     block_num = Expr(node.args[0], ctx).lower_value()
 
-    # Clamp block number to valid range:
+    # Validate block number is in valid range:
     # block_num >= block.number - BLOCKHASH_LOOKBACK_LIMIT AND block_num < block.number
+    # The legacy code uses clamp("lt", clamp("sge", x, lower), "number")
+    # which asserts (reverts if false) both conditions.
     current_block = b.number()
     lower_bound = b.sub(current_block, IRLiteral(BLOCKHASH_LOOKBACK_LIMIT))
 
-    # Clamp: max(lower_bound, min(block_num, current_block - 1))
-    # If block_num < lower_bound => use lower_bound (will return 0)
-    # If block_num >= current_block => use current_block (will return 0)
-    # The legacy code uses clamp("lt", clamp("sge", x, lower), "number")
-    # which ensures block_num >= lower_bound AND block_num < current_block
+    # Assert block_num >= lower_bound (signed comparison)
+    # sge(a, b) = not slt(a, b)
+    is_ge_lower = b.iszero(b.slt(block_num, lower_bound))
+    b.assert_(is_ge_lower)
 
-    # First clamp: sge check (signed >= lower_bound)
-    is_ge_lower = b.slt(block_num, lower_bound)
-    clamped1 = b.select(is_ge_lower, lower_bound, block_num)
+    # Assert block_num < current_block
+    is_lt_current = b.lt(block_num, current_block)
+    b.assert_(is_lt_current)
 
-    # Second clamp: lt check (< current_block)
-    is_ge_current = b.iszero(b.lt(clamped1, current_block))
-    clamped2 = b.select(is_ge_current, current_block, clamped1)
-
-    return b.blockhash(clamped2)
+    return b.blockhash(block_num)
 
 
 def lower_blobhash(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:

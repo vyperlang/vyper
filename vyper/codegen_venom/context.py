@@ -182,19 +182,26 @@ class VenomCodegenContext:
 
         Like legacy bytes_data_ptr: add_ofst(ptr, location.word_scale)
         """
-        assert vv.location in (DataLocation.MEMORY, DataLocation.STORAGE, DataLocation.TRANSIENT), \
-            f"bytes_data_ptr expects MEMORY, STORAGE, or TRANSIENT, got {vv.location}"
-        word_scale = 32 if vv.location == DataLocation.MEMORY else 1
+        # None location treated as MEMORY (for in-memory bytestrings without explicit location)
+        loc = vv.location
+        assert loc is None or loc in (DataLocation.MEMORY, DataLocation.STORAGE, DataLocation.TRANSIENT), \
+            f"bytes_data_ptr expects MEMORY, STORAGE, or TRANSIENT, got {loc}"
+        word_scale = 32 if loc is None or loc == DataLocation.MEMORY else 1
         return self.builder.add(vv.operand, IRLiteral(word_scale))
 
     def bytestring_length(self, vv: VyperValue) -> IROperand:
         """Get length of bytestring from its pointer.
 
         Like legacy get_bytearray_length: LOAD(ptr)
+        None location treated as MEMORY (for in-memory bytestrings without explicit location).
         """
-        assert vv.location in (DataLocation.MEMORY, DataLocation.STORAGE, DataLocation.TRANSIENT), \
-            f"bytestring_length expects MEMORY, STORAGE, or TRANSIENT, got {vv.location}"
-        return self.builder.load(vv.operand, vv.location)
+        loc = vv.location
+        assert loc is None or loc in (DataLocation.MEMORY, DataLocation.STORAGE, DataLocation.TRANSIENT), \
+            f"bytestring_length expects MEMORY, STORAGE, or TRANSIENT, got {loc}"
+        # None location treated as MEMORY
+        if loc is None:
+            return self.builder.mload(vv.operand)
+        return self.builder.load(vv.operand, loc)
 
     def is_constant(self) -> bool:
         """Check if in constant (view) context or range expression."""

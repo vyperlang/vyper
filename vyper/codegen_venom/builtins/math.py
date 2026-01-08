@@ -95,6 +95,7 @@ def lower_uint256_addmod(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     uint256_addmod(a, b, c) - (a + b) % c without intermediate overflow.
 
     Uses EVM ADDMOD opcode which handles the 512-bit intermediate result.
+    Reverts if c is zero.
     """
     from vyper.codegen_venom.expr import Expr
 
@@ -103,6 +104,9 @@ def lower_uint256_addmod(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     a_val = Expr(node.args[0], ctx).lower_value()
     b_val = Expr(node.args[1], ctx).lower_value()
     c_val = Expr(node.args[2], ctx).lower_value()
+
+    # Assert divisor is non-zero (EVM ADDMOD returns 0 on div by zero)
+    b.assert_(c_val)
 
     return b.addmod(a_val, b_val, c_val)
 
@@ -112,6 +116,7 @@ def lower_uint256_mulmod(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     uint256_mulmod(a, b, c) - (a * b) % c without intermediate overflow.
 
     Uses EVM MULMOD opcode which handles the 512-bit intermediate result.
+    Reverts if c is zero.
     """
     from vyper.codegen_venom.expr import Expr
 
@@ -120,6 +125,9 @@ def lower_uint256_mulmod(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     a_val = Expr(node.args[0], ctx).lower_value()
     b_val = Expr(node.args[1], ctx).lower_value()
     c_val = Expr(node.args[2], ctx).lower_value()
+
+    # Assert divisor is non-zero (EVM MULMOD returns 0 on div by zero)
+    b.assert_(c_val)
 
     return b.mulmod(a_val, b_val, c_val)
 

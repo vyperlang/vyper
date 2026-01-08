@@ -303,16 +303,11 @@ def lower_selfdestruct(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand
     This is a terminal operation.
 
     Note: selfdestruct is deprecated and may have reduced functionality
-    in future EVM upgrades.
+    in future EVM upgrades. Warning is emitted during semantic analysis.
     """
     from vyper.codegen_venom.expr import Expr
-    from vyper.warnings import vyper_warn
 
     ctx.check_is_not_constant("selfdestruct", node)
-
-    vyper_warn(
-        "`selfdestruct` is deprecated! The opcode is no longer recommended for use.", node
-    )
 
     b = ctx.builder
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import BytesM_T
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.venom.basicblock import IRLiteral, IROperand
@@ -36,8 +37,18 @@ def lower_keccak256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         # Data starts at ptr + 32
         # sha3(length, data_ptr) - builder emits in EVM order
         arg_vv = Expr(arg_node, ctx).lower()
-        data_ptr = ctx.bytes_data_ptr(arg_vv)
-        length = ctx.bytestring_length(arg_vv)
+
+        # sha3 only works on memory - copy storage/transient data first
+        if arg_vv.location is not None and arg_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
+            buf_val = ctx.new_temporary_value(arg_t)
+            ctx.slot_to_memory(arg_vv.operand, buf_val.operand, arg_t.storage_size_in_words, arg_vv.location)
+            # Hash from memory buffer
+            data_ptr = ctx.bytes_data_ptr(buf_val)
+            length = ctx.bytestring_length(buf_val)
+        else:
+            data_ptr = ctx.bytes_data_ptr(arg_vv)
+            length = ctx.bytestring_length(arg_vv)
+
         return b.sha3(data_ptr, length)
     elif isinstance(arg_t, BytesM_T):
         # Fixed bytesM: need to put value in memory first
@@ -72,8 +83,17 @@ def lower_sha256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     if isinstance(arg_t, _BytestringT):
         # Variable-length bytes/string
         arg_vv = Expr(arg_node, ctx).lower()
-        data_ptr = ctx.bytes_data_ptr(arg_vv)
-        length = ctx.bytestring_length(arg_vv)
+
+        # staticcall only works with memory - copy storage/transient data first
+        if arg_vv.location is not None and arg_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
+            buf_val = ctx.new_temporary_value(arg_t)
+            ctx.slot_to_memory(arg_vv.operand, buf_val.operand, arg_t.storage_size_in_words, arg_vv.location)
+            # Hash from memory buffer
+            data_ptr = ctx.bytes_data_ptr(buf_val)
+            length = ctx.bytestring_length(buf_val)
+        else:
+            data_ptr = ctx.bytes_data_ptr(arg_vv)
+            length = ctx.bytestring_length(arg_vv)
     elif isinstance(arg_t, BytesM_T):
         # Fixed bytesM
         arg_val = Expr(arg_node, ctx).lower_value()

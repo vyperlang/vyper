@@ -125,13 +125,6 @@ def _zero_pad(ctx: VenomCodegenContext, bytez_ptr: IROperand) -> None:
     dst = b.add(bytez_ptr, IRLiteral(32))
     dst = b.add(dst, length)
 
-    # Number of zero bytes = (32 - (length % 32)) % 32
-    # Optimized form: (-length) % 32
-    # Note: We compute num_zeros but only use it conceptually - we just write a full 32-byte
-    # zero word which handles all cases since we're allowed to write past the buffer
-    b.mod(b.sub(IRLiteral(0), length), IRLiteral(32))
-
-    # Use a loop to write zeros (could be 0-31 bytes)
     # For simplicity, write one full 32-byte zero word which handles all cases
     # since we're allowed to write past the buffer (it will be within ABI bounds)
     b.mstore(dst, IRLiteral(0))

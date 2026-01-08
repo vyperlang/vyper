@@ -293,17 +293,24 @@ class Expr:
         if isinstance(op, vy_ast.BitXor):
             return VyperValue.from_stack_op(self.builder.xor(left, right), result_typ)
 
-        # Shift operations - only 256-bit types allowed
+        # Shift operations - only 256-bit types allowed (uint256, int256, bytes32)
         if isinstance(op, vy_ast.LShift):
-            if not isinstance(typ, IntegerT) or typ.bits != 256:
+            is_valid = (isinstance(typ, IntegerT) and typ.bits == 256) or (
+                isinstance(typ, BytesM_T) and typ.m == 32
+            )
+            if not is_valid:
                 raise CompilerPanic("Shift operations require 256-bit types")
             # shl(bits, value) - operand order is (bits, value)
             return VyperValue.from_stack_op(self.builder.shl(right, left), result_typ)
 
         if isinstance(op, vy_ast.RShift):
-            if not isinstance(typ, IntegerT) or typ.bits != 256:
+            is_valid = (isinstance(typ, IntegerT) and typ.bits == 256) or (
+                isinstance(typ, BytesM_T) and typ.m == 32
+            )
+            if not is_valid:
                 raise CompilerPanic("Shift operations require 256-bit types")
-            if typ.is_signed:
+            # bytes32 uses unsigned shift (shr), signed integers use arithmetic shift (sar)
+            if isinstance(typ, IntegerT) and typ.is_signed:
                 return VyperValue.from_stack_op(self.builder.sar(right, left), result_typ)
             else:
                 return VyperValue.from_stack_op(self.builder.shr(right, left), result_typ)
@@ -475,9 +482,10 @@ class Expr:
                         result_typ
                     )
                 # For storage/memory arrays, use loop with early break
+                # Don't unwrap - iterate directly over storage/memory location
                 right_val = Expr(node.right, self.ctx).lower()
                 return VyperValue.from_stack_op(self._lower_array_membership(
-                    left, self.ctx.unwrap(right_val), right_typ, right_val.location, isinstance(op, vy_ast.In)
+                    left, right_val.operand, right_typ, right_val.location, isinstance(op, vy_ast.In)
                 ), result_typ)
 
         # Non-bytestring: get values directly
@@ -641,21 +649,14 @@ class Expr:
         if varinfo.is_constant:
             return Expr(varinfo.decl_node.value, self.ctx).lower()
 
-        # Case 4: Immutable - load from code or memory depending on context
+        # Case 4: Immutable - always CODE location (iload/istore handle ctor vs runtime)
         if varinfo.is_immutable:
             typ = node._metadata["type"]
-            # In constructor: immutables are in memory (being written)
-            # After deploy: immutables are in code (read via iload)
-            if self.ctx.is_ctor_context:
-                # During constructor, immutable is in memory at varinfo.position
-                # Use dummy buffer for memory pointers
-                buf = Buffer(_ptr=IRLiteral(varinfo.position.position), size=typ.memory_bytes_required, annotation="immutable_ctor")
-                ptr = Ptr(operand=IRLiteral(varinfo.position.position), location=DataLocation.MEMORY, buf=buf)
-                return VyperValue.from_ptr(ptr, typ)
-            else:
-                # After deployment, use iload to read from deployed code
-                ptr = Ptr(operand=IRLiteral(varinfo.position.position), location=DataLocation.CODE)
-                return VyperValue.from_ptr(ptr, typ)
+            # Immutables use iload/istore - CODE location handles both contexts
+            # In constructor: iload/istore access immutable staging area
+            # After deploy: dload accesses deployed bytecode
+            ptr = Ptr(operand=IRLiteral(varinfo.position.position), location=DataLocation.CODE)
+            return VyperValue.from_ptr(ptr, typ)
 
         raise CompilerPanic(f"Unknown variable: {varname}")
 
@@ -719,15 +720,10 @@ class Expr:
             if varinfo.is_constant:
                 return Expr(varinfo.decl_node.value, self.ctx).lower()
 
-            # Immutable state variable
+            # Immutable state variable - always CODE location
             if varinfo.is_immutable:
-                if self.ctx.is_ctor_context:
-                    buf = Buffer(_ptr=IRLiteral(varinfo.position.position), size=typ.memory_bytes_required, annotation="immutable_ctor")
-                    ptr = Ptr(operand=IRLiteral(varinfo.position.position), location=DataLocation.MEMORY, buf=buf)
-                    return VyperValue.from_ptr(ptr, typ)
-                else:
-                    ptr = Ptr(operand=IRLiteral(varinfo.position.position), location=DataLocation.CODE)
-                    return VyperValue.from_ptr(ptr, typ)
+                ptr = Ptr(operand=IRLiteral(varinfo.position.position), location=DataLocation.CODE)
+                return VyperValue.from_ptr(ptr, typ)
 
             # Regular storage/transient variable - return location, don't load!
             slot = varinfo.position.position
@@ -982,9 +978,22 @@ class Expr:
             self.ctx.ptr_store(buf.base_ptr(), key)
             return self.builder.sha3(buf._ptr, IRLiteral(32))
 
-        # bytes/string: get pointer (already in memory), hash the data portion
-        # sha3(data_ptr, length) - builder emits in EVM order
+        # bytes/string: get pointer, hash the data portion
+        # sha3 only works on memory - copy storage/transient data first
         key_vv = Expr(key_node, self.ctx).lower()
+
+        if key_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
+            # Copy slot-addressed data to memory before hashing
+            typ = key_node._metadata["type"]
+            buf_val = self.ctx.new_temporary_value(typ)
+            self.ctx.slot_to_memory(key_vv.operand, buf_val.operand, typ.storage_size_in_words, key_vv.location)
+            # Hash from memory buffer
+            buf_ptr = buf_val.ptr()
+            data_ptr = self.ctx.add_offset(buf_ptr, IRLiteral(32))  # skip length word
+            length = self.ctx.ptr_load(buf_ptr)
+            return self.builder.sha3(data_ptr.operand, length)
+
+        # Memory/calldata - hash directly
         data_ptr = self.ctx.bytes_data_ptr(key_vv)
         length = self.ctx.bytestring_length(key_vv)
         return self.builder.sha3(data_ptr, length)
@@ -1307,8 +1316,12 @@ class Expr:
         if func_t is not None and is_type_t(func_t, StructT):
             return self._lower_struct_constructor()
 
-        # Interface constructor: MyInterface(<address>)
+        # Interface constructor: MyInterface(<address>) or module.__at__(<address>)
         if func_t is not None and is_type_t(func_t, InterfaceT):
+            return self._lower_interface_constructor()
+
+        # Intrinsic interface constructor: module.__at__(<address>)
+        if isinstance(func, vy_ast.Attribute) and func.attr == "__at__":
             return self._lower_interface_constructor()
 
         # DynArray methods: arr.append(val), arr.pop()
@@ -1382,12 +1395,26 @@ class Expr:
         default_nodes = [kwarg.default_value for kwarg in unprovided_kwargs]
         all_arg_nodes = list(node.args) + default_nodes
 
-        for i, arg_node in enumerate(all_arg_nodes):
+        # IMPORTANT: Evaluate ALL arguments first before allocating staging buffers.
+        # If arguments contain nested internal calls, those calls may use the callee's
+        # frame which can overlap with our staging buffers (due to memory reuse).
+        # By evaluating all args first, we ensure nested calls complete before we
+        # allocate staging buffers, avoiding corruption.
+        # See legacy codegen: vyper/codegen/self_call.py (contains_self_call handling)
+        arg_vals = []
+        for arg_node in all_arg_nodes:
+            arg_vals.append(Expr(arg_node, self.ctx).lower_value())
+
+        # Now allocate staging buffers and copy evaluated values
+        for i, arg_val in enumerate(arg_vals):
             arg_t = func_t.arguments[i]
-            arg_val = Expr(arg_node, self.ctx).lower_value()
 
             if pass_via_stack[arg_t.name]:
                 # Stack-passed arg: use value directly
+                # For struct/tuple types that fit in one word, arg_val is a memory
+                # pointer (from unwrap), so we need to load the actual value
+                if hasattr(arg_t.typ, "tuple_items"):
+                    arg_val = self.builder.mload(arg_val)
                 invoke_args.append(arg_val)
             else:
                 # Memory-passed arg: allocate buffer, copy value, pass pointer

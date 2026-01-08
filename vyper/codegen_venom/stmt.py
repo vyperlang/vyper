@@ -130,6 +130,7 @@ class Stmt:
         Uses a temp buffer to ensure correct semantics when src/dst may overlap.
         For storage targets, uses word-by-word sstore.
         For memory targets, uses mcopy (or word-by-word mstore pre-Cancun).
+        For CODE targets (immutables), uses word-by-word istore.
 
         This is the conservative approach - always use temp buffer.
         The optimizer can eliminate unnecessary copies later.
@@ -155,6 +156,14 @@ class Stmt:
                 self.builder.tstore(dst_ptr.operand, val)
             else:
                 self.ctx.store_transient(tmp_val.operand, dst_ptr.operand, typ)
+        elif dst_ptr.location == DataLocation.CODE:
+            # Immutables in constructor - use ptr_store which handles GEP from immutables_alloca
+            # For single-word types, load value from temp buffer first
+            if typ.memory_bytes_required <= 32:
+                val = self.builder.mload(tmp_val.operand)
+                self.ctx.ptr_store(dst_ptr, val)
+            else:
+                self.ctx.store_immutable(tmp_val.operand, dst_ptr.operand, typ)
         else:
             self.ctx.copy_memory(dst_ptr.operand, tmp_val.operand, typ.memory_bytes_required)
 
@@ -450,6 +459,9 @@ class Stmt:
     def _lower_body(self, stmts: list) -> None:
         """Lower a list of statements."""
         for stmt in stmts:
+            # Skip dead code after terminating statements (continue, break, return, raise)
+            if self.builder.is_terminated():
+                break
             Stmt(stmt, self.ctx).lower()
 
     # === For Loop Statements ===
@@ -540,9 +552,18 @@ class Stmt:
         self.builder.set_block(entry_block)
         counter_var = self.builder.assign(start)
 
-        # Bound check: assert rounds <= rounds_bound
+        # Bound checks for dynamic ranges
         if has_bound:
-            # assert iszero(gt(rounds, rounds_bound))
+            # Check start <= end (prevents underflow in rounds computation)
+            is_signed = target_type.is_signed
+            if is_signed:
+                invalid_order = self.builder.sgt(start, end_expr)
+            else:
+                invalid_order = self.builder.gt(start, end_expr)
+            valid_order = self.builder.iszero(invalid_order)
+            self.builder.assert_(valid_order)
+
+            # Check rounds <= rounds_bound
             invalid = self.builder.gt(rounds, IRLiteral(rounds_bound))
             valid = self.builder.iszero(invalid)
             self.builder.assert_(valid)
@@ -605,6 +626,11 @@ class Stmt:
         array = array_vv.operand
         array_typ = node.iter._metadata["type"]
         location = array_vv.location or node.iter._expr_info.location
+
+        # If array is a stack value (e.g., from ternary expression), the operand
+        # is a pointer to memory. Use MEMORY as the location.
+        if location == DataLocation.UNSET:
+            location = DataLocation.MEMORY
 
         # Determine word scale based on location
         # Storage/Transient: 1 slot per word, Memory: 32 bytes per word
@@ -790,8 +816,9 @@ class Stmt:
             # Stack return - load values and pass to ret
             ret_vals: list[IROperand] = []
 
-            if returns_count > 1 and hasattr(ret_typ, "tuple_items"):
-                # Tuple return - load each element from memory pointer
+            if hasattr(ret_typ, "tuple_items"):
+                # Tuple/struct return - load each element from memory pointer
+                # This handles both multi-element tuples AND single-element structs
                 for i, (_k, _elem_t) in enumerate(ret_typ.tuple_items()):
                     if i == 0:
                         src_ptr = ret_val
@@ -801,11 +828,8 @@ class Stmt:
                         src_ptr = self.builder.add(ret_val, IRLiteral(i * 32))
                     ret_vals.append(self.builder.mload(src_ptr))
             else:
-                # Single value - just use directly or load if pointer
-                if ret_typ.memory_bytes_required <= 32:
-                    ret_vals.append(ret_val)
-                else:
-                    ret_vals.append(self.builder.mload(ret_val))
+                # Primitive single value - just use directly
+                ret_vals.append(ret_val)
 
             self.builder.ret(*ret_vals, return_pc)
 
