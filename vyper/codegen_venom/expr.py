@@ -70,7 +70,13 @@ ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
 
 class Expr:
-    """Lower Vyper expressions to Venom IR."""
+    """Lower Vyper expressions to Venom IR.
+
+    NOTE: The constructor automatically calls `node.reduced()` to handle constant
+    variables (e.g., `FOO: constant(uint256) = 42`). When working with AST nodes
+    directly in builtins without going through Expr, always use `node.reduced()`
+    or check `node.has_folded_value` before isinstance checks on node type.
+    """
 
     def __init__(
         self, node: vy_ast.VyperNode, ctx: VenomCodegenContext, as_ptr: bool = False

@@ -334,7 +334,9 @@ def _to_bytes(
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     # Can't downcast literals with known length (e.g. b"abc" to Bytes[2])
-    if isinstance(arg_node, vy_ast.Constant) and in_t.maxlen > out_t.maxlen:
+    # Use reduced() to handle constant variables like `BAR: constant(Bytes[5])`
+    reduced = arg_node.reduced() if arg_node.has_folded_value else arg_node
+    if isinstance(reduced, vy_ast.Constant) and in_t.maxlen > out_t.maxlen:
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     b = ctx.builder
@@ -368,7 +370,9 @@ def _to_string(
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     # Can't downcast literals with known length (e.g. "abc" to String[2])
-    if isinstance(arg_node, vy_ast.Constant) and in_t.maxlen > out_t.maxlen:
+    # Use reduced() to handle constant variables like `BAR: constant(String[5])`
+    reduced = arg_node.reduced() if arg_node.has_folded_value else arg_node
+    if isinstance(reduced, vy_ast.Constant) and in_t.maxlen > out_t.maxlen:
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     b = ctx.builder

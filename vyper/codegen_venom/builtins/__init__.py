@@ -10,10 +10,13 @@ stack values can return IROperand directly.
 """
 from __future__ import annotations
 
-from typing import Union
+from typing import TYPE_CHECKING, Union
 
 from vyper.exceptions import CompilerPanic
 from vyper.venom.basicblock import IROperand
+
+if TYPE_CHECKING:
+    from vyper.codegen_venom.context import VenomCodegenContext
 
 from vyper.codegen_venom.value import VyperValue
 
