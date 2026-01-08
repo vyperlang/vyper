@@ -29,6 +29,16 @@ def _get_kwarg_value(node: vy_ast.Call, kwarg_name: str, default=None):
     return default
 
 
+def _is_msg_data(node) -> bool:
+    """Check if node is msg.data attribute access."""
+    return (
+        isinstance(node, vy_ast.Attribute)
+        and node.attr == "data"
+        and isinstance(node.value, vy_ast.Name)
+        and node.value.id == "msg"
+    )
+
+
 def _get_literal_kwarg(node: vy_ast.Call, kwarg_name: str, default):
     """Extract a literal value from a keyword argument."""
     kw_node = _get_kwarg_value(node, kwarg_name)
@@ -71,9 +81,8 @@ def lower_raw_call(
 
     # Parse positional args
     to = Expr(node.args[0], ctx).lower_value()
-    data = Expr(node.args[1], ctx).lower().operand
 
-    # Parse kwargs
+    # Parse kwargs (need to know is_static before constancy check)
     max_outsize = _get_literal_kwarg(node, "max_outsize", 0)
     is_delegate = _get_literal_kwarg(node, "is_delegate_call", False)
     is_static = _get_literal_kwarg(node, "is_static_call", False)
@@ -86,6 +95,22 @@ def lower_raw_call(
             " use `is_static_call=True` to perform this action",
             node,
         )
+
+    # Handle msg.data specially - it needs to copy calldata to memory
+    # This must be done before other memory allocations to use msize correctly
+    data_node = node.args[1]
+    if _is_msg_data(data_node):
+        # Get msize first - this is where we'll copy calldata
+        data_ptr = b.msize()
+        data_len = b.calldatasize()
+        # Copy entire calldata to memory at msize
+        b.calldatacopy(data_ptr, IRLiteral(0), data_len)
+    else:
+        data = Expr(data_node, ctx).lower().operand
+        # Get input data pointer and length
+        # Bytes layout: [32-byte length][data...]
+        data_len = b.mload(data)
+        data_ptr = b.add(data, IRLiteral(32))
 
     # Handle gas kwarg - defaults to remaining gas
     gas_node = _get_kwarg_value(node, "gas")
@@ -102,11 +127,6 @@ def lower_raw_call(
         value = IRLiteral(0)
     else:
         value = Expr(value_node, ctx).lower_value()
-
-    # Get input data pointer and length
-    # Bytes layout: [32-byte length][data...]
-    data_len = b.mload(data)
-    data_ptr = b.add(data, IRLiteral(32))
 
     # Allocate output buffer if needed
     out_val: "VyperValue | None"
