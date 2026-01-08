@@ -34,8 +34,18 @@ class SimplifyCFGPass(IRPass):
 
         self.function.remove_basic_block(b)
 
-    def _merge_jump(self, a: IRBasicBlock, b: IRBasicBlock):
+    def _merge_jump(self, a: IRBasicBlock, b: IRBasicBlock) -> bool:
         next_bb = self.cfg.cfg_out(b).first()
+        for inst in next_bb.instructions:
+            if inst.opcode != "phi":
+                break
+            if b.label not in inst.operands or a.label not in inst.operands:
+                continue
+            b_idx = inst.operands.index(b.label)
+            a_idx = inst.operands.index(a.label)
+            if inst.operands[b_idx + 1] != inst.operands[a_idx + 1]:
+                return False
+
         jump_inst = a.instructions[-1]
         assert b.label in jump_inst.operands, f"{b.label} {jump_inst.operands}"
         jump_inst.operands[jump_inst.operands.index(b.label)] = next_bb.label
@@ -52,9 +62,16 @@ class SimplifyCFGPass(IRPass):
         for inst in next_bb.instructions:
             if inst.opcode != "phi":
                 break
-            inst.operands[inst.operands.index(b.label)] = a.label
+            if b.label not in inst.operands:
+                continue
+            b_idx = inst.operands.index(b.label)
+            if a.label in inst.operands:
+                del inst.operands[b_idx : b_idx + 2]
+            else:
+                inst.operands[b_idx] = a.label
 
         self.function.remove_basic_block(b)
+        return True
 
     def _collapse_chained_blocks_r(self, bb: IRBasicBlock):
         """
@@ -73,9 +90,9 @@ class SimplifyCFGPass(IRPass):
                     and len(self.cfg.cfg_out(next_bb)) == 1
                     and len(next_bb.instructions) == 1
                 ):
-                    self._merge_jump(bb, next_bb)
-                    self._collapse_chained_blocks_r(bb)
-                    return
+                    if self._merge_jump(bb, next_bb):
+                        self._collapse_chained_blocks_r(bb)
+                        return
 
         if bb in self.visited:
             return
