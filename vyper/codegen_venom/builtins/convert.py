@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
-from vyper.exceptions import CompilerPanic, TypeMismatch
+from vyper.exceptions import CompilerPanic, InvalidLiteral, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -63,6 +63,42 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         return _to_flag(arg, in_t, out_t, ctx)
     else:
         raise CompilerPanic(f"Unsupported conversion target: {out_t}")
+
+
+def _get_folded_value(node: vy_ast.VyperNode):
+    """
+    Get the compile-time constant value for a node if available.
+
+    Returns the Python value (int, bool, etc.) if the node is a constant or
+    has a folded value, otherwise returns None.
+    """
+    # Check if it's a literal or has a folded constant value
+    if isinstance(node, vy_ast.Constant):
+        return node.value
+    if node.has_folded_value:
+        folded = node.get_folded_value()
+        if isinstance(folded, vy_ast.Constant):
+            return folded.value
+    return None
+
+
+def _check_literal_int_bounds(arg_node: vy_ast.VyperNode, out_t: IntegerT) -> None:
+    """
+    Check if a compile-time constant integer fits in the output type bounds.
+
+    Raises InvalidLiteral if the value is out of range.
+    """
+    val = _get_folded_value(arg_node)
+    if val is None:
+        return
+
+    # Only check numeric values
+    if not isinstance(val, (int, bool)):
+        return
+
+    lo, hi = out_t.int_bounds
+    if not (lo <= val <= hi):
+        raise InvalidLiteral("Number out of range", arg_node)
 
 
 def _to_bool(
@@ -120,6 +156,8 @@ def _to_int(
     - other integer: clamp to bounds
     """
     _check_bytes(in_t, out_t, 32, arg_node)
+    # Check literal bounds at compile time
+    _check_literal_int_bounds(arg_node, out_t)
 
     b = ctx.builder
 
