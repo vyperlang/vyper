@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import CompilerPanic, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -46,7 +46,7 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Dispatch based on output type
     if out_t == BoolT():
-        return _to_bool(arg, in_t, ctx)
+        return _to_bool(arg, in_t, out_t, arg_node, ctx)
     elif out_t == AddressT():
         return _to_address(arg, in_t, arg_node, ctx)
     elif isinstance(out_t, IntegerT):
@@ -54,7 +54,7 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     elif isinstance(out_t, DecimalT):
         return _to_decimal(arg, in_t, out_t, arg_node, ctx)
     elif isinstance(out_t, BytesM_T):
-        return _to_bytes_m(arg, in_t, out_t, ctx)
+        return _to_bytes_m(arg, in_t, out_t, arg_node, ctx)
     elif isinstance(out_t, BytesT):
         return _to_bytes(arg, in_t, out_t, ctx)
     elif isinstance(out_t, StringT):
@@ -65,12 +65,16 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         raise CompilerPanic(f"Unsupported conversion target: {out_t}")
 
 
-def _to_bool(val: IROperand, in_t, ctx: VenomCodegenContext) -> IROperand:
+def _to_bool(
+    val: IROperand, in_t, out_t, arg_node: vy_ast.VyperNode, ctx: VenomCodegenContext
+) -> IROperand:
     """
     Convert any type to bool.
 
     Any nonzero value is True. For bytestrings, loads the data and checks.
     """
+    _check_bytes(in_t, out_t, 32, arg_node)
+
     b = ctx.builder
 
     if isinstance(in_t, _BytestringT):
@@ -115,6 +119,8 @@ def _to_int(
     - flag: treated as uint256
     - other integer: clamp to bounds
     """
+    _check_bytes(in_t, out_t, 32, arg_node)
+
     b = ctx.builder
 
     # From bytes/string: load data, shift right
@@ -192,6 +198,8 @@ def _to_decimal(
     From integer: multiply by DECIMAL_DIVISOR with overflow check.
     From bytes: shift and interpret as decimal.
     """
+    _check_bytes(in_t, out_t, 32, arg_node)
+
     b = ctx.builder
     divisor = out_t.divisor
 
@@ -235,12 +243,16 @@ def _to_decimal(
     return val
 
 
-def _to_bytes_m(val: IROperand, in_t, out_t: BytesM_T, ctx: VenomCodegenContext) -> IROperand:
+def _to_bytes_m(
+    val: IROperand, in_t, out_t: BytesM_T, arg_node: vy_ast.VyperNode, ctx: VenomCodegenContext
+) -> IROperand:
     """
     Convert to fixed bytes (bytesM).
 
     Values are left-aligned in 32-byte word.
     """
+    _check_bytes(in_t, out_t, out_t.m, arg_node)
+
     b = ctx.builder
 
     # From bytes/string: load data, mask/shift as needed
@@ -328,6 +340,17 @@ def _to_flag(val: IROperand, in_t, out_t: FlagT, ctx: VenomCodegenContext) -> IR
 
 
 # === Helper functions ===
+
+
+def _check_bytes(in_t, out_t, max_bytes_allowed: int, source_expr: vy_ast.VyperNode):
+    """
+    Validate bytestring input doesn't exceed maximum allowed size.
+
+    Raises TypeMismatch if in_t is a bytestring with maxlen > max_bytes_allowed.
+    """
+    if isinstance(in_t, _BytestringT):
+        if in_t.maxlen > max_bytes_allowed:
+            raise TypeMismatch(f"Can't convert {in_t} to {out_t}", source_expr)
 
 
 def _int_clamp(val: IROperand, out_t: IntegerT, ctx: VenomCodegenContext) -> IROperand:
