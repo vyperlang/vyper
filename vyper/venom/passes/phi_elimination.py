@@ -76,8 +76,11 @@ class PhiEliminationPass(IRPass):
                 # this is correct because the phi is a single SSA definition,
                 # even though its runtime value varies. any downstream phi that
                 # only references this barrier (through copies) can be safely
-                # eliminated to an assign from the barrier's output.
+                # eliminated to an assign from the barrier's output; this
+                # increases the number of phis which can be eliminated.
                 # example:
+                #   %a = ...
+                #   %b = ...
                 #   %c = phi %a, %b  ; barrier (two origins)
                 #   %d = %c
                 #   %f = phi %d, %c  ; both paths lead to %c, so %f = %c
