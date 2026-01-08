@@ -11,6 +11,8 @@ Enable via: vyper --experimental-codegen
 """
 from __future__ import annotations
 
+from typing import Optional
+
 from vyper.compiler.settings import Settings
 from vyper.semantics.types.module import ModuleT
 from vyper.venom import run_passes_on
@@ -44,7 +46,10 @@ def generate_venom_runtime(module_t: ModuleT, settings: Settings) -> IRContext:
 
 
 def generate_venom_deploy(
-    module_t: ModuleT, settings: Settings, runtime_bytecode: bytes
+    module_t: ModuleT,
+    settings: Settings,
+    runtime_bytecode: bytes,
+    cbor_metadata: Optional[bytes] = None,
 ) -> IRContext:
     """
     Generate deploy Venom IR with embedded runtime bytecode.
@@ -52,7 +57,15 @@ def generate_venom_deploy(
     This is phase 2 of the two-phase compilation. The runtime
     bytecode is embedded as a data section and the deploy epilogue
     copies it to memory and returns it.
+
+    Args:
+        module_t: Module type for the contract
+        settings: Compiler settings
+        runtime_bytecode: Compiled runtime bytecode
+        cbor_metadata: Optional CBOR-encoded metadata to append to bytecode
     """
     immutables_len = module_t.immutable_section_bytes
-    ctx = generate_deploy_venom(module_t, settings, runtime_bytecode, immutables_len)
+    ctx = generate_deploy_venom(
+        module_t, settings, runtime_bytecode, immutables_len, cbor_metadata
+    )
     return _finalize_venom_ctx(ctx, settings)

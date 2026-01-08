@@ -270,7 +270,9 @@ class CompilerData:
             # Two-phase compilation: deploy needs runtime bytecode
             from vyper.codegen_venom import generate_venom_deploy
 
-            return generate_venom_deploy(self.global_ctx, self.settings, self.bytecode_runtime)
+            return generate_venom_deploy(
+                self.global_ctx, self.settings, self.bytecode_runtime, self.bytecode_metadata
+            )
         else:
             data_sections = {"runtime_begin": self.bytecode_runtime}
             if self.bytecode_metadata is not None:

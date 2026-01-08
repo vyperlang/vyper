@@ -137,7 +137,11 @@ def generate_runtime_venom(module_t: ModuleT, settings: Settings) -> IRContext:
 
 
 def generate_deploy_venom(
-    module_t: ModuleT, settings: Settings, runtime_bytecode: bytes, immutables_len: int
+    module_t: ModuleT,
+    settings: Settings,
+    runtime_bytecode: bytes,
+    immutables_len: int,
+    cbor_metadata: Optional[bytes] = None,
 ) -> IRContext:
     """
     Generate deploy Venom IR with embedded runtime bytecode.
@@ -145,6 +149,13 @@ def generate_deploy_venom(
     This is phase 2 of the two-phase compilation. The runtime
     bytecode is embedded as a data section and the deploy epilogue
     copies it to memory and returns it.
+
+    Args:
+        module_t: Module type for the contract
+        settings: Compiler settings
+        runtime_bytecode: Compiled runtime bytecode
+        immutables_len: Size of immutables section in bytes
+        cbor_metadata: Optional CBOR-encoded metadata to append to bytecode
     """
     id_generator = IDGenerator()
 
@@ -154,6 +165,11 @@ def generate_deploy_venom(
     # Add runtime bytecode as data section
     deploy_ctx.append_data_section(IRLabel("runtime_begin"))
     deploy_ctx.append_data_item(runtime_bytecode)
+
+    # Add CBOR metadata if provided
+    if cbor_metadata is not None:
+        deploy_ctx.append_data_section(IRLabel("cbor_metadata"))
+        deploy_ctx.append_data_item(cbor_metadata)
 
     deploy_fn = deploy_ctx.create_function("deploy")
     deploy_ctx.entry_function = deploy_fn  # Mark as entry point
