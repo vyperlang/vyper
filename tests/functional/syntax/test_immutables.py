@@ -21,14 +21,6 @@ VALUE: immutable(uint256)
 def get_value() -> uint256:
     return VALUE
     """,
-    # VALUE given an initial value
-    """
-VALUE: immutable(uint256) = 3
-
-@deploy
-def __init__():
-    pass
-    """,
     # setting value outside of constructor
     """
 VALUE: immutable(uint256)
@@ -107,7 +99,14 @@ VALUE: immutable(uint256)
 def __init__(_value: uint256):
     VALUE = _value * 3
     x: uint256 = VALUE + 1
+    """,
     """
+VALUE: immutable(uint256) = 3
+
+@deploy
+def __init__():
+    pass
+    """,
 ]
 
 
