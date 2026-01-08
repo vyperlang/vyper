@@ -112,10 +112,8 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     if _is_adhoc_slice(src_node):
         return _lower_adhoc_slice(node, ctx)
 
-    start = Expr(start_node, ctx).lower_value()
-    length = Expr(length_node, ctx).lower_value()
-
-    # Determine source length and data pointer
+    # Evaluate arguments in left-to-right order for correct order of evaluation
+    # (src must be evaluated before start/length, since their side effects may modify src)
     src_len: IROperand
     src_data: IROperand
     if isinstance(src_t, _BytestringT):
@@ -138,6 +136,10 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         tmp_buf = ctx.allocate_buffer(32)
         b.mstore(tmp_buf._ptr, src_val)
         src_data = tmp_buf._ptr
+
+    # Evaluate start and length AFTER src to maintain left-to-right evaluation order
+    start = Expr(start_node, ctx).lower_value()
+    length = Expr(length_node, ctx).lower_value()
 
     # Bounds check: start + length <= src_length, with overflow check
     end = b.add(start, length)
@@ -258,11 +260,10 @@ def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     src_node = node.args[0]
     start_node = node.args[1]
-
-    start = Expr(start_node, ctx).lower_value()
     src_t = src_node._metadata["type"]
 
-    # Determine source length and data pointer
+    # Evaluate arguments in left-to-right order for correct order of evaluation
+    # (src must be evaluated before start, since start's side effects may modify src)
     src_len: IROperand
     src_data: IROperand
     if isinstance(src_t, _BytestringT):
@@ -277,6 +278,9 @@ def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         tmp_buf = ctx.allocate_buffer(32)
         b.mstore(tmp_buf._ptr, src_val)
         src_data = tmp_buf._ptr
+
+    # Evaluate start AFTER src to maintain left-to-right evaluation order
+    start = Expr(start_node, ctx).lower_value()
 
     # Bounds check: start + 32 <= length
     end = b.add(start, IRLiteral(32))
