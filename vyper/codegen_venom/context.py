@@ -15,7 +15,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import CompilerPanic, StateAccessViolation
+from vyper.exceptions import CompilerPanic, MemoryAllocationException, StateAccessViolation
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
@@ -92,6 +92,10 @@ class VenomCodegenContext:
     # Range expression context - set to True when evaluating range/iterator expressions
     in_range_expr: bool = False
 
+    # Immutables region alloca (for constructor context)
+    # When set, iload/istore use GEP from this base instead of raw offsets
+    immutables_alloca: Optional[IRVariable] = None
+
     # Constants for internal function calling convention
     MAX_STACK_ARGS: int = 6
     MAX_STACK_RETURNS: int = 2
@@ -153,6 +157,8 @@ class VenomCodegenContext:
         if vv.typ is not None and not vv.typ._is_prim_word:
             # CODE location requires copy to memory (can't use pointer directly)
             if vv.location == DataLocation.CODE:
+                if self.is_ctor_context:
+                    return self.load_immutable_ctor(vv.operand, vv.typ)
                 return self.load_immutable(vv.operand, vv.typ)
             # STORAGE location requires copy to memory
             if vv.location == DataLocation.STORAGE:
@@ -165,6 +171,9 @@ class VenomCodegenContext:
 
         # Primitive word type: emit load based on location
         if vv.location == DataLocation.CODE:
+            # ctor context uses iload; runtime uses dload
+            if self.is_ctor_context:
+                return self.builder.iload(vv.operand)
             return self.builder.dload(vv.operand)
         return self.builder.load(vv.operand, vv.location)
 
@@ -368,12 +377,16 @@ class VenomCodegenContext:
     def store_memory(self, val: IROperand, ptr: IROperand, typ: VyperType) -> None:
         """Store value to memory pointer.
 
-        For primitive types (<=32 bytes), stores the value directly.
-        For complex types (>32 bytes), val is a source pointer and
+        For primitive word types, stores the value directly via mstore.
+        For complex types (structs, arrays), val is a source pointer and
         we copy from val to ptr.
         For bytestrings, copies actual length from source, not max size.
+
+        Note: Single-word structs are NOT primitive word types - they are
+        complex types that happen to fit in one word. The caller passes
+        a pointer to struct data, not the struct value itself.
         """
-        if typ.memory_bytes_required <= 32:
+        if typ._is_prim_word:
             self.builder.mstore(ptr, val)
         elif isinstance(typ, _BytestringT):
             # Bytestring: copy length word + actual data, not max size
@@ -449,8 +462,14 @@ class VenomCodegenContext:
             self.builder.calldatacopy(val.operand, offset, IRLiteral(size))
             return val.operand
 
+    _ALLOCATION_LIMIT: int = 2**64
+
     def allocate_buffer(self, size: int, annotation: str | None = None) -> Buffer:
         """Allocate anonymous memory buffer. Use buf.base_ptr() to get a Ptr."""
+        if size >= self._ALLOCATION_LIMIT:
+            raise MemoryAllocationException(
+                f"Tried to allocate {size} bytes! (limit is {self._ALLOCATION_LIMIT} (2**64) bytes)"
+            )
         alloca_id = self.new_alloca_id()
         ptr = self.builder.alloca(size, alloca_id)
         return Buffer(_ptr=ptr, size=size, annotation=annotation)
@@ -748,7 +767,7 @@ class VenomCodegenContext:
     # They are byte-addressed (word_scale=32), like memory.
 
     def load_immutable(self, offset: IROperand, typ: VyperType) -> IROperand:
-        """Load immutable value from deployed bytecode.
+        """Load immutable value from deployed bytecode (runtime).
 
         For primitive types (<=32 bytes), returns dload result.
         For multi-word types, allocates memory buffer and copies.
@@ -769,7 +788,7 @@ class VenomCodegenContext:
                 else:
                     imm_offset = self.builder.add(offset, IRLiteral(i))
 
-                val = self.builder.dload(imm_offset)
+                word = self.builder.dload(imm_offset)
 
                 # Memory is byte-addressed
                 mem_ptr: IROperand
@@ -780,18 +799,66 @@ class VenomCodegenContext:
                 else:
                     mem_ptr = self.builder.add(buf, IRLiteral(i))
 
-                self.builder.mstore(mem_ptr, val)
+                self.builder.mstore(mem_ptr, word)
+
+            return buf
+
+    def load_immutable_ctor(self, offset: IROperand, typ: VyperType) -> IROperand:
+        """Load immutable value during constructor (uses GEP + mload).
+
+        For primitive types (<=32 bytes), returns single mload result.
+        For multi-word types, allocates memory buffer and copies using mload.
+        """
+        if typ.memory_bytes_required <= 32:
+            if self.immutables_alloca is not None:
+                ptr = self.builder.gep(self.immutables_alloca, offset)
+                return self.builder.mload(ptr)
+            return self.builder.iload(offset)
+        else:
+            # Multi-word immutable: copy to memory buffer
+            val = self.new_temporary_value(typ)
+            buf = val.operand
+            size = typ.memory_bytes_required
+            for i in range(0, size, 32):
+                # Immutables are byte-addressed
+                if i == 0:
+                    imm_offset = offset
+                elif isinstance(offset, IRLiteral):
+                    imm_offset = IRLiteral(offset.value + i)
+                else:
+                    imm_offset = self.builder.add(offset, IRLiteral(i))
+
+                if self.immutables_alloca is not None:
+                    ptr = self.builder.gep(self.immutables_alloca, imm_offset)
+                    word = self.builder.mload(ptr)
+                else:
+                    word = self.builder.iload(imm_offset)
+
+                # Memory is byte-addressed
+                mem_ptr: IROperand
+                if i == 0:
+                    mem_ptr = buf
+                elif isinstance(buf, IRLiteral):
+                    mem_ptr = IRLiteral(buf.value + i)
+                else:
+                    mem_ptr = self.builder.add(buf, IRLiteral(i))
+
+                self.builder.mstore(mem_ptr, word)
 
             return buf
 
     def store_immutable(self, val: IROperand, offset: IROperand, typ: VyperType) -> None:
         """Store immutable value (during constructor only).
 
-        For primitive types (<=32 bytes), direct istore.
+        For primitive types (<=32 bytes), direct mstore via GEP.
         For multi-word types, val is memory ptr, copy to immutables.
         """
         if typ.memory_bytes_required <= 32:
-            self.builder.istore(offset, val)
+            if self.immutables_alloca is not None:
+                ptr = self.builder.gep(self.immutables_alloca, offset)
+                self.builder.mstore(ptr, val)
+            else:
+                self.builder.istore(offset, val)
         else:
             # Multi-word: val is memory pointer, copy to immutables
             size = typ.memory_bytes_required
@@ -814,7 +881,11 @@ class VenomCodegenContext:
                 else:
                     imm_offset = self.builder.add(offset, IRLiteral(i))
 
-                self.builder.istore(imm_offset, word)
+                if self.immutables_alloca is not None:
+                    ptr = self.builder.gep(self.immutables_alloca, imm_offset)
+                    self.builder.mstore(ptr, word)
+                else:
+                    self.builder.istore(imm_offset, word)
 
     # === Dynamic Array Length ===
 
@@ -845,6 +916,15 @@ class VenomCodegenContext:
             return self.builder.tload(src.operand)
         elif src.location == DataLocation.CALLDATA:
             return self.builder.calldataload(src.operand)
+        elif src.location == DataLocation.CODE:
+            # Immutables: ctor context uses GEP from immutables_alloca, runtime uses dload
+            if self.is_ctor_context:
+                if self.immutables_alloca is not None:
+                    # Use GEP to get proper memory address within immutables region
+                    ptr = self.builder.gep(self.immutables_alloca, src.operand)
+                    return self.builder.mload(ptr)
+                return self.builder.iload(src.operand)
+            return self.builder.dload(src.operand)
         else:
             raise CompilerPanic(f"cannot load from: {src.location}")
 
@@ -857,7 +937,11 @@ class VenomCodegenContext:
         elif dst.location == DataLocation.TRANSIENT:
             self.builder.tstore(dst.operand, val)
         elif dst.location == DataLocation.CODE:
-            # Immutables in constructor context
-            self.builder.istore(dst.operand, val)
+            # Immutables in constructor context - use GEP from immutables_alloca
+            if self.immutables_alloca is not None:
+                ptr = self.builder.gep(self.immutables_alloca, dst.operand)
+                self.builder.mstore(ptr, val)
+            else:
+                self.builder.istore(dst.operand, val)
         else:
             raise CompilerPanic(f"cannot store to: {dst.location}")
