@@ -43,15 +43,47 @@ def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand,
     empty(T) returns zero-initialized value of type T.
 
     For primitives: returns 0
-    For complex types: allocates zeroed memory
+    For complex types: allocates memory and zeros it
+
+    Note: alloca reserves memory but doesn't guarantee it's zeroed (may reuse
+    memory from earlier in the function). We must explicitly zero the buffer.
+    For bytestrings/dynarrays, zeroing the length word (first 32 bytes) is
+    sufficient since length=0 means no valid data. For other complex types,
+    we zero the entire buffer.
     """
+    from vyper.semantics.types.bytestrings import _BytestringT
+    from vyper.semantics.types.subscriptable import DArrayT
+
     typ = node._metadata["type"]
 
     if typ._is_prim_word:
         return IRLiteral(0)
     else:
-        # Allocate memory buffer - memory is zero-initialized
-        return ctx.new_temporary_value(typ)
+        # Allocate memory buffer
+        val = ctx.new_temporary_value(typ)
+
+        # Explicitly zero the memory buffer
+        # For bytestrings/dynarrays, just zero the length word (first 32 bytes)
+        # since length=0 means no valid data
+        if isinstance(typ, (_BytestringT, DArrayT)):
+            ctx.builder.mstore(val.operand, IRLiteral(0))
+        else:
+            # For other complex types, zero the entire buffer
+            _zero_memory(ctx, val.operand, typ.memory_bytes_required)
+
+        return val
+
+
+def _zero_memory(ctx: VenomCodegenContext, ptr: IROperand, size: int) -> None:
+    """Zero out a memory region by writing zeros word by word."""
+    for offset in range(0, size, 32):
+        if offset == 0:
+            dst = ptr
+        elif isinstance(ptr, IRLiteral):
+            dst = IRLiteral(ptr.value + offset)
+        else:
+            dst = ctx.builder.add(ptr, IRLiteral(offset))
+        ctx.builder.mstore(dst, IRLiteral(0))
 
 
 def lower_min(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
