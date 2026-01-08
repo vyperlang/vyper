@@ -479,36 +479,39 @@ class Stmt:
         assert isinstance(range_call, vy_ast.Call)
         args = range_call.args
 
+        # Evaluate range arguments in range_scope (treats context as constant
+        # to prevent state-modifying operations)
         start: IROperand
         rounds: IROperand
-        if len(args) == 1:
-            start = IRLiteral(0)
-            end_expr = Expr(args[0], self.ctx).lower_value()
-        else:
-            start = Expr(args[0], self.ctx).lower_value()
-            end_expr = Expr(args[1], self.ctx).lower_value()
-
-        # Handle bound kwarg for dynamic ranges
-        kwargs = {kw.arg: kw.value for kw in range_call.keywords}
-        has_bound = "bound" in kwargs
-
-        if has_bound:
-            # Dynamic range: compute rounds = end - start
-            # The bound check will catch if rounds > bound (including negative/underflow)
-            bound_node = kwargs["bound"]
-            # Handle both literal Int and constant Name (e.g., bound=MAX_SIZE)
-            if bound_node.has_folded_value:
-                bound_node = bound_node.get_folded_value()
-            rounds_bound = bound_node.value
-            rounds = self.builder.sub(end_expr, start)
-        else:
-            # Static range: start and end must be literals
-            if isinstance(start, IRLiteral) and isinstance(end_expr, IRLiteral):
-                rounds = IRLiteral(end_expr.value - start.value)
-                rounds_bound = rounds.value
+        with self.ctx.range_scope():
+            if len(args) == 1:
+                start = IRLiteral(0)
+                end_expr = Expr(args[0], self.ctx).lower_value()
             else:
-                # Non-literal but no bound - semantic analysis should catch this
-                raise CompilerPanic("range() with non-literal args requires bound=")
+                start = Expr(args[0], self.ctx).lower_value()
+                end_expr = Expr(args[1], self.ctx).lower_value()
+
+            # Handle bound kwarg for dynamic ranges
+            kwargs = {kw.arg: kw.value for kw in range_call.keywords}
+            has_bound = "bound" in kwargs
+
+            if has_bound:
+                # Dynamic range: compute rounds = end - start
+                # The bound check will catch if rounds > bound (including negative/underflow)
+                bound_node = kwargs["bound"]
+                # Handle both literal Int and constant Name (e.g., bound=MAX_SIZE)
+                if bound_node.has_folded_value:
+                    bound_node = bound_node.get_folded_value()
+                rounds_bound = bound_node.value
+                rounds = self.builder.sub(end_expr, start)
+            else:
+                # Static range: start and end must be literals
+                if isinstance(start, IRLiteral) and isinstance(end_expr, IRLiteral):
+                    rounds = IRLiteral(end_expr.value - start.value)
+                    rounds_bound = rounds.value
+                else:
+                    # Non-literal but no bound - semantic analysis should catch this
+                    raise CompilerPanic("range() with non-literal args requires bound=")
 
         # Allocate counter variable in memory for user access
         counter_local = self.ctx.new_variable(varname, target_type, mutable=False)
@@ -587,8 +590,10 @@ class Stmt:
         target_type = node.target.target._metadata["type"]
         varname = node.target.target.id
 
-        # Evaluate array expression (returns pointer)
-        array_vv = Expr(node.iter, self.ctx).lower()
+        # Evaluate array expression in range_scope (treats context as constant
+        # to prevent state-modifying operations)
+        with self.ctx.range_scope():
+            array_vv = Expr(node.iter, self.ctx).lower()
         array = array_vv.operand
         array_typ = node.iter._metadata["type"]
         location = array_vv.location or node.iter._expr_info.location

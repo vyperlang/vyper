@@ -15,7 +15,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import CompilerPanic, StateAccessViolation
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
@@ -88,6 +88,9 @@ class VenomCodegenContext:
 
     # Loop variable tracking (prevents assignment to loop variables)
     forvars: dict[str, bool] = field(default_factory=dict)
+
+    # Range expression context - set to True when evaluating range/iterator expressions
+    in_range_expr: bool = False
 
     # Constants for internal function calling convention
     MAX_STACK_ARGS: int = 6
@@ -185,8 +188,21 @@ class VenomCodegenContext:
         return self.builder.load(vv.operand, vv.location)
 
     def is_constant(self) -> bool:
-        """Check if in constant (view) context."""
-        return self.constancy is Constancy.Constant
+        """Check if in constant (view) context or range expression."""
+        return self.constancy is Constancy.Constant or self.in_range_expr
+
+    def check_is_not_constant(self, err: str, node) -> None:
+        """Raise StateAccessViolation if in constant/view context."""
+        if self.is_constant():
+            raise StateAccessViolation(f"Cannot {err} from {self.pp_constancy()}", node)
+
+    def pp_constancy(self) -> str:
+        """Pretty-print the current constancy context."""
+        if self.in_range_expr:
+            return "a range expression"
+        elif self.constancy == Constancy.Constant:
+            return "a constant function"
+        raise CompilerPanic(f"bad constancy: {self.constancy}")  # pragma: nocover
 
     # Context managers for scoped variable management
     @contextmanager
@@ -216,6 +232,16 @@ class VenomCodegenContext:
                 yield
         finally:
             self.break_target, self.continue_target = old_break, old_continue
+
+    @contextmanager
+    def range_scope(self):
+        """Scope for range expression evaluation (treats context as constant)."""
+        prev_value = self.in_range_expr
+        self.in_range_expr = True
+        try:
+            yield
+        finally:
+            self.in_range_expr = prev_value
 
     def child_for_function(
         self, func_t: ContractFunctionT, builder: VenomBuilder, is_ctor: bool = False

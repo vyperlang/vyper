@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Union
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.value import VyperValue
+from vyper.exceptions import StateAccessViolation
 from vyper.semantics.types import BytesT, TupleT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand
@@ -77,6 +78,14 @@ def lower_raw_call(
     is_delegate = _get_literal_kwarg(node, "is_delegate_call", False)
     is_static = _get_literal_kwarg(node, "is_static_call", False)
     revert_on_failure = _get_literal_kwarg(node, "revert_on_failure", True)
+
+    # Check constancy: non-static calls are not allowed from view/pure functions
+    if not is_static and ctx.is_constant():
+        raise StateAccessViolation(
+            f"Cannot make modifying calls from {ctx.pp_constancy()},"
+            " use `is_static_call=True` to perform this action",
+            node,
+        )
 
     # Handle gas kwarg - defaults to remaining gas
     gas_node = _get_kwarg_value(node, "gas")
@@ -166,6 +175,8 @@ def lower_send(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     from vyper.codegen_venom.expr import Expr
 
+    ctx.check_is_not_constant("send ether", node)
+
     b = ctx.builder
 
     to = Expr(node.args[0], ctx).lower_value()
@@ -205,6 +216,8 @@ def lower_raw_log(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     - data: bytes32 or Bytes[N]
     """
     from vyper.codegen_venom.expr import Expr
+
+    ctx.check_is_not_constant("use raw_log", node)
 
     b = ctx.builder
 
@@ -262,9 +275,37 @@ def lower_raw_revert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     return IRLiteral(0)  # Unreachable
 
 
+def lower_selfdestruct(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+    """
+    selfdestruct(to)
+
+    Destroy the contract and send remaining balance to address.
+    This is a terminal operation.
+
+    Note: selfdestruct is deprecated and may have reduced functionality
+    in future EVM upgrades.
+    """
+    from vyper.codegen_venom.expr import Expr
+    from vyper.warnings import vyper_warn
+
+    ctx.check_is_not_constant("selfdestruct", node)
+
+    vyper_warn(
+        "`selfdestruct` is deprecated! The opcode is no longer recommended for use.", node
+    )
+
+    b = ctx.builder
+
+    to = Expr(node.args[0], ctx).lower_value()
+    b.selfdestruct(to)
+
+    return IRLiteral(0)  # Unreachable
+
+
 HANDLERS = {
     "raw_call": lower_raw_call,
     "send": lower_send,
     "raw_log": lower_raw_log,
     "raw_revert": lower_raw_revert,
+    "selfdestruct": lower_selfdestruct,
 }

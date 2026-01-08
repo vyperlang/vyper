@@ -28,16 +28,23 @@ from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import TupleT, VyperType
-from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.utils import OrderedSet, method_id_int
 from vyper.venom.basicblock import IRLabel, IRLiteral
 from vyper.venom.builder import VenomBuilder
 from vyper.venom.context import IRContext
 
-from .context import VenomCodegenContext
+from .context import Constancy, VenomCodegenContext
 from .expr import Expr
 from .stmt import Stmt
+
+
+def _get_constancy(func_t: ContractFunctionT) -> Constancy:
+    """Get constancy based on function mutability."""
+    if func_t.mutability in (StateMutability.VIEW, StateMutability.PURE):
+        return Constancy.Constant
+    return Constancy.Mutable
 
 
 class IDGenerator:
@@ -341,7 +348,11 @@ def _generate_external_function_body(
     """
     # Create codegen context for this function
     codegen_ctx = VenomCodegenContext(
-        module_ctx=module_t, builder=builder, func_t=func_t, is_ctor_context=False
+        module_ctx=module_t,
+        builder=builder,
+        func_t=func_t,
+        constancy=_get_constancy(func_t),
+        is_ctor_context=False,
     )
 
     # Register positional args from calldata
@@ -466,7 +477,11 @@ def _generate_fallback_body(
 ) -> None:
     """Generate the fallback (__default__) function body."""
     codegen_ctx = VenomCodegenContext(
-        module_ctx=module_t, builder=builder, func_t=func_t, is_ctor_context=False
+        module_ctx=module_t,
+        builder=builder,
+        func_t=func_t,
+        constancy=_get_constancy(func_t),
+        is_ctor_context=False,
     )
 
     # Nonreentrant lock
@@ -503,7 +518,11 @@ def _generate_internal_function(
 
     # Create codegen context
     codegen_ctx = VenomCodegenContext(
-        module_ctx=module_t, builder=builder, func_t=func_t, is_ctor_context=is_ctor_context
+        module_ctx=module_t,
+        builder=builder,
+        func_t=func_t,
+        constancy=_get_constancy(func_t),
+        is_ctor_context=is_ctor_context,
     )
 
     # Set up return handling
@@ -564,7 +583,11 @@ def _generate_constructor(
 
     # Create codegen context
     codegen_ctx = VenomCodegenContext(
-        module_ctx=module_t, builder=builder, func_t=func_t, is_ctor_context=True
+        module_ctx=module_t,
+        builder=builder,
+        func_t=func_t,
+        constancy=_get_constancy(func_t),
+        is_ctor_context=True,
     )
 
     # Payable check

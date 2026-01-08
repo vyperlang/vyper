@@ -166,6 +166,8 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     from vyper.codegen_venom.abi import abi_encode_to_buf
     from vyper.codegen_venom.expr import Expr
 
+    ctx.check_is_not_constant("use raw_create", node)
+
     b = ctx.builder
 
     # Parse positional args: bytecode is first, rest are ctor_args
@@ -254,6 +256,8 @@ def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -
     """
     from vyper.codegen_venom.expr import Expr
 
+    ctx.check_is_not_constant("use create_minimal_proxy_to", node)
+
     b = ctx.builder
 
     # Parse args
@@ -323,6 +327,8 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     Returns deployed contract address.
     """
     from vyper.codegen_venom.expr import Expr
+
+    ctx.check_is_not_constant("use create_copy_of", node)
 
     b = ctx.builder
 
@@ -401,6 +407,8 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     """
     from vyper.codegen_venom.abi import abi_encode_to_buf
     from vyper.codegen_venom.expr import Expr
+
+    ctx.check_is_not_constant("use create_from_blueprint", node)
 
     b = ctx.builder
 

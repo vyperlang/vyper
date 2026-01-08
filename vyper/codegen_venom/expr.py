@@ -28,7 +28,7 @@ from vyper.codegen.core import (
     calculate_type_for_external_return,
     needs_external_call_wrap,
 )
-from vyper.exceptions import CompilerPanic, UnimplementedException
+from vyper.exceptions import CompilerPanic, StateAccessViolation, UnimplementedException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     AddressT,
@@ -1338,6 +1338,14 @@ class Expr:
         # node._metadata["type"] is the return type, we need the function type
         func_t = node.func._metadata.get("type")
         assert func_t is not None
+
+        # Check constancy: can't call mutable internal functions from view/pure contexts
+        if self.ctx.is_constant() and func_t.is_mutable:
+            raise StateAccessViolation(
+                f"May not call state modifying function "
+                f"'{func_name}' within {self.ctx.pp_constancy()}.",
+                node,
+            )
 
         returns_count = self.ctx.returns_stack_count(func_t)
         pass_via_stack = self.ctx.pass_via_stack(func_t)
