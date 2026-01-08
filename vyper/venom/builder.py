@@ -539,6 +539,20 @@ class VenomBuilder:
         finally:
             self.fn.pop_source()
 
+    @contextmanager
+    def error_context(self, error_msg: str):
+        """Track error message for source map generation.
+
+        Usage:
+            with b.error_context("safeadd"):
+                b.assert_(ok)  # Instruction gets error_msg
+        """
+        self.fn.push_error_msg(error_msg)
+        try:
+            yield
+        finally:
+            self.fn.pop_error_msg()
+
     # === Internal Implementation ===
     def _emit(self, opcode: str, *args: Operand) -> None:
         """Emit instruction with no output. Args passed directly to IR."""

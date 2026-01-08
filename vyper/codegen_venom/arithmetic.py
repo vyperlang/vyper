@@ -33,7 +33,8 @@ def safe_add(
         else:
             # res >= x
             ok = b.iszero(b.lt(res, x))
-        b.assert_(ok)
+        with b.error_context("safeadd"):
+            b.assert_(ok)
 
     return res
 
@@ -57,7 +58,8 @@ def safe_sub(
         else:
             # res <= x
             ok = b.iszero(b.gt(res, x))
-        b.assert_(ok)
+        with b.error_context("safesub"):
+            b.assert_(ok)
 
     return res
 
@@ -87,7 +89,8 @@ def safe_mul(
                 not_special = b.iszero(special_case)
                 ok = b.and_(ok, not_special)
 
-            b.assert_(ok)
+            with b.error_context("safemul"):
+                b.assert_(ok)
 
         # For decimals, divide result by divisor
         if isinstance(typ, DecimalT):
@@ -114,7 +117,8 @@ def safe_div(b: VenomBuilder, x: IROperand, y: IROperand, typ: DecimalT) -> IROp
         y_gt_zero = b.sgt(y, IRLiteral(0))
     else:
         y_gt_zero = b.gt(y, IRLiteral(0))
-    b.assert_(y_gt_zero)
+    with b.error_context("safediv"):
+        b.assert_(y_gt_zero)
 
     DIV = b.sdiv if typ.is_signed else b.div
     res = DIV(x_scaled, y)
@@ -135,7 +139,8 @@ def safe_floordiv(b: VenomBuilder, x: IROperand, y: IROperand, typ: IntegerT) ->
         y_gt_zero = b.sgt(y, IRLiteral(0))
     else:
         y_gt_zero = b.gt(y, IRLiteral(0))
-    b.assert_(y_gt_zero)
+    with b.error_context("safediv"):
+        b.assert_(y_gt_zero)
 
     DIV = b.sdiv if is_signed else b.div
     res: IROperand = DIV(x, y)
@@ -147,7 +152,8 @@ def safe_floordiv(b: VenomBuilder, x: IROperand, y: IROperand, typ: IntegerT) ->
         y_is_neg1 = b.iszero(b.not_(y))
         special_case = b.and_(x_is_min, y_is_neg1)
         ok = b.iszero(special_case)
-        b.assert_(ok)
+        with b.error_context("safediv"):
+            b.assert_(ok)
     elif is_signed and typ.bits < 256:
         # For smaller signed types, clamp result
         res = clamp_basetype(b, res, typ)
@@ -164,15 +170,16 @@ def safe_mod(
 
     is_signed = typ.is_signed
 
-    # Clamp divisor > 0
-    if is_signed:
-        y_gt_zero = b.sgt(y, IRLiteral(0))
-    else:
-        y_gt_zero = b.gt(y, IRLiteral(0))
-    b.assert_(y_gt_zero)
+    with b.error_context("safemod"):
+        # Clamp divisor > 0
+        if is_signed:
+            y_gt_zero = b.sgt(y, IRLiteral(0))
+        else:
+            y_gt_zero = b.gt(y, IRLiteral(0))
+        b.assert_(y_gt_zero)
 
-    MOD = b.smod if is_signed else b.mod
-    return MOD(x, y)
+        MOD = b.smod if is_signed else b.mod
+        return MOD(x, y)
 
 
 def safe_pow(
@@ -210,7 +217,8 @@ def safe_pow(
         else:
             upper_bound = calculate_largest_power(base_val, bits, is_signed)
             ok = b.iszero(b.gt(y, IRLiteral(upper_bound)))
-        b.assert_(ok)
+        with b.error_context("safepow"):
+            b.assert_(ok)
 
     elif exp_literal is not None:
         # Exponent is literal - compute max base at compile time
@@ -226,7 +234,8 @@ def safe_pow(
                 ok = b.and_(ge_lower, le_upper)
             else:
                 ok = b.iszero(b.gt(x, IRLiteral(upper_bound)))
-        b.assert_(ok)
+        with b.error_context("safepow"):
+            b.assert_(ok)
 
     else:
         # Neither operand is literal - not currently supported

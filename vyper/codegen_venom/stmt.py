@@ -1052,7 +1052,8 @@ class Stmt:
             # Fail block: revert 0, 0
             self.builder.append_block(fail_block)
             self.builder.set_block(fail_block)
-            self.builder.revert(IRLiteral(0), IRLiteral(0))
+            with self.builder.error_context("user assert"):
+                self.builder.revert(IRLiteral(0), IRLiteral(0))
 
             # Ok block: continue
             self.builder.append_block(ok_block)
@@ -1073,10 +1074,12 @@ class Stmt:
 
         if node.exc is None:
             # Bare raise: revert 0, 0
-            self.builder.revert(IRLiteral(0), IRLiteral(0))
+            with self.builder.error_context("user raise"):
+                self.builder.revert(IRLiteral(0), IRLiteral(0))
         elif isinstance(node.exc, vy_ast.Name) and node.exc.id == "UNREACHABLE":
             # UNREACHABLE: invalid opcode
-            self.builder.invalid()
+            with self.builder.error_context("raise unreachable"):
+                self.builder.invalid()
         else:
             # Raise with reason string
             self._revert_with_reason(node.exc)
@@ -1096,7 +1099,8 @@ class Stmt:
             # Fail block: invalid
             self.builder.append_block(fail_block)
             self.builder.set_block(fail_block)
-            self.builder.invalid()
+            with self.builder.error_context("assert unreachable"):
+                self.builder.invalid()
 
             # Ok block: continue
             self.builder.append_block(ok_block)
@@ -1176,4 +1180,5 @@ class Stmt:
         revert_offset = self.builder.add(buf._ptr, IRLiteral(28))
         assert encoded_len is not None
         revert_len = self.builder.add(IRLiteral(4), encoded_len)
-        self.builder.revert(revert_offset, revert_len)
+        with self.builder.error_context("user revert with reason"):
+            self.builder.revert(revert_offset, revert_len)

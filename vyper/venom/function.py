@@ -133,6 +133,15 @@ class IRFunction:
             self._ast_source_stack.append(ir.ast_source)
             self._error_msg_stack.append(ir.error_msg)
 
+    def push_error_msg(self, error_msg: Optional[str]):
+        """Push an error message without changing ast_source."""
+        self._error_msg_stack.append(error_msg)
+
+    def pop_error_msg(self):
+        """Pop an error message."""
+        assert len(self._error_msg_stack) > 0, "Empty error stack"
+        self._error_msg_stack.pop()
+
     def pop_source(self):
         assert len(self._ast_source_stack) > 0, "Empty source stack"
         self._ast_source_stack.pop()
