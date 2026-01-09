@@ -510,9 +510,9 @@ def test_nested_diamond_no_restore():
     """
     pre = """
     main:
-        %ptr = 100
         %cond1 = param
         %cond2 = param
+        %ptr = 100
         jnz %cond1, @A, @B
     A:
         mstore %ptr, 1
@@ -536,7 +536,7 @@ def test_nested_diamond_no_restore():
         sink %val
     """
     # No change expected - can't create phi when predecessors have multiple values
-    _check_no_change(pre)
+    _check_pre_post(pre, pre)
 
 
 def test_nested_diamond_with_restore():
@@ -558,9 +558,9 @@ def test_nested_diamond_with_restore():
     """
     pre = """
     main:
-        %ptr = 100
         %cond1 = param
         %cond2 = param
+        %ptr = 100
         jnz %cond1, @A, @B
     A:
         mstore %ptr, 1
@@ -588,9 +588,9 @@ def test_nested_diamond_with_restore():
     """
     post = """
     main:
-        %ptr = 100
         %cond1 = param
         %cond2 = param
+        %ptr = 100
         jnz %cond1, @A, @B
     A:
         mstore %ptr, 1
@@ -612,7 +612,7 @@ def test_nested_diamond_with_restore():
         %1 = phi @D, %v3, @E, %v4
         sink %1
     """
-    _check_pre_post(pre, post, hevm=False)
+    _check_pre_post(pre, post)
 
 
 def test_load_elimination_phi_duplicate_pred_values():
@@ -622,9 +622,9 @@ def test_load_elimination_phi_duplicate_pred_values():
     """
     pre = """
     main:
-        %ptr = 100
         %cond1 = param
         %cond2 = param
+        %ptr = 100
         %v_shared = source
         %v_other = source
         jnz %cond1, @A, @B
@@ -645,9 +645,9 @@ def test_load_elimination_phi_duplicate_pred_values():
     """
     post = """
     main:
-        %ptr = 100
         %cond1 = param
         %cond2 = param
+        %ptr = 100
         %v_shared = source
         %v_other = source
         jnz %cond1, @A, @B
