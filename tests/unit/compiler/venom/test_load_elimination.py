@@ -681,8 +681,8 @@ def test_aliased_pointer_store_load():
     pre = """
     main:
         %ptr = param
-        %alias = %ptr
         %val = param
+        %alias = %ptr
         mstore %alias, %val
         %loaded = mload %ptr
         sink %loaded
@@ -690,8 +690,8 @@ def test_aliased_pointer_store_load():
     post = """
     main:
         %ptr = param
-        %alias = %ptr
         %val = param
+        %alias = %ptr
         mstore %alias, %val
         sink %val
     """
