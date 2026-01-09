@@ -488,3 +488,211 @@ def test_load_elimination_inter_distant_bb(position):
     """
 
     _check_pre_post(pre, post)
+
+
+def test_nested_diamond_no_restore():
+    r"""
+    Test nested diamond CFG where values diverge at inner join.
+    The outer join predecessors each have len > 1, so we should bail out
+    (no phi insertion, load remains).
+
+    CFG:
+        A (store v1)    B (store v2)
+             \              /
+              \            /
+               C  <- inner join, lattice = {v1, v2}
+              / \
+             D   E   <- no stores, inherit {v1, v2}
+              \ /
+               F  <- outer join, lattice = {v1, v2}
+               |
+               G (load)
+    """
+    pre = """
+    main:
+        %cond1 = param
+        %cond2 = param
+        %ptr = 100
+        jnz %cond1, @A, @B
+    A:
+        mstore %ptr, 1
+        jmp @C
+    B:
+        mstore %ptr, 2
+        jmp @C
+    C:
+        ; inner join - lattice has {1, 2}
+        jnz %cond2, @D, @E
+    D:
+        ; no store, inherits {1, 2}
+        jmp @F
+    E:
+        ; no store, inherits {1, 2}
+        jmp @F
+    F:
+        ; outer join - predecessors D and E both have {1, 2}
+        ; algorithm should bail out (no phi)
+        %val = mload %ptr
+        sink %val
+    """
+    # No change expected - can't create phi when predecessors have multiple values
+    _check_pre_post(pre, pre)
+
+
+def test_nested_diamond_with_restore():
+    r"""
+    Test nested diamond CFG where both paths at outer level re-store.
+    Each predecessor of outer join has exactly 1 value, so phi can be created.
+
+    CFG:
+        A (store v1)    B (store v2)
+             \              /
+              \            /
+               C  <- inner join
+              / \
+             D   E   <- both store new values (using variables)
+              \ /
+               F  <- outer join
+               |
+               G (load)
+    """
+    pre = """
+    main:
+        %cond1 = param
+        %cond2 = param
+        %ptr = 100
+        jnz %cond1, @A, @B
+    A:
+        mstore %ptr, 1
+        jmp @C
+    B:
+        mstore %ptr, 2
+        jmp @C
+    C:
+        ; inner join
+        jnz %cond2, @D, @E
+    D:
+        ; define a new variable here (source = symbolic)
+        %v3 = source
+        mstore %ptr, %v3
+        jmp @F
+    E:
+        ; define a new variable here
+        %v4 = source
+        mstore %ptr, %v4
+        jmp @F
+    F:
+        ; outer join - D has {%v3}, E has {%v4}
+        %val = mload %ptr
+        sink %val
+    """
+    post = """
+    main:
+        %cond1 = param
+        %cond2 = param
+        %ptr = 100
+        jnz %cond1, @A, @B
+    A:
+        mstore %ptr, 1
+        jmp @C
+    B:
+        mstore %ptr, 2
+        jmp @C
+    C:
+        jnz %cond2, @D, @E
+    D:
+        %v3 = source
+        mstore %ptr, %v3
+        jmp @F
+    E:
+        %v4 = source
+        mstore %ptr, %v4
+        jmp @F
+    F:
+        %1 = phi @D, %v3, @E, %v4
+        sink %1
+    """
+    _check_pre_post(pre, post)
+
+
+def test_load_elimination_phi_duplicate_pred_values():
+    r"""
+    Test a join with three predecessors where two store the same value.
+    The phi should include duplicate operands and the load is eliminated.
+    """
+    pre = """
+    main:
+        %cond1 = param
+        %cond2 = param
+        %ptr = 100
+        %v_shared = source
+        %v_other = source
+        jnz %cond1, @A, @B
+    A:
+        mstore %ptr, %v_shared
+        jmp @J
+    B:
+        jnz %cond2, @C, @D
+    C:
+        mstore %ptr, %v_shared
+        jmp @J
+    D:
+        mstore %ptr, %v_other
+        jmp @J
+    J:
+        %val = mload %ptr
+        sink %val
+    """
+    post = """
+    main:
+        %cond1 = param
+        %cond2 = param
+        %ptr = 100
+        %v_shared = source
+        %v_other = source
+        jnz %cond1, @A, @B
+    A:
+        mstore %ptr, %v_shared
+        jmp @J
+    B:
+        jnz %cond2, @C, @D
+    C:
+        mstore %ptr, %v_shared
+        jmp @J
+    D:
+        mstore %ptr, %v_other
+        jmp @J
+    J:
+        %1 = phi @A, %v_shared, @C, %v_shared, @D, %v_other
+        %val = %1
+        sink %val
+    """
+    _check_pre_post(pre, post)
+
+
+def test_aliased_pointer_store_load():
+    """
+    Test that aliased pointers are recognized as the same location.
+
+    Note: AssignElimination runs before LoadElimination and removes the alias,
+    so this mostly documents expected behavior rather than testing normalization
+    in isolation.
+    """
+    pre = """
+    main:
+        %ptr = param
+        %val = param
+        %alias = %ptr
+        mstore %alias, %val
+        %loaded = mload %ptr
+        sink %loaded
+    """
+    post = """
+    main:
+        %ptr = param
+        %val = param
+        %alias = %ptr
+        mstore %alias, %val
+        sink %val
+    """
+    _check_pre_post(pre, post)
