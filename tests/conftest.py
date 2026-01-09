@@ -88,29 +88,6 @@ def experimental_codegen(pytestconfig):
     return ret
 
 
-@pytest.fixture(autouse=True)
-def check_venom_xfail(request, experimental_codegen):
-    if not experimental_codegen:
-        return
-
-    marker = request.node.get_closest_marker("venom_xfail")
-    if marker is None:
-        return
-
-    # https://github.com/okken/pytest-runtime-xfail?tab=readme-ov-file#alternatives
-    request.node.add_marker(pytest.mark.xfail(strict=True, **marker.kwargs))
-
-
-@pytest.fixture
-def venom_xfail(request, experimental_codegen):
-    def _xfail(*args, **kwargs):
-        if not experimental_codegen:
-            return
-        request.node.add_marker(pytest.mark.xfail(*args, strict=True, **kwargs))
-
-    return _xfail
-
-
 @pytest.fixture(scope="session")
 def evm_version(pytestconfig):
     # note: configure the evm version that we emit code for.
