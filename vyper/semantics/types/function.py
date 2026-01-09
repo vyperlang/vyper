@@ -484,6 +484,12 @@ class ContractFunctionT(VyperType):
 
         positional_args, keyword_args = _parse_args(funcdef)
 
+        # Abstract methods cannot have optional parameters
+        if is_abstract and funcdef.args.defaults:
+            raise FunctionDeclarationException(
+                "Abstract methods cannot have optional parameters", funcdef.args.defaults[0]
+            )
+
         return_type = _parse_return_type(funcdef)
 
         # validate default and init functions
