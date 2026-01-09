@@ -722,3 +722,238 @@ def bar() -> uint256: ...
 
     assert e.value.message == expected_message
     assert e.value.hint == expected_hint
+
+
+def test_abstract_fails_on_external_functions(get_contract):
+    """Test that @abstract decorator fails on @external functions"""
+    contract = """
+@external
+@abstract
+def test() -> uint256: ...
+    """
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(contract)
+    assert e.value.message == "@abstract decorator is not allowed on external functions"
+
+
+def test_abstract_fails_on_deploy_functions(get_contract):
+    """Test that @abstract decorator fails on @deploy functions"""
+    contract = """
+@deploy
+@abstract
+def __init__(): ...
+    """
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(contract)
+    assert e.value.message == "@abstract decorator is not allowed on deploy functions"
+
+
+def test_override_fails_on_external_functions(get_contract, make_input_bundle):
+    """Test that @override decorator fails on @external functions"""
+    contract = """
+import foo
+
+initializes: foo
+
+@external
+@override(foo)
+def test() -> uint256:
+    return 42
+    """
+
+    foo = """
+@abstract
+def test() -> uint256: ...
+    """
+
+    input_bundle = make_input_bundle({"foo.vy": foo})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+    assert e.value.message == "@override decorator is not allowed on external functions"
+
+
+@pytest.mark.parametrize("with_abstract", [True, False])
+def test_override_fails_on_deploy_functions(get_contract, make_input_bundle, with_abstract):
+    """Test that @override decorator fails on @deploy functions"""
+
+    optional_abstract = "@abstract" if with_abstract else ""
+
+    contract = """
+import foo
+
+initializes: foo
+
+@deploy
+@override(foo)
+def __init__():
+    pass
+    """
+
+    foo = f"""
+{optional_abstract}
+@deploy
+def __init__(): ...
+    """
+
+    input_bundle = make_input_bundle({"foo.vy": foo})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    if with_abstract:
+        # fails on the abstract before it has a chance to fail on the override
+        assert e.value.message == "@abstract decorator is not allowed on deploy functions"
+    else:
+        # fails on the missing abstract before it has a chance to fail on the override
+        assert e.value.message == "Cannot override `__init__` from `foo` - method is not abstract"
+
+
+def test_override_non_initialized_module_fails(get_contract, make_input_bundle):
+    """Test that overriding from a non-initialized module fails with proper error"""
+    contract = """
+import foo
+# Missing: initializes: foo
+
+@override(foo)
+def bar() -> uint256:
+    return 42
+    """
+
+    foo = """
+@abstract
+def bar() -> uint256: ...
+    """
+
+    input_bundle = make_input_bundle({"foo.vy": foo})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    assert e.value.message == "Cannot override method from `foo` - module is not initialized"
+    assert e.value.hint == "add `initializes: foo` as a top-level statement to your contract"
+
+
+def test_override_non_abstract_method_fails(get_contract, make_input_bundle):
+    """Test that overriding a non-abstract method fails with proper error"""
+    contract = """
+import foo
+
+initializes: foo
+
+@override(foo)
+def bar() -> uint256:
+    return 42
+    """
+
+    foo = """
+def bar() -> uint256:
+    return 100
+    """
+
+    input_bundle = make_input_bundle({"foo.vy": foo})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    assert e.value.message == "Cannot override `bar` from `foo` - method is not abstract"
+    assert e.value.hint == "only abstract methods can be overridden"
+
+
+def test_duplicate_override_fails(get_contract, make_input_bundle):
+    """Test that overriding the same abstract method twice fails with proper error"""
+    contract = """
+import foo
+import bar_override
+import baz_override
+
+initializes: foo
+initializes: bar_override
+initializes: baz_override
+    """
+
+    foo = """
+@abstract
+def some_method() -> uint256: ...
+    """
+
+    bar_override = """
+import foo
+initializes: foo
+
+@override(foo)
+def some_method() -> uint256:
+    return 100
+    """
+
+    baz_override = """
+import foo
+initializes: foo
+
+@override(foo)  # This should fail - method already overridden by bar_override
+def some_method() -> uint256:
+    return 200
+    """
+
+    input_bundle = make_input_bundle(
+        {"foo.vy": foo, "bar_override.vy": bar_override, "baz_override.vy": baz_override}
+    )
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    assert e.value.message == "Method `some_method` from `foo` is already overridden"
+    assert e.value.hint == "each abstract method can only be overridden once"
+
+
+def test_override_validation_order(get_contract, make_input_bundle):
+    """Test that validation errors are reported in the correct order"""
+
+    # Test 1: Non-initialized module error should come first
+    contract1 = """
+import foo
+# Missing initializes
+
+@override(foo)
+def bar() -> uint256:
+    return 42
+    """
+
+    foo1 = """
+def bar() -> uint256:  # Not abstract, but we should get non-initialized error first
+    return 100
+    """
+
+    input_bundle1 = make_input_bundle({"foo.vy": foo1})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(contract1, input_bundle=input_bundle1)
+
+    # Should fail on non-initialized module before checking if method is abstract
+    assert "module is not initialized" in e.value.message
+
+    # Test 2: Non-abstract method error should come after initialization check passes
+    contract2 = """
+import foo
+
+initializes: foo
+
+@override(foo)
+def bar() -> uint256:
+    return 42
+    """
+
+    foo2 = """
+def bar() -> uint256:  # Not abstract
+    return 100
+    """
+
+    input_bundle2 = make_input_bundle({"foo.vy": foo2})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(contract2, input_bundle=input_bundle2)
+
+    # Should fail on non-abstract method
+    assert "method is not abstract" in e.value.message

@@ -10,6 +10,7 @@ from vyper.exceptions import (
     CompilerPanic,
     EvmVersionException,
     ExceptionList,
+    FunctionDeclarationException,
     ImmutableViolation,
     InitializerException,
     InterfaceViolation,
@@ -367,16 +368,34 @@ def _annotate_overrides(imports: ImportDict) -> None:
             for other_module_name in _extract_overrides(func):
                 other_module_ast = imports[module_ast][other_module_name]
 
-                # TODO: Overriding non-initialized module error
-                assert other_module_name in initialized_modules
+                # Check that the overridden module is initialized
+                if other_module_name not in initialized_modules:
+                    raise FunctionDeclarationException(
+                        f"Cannot override method from `{other_module_name}` - module is not"
+                        " initialized",
+                        func,
+                        hint=f"add `initializes: {other_module_name}` as a top-level statement to"
+                        " your contract",
+                    )
 
                 other_func = _get_method(other_module_ast, func.name)
 
-                # TODO: Overriding non-abstract method error
-                assert _is_abstract(other_func)
+                # Check that the overridden method is abstract
+                if not _is_abstract(other_func):
+                    raise FunctionDeclarationException(
+                        f"Cannot override `{func.name}` from `{other_module_name}` - method is not"
+                        " abstract",
+                        func,
+                        hint="only abstract methods can be overridden",
+                    )
 
-                # TODO: Duplicate override error
-                assert "overridden_by" not in other_func._metadata
+                # Check for duplicate overrides
+                if "overridden_by" in other_func._metadata:
+                    raise FunctionDeclarationException(
+                        f"Method `{func.name}` from `{other_module_name}` is already overridden",
+                        func,
+                        hint="each abstract method can only be overridden once",
+                    )
 
                 other_func._metadata["overridden_by"] = func
 

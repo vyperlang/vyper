@@ -465,6 +465,20 @@ class ContractFunctionT(VyperType):
 
         is_abstract = decorators.is_abstract
         overrides = decorators.override_nodes
+
+        if function_visibility != FunctionVisibility.INTERNAL:
+            if is_abstract:
+                raise FunctionDeclarationException(
+                    f"@abstract decorator is not allowed on {function_visibility.value} functions",
+                    decorators.abstract_node,
+                )
+
+            if overrides:
+                raise FunctionDeclarationException(
+                    f"@override decorator is not allowed on {function_visibility.value} functions",
+                    overrides[0],
+                )
+
         overridden_by = funcdef._metadata["overridden_by"] if is_abstract else None
 
         positional_args, keyword_args = _parse_args(funcdef)
