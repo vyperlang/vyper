@@ -396,11 +396,17 @@ class VenomCodegenContext:
         if typ._is_prim_word:
             self.builder.mstore(ptr, val)
         elif isinstance(typ, _BytestringT):
-            # Bytestring: copy length word + actual data, not max size
+            # Bytestring: copy length word + ceil32(actual data), not max size
             # Length is at val+0, data starts at val+32
+            # Must copy complete 32-byte words to avoid leaving dirty data
             src_len = self.builder.mload(val)
-            # Copy length + 32 (length word) bytes
-            copy_len = self.builder.add(src_len, IRLiteral(32))
+            # ceil32(length) = (length + 31) & ~31
+            padded_len = self.builder.and_(
+                self.builder.add(src_len, IRLiteral(31)),
+                IRLiteral((1 << 256) - 32)  # ~31 in 256-bit
+            )
+            # Copy 32 (length word) + ceil32(length) bytes
+            copy_len = self.builder.add(padded_len, IRLiteral(32))
             self.copy_memory_dynamic(ptr, val, copy_len)
         else:
             # Complex type: val is a pointer, copy memory
