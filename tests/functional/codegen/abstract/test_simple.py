@@ -5,6 +5,7 @@ from vyper.exceptions import (
     FunctionDeclarationException,
     ImmutableViolation,
     InitializerException,
+    StructureException,
 )
 
 
@@ -1347,6 +1348,64 @@ def test_multiple_calls() -> uint256:
     c = get_contract(contract, input_bundle=input_bundle)
 
     assert c.test_multiple_calls() == 3
+
+
+INTERFACE_BLOCK_DECORATOR_TESTS = [
+    # decorator, expected_message
+    ("@abstract", "Function definition in interface cannot be decorated"),
+    ("@override(test_interface)", "Function definition in interface cannot be decorated"),
+]
+
+
+@pytest.mark.parametrize("decorator,expected_message", INTERFACE_BLOCK_DECORATOR_TESTS)
+def test_decorators_not_allowed_in_interface_blocks(get_contract, decorator, expected_message):
+    """Test that @abstract and @override decorators are not allowed in interface blocks"""
+
+    contract = f"""
+interface test_interface:
+    {decorator}
+    def test_method() -> uint256: view
+    """
+
+    with pytest.raises(StructureException) as e:
+        get_contract(contract)
+
+    assert expected_message in str(e.value)
+
+
+VYI_FILE_DECORATOR_TESTS = [
+    # decorator, expected_message
+    ("@abstract", "`@abstract` decorator not allowed in interfaces"),
+    ("@override(test_interface)", "`@override` decorator not allowed in interfaces"),
+]
+
+
+@pytest.mark.parametrize("decorator,expected_message", VYI_FILE_DECORATOR_TESTS)
+def test_decorators_not_allowed_in_vyi_files(
+    get_contract, make_input_bundle, decorator, expected_message
+):
+    """Test that @abstract and @override decorators are not allowed in .vyi interface files"""
+
+    interface_file = f"""
+{decorator}
+@external
+def test_method() -> uint256: ...
+    """
+
+    contract = """
+import test_interface
+
+@external
+def test() -> uint256:
+    return test_interface.test_method()
+    """
+
+    input_bundle = make_input_bundle({"test_interface.vyi": interface_file})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    assert expected_message in str(e.value)
 
 
 def test_overriding_module_can_initialize_state(get_contract, make_input_bundle):

@@ -395,6 +395,16 @@ class ContractFunctionT(VyperType):
                 "`@raw_return` not allowed in interfaces", decorators.raw_return_node
             )
 
+        if decorators.is_abstract:
+            raise FunctionDeclarationException(
+                "`@abstract` decorator not allowed in interfaces", decorators.abstract_node
+            )
+
+        if decorators.override_nodes:
+            raise FunctionDeclarationException(
+                "`@override` decorator not allowed in interfaces", decorators.override_nodes[0]
+            )
+
         # it's redundant to specify visibility in vyi - always should be external
         function_visibility = decorators.visibility
         if function_visibility is None:
