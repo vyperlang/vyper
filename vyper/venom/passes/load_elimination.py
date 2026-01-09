@@ -208,31 +208,26 @@ class LoadElimination(IRPass):
             while len(preds := self.cfg.cfg_in(bb)) == 1:
                 bb = preds.first()
             first_inst = bb.instructions[0]
+            preds = list(self.cfg.cfg_in(bb))
             ops = []
-            for pred in self.cfg.cfg_in(bb):
+            for pred in preds:
                 pred_lattice = self._bb_lattice[pred]
-                if ptr not in pred_lattice:
-                    # can't determine value from this predecessor
-                    return
+                # KeyError here indicates analysis bug (ptr must be in all preds)
                 val = pred_lattice[ptr]
-                if len(val) == 0:
-                    # no value available from this predecessor
-                    return
+                assert len(val) > 0, (ptr, pred, val)
                 if len(val) > 1:
                     # could be handled but would require more phis
                     return
                 val = val.first()
-                if val not in existing_value:
-                    # value doesn't match expected set
-                    return
+                assert val in existing_value, (val, existing_value)
                 if not isinstance(val, IRVariable):
                     # could be extended by adding stores to source basicblocks
                     return
                 ops.extend([pred.label, val])
 
-            if len(ops) != 2 * len(existing_value):
-                # couldn't collect all expected values
-                return
+            # each predecessor contributes exactly one (label, value) pair;
+            # note: len(preds) != len(existing_value) when multiple preds have same value
+            assert len(ops) == 2 * len(preds), (ops, preds, inst)
 
             join = self.updater.add_before(first_inst, "phi", ops)
             assert join is not None

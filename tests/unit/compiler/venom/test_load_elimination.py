@@ -613,3 +613,86 @@ def test_nested_diamond_with_restore():
         sink %1
     """
     _check_pre_post(pre, post, hevm=False)
+
+
+def test_load_elimination_phi_duplicate_pred_values():
+    r"""
+    Test a join with three predecessors where two store the same value.
+    The phi should include duplicate operands and the load is eliminated.
+    """
+    pre = """
+    main:
+        %ptr = 100
+        %cond1 = param
+        %cond2 = param
+        %v_shared = source
+        %v_other = source
+        jnz %cond1, @A, @B
+    A:
+        mstore %ptr, %v_shared
+        jmp @J
+    B:
+        jnz %cond2, @C, @D
+    C:
+        mstore %ptr, %v_shared
+        jmp @J
+    D:
+        mstore %ptr, %v_other
+        jmp @J
+    J:
+        %val = mload %ptr
+        sink %val
+    """
+    post = """
+    main:
+        %ptr = 100
+        %cond1 = param
+        %cond2 = param
+        %v_shared = source
+        %v_other = source
+        jnz %cond1, @A, @B
+    A:
+        mstore %ptr, %v_shared
+        jmp @J
+    B:
+        jnz %cond2, @C, @D
+    C:
+        mstore %ptr, %v_shared
+        jmp @J
+    D:
+        mstore %ptr, %v_other
+        jmp @J
+    J:
+        %1 = phi @A, %v_shared, @C, %v_shared, @D, %v_other
+        %val = %1
+        sink %val
+    """
+    _check_pre_post(pre, post)
+
+
+def test_aliased_pointer_store_load():
+    """
+    Test that aliased pointers are recognized as the same location.
+
+    Note: AssignElimination runs before LoadElimination and removes the alias,
+    so this mostly documents expected behavior rather than testing normalization
+    in isolation.
+    """
+    pre = """
+    main:
+        %ptr = param
+        %alias = %ptr
+        %val = param
+        mstore %alias, %val
+        %loaded = mload %ptr
+        sink %loaded
+    """
+    post = """
+    main:
+        %ptr = param
+        %alias = %ptr
+        %val = param
+        mstore %alias, %val
+        sink %val
+    """
+    _check_pre_post(pre, post)
