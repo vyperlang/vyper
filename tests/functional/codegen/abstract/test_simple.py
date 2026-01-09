@@ -2,6 +2,7 @@ import pytest
 
 from vyper.exceptions import (
     ArgumentException,
+    CallViolation,
     FunctionDeclarationException,
     ImmutableViolation,
     InitializerException,
@@ -1462,3 +1463,33 @@ def test_multiple_calls() -> uint256:
     c = get_contract(contract, input_bundle=input_bundle)
 
     assert c.test_multiple_calls() == 3
+
+
+def test_override_recursion_fails(get_contract, make_input_bundle):
+    abstract_m = """
+
+def forwarder() -> uint256:
+    return self.foo()
+
+@abstract
+def foo() -> uint256: ...
+    """
+
+    contract = """
+import abstract_m
+
+initializes: abstract_m
+
+@override(abstract_m)
+def foo() -> uint256:
+    return abstract_m.forwarder()
+    """
+
+    input_bundle = make_input_bundle({"abstract_m.vy": abstract_m})
+
+    with pytest.raises(CallViolation) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    # TODO: Maybe improve error message so it includes overrides ?
+    # Something like a.foo -> b.forwarder -> b.foo -resolves_to-> a.foo
+    assert "Contract contains cyclic function call: foo -> forwarder -> foo" == e.value.message
