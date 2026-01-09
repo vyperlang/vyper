@@ -1,6 +1,11 @@
 import pytest
 
-from vyper.exceptions import FunctionDeclarationException, ImmutableViolation, InitializerException
+from vyper.exceptions import (
+    ArgumentException,
+    FunctionDeclarationException,
+    ImmutableViolation,
+    InitializerException,
+)
 
 
 def test_basic_default_default_param_function(get_contract, make_input_bundle):
@@ -1124,3 +1129,161 @@ def test_foo() -> uint256:
 
     c = get_contract(contract, input_bundle=input_bundle)
     assert c.test_foo() == 42
+
+
+def test_override_with_default_param_changes_signature(get_contract, make_input_bundle):
+    """
+    Test that we can't call a.foo(1) if in 'a' it's foo() but overridden by foo(x: uint256 = 0)
+    """
+
+    abstract_module = """
+@abstract
+def foo() -> uint256: ...
+    """
+
+    override_module = """
+import abstract_module
+
+initializes: abstract_module
+
+@override(abstract_module)
+def foo(x: uint256 = 0) -> uint256:
+    return x + 42
+    """
+
+    contract = """
+import abstract_module
+import override_module
+
+uses: abstract_module
+initializes: override_module
+
+@external
+def test_foo() -> uint256:
+    return abstract_module.foo(1) # Not valid for the abstract we are calling !
+    """
+
+    input_bundle = make_input_bundle(
+        {"abstract_module.vy": abstract_module, "override_module.vy": override_module}
+    )
+
+    with pytest.raises(ArgumentException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    assert "Invalid argument count for call to 'foo': expected 0, got 1" in str(e.value)
+
+
+def test_method_overrides_multiple_abstracts(get_contract, make_input_bundle):
+    """Test that a method can override multiple abstract methods from different modules"""
+
+    abstract_module_a = """
+@abstract
+def common_method() -> uint256: ...
+    """
+
+    abstract_module_b = """
+@abstract
+def common_method() -> uint256: ...
+    """
+
+    override_module = """
+import abstract_module_a
+import abstract_module_b
+
+initializes: abstract_module_a
+initializes: abstract_module_b
+
+@override(abstract_module_a)
+@override(abstract_module_b)
+def common_method() -> uint256:
+    return 100
+    """
+
+    contract = """
+import abstract_module_a
+import abstract_module_b
+import override_module
+
+uses: abstract_module_a
+uses: abstract_module_b
+initializes: override_module
+
+@external
+def test_a() -> uint256:
+    return abstract_module_a.common_method()
+
+@external
+def test_b() -> uint256:
+    return abstract_module_b.common_method()
+    """
+
+    input_bundle = make_input_bundle(
+        {
+            "abstract_module_a.vy": abstract_module_a,
+            "abstract_module_b.vy": abstract_module_b,
+            "override_module.vy": override_module,
+        }
+    )
+
+    c = get_contract(contract, input_bundle=input_bundle)
+    assert c.test_a() == 100
+    assert c.test_b() == 100
+
+
+def test_method_overrides_multiple_abstracts_signature_match(get_contract, make_input_bundle):
+    """Test that overriding multiple abstracts fails if signatures don't match"""
+
+    abstract_module_a = """
+@abstract
+def common_method() -> uint256: ...
+    """
+
+    abstract_module_b = """
+@abstract
+def common_method(x: uint256) -> uint256: ...
+    """
+
+    override_module = """
+import abstract_module_a
+import abstract_module_b
+
+initializes: abstract_module_a
+initializes: abstract_module_b
+
+@override(abstract_module_a)
+@override(abstract_module_b)
+def common_method(x: uint256 = 100) -> uint256:
+    return x
+    """
+
+    contract = """
+import abstract_module_a
+import abstract_module_b
+import override_module
+
+uses: abstract_module_a
+uses: abstract_module_b
+initializes: override_module
+
+@external
+def test1() -> uint256:
+    return abstract_module_a.common_method()
+
+@external
+def test2(x: uint256) -> uint256:
+    return abstract_module_b.common_method(x)
+    """
+
+    input_bundle = make_input_bundle(
+        {
+            "abstract_module_a.vy": abstract_module_a,
+            "abstract_module_b.vy": abstract_module_b,
+            "override_module.vy": override_module,
+        }
+    )
+
+    c = get_contract(contract, input_bundle=input_bundle)
+
+    assert c.test1() == 100
+    assert c.test2(1) == 1
+    assert c.test2(42) == 42
