@@ -957,3 +957,51 @@ def bar() -> uint256:  # Not abstract
 
     # Should fail on non-abstract method
     assert "method is not abstract" in e.value.message
+
+
+def test_three_level_override_chain(get_contract, make_input_bundle):
+    """Test chain of overrides: A.foo overrides B.foo which overrides C.foo"""
+
+    module_c = """
+@abstract
+def foo() -> uint256: ...
+    """
+
+    module_b = """
+import module_c
+
+initializes: module_c
+
+@abstract
+@override(module_c)
+def foo() -> uint256: ...
+    """
+
+    module_a = """
+import module_b
+
+initializes: module_b
+
+@override(module_b)
+def foo() -> uint256:
+    return 42
+    """
+
+    contract = """
+import module_a
+import module_c
+
+initializes: module_a
+
+@external
+def test_foo() -> uint256:
+    # Can call through module_c and get A's implementation
+    return module_c.foo()
+    """
+
+    input_bundle = make_input_bundle(
+        {"module_c.vy": module_c, "module_b.vy": module_b, "module_a.vy": module_a}
+    )
+
+    c = get_contract(contract, input_bundle=input_bundle)
+    assert c.test_foo() == 42

@@ -366,28 +366,28 @@ def _annotate_overrides(imports: ImportDict) -> None:
 
         for func in module_ast.get_children(vy_ast.FunctionDef):
             for other_module_name in _extract_overrides(func):
+                if other_module_name not in imports[module_ast]:
+                    # Import error will be reported later
+                    continue
+
                 other_module_ast = imports[module_ast][other_module_name]
 
                 # Check that the overridden module is initialized
                 if other_module_name not in initialized_modules:
-                    raise FunctionDeclarationException(
-                        f"Cannot override method from `{other_module_name}` - module is not"
-                        " initialized",
-                        func,
-                        hint=f"add `initializes: {other_module_name}` as a top-level statement to"
-                        " your contract",
-                    )
+                    msg = f"Cannot override method from `{other_module_name}`"
+                    msg += " - module is not initialized"
+                    hint = f"add `initializes: {other_module_name}` "
+                    hint += "as a top-level statement to your contract"
+                    raise FunctionDeclarationException(msg, func, hint=hint)
 
                 other_func = _get_method(other_module_ast, func.name)
 
                 # Check that the overridden method is abstract
                 if not _is_abstract(other_func):
-                    raise FunctionDeclarationException(
-                        f"Cannot override `{func.name}` from `{other_module_name}` - method is not"
-                        " abstract",
-                        func,
-                        hint="only abstract methods can be overridden",
-                    )
+                    msg = f"Cannot override `{func.name}` from `{other_module_name}`"
+                    msg += " - method is not abstract"
+                    hint = "only abstract methods can be overridden"
+                    raise FunctionDeclarationException(msg, func, hint=hint)
 
                 # Check for duplicate overrides
                 if "overridden_by" in other_func._metadata:
@@ -1014,20 +1014,18 @@ def _function_call_graph_with_overrides(func: vy_ast.FunctionDef):
             continue
 
         if isinstance(call_t, ContractFunctionT) and (call_t.is_internal or call_t.is_constructor):
-            if call_t.is_abstract:
-                # TODO: Not overridden error
-                assert "overridden_by" in call_t.decl_node._metadata
+            # Makes sure a function is not abstract, by potentially following overrides
+            def get_concrete_func_t(func_t: ContractFunctionT) -> ContractFunctionT:
+                if func_t.is_abstract:
+                    assert func_t.overridden_by is not None
+                    override_t = func_t.overridden_by._metadata["func_type"]
+                    return get_concrete_func_t(override_t)
+                else:
+                    return func_t
 
-                override = call_t.decl_node._metadata["overridden_by"]
+            concrete_t = get_concrete_func_t(call_t)
 
-                # TODO: Handle case where override is itself abstract
-                assert "overridden_by" not in override._metadata
-
-                override_t = override._metadata["func_type"]
-                fn_t.called_functions_with_overrides.add(override_t)
-
-            else:
-                fn_t.called_functions_with_overrides.add(call_t)
+            fn_t.called_functions_with_overrides.add(concrete_t)
 
 
 def _modules_call_graph_with_overrides(imports: ImportDict):

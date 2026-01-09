@@ -107,7 +107,7 @@ class ContractFunctionT(VyperType):
         state_mutability: StateMutability,
         is_abstract: bool,
         overrides: list[vy_ast.Name],  # TODO: Chose element type
-        overridden_by: vy_ast.FunctionDef | None,  # is None if and only if is_abstract is False
+        overridden_by: vy_ast.FunctionDef | None,  # not None iff is_abstract is True
         from_interface: bool = False,
         nonreentrant: bool = False,
         do_raw_return: bool = False,
@@ -123,9 +123,8 @@ class ContractFunctionT(VyperType):
         self.visibility = function_visibility
         self.mutability = state_mutability
 
-        # Only abstract methods have overrides, and
-        # Every abstract methods must have an override
-        assert (not is_abstract) == (overridden_by is None)
+        # Something is overridden if and only if it is abstract
+        assert is_abstract == (overridden_by is not None)
         self.is_abstract = is_abstract
         self.overrides = overrides
         self.overridden_by = overridden_by
