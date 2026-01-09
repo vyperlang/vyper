@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import FunctionDeclarationException, InitializerException
+from vyper.exceptions import FunctionDeclarationException, ImmutableViolation, InitializerException
 
 
 def test_basic_default_default_param_function(get_contract, make_input_bundle):
@@ -40,6 +40,7 @@ def test_stateful_override_without_initializes(get_contract, make_input_bundle):
 import abstract_m
 import override_m
 
+uses: abstract_m
 # initializes: override_m # should fail gracefully without this
 
 @external
@@ -81,6 +82,7 @@ def test_stateful_override_with_initializes(get_contract, make_input_bundle):
 import abstract_m
 import override_m
 
+uses: abstract_m
 initializes: override_m  # Now properly initialized
 
 @external
@@ -109,6 +111,45 @@ def bar() -> uint256:
     c = get_contract(contract, input_bundle=input_bundle)
 
     assert c.my_method() == 101
+
+
+def test_call_to_abstract_without_uses(get_contract, make_input_bundle):
+    # Test that the same contract works when override_m is properly initialized
+    contract = """
+import abstract_m
+import override_m
+
+# uses: abstract_m
+initializes: override_m
+
+@external
+def my_method() -> uint256:
+    return abstract_m.bar() # Call to abstract method from un-uses-ed module
+    """
+
+    abstract_m = """
+@abstract
+def bar() -> uint256: ...
+    """
+
+    override_m = """
+import abstract_m
+initializes: abstract_m
+
+counter: uint256
+
+@override(abstract_m)
+def bar() -> uint256:
+    self.counter += 1
+    return 101
+    """
+    input_bundle = make_input_bundle({"abstract_m.vy": abstract_m, "override_m.vy": override_m})
+
+    with pytest.raises(ImmutableViolation) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    # TODO: Should be a better error message
+    assert "Cannot access `abstract_m` state!" in e.value.message
 
 
 SUCCESSFUL_OVERRIDES = [
@@ -959,6 +1000,47 @@ def bar() -> uint256:  # Not abstract
     assert "method is not abstract" in e.value.message
 
 
+def test_uninitialized_abstract_call_fails(get_contract, make_input_bundle):
+    abstract_module = """
+@abstract
+def foo() -> uint256: ...
+    """
+
+    override_module = """
+import abstract_module
+
+initializes: abstract_module
+
+@override(abstract_module)
+def foo() -> uint256:
+    return 42
+    """
+
+    contract = """
+import override_module
+import abstract_module
+
+uses: abstract_module
+# initializes: override_module # Without this, we have no way of knowing which override to pick
+
+@external
+def test_foo() -> uint256:
+    return abstract_module.foo()
+    """
+
+    input_bundle = make_input_bundle(
+        {"abstract_module.vy": abstract_module, "override_module.vy": override_module}
+    )
+
+    with pytest.raises(InitializerException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    assert "abstract_module.vy` is used but never initialized!" in e.value.message
+    assert (
+        "add `initializes: abstract_module` to the top level of your main contract" == e.value.hint
+    )
+
+
 def test_three_level_override_chain(get_contract, make_input_bundle):
     """Test chain of overrides: A.foo overrides B.foo which overrides C.foo"""
 
@@ -992,6 +1074,7 @@ import module_a
 import module_c
 
 initializes: module_a
+uses: module_c
 
 @external
 def test_foo() -> uint256:
