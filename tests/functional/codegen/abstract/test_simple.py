@@ -1287,3 +1287,119 @@ def test2(x: uint256) -> uint256:
     assert c.test1() == 100
     assert c.test2(1) == 1
     assert c.test2(42) == 42
+
+
+def test_overriding_module_can_use_state(get_contract, make_input_bundle):
+    stateful = """
+counter: uint256
+
+def increment():
+    self.counter += 1
+
+def get_counter() -> uint256:
+    return self.counter
+    """
+
+    b_module = """
+import stateful
+
+initializes: stateful
+
+def biased(bias: uint256) -> uint256:
+    return stateful.get_counter() + bias
+
+@abstract
+def process() -> uint256: ...
+    """
+
+    a_module = """
+import stateful
+import b_module
+
+uses: stateful        # If this was not possible, there would be an issue
+initializes: b_module
+
+@override(b_module)
+def process() -> uint256:
+    stateful.increment()
+    return stateful.get_counter()
+    """
+
+    contract = """
+import stateful
+import a_module
+import b_module
+
+uses: b_module
+initializes: a_module[stateful := stateful]
+
+@external
+def test_multiple_calls() -> uint256:
+    b_module.process()
+    b_module.process()
+    return b_module.process()
+    """
+
+    input_bundle = make_input_bundle(
+        {"stateful.vy": stateful, "b_module.vy": b_module, "a_module.vy": a_module}
+    )
+
+    c = get_contract(contract, input_bundle=input_bundle)
+
+    assert c.test_multiple_calls() == 3
+
+
+def test_overriding_module_can_initialize_state(get_contract, make_input_bundle):
+    stateful = """
+counter: uint256
+
+def increment():
+    self.counter += 1
+
+def get_counter() -> uint256:
+    return self.counter
+    """
+
+    b_module = """
+# if the following was needed, it would severely limit the usefulness of the feature
+# uses: stateful
+
+@abstract
+def process() -> uint256: ...
+    """
+
+    a_module = """
+import stateful
+import b_module
+
+initializes: stateful
+initializes: b_module
+
+@override(b_module)
+def process() -> uint256:
+    stateful.increment()
+    return stateful.get_counter()
+    """
+
+    contract = """
+import stateful
+import a_module
+import b_module
+
+uses: b_module
+initializes: a_module
+
+@external
+def test_multiple_calls() -> uint256:
+    b_module.process()
+    b_module.process()
+    return b_module.process()
+    """
+
+    input_bundle = make_input_bundle(
+        {"stateful.vy": stateful, "b_module.vy": b_module, "a_module.vy": a_module}
+    )
+
+    c = get_contract(contract, input_bundle=input_bundle)
+
+    assert c.test_multiple_calls() == 3
