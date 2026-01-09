@@ -195,6 +195,52 @@ def test_merge_jump_other_successor_has_phi():
     _check_pre_post(pre, post)
 
 
+def test_merge_jump_target_has_no_phi():
+    """
+    Regression test: bypassing a jump should not touch phis in unrelated successors,
+    even when the target block has no phi.
+    """
+    pre = """
+    _global:
+        %cond = source
+        jnz %cond, @entry, @other_source
+
+    entry:
+        jnz %cond, @passthrough, @branched
+
+    other_source:
+        jmp @branched
+
+    passthrough:
+        jmp @join
+
+    branched:
+        %x = phi @entry, %cond, @other_source, %cond
+        jmp @join
+
+    join:
+        sink %cond
+    """
+
+    post = """
+    _global:
+        %cond = source
+        jnz %cond, @entry, @branched
+
+    entry:
+        jnz %cond, @join, @branched
+
+    branched:
+        %x = phi @entry, %cond, @_global, %cond
+        jmp @join
+
+    join:
+        sink %cond
+    """
+
+    _check_pre_post(pre, post)
+
+
 def test_merge_jump_dedup_phi_when_direct_edge():
     """
     If the bypassed block's target is already a successor, avoid duplicating phi labels.
