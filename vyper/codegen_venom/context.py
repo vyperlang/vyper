@@ -518,10 +518,14 @@ class VenomCodegenContext:
         """Store value to storage slot.
 
         For primitive types, direct sstore.
-        For multi-word types, val is memory ptr, copy to storage.
+        For complex types, val is memory ptr - load value first or copy.
         """
-        if typ.storage_size_in_words == 1:
+        if typ._is_prim_word:
+            # Primitive types: store value directly
             self.builder.sstore(slot, val)
+        elif typ.storage_size_in_words == 1:
+            # Single-word complex type: val is memory pointer, load and store
+            self.builder.sstore(slot, self.builder.mload(val))
         else:
             # Multi-word: val is memory pointer, copy to storage
             self._store_memory_to_storage(val, slot, typ.storage_size_in_words)
@@ -701,10 +705,14 @@ class VenomCodegenContext:
         """Store to transient storage (Cancun+).
 
         For primitive types, direct tstore.
-        For multi-word types, val is memory ptr, copy to transient storage.
+        For complex types, val is memory ptr - load value first or copy.
         """
-        if typ.storage_size_in_words == 1:
+        if typ._is_prim_word:
+            # Primitive types: store value directly
             self.builder.tstore(slot, val)
+        elif typ.storage_size_in_words == 1:
+            # Single-word complex type: val is memory pointer, load and store
+            self.builder.tstore(slot, self.builder.mload(val))
         else:
             # Multi-word: val is memory pointer, copy to transient storage
             self._store_memory_to_transient(val, slot, typ.storage_size_in_words)
