@@ -106,7 +106,8 @@ def foo() -> int128:
     return 5
     """
 
-    _, bytecode = _compile(code, output_formats)
+    out = _compile(code, output_formats)
+    bytecode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
     ctor_args = (2**127 - 1).to_bytes(32, "big")
     env._deploy(bytecode + ctor_args, value=0)
 
