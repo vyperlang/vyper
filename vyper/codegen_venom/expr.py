@@ -985,7 +985,7 @@ class Expr:
             return self.builder.sha3(buf._ptr, IRLiteral(32))
 
         # bytes/string: get pointer, hash the data portion
-        # sha3 only works on memory - copy storage/transient data first
+        # sha3 only works on memory - copy non-memory data first
         key_vv = Expr(key_node, self.ctx).lower()
 
         if key_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
@@ -994,6 +994,16 @@ class Expr:
             buf_val = self.ctx.new_temporary_value(typ)
             self.ctx.slot_to_memory(key_vv.operand, buf_val.operand, typ.storage_size_in_words, key_vv.location)
             # Hash from memory buffer
+            buf_ptr = buf_val.ptr()
+            data_ptr = self.ctx.add_offset(buf_ptr, IRLiteral(32))  # skip length word
+            length = self.ctx.ptr_load(buf_ptr)
+            return self.builder.sha3(data_ptr.operand, length)
+
+        if key_vv.location == DataLocation.CODE:
+            # Copy immutable data to memory before hashing
+            typ = key_node._metadata["type"]
+            buf_val = self.ctx.new_temporary_value(typ)
+            self.ctx.code_to_memory(key_vv.operand, buf_val.operand, typ.storage_size_in_words)
             buf_ptr = buf_val.ptr()
             data_ptr = self.ctx.add_offset(buf_ptr, IRLiteral(32))  # skip length word
             length = self.ctx.ptr_load(buf_ptr)
@@ -1031,14 +1041,25 @@ class Expr:
         # Not a constant - compute at runtime
         vv = Expr(node, self.ctx).lower()
 
-        # sha3 only works on memory - copy storage data first
-        if vv.location == DataLocation.STORAGE:
+        # sha3 only works on memory - copy non-memory data first
+        if vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
             typ = node._expr_info.typ
             buf_val = self.ctx.new_temporary_value(typ)
-            self.ctx.storage_to_memory(vv.operand, buf_val.operand, typ.storage_size_in_words)
-            # Now hash from memory buffer
+            self.ctx.slot_to_memory(
+                vv.operand, buf_val.operand,
+                typ.storage_size_in_words, vv.location
+            )
             buf_ptr = buf_val.ptr()
-            data_ptr = self.ctx.add_offset(buf_ptr, IRLiteral(32))  # skip length word
+            data_ptr = self.ctx.add_offset(buf_ptr, IRLiteral(32))
+            length = self.ctx.ptr_load(buf_ptr)
+            return self.builder.sha3(data_ptr.operand, length)
+
+        if vv.location == DataLocation.CODE:
+            typ = node._expr_info.typ
+            buf_val = self.ctx.new_temporary_value(typ)
+            self.ctx.code_to_memory(vv.operand, buf_val.operand, typ.storage_size_in_words)
+            buf_ptr = buf_val.ptr()
+            data_ptr = self.ctx.add_offset(buf_ptr, IRLiteral(32))
             length = self.ctx.ptr_load(buf_ptr)
             return self.builder.sha3(data_ptr.operand, length)
 
@@ -1147,6 +1168,17 @@ class Expr:
         behavior (expr.py:486 does unwrap_location on ALL elements first).
         The or_/and_ IR ops combine already-computed results.
         """
+        from vyper.exceptions import TypeMismatch
+
+        # Block non-primitive element types (mirrors legacy codegen)
+        # See issue #2637 for context
+        elem_typ = list_node._metadata["type"].value_type
+        if not elem_typ._is_prim_word:
+            raise TypeMismatch(
+                "`in` not allowed for arrays of non-base types, tracked in issue #2637",
+                self.node
+            )
+
         b = self.builder
 
         if not list_node.elements:
@@ -1186,6 +1218,17 @@ class Expr:
             - if element == needle: result = 1, break
         - return result (or iszero(result) for not in)
         """
+        from vyper.exceptions import TypeMismatch
+
+        # Block non-primitive element types (mirrors legacy codegen)
+        # See issue #2637 for context
+        elem_typ = haystack_typ.value_type
+        if not elem_typ._is_prim_word:
+            raise TypeMismatch(
+                "`in` not allowed for arrays of non-base types, tracked in issue #2637",
+                self.node
+            )
+
         # Constants have UNSET location - use MEMORY sizing (same as CODE)
         if location == DataLocation.UNSET:
             location = DataLocation.MEMORY
