@@ -777,3 +777,17 @@ def test_nonzero_multi() -> bool:
     assert c.test_empty() is False
     assert c.test_nonzero() is True
     assert c.test_nonzero_multi() is True
+
+
+def test_convert_storage_bytes_to_uint(get_contract):
+    """Regression test: convert correctly handles storage bytes."""
+    code = """
+stored: Bytes[32]
+
+@external
+def test_convert() -> uint256:
+    self.stored = b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x2a"
+    return convert(self.stored, uint256)
+    """
+    c = get_contract(code)
+    assert c.test_convert() == 42
