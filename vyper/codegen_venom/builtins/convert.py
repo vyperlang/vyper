@@ -40,7 +40,8 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # For bytestrings we need pointer, for primitives we need value
     if isinstance(in_t, _BytestringT):
-        arg = Expr(arg_node, ctx).lower().operand
+        arg_vv = Expr(arg_node, ctx).lower()
+        arg = ctx.unwrap(arg_vv)  # Copies storage/transient to memory
     else:
         arg = Expr(arg_node, ctx).lower_value()
 

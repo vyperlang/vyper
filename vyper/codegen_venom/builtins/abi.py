@@ -130,7 +130,8 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         if arg_t._is_prim_word:
             args.append(Expr(arg, ctx).lower_value())
         else:
-            args.append(Expr(arg, ctx).lower().operand)
+            arg_vv = Expr(arg, ctx).lower()
+            args.append(ctx.unwrap(arg_vv))  # Copies storage/transient to memory
     arg_types = [arg._metadata["type"] for arg in node.args]
 
     # Build input to encode
@@ -210,7 +211,8 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         wrapped_typ = calculate_type_for_external_return(output_typ)
 
     # Get data pointer and length
-    data = Expr(data_node, ctx).lower().operand
+    data_vv = Expr(data_node, ctx).lower()
+    data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
     data_len = b.mload(data)  # Length word at start of Bytes
     data_ptr = b.add(data, IRLiteral(32))  # Data starts after length word
 
