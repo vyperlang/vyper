@@ -719,8 +719,8 @@ class Stmt:
                     val = self.builder.mload(elem_addr)
                     self.builder.mstore(item_local.value.operand, val)
                 else:
-                    # Multi-word: use mcopy (dst, src, size)
-                    self.builder.mcopy(item_local.value.operand, elem_addr, IRLiteral(elem_size))
+                    # Multi-word: use context helper which handles pre-Cancun
+                    self.ctx.copy_memory(item_local.value.operand, elem_addr, elem_size)
 
             self._lower_body(node.body)
             body_finish = self.builder.current_block

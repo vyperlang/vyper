@@ -203,6 +203,11 @@ def lower_blobhash(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     Returns versioned hash of blob at given index (Cancun+).
     """
     from vyper.codegen_venom.expr import Expr
+    from vyper.evm.opcodes import version_check
+    from vyper.exceptions import EvmVersionException
+
+    if not version_check(begin="cancun"):
+        raise EvmVersionException("`blobhash` is not available pre-cancun", node)
 
     b = ctx.builder
 
