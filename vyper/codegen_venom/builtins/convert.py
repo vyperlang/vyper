@@ -114,12 +114,22 @@ def _to_bool(
     b = ctx.builder
 
     if isinstance(in_t, _BytestringT):
-        # Load bytes data and check for nonzero
-        # Length is at val, data at val+32
-        # Just check length > 0 for simple case
-        # For proper check: hash and compare, or check length
+        # Check if any byte is nonzero (matches legacy behavior)
+        # Load the actual data, not just length
         length = b.mload(val)
-        return b.iszero(b.iszero(length))
+        data_ptr = b.add(val, IRLiteral(32))
+        data = b.mload(data_ptr)
+
+        # Right-shift to extract actual value based on length
+        # For bytes that are shorter than 32, we need to shift right to
+        # remove the padding zeros and get the actual numeric value
+        # num_zero_bits = (32 - length) * 8
+        num_zero_bits = b.mul(b.sub(IRLiteral(32), length), IRLiteral(8))
+        # Shift right to get the actual numeric value
+        shifted = b.shr(num_zero_bits, data)
+
+        # Return True if any byte is nonzero
+        return b.iszero(b.iszero(shifted))
 
     # For numeric/address/bool/flag: iszero(iszero(x)) normalizes to 0 or 1
     return b.iszero(b.iszero(val))
