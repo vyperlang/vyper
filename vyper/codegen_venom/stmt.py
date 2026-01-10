@@ -1140,7 +1140,8 @@ class Stmt:
         old_constancy = self.ctx.constancy
         try:
             self.ctx.constancy = Constancy.Constant
-            msg_val = Expr(msg, self.ctx).lower().operand
+            msg_vv = Expr(msg, self.ctx).lower()
+            msg_val = self.ctx.unwrap(msg_vv)  # Copies storage/transient to memory
         finally:
             self.ctx.constancy = old_constancy
 

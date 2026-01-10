@@ -520,7 +520,8 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         if arg_t._is_prim_word:
             args.append(Expr(arg, ctx).lower_value())
         else:
-            args.append(Expr(arg, ctx).lower().operand)
+            arg_vv = Expr(arg, ctx).lower()
+            args.append(ctx.unwrap(arg_vv))  # Copies storage/transient to memory
 
     # Create tuple type for ABI encoding
     tuple_t = TupleT(tuple(arg_types))
