@@ -234,7 +234,15 @@ class VenomBuilder:
         from vyper.semantics.data_locations import DataLocation
 
         if src_location == DataLocation.MEMORY:
-            self.mcopy(dst, src, size)
+            from vyper.evm.opcodes import version_check
+
+            if version_check(begin="cancun"):
+                self.mcopy(dst, src, size)
+            else:
+                # Pre-Cancun: use identity precompile (address 4)
+                gas = self.gas()
+                success = self.staticcall(gas, IRLiteral(4), src, size, dst, size)
+                self.assert_(success)
         elif src_location == DataLocation.CALLDATA:
             self.calldatacopy(dst, src, size)
         elif src_location == DataLocation.CODE:

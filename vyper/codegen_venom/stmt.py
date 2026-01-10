@@ -715,8 +715,8 @@ class Stmt:
                     self.ctx.slot_to_memory(elem_addr, item_local.value.operand, elem_size, location)
             else:
                 if elem_size <= 32:
-                    # Single word: mload/mstore
-                    val = self.builder.mload(elem_addr)
+                    # Single word: load dispatches on location (mload/calldataload/dload)
+                    val = self.builder.load(elem_addr, location)
                     self.builder.mstore(item_local.value.operand, val)
                 else:
                     # Multi-word: use context helper which handles pre-Cancun
