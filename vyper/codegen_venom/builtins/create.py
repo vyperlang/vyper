@@ -210,7 +210,15 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         )
         bytecode = mem_buf.operand
     else:
-        bytecode = bytecode_vv.operand
+        # Memory bytecode: copy to fresh buffer to avoid potential overlap
+        # when evaluating value, salt, or ctor_args expressions
+        # (cf. test_raw_create_memory_overlap - e.g. value=arr.pop())
+        mem_buf = ctx.new_temporary_value(bytecode_typ)
+        bytecode_len_tmp = b.mload(bytecode_vv.operand)
+        # Copy length word + data
+        copy_size = b.add(bytecode_len_tmp, IRLiteral(32))
+        ctx.copy_memory_dynamic(mem_buf.operand, bytecode_vv.operand, copy_size)
+        bytecode = mem_buf.operand
 
     # Parse kwargs
     value_node = _get_kwarg_value(node, "value")
@@ -379,6 +387,12 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     else:
         value = IRLiteral(0)
 
+    # Evaluate salt BEFORE msize() to ensure any memory allocations
+    # (e.g., from keccak256(_abi_encode(x))) don't overwrite the initcode buffer
+    salt: IROperand | None = None
+    if salt_node is not None:
+        salt = Expr(salt_node, ctx).lower_value()
+
     # Get target code size
     codesize = b.extcodesize(target)
 
@@ -418,8 +432,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     buf_len = b.add(codesize, IRLiteral(preamble_len))
 
     # Create contract
-    if salt_node is not None:
-        salt = Expr(salt_node, ctx).lower_value()
+    if salt is not None:
         addr = b.create2(value, buf, buf_len, salt)
     else:
         addr = b.create(value, buf, buf_len)

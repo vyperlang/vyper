@@ -304,15 +304,16 @@ def _clamp_extract32_result(val: IROperand, out_t, ctx: VenomCodegenContext) -> 
 
     if isinstance(out_t, IntegerT):
         # Need to clamp to type bounds for signed/unsigned integers
-        if out_t.is_signed:
-            # For signed types, the value is already correct (no clamping needed
-            # as extract32 returns the raw bits which represent a signed value)
-            pass
-        else:
-            # For unsigned types smaller than 256 bits, mask to valid range
-            if out_t.bits < 256:
+        if out_t.bits < 256:
+            if out_t.is_signed:
+                # For signed types, check signextend(val) == val
+                # This ensures the value's high bits match the sign bit
+                bytes_minus_1 = out_t.bits // 8 - 1
+                canonical = b.signextend(IRLiteral(bytes_minus_1), val)
+                b.assert_(b.eq(val, canonical))
+            else:
+                # For unsigned types, check value fits in type range
                 mask = (1 << out_t.bits) - 1
-                # Check value fits in type range
                 too_big = b.gt(val, IRLiteral(mask))
                 b.assert_(b.iszero(too_big))
     elif isinstance(out_t, AddressT):
