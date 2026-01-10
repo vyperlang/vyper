@@ -500,7 +500,8 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
 
             raise CompilerPanic("raw_args requires exactly 1 bytes argument")
 
-        raw_arg = Expr(ctor_arg_nodes[0], ctx).lower().operand
+        raw_arg_vv = Expr(ctor_arg_nodes[0], ctx).lower()
+        raw_arg = ctx.unwrap(raw_arg_vv)  # Copies storage/transient to memory
         args_len = b.mload(raw_arg)
         args_ptr = b.add(raw_arg, IRLiteral(32))
     elif len(ctor_arg_nodes) > 0:
