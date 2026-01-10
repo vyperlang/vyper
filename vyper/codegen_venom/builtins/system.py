@@ -106,7 +106,8 @@ def lower_raw_call(
         # Copy entire calldata to memory at msize
         b.calldatacopy(data_ptr, IRLiteral(0), data_len)
     else:
-        data = Expr(data_node, ctx).lower().operand
+        data_vv = Expr(data_node, ctx).lower()
+        data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
         # Get input data pointer and length
         # Bytes layout: [32-byte length][data...]
         data_len = b.mload(data)
@@ -151,7 +152,20 @@ def lower_raw_call(
 
     # Handle return based on revert_on_failure and max_outsize
     if revert_on_failure:
-        b.assert_(success)
+        # Propagate callee's revert reason (matches legacy check_external_call)
+        fail_label = b.create_block("call_failed")
+        ok_label = b.create_block("call_ok")
+        b.jnz(success, ok_label.label, fail_label.label)
+
+        b.append_block(fail_label)
+        b.set_block(fail_label)
+        ret_size = b.returndatasize()
+        b.returndatacopy(IRLiteral(0), IRLiteral(0), ret_size)
+        b.revert(IRLiteral(0), ret_size)
+
+        b.append_block(ok_label)
+        b.set_block(ok_label)
+
         if max_outsize > 0:
             # Store actual return size (capped at max_outsize)
             ret_size = b.returndatasize()
@@ -174,12 +188,20 @@ def lower_raw_call(
             assert out_val is not None
             ctx.ptr_store(out_val.ptr(), capped)
 
-            # Return (success, data) tuple
-            # Allocate tuple: [bool (32 bytes)][ptr (32 bytes)]
-            tuple_t = TupleT((UINT256_T, BytesT(max_outsize)))
+            # Return (success, data) tuple with inline bytes
+            # Layout: [bool (32)][bytes_len (32)][bytes_data (ceil32(max_outsize))]
+            bytes_t = BytesT(max_outsize)
+            tuple_t = TupleT((UINT256_T, bytes_t))
             tuple_local = ctx.new_temporary_value(tuple_t)
+
+            # Store success at offset 0
             ctx.ptr_store(tuple_local.ptr(), success)
-            ctx.ptr_store(ctx.add_offset(tuple_local.ptr(), IRLiteral(32)), out_val.operand)
+
+            # Copy bytes (length + data) inline starting at offset 32
+            # bytes_t.memory_bytes_required = 32 (length) + ceil32(max_outsize) (data)
+            bytes_ptr = ctx.add_offset(tuple_local.ptr(), IRLiteral(32))
+            ctx.copy_memory(bytes_ptr.operand, out_val.operand, bytes_t.memory_bytes_required)
+
             return tuple_local
 
         # Just return success flag
@@ -263,7 +285,8 @@ def lower_raw_log(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         data_len = IRLiteral(32)
     else:
         # For Bytes[N]: data starts at ptr+32, length at ptr
-        data = Expr(data_node, ctx).lower().operand
+        data_vv = Expr(data_node, ctx).lower()
+        data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
         data_len = b.mload(data)
         data_ptr = b.add(data, IRLiteral(32))
 
@@ -283,7 +306,8 @@ def lower_raw_revert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     b = ctx.builder
 
-    data = Expr(node.args[0], ctx).lower().operand
+    data_vv = Expr(node.args[0], ctx).lower()
+    data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
 
     # Get data pointer and length
     data_len = b.mload(data)
