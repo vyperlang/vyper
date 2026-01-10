@@ -371,3 +371,23 @@ def assign():
 @pytest.mark.parametrize("code,exc", cases_invalid_assignments)
 def test_invalid_assignments(get_contract, assert_compile_failed, code, exc):
     assert_compile_failed(lambda: get_contract(code), exc)
+
+
+def test_immutable_bytes_equality(get_contract):
+    """Immutable bytes can be compared."""
+    code = """
+MY_BYTES: immutable(Bytes[100])
+
+@deploy
+def __init__():
+    MY_BYTES = b"hello"
+
+@external
+def compare(x: Bytes[100]) -> bool:
+    return x == MY_BYTES
+    """
+    c = get_contract(code)
+    assert c.compare(b"hello") is True
+    assert c.compare(b"world") is False
+    assert c.compare(b"") is False
+    assert c.compare(b"hello world") is False

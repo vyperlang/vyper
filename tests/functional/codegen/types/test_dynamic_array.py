@@ -1913,6 +1913,24 @@ def foo():
         c.foo()
 
 
+def test_dynarray_append_single_field_struct_storage(get_contract):
+    """Single-field struct stores value, not pointer."""
+    code = """
+struct Point:
+    x: uint256
+
+data: DynArray[Point, 10]
+
+@external
+def test_append() -> uint256:
+    p: Point = Point(x=42)
+    self.data.append(p)
+    return self.data[0].x
+    """
+    c = get_contract(code)
+    assert c.test_append() == 42
+
+
 def test_dynarray_copy_oog(env, get_contract, tx_failed):
     # GHSA-vgf2-gvx8-xwc3
     code = """
