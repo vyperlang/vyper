@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Union
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.value import VyperValue
-from vyper.exceptions import StateAccessViolation
+from vyper.exceptions import ArgumentException, StateAccessViolation
 from vyper.semantics.types import BytesT, TupleT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand
@@ -87,6 +87,17 @@ def lower_raw_call(
     is_delegate = _get_literal_kwarg(node, "is_delegate_call", False)
     is_static = _get_literal_kwarg(node, "is_static_call", False)
     revert_on_failure = _get_literal_kwarg(node, "revert_on_failure", True)
+    value_literal = _get_literal_kwarg(node, "value", 0)
+
+    # Validate delegate/static mutual exclusivity
+    if is_delegate and is_static:
+        raise ArgumentException(
+            "Call may use one of `is_delegate_call` or `is_static_call`, not both", node
+        )
+
+    # Validate value not passed with delegate/static
+    if (is_delegate or is_static) and value_literal != 0:
+        raise ArgumentException("value= may not be passed for static or delegate calls!", node)
 
     # Check constancy: non-static calls are not allowed from view/pure functions
     if not is_static and ctx.is_constant():
