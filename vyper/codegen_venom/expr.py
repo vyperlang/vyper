@@ -69,6 +69,50 @@ class _CallKwargs:
 ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
 
+def _get_root_variable(node: vy_ast.VyperNode) -> Optional[str]:
+    """Extract the root variable name from an AST expression.
+
+    Examples:
+        arr -> "arr"
+        self.arr -> "self.arr"
+        arr[0] -> "arr"
+        self.arr[i].field -> "self.arr"
+
+    Returns None if the expression doesn't have a clear root variable.
+    """
+    if isinstance(node, vy_ast.Name):
+        return node.id
+    if isinstance(node, vy_ast.Attribute):
+        # Handle self.x -> "self.x"
+        if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
+            return f"self.{node.attr}"
+        # For struct field access, get root of the struct
+        return _get_root_variable(node.value)
+    if isinstance(node, vy_ast.Subscript):
+        # arr[i] -> root of arr
+        return _get_root_variable(node.value)
+    return None
+
+
+def _potential_overlap_ast(darray_node: vy_ast.VyperNode, arg_node: vy_ast.VyperNode) -> bool:
+    """Check if arg_node potentially references the same variable as darray_node.
+
+    This is a conservative check - returns True if unsure.
+    Used to prevent issues like arr.append(arr[0]) where reading the arg
+    could be affected by the append operation modifying the array.
+
+    Reference: vyper/codegen/core.py:potential_overlap
+    """
+    darray_root = _get_root_variable(darray_node)
+    arg_root = _get_root_variable(arg_node)
+
+    if darray_root is None or arg_root is None:
+        # Can't determine roots - be conservative
+        return True
+
+    return darray_root == arg_root
+
+
 class Expr:
     """Lower Vyper expressions to Venom IR.
 
@@ -1577,13 +1621,16 @@ class Expr:
     def _lower_dynarray_append(self) -> VyperValue:
         """Lower DynArray.append(val).
 
-        1. Load current length
-        2. Assert length < capacity (bounds check)
-        3. Compute element pointer: data_ptr + length * elem_size
-        4. Store element
-        5. Increment and store new length
+        1. Check for potential overlap between darray and arg
+        2. If overlap and non-primitive, copy arg to temp buffer first
+        3. Load current length
+        4. Assert length < capacity (bounds check)
+        5. Compute element pointer: data_ptr + length * elem_size
+        6. Store element
+        7. Increment and store new length
 
         Reference: vyper/codegen/core.py:append_dyn_array
+        Reference: vyper/codegen/expr.py (potential_overlap check before append)
         """
         node = self.node
         assert isinstance(node, vy_ast.Call)
@@ -1598,8 +1645,22 @@ class Expr:
         darray_ptr = darray_vv.operand
 
         # Get the element value
+        # Check for potential overlap: if arg references same variable as darray,
+        # and element is not primitive, copy arg to temp buffer first.
+        # This prevents issues like arr.append(arr[0]) where reading the arg
+        # could be affected by the append operation.
+        # Reference: vyper/codegen/expr.py lines 729-735
         assert len(node.args) == 1
-        elem_val = Expr(node.args[0], self.ctx).lower_value()
+        arg_node = node.args[0]
+
+        if not elem_typ._is_prim_word and _potential_overlap_ast(darray_node, arg_node):
+            # Overlap detected: copy arg to temp buffer first
+            arg_val = Expr(arg_node, self.ctx).lower_value()
+            temp_buf = self.ctx.new_temporary_value(elem_typ)
+            self.ctx.store_memory(arg_val, temp_buf.operand, elem_typ)
+            elem_val = temp_buf.operand
+        else:
+            elem_val = Expr(arg_node, self.ctx).lower_value()
 
         # Get location from VyperValue
         data_loc = darray_vv.location or DataLocation.MEMORY
