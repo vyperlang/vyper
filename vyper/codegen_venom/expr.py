@@ -759,6 +759,10 @@ class Expr:
             sub = Expr(node.value, self.ctx).lower_value()
             return VyperValue.from_stack_op(self.builder.extcodehash(sub), BYTES32_T)
 
+        # .code is an adhoc node handled by slice() - should not be lowered directly
+        if attr == "code":
+            raise CompilerPanic(".code requires slice() context")
+
         # Case 3: Environment variables (msg.*, block.*, tx.*, chain.*)
         if isinstance(node.value, vy_ast.Name) and node.value.id in ENVIRONMENT_VARIABLES:
             return VyperValue.from_stack_op(self._lower_environment_attr(), typ)
