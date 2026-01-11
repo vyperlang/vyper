@@ -759,8 +759,9 @@ class Expr:
             sub = Expr(node.value, self.ctx).lower_value()
             return VyperValue.from_stack_op(self.builder.extcodehash(sub), BYTES32_T)
 
-        # .code is an adhoc node handled by slice() - should not be lowered directly
-        if attr == "code":
+        # .code on address is an adhoc node handled by slice() - should not be lowered directly
+        # But "code" can be a valid struct field name, so only check for address types
+        if attr == "code" and isinstance(node.value._metadata.get("type"), AddressT):
             raise CompilerPanic(".code requires slice() context")
 
         # Case 3: Environment variables (msg.*, block.*, tx.*, chain.*)

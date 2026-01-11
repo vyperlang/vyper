@@ -87,7 +87,6 @@ def lower_raw_call(
     is_delegate = _get_literal_kwarg(node, "is_delegate_call", False)
     is_static = _get_literal_kwarg(node, "is_static_call", False)
     revert_on_failure = _get_literal_kwarg(node, "revert_on_failure", True)
-    value_literal = _get_literal_kwarg(node, "value", 0)
 
     # Validate delegate/static mutual exclusivity
     if is_delegate and is_static:
@@ -96,7 +95,9 @@ def lower_raw_call(
         )
 
     # Validate value not passed with delegate/static
-    if (is_delegate or is_static) and value_literal != 0:
+    # Check if value kwarg is explicitly provided (not relying on default)
+    value_node = _get_kwarg_value(node, "value")
+    if (is_delegate or is_static) and value_node is not None:
         raise ArgumentException("value= may not be passed for static or delegate calls!", node)
 
     # Check constancy: non-static calls are not allowed from view/pure functions
