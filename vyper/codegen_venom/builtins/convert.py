@@ -314,12 +314,16 @@ def _to_bytes_m(
         val = b.shl(num_zero_bits, b.shr(num_zero_bits, data))
         return val
 
-    # From bytesM: truncate or widen
+    # From bytesM: clamp downcast or widen
     if isinstance(in_t, BytesM_T):
         if in_t.m > out_t.m:
-            # Truncate: mask to keep only high out_t.m bytes
-            mask = ((1 << (out_t.m * 8)) - 1) << ((32 - out_t.m) * 8)
-            return b.and_(val, IRLiteral(mask))
+            # Downcast: assert low bytes are zero (bytes_clamp pattern)
+            # bytesM is left-aligned, so check that shl(out_t.m * 8, val) == 0
+            # This ensures bits that would be truncated are all zero
+            shift_bits = out_t.m * 8
+            shifted = b.shl(IRLiteral(shift_bits), val)
+            b.assert_(b.iszero(shifted))
+            return val
         # Widening is no-op (already left-aligned)
         return val
 

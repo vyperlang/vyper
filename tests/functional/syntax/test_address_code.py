@@ -196,3 +196,45 @@ def code_runtime() -> Bytes[1000000]:
     contract = get_contract(code)
     with tx_failed():
         contract.code_runtime()
+
+
+def test_code_attribute_regression(get_contract, env):
+    """
+    Regression test for .code attribute handling in slice() context.
+    Tests self.code and addr.code work correctly with related address properties.
+    """
+    code = """
+@external
+def test_self_code() -> Bytes[50]:
+    return slice(self.code, 0, 50)
+
+@external
+def test_addr_code(addr: address) -> Bytes[50]:
+    return slice(addr.code, 0, 50)
+
+@external
+def test_code_properties(addr: address) -> (uint256, uint256, bytes32, bool):
+    return (
+        addr.codesize,
+        addr.balance,
+        addr.codehash,
+        addr.is_contract
+    )
+    """
+    c = get_contract(code)
+
+    # Test self.code returns bytecode
+    self_code = c.test_self_code()
+    assert len(self_code) == 50
+
+    # Test addr.code returns bytecode
+    addr_code = c.test_addr_code(c.address)
+    assert len(addr_code) == 50
+    assert self_code == addr_code  # self.code == self.address.code
+
+    # Test related code properties
+    codesize, balance, codehash, is_contract = c.test_code_properties(c.address)
+    assert codesize > 0
+    assert balance == 0
+    assert codehash != b"\x00" * 32
+    assert is_contract is True

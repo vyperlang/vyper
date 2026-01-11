@@ -757,6 +757,41 @@ def test(target: address) -> address:
     assert env.get_code(test1) == bytecode
 
 
+def test_create_copy_salt_eval_order_regression(get_contract, env):
+    """
+    Regression test for create2 salt evaluation order bug.
+    The salt expression that allocates memory (like keccak256 with abi_encode)
+    must be evaluated BEFORE msize() to prevent memory corruption of the
+    initcode buffer.
+    """
+    # Simple target contract to copy
+    target_code = """
+@external
+def foo() -> uint256:
+    return 42
+    """
+
+    target = get_contract(target_code)
+    target_bytecode = env.get_code(target.address)
+
+    # Deployer that uses dynamic salt computation
+    deployer_code = """
+@external
+def test_create_copy_with_dynamic_salt(target: address, nonce: uint256) -> address:
+    # Using keccak256 with abi_encode forces memory allocation
+    # during salt evaluation. If salt is evaluated after msize(),
+    # this allocation can overwrite the initcode buffer.
+    salt: bytes32 = keccak256(abi_encode(nonce, msg.sender, block.timestamp))
+    return create_copy_of(target, salt=salt)
+    """
+
+    deployer = get_contract(deployer_code)
+
+    # Deploy and verify the created contract has correct bytecode
+    created = deployer.test_create_copy_with_dynamic_salt(target.address, 123)
+    assert env.get_code(created) == target_bytecode
+
+
 def test_raw_create(get_contract, env):
     to_deploy_code = """
 foo: public(uint256)
