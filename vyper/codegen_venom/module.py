@@ -576,12 +576,12 @@ def _generate_internal_function(
         if pass_via_stack[arg.name]:
             # Stack-passed: receive value, allocate memory, store
             val = builder.param()
-            var = codegen_ctx.new_variable(arg.name, arg.typ, mutable=False)
+            var = codegen_ctx.new_variable(arg.name, arg.typ, mutable=True)
             codegen_ctx.ptr_store(var.value.ptr(), val)
         else:
             # Memory-passed: receive pointer, register directly (no allocation)
             ptr = builder.param()
-            codegen_ctx.register_variable(arg.name, arg.typ, ptr, mutable=False)
+            codegen_ctx.register_variable(arg.name, arg.typ, ptr, mutable=True)
 
     # Return PC is last param
     codegen_ctx.return_pc = builder.param()
