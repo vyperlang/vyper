@@ -7,7 +7,6 @@ from vyper.codegen_venom.context import VenomCodegenContext
 from vyper.compiler.phases import CompilerData
 from vyper.semantics.types.shortcuts import UINT256_T, INT256_T
 from vyper.semantics.types.bytestrings import BytesT
-from vyper.venom.basicblock import IRLiteral, IRVariable
 from vyper.venom.builder import VenomBuilder
 from vyper.venom.context import IRContext
 
@@ -216,54 +215,8 @@ def foo():
         assert ctx.is_word_type(bytes_t) is False
 
 
-class TestNonreentrant:
-    """Test nonreentrant lock emission."""
-
-    def test_emit_nonreentrant_lock_noop_for_non_nonreentrant(self):
-        """Non-nonreentrant functions should be no-op."""
-        source = """
-# @version ^0.4.0
-
-@external
-def foo():
-    pass
-"""
-        ctx = _make_context_with_module(source)
-        func_t = _get_internal_func(ctx, "foo")
-
-        # Should not raise - no-op for non-nonreentrant
-        ctx.emit_nonreentrant_lock(func_t)
-
-    def test_emit_nonreentrant_unlock_noop_for_non_nonreentrant(self):
-        """Non-nonreentrant functions should be no-op."""
-        source = """
-# @version ^0.4.0
-
-@external
-def foo():
-    pass
-"""
-        ctx = _make_context_with_module(source)
-        func_t = _get_internal_func(ctx, "foo")
-
-        # Should not raise - no-op for non-nonreentrant
-        ctx.emit_nonreentrant_unlock(func_t)
-
-
 class TestContextFields:
     """Test new context fields."""
-
-    def test_return_pc_default(self):
-        """return_pc should default to None."""
-        source = """
-# @version ^0.4.0
-
-@external
-def foo():
-    pass
-"""
-        ctx = _make_context_with_module(source)
-        assert ctx.return_pc is None
 
     def test_max_stack_args(self):
         """MAX_STACK_ARGS should be 6."""

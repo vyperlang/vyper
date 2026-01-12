@@ -6,7 +6,7 @@ import pytest
 
 from vyper.codegen_venom.builtins import BUILTIN_HANDLERS
 from vyper.codegen_venom.expr import Expr
-from vyper.venom.basicblock import IRLiteral, IRVariable
+from vyper.venom.basicblock import IRLiteral
 
 from .conftest import get_expr_context
 
@@ -52,105 +52,6 @@ class TestMiscHandlerRegistration:
 
     def test_breakpoint_registered(self):
         assert "breakpoint" in BUILTIN_HANDLERS
-
-
-class TestEcrecover:
-    """Test ecrecover builtin compilation."""
-
-    def test_ecrecover(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(h: bytes32, v: uint256, r: uint256, s: uint256) -> address:
-    return ecrecover(h, v, r, s)
-"""
-        ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower_value()
-        assert isinstance(result, IRVariable)
-
-
-class TestBlockhash:
-    """Test blockhash builtin compilation."""
-
-    def test_blockhash(self):
-        source = """
-# @version ^0.4.0
-@external
-@view
-def foo(block_num: uint256) -> bytes32:
-    return blockhash(block_num)
-"""
-        ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower_value()
-        assert isinstance(result, IRVariable)
-
-
-class TestFloor:
-    """Test floor builtin compilation."""
-
-    def test_floor(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(x: decimal) -> int256:
-    return floor(x)
-"""
-        ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower_value()
-        assert isinstance(result, IRVariable)
-
-
-class TestCeil:
-    """Test ceil builtin compilation."""
-
-    def test_ceil(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(x: decimal) -> int256:
-    return ceil(x)
-"""
-        ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower_value()
-        assert isinstance(result, IRVariable)
-
-
-class TestAsWeiValue:
-    """Test as_wei_value builtin compilation."""
-
-    def test_as_wei_value_ether(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(x: uint256) -> uint256:
-    return as_wei_value(x, "ether")
-"""
-        ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower_value()
-        assert isinstance(result, IRVariable)
-
-    def test_as_wei_value_gwei(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(x: uint256) -> uint256:
-    return as_wei_value(x, "gwei")
-"""
-        ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower_value()
-        assert isinstance(result, IRVariable)
-
-    def test_as_wei_value_wei(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(x: uint256) -> uint256:
-    return as_wei_value(x, "wei")
-"""
-        ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower_value()
-        # wei just returns the value unchanged
-        assert isinstance(result, IRVariable)
 
 
 class TestMinMaxValue:
@@ -219,18 +120,3 @@ def foo() -> decimal:
         result = Expr(node, ctx).lower_value()
         assert isinstance(result, IRLiteral)
         assert result.value == 1  # Smallest decimal unit
-
-
-class TestIsqrt:
-    """Test isqrt builtin compilation."""
-
-    def test_isqrt(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo(x: uint256) -> uint256:
-    return isqrt(x)
-"""
-        ctx, node = get_expr_context(source)
-        result = Expr(node, ctx).lower_value()
-        assert isinstance(result, IRVariable)

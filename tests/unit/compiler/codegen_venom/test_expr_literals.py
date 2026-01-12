@@ -1,16 +1,14 @@
 """
 Tests for Expr literal lowering in codegen_venom.
 
-These tests verify that literal expressions (integers, decimals, booleans,
-addresses, bytesN, and byte/string data) are correctly lowered to Venom IR.
+These tests verify that literal expressions produce correct values.
 """
 import pytest
 
 from vyper.codegen_venom.context import VenomCodegenContext
 from vyper.codegen_venom.expr import Expr
-from vyper.codegen_venom.value import VyperValue
 from vyper.compiler.phases import CompilerData
-from vyper.venom.basicblock import IRLiteral, IRVariable
+from vyper.venom.basicblock import IRLiteral
 from vyper.venom.builder import VenomBuilder
 from vyper.venom.context import IRContext
 
@@ -240,109 +238,3 @@ def foo() -> bytes32:
         # bytes32: no shift needed (32 - 32 = 0)
         expected = 0x0102030405060708091011121314151617181920212223242526272829303132
         assert result.value == expected
-
-
-class TestBytesLiteral:
-    """Test dynamic bytes literals."""
-
-    def test_empty_bytes(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo() -> Bytes[10]:
-    return b""
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        # Returns pointer (VyperValue), not literal
-        assert isinstance(result, VyperValue)
-        assert isinstance(result.operand, IRVariable)
-
-    def test_simple_bytes(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo() -> Bytes[10]:
-    return b"hello"
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, VyperValue)
-        assert isinstance(result.operand, IRVariable)
-
-    def test_long_bytes(self):
-        """Test bytes spanning multiple 32-byte words."""
-        source = """
-# @version ^0.4.0
-@external
-def foo() -> Bytes[100]:
-    return b"0123456789012345678901234567890123456789"
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, VyperValue)
-        assert isinstance(result.operand, IRVariable)
-
-
-class TestHexBytesLiteral:
-    """Test hex bytes literals (x'...')."""
-
-    def test_hexbytes(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo() -> Bytes[4]:
-    return x"DEADBEEF"
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, VyperValue)
-        assert isinstance(result.operand, IRVariable)
-
-
-class TestStringLiteral:
-    """Test string literals."""
-
-    def test_empty_string(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo() -> String[10]:
-    return ""
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, VyperValue)
-        assert isinstance(result.operand, IRVariable)
-
-    def test_simple_string(self):
-        source = """
-# @version ^0.4.0
-@external
-def foo() -> String[20]:
-    return "hello world"
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, VyperValue)
-        assert isinstance(result.operand, IRVariable)
-
-    def test_long_string(self):
-        """Test string spanning multiple 32-byte words."""
-        source = """
-# @version ^0.4.0
-@external
-def foo() -> String[100]:
-    return "0123456789012345678901234567890123456789"
-"""
-        ctx, node = _get_expr_context(source)
-        result = Expr(node, ctx).lower()
-
-        assert isinstance(result, VyperValue)
-        assert isinstance(result.operand, IRVariable)

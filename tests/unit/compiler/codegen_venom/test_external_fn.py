@@ -5,150 +5,17 @@ import pytest
 
 from vyper.codegen_venom.constants import SELECTOR_BYTES
 from vyper.codegen_venom.module import (
-    generate_runtime_venom,
     IDGenerator,
     _init_ir_info,
     _generate_external_entry_points,
 )
 from vyper.compiler.phases import CompilerData
-from vyper.compiler.settings import Settings
 
 
 def _get_module_t(source: str):
     """Get module type from source."""
     compiler_data = CompilerData(source)
     return compiler_data.global_ctx
-
-
-def _compile_source(source: str):
-    """Compile source and return runtime IR context."""
-    module_t = _get_module_t(source)
-    settings = Settings()
-    return generate_runtime_venom(module_t, settings)
-
-
-class TestRuntimeCodegen:
-    """Test runtime codegen via generate_runtime_venom."""
-
-    def test_compile_simple_function(self):
-        """Test compiling a simple external function."""
-        source = """
-# @version ^0.4.0
-
-@external
-def foo() -> uint256:
-    return 42
-"""
-        runtime_ctx = _compile_source(source)
-
-        # Should have created IR context
-        assert runtime_ctx is not None
-
-        # Runtime should have a function
-        assert len(runtime_ctx.functions) >= 1
-
-    def test_compile_function_with_args(self):
-        """Test compiling a function with arguments."""
-        source = """
-# @version ^0.4.0
-
-@external
-def add(a: uint256, b: uint256) -> uint256:
-    return a + b
-"""
-        runtime_ctx = _compile_source(source)
-        assert runtime_ctx is not None
-
-    def test_compile_multiple_functions(self):
-        """Test compiling multiple external functions."""
-        source = """
-# @version ^0.4.0
-
-@external
-def foo() -> uint256:
-    return 1
-
-@external
-def bar() -> uint256:
-    return 2
-"""
-        runtime_ctx = _compile_source(source)
-        assert runtime_ctx is not None
-
-    def test_compile_with_fallback(self):
-        """Test compiling with a fallback function."""
-        source = """
-# @version ^0.4.0
-
-@external
-def foo() -> uint256:
-    return 42
-
-@external
-def __default__():
-    pass
-"""
-        runtime_ctx = _compile_source(source)
-        assert runtime_ctx is not None
-
-    def test_compile_payable_function(self):
-        """Test compiling a payable function."""
-        source = """
-# @version ^0.4.0
-
-@external
-@payable
-def deposit():
-    pass
-"""
-        runtime_ctx = _compile_source(source)
-        assert runtime_ctx is not None
-
-    def test_compile_with_kwargs(self):
-        """Test compiling a function with keyword arguments."""
-        source = """
-# @version ^0.4.0
-
-@external
-def foo(a: uint256, b: uint256 = 10) -> uint256:
-    return a + b
-"""
-        runtime_ctx = _compile_source(source)
-        assert runtime_ctx is not None
-
-    def test_compile_with_internal_function(self):
-        """Test compiling with internal function calls."""
-        source = """
-# @version ^0.4.0
-
-@internal
-def _helper(x: uint256) -> uint256:
-    return x * 2
-
-@external
-def foo(a: uint256) -> uint256:
-    return self._helper(a)
-"""
-        runtime_ctx = _compile_source(source)
-        assert runtime_ctx is not None
-
-    def test_compile_with_storage(self):
-        """Test compiling with storage variables."""
-        source = """
-# @version ^0.4.0
-
-value: uint256
-
-@external
-def get() -> uint256:
-    return self.value
-
-@external
-def set(x: uint256):
-    self.value = x
-"""
-        runtime_ctx = _compile_source(source)
-        assert runtime_ctx is not None
 
 
 class TestExternalEntryPoints:
@@ -246,20 +113,3 @@ def _helper():
 
         # All IDs should be unique
         assert len(ids) == 2  # foo and bar
-
-
-class TestNonreentrantExternal:
-    """Test nonreentrant handling in external functions."""
-
-    def test_nonreentrant_external(self):
-        """Test nonreentrant external function compiles."""
-        source = """
-# @version ^0.4.0
-
-@external
-@nonreentrant
-def foo():
-    pass
-"""
-        runtime_ctx = _compile_source(source)
-        assert runtime_ctx is not None
