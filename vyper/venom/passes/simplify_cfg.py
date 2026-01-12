@@ -62,8 +62,7 @@ class SimplifyCFGPass(IRPass):
         for inst in next_bb.instructions:
             if inst.opcode != "phi":
                 break
-            if b.label not in inst.operands:
-                continue
+            assert b.label in inst.operands
             b_idx = inst.operands.index(b.label)
             if a.label in inst.operands:
                 del inst.operands[b_idx : b_idx + 2]
