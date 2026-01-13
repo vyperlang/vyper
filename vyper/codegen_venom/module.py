@@ -19,6 +19,7 @@ import vyper.ast as vy_ast
 from vyper.codegen.core import needs_clamp
 from vyper.codegen.function_definitions.common import EntryPointInfo, _FuncIRInfo
 from vyper.codegen.ir_node import Encoding
+from vyper.codegen import jumptable_utils
 from vyper.codegen_venom.abi.abi_decoder import _getelemptr_abi, abi_decode_to_buf
 from vyper.codegen_venom.buffer import Ptr
 from vyper.codegen_venom.constants import SELECTOR_BYTES, SELECTOR_SHIFT_BITS
@@ -125,9 +126,15 @@ def generate_runtime_venom(module_t: ModuleT, settings: Settings) -> IRContext:
     runtime_builder = VenomBuilder(runtime_ctx, runtime_fn)
 
     # Generate selector dispatch
-    _generate_selector_section_linear(
-        runtime_builder, module_t, external_functions, default_function
-    )
+    # Use sparse jumptable for better average-case dispatch when there are many functions
+    if len(external_functions) > 3:
+        _generate_selector_section_sparse(
+            runtime_builder, module_t, external_functions, default_function
+        )
+    else:
+        _generate_selector_section_linear(
+            runtime_builder, module_t, external_functions, default_function
+        )
 
     # Generate internal functions for runtime
     for func_ast in internal_functions:
@@ -282,6 +289,201 @@ def _generate_selector_section_linear(
 
     # No match found - goto fallback
     builder.jmp(fallback_bb.label)
+
+    # Fallback block
+    builder.append_block(fallback_bb)
+    builder.set_block(fallback_bb)
+
+    if default_function:
+        func_t = default_function._metadata["func_type"]
+        _init_ir_info(func_t)
+
+        # Payable check for fallback
+        if not func_t.is_payable:
+            callvalue = builder.callvalue()
+            is_zero = builder.iszero(callvalue)
+            builder.assert_(is_zero)
+
+        # Generate fallback body
+        _generate_fallback_body(builder, module_t, func_t, default_function)
+    else:
+        # No fallback - revert
+        builder.revert(IRLiteral(0), IRLiteral(0))
+
+
+def _generate_selector_section_sparse(
+    builder: VenomBuilder,
+    module_t: ModuleT,
+    external_functions: list,
+    default_function: Optional[vy_ast.FunctionDef],
+) -> None:
+    """Generate O(1) average-case sparse jumptable selector dispatch.
+
+    Structure:
+    - Check calldatasize >= 4
+    - Load method_id from calldata
+    - Compute bucket_id = method_id % n_buckets
+    - Load bucket location from data section header
+    - djmp to bucket's label
+    - Each bucket does linear search through its items (typically 1-3)
+    - Falls through to fallback on no match
+    """
+    runtime_ctx = builder.ctx
+
+    # Check calldatasize >= SELECTOR_BYTES (4 bytes)
+    calldatasize = builder.calldatasize()
+    has_selector = builder.iszero(builder.lt(calldatasize, IRLiteral(SELECTOR_BYTES)))
+
+    dispatch_bb = builder.create_block("dispatch")
+    fallback_bb = builder.create_block("fallback")
+
+    # If calldatasize < 4, goto fallback
+    builder.jnz(has_selector, dispatch_bb.label, fallback_bb.label)
+
+    # Dispatch block: load selector and dispatch to bucket
+    builder.append_block(dispatch_bb)
+    builder.set_block(dispatch_bb)
+
+    # _calldata_method_id = shr(SELECTOR_SHIFT_BITS, calldataload(0))
+    raw_selector = builder.calldataload(IRLiteral(0))
+    method_id = builder.shr(IRLiteral(SELECTOR_SHIFT_BITS), raw_selector)
+
+    # Collect all entry points (function_ast -> {abi_sig: entry_info})
+    # We need this for two passes: bucket generation and code generation
+    all_entry_points: dict[str, tuple[vy_ast.FunctionDef, EntryPointInfo]] = {}
+    for func_ast in external_functions:
+        func_t = func_ast._metadata["func_type"]
+        _init_ir_info(func_t)
+        entry_points = _generate_external_entry_points(func_t)
+        for abi_sig, entry_info in entry_points.items():
+            all_entry_points[abi_sig] = (func_ast, entry_info)
+
+    if not all_entry_points:
+        # No external functions - jump to fallback
+        builder.jmp(fallback_bb.label)
+    else:
+        # Generate buckets
+        n_buckets, buckets = jumptable_utils.generate_sparse_jumptable_buckets(
+            all_entry_points.keys()
+        )
+
+        SZ_BUCKET_HEADER = 2  # 2 bytes for bucket location
+
+        if n_buckets > 1:
+            # Compute bucket_id = method_id % n_buckets
+            bucket_id = builder.mod(method_id, IRLiteral(n_buckets))
+
+            # Create data section with bucket headers
+            runtime_ctx.append_data_section(IRLabel("selector_buckets", is_symbol=True))
+
+            # Build jump targets list and add bucket header labels
+            jump_targets = []
+            for i in range(n_buckets):
+                if i in buckets:
+                    bucket_label = IRLabel(f"selector_bucket_{i}", is_symbol=True)
+                    jump_targets.append(bucket_label)
+                else:
+                    # Empty bucket -> fallback
+                    jump_targets.append(fallback_bb.label)
+                runtime_ctx.append_data_item(jump_targets[-1])
+
+            # Load bucket location from data header
+            # Location = selector_buckets + bucket_id * 2
+            bucket_hdr_offset = builder.mul(bucket_id, IRLiteral(SZ_BUCKET_HEADER))
+            # Use add with label - the label resolves to its code position at link time
+            selector_buckets_addr = builder.offset(
+                IRLiteral(0), IRLabel("selector_buckets", is_symbol=True)
+            )
+            bucket_hdr_location = builder.add(selector_buckets_addr, bucket_hdr_offset)
+
+            # Copy 2-byte header to memory at offset (32 - 2) = 30
+            # so mload(0) reads it right-aligned in a 32-byte word
+            dst = 32 - SZ_BUCKET_HEADER
+            builder.codecopy(IRLiteral(dst), bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
+            jumpdest = builder.mload(IRLiteral(0))
+
+            # Dynamic jump to bucket (must list all possible targets)
+            builder.djmp(jumpdest, *jump_targets)
+
+            # Generate bucket blocks
+            for bucket_id_val, bucket_method_ids in buckets.items():
+                bucket_label = IRLabel(f"selector_bucket_{bucket_id_val}", is_symbol=True)
+                bucket_bb = builder.create_block(f"bucket_{bucket_id_val}")
+                # Override the label to match the data section reference
+                bucket_bb.label = bucket_label
+                builder.append_block(bucket_bb)
+                builder.set_block(bucket_bb)
+
+                # Linear search through bucket's method_ids
+                for mid in bucket_method_ids:
+                    # Find the abi_sig for this method_id
+                    for abi_sig, (func_ast, entry_info) in all_entry_points.items():
+                        if method_id_int(abi_sig) == mid:
+                            func_t = entry_info.func_t
+
+                            # Create match block for this function
+                            match_bb = builder.create_block(f"match_{mid:08x}")
+
+                            # Check if method_id matches
+                            is_match = builder.eq(method_id, IRLiteral(mid))
+
+                            # Handle trailing zeros in method_id
+                            # If method_id ends with \x00, we need calldatasize check
+                            # to distinguish from truncated calldata
+                            has_trailing_zeroes = mid.to_bytes(4, "big").endswith(b"\x00")
+                            if has_trailing_zeroes:
+                                has_enough_calldata = builder.iszero(
+                                    builder.lt(builder.calldatasize(), IRLiteral(4))
+                                )
+                                is_match = builder.and_(has_enough_calldata, is_match)
+
+                            # Create next check block
+                            next_check_bb = builder.create_block("next_check")
+
+                            builder.jnz(is_match, match_bb.label, next_check_bb.label)
+
+                            # Match block: payable/calldatasize checks, then function body
+                            builder.append_block(match_bb)
+                            builder.set_block(match_bb)
+
+                            _emit_entry_checks(builder, func_t, entry_info.min_calldatasize)
+
+                            # Generate function body
+                            _generate_external_function_body(
+                                builder, module_t, func_t, func_ast, entry_info
+                            )
+
+                            # Continue with next check
+                            builder.append_block(next_check_bb)
+                            builder.set_block(next_check_bb)
+                            break
+
+                # No match in this bucket - goto fallback
+                builder.jmp(fallback_bb.label)
+
+        else:
+            # Only one bucket - do linear search without jumptable overhead
+            for abi_sig, (func_ast, entry_info) in all_entry_points.items():
+                method_id_val = method_id_int(abi_sig)
+                func_t = entry_info.func_t
+
+                match_bb = builder.create_block(f"match_{method_id_val:08x}")
+                is_match = builder.eq(method_id, IRLiteral(method_id_val))
+                next_check_bb = builder.create_block("next_check")
+
+                builder.jnz(is_match, match_bb.label, next_check_bb.label)
+
+                builder.append_block(match_bb)
+                builder.set_block(match_bb)
+
+                _emit_entry_checks(builder, func_t, entry_info.min_calldatasize)
+                _generate_external_function_body(builder, module_t, func_t, func_ast, entry_info)
+
+                builder.append_block(next_check_bb)
+                builder.set_block(next_check_bb)
+
+            # No match - goto fallback
+            builder.jmp(fallback_bb.label)
 
     # Fallback block
     builder.append_block(fallback_bb)

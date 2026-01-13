@@ -269,9 +269,12 @@ class VenomBuilder:
         """Store val to immutable memory region at offset (deploy-time only). (IR-specific)"""
         self._emit("istore", offset, val)
 
-    def offset(self, label: IRLabel, operand: Operand) -> IRVariable:
-        """Compute static offset from label. Used for code position calculations. (IR-specific)"""
-        return self._emit1("offset", label, operand)
+    def offset(self, operand: Operand, label: IRLabel) -> IRVariable:
+        """Compute static offset from label. Used for code position calculations. (IR-specific)
+
+        Computes label + operand. Args order matches Venom IR: offset operand, @label
+        """
+        return self._emit1("offset", operand, label)
 
     # === Control Flow (IR-specific) ===
     def jmp(self, target: IRLabel) -> None:
