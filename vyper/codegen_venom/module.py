@@ -724,17 +724,15 @@ def _emit_deploy_epilogue(
 ) -> None:
     """
     Copy runtime bytecode to memory and return it.
-
-    Memory layout (matching legacy):
-    [0-63]: Reserved (FREE_VAR_SPACE)
-    [64-...]: Runtime code
-    [64+runtime_codesize-...]: Immutables
     """
-    DST_OFFSET = 64  # After FREE_VAR_SPACE
+    # Dynamically allocate memory for runtime code + immutables
+    total_size = runtime_codesize + immutables_len
+    alloca_id = builder.ctx.get_next_alloca_id()
+    dst_ptr = builder.alloca(total_size, alloca_id)
 
     # Copy immutables from deployment memory to runtime position
     if immutables_len > 0:
-        immutables_dst = IRLiteral(DST_OFFSET + runtime_codesize)
+        immutables_dst = builder.add(dst_ptr, IRLiteral(runtime_codesize))
 
         # Source is the immutables_alloca if available, otherwise offset 0
         immutables_src: IROperand = immutables_alloca if immutables_alloca is not None else IRLiteral(0)
@@ -757,8 +755,7 @@ def _emit_deploy_epilogue(
             builder.assert_(copy_success)
 
     # Copy runtime bytecode from data section to memory
-    builder.codecopy(IRLiteral(DST_OFFSET), IRLabel("runtime_begin"), IRLiteral(runtime_codesize))
+    builder.codecopy(dst_ptr, IRLabel("runtime_begin"), IRLiteral(runtime_codesize))
 
     # Return runtime + immutables
-    total_size = builder.add(IRLiteral(runtime_codesize), IRLiteral(immutables_len))
-    builder.return_(IRLiteral(DST_OFFSET), total_size)
+    builder.return_(dst_ptr, IRLiteral(total_size))
