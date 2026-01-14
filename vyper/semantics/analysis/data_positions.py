@@ -89,7 +89,9 @@ class Allocators:
     _global_nonreentrancy_key_slot: int
 
     def __init__(self, storage_starting_slot: int = 0):
-        self.storage_allocator = SimpleAllocator(max_slot=2**256, starting_slot=storage_starting_slot)
+        self.storage_allocator = SimpleAllocator(
+            max_slot=2**256, starting_slot=storage_starting_slot
+        )
         self.transient_storage_allocator = SimpleAllocator(max_slot=2**256)
         self.immutables_allocator = SimpleAllocator(max_slot=0x6000)
 

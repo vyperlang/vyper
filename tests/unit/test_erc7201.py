@@ -1,8 +1,6 @@
 """
 Tests for ERC-7201 storage namespace functionality.
 """
-import pytest
-
 from vyper.utils import erc7201_storage_slot, keccak256
 
 

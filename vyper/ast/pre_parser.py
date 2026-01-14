@@ -105,7 +105,9 @@ def _parse_pragma(comment_contents, settings, is_interface, code, start):
         settings.nonreentrancy_by_default = pragma == "on"
         return
 
-    if pragma.startswith("storage-namespace "):
+    if pragma.startswith("storage-namespace") and (
+        pragma == "storage-namespace" or pragma.startswith("storage-namespace ")
+    ):
         if is_interface:
             raise PragmaException(
                 "pragma storage-namespace not allowed in interface files!", *location
