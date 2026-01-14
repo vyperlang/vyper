@@ -137,15 +137,15 @@ class ValueRange:
     def clamp(self, lo: Optional[int] = None, hi: Optional[int] = None) -> ValueRange:
         """Clamp this range to the specified bounds."""
         if self.is_top:
-            lo = SIGNED_MIN if lo is None else max(SIGNED_MIN, lo)
-            hi = UNSIGNED_MAX if hi is None else min(UNSIGNED_MAX, hi)
-            return ValueRange((lo, hi)) if lo <= hi else ValueRange.empty()
-        if self.is_empty:
+            new_lo = SIGNED_MIN if lo is None else max(SIGNED_MIN, lo)
+            new_hi = UNSIGNED_MAX if hi is None else min(UNSIGNED_MAX, hi)
+        elif self.is_empty:
             return self
-        assert self.bounds is not None
-        new_lo = self.bounds[0] if lo is None else max(self.bounds[0], lo)
-        new_hi = self.bounds[1] if hi is None else min(self.bounds[1], hi)
-        return ValueRange((new_lo, new_hi)) if new_lo <= new_hi else ValueRange.empty()
+        else:
+            assert self.bounds is not None
+            new_lo = self.bounds[0] if lo is None else max(self.bounds[0], lo)
+            new_hi = self.bounds[1] if hi is None else min(self.bounds[1], hi)
+        return ValueRange((new_lo, new_hi))
 
     def __repr__(self) -> str:
         if self.is_top:
