@@ -423,6 +423,9 @@ class VariableRangeAnalysis(IRAnalysis):
             return old_range
 
         # If the range is growing, widen to top
+        # TODO: more precise widening possible using a finite set of
+        # thresholds (e.g., powers of 2, type boundaries) instead of
+        # jumping straight to top.
         if new_range.lo < old_range.lo or new_range.hi > old_range.hi:
             return ValueRange.top()
 
