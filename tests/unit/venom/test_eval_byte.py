@@ -14,7 +14,6 @@ from vyper.venom.analysis.variable_range.evaluators import _eval_byte
 from vyper.venom.analysis.variable_range.value_range import ValueRange
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IRVariable
 
-
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
@@ -181,10 +180,7 @@ class TestByteVariableIndex:
         var_idx = IRVariable("%idx")
         var_x = IRVariable("%x")
         inst = make_byte_inst(var_idx, var_x)
-        state = {
-            var_idx: ValueRange((0, 31)),
-            var_x: ValueRange.constant(0x1234),
-        }
+        state = {var_idx: ValueRange((0, 31)), var_x: ValueRange.constant(0x1234)}
         result = _eval_byte(inst, state)
         assert result.lo == 0
         assert result.hi == 255
@@ -506,7 +502,10 @@ class TestByteEdgeCases:
 class TestByteSoundness:
     """Property-based tests verifying byte evaluator soundness."""
 
-    @given(index=st.integers(min_value=0, max_value=31), value=st.integers(min_value=0, max_value=2**64))
+    @given(
+        index=st.integers(min_value=0, max_value=31),
+        value=st.integers(min_value=0, max_value=2**64),
+    )
     @settings(deadline=None, max_examples=200)
     def test_byte_soundness_constants(self, index: int, value: int) -> None:
         """BYTE with constant inputs: result must be in computed range."""
@@ -519,7 +518,10 @@ class TestByteSoundness:
             actual, result_range
         ), f"BYTE unsound: byte({index}, {value}) = {actual}, range = {result_range}"
 
-    @given(index=st.integers(min_value=32, max_value=1000), value=st.integers(min_value=0, max_value=2**256 - 1))
+    @given(
+        index=st.integers(min_value=32, max_value=1000),
+        value=st.integers(min_value=0, max_value=2**256 - 1),
+    )
     @settings(deadline=None, max_examples=50)
     def test_byte_soundness_out_of_range_index(self, index: int, value: int) -> None:
         """BYTE with out-of-range index always returns 0."""
@@ -540,10 +542,7 @@ class TestByteSoundness:
         assert result_range.lo <= 0
         assert result_range.hi >= 255
 
-    @given(
-        lo=st.integers(min_value=0, max_value=255),
-        hi=st.integers(min_value=0, max_value=255),
-    )
+    @given(lo=st.integers(min_value=0, max_value=255), hi=st.integers(min_value=0, max_value=255))
     @settings(deadline=None, max_examples=100)
     def test_byte_31_bounded_range_soundness(self, lo: int, hi: int) -> None:
         """BYTE(31, [lo, hi]) must contain all actual byte values."""
@@ -562,8 +561,7 @@ class TestByteSoundness:
             ), f"BYTE unsound: byte(31, {val}) = {actual}, range = {result_range}"
 
     @given(
-        lo=st.integers(min_value=0, max_value=0xFFFF),
-        hi=st.integers(min_value=0, max_value=0xFFFF),
+        lo=st.integers(min_value=0, max_value=0xFFFF), hi=st.integers(min_value=0, max_value=0xFFFF)
     )
     @settings(deadline=None, max_examples=100)
     def test_byte_30_bounded_range_soundness(self, lo: int, hi: int) -> None:
