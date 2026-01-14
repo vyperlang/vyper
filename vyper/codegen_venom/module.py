@@ -245,6 +245,9 @@ def _generate_selector_section_linear(
     - Load method_id from calldata
     - For each function: if method_id matches, goto entry point
     - Fallback to default function or revert
+
+    For functions with kwargs, generates ONE shared common body with
+    separate entry points that handle kwargs and jump to the common body.
     """
     # Check calldatasize >= SELECTOR_BYTES (4 bytes)
     calldatasize = builder.calldatasize()
@@ -264,6 +267,9 @@ def _generate_selector_section_linear(
     raw_selector = builder.calldataload(IRLiteral(0))
     method_id = builder.shr(IRLiteral(SELECTOR_SHIFT_BITS), raw_selector)
 
+    # Collect deferred common bodies to generate after all dispatch checks
+    deferred_common_bodies: list[tuple[vy_ast.FunctionDef, ContractFunctionT, IRLabel]] = []
+
     # Generate entry points and dispatch checks
     for func_ast in external_functions:
         func_t = func_ast._metadata["func_type"]
@@ -271,6 +277,16 @@ def _generate_selector_section_linear(
 
         # Generate entry points for all ABI signatures (kwargs create multiple)
         entry_points = _generate_external_entry_points(func_t)
+
+        has_kwargs = len(func_t.keyword_args) > 0
+        common_label = None
+
+        if has_kwargs:
+            # Create allocas for kwargs BEFORE entry points (so allocas dominate uses)
+            _create_kwarg_allocas(builder, func_t)
+            # Create label for common body block
+            common_label = IRLabel(f"fn_{func_t._function_id}_common")
+            deferred_common_bodies.append((func_ast, func_t, common_label))
 
         for abi_sig, entry_info in entry_points.items():
             method_id_val = method_id_int(abi_sig)
@@ -286,14 +302,18 @@ def _generate_selector_section_linear(
 
             builder.jnz(is_match, match_bb.label, next_check_bb.label)
 
-            # Match block: payable/calldatasize checks, then function body
+            # Match block: payable/calldatasize checks, then kwargs or body
             builder.append_block(match_bb)
             builder.set_block(match_bb)
 
             _emit_entry_checks(builder, func_t, entry_info.min_calldatasize)
 
-            # Generate function body (entry point + common code)
-            _generate_external_function_body(builder, module_t, func_t, func_ast, entry_info)
+            if has_kwargs:
+                # Entry point: handle kwargs, jump to common body
+                _generate_entry_point_kwargs(builder, module_t, func_t, entry_info, common_label)
+            else:
+                # No kwargs: generate body directly
+                _generate_external_function_body(builder, module_t, func_t, func_ast, entry_info)
 
             # Continue checking other functions
             builder.append_block(next_check_bb)
@@ -301,6 +321,14 @@ def _generate_selector_section_linear(
 
     # No match found - goto fallback
     builder.jmp(fallback_bb.label)
+
+    # Generate deferred common bodies for functions with kwargs
+    for func_ast, func_t, common_label in deferred_common_bodies:
+        common_bb = builder.create_block(common_label.value)
+        common_bb.label = common_label
+        builder.append_block(common_bb)
+        builder.set_block(common_bb)
+        _generate_common_function_body(builder, module_t, func_t, func_ast)
 
     # Fallback block
     builder.append_block(fallback_bb)
@@ -339,6 +367,9 @@ def _generate_selector_section_sparse(
     - djmp to bucket's label
     - Each bucket does linear search through its items (typically 1-3)
     - Falls through to fallback on no match
+
+    For functions with kwargs, generates ONE shared common body with
+    separate entry points that handle kwargs and jump to the common body.
     """
     runtime_ctx = builder.ctx
 
@@ -360,13 +391,24 @@ def _generate_selector_section_sparse(
     raw_selector = builder.calldataload(IRLiteral(0))
     method_id = builder.shr(IRLiteral(SELECTOR_SHIFT_BITS), raw_selector)
 
-    # Collect all entry points (function_ast -> {abi_sig: entry_info})
-    # We need this for two passes: bucket generation and code generation
+    # Collect all entry points and track common body labels for kwargs functions
     all_entry_points: dict[str, tuple[vy_ast.FunctionDef, EntryPointInfo]] = {}
+    common_labels: dict[int, IRLabel] = {}  # func_id -> common label
+    deferred_common_bodies: list[tuple[vy_ast.FunctionDef, ContractFunctionT, IRLabel]] = []
+
     for func_ast in external_functions:
         func_t = func_ast._metadata["func_type"]
         _init_ir_info(func_t)
         entry_points = _generate_external_entry_points(func_t)
+
+        # Track common label for functions with kwargs
+        if len(func_t.keyword_args) > 0:
+            # Create allocas for kwargs BEFORE entry points (so allocas dominate uses)
+            _create_kwarg_allocas(builder, func_t)
+            common_label = IRLabel(f"fn_{func_t._function_id}_common")
+            common_labels[func_t._function_id] = common_label
+            deferred_common_bodies.append((func_ast, func_t, common_label))
+
         for abi_sig, entry_info in entry_points.items():
             all_entry_points[abi_sig] = (func_ast, entry_info)
 
@@ -432,6 +474,7 @@ def _generate_selector_section_sparse(
                     for abi_sig, (func_ast, entry_info) in all_entry_points.items():
                         if method_id_int(abi_sig) == mid:
                             func_t = entry_info.func_t
+                            has_kwargs = len(func_t.keyword_args) > 0
 
                             # Create match block for this function
                             match_bb = builder.create_block(f"match_{mid:08x}")
@@ -454,16 +497,23 @@ def _generate_selector_section_sparse(
 
                             builder.jnz(is_match, match_bb.label, next_check_bb.label)
 
-                            # Match block: payable/calldatasize checks, then function body
+                            # Match block: payable/calldatasize checks, then kwargs or body
                             builder.append_block(match_bb)
                             builder.set_block(match_bb)
 
                             _emit_entry_checks(builder, func_t, entry_info.min_calldatasize)
 
-                            # Generate function body
-                            _generate_external_function_body(
-                                builder, module_t, func_t, func_ast, entry_info
-                            )
+                            if has_kwargs:
+                                # Entry point: handle kwargs, jump to common body
+                                common_label = common_labels[func_t._function_id]
+                                _generate_entry_point_kwargs(
+                                    builder, module_t, func_t, entry_info, common_label
+                                )
+                            else:
+                                # No kwargs: generate body directly
+                                _generate_external_function_body(
+                                    builder, module_t, func_t, func_ast, entry_info
+                                )
 
                             # Continue with next check
                             builder.append_block(next_check_bb)
@@ -478,6 +528,7 @@ def _generate_selector_section_sparse(
             for abi_sig, (func_ast, entry_info) in all_entry_points.items():
                 method_id_val = method_id_int(abi_sig)
                 func_t = entry_info.func_t
+                has_kwargs = len(func_t.keyword_args) > 0
 
                 match_bb = builder.create_block(f"match_{method_id_val:08x}")
                 is_match = builder.eq(method_id, IRLiteral(method_id_val))
@@ -489,13 +540,26 @@ def _generate_selector_section_sparse(
                 builder.set_block(match_bb)
 
                 _emit_entry_checks(builder, func_t, entry_info.min_calldatasize)
-                _generate_external_function_body(builder, module_t, func_t, func_ast, entry_info)
+
+                if has_kwargs:
+                    common_label = common_labels[func_t._function_id]
+                    _generate_entry_point_kwargs(builder, module_t, func_t, entry_info, common_label)
+                else:
+                    _generate_external_function_body(builder, module_t, func_t, func_ast, entry_info)
 
                 builder.append_block(next_check_bb)
                 builder.set_block(next_check_bb)
 
             # No match - goto fallback
             builder.jmp(fallback_bb.label)
+
+    # Generate deferred common bodies for functions with kwargs
+    for func_ast, func_t, common_label in deferred_common_bodies:
+        common_bb = builder.create_block(common_label.value)
+        common_bb.label = common_label
+        builder.append_block(common_bb)
+        builder.set_block(common_bb)
+        _generate_common_function_body(builder, module_t, func_t, func_ast)
 
     # Fallback block
     builder.append_block(fallback_bb)
@@ -541,6 +605,9 @@ def _generate_selector_section_dense(
     Data layout:
     - BUCKET_HEADERS: 5 bytes each (magic 2b | location 2b | size 1b)
     - Per-bucket function info: 7+ bytes each (method_id 4b | label 2b | metadata 1-3b)
+
+    For functions with kwargs, generates ONE shared common body with
+    separate entry points that handle kwargs and jump to the common body.
     """
     runtime_ctx = builder.ctx
 
@@ -562,12 +629,24 @@ def _generate_selector_section_dense(
     raw_selector = builder.calldataload(IRLiteral(0))
     method_id = builder.shr(IRLiteral(SELECTOR_SHIFT_BITS), raw_selector)
 
-    # Collect all entry points
+    # Collect all entry points and track common body labels for kwargs functions
     all_entry_points: dict[str, tuple[vy_ast.FunctionDef, EntryPointInfo]] = {}
+    common_labels: dict[int, IRLabel] = {}  # func_id -> common label
+    deferred_common_bodies: list[tuple[vy_ast.FunctionDef, ContractFunctionT, IRLabel]] = []
+
     for func_ast in external_functions:
         func_t = func_ast._metadata["func_type"]
         _init_ir_info(func_t)
         entry_points = _generate_external_entry_points(func_t)
+
+        # Track common label for functions with kwargs
+        if len(func_t.keyword_args) > 0:
+            # Create allocas for kwargs BEFORE entry points (so allocas dominate uses)
+            _create_kwarg_allocas(builder, func_t)
+            common_label = IRLabel(f"fn_{func_t._function_id}_common")
+            common_labels[func_t._function_id] = common_label
+            deferred_common_bodies.append((func_ast, func_t, common_label))
+
         for abi_sig, entry_info in entry_points.items():
             all_entry_points[abi_sig] = (func_ast, entry_info)
 
@@ -722,14 +801,28 @@ def _generate_selector_section_dense(
         for abi_sig, (func_ast, entry_info) in all_entry_points.items():
             label = entry_point_labels[abi_sig]
             func_t = entry_info.func_t
+            has_kwargs = len(func_t.keyword_args) > 0
 
             entry_bb = builder.create_block(f"entry_{method_id_int(abi_sig):08x}")
             entry_bb.label = label
             builder.append_block(entry_bb)
             builder.set_block(entry_bb)
 
-            # Generate function body (entry checks already done in dispatcher)
-            _generate_external_function_body(builder, module_t, func_t, func_ast, entry_info)
+            if has_kwargs:
+                # Entry point: handle kwargs, jump to common body
+                common_label = common_labels[func_t._function_id]
+                _generate_entry_point_kwargs(builder, module_t, func_t, entry_info, common_label)
+            else:
+                # No kwargs: generate body directly (entry checks already done in dispatcher)
+                _generate_external_function_body(builder, module_t, func_t, func_ast, entry_info)
+
+    # Generate deferred common bodies for functions with kwargs
+    for func_ast, func_t, common_label in deferred_common_bodies:
+        common_bb = builder.create_block(common_label.value)
+        common_bb.label = common_label
+        builder.append_block(common_bb)
+        builder.set_block(common_bb)
+        _generate_common_function_body(builder, module_t, func_t, func_ast)
 
     # Fallback block
     builder.append_block(fallback_bb)
@@ -850,6 +943,85 @@ def _generate_external_function_body(
             raise CompilerPanic("External function missing return")
 
 
+def _generate_entry_point_kwargs(
+    builder: VenomBuilder,
+    module_t: ModuleT,
+    func_t: ContractFunctionT,
+    entry_info: EntryPointInfo,
+    common_label: IRLabel,
+) -> None:
+    """Generate entry point code that handles kwargs and jumps to common body.
+
+    This is called for functions with kwargs. Each entry point:
+    1. Writes kwargs to pre-allocated alloca locations (defaults or from calldata)
+    2. Jumps to the common body label
+
+    The allocas must have been created earlier via _create_kwarg_allocas.
+    """
+    # Create codegen context for kwarg handling only
+    codegen_ctx = VenomCodegenContext(
+        module_ctx=module_t,
+        builder=builder,
+        func_t=func_t,
+        constancy=_get_constancy(func_t),
+        is_ctor_context=False,
+    )
+
+    # Handle kwargs - write to pre-allocated allocas
+    _init_kwargs_in_entry_point(codegen_ctx, func_t, entry_info)
+
+    # Jump to common body
+    builder.jmp(common_label)
+
+
+def _generate_common_function_body(
+    builder: VenomBuilder,
+    module_t: ModuleT,
+    func_t: ContractFunctionT,
+    func_ast: vy_ast.FunctionDef,
+) -> None:
+    """Generate the common body of an external function with kwargs.
+
+    This is the shared code that all entry points jump to after handling kwargs.
+    It includes:
+    1. Register/decode base args from calldata
+    2. Register pre-allocated kwargs (already in memory)
+    3. Nonreentrant lock
+    4. Function body
+    5. Exit sequence with return encoding
+    """
+    # Create codegen context for this function
+    codegen_ctx = VenomCodegenContext(
+        module_ctx=module_t,
+        builder=builder,
+        func_t=func_t,
+        constancy=_get_constancy(func_t),
+        is_ctor_context=False,
+    )
+
+    # Register positional args from calldata
+    _register_positional_args(codegen_ctx, func_t)
+
+    # Register pre-allocated kwargs (just register the existing allocas)
+    _register_kwarg_variables(codegen_ctx, func_t)
+
+    # Nonreentrant lock
+    codegen_ctx.emit_nonreentrant_lock(func_t)
+
+    # Function body
+    for stmt in func_ast.body:
+        Stmt(stmt, codegen_ctx).lower()
+
+    # If no explicit return, add stop/return
+    if not builder.is_terminated():
+        codegen_ctx.emit_nonreentrant_unlock(func_t)
+        if func_t.return_type is None:
+            builder.stop()
+        else:
+            # This shouldn't happen - function should have return stmt
+            raise CompilerPanic("External function missing return")
+
+
 def _register_positional_args(ctx: VenomCodegenContext, func_t: ContractFunctionT) -> None:
     """Register positional args from calldata.
 
@@ -939,6 +1111,109 @@ def _handle_kwargs(
             else:
                 default_val = Expr(default_node, ctx).lower().operand
                 ctx.store_memory(default_val, var.value.operand, arg.typ)
+
+
+def _create_kwarg_allocas(builder: VenomBuilder, func_t: ContractFunctionT) -> dict[str, IRVariable]:
+    """Create allocas for kwargs, shared between entry points and common body.
+
+    This must be called BEFORE generating entry points so the allocas exist
+    in blocks that dominate both entry points and common body.
+
+    Returns a dict mapping kwarg names to alloca IRVariables.
+    The allocas are also stored in func_t._ir_info.kwarg_alloca_vars.
+    """
+    if func_t._ir_info.kwarg_alloca_vars is not None:
+        return func_t._ir_info.kwarg_alloca_vars
+
+    kwarg_vars: dict[str, IRVariable] = {}
+    for arg in func_t.keyword_args:
+        size = arg.typ.memory_bytes_required
+        alloca_id = builder.ctx.get_next_alloca_id()
+        ptr = builder.alloca(size, alloca_id)
+        kwarg_vars[arg.name] = ptr
+
+    func_t._ir_info.kwarg_alloca_vars = kwarg_vars
+    return kwarg_vars
+
+
+def _init_kwargs_in_entry_point(
+    ctx: VenomCodegenContext, func_t: ContractFunctionT, entry_info: EntryPointInfo
+) -> None:
+    """Initialize keyword arguments in an entry point.
+
+    Writes kwargs (from calldata or defaults) to the pre-allocated alloca locations.
+    The allocas must have been created earlier via _create_kwarg_allocas.
+    """
+    if not func_t.keyword_args:
+        return
+
+    # Get the pre-created alloca variables
+    kwarg_vars = func_t._ir_info.kwarg_alloca_vars
+    assert kwarg_vars is not None, "kwarg allocas must be created before entry points"
+
+    # Calculate which kwargs come from calldata
+    positional_size = sum(arg.typ.abi_type.embedded_static_size() for arg in func_t.positional_args)
+    kwarg_bytes_from_calldata = entry_info.min_calldatasize - SELECTOR_BYTES - positional_size
+
+    # Count kwargs by iterating and summing their actual ABI sizes
+    kwargs_from_calldata = 0
+    accumulated_size = 0
+    for arg in func_t.keyword_args:
+        if accumulated_size >= kwarg_bytes_from_calldata:
+            break
+        accumulated_size += arg.typ.abi_type.embedded_static_size()
+        kwargs_from_calldata += 1
+
+    # Create tuple type for args that come from calldata (positional + provided kwargs)
+    if kwargs_from_calldata > 0:
+        calldata_arg_types = [arg.typ for arg in func_t.positional_args]
+        calldata_arg_types += [func_t.keyword_args[j].typ for j in range(kwargs_from_calldata)]
+        calldata_tuple_t = TupleT(calldata_arg_types)
+        ptr = Ptr(operand=IRLiteral(SELECTOR_BYTES), location=DataLocation.CALLDATA)
+        calldata_tuple = VyperValue.from_ptr(ptr, calldata_tuple_t)
+
+    for i, arg in enumerate(func_t.keyword_args):
+        # Get the pre-allocated alloca variable
+        alloca_ptr = kwarg_vars[arg.name]
+
+        if i < kwargs_from_calldata:
+            # Copy from calldata using ABI decoder
+            tuple_index = len(func_t.positional_args) + i
+            static_offset = sum(
+                calldata_arg_types[j].abi_type.embedded_static_size() for j in range(tuple_index)
+            )
+            elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
+            abi_decode_to_buf(ctx, alloca_ptr, elem_src)
+        else:
+            # Use default value
+            default_node = func_t.default_values[arg.name]
+            if arg.typ._is_prim_word:
+                default_val = Expr(default_node, ctx).lower_value()
+                ctx.builder.mstore(alloca_ptr, default_val)
+            else:
+                default_val = Expr(default_node, ctx).lower().operand
+                ctx.store_memory(default_val, alloca_ptr, arg.typ)
+
+
+def _register_kwarg_variables(ctx: VenomCodegenContext, func_t: ContractFunctionT) -> None:
+    """Register kwargs as variables in the common body context.
+
+    The entry points have already written values to the shared allocas.
+    This just registers those allocas as named variables - no allocation or copy.
+    """
+    if not func_t.keyword_args:
+        return
+
+    # Get the pre-created alloca variables
+    kwarg_vars = func_t._ir_info.kwarg_alloca_vars
+    assert kwarg_vars is not None, "kwarg allocas must be created before common body"
+
+    for arg in func_t.keyword_args:
+        # Get the alloca that entry points wrote to
+        alloca_ptr = kwarg_vars[arg.name]
+
+        # Register as a variable pointing to the existing alloca (no new allocation)
+        ctx.register_variable(arg.name, arg.typ, alloca_ptr, mutable=False)
 
 
 def _generate_fallback_body(

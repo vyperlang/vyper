@@ -1,6 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from vyper.codegen.context import Constancy, Context
 from vyper.codegen.ir_node import IRnode
@@ -10,6 +10,9 @@ from vyper.semantics.types import VyperType
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.utils import MemoryPositions
+
+if TYPE_CHECKING:
+    from vyper.venom.basicblock import IRVariable
 
 
 @dataclass
@@ -29,6 +32,8 @@ class _FuncIRInfo:
     gas_estimate: Optional[int] = None
     frame_info: Optional[FrameInfo] = None
     func_ir: Optional["InternalFuncIR"] = None
+    # For venom codegen: maps kwarg names to alloca IRVariables for sharing between entry points
+    kwarg_alloca_vars: Optional[dict[str, "IRVariable"]] = None
 
     @property
     def visibility(self):
