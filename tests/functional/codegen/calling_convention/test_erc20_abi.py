@@ -8,7 +8,7 @@ TOKEN_INITIAL_SUPPLY = 21 * 10**6
 TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10**TOKEN_DECIMALS)
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def erc20(get_contract):
     with open("examples/tokens/ERC20.vy") as f:
         contract = get_contract(
@@ -17,7 +17,7 @@ def erc20(get_contract):
     return contract
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def erc20_caller(erc20, get_contract):
     erc20_caller_code = """
 interface ERC20Contract:

@@ -1,7 +1,7 @@
 from vyper.exceptions import CompilerPanic
 from vyper.utils import all2
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRAbstractMemLoc, IRInstruction, IROperand, IRVariable
+from vyper.venom.basicblock import IRInstruction, IRLiteral, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
@@ -32,9 +32,9 @@ class Mem2Var(IRPass):
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
-    def _mk_varname(self, varname: str, alloca_id: int):
+    def _mk_varname(self, varname: str):
         varname = varname.removeprefix("%")
-        varname = f"alloca_{alloca_id}_{varname}_{self.var_name_count}"
+        varname = f"alloca_{varname}_{self.var_name_count}"
         self.var_name_count += 1
         return varname
 
@@ -45,24 +45,22 @@ class Mem2Var(IRPass):
         Otherwise, it is left as is.
         """
 
-        assert len(alloca_inst.operands) == 2, (alloca_inst, alloca_inst.parent)
+        assert len(alloca_inst.operands) >= 1, (alloca_inst, alloca_inst.parent)
 
-        mem_loc, alloca_id = alloca_inst.operands
-        var_name = self._mk_varname(var.value, alloca_id.value)
+        size_lit = alloca_inst.operands[0]
+        var_name = self._mk_varname(var.value)
         var = IRVariable(var_name)
         uses = dfg.get_uses(alloca_inst.output)
 
-        self.updater.mk_assign(alloca_inst, mem_loc)
-
         if any(inst.opcode == "add" for inst in uses):
-            self._fix_adds(alloca_inst, mem_loc)
+            self._fix_adds(alloca_inst)
             return
 
         if not all2(inst.opcode in ["mstore", "mload", "return"] for inst in uses):
             return
 
-        assert isinstance(mem_loc, IRAbstractMemLoc)
-        size = mem_loc.size
+        assert isinstance(size_lit, IRLiteral)
+        size = size_lit.value
 
         for inst in uses.copy():
             if inst.opcode == "mstore":
@@ -79,20 +77,20 @@ class Mem2Var(IRPass):
                     raise CompilerPanic("Trying to read with mload to memory smaller then 32 bytes")
             elif inst.opcode == "return":
                 if size <= 32:
-                    self.updater.add_before(inst, "mstore", [var, mem_loc])
-                inst.operands[1] = mem_loc
+                    self.updater.add_before(inst, "mstore", [var, alloca_inst.output])
+                inst.operands[1] = alloca_inst.output
 
     def _process_palloca_var(self, dfg: DFGAnalysis, palloca_inst: IRInstruction, var: IRVariable):
         """
         Process alloca allocated variable. If it is only used by mstore/mload
         instructions, it is promoted to a stack variable. Otherwise, it is left as is.
         """
-        mem_loc, alloca_id = palloca_inst.operands
-        uses = dfg.get_uses(palloca_inst.output)
+        size_lit, alloca_id = palloca_inst.operands
+        # snapshot uses before any insertion - add_after mutates the live set
+        uses = dfg.get_uses(palloca_inst.output).copy()
 
-        self.updater.mk_assign(palloca_inst, mem_loc)
         if any(inst.opcode == "add" for inst in uses):
-            self._fix_adds(palloca_inst, mem_loc)
+            self._fix_adds(palloca_inst)
             return
 
         if not all2(inst.opcode in ["mstore", "mload"] for inst in uses):
@@ -105,14 +103,18 @@ class Mem2Var(IRPass):
         # on alloca_id) is a bit kludgey, but we will live.
         param = fn.get_param_by_id(alloca_id.value)
         if param is None:
-            self.updater.update(palloca_inst, "mload", [mem_loc], new_output=var)
+            # Memory-passed param: load the value from the palloca address.
+            # Keep palloca (provides address), insert mload after it.
+            inserted = self.updater.add_after(palloca_inst, "mload", [palloca_inst.output])
+            assert inserted is not None  # help mypy
+            var = inserted
         else:
             self.updater.update(palloca_inst, "assign", [param.func_var], new_output=var)
 
-        assert isinstance(mem_loc, IRAbstractMemLoc)
-        size = mem_loc.size
+        assert isinstance(size_lit, IRLiteral)
+        size = size_lit.value
 
-        for inst in uses.copy():
+        for inst in uses:
             if inst.opcode == "mstore":
                 if size == 32:
                     self.updater.mk_assign(inst, inst.operands[0], new_output=var)
@@ -128,20 +130,16 @@ class Mem2Var(IRPass):
 
     def _process_calloca(self, inst: IRInstruction):
         assert inst.opcode == "calloca"
-        assert len(inst.operands) == 2
-        memloc = inst.operands[0]
+        assert len(inst.operands) == 3
+        self._fix_adds(inst)
 
-        assert isinstance(memloc, IRAbstractMemLoc)
-
-        self.updater.mk_assign(inst, memloc)
-        self._fix_adds(inst, memloc)
-
-    def _fix_adds(self, mem_src: IRInstruction, mem_op: IROperand):
+    def _fix_adds(self, mem_src: IRInstruction):
         uses = self.dfg.get_uses(mem_src.output)
+        output = mem_src.output
         for inst in uses.copy():
             if inst.opcode != "add":
                 continue
             other = [op for op in inst.operands if op != mem_src.output]
             assert len(other) == 1
-            self.updater.update(inst, "gep", [mem_op, other[0]])
-            self._fix_adds(inst, inst.output)
+            self.updater.update(inst, "gep", [output, other[0]])
+            self._fix_adds(inst)

@@ -2,9 +2,9 @@ from typing import Optional
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis
-from vyper.venom.basicblock import IRAbstractMemLoc, IRInstruction, IRVariable
-from vyper.venom.memory_location import MemoryLocation, get_read_location, get_write_location
+from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis, IRAnalysis
+from vyper.venom.basicblock import IRInstruction
+from vyper.venom.memory_location import MemoryLocation
 
 
 class MemoryAliasAnalysisAbstract(IRAnalysis):
@@ -19,49 +19,25 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
     def analyze(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
 
         # Map from memory locations to sets of potentially aliasing locations
         self.alias_sets: dict[MemoryLocation, OrderedSet[MemoryLocation]] = {}
-        self.var_base_pointers: dict[IRVariable, IRAbstractMemLoc] = {}
-
-        for bb in self.function.get_basic_blocks():
-            for inst in bb.instructions:
-                if inst.opcode != "gep":
-                    continue
-                base_ptr = self._find_base_ptr(inst)
-                self.var_base_pointers[inst.output] = base_ptr
 
         # Analyze all memory operations
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 self._analyze_instruction(inst)
 
-    def _find_base_ptr(self, inst: IRInstruction):
-        assert inst.opcode == "gep"
-        base_ptr = inst.operands[0]
-        if isinstance(base_ptr, IRVariable):
-            next_inst = self.dfg.get_producing_instruction(base_ptr)
-            assert next_inst is not None
-            base_ptr = self._find_base_ptr(next_inst)
-
-        assert isinstance(base_ptr, IRAbstractMemLoc)
-        return base_ptr
-
-    def _get_read_location(self, inst: IRInstruction, addr_space: AddrSpace) -> MemoryLocation:
-        return get_read_location(inst, addr_space, self.var_base_pointers)
-
-    def _get_write_location(self, inst: IRInstruction, addr_space: AddrSpace) -> MemoryLocation:
-        return get_write_location(inst, addr_space, self.var_base_pointers)
-
     def _analyze_instruction(self, inst: IRInstruction):
         """Analyze a memory instruction to determine aliasing"""
         loc: Optional[MemoryLocation] = None
 
-        loc = get_read_location(inst, self.addr_space, self.var_base_pointers)
+        loc = self.base_ptr.get_read_location(inst, self.addr_space)
         if loc is not None:
             self._analyze_mem_location(loc)
 
-        loc = get_write_location(inst, self.addr_space, self.var_base_pointers)
+        loc = self.base_ptr.get_write_location(inst, self.addr_space)
         if loc is not None:
             self._analyze_mem_location(loc)
 

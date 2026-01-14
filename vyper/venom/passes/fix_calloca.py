@@ -1,7 +1,5 @@
-from collections import deque
-
 from vyper.venom.analysis import DFGAnalysis, FCGAnalysis
-from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral
+from vyper.venom.basicblock import IRLabel, IRLiteral
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRGlobalPass
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
@@ -35,25 +33,9 @@ class FixCalloca(IRGlobalPass):
                 called_name = callsite.value.rsplit("_call", maxsplit=1)[0]
 
                 called = self.ctx.get_function(IRLabel(called_name))
-                if _id.value not in called.allocated_args:
-                    self._removed_unused_calloca(inst)
+                if not called.has_palloca(_id.value):
+                    to_remove = self.dfg.get_transitive_uses(inst)
+                    self.updater.nop_multi(to_remove)
                     continue
-                memloc = called.allocated_args[_id.value]
 
-                inst.operands = [memloc, _id]
-
-    def _removed_unused_calloca(self, inst: IRInstruction):
-        to_remove = set()
-        worklist: deque = deque()
-        worklist.append(inst)
-        while len(worklist) > 0:
-            curr = worklist.popleft()
-            if curr in to_remove:
-                continue
-            to_remove.add(curr)
-
-            if curr.has_outputs:
-                uses = self.dfg.get_uses(curr.output)
-                worklist.extend(uses)
-
-        self.updater.nop_multi(to_remove)
+                inst.operands = [size, _id, called.name]

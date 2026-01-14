@@ -10,7 +10,6 @@ from vyper.codegen.core import is_tuple_like
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes, version_check
 from vyper.venom.basicblock import (
-    IRAbstractMemLoc,
     IRBasicBlock,
     IRInstruction,
     IRLabel,
@@ -20,6 +19,7 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.context import DeployInfo, IRContext
 from vyper.venom.function import IRFunction, IRParameter
+from vyper.venom.memory_location import Allocation
 
 # Experimental: allow returning multiple 32-byte values via the stack
 ENABLE_MULTI_RETURNS = True
@@ -55,7 +55,6 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "smod",
         "exp",
         "sha3",
-        "sha3_64",
         "signextend",
         "chainid",
         "basefee",
@@ -110,6 +109,7 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "call",
         "delegatecall",
         "staticcall",
+        "sink",
     ]
 )
 
@@ -118,7 +118,8 @@ NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_sym
 SymbolTable = dict[str, IROperand]
 _alloca_table: dict[int, IROperand]
 _callsites: dict[str, list[Alloca]]
-_immutables_region: IRAbstractMemLoc
+_immutable_alloca_id: Optional[int]
+_immutables_region_alloca: Optional[IRInstruction]
 MAIN_ENTRY_LABEL_NAME = "__main_entry"
 
 _scratch_alloca_id = 2**32
@@ -134,7 +135,7 @@ def get_scratch_alloca_id() -> int:
 def ir_node_to_venom(ir: IRnode, deploy_info: Optional[DeployInfo] = None) -> IRContext:
     _ = ir.unique_symbols  # run unique symbols check
 
-    global _alloca_table, _callsites, _immutables_region
+    global _alloca_table, _callsites, _immutable_alloca_id, _immutables_region_alloca
     _alloca_table = {}
     _callsites = defaultdict(list)
 
@@ -142,20 +143,25 @@ def ir_node_to_venom(ir: IRnode, deploy_info: Optional[DeployInfo] = None) -> IR
 
     ctx = IRContext()
 
-    # these memory locations are used as magic values inside the compiler,
-    # they are context-globally shared slots so we allocate them here,
-    # in a context-global way.
-    ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR1)
-    ctx.mem_allocator.allocate(IRAbstractMemLoc.FREE_VAR2)
-
-    _immutables_region = None  # type: ignore
-    if deploy_info is not None:
-        _immutables_region = IRAbstractMemLoc(deploy_info.immutables_len)
-        ctx.mem_allocator.allocate(_immutables_region)
-        symbols["runtime_codesize"] = IRLiteral(deploy_info.runtime_codesize)
-
     fn = ctx.create_function(MAIN_ENTRY_LABEL_NAME)
     ctx.entry_function = fn
+
+    _immutable_alloca_id = None
+    _immutables_region_alloca = None
+    if deploy_info is not None:
+        bb = fn.get_basic_block()
+        # TODO: get rid of the alloca_id -- maybe Context.global_allocations
+        _immutable_alloca_id = get_scratch_alloca_id()
+        inst = IRInstruction(
+            "alloca",
+            [IRLiteral(deploy_info.immutables_len), IRLiteral(_immutable_alloca_id)],
+            outputs=[fn.get_next_variable()],
+            annotation="immutables region",
+        )
+        bb.insert_instruction(inst)
+        _immutables_region_alloca = inst
+        ctx.mem_allocator.set_position(Allocation(_immutables_region_alloca), 0)
+        symbols["runtime_codesize"] = IRLiteral(deploy_info.runtime_codesize)
 
     _convert_ir_bb(fn, ir, symbols)
 
@@ -163,7 +169,8 @@ def ir_node_to_venom(ir: IRnode, deploy_info: Optional[DeployInfo] = None) -> IR
         for bb in fn.get_basic_blocks():
             bb.ensure_well_formed()
 
-    del _immutables_region  # hygiene
+    del _immutable_alloca_id  # hygiene
+    del _immutables_region_alloca  # hygiene
 
     return ctx
 
@@ -246,7 +253,7 @@ def _handle_self_call(fn: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optio
     # For multi-return via stack without a provided buffer, synthesize one
     if returns_count > 0 and return_buf is None:
         return_buf = bb.append_instruction1(
-            "alloca", IRAbstractMemLoc(32 * returns_count), get_scratch_alloca_id()
+            "alloca", 32 * returns_count, get_scratch_alloca_id(), annotation="return buffer"
         )
 
     stack_args: list[IROperand] = [IRLabel(str(target_label))]
@@ -313,7 +320,7 @@ def _handle_internal_func(
     does_return_data: bool,
     symbols: SymbolTable,
 ) -> IRFunction:
-    global _alloca_table, _current_func_t
+    global _alloca_table, _current_func_t, _immutable_alloca_id, _immutables_region_alloca
 
     func_t = ir.passthrough_metadata["func_t"]
     context = ir.passthrough_metadata["context"]
@@ -333,11 +340,24 @@ def _handle_internal_func(
 
     returns_count = _returns_stack_count(func_t)
 
+    if _immutable_alloca_id is not None:
+        assert _immutables_region_alloca is not None
+        size = _immutables_region_alloca.operands[0]
+        inst = IRInstruction(
+            "alloca",
+            [size, IRLiteral(_immutable_alloca_id)],
+            outputs=[fn.get_next_variable()],
+            annotation="immutables region",
+        )
+        bb.insert_instruction(inst)
+        _immutables_region_alloca = inst
+        fn.ctx.mem_allocator.set_position(Allocation(inst), 0)
+
     # return buffer
     if does_return_data:
         if returns_count > 0:
             buf = bb.append_instruction(
-                "alloca", IRAbstractMemLoc(32 * returns_count), get_scratch_alloca_id()
+                "alloca", 32 * returns_count, get_scratch_alloca_id(), annotation="return buffer"
             )
         else:
             buf = bb.append_instruction("param")
@@ -439,6 +459,15 @@ def _convert_ir_bb(fn, ir, symbols):
         return fn.get_basic_block().append_instruction("iszero", new_var)
     elif ir.value in PASS_THROUGH_INSTRUCTIONS:
         return _convert_ir_simple_node(fn, ir, symbols)
+    elif ir.value == "sha3_64":
+        first = _convert_ir_bb(fn, ir.args[0], symbols)
+        second = _convert_ir_bb(fn, ir.args[1], symbols)
+        bb = fn.get_basic_block()
+        buf = bb.append_instruction("alloca", 64, get_scratch_alloca_id())
+        bb.append_instruction("mstore", second, buf)
+        next_part = bb.append_instruction("gep", buf, 32)
+        bb.append_instruction("mstore", first, next_part)
+        return bb.append_instruction("sha3", 64, buf)
     elif ir.value == "return":
         fn.get_basic_block().append_instruction(
             "return", IRVariable("ret_size"), IRVariable("ret_ofst")
@@ -458,8 +487,11 @@ def _convert_ir_bb(fn, ir, symbols):
 
         # see copy_bytes() in legacy pipeline
         # TODO: maybe have a helper function for this
+        assert _immutables_region_alloca is not None
         if version_check(begin="cancun"):
-            bb.append_instruction("mcopy", immutables_len, _immutables_region, immutables_dst)
+            bb.append_instruction(
+                "mcopy", immutables_len, _immutables_region_alloca.output, immutables_dst
+            )
         else:
             gas = bb.append_instruction("gas")
             copy_success = bb.append_instruction(
@@ -467,7 +499,7 @@ def _convert_ir_bb(fn, ir, symbols):
                 immutables_len,
                 immutables_dst,
                 immutables_len,
-                _immutables_region,
+                _immutables_region_alloca.output,
                 0x04,
                 gas,
             )
@@ -647,13 +679,15 @@ def _convert_ir_bb(fn, ir, symbols):
     elif ir.value == "iload":
         ofst = _convert_ir_bb(fn, ir.args[0], symbols)
         bb = fn.get_basic_block()
-        ptr = bb.append_instruction("gep", _immutables_region, ofst)
+        assert _immutables_region_alloca is not None
+        ptr = bb.append_instruction("gep", _immutables_region_alloca.output, ofst)
         return bb.append_instruction("mload", ptr)
 
     elif ir.value == "istore":
         ofst, val = _convert_ir_bb_list(fn, ir.args, symbols)
         bb = fn.get_basic_block()
-        ptr = bb.append_instruction("gep", _immutables_region, ofst)
+        assert _immutables_region_alloca is not None
+        ptr = bb.append_instruction("gep", _immutables_region_alloca.output, ofst)
         return bb.append_instruction("mstore", val, ptr)
 
     elif ir.value == "ceil32":
@@ -757,9 +791,10 @@ def _convert_ir_bb(fn, ir, symbols):
         if ir.value.startswith("$alloca"):
             alloca = ir.passthrough_metadata["alloca"]
             if alloca._id not in _alloca_table:
-                mem_loc_op = IRAbstractMemLoc(alloca.size)
                 # id is still needed for inlining
-                ptr = fn.get_basic_block().append_instruction("alloca", mem_loc_op, alloca._id)
+                ptr = fn.get_basic_block().append_instruction(
+                    "alloca", alloca.size, alloca._id, annotation=alloca.name
+                )
                 _alloca_table[alloca._id] = ptr
             return _alloca_table[alloca._id]
 
@@ -767,11 +802,12 @@ def _convert_ir_bb(fn, ir, symbols):
             assert isinstance(fn, IRFunction)
             alloca = ir.passthrough_metadata["alloca"]
             if alloca._id not in _alloca_table:
-                mem_loc_op = IRAbstractMemLoc(alloca.size)
-                fn.allocated_args[alloca._id] = mem_loc_op
                 bb = fn.get_basic_block()
-                ptr = bb.append_instruction("palloca", mem_loc_op, alloca._id)
+                ptr = bb.append_instruction(
+                    "palloca", alloca.size, alloca._id, annotation=alloca.name
+                )
                 bb.instructions[-1].annotation = f"{alloca.name} (memory)"
+                fn.set_palloca(alloca._id, bb.instructions[-1])
                 if _pass_via_stack(_current_func_t)[alloca.name]:
                     param = fn.get_param_by_id(alloca._id)
                     assert param is not None
@@ -787,12 +823,18 @@ def _convert_ir_bb(fn, ir, symbols):
 
                 callsite_func = ir.passthrough_metadata["callsite_func"]
                 if _pass_via_stack(callsite_func)[alloca.name]:
-                    ptr = bb.append_instruction("alloca", IRAbstractMemLoc(alloca.size), alloca._id)
+                    ptr = bb.append_instruction(
+                        "alloca", alloca.size, alloca._id, annotation=alloca.name
+                    )
                 else:
                     # if we use alloca, mstores might get removed. convert
                     # to calloca until memory analysis is more sound.
                     ptr = bb.append_instruction(
-                        "calloca", alloca.size, alloca._id, IRLabel(alloca._callsite)
+                        "calloca",
+                        alloca.size,
+                        alloca._id,
+                        IRLabel(alloca._callsite),
+                        annotation=alloca.name,
                     )
 
                 _alloca_table[alloca._id] = ptr

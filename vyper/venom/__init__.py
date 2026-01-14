@@ -13,7 +13,6 @@ from vyper.venom.check_venom import check_calling_convention
 from vyper.venom.context import DeployInfo, IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
-from vyper.venom.memory_location import fix_mem_loc
 from vyper.venom.optimization_levels.O2 import PASSES_O2
 from vyper.venom.optimization_levels.O3 import PASSES_O3
 from vyper.venom.optimization_levels.Os import PASSES_Os
@@ -122,6 +121,10 @@ def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags) -> None:
     assert ctx.entry_function is not None
     fcg = ir_analyses[ctx.entry_function].force_analysis(FCGAnalysis)
 
+    # Remove functions not reachable from entry.
+    for fn in fcg.get_unreachable_functions():
+        ctx.remove_function(fn)
+
     _run_fn_passes(ctx, fcg, ctx.entry_function, flags, ir_analyses)
 
 
@@ -163,9 +166,6 @@ def generate_venom(
     # Convert "old" IR to "new" IR
 
     ctx = ir_node_to_venom(ir, deploy_info)
-
-    for fn in ctx.functions.values():
-        fix_mem_loc(fn)
 
     data_sections = data_sections or {}
     for section_name, data in data_sections.items():
