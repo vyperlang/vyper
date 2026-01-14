@@ -107,7 +107,14 @@ def can_convert(i_typ, o_typ):
 
 
 def uniq(xs):
-    return list(set(xs))
+    # list(set(xs)) looks cleaner but is indeterministic !
+    seen = set()
+    result = []
+    for x in xs:
+        if x not in seen:
+            seen.add(x)
+            result.append(x)
+    return result
 
 
 def _cases_for_int(typ):
