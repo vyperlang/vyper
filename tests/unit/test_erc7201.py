@@ -1,7 +1,6 @@
-"""
-Tests for ERC-7201 storage namespace functionality.
-"""
-from vyper.utils import erc7201_storage_slot, keccak256
+import pytest
+
+from vyper.utils import erc7201_storage_slot
 
 
 def test_erc7201_slot_calculation():
@@ -65,7 +64,14 @@ def test_erc7201_formula_correctness():
 
     # Compare with function
     actual = erc7201_storage_slot(namespace)
-    assert actual == expected
+@pytest.mark.parametrize(
+    "namespace,expected",
+    [
+         ("example.main", 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500),
+    ],
+)
+def test_erc7201_reference(namespace, expected):
+    assert erc7201_storage_slot(namespace) == expected
 
 
 def test_erc7201_alignment():
