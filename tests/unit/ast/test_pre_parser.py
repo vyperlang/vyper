@@ -277,6 +277,56 @@ def test_invalid_pragma(code):
         PreParser(is_interface=False).parse(code)
 
 
+storage_namespace_pragmas = [
+    (
+        """
+    #pragma storage-namespace myapp.storage.v1
+    """,
+        Settings(storage_namespace="myapp.storage.v1"),
+    ),
+    (
+        """
+    #pragma storage-namespace 0x1234567890
+    """,
+        Settings(storage_namespace="0x1234567890"),
+    ),
+]
+
+
+@pytest.mark.parametrize("code, expected_settings", storage_namespace_pragmas)
+def test_parse_storage_namespace_pragma(code, expected_settings):
+    pre_parser = PreParser(is_interface=False)
+    pre_parser.parse(code)
+    assert pre_parser.settings.storage_namespace == expected_settings.storage_namespace
+
+
+invalid_storage_namespace_pragmas = [
+    # empty namespace
+    """
+# pragma storage-namespace
+    """,
+    # double specified
+    """
+# pragma storage-namespace ns1
+# pragma storage-namespace ns2
+    """,
+]
+
+
+@pytest.mark.parametrize("code", invalid_storage_namespace_pragmas)
+def test_invalid_storage_namespace_pragma(code):
+    with pytest.raises(PragmaException):
+        PreParser(is_interface=False).parse(code)
+
+
+def test_storage_namespace_not_allowed_in_interface():
+    code = """
+# pragma storage-namespace myapp.storage
+    """
+    with pytest.raises(PragmaException, match="not allowed in interface"):
+        PreParser(is_interface=True).parse(code)
+
+
 def test_version_exception_in_import(make_input_bundle):
     lib_version = "~=0.3.10"
     lib = f"""
