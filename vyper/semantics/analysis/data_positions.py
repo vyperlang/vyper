@@ -365,10 +365,7 @@ def generate_layout_export(vyper_module: vy_ast.Module):
     if settings is not None and settings.storage_namespace is not None:
         namespace = settings.storage_namespace
         starting_slot = erc7201_storage_slot(namespace)
-        ret["storage_namespace"] = {
-            "namespace": namespace,
-            "starting_slot": starting_slot,
-        }
+        ret["storage_namespace"] = {"namespace": namespace, "starting_slot": starting_slot}
 
     return ret
 

@@ -43,10 +43,7 @@ def test_erc7201_hex_namespace():
     "namespace,expected",
     [
         # see: https://eips.ethereum.org/EIPS/eip-7201#reference-implementation
-        (
-            "example.main",
-            0x183A6125C38840424C4A85FA12BAB2AB606C4B6D0E7CC73C0C06BA5300EAB500,
-        ),
+        ("example.main", 0x183A6125C38840424C4A85FA12BAB2AB606C4B6D0E7CC73C0C06BA5300EAB500)
     ],
 )
 def test_erc7201_reference(namespace, expected):
