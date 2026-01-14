@@ -210,6 +210,26 @@ def _eval_byte(inst: IRInstruction, state: RangeState) -> ValueRange:
     index = _get_uint_literal(index_op)
     if index is not None and index >= 32:
         return ValueRange.constant(0)
+
+    # Use value_range to constrain result when possible
+    if index is not None and not value_range.is_top and value_range.lo >= 0:
+        # byte N extracts bits at position (31-N)*8 to (31-N)*8+7
+        shift = (31 - index) * 8
+
+        # If entire range is below this byte position, result is 0
+        if value_range.hi < (1 << shift):
+            return ValueRange.constant(0)
+
+        # Check if range spans multiple "byte boundaries"
+        lo_prefix = value_range.lo >> (shift + 8)
+        hi_prefix = value_range.hi >> (shift + 8)
+
+        if lo_prefix == hi_prefix:
+            # Same prefix - byte range is bounded
+            lo_byte = (value_range.lo >> shift) & 0xFF
+            hi_byte = (value_range.hi >> shift) & 0xFF
+            return ValueRange((lo_byte, hi_byte))
+
     return ValueRange.bytes_range()
 
 
