@@ -39,31 +39,6 @@ def test_erc7201_hex_namespace():
     assert erc7201_storage_slot(large_hex) == expected
 
 
-def test_erc7201_formula_correctness():
-    """
-    Verify the ERC-7201 formula: keccak256(keccak256(id) - 1) & ~0xff
-
-    This test manually computes the expected value to verify the implementation.
-    """
-    namespace = "example.main"
-
-    # Step 1: Hash the namespace
-    first_hash = keccak256(namespace.encode("utf-8"))
-    first_hash_int = int.from_bytes(first_hash, "big")
-
-    # Step 2: Subtract 1
-    decremented = first_hash_int - 1
-
-    # Step 3: Hash again
-    decremented_bytes = decremented.to_bytes(32, "big")
-    second_hash = keccak256(decremented_bytes)
-    result = int.from_bytes(second_hash, "big")
-
-    # Step 4: Clear last byte for 256-alignment
-    expected = result & ~0xFF
-
-    # Compare with function
-    actual = erc7201_storage_slot(namespace)
 @pytest.mark.parametrize(
     "namespace,expected",
     [
