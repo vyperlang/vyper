@@ -311,7 +311,7 @@ class SCCP(IRPass):
             lat = self._eval_from_lattice(inst.operands[0])
 
             if isinstance(lat, IRLiteral):
-                if lat.value > 0:
+                if lat.value != 0:
                     inst.make_nop()
                 else:
                     raise StaticAssertionException(

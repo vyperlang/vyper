@@ -668,6 +668,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         )
         node.target._metadata["varinfo"] = var_info  # TODO maybe put this in the global namespace
         node._metadata["type"] = type_
+        node.target._metadata["type"] = type_
 
         if node.is_public:
             # generate function type and add to metadata
