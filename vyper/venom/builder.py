@@ -528,7 +528,6 @@ class VenomBuilder:
         Equivalent to: cond ? true_val : false_val
 
         Uses: xor(b, mul(cond, xor(a, b)))
-        Matches ir_node_to_venom.py implementation.
         Requires cond to be exactly 0 or 1 (which Vyper comparisons guarantee).
         """
         diff = self.xor(true_val, false_val)

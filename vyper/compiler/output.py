@@ -16,7 +16,7 @@ from vyper.ir import compile_ir
 from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
 from vyper.utils import safe_relpath
-from vyper.venom.ir_node_to_venom import _pass_via_stack, _returns_word
+from vyper.codegen_venom import _pass_via_stack, _returns_word
 from vyper.warnings import ContractSizeLimit, vyper_warn
 
 
@@ -167,10 +167,14 @@ def build_interface_output(compiler_data: CompilerData) -> str:
 
 
 def build_cfg_output(compiler_data: CompilerData) -> str:
+    if not compiler_data.settings.experimental_codegen:
+        raise ValueError("cfg output requires --experimental-codegen")
     return compiler_data.venom_deploytime.as_graph()
 
 
 def build_cfg_runtime_output(compiler_data: CompilerData) -> str:
+    if not compiler_data.settings.experimental_codegen:
+        raise ValueError("cfg_runtime output requires --experimental-codegen")
     return compiler_data.venom_runtime.as_graph()
 
 
