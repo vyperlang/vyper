@@ -1,18 +1,21 @@
 import copy
 from contextlib import contextmanager
+from pathlib import Path
 from random import Random
 from typing import Generator
 
 import hypothesis
 import pytest
+from _pytest.fixtures import FixtureRequest
 from eth_keys.datatypes import PrivateKey
 from hexbytes import HexBytes
 
 import tests.hevm
 import vyper.evm.opcodes as evm_opcodes
-from tests.evm_backends.base_env import BaseEnv, ExecutionReverted
+from tests.evm_backends.base_env import BaseEnv, DeploymentOrigin, ExecutionReverted
 from tests.evm_backends.pyevm_env import PyEvmEnv
 from tests.evm_backends.revm_env import RevmEnv
+from tests.exports import TestExporter
 from tests.utils import working_directory
 from vyper import compiler
 from vyper.codegen.ir_node import IRnode
@@ -55,6 +58,8 @@ def pytest_addoption(parser):
     parser.addoption(
         "--evm-backend", choices=["py-evm", "revm"], default="revm", help="set evm backend"
     )
+
+    parser.addoption("--export", help="enable test data exporting to specified directory")
 
 
 @pytest.fixture(scope="module")
@@ -177,14 +182,36 @@ def account_keys():
     return [PrivateKey(random.randbytes(32)) for _ in range(10)]
 
 
+@pytest.fixture(scope="session")
+def exporter(request: FixtureRequest):
+    export_dir_str = request.config.getoption("export")
+    if not export_dir_str:
+        yield None
+        return
+
+    export_dir = Path(export_dir_str)
+    export_dir.mkdir(parents=True, exist_ok=True)
+
+    project_root = request.config.rootpath
+    test_root = (project_root / "tests").resolve()
+
+    e = TestExporter(export_dir, test_root)
+    request.config.active_test_exporter = e
+    yield e
+
+    e.finalize_export()
+    request.config.active_test_exporter = None
+
+
 @pytest.fixture(scope="module")
-def env(gas_limit, evm_version, evm_backend, tracing, account_keys) -> BaseEnv:
+def env(gas_limit, evm_version, evm_backend, tracing, account_keys, exporter) -> BaseEnv:
     return evm_backend(
         gas_limit=gas_limit,
         tracing=tracing,
         block_number=1,
         evm_version=evm_version,
         account_keys=account_keys,
+        exporter=exporter,
     )
 
 
@@ -198,8 +225,13 @@ def get_contract_from_ir(env, optimize):
         assembly = compile_ir.compile_to_assembly(ir, optimize=optimize)
         bytecode, _ = compile_ir.assembly_to_evm(assembly)
 
+        export_metadata = None
+        if env.exporter:
+            ir_str = str(ir)
+            export_metadata = {"raw_ir": ir_str, "deployment_origin": DeploymentOrigin.IR}
+
         abi = kwargs.pop("abi", [])
-        return env.deploy(abi, bytecode, *args, **kwargs)
+        return env.deploy(abi, bytecode, *args, export_metadata=export_metadata, **kwargs)
 
     return ir_compiler
 
@@ -352,6 +384,27 @@ def tx_failed(env):
 
 
 @pytest.hookimpl(hookwrapper=True)
+def pytest_fixture_setup(fixturedef: pytest.FixtureDef, request):
+    exporter = getattr(request.config, "active_test_exporter", None)
+    if not exporter:
+        yield
+        return
+
+    if fixturedef.cached_result is not None:
+        yield
+        return
+
+    is_tracked = exporter.set_item(fixturedef, request=request)
+
+    yield
+
+    if not is_tracked:
+        return
+
+    exporter.finalize_item(fixturedef)
+
+
+@pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_call(item) -> Generator:
     marker = item.get_closest_marker("requires_evm_version")
     if marker:
@@ -362,10 +415,18 @@ def pytest_runtest_call(item) -> Generator:
                 pytest.mark.xfail(reason="Wrong EVM version", raises=EvmVersionException)
             )
 
-    # Isolate tests by reverting the state of the environment after each test
-    env = item.funcargs.get("env")
-    if env:
-        with env.anchor():
+    active_exporter = getattr(item.config, "active_test_exporter", None)
+    if active_exporter:
+        active_exporter.set_item(item)
+
+    try:
+        # Isolate tests by reverting the state of the environment after each test
+        env = item.funcargs.get("env")
+        if env:
+            with env.anchor():
+                yield
+        else:
             yield
-    else:
-        yield
+    finally:
+        if active_exporter:
+            active_exporter.finalize_test()
