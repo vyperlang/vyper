@@ -412,10 +412,16 @@ class VenomCodegenContext:
             # Complex type: val is a pointer, copy memory
             self.copy_memory(ptr, val, typ.memory_bytes_required)
 
+    # Threshold for using identity precompile vs unrolling (pre-Cancun).
+    # Identity precompile has ~25 bytes overhead, unrolling is ~15 bytes/word.
+    # For 3+ words, identity precompile produces smaller bytecode.
+    _IDENTITY_PRECOMPILE_THRESHOLD = 96  # 3 words
+
     def copy_memory(self, dst: IROperand, src: IROperand, size: int) -> None:
         """Copy memory region from src to dst (static size known at compile time).
 
-        Uses mcopy for Cancun+, otherwise word-by-word copy.
+        Uses mcopy for Cancun+. Pre-Cancun uses identity precompile for large
+        copies (>= 96 bytes) and word-by-word for small copies.
         """
         if size == 0:
             return
@@ -425,7 +431,16 @@ class VenomCodegenContext:
             self.builder.mcopy(dst, src, IRLiteral(size))
             return
 
-        # Pre-Cancun: word-by-word copy
+        # Pre-Cancun: use identity precompile for large copies
+        if size >= self._IDENTITY_PRECOMPILE_THRESHOLD:
+            b = self.builder
+            success = b.staticcall(
+                b.gas(), IRLiteral(IDENTITY_PRECOMPILE), src, IRLiteral(size), dst, IRLiteral(size)
+            )
+            b.assert_(success)
+            return
+
+        # Pre-Cancun: word-by-word copy for small copies
         for offset in range(0, size, 32):
             src_ptr: IROperand
             if isinstance(src, IRLiteral):
