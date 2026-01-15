@@ -6,8 +6,9 @@ Used for binary operations and augmented assignment.
 """
 from __future__ import annotations
 
-from typing import Union
+from typing import Optional, Union
 
+from vyper.codegen.arithmetic import calculate_largest_base, calculate_largest_power
 from vyper.exceptions import CompilerPanic, TypeCheckFailure
 from vyper.semantics.types import DecimalT, IntegerT
 from vyper.venom.basicblock import IRLiteral, IROperand
@@ -187,16 +188,14 @@ def safe_pow(
     x: IROperand,
     y: IROperand,
     typ: IntegerT,
-    base_literal: int | None = None,
-    exp_literal: int | None = None,
+    base_literal: Optional[int] = None,
+    exp_literal: Optional[int] = None,
 ) -> IROperand:
     """Exponentiation with bounds checking.
 
     Requires at least one operand to be a literal for bounds computation.
     Pass base_literal or exp_literal if known at compile time.
     """
-    from vyper.codegen.arithmetic import calculate_largest_base, calculate_largest_power
-
     if not isinstance(typ, IntegerT):
         raise TypeCheckFailure("pow only valid for integers")
 

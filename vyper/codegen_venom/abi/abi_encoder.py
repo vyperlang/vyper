@@ -293,10 +293,7 @@ def _encode_dyn_array(
 
 
 def _abi_encode_to_buf(
-    ctx: VenomCodegenContext,
-    dst: IROperand,
-    src: IROperand,
-    src_typ: VyperType,
+    ctx: VenomCodegenContext, dst: IROperand, src: IROperand, src_typ: VyperType
 ) -> IROperand:
     """
     Encode src to ABI format at dst.
@@ -399,10 +396,7 @@ def _abi_encode_to_buf(
 
 
 def abi_encode_to_buf(
-    ctx: VenomCodegenContext,
-    dst: IROperand,
-    src: IROperand,
-    src_typ: VyperType,
+    ctx: VenomCodegenContext, dst: IROperand, src: IROperand, src_typ: VyperType
 ) -> IROperand:
     """
     Public entry point for ABI encoding.

@@ -9,9 +9,11 @@ Contract creation built-in functions for Venom IR.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.abi import abi_encode_to_buf
+from vyper.exceptions import CompilerPanic, UnfoldableNode
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import TupleT
@@ -36,8 +38,6 @@ def _get_literal_kwarg(node: vy_ast.Call, kwarg_name: str, default):
     Returns (value, is_literal) tuple. If is_literal is False, the value is None
     and the caller should evaluate the kwarg at runtime.
     """
-    from vyper.exceptions import UnfoldableNode
-
     kw_node = _get_kwarg_value(node, kwarg_name)
     if kw_node is None:
         return default, True
@@ -181,7 +181,6 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     Returns deployed contract address.
     """
-    from vyper.codegen_venom.abi import abi_encode_to_buf
     from vyper.codegen_venom.expr import Expr
 
     ctx.check_is_not_constant("use raw_create", node)
@@ -388,7 +387,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
 
     # Evaluate salt BEFORE msize() to ensure any memory allocations
     # (e.g., from keccak256(_abi_encode(x))) don't overwrite the initcode buffer
-    salt: IROperand | None = None
+    salt: Optional[IROperand] = None
     if salt_node is not None:
         salt = Expr(salt_node, ctx).lower_value()
 
@@ -451,7 +450,6 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
 
     Returns deployed contract address.
     """
-    from vyper.codegen_venom.abi import abi_encode_to_buf
     from vyper.codegen_venom.expr import Expr
 
     ctx.check_is_not_constant("use create_from_blueprint", node)
@@ -477,7 +475,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
 
     # Evaluate salt BEFORE msize() to ensure any memory allocations
     # (e.g., from keccak256(_abi_encode(x))) don't overwrite the initcode
-    salt: IROperand | None = None
+    salt: Optional[IROperand] = None
     if salt_node is not None:
         salt = Expr(salt_node, ctx).lower_value()
 
@@ -508,8 +506,6 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         # raw_args=True: single bytes argument contains raw constructor args
         if len(ctor_arg_nodes) != 1:
             # This should be caught by type checker, but be defensive
-            from vyper.exceptions import CompilerPanic
-
             raise CompilerPanic("raw_args requires exactly 1 bytes argument")
 
         raw_arg_vv = Expr(ctor_arg_nodes[0], ctx).lower()
@@ -539,9 +535,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
             offset += arg_t.memory_bytes_required
 
         # ABI encode from ctor_args_src to args_buf (BEFORE msize!)
-        args_len = abi_encode_to_buf(
-            ctx, args_buf._ptr, ctor_args_src.operand, ctor_tuple_typ
-        )
+        args_len = abi_encode_to_buf(ctx, args_buf._ptr, ctor_args_src.operand, ctor_tuple_typ)
         args_ptr = args_buf._ptr
     else:
         # No constructor arguments

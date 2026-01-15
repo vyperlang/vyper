@@ -9,11 +9,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
+from vyper.codegen_venom.buffer import Ptr
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.data_locations import DataLocation
 from vyper.venom.basicblock import IROperand
-
-from vyper.codegen_venom.buffer import Ptr
 
 if TYPE_CHECKING:
     from vyper.semantics.types.base import VyperType
@@ -30,6 +29,7 @@ class VyperValue:
 
     Use factory methods to construct.
     """
+
     typ: "VyperType"
     _operand: Optional[IROperand] = None
     _ptr: Optional[Ptr] = None
@@ -71,4 +71,3 @@ class VyperValue:
     @classmethod
     def from_ptr(cls, ptr: Ptr, typ: "VyperType") -> "VyperValue":
         return cls(typ=typ, _ptr=ptr)
-

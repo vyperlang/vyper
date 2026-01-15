@@ -13,13 +13,11 @@ from __future__ import annotations
 
 from typing import Optional
 
+from vyper.codegen_venom.module import generate_deploy_venom, generate_runtime_venom
 from vyper.compiler.settings import Settings
 from vyper.semantics.types.module import ModuleT
 from vyper.venom import run_passes_on
 from vyper.venom.context import IRContext
-
-from vyper.codegen_venom.module import generate_runtime_venom, generate_deploy_venom
-
 
 MAIN_ENTRY_LABEL = "__main_entry"
 
@@ -101,7 +99,5 @@ def generate_venom_deploy(
         cbor_metadata: Optional CBOR-encoded metadata to append to bytecode
     """
     immutables_len = module_t.immutable_section_bytes
-    ctx = generate_deploy_venom(
-        module_t, settings, runtime_bytecode, immutables_len, cbor_metadata
-    )
+    ctx = generate_deploy_venom(module_t, settings, runtime_bytecode, immutables_len, cbor_metadata)
     return _finalize_venom_ctx(ctx, settings)

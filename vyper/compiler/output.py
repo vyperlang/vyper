@@ -6,6 +6,7 @@ from typing import Iterable
 import vyper.ast as vy_ast
 from vyper.ast.utils import ast_to_dict
 from vyper.codegen.ir_node import IRnode
+from vyper.codegen_venom import _pass_via_stack, _returns_word
 from vyper.compiler.output_bundle import SolcJSONWriter, VyperArchiveWriter
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
@@ -16,7 +17,6 @@ from vyper.ir import compile_ir
 from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
 from vyper.utils import safe_relpath
-from vyper.codegen_venom import _pass_via_stack, _returns_word
 from vyper.warnings import ContractSizeLimit, vyper_warn
 
 

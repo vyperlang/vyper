@@ -21,9 +21,7 @@ def test_simple_map():
     settings = Settings(experimental_codegen=True, optimize=OptimizationLevel.GAS)
     settings.venom_flags = VenomOptimizationFlags(disable_inlining=True)
     output = compile_code(
-        code,
-        output_formats=["symbol_map_runtime", "metadata"],
-        settings=settings,
+        code, output_formats=["symbol_map_runtime", "metadata"], settings=settings
     )
     meta = output["metadata"]
     symbol_map = output["symbol_map_runtime"]

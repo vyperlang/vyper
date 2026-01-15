@@ -7,7 +7,7 @@ ABI encoding/decoding built-in functions.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen.core import calculate_type_for_external_return
@@ -45,7 +45,7 @@ def _get_bool_kwarg(node: vy_ast.Call, kwarg_name: str, default: bool) -> bool:
     return default
 
 
-def _parse_method_id(method_id_node: vy_ast.VyperNode) -> int | None:
+def _parse_method_id(method_id_node: vy_ast.VyperNode) -> Optional[int]:
     """Parse method_id kwarg to integer."""
     if method_id_node is None:
         return None

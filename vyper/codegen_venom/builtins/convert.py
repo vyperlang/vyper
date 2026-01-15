@@ -18,7 +18,7 @@ from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic, InvalidLiteral, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.shortcuts import UINT256_T
+from vyper.semantics.types.shortcuts import UINT160_T, UINT256_T
 from vyper.semantics.types.user import FlagT
 from vyper.venom.basicblock import IRLiteral, IROperand
 
@@ -145,8 +145,6 @@ def _to_address(
     From signed integers: disallowed (type checker handles this)
     From bytes: right-shift if needed, clamp to 160 bits
     """
-    from vyper.semantics.types.shortcuts import UINT160_T
-
     # Use _to_int to get uint160, which handles clamping
     result = _to_int(val, in_t, UINT160_T, arg_node, ctx)
     return result

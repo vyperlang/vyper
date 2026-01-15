@@ -8,7 +8,9 @@ from typing import TYPE_CHECKING, Union
 from vyper import ast as vy_ast
 from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.data_locations import DataLocation
+from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import UINT256_T
+from vyper.semantics.types.subscriptable import DArrayT
 from vyper.venom.basicblock import IRLiteral, IROperand
 
 if TYPE_CHECKING:
@@ -51,9 +53,6 @@ def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand,
     sufficient since length=0 means no valid data. For other complex types,
     we zero the entire buffer.
     """
-    from vyper.semantics.types.bytestrings import _BytestringT
-    from vyper.semantics.types.subscriptable import DArrayT
-
     typ = node._metadata["type"]
 
     if typ._is_prim_word:

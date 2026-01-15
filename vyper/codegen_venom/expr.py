@@ -9,17 +9,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from vyper.codegen_venom.arithmetic import (
-    clamp_basetype,
-    safe_add,
-    safe_div,
-    safe_floordiv,
-    safe_mod,
-    safe_mul,
-    safe_pow,
-    safe_sub,
-)
-
 import vyper.utils as util
 from vyper import ast as vy_ast
 from vyper.builtins._signatures import BuiltinFunctionT
@@ -28,7 +17,21 @@ from vyper.codegen.core import (
     calculate_type_for_external_return,
     needs_external_call_wrap,
 )
-from vyper.exceptions import CompilerPanic, StateAccessViolation, UnimplementedException
+from vyper.codegen_venom.arithmetic import (
+    safe_add,
+    safe_div,
+    safe_floordiv,
+    safe_mod,
+    safe_mul,
+    safe_pow,
+    safe_sub,
+)
+from vyper.exceptions import (
+    CompilerPanic,
+    StateAccessViolation,
+    TypeMismatch,
+    UnimplementedException,
+)
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     AddressT,
@@ -42,14 +45,16 @@ from vyper.semantics.types import (
     TupleT,
     is_type_t,
 )
+from vyper.semantics.types.base import VOID_TYPE
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
-from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
+from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT
 from vyper.semantics.types.user import FlagT, StructT
 from vyper.utils import DECIMAL_DIVISOR, keccak256
-from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 
+from .abi import abi_decode_to_buf, abi_encode_to_buf
 from .buffer import Buffer, Ptr
 from .context import VenomCodegenContext
 from .value import VyperValue
@@ -122,9 +127,7 @@ class Expr:
     or check `node.has_folded_value` before isinstance checks on node type.
     """
 
-    def __init__(
-        self, node: vy_ast.VyperNode, ctx: VenomCodegenContext, as_ptr: bool = False
-    ):
+    def __init__(self, node: vy_ast.VyperNode, ctx: VenomCodegenContext, as_ptr: bool = False):
         self.node = node.reduced()
         self.ctx = ctx
         self.builder = ctx.builder
@@ -450,7 +453,9 @@ class Expr:
                 # For flags: xor with mask of all valid flag bits
                 n_members = len(typ._flag_members)
                 mask = (1 << n_members) - 1
-                return VyperValue.from_stack_op(self.builder.xor(operand, IRLiteral(mask)), result_typ)
+                return VyperValue.from_stack_op(
+                    self.builder.xor(operand, IRLiteral(mask)), result_typ
+                )
             elif isinstance(typ, IntegerT) and typ.bits == 256 and not typ.is_signed:
                 # For uint256: full bitwise not
                 return VyperValue.from_stack_op(self.builder.not_(operand), result_typ)
@@ -507,7 +512,9 @@ class Expr:
             if isinstance(op, vy_ast.Eq):
                 return VyperValue.from_stack_op(self.builder.eq(left_hash, right_hash), result_typ)
             else:  # NotEq
-                return VyperValue.from_stack_op(self.builder.iszero(self.builder.eq(left_hash, right_hash)), result_typ)
+                return VyperValue.from_stack_op(
+                    self.builder.iszero(self.builder.eq(left_hash, right_hash)), result_typ
+                )
 
         # Handle membership tests (In/NotIn) - need special handling for arrays
         if isinstance(op, (vy_ast.In, vy_ast.NotIn)):
@@ -520,7 +527,9 @@ class Expr:
                 intersection = self.builder.and_(left, right)
                 if isinstance(op, vy_ast.In):
                     # iszero(iszero(x)) = 1 if x != 0
-                    return VyperValue.from_stack_op(self.builder.iszero(self.builder.iszero(intersection)), result_typ)
+                    return VyperValue.from_stack_op(
+                        self.builder.iszero(self.builder.iszero(intersection)), result_typ
+                    )
                 else:  # NotIn
                     return VyperValue.from_stack_op(self.builder.iszero(intersection), result_typ)
             else:
@@ -528,15 +537,24 @@ class Expr:
                 # For list literals, unroll to equality chain (more efficient)
                 if isinstance(node.right, vy_ast.List):
                     return VyperValue.from_stack_op(
-                        self._lower_list_literal_membership(left, node.right, isinstance(op, vy_ast.In)),
-                        result_typ
+                        self._lower_list_literal_membership(
+                            left, node.right, isinstance(op, vy_ast.In)
+                        ),
+                        result_typ,
                     )
                 # For storage/memory arrays, use loop with early break
                 # Don't unwrap - iterate directly over storage/memory location
                 right_val = Expr(node.right, self.ctx).lower()
-                return VyperValue.from_stack_op(self._lower_array_membership(
-                    left, right_val.operand, right_typ, right_val.location, isinstance(op, vy_ast.In)
-                ), result_typ)
+                # Default to MEMORY if location is None (e.g., for stack values)
+                location = (
+                    right_val.location if right_val.location is not None else DataLocation.MEMORY
+                )
+                return VyperValue.from_stack_op(
+                    self._lower_array_membership(
+                        left, right_val.operand, right_typ, location, isinstance(op, vy_ast.In)
+                    ),
+                    result_typ,
+                )
 
         # Non-bytestring: get values directly
         left = Expr(node.left, self.ctx).lower_value()
@@ -562,19 +580,29 @@ class Expr:
 
         if isinstance(op, vy_ast.NotEq):
             # ne = iszero(eq)
-            return VyperValue.from_stack_op(self.builder.iszero(self.builder.eq(left, right)), result_typ)
+            return VyperValue.from_stack_op(
+                self.builder.iszero(self.builder.eq(left, right)), result_typ
+            )
 
         if isinstance(op, vy_ast.LtE):
             # le = iszero(gt)
             if use_unsigned:
-                return VyperValue.from_stack_op(self.builder.iszero(self.builder.gt(left, right)), result_typ)
-            return VyperValue.from_stack_op(self.builder.iszero(self.builder.sgt(left, right)), result_typ)
+                return VyperValue.from_stack_op(
+                    self.builder.iszero(self.builder.gt(left, right)), result_typ
+                )
+            return VyperValue.from_stack_op(
+                self.builder.iszero(self.builder.sgt(left, right)), result_typ
+            )
 
         if isinstance(op, vy_ast.GtE):
             # ge = iszero(lt)
             if use_unsigned:
-                return VyperValue.from_stack_op(self.builder.iszero(self.builder.lt(left, right)), result_typ)
-            return VyperValue.from_stack_op(self.builder.iszero(self.builder.slt(left, right)), result_typ)
+                return VyperValue.from_stack_op(
+                    self.builder.iszero(self.builder.lt(left, right)), result_typ
+                )
+            return VyperValue.from_stack_op(
+                self.builder.iszero(self.builder.slt(left, right)), result_typ
+            )
 
         raise CompilerPanic(f"Unsupported comparison op: {type(op)}")
 
@@ -730,7 +758,7 @@ class Expr:
             value_typ = node.value._metadata.get("type")
             # Check if this is a flag type access (e.g., MyFlag.VALUE)
             # value_typ is TYPE_T(FlagT), not FlagT directly
-            if is_type_t(value_typ, FlagT):
+            if value_typ is not None and is_type_t(value_typ, FlagT):
                 flag_id = typ._flag_members[node.attr]
                 value = 2**flag_id  # 0 => 1, 1 => 2, 2 => 4, etc.
                 return VyperValue.from_stack_op(IRLiteral(value), typ)
@@ -1041,7 +1069,9 @@ class Expr:
             # Copy slot-addressed data to memory before hashing
             typ = key_node._metadata["type"]
             buf_val = self.ctx.new_temporary_value(typ)
-            self.ctx.slot_to_memory(key_vv.operand, buf_val.operand, typ.storage_size_in_words, key_vv.location)
+            self.ctx.slot_to_memory(
+                key_vv.operand, buf_val.operand, typ.storage_size_in_words, key_vv.location
+            )
             # Hash from memory buffer
             buf_ptr = buf_val.ptr()
             data_ptr = self.ctx.add_offset(buf_ptr, IRLiteral(32))  # skip length word
@@ -1059,9 +1089,9 @@ class Expr:
             return self.builder.sha3(data_ptr.operand, length)
 
         # Memory/calldata - hash directly
-        data_ptr = self.ctx.bytes_data_ptr(key_vv)
+        data_ptr_op = self.ctx.bytes_data_ptr(key_vv)
         length = self.ctx.bytestring_length(key_vv)
-        return self.builder.sha3(data_ptr, length)
+        return self.builder.sha3(data_ptr_op, length)
 
     def _get_bytestring_hash(self, node: vy_ast.VyperNode) -> IROperand:
         """Get keccak256 hash of a bytestring for comparison.
@@ -1092,11 +1122,11 @@ class Expr:
 
         # sha3 only works on memory - copy non-memory data first
         if vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
+            assert isinstance(node, vy_ast.ExprNode)
             typ = node._expr_info.typ
             buf_val = self.ctx.new_temporary_value(typ)
             self.ctx.slot_to_memory(
-                vv.operand, buf_val.operand,
-                typ.storage_size_in_words, vv.location
+                vv.operand, buf_val.operand, typ.storage_size_in_words, vv.location
             )
             buf_ptr = buf_val.ptr()
             data_ptr = self.ctx.add_offset(buf_ptr, IRLiteral(32))
@@ -1104,6 +1134,7 @@ class Expr:
             return self.builder.sha3(data_ptr.operand, length)
 
         if vv.location == DataLocation.CODE:
+            assert isinstance(node, vy_ast.ExprNode)
             typ = node._expr_info.typ
             buf_val = self.ctx.new_temporary_value(typ)
             self.ctx.code_to_memory(vv.operand, buf_val.operand, typ.storage_size_in_words)
@@ -1113,9 +1144,9 @@ class Expr:
             return self.builder.sha3(data_ptr.operand, length)
 
         # Memory/calldata - hash directly
-        data_ptr = self.ctx.bytes_data_ptr(vv)
+        data_ptr_op = self.ctx.bytes_data_ptr(vv)
         length = self.ctx.bytestring_length(vv)
-        return self.builder.sha3(data_ptr, length)
+        return self.builder.sha3(data_ptr_op, length)
 
     def _lower_tuple_subscript(self) -> VyperValue:
         """Lower tuple[N] or struct[N] access.
@@ -1195,6 +1226,8 @@ class Expr:
         through pointer arithmetic. For other locations, creates a simple Ptr.
         """
         if location == DataLocation.MEMORY:
+            # Buffer requires IRVariable; memory pointers from arithmetic ops are always IRVariables
+            assert isinstance(operand, IRVariable)
             buf = Buffer(_ptr=operand, size=typ.memory_bytes_required, annotation="computed_ptr")
             ptr = Ptr(operand=operand, location=location, buf=buf)
         else:
@@ -1203,7 +1236,7 @@ class Expr:
 
     def _lower_list_literal_membership(
         self, needle: IROperand, list_node: vy_ast.List, is_in: bool
-    ) -> IRVariable:
+    ) -> IROperand:
         """Lower membership test for list literals: x in [a, b, c].
 
         Unrolls to:
@@ -1217,15 +1250,12 @@ class Expr:
         behavior (expr.py:486 does unwrap_location on ALL elements first).
         The or_/and_ IR ops combine already-computed results.
         """
-        from vyper.exceptions import TypeMismatch
-
         # Block non-primitive element types (mirrors legacy codegen)
         # See issue #2637 for context
         elem_typ = list_node._metadata["type"].value_type
         if not elem_typ._is_prim_word:
             raise TypeMismatch(
-                "`in` not allowed for arrays of non-base types, tracked in issue #2637",
-                self.node
+                "`in` not allowed for arrays of non-base types, tracked in issue #2637", self.node
             )
 
         b = self.builder
@@ -1256,8 +1286,12 @@ class Expr:
         return result
 
     def _lower_array_membership(
-        self, needle: IROperand, haystack: IROperand, haystack_typ,
-        location: DataLocation, is_in: bool
+        self,
+        needle: IROperand,
+        haystack: IROperand,
+        haystack_typ,
+        location: DataLocation,
+        is_in: bool,
     ) -> IRVariable:
         """Lower array membership test: x in array or x not in array.
 
@@ -1267,15 +1301,12 @@ class Expr:
             - if element == needle: result = 1, break
         - return result (or iszero(result) for not in)
         """
-        from vyper.exceptions import TypeMismatch
-
         # Block non-primitive element types (mirrors legacy codegen)
         # See issue #2637 for context
         elem_typ = haystack_typ.value_type
         if not elem_typ._is_prim_word:
             raise TypeMismatch(
-                "`in` not allowed for arrays of non-base types, tracked in issue #2637",
-                self.node
+                "`in` not allowed for arrays of non-base types, tracked in issue #2637", self.node
             )
 
         # Constants have UNSET location - use MEMORY sizing (same as CODE)
@@ -1402,7 +1433,7 @@ class Expr:
                 return self._lower_internal_call()
 
         # Built-in functions
-        # Builtins may return VyperValue (for memory-located results) or IROperand (for stack values)
+        # Builtins may return VyperValue (memory-located) or IROperand (stack values)
         if isinstance(func_t, BuiltinFunctionT):
             result = self._lower_builtin_call(func_t)
             if isinstance(result, VyperValue):
@@ -1438,8 +1469,6 @@ class Expr:
         4. Emit invoke instruction
         5. For multi-return, copy stack outputs to caller memory
         """
-        from vyper.venom.basicblock import IRLabel
-
         node = self.node
         assert isinstance(node, vy_ast.Call)
         assert isinstance(node.func, vy_ast.Attribute)
@@ -1468,7 +1497,7 @@ class Expr:
         target_label = f"internal {func_t._function_id} {func_name}({argz}){suffix}"
 
         # Allocate return buffer
-        return_buf = None
+        return_buf: Optional[IROperand] = None
         if func_t.return_type is not None:
             if returns_count > 0:
                 # Multi-return: allocate scratch buffer
@@ -1538,7 +1567,6 @@ class Expr:
         if return_buf is not None:
             return self._make_ptr_value(return_buf, DataLocation.MEMORY, func_t.return_type)
 
-        from vyper.semantics.types.base import VOID_TYPE
         return VyperValue.from_stack_op(IRLiteral(0), VOID_TYPE)  # void return
 
     # === Builtin Function Calls ===
@@ -1706,7 +1734,6 @@ class Expr:
         self.builder.store(darray_ptr, new_length, data_loc)
 
         # append() returns nothing
-        from vyper.semantics.types.base import VOID_TYPE
         return VyperValue.from_stack_op(IRLiteral(0), VOID_TYPE)
 
     def _lower_dynarray_pop(self) -> VyperValue:
@@ -1825,8 +1852,6 @@ class Expr:
         6. Check success and propagate revert on failure
         7. Unpack return value if present
         """
-        from vyper.codegen_venom.abi import abi_decode_to_buf, abi_encode_to_buf
-
         node = self.node
         b = self.builder
 
@@ -1944,7 +1969,6 @@ class Expr:
 
         # === Unpack Return Value ===
         if fn_type.return_type is None:
-            from vyper.semantics.types.base import VOID_TYPE
             return VyperValue.from_stack_op(IRLiteral(0), VOID_TYPE)
 
         return_t = fn_type.return_type
@@ -1973,9 +1997,13 @@ class Expr:
             # Store default value - needs wrapping if single value
             if needs_external_call_wrap(return_t):
                 # Wrap single value in tuple
-                self.ctx.store_memory(call_kwargs.default_return_value, result_val.operand, return_t)
+                self.ctx.store_memory(
+                    call_kwargs.default_return_value, result_val.operand, return_t
+                )
             else:
-                self.ctx.store_memory(call_kwargs.default_return_value, result_val.operand, return_t)
+                self.ctx.store_memory(
+                    call_kwargs.default_return_value, result_val.operand, return_t
+                )
 
             # Check extcodesize if not skipped (contract might have selfdestructed)
             if not call_kwargs.skip_contract_check:

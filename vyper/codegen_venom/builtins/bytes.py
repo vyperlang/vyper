@@ -10,10 +10,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
-from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.value import VyperValue
-from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types import BytesM_T, BytesT, StringT
+from vyper.semantics.types import AddressT, BytesM_T, BytesT, IntegerT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.venom.basicblock import IRLiteral, IROperand
 
@@ -298,8 +296,6 @@ def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
 def _clamp_extract32_result(val: IROperand, out_t, ctx: VenomCodegenContext) -> IROperand:
     """Apply bounds check for extract32 output type."""
-    from vyper.semantics.types import AddressT, IntegerT
-
     b = ctx.builder
 
     if isinstance(out_t, IntegerT):

@@ -41,7 +41,7 @@ class IRFunction:
 
     # Used during code generation
     _ast_source_stack: list[IRnode]
-    _error_msg_stack: list[str]
+    _error_msg_stack: list[Optional[str]]
 
     def __init__(self, name: IRLabel, ctx: IRContext = None):
         self.ctx = ctx  # type: ignore

@@ -155,6 +155,7 @@ def clamp_bytestring(
     2. If hi is provided: item_end <= hi (prevents buffer overrun)
     """
     b = ctx.builder
+    assert src.location is not None, "src must have a location for bytestring clamping"
     length = b.load(src.operand, src.location)  # Length word at start
 
     # Check length <= maxlen
@@ -181,6 +182,7 @@ def clamp_dyn_array(
     2. If hi is provided: payload_end <= hi (prevents buffer overrun)
     """
     b = ctx.builder
+    assert src.location is not None, "src must have a location for dyn_array clamping"
     count = b.load(src.operand, src.location)  # Count word at start
 
     # Check count <= max_count
@@ -212,6 +214,7 @@ def _getelemptr_abi(
     """
     b = ctx.builder
     loc = parent.location
+    assert loc is not None, "parent must have a location for ABI element access"
 
     # Calculate static location
     if static_offset == 0:
@@ -247,6 +250,7 @@ def _decode_primitive(
 ) -> None:
     """Decode a primitive (word-sized) type."""
     b = ctx.builder
+    assert src.location is not None, "src must have a location for primitive decoding"
     val: IROperand = b.load(src.operand, src.location)
 
     if needs_clamp(typ):
@@ -273,6 +277,7 @@ def _decode_bytestring(
 
     # Copy: length word + data (up to maxlen + 32 bytes)
     size = typ.memory_bytes_required
+    assert src.location is not None, "src must have a location for bytestring decoding"
     ctx.builder.copy_to_memory(dst, src.operand, IRLiteral(size), src.location)
 
 
@@ -285,10 +290,9 @@ def _decode_dyn_array(
     Layout: [count word][elements...]
     Elements are decoded recursively.
     """
-    from vyper.semantics.types.shortcuts import UINT256_T
-
     b = ctx.builder
     loc = src.location
+    assert loc is not None, "src must have a location for dynamic array decoding"
     elem_typ = typ.value_type
     elem_abi_t = elem_typ.abi_type
 
@@ -424,10 +428,7 @@ def _decode_complex(
 
 
 def _abi_decode_to_buf(
-    ctx: VenomCodegenContext,
-    dst: IROperand,
-    src: VyperValue,
-    hi: IROperand = None,
+    ctx: VenomCodegenContext, dst: IROperand, src: VyperValue, hi: IROperand = None
 ) -> None:
     """
     Internal decoder dispatcher.
@@ -451,10 +452,7 @@ def _abi_decode_to_buf(
 
 
 def abi_decode_to_buf(
-    ctx: VenomCodegenContext,
-    dst: IROperand,
-    src: VyperValue,
-    hi: IROperand = None,
+    ctx: VenomCodegenContext, dst: IROperand, src: VyperValue, hi: IROperand = None
 ) -> None:
     """
     Decode ABI-encoded src to Vyper-encoded dst.

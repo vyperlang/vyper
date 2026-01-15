@@ -8,7 +8,7 @@ System-level built-in functions for raw operations.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.value import VyperValue
@@ -59,9 +59,7 @@ def _get_literal_kwarg(node: vy_ast.Call, kwarg_name: str, default):
     return default
 
 
-def lower_raw_call(
-    node: vy_ast.Call, ctx: VenomCodegenContext
-) -> Union[IROperand, VyperValue]:
+def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand, VyperValue]:
     """
     raw_call(to, data, max_outsize=0, gas=gas, value=0,
              is_delegate_call=False, is_static_call=False,
@@ -142,7 +140,7 @@ def lower_raw_call(
         value = Expr(value_node, ctx).lower_value()
 
     # Allocate output buffer if needed
-    out_val: "VyperValue | None"
+    out_val: Optional["VyperValue"]
     out_ptr: IROperand
     if max_outsize > 0:
         out_val = ctx.new_temporary_value(BytesT(max_outsize))

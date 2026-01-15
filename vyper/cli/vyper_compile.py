@@ -50,7 +50,8 @@ opcodes            - List of opcodes as a string
 opcodes_runtime    - List of runtime opcodes as a string
 ir                 - Intermediate representation in list format (Venom IR if --experimental-codegen)
 ir_json            - Intermediate representation in JSON format
-ir_runtime         - Intermediate representation of runtime bytecode (Venom IR if --experimental-codegen)
+ir_runtime         - Intermediate representation of runtime bytecode
+                      (Venom IR if --experimental-codegen)
 asm                - Output the EVM assembly of the deployable bytecode
 integrity          - Output the integrity hash of the source code
 archive            - Output the build as an archive file

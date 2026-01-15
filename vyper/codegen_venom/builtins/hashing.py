@@ -39,9 +39,14 @@ def lower_keccak256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         arg_vv = Expr(arg_node, ctx).lower()
 
         # sha3 only works on memory - copy storage/transient/code data first
-        if arg_vv.location is not None and arg_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
+        if arg_vv.location is not None and arg_vv.location in (
+            DataLocation.STORAGE,
+            DataLocation.TRANSIENT,
+        ):
             buf_val = ctx.new_temporary_value(arg_t)
-            ctx.slot_to_memory(arg_vv.operand, buf_val.operand, arg_t.storage_size_in_words, arg_vv.location)
+            ctx.slot_to_memory(
+                arg_vv.operand, buf_val.operand, arg_t.storage_size_in_words, arg_vv.location
+            )
             # Hash from memory buffer
             data_ptr = ctx.bytes_data_ptr(buf_val)
             length = ctx.bytestring_length(buf_val)
@@ -91,9 +96,14 @@ def lower_sha256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         arg_vv = Expr(arg_node, ctx).lower()
 
         # staticcall only works with memory - copy storage/transient/code data first
-        if arg_vv.location is not None and arg_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
+        if arg_vv.location is not None and arg_vv.location in (
+            DataLocation.STORAGE,
+            DataLocation.TRANSIENT,
+        ):
             buf_val = ctx.new_temporary_value(arg_t)
-            ctx.slot_to_memory(arg_vv.operand, buf_val.operand, arg_t.storage_size_in_words, arg_vv.location)
+            ctx.slot_to_memory(
+                arg_vv.operand, buf_val.operand, arg_t.storage_size_in_words, arg_vv.location
+            )
             # Hash from memory buffer
             data_ptr = ctx.bytes_data_ptr(buf_val)
             length = ctx.bytestring_length(buf_val)
@@ -126,7 +136,12 @@ def lower_sha256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Call SHA256 precompile: staticcall(gas, 0x2, in_ptr, in_len, out_ptr, 32)
     success = b.staticcall(
-        b.gas(), IRLiteral(2), data_ptr, length, out_buf._ptr, IRLiteral(32)  # SHA256 precompile address
+        b.gas(),
+        IRLiteral(2),
+        data_ptr,
+        length,
+        out_buf._ptr,
+        IRLiteral(32),  # SHA256 precompile address
     )
 
     # Assert success (precompile should always succeed with valid input)

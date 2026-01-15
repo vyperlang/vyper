@@ -16,18 +16,16 @@ from __future__ import annotations
 from typing import Optional
 
 import vyper.ast as vy_ast
-from vyper.codegen.core import needs_clamp
-from vyper.codegen.function_definitions.common import EntryPointInfo, _FuncIRInfo
-from vyper.codegen.ir_node import Encoding
 from vyper.codegen import jumptable_utils
+from vyper.codegen.function_definitions.common import EntryPointInfo, _FuncIRInfo
 from vyper.codegen_venom.abi.abi_decoder import _getelemptr_abi, abi_decode_to_buf
 from vyper.codegen_venom.buffer import Ptr
 from vyper.codegen_venom.constants import SELECTOR_BYTES, SELECTOR_SHIFT_BITS
 from vyper.codegen_venom.value import VyperValue
-from vyper.semantics.data_locations import DataLocation
 from vyper.compiler.settings import Settings, _opt_codesize, _opt_none
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import TupleT, VyperType
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
@@ -35,6 +33,7 @@ from vyper.utils import OrderedSet, method_id_int
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 from vyper.venom.context import IRContext
+from vyper.venom.memory_location import Allocation
 
 from .context import Constancy, VenomCodegenContext
 from .expr import Expr
@@ -210,15 +209,23 @@ def generate_deploy_venom(
         # Generate constructor
         assert isinstance(init_func_t.ast_def, vy_ast.FunctionDef)
         _generate_constructor(
-            deploy_builder, module_t, init_func_t.ast_def, len(runtime_bytecode), immutables_len,
-            immutables_alloca_id
+            deploy_builder,
+            module_t,
+            init_func_t.ast_def,
+            len(runtime_bytecode),
+            immutables_len,
+            immutables_alloca_id,
         )
 
         # Generate internal functions reachable from constructor
         for func_t in init_func_t.reachable_internal_functions:
             _generate_internal_function(
-                deploy_ctx, module_t, func_t.ast_def, is_ctor_context=True,
-                immutables_len=immutables_len, immutables_alloca_id=immutables_alloca_id
+                deploy_ctx,
+                module_t,
+                func_t.ast_def,
+                is_ctor_context=True,
+                immutables_len=immutables_len,
+                immutables_alloca_id=immutables_alloca_id,
             )
     else:
         # No constructor - just deploy runtime
@@ -310,6 +317,7 @@ def _generate_selector_section_linear(
 
             if has_kwargs:
                 # Entry point: handle kwargs, jump to common body
+                assert common_label is not None
                 _generate_entry_point_kwargs(builder, module_t, func_t, entry_info, common_label)
             else:
                 # No kwargs: generate body directly
@@ -543,9 +551,13 @@ def _generate_selector_section_sparse(
 
                 if has_kwargs:
                     common_label = common_labels[func_t._function_id]
-                    _generate_entry_point_kwargs(builder, module_t, func_t, entry_info, common_label)
+                    _generate_entry_point_kwargs(
+                        builder, module_t, func_t, entry_info, common_label
+                    )
                 else:
-                    _generate_external_function_body(builder, module_t, func_t, func_ast, entry_info)
+                    _generate_external_function_body(
+                        builder, module_t, func_t, func_ast, entry_info
+                    )
 
                 builder.append_block(next_check_bb)
                 builder.set_block(next_check_bb)
@@ -678,7 +690,7 @@ def _generate_selector_section_dense(
 
         # Create labels for each entry point (for djmp targets)
         entry_point_labels: dict[str, IRLabel] = {}
-        for abi_sig, (func_ast, entry_info) in all_entry_points.items():
+        for abi_sig, (_func_ast, _entry_info) in all_entry_points.items():
             method_id_val = method_id_int(abi_sig)
             label = IRLabel(f"entry_{method_id_val:08x}", is_symbol=True)
             entry_point_labels[abi_sig] = label
@@ -777,20 +789,20 @@ def _generate_selector_section_dense(
 
             # Sort function infos by their image (hash position)
             for mid in bucket.method_ids_image_order:
-                # Find the abi_sig for this method_id
-                abi_sig = None
+                # Find the matching_sig for this method_id
+                matching_sig: Optional[str] = None
                 for sig in all_entry_points.keys():
                     if method_id_int(sig) == mid:
-                        abi_sig = sig
+                        matching_sig = sig
                         break
-                assert abi_sig is not None
+                assert matching_sig is not None
 
-                _, entry_info = all_entry_points[abi_sig]
+                _, entry_info = all_entry_points[matching_sig]
 
                 # method_id <4 bytes>
                 runtime_ctx.append_data_item(mid.to_bytes(4, "big"))
                 # label <2 bytes> (symbol reference)
-                runtime_ctx.append_data_item(entry_point_labels[abi_sig])
+                runtime_ctx.append_data_item(entry_point_labels[matching_sig])
                 # metadata: min_calldatasize | is_nonpayable (packed)
                 func_metadata_int = entry_info.min_calldatasize | int(
                     not entry_info.func_t.is_payable
@@ -1033,7 +1045,7 @@ def _register_positional_args(ctx: VenomCodegenContext, func_t: ContractFunction
 
     # Create a tuple type for the positional args
     arg_types = [arg.typ for arg in func_t.positional_args]
-    args_tuple_t = TupleT(arg_types)
+    args_tuple_t = TupleT(tuple(arg_types))
 
     # Create VyperValue pointing to calldata tuple (starts at offset 4 after selector)
     ptr = Ptr(operand=IRLiteral(SELECTOR_BYTES), location=DataLocation.CALLDATA)
@@ -1083,10 +1095,11 @@ def _handle_kwargs(
         kwargs_from_calldata += 1
 
     # Create tuple type for args that come from calldata (positional + provided kwargs)
+    calldata_arg_types: list[VyperType] = []
     if kwargs_from_calldata > 0:
         calldata_arg_types = [arg.typ for arg in func_t.positional_args]
         calldata_arg_types += [func_t.keyword_args[j].typ for j in range(kwargs_from_calldata)]
-        calldata_tuple_t = TupleT(calldata_arg_types)
+        calldata_tuple_t = TupleT(tuple(calldata_arg_types))
         ptr = Ptr(operand=IRLiteral(SELECTOR_BYTES), location=DataLocation.CALLDATA)
         calldata_tuple = VyperValue.from_ptr(ptr, calldata_tuple_t)
 
@@ -1113,7 +1126,9 @@ def _handle_kwargs(
                 ctx.store_memory(default_val, var.value.operand, arg.typ)
 
 
-def _create_kwarg_allocas(builder: VenomBuilder, func_t: ContractFunctionT) -> dict[str, IRVariable]:
+def _create_kwarg_allocas(
+    builder: VenomBuilder, func_t: ContractFunctionT
+) -> dict[str, IRVariable]:
     """Create allocas for kwargs, shared between entry points and common body.
 
     This must be called BEFORE generating entry points so the allocas exist
@@ -1165,10 +1180,11 @@ def _init_kwargs_in_entry_point(
         kwargs_from_calldata += 1
 
     # Create tuple type for args that come from calldata (positional + provided kwargs)
+    calldata_arg_types: list[VyperType] = []
     if kwargs_from_calldata > 0:
         calldata_arg_types = [arg.typ for arg in func_t.positional_args]
         calldata_arg_types += [func_t.keyword_args[j].typ for j in range(kwargs_from_calldata)]
-        calldata_tuple_t = TupleT(calldata_arg_types)
+        calldata_tuple_t = TupleT(tuple(calldata_arg_types))
         ptr = Ptr(operand=IRLiteral(SELECTOR_BYTES), location=DataLocation.CALLDATA)
         calldata_tuple = VyperValue.from_ptr(ptr, calldata_tuple_t)
 
@@ -1248,8 +1264,12 @@ def _generate_fallback_body(
 
 
 def _generate_internal_function(
-    ir_ctx: IRContext, module_t: ModuleT, func_ast: vy_ast.FunctionDef, is_ctor_context: bool,
-    immutables_len: int = 0, immutables_alloca_id: Optional[int] = None
+    ir_ctx: IRContext,
+    module_t: ModuleT,
+    func_ast: vy_ast.FunctionDef,
+    is_ctor_context: bool,
+    immutables_len: int = 0,
+    immutables_alloca_id: Optional[int] = None,
 ) -> None:
     """Generate an internal function."""
     func_t = func_ast._metadata["func_type"]
@@ -1278,7 +1298,6 @@ def _generate_internal_function(
     # the constructor's allocation. This ensures all ctor-context functions
     # access immutables at the same memory location.
     if is_ctor_context and immutables_len > 0 and immutables_alloca_id is not None:
-        from vyper.venom.memory_location import Allocation
         codegen_ctx.immutables_alloca = builder.alloca(immutables_len, immutables_alloca_id)
         # Get the alloca instruction (just appended) and force position 0
         alloca_inst = builder._current_bb.instructions[-1]
@@ -1312,7 +1331,9 @@ def _generate_internal_function(
     # Allocate return buffer if needed
     if func_t.return_type is not None:
         if returns_count > 0:
-            codegen_ctx.return_buffer = codegen_ctx.new_temporary_value(func_t.return_type).operand
+            ret_buf = codegen_ctx.new_temporary_value(func_t.return_type).operand
+            assert isinstance(ret_buf, IRVariable)
+            codegen_ctx.return_buffer = ret_buf
 
     # Nonreentrant lock
     codegen_ctx.emit_nonreentrant_lock(func_t)
@@ -1367,7 +1388,6 @@ def _generate_constructor(
     # codegen behavior.
     # (GH issue 3101)
     if immutables_len > 0 and immutables_alloca_id is not None:
-        from vyper.venom.memory_location import Allocation
         codegen_ctx.immutables_alloca = builder.alloca(immutables_len, immutables_alloca_id)
         # Get the alloca instruction (just appended) and force position 0
         alloca_inst = builder._current_bb.instructions[-1]
@@ -1396,7 +1416,9 @@ def _generate_constructor(
         codegen_ctx.emit_nonreentrant_unlock(func_t)
 
         # Deploy epilogue: copy runtime code to memory and return
-        _emit_deploy_epilogue(builder, runtime_codesize, immutables_len, codegen_ctx.immutables_alloca)
+        _emit_deploy_epilogue(
+            builder, runtime_codesize, immutables_len, codegen_ctx.immutables_alloca
+        )
 
 
 def _register_constructor_args(ctx: VenomCodegenContext, func_t: ContractFunctionT) -> None:
@@ -1410,7 +1432,7 @@ def _register_constructor_args(ctx: VenomCodegenContext, func_t: ContractFunctio
 
     # Create a tuple type for the positional args
     arg_types = [arg.typ for arg in func_t.positional_args]
-    args_tuple_t = TupleT(arg_types)
+    args_tuple_t = TupleT(tuple(arg_types))
 
     # Create VyperValue pointing to data section tuple (starts at offset 0)
     ptr = Ptr(operand=IRLiteral(0), location=DataLocation.CODE)
@@ -1425,7 +1447,7 @@ def _register_constructor_args(ctx: VenomCodegenContext, func_t: ContractFunctio
         # Allocate memory for the arg
         var = ctx.new_variable(arg.name, arg.typ, mutable=False)
 
-        # Get the element location in data section (handles ABI offset indirection for dynamic types)
+        # Get element location in data section (handles ABI offset for dynamic types)
         elem_src = _getelemptr_abi(ctx, data_tuple, arg.typ, static_offset)
 
         # Decode from data section to memory
@@ -1442,8 +1464,10 @@ def _generate_simple_deploy(
 
 
 def _emit_deploy_epilogue(
-    builder: VenomBuilder, runtime_codesize: int, immutables_len: int,
-    immutables_alloca: Optional[IRVariable]
+    builder: VenomBuilder,
+    runtime_codesize: int,
+    immutables_len: int,
+    immutables_alloca: Optional[IRVariable],
 ) -> None:
     """
     Copy runtime bytecode to memory and return it.
@@ -1458,7 +1482,9 @@ def _emit_deploy_epilogue(
         immutables_dst = builder.add(dst_ptr, IRLiteral(runtime_codesize))
 
         # Source is the immutables_alloca if available, otherwise offset 0
-        immutables_src: IROperand = immutables_alloca if immutables_alloca is not None else IRLiteral(0)
+        immutables_src: IROperand = (
+            immutables_alloca if immutables_alloca is not None else IRLiteral(0)
+        )
 
         if version_check(begin="cancun"):
             # Cancun+: use mcopy

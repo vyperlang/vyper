@@ -15,7 +15,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
+from vyper.builtins.functions import AsWeiValue
+from vyper.codegen_venom.abi.abi_encoder import abi_encode_to_buf
 from vyper.codegen_venom.constants import BLOCKHASH_LOOKBACK_LIMIT, ECRECOVER_PRECOMPILE
+from vyper.evm.opcodes import version_check
+from vyper.exceptions import EvmVersionException
 from vyper.semantics.types import BytesT, DecimalT, StringT, TupleT
 from vyper.utils import DECIMAL_DIVISOR, method_id_int
 from vyper.venom.basicblock import IRLiteral, IROperand
@@ -150,7 +154,12 @@ def _lower_ec_arith(node: vy_ast.Call, ctx: VenomCodegenContext, precompile: int
 
     # Call precompile
     success = b.staticcall(
-        b.gas(), IRLiteral(precompile), input_buf._ptr, IRLiteral(input_size), output_buf._ptr, IRLiteral(64)
+        b.gas(),
+        IRLiteral(precompile),
+        input_buf._ptr,
+        IRLiteral(input_size),
+        output_buf._ptr,
+        IRLiteral(64),
     )
     b.assert_(success)
 
@@ -203,8 +212,6 @@ def lower_blobhash(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     Returns versioned hash of blob at given index (Cancun+).
     """
     from vyper.codegen_venom.expr import Expr
-    from vyper.evm.opcodes import version_check
-    from vyper.exceptions import EvmVersionException
 
     if not version_check(begin="cancun"):
         raise EvmVersionException("`blobhash` is not available pre-cancun", node)
@@ -280,7 +287,6 @@ def lower_as_wei_value(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand
     Converts a value to wei based on denomination unit.
     Includes overflow check for the multiplication.
     """
-    from vyper.builtins.functions import AsWeiValue
     from vyper.codegen_venom.expr import Expr
 
     b = ctx.builder
@@ -288,7 +294,7 @@ def lower_as_wei_value(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand
     value = Expr(node.args[0], ctx).lower_value()
     typ = node.args[0]._metadata["type"]
 
-    # Get the denomination multiplier from the legacy builtin
+    # Get the denomination multiplier
     denom = AsWeiValue().get_denomination(node)
 
     if denom == 1:
@@ -503,7 +509,6 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     - Uses method_id("log(type1,type2,...)") directly
     - Args are ABI-encoded inline
     """
-    from vyper.codegen_venom.abi.abi_encoder import abi_encode_to_buf
     from vyper.codegen_venom.expr import Expr
 
     b = ctx.builder
@@ -587,10 +592,10 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         # Write schema string bytes (word by word)
         schema_data_ptr = b.add(schema_buf._ptr, IRLiteral(32))
         for i in range(0, schema_len, 32):
-            chunk = schema[i:i+32]
+            chunk = schema[i : i + 32]
             # Pad chunk to 32 bytes (left-aligned in word)
-            chunk_padded = chunk.ljust(32, b'\x00')
-            chunk_int = int.from_bytes(chunk_padded, 'big')
+            chunk_padded = chunk.ljust(32, b"\x00")
+            chunk_int = int.from_bytes(chunk_padded, "big")
             if i == 0:
                 b.mstore(schema_data_ptr, IRLiteral(chunk_int))
             else:
@@ -625,12 +630,7 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
 
     # Make the staticcall to console.log
     b.staticcall(
-        b.gas(),
-        IRLiteral(CONSOLE_ADDRESS),
-        call_start,
-        call_len,
-        IRLiteral(0),
-        IRLiteral(0),
+        b.gas(), IRLiteral(CONSOLE_ADDRESS), call_start, call_len, IRLiteral(0), IRLiteral(0)
     )
 
     return IRLiteral(0)

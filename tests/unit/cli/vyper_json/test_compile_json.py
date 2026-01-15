@@ -220,10 +220,7 @@ def test_compile_json(input_json, input_bundle, experimental_codegen):
             },
         }
         if experimental_codegen:
-            expected["venom"] = {
-                "cfg": data["cfg"],
-                "cfg_runtime": data["cfg_runtime"],
-            }
+            expected["venom"] = {"cfg": data["cfg"], "cfg_runtime": data["cfg_runtime"]}
         assert output_json["contracts"][path][contract_name] == expected
 
 

@@ -14,6 +14,10 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
+from vyper.codegen.core import is_tuple_like
+from vyper.codegen_venom.buffer import Buffer, Ptr
+from vyper.codegen_venom.constants import IDENTITY_PRECOMPILE
+from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, MemoryAllocationException, StateAccessViolation
 from vyper.semantics.data_locations import DataLocation
@@ -21,9 +25,6 @@ from vyper.semantics.types import VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
-from vyper.codegen_venom.buffer import Buffer, Ptr
-from vyper.codegen_venom.constants import IDENTITY_PRECOMPILE
-from vyper.codegen_venom.value import VyperValue
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 
@@ -39,6 +40,7 @@ class Constancy(Enum):
 @dataclass
 class LocalVariable:
     """Tracks a variable during Venom codegen."""
+
     name: str
     value: VyperValue  # must be located in MEMORY
     mutable: bool = True
@@ -56,7 +58,11 @@ class LocalVariable:
 
     @property
     def buf(self) -> Buffer:
-        return self.value.ptr().buf
+        # Invariant: LocalVariable is always in MEMORY (enforced by __post_init__),
+        # and Ptr.buf is always set when location is MEMORY (enforced by Ptr.__post_init__)
+        buf = self.value.ptr().buf
+        assert buf is not None
+        return buf
 
 
 @dataclass
@@ -123,12 +129,10 @@ class VenomCodegenContext:
         # Create a dummy buffer for the existing pointer
         buf = Buffer(_ptr=ptr, size=typ.memory_bytes_required, annotation=name)
         value = VyperValue.from_ptr(buf.base_ptr(), typ)
-        var = LocalVariable(
-            name=name, value=value, mutable=mutable, scopes=self._scopes.copy()
-        )
+        var = LocalVariable(name=name, value=value, mutable=mutable, scopes=self._scopes.copy())
         self.variables[name] = var
 
-    def new_temporary_value(self, typ: VyperType, annotation: str | None = None) -> VyperValue:
+    def new_temporary_value(self, typ: VyperType, annotation: Optional[str] = None) -> VyperValue:
         """
         Allocate typed scratch memory.
 
@@ -184,8 +188,11 @@ class VenomCodegenContext:
         """
         # None location treated as MEMORY (for in-memory bytestrings without explicit location)
         loc = vv.location
-        assert loc is None or loc in (DataLocation.MEMORY, DataLocation.STORAGE, DataLocation.TRANSIENT), \
-            f"bytes_data_ptr expects MEMORY, STORAGE, or TRANSIENT, got {loc}"
+        assert loc is None or loc in (
+            DataLocation.MEMORY,
+            DataLocation.STORAGE,
+            DataLocation.TRANSIENT,
+        ), f"bytes_data_ptr expects MEMORY, STORAGE, or TRANSIENT, got {loc}"
         word_scale = 32 if loc is None or loc == DataLocation.MEMORY else 1
         return self.builder.add(vv.operand, IRLiteral(word_scale))
 
@@ -196,8 +203,11 @@ class VenomCodegenContext:
         None location treated as MEMORY (for in-memory bytestrings without explicit location).
         """
         loc = vv.location
-        assert loc is None or loc in (DataLocation.MEMORY, DataLocation.STORAGE, DataLocation.TRANSIENT), \
-            f"bytestring_length expects MEMORY, STORAGE, or TRANSIENT, got {loc}"
+        assert loc is None or loc in (
+            DataLocation.MEMORY,
+            DataLocation.STORAGE,
+            DataLocation.TRANSIENT,
+        ), f"bytestring_length expects MEMORY, STORAGE, or TRANSIENT, got {loc}"
         # None location treated as MEMORY
         if loc is None:
             return self.builder.mload(vv.operand)
@@ -303,8 +313,6 @@ class VenomCodegenContext:
 
     def returns_stack_count(self, func_t: ContractFunctionT) -> int:
         """How many values returned via stack (0, 1, or 2 for tuples)."""
-        from vyper.codegen.core import is_tuple_like
-
         ret_t = func_t.return_type
         if ret_t is None:
             return 0
@@ -322,8 +330,6 @@ class VenomCodegenContext:
 
     def emit_nonreentrant_lock(self, func_t: ContractFunctionT) -> None:
         """Emit nonreentrant lock acquire (at function entry)."""
-        from vyper.semantics.types.function import StateMutability
-
         if not func_t.nonreentrant:
             return
 
@@ -349,8 +355,6 @@ class VenomCodegenContext:
 
     def emit_nonreentrant_unlock(self, func_t: ContractFunctionT) -> None:
         """Emit nonreentrant lock release (at function exit)."""
-        from vyper.semantics.types.function import StateMutability
-
         if not func_t.nonreentrant:
             return
 
@@ -403,7 +407,7 @@ class VenomCodegenContext:
             # ceil32(length) = (length + 31) & ~31
             padded_len = self.builder.and_(
                 self.builder.add(src_len, IRLiteral(31)),
-                IRLiteral((1 << 256) - 32)  # ~31 in 256-bit
+                IRLiteral((1 << 256) - 32),  # ~31 in 256-bit
             )
             # Copy 32 (length word) + ceil32(length) bytes
             copy_len = self.builder.add(padded_len, IRLiteral(32))
@@ -492,7 +496,7 @@ class VenomCodegenContext:
 
     _ALLOCATION_LIMIT: int = 2**64
 
-    def allocate_buffer(self, size: int, annotation: str | None = None) -> Buffer:
+    def allocate_buffer(self, size: int, annotation: Optional[str] = None) -> Buffer:
         """Allocate anonymous memory buffer. Use buf.base_ptr() to get a Ptr."""
         if size >= self._ALLOCATION_LIMIT:
             raise MemoryAllocationException(
@@ -552,7 +556,9 @@ class VenomCodegenContext:
         """
         self._load_storage_to_memory(slot, buf, word_count)
 
-    def slot_to_memory(self, slot: IROperand, buf: IROperand, word_count: int, location: DataLocation) -> None:
+    def slot_to_memory(
+        self, slot: IROperand, buf: IROperand, word_count: int, location: DataLocation
+    ) -> None:
         """Load multi-word slot-addressed value to memory buffer.
 
         Generic helper that dispatches based on location (STORAGE or TRANSIENT).

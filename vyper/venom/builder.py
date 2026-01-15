@@ -8,6 +8,7 @@ from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IROperand, 
 from vyper.venom.function import IRFunction
 
 if TYPE_CHECKING:
+    from vyper.semantics.data_locations import DataLocation
     from vyper.venom.context import IRContext
 
 # IROperand is the base class for IRVariable, IRLiteral, IRLabel

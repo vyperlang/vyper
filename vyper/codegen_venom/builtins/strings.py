@@ -105,7 +105,7 @@ def lower_uint2str(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     # Store "0": char at buf + n_digits, length 1 at buf + n_digits - 1
     zero_data_pos = b.add(buf, IRLiteral(n_digits))
-    b.mstore(zero_data_pos, IRLiteral(ord('0')))
+    b.mstore(zero_data_pos, IRLiteral(ord("0")))
 
     zero_ptr = b.sub(b.add(buf, IRLiteral(n_digits)), IRLiteral(1))
     b.mstore(zero_ptr, IRLiteral(1))

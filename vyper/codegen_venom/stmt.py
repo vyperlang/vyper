@@ -10,8 +10,9 @@ from __future__ import annotations
 from typing import Optional
 
 from vyper import ast as vy_ast
+from vyper.codegen.core import calculate_type_for_external_return
+from vyper.codegen_venom.abi import abi_encode_to_buf
 from vyper.codegen_venom.arithmetic import (
-    clamp_basetype,
     safe_add,
     safe_div,
     safe_floordiv,
@@ -27,6 +28,7 @@ from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.semantics.types.user import EventT, StructT
+from vyper.utils import method_id_int
 from vyper.venom.basicblock import IRLiteral, IROperand
 
 from .buffer import Ptr
@@ -712,7 +714,9 @@ class Stmt:
                     self.builder.mstore(item_local.value.operand, val)
                 else:
                     # Multi-slot: use generic helper that dispatches on location
-                    self.ctx.slot_to_memory(elem_addr, item_local.value.operand, elem_size, location)
+                    self.ctx.slot_to_memory(
+                        elem_addr, item_local.value.operand, elem_size, location
+                    )
             else:
                 if elem_size <= 32:
                     # Single word: load dispatches on location (mload/calldataload/dload)
@@ -878,9 +882,6 @@ class Stmt:
             return
 
         # Valued return - ABI encode
-        from vyper.codegen.core import calculate_type_for_external_return
-        from vyper.codegen_venom.abi import abi_encode_to_buf
-
         # Optimization: single word types don't need full encoding
         if ret_typ._is_prim_word:
             buf_val = self.ctx.new_temporary_value(ret_typ)
@@ -899,9 +900,7 @@ class Stmt:
 
         # ABI encode to buffer
         # Use external_return_type (wrapped in tuple) for proper ABI encoding
-        encoded_len = abi_encode_to_buf(
-            self.ctx, buf._ptr, ret_val, external_return_type
-        )
+        encoded_len = abi_encode_to_buf(self.ctx, buf._ptr, ret_val, external_return_type)
 
         # Return encoded data
         self.builder.return_(buf._ptr, encoded_len)
@@ -918,8 +917,6 @@ class Stmt:
 
         Source: vyper/codegen/stmt.py:parse_Log and vyper/codegen/events.py
         """
-        from vyper.codegen_venom.abi import abi_encode_to_buf
-
         node = self.node
         assert isinstance(node, vy_ast.Log)
         event: EventT = node._metadata["type"]
@@ -958,7 +955,7 @@ class Stmt:
             topics.append(topic)
 
         # Encode non-indexed data to buffer
-        abi_buf: IROperand
+        abi_buf_ptr: IROperand
         encoded_len: IROperand
         if data_vals:
             # Create a tuple type from the data types
@@ -980,12 +977,10 @@ class Stmt:
 
             # Allocate ABI encoding output buffer
             abi_buf = self.ctx.allocate_buffer(bufsz)
+            abi_buf_ptr = abi_buf._ptr
 
             # ABI encode the tuple
-            encoded_len = abi_encode_to_buf(
-                self.ctx, abi_buf._ptr, data_buf._ptr, tuple_typ
-            )
-            abi_buf_ptr = abi_buf._ptr
+            encoded_len = abi_encode_to_buf(self.ctx, abi_buf_ptr, data_buf._ptr, tuple_typ)
         else:
             # No data - use zero size
             abi_buf_ptr = IRLiteral(0)
@@ -1129,10 +1124,6 @@ class Stmt:
 
         Source: vyper/codegen/stmt.py:_assert_reason
         """
-        from vyper.codegen_venom.abi import abi_encode_to_buf
-        from vyper.semantics.types.subscriptable import TupleT
-        from vyper.utils import method_id_int
-
         # Evaluate message in constant context (prevent state changes)
         old_constancy = self.ctx.constancy
         try:
@@ -1170,9 +1161,7 @@ class Stmt:
         self.ctx.store_memory(msg_val, tuple_buf._ptr, msg_typ)
 
         # ABI encode the wrapped message to payload buffer
-        encoded_len = abi_encode_to_buf(
-            self.ctx, payload_buf, tuple_buf._ptr, wrapped_typ
-        )
+        encoded_len = abi_encode_to_buf(self.ctx, payload_buf, tuple_buf._ptr, wrapped_typ)
 
         # Revert from buf+28 (so selector is at bytes 0-3) with length 4 + encoded_len
         revert_offset = self.builder.add(buf._ptr, IRLiteral(28))
