@@ -546,7 +546,7 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         if len(args) > 0:
             encode_input, encode_type = _create_tuple_in_memory(ctx, args, arg_types)
             data_dst = b.add(buf._ptr, IRLiteral(32))
-            encoded_len = abi_encode_to_buf(ctx, data_dst, encode_input, encode_type, returns_len=True)
+            encoded_len = abi_encode_to_buf(ctx, data_dst, encode_input, encode_type)
         else:
             encoded_len = IRLiteral(0)
 
@@ -573,7 +573,7 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         if len(args) > 0:
             encode_input, encode_type = _create_tuple_in_memory(ctx, args, arg_types)
             payload_data_dst = b.add(payload_buf._ptr, IRLiteral(32))
-            payload_len = abi_encode_to_buf(ctx, payload_data_dst, encode_input, encode_type, returns_len=True)
+            payload_len = abi_encode_to_buf(ctx, payload_data_dst, encode_input, encode_type)
         else:
             payload_len = IRLiteral(0)
 
@@ -618,7 +618,7 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
 
         # Encode outer tuple
         data_dst = b.add(buf._ptr, IRLiteral(32))
-        encoded_len = abi_encode_to_buf(ctx, data_dst, outer_val.operand, outer_tuple_t, returns_len=True)
+        encoded_len = abi_encode_to_buf(ctx, data_dst, outer_val.operand, outer_tuple_t)
 
         call_start = b.add(buf._ptr, IRLiteral(28))
         call_len = b.add(IRLiteral(4), encoded_len)

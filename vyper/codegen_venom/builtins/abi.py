@@ -167,8 +167,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
         # Encode data starting at offset 36
         data_dst = b.add(buf_val.operand, IRLiteral(36))
-        encoded_len = abi_encode_to_buf(ctx, data_dst, encode_input, encode_type, returns_len=True)
-        assert encoded_len is not None
+        encoded_len = abi_encode_to_buf(ctx, data_dst, encode_input, encode_type)
 
         # Write total length (encoded_len + 4) at offset 0
         total_len = b.add(encoded_len, IRLiteral(4))
@@ -176,8 +175,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     else:
         # Encode data starting at offset 32
         data_dst = b.add(buf_val.operand, IRLiteral(32))
-        encoded_len = abi_encode_to_buf(ctx, data_dst, encode_input, encode_type, returns_len=True)
-        assert encoded_len is not None
+        encoded_len = abi_encode_to_buf(ctx, data_dst, encode_input, encode_type)
 
         # Write length at offset 0
         b.mstore(buf_val.operand, encoded_len)

@@ -216,8 +216,6 @@ def _getelemptr_abi(
     # Calculate static location
     if static_offset == 0:
         static_loc = parent.operand
-    elif isinstance(parent.operand, IRLiteral):
-        static_loc = IRLiteral(parent.operand.value + static_offset)
     else:
         static_loc = b.add(parent.operand, IRLiteral(static_offset))
 
@@ -414,8 +412,6 @@ def _decode_complex(
         # Get destination pointer (Vyper layout)
         if vyper_offset == 0:
             elem_dst = dst
-        elif isinstance(dst, IRLiteral):
-            elem_dst = IRLiteral(dst.value + vyper_offset)
         else:
             elem_dst = b.add(dst, IRLiteral(vyper_offset))
 

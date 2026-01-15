@@ -61,8 +61,6 @@ def _get_element_ptr(
         elem_ptr: IROperand
         if offset == 0:
             elem_ptr = parent_ptr
-        elif isinstance(parent_ptr, IRLiteral):
-            elem_ptr = IRLiteral(parent_ptr.value + offset)
         else:
             elem_ptr = b.add(parent_ptr, IRLiteral(offset))
         return elem_ptr, elem_typ
@@ -76,8 +74,6 @@ def _get_element_ptr(
             offset_val = key.value * elem_size
             if offset_val == 0:
                 sarray_elem_ptr: IROperand = parent_ptr
-            elif isinstance(parent_ptr, IRLiteral):
-                sarray_elem_ptr = IRLiteral(parent_ptr.value + offset_val)
             else:
                 sarray_elem_ptr = b.add(parent_ptr, IRLiteral(offset_val))
         else:
@@ -157,8 +153,6 @@ def _encode_child(
     # Calculate static location
     if static_ofst == 0:
         static_loc = dst
-    elif isinstance(dst, IRLiteral):
-        static_loc = IRLiteral(dst.value + static_ofst)
     else:
         static_loc = b.add(dst, IRLiteral(static_ofst))
 
@@ -173,8 +167,7 @@ def _encode_child(
 
         # 2. Encode child to dynamic section
         child_dst = b.add(dst, dyn_ofst)
-        child_len = _abi_encode_to_buf(ctx, child_dst, child_ptr, child_typ, returns_len=True)
-        assert child_len is not None
+        child_len = _abi_encode_to_buf(ctx, child_dst, child_ptr, child_typ)
 
         # 3. Update dyn_ofst
         new_dyn_ofst = b.add(dyn_ofst, child_len)
@@ -265,8 +258,7 @@ def _encode_dyn_array(
         b.mstore(static_loc, dyn_ofst)
 
         child_dst = b.add(dst_data, dyn_ofst)
-        child_len = _abi_encode_to_buf(ctx, child_dst, child_src, subtyp, returns_len=True)
-        assert child_len is not None
+        child_len = _abi_encode_to_buf(ctx, child_dst, child_src, subtyp)
 
         new_dyn_ofst = b.add(dyn_ofst, child_len)
         ctx.ptr_store(child_dyn_ofst_val.ptr(), new_dyn_ofst)
@@ -305,8 +297,7 @@ def _abi_encode_to_buf(
     dst: IROperand,
     src: IROperand,
     src_typ: VyperType,
-    returns_len: bool = False,
-) -> IROperand | None:
+) -> IROperand:
     """
     Encode src to ABI format at dst.
 
@@ -317,10 +308,9 @@ def _abi_encode_to_buf(
         dst: Destination buffer pointer (in memory)
         src: Source value/pointer
         src_typ: Type of source
-        returns_len: If True, return encoded length
 
     Returns:
-        Encoded length if returns_len=True, else None
+        Encoded length (dead variable elimination cleans up if unused)
     """
     b = ctx.builder
     abi_t = src_typ.abi_type
@@ -329,18 +319,14 @@ def _abi_encode_to_buf(
     if abi_encoding_matches_vyper(src_typ):
         size = src_typ.memory_bytes_required
         ctx.copy_memory(dst, src, size)
-        if returns_len:
-            return IRLiteral(abi_t.embedded_static_size())
-        return None
+        return IRLiteral(abi_t.embedded_static_size())
 
     # Slow path: type-specific encoding
     if src_typ._is_prim_word:
         # Primitive word type: direct copy
         val = b.mload(src)
         b.mstore(dst, val)
-        if returns_len:
-            return IRLiteral(32)
-        return None
+        return IRLiteral(32)
 
     elif isinstance(src_typ, _BytestringT):
         # Bytes/String: copy and zero-pad
@@ -348,14 +334,12 @@ def _abi_encode_to_buf(
         size = src_typ.memory_bytes_required
         ctx.copy_memory(dst, src, size)
         _zero_pad(ctx, dst)
-        if returns_len:
-            # ABI length = ceil32(32 + actual_length)
-            length = b.mload(dst)
-            padded_len = b.add(IRLiteral(32), length)
-            # ceil32: ((x + 31) // 32) * 32 = (x + 31) & ~31
-            padded_len = b.and_(b.add(padded_len, IRLiteral(31)), IRLiteral(~31 & ((1 << 256) - 1)))
-            return padded_len
-        return None
+        # ABI length = ceil32(32 + actual_length)
+        length = b.mload(dst)
+        padded_len = b.add(IRLiteral(32), length)
+        # ceil32: ((x + 31) // 32) * 32 = (x + 31) & ~31
+        padded_len = b.and_(b.add(padded_len, IRLiteral(31)), IRLiteral(~31 & ((1 << 256) - 1)))
+        return padded_len
 
     elif isinstance(src_typ, DArrayT):
         # Dynamic array: use helper
@@ -363,9 +347,7 @@ def _abi_encode_to_buf(
         dyn_ofst_val = ctx.new_temporary_value(UINT256_T)
         ctx.ptr_store(dyn_ofst_val.ptr(), IRLiteral(0))
         _encode_dyn_array(ctx, dst, src, src_typ, dyn_ofst_val)
-        if returns_len:
-            return ctx.ptr_load(dyn_ofst_val.ptr())
-        return None
+        return ctx.ptr_load(dyn_ofst_val.ptr())
 
     elif _is_complex_type(src_typ):
         # Tuple/Struct/SArray: encode element by element
@@ -400,21 +382,17 @@ def _abi_encode_to_buf(
                 # All static, encode directly
                 if static_ofst == 0:
                     child_dst = dst
-                elif isinstance(dst, IRLiteral):
-                    child_dst = IRLiteral(dst.value + static_ofst)
                 else:
                     child_dst = b.add(dst, IRLiteral(static_ofst))
                 _abi_encode_to_buf(ctx, child_dst, elem_ptr, elem_typ)
 
             static_ofst += elem_typ.abi_type.embedded_static_size()
 
-        if returns_len:
-            if has_dynamic:
-                assert dyn_ofst_val is not None
-                return ctx.ptr_load(dyn_ofst_val.ptr())
-            else:
-                return IRLiteral(abi_t.embedded_static_size())
-        return None
+        if has_dynamic:
+            assert dyn_ofst_val is not None
+            return ctx.ptr_load(dyn_ofst_val.ptr())
+        else:
+            return IRLiteral(abi_t.embedded_static_size())
 
     else:
         raise CompilerPanic(f"Cannot ABI encode type: {src_typ}")
@@ -425,8 +403,7 @@ def abi_encode_to_buf(
     dst: IROperand,
     src: IROperand,
     src_typ: VyperType,
-    returns_len: bool = False,
-) -> IROperand | None:
+) -> IROperand:
     """
     Public entry point for ABI encoding.
 
@@ -437,9 +414,8 @@ def abi_encode_to_buf(
         dst: Destination buffer pointer (in memory)
         src: Source value/pointer
         src_typ: Type of source
-        returns_len: If True, return encoded length
 
     Returns:
-        Encoded length if returns_len=True, else None
+        Encoded length (dead variable elimination cleans up if unused)
     """
-    return _abi_encode_to_buf(ctx, dst, src, src_typ, returns_len)
+    return _abi_encode_to_buf(ctx, dst, src, src_typ)

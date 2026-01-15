@@ -900,11 +900,10 @@ class Stmt:
         # ABI encode to buffer
         # Use external_return_type (wrapped in tuple) for proper ABI encoding
         encoded_len = abi_encode_to_buf(
-            self.ctx, buf._ptr, ret_val, external_return_type, returns_len=True
+            self.ctx, buf._ptr, ret_val, external_return_type
         )
 
         # Return encoded data
-        assert encoded_len is not None
         self.builder.return_(buf._ptr, encoded_len)
 
     # === Event Logging ===
@@ -982,12 +981,10 @@ class Stmt:
             # Allocate ABI encoding output buffer
             abi_buf = self.ctx.allocate_buffer(bufsz)
 
-            # ABI encode the tuple, returns encoded length
-            _encoded_len = abi_encode_to_buf(
-                self.ctx, abi_buf._ptr, data_buf._ptr, tuple_typ, returns_len=True
+            # ABI encode the tuple
+            encoded_len = abi_encode_to_buf(
+                self.ctx, abi_buf._ptr, data_buf._ptr, tuple_typ
             )
-            assert _encoded_len is not None
-            encoded_len = _encoded_len
             abi_buf_ptr = abi_buf._ptr
         else:
             # No data - use zero size
@@ -1174,12 +1171,11 @@ class Stmt:
 
         # ABI encode the wrapped message to payload buffer
         encoded_len = abi_encode_to_buf(
-            self.ctx, payload_buf, tuple_buf._ptr, wrapped_typ, returns_len=True
+            self.ctx, payload_buf, tuple_buf._ptr, wrapped_typ
         )
 
         # Revert from buf+28 (so selector is at bytes 0-3) with length 4 + encoded_len
         revert_offset = self.builder.add(buf._ptr, IRLiteral(28))
-        assert encoded_len is not None
         revert_len = self.builder.add(IRLiteral(4), encoded_len)
         with self.builder.error_context("user revert with reason"):
             self.builder.revert(revert_offset, revert_len)

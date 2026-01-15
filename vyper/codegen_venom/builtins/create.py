@@ -271,8 +271,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Now ABI encode from ctor_args_val to args_start
     args_start = b.add(buf._ptr, bytecode_len)
-    args_len = abi_encode_to_buf(ctx, args_start, ctor_args_val.operand, ctor_tuple_typ, returns_len=True)
-    assert args_len is not None
+    args_len = abi_encode_to_buf(ctx, args_start, ctor_args_val.operand, ctor_tuple_typ)
 
     # Total length = bytecode_len + args_len
     total_len = b.add(bytecode_len, args_len)
@@ -540,11 +539,9 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
             offset += arg_t.memory_bytes_required
 
         # ABI encode from ctor_args_src to args_buf (BEFORE msize!)
-        encoded_len = abi_encode_to_buf(
-            ctx, args_buf._ptr, ctor_args_src.operand, ctor_tuple_typ, returns_len=True
+        args_len = abi_encode_to_buf(
+            ctx, args_buf._ptr, ctor_args_src.operand, ctor_tuple_typ
         )
-        assert encoded_len is not None
-        args_len = encoded_len
         args_ptr = args_buf._ptr
     else:
         # No constructor arguments
