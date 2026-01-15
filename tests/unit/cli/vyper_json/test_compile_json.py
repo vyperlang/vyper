@@ -151,6 +151,9 @@ def test_compile_json(input_json, input_bundle, experimental_codegen):
     # remove venom related from output formats
     # because they require venom (experimental)
     output_formats = OUTPUT_FORMATS.copy()
+    if not experimental_codegen:
+        output_formats.pop("cfg", None)
+        output_formats.pop("cfg_runtime", None)
     foo = compile_from_file_input(
         foo_input,
         output_formats=output_formats,
