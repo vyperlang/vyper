@@ -249,9 +249,11 @@ def _eval_signextend(inst: IRInstruction, state: RangeState) -> ValueRange:
     index_op = inst.operands[-1]
     value_op = inst.operands[-2]
     value_range = _operand_range(value_op, state)
+    if value_range.is_empty:
+        return ValueRange.empty()
     index = _get_uint_literal(index_op)
     if index is None:
-        return value_range
+        return ValueRange.top()
     if index >= 32:
         return value_range
 
@@ -435,17 +437,21 @@ def _eval_compare(inst: IRInstruction, state: RangeState) -> ValueRange:
         if lhs.hi < 0 and rhs.lo >= 0:
             # lhs is all negative (large unsigned), rhs is all non-negative
             # In unsigned: lhs > rhs always
-            if opcode == "lt":
-                return ValueRange.constant(0)
-            else:  # gt
-                return ValueRange.constant(1)
+            if rhs.hi <= SIGNED_MAX:
+                if opcode == "lt":
+                    return ValueRange.constant(0)
+                else:  # gt
+                    return ValueRange.constant(1)
+            return ValueRange.bool_range()
         if lhs.lo >= 0 and rhs.hi < 0:
             # lhs is all non-negative, rhs is all negative (large unsigned)
             # In unsigned: lhs < rhs always
-            if opcode == "lt":
-                return ValueRange.constant(1)
-            else:  # gt
-                return ValueRange.constant(0)
+            if lhs.hi <= SIGNED_MAX:
+                if opcode == "lt":
+                    return ValueRange.constant(1)
+                else:  # gt
+                    return ValueRange.constant(0)
+            return ValueRange.bool_range()
 
     # Now we can use signed comparison logic (works for both signed ops
     # and unsigned ops where both ranges have the same sign)
@@ -495,6 +501,13 @@ def _eval_eq(inst: IRInstruction, state: RangeState) -> ValueRange:
         return ValueRange.bool_range()
 
     # Both ranges are on the same side of the sign boundary
+    # Be conservative if one side is negative and the other includes values
+    # with the high bit set, since those overlap in unsigned representation.
+    if lhs.hi < 0 and rhs.lo >= 0 and rhs.hi > SIGNED_MAX:
+        return ValueRange.bool_range()
+    if rhs.hi < 0 and lhs.lo >= 0 and lhs.hi > SIGNED_MAX:
+        return ValueRange.bool_range()
+
     if lhs.hi < rhs.lo or rhs.hi < lhs.lo:
         return ValueRange.constant(0)
 

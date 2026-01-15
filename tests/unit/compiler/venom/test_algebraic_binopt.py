@@ -627,14 +627,14 @@ def test_comparison_range_always_true():
     pre = """
     _global:
         %input = source
-        %x = mod 100, %input
+        %x = mod %input, 100
         %y = gt 100, %x
         sink %y
     """
     post = """
     _global:
         %input = source
-        %x = mod 100, %input
+        %x = mod %input, 100
         sink 1
     """
     _check_pre_post(pre, post)
@@ -647,14 +647,14 @@ def test_comparison_range_always_false():
     pre = """
     _global:
         %input = source
-        %x = mod 100, %input
+        %x = mod %input, 100
         %y = gt 0, %x
         sink %y
     """
     post = """
     _global:
         %input = source
-        %x = mod 100, %input
+        %x = mod %input, 100
         sink 0
     """
     _check_pre_post(pre, post)

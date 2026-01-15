@@ -368,50 +368,70 @@ class AlgebraicOptimizationPass(IRPass):
         if self._is_lit(a_op) and not self._is_lit(b_op):
             # a is literal, b is variable: comparing lit <?> var
             lit = a_op.value
-            if signed:
-                lit = wrap256(lit, signed=True)
             var_range = self.range_analysis.get_range(b_op, inst)
-            if not var_range.is_top:
-                if is_gt:
-                    # lit > var: always true if lit > var.hi, always false if lit <= var.lo
-                    if lit > var_range.hi:
-                        self.updater.mk_assign(inst, IRLiteral(1))
-                        return
-                    if lit <= var_range.lo:
-                        self.updater.mk_assign(inst, IRLiteral(0))
-                        return
+            if not var_range.is_top and not var_range.is_empty:
+                if signed:
+                    if var_range.hi <= SizeLimits.MAX_INT256:
+                        lit = wrap256(lit, signed=True)
+                    else:
+                        lit = None
                 else:
-                    # lit < var: always true if lit < var.lo, always false if lit >= var.hi
-                    if lit < var_range.lo:
-                        self.updater.mk_assign(inst, IRLiteral(1))
-                        return
-                    if lit >= var_range.hi:
-                        self.updater.mk_assign(inst, IRLiteral(0))
-                        return
+                    if var_range.lo >= 0:
+                        lit = wrap256(lit)
+                    else:
+                        lit = None
+
+                if lit is not None:
+                    if is_gt:
+                        # lit > var: always true if lit > var.hi, always false if lit <= var.lo
+                        if lit > var_range.hi:
+                            self.updater.mk_assign(inst, IRLiteral(1))
+                            return
+                        if lit <= var_range.lo:
+                            self.updater.mk_assign(inst, IRLiteral(0))
+                            return
+                    else:
+                        # lit < var: always true if lit < var.lo, always false if lit >= var.hi
+                        if lit < var_range.lo:
+                            self.updater.mk_assign(inst, IRLiteral(1))
+                            return
+                        if lit >= var_range.hi:
+                            self.updater.mk_assign(inst, IRLiteral(0))
+                            return
 
         elif self._is_lit(b_op) and not self._is_lit(a_op):
             # a is variable, b is literal: comparing var <?> lit
             lit = b_op.value
-            if signed:
-                lit = wrap256(lit, signed=True)
             var_range = self.range_analysis.get_range(a_op, inst)
-            if not var_range.is_top:
-                if is_gt:
-                    # var > lit: always true if var.lo > lit, always false if var.hi <= lit
-                    if var_range.lo > lit:
-                        self.updater.mk_assign(inst, IRLiteral(1))
-                        return
-                    if var_range.hi <= lit:
-                        self.updater.mk_assign(inst, IRLiteral(0))
-                        return
+            if not var_range.is_top and not var_range.is_empty:
+                if signed:
+                    if var_range.hi <= SizeLimits.MAX_INT256:
+                        lit = wrap256(lit, signed=True)
+                    else:
+                        lit = None
                 else:
-                    # var < lit: always true if var.hi < lit, always false if var.lo >= lit
-                    if var_range.hi < lit:
-                        self.updater.mk_assign(inst, IRLiteral(1))
-                        return
-                    if var_range.lo >= lit:
-                        self.updater.mk_assign(inst, IRLiteral(0))
-                        return
+                    if var_range.lo >= 0:
+                        lit = wrap256(lit)
+                    else:
+                        lit = None
+
+                if lit is not None:
+                    if is_gt:
+                        # var > lit: always true if var.lo > lit, always false if var.hi <= lit
+                        if var_range.lo > lit:
+                            self.updater.mk_assign(inst, IRLiteral(1))
+                            return
+                        if var_range.hi <= lit:
+                            self.updater.mk_assign(inst, IRLiteral(0))
+                            return
+                    else:
+                        # var < lit: always true if var.hi < lit, always false if var.lo >= lit
+                        if var_range.hi < lit:
+                            self.updater.mk_assign(inst, IRLiteral(1))
+                            return
+                        if var_range.lo >= lit:
+                            self.updater.mk_assign(inst, IRLiteral(0))
+                            return
 
         lo, hi = int_bounds(bits=256, signed=signed)
 

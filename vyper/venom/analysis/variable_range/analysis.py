@@ -291,6 +291,7 @@ class VariableRangeAnalysis(IRAnalysis):
 
         if isinstance(lhs, IRVariable) and isinstance(rhs, IRLiteral):
             current = state.get(lhs, ValueRange.top())
+            bound = wrap256(rhs.value, signed=signed)
             # For unsigned comparisons with ranges that could include negatives
             if not signed and (current.is_top or current.lo < 0):
                 # Check if this is a "safe" narrowing case
@@ -300,16 +301,16 @@ class VariableRangeAnalysis(IRAnalysis):
                 # gt false (var <= bound): narrow to [0, bound] - safe, excludes negatives
                 is_lt = inst.opcode == "lt"
                 safe_to_narrow = (is_lt and is_true) or (not is_lt and not is_true)
-                if not safe_to_narrow:
+                if not safe_to_narrow or bound > SIGNED_MAX:
                     return state
                 # For safe narrowing, use 0 as min_bound to exclude negatives
                 min_bound = 0
-            bound = wrap256(rhs.value, signed=signed)
             self._narrow_var(
                 state, lhs, bound, inst.opcode, is_true, min_bound, max_bound, left_side=True
             )
         elif isinstance(lhs, IRLiteral) and isinstance(rhs, IRVariable):
             current = state.get(rhs, ValueRange.top())
+            bound = wrap256(lhs.value, signed=signed)
             # Same logic but with left_side=False (bound on left of comparison)
             # lt: bound < var, so var > bound => gt semantics for var
             # gt: bound > var, so var < bound => lt semantics for var
@@ -318,10 +319,9 @@ class VariableRangeAnalysis(IRAnalysis):
                 # With bound on left: lt means var > bound, gt means var < bound
                 # Safe: gt true (var < bound), lt false (var <= bound)
                 safe_to_narrow = (not is_lt and is_true) or (is_lt and not is_true)
-                if not safe_to_narrow:
+                if not safe_to_narrow or bound > SIGNED_MAX:
                     return state
                 min_bound = 0
-            bound = wrap256(lhs.value, signed=signed)
             self._narrow_var(
                 state, rhs, bound, inst.opcode, is_true, min_bound, max_bound, left_side=False
             )
@@ -372,13 +372,24 @@ class VariableRangeAnalysis(IRAnalysis):
                     self._write_range(state, var, current.clamp(bound, max_bound))
 
     def _join_states(self, states: Iterable[RangeState]) -> RangeState:
+        states = list(states)
+        if not states:
+            return {}
+
+        # Missing vars in any predecessor mean TOP; only keep vars in all preds.
+        common_vars = set(states[0].keys())
+        for state in states[1:]:
+            common_vars.intersection_update(state.keys())
+
         merged: RangeState = {}
-        for state in states:
-            for var, rng in state.items():
-                if var in merged:
-                    merged[var] = merged[var].union(rng)
-                else:
-                    merged[var] = rng
+        for var in common_vars:
+            rng = ValueRange.empty()
+            for state in states:
+                rng = rng.union(state[var])
+                if rng.is_top:
+                    break
+            if not rng.is_top:
+                merged[var] = rng
         return merged
 
     def _write_range(self, state: RangeState, var: IRVariable, rng: ValueRange) -> None:
