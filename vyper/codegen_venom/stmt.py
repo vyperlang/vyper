@@ -110,6 +110,19 @@ class Stmt:
         if isinstance(target, vy_ast.Tuple):
             return self._lower_tuple_unpack()
 
+        # Special case: empty DynArray/Bytestring assignment to storage/transient.
+        # Only write length=0, don't copy garbage element slots.
+        # This matches legacy codegen behavior (core.py:_dynarray_make_setter).
+        if isinstance(target_typ, (DArrayT, _BytestringT)):
+            if self._is_empty_value(node.value):
+                dst_ptr = self._get_target_ptr(target)
+                if dst_ptr.location == DataLocation.STORAGE:
+                    self.builder.sstore(dst_ptr.operand, IRLiteral(0))
+                    return
+                elif dst_ptr.location == DataLocation.TRANSIENT:
+                    self.builder.tstore(dst_ptr.operand, IRLiteral(0))
+                    return
+
         # IMPORTANT: Evaluate RHS first, then compute LHS target pointer.
         # This matches legacy codegen and ensures proper semantics for cases
         # like `c[0] = c.pop()` where RHS modifies array length.
@@ -272,6 +285,27 @@ class Stmt:
         self.ctx.ptr_store(dst_ptr, result)
 
     # === Helper Methods ===
+
+    def _is_empty_value(self, node: vy_ast.VyperNode) -> bool:
+        """Check if AST node represents an empty DynArray/Bytestring value.
+
+        Matches legacy codegen's is_empty_intrinsic property.
+        Returns True for: [], b"", empty(DynArray[...]), empty(Bytes[...])
+        """
+        # Empty list literal: []
+        if isinstance(node, vy_ast.List) and len(node.elements) == 0:
+            return True
+
+        # Empty bytes literal: b""
+        if isinstance(node, vy_ast.Bytes) and len(node.value) == 0:
+            return True
+
+        # empty() builtin call
+        if isinstance(node, vy_ast.Call):
+            if isinstance(node.func, vy_ast.Name) and node.func.id == "empty":
+                return True
+
+        return False
 
     def _get_target_ptr(self, target: vy_ast.VyperNode) -> Ptr:
         """Get pointer to assignment target.
