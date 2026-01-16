@@ -110,18 +110,15 @@ class Stmt:
         if isinstance(target, vy_ast.Tuple):
             return self._lower_tuple_unpack()
 
-        # Special case: empty DynArray/Bytestring assignment to storage/transient.
-        # Only write length=0, don't copy garbage element slots.
-        # This matches legacy codegen behavior (core.py:_dynarray_make_setter).
-        if isinstance(target_typ, (DArrayT, _BytestringT)):
-            if self._is_empty_value(node.value):
-                dst_ptr = self._get_target_ptr(target)
-                if dst_ptr.location == DataLocation.STORAGE:
-                    self.builder.sstore(dst_ptr.operand, IRLiteral(0))
-                    return
-                elif dst_ptr.location == DataLocation.TRANSIENT:
-                    self.builder.tstore(dst_ptr.operand, IRLiteral(0))
-                    return
+        # Special case: empty Bytestring assignment to storage/transient.
+        if isinstance(target_typ, _BytestringT) and self._is_empty_value(node.value):
+            dst_ptr = self._get_target_ptr(target)
+            if dst_ptr.location == DataLocation.STORAGE:
+                self.builder.sstore(dst_ptr.operand, IRLiteral(0))
+                return
+            elif dst_ptr.location == DataLocation.TRANSIENT:
+                self.builder.tstore(dst_ptr.operand, IRLiteral(0))
+                return
 
         # IMPORTANT: Evaluate RHS first, then compute LHS target pointer.
         # This matches legacy codegen and ensures proper semantics for cases
@@ -158,15 +155,24 @@ class Stmt:
 
         # Copy temp to dst
         if dst_ptr.location == DataLocation.STORAGE:
-            # For single-word types, store_storage expects the value, not pointer
-            if typ.storage_size_in_words == 1:
+            # DynArray special case: only copy length + actual elements, not full capacity.
+            # This matches legacy codegen behavior (core.py:_dynarray_make_setter).
+            if isinstance(typ, DArrayT):
+                self._copy_dynarray_to_storage(
+                    tmp_val.operand, dst_ptr.operand, typ, transient=False
+                )
+            elif typ.storage_size_in_words == 1:
                 val = self.builder.mload(tmp_val.operand)
                 self.builder.sstore(dst_ptr.operand, val)
             else:
                 self.ctx.store_storage(tmp_val.operand, dst_ptr.operand, typ)
         elif dst_ptr.location == DataLocation.TRANSIENT:
-            # For single-word types, store_transient expects the value, not pointer
-            if typ.storage_size_in_words == 1:
+            # DynArray special case for transient storage
+            if isinstance(typ, DArrayT):
+                self._copy_dynarray_to_storage(
+                    tmp_val.operand, dst_ptr.operand, typ, transient=True
+                )
+            elif typ.storage_size_in_words == 1:
                 val = self.builder.mload(tmp_val.operand)
                 self.builder.tstore(dst_ptr.operand, val)
             else:
@@ -285,6 +291,91 @@ class Stmt:
         self.ctx.ptr_store(dst_ptr, result)
 
     # === Helper Methods ===
+
+    def _copy_dynarray_to_storage(
+        self, src: IROperand, dst_slot: IROperand, typ: DArrayT, transient: bool
+    ) -> None:
+        """Copy DynArray from memory to storage, writing only length + actual elements.
+
+        This matches legacy codegen behavior (core.py:_dynarray_make_setter) which
+        only copies the actual elements, not the full capacity. This is important
+        for hevm symbolic equivalence - slots beyond length should not be modified.
+
+        Args:
+            src: Memory pointer to source DynArray
+            dst_slot: Storage slot for destination
+            typ: DynArray type
+            transient: If True, use tstore instead of sstore
+        """
+        b = self.builder
+
+        # Load length from source (at offset 0)
+        length = b.mload(src)
+
+        elem_typ = typ.value_type
+        elem_words = elem_typ.storage_size_in_words
+
+        # Create loop blocks
+        cond_block = b.create_block("dyn_cond")
+        body_block = b.create_block("dyn_body")
+        exit_block = b.create_block("dyn_exit")
+
+        # Entry: counter = 0, jump to cond
+        counter = b.assign(IRLiteral(0))
+        b.jmp(cond_block.label)
+
+        # Condition: if counter >= length, goto exit, else body
+        b.append_block(cond_block)
+        b.set_block(cond_block)
+        # done = counter >= length = iszero(lt(counter, length))
+        done = b.iszero(b.lt(counter, length))
+        cond_finish = b.current_block
+
+        # Body: copy one element
+        b.append_block(body_block)
+        b.set_block(body_block)
+
+        if elem_words == 1:
+            # Simple case: each element is one storage word
+            # src_offset = 32 + counter * 32
+            src_offset = b.add(IRLiteral(32), b.mul(counter, IRLiteral(32)))
+            src_ptr = b.add(src, src_offset)
+            val = b.mload(src_ptr)
+
+            # dst_slot_i = dst_slot + counter + 1 (skip length word)
+            dst_slot_i = b.add(dst_slot, b.add(counter, IRLiteral(1)))
+            if transient:
+                b.tstore(dst_slot_i, val)
+            else:
+                b.sstore(dst_slot_i, val)
+        else:
+            # Complex case: element spans multiple words
+            elem_mem_size = elem_typ.memory_bytes_required
+            src_offset = b.add(IRLiteral(32), b.mul(counter, IRLiteral(elem_mem_size)))
+            src_ptr = b.add(src, src_offset)
+
+            # dst_slot_i = dst_slot + 1 + counter * elem_words
+            dst_slot_i = b.add(dst_slot, b.add(IRLiteral(1), b.mul(counter, IRLiteral(elem_words))))
+            if transient:
+                self.ctx.store_transient(src_ptr, dst_slot_i, elem_typ)
+            else:
+                self.ctx.store_storage(src_ptr, dst_slot_i, elem_typ)
+
+        # Increment counter and loop
+        new_counter = b.add(counter, IRLiteral(1))
+        b.assign_to(new_counter, counter)
+        b.jmp(cond_block.label)
+
+        # Wire up conditional jump (done after body to have block refs)
+        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
+
+        # Exit block: write length last (matches legacy behavior)
+        b.append_block(exit_block)
+        b.set_block(exit_block)
+        if transient:
+            b.tstore(dst_slot, length)
+        else:
+            b.sstore(dst_slot, length)
 
     def _is_empty_value(self, node: vy_ast.VyperNode) -> bool:
         """Check if AST node represents an empty DynArray/Bytestring value.
