@@ -498,9 +498,10 @@ class VenomCompiler:
             assert log_topic_count in [0, 1, 2, 3, 4], "Invalid topic count"
             operands = inst.operands[1:]
         elif opcode == "ret":
-            # For ret with values, we only treat the return PC as an input operand
-            # The return values must remain on the stack and are not consumed here
-            operands = [inst.operands[-1]]
+            # Schedule all operands (return values + return_pc) to ensure correct stack order.
+            # IR convention: rightmost operand (return_pc) at TOS, values below.
+            # After JUMP consumes return_pc, values are left in correct order for caller.
+            operands = list(inst.operands)
         else:
             operands = inst.operands
 
