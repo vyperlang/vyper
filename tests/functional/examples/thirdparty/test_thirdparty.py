@@ -1,9 +1,11 @@
 import glob
+import warnings
 from pathlib import Path
 
 import pytest
 
 import vyper.compiler as compiler
+import vyper.warnings
 
 dir_path = Path(__file__).parent
 
@@ -19,4 +21,12 @@ def test_compile(vy_filename):
 
     with open(dir_path / vy_filename) as f:
         source_code = f.read()
-    compiler.compile_code(source_code)
+
+    with warnings.catch_warnings():
+        # These examples predate ... being allowed in interfaces
+        warnings.filterwarnings(
+            "ignore",
+            message=r"Please use `\.\.\.` as default value\.",
+            category=vyper.warnings.Deprecation,
+        )
+        compiler.compile_code(source_code)
