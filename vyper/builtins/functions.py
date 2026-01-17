@@ -848,7 +848,7 @@ class Extract32(BuiltinFunctionT):
             output_type = type_from_annotation(node.keywords[0].value)
             if not isinstance(output_type, (AddressT, BytesM_T, IntegerT)):
                 raise InvalidType(
-                    "Output type must be one of integer, bytes32 or address", node.keywords[0].value
+                    "Output type must be one of integer, bytesM or address", node.keywords[0].value
                 )
             output_typedef = TYPE_T(output_type)
             node.keywords[0].value._metadata["type"] = output_typedef
