@@ -763,3 +763,35 @@ def test4(x1: {typ1}, x2: {typ2}) -> ({typ1}, {typ2}):
         assert c.test4(kwarg1, kwarg2) == (kwarg1, kwarg2)
 
     fuzz()
+
+
+@pytest.mark.hevm
+def test_internal_args_mutable_regression(get_contract):
+    """
+    Regression test: internal function arguments should be mutable.
+    Legacy codegen allows reassignment of function parameters.
+    """
+    code = """
+@internal
+def increment(x: uint256) -> uint256:
+    x = x + 1
+    return x
+
+@internal
+def swap_add(a: uint256, b: uint256) -> uint256:
+    temp: uint256 = a
+    a = b
+    b = temp
+    return a + b
+
+@external
+def test_increment() -> uint256:
+    return self.increment(5)
+
+@external
+def test_swap() -> uint256:
+    return self.swap_add(10, 20)
+    """
+    c = get_contract(code)
+    assert c.test_increment() == 6
+    assert c.test_swap() == 30

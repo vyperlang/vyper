@@ -66,7 +66,7 @@ def pytest_addoption(parser):
 def output_formats():
     output_formats = compiler.OUTPUT_FORMATS.copy()
 
-    to_drop = ("bb", "bb_runtime", "cfg", "cfg_runtime", "archive", "archive_b64", "solc_json")
+    to_drop = ("cfg", "cfg_runtime", "archive", "archive_b64", "solc_json")
     for s in to_drop:
         del output_formats[s]
 
@@ -91,29 +91,6 @@ def experimental_codegen(pytestconfig):
     ret = pytestconfig.getoption("experimental_codegen")
     assert isinstance(ret, bool)
     return ret
-
-
-@pytest.fixture(autouse=True)
-def check_venom_xfail(request, experimental_codegen):
-    if not experimental_codegen:
-        return
-
-    marker = request.node.get_closest_marker("venom_xfail")
-    if marker is None:
-        return
-
-    # https://github.com/okken/pytest-runtime-xfail?tab=readme-ov-file#alternatives
-    request.node.add_marker(pytest.mark.xfail(strict=True, **marker.kwargs))
-
-
-@pytest.fixture
-def venom_xfail(request, experimental_codegen):
-    def _xfail(*args, **kwargs):
-        if not experimental_codegen:
-            return
-        request.node.add_marker(pytest.mark.xfail(*args, strict=True, **kwargs))
-
-    return _xfail
 
 
 @pytest.fixture(scope="session")
