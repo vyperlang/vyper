@@ -1456,10 +1456,7 @@ class VariableDecl(VyperNode):
                 "Only public variables can be marked `reentrant`!", self
             )
 
-        if not self.is_constant and self.value is not None:
-            raise VariableDeclarationException(
-                f"{self._pretty_location} variables cannot have an initial value", self.value
-            )
+        # Allow initialization values for all variable types
         if not isinstance(self.target, Name):
             raise VariableDeclarationException("Invalid variable declaration", self.target)
 

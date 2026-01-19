@@ -24,7 +24,7 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
-from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
+from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT, SelfT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.utils import OrderedSet, checksum_encode, int_to_fourbytes
 
@@ -656,6 +656,29 @@ def validate_unique_method_ids(functions: List) -> None:
         seen.add(method_id)
 
 
+def is_naked_self_reference(node: vy_ast.ExprNode) -> bool:
+    """
+    Check if a node is a reference to naked `self` (not `self.attribute`).
+
+    `self` has dual semantics: as an address (runtime constant) vs as storage
+    access (modifiable). Naked `self` refers to the address, while `self.x`
+    accesses storage. This distinction matters for modifiability checks, pure
+    function validation, and other semantic analysis.
+    """
+    if not isinstance(node, vy_ast.Name):
+        return False
+
+    info = get_expr_info(node)
+    if info.var_info is None:
+        return False
+
+    # self is magic. we only need to check it if it is not the root of an Attribute
+    # node. (i.e. it is bare like `self`, not `self.foo`)
+    return isinstance(info.var_info.typ, SelfT) and not isinstance(
+        node.get_ancestor(), vy_ast.Attribute
+    )
+
+
 def check_modifiability(node: vy_ast.ExprNode, modifiability: Modifiability) -> bool:
     """
     Check if the given node is not more modifiable than the given modifiability.
@@ -681,6 +704,10 @@ def check_modifiability(node: vy_ast.ExprNode, modifiability: Modifiability) -> 
         # structs and interfaces
         if hasattr(call_type, "check_modifiability_for_call"):
             return call_type.check_modifiability_for_call(node, modifiability)
+
+    # special case: naked `self` is runtime constant (the address), not modifiable (the storage)
+    if is_naked_self_reference(node):
+        return modifiability >= Modifiability.RUNTIME_CONSTANT
 
     info = get_expr_info(node)
     return info.modifiability <= modifiability
