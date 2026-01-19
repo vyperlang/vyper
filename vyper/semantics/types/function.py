@@ -492,13 +492,7 @@ class ContractFunctionT(VyperType):
 
         overridden_by = funcdef._metadata["overridden_by"] if is_abstract else None
 
-        positional_args, keyword_args = _parse_args(funcdef)
-
-        # Abstract methods cannot have optional parameters
-        if is_abstract and funcdef.args.defaults:
-            raise FunctionDeclarationException(
-                "Abstract methods cannot have optional parameters", funcdef.args.defaults[0]
-            )
+        positional_args, keyword_args = _parse_args(funcdef, is_abstract=is_abstract)
 
         return_type = _parse_return_type(funcdef)
 
@@ -709,15 +703,29 @@ class ContractFunctionT(VyperType):
                         hint="Remove the extra parameter, or add a default value",
                     )
 
-            if p_override.name == p_abstract.name and p_override.typ.is_supertype_of(
-                p_abstract.typ
+            def default_values_match() -> bool:
+                if isinstance(p_abstract, KeywordArg):
+                    if not isinstance(p_override, KeywordArg):
+                        return False
+                    if isinstance(p_abstract.default_value, vy_ast.Ellipsis):
+                        return True
+
+                    # TODO: Add tests with more default values to make sure this is okay
+                    return p_abstract.default_value == p_override.default_value
+                else:
+                    return True
+
+            if (
+                p_override.name == p_abstract.name
+                and p_override.typ.is_supertype_of(p_abstract.typ)
+                and default_values_match()
             ):
                 return None
             else:
                 return FunctionDeclarationException(
                     "Override parameter mismatch: "
                     f"Got {pretty_param(p_override)}, "
-                    f"but expected {pretty_param(p_abstract)} (or a supertype)",
+                    f"but expected {pretty_param(p_abstract)} (or stricter)",
                     p_override.ast_source,
                     p_abstract.ast_source,
                 )
@@ -1175,7 +1183,7 @@ def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
 
 
 def _parse_args(
-    funcdef: vy_ast.FunctionDef, is_interface: bool = False
+    funcdef: vy_ast.FunctionDef, is_interface: bool = False, is_abstract: bool = False
 ) -> tuple[list[PositionalArg], list[KeywordArg]]:
     argnames = set()  # for checking uniqueness
     n_total_args = len(funcdef.args.args)
@@ -1202,18 +1210,20 @@ def _parse_args(
             positional_args.append(PositionalArg(argname, type_, ast_source=arg))
         else:
             value = funcdef.args.defaults[i - n_positional_args]
-            if is_interface:
-                if not isinstance(value, vy_ast.Ellipsis):
-                    vyper_warn(
-                        Deprecation(
-                            "Please use `...` as default value. (Values "
-                            "for default parameters in interfaces have always been ignored.)",
-                            value,
-                        )
+            if is_interface and not isinstance(value, vy_ast.Ellipsis):
+                vyper_warn(
+                    Deprecation(
+                        "Please use `...` as default value. (Values "
+                        "for default parameters in interfaces have always been ignored.)",
+                        value,
                     )
-            elif isinstance(value, vy_ast.Ellipsis):
+                )
+
+            if isinstance(value, vy_ast.Ellipsis) and not (is_interface or is_abstract):
                 raise InvalidLiteral(
-                    "`...` is not allowed as a default value outside of interfaces", value
+                    "`...` is only allowed as a default value in interfaces"
+                    " and for abstract methods.",
+                    value,
                 )
 
             if not check_modifiability(value, Modifiability.RUNTIME_CONSTANT):

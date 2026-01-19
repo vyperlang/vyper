@@ -252,6 +252,27 @@ SUCCESSFUL_OVERRIDES = [
         "10",
         60,
     ),
+    # === ABSTRACT METHODS WITH OPTIONAL PARAMETERS ===
+    # Abstract method with non-valued default parameter
+    (
+        "x: uint256, y: uint256 = 10",
+        "uint256",
+        "x + y",
+        "x: uint256, y: uint256 = ...",
+        "uint256",
+        "5, 15",
+        20,
+    ),
+    # Abstract method with valued default
+    (
+        "x: uint256, y: uint256 = 10",
+        "uint256",
+        "x + y",
+        "x: uint256, y: uint256 = 10",
+        "uint256",
+        "5, 15",
+        20,
+    ),
 ]
 
 FAILING_OVERRIDES = [
@@ -444,25 +465,25 @@ FAILING_OVERRIDES = [
         "Override return type mismatch",
     ),
     # === ABSTRACT METHODS WITH OPTIONAL PARAMETERS ===
-    # Abstract method with one optional parameter
+    # Abstract method with mismatch in default parameter value
     (
-        "x: uint256, y: uint256 = 10",
+        "x: uint256, y: uint256 = 20",
         "uint256",
         "x + y",
         "x: uint256, y: uint256 = 10",
         "uint256",
         FunctionDeclarationException,
-        "Abstract methods cannot have optional parameters",
+        "Override parameter mismatch",
     ),
-    # Abstract method with multiple optional parameters
+    # Optional parameter in abstract cannot be mandatory in override
     (
-        "x: uint256, y: uint256 = 10, z: uint256 = 20",
+        "x: uint256, y: uint256",
         "uint256",
-        "x + y + z",
-        "x: uint256, y: uint256 = 10, z: uint256 = 20",
+        "x + y",
+        "x: uint256, y: uint256 = ...",
         "uint256",
         FunctionDeclarationException,
-        "Abstract methods cannot have optional parameters",
+        "Override parameter mismatch",
     ),
 ]
 
@@ -508,10 +529,22 @@ def bar({params_override}){with_arrow(return_type_override)}:
                 param_list.append(name)
         return ", ".join(param_list)
 
+    def replace_ellipsis_defaults(params: str) -> str:
+        if not params:
+            return ""
+        param_list = []
+        for param in params.split(","):
+            param = param.strip()
+            if "= ..." in param:
+                param = param.replace("= ...", "= 0")
+            param_list.append(param)
+        return ", ".join(param_list)
+
     param_names = extract_param_names(params_abstract)
+    forwarder_params = replace_ellipsis_defaults(params_abstract)
 
     foo = f"""
-def forwarder({params_abstract}){with_arrow(return_type_abstract)}:
+def forwarder({forwarder_params}){with_arrow(return_type_abstract)}:
     return self.bar({param_names})
 
 @abstract
@@ -1079,9 +1112,7 @@ def test_foo() -> uint256:
         get_contract(contract, input_bundle=input_bundle)
 
     assert "abstract_module.vy` is used but never initialized!" in e.value.message
-    assert (
-        "add `initializes: abstract_module` to the top level of your main contract" == e.value.hint
-    )
+    assert "add `initializes: abstract_module`" in e.value.hint
 
 
 def test_three_level_override_chain(get_contract, make_input_bundle):
@@ -1493,3 +1524,62 @@ def foo() -> uint256:
     # TODO: Maybe improve error message so it includes overrides ?
     # Something like a.foo -> b.forwarder -> b.foo -resolves_to-> a.foo
     assert "Contract contains cyclic function call: foo -> forwarder -> foo" == e.value.message
+
+
+OVERRIDE_DEFAULT_PARAM_CALLS = [
+    (
+        "x: uint256, y: uint256 = ...",
+        "x: uint256, y: uint256 = 10",
+        [("x: uint256", "x", (5,), 15), ("x: uint256, y: uint256", "x, y", (5, 20), 25)],
+    ),
+    (
+        "x: uint256, y: uint256 = 10",
+        "x: uint256, y: uint256 = 10",
+        [("x: uint256", "x", (5,), 15), ("x: uint256, y: uint256", "x, y", (5, 20), 25)],
+    ),
+    (
+        "a: uint256, b: uint256 = ..., c: uint256 = ...",
+        "a: uint256, b: uint256 = 10, c: uint256 = 20",
+        [
+            ("a: uint256", "a", (5,), 35),
+            ("a: uint256, b: uint256", "a, b", (5, 15), 40),
+            ("a: uint256, b: uint256, c: uint256", "a, b, c", (5, 15, 25), 45),
+        ],
+    ),
+]
+
+
+@pytest.mark.parametrize("test_case", OVERRIDE_DEFAULT_PARAM_CALLS)
+def test_override_default_params_direct_call(get_contract, make_input_bundle, test_case):
+    """Test calling an override directly with default parameters."""
+    params_abstract, params_override, call_variations = test_case
+
+    if params_override.startswith("x:"):
+        return_expr = "x + y"
+    else:
+        return_expr = "a + b + c"
+
+    abstract_mod = f"""
+@abstract
+def bar({params_abstract}) -> uint256: ...
+    """
+
+    for call_bar_params, call_to_bar, call_bar_args, expected in call_variations:
+        contract = f"""
+import abstract_mod
+
+initializes: abstract_mod
+
+@external
+def call_bar({call_bar_params}) -> uint256:
+    return self.bar({call_to_bar})
+
+@override(abstract_mod)
+def bar({params_override}) -> uint256:
+    return {return_expr}
+        """
+
+        input_bundle = make_input_bundle({"abstract_mod.vy": abstract_mod})
+        c = get_contract(contract, input_bundle=input_bundle)
+
+        assert c.call_bar(*call_bar_args) == expected

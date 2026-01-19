@@ -417,7 +417,14 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         # visit default args
         assert self.func.n_keyword_args == len(self.fn_node.args.defaults)
         for kwarg in self.func.keyword_args:
-            self.expr_visitor.visit(kwarg.default_value, kwarg.typ)
+            # Abstract methods are allowed to have `...` as default
+            # (Interface methods as well, but they do not get analyzed)
+            skip_validation = self.func.is_abstract and isinstance(
+                kwarg.default_value, vy_ast.Ellipsis
+            )
+
+            if not skip_validation:
+                self.expr_visitor.visit(kwarg.default_value, kwarg.typ)
 
     @contextlib.contextmanager
     def enter_for_loop(self, varaccess: Optional[VarAccess]):
