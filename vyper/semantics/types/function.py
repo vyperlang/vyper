@@ -707,8 +707,13 @@ class ContractFunctionT(VyperType):
                 if isinstance(p_abstract, KeywordArg):
                     if not isinstance(p_override, KeywordArg):
                         return False
+
                     if isinstance(p_abstract.default_value, vy_ast.Ellipsis):
                         return True
+
+                    # overrides can themselves be abstract, so this is possible
+                    if isinstance(p_abstract.default_value, vy_ast.Ellipsis):
+                        return False
 
                     # TODO: Add tests with more default values to make sure this is okay
                     return p_abstract.default_value == p_override.default_value
