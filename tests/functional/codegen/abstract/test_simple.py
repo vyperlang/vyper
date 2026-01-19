@@ -252,6 +252,16 @@ SUCCESSFUL_OVERRIDES = [
         "10",
         60,
     ),
+    # Override makes mandatory parameter optional (allowed - more permissive)
+    (
+        "x: uint256, y: uint256 = 10",
+        "uint256",
+        "x + y",
+        "x: uint256, y: uint256",
+        "uint256",
+        "5, 15",
+        20,
+    ),
     # === ABSTRACT METHODS WITH OPTIONAL PARAMETERS ===
     # Abstract method with non-valued default parameter
     (
@@ -1204,6 +1214,47 @@ def test_foo() -> uint256:
         get_contract(contract, input_bundle=input_bundle)
 
     assert "Invalid argument count for call to 'foo': expected 0, got 1" in str(e.value)
+
+
+def test_override_optional_param_still_mandatory_via_abstract(get_contract, make_input_bundle):
+    """Test that we can't omit a mandatory param when calling through abstract,
+    even if the override makes it optional."""
+
+    abstract_module = """
+@abstract
+def foo(x: uint256, y: uint256) -> uint256: ...
+    """
+
+    override_module = """
+import abstract_module
+
+initializes: abstract_module
+
+@override(abstract_module)
+def foo(x: uint256, y: uint256 = 10) -> uint256:
+    return x + y
+    """
+
+    contract = """
+import abstract_module
+import override_module
+
+uses: abstract_module
+initializes: override_module
+
+@external
+def test_foo() -> uint256:
+    return abstract_module.foo(5)  # Missing y - not valid for the abstract!
+    """
+
+    input_bundle = make_input_bundle(
+        {"abstract_module.vy": abstract_module, "override_module.vy": override_module}
+    )
+
+    with pytest.raises(ArgumentException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    assert "Invalid argument count for call to 'foo': expected 2, got 1" in str(e.value)
 
 
 def test_method_overrides_multiple_abstracts(get_contract, make_input_bundle):
