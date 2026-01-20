@@ -151,8 +151,7 @@ While this blind auction is almost functionally identical to the blind auction i
   :lineno-start: 28
   :lines: 28-30
 
-One key difference is that, because Vyper does not allow for dynamic arrays, we
-have limited the number of bids that can be placed by one address to 128 in this
+One difference is that in this example, we use a fixed-size array, limiting the number of bids that can be placed by one address to 128 in this
 example. Bidders who want to make more than this maximum number of bids would
 need to do so from multiple addresses.
 
@@ -227,8 +226,7 @@ the contract will be locked and the seller will no longer be able to call
 ``abort()``.
 
 When the seller calls ``abort()`` and if the ``assert`` statements pass, the
-contract will call the ``selfdestruct()`` function and refunds the seller and
-subsequently destroys the contract.
+contract sends the balance back to the seller, effectively canceling the sale.
 
 .. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.vy
   :language: vyper
@@ -257,7 +255,7 @@ By calling ``received()``, we begin by checking that the contract is indeed
 locked, ensuring that a buyer had previously paid. We also ensure that this
 method is only callable by the buyer. If these two ``assert`` statements pass,
 we refund the buyer their initial deposit and send the seller the remaining
-funds. The contract is finally destroyed and the transaction is complete.
+funds, completing the transaction.
 
 Whenever we’re ready, let’s move on to the next example.
 
@@ -338,8 +336,7 @@ each participant.
 The ``finalize()`` method is used to complete the crowdfunding process. However,
 to complete the crowdfunding, the method first checks to see if the crowdfunding
 period is over and that the balance has reached/passed its set goal. If those
-two conditions pass, the contract calls the ``selfdestruct()`` function and
-sends the collected funds to the beneficiary.
+two conditions pass, the contract sends the collected funds to the beneficiary.
 
 .. note::
   Notice that we have access to the total amount sent to the contract by
