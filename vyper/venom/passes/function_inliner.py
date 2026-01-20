@@ -1,13 +1,12 @@
 from typing import List, Optional
 
-from vyper.compiler.settings import OptimizationLevel
+from vyper.compiler.settings import VenomOptimizationFlags
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, FCGAnalysis, IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
-from vyper.venom.ir_node_to_venom import ENABLE_NEW_CALL_CONV
 from vyper.venom.passes import FloatAllocas
 from vyper.venom.passes.base_pass import IRGlobalPass
 
@@ -26,16 +25,16 @@ class FunctionInlinerPass(IRGlobalPass):
 
     inline_count: int
     fcg: FCGAnalysis
-    optimize: OptimizationLevel
+    flags: VenomOptimizationFlags
 
     def __init__(
         self,
         analyses_caches: dict[IRFunction, IRAnalysesCache],
         ctx: IRContext,
-        optimize: OptimizationLevel,
+        flags: VenomOptimizationFlags,
     ):
         super().__init__(analyses_caches, ctx)
-        self.optimize = optimize
+        self.flags = flags or VenomOptimizationFlags()
 
     def run_pass(self):
         entry = self.ctx.entry_function
@@ -48,7 +47,7 @@ class FunctionInlinerPass(IRGlobalPass):
         for _ in range(function_count):
             candidate = self._select_inline_candidate()
             if candidate is None:
-                return
+                break
 
             # print(f"Inlining function {candidate.name} with cost {candidate.code_size_cost}")
 
@@ -71,16 +70,9 @@ class FunctionInlinerPass(IRGlobalPass):
             if call_count == 1:
                 return func
 
-            # Decide whether to inline based on the optimization level.
-            if self.optimize == OptimizationLevel.CODESIZE:
-                continue
-            elif self.optimize == OptimizationLevel.GAS:
-                if func.code_size_cost <= 15:
-                    return func
-            elif self.optimize == OptimizationLevel.NONE:
-                continue
-            else:  # pragma: nocover
-                raise CompilerPanic(f"Unsupported inlining optimization level: {self.optimize}")
+            # Use the inline threshold from flags
+            if func.code_size_cost <= self.flags.inline_threshold:
+                return func
 
         return None
 
@@ -108,21 +100,21 @@ class FunctionInlinerPass(IRGlobalPass):
                     # inlined any callsites (see demotion of calloca
                     # to alloca below). this handles both cases.
                     if inst.opcode in ("alloca", "calloca"):
-                        _, _, alloca_id_op = inst.operands
+                        assert len(inst.operands) >= 2, inst
+                        alloca_id_op = inst.operands[1]
                         alloca_id = alloca_id_op.value
                         assert isinstance(alloca_id, int)  # help mypy
                         if alloca_id in callocas:
                             # this can happen when we have a->b->c and a->c,
                             # and both b and c get inlined.
                             calloca_inst = callocas[alloca_id]
-                            assert calloca_inst.output is not None
                             inst.opcode = "assign"
                             inst.operands = [calloca_inst.output]
                         else:
                             callocas[alloca_id] = inst
 
                     if inst.opcode == "palloca":
-                        _, _, alloca_id_op = inst.operands
+                        _, alloca_id_op = inst.operands
                         alloca_id = alloca_id_op.value
                         assert isinstance(alloca_id, int)
                         if alloca_id not in callocas:
@@ -131,7 +123,6 @@ class FunctionInlinerPass(IRGlobalPass):
                             continue
                         inst.opcode = "assign"
                         calloca_inst = callocas[alloca_id]
-                        assert calloca_inst.output is not None  # help mypy
                         inst.operands = [calloca_inst.output]
                         found.add(alloca_id)
 
@@ -139,12 +130,13 @@ class FunctionInlinerPass(IRGlobalPass):
                 for inst in bb.instructions:
                     if inst.opcode != "calloca":
                         continue
-                    _, _, alloca_id = inst.operands
-                    if alloca_id in found:
+                    size, alloca_id, callee = inst.operands
+                    if alloca_id.value in found:
                         # demote to alloca so that mem2var will work
                         inst.opcode = "alloca"
+                        inst.operands = [size, alloca_id]
 
-    def _inline_call_site(self, func: IRFunction, call_site: IRInstruction):
+    def _inline_call_site(self, func: IRFunction, call_site: IRInstruction) -> None:
         """
         Inline function into call site.
         """
@@ -190,13 +182,21 @@ class FunctionInlinerPass(IRGlobalPass):
                     # will be handled at the toplevel `inline_function`
                     pass
                 elif inst.opcode == "ret":
-                    if len(inst.operands) > 1:
-                        # sanity check (should remove once new callconv stabilizes)
-                        assert ENABLE_NEW_CALL_CONV
-                        ret_value = inst.operands[0]
-                        bb.insert_instruction(
-                            IRInstruction("assign", [ret_value], call_site.output), -1
-                        )
+                    # ret may be: ret @return_pc  OR  ret v1, v2, ..., @return_pc
+                    # The last operand is the return PC (label or variable);
+                    # all preceding operands (if any) are return values.
+                    ret_values = [op for op in inst.operands[:-1] if not isinstance(op, IRLabel)]
+
+                    # Map each returned value to corresponding callsite outputs
+                    if len(ret_values) > 0:
+                        callsite_outs = call_site.get_outputs()
+                        assert len(ret_values) == len(callsite_outs), (ret_values, call_site)
+                        for idx, ret_value in enumerate(ret_values):
+                            target_out = callsite_outs[idx]
+                            bb.insert_instruction(
+                                IRInstruction("assign", [ret_value], [target_out]), -1
+                            )
+
                     inst.opcode = "jmp"
                     inst.operands = [call_site_return.label]
 
@@ -206,6 +206,7 @@ class FunctionInlinerPass(IRGlobalPass):
 
         call_site_bb.instructions = call_site_bb.instructions[:call_idx]
         call_site_bb.append_instruction("jmp", func_copy.entry.label)
+
         self._fix_phi(call_site_bb, call_site_return)
 
     def _fix_phi(self, orig: IRBasicBlock, new: IRBasicBlock) -> None:
@@ -279,11 +280,10 @@ class FunctionInlinerPass(IRGlobalPass):
             else:
                 ops.append(op)
 
-        output = None
-        if inst.output:
-            output = IRVariable(f"{prefix}{inst.output.plain_name}")
+        all_outputs = inst.get_outputs()
+        cloned_outputs = [IRVariable(f"{prefix}{o.plain_name}") for o in all_outputs]
 
-        clone = IRInstruction(inst.opcode, ops, output)
+        clone = IRInstruction(inst.opcode, ops, cloned_outputs)
         clone.parent = inst.parent
         clone.annotation = inst.annotation
         clone.ast_source = inst.ast_source

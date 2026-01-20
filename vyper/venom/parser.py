@@ -36,7 +36,9 @@ VENOM_GRAMMAR = """
     label_decl: (IDENT | ESCAPED_STRING) ":" NEWLINE+
 
     statement: (assignment | instruction) NEWLINE+
-    assignment: VAR_IDENT "=" expr
+    assignment: lhs "=" expr
+    lhs: VAR_IDENT | lhs_list
+    lhs_list: VAR_IDENT ("," VAR_IDENT)+
     expr: instruction | operand
 
     instruction: IDENT operands_list?
@@ -71,13 +73,12 @@ VENOM_PARSER = Lark(VENOM_GRAMMAR, parser="lalr")
 def _set_last_var(fn: IRFunction):
     for bb in fn.get_basic_blocks():
         for inst in bb.instructions:
-            if inst.output is None:
-                continue
-            value = inst.output.value
-            assert value.startswith("%")
-            varname = value[1:]
-            if varname.isdigit():
-                fn.last_variable = max(fn.last_variable, int(varname))
+            for output in inst.get_outputs():
+                value = output.value
+                assert value.startswith("%")
+                varname = value[1:]
+                if varname.isdigit():
+                    fn.last_variable = max(fn.last_variable, int(varname))
 
 
 def _set_last_label(ctx: IRContext):
@@ -206,13 +207,35 @@ class VenomTransformer(Transformer):
         item = item.replace("_", "")
         return DataItem(bytes.fromhex(item))
 
+    def lhs(self, children):
+        # unwrap VAR_IDENT or lhs_list
+        assert len(children) == 1
+        return children[0]
+
+    def lhs_list(self, children):
+        # list of VAR_IDENTs
+        return children
+
     def assignment(self, children) -> IRInstruction:
-        to, value = children
-        if isinstance(value, IRInstruction):
-            value.output = to
+        left, value = children
+        # Multi-output assignment (e.g., %a, %b = invoke @f)
+        if isinstance(left, list):
+            if not isinstance(value, IRInstruction):
+                raise TypeError("Multi-target assignment requires an instruction on RHS")
+            outs = left
+            value.set_outputs(outs)
             return value
+
+        # Single-target assignment
+        to = left
+
+        if isinstance(value, IRInstruction):
+            value.set_outputs([to])
+            return value
+
         if isinstance(value, (IRLiteral, IRVariable, IRLabel)):
-            return IRInstruction("assign", [value], output=to)
+            return IRInstruction("assign", [value], outputs=[to])
+
         raise TypeError(f"Unexpected value {value} of type {type(value)}")
 
     def expr(self, children) -> IRInstruction | IROperand:

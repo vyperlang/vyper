@@ -6,8 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
-from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
-from vyper.venom.memory_location import MemoryLocation
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRVariable
 
 if TYPE_CHECKING:
     from vyper.venom.context import IRContext
@@ -33,9 +32,12 @@ class IRFunction:
     name: IRLabel  # symbol name
     ctx: IRContext
     args: list
+    # all the pallocas that are needed
+    # TODO try to use only args
+    # Pallocas created during IR construction, keyed by alloca_id.
+    _allocated_args: dict[int, IRInstruction]
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
-    _volatile_memory: list[MemoryLocation]
 
     # Used during code generation
     _ast_source_stack: list[IRnode]
@@ -45,8 +47,8 @@ class IRFunction:
         self.ctx = ctx  # type: ignore
         self.name = name
         self.args = []
+        self._allocated_args = dict()
         self._basic_block_dict = {}
-        self._volatile_memory = []
 
         self.last_variable = 0
 
@@ -118,8 +120,8 @@ class IRFunction:
         varmap: dict[IRVariable, IRVariable] = defaultdict(self.get_next_variable)
         for bb in self.get_basic_blocks():
             for inst in bb.instructions:
-                if inst.output:
-                    inst.output = varmap[inst.output]
+                if inst.has_outputs:
+                    inst.set_outputs([varmap[o] for o in inst.get_outputs()])
 
                 for i, op in enumerate(inst.operands):
                     if not isinstance(op, IRVariable):
@@ -143,6 +145,29 @@ class IRFunction:
                 return param
         return None
 
+    def get_live_pallocas(self) -> Iterator[IRInstruction]:
+        """
+        Return pallocas that haven't been nop'd by earlier passes.
+        """
+        for inst in self._allocated_args.values():
+            if inst.opcode == "palloca":
+                yield inst
+
+    def get_palloca_inst(self, alloca_id: int) -> Optional[IRInstruction]:
+        """
+        Get the palloca instruction for the given alloca_id.
+        Returns None if not found.
+        """
+        return self._allocated_args.get(alloca_id)
+
+    def has_palloca(self, alloca_id: int) -> bool:
+        """Check if an alloca_id exists in the pallocas."""
+        return alloca_id in self._allocated_args
+
+    def set_palloca(self, alloca_id: int, inst: IRInstruction) -> None:
+        """Register a palloca instruction for the given alloca_id."""
+        self._allocated_args[alloca_id] = inst
+
     def get_param_by_name(self, var: IRVariable | str) -> Optional[IRParameter]:
         if isinstance(var, str):
             var = IRVariable(var)
@@ -164,10 +189,6 @@ class IRFunction:
         for bb in self.get_basic_blocks():
             new_bb = bb.copy()
             new.append_basic_block(new_bb)
-
-        # Copy volatile memory locations
-        for mem in self._volatile_memory:
-            new.add_volatile_memory(mem.offset, mem.size)
 
         return new
 
@@ -216,18 +237,3 @@ class IRFunction:
         ret = ret.strip() + "\n}"
         ret += f"  ; close function {self.name}"
         return ret
-
-    def add_volatile_memory(self, offset: int, size: int) -> MemoryLocation:
-        """
-        Add a volatile memory location with the given offset and size.
-        Returns the created MemoryLocation object.
-        """
-        volatile_mem = MemoryLocation(offset=offset, size=size)
-        self._volatile_memory.append(volatile_mem)
-        return volatile_mem
-
-    def get_all_volatile_memory(self) -> list[MemoryLocation]:
-        """
-        Return all volatile memory locations.
-        """
-        return self._volatile_memory
