@@ -12,6 +12,7 @@ Vyper
     :maxdepth: 2
 
     installing-vyper.rst
+    quickstart.rst
     vyper-by-example.rst
 
 .. toctree::
