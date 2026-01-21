@@ -38,7 +38,7 @@ class AssertCombinerPass(IRPass):
                     pending_pred = None
                     continue
 
-                if pending_assert is not None and pending_pred is not None:
+                if pending_assert is not None:
                     if self._can_merge(pending_assert, inst):
                         merged_pred = self._merge_asserts(pending_assert, pending_pred, inst, pred)
                         if merged_pred is not None:
