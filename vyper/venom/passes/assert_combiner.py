@@ -36,13 +36,14 @@ class AssertCombinerPass(IRPass):
                     pending_assert = pending_pred = None
                 continue
 
-            # inst.opcode == "assert"                
+            # inst.opcode == "assert"
             pred = self._get_iszero_operand(inst.operands[0])
             if pred is None:
                 pending_assert = pending_pred = None
                 continue
 
             if pending_assert is not None and self._can_merge(pending_assert, inst):
+                assert pending_pred is not None  # invariant: set together with pending_assert
                 merged = self._merge_asserts(pending_assert, pending_pred, inst, pred)
                 if merged is not None:
                     pending_assert, pending_pred = inst, merged
