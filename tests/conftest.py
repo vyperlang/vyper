@@ -39,7 +39,7 @@ hypothesis.settings.load_profile("ci")
 def pytest_addoption(parser):
     parser.addoption(
         "--optimize",
-        choices=["codesize", "gas", "none"],
+        choices=["codesize", "gas", "none", "O1", "O2", "O3"],
         default="gas",
         help="change optimization mode",
     )
