@@ -217,3 +217,102 @@ def test_non_iszero_between_iszero_asserts():
         sink %3
     """
     _check_pre_post(pre, post)
+
+
+def test_single_assert_unchanged():
+    """A single iszero assert should remain unchanged."""
+    pre = """
+    main:
+        %1 = source
+        %2 = iszero %1
+        assert %2
+        sink %1
+    """
+
+    post = """
+    main:
+        %1 = source
+        %2 = iszero %1
+        assert %2
+        sink %1
+    """
+    _check_pre_post(pre, post)
+
+
+def test_sload_breaks_chain():
+    """Storage read between asserts should break the chain (has read effects)."""
+    pre = """
+    main:
+        %1 = source
+        %2 = iszero %1
+        assert %2
+        %x = sload 0
+        %3 = source
+        %4 = iszero %3
+        assert %4
+        sink %3, %x
+    """
+
+    post = """
+    main:
+        %1 = source
+        %2 = iszero %1
+        assert %2
+        %x = sload 0
+        %3 = source
+        %4 = iszero %3
+        assert %4
+        sink %3, %x
+    """
+    _check_pre_post(pre, post)
+
+
+def test_iszero_of_literal():
+    """iszero of a literal should be combinable."""
+    pre = """
+    main:
+        %1 = iszero 0
+        assert %1
+        %2 = source
+        %3 = iszero %2
+        assert %3
+        sink %2
+    """
+
+    post = """
+    main:
+        %2 = source
+        %4 = or %2, 0
+        %5 = iszero %4
+        assert %5
+        sink %2
+    """
+    _check_pre_post(pre, post)
+
+
+def test_mload_breaks_chain():
+    """Memory read between asserts should break the chain (has read effects)."""
+    pre = """
+    main:
+        %1 = source
+        %2 = iszero %1
+        assert %2
+        %x = mload 0
+        %3 = source
+        %4 = iszero %3
+        assert %4
+        sink %3, %x
+    """
+
+    post = """
+    main:
+        %1 = source
+        %2 = iszero %1
+        assert %2
+        %x = mload 0
+        %3 = source
+        %4 = iszero %3
+        assert %4
+        sink %3, %x
+    """
+    _check_pre_post(pre, post)
