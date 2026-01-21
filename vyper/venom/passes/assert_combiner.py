@@ -31,28 +31,25 @@ class AssertCombinerPass(IRPass):
         pending_pred: Optional[IROperand] = None
 
         for inst in list(instructions):
-            if inst.opcode == "assert":
-                pred = self._get_iszero_operand(inst.operands[0])
-                if pred is None:
-                    pending_assert = None
-                    pending_pred = None
-                    continue
-
-                if pending_assert is not None:
-                    if self._can_merge(pending_assert, inst):
-                        merged_pred = self._merge_asserts(pending_assert, pending_pred, inst, pred)
-                        if merged_pred is not None:
-                            pending_assert = inst
-                            pending_pred = merged_pred
-                            continue
-
-                pending_assert = inst
-                pending_pred = pred
+            if inst.opcode != "assert":
+                if pending_assert is not None and not self._is_safe_between(inst):
+                    pending_assert = pending_pred = None
                 continue
 
-            if pending_assert is not None and not self._is_safe_between(inst):
-                pending_assert = None
-                pending_pred = None
+            # inst.opcode == "assert"                
+            pred = self._get_iszero_operand(inst.operands[0])
+            if pred is None:
+                pending_assert = pending_pred = None
+                continue
+
+            if pending_assert is not None and self._can_merge(pending_assert, inst):
+                merged = self._merge_asserts(pending_assert, pending_pred, inst, pred)
+                if merged is not None:
+                    pending_assert, pending_pred = inst, merged
+                    continue
+
+            # start new pending chain
+            pending_assert, pending_pred = inst, pred
 
     def _can_merge(self, a: IRInstruction, b: IRInstruction) -> bool:
         if a.error_msg != b.error_msg:
