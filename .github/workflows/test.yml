@@ -117,7 +117,7 @@ jobs:
         # declare all variables used in the "include" section here! Conflicting jobs get overwritten by GitHub actions.
         os: [ubuntu]
         python-version: [["3.11", "311"]]  # note: do not forget to replace 311 in the job names when upgrading!
-        opt-mode: [gas, none, codesize]
+        opt-mode: [gas, none, codesize, O1, O2, O3]
         debug: [true, false]
         evm-version: [prague]  # note: when upgrading, check the "include" section below for conflicting jobs
         experimental-codegen: [false]
@@ -154,6 +154,12 @@ jobs:
             opt-mode: none
           - experimental-codegen: true
             opt-mode: codesize
+          - experimental-codegen: true
+            opt-mode: O1
+          - experimental-codegen: true
+            opt-mode: O2
+          - experimental-codegen: true
+            opt-mode: O3
 
           # run across other python versions. we don't really need to run all
           # modes across all python versions - one is enough
