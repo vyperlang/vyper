@@ -10,8 +10,9 @@ Simple Open Auction
 
 As an introductory example of a smart contract written in Vyper, we will begin
 with a simple open auction contract. As we dive into the code,
-it is important to remember that all Vyper syntax is valid Python3 syntax,
-however not all Python3 functionality is available in Vyper.
+it is important to note that Vyper uses Python-like syntax, making it familiar
+to Python developers, but it is a distinct language with its own type system,
+decorators (like ``@deploy``, ``@external``), and keywords.
 
 In this contract, we will be looking at a simple open auction contract where
 participants can submit bids during a limited time period. When the auction
@@ -22,7 +23,7 @@ bid.
   :language: vyper
   :linenos:
 
-As you can see, this example only has a constructor, two methods to call, and
+As you can see, this example only has a constructor, three methods to call, and
 a few variables to manage the contract state. Believe it or not, this is all we
 need for a basic implementation of an auction smart contract.
 
@@ -38,10 +39,9 @@ We initialize a global variable ``beneficiary`` by calling ``public`` on the
 datatype ``address``. The ``beneficiary`` will be the receiver of money from
 the highest bidder.  We also initialize the variables ``auctionStart`` and
 ``auctionEnd`` with the datatype ``uint256`` to manage the open auction
-period and ``highestBid`` with datatype ``uint256``, the smallest
-denomination of ether, to manage auction state. The variable ``ended`` is a
-boolean to determine whether the auction is officially over. The variable ``pendingReturns`` is a ``map`` which
-enables the use of key-value pairs to keep proper track of the auctions withdrawal pattern.
+period and ``highestBid`` with datatype ``uint256`` to manage the highest bid amount in wei. The variable ``ended`` is a
+boolean to determine whether the auction is officially over. The variable ``pendingReturns`` is a ``HashMap`` which
+enables the use of key-value pairs to keep proper track of the auction's withdrawal pattern.
 
 You may notice all of the variables being passed into the ``public``
 function. By declaring the variable *public*, the variable is
@@ -87,12 +87,11 @@ amount of ether a user sends can be accessed by calling ``msg.value``.
 Here, we first check whether the current time is within the bidding period by
 comparing with the auction's start and end times using the ``assert`` function
 which takes any boolean statement. We also check to see if the new bid is greater
-than the highest bid. If the three ``assert`` statements pass, we can safely continue
+than the highest bid. If all three ``assert`` statements pass, we can safely continue
 to the next lines; otherwise, the ``bid()`` method will throw an error and revert the
-transaction. If the two ``assert`` statements and the check that the previous bid is
-not equal to zero pass, we can safely conclude that we have a valid new highest bid.
-We will send back the previous ``highestBid`` to the previous ``highestBidder`` and set
-our new ``highestBid`` and ``highestBidder``.
+transaction. We then record the previous highest bid in the ``pendingReturns`` mapping
+(following the withdrawal pattern for security), and update ``highestBid`` and
+``highestBidder`` to reflect the new winning bid.
 
 .. literalinclude:: ../examples/auctions/simple_open_auction.vy
   :language: vyper
@@ -135,10 +134,8 @@ Blind Auction
 
 
 Before we dive into our other examples, let's briefly explore another type of
-auction that you can build with Vyper. Similar to its counterpart_ written in
-Solidity, this blind auction allows for an auction where there is no time pressure towards the end of the bidding period.
-
-.. _counterpart: https://solidity.readthedocs.io/en/v0.5.0/solidity-by-example.html#id2
+auction that you can build with Vyper. Similar to blind auction examples in
+Solidity, this contract allows for an auction where there is no time pressure towards the end of the bidding period.
 
 .. literalinclude:: ../examples/auctions/blind_auction.vy
   :language: vyper
@@ -322,11 +319,9 @@ Now lets take a look at how a person can participate in the crowdfund.
 Once again, we see the ``@payable`` decorator on a method, which allows a
 person to send some ether along with a call to the method. In this case,
 the ``participate()`` method accesses the sender's address with ``msg.sender``
-and the corresponding amount sent with ``msg.value``. This information is stored
-into a struct and then saved into the ``funders`` mapping with
-``self.nextFunderIndex`` as the key. As more participants are added to the
-mapping, ``self.nextFunderIndex`` increments appropriately to properly index
-each participant.
+and the corresponding amount sent with ``msg.value``. The contribution is added
+to the ``funders`` HashMap, which maps each participant's address to their
+total contribution amount.
 
 .. literalinclude:: ../examples/crowdfund.vy
   :language: vyper
@@ -463,10 +458,9 @@ With all the basic functionality complete, what’s left is simply returning
 the winning proposal. To do this, we have two methods: ``winningProposal()``,
 which returns the key of the proposal, and ``winnerName()``, returning the
 name of the proposal. Notice the ``@view`` decorator on these two methods.
-We do this because the two methods only read the blockchain state and do not
-modify it. Remember, reading the blockchain state is free; modifying the state
-costs gas. By having the ``@view`` decorator, we let the EVM know that this
-is a read-only function and we benefit by saving gas fees.
+The ``@view`` decorator indicates that these functions only read contract state
+and do not modify it. When called externally (not as part of a transaction),
+view functions do not cost gas.
 
 .. literalinclude:: ../examples/voting/ballot.vy
   :language: vyper
@@ -551,8 +545,8 @@ company's address is initialized to hold all shares of the company in the
 
 We will be seeing a few ``@view`` decorators in this contract—which is
 used to decorate methods that simply read the contract state or return a simple
-calculation on the contract state without modifying it. Remember, reading the
-blockchain is free, writing on it is not. Since Vyper is a statically typed
+calculation on the contract state without modifying it. When called externally
+(not as part of a transaction), view functions do not cost gas. Since Vyper is a statically typed
 language, we see an arrow following the definition of the ``_stockAvailable()``
 method, which simply represents the data type which the function is expected
 to return. In the method, we simply key into ``self.holdings`` with the
@@ -649,3 +643,257 @@ This contract has been the most thorough example so far in terms of its
 functionality and features. Yet despite the thoroughness of such a contract, the
 logic remained simple. Hopefully, by now, the Vyper language has convinced you
 of its capabilities and readability in writing smart contracts.
+
+.. index:: storage
+
+Simple Storage
+**************
+
+.. _simple_storage:
+
+Let's start with a minimal contract that demonstrates state storage.
+This contract stores a single integer that can be set by anyone.
+
+.. literalinclude:: ../examples/storage/storage.vy
+  :language: vyper
+  :linenos:
+
+This example shows:
+
+- A public state variable ``storedData`` with an auto-generated getter
+- A constructor (``__init__``) that sets the initial value
+- An external function ``set()`` that modifies state
+
+The ``public`` modifier on ``storedData`` automatically creates a getter function,
+so external contracts can read the value by calling ``contract.storedData()``.
+
+.. index:: storage;advanced
+
+Advanced Storage
+****************
+
+.. _advanced_storage:
+
+Building on the simple storage example, this contract adds input validation,
+events, and a reset function.
+
+.. literalinclude:: ../examples/storage/advanced_storage.vy
+  :language: vyper
+  :linenos:
+
+New concepts introduced:
+
+- **Events**: The ``DataChange`` event logs who changed the value and what they changed it to. The ``indexed`` keyword allows filtering by the setter's address.
+- **Assertions with messages**: ``assert _x >= 0, "No negative values"`` reverts with a readable error.
+- **Business logic guards**: The contract locks when the stored value reaches 100.
+
+.. index:: name registry
+
+Name Registry
+*************
+
+.. _name_registry:
+
+A minimal name registry that maps names to addresses. Once a name is registered,
+it cannot be changed.
+
+.. literalinclude:: ../examples/name_registry/name_registry.vy
+  :language: vyper
+  :linenos:
+
+This pattern is useful for:
+
+- ENS-like name services
+- Service discovery
+- Any first-come-first-served registration system
+
+The ``assert self.registry[name] == empty(address)`` check ensures names cannot be overwritten.
+
+.. index:: tokens;ERC20, ERC20
+
+ERC20 Token
+***********
+
+.. _erc20:
+
+A standard ERC20 fungible token implementation.
+
+.. literalinclude:: ../examples/tokens/ERC20.vy
+  :language: vyper
+  :linenos:
+
+Key features:
+
+- Implements the ``IERC20`` and ``IERC20Detailed`` interfaces from ``ethereum.ercs``
+- Standard ``transfer``, ``transferFrom``, and ``approve`` functions
+- ``mint`` and ``burn`` functions for supply management
+- Uses ``HashMap`` for balances and allowances
+
+.. note::
+
+   This is example code. Production tokens require additional security review.
+
+Notice how Vyper's overflow protection is built-in: the comment "vyper does not allow underflows"
+explains why no explicit check is needed when subtracting from balances.
+
+.. index:: tokens;ERC721, ERC721, NFT
+
+ERC721 Non-Fungible Token
+*************************
+
+.. _erc721:
+
+A standard ERC721 (NFT) implementation with minting and burning.
+
+.. literalinclude:: ../examples/tokens/ERC721.vy
+  :language: vyper
+  :linenos:
+
+This implementation includes:
+
+- ``mint`` and ``burn`` functions controlled by a minter address
+- ``safeTransferFrom`` with receiver callback verification
+- Operator approval via ``setApprovalForAll``
+- ERC165 interface detection
+
+The ``safeTransferFrom`` function checks if the recipient is a contract and, if so,
+calls ``onERC721Received`` to ensure the recipient can handle NFTs.
+
+.. index:: tokens;ERC1155, ERC1155
+
+ERC1155 Multi-Token
+*******************
+
+.. _erc1155:
+
+ERC1155 supports both fungible and non-fungible tokens in a single contract.
+This implementation includes ownership and pause functionality.
+
+.. literalinclude:: ../examples/tokens/ERC1155ownable.vy
+  :language: vyper
+  :linenos:
+
+Features beyond the base ERC1155 standard:
+
+- **Ownable**: Only the owner can mint tokens
+- **Pausable**: Owner can pause all transfers
+- **Batch operations**: ``mintBatch``, ``burnBatch``, ``safeBatchTransferFrom``
+- **Dynamic URI**: Optional per-token metadata URIs
+
+The ``BATCH_SIZE`` constant (128) limits array sizes for gas predictability—a Vyper requirement.
+
+.. index:: tokens;ERC4626, ERC4626, vault
+
+ERC4626 Tokenized Vault
+***********************
+
+.. _erc4626:
+
+ERC4626 standardizes yield-bearing vaults. Users deposit assets and receive shares
+representing their portion of the vault.
+
+.. literalinclude:: ../examples/tokens/ERC4626.vy
+  :language: vyper
+  :linenos:
+
+The vault implements:
+
+- ``deposit`` / ``withdraw``: Exchange assets for shares
+- ``mint`` / ``redeem``: Exchange shares for assets
+- Share price calculation based on ``totalAssets / totalSupply``
+
+.. note::
+
+   The ``DEBUG_steal_tokens`` function is for testing share price changes.
+   Do not include in production code.
+
+.. index:: market maker, AMM
+
+On-Chain Market Maker
+*********************
+
+.. _market_maker:
+
+A simple automated market maker (AMM) using the constant product formula (x * y = k).
+
+.. literalinclude:: ../examples/market_maker/on_chain_market_maker.vy
+  :language: vyper
+  :linenos:
+
+How it works:
+
+1. Owner calls ``initiate()`` with initial ETH and tokens, setting the invariant (k = ETH * tokens)
+2. Users swap ETH for tokens via ``ethToTokens()``
+3. Users swap tokens for ETH via ``tokensToEth()``
+4. The invariant is maintained: more ETH in = fewer tokens out
+
+The 0.2% fee (``msg.value // 500``) goes to the liquidity provider.
+
+.. note::
+
+   Production AMMs need price oracles, slippage protection, and liquidity management.
+   This example demonstrates the core swap mechanism only.
+
+.. index:: factory pattern
+
+Factory Pattern
+***************
+
+.. _factory:
+
+The factory pattern deploys and registers multiple contract instances.
+This example shows a factory that registers exchanges and routes trades between them.
+
+**Factory Contract:**
+
+.. literalinclude:: ../examples/factory/Factory.vy
+  :language: vyper
+  :linenos:
+
+**Exchange Contract:**
+
+.. literalinclude:: ../examples/factory/Exchange.vy
+  :language: vyper
+  :linenos:
+
+How the pattern works:
+
+1. Deploy the Exchange code and record its ``codehash``
+2. Deploy the Factory with the exchange codehash
+3. Deploy Exchange instances (one per token)
+4. Each Exchange calls ``factory.register()`` to register itself
+5. The Factory verifies the caller's codehash matches the expected exchange code
+6. Users can now trade between any registered tokens via ``factory.trade()``
+
+The ``msg.sender.codehash`` check ensures only legitimate exchange contracts can register.
+
+.. index:: wallet, multisig
+
+Multi-Signature Wallet
+**********************
+
+.. _wallet:
+
+A multi-signature wallet requiring multiple owner approvals to execute transactions.
+
+.. literalinclude:: ../examples/wallet/wallet.vy
+  :language: vyper
+  :linenos:
+
+Key concepts:
+
+- **Threshold signatures**: Requires ``threshold`` out of 5 owners to approve
+- **Signature verification**: Uses ``ecrecover`` to verify owner signatures
+- **Replay protection**: ``seq`` counter prevents transaction replay
+- **Arbitrary calls**: ``raw_call`` executes any transaction once approved
+
+The approval process:
+
+1. Owners sign a hash of (sequence number, destination, value, data)
+2. Anyone can call ``approve()`` with the collected signatures
+3. If enough valid signatures are provided, the transaction executes
+
+.. note::
+
+   This demonstrates signature verification patterns. Production multisigs
+   need additional safeguards like time locks and nonce management.
