@@ -92,8 +92,8 @@ def test_interface_collision():
         "sources": {"foo.vy": {"content": FOO_CODE}},
         "interfaces": {"bar.json": {"abi": BAR_ABI}, "bar.vy": {"content": BAR_CODE}},
     }
-    with pytest.raises(JSONError):
-        get_inputs(input_json)
+    # don't throw, bar.json and bar.vy have different paths
+    get_inputs(input_json)
 
 
 def test_json_no_abi():
