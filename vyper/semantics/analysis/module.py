@@ -13,6 +13,7 @@ from vyper.exceptions import (
     InterfaceViolation,
     InvalidLiteral,
     InvalidType,
+    NamespaceCollision,
     StateAccessViolation,
     StructureException,
     UndeclaredDefinition,
@@ -579,7 +580,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
                 self._add_exposed_function(func_t, item, relax=False)
                 with tag_exceptions(item):  # tag exceptions with specific item
-                    self._self_t.typ.add_member(func_t.name, func_t)
+                    export_name = item.node_source_code
+                    self._self_t.typ.add_member_with_export_context(func_t.name, func_t, export_name)
 
                     exported_funcs.append(func_t)
 
@@ -602,7 +604,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # call this before self._self_t.typ.add_member() for exception raising
         # priority
         if not relax and (prev_decl := self._all_functions.get(func_t)) is not None:
-            raise StructureException("already exported!", node, prev_decl=prev_decl)
+            export_name = node.node_source_code
+            raise StructureException(f"export `{export_name}` already exported!", node, prev_decl=prev_decl)
 
         self._all_functions[func_t] = node
 
