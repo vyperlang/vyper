@@ -409,6 +409,80 @@ Vyper:
 
    The ``extcall`` keyword is required for all state-changing external calls. There is no implicit external call syntax in Vyper: every external call is syntactically marked.
 
+Structs
+-------
+
+Solidity:
+
+.. code-block:: solidity
+
+    struct Person {
+        string name;
+        uint256 age;
+    }
+
+    Person public owner;
+
+Vyper:
+
+.. code-block:: vyper
+
+    struct Person:
+        name: String[64]
+        age: uint256
+
+    owner: public(Person)
+
+Note that Vyper strings require explicit maximum length (``String[64]``).
+
+Constants and Immutables
+------------------------
+
+Solidity:
+
+.. code-block:: solidity
+
+    uint256 constant FEE = 100;
+    address immutable owner;
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+Vyper:
+
+.. code-block:: vyper
+
+    FEE: constant(uint256) = 100
+    owner: immutable(address)
+
+    @deploy
+    def __init__():
+        owner = msg.sender
+
+``constant`` values are inlined at compile time. ``immutable`` values are set once during deployment and cannot be changed.
+
+Default Function
+----------------
+
+Solidity:
+
+.. code-block:: solidity
+
+    fallback() external payable { }
+    receive() external payable { }
+
+Vyper:
+
+.. code-block:: vyper
+
+    @external
+    @payable
+    def __default__():
+        pass
+
+Vyper uses a single ``__default__`` function for both fallback and receive. It executes when no other function matches or when receiving plain ETH.
+
 Why Vyper?
 ==========
 
