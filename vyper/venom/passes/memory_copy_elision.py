@@ -1,5 +1,11 @@
 from vyper.evm.address_space import MEMORY
-from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis, LivenessAnalysis, MemOverwriteAnalysis
+from vyper.venom.analysis import (
+    BasePtrAnalysis,
+    CFGAnalysis,
+    DFGAnalysis,
+    LivenessAnalysis,
+    MemOverwriteAnalysis,
+)
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
 from vyper.venom.effects import Effects
 from vyper.venom.memory_location import MemoryLocation

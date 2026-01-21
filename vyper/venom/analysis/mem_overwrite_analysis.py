@@ -47,8 +47,7 @@ class MemOverwriteAnalysis(IRAnalysis):
         # This ensures loops converge correctly - starting with "everything
         # overwritten" and refining via intersection.
         self.mem_overwritten = {
-            bb: OrderedSet([MemoryLocation.ALL])
-            for bb in self.function.get_basic_blocks()
+            bb: OrderedSet([MemoryLocation.ALL]) for bb in self.function.get_basic_blocks()
         }
         self.mem_start = {bb: OrderedSet() for bb in self.function.get_basic_blocks()}
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
@@ -91,14 +90,15 @@ class MemOverwriteAnalysis(IRAnalysis):
 
     def _handle_bb(self, bb: IRBasicBlock) -> LatticeItem:
         succs = self.cfg.cfg_out(bb)
+        lattice_item: LatticeItem
         if len(succs) > 0:
-            lattice_item: LatticeItem = self.mem_overwritten[succs.first()].copy()
+            lattice_item = self.mem_overwritten[succs.first()].copy()
             for succ in self.cfg.cfg_out(bb):
                 lattice_item = join(lattice_item, self.mem_overwritten[succ])
         elif bb.instructions[-1].opcode in ("stop", "sink"):
-            lattice_item: LatticeItem = OrderedSet([MemoryLocation.ALL])
+            lattice_item = OrderedSet([MemoryLocation.ALL])
         else:
-            lattice_item: LatticeItem = OrderedSet([])
+            lattice_item = OrderedSet([])
 
         self.mem_start[bb] = lattice_item
 
