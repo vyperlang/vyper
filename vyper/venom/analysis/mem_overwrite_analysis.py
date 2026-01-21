@@ -39,11 +39,17 @@ def carve_out(write: MemoryLocation, read: MemoryLocation) -> list[MemoryLocatio
 
 
 class MemOverwriteAnalysis(IRAnalysis):
-    mem_rewriten: dict[IRBasicBlock, LatticeItem]
+    mem_overwritten: dict[IRBasicBlock, LatticeItem]
     mem_start: dict[IRBasicBlock, LatticeItem]
 
     def analyze(self):
-        self.mem_rewriten = {bb: OrderedSet() for bb in self.function.get_basic_blocks()}
+        # Initialize with TOP (ALL) for backward must-analysis.
+        # This ensures loops converge correctly - starting with "everything
+        # overwritten" and refining via intersection.
+        self.mem_overwritten = {
+            bb: OrderedSet([MemoryLocation.ALL])
+            for bb in self.function.get_basic_blocks()
+        }
         self.mem_start = {bb: OrderedSet() for bb in self.function.get_basic_blocks()}
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
@@ -54,39 +60,50 @@ class MemOverwriteAnalysis(IRAnalysis):
             change = False
             for bb in order:
                 res = self._handle_bb(bb)
-                if self.mem_rewriten[bb] != res:
+                if self.mem_overwritten[bb] != res:
                     change = True
-                    self.mem_rewriten[bb] = res
+                    self.mem_overwritten[bb] = res
 
             if not change:
                 break
 
+    def _apply_transfer(self, inst: IRInstruction, lattice_item: LatticeItem) -> LatticeItem:
+        """
+        Apply backward transfer function for one instruction.
+        Returns the updated lattice item.
+        """
+        read_loc = self.base_ptrs.get_read_location(inst, MEMORY)
+        write_loc = self.base_ptrs.get_write_location(inst, MEMORY)
+
+        if write_loc != MemoryLocation.EMPTY and write_loc.is_fixed:
+            lattice_item.add(write_loc)
+
+        if not read_loc.is_fixed:
+            return OrderedSet()
+
+        if read_loc.is_fixed:
+            tmp: LatticeItem = OrderedSet()
+            for loc in lattice_item:
+                tmp.addmany(carve_out(write=loc, read=read_loc))
+            return tmp
+
+        return lattice_item
+
     def _handle_bb(self, bb: IRBasicBlock) -> LatticeItem:
         succs = self.cfg.cfg_out(bb)
         if len(succs) > 0:
-            lattice_item: LatticeItem = self.mem_rewriten[succs.first()].copy()
+            lattice_item: LatticeItem = self.mem_overwritten[succs.first()].copy()
             for succ in self.cfg.cfg_out(bb):
-                lattice_item = join(lattice_item, self.mem_rewriten[succ])
+                lattice_item = join(lattice_item, self.mem_overwritten[succ])
         elif bb.instructions[-1].opcode in ("stop", "sink"):
             lattice_item: LatticeItem = OrderedSet([MemoryLocation.ALL])
         else:
             lattice_item: LatticeItem = OrderedSet([])
 
-
         self.mem_start[bb] = lattice_item
 
         for inst in reversed(bb.instructions):
-            read_loc = self.base_ptrs.get_read_location(inst, MEMORY)
-            write_loc = self.base_ptrs.get_write_location(inst, MEMORY)
-            if write_loc != MemoryLocation.EMPTY and write_loc.is_fixed:
-                lattice_item.add(write_loc)
-            if not read_loc.is_fixed:
-                lattice_item = OrderedSet()
-            if read_loc.is_fixed:
-                tmp: LatticeItem = OrderedSet()
-                for loc in lattice_item:
-                    tmp.addmany(carve_out(write=loc, read=read_loc))
-                lattice_item = tmp
+            lattice_item = self._apply_transfer(inst, lattice_item)
 
         return lattice_item
 
@@ -94,14 +111,4 @@ class MemOverwriteAnalysis(IRAnalysis):
         lattice_item = self.mem_start[bb]
         for inst in reversed(bb.instructions):
             yield (inst, lattice_item)
-            read_loc = self.base_ptrs.get_read_location(inst, MEMORY)
-            write_loc = self.base_ptrs.get_write_location(inst, MEMORY)
-            if write_loc != MemoryLocation.EMPTY and write_loc.is_fixed:
-                lattice_item.add(write_loc)
-            if not read_loc.is_fixed:
-                lattice_item = OrderedSet()
-            if read_loc.is_fixed:
-                tmp: LatticeItem = OrderedSet()
-                for loc in lattice_item:
-                    tmp.addmany(carve_out(write=loc, read=read_loc))
-                lattice_item = tmp
+            lattice_item = self._apply_transfer(inst, lattice_item)

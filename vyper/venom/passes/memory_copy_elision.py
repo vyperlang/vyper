@@ -50,7 +50,7 @@ class MemoryCopyElisionPass(IRPass):
                 continue
             overlap = [loc for loc in state if loc.completely_contains(write_loc)]
             if len(overlap) > 0:
-                self.updater.nop(inst, annotation="remove unnecessery effects")
+                self.updater.nop(inst, annotation="remove unnecessary effects")
 
     def _process_basic_block(self, bb: IRBasicBlock):
         """Process a basic block to find and elide memory copies."""

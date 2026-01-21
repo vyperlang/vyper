@@ -665,7 +665,6 @@ def test_remove_unused_writes_with_read():
     _check_pre_post(pre, post)
 
 
-@pytest.mark.xfail
 def test_remove_unused_writes_with_read_loop():
     pre = """
     main:
