@@ -154,6 +154,12 @@ jobs:
             opt-mode: none
           - experimental-codegen: true
             opt-mode: codesize
+          - experimental-codegen: true
+            opt-mode: O1
+          - experimental-codegen: true
+            opt-mode: O2
+          - experimental-codegen: true
+            opt-mode: O3
 
           # run across other python versions. we don't really need to run all
           # modes across all python versions - one is enough
