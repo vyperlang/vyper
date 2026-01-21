@@ -1,8 +1,8 @@
 from vyper.evm.address_space import MEMORY
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis, MemOverwriteAnalysis
+from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis, LivenessAnalysis, MemOverwriteAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
 from vyper.venom.effects import Effects
-from vyper.venom.memory_location import MemoryLocation, get_read_location, get_write_location
+from vyper.venom.memory_location import MemoryLocation
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
@@ -24,6 +24,7 @@ class MemoryCopyElisionPass(IRPass):
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.updater = InstUpdater(self.dfg)
 
         for bb in self.function.get_basic_blocks():
@@ -42,7 +43,7 @@ class MemoryCopyElisionPass(IRPass):
         for inst, state in self.mem_overwrite.bb_iterator(bb):
             if inst.output is not None:
                 continue
-            write_loc = get_write_location(inst, MEMORY)
+            write_loc = self.base_ptrs.get_write_location(inst, MEMORY)
             if write_loc == MemoryLocation.EMPTY:
                 continue
             if not write_loc.is_fixed:
@@ -92,8 +93,8 @@ class MemoryCopyElisionPass(IRPass):
 
             elif inst.opcode == "mcopy":
                 # Handle mcopy operations
-                src_loc = get_read_location(inst, MEMORY)
-                dst_loc = get_write_location(inst, MEMORY)
+                src_loc = self.base_ptrs.get_read_location(inst, MEMORY)
+                dst_loc = self.base_ptrs.get_write_location(inst, MEMORY)
 
                 # Only process if we have fixed locations
                 if src_loc.is_fixed and dst_loc.is_fixed:
@@ -168,7 +169,7 @@ class MemoryCopyElisionPass(IRPass):
 
             elif inst.opcode in ("calldatacopy", "codecopy", "returndatacopy", "dloadbytes"):
                 # These also perform memory copies and can start chains
-                dst_loc = get_write_location(inst, MEMORY)
+                dst_loc = self.base_ptrs.get_write_location(inst, MEMORY)
 
                 # Only process if we have fixed destination
                 if dst_loc.is_fixed:
@@ -433,7 +434,7 @@ class MemoryCopyElisionPass(IRPass):
             mcopy_chain.clear()
             return
 
-        write_loc = get_write_location(inst, MEMORY)
+        write_loc = self.base_ptrs.get_write_location(inst, MEMORY)
         if not write_loc.is_fixed:
             # Conservative: clear all
             mcopy_chain.clear()

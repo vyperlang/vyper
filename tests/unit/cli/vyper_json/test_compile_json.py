@@ -208,11 +208,13 @@ def test_compile_json(input_json, input_bundle, experimental_codegen):
                     "object": data["bytecode"],
                     "opcodes": data["opcodes"],
                     "sourceMap": data["source_map"],
+                    "symbolMap": data["symbol_map"],
                 },
                 "deployedBytecode": {
                     "object": data["bytecode_runtime"],
                     "opcodes": data["opcodes_runtime"],
                     "sourceMap": data["source_map_runtime"],
+                    "symbolMap": data["symbol_map_runtime"],
                 },
                 "methodIdentifiers": data["method_identifiers"],
             },
@@ -401,6 +403,46 @@ def test_compile_json_with_experimental_codegen():
     assert venom["bb_runtime"] == repr(expected["bb_runtime"])
     assert venom["cfg"] == expected["cfg"]
     assert venom["cfg_runtime"] == expected["cfg_runtime"]
+
+
+def test_compile_json_subgraph_label():
+    foo_code = """
+a: uint256
+b: address
+
+@internal
+def _foo(f: uint256, g: address) -> uint256:
+    self.a = f
+    self.b = g
+    return self.a
+
+
+@internal
+def _bar(f: uint256, g: address) -> uint256:
+    self._foo(f, g)
+    self._foo(f, g)
+    return self.a
+
+
+@external
+def call_foo(amount: uint256, account: address) -> uint256:
+    return self._bar(amount, account)
+    """
+    code = {
+        "language": "Vyper",
+        "sources": {"foo.vy": {"content": foo_code}},
+        "settings": {
+            "evmVersion": "cancun",
+            "optimize": "gas",
+            "venomExperimental": True,
+            "search_paths": ["."],
+            "outputSelection": {"*": ["cfg_runtime"]},
+        },
+    }
+    output_json = compile_json(code)
+    venom = output_json["contracts"]["foo.vy"]["foo"]["venom"]
+    # ensure that quotes are formatted properly in the output
+    assert 'subgraph "internal 0 _foo(uint256,address)_runtime"' in venom["cfg_runtime"]
 
 
 def test_compile_json_without_experimental_codegen():

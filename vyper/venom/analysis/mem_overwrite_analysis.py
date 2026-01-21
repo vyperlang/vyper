@@ -2,10 +2,10 @@ from typing import Iterator
 
 from vyper.evm.address_space import MEMORY
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis
+from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
-from vyper.venom.memory_location import MemoryLocation, get_read_location, get_write_location
+from vyper.venom.memory_location import MemoryLocation
 
 LatticeItem = OrderedSet[MemoryLocation]
 
@@ -46,6 +46,7 @@ class MemOverwriteAnalysis(IRAnalysis):
         self.mem_rewriten = {bb: OrderedSet() for bb in self.function.get_basic_blocks()}
         self.mem_start = {bb: OrderedSet() for bb in self.function.get_basic_blocks()}
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
 
         order = self.cfg.dfs_post_walk
 
@@ -75,8 +76,8 @@ class MemOverwriteAnalysis(IRAnalysis):
         self.mem_start[bb] = lattice_item
 
         for inst in reversed(bb.instructions):
-            read_loc = get_read_location(inst, MEMORY)
-            write_loc = get_write_location(inst, MEMORY)
+            read_loc = self.base_ptrs.get_read_location(inst, MEMORY)
+            write_loc = self.base_ptrs.get_write_location(inst, MEMORY)
             if write_loc != MemoryLocation.EMPTY and write_loc.is_fixed:
                 lattice_item.add(write_loc)
             if not read_loc.is_fixed:
@@ -94,8 +95,8 @@ class MemOverwriteAnalysis(IRAnalysis):
         print(bb.label, lattice_item)
         for inst in reversed(bb.instructions):
             yield (inst, lattice_item)
-            read_loc = get_read_location(inst, MEMORY)
-            write_loc = get_write_location(inst, MEMORY)
+            read_loc = self.base_ptrs.get_read_location(inst, MEMORY)
+            write_loc = self.base_ptrs.get_write_location(inst, MEMORY)
             if write_loc != MemoryLocation.EMPTY and write_loc.is_fixed:
                 lattice_item.add(write_loc)
             if not read_loc.is_fixed:

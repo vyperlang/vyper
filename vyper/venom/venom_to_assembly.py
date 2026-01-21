@@ -1,15 +1,18 @@
+from __future__ import annotations
+
 from typing import Any, Iterable
 
-from vyper.exceptions import CompilerPanic, StackTooDeep
+from vyper.evm.assembler.instructions import DATA_ITEM, PUSH, DataHeader
+from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import (
-    PUSH,
-    DataHeader,
-    Instruction,
-    RuntimeHeader,
-    mksymbol,
+    PUSH_OFST,
+    PUSHLABEL,
+    AssemblyInstruction,
+    Label,
+    TaggedInstruction,
     optimize_assembly,
 )
-from vyper.utils import MemoryPositions, OrderedSet, wrap256
+from vyper.utils import OrderedSet, wrap256
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import (
     PSEUDO_INSTRUCTION,
@@ -22,8 +25,8 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.context import IRContext, IRFunction
-from vyper.venom.passes import NormalizationPass
 from vyper.venom.stack_model import StackModel
+from vyper.venom.stack_spiller import StackSpiller
 
 DEBUG_SHOW_COST = False
 if DEBUG_SHOW_COST:
@@ -38,7 +41,6 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "calldatacopy",
         "mcopy",
         "calldataload",
-        "codecopy",
         "gas",
         "gasprice",
         "gaslimit",
@@ -107,22 +109,27 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
     ]
 )
 
-_REVERT_POSTAMBLE = ["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
+_REVERT_POSTAMBLE = [Label("revert"), *PUSH(0), "DUP1", "REVERT"]
 
 
 def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
     ret = []
     for op in asm:
-        if isinstance(op, str) and not isinstance(op, Instruction):
-            ret.append(Instruction(op, inst.ast_source, inst.error_msg))
+        if isinstance(op, str) and not isinstance(op, TaggedInstruction):
+            ret.append(TaggedInstruction(op, inst.ast_source, inst.error_msg))
         else:
             ret.append(op)
     return ret  # type: ignore
 
 
-def _as_asm_symbol(label: IRLabel) -> str:
+def _as_asm_symbol(label: IRLabel) -> Label:
     # Lower an IRLabel to an assembly symbol
-    return f"_sym_{label.value}"
+    return Label(label.value)
+
+
+def _ofst(label: Label, value: int) -> list[Any]:
+    # resolve at compile time using magic PUSH_OFST op
+    return [PUSH_OFST(label, value)]
 
 
 # TODO: "assembly" gets into the recursion due to how the original
@@ -134,95 +141,109 @@ def _as_asm_symbol(label: IRLabel) -> str:
 # with the assembler. My suggestion is to let this be for now, and we can
 # refactor it later when we are finished phasing out the old IR.
 class VenomCompiler:
-    ctxs: list[IRContext]
+    ctx: IRContext
     label_counter = 0
     visited_basicblocks: OrderedSet  # {IRBasicBlock}
     liveness: LivenessAnalysis
     dfg: DFGAnalysis
     cfg: CFGAnalysis
 
-    def __init__(self, ctxs: list[IRContext]):
-        self.ctxs = ctxs
+    def __init__(self, ctx: IRContext):
+        # TODO: maybe just accept a single IRContext
+        self.ctx = ctx
         self.label_counter = 0
         self.visited_basicblocks = OrderedSet()
+        self.spiller = StackSpiller(ctx)
 
-    def generate_evm(self, no_optimize: bool = False) -> list[str]:
+    def mklabel(self, name: str) -> Label:
+        self.label_counter += 1
+        return Label(f"{name}_{self.label_counter}")
+
+    def generate_evm_assembly(self, no_optimize: bool = False) -> list[AssemblyInstruction]:
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
 
-        asm: list[Any] = []
-        top_asm = asm
+        asm: list[AssemblyInstruction] = []
 
-        for ctx in self.ctxs:
-            for fn in ctx.functions.values():
-                ac = IRAnalysesCache(fn)
+        for fn in self.ctx.functions.values():
+            ac = IRAnalysesCache(fn)
 
-                NormalizationPass(ac, fn).run_pass()
-                self.liveness = ac.request_analysis(LivenessAnalysis)
-                self.dfg = ac.request_analysis(DFGAnalysis)
-                self.cfg = ac.request_analysis(CFGAnalysis)
+            self.liveness = ac.request_analysis(LivenessAnalysis)
+            self.dfg = ac.request_analysis(DFGAnalysis)
+            self.cfg = ac.request_analysis(CFGAnalysis)
 
-                assert self.cfg.is_normalized(), "Non-normalized CFG!"
+            assert self.cfg.is_normalized(), "Non-normalized CFG!"
 
-                self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
+            self.spiller.set_current_function(fn)
+            self.spiller.reset_spill_slots()
 
-            # TODO make this property on IRFunction
-            asm.extend(["_sym__ctor_exit", "JUMPDEST"])
-            if ctx.immutables_len is not None and ctx.ctor_mem_size is not None:
-                asm.extend(
-                    ["_sym_subcode_size", "_sym_runtime_begin", "_mem_deploy_start", "CODECOPY"]
-                )
-                asm.extend(["_OFST", "_sym_subcode_size", ctx.immutables_len])  # stack: len
-                asm.extend(["_mem_deploy_start"])  # stack: len mem_ofst
-                asm.extend(["RETURN"])
-                asm.extend(_REVERT_POSTAMBLE)
-                runtime_asm = [
-                    RuntimeHeader("_sym_runtime_begin", ctx.ctor_mem_size, ctx.immutables_len)
-                ]
-                asm.append(runtime_asm)
-                asm = runtime_asm
-            else:
-                asm.extend(_REVERT_POSTAMBLE)
+            self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), {})
+            self.spiller.set_current_function(None)
 
-            # Append data segment
-            for data_section in ctx.data_segment:
-                label = data_section.label
-                asm_data_section: list[Any] = []
-                asm_data_section.append(DataHeader(_as_asm_symbol(label)))
-                for item in data_section.data_items:
-                    data = item.data
-                    if isinstance(data, IRLabel):
-                        asm_data_section.append(_as_asm_symbol(data))
-                    else:
-                        assert isinstance(data, bytes)
-                        asm_data_section.append(data)
+        asm.extend(_REVERT_POSTAMBLE)
+        # Append data segment
+        for data_section in self.ctx.data_segment:
+            label = data_section.label
+            asm_data_section: list[AssemblyInstruction] = []
+            asm_data_section.append(DataHeader(_as_asm_symbol(label)))
+            for item in data_section.data_items:
+                data = item.data
+                if isinstance(data, IRLabel):
+                    asm_data_section.append(DATA_ITEM(_as_asm_symbol(data)))
+                else:
+                    assert isinstance(data, bytes)
+                    asm_data_section.append(DATA_ITEM(data))
 
-                asm.append(asm_data_section)
+            asm.extend(asm_data_section)
 
         if no_optimize is False:
-            optimize_assembly(top_asm)
+            optimize_assembly(asm)
 
-        return top_asm
+        return asm
 
     def _stack_reorder(
-        self, assembly: list, stack: StackModel, stack_ops: list[IROperand], dry_run: bool = False
+        self,
+        assembly: list,
+        stack: StackModel,
+        stack_ops: list[IROperand],
+        spilled: dict[IROperand, int],
+        dry_run: bool = False,
     ) -> int:
         if dry_run:
             assert len(assembly) == 0, "Dry run should not work on assembly"
             stack = stack.copy()
+            spilled = spilled.copy()
+            snap = self.spiller.snapshot()
 
         if len(stack_ops) == 0:
             return 0
 
-        assert len(stack_ops) == len(set(stack_ops))  # precondition
+        assert len(stack_ops) == len(
+            set(stack_ops)
+        ), f"duplicated stack {stack_ops}"  # precondition
 
         cost = 0
         for i, op in enumerate(stack_ops):
             final_stack_depth = -(len(stack_ops) - i - 1)
+
             depth = stack.get_depth(op)
 
             if depth == StackModel.NOT_IN_STACK:
-                raise CompilerPanic(f"Variable {op} not in stack")
+                if isinstance(op, IRVariable) and op in spilled:
+                    self.spiller.restore_spilled_operand(
+                        assembly, stack, spilled, op, dry_run=dry_run
+                    )
+                    depth = stack.get_depth(op)
+                else:  # pragma: nocover
+                    raise CompilerPanic(f"Variable {op} not in stack")
+
+            if depth < -16:
+                # Try to selectively spill items to bring target within SWAP16
+                # range. If this fails, swap() handles it via bulk spill/restore.
+                self._reduce_depth_via_spill(
+                    assembly, stack, spilled, stack_ops, op, depth, dry_run
+                )
+                depth = stack.get_depth(op)
 
             if depth == final_stack_depth:
                 continue
@@ -234,12 +255,52 @@ class VenomCompiler:
                 stack.poke(depth, to_swap)
                 continue
 
-            cost += self.swap(assembly, stack, depth)
-            cost += self.swap(assembly, stack, final_stack_depth)
+            cost += self.spiller.swap(assembly, stack, depth, dry_run)
+            cost += self.spiller.swap(assembly, stack, final_stack_depth, dry_run)
 
         assert stack._stack[-len(stack_ops) :] == stack_ops, (stack, stack_ops)
 
+        if dry_run:
+            self.spiller.restore(snap)
+
         return cost
+
+    def _reduce_depth_via_spill(
+        self,
+        assembly: list,
+        stack: StackModel,
+        spilled: dict[IROperand, int],
+        stack_ops: list[IROperand],
+        target_op: IROperand,
+        depth: int,
+        dry_run: bool,
+    ) -> None:
+        while depth < -16:
+            candidate_depth = self._select_spill_candidate(stack, stack_ops, depth)
+            if candidate_depth is None:
+                return
+            self.spiller.spill_operand(assembly, stack, spilled, candidate_depth, dry_run)
+            depth = stack.get_depth(target_op)
+            # target_op is in stack_ops which is excluded from spill candidates,
+            # so it should never be spilled
+            assert depth != StackModel.NOT_IN_STACK
+
+    def _select_spill_candidate(
+        self, stack: StackModel, stack_ops: list[IROperand], target_depth: int
+    ) -> int | None:
+        forbidden = set(stack_ops)
+        max_offset = min(16, -target_depth - 1, stack.height - 1)
+        # stack should never be empty when reordering operands
+        assert max_offset >= 0
+        for offset in range(0, max_offset + 1):
+            depth = -offset
+            candidate = stack.peek(depth)
+            if candidate in forbidden:
+                continue
+            if not isinstance(candidate, IRVariable):
+                continue
+            return depth
+        return None
 
     def _emit_input_operands(
         self,
@@ -248,6 +309,7 @@ class VenomCompiler:
         ops: list[IROperand],
         stack: StackModel,
         next_liveness: OrderedSet[IRVariable],
+        spilled: dict[IROperand, int],
     ) -> None:
         # PRE: we already have all the items on the stack that have
         # been scheduled to be killed. now it's just a matter of emitting
@@ -258,11 +320,14 @@ class VenomCompiler:
         seen: set[IROperand] = set()
 
         for op in ops:
+            if isinstance(op, IRVariable) and op in spilled:
+                self.spiller.restore_spilled_operand(assembly, stack, spilled, op)
+
             if isinstance(op, IRLabel):
                 # invoke emits the actual instruction itself so we don't need
                 # to emit it here but we need to add it to the stack map
                 if inst.opcode != "invoke":
-                    assembly.append(_as_asm_symbol(op))
+                    assembly.append(PUSHLABEL(_as_asm_symbol(op)))
                 stack.push(op)
                 continue
 
@@ -279,24 +344,23 @@ class VenomCompiler:
                 self.dup_op(assembly, stack, op)
 
             # guaranteed by store expansion
-            assert op not in seen, (op, seen)
+            assert op not in seen, (inst, op, seen)
             seen.add(op)
 
     def _prepare_stack_for_function(self, asm, fn: IRFunction, stack: StackModel):
-        last_param = None
+        last_param_inst = None
         for inst in fn.entry.instructions:
             if inst.opcode != "param":
                 # note: always well defined if the bb is terminated
                 next_liveness = self.liveness.live_vars_at(inst)
                 break
 
-            last_param = inst
+            last_param_inst = inst
 
-            assert inst.output is not None  # help mypy
             stack.push(inst.output)
 
         # no params (only applies for global entry function)
-        if last_param is None:
+        if last_param_inst is None:
             return
 
         to_pop: list[IRVariable] = []
@@ -307,10 +371,24 @@ class VenomCompiler:
 
         self.popmany(asm, to_pop, stack)
 
-        self._optimistic_swap(asm, last_param, next_liveness, stack)
+        self._optimistic_swap(asm, last_param_inst, next_liveness, stack)
 
     def popmany(self, asm, to_pop: Iterable[IRVariable], stack):
         to_pop = list(to_pop)
+        if len(to_pop) == 0:
+            return
+
+        # if the items to pop are contiguous, we can swap the top of
+        # stack to just below the lowest item-to-pop and then just issue
+        # sequential pops
+        depths = [stack.get_depth(var) for var in to_pop]
+        deepest = min(depths)
+        expected = list(range(deepest, 0))
+        if deepest < 0 and -deepest <= 16 and sorted(depths) == expected:
+            self.spiller.swap(asm, stack, deepest)
+            self.pop(asm, stack, len(to_pop))
+            return
+
         # small heuristic: pop from shallowest first.
         to_pop.sort(key=lambda var: -stack.get_depth(var))
 
@@ -320,11 +398,11 @@ class VenomCompiler:
             depth = stack.get_depth(var)
 
             if depth != 0:
-                self.swap(asm, stack, depth)
+                self.spiller.swap(asm, stack, depth)
             self.pop(asm, stack)
 
     def _generate_evm_for_basicblock_r(
-        self, asm: list, basicblock: IRBasicBlock, stack: StackModel
+        self, asm: list, basicblock: IRBasicBlock, stack: StackModel, spilled: dict[IROperand, int]
     ) -> None:
         if basicblock in self.visited_basicblocks:
             return
@@ -338,7 +416,6 @@ class VenomCompiler:
 
         # assembly entry point into the block
         asm.append(_as_asm_symbol(basicblock.label))
-        asm.append("JUMPDEST")
 
         fn = basicblock.parent
         if basicblock == fn.entry:
@@ -349,13 +426,21 @@ class VenomCompiler:
 
         all_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
 
+        # Check if this block ends with a halting terminator (return, revert, stop)
+        # If so, we don't need to pop dead variables since execution halts anyway
+        is_halting_block = basicblock.is_halting
+
         for i, inst in enumerate(all_insts):
             if i + 1 < len(all_insts):
                 next_liveness = self.liveness.live_vars_at(all_insts[i + 1])
             else:
                 next_liveness = self.liveness.out_vars(basicblock)
 
-            asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
+            asm.extend(
+                self._generate_evm_for_instruction(
+                    inst, stack, next_liveness, spilled, is_halting_block
+                )
+            )
 
         if DEBUG_SHOW_COST:
             print(" ".join(map(str, asm)), file=sys.stderr)
@@ -364,7 +449,7 @@ class VenomCompiler:
         ref.extend(asm)
 
         for bb in self.cfg.cfg_out(basicblock):
-            self._generate_evm_for_basicblock_r(ref, bb, stack.copy())
+            self._generate_evm_for_basicblock_r(ref, bb, stack.copy(), spilled.copy())
 
     # pop values from stack at entry to bb
     # note this produces the same result(!) no matter which basic block
@@ -389,9 +474,14 @@ class VenomCompiler:
         self.popmany(asm, to_pop, stack)
 
     def _generate_evm_for_instruction(
-        self, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet
+        self,
+        inst: IRInstruction,
+        stack: StackModel,
+        next_liveness: OrderedSet,
+        spilled: dict[IROperand, int],
+        skip_pops: bool = False,
     ) -> list[str]:
-        assembly: list[str | int] = []
+        assembly: list[AssemblyInstruction] = []
         opcode = inst.opcode
 
         #
@@ -403,35 +493,19 @@ class VenomCompiler:
         if opcode in ["jmp", "djmp", "jnz", "invoke"]:
             operands = list(inst.get_non_label_operands())
 
-        elif opcode in ("alloca", "palloca", "calloca"):
-            assert len(inst.operands) == 3, inst
-            offset, _size, _id = inst.operands
-            operands = [offset]
-
-        # iload and istore are special cases because they can take a literal
-        # that is handled specialy with the _OFST macro. Look below, after the
-        # stack reordering.
-        elif opcode == "iload":
-            addr = inst.operands[0]
-            if isinstance(addr, IRLiteral):
-                operands = []
-            else:
-                operands = inst.operands
-        elif opcode == "istore":
-            addr = inst.operands[1]
-            if isinstance(addr, IRLiteral):
-                operands = inst.operands[:1]
-            else:
-                operands = inst.operands
         elif opcode == "log":
             log_topic_count = inst.operands[0].value
             assert log_topic_count in [0, 1, 2, 3, 4], "Invalid topic count"
             operands = inst.operands[1:]
+        elif opcode == "ret":
+            # For ret with values, we only treat the return PC as an input operand
+            # The return values must remain on the stack and are not consumed here
+            operands = [inst.operands[-1]]
         else:
             operands = inst.operands
 
         if opcode == "phi":
-            ret = inst.get_outputs()[0]
+            ret = inst.output
             phis = list(inst.get_input_variables())
             depth = stack.get_phi_depth(phis)
             # collapse the arguments to the phi node in the stack.
@@ -441,7 +515,7 @@ class VenomCompiler:
             if to_be_replaced in next_liveness:
                 # this branch seems unreachable (maybe due to make_ssa)
                 # %13/%14 is still live(!), so we make a copy of it
-                self.dup(assembly, stack, depth)
+                self.spiller.dup(assembly, stack, depth)
                 stack.poke(0, ret)
             else:
                 stack.poke(depth, ret)
@@ -450,13 +524,12 @@ class VenomCompiler:
         if opcode == "offset":
             ofst, label = inst.operands
             assert isinstance(label, IRLabel)  # help mypy
-            assembly.extend(["_OFST", _as_asm_symbol(label), ofst.value])
-            assert isinstance(inst.output, IROperand), "Offset must have output"
+            assembly.extend(_ofst(_as_asm_symbol(label), ofst.value))
             stack.push(inst.output)
             return apply_line_numbers(inst, assembly)
 
         # Step 2: Emit instruction's input operands
-        self._emit_input_operands(assembly, inst, operands, stack, next_liveness)
+        self._emit_input_operands(assembly, inst, operands, stack, next_liveness, spilled)
 
         # Step 3: Reorder stack before join points
         if opcode == "jmp":
@@ -471,18 +544,16 @@ class VenomCompiler:
             assert len(self.cfg.cfg_in(next_bb)) > 1
 
             target_stack = self.liveness.input_vars_from(inst.parent, next_bb)
-            # NOTE: in general the stack can contain multiple copies of
-            # the same variable, however, before a jump that is not possible
-            self._stack_reorder(assembly, stack, list(target_stack))
+            self._stack_reorder(assembly, stack, list(target_stack), spilled)
 
         if inst.is_commutative:
-            cost_no_swap = self._stack_reorder([], stack, operands, dry_run=True)
+            cost_no_swap = self._stack_reorder([], stack, operands, spilled, dry_run=True)
             operands[-1], operands[-2] = operands[-2], operands[-1]
-            cost_with_swap = self._stack_reorder([], stack, operands, dry_run=True)
+            cost_with_swap = self._stack_reorder([], stack, operands, spilled, dry_run=True)
             if cost_with_swap > cost_no_swap:
                 operands[-1], operands[-2] = operands[-2], operands[-1]
 
-        cost = self._stack_reorder([], stack, operands, dry_run=True)
+        cost = self._stack_reorder([], stack, operands, spilled, dry_run=True)
         if DEBUG_SHOW_COST and cost:
             print("ENTER", inst, file=sys.stderr)
             print("  HAVE", stack, file=sys.stderr)
@@ -491,16 +562,17 @@ class VenomCompiler:
 
         # final step to get the inputs to this instruction ordered
         # correctly on the stack
-        self._stack_reorder(assembly, stack, operands)
+        self._stack_reorder(assembly, stack, operands, spilled)
 
         # some instructions (i.e. invoke) need to do stack manipulations
         # with the stack model containing the return value(s), so we fiddle
         # with the stack model beforehand.
 
-        # Step 4: Push instruction's return value to stack
+        # Step 4: Push instruction's return value(s) to stack
         stack.pop(len(operands))
-        if inst.output is not None:
-            stack.push(inst.output)
+        outputs = inst.get_outputs()
+        for out in outputs:
+            stack.push(out)
 
         # Step 5: Emit the EVM instruction(s)
         if opcode in _ONE_TO_ONE_INSTRUCTIONS:
@@ -509,26 +581,26 @@ class VenomCompiler:
             pass
         elif opcode == "param":
             pass
-        elif opcode == "store":
+        elif opcode == "assign":
             pass
         elif opcode == "dbname":
             pass
         elif opcode == "jnz":
             # jump if not zero
             if_nonzero_label, if_zero_label = inst.get_label_operands()
-            assembly.append(_as_asm_symbol(if_nonzero_label))
+            assembly.append(PUSHLABEL(_as_asm_symbol(if_nonzero_label)))
             assembly.append("JUMPI")
 
             # make sure the if_zero_label will be optimized out
             # assert if_zero_label == next(iter(inst.parent.cfg_out)).label
 
-            assembly.append(_as_asm_symbol(if_zero_label))
+            assembly.append(PUSHLABEL(_as_asm_symbol(if_zero_label)))
             assembly.append("JUMP")
 
         elif opcode == "jmp":
             (target,) = inst.operands
             assert isinstance(target, IRLabel)
-            assembly.append(_as_asm_symbol(target))
+            assembly.append(PUSHLABEL(_as_asm_symbol(target)))
             assembly.append("JUMP")
         elif opcode == "djmp":
             assert isinstance(
@@ -540,57 +612,23 @@ class VenomCompiler:
             assert isinstance(
                 target, IRLabel
             ), f"invoke target must be a label (is ${type(target)} ${target})"
+            return_label = self.mklabel("return_label")
             assembly.extend(
-                [
-                    f"_sym_label_ret_{self.label_counter}",
-                    _as_asm_symbol(target),
-                    "JUMP",
-                    f"_sym_label_ret_{self.label_counter}",
-                    "JUMPDEST",
-                ]
+                [PUSHLABEL(return_label), PUSHLABEL(_as_asm_symbol(target)), "JUMP", return_label]
             )
-            self.label_counter += 1
         elif opcode == "ret":
             assembly.append("JUMP")
         elif opcode == "return":
             assembly.append("RETURN")
-        elif opcode == "exit":
-            assembly.extend(["_sym__ctor_exit", "JUMP"])
         elif opcode == "phi":
             pass
         elif opcode == "sha3":
             assembly.append("SHA3")
-        elif opcode == "sha3_64":
-            assembly.extend(
-                [
-                    *PUSH(MemoryPositions.FREE_VAR_SPACE),
-                    "MSTORE",
-                    *PUSH(MemoryPositions.FREE_VAR_SPACE2),
-                    "MSTORE",
-                    *PUSH(64),
-                    *PUSH(MemoryPositions.FREE_VAR_SPACE),
-                    "SHA3",
-                ]
-            )
         elif opcode == "assert":
-            assembly.extend(["ISZERO", "_sym___revert", "JUMPI"])
+            assembly.extend(["ISZERO", PUSHLABEL(Label("revert")), "JUMPI"])
         elif opcode == "assert_unreachable":
-            end_symbol = mksymbol("reachable")
-            assembly.extend([end_symbol, "JUMPI", "INVALID", end_symbol, "JUMPDEST"])
-        elif opcode == "iload":
-            addr = inst.operands[0]
-            if isinstance(addr, IRLiteral):
-                assembly.extend(["_OFST", "_mem_deploy_end", addr.value])
-            else:
-                assembly.extend(["_mem_deploy_end", "ADD"])
-            assembly.append("MLOAD")
-        elif opcode == "istore":
-            addr = inst.operands[1]
-            if isinstance(addr, IRLiteral):
-                assembly.extend(["_OFST", "_mem_deploy_end", addr.value])
-            else:
-                assembly.extend(["_mem_deploy_end", "ADD"])
-            assembly.append("MSTORE")
+            end_symbol = self.mklabel("reachable")
+            assembly.extend([PUSHLABEL(end_symbol), "JUMPI", "INVALID", end_symbol])
         elif opcode == "log":
             assembly.extend([f"LOG{log_topic_count}"])
         elif opcode == "nop":
@@ -602,12 +640,26 @@ class VenomCompiler:
         else:
             raise Exception(f"Unknown opcode: {opcode}")
 
-        # Step 6: Emit instructions output operands (if any)
-        if inst.output is not None:
-            if inst.output not in next_liveness:
-                self.pop(assembly, stack)
-            else:
-                self._optimistic_swap(assembly, inst, next_liveness, stack)
+        # Step 6: Emit instruction output operands (if any)
+        if len(outputs) == 0:
+            self.spiller.release_dead_spills(spilled, next_liveness)
+            return apply_line_numbers(inst, assembly)
+
+        # Skip popping dead outputs if we're in a halting block (return/revert/stop)
+        if not skip_pops:
+            dead_outputs = [out for out in outputs if out not in next_liveness]
+            self.popmany(assembly, dead_outputs, stack)
+
+        live_outputs = [out for out in outputs if out in next_liveness]
+        if len(live_outputs) == 0:
+            self.spiller.release_dead_spills(spilled, next_liveness)
+            return apply_line_numbers(inst, assembly)
+
+        # Heuristic scheduling based on the next expected live var
+        # Use the top-most surviving output to schedule
+        self._optimistic_swap(assembly, inst, next_liveness, stack)
+
+        self.spiller.release_dead_spills(spilled, next_liveness)
 
         return apply_line_numbers(inst, assembly)
 
@@ -617,10 +669,25 @@ class VenomCompiler:
         if DEBUG_SHOW_COST:
             stack0 = stack.copy()
 
+        next_index = inst.parent.instructions.index(inst)
+        next_inst = inst.parent.instructions[next_index + 1]
+
+        if next_inst.is_bb_terminator:
+            return
+        # if there are no live vars at the next point, nothing to schedule
+        if len(next_liveness) == 0:
+            return
+
         next_scheduled = next_liveness.last()
         cost = 0
-        if not self.dfg.are_equivalent(inst.output, next_scheduled):
-            cost = self.swap_op(assembly, stack, next_scheduled)
+        # Use last output (top-of-stack) when available, else the single output
+        inst_outputs = inst.get_outputs()
+        if len(inst_outputs) > 0:
+            current_top_out = inst_outputs[-1]
+            if not self.dfg.are_equivalent(current_top_out, next_scheduled):
+                depth = stack.get_depth(next_scheduled)
+                if depth is not StackModel.NOT_IN_STACK:
+                    cost = self.spiller.swap(assembly, stack, depth)
 
         if DEBUG_SHOW_COST and cost != 0:
             print("ENTER", inst, file=sys.stderr)
@@ -632,39 +699,12 @@ class VenomCompiler:
         stack.pop(num)
         assembly.extend(["POP"] * num)
 
-    def swap(self, assembly, stack, depth) -> int:
-        # Swaps of the top is no op
-        if depth == 0:
-            return 0
-
-        stack.swap(depth)
-        assembly.append(_evm_swap_for(depth))
-        return 1
-
-    def dup(self, assembly, stack, depth):
-        stack.dup(depth)
-        assembly.append(_evm_dup_for(depth))
-
     def swap_op(self, assembly, stack, op):
         depth = stack.get_depth(op)
         assert depth is not StackModel.NOT_IN_STACK, f"Cannot swap non-existent operand {op}"
-        return self.swap(assembly, stack, depth)
+        return self.spiller.swap(assembly, stack, depth)
 
     def dup_op(self, assembly, stack, op):
         depth = stack.get_depth(op)
         assert depth is not StackModel.NOT_IN_STACK, f"Cannot dup non-existent operand {op}"
-        self.dup(assembly, stack, depth)
-
-
-def _evm_swap_for(depth: int) -> str:
-    swap_idx = -depth
-    if not (1 <= swap_idx <= 16):
-        raise StackTooDeep(f"Unsupported swap depth {swap_idx}")
-    return f"SWAP{swap_idx}"
-
-
-def _evm_dup_for(depth: int) -> str:
-    dup_idx = 1 - depth
-    if not (1 <= dup_idx <= 16):
-        raise StackTooDeep(f"Unsupported dup depth {dup_idx}")
-    return f"DUP{dup_idx}"
+        self.spiller.dup(assembly, stack, depth)

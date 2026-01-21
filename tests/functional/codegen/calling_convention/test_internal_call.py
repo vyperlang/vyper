@@ -142,7 +142,7 @@ def return_goose2() -> Bytes[10]:
     print("Passed multi-argument self-call test")
 
 
-@pytest.mark.hevm("--max-iterations", "10")
+@pytest.mark.hevm("--max-iterations", "100")
 def test_selfcall_code_5(get_contract):
     selfcall_code_5 = """
 counter: int128
@@ -661,7 +661,7 @@ def bar(i: uint256) -> uint256:
     assert c.foo() == [2, 1]
 
 
-@pytest.mark.hevm
+@pytest.mark.hevm("--max-iterations", "100")
 def test_make_setter_internal_call2(get_contract):
     # cf. GH #3503
     code = """

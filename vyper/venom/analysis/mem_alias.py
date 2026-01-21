@@ -1,11 +1,10 @@
-import dataclasses as dc
 from typing import Optional
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis
+from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis, IRAnalysis
 from vyper.venom.basicblock import IRInstruction
-from vyper.venom.memory_location import MemoryLocation, get_read_location, get_write_location
+from vyper.venom.memory_location import MemoryLocation
 
 
 class MemoryAliasAnalysisAbstract(IRAnalysis):
@@ -20,6 +19,7 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
     def analyze(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
 
         # Map from memory locations to sets of potentially aliasing locations
         self.alias_sets: dict[MemoryLocation, OrderedSet[MemoryLocation]] = {}
@@ -33,11 +33,11 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
         """Analyze a memory instruction to determine aliasing"""
         loc: Optional[MemoryLocation] = None
 
-        loc = get_read_location(inst, self.addr_space)
+        loc = self.base_ptr.get_read_location(inst, self.addr_space)
         if loc is not None:
             self._analyze_mem_location(loc)
 
-        loc = get_write_location(inst, self.addr_space)
+        loc = self.base_ptr.get_write_location(inst, self.addr_space)
         if loc is not None:
             self._analyze_mem_location(loc)
 
@@ -72,7 +72,7 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
         return result
 
     def mark_volatile(self, loc: MemoryLocation) -> MemoryLocation:
-        volatile_loc = dc.replace(loc, is_volatile=True)
+        volatile_loc = loc.mk_volatile()
 
         if loc in self.alias_sets:
             self.alias_sets[volatile_loc] = OrderedSet([volatile_loc])

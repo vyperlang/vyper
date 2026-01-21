@@ -443,7 +443,8 @@ class VyperNode:
         Return the node as a dict. Child nodes and their descendants are also converted.
         """
         ast_dict = {}
-        for key in [i for i in self.get_fields() if i not in DICT_AST_SKIPLIST]:
+        fields = [i for i in self.get_fields() if i not in DICT_AST_SKIPLIST]
+        for key in sorted(fields):
             value = getattr(self, key, None)
             if isinstance(value, list):
                 ast_dict[key] = [_to_dict(i) for i in value]
@@ -455,6 +456,8 @@ class VyperNode:
         # TODO: add full analysis result, e.g. expr_info
         if "type" in self._metadata:
             ast_dict["type"] = self._metadata["type"].to_dict()
+        if "func_type" in self._metadata:
+            ast_dict["func_type"] = self._metadata["func_type"].to_dict()
 
         return ast_dict
 
@@ -748,6 +751,10 @@ class ExprNode(VyperNode):
 
     def to_dict(self):
         ret = super().to_dict()
+
+        if self.has_folded_value and self.get_folded_value() != self:
+            ret["folded_value"] = self.get_folded_value().to_dict()
+
         if self._expr_info is None:
             return ret
 
@@ -1479,30 +1486,40 @@ class Pass(Stmt):
 
 
 class _ImportStmt(Stmt):
-    __slots__ = ("name", "alias")
+    __slots__ = ("names",)
 
     def to_dict(self):
         ret = super().to_dict()
-        if (import_info := self._metadata.get("import_info")) is not None:
-            ret["import_info"] = import_info.to_dict()
+        if (import_infos := self._metadata.get("import_infos")) is not None:
+            ret["import_infos"] = [import_info.to_dict() for import_info in import_infos]
 
         return ret
-
-    def __init__(self, *args, **kwargs):
-        if len(kwargs["names"]) > 1:
-            _raise_syntax_exc("Assignment statement must have one target", kwargs)
-        names = kwargs.pop("names")[0]
-        kwargs["name"] = names.name
-        kwargs["alias"] = names.asname
-        super().__init__(*args, **kwargs)
 
 
 class Import(_ImportStmt):
     __slots__ = ()
 
+    def validate(self):
+        if len(self.names) > 1:
+            msg = "modules need to be imported one by one"
+            import_strings = "\n    ".join(
+                [f"import {alias_node.node_source_code}" for alias_node in self.names]
+            )
+            hint = f"try \n    ```\n    {import_strings}\n    ```\n  "
+            raise StructureException(msg, self, hint=hint)
+
 
 class ImportFrom(_ImportStmt):
     __slots__ = ("level", "module")
+
+
+class alias(VyperNode):
+    """
+    Represents the `foo as bar` part of an import
+    Accessed from Import.names and ImportFrom.names
+    """
+
+    __slots__ = ("name", "asname")
 
 
 class ImplementsDecl(Stmt):
@@ -1511,16 +1528,26 @@ class ImplementsDecl(Stmt):
 
     Attributes
     ----------
-    annotation : Name
-        Name node for the interface to be implemented
+    children : List of (Name | Attribute)s
+        Name nodes for the interfaces to be implemented
     """
 
-    __slots__ = ("annotation",)
+    __slots__ = ("children",)
     _only_empty_fields = ("value",)
 
+    def __init__(self, *args, **kwargs):
+        tmp = kwargs.pop("annotation")
+        if isinstance(tmp, python_ast.Tuple):
+            kwargs["children"] = tmp.elts
+        else:
+            kwargs["children"] = [tmp]
+
+        super().__init__(*args, **kwargs)
+
     def validate(self):
-        if not isinstance(self.annotation, (Name, Attribute)):
-            raise StructureException("invalid implements", self.annotation)
+        for child in self.children:
+            if not isinstance(child, (Name, Attribute)):
+                raise StructureException("invalid implements", child)
 
 
 def as_tuple(node: VyperNode):

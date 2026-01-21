@@ -15,12 +15,12 @@ def test_duplicate_operands():
     %3 = mul %1, %2
     stop
 
-    Should compile to: [PUSH1, 10, DUP1, DUP2, ADD, MUL, POP, STOP]
+    Should compile to: [PUSH1, 10, DUP1, DUP2, ADD, MUL, STOP]
     """
     ctx = IRContext()
     fn = ctx.create_function("test")
     bb = fn.get_basic_block()
-    op = bb.append_instruction("store", 10)
+    op = bb.append_instruction("assign", 10)
     sum_ = bb.append_instruction("add", op, op)
     bb.append_instruction("mul", sum_, op)
     bb.append_instruction("stop")
@@ -30,4 +30,4 @@ def test_duplicate_operands():
 
     optimize = OptimizationLevel.GAS
     asm = generate_assembly_experimental(ctx, optimize=optimize)
-    assert asm == ["PUSH1", 10, "DUP1", "DUP2", "ADD", "MUL", "POP", "STOP"]
+    assert asm == ["PUSH1", 10, "DUP1", "DUP2", "ADD", "MUL", "STOP"]

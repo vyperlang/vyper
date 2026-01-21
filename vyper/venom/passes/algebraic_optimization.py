@@ -55,14 +55,14 @@ class AlgebraicOptimizationPass(IRPass):
                 if iszero_count == 0:
                     continue
 
-                assert isinstance(inst.output, IRVariable)
-                for use_inst in self.dfg.get_uses(inst.output).copy():
+                inst_out = inst.output
+                for use_inst in self.dfg.get_uses(inst_out).copy():
                     opcode = use_inst.opcode
 
                     if opcode == "iszero":
                         # We keep iszero instuctions as is
                         continue
-                    if opcode in ("jnz", "assert"):
+                    if opcode in ("jnz", "assert", "assert_unreachable"):
                         # instructions that accept a truthy value as input:
                         # we can remove up to all the iszero instructions
                         keep_count = 1 - iszero_count % 2
@@ -75,7 +75,7 @@ class AlgebraicOptimizationPass(IRPass):
                         continue
 
                     out_var = iszero_chain[keep_count].operands[0]
-                    self.updater.update_operands(use_inst, {inst.output: out_var})
+                    self.updater.update_operands(use_inst, {inst_out: out_var})
 
     def _get_iszero_chain(self, op: IROperand) -> list[IRInstruction]:
         chain: list[IRInstruction] = []
@@ -123,11 +123,12 @@ class AlgebraicOptimizationPass(IRPass):
 
     # "peephole", weakening algebraic optimizations
     def _handle_inst_peephole(self, inst: IRInstruction):
-        if inst.output is None:
+        if inst.num_outputs != 1:
             return
+        inst_out = inst.output
         if inst.is_volatile:
             return
-        if inst.opcode == "store":
+        if inst.opcode == "assign":
             return
         if inst.is_pseudo:
             return
@@ -150,7 +151,7 @@ class AlgebraicOptimizationPass(IRPass):
         if inst.opcode in {"shl", "shr", "sar"}:
             # (x >> 0) == (x << 0) == x
             if lit_eq(operands[1], 0):
-                self.updater.store(inst, operands[0])
+                self.updater.mk_assign(inst, operands[0])
                 return
             # no more cases for these instructions
             return
@@ -158,12 +159,12 @@ class AlgebraicOptimizationPass(IRPass):
         if inst.opcode == "exp":
             # x ** 0 -> 1
             if lit_eq(operands[0], 0):
-                self.updater.store(inst, IRLiteral(1))
+                self.updater.mk_assign(inst, IRLiteral(1))
                 return
 
             # 1 ** x -> 1
             if lit_eq(operands[1], 1):
-                self.updater.store(inst, IRLiteral(1))
+                self.updater.mk_assign(inst, IRLiteral(1))
                 return
 
             # 0 ** x -> iszero x
@@ -173,23 +174,28 @@ class AlgebraicOptimizationPass(IRPass):
 
             # x ** 1 -> x
             if lit_eq(operands[0], 1):
-                self.updater.store(inst, operands[1])
+                self.updater.mk_assign(inst, operands[1])
                 return
 
             # no more cases for this instruction
             return
 
+        if inst.opcode == "gep":
+            if lit_eq(inst.operands[1], 0):
+                self.updater.mk_assign(inst, inst.operands[0])
+            return
+
         if inst.opcode in {"add", "sub", "xor"}:
             # (x - x) == (x ^ x) == 0
             if inst.opcode in ("xor", "sub") and operands[0] == operands[1]:
-                self.updater.store(inst, IRLiteral(0))
+                self.updater.mk_assign(inst, IRLiteral(0))
                 return
 
             # (x + 0) == (0 + x)  -> x
             # x - 0 -> x
             # (x ^ 0) == (0 ^ x)  -> x
             if lit_eq(operands[0], 0):
-                self.updater.store(inst, operands[1])
+                self.updater.mk_assign(inst, operands[1])
                 return
 
             # (-1) - x -> ~x
@@ -207,24 +213,24 @@ class AlgebraicOptimizationPass(IRPass):
 
         # x & 0xFF..FF -> x
         if inst.opcode == "and" and lit_eq(operands[0], -1):
-            self.updater.store(inst, operands[1])
+            self.updater.mk_assign(inst, operands[1])
             return
 
         if inst.opcode in ("mul", "and", "div", "sdiv", "mod", "smod"):
             # (x * 0) == (x & 0) == (x // 0) == (x % 0) -> 0
             if any(lit_eq(op, 0) for op in operands):
-                self.updater.store(inst, IRLiteral(0))
+                self.updater.mk_assign(inst, IRLiteral(0))
                 return
 
         if inst.opcode in {"mul", "div", "sdiv", "mod", "smod"}:
             if inst.opcode in ("mod", "smod") and lit_eq(operands[0], 1):
                 # x % 1 -> 0
-                self.updater.store(inst, IRLiteral(0))
+                self.updater.mk_assign(inst, IRLiteral(0))
                 return
 
             # (x * 1) == (1 * x) == (x // 1)  -> x
             if inst.opcode in ("mul", "div", "sdiv") and lit_eq(operands[0], 1):
-                self.updater.store(inst, operands[1])
+                self.updater.mk_assign(inst, operands[1])
                 return
 
             if self._is_lit(operands[0]) and is_power_of_two(operands[0].value):
@@ -243,8 +249,7 @@ class AlgebraicOptimizationPass(IRPass):
                     return
             return
 
-        assert inst.output is not None
-        uses = self.dfg.get_uses(inst.output)
+        uses = self.dfg.get_uses(inst_out)
 
         is_truthy = all(i.opcode in TRUTHY_INSTRUCTIONS for i in uses)
         prefer_iszero = all(i.opcode in ("assert", "iszero") for i in uses)
@@ -256,23 +261,23 @@ class AlgebraicOptimizationPass(IRPass):
         if inst.opcode == "or":
             # x | 0xff..ff == 0xff..ff
             if any(lit_eq(op, SizeLimits.MAX_UINT256) for op in operands):
-                self.updater.store(inst, IRLiteral(SizeLimits.MAX_UINT256))
+                self.updater.mk_assign(inst, IRLiteral(SizeLimits.MAX_UINT256))
                 return
 
             # x | n -> 1 in truthy positions (if n is non zero)
             if is_truthy and self._is_lit(operands[0]) and operands[0].value != 0:
-                self.updater.store(inst, IRLiteral(1))
+                self.updater.mk_assign(inst, IRLiteral(1))
                 return
 
             # x | 0 -> x
             if lit_eq(operands[0], 0):
-                self.updater.store(inst, operands[1])
+                self.updater.mk_assign(inst, operands[1])
                 return
 
         if inst.opcode == "eq":
             # x == x -> 1
             if operands[0] == operands[1]:
-                self.updater.store(inst, IRLiteral(1))
+                self.updater.mk_assign(inst, IRLiteral(1))
                 return
 
             # x == 0 -> iszero x
@@ -302,11 +307,11 @@ class AlgebraicOptimizationPass(IRPass):
     def _optimize_comparator_instruction(self, inst, prefer_iszero):
         opcode, operands = inst.opcode, inst.operands
         assert opcode in COMPARATOR_INSTRUCTIONS  # sanity
-        assert isinstance(inst.output, IRVariable)  # help mypy
+        inst_out = inst.output
 
         # (x > x) == (x < x) -> 0
         if operands[0] == operands[1]:
-            self.updater.store(inst, IRLiteral(0))
+            self.updater.mk_assign(inst, IRLiteral(0))
             return
 
         is_gt = "g" in opcode
@@ -333,7 +338,7 @@ class AlgebraicOptimizationPass(IRPass):
             almost_never = lo + 1
 
         if lit_eq(operands[0], never):
-            self.updater.store(inst, IRLiteral(0))
+            self.updater.mk_assign(inst, IRLiteral(0))
             return
 
         if lit_eq(operands[0], almost_never):
@@ -359,8 +364,7 @@ class AlgebraicOptimizationPass(IRPass):
 
         # rewrite comparisons by either inserting or removing an `iszero`,
         # e.g. `x > N` -> `x >= (N + 1)`
-        assert inst.output is not None
-        uses = self.dfg.get_uses(inst.output)
+        uses = self.dfg.get_uses(inst_out)
         if len(uses) != 1:
             return
 
@@ -401,11 +405,10 @@ class AlgebraicOptimizationPass(IRPass):
         if insert_iszero:
             # next instruction is an assert, so we insert an iszero so
             # that there will be two iszeros in the assembly.
-            assert inst.output is not None, inst
             assert len(after.operands) == 1, after
-            var = self.updater.add_before(after, "iszero", [inst.output])
+            var = self.updater.add_before(after, "iszero", [inst_out])
             self.updater.update_operands(after, {after.operands[0]: var})
         else:
             # remove the iszero!
             assert len(after.operands) == 1, after
-            self.updater.update(after, "store", after.operands)
+            self.updater.update(after, "assign", after.operands)

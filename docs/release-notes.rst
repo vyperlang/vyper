@@ -3,6 +3,8 @@
 Release Notes
 #############
 
+Release audits can be found `here <https://github.com/vyperlang/audits/tree/master>`_.
+
 ..
     vim regexes:
     first convert all single backticks to double backticks:
@@ -16,6 +18,49 @@ Release Notes
     for advisory links:
     :'<,'>s/\v(https:\/\/github.com\/vyperlang\/vyper\/security\/advisories\/)([-A-Za-z0-9]+)/(`\2 <\1\2>`_)/g
 
+v0.4.3 ("Buttermilk Racer")
+***************************
+
+Date released: 2025-06-19
+=========================
+
+v0.4.3 introduces the ``@raw_return`` decorator which allows contracts to return bytes directly without ABI-encoding, which enables new proxy contract use cases. The default EVM version has been updated to ``prague``, and several improvements have been made to the Venom optimizer pipeline.
+
+Audits: `ChainSecurity <https://github.com/vyperlang/audits/blob/master/audits/ChainSecurity_Vyper_June_2025_limited_review.pdf>`_,  `Anatomist <https://github.com/vyperlang/audits/blob/master/audits/Anatomist_Vyper_April_2025.pdf>`_
+
+Breaking changes
+----------------
+* feat[tool]!: make ``prague`` the default evm version (`#4633 <https://github.com/vyperlang/vyper/pull/4633>`_)
+
+Other new features and improvements
+-----------------------------------
+* feat[lang]: ``@raw_return`` decorator (`#4568 <https://github.com/vyperlang/vyper/pull/4568>`_)
+* fix[lang]: disallow ``@raw_return`` in interfaces (`#4700 <https://github.com/vyperlang/vyper/pull/4700>`_)
+
+Tooling / CLI
+-------------
+* fix[tool]: fix invalid quotes in ``-f cfg`` output (`#4672 <https://github.com/vyperlang/vyper/pull/4672>`_)
+* fix[tool]: add metadata for ctor functions (`#4668 <https://github.com/vyperlang/vyper/pull/4668>`_)
+
+Venom improvements
+------------------
+* fix[venom]: fix incorrect write reordering in ``DFTPass`` (`#4695 <https://github.com/vyperlang/vyper/pull/4695>`_)
+* feat[venom]: rewrite grammar to LALR(1) (`#4687 <https://github.com/vyperlang/vyper/pull/4687>`_)
+* fix[venom]: reduce single-use expansion (`#4667 <https://github.com/vyperlang/vyper/pull/4667>`_)
+* fix[venom]: fix function inliner ``clone`` function (`#4696 <https://github.com/vyperlang/vyper/pull/4696>`_)
+
+Docs
+----
+* feat[docs]: add docs for ``@raw_return`` decorator (`#4699 <https://github.com/vyperlang/vyper/pull/4699>`_)
+* fix[docs]: clarify ``n_slots`` requirement in custom layout file (`#4641 <https://github.com/vyperlang/vyper/pull/4641>`_)
+* fix[docs]: fix build status in README.md (`#4680 <https://github.com/vyperlang/vyper/pull/4680>`_)
+* chore[docs]: document the copy maxbound heuristic reasoning (`#4593 <https://github.com/vyperlang/vyper/pull/4593>`_)
+
+Test suite and CI improvements
+------------------------------
+* refactor[test]: rename venom ``param`` instruction in tests (`#4689 <https://github.com/vyperlang/vyper/pull/4689>`_)
+* chore[ci]: update gitignore (`#4690 <https://github.com/vyperlang/vyper/pull/4690>`_)
+
 v0.4.2 ("Lernaean Hydra")
 *************************
 
@@ -27,6 +72,9 @@ v0.4.2 includes a new ``raw_create()`` builtin which allows users to build more 
 Additionally, Venom has undergone more improvements, including a CSE elimination pass, dead-store elimination pass, as well as moving more items in the calling convention to the stack in the venom pipeline. Benchmark contracts are now typically 5% smaller.
 
 Two low severity GHSAs have been patched in this release.
+
+Audits: `ChainSecurity <https://github.com/vyperlang/audits/blob/master/audits/ChainSecurity_Vyper_April_2025.pdf>`_,  `Anatomist <https://github.com/vyperlang/audits/blob/master/audits/Anatomist_Vyper_April_2025.pdf>`_
+
 
 Breaking and notable changes
 ---------------------------------
@@ -341,6 +389,8 @@ Date released: 2024-06-20
 
 v0.4.0 represents a major overhaul to the Vyper language. Notably, it overhauls the import system and adds support for code reuse. It also adds a new, experimental backend to Vyper which lays the foundation for improved analysis, optimization and integration with third party tools.
 
+Audits: `ChainSecurity <https://github.com/vyperlang/audits/blob/master/audits/ChainSecurity_Vyper_Decfember_2023_limited_review.pdff>`_, `ChainSecurity 2nd audit <https://github.com/vyperlang/audits/blob/master/audits/ChainSecurity_Vyper_February_2024_limited_review.pdf>`_, `ChainSecurity 3rd audit <https://github.com/vyperlang/audits/blob/master/audits/ChainSecurity_Vyper_April_2024_limited_review.pdf>`_,  `Statemind <https://github.com/vyperlang/audits/blob/master/audits/Statemind_Vyper_June_2024_audit.pdf>`_, `OtterSec <https://github.com/vyperlang/audits/blob/master/audits/OtterSec_Vyper_November_2023_audit.pdf>`_, `OtterSec 2nd audit <https://github.com/vyperlang/audits/blob/master/audits/OtterSec_Vyper_June_2024.pdf>`_
+
 Breaking Changes
 ----------------
 * feat[tool]!: make cancun the default evm version (`#4029 <https://github.com/vyperlang/vyper/pull/4029>`_)
@@ -649,6 +699,8 @@ Date released: 2023-10-04
 
 v0.3.10 is a performance focused release that additionally ships numerous bugfixes. It adds a ``codesize`` optimization mode (`#3493 <https://github.com/vyperlang/vyper/pull/3493>`_), adds new vyper-specific ``#pragma`` directives  (`#3493 <https://github.com/vyperlang/vyper/pull/3493>`_), uses Cancun's ``MCOPY`` opcode for some compiler generated code (`#3483 <https://github.com/vyperlang/vyper/pull/3483>`_), and generates selector tables which now feature O(1) performance (`#3496 <https://github.com/vyperlang/vyper/pull/3496>`_).
 
+Audits: `OtterSec <https://github.com/vyperlang/audits/blob/master/audits/OtterSec_Vyper_September_2023_audit.pdf>`_, `CodeHawks <https://github.com/vyperlang/audits/blob/master/audits/CodeHawks_Vyper_September_2023_competitive_audit.md>`_, `ChainSecurity <https://github.com/vyperlang/audits/blob/master/audits/ChainSecurity_Vyper_September_2023_limited_review.pdf>`_
+
 Breaking changes:
 -----------------
 
@@ -704,6 +756,8 @@ Date released: 2023-05-29
 
 This is a patch release fix for v0.3.8. @bout3fiddy discovered a codesize regression for blueprint contracts in v0.3.8 which is fixed in this release. @bout3fiddy also discovered a runtime performance (gas) regression for default functions in v0.3.8 which is fixed in this release.
 
+Audits: `ChainSecurity <https://github.com/vyperlang/audits/blob/master/audits/ChainSecurity_Vyper_May_2023_limited_review.pdf>`_
+
 Fixes:
 
 - initcode codesize blowup (`#3450 <https://github.com/vyperlang/vyper/pull/3450>`_)
@@ -714,6 +768,8 @@ v0.3.8
 ******
 
 Date released: 2023-05-23
+
+Audits: `ChainSecurity <https://github.com/vyperlang/audits/blob/master/audits/ChainSecurity_Vyper_January_2023_limited_review.pdf>`_, `ChainSecurity 2nd audit <https://github.com/vyperlang/audits/blob/master/audits/ChainSecurity_Vyper_March_2023_limited_review.pdf>`_
 
 Non-breaking changes and improvements:
 
@@ -887,6 +943,8 @@ v0.3.4
 ******
 
 Date released: 2022-07-27
+
+Audits: `ChainSecurity <https://github.com/vyperlang/audits/blob/master/audits/ChainSecurity_Vyper_July_2022_limited_review.pdf>`_
 
 Non-breaking changes and improvements:
 

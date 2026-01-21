@@ -179,7 +179,8 @@ def _validate_pure_access(node: vy_ast.Attribute | vy_ast.Name, typ: VyperType) 
             raise StateAccessViolation(
                 "not allowed to query environment variables in pure functions"
             )
-        parent_info = get_expr_info(node.value)
+        # allow type exprs in the value node, e.g. MyFlag.A
+        parent_info = get_expr_info(node.value, is_callable=True)
         if isinstance(parent_info.typ, AddressT) and node.attr in AddressT._type_members:
             raise StateAccessViolation("not allowed to query address members in pure functions")
 
@@ -930,7 +931,13 @@ class ExprVisitor(VyperNodeVisitorBase):
             possible_base_types = get_possible_types_from_node(node.value)
 
             for possible_type in possible_base_types:
-                if typ.compare_type(possible_type.value_type):
+                if isinstance(possible_type, TupleT):
+                    assert isinstance(node.slice, vy_ast.Int)  # help mypy
+                    value_type = possible_type.member_types[node.slice.value]
+                else:
+                    value_type = possible_type.value_type
+
+                if typ.compare_type(value_type):
                     base_type = possible_type
                     break
             else:
