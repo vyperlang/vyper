@@ -101,7 +101,7 @@ def input_json(optimize, evm_version, experimental_codegen, debug):
         "interfaces": {"contracts/ibar.json": {"abi": BAR_ABI}},
         "settings": {
             "outputSelection": {"*": ["*"]},
-            "optimize": optimize.name,
+            "optimize": str(optimize),
             "evmVersion": evm_version,
             "experimentalCodegen": experimental_codegen,
             "debug": debug,
