@@ -11,6 +11,7 @@ from vyper.venom.passes import (
     SCCP,
     AlgebraicOptimizationPass,
     AssignElimination,
+    AssertCombinerPass,
     BranchOptimizationPass,
     CFGNormalization,
     ConcretizeMemLocPass,
@@ -72,6 +73,7 @@ PASSES_Os: List[PassConfig] = [
     RemoveUnusedVariablesPass,
     BranchOptimizationPass,
     AlgebraicOptimizationPass,
+    AssertCombinerPass,
     # This improves the performance of cse
     RemoveUnusedVariablesPass,
     PhiEliminationPass,
