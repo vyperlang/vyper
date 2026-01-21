@@ -92,6 +92,15 @@ class AssertCombinerPass(IRPass):
     def _get_iszero_operand(
         self, op: IROperand, seen: Optional[set[IRVariable]] = None
     ) -> Optional[IROperand]:
+        """
+        Follow `op` through assigns to find an iszero instruction.
+        Returns the iszero's operand (the value being zero-checked), or None
+        if `op` doesn't resolve to an iszero pattern.
+
+        Note: rejects literal inputs (can't trace through them) but the
+        returned operand may be a literal (e.g., `iszero 0`).
+        """
+        # can only trace through variables, not literals
         if isinstance(op, IRLiteral):
             return None
         if not isinstance(op, IRVariable):
