@@ -14,7 +14,7 @@ Vyper
     installing-vyper.rst
     quickstart.rst
     solidity-differences.rst
-    vyper-by-example.rst
+    vyper-by-example/index
 
 .. toctree::
     :caption: Language Description

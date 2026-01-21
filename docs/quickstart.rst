@@ -141,7 +141,7 @@ This demonstrates:
 Next Steps
 ----------
 
-- Browse :doc:`vyper-by-example` for more complex contracts
+- Browse :doc:`vyper-by-example/index` for more complex contracts
 - Read about :doc:`types` and :doc:`control-structures`
 - Learn about :doc:`using-modules` for code reuse
 - See the `Moccasin documentation <https://cyfrin.github.io/moccasin/>`_ for deployment and advanced features
