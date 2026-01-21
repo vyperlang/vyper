@@ -60,8 +60,8 @@ It is **strongly recommended** to install Vyper in **a virtual Python
 environment**, so that new packages installed and dependencies built are
 strictly contained in your Vyper project and will not alter or affect your
 other development environment set-up.
-For easy virtualenv management, we recommend either `pyenv <https://github.com/pyenv/pyenv>`_
-or `Poetry <https://github.com/python-poetry/poetry>`_.
+For easy virtualenv management, we recommend `uv <https://github.com/astral-sh/uv>`_,
+`pyenv <https://github.com/pyenv/pyenv>`_, or `Poetry <https://github.com/python-poetry/poetry>`_.
 
 
 .. note::
@@ -112,7 +112,7 @@ The normal parameters are also supported, for example:
 ::
 
     docker run -v $(pwd):/code vyperlang/vyper -f abi /code/<contract_file.vy>
-    [{'name': 'test1', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}, {'type': 'bytes', 'name': 'b'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 441}, {'name': 'test2', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 316}]
+    [{"stateMutability": "nonpayable", "type": "function", "name": "test1", "inputs": [{"name": "a", "type": "uint256"}, {"name": "b", "type": "bytes"}], "outputs": []}, {"stateMutability": "nonpayable", "type": "function", "name": "test2", "inputs": [{"name": "a", "type": "uint256"}], "outputs": []}]
 
 .. note::
 
@@ -121,7 +121,7 @@ The normal parameters are also supported, for example:
 nix
 ***
 
-View the versions supported through nix at `nix package search <https://search.nixos.org/packages?channel=21.05&show=vyper&from=0&size=50&sort=relevance&query=vyper>`_ 
+View the versions supported through nix at `nix package search <https://search.nixos.org/packages?show=vyper&query=vyper>`_ 
 
 .. note::
 
