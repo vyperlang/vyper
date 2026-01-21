@@ -145,8 +145,8 @@ While this blind auction is almost functionally identical to the blind auction i
 
 .. literalinclude:: ../examples/auctions/blind_auction.vy
   :language: vyper
-  :lineno-start: 28
-  :lines: 28-30
+  :lineno-start: 9
+  :lines: 9-12
 
 One difference is that in this example, we use a fixed-size array, limiting the number of bids that can be placed by one address to 128 in this
 example. Bidders who want to make more than this maximum number of bids would
@@ -188,8 +188,8 @@ logic. Let's break down this contract bit by bit.
 
 .. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.vy
   :language: vyper
-  :lineno-start: 16
-  :lines: 16-19
+  :lineno-start: 18
+  :lines: 18-23
 
 Like the other contracts, we begin by declaring our global variables public with
 their respective data types. Remember that the ``public`` function allows the
@@ -197,8 +197,8 @@ variables to be *readable* by an external caller, but not *writeable*.
 
 .. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.vy
   :language: vyper
-  :lineno-start: 22
-  :lines: 22-29
+  :lineno-start: 25
+  :lines: 25-33
 
 With a ``@payable`` decorator on the constructor, the contract creator will be
 required to make an initial deposit equal to twice the item's ``value`` to
@@ -212,8 +212,8 @@ in the contract variable ``self.value`` and saves the contract creator into
 
 .. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.vy
   :language: vyper
-  :lineno-start: 31
-  :lines: 31-36
+  :lineno-start: 35
+  :lines: 35-43
 
 The ``abort()`` method is a method only callable by the seller and while the
 contract is still ``unlocked``—meaning it is callable only prior to any buyer
@@ -227,8 +227,8 @@ contract sends the balance back to the seller, effectively canceling the sale.
 
 .. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.vy
   :language: vyper
-  :lineno-start: 38
-  :lines: 38-45
+  :lineno-start: 45
+  :lines: 45-53
 
 Like the constructor, the ``purchase()`` method has a ``@payable`` decorator,
 meaning it can be called with a payment. For the buyer to make a valid
@@ -240,8 +240,8 @@ send the item to the buyer.
 
 .. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.vy
   :language: vyper
-  :lineno-start: 47
-  :lines: 47-61
+  :lineno-start: 55
+  :lines: 55-72
 
 Finally, upon the buyer's receipt of the item, the buyer can confirm their
 receipt by calling the ``received()`` method to distribute the funds as
@@ -384,7 +384,7 @@ with their respective data types.
 
 Similarly, the ``proposals`` variable is initialized as a ``public`` mapping
 with ``int128`` as the key’s datatype and a struct to represent each proposal
-with the properties ``name`` and ``vote_count``. Like our last example, we can
+with the properties ``name`` and ``voteCount``. Like our last example, we can
 access any value by key’ing into the mapping with a number just as one would
 with an index in an array.
 
@@ -403,7 +403,7 @@ array argument of exactly two proposal names of type ``bytes32`` for the contrac
 initialization. Because upon initialization, the ``__init__()`` method is called
 by the contract creator, we have access to the contract creator’s address with
 ``msg.sender`` and store it in the contract variable ``self.chairperson``. We
-also initialize the contract variable ``self.voter_count`` to zero to initially
+also initialize the contract variable ``self.voterCount`` to zero to initially
 represent the number of votes allowed. This value will be incremented as each
 participant in the contract is given the right to vote by the method
 ``giveRightToVote()``, which we will explore next. We loop through the two
@@ -435,13 +435,10 @@ total number of voters by incrementing ``voterCount``.
 
 In the method ``delegate``, firstly, we check to see that ``msg.sender`` has not
 already voted and secondly, that the target delegate and the ``msg.sender`` are
-not the same. Voters shouldn’t be able to delegate votes to themselves. We,
-then, loop through all the voters to determine whether the person delegate to
-had further delegated their vote to someone else in order to follow the
-chain of delegation. We then mark the ``msg.sender`` as having voted if they
-delegated their vote. We increment the proposal’s ``voterCount`` directly if
-the delegate had already voted or increase the  delegate’s vote ``weight``
-if the delegate has not yet voted.
+not the same. Voters shouldn't be able to delegate votes to themselves. We then
+mark the ``msg.sender`` as having voted and record the delegate address. Finally,
+we call ``_forwardWeight()`` which handles following the chain of delegation and
+transferring voting weight appropriately.
 
 .. literalinclude:: ../examples/voting/ballot.vy
   :language: vyper
@@ -540,8 +537,8 @@ company's address is initialized to hold all shares of the company in the
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: vyper
-  :lineno-start: 42
-  :lines: 42-46
+  :lineno-start: 149
+  :lines: 149-159
 
 We will be seeing a few ``@view`` decorators in this contract—which is
 used to decorate methods that simply read the contract state or return a simple
@@ -550,7 +547,7 @@ calculation on the contract state without modifying it. When called externally
 language, we see an arrow following the definition of the ``_stockAvailable()``
 method, which simply represents the data type which the function is expected
 to return. In the method, we simply key into ``self.holdings`` with the
-company's address and check it's holdings.  Because ``_stockAvailable()`` is an
+company's address and check its holdings.  Because ``_stockAvailable()`` is an
 internal method, we also include the ``stockAvailable()`` method to allow
 external access.
 

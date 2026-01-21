@@ -22,8 +22,8 @@ Quick Reference
      - ``import`` + ``exports``
      - Explicit dependencies
    * - ``assembly { }``
-     - ``raw_call()`` built-in
-     - Low-level access via explicit built-ins
+     - Not supported
+     - No direct EVM opcode access; use specific builtins (``raw_call``, ``raw_log``, etc.)
    * - ``while (true)``
      - ``for i in range(n)``
      - Bounded gas costs
@@ -105,7 +105,7 @@ A contract can be understood by reading one file and its direct imports, and dep
 No Inline Assembly
 ==================
 
-Vyper excludes inline assembly. For low-level operations, use the built-in functions: ``raw_call``, ``create_minimal_proxy_to``, ``create_from_blueprint``.
+Vyper excludes inline assembly. For low-level operations, use the built-in functions: ``raw_call``, ``raw_create``, ``create_minimal_proxy_to``, ``create_from_blueprint``.
 
 Assembly bypasses compiler safety checks: type verification, overflow protection, memory safety, and requires reviewers to reason about raw opcodes. Vyper's built-in functions provide low-level access through explicit, auditable function calls.
 
@@ -144,7 +144,7 @@ Every function has a calculable maximum gas cost. Unbounded storage iteration ca
 
 .. note::
 
-   Vyper's bounded loops and lack of recursion make gas costs statically analyzable. The official documentation states: "It is possible to compute a precise upper bound for the gas consumption of any Vyper function call.
+   Vyper's bounded loops and lack of recursion make gas costs statically analyzable. The official documentation states: "It is possible to compute a precise upper bound for the gas consumption of any Vyper function call."
 
 No Recursion
 ============
@@ -225,6 +225,10 @@ Syntax Differences
 
 Practical syntax translations for common patterns.
 
+.. note::
+
+   Every Vyper file must start with a version pragma: ``#pragma version ^0.4.0``. This is similar to Solidity's ``pragma solidity ^0.8.0;`` but uses a comment syntax. Vyper files use the ``.vy`` extension.
+
 State Variables
 ---------------
 
@@ -282,10 +286,10 @@ Vyper:
 .. code-block:: vyper
 
     @deploy
-    def __init__(owner: address):
-        self.owner = owner
+    def __init__(_owner: address):
+        self.owner = _owner
 
-The ``@deploy`` decorator marks the constructor (added in 0.4.0).
+The ``@deploy`` decorator marks the constructor (added in 0.4.0). By convention, constructor parameters use underscore prefixes to distinguish them from state variables.
 
 Events
 ------
@@ -411,7 +415,7 @@ Why Vyper?
 Use Vyper if:
 
 - **You have Python experience.** The syntax is familiar.
-- **You want compiler-enforced constraints.** The compiler rejects unbounded loops, implicit conversions, and missing reentrancy guards.
+- **You want compiler-enforced constraints.** The compiler rejects unbounded loops, implicit conversions, and recursive calls.
 - **You prefer explicit code.** One way to do most things. No modifiers, no inheritance, no operator overloading.
 - **You want safety checks on by default.** Overflow protection and bounds checking require explicit opt-out via ``unsafe_*`` builtins.
 
