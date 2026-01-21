@@ -290,7 +290,17 @@ class MemoryCopyElisionPass(IRPass):
             if self._modifies_memory_at(inst, orig_src_loc):
                 return False
 
-        # Check for overlap issues
+        # Overlap safety
+        #
+        # mcopy has memmove-like semantics: it is valid for src/dst to overlap,
+        # and the destination is populated from a snapshot of the source.
+        #
+        # If the *first* copy writes into its own source region (A -> B where
+        # A overlaps B), then rewriting the second copy (B -> C) to read from A
+        # can be incorrect: A may have been clobbered by the first mcopy.
+        if MemoryLocation.may_overlap(orig_src_loc, intermediate_loc):
+            return False
+
         # If final destination overlaps with original source, merging could change semantics
         if MemoryLocation.may_overlap(final_dst_loc, orig_src_loc):
             return False

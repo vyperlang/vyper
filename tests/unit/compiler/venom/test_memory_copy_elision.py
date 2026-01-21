@@ -12,15 +12,17 @@ def _check_no_change(pre):
 
 
 def test_load_store_no_elision():
-    """
-    Basic load-store test - single word copy is already optimal.
-    mload followed by mstore should NOT be changed.
+    """Basic load-store test.
+
+    Single-word copies are already optimal, but the store must be observable
+    (otherwise this pass will remove it as an unused write).
     """
     pre = """
     _global:
         %1 = mload 100
-        mstore %1, 200
-        stop
+        mstore 200, %1
+        %2 = mload 200
+        sink %2
     """
     _check_no_change(pre)
 
@@ -239,16 +241,19 @@ def test_mcopy_chain_longer():
 
 
 def test_calldatacopy_barrier():
-    """
-    Test that calldatacopy acts as a barrier for optimizations.
+    """Test that calldatacopy acts as a barrier for optimizations.
+
+    Also ensure the mstore is observable (otherwise this pass may remove it
+    as an unnecessary effect).
     """
     pre = """
     _global:
         %1 = mload 100
         calldatacopy 200, 0, 32  ; BARRIER - writes to memory
-        mstore %1, 300
+        mstore 300, %1
         %2 = mload 200
-        sink %2
+        %3 = mload 300
+        sink %3, %2
     """
     _check_no_change(pre)
 
