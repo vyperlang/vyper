@@ -41,7 +41,7 @@ class MemoryCopyElisionPass(IRPass):
 
     def _remove_unnecessary_effects_bb(self, bb: IRBasicBlock):
         for inst, state in self.mem_overwrite.bb_iterator(bb):
-            if inst.output is not None:
+            if inst.has_outputs:
                 continue
             write_loc = self.base_ptrs.get_write_location(inst, MEMORY)
             if write_loc == MemoryLocation.EMPTY:
@@ -68,7 +68,7 @@ class MemoryCopyElisionPass(IRPass):
                 assert inst.output is not None
                 # Track the load if it has a literal source
                 if isinstance(inst.operands[0], IRLiteral):
-                    src_loc = MemoryLocation.from_operands(inst.operands[0], 32)
+                    src_loc = MemoryLocation(offset=inst.operands[0].value, size=32)
                     available_loads[inst.output] = (inst, src_loc)
 
             elif inst.opcode == "mstore":
@@ -78,7 +78,7 @@ class MemoryCopyElisionPass(IRPass):
                 if isinstance(var, IRVariable) and isinstance(dst, IRLiteral):
                     if var in available_loads:
                         load_inst, src_loc = available_loads[var]
-                        dst_loc = MemoryLocation.from_operands(dst, 32)
+                        dst_loc = MemoryLocation(offset=dst.value, size=32)
 
                         # Check if we can elide this copy
                         if self._can_elide_copy(inst, src_loc, dst_loc, var):
@@ -325,7 +325,7 @@ class MemoryCopyElisionPass(IRPass):
         if inst.opcode == "mstore":
             _, dst = inst.operands
             if isinstance(dst, IRLiteral):
-                write_loc = MemoryLocation.from_operands(dst, 32)
+                write_loc = MemoryLocation(offset=dst.value, size=32)
                 return MemoryLocation.may_overlap(write_loc, loc)
 
         elif inst.opcode in ("mcopy", "calldatacopy", "codecopy", "returndatacopy", "dloadbytes"):
@@ -333,7 +333,7 @@ class MemoryCopyElisionPass(IRPass):
             size_op = inst.operands[0]
             dst_op = inst.operands[2]
             if isinstance(size_op, IRLiteral) and isinstance(dst_op, IRLiteral):
-                write_loc = MemoryLocation.from_operands(dst_op, size_op)
+                write_loc = MemoryLocation(offset=dst_op.value, size=size_op.value)
                 return MemoryLocation.may_overlap(write_loc, loc)
 
         # Conservative: assume any other memory write could alias
@@ -347,7 +347,7 @@ class MemoryCopyElisionPass(IRPass):
         if inst.opcode == "mload":
             src = inst.operands[0]
             if isinstance(src, IRLiteral):
-                read_loc = MemoryLocation.from_operands(src, 32)
+                read_loc = MemoryLocation(offset=src.value, size=32)
                 return MemoryLocation.may_overlap(read_loc, loc)
 
         elif inst.opcode == "mcopy":
@@ -355,7 +355,7 @@ class MemoryCopyElisionPass(IRPass):
                 size_op = inst.operands[0]
                 src_op = inst.operands[1]
                 if isinstance(size_op, IRLiteral) and isinstance(src_op, IRLiteral):
-                    read_loc = MemoryLocation.from_operands(src_op, size_op)
+                    read_loc = MemoryLocation(offset=src_op.value, size=size_op.value)
                     return MemoryLocation.may_overlap(read_loc, loc)
 
         # Conservative: assume any other memory read could alias
@@ -376,7 +376,7 @@ class MemoryCopyElisionPass(IRPass):
             available_loads.clear()
             return
 
-        store_loc = MemoryLocation.from_operands(dst, 32)
+        store_loc = MemoryLocation(offset=dst.value, size=32)
 
         # Remove any loads that may alias with this store
         to_remove = []
@@ -401,7 +401,9 @@ class MemoryCopyElisionPass(IRPass):
         assert len(inst.operands) == 3
         size_op = inst.operands[0]
         dst_op = inst.operands[2]
-        write_loc = MemoryLocation.from_operands(dst_op, size_op)
+        _offset = dst_op.value if isinstance(dst_op, IRLiteral) else None
+        _size = size_op.value if isinstance(size_op, IRLiteral) else None
+        write_loc = MemoryLocation(offset=_offset, size=_size)
 
         if not write_loc.is_fixed:
             # Conservative: clear all if we can't determine the destination
