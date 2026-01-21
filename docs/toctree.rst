@@ -13,6 +13,7 @@ Vyper
 
     installing-vyper.rst
     quickstart.rst
+    solidity-differences.rst
     vyper-by-example.rst
 
 .. toctree::
