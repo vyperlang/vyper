@@ -92,7 +92,6 @@ class MemOverwriteAnalysis(IRAnalysis):
 
     def bb_iterator(self, bb: IRBasicBlock) -> Iterator[tuple[IRInstruction, LatticeItem]]:
         lattice_item = self.mem_start[bb]
-        print(bb.label, lattice_item)
         for inst in reversed(bb.instructions):
             yield (inst, lattice_item)
             read_loc = self.base_ptrs.get_read_location(inst, MEMORY)
