@@ -1,6 +1,6 @@
 from .algebraic_optimization import AlgebraicOptimizationPass
-from .assign_elimination import AssignElimination
 from .assert_combiner import AssertCombinerPass
+from .assign_elimination import AssignElimination
 from .branch_optimization import BranchOptimizationPass
 from .cfg_normalization import CFGNormalization
 from .common_subexpression_elimination import CSE

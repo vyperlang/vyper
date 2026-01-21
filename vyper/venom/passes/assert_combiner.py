@@ -6,7 +6,8 @@ import vyper.venom.effects as effects
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
-from vyper.venom.passes.base_pass import IRPass, InstUpdater
+from vyper.venom.passes.base_pass import InstUpdater, IRPass
+
 
 class AssertCombinerPass(IRPass):
     """
@@ -61,11 +62,7 @@ class AssertCombinerPass(IRPass):
         return True
 
     def _merge_asserts(
-        self,
-        a: IRInstruction,
-        a_pred: IROperand,
-        b: IRInstruction,
-        b_pred: IROperand,
+        self, a: IRInstruction, a_pred: IROperand, b: IRInstruction, b_pred: IROperand
     ) -> Optional[IROperand]:
         if a_pred == b_pred:
             self.updater.remove(a)
