@@ -41,7 +41,7 @@ class OptimizationLevel(Enum):
             case "none":
                 return cls.NONE
             # O1 maps to O2 for now until stack spilling is implemented
-            case "O1" | "O2" | "o1" | "o2" | "gas":
+            case "O1" | "O2" | "gas":
                 return cls.GAS
             case "codesize" | "Os":
                 return cls.CODESIZE
