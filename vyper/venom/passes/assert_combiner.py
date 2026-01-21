@@ -101,8 +101,6 @@ class AssertCombinerPass(IRPass):
         returned operand may be a literal (e.g., `iszero 0`).
         """
         # can only trace through variables, not literals
-        if isinstance(op, IRLiteral):
-            return None
         if not isinstance(op, IRVariable):
             return None
 
