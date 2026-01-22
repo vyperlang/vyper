@@ -751,3 +751,43 @@ def test() -> uint256:
 """
     c = get_contract(source)
     assert c.test() == expected
+
+
+def test_convert_zero_bytes_to_bool(get_contract):
+    """Bytes with zero content convert to False."""
+    code = """
+@external
+def test_zero() -> bool:
+    return convert(b"\\x00", bool)
+
+@external
+def test_empty() -> bool:
+    return convert(b"", bool)
+
+@external
+def test_nonzero() -> bool:
+    return convert(b"\\x01", bool)
+
+@external
+def test_nonzero_multi() -> bool:
+    return convert(b"\\x00\\x01", bool)
+    """
+    c = get_contract(code)
+    assert c.test_zero() is False
+    assert c.test_empty() is False
+    assert c.test_nonzero() is True
+    assert c.test_nonzero_multi() is True
+
+
+def test_convert_storage_bytes_to_uint(get_contract):
+    """Regression test: convert correctly handles storage bytes."""
+    code = """
+stored: Bytes[32]
+
+@external
+def test_convert() -> uint256:
+    self.stored = b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x2a"
+    return convert(self.stored, uint256)
+    """  # noqa: E501
+    c = get_contract(code)
+    assert c.test_convert() == 42

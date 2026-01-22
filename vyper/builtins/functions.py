@@ -1201,12 +1201,15 @@ class SelfDestruct(BuiltinFunctionT):
     _inputs = [("to", AddressT())]
     _is_terminus = True
 
+    def fetch_call_return(self, node):
+        # Emit deprecation warning during semantic analysis (runs exactly once)
+        vyper_warn(
+            "`selfdestruct` is deprecated! The opcode is no longer recommended for use.", node
+        )
+        return super().fetch_call_return(node)
+
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        vyper_warn(
-            "`selfdestruct` is deprecated! The opcode is no longer recommended for use.", expr
-        )
-
         context.check_is_not_constant("selfdestruct", expr)
         return IRnode.from_list(ensure_eval_once("selfdestruct", ["selfdestruct", args[0]]))
 
