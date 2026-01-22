@@ -5,7 +5,7 @@ from .function import ContractFunctionT, MemberFunctionT
 from .module import InterfaceT, ModuleT
 from .primitives import AddressT, BoolT, BytesM_T, DecimalT, IntegerT, SelfT
 from .subscriptable import DArrayT, HashMapT, SArrayT, TupleT
-from .user import EventT, FlagT, StructT
+from .user import ErrorT, EventT, FlagT, StructT
 
 
 def _get_primitive_types():

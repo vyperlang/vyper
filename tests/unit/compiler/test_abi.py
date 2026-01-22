@@ -91,6 +91,31 @@ def foo(s: decimal) -> decimal:
     assert out["abi"] == expected_abi
 
 
+def test_custom_error_abi():
+    code = """
+error Unauthorized:
+    caller: address
+
+error Simple:
+    pass
+
+@external
+def fail():
+    raise Unauthorized(caller=msg.sender)
+    """
+
+    abi = compile_code(code, output_formats=["abi"])["abi"]
+
+    unauthorized = next(
+        item for item in abi if item.get("type") == "error" and item.get("name") == "Unauthorized"
+    )
+    assert unauthorized["inputs"][0]["name"] == "caller"
+    assert unauthorized["inputs"][0]["type"] == "address"
+
+    simple = next(item for item in abi if item.get("type") == "error" and item.get("name") == "Simple")
+    assert simple["inputs"] == []
+
+
 def test_struct_abi():
     code = """
 struct MyStruct:

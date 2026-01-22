@@ -47,6 +47,7 @@ from vyper.semantics.types import (
     AddressT,
     BoolT,
     DArrayT,
+    ErrorT,
     EventT,
     FlagT,
     HashMapT,
@@ -369,16 +370,26 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         self.expr_visitor.visit(node.target, typ)
 
     def _validate_revert_reason(self, msg_node: vy_ast.VyperNode) -> None:
+        if isinstance(msg_node, vy_ast.Name) and msg_node.id == "UNREACHABLE":
+            return
+
+        if isinstance(msg_node, vy_ast.Call):
+            call_type = get_exact_type_from_node(msg_node.func)
+            if is_type_t(call_type, ErrorT):
+                self.expr_visitor.visit(msg_node, call_type.typedef)
+                return
+
         if isinstance(msg_node, vy_ast.Str):
             if not msg_node.value.strip():
                 raise StructureException("Reason string cannot be empty", msg_node)
             self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
-        elif not (isinstance(msg_node, vy_ast.Name) and msg_node.id == "UNREACHABLE"):
-            try:
-                validate_expected_type(msg_node, StringT(1024))
-            except TypeMismatch as e:
-                raise InvalidType("revert reason must fit within String[1024]") from e
-            self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
+            return
+
+        try:
+            validate_expected_type(msg_node, StringT(1024))
+        except TypeMismatch as e:
+            raise InvalidType("revert reason must fit within String[1024]") from e
+        self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
         # CMC 2023-10-19 nice to have: tag UNREACHABLE nodes with a special type
 
     def visit_Assert(self, node):
