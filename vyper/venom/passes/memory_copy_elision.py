@@ -35,6 +35,13 @@ class MemoryCopyElisionPass(IRPass):
         self.base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.updater = InstUpdater(self.dfg)
 
+        # Check if msize is used anywhere - affects what optimizations are safe
+        self._msize_used = any(
+            inst.opcode == "msize"
+            for bb in self.function.get_basic_blocks()
+            for inst in bb.instructions
+        )
+
         for bb in self.function.get_basic_blocks():
             self._process_basic_block(bb)
 
@@ -348,10 +355,12 @@ class MemoryCopyElisionPass(IRPass):
         """Elide a load-store pair by converting to a more efficient form."""
         # Check if this is a redundant copy (src == dst)
         assert src_loc.offset == dst_loc.offset and src_loc.size == dst_loc.size
-        # Completely redundant - remove both instructions
-        # Must nop store first since it uses the load's output
+        # Redundant store - always safe to remove
         self.updater.nop(store_inst, annotation="[memory copy elision - redundant store]")
-        self.updater.nop(load_inst, annotation="[memory copy elision - redundant load]")
+        # Redundant load - only remove if msize is not used
+        # (the load affects msize by touching memory at that offset)
+        if not self._msize_used:
+            self.updater.nop(load_inst, annotation="[memory copy elision - redundant load]")
 
     def _modifies_memory(self, inst: IRInstruction) -> bool:
         """Check if an instruction modifies memory."""

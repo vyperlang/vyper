@@ -1,5 +1,3 @@
-import pytest
-
 from tests.venom_utils import PrePostChecker
 from vyper.evm.opcodes import version_check
 from vyper.venom.passes import MemoryCopyElisionPass
@@ -578,7 +576,6 @@ def test_mem_elision_load_needed_not_precise():
     _check_pre_post(pre, post)
 
 
-@pytest.mark.xfail
 def test_mem_elision_msize():
     pre = """
     main:
