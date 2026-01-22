@@ -65,8 +65,10 @@ class MemoryCopyElisionPass(IRPass):
         available_loads: dict[IRVariable, tuple[IRInstruction, MemoryLocation]] = {}
 
         # Track mcopy operations for chain optimization
-        # Maps destination location -> (mcopy_inst, src_location)
-        mcopy_chain: dict[int, tuple[IRInstruction, MemoryLocation]] = {}
+        # Maps (destination offset, alloca) -> (mcopy_inst, src_location)
+        # We need to include alloca in the key to avoid false matches between
+        # different memory regions that happen to have the same offset
+        mcopy_chain: dict[tuple, tuple[IRInstruction, MemoryLocation]] = {}
 
         # Track memory writes to invalidate loads
         for inst in bb.instructions.copy():
@@ -107,13 +109,20 @@ class MemoryCopyElisionPass(IRPass):
                     assert src_loc.offset is not None  # help mypy
                     assert dst_loc.offset is not None  # help mypy
                     # Check for redundant copy (src == dst)
-                    if src_loc.offset == dst_loc.offset and src_loc.size == dst_loc.size:
+                    # Must check alloca too - two different allocas at offset 0 are NOT the same
+                    if (
+                        src_loc.offset == dst_loc.offset
+                        and src_loc.size == dst_loc.size
+                        and src_loc.alloca == dst_loc.alloca
+                    ):
                         self.updater.nop(inst, annotation="[memory copy elision - redundant mcopy]")
                         continue
 
                     # Check if this forms a chain with a previous copy
-                    if src_loc.offset in mcopy_chain:
-                        prev_inst, prev_src_loc = mcopy_chain[src_loc.offset]
+                    # Key is (offset, alloca) to correctly distinguish different memory regions
+                    chain_key = (src_loc.offset, src_loc.alloca)
+                    if chain_key in mcopy_chain:
+                        prev_inst, prev_src_loc = mcopy_chain[chain_key]
 
                         # Check if previous instruction is a special copy (calldatacopy, etc)
                         if prev_inst.opcode in (
@@ -122,9 +131,12 @@ class MemoryCopyElisionPass(IRPass):
                             "returndatacopy",
                             "dloadbytes",
                         ):
-                            # Can merge if sizes match and no hazards
+                            # Can merge if sizes match, locations are concrete, and no hazards
+                            # Must be concrete because we use literal offsets in the merged instruction
                             if (
-                                prev_src_loc.size == src_loc.size == dst_loc.size
+                                src_loc.is_concrete
+                                and dst_loc.is_concrete
+                                and prev_src_loc.size == src_loc.size == dst_loc.size
                                 and self._can_merge_special_copy_chain(bb, prev_inst, inst, src_loc)
                             ):
                                 # Replace mcopy with the special copy directly to final destination
@@ -139,16 +151,21 @@ class MemoryCopyElisionPass(IRPass):
                                     annotation="[memory copy elision - merged special copy]",
                                 )
                                 # Update chain tracking
-                                del mcopy_chain[src_loc.offset]
+                                del mcopy_chain[chain_key]
                                 # Track the new special copy in the chain for
                                 # potential future merging
-                                mcopy_chain[dst_loc.offset] = (inst, prev_src_loc)
+                                mcopy_chain[(dst_loc.offset, dst_loc.alloca)] = (inst, prev_src_loc)
                                 continue
                         else:
                             # Regular mcopy chain
                             # Check if we can merge: A->B followed by B->C becomes A->C
+                            # Only merge when all locations are concrete (no alloca) because
+                            # we use literal offsets in the merged instruction
                             if (
-                                prev_src_loc.size == src_loc.size == dst_loc.size
+                                prev_src_loc.is_concrete
+                                and src_loc.is_concrete
+                                and dst_loc.is_concrete
+                                and prev_src_loc.size == src_loc.size == dst_loc.size
                                 and self._can_merge_mcopy_chain(
                                     bb, prev_inst, inst, prev_src_loc, src_loc, dst_loc
                                 )
@@ -162,12 +179,12 @@ class MemoryCopyElisionPass(IRPass):
                                     inst, "mcopy", [size_op, IRLiteral(prev_src_loc.offset), dst_op]
                                 )
                                 # Update chain tracking
-                                del mcopy_chain[src_loc.offset]
-                                mcopy_chain[dst_loc.offset] = (inst, prev_src_loc)
+                                del mcopy_chain[chain_key]
+                                mcopy_chain[(dst_loc.offset, dst_loc.alloca)] = (inst, prev_src_loc)
                                 continue
 
                     # Track this mcopy for potential future chaining
-                    mcopy_chain[dst_loc.offset] = (inst, src_loc)
+                    mcopy_chain[(dst_loc.offset, dst_loc.alloca)] = (inst, src_loc)
 
                 # mcopy invalidates overlapping loads but not mcopy chains
                 # (we handle mcopy chain invalidation separately)
@@ -185,7 +202,7 @@ class MemoryCopyElisionPass(IRPass):
                     # which is not a memory location but rather calldata/code/returndata
                     # We'll use a special marker to indicate the source
                     src_marker = MemoryLocation(offset=-1, size=dst_loc.size)  # Special marker
-                    mcopy_chain[dst_loc.offset] = (inst, src_marker)
+                    mcopy_chain[(dst_loc.offset, dst_loc.alloca)] = (inst, src_marker)
 
                 self._invalidate_aliasing_loads_by_inst(available_loads, inst)
                 self._invalidate_mcopy_chain(mcopy_chain, inst, exclude_current=True)
@@ -459,22 +476,23 @@ class MemoryCopyElisionPass(IRPass):
             return
 
         to_remove = []
-        for dst_offset, (tracked_inst, src_loc) in mcopy_chain.items():
+        for chain_key, (tracked_inst, src_loc) in mcopy_chain.items():
             # Skip if this is the current instruction and exclude_current is True
             if exclude_current and tracked_inst is inst:
                 continue
 
-            dst_loc = MemoryLocation(offset=dst_offset, size=src_loc.size)
+            dst_offset, dst_alloca = chain_key
+            dst_loc = MemoryLocation(offset=dst_offset, size=src_loc.size, alloca=dst_alloca)
             # Invalidate if the write aliases with either source or destination
             # For special copies, src_loc.offset == -1, so we only check destination
             if src_loc.offset == -1:  # Special marker for non-memory sources
                 if MemoryLocation.may_overlap(write_loc, dst_loc):
-                    to_remove.append(dst_offset)
+                    to_remove.append(chain_key)
             else:
                 if MemoryLocation.may_overlap(write_loc, src_loc) or MemoryLocation.may_overlap(
                     write_loc, dst_loc
                 ):
-                    to_remove.append(dst_offset)
+                    to_remove.append(chain_key)
 
-        for offset in to_remove:
-            del mcopy_chain[offset]
+        for key in to_remove:
+            del mcopy_chain[key]

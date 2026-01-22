@@ -43,12 +43,11 @@ class MemOverwriteAnalysis(IRAnalysis):
     mem_start: dict[IRBasicBlock, LatticeItem]
 
     def analyze(self):
-        # Initialize with TOP (ALL) for backward must-analysis.
-        # This ensures loops converge correctly - starting with "everything
-        # overwritten" and refining via intersection.
-        self.mem_overwritten = {
-            bb: OrderedSet([MemoryLocation.ALL]) for bb in self.function.get_basic_blocks()
-        }
+        # Initialize with BOTTOM (empty) for backward must-analysis.
+        # This is the conservative starting point - we don't know what will be
+        # overwritten. The analysis will propagate information backward from
+        # terminal blocks (stop/sink) where ALL memory is considered dead.
+        self.mem_overwritten = {bb: OrderedSet() for bb in self.function.get_basic_blocks()}
         self.mem_start = {bb: OrderedSet() for bb in self.function.get_basic_blocks()}
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
