@@ -706,3 +706,126 @@ def test_remove_unused_writes_with_read_loop():
     """
 
     _check_pre_post(pre, post)
+
+
+# ============================================================================
+# Alloca-relative memory tests
+# These test proper handling of alloca-based memory locations
+# ============================================================================
+
+
+def test_mcopy_chain_with_allocas():
+    """Chain merging should work correctly with allocas.
+
+    A->B->C chain: second mcopy is updated to copy from A directly,
+    making the first mcopy dead (B is no longer read).
+
+    Text format: mcopy dst, src, size
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %a1 = alloca 64
+        %a2 = alloca 64
+        %a3 = alloca 64
+        mcopy %a2, %a1, 64
+        mcopy %a3, %a2, 64
+        %1 = mload %a3
+        sink %1
+    """
+    # Chain merging: second mcopy reads from %a1 directly
+    # Dead store elimination: first mcopy is dead since %a2 is never read
+    post = """
+    _global:
+        %a1 = alloca 64
+        %a2 = alloca 64
+        %a3 = alloca 64
+        nop
+        mcopy %a3, %a1, 64
+        %1 = mload %a3
+        sink %1
+    """
+    _check_pre_post(pre, post)
+
+
+def test_different_allocas_not_redundant():
+    """Different allocas at offset 0 are NOT the same location.
+
+    Two different allocas pointing to offset 0 within their respective
+    allocations are distinct memory regions - copying between them
+    is not redundant.
+
+    Text format: mcopy dst, src, size
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %a1 = alloca 64
+        %a2 = alloca 64
+        mcopy %a2, %a1, 64
+        %1 = mload %a2
+        sink %1
+    """
+    _check_no_change(pre)
+
+
+def test_same_alloca_redundant():
+    """Copy from alloca to itself IS redundant.
+
+    Text format: mcopy dst, src, size
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %a1 = alloca 64
+        mcopy %a1, %a1, 64
+        stop
+    """
+    post = """
+    _global:
+        %a1 = alloca 64
+        nop
+        stop
+    """
+    _check_pre_post(pre, post)
+
+
+def test_calldatacopy_mcopy_chain_with_alloca():
+    """Special copy chain with alloca destination.
+
+    calldatacopy -> alloca A, mcopy A -> alloca B: mcopy is converted to
+    calldatacopy directly to B, making the first calldatacopy dead.
+
+    Text format: mcopy dst, src, size
+    Text format: calldatacopy dst, src_offset, size
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %a1 = alloca 64
+        %a2 = alloca 64
+        calldatacopy %a1, 0, 64
+        mcopy %a2, %a1, 64
+        %1 = mload %a2
+        sink %1
+    """
+    # Chain merging: mcopy becomes calldatacopy to %a2
+    # Dead store elimination: first calldatacopy is dead since %a1 is never read
+    post = """
+    _global:
+        %a1 = alloca 64
+        %a2 = alloca 64
+        nop
+        calldatacopy %a2, 0, 64
+        %1 = mload %a2
+        sink %1
+    """
+    _check_pre_post(pre, post)
