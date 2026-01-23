@@ -370,7 +370,7 @@ The following example describes the output format of ``vyper-json``. Comments ar
 
     {
         // The compiler version used to generate the JSON
-        "compiler": "vyper-0.1.0b12",
+        "compiler": "vyper-0.4.0",
         // Optional: not present if no errors/warnings were encountered
         "errors": [
             {
