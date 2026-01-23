@@ -3,7 +3,11 @@
 Testing with Brownie
 ####################
 
-`Brownie <https://github.com/iamdefinitelyahuman/brownie>`_ is a Python-based development and testing framework for smart contracts. It includes a pytest plugin with fixtures that simplify testing your contract.
+.. warning::
+
+    Brownie is no longer actively maintained. For new projects, we recommend using `Titanoboa <https://github.com/vyperlang/titanoboa>`_, which is maintained by the Vyper team. See :ref:`testing-contracts-titanoboa` for details.
+
+`Brownie <https://github.com/eth-brownie/brownie>`_ is a Python-based development and testing framework for smart contracts. It includes a pytest plugin with fixtures that simplify testing your contract.
 
 This section provides a quick overview of testing with Brownie. To learn more, you can view the Brownie documentation on `writing unit tests <https://eth-brownie.readthedocs.io/en/stable/tests-pytest-intro.html>`_ or join the `Ethereum Python Dev Discord <https://discord.gg/abJEARdx3Q>`_ ``#brownie`` channel.
 
