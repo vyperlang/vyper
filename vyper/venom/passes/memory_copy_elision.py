@@ -479,17 +479,14 @@ class MemoryCopyElisionPass(IRPass):
         inst: IRInstruction,
         exclude_current: bool = False,
     ):
-        if inst.opcode not in (
+        assert inst.opcode in (
             "mstore",
             "mcopy",
             "calldatacopy",
             "codecopy",
             "returndatacopy",
             "dloadbytes",
-        ):
-            # Conservative: clear all
-            mcopy_chain.clear()
-            return
+        )
 
         write_loc = self.base_ptrs.get_write_location(inst, MEMORY)
         if not write_loc.is_fixed:
