@@ -421,8 +421,7 @@ class MemoryCopyElisionPass(IRPass):
         store_inst: IRInstruction,
     ):
         """Remove any tracked loads that may alias with a store."""
-        if store_inst.opcode != "mstore":
-            return
+        assert store_inst.opcode == "mstore"
 
         _, dst = store_inst.operands
         if not isinstance(dst, IRLiteral):
