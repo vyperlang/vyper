@@ -349,13 +349,16 @@ Cryptography
 
         @external
         @view
-        def foo(hash: bytes32, v: uint8, r:bytes32, s:bytes32) -> address:
+        def foo(hash: bytes32, v: uint8, r: bytes32, s: bytes32) -> address:
             return ecrecover(hash, v, r, s)
 
+    Alternatively, ``v``, ``r``, and ``s`` can be passed as ``uint256``:
+
+    .. code-block:: vyper
 
         @external
         @view
-        def foo(hash: bytes32, v: uint256, r:uint256, s:uint256) -> address:
+        def bar(hash: bytes32, v: uint256, r: uint256, s: uint256) -> address:
             return ecrecover(hash, v, r, s)
 
     .. code-block:: vyper
