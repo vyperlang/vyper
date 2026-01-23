@@ -208,6 +208,7 @@ class ContractFunctionT(VyperType):
             "value": KwargSettings(UINT256_T, 0),
             "skip_contract_check": KwargSettings(BoolT(), False, require_literal=True),
             "default_return_value": KwargSettings(self.return_type, None),
+            "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
         }
 
     def __repr__(self):
@@ -697,6 +698,16 @@ class ContractFunctionT(VyperType):
             except TypeMismatch as e:
                 raise self._enhance_call_exception(e, expected.ast_source or self.ast_def)
 
+        # Check if revert_on_failure is explicitly set to False
+        revert_kwarg = next((kw for kw in node.keywords if kw.arg == "revert_on_failure"), None)
+        revert_on_failure = True
+        if (
+            revert_kwarg
+            and isinstance(revert_kwarg.value, vy_ast.NameConstant)
+            and revert_kwarg.value.value is False
+        ):
+            revert_on_failure = False
+
         # TODO this should be moved to validate_call_args
         for kwarg in node.keywords:
             if kwarg.arg in self.call_site_kwargs:
@@ -727,6 +738,12 @@ class ContractFunctionT(VyperType):
                 if modified_line != node.node_source_code:
                     hint = f"Try removing the kwarg: `{modified_line}`"
                 raise ArgumentException(msg, kwarg, hint=hint)
+
+        # Return a tuple of (bool, return_type) when revert_on_failure=False
+        if not revert_on_failure:
+            if self.return_type is None:
+                return BoolT()
+            return TupleT((BoolT(), self.return_type))
 
         return self.return_type
 

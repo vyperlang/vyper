@@ -76,6 +76,7 @@ Keyword                         Description
 ``value``                       Specify amount of ether sent with the call
 ``skip_contract_check``         Drop ``EXTCODESIZE`` check (but keep ``RETURNDATASIZE`` check)
 ``default_return_value``        Specify a default return value if no value is returned
+``revert_on_failure``           If ``False``, return a success flag instead of reverting
 =============================== ==============================================================
 
 The ``default_return_value`` parameter can be used to handle ERC20 tokens affected by the missing return value bug in a way similar to OpenZeppelin's ``safeTransfer`` for Solidity:
@@ -84,6 +85,77 @@ The ``default_return_value`` parameter can be used to handle ERC20 tokens affect
 
     extcall IERC20(USDT).transfer(msg.sender, 1, default_return_value=True) # returns True
     extcall IERC20(USDT).transfer(msg.sender, 1) # reverts because nothing returned
+
+When ``revert_on_failure=False`` is set, external calls return a tuple of ``(success, value)``,
+where ``success`` is a ``bool`` and ``value`` is the original return type.
+
+Revert-on-failure calls
+=======================
+
+The ``revert_on_failure`` keyword argument is available for both ``extcall`` and ``staticcall``.
+When set to ``False``, the call returns a success flag instead of reverting on EVM call failure.
+
+Return typing:
+
+- If the external function returns a value ``T``, the call returns ``(bool, T)``.
+- If the external function returns multiple values ``(T1, T2, ...)``, the call returns
+  ``(bool, (T1, T2, ...))``.
+- If the external function returns no value, the call returns ``bool``.
+
+On failure, the returned value is the zero/default value for its type. The ``success`` flag only
+reflects the EVM call result. ABI decoding still enforces return-data size and type checks, and
+the ``EXTCODESIZE`` check for no-return calls still applies unless ``skip_contract_check=True``.
+These conditions can still revert even when ``revert_on_failure=False``.
+
+No-return external call:
+
+.. code-block:: vyper
+
+    interface Target:
+        def fail(should_raise: bool): nonpayable
+
+    @external
+    def call_target_fail(target: address, should_raise: bool) -> bool:
+        return extcall Target(target).fail(should_raise, revert_on_failure=False)
+
+Value-returning external call:
+
+.. code-block:: vyper
+
+    interface Target:
+        def value(should_raise: bool) -> uint256: nonpayable
+
+    @external
+    def call_target_value(target: address, should_raise: bool) -> (bool, uint256):
+        success: bool = False
+        result: uint256 = 0
+        success, result = extcall Target(target).value(should_raise, revert_on_failure=False)
+        return success, result
+
+Multi-return external call:
+
+.. code-block:: vyper
+
+    interface Target:
+        def values(should_raise: bool) -> (uint256, bytes32): nonpayable
+
+    @external
+    def call_target_values(
+        target: address,
+        should_raise: bool
+    ) -> (bool, (uint256, bytes32)):
+        return extcall Target(target).values(should_raise, revert_on_failure=False)
+
+Staticcall with revert_on_failure:
+
+.. code-block:: vyper
+
+    interface Target:
+        def value(should_raise: bool) -> uint256: view
+
+    @external
+    def call_target_value(target: address, should_raise: bool) -> (bool, uint256):
+        return staticcall Target(target).value(should_raise, revert_on_failure=False)
 
 Built-in Interfaces
 ===================
