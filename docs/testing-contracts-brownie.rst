@@ -77,7 +77,7 @@ For the remaining examples, we expand our simple storage contract to include an 
 .. literalinclude:: ../examples/storage/advanced_storage.vy
     :caption: advanced_storage.vy
     :linenos:
-    :language: python
+    :language: vyper
 
 To test events, we examine the :py:class:`TransactionReceipt <brownie.network.transaction.TransactionReceipt>` object which is returned after each successful transaction. It contains an :py:class:`events <brownie.network.event.EventDict>` member with information about events that fired.
 
