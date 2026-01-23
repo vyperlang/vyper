@@ -9,7 +9,7 @@ from typing import Any, Callable, Hashable, Optional
 
 import vyper
 from vyper.compiler.input_bundle import FileInput, JSONInput, JSONInputBundle, _normpath
-from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import JSONError
 from vyper.utils import OrderedSet, keccak256
@@ -304,6 +304,10 @@ def get_settings(input_dict: dict) -> Settings:
     evm_version = get_evm_version(input_dict)
 
     optimize = input_dict["settings"].get("optimize")
+    opt_level = input_dict["settings"].get("optLevel")
+
+    if optimize is not None and opt_level is not None:
+        raise JSONError("both 'optimize' and 'optLevel' cannot be set")
 
     experimental_codegen = input_dict["settings"].get("experimentalCodegen")
     if experimental_codegen is None:
@@ -311,7 +315,9 @@ def get_settings(input_dict: dict) -> Settings:
     elif input_dict["settings"].get("venomExperimental") is not None:
         raise JSONError("both experimentalCodegen and venomExperimental cannot be set")
 
-    if isinstance(optimize, bool):
+    if opt_level is not None:
+        optimize = OptimizationLevel.from_string(opt_level)
+    elif isinstance(optimize, bool):
         # bool optimization level for backwards compatibility
         vyper_warn(
             Deprecation(
@@ -329,12 +335,45 @@ def get_settings(input_dict: dict) -> Settings:
     # TODO: maybe change these to camelCase for consistency
     enable_decimals = input_dict["settings"].get("enable_decimals", None)
 
+    # Create Venom optimization flags with the optimization level
+    venom_flags = VenomOptimizationFlags(level=optimize)
+
+    # Check for Venom-specific settings
+    venom_settings = input_dict["settings"].get("venom", {})
+    if venom_settings:
+        # TODO: refactor this
+        flag_mapping = {
+            "disableInlining": ("disable_inlining", bool),
+            "disableCSE": ("disable_cse", bool),
+            "disableSCCP": ("disable_sccp", bool),
+            "disableLoadElimination": ("disable_load_elimination", bool),
+            "disableDeadStoreElimination": ("disable_dead_store_elimination", bool),
+            "disableAlgebraicOptimization": ("disable_algebraic_optimization", bool),
+            "disableBranchOptimization": ("disable_branch_optimization", bool),
+            "disableMem2Var": ("disable_mem2var", bool),
+            "disableSimplifyCFG": ("disable_simplify_cfg", bool),
+            "disableRemoveUnusedVariables": ("disable_remove_unused_variables", bool),
+            "inlineThreshold": ("inline_threshold", int),
+        }
+
+        # merge user-provided settings into venom_flags
+        for json_field, (attr_name, expected_type) in flag_mapping.items():
+            if json_field in venom_settings:
+                value = venom_settings[json_field]
+                if not isinstance(value, expected_type):
+                    raise JSONError(
+                        f"venom.{json_field} must be {expected_type.__name__}, "
+                        f"got {type(value).__name__}"
+                    )
+                setattr(venom_flags, attr_name, value)
+
     return Settings(
         evm_version=evm_version,
         optimize=optimize,
         experimental_codegen=experimental_codegen,
         debug=debug,
         enable_decimals=enable_decimals,
+        venom_flags=venom_flags,
     )
 
 

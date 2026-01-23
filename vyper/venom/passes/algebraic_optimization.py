@@ -73,7 +73,7 @@ class AlgebraicOptimizationPass(IRPass):
                     if opcode == "iszero":
                         # We keep iszero instuctions as is
                         continue
-                    if opcode in ("jnz", "assert"):
+                    if opcode in ("jnz", "assert", "assert_unreachable"):
                         # instructions that accept a truthy value as input:
                         # we can remove up to all the iszero instructions
                         keep_count = 1 - iszero_count % 2
@@ -315,6 +315,11 @@ class AlgebraicOptimizationPass(IRPass):
                 return
 
             # no more cases for this instruction
+            return
+
+        if inst.opcode == "gep":
+            if lit_eq(inst.operands[1], 0):
+                self.updater.mk_assign(inst, inst.operands[0])
             return
 
         if inst.opcode in {"add", "sub", "xor"}:

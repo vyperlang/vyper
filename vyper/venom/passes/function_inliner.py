@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from vyper.compiler.settings import OptimizationLevel
+from vyper.compiler.settings import VenomOptimizationFlags
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, FCGAnalysis, IRAnalysesCache
@@ -25,16 +25,16 @@ class FunctionInlinerPass(IRGlobalPass):
 
     inline_count: int
     fcg: FCGAnalysis
-    optimize: OptimizationLevel
+    flags: VenomOptimizationFlags
 
     def __init__(
         self,
         analyses_caches: dict[IRFunction, IRAnalysesCache],
         ctx: IRContext,
-        optimize: OptimizationLevel,
+        flags: VenomOptimizationFlags,
     ):
         super().__init__(analyses_caches, ctx)
-        self.optimize = optimize
+        self.flags = flags or VenomOptimizationFlags()
 
     def run_pass(self):
         entry = self.ctx.entry_function
@@ -47,7 +47,7 @@ class FunctionInlinerPass(IRGlobalPass):
         for _ in range(function_count):
             candidate = self._select_inline_candidate()
             if candidate is None:
-                return
+                break
 
             # print(f"Inlining function {candidate.name} with cost {candidate.code_size_cost}")
 
@@ -70,16 +70,9 @@ class FunctionInlinerPass(IRGlobalPass):
             if call_count == 1:
                 return func
 
-            # Decide whether to inline based on the optimization level.
-            if self.optimize == OptimizationLevel.CODESIZE:
-                continue
-            elif self.optimize == OptimizationLevel.GAS:
-                if func.code_size_cost <= 15:
-                    return func
-            elif self.optimize == OptimizationLevel.NONE:
-                continue
-            else:  # pragma: nocover
-                raise CompilerPanic(f"Unsupported inlining optimization level: {self.optimize}")
+            # Use the inline threshold from flags
+            if func.code_size_cost <= self.flags.inline_threshold:
+                return func
 
         return None
 
@@ -107,7 +100,8 @@ class FunctionInlinerPass(IRGlobalPass):
                     # inlined any callsites (see demotion of calloca
                     # to alloca below). this handles both cases.
                     if inst.opcode in ("alloca", "calloca"):
-                        _, _, alloca_id_op = inst.operands
+                        assert len(inst.operands) >= 2, inst
+                        alloca_id_op = inst.operands[1]
                         alloca_id = alloca_id_op.value
                         assert isinstance(alloca_id, int)  # help mypy
                         if alloca_id in callocas:
@@ -120,7 +114,7 @@ class FunctionInlinerPass(IRGlobalPass):
                             callocas[alloca_id] = inst
 
                     if inst.opcode == "palloca":
-                        _, _, alloca_id_op = inst.operands
+                        _, alloca_id_op = inst.operands
                         alloca_id = alloca_id_op.value
                         assert isinstance(alloca_id, int)
                         if alloca_id not in callocas:
@@ -136,10 +130,11 @@ class FunctionInlinerPass(IRGlobalPass):
                 for inst in bb.instructions:
                     if inst.opcode != "calloca":
                         continue
-                    _, _, alloca_id = inst.operands
-                    if alloca_id in found:
+                    size, alloca_id, callee = inst.operands
+                    if alloca_id.value in found:
                         # demote to alloca so that mem2var will work
                         inst.opcode = "alloca"
+                        inst.operands = [size, alloca_id]
 
     def _inline_call_site(self, func: IRFunction, call_site: IRInstruction) -> None:
         """

@@ -13,7 +13,6 @@ from vyper.venom.analysis.mem_ssa import (
 )
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.effects import Effects
-from vyper.venom.memory_location import get_read_location, get_write_location
 
 
 @pytest.fixture
@@ -457,7 +456,7 @@ def test_read_write_memory_clobbering():
 
     # Verify call instruction has both read and write memory areas
     assert call_def.loc.offset == 32  # Write area
-    assert call_def.loc.size == 32  # Write size
+    assert call_def.loc.size is None  # Write size
     assert call_use.loc.offset == 0  # Read area
     assert call_use.loc.size == 32  # Read size
 
@@ -502,7 +501,7 @@ def test_read_write_memory_clobbering_partial():
     # Verify call instruction has both read and write memory areas
     # Write area
     assert call_def.loc.offset == 0
-    assert call_def.loc.size == 32
+    assert call_def.loc.size is None
     # Read area
     assert call_use.loc.offset == 31
     assert call_use.loc.size == 2
@@ -557,15 +556,9 @@ def test_analyze_instruction_with_no_memory_ops():
     }
     """
 
-    mem_ssa, fn, _ = create_mem_ssa(pre)
+    mem_ssa, _, _ = create_mem_ssa(pre)
 
-    # Get the block and instruction
-    bb = fn.get_basic_block("_global")
-    assignment_inst = bb.instructions[0]  # %1 = 42
-
-    # Verify that the instruction doesn't have memory operations
-    assert get_read_location(assignment_inst, MEMORY) is MemoryLocation.EMPTY
-    assert get_write_location(assignment_inst, MEMORY) is MemoryLocation.EMPTY
+    # more check for this scenarion in tests for BasePtrAnalysis
 
     assert mem_ssa.memalias.alias_sets is not None
 

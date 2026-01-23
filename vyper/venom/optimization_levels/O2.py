@@ -1,0 +1,84 @@
+# We keep thise in separate files to allow for
+# easier management of different optimization levels
+# and diffing between them.
+
+from typing import List
+
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
+from vyper.venom.optimization_levels.types import PassConfig
+from vyper.venom.passes import (
+    CSE,
+    SCCP,
+    AlgebraicOptimizationPass,
+    AssignElimination,
+    BranchOptimizationPass,
+    CFGNormalization,
+    ConcretizeMemLocPass,
+    DeadStoreElimination,
+    DFTPass,
+    FixMemLocationsPass,
+    FloatAllocas,
+    LoadElimination,
+    LowerDloadPass,
+    MakeSSA,
+    Mem2Var,
+    MemMergePass,
+    PhiEliminationPass,
+    RemoveUnusedVariablesPass,
+    RevertToAssert,
+    SimplifyCFGPass,
+    SingleUseExpansion,
+)
+
+# Standard optimizations (default)
+PASSES_O2: List[PassConfig] = [
+    FixMemLocationsPass,
+    FloatAllocas,
+    SimplifyCFGPass,
+    MakeSSA,
+    PhiEliminationPass,
+    AlgebraicOptimizationPass,
+    SCCP,
+    SimplifyCFGPass,
+    AssignElimination,
+    Mem2Var,
+    MakeSSA,
+    PhiEliminationPass,
+    SCCP,
+    SimplifyCFGPass,
+    AssignElimination,
+    AlgebraicOptimizationPass,
+    LoadElimination,
+    PhiEliminationPass,
+    AssignElimination,
+    SCCP,
+    AssignElimination,
+    RevertToAssert,
+    SimplifyCFGPass,
+    # run memmerge before LowerDload
+    MemMergePass,
+    LowerDloadPass,
+    RemoveUnusedVariablesPass,
+    (DeadStoreElimination, {"addr_space": MEMORY}),
+    (DeadStoreElimination, {"addr_space": STORAGE}),
+    (DeadStoreElimination, {"addr_space": TRANSIENT}),
+    AssignElimination,
+    RemoveUnusedVariablesPass,
+    ConcretizeMemLocPass,
+    SCCP,
+    SimplifyCFGPass,
+    MemMergePass,
+    RemoveUnusedVariablesPass,
+    BranchOptimizationPass,
+    AlgebraicOptimizationPass,
+    # This improves the performance of cse
+    RemoveUnusedVariablesPass,
+    PhiEliminationPass,
+    AssignElimination,
+    CSE,
+    AssignElimination,
+    RemoveUnusedVariablesPass,
+    SingleUseExpansion,
+    DFTPass,
+    CFGNormalization,
+]
