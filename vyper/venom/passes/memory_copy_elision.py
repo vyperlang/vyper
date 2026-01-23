@@ -100,7 +100,7 @@ class MemoryCopyElisionPass(IRPass):
         # src_operand is None for special copies (calldatacopy etc) since they
         # don't have a memory source
         mcopy_chain: dict[
-            MemoryLocation, tuple[IRInstruction, MemoryLocation, Optional[IROperand]]
+            MemoryLocation, tuple[IRInstruction, MemoryLocation]
         ] = {}
 
         # Track memory writes to invalidate loads
@@ -148,7 +148,7 @@ class MemoryCopyElisionPass(IRPass):
                     # Check if this forms a chain with a previous copy
                     # Use MemoryLocation as key to correctly distinguish different allocas
                     if src_loc in mcopy_chain:
-                        prev_inst, prev_src_loc, prev_src_op = mcopy_chain[src_loc]
+                        prev_inst, prev_src_loc = mcopy_chain[src_loc]
 
                         # Check if previous instruction is a special copy (calldatacopy, etc)
                         if prev_inst.opcode in (
@@ -175,7 +175,7 @@ class MemoryCopyElisionPass(IRPass):
                                 del mcopy_chain[src_loc]
                                 # Track the new special copy in the chain for
                                 # potential future merging
-                                mcopy_chain[dst_loc] = (inst, prev_src_loc, prev_src_op)
+                                mcopy_chain[dst_loc] = (inst, prev_src_loc)
                                 continue
                         else:
                             # Regular mcopy chain
@@ -190,9 +190,7 @@ class MemoryCopyElisionPass(IRPass):
                                 # Internal order is [size, src, dst]
                                 # Reuse prev_inst's source operand directly - this preserves
                                 # alloca pointers instead of generating invalid literals
-                                assert (
-                                    prev_src_op is not None
-                                )  # mcopy chains always have src operand
+                                prev_src_op = prev_inst.operands[1]
                                 size_op = inst.operands[0]
                                 dst_op = inst.operands[2]
                                 self.updater.update(inst, "mcopy", [size_op, prev_src_op, dst_op])
@@ -200,12 +198,12 @@ class MemoryCopyElisionPass(IRPass):
                                 # Don't nop prev_inst here - _remove_unnecessary_effects
                                 # will handle it if the intermediate write is dead
                                 del mcopy_chain[src_loc]
-                                mcopy_chain[dst_loc] = (inst, prev_src_loc, prev_src_op)
+                                mcopy_chain[dst_loc] = (inst, prev_src_loc)
                                 continue
 
                     # Track this mcopy for potential future chaining
                     # Store the source operand for later reuse in chain merging
-                    mcopy_chain[dst_loc] = (inst, src_loc, inst.operands[1])
+                    mcopy_chain[dst_loc] = (inst, src_loc)
 
                 # mcopy invalidates overlapping loads but not mcopy chains
                 # (we handle mcopy chain invalidation separately)
@@ -223,7 +221,7 @@ class MemoryCopyElisionPass(IRPass):
                     # We'll use a special marker to indicate the source
                     src_marker = MemoryLocation(offset=-1, size=dst_loc.size)  # Special marker
                     # Store None as src_operand since special copies don't have a memory source
-                    mcopy_chain[dst_loc] = (inst, src_marker, None)
+                    mcopy_chain[dst_loc] = (inst, src_marker)
 
                 self._invalidate_aliasing_loads_by_inst(available_loads, inst)
                 self._invalidate_mcopy_chain(mcopy_chain, inst, exclude_current=True)
@@ -423,8 +421,7 @@ class MemoryCopyElisionPass(IRPass):
         store_inst: IRInstruction,
     ):
         """Remove any tracked loads that may alias with a store."""
-        if store_inst.opcode != "mstore":
-            return
+        assert store_inst.opcode == "mstore"
 
         _, dst = store_inst.operands
         if not isinstance(dst, IRLiteral):
@@ -477,22 +474,19 @@ class MemoryCopyElisionPass(IRPass):
     def _invalidate_mcopy_chain(
         self,
         mcopy_chain: dict[
-            MemoryLocation, tuple[IRInstruction, MemoryLocation, Optional[IROperand]]
+            MemoryLocation, tuple[IRInstruction, MemoryLocation]
         ],
         inst: IRInstruction,
         exclude_current: bool = False,
     ):
-        if inst.opcode not in (
+        assert inst.opcode in (
             "mstore",
             "mcopy",
             "calldatacopy",
             "codecopy",
             "returndatacopy",
             "dloadbytes",
-        ):
-            # Conservative: clear all
-            mcopy_chain.clear()
-            return
+        )
 
         write_loc = self.base_ptrs.get_write_location(inst, MEMORY)
         if not write_loc.is_fixed:
@@ -501,7 +495,7 @@ class MemoryCopyElisionPass(IRPass):
             return
 
         to_remove = []
-        for dst_loc, (tracked_inst, src_loc, _) in mcopy_chain.items():
+        for dst_loc, (tracked_inst, src_loc) in mcopy_chain.items():
             # Skip if this is the current instruction and exclude_current is True
             if exclude_current and tracked_inst is inst:
                 continue
