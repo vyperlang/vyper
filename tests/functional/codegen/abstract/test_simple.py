@@ -1646,3 +1646,141 @@ def bar({params_override}) -> uint256:
         c = get_contract(contract, input_bundle=input_bundle)
 
         assert c.call_bar(*call_bar_args) == expected
+
+
+def test_cannot_call_overridden_method(get_contract, make_input_bundle):
+    """Test that you cannot call a method that you override"""
+
+    abstract_module = """
+@abstract
+def foo() -> uint256: ...
+    """
+
+    contract = """
+import abstract_module
+
+initializes: abstract_module
+
+@override(abstract_module)
+def foo() -> uint256:
+    return abstract_module.foo()  # Should fail - can't call method we override
+    """
+
+    input_bundle = make_input_bundle({"abstract_module.vy": abstract_module})
+
+    with pytest.raises(CallViolation) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    assert "foo" in e.value.message
+
+
+def test_uses_clause_does_not_allow_override(get_contract, make_input_bundle):
+    """Test that a module with only uses clause cannot override abstract methods"""
+
+    abstract_module = """
+@abstract
+def foo() -> uint256: ...
+    """
+
+    contract = """
+import abstract_module
+
+uses: abstract_module  # Only uses, not initializes
+
+@override(abstract_module)  # Should fail - can't override from uses-only
+def foo() -> uint256:
+    return 100
+    """
+
+    input_bundle = make_input_bundle({"abstract_module.vy": abstract_module})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    assert "not initialized" in e.value.message
+
+
+def test_module_override_without_initializing(get_contract, make_input_bundle):
+    """Test that a module cannot override from another module it doesn't initialize"""
+
+    abstract_module = """
+@abstract
+def foo() -> uint256: ...
+    """
+
+    override_module = """
+import abstract_module
+
+uses: abstract_module  # Only uses, not initializes
+
+@override(abstract_module)  # Should fail
+def foo() -> uint256:
+    return 42
+    """
+
+    contract = """
+import override_module
+import abstract_module
+
+initializes: abstract_module
+initializes: override_module
+    """
+
+    input_bundle = make_input_bundle(
+        {"abstract_module.vy": abstract_module, "override_module.vy": override_module}
+    )
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    assert "not initialized" in e.value.message
+
+
+def test__ellipsis_cannot_override_concrete_default_parameter(get_contract, make_input_bundle):
+    """Test that ellipsis cannot override a concrete default parameter value"""
+
+    module_c = """
+@abstract
+def foo(x: uint256 = 10) -> uint256: ...
+    """
+
+    module_b = """
+import module_c
+
+initializes: module_c
+
+@abstract
+@override(module_c) # v Ellipsis overrides `10` from module_c
+def foo(x: uint256 = ...) -> uint256: ...
+    """
+
+    module_a = """
+import module_b
+
+initializes: module_b
+
+@override(module_b)
+def foo(x: uint256 = 10) -> uint256:
+    return x
+    """
+
+    contract = """
+import module_a
+import module_c
+
+initializes: module_a
+uses: module_c
+
+@external
+def test() -> uint256:
+    return module_c.foo()
+    """
+
+    input_bundle = make_input_bundle(
+        {"module_c.vy": module_c, "module_b.vy": module_b, "module_a.vy": module_a}
+    )
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    assert "Override parameter mismatch" in e.value.message
