@@ -1674,6 +1674,64 @@ def foo() -> uint256:
     assert "foo" in e.value.message
 
 
+def test_abstract_method_body_must_be_ellipsis(get_contract, make_input_bundle):
+    """Test that abstract method body must be ... only (no actual code)"""
+
+    abstract_module = """
+@abstract
+def foo() -> uint256:
+    return 42  # Should fail - body must be ...
+    """
+
+    contract = """
+import abstract_module
+
+initializes: abstract_module
+
+@override(abstract_module)
+def foo() -> uint256:
+    return 100
+    """
+
+    input_bundle = make_input_bundle({"abstract_module.vy": abstract_module})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    assert "abstract" in e.value.message.lower()
+
+
+def test_abstract_method_with_docstring_succeeds(get_contract, make_input_bundle):
+    """Test that abstract method can have a docstring before ..."""
+
+    abstract_module = '''
+@abstract
+def foo() -> uint256:
+    """This is a docstring for the abstract method."""
+    ...
+    '''
+
+    contract = """
+import abstract_module
+
+initializes: abstract_module
+
+@external
+def test() -> uint256:
+    return abstract_module.foo()
+
+@override(abstract_module)
+def foo() -> uint256:
+    return 42
+    """
+
+    input_bundle = make_input_bundle({"abstract_module.vy": abstract_module})
+
+    # Should compile successfully
+    c = get_contract(contract, input_bundle=input_bundle)
+    assert c.test() == 42
+
+
 def test_uses_clause_does_not_allow_override(get_contract, make_input_bundle):
     """Test that a module with only uses clause cannot override abstract methods"""
 
