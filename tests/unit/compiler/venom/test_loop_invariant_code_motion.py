@@ -105,3 +105,73 @@ def test_branch_local_invariant_not_hoisted():
     """
 
     _check_pre_post(pre, post)
+
+
+def test_storage_read_hoisted_without_writes():
+    pre = """
+    main:
+        %k = source
+        jmp @loop_header
+    loop_header:
+        %cond = lt %k, 10
+        jnz %cond, @loop_body, @exit
+    loop_body:
+        %v = sload 0
+        %use = %v
+        jmp @loop_header
+    exit:
+        sink %use
+    """
+
+    post = """
+    main:
+        %k = source
+        %cond = lt %k, 10
+        %v = sload 0
+        %use = %v
+        jmp @loop_header
+    loop_header:
+        jnz %cond, @loop_body, @exit
+    loop_body:
+        jmp @loop_header
+    exit:
+        sink %use
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_storage_read_not_hoisted_with_writes():
+    pre = """
+    main:
+        %k = source
+        jmp @loop_header
+    loop_header:
+        %cond = lt %k, 10
+        jnz %cond, @loop_body, @exit
+    loop_body:
+        sstore 0, 1
+        %v = sload 0
+        %use = %v
+        jmp @loop_header
+    exit:
+        sink %use
+    """
+
+    post = """
+    main:
+        %k = source
+        %cond = lt %k, 10
+        jmp @loop_header
+    loop_header:
+        jnz %cond, @loop_body, @exit
+    loop_body:
+        sstore 0, 1
+        %v = sload 0
+        %use = %v
+        jmp @loop_header
+    exit:
+        sink %use
+    """
+
+    _check_pre_post(pre, post)

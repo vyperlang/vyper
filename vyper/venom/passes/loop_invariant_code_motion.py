@@ -87,7 +87,7 @@ class LoopInvariantCodeMotionPass(IRPass):
     def _compute_loop_nodes(
         self, header: IRBasicBlock, latch: IRBasicBlock
     ) -> OrderedSet[IRBasicBlock]:
-        nodes = OrderedSet([header, latch])
+        nodes: OrderedSet[IRBasicBlock] = OrderedSet([header, latch])
         stack = [latch]
 
         while stack:
@@ -126,8 +126,16 @@ class LoopInvariantCodeMotionPass(IRPass):
                     defs.setdefault(out, []).append(inst)
         return defs
 
+    def _collect_loop_write_effects(self, loop_blocks: OrderedSet[IRBasicBlock]) -> effects.Effects:
+        res = effects.EMPTY
+        for bb in loop_blocks:
+            for inst in bb.instructions:
+                res |= inst.get_write_effects()
+        return res
+
     def _collect_loop_invariants(self, loop: LoopInfo) -> list[IRInstruction]:
         loop_defs = self._collect_loop_defs(loop.blocks)
+        loop_write_effects = self._collect_loop_write_effects(loop.blocks)
         invariants: OrderedSet[IRInstruction] = OrderedSet()
 
         progress = True
@@ -137,7 +145,7 @@ class LoopInvariantCodeMotionPass(IRPass):
                 for inst in bb.body_instructions:
                     if inst in invariants:
                         continue
-                    if not self._is_candidate(inst):
+                    if not self._is_candidate(inst, loop_write_effects):
                         continue
                     if not self._dominates_all_latches(inst.parent, loop.latches):
                         continue
@@ -149,16 +157,16 @@ class LoopInvariantCodeMotionPass(IRPass):
 
         return list(invariants)
 
-    def _is_candidate(self, inst: IRInstruction) -> bool:
+    def _is_candidate(self, inst: IRInstruction, loop_write_effects: effects.Effects) -> bool:
         if inst.opcode == "nop":
             return False
         if inst.is_volatile or inst.is_bb_terminator:
             return False
         if not inst.has_outputs:
             return False
-        if inst.get_read_effects() != effects.EMPTY:
+        if inst.get_write_effects() & ~effects.MSIZE:
             return False
-        if inst.get_write_effects() != effects.EMPTY:
+        if inst.get_read_effects() & loop_write_effects:
             return False
         return True
 
