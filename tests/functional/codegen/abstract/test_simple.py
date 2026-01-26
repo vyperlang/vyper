@@ -7,6 +7,7 @@ from vyper.exceptions import (
     ImmutableViolation,
     InitializerException,
     StructureException,
+    VyperException,
 )
 
 
@@ -319,6 +320,17 @@ FAILING_OVERRIDES = [
         "y: uint256",
         "uint256",
         FunctionDeclarationException,
+        "Override parameter mismatch",
+    ),
+    # Parameters swapped (same names and types but wrong positions)
+    # Uses VyperException because both parameters mismatch, resulting in multiple errors
+    (
+        "y: uint256, x: uint256",
+        "uint256",
+        "x + y",
+        "x: uint256, y: uint256",
+        "uint256",
+        VyperException,
         "Override parameter mismatch",
     ),
     # Parameter type mismatch with different types
