@@ -45,6 +45,7 @@ PASSES_Os: List[PassConfig] = [
     AssignElimination,
     Mem2Var,
     MakeSSA,
+    LoopInvariantCodeMotionPass,
     PhiEliminationPass,
     SCCP,
     SimplifyCFGPass,
@@ -72,7 +73,6 @@ PASSES_Os: List[PassConfig] = [
     MemMergePass,
     RemoveUnusedVariablesPass,
     BranchOptimizationPass,
-    LoopInvariantCodeMotionPass,
     AlgebraicOptimizationPass,
     # This improves the performance of cse
     RemoveUnusedVariablesPass,

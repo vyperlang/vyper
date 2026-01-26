@@ -25,15 +25,15 @@ class LoopInvariantCodeMotionPass(IRPass):
 
     cfg: CFGAnalysis
     dom: DominatorTreeAnalysis
-    dfg: DFGAnalysis
 
     def run_pass(self):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
         changed = False
-        for loop in self._find_loops():
+        loops = self._find_loops()
+        loops = self._filter_nested_loops(loops)
+        for loop in loops:
             if loop.preheader is None:
                 continue
             if self._hoist_loop(loop):
@@ -67,7 +67,26 @@ class LoopInvariantCodeMotionPass(IRPass):
         # process inner loops first to allow hoisting to cascade outward
         return sorted(loops.values(), key=lambda loop: len(loop.blocks))
 
-    def _compute_loop_nodes(self, header: IRBasicBlock, latch: IRBasicBlock) -> OrderedSet[IRBasicBlock]:
+    def _filter_nested_loops(self, loops: list[LoopInfo]) -> list[LoopInfo]:
+        if len(loops) < 2:
+            return loops
+
+        nested_headers: set[IRBasicBlock] = set()
+        for loop in loops:
+            for other in loops:
+                if loop is other:
+                    continue
+                if loop.header in other.blocks or other.header in loop.blocks:
+                    nested_headers.add(loop.header)
+                    break
+
+        if not nested_headers:
+            return loops
+        return [loop for loop in loops if loop.header not in nested_headers]
+
+    def _compute_loop_nodes(
+        self, header: IRBasicBlock, latch: IRBasicBlock
+    ) -> OrderedSet[IRBasicBlock]:
         nodes = OrderedSet([header, latch])
         stack = [latch]
 
@@ -98,7 +117,17 @@ class LoopInvariantCodeMotionPass(IRPass):
             self._move_to_preheader(inst, loop.preheader)
         return True
 
+    def _collect_loop_defs(self, loop_blocks: OrderedSet[IRBasicBlock]) -> dict:
+        defs: dict = {}
+        for bb in loop_blocks:
+            # include phi/param defs so loop-variant values aren't treated as invariant
+            for inst in bb.instructions:
+                for out in inst.get_outputs():
+                    defs.setdefault(out, []).append(inst)
+        return defs
+
     def _collect_loop_invariants(self, loop: LoopInfo) -> list[IRInstruction]:
+        loop_defs = self._collect_loop_defs(loop.blocks)
         invariants: OrderedSet[IRInstruction] = OrderedSet()
 
         progress = True
@@ -112,7 +141,7 @@ class LoopInvariantCodeMotionPass(IRPass):
                         continue
                     if not self._dominates_all_latches(inst.parent, loop.latches):
                         continue
-                    if self._uses_loop_variant(inst, loop.blocks, invariants):
+                    if self._uses_loop_variant(inst, loop_defs, invariants):
                         continue
 
                     invariants.add(inst)
@@ -125,7 +154,7 @@ class LoopInvariantCodeMotionPass(IRPass):
             return False
         if inst.is_volatile or inst.is_bb_terminator:
             return False
-        if inst.output is None:
+        if not inst.has_outputs:
             return False
         if inst.get_read_effects() != effects.EMPTY:
             return False
@@ -140,18 +169,13 @@ class LoopInvariantCodeMotionPass(IRPass):
         return True
 
     def _uses_loop_variant(
-        self,
-        inst: IRInstruction,
-        loop_blocks: OrderedSet[IRBasicBlock],
-        invariants: OrderedSet[IRInstruction],
+        self, inst: IRInstruction, loop_defs: dict, invariants: OrderedSet[IRInstruction]
     ) -> bool:
         for operand in inst.get_input_variables():
-            producer = self.dfg.get_producing_instruction(operand)
-            if producer is None:
+            defs = loop_defs.get(operand)
+            if not defs:
                 continue
-            if producer in invariants:
-                continue
-            if producer.parent not in loop_blocks:
+            if len(defs) == 1 and defs[0] in invariants:
                 continue
             return True
 

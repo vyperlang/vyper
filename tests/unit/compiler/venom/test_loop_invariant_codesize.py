@@ -1,5 +1,3 @@
-import pytest
-
 from vyper import compile_code
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.venom.passes.loop_invariant_code_motion import LoopInvariantCodeMotionPass
@@ -19,11 +17,7 @@ def _compile_contract():
     settings = Settings()
     settings.optimize = OptimizationLevel.CODESIZE
     settings.experimental_codegen = True
-    output = compile_code(
-        LICM_REGRESSION_SOURCE,
-        output_formats=["bytecode"],
-        settings=settings,
-    )
+    output = compile_code(LICM_REGRESSION_SOURCE, output_formats=["bytecode"], settings=settings)
     return output["bytecode"]
 
 
