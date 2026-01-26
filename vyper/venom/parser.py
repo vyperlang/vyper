@@ -228,11 +228,14 @@ class VenomTransformer(Transformer):
 
         # Single-target assignment
         to = left
+
         if isinstance(value, IRInstruction):
             value.set_outputs([to])
             return value
+
         if isinstance(value, (IRLiteral, IRVariable, IRLabel)):
-            return IRInstruction("assign", [value], [to])
+            return IRInstruction("assign", [value], outputs=[to])
+
         raise TypeError(f"Unexpected value {value} of type {type(value)}")
 
     def expr(self, children) -> IRInstruction | IROperand:

@@ -1,23 +1,19 @@
 from collections import deque
 
+import vyper.evm.address_space as addr_space
+from vyper.evm.address_space import CALLDATA, DATA, AddrSpace
+from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
+from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.analysis.analysis import IRAnalysis
+from vyper.venom.analysis.mem_alias import mem_alias_type_factory
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
-from vyper.venom.effects import Effects
+from vyper.venom.effects import Effects, to_addr_space
+from vyper.venom.memory_location import InstAccessOps, MemoryLocation
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
-Lattice = dict[IROperand, OrderedSet[IROperand]]
-
-
-def _conflict(store_opcode: str, k1: IRLiteral, k2: IRLiteral):
-    ptr1, ptr2 = k1.value, k2.value
-    # hardcode the size of store opcodes for now. maybe refactor to use
-    # vyper.evm.address_space
-    if store_opcode == "mstore":
-        return abs(ptr1 - ptr2) < 32
-    assert store_opcode in ("sstore", "tstore"), "unhandled store opcode"
-    return abs(ptr1 - ptr2) < 1
+# from position in the memory to the posible values
+Lattice = dict[IROperand | MemoryLocation, OrderedSet[IROperand]]
 
 
 class LoadAnalysis(IRAnalysis):
@@ -29,6 +25,7 @@ class LoadAnalysis(IRAnalysis):
     def analyze(self):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.lattice = dict()
         self.eff_bb_lattice = dict()
 
@@ -38,7 +35,28 @@ class LoadAnalysis(IRAnalysis):
         self._analyze_type("dload", "dload", None)
         self._analyze_type("calldataload", "calldataload", None)
 
+    def get_space(self, eff: Effects | str) -> AddrSpace:
+        if isinstance(eff, Effects):
+            ret = to_addr_space(eff)
+            assert ret is not None
+            return ret
+        if eff == "dload":
+            return DATA
+        if eff == "calldataload":
+            return CALLDATA
+
+        raise CompilerPanic(f"invalid effect {eff}")  # pragma: nocover
+
+    @property
+    def word_scale(self) -> int:
+        return self.space.word_scale
+
     def _analyze_type(self, eff: Effects | str, load_opcode: str, store_opcode: str | None):
+        self.space = self.get_space(eff)
+
+        if store_opcode is not None:
+            mem_alias_type = mem_alias_type_factory(self.space)
+            self.mem_alias = self.analyses_cache.request_analysis(mem_alias_type)
         self.inst_to_lattice: LoadAnalysis.InstToLattice = dict()
         self.bb_to_lattice: dict[IRBasicBlock, Lattice] = dict()
 
@@ -71,11 +89,36 @@ class LoadAnalysis(IRAnalysis):
 
         return res
 
-    def get_literal(self, op):
-        op = self.dfg._traverse_assign_chain(op)
-        if isinstance(op, IRLiteral):
+    def get_memloc(self, op: IROperand | MemoryLocation) -> MemoryLocation:
+        if isinstance(op, MemoryLocation):
             return op
-        return None
+        if isinstance(op, IRVariable):
+            op = self.dfg._traverse_assign_chain(op)
+        assert isinstance(op, (IRVariable, IRLiteral))
+        access_ops = InstAccessOps(ofst=op, size=IRLiteral(self.word_scale))
+        return self.base_ptrs.segment_from_ops(access_ops)
+
+    def _normalize_operand(self, op: IROperand) -> IROperand:
+        """Normalize operand through assign chain for consistent lattice keys."""
+        if isinstance(op, IRVariable):
+            return self.dfg._traverse_assign_chain(op)
+        return op
+
+    def get_read(self, inst: IRInstruction) -> IROperand | MemoryLocation:
+        assert inst.opcode == self.space.load_op  # sanity
+        if self.space in (addr_space.MEMORY, addr_space.TRANSIENT, addr_space.STORAGE):
+            memloc = self.base_ptrs.get_read_location(inst, self.space)
+            if memloc.is_fixed:
+                return memloc
+        return self._normalize_operand(inst.operands[0])
+
+    def get_write(self, inst: IRInstruction) -> IROperand | MemoryLocation:
+        assert inst.opcode == self.space.store_op  # sanity
+        if self.space in (addr_space.MEMORY, addr_space.TRANSIENT, addr_space.STORAGE):
+            memloc = self.base_ptrs.get_write_location(inst, self.space)
+            if memloc.is_fixed:
+                return memloc
+        return self._normalize_operand(inst.operands[1])
 
     def _handle_bb(
         self, eff: Effects | str, load_opcode: str, store_opcode: str | None, bb: IRBasicBlock
@@ -85,33 +128,20 @@ class LoadAnalysis(IRAnalysis):
         for inst in bb.instructions:
             if inst.opcode == load_opcode:
                 self.inst_to_lattice[inst] = lattice.copy()
-                ptr = inst.operands[0]
+                ptr = self.get_read(inst)
                 lattice[ptr] = OrderedSet([inst.output])
             elif inst.opcode == store_opcode:
                 self.inst_to_lattice[inst] = lattice.copy()
                 # mstore [val, ptr]
-                val, ptr = inst.operands
-                lit = self.get_literal(ptr)
-                if lit is None:
-                    lattice.clear()
-                    lattice[ptr] = OrderedSet([val])
-                    continue
-
-                assert lit is not None
+                val, _ = inst.operands
+                ptr = self.get_write(inst)
+                memloc = self.get_memloc(ptr)
 
                 # kick out any conflicts
                 for existing_key in lattice.copy().keys():
-                    existing_lit = self.get_literal(existing_key)
-                    if existing_lit is None:
-                        # a variable in the lattice. assign this ptr in the lattice
-                        # and flush everything else.
-                        lattice.clear()
-                        lattice[ptr] = OrderedSet([val])
-                        break
-
-                    if store_opcode is not None:
-                        if _conflict(store_opcode, lit, existing_lit):
-                            del lattice[existing_key]
+                    existing_loc = self.get_memloc(existing_key)
+                    if self.mem_alias.may_alias(existing_loc, memloc):
+                        del lattice[existing_key]
 
                 lattice[ptr] = OrderedSet([val])
             elif isinstance(eff, Effects) and eff in inst.get_write_effects():
@@ -136,7 +166,7 @@ class LoadElimination(IRPass):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(self.dfg)
-        self.load_analysis = self.analyses_cache.request_analysis(LoadAnalysis)
+        self.load_analysis = self.analyses_cache.force_analysis(LoadAnalysis)
 
         self._run(Effects.MEMORY, "mload", "mstore")
         self._run(Effects.TRANSIENT, "tload", "tstore")
@@ -149,10 +179,13 @@ class LoadElimination(IRPass):
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
+        self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
 
     def _run(self, eff, load_opcode, store_opcode):
         self._lattice = self.load_analysis.lattice[eff]
         self._bb_lattice = self.load_analysis.eff_bb_lattice[eff]
+        self.space = self.load_analysis.get_space(eff)
+        self.load_analysis.space = self.space
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions.copy():
                 if inst.opcode == load_opcode:
@@ -164,7 +197,7 @@ class LoadElimination(IRPass):
         return self.dfg.are_equivalent(op1, op2)
 
     def _handle_load(self, inst):
-        (ptr,) = inst.operands
+        ptr = self.load_analysis.get_read(inst)
 
         existing_value = self._lattice[inst].get(ptr, OrderedSet()).copy()
 
@@ -175,29 +208,26 @@ class LoadElimination(IRPass):
             while len(preds := self.cfg.cfg_in(bb)) == 1:
                 bb = preds.first()
             first_inst = bb.instructions[0]
+            preds = list(self.cfg.cfg_in(bb))
             ops = []
-            for pred in self.cfg.cfg_in(bb):
+            for pred in preds:
                 pred_lattice = self._bb_lattice[pred]
-                if ptr not in pred_lattice:
-                    continue
+                # KeyError here indicates analysis bug (ptr must be in all preds)
                 val = pred_lattice[ptr]
-                if len(val) == 0:
-                    continue
+                assert len(val) > 0, (ptr, pred, val)
                 if len(val) > 1:
-                    # could be handled
-                    # but if would require
-                    # more phis
+                    # could be handled but would require more phis
                     return
                 val = val.first()
-                assert val in existing_value
+                assert val in existing_value, (val, existing_value)
                 if not isinstance(val, IRVariable):
-                    # could be extended by
-                    # adding stores to source
-                    # basicblocks
+                    # could be extended by adding stores to source basicblocks
                     return
                 ops.extend([pred.label, val])
 
-            assert len(ops) == 2 * len(existing_value), (ops, existing_value, inst)
+            # each predecessor contributes exactly one (label, value) pair;
+            # note: len(preds) != len(existing_value) when multiple preds have same value
+            assert len(ops) == 2 * len(preds), (ops, preds, inst)
 
             join = self.updater.add_before(first_inst, "phi", ops)
             assert join is not None
@@ -205,7 +235,8 @@ class LoadElimination(IRPass):
 
     def _handle_store(self, inst):
         # mstore [val, ptr]
-        val, ptr = inst.operands
+        val, _ = inst.operands
+        ptr = self.load_analysis.get_write(inst)
 
         existing_value = self._lattice[inst].get(ptr, OrderedSet()).copy()
 

@@ -16,6 +16,9 @@ if TYPE_CHECKING:
 # instructions which can terminate a basic block
 BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "sink"])
 
+# Terminators that halt program/message call execution
+HALTING_TERMINATORS = frozenset(["return", "revert", "stop", "invalid"])
+
 VOLATILE_INSTRUCTIONS = frozenset(
     [
         "param",
@@ -94,6 +97,7 @@ CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz"])
 COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", "eq"])
 
 COMPARATOR_INSTRUCTIONS = ("gt", "lt", "sgt", "slt")
+
 
 ir_printer = ContextVar("ir_printer", default=None)
 
@@ -239,7 +243,9 @@ class IRInstruction:
         self,
         opcode: str,
         operands: list[IROperand] | Iterator[IROperand],
+        /,
         outputs: Optional[list[IRVariable]] = None,
+        annotation: Optional[str] = None,
     ):
         assert isinstance(opcode, str), "opcode must be an str"
         assert isinstance(operands, list | Iterator), "operands must be a list"
@@ -247,7 +253,8 @@ class IRInstruction:
         self.operands = list(operands)  # in case we get an iterator
         self._outputs = list(outputs) if outputs is not None else []
 
-        self.annotation = None
+        self.annotation = annotation
+
         self.ast_source = None
         self.error_msg = None
 
@@ -335,6 +342,7 @@ class IRInstruction:
         assert len(self._outputs) == 1, f"expected single output for {self}"
         return self._outputs[0]
 
+    @property
     def has_outputs(self) -> bool:
         """
         Check whether this instruction produces any outputs.
@@ -430,6 +438,7 @@ class IRInstruction:
         ret.annotation = self.annotation
         ret.ast_source = self.ast_source
         ret.error_msg = self.error_msg
+        ret.parent = self.parent
         return ret
 
     def str_short(self) -> str:
@@ -525,6 +534,7 @@ class IRBasicBlock:
     def append_instruction(
         self,
         opcode: str,
+        /,
         *args: Union[IROperand, int],
         ret: Optional[IRVariable] = None,
         annotation: str = None,
@@ -700,13 +710,23 @@ class IRBasicBlock:
     @property
     def is_terminated(self) -> bool:
         """
-        Check if the basic block is terminal, i.e. the last instruction is a terminator.
+        Check if the basic block is properly terminated, i.e. the
+        last instruction is a bb terminator instruction.
         """
         # it's ok to return False here, since we use this to check
         # if we can/need to append instructions to the basic block.
         if len(self.instructions) == 0:
             return False
         return self.instructions[-1].is_bb_terminator
+
+    @property
+    def is_halting(self) -> bool:
+        """
+        Check if the basic block halts program execution
+        """
+        if len(self.instructions) == 0:
+            return False
+        return self.instructions[-1].opcode in HALTING_TERMINATORS
 
     def copy(self) -> IRBasicBlock:
         bb = IRBasicBlock(self.label, self.parent)
