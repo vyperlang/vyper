@@ -296,7 +296,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         self.func = fn_node._metadata["func_type"]
         self.expr_visitor = ExprVisitor(self)
 
-        self.loop_variables: list[Optional[VarAccess]] = []
+        self.loop_variables: list[VarAccess] = []
 
     def analyze(self):
         if self.func.analysed:
@@ -336,11 +336,13 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
     @contextlib.contextmanager
     def enter_for_loop(self, varaccess: Optional[VarAccess]):
-        self.loop_variables.append(varaccess)
+        if varaccess is not None:
+            self.loop_variables.append(varaccess)
         try:
             yield
         finally:
-            self.loop_variables.pop()
+            if varaccess is not None:
+                self.loop_variables.pop()
 
     def visit(self, node):
         super().visit(node)
@@ -677,9 +679,6 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             if self.function_analyzer:
                 for s in self.function_analyzer.loop_variables:
-                    if s is None:
-                        continue
-
                     for v in info._writes:
                         if not v.contains(s):
                             continue
