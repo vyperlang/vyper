@@ -6,13 +6,7 @@ from typing import Optional
 import vyper.venom.effects as effects
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import (
-    IRBasicBlock,
-    IRInstruction,
-    IRLiteral,
-    IROperand,
-    IRVariable,
-)
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
@@ -64,10 +58,7 @@ class _AssertCombineAnalysis:
                 assert pending_pred is not None  # invariant: set together with pending_assert
                 candidates.append(
                     _MergeCandidate(
-                        first=pending_assert,
-                        first_pred=pending_pred,
-                        second=inst,
-                        second_pred=pred,
+                        first=pending_assert, first_pred=pending_pred, second=inst, second_pred=pred
                     )
                 )
                 # Chain: the merged result becomes the new pending
