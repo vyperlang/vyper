@@ -1,4 +1,5 @@
 from .algebraic_optimization import AlgebraicOptimizationPass
+from .assert_combiner import AssertCombinerPass
 from .assign_elimination import AssignElimination
 from .branch_optimization import BranchOptimizationPass
 from .cfg_normalization import CFGNormalization
