@@ -70,31 +70,29 @@ def analyze_functions(vy_module: vy_ast.Module) -> None:
     err_list = ExceptionList()
 
     for node in vy_module.get_children(vy_ast.FunctionDef):
-        _analyze_function_r(vy_module, node, err_list)
+        _analyze_function_r(node, err_list)
 
     for node in vy_module.get_children(vy_ast.VariableDecl):
         if not node.is_public:
             continue
-        _analyze_function_r(vy_module, node._expanded_getter, err_list)
+        _analyze_function_r(node._expanded_getter, err_list)
 
     err_list.raise_if_not_empty()
 
 
-def _analyze_function_r(
-    vy_module: vy_ast.Module, node: vy_ast.FunctionDef, err_list: ExceptionList
-):
+def _analyze_function_r(node: vy_ast.FunctionDef, err_list: ExceptionList):
     func_t = node._metadata["func_type"]
 
     for call_t in func_t.called_functions:
         if isinstance(call_t, ContractFunctionT):
             assert isinstance(call_t.ast_def, vy_ast.FunctionDef)  # help mypy
-            _analyze_function_r(vy_module, call_t.ast_def, err_list)
+            _analyze_function_r(call_t.ast_def, err_list)
 
     namespace = get_namespace()
 
     try:
         with namespace.enter_scope():
-            analyzer = FunctionAnalyzer(vy_module, node, namespace)
+            analyzer = FunctionAnalyzer(node, namespace)
             analyzer.analyze()
     except VyperException as e:
         err_list.append(e)
@@ -292,10 +290,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
     ignored_types = (vy_ast.Pass,)
     scope_name = "function"
 
-    def __init__(
-        self, vyper_module: vy_ast.Module, fn_node: vy_ast.FunctionDef, namespace: dict
-    ) -> None:
-        self.vyper_module = vyper_module
+    def __init__(self, fn_node: vy_ast.FunctionDef, namespace: dict) -> None:
         self.fn_node = fn_node
         self.namespace = namespace
         self.func = fn_node._metadata["func_type"]
