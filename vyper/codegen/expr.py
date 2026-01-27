@@ -186,8 +186,14 @@ class Expr:
 
         # local variable
         if varname in self.context.vars:
-            ret = self.context.lookup_var(varname).as_ir_node()
+            var = self.context.lookup_var(varname)
+            ret = var.as_ir_node()
             ret._referenced_variables = {varinfo}
+
+            last_use = self.expr._metadata.get("last_use", False)
+            if last_use and var.location == MEMORY:
+                self.context.mark_for_deallocation(varname)
+
             return ret
 
         if varinfo.is_constant:

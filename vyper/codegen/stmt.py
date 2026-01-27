@@ -40,6 +40,8 @@ class Stmt:
         self.ir_node.annotation = self.stmt.get("node_source_code")
         self.ir_node.ast_source = self.stmt
 
+        context.sweep()
+
     def parse_Expr(self):
         return Expr(self.stmt.value, self.context, is_stmt=True).ir_node
 

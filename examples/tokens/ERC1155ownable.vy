@@ -404,5 +404,4 @@ def supportsInterface(interfaceId: bytes4) -> bool:
         ERC165_INTERFACE_ID,
         ERC1155_INTERFACE_ID,
         ERC1155_INTERFACE_ID_METADATA, 
-    ] 
-
+    ]
