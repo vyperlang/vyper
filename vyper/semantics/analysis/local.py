@@ -100,33 +100,34 @@ def _analyze_function_r(
         err_list.append(e)
 
 
-# finds the terminus node for a list of nodes.
+# checks all code paths are terminated.
 # raises an exception if any nodes are unreachable
-def find_terminating_node(node_list: list) -> Optional[vy_ast.VyperNode]:
-    ret = None
+def is_terminated(block: list[vy_ast.VyperNode]) -> bool:
+    terminated = False
 
-    for node in node_list:
-        if ret is not None:
+    for node in block:
+        if terminated:
             raise StructureException("Unreachable code!", node)
 
         if node.is_terminus:
-            ret = node
+            terminated = True
 
         if isinstance(node, vy_ast.If):
-            body_terminates = find_terminating_node(node.body)
+            # Without an else, even if the "then" block is terminated,
+            # the enclosing block might not be
+            # We still need the recursive call for the unreachable error
+            body_terminated = is_terminated(node.body)
 
-            else_terminates = None
             if node.orelse is not None:
-                else_terminates = find_terminating_node(node.orelse)
-
-            if body_terminates is not None and else_terminates is not None:
-                ret = else_terminates
+                terminated = body_terminated and is_terminated(node.orelse)
 
         if isinstance(node, vy_ast.For):
-            # call find_terminating_node for its side effects
-            find_terminating_node(node.body)
+            # The For loop might never be entered,
+            # even if it is terminated, the enclosing block might not be
+            # We still need the recursive call for the unreachable error
+            is_terminated(node.body)
 
-    return ret
+    return terminated
 
 
 # helpers
@@ -325,13 +326,13 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             self.visit(node)
 
         if self.func.return_type:
-            if not find_terminating_node(self.fn_node.body):
+            if not is_terminated(self.fn_node.body):
                 raise FunctionDeclarationException(
                     f"Missing return statement in function '{self.fn_node.name}'", self.fn_node
                 )
         else:
             # call find_terminator for its unreachable code detection side effect
-            find_terminating_node(self.fn_node.body)
+            is_terminated(self.fn_node.body)
 
         # visit default args
         assert self.func.n_keyword_args == len(self.fn_node.args.defaults)
