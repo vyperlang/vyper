@@ -995,9 +995,10 @@ def _validate_range_call(node: vy_ast.Call):
             error = "Please remove the `bound=` kwarg when using range with constants"
             raise StructureException(error, bound)
     else:
-        for arg in (start, end):
-            if not isinstance(arg, vy_ast.Int):
-                error = "Value must be a literal integer, unless a bound is specified"
-                raise StructureException(error, arg)
+        error = "Value must be a literal integer, unless a bound is specified"
+        if not isinstance(start, vy_ast.Int):
+            raise StructureException(error, start)
+        if not isinstance(end, vy_ast.Int):
+            raise StructureException(error, end)
         if end.value <= start.value:
             raise StructureException("End must be greater than start", end)

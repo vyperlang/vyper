@@ -55,7 +55,7 @@ class PositionalArg(_FunctionArg):
 
 @dataclass(kw_only=True)
 class KeywordArg(_FunctionArg):
-    default_value: vy_ast.VyperNode
+    default_value: vy_ast.Ellipsis | vy_ast.Constant
 
 
 # TODO: refactor this into FunctionT (from an ast) and ABIFunctionT (from json)
