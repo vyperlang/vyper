@@ -1648,6 +1648,57 @@ def bar({params_override}) -> uint256:
         assert c.call_bar(*call_bar_args) == expected
 
 
+def test_must_override_all_abstract_methods(get_contract, make_input_bundle):
+    """Test that initializing an abstract module requires overriding ALL its abstract methods"""
+
+    abstract_module = """
+@abstract
+def foo() -> uint256: ...
+
+@abstract
+def bar() -> uint256: ...
+    """
+
+    contract = """
+import abstract_module
+
+initializes: abstract_module
+
+@override(abstract_module)
+def foo() -> uint256:
+    return 42
+
+# Missing override for bar!
+    """
+
+    input_bundle = make_input_bundle({"abstract_module.vy": abstract_module})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    assert "Abstract function was not overridden" == e.value.message
+    assert "bar" in e.value.annotations[0].node_source_code
+
+
+def test_contract_cannot_have_abstract_methods(get_contract):
+    """Test that a top-level contract cannot have abstract methods"""
+
+    contract = """
+@abstract
+def foo() -> uint256: ...
+
+@external
+def bar() -> uint256:
+    return self.foo()
+    """
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(contract)
+
+    assert "Abstract function was not overridden" == e.value.message
+    assert "foo" in e.value.annotations[0].node_source_code
+
+
 def test_cannot_call_overridden_method(get_contract, make_input_bundle):
     """Test that you cannot call a method that you override"""
 
@@ -1794,7 +1845,7 @@ initializes: override_module
     assert "not initialized" in e.value.message
 
 
-def test__ellipsis_cannot_override_concrete_default_parameter(get_contract, make_input_bundle):
+def test_ellipsis_cannot_override_concrete_default_parameter(get_contract, make_input_bundle):
     """Test that ellipsis cannot override a concrete default parameter value"""
 
     module_c = """

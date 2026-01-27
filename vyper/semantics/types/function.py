@@ -490,6 +490,10 @@ class ContractFunctionT(VyperType):
                     overrides[0],
                 )
 
+        if is_abstract and "overridden_by" not in funcdef._metadata:
+            ex = FunctionDeclarationException("Abstract function was not overridden", funcdef)
+            raise ex
+
         overridden_by = funcdef._metadata["overridden_by"] if is_abstract else None
 
         positional_args, keyword_args = _parse_args(funcdef, is_abstract=is_abstract)
