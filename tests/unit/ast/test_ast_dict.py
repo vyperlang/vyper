@@ -420,7 +420,6 @@ def foo():
                 "doc_string": None,
                 "name": "foo",
                 "node_id": 8,
-                "pos": None,
                 "returns": None,
             },
         ],
@@ -591,7 +590,6 @@ def foo():
                         "doc_string": None,
                         "name": "return_tuple",
                         "node_id": 42,
-                        "pos": None,
                         "returns": {
                             "ast_type": "Tuple",
                             "elements": [
@@ -1341,7 +1339,6 @@ def foo():
                 },
                 "name": "foo",
                 "node_id": 119,
-                "pos": None,
                 "returns": None,
             },
             {
@@ -1403,7 +1400,6 @@ def foo():
                 },
                 "name": "bar",
                 "node_id": 196,
-                "pos": None,
                 "returns": None,
             },
         ],

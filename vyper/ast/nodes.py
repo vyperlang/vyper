@@ -655,7 +655,7 @@ class Module(TopLevel):
 
 
 class FunctionDef(TopLevel):
-    __slots__ = ("args", "returns", "decorator_list", "pos")
+    __slots__ = ("args", "returns", "decorator_list")
 
 
 class DocStr(VyperNode):
