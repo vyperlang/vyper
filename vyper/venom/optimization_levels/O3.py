@@ -28,6 +28,7 @@ from vyper.venom.passes import (
     RevertToAssert,
     SimplifyCFGPass,
     SingleUseExpansion,
+    MemoryCopyElisionPass,
 )
 
 # Aggressive optimizations (O3)
@@ -57,6 +58,7 @@ PASSES_O3: List[PassConfig] = [
     SimplifyCFGPass,
     # run memmerge before LowerDload
     MemMergePass,
+    MemoryCopyElisionPass,
     LowerDloadPass,
     RemoveUnusedVariablesPass,
     (DeadStoreElimination, {"addr_space": MEMORY}),
