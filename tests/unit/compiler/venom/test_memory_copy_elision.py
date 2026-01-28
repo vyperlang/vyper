@@ -1497,3 +1497,193 @@ def test_interleaved_copies_different_regions():
         sink %2, %1
     """
     _check_pre_post(pre, post)
+
+
+def test_cross_bb_copy_with_gep_different_geps():
+    """
+    Two paths with different gep instructions that compute same value.
+    Should NOT optimize because gep results are different variables,
+    and _traverse_assign_chain stops at gep (not assign).
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %cond = param
+        %base = alloca 1, 256
+        jnz %cond, @path1, @path2
+
+    path1:
+        %gep1 = gep 32, %base
+        %x = assign %gep1
+        calldatacopy 100, %x, 32
+        jmp @merge
+
+    path2:
+        %gep2 = gep 32, %base
+        %y = assign %gep2
+        calldatacopy 100, %y, 32
+        jmp @merge
+
+    merge:
+        mcopy 200, 100, 32
+        %1 = mload 200
+        sink %1
+    """
+
+    # mcopy should NOT be optimized - different geps break equivalence
+    _check_no_change(pre)
+
+
+def test_cross_bb_copy_with_gep_in_dominator():
+    """
+    Single gep in common dominator, assign chains through it.
+    SHOULD optimize because the gep dominates merge point.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %cond = param
+        %base = alloca 1, 256
+        %gep = gep 32, %base
+        jnz %cond, @path1, @path2
+
+    path1:
+        %x = assign %gep
+        calldatacopy 100, %x, 32
+        jmp @merge
+
+    path2:
+        %y = assign %gep
+        calldatacopy 100, %y, 32
+        jmp @merge
+
+    merge:
+        mcopy 200, 100, 32
+        %1 = mload 200
+        sink %1
+    """
+
+    post = """
+    _global:
+        %cond = param
+        %base = alloca 1, 256
+        %gep = gep 32, %base
+        jnz %cond, @path1, @path2
+
+    path1:
+        %x = assign %gep
+        nop  ; calldatacopy 100, %x, 32 [dead store - overwritten at merge]
+        jmp @merge
+
+    path2:
+        %y = assign %gep
+        nop  ; calldatacopy 100, %y, 32 [dead store - overwritten at merge]
+        jmp @merge
+
+    merge:
+        calldatacopy 200, %gep, 32
+        %1 = mload 200
+        sink %1
+    """
+    _check_pre_post(pre, post)
+
+
+def test_cross_bb_copy_with_longer_assign_chain_through_gep():
+    """
+    Longer assign chain that goes through a gep in dominator.
+    Should optimize - the gep dominates merge point.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %cond = param
+        %base = alloca 1, 256
+        %gep = gep 32, %base
+        jnz %cond, @path1, @path2
+
+    path1:
+        %a = assign %gep
+        %b = assign %a
+        calldatacopy 100, %b, 32
+        jmp @merge
+
+    path2:
+        %c = assign %gep
+        %d = assign %c
+        calldatacopy 100, %d, 32
+        jmp @merge
+
+    merge:
+        mcopy 200, 100, 32
+        %1 = mload 200
+        sink %1
+    """
+
+    post = """
+    _global:
+        %cond = param
+        %base = alloca 1, 256
+        %gep = gep 32, %base
+        jnz %cond, @path1, @path2
+
+    path1:
+        %a = assign %gep
+        %b = assign %a
+        nop  ; calldatacopy [dead store]
+        jmp @merge
+
+    path2:
+        %c = assign %gep
+        %d = assign %c
+        nop  ; calldatacopy [dead store]
+        jmp @merge
+
+    merge:
+        calldatacopy 200, %gep, 32
+        %1 = mload 200
+        sink %1
+    """
+    _check_pre_post(pre, post)
+
+
+def test_cross_bb_copy_with_nested_gep_different_inner_geps():
+    """
+    Nested gep (gep of gep) with different inner gep instructions in each path.
+    Should NOT optimize - the inner geps are different variables.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %cond = param
+        %base = alloca 1, 256
+        %gep = gep 32, %base
+        jnz %cond, @path1, @path2
+
+    path1:
+        %inner1 = gep 64, %gep
+        %a = assign %inner1
+        calldatacopy 100, %a, 32
+        jmp @merge
+
+    path2:
+        %inner2 = gep 64, %gep
+        %b = assign %inner2
+        calldatacopy 100, %b, 32
+        jmp @merge
+
+    merge:
+        mcopy 200, 100, 32
+        %1 = mload 200
+        sink %1
+    """
+
+    # mcopy should NOT be optimized - different inner geps break equivalence
+    _check_no_change(pre)
