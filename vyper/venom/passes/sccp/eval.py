@@ -129,6 +129,18 @@ def _evm_sar(shift_len: int, value: int) -> int:
     return value >> shift_len
 
 
+def _evm_byte(index: int, value: int) -> int:
+    """EVM BYTE: extract the index-th byte (big-endian) from value.
+
+    byte(N, x) returns the N-th byte from the high end.
+    When N >= 32, the result is always 0.
+    """
+    if index >= 32:
+        return 0
+    shift = (31 - index) * 8
+    return (value >> shift) & 0xFF
+
+
 def _wrap_sar(operation):
     """Special wrapper for SAR: shift_len is unsigned, value is signed."""
 
@@ -167,6 +179,7 @@ ARITHMETIC_OPS: dict[str, Callable[[list[IRLiteral]], int]] = {
     "sar": _wrap_sar(_evm_sar),
     "addmod": _wrap_ternop(_evm_addmod),
     "mulmod": _wrap_ternop(_evm_mulmod),
+    "byte": _wrap_binop(_evm_byte),
 }
 
 

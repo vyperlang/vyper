@@ -10,3 +10,4 @@ from .mem_ssa import MemSSA
 from .reachable import ReachableAnalysis
 from .stack_order import StackOrderAnalysis
 from .var_definition import VarDefinition
+from .variable_range import VariableRangeAnalysis
