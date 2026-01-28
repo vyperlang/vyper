@@ -97,9 +97,11 @@ class PrePostChecker:
 
         return self.pass_objects
 
-
-    def check(self, pre_ctx: IRContext, post_ctx: IRContext, pre: str, post: str, hevm: bool | None = None):
+    def check(
+        self, pre_ctx: IRContext, post_ctx: IRContext, pre: str, post: str, hevm: bool | None = None
+    ):
         from tests.hevm import hevm_check_venom
+
         assert_ctx_eq(pre_ctx, post_ctx)
 
         if hevm is None:
@@ -109,4 +111,3 @@ class PrePostChecker:
             hevm_check_venom(pre, post)
 
         return self.pass_objects
-

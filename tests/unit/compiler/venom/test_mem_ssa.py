@@ -1085,17 +1085,20 @@ def test_large_write_small_read_clobber():
     assert mload_use.loc.size == 32
 
     # Verify the containment relationship
-    assert calldatacopy_def.loc.completely_contains(mload_use.loc), \
-        "calldatacopy [0,64) should completely contain mload [16,48)"
-    assert not mload_use.loc.completely_contains(calldatacopy_def.loc), \
-        "mload [16,48) should NOT completely contain calldatacopy [0,64)"
+    assert calldatacopy_def.loc.completely_contains(
+        mload_use.loc
+    ), "calldatacopy [0,64) should completely contain mload [16,48)"
+    assert not mload_use.loc.completely_contains(
+        calldatacopy_def.loc
+    ), "mload [16,48) should NOT completely contain calldatacopy [0,64)"
 
     # The clobber should be the calldatacopy, NOT live_on_entry
     clobber = mem_ssa.get_clobbered_memory_access(mload_use)
     assert clobber is not None, "Should find a clobber"
-    assert not clobber.is_live_on_entry, \
-        f"Clobber should be calldatacopy, not live_on_entry. " \
-        f"This indicates the containment check in _walk_for_clobbered_access is reversed."
+    assert not clobber.is_live_on_entry, (
+        "Clobber should be calldatacopy, not live_on_entry. "
+        "This indicates the containment check in _walk_for_clobbered_access is reversed."
+    )
     assert isinstance(clobber, MemoryDef)
     assert clobber.store_inst == calldatacopy_inst
 
@@ -1132,11 +1135,13 @@ def test_small_write_large_read_no_clobber():
     assert mcopy_use.loc.size == 64
 
     # The mstore does NOT completely contain the mcopy read
-    assert not mstore_def.loc.completely_contains(mcopy_use.loc), \
-        "mstore [16,48) should NOT completely contain mcopy read [0,64)"
+    assert not mstore_def.loc.completely_contains(
+        mcopy_use.loc
+    ), "mstore [16,48) should NOT completely contain mcopy read [0,64)"
 
     # Therefore, clobber should be live_on_entry (no complete clobber found)
     clobber = mem_ssa.get_clobbered_memory_access(mcopy_use)
     assert clobber is not None
-    assert clobber.is_live_on_entry, \
-        "No complete clobber should be found - mstore only partially covers the read"
+    assert (
+        clobber.is_live_on_entry
+    ), "No complete clobber should be found - mstore only partially covers the read"

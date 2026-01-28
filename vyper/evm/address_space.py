@@ -26,7 +26,7 @@ class AddrSpace:
 
     name: str
     word_scale: int
-    load_op: str
+    load_op: Optional[str]
     # TODO maybe make positional instead of defaulting to None
     store_op: Optional[str] = None
     copy_op: Optional[str] = None

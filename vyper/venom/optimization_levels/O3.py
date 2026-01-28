@@ -25,12 +25,12 @@ from vyper.venom.passes import (
     MakeSSA,
     Mem2Var,
     MemMergePass,
+    MemoryCopyElisionPass,
     PhiEliminationPass,
     RemoveUnusedVariablesPass,
     RevertToAssert,
     SimplifyCFGPass,
     SingleUseExpansion,
-    MemoryCopyElisionPass,
 )
 
 # Aggressive optimizations (O3)

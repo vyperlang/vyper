@@ -5,13 +5,13 @@ from typing import Optional
 
 import vyper.venom.effects as effects
 from vyper.evm.address_space import (
+    CALLDATA,
+    CODE,
+    DATA,
     MEMORY,
+    RETURNDATA,
     STORAGE,
     TRANSIENT,
-    CALLDATA,
-    DATA,
-    CODE,
-    RETURNDATA,
     AddrSpace,
 )
 from vyper.exceptions import CompilerPanic
@@ -251,7 +251,7 @@ class BasePtrAnalysis(IRAnalysis):
     def _get_copyable_read_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:
         """
         Get read location for read-only/copy-from address spaces.
-        
+
         These are address spaces that can be copied from but not written to
         (calldata, code, returndata, data section).
         """

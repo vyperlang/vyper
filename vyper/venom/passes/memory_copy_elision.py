@@ -1,17 +1,17 @@
 from collections import deque
 
-from vyper.venom.passes.base_pass import IRPass
+import vyper.evm.address_space as addr_space
 from vyper.venom.analysis import (
-    BasePtrAnalysis, 
+    BasePtrAnalysis,
     CFGAnalysis,
-    LivenessAnalysis, 
-    MemoryAliasAnalysis, 
-    DFGAnalysis
+    DFGAnalysis,
+    LivenessAnalysis,
+    MemoryAliasAnalysis,
 )
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
-from vyper.venom.memory_location import MemoryLocation
-import vyper.evm.address_space as addr_space
 from vyper.venom.effects import Effects, to_addr_space
+from vyper.venom.memory_location import MemoryLocation
+from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
 _NONMEM_COPY_OPCODES = ("calldatacopy", "codecopy", "dloadbytes", "returndatacopy")
@@ -70,14 +70,14 @@ class MemoryCopyElisionPass(IRPass):
         preds = list(self.cfg.cfg_in(bb))
         if len(preds) == 0:
             return {}
-        
+
         # Start with first predecessor's state
         first_pred = preds[0]
         if first_pred not in self.bb_copies:
             return {}
-        
+
         result = self.bb_copies[first_pred].copy()
-        
+
         # Intersect with other predecessors
         for pred in preds[1:]:
             if pred not in self.bb_copies:
@@ -92,26 +92,26 @@ class MemoryCopyElisionPass(IRPass):
                 if self._copies_equivalent(result[key], other[key]):
                     new_result[key] = result[key]
             result = new_result
-        
+
         return result
 
     def _copies_equivalent(self, inst1: IRInstruction, inst2: IRInstruction) -> bool:
         """Check if two copy instructions are semantically equivalent."""
         if inst1 is inst2:
             return True
-        
+
         if inst1.opcode != inst2.opcode:
             return False
-        
+
         # Compare source locations using the proper address space analysis.
         # This uses MemoryLocation which handles alloca tracking, offsets, etc.
         src_space = _COPY_SOURCE_SPACE[inst1.opcode]
         src1 = self.base_ptr.get_read_location(inst1, src_space)
         src2 = self.base_ptr.get_read_location(inst2, src_space)
-        
+
         if src1 != src2:
             return False
-        
+
         # Also verify the source OPERANDS are equivalent (not just locations).
         # This ensures we can safely use either instruction's operands after merge.
         # are_equivalent handles assign chains (e.g., %x = 0; %y = %x -> %x == %y)
@@ -119,23 +119,23 @@ class MemoryCopyElisionPass(IRPass):
         # Operand layout: [size, src, dst]
         size1, src_op1, _ = inst1.operands
         size2, src_op2, _ = inst2.operands
-        
+
         if not self.dfg.are_equivalent(src_op1, src_op2):
             return False
         if not self.dfg.are_equivalent(size1, size2):
             return False
-        
+
         return True
 
     def _process_bb(self, bb: IRBasicBlock) -> bool:
         """Process a basic block, return True if copy state changed."""
         # Get incoming copy state from predecessors
         self.copies = self._merge_copies(bb)
-        
+
         # Clear loads at BB boundary (loads are still per-BB only)
         for e in self.loads.values():
             e.clear()
-            
+
         for inst in bb.instructions:
             if inst.opcode in _LOADS:
                 eff = _LOADS[inst.opcode]
@@ -192,7 +192,7 @@ class MemoryCopyElisionPass(IRPass):
                     to_remove.append(mem_loc)
                     continue
                 # Also invalidate if the SOURCE of the copy is clobbered.
-                # For mcopy, source is operand[1]. For calldatacopy etc., 
+                # For mcopy, source is operand[1]. For calldatacopy etc.,
                 # source is in a different address space (not memory), so
                 # we only need to check for mcopy.
                 if copy_inst.opcode == "mcopy":
@@ -202,7 +202,7 @@ class MemoryCopyElisionPass(IRPass):
 
             for mem_loc in to_remove:
                 del self.copies[mem_loc]
-        
+
         vars_to_remove = []
         for var, (mem_loc, _) in self.loads[eff].items():
             if self.mem_alias.may_alias(mem_loc, write_loc):
@@ -211,13 +211,12 @@ class MemoryCopyElisionPass(IRPass):
         for var in vars_to_remove:
             del self.loads[eff][var]
 
-
     def _try_elide_copy(self, inst: IRInstruction):
         assert inst.opcode == "mcopy"
         read_loc = self.base_ptr.get_read_location(inst, addr_space.MEMORY)
         if read_loc not in self.copies:
             return
-        
+
         previous = self.copies[read_loc]
 
         assert previous.opcode in _COPIES_OPCODES, previous
@@ -260,6 +259,7 @@ class MemoryCopyElisionPass(IRPass):
         # side effects. Let RemoveUnusedVariablesPass decide if the load
         # can be removed (it has proper msize fence handling).
         self.updater.nop(inst)
+
 
 def _volatile_memory(inst):
     inst_effects = inst.get_read_effects() | inst.get_write_effects()

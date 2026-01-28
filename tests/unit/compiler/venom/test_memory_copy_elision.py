@@ -1,10 +1,15 @@
 from tests.venom_utils import PrePostChecker
-from vyper.evm.opcodes import version_check
-from vyper.venom.passes import MemoryCopyElisionPass, DeadStoreElimination, RemoveUnusedVariablesPass
-from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.evm.address_space import MEMORY
+from vyper.evm.opcodes import version_check
+from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.passes import (
+    DeadStoreElimination,
+    MemoryCopyElisionPass,
+    RemoveUnusedVariablesPass,
+)
 
 _checker = PrePostChecker([MemoryCopyElisionPass], default_hevm=False)
+
 
 def _check_pre_post(pre, post, hevm: bool = True):
     pre_ctx, post_ctx = _checker.run_passes(pre, post)
@@ -17,7 +22,7 @@ def _check_pre_post(pre, post, hevm: bool = True):
 
 def _check_pre_post_with_unused_var_removal(pre, post, hevm: bool = True):
     """Like _check_pre_post but also runs RemoveUnusedVariablesPass.
-    
+
     This is needed for tests involving load-store elision where the load
     becomes unused after the store is nop'd. RemoveUnusedVariablesPass
     has proper MSIZE fence handling to preserve loads that affect msize.
@@ -54,7 +59,7 @@ def test_load_store_no_elision():
 def test_redundant_copy_elimination():
     """
     Test that copying to the same location is eliminated entirely.
-    
+
     MemoryCopyElisionPass only nops the store. The load is removed by
     RemoveUnusedVariablesPass (which has proper MSIZE fence handling).
     """
@@ -206,7 +211,7 @@ def test_mcopy_chain_with_size_mismatch():
 def test_mcopy_chain_with_variable_size():
     """
     Test mcopy chains with variable sizes - currently not optimized.
-    
+
     When mcopy uses variable sizes, the memory location can't be tracked
     precisely (is_fixed returns False), so no chain optimization happens.
     This test documents the current behavior.
@@ -514,7 +519,7 @@ def test_inter_block_no_optimization():
 def test_mcopy_chain_across_blocks():
     """
     Test that mcopy chains DO merge across basic block boundaries.
-    
+
     Cross-BB copy elision propagates copy info along CFG edges, allowing
     the second mcopy to be transformed to copy directly from the original source.
     """
@@ -551,7 +556,7 @@ def test_mcopy_chain_across_blocks():
 def test_special_copy_chain_across_blocks():
     """
     Test that special copy + mcopy chains DO merge across basic block boundaries.
-    
+
     Cross-BB copy elision propagates copy info along CFG edges, allowing
     the mcopy to be transformed to a calldatacopy directly from calldata.
     """
@@ -681,7 +686,7 @@ def test_mem_elision_load_needed_not_precise():
 def test_mem_elision_msize():
     """
     Test that mload is preserved when msize is read downstream.
-    
+
     MemoryCopyElisionPass only nops the store. RemoveUnusedVariablesPass
     would normally remove the unused load, but it correctly preserves it
     because there's an msize instruction downstream (msize fence).
@@ -937,7 +942,6 @@ def test_calldatacopy_mcopy_chain_with_alloca():
     _check_pre_post(pre, post)
 
 
-
 # ============================================================================
 # Cross-BB copy elision tests
 # These test the dataflow-based cross-BB optimization
@@ -1026,7 +1030,7 @@ def test_cross_bb_copy_with_source_clobber():
 def test_cross_bb_copy_diamond_merge():
     """
     Test that cross-BB optimization is conservative at merge points.
-    
+
     If copy info comes from different paths, only common info is kept.
     """
     if not version_check(begin="cancun"):
@@ -1056,7 +1060,7 @@ def test_cross_bb_copy_diamond_merge():
 def test_cross_bb_copy_diamond_same_source():
     """
     Test that cross-BB optimization works at merge points with same source.
-    
+
     If the same copy exists on all paths to a merge point, it can be used.
     """
     if not version_check(begin="cancun"):
@@ -1107,7 +1111,7 @@ def test_cross_bb_copy_diamond_same_source():
 def test_cross_bb_copy_diamond_identical_copies():
     """
     Test diamond CFG where both paths have identical copy instructions.
-    
+
     Both paths write to the same location from the same source, so we can
     safely optimize the mcopy at the merge point to use the original source.
     """
@@ -1132,7 +1136,7 @@ def test_cross_bb_copy_diamond_identical_copies():
         %1 = mload 200
         sink %1
     """
-    
+
     # Both calldatacopies are equivalent, so mcopy can chain through
     post = """
     _global:
@@ -1159,7 +1163,7 @@ def test_cross_bb_copy_diamond_equivalent_operands():
     """
     Test that diamond CFG with copies that have equivalent operands
     (via assign chains) DOES optimize.
-    
+
     are_equivalent handles assign chains, so %x = 0 and %y = 0 are equivalent.
     """
     if not version_check(begin="cancun"):
@@ -1185,7 +1189,7 @@ def test_cross_bb_copy_diamond_equivalent_operands():
         %1 = mload 200
         sink %1
     """
-    
+
     # Optimization happens - operands are equivalent via assign chains
     post = """
     _global:
@@ -1249,7 +1253,7 @@ def test_cross_bb_copy_loop():
 def test_cross_bb_diamond_clobber_one_path():
     """
     Test that clobbering on one path of a diamond correctly invalidates at merge.
-    
+
     Even if the copy dominates the branch, if one path clobbers the source,
     the copy info should not be available at the merge point.
     """
@@ -1442,7 +1446,7 @@ def test_overlapping_copy_regions():
 def test_copy_with_zero_size():
     """
     Test that zero-size copies don't break anything.
-    
+
     Zero-size copies don't write anything, so they're effectively no-ops.
     DSE will remove them, and they shouldn't be tracked for chaining.
     """
@@ -1456,7 +1460,7 @@ def test_copy_with_zero_size():
         %1 = mload 300
         sink %1
     """
-    
+
     # Zero-size copy is removed by DSE, second mcopy cannot chain
     post = """
     _global:
