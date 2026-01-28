@@ -203,12 +203,12 @@ class MemoryCopyElisionPass(IRPass):
             for mem_loc in to_remove:
                 del self.copies[mem_loc]
         
-        to_remove = []
+        vars_to_remove = []
         for var, (mem_loc, _) in self.loads[eff].items():
             if self.mem_alias.may_alias(mem_loc, write_loc):
-                to_remove.append(var)
+                vars_to_remove.append(var)
 
-        for var in to_remove:
+        for var in vars_to_remove:
             del self.loads[eff][var]
 
 
