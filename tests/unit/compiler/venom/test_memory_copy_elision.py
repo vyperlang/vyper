@@ -1,6 +1,6 @@
 from tests.venom_utils import PrePostChecker
 from vyper.evm.opcodes import version_check
-from vyper.venom.passes import MemoryCopyElisionPass, DeadStoreElimination
+from vyper.venom.passes import MemoryCopyElisionPass, DeadStoreElimination, RemoveUnusedVariablesPass
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.evm.address_space import MEMORY
 
@@ -11,6 +11,22 @@ def _check_pre_post(pre, post, hevm: bool = True):
     for fn in pre_ctx.functions.values():
         ac = IRAnalysesCache(fn)
         DeadStoreElimination(ac, fn).run_pass(addr_space=MEMORY)
+
+    _checker.check(pre_ctx, post_ctx, pre, post, hevm)
+
+
+def _check_pre_post_with_unused_var_removal(pre, post, hevm: bool = True):
+    """Like _check_pre_post but also runs RemoveUnusedVariablesPass.
+    
+    This is needed for tests involving load-store elision where the load
+    becomes unused after the store is nop'd. RemoveUnusedVariablesPass
+    has proper MSIZE fence handling to preserve loads that affect msize.
+    """
+    pre_ctx, post_ctx = _checker.run_passes(pre, post)
+    for fn in pre_ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        DeadStoreElimination(ac, fn).run_pass(addr_space=MEMORY)
+        RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     _checker.check(pre_ctx, post_ctx, pre, post, hevm)
 
@@ -38,6 +54,9 @@ def test_load_store_no_elision():
 def test_redundant_copy_elimination():
     """
     Test that copying to the same location is eliminated entirely.
+    
+    MemoryCopyElisionPass only nops the store. The load is removed by
+    RemoveUnusedVariablesPass (which has proper MSIZE fence handling).
     """
     pre = """
     _global:
@@ -46,13 +65,13 @@ def test_redundant_copy_elimination():
         stop
     """
 
+    # After MemoryCopyElisionPass: store is nop'd, load remains
+    # After RemoveUnusedVariablesPass: load is also removed (no msize downstream), nops cleared
     post = """
     _global:
-        nop  ; mstore 100, %1                  [memory copy elision - redundant store]
-        nop  ; %1 = mload 100                  [memory copy elision - redundant load]
         stop
     """
-    _check_pre_post(pre, post)
+    _check_pre_post_with_unused_var_removal(pre, post)
 
 
 def test_mcopy_chain_optimization():
@@ -611,6 +630,13 @@ def test_mem_elision_load_needed_not_precise():
 
 
 def test_mem_elision_msize():
+    """
+    Test that mload is preserved when msize is read downstream.
+    
+    MemoryCopyElisionPass only nops the store. RemoveUnusedVariablesPass
+    would normally remove the unused load, but it correctly preserves it
+    because there's an msize instruction downstream (msize fence).
+    """
     pre = """
     main:
         ; you cannot nop both of
@@ -622,15 +648,15 @@ def test_mem_elision_msize():
         sink %2
     """
 
+    # After MemoryCopyElisionPass: store is nop'd
+    # After RemoveUnusedVariablesPass: load is KEPT (msize fence), nops cleared
     post = """
     main:
         %1 = mload 100
-        nop
         %2 = msize
         sink %2
     """
-
-    _check_pre_post(pre, post)
+    _check_pre_post_with_unused_var_removal(pre, post)
 
 
 def test_remove_unused_writes():

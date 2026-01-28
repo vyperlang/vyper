@@ -126,8 +126,10 @@ class MemoryCopyElisionPass(IRPass):
         uses = self.dfg.get_uses(load_inst.output)
         if len(uses) > 1:
             return
+        # Only nop the store here. The load may still be needed for MSIZE
+        # side effects. Let RemoveUnusedVariablesPass decide if the load
+        # can be removed (it has proper msize fence handling).
         self.updater.nop(inst)
-        self.updater.nop(load_inst)
 
 def _volatile_memory(inst):
     inst_effects = inst.get_read_effects() | inst.get_write_effects()
