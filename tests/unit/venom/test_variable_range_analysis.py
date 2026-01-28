@@ -2235,3 +2235,197 @@ def test_soundness_add_result_range_validity():
                 f"Soundness bug: non-negative range {rng} has hi > SIGNED_MAX. "
                 f"Values > SIGNED_MAX are negative."
             )
+
+
+# =============================================================================
+# SDIV AND SMOD TESTS
+# =============================================================================
+
+
+def test_sdiv_positive_range():
+    """Test sdiv with a positive range dividend."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw = calldataload 0
+            %x = mod %raw, 100
+            %y = sdiv %x, 10
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    sdiv_inst = next(inst for inst in entry.instructions if inst.opcode == "sdiv")
+    rng = analysis.get_range(sdiv_inst.output, entry.instructions[-1])
+    # x in [0, 99], y = x / 10, so y in [0, 9]
+    assert rng.lo == 0 and rng.hi == 9
+
+
+def test_sdiv_negative_range():
+    """Test sdiv with a negative range dividend."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw = calldataload 0
+            %pos = mod %raw, 100
+            %x = sub 0, %pos
+            %y = sdiv %x, 10
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    sdiv_inst = next(inst for inst in entry.instructions if inst.opcode == "sdiv")
+    rng = analysis.get_range(sdiv_inst.output, entry.instructions[-1])
+    # x in [-99, 0], y = x / 10, so y in [-9, 0] (truncation toward zero)
+    assert rng.lo == -9 and rng.hi == 0
+
+
+def test_sdiv_spanning_zero():
+    """Test sdiv with a range spanning zero."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw = calldataload 0
+            %x = signextend 0, %raw
+            %y = sdiv %x, 10
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    sdiv_inst = next(inst for inst in entry.instructions if inst.opcode == "sdiv")
+    rng = analysis.get_range(sdiv_inst.output, entry.instructions[-1])
+    # x in [-128, 127], y = x / 10, so y in [-12, 12]
+    assert rng.lo == -12 and rng.hi == 12
+
+
+def test_sdiv_by_zero():
+    """Test sdiv by zero returns 0 (EVM spec)."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw = calldataload 0
+            %x = mod %raw, 100
+            %y = sdiv %x, 0
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    sdiv_inst = next(inst for inst in entry.instructions if inst.opcode == "sdiv")
+    rng = analysis.get_range(sdiv_inst.output, entry.instructions[-1])
+    assert rng.lo == 0 and rng.hi == 0
+
+
+def test_sdiv_negative_divisor_returns_top():
+    """Test sdiv with negative divisor returns TOP (conservative)."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw = calldataload 0
+            %x = mod %raw, 100
+            %y = sdiv %x, -10
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    sdiv_inst = next(inst for inst in entry.instructions if inst.opcode == "sdiv")
+    rng = analysis.get_range(sdiv_inst.output, entry.instructions[-1])
+    # Currently returns TOP for negative divisors
+    assert rng.is_top
+
+
+def test_smod_positive_dividend():
+    """Test smod with positive dividend range."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw = calldataload 0
+            %x = mod %raw, 6
+            %y = smod %x, 10
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    smod_inst = next(inst for inst in entry.instructions if inst.opcode == "smod")
+    rng = analysis.get_range(smod_inst.output, entry.instructions[-1])
+    # x in [0, 5], divisor = 10, result in [0, 5]
+    assert rng.lo == 0 and rng.hi == 5
+
+
+def test_smod_nonpositive_range():
+    """Test smod with non-positive dividend range (including zero)."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw = calldataload 0
+            %pos = mod %raw, 6
+            %x = sub 0, %pos
+            %y = smod %x, 10
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    smod_inst = next(inst for inst in entry.instructions if inst.opcode == "smod")
+    rng = analysis.get_range(smod_inst.output, entry.instructions[-1])
+    # x in [-5, 0], divisor = 10, result in [-5, 0]
+    assert rng.lo == -5 and rng.hi == 0
+
+
+def test_smod_spanning_zero():
+    """Test smod with dividend range spanning zero."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw = calldataload 0
+            %x = signextend 0, %raw
+            %y = smod %x, 10
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    smod_inst = next(inst for inst in entry.instructions if inst.opcode == "smod")
+    rng = analysis.get_range(smod_inst.output, entry.instructions[-1])
+    # x in [-128, 127], divisor = 10, result in [-9, 9]
+    assert rng.lo == -9 and rng.hi == 9
+
+
+def test_smod_by_zero():
+    """Test smod by zero returns 0 (EVM spec)."""
+    analysis, fn = _analyze(
+        """
+        function test {
+        entry:
+            %raw = calldataload 0
+            %x = mod %raw, 100
+            %y = smod %x, 0
+            stop
+        }
+        """
+    )
+
+    entry = fn.get_basic_block("entry")
+    smod_inst = next(inst for inst in entry.instructions if inst.opcode == "smod")
+    rng = analysis.get_range(smod_inst.output, entry.instructions[-1])
+    assert rng.lo == 0 and rng.hi == 0

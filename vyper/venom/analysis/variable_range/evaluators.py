@@ -78,6 +78,7 @@ def _eval_add(inst: IRInstruction, state: RangeState) -> ValueRange:
         if result < SIGNED_MIN or result > UNSIGNED_MAX:
             result = wrap256(result)
         return ValueRange.constant(result)
+    # TODO: could be more precise for negative operands when ranges don't wrap
     if lhs.lo < 0 or rhs.lo < 0:
         return ValueRange.top()
     if (lhs.hi - lhs.lo) > RANGE_WIDTH_LIMIT or (rhs.hi - rhs.lo) > RANGE_WIDTH_LIMIT:
@@ -309,7 +310,7 @@ def _eval_mod(inst: IRInstruction, state: RangeState) -> ValueRange:
 
 
 def _eval_div(inst: IRInstruction, state: RangeState) -> ValueRange:
-    """Evaluate div instruction."""
+    """Evaluate div instruction (unsigned division)."""
     dividend_op = inst.operands[-1]
     divisor_op = inst.operands[-2]
     dividend_range = _operand_range(dividend_op, state)
@@ -320,6 +321,8 @@ def _eval_div(inst: IRInstruction, state: RangeState) -> ValueRange:
         return ValueRange.top()
     if divisor == 0:
         return ValueRange.constant(0)
+    # TODO: could handle negative dividend ranges by converting to unsigned
+    # interpretation, but this requires handling disjoint ranges
     if dividend_range.lo < 0:
         return ValueRange.top()
     return ValueRange((dividend_range.lo // divisor, dividend_range.hi // divisor))
@@ -394,8 +397,78 @@ def _eval_sar(inst: IRInstruction, state: RangeState) -> ValueRange:
     return ValueRange((value_range.lo >> shift, value_range.hi >> shift))
 
 
+def _eval_sdiv(inst: IRInstruction, state: RangeState) -> ValueRange:
+    """Evaluate sdiv (signed division) instruction.
+
+    EVM sdiv interprets both operands as signed and returns a signed result.
+    Special case: SIGNED_MIN / -1 = SIGNED_MIN (overflow, doesn't negate).
+    """
+    dividend_op = inst.operands[-1]
+    divisor_op = inst.operands[-2]
+    dividend_range = _operand_range(dividend_op, state)
+    if dividend_range.is_empty:
+        return ValueRange.empty()
+    divisor = _get_signed_literal(divisor_op)
+    if divisor is None:
+        return ValueRange.top()
+    if divisor == 0:
+        return ValueRange.constant(0)
+
+    # For constant dividend, compute exact result
+    if dividend_range.is_constant:
+        dividend = dividend_range.lo
+        # Special case: SIGNED_MIN / -1 = SIGNED_MIN (no negation due to overflow)
+        if dividend == SIGNED_MIN and divisor == -1:
+            return ValueRange.constant(SIGNED_MIN)
+        # Standard signed division
+        sign = -1 if (dividend < 0) != (divisor < 0) else 1
+        result = sign * (abs(dividend) // abs(divisor))
+        return ValueRange.constant(result)
+
+    # For ranges, compute bounds
+    # Division by positive divisor preserves order: lo/d <= x/d <= hi/d
+    # Division by negative divisor reverses order: hi/d <= x/d <= lo/d
+    if divisor > 0:
+        # Handle SIGNED_MIN specially - can't negate it
+        if dividend_range.lo == SIGNED_MIN:
+            result_lo = SIGNED_MIN // divisor  # Python handles this correctly
+        else:
+            result_lo = dividend_range.lo // divisor if dividend_range.lo >= 0 else -(abs(dividend_range.lo) // divisor + (1 if abs(dividend_range.lo) % divisor else 0))
+
+        if dividend_range.hi == SIGNED_MIN:
+            result_hi = SIGNED_MIN // divisor
+        else:
+            result_hi = dividend_range.hi // divisor if dividend_range.hi >= 0 else -(abs(dividend_range.hi) // divisor + (1 if abs(dividend_range.hi) % divisor else 0))
+
+        # Truncation toward zero means we need to be careful with bounds
+        # For positive divisor: result is in [lo//d, hi//d] using truncation
+        # But Python uses floor division, so for negative dividends we adjust
+        if dividend_range.lo >= 0:
+            result_lo = dividend_range.lo // divisor
+            result_hi = dividend_range.hi // divisor
+        elif dividend_range.hi < 0:
+            # Both negative: division truncates toward zero
+            # -7 // 3 in EVM = -2 (truncate), in Python = -3 (floor)
+            result_hi = -(abs(dividend_range.lo) // divisor)
+            result_lo = -(abs(dividend_range.hi) // divisor)
+        else:
+            # Range spans zero - result spans from negative to positive
+            result_lo = -(abs(dividend_range.lo) // divisor)
+            result_hi = dividend_range.hi // divisor
+    else:
+        # Negative divisor - more complex, return TOP for now
+        # TODO: could be more precise for negative divisors
+        return ValueRange.top()
+
+    return ValueRange((result_lo, result_hi))
+
+
 def _eval_smod(inst: IRInstruction, state: RangeState) -> ValueRange:
-    """Evaluate smod (signed modulo) instruction."""
+    """Evaluate smod (signed modulo) instruction.
+
+    EVM smod: the result has the same sign as the dividend.
+    smod(x, y) = sign(x) * (abs(x) % abs(y))
+    """
     dividend_op = inst.operands[-1]
     divisor_op = inst.operands[-2]
     dividend_range = _operand_range(dividend_op, state)
@@ -407,7 +480,17 @@ def _eval_smod(inst: IRInstruction, state: RangeState) -> ValueRange:
     if divisor == 0:
         return ValueRange.constant(0)
     limit = abs(divisor) - 1
-    return ValueRange((-limit, limit))
+
+    # Result sign follows dividend sign, so we can narrow based on dividend range
+    if dividend_range.lo >= 0:
+        # Dividend is non-negative, result is non-negative
+        return ValueRange((0, min(limit, dividend_range.hi)))
+    elif dividend_range.hi <= 0:
+        # Dividend is non-positive, result is non-positive
+        return ValueRange((max(-limit, dividend_range.lo), 0))
+    else:
+        # Dividend spans zero, result could be in full range
+        return ValueRange((-limit, limit))
 
 
 def _eval_compare(inst: IRInstruction, state: RangeState) -> ValueRange:
@@ -640,6 +723,7 @@ EVAL_DISPATCH: dict[str, RangeEvaluator] = {
     "signextend": _eval_signextend,
     "mod": _eval_mod,
     "div": _eval_div,
+    "sdiv": _eval_sdiv,
     "shr": _eval_shr,
     "shl": _eval_shl,
     "sar": _eval_sar,
