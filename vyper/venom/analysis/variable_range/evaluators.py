@@ -429,20 +429,8 @@ def _eval_sdiv(inst: IRInstruction, state: RangeState) -> ValueRange:
     # Division by positive divisor preserves order: lo/d <= x/d <= hi/d
     # Division by negative divisor reverses order: hi/d <= x/d <= lo/d
     if divisor > 0:
-        # Handle SIGNED_MIN specially - can't negate it
-        if dividend_range.lo == SIGNED_MIN:
-            result_lo = SIGNED_MIN // divisor  # Python handles this correctly
-        else:
-            result_lo = dividend_range.lo // divisor if dividend_range.lo >= 0 else -(abs(dividend_range.lo) // divisor + (1 if abs(dividend_range.lo) % divisor else 0))
-
-        if dividend_range.hi == SIGNED_MIN:
-            result_hi = SIGNED_MIN // divisor
-        else:
-            result_hi = dividend_range.hi // divisor if dividend_range.hi >= 0 else -(abs(dividend_range.hi) // divisor + (1 if abs(dividend_range.hi) % divisor else 0))
-
         # Truncation toward zero means we need to be careful with bounds
-        # For positive divisor: result is in [lo//d, hi//d] using truncation
-        # But Python uses floor division, so for negative dividends we adjust
+        # Python uses floor division, so for negative dividends we adjust
         if dividend_range.lo >= 0:
             result_lo = dividend_range.lo // divisor
             result_hi = dividend_range.hi // divisor
