@@ -1,5 +1,5 @@
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.analysis import BasePtrAnalysis, MemoryAliasAnalysis, DFGAnalysis
+from vyper.venom.analysis import BasePtrAnalysis, LivenessAnalysis, MemoryAliasAnalysis, DFGAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.memory_location import MemoryLocation
 import vyper.evm.address_space as addr_space
@@ -27,6 +27,11 @@ class MemoryCopyElisionPass(IRPass):
         for bb in self.function.get_basic_blocks():
             self._process_bb(bb)
 
+        # Invalidate analyses that may be affected by IR modifications
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
+        self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
+
     def _process_bb(self, bb: IRBasicBlock):
         self.copies = dict()
         for e in self.loads.values():
@@ -52,7 +57,7 @@ class MemoryCopyElisionPass(IRPass):
                 write_loc = self.base_ptr.get_write_location(inst, addr_space.MEMORY)
                 self._invalidate(write_loc, Effects.MEMORY)
                 if write_loc.is_fixed:
-                    self.copies[write_loc] =inst
+                    self.copies[write_loc] = inst
 
             elif inst.opcode == "mcopy":
                 self._try_elide_copy(inst)
@@ -60,7 +65,7 @@ class MemoryCopyElisionPass(IRPass):
                 write_loc = self.base_ptr.get_write_location(inst, addr_space.MEMORY)
                 self._invalidate(write_loc, Effects.MEMORY)
                 if write_loc.is_fixed:
-                    self.copies[write_loc] =inst
+                    self.copies[write_loc] = inst
 
             elif _volatile_memory(inst):
                 self.copies.clear()
