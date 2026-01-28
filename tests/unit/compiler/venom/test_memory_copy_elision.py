@@ -1104,6 +1104,57 @@ def test_cross_bb_copy_diamond_same_source():
     _check_pre_post(pre, post)
 
 
+def test_cross_bb_copy_diamond_identical_copies():
+    """
+    Test diamond CFG where both paths have identical copy instructions.
+    
+    Both paths write to the same location from the same source, so we can
+    safely optimize the mcopy at the merge point to use the original source.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %cond = param
+        jnz %cond, @path1, @path2
+
+    path1:
+        calldatacopy 100, 0, 32  ; Copy from calldata offset 0
+        jmp @merge
+
+    path2:
+        calldatacopy 100, 0, 32  ; SAME source (calldata offset 0)
+        jmp @merge
+
+    merge:
+        mcopy 200, 100, 32  ; CAN optimize - both paths have equivalent copies
+        %1 = mload 200
+        sink %1
+    """
+    
+    # Both calldatacopies are equivalent, so mcopy can chain through
+    post = """
+    _global:
+        %cond = param
+        jnz %cond, @path1, @path2
+
+    path1:
+        nop  ; calldatacopy 100, 0, 32        [dead store]
+        jmp @merge
+
+    path2:
+        nop  ; calldatacopy 100, 0, 32        [dead store]
+        jmp @merge
+
+    merge:
+        calldatacopy 200, 0, 32
+        %1 = mload 200
+        sink %1
+    """
+    _check_pre_post(pre, post)
+
+
 def test_cross_bb_copy_loop():
     """
     Test that copy info doesn't incorrectly persist through loops.
@@ -1137,6 +1188,38 @@ def test_cross_bb_copy_loop():
     # but after the mstore clobbers it. The worklist will stabilize with
     # no copy info available at the loop header (since one predecessor has it clobbered).
     # So the mcopy cannot be optimized.
+    _check_no_change(pre)
+
+
+def test_cross_bb_diamond_clobber_one_path():
+    """
+    Test that clobbering on one path of a diamond correctly invalidates at merge.
+    
+    Even if the copy dominates the branch, if one path clobbers the source,
+    the copy info should not be available at the merge point.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        calldatacopy 100, 0, 32
+        %cond = param
+        jnz %cond, @path1, @path2
+
+    path1:
+        mstore 100, 42  ; Clobber the destination on this path
+        jmp @merge
+
+    path2:
+        ; No clobber here
+        jmp @merge
+
+    merge:
+        mcopy 200, 100, 32  ; Cannot optimize - clobbered on one path
+        %1 = mload 200
+        sink %1
+    """
     _check_no_change(pre)
 
 

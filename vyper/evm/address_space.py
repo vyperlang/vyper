@@ -59,6 +59,10 @@ CALLDATA = AddrSpace("calldata", 32, "calldataload", None, "calldatacopy")
 IMMUTABLES = AddrSpace("immutables", 32, "iload", "istore")
 # data addrspace: "data" section of runtime code, read-only.
 DATA = AddrSpace("data", 32, "dload", None, "dloadbytes")
+# code addrspace: bytecode of the current contract, read-only.
+CODE = AddrSpace("code", 32, None, None, "codecopy")
+# returndata addrspace: return data from last external call, read-only.
+RETURNDATA = AddrSpace("returndata", 32, None, None, "returndatacopy")
 
 
 def legal_in_staticcall(location: AddrSpace):

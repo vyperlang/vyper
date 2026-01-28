@@ -20,6 +20,15 @@ _COPIES_OPCODES = ("mcopy", *_NONMEM_COPY_OPCODES)
 _LOADS = {"mload": Effects.MEMORY, "sload": Effects.STORAGE, "tload": Effects.TRANSIENT}
 _STORES = {"mstore": Effects.MEMORY, "sstore": Effects.STORAGE, "tstore": Effects.TRANSIENT}
 
+# Maps copy opcodes to the address space they read from
+_COPY_SOURCE_SPACE = {
+    "mcopy": addr_space.MEMORY,
+    "calldatacopy": addr_space.CALLDATA,
+    "codecopy": addr_space.CODE,
+    "dloadbytes": addr_space.DATA,
+    "returndatacopy": addr_space.RETURNDATA,
+}
+
 # Type alias for copy tracking: maps memory location to the copy instruction
 CopyMap = dict[MemoryLocation, IRInstruction]
 
@@ -75,16 +84,33 @@ class MemoryCopyElisionPass(IRPass):
                 # If any predecessor hasn't been processed, be conservative
                 return {}
             other = self.bb_copies[pred]
-            # Keep only entries that exist in both and have the same instruction
+            # Keep only entries that exist in both with equivalent instructions
             common_keys = result.keys() & other.keys()
             new_result = {}
             for key in common_keys:
-                # Only keep if the same instruction produces the copy in all paths
-                if result[key] is other[key]:
+                # Keep if instructions are equivalent (same opcode and source location)
+                if self._copies_equivalent(result[key], other[key]):
                     new_result[key] = result[key]
             result = new_result
         
         return result
+
+    def _copies_equivalent(self, inst1: IRInstruction, inst2: IRInstruction) -> bool:
+        """Check if two copy instructions are semantically equivalent."""
+        if inst1 is inst2:
+            return True
+        
+        if inst1.opcode != inst2.opcode:
+            return False
+        
+        # Get the source address space for this copy opcode
+        src_space = _COPY_SOURCE_SPACE[inst1.opcode]
+        
+        # Compare source locations using the appropriate address space
+        src1 = self.base_ptr.get_read_location(inst1, src_space)
+        src2 = self.base_ptr.get_read_location(inst2, src_space)
+        
+        return src1 == src2
 
     def _process_bb(self, bb: IRBasicBlock) -> bool:
         """Process a basic block, return True if copy state changed."""
@@ -181,11 +207,11 @@ class MemoryCopyElisionPass(IRPass):
 
         assert previous.opcode in _COPIES_OPCODES, previous
 
-        inst_size, _, _ = inst.operands
-        previous_size, src, _ = previous.operands
-        
-        if not self.dfg.are_equivalent(inst_size, previous_size):
-            return
+        # Size matching is guaranteed by the MemoryLocation lookup above.
+        # MemoryLocation includes size as part of its identity, and only
+        # fixed-size copies (where size is a literal) are tracked in self.copies.
+        # Variable-size copies have is_fixed=False and aren't tracked.
+        _, src, _ = previous.operands
 
         inst.opcode = previous.opcode
         inst.operands[1] = src
