@@ -203,6 +203,29 @@ def test_mcopy_chain_with_size_mismatch():
     _check_no_change(pre)
 
 
+def test_mcopy_chain_with_variable_size():
+    """
+    Test mcopy chains with variable sizes - currently not optimized.
+    
+    When mcopy uses variable sizes, the memory location can't be tracked
+    precisely (is_fixed returns False), so no chain optimization happens.
+    This test documents the current behavior.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %sz = 32
+        mcopy 200, 100, %sz
+        mcopy 300, 200, %sz
+        %1 = mload 300
+        sink %1
+    """
+    # No optimization - variable size locations aren't tracked
+    _check_no_change(pre)
+
+
 def test_overlapping_memory_regions():
     """
     Test that overlapping memory regions prevent optimization.
@@ -490,7 +513,10 @@ def test_inter_block_no_optimization():
 
 def test_mcopy_chain_across_blocks():
     """
-    Test that mcopy chains don't merge across basic block boundaries.
+    Test that mcopy chains DO merge across basic block boundaries.
+    
+    Cross-BB copy elision propagates copy info along CFG edges, allowing
+    the second mcopy to be transformed to copy directly from the original source.
     """
     if not version_check(begin="cancun"):
         return
@@ -506,15 +532,28 @@ def test_mcopy_chain_across_blocks():
         sink %1
     """
 
-    # No optimization should happen - mcopies are in different blocks
-    post = pre
+    # Cross-BB optimization: second mcopy reads from 200, which was
+    # written by first mcopy from 100. Chain is merged.
+    post = """
+    _global:
+        nop  ; mcopy 200, 100, 32             [dead store - 200 not read]
+        jmp @label1
+
+    label1:
+        mcopy 300, 100, 32
+        %1 = mload 300
+        sink %1
+    """
 
     _check_pre_post(pre, post)
 
 
 def test_special_copy_chain_across_blocks():
     """
-    Test that special copy + mcopy chains don't merge across basic block boundaries.
+    Test that special copy + mcopy chains DO merge across basic block boundaries.
+    
+    Cross-BB copy elision propagates copy info along CFG edges, allowing
+    the mcopy to be transformed to a calldatacopy directly from calldata.
     """
     if not version_check(begin="cancun"):
         return
@@ -530,8 +569,18 @@ def test_special_copy_chain_across_blocks():
         sink %1
     """
 
-    # No optimization should happen - copies are in different blocks
-    post = pre
+    # Cross-BB optimization: mcopy reads from 100, which was written by
+    # calldatacopy. Chain is merged to calldatacopy directly to 200.
+    post = """
+    _global:
+        nop  ; calldatacopy 100, 0, 32        [dead store - 100 not read]
+        jmp @label1
+
+    label1:
+        calldatacopy 200, 0, 32
+        %1 = mload 200
+        sink %1
+    """
 
     _check_pre_post(pre, post)
 
@@ -887,3 +936,426 @@ def test_calldatacopy_mcopy_chain_with_alloca():
     """
     _check_pre_post(pre, post)
 
+
+
+# ============================================================================
+# Cross-BB copy elision tests
+# These test the dataflow-based cross-BB optimization
+# ============================================================================
+
+
+def test_cross_bb_copy_chain_multiple_blocks():
+    """
+    Test copy chain optimization across multiple basic blocks.
+    A -> B in block1, B -> C in block2, C -> D in block3.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 200, 100, 32
+        jmp @block2
+
+    block2:
+        mcopy 300, 200, 32
+        jmp @block3
+
+    block3:
+        mcopy 400, 300, 32
+        %1 = mload 400
+        sink %1
+    """
+
+    # All intermediate copies can be eliminated, final copies directly from 100
+    post = """
+    _global:
+        nop  ; mcopy 200, 100, 32             [dead store]
+        jmp @block2
+
+    block2:
+        nop  ; mcopy 300, 200, 32             [dead store]
+        jmp @block3
+
+    block3:
+        mcopy 400, 100, 32
+        %1 = mload 400
+        sink %1
+    """
+    _check_pre_post(pre, post)
+
+
+def test_cross_bb_copy_with_source_clobber():
+    """
+    Test that cross-BB optimization correctly handles clobbering writes.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 200, 100, 32
+        jmp @block2
+
+    block2:
+        mstore 100, 42  ; Clobber source location
+        mcopy 300, 200, 32  ; Should NOT chain because source was modified
+        %1 = mload 300
+        %2 = mload 100
+        sink %2, %1
+    """
+
+    # No chain optimization - source location was clobbered
+    # But the mcopy 200, 100 is dead (200 is only read after clobber but that's okay
+    # since we read from 200, not 100)
+    post = """
+    _global:
+        mcopy 200, 100, 32
+        jmp @block2
+
+    block2:
+        mstore 100, 42
+        mcopy 300, 200, 32
+        %1 = mload 300
+        %2 = mload 100
+        sink %2, %1
+    """
+    _check_pre_post(pre, post)
+
+
+def test_cross_bb_copy_diamond_merge():
+    """
+    Test that cross-BB optimization is conservative at merge points.
+    
+    If copy info comes from different paths, only common info is kept.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %cond = param
+        jnz %cond, @path1, @path2
+
+    path1:
+        calldatacopy 100, 0, 32  ; Copy from calldata offset 0
+        jmp @merge
+
+    path2:
+        calldatacopy 100, 32, 32  ; Copy from calldata offset 32 (different!)
+        jmp @merge
+
+    merge:
+        mcopy 200, 100, 32  ; Can't optimize - different sources on each path
+        %1 = mload 200
+        sink %1
+    """
+    _check_no_change(pre)
+
+
+def test_cross_bb_copy_diamond_same_source():
+    """
+    Test that cross-BB optimization works at merge points with same source.
+    
+    If the same copy exists on all paths to a merge point, it can be used.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        calldatacopy 100, 0, 32  ; Same copy before branch
+        %cond = param
+        jnz %cond, @path1, @path2
+
+    path1:
+        %1 = add 1, 2  ; Some work, but no memory clobber
+        jmp @merge
+
+    path2:
+        %2 = sub 5, 3  ; Some work, but no memory clobber
+        jmp @merge
+
+    merge:
+        mcopy 200, 100, 32  ; CAN optimize - same source on all paths
+        %3 = mload 200
+        sink %3
+    """
+
+    post = """
+    _global:
+        nop  ; calldatacopy 100, 0, 32        [dead store]
+        %cond = param
+        jnz %cond, @path1, @path2
+
+    path1:
+        %1 = add 1, 2
+        jmp @merge
+
+    path2:
+        %2 = sub 5, 3
+        jmp @merge
+
+    merge:
+        calldatacopy 200, 0, 32
+        %3 = mload 200
+        sink %3
+    """
+    _check_pre_post(pre, post)
+
+
+def test_cross_bb_copy_loop():
+    """
+    Test that copy info doesn't incorrectly persist through loops.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        calldatacopy 100, 0, 32
+        %zero = 0
+        jmp @loop
+
+    loop:
+        %i = phi @_global, %zero, @body, %i2
+        %cond = lt %i, 10
+        jnz %cond, @body, @exit
+
+    body:
+        mcopy 200, 100, 32  ; Can optimize on first iteration
+        mstore 100, 42  ; Clobber source for next iteration
+        %i2 = add %i, 1
+        jmp @loop
+
+    exit:
+        %1 = mload 200
+        sink %1
+    """
+
+    # This is a complex case. The calldatacopy provides info on first loop entry,
+    # but after the mstore clobbers it. The worklist will stabilize with
+    # no copy info available at the loop header (since one predecessor has it clobbered).
+    # So the mcopy cannot be optimized.
+    _check_no_change(pre)
+
+
+def test_cross_bb_volatile_clears_copies():
+    """
+    Test that volatile instructions clear copy info across blocks.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        calldatacopy 100, 0, 32
+        jmp @block2
+
+    block2:
+        %ret = call 0, 0, 0, 0, 0, 0, 0  ; Volatile - clears memory
+        mcopy 200, 100, 32  ; Can't optimize - call may have modified memory
+        %1 = mload 200
+        sink %1
+    """
+    _check_no_change(pre)
+
+
+def test_cross_bb_calldatacopy_chain():
+    """
+    Test calldatacopy chains across blocks.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        calldatacopy 100, 0, 64
+        jmp @block2
+
+    block2:
+        mcopy 200, 100, 64
+        jmp @block3
+
+    block3:
+        mcopy 300, 200, 64
+        %1 = mload 300
+        sink %1
+    """
+
+    post = """
+    _global:
+        nop  ; calldatacopy 100, 0, 64        [dead store]
+        jmp @block2
+
+    block2:
+        nop  ; mcopy 200, 100, 64             [dead store]
+        jmp @block3
+
+    block3:
+        calldatacopy 300, 0, 64
+        %1 = mload 300
+        sink %1
+    """
+    _check_pre_post(pre, post)
+
+
+def test_cross_bb_with_intermediate_read():
+    """
+    Test that cross-BB optimization preserves intermediate reads correctly.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        calldatacopy 100, 0, 32
+        jmp @block2
+
+    block2:
+        %1 = mload 100  ; Read from intermediate location
+        mcopy 200, 100, 32  ; Can still optimize
+        mstore 300, %1
+        %2 = mload 200
+        %3 = mload 300
+        sink %3, %2
+    """
+
+    # The calldatacopy is NOT dead because %1 reads from 100
+    # But mcopy can still be optimized to calldatacopy
+    post = """
+    _global:
+        calldatacopy 100, 0, 32
+        jmp @block2
+
+    block2:
+        %1 = mload 100
+        calldatacopy 200, 0, 32
+        mstore 300, %1
+        %2 = mload 200
+        %3 = mload 300
+        sink %3, %2
+    """
+    _check_pre_post(pre, post)
+
+
+# ============================================================================
+# Stress tests and edge cases
+# ============================================================================
+
+
+def test_many_copies_in_sequence():
+    """
+    Test handling of many sequential copies (stress test for tracking).
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 200, 100, 32
+        mcopy 300, 200, 32
+        mcopy 400, 300, 32
+        mcopy 500, 400, 32
+        mcopy 600, 500, 32
+        mcopy 700, 600, 32
+        mcopy 800, 700, 32
+        mcopy 900, 800, 32
+        %1 = mload 900
+        sink %1
+    """
+
+    post = """
+    _global:
+        nop  ; mcopy 200
+        nop  ; mcopy 300
+        nop  ; mcopy 400
+        nop  ; mcopy 500
+        nop  ; mcopy 600
+        nop  ; mcopy 700
+        nop  ; mcopy 800
+        mcopy 900, 100, 32
+        %1 = mload 900
+        sink %1
+    """
+    _check_pre_post(pre, post)
+
+
+def test_overlapping_copy_regions():
+    """
+    Test that overlapping copy regions are handled correctly.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 200, 100, 64  ; Copies [100-164) to [200-264)
+        mcopy 300, 216, 32  ; Reads from middle of first copy's destination
+        %1 = mload 300
+        sink %1
+    """
+
+    # The second mcopy reads from 216, but first copy wrote to [200-264),
+    # which overlaps but doesn't match exactly. No optimization.
+    _check_no_change(pre)
+
+
+def test_copy_with_zero_size():
+    """
+    Test that zero-size copies don't break anything.
+    
+    Zero-size copies don't write anything, so they're effectively no-ops.
+    DSE will remove them, and they shouldn't be tracked for chaining.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 200, 100, 0  ; Zero-size copy
+        mcopy 300, 200, 32  ; Can't chain - source wasn't really written
+        %1 = mload 300
+        sink %1
+    """
+    
+    # Zero-size copy is removed by DSE, second mcopy cannot chain
+    post = """
+    _global:
+        nop  ; mcopy 200, 100, 0 [zero-size, removed by DSE]
+        mcopy 300, 200, 32
+        %1 = mload 300
+        sink %1
+    """
+    _check_pre_post(pre, post)
+
+
+def test_interleaved_copies_different_regions():
+    """
+    Test that copies to different regions don't interfere.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 200, 100, 32
+        mcopy 400, 300, 32  ; Different region
+        mcopy 500, 200, 32  ; Chain from first
+        mcopy 600, 400, 32  ; Chain from second
+        %1 = mload 500
+        %2 = mload 600
+        sink %2, %1
+    """
+
+    post = """
+    _global:
+        nop  ; mcopy 200
+        nop  ; mcopy 400
+        mcopy 500, 100, 32
+        mcopy 600, 300, 32
+        %1 = mload 500
+        %2 = mload 600
+        sink %2, %1
+    """
+    _check_pre_post(pre, post)

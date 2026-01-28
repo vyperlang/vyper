@@ -1,5 +1,13 @@
+from collections import deque
+
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.analysis import BasePtrAnalysis, LivenessAnalysis, MemoryAliasAnalysis, DFGAnalysis
+from vyper.venom.analysis import (
+    BasePtrAnalysis, 
+    CFGAnalysis,
+    LivenessAnalysis, 
+    MemoryAliasAnalysis, 
+    DFGAnalysis
+)
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.memory_location import MemoryLocation
 import vyper.evm.address_space as addr_space
@@ -12,30 +20,81 @@ _COPIES_OPCODES = ("mcopy", *_NONMEM_COPY_OPCODES)
 _LOADS = {"mload": Effects.MEMORY, "sload": Effects.STORAGE, "tload": Effects.TRANSIENT}
 _STORES = {"mstore": Effects.MEMORY, "sstore": Effects.STORAGE, "tstore": Effects.TRANSIENT}
 
+# Type alias for copy tracking: maps memory location to the copy instruction
+CopyMap = dict[MemoryLocation, IRInstruction]
+
+
 class MemoryCopyElisionPass(IRPass):
     base_ptr: BasePtrAnalysis
-    copies: dict[MemoryLocation, IRInstruction]
+    copies: CopyMap
     loads: dict[Effects, dict[IRVariable, tuple[MemoryLocation, IRInstruction]]]
+    # For cross-BB analysis: maps BB -> copy state at end of BB
+    bb_copies: dict[IRBasicBlock, CopyMap]
 
     def run_pass(self):
         self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.mem_alias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.updater = InstUpdater(self.dfg)
         self.loads = {Effects.MEMORY: dict(), Effects.STORAGE: dict(), Effects.TRANSIENT: dict()}
+        self.bb_copies = {}
 
-        for bb in self.function.get_basic_blocks():
-            self._process_bb(bb)
+        # Use worklist algorithm for cross-BB copy propagation
+        worklist = deque(self.cfg.dfs_pre_walk)
+
+        while len(worklist) > 0:
+            bb = worklist.popleft()
+            changed = self._process_bb(bb)
+            if changed:
+                for succ in self.cfg.cfg_out(bb):
+                    if succ not in worklist:
+                        worklist.append(succ)
 
         # Invalidate analyses that may be affected by IR modifications
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
 
-    def _process_bb(self, bb: IRBasicBlock):
-        self.copies = dict()
+    def _merge_copies(self, bb: IRBasicBlock) -> CopyMap:
+        """Merge copy info from all predecessors using intersection semantics."""
+        preds = list(self.cfg.cfg_in(bb))
+        if len(preds) == 0:
+            return {}
+        
+        # Start with first predecessor's state
+        first_pred = preds[0]
+        if first_pred not in self.bb_copies:
+            return {}
+        
+        result = self.bb_copies[first_pred].copy()
+        
+        # Intersect with other predecessors
+        for pred in preds[1:]:
+            if pred not in self.bb_copies:
+                # If any predecessor hasn't been processed, be conservative
+                return {}
+            other = self.bb_copies[pred]
+            # Keep only entries that exist in both and have the same instruction
+            common_keys = result.keys() & other.keys()
+            new_result = {}
+            for key in common_keys:
+                # Only keep if the same instruction produces the copy in all paths
+                if result[key] is other[key]:
+                    new_result[key] = result[key]
+            result = new_result
+        
+        return result
+
+    def _process_bb(self, bb: IRBasicBlock) -> bool:
+        """Process a basic block, return True if copy state changed."""
+        # Get incoming copy state from predecessors
+        self.copies = self._merge_copies(bb)
+        
+        # Clear loads at BB boundary (loads are still per-BB only)
         for e in self.loads.values():
             e.clear()
+            
         for inst in bb.instructions:
             if inst.opcode in _LOADS:
                 eff = _LOADS[inst.opcode]
@@ -71,6 +130,13 @@ class MemoryCopyElisionPass(IRPass):
                 self.copies.clear()
                 self.loads[Effects.MEMORY].clear()
 
+        # Check if state changed
+        old_copies = self.bb_copies.get(bb, None)
+        if old_copies is None or old_copies != self.copies:
+            self.bb_copies[bb] = self.copies.copy()
+            return True
+        return False
+
     def _invalidate(self, write_loc: MemoryLocation, eff: Effects):
         if not write_loc.is_fixed and Effects.MEMORY in eff:
             self.copies.clear()
@@ -79,9 +145,19 @@ class MemoryCopyElisionPass(IRPass):
 
         if Effects.MEMORY in eff:
             to_remove = []
-            for mem_loc in self.copies.keys():
+            for mem_loc, copy_inst in self.copies.items():
+                # Invalidate if the DESTINATION is clobbered
                 if self.mem_alias.may_alias(mem_loc, write_loc):
                     to_remove.append(mem_loc)
+                    continue
+                # Also invalidate if the SOURCE of the copy is clobbered.
+                # For mcopy, source is operand[1]. For calldatacopy etc., 
+                # source is in a different address space (not memory), so
+                # we only need to check for mcopy.
+                if copy_inst.opcode == "mcopy":
+                    src_loc = self.base_ptr.get_read_location(copy_inst, addr_space.MEMORY)
+                    if self.mem_alias.may_alias(src_loc, write_loc):
+                        to_remove.append(mem_loc)
 
             for mem_loc in to_remove:
                 del self.copies[mem_loc]
@@ -108,7 +184,7 @@ class MemoryCopyElisionPass(IRPass):
         inst_size, _, _ = inst.operands
         previous_size, src, _ = previous.operands
         
-        if inst_size != previous_size:
+        if not self.dfg.are_equivalent(inst_size, previous_size):
             return
 
         inst.opcode = previous.opcode
@@ -134,4 +210,3 @@ class MemoryCopyElisionPass(IRPass):
 def _volatile_memory(inst):
     inst_effects = inst.get_read_effects() | inst.get_write_effects()
     return Effects.MEMORY in inst_effects or Effects.MSIZE in inst_effects
-
