@@ -121,7 +121,8 @@ class VariableRangeAnalysis(IRAnalysis):
 
     def _evaluate_inst(self, inst: IRInstruction, env: RangeState) -> ValueRange:
         """
-        Return the resulting range for an instruction, if it can be computed
+        Return the resulting range for an instruction.
+        Unknown opcodes conservatively return TOP.
         """
         opcode = inst.opcode
 
@@ -213,22 +214,22 @@ class VariableRangeAnalysis(IRAnalysis):
             if current.is_top:
                 # Can't narrow TOP meaningfully for non-zero
                 return state
+            if current.is_empty:
+                return state
 
             if current.lo < 0:
                 # Range includes negative values (which are all non-zero)
                 if current.hi < 0:
                     # Range doesn't contain zero, no narrowing needed
-                    pass
+                    return state
                 elif current.hi == 0:
                     # Range is [lo, 0], narrow to [lo, -1]
                     new_range = current.clamp(None, -1)
                     if not new_range.is_empty:
                         self._write_range(state, target, new_range)
-                else:
-                    # Range spans zero: [lo, hi] where lo < 0 < hi
-                    # Non-zero means [lo, -1] ∪ [1, hi], which we can't represent
-                    # Be conservative: don't narrow
-                    pass
+                # Range spans zero: [lo, hi] where lo < 0 < hi
+                # Non-zero means [lo, -1] ∪ [1, hi], which we can't represent
+                # Be conservative: don't narrow
             else:
                 # Range is entirely non-negative, intersect with [1, UNSIGNED_MAX]
                 # Write even if empty (BOTTOM) - means false branch is unreachable
