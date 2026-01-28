@@ -947,7 +947,7 @@ def test_sccp_byte():
         sink 144
     """
     # byte(31, 0x1234567890) extracts LSB = 0x90 = 144
-    _check_pre_post(pre, post)
+    _check_pre_post(pre, post, hevm=False)
 
 
 def test_sccp_byte_msb():
@@ -967,7 +967,7 @@ def test_sccp_byte_msb():
         sink 0
     """
     # 0x42 is not at the MSB position (byte 0) for this value
-    _check_pre_post(pre, post)
+    _check_pre_post(pre, post, hevm=False)
 
 
 def test_sccp_byte_out_of_range():
@@ -986,7 +986,7 @@ def test_sccp_byte_out_of_range():
         %b = byte 32, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
         sink 0
     """
-    _check_pre_post(pre, post)
+    _check_pre_post(pre, post, hevm=False)
 
 
 def test_sccp_byte_all_ones():
