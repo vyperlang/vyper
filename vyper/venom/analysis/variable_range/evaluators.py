@@ -48,9 +48,14 @@ def _get_signed_literal(op: IROperand) -> Optional[int]:
 
 
 def _operand_range(operand: IROperand, env: RangeState) -> ValueRange:
-    """Get the range of an operand from the current environment."""
+    """Get the range of an operand from the current environment.
+
+    Literals are normalized to signed representation since the range system
+    uses signed bounds internally. This ensures values >= 2^255 are treated
+    as negative numbers (e.g., 2^255 becomes SIGNED_MIN).
+    """
     if isinstance(operand, IRLiteral):
-        return ValueRange.constant(operand.value)
+        return ValueRange.constant(wrap256(operand.value, signed=True))
     if isinstance(operand, IRVariable):
         return env.get(operand, ValueRange.top())
     return ValueRange.top()
@@ -330,10 +335,11 @@ def _eval_shr(inst: IRInstruction, state: RangeState) -> ValueRange:
     shift = _get_uint_literal(shift_op)
     if shift is None:
         return ValueRange.top()
-    if value_range.lo < 0:
-        return ValueRange.top()
+    # shift >= 256 always produces 0 regardless of input
     if shift >= 256:
         return ValueRange.constant(0)
+    if value_range.lo < 0:
+        return ValueRange.top()
     amount = 1 << shift
     return ValueRange((value_range.lo // amount, value_range.hi // amount))
 
@@ -348,10 +354,11 @@ def _eval_shl(inst: IRInstruction, state: RangeState) -> ValueRange:
     shift = _get_uint_literal(shift_op)
     if shift is None:
         return ValueRange.top()
-    if value_range.lo < 0:
-        return ValueRange.top()
+    # shift >= 256 always produces 0 regardless of input
     if shift >= 256:
         return ValueRange.constant(0)
+    if value_range.lo < 0:
+        return ValueRange.top()
     max_input = UNSIGNED_MAX >> shift
     if value_range.hi > max_input:
         return ValueRange.top()

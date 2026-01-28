@@ -66,9 +66,13 @@ class VariableRangeAnalysis(IRAnalysis):
         """
         Get the variable's value range of an operand at the point
         just before a given instruction.
+
+        Literals are normalized to signed representation since the range system
+        uses signed bounds internally. This ensures values >= 2^255 are treated
+        as negative numbers (e.g., 2^255 becomes SIGNED_MIN).
         """
         if isinstance(operand, IRLiteral):
-            return ValueRange.constant(operand.value)
+            return ValueRange.constant(wrap256(operand.value, signed=True))
         if not isinstance(operand, IRVariable):
             return ValueRange.top()
 
@@ -244,9 +248,11 @@ class VariableRangeAnalysis(IRAnalysis):
             return state
 
         if isinstance(lhs, IRVariable) and isinstance(rhs, IRLiteral):
-            self._write_range(state, lhs, ValueRange.constant(rhs.value))
+            # Normalize literal to signed representation for range system
+            self._write_range(state, lhs, ValueRange.constant(wrap256(rhs.value, signed=True)))
         elif isinstance(rhs, IRVariable) and isinstance(lhs, IRLiteral):
-            self._write_range(state, rhs, ValueRange.constant(lhs.value))
+            # Normalize literal to signed representation for range system
+            self._write_range(state, rhs, ValueRange.constant(wrap256(lhs.value, signed=True)))
         elif isinstance(lhs, IRVariable) and isinstance(rhs, IRVariable):
             lhs_range = state.get(lhs, ValueRange.top())
             rhs_range = state.get(rhs, ValueRange.top())

@@ -1960,3 +1960,278 @@ def test_loop_counter_bounds():
     # Counter at exit: must NOT satisfy lt 10
     # This might be TOP or a range >= 10
     assert exit_range.lo >= 10 or exit_range.is_top
+
+
+# =============================================================================
+# SOUNDNESS ISSUE TESTS (from review trio)
+# These tests verify potential soundness bugs identified by reviewers.
+# =============================================================================
+
+
+def test_soundness_literal_not_normalized_to_signed():
+    """
+    Soundness issue: Literals >= 2^255 not normalized to signed representation.
+    
+    The value 2^255 should be SIGNED_MIN (-2^255) in signed representation.
+    When comparing SIGNED_MAX vs 2^255:
+    - slt(SIGNED_MAX, 2^255) should be 0 because SIGNED_MAX > SIGNED_MIN
+    - But if 2^255 is not normalized, the analysis may think 2^255 is positive
+    """
+    from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX, SIGNED_MIN
+    
+    # 2^255 as a literal (this is SIGNED_MIN in signed representation)
+    val_2_255 = 2**255
+    
+    analysis, fn = _analyze(
+        f"""
+        function test {{
+        entry:
+            %x = {SIGNED_MAX}
+            %cmp = slt %x, {val_2_255}
+            stop
+        }}
+        """
+    )
+    
+    entry = fn.get_basic_block("entry")
+    cmp_inst = entry.instructions[1]
+    rng = analysis.get_range(cmp_inst.output, entry.instructions[-1])
+    
+    # SIGNED_MAX > SIGNED_MIN, so slt should return 0
+    # If the literal 2^255 is not normalized, the analysis might wrongly return 1
+    assert rng.lo == 0 and rng.hi == 0, (
+        f"Expected slt(SIGNED_MAX, 2^255) = {{0}}, got {rng}. "
+        f"2^255 should be normalized to SIGNED_MIN (-2^255) in signed representation."
+    )
+
+
+def test_soundness_literal_not_normalized_sgt():
+    """
+    Soundness issue: Literals >= 2^255 not normalized - sgt variant.
+    
+    sgt(SIGNED_MAX, 2^255) should be 1 because SIGNED_MAX > SIGNED_MIN.
+    """
+    from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX
+    
+    val_2_255 = 2**255
+    
+    analysis, fn = _analyze(
+        f"""
+        function test {{
+        entry:
+            %x = {SIGNED_MAX}
+            %cmp = sgt %x, {val_2_255}
+            stop
+        }}
+        """
+    )
+    
+    entry = fn.get_basic_block("entry")
+    cmp_inst = entry.instructions[1]
+    rng = analysis.get_range(cmp_inst.output, entry.instructions[-1])
+    
+    # SIGNED_MAX > SIGNED_MIN, so sgt should return 1
+    assert rng.lo == 1 and rng.hi == 1, (
+        f"Expected sgt(SIGNED_MAX, 2^255) = {{1}}, got {rng}. "
+        f"2^255 should be normalized to SIGNED_MIN."
+    )
+
+
+def test_soundness_eq_literal_at_sign_boundary():
+    """
+    Soundness issue: eq with literal at sign boundary.
+    
+    eq(-1, UNSIGNED_MAX) should be 1 because they're the same bit pattern.
+    """
+    from vyper.venom.analysis.variable_range.value_range import UNSIGNED_MAX
+    
+    analysis, fn = _analyze(
+        f"""
+        function test {{
+        entry:
+            %x = -1
+            %cmp = eq %x, {UNSIGNED_MAX}
+            stop
+        }}
+        """
+    )
+    
+    entry = fn.get_basic_block("entry")
+    cmp_inst = entry.instructions[1]
+    rng = analysis.get_range(cmp_inst.output, entry.instructions[-1])
+    
+    # -1 and UNSIGNED_MAX are the same 256-bit value
+    assert rng.lo == 1 and rng.hi == 1, (
+        f"Expected eq(-1, UNSIGNED_MAX) = {{1}}, got {rng}. "
+        f"Both values are 0xFF...FF."
+    )
+
+
+def test_soundness_add_overflow_to_signed_boundary():
+    """
+    Soundness issue: Add evaluator doesn't check for signed overflow.
+    
+    add([0, 2^254], [0, 2^254]) could produce values up to 2^255.
+    But 2^255 is SIGNED_MIN (negative), so the result range crosses
+    the sign boundary. The analysis should return TOP, not [0, 2^255].
+    """
+    from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX
+    
+    # Create two ranges [0, 2^254] and add them
+    bound = 2**254
+    
+    analysis, fn = _analyze(
+        f"""
+        function test {{
+        entry:
+            %raw1 = calldataload 0
+            %raw2 = calldataload 32
+            %x = mod %raw1, {bound + 1}
+            %y = mod %raw2, {bound + 1}
+            %z = add %x, %y
+            stop
+        }}
+        """
+    )
+    
+    entry = fn.get_basic_block("entry")
+    add_inst = next(inst for inst in entry.instructions if inst.opcode == "add")
+    rng = analysis.get_range(add_inst.output, entry.instructions[-1])
+    
+    # x in [0, 2^254], y in [0, 2^254]
+    # x + y could be up to 2^255 which is SIGNED_MIN (negative)
+    # So the result crosses the sign boundary and should be TOP
+    # If not TOP, at minimum the range should not claim to be non-negative
+    if not rng.is_top:
+        # If we get a concrete range, it's a soundness bug if hi > SIGNED_MAX
+        # because that means values SIGNED_MAX+1 to hi are actually negative
+        assert rng.hi <= SIGNED_MAX, (
+            f"Soundness bug: add result range {rng} has hi > SIGNED_MAX. "
+            f"Values above SIGNED_MAX are negative in signed representation. "
+            f"Expected TOP or range with hi <= SIGNED_MAX."
+        )
+
+
+def test_soundness_mul_overflow_to_signed_boundary():
+    """
+    Soundness issue: Mul evaluator doesn't check for signed overflow.
+    
+    Similar to add - if multiplication result exceeds SIGNED_MAX,
+    the high values are actually negative.
+    """
+    from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX
+    
+    # Create a range that when squared exceeds SIGNED_MAX but not UNSIGNED_MAX
+    # sqrt(SIGNED_MAX) ~ 2^127.5, so [0, 2^128] * [0, 2^128] can exceed SIGNED_MAX
+    bound = 2**128
+    
+    analysis, fn = _analyze(
+        f"""
+        function test {{
+        entry:
+            %raw1 = calldataload 0
+            %raw2 = calldataload 32
+            %x = mod %raw1, {bound + 1}
+            %y = mod %raw2, {bound + 1}
+            %z = mul %x, %y
+            stop
+        }}
+        """
+    )
+    
+    entry = fn.get_basic_block("entry")
+    mul_inst = next(inst for inst in entry.instructions if inst.opcode == "mul")
+    rng = analysis.get_range(mul_inst.output, entry.instructions[-1])
+    
+    # Similar logic to add - result should be TOP or bounded by SIGNED_MAX
+    if not rng.is_top:
+        assert rng.hi <= SIGNED_MAX, (
+            f"Soundness bug: mul result range {rng} has hi > SIGNED_MAX. "
+            f"Expected TOP or range with hi <= SIGNED_MAX."
+        )
+
+
+def test_soundness_operand_range_normalizes_large_literal():
+    """
+    Test that _operand_range normalizes literals >= 2^255.
+    
+    When we have a literal like 2^255 + 100, it should be treated as
+    SIGNED_MIN + 100 = -2^255 + 100 in signed representation.
+    """
+    from vyper.venom.analysis.variable_range.value_range import SIGNED_MIN
+    
+    # 2^255 + 100 should be SIGNED_MIN + 100
+    large_val = 2**255 + 100
+    expected_signed = SIGNED_MIN + 100
+    
+    analysis, fn = _analyze(
+        f"""
+        function test {{
+        entry:
+            %x = {large_val}
+            %y = add %x, 0
+            stop
+        }}
+        """
+    )
+    
+    entry = fn.get_basic_block("entry")
+    x_var = entry.instructions[0].output
+    # Get range at the add instruction (after assignment)
+    add_inst = entry.instructions[1]
+    rng = analysis.get_range(x_var, add_inst)
+    
+    # The literal should be normalized to signed representation
+    assert rng.is_constant, f"Expected constant range, got {rng}"
+    assert rng.lo == expected_signed, (
+        f"Expected literal {large_val} to be normalized to {expected_signed}, "
+        f"got {rng.lo}"
+    )
+
+
+def test_soundness_add_result_range_validity():
+    """
+    Verify that add result ranges are valid (lo <= hi in signed representation).
+    
+    If add produces a range like [0, 2^255], this is invalid because:
+    - 0 is non-negative
+    - 2^255 is SIGNED_MIN (negative)
+    - So lo > hi in signed terms, which is BOTTOM, not a valid range
+    """
+    from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX
+    
+    # Use smaller bounds that definitely fit in RANGE_WIDTH_LIMIT
+    # but could still overflow SIGNED_MAX when added
+    bound = 2**127  # Well under RANGE_WIDTH_LIMIT
+    
+    analysis, fn = _analyze(
+        f"""
+        function test {{
+        entry:
+            %raw1 = calldataload 0
+            %raw2 = calldataload 32
+            %x = mod %raw1, {bound}
+            %y = mod %raw2, {bound}
+            %z = add %x, %y
+            stop
+        }}
+        """
+    )
+    
+    entry = fn.get_basic_block("entry")
+    add_inst = next(inst for inst in entry.instructions if inst.opcode == "add")
+    rng = analysis.get_range(add_inst.output, entry.instructions[-1])
+    
+    # Check range validity
+    if not rng.is_top and not rng.is_empty:
+        # In a valid range, lo <= hi
+        assert rng.lo <= rng.hi, (
+            f"Invalid range: lo={rng.lo} > hi={rng.hi}. "
+            f"This indicates sign boundary crossing without returning TOP."
+        )
+        # Additionally, if lo >= 0 (non-negative range), hi should be <= SIGNED_MAX
+        if rng.lo >= 0:
+            assert rng.hi <= SIGNED_MAX, (
+                f"Soundness bug: non-negative range {rng} has hi > SIGNED_MAX. "
+                f"Values > SIGNED_MAX are negative."
+            )
