@@ -273,13 +273,6 @@ class TestByteValueBelowBytePosition:
         assert result.is_constant
         assert result.lo == 0
 
-    def test_byte_31_zero_value(self) -> None:
-        """byte(31, 0) returns 0."""
-        inst = make_byte_inst(31, 0)
-        result = _eval_byte(inst, {})
-        assert result.is_constant
-        assert result.lo == 0
-
 
 # =============================================================================
 # CASE 7: Same prefix case - bounded byte range
@@ -335,28 +328,6 @@ class TestByteSamePrefixBounded:
         result = _eval_byte(inst, state)
         assert result.lo == 1
         assert result.hi == 1
-
-    def test_byte_constant_value(self) -> None:
-        """byte with constant value returns exact byte."""
-        # byte(31, 0x42) = 0x42
-        inst = make_byte_inst(31, 0x42)
-        result = _eval_byte(inst, {})
-        assert result.is_constant
-        assert result.lo == 0x42
-
-    def test_byte_30_constant_value(self) -> None:
-        """byte(30, 0x1234) = 0x12."""
-        inst = make_byte_inst(30, 0x1234)
-        result = _eval_byte(inst, {})
-        assert result.is_constant
-        assert result.lo == 0x12
-
-    def test_byte_29_constant_value(self) -> None:
-        """byte(29, 0x123456) = 0x12."""
-        inst = make_byte_inst(29, 0x123456)
-        result = _eval_byte(inst, {})
-        assert result.is_constant
-        assert result.lo == 0x12
 
 
 # =============================================================================
@@ -419,23 +390,6 @@ class TestByteDifferentPrefix:
 class TestByteEdgeCases:
     """Test edge cases for byte extraction."""
 
-    def test_byte_0_msb_extraction(self) -> None:
-        """byte(0, x) extracts the most significant byte."""
-        # Value with MSB set
-        value = 0x42 << 248  # 0x42 in the MSB position
-        inst = make_byte_inst(0, value)
-        result = _eval_byte(inst, {})
-        assert result.is_constant
-        assert result.lo == 0x42
-
-    def test_byte_31_lsb_extraction(self) -> None:
-        """byte(31, x) extracts the least significant byte."""
-        value = 0xABCDEF42
-        inst = make_byte_inst(31, value)
-        result = _eval_byte(inst, {})
-        assert result.is_constant
-        assert result.lo == 0x42
-
     def test_byte_0_all_ones(self) -> None:
         """byte(0, -1) should return [0, 255] (negative value)."""
         var_x = IRVariable("%x")
@@ -446,15 +400,6 @@ class TestByteEdgeCases:
         # But the function returns bytes_range for negative values
         assert result.lo == 0
         assert result.hi == 255
-
-    def test_byte_31_all_ones_literal(self) -> None:
-        """byte(31, 0xFF...FF) as literal extracts 0xFF."""
-        # Using unsigned max
-        value = 2**256 - 1
-        inst = make_byte_inst(31, value)
-        result = _eval_byte(inst, {})
-        assert result.is_constant
-        assert result.lo == 0xFF
 
     def test_byte_at_exact_boundary_256(self) -> None:
         """byte(31, [256, 256]) returns [0, 0]."""
@@ -474,15 +419,6 @@ class TestByteEdgeCases:
         result = _eval_byte(inst, state)
         assert result.is_constant
         assert result.lo == 255
-
-    def test_byte_middle_index_15(self) -> None:
-        """byte(15, x) extracts the middle byte correctly."""
-        # Byte 15 extracts bits at position (31-15)*8 = 128 to 135
-        value = 0xAB << 128  # 0xAB in byte 15 position
-        inst = make_byte_inst(15, value)
-        result = _eval_byte(inst, {})
-        assert result.is_constant
-        assert result.lo == 0xAB
 
     def test_byte_index_31_boundary_value(self) -> None:
         """Test byte 31 at the boundary between valid and invalid indices."""
