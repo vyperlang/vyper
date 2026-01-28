@@ -103,14 +103,29 @@ class MemoryCopyElisionPass(IRPass):
         if inst1.opcode != inst2.opcode:
             return False
         
-        # Get the source address space for this copy opcode
+        # Compare source locations using the proper address space analysis.
+        # This uses MemoryLocation which handles alloca tracking, offsets, etc.
         src_space = _COPY_SOURCE_SPACE[inst1.opcode]
-        
-        # Compare source locations using the appropriate address space
         src1 = self.base_ptr.get_read_location(inst1, src_space)
         src2 = self.base_ptr.get_read_location(inst2, src_space)
         
-        return src1 == src2
+        if src1 != src2:
+            return False
+        
+        # Also verify the source OPERANDS are equivalent (not just locations).
+        # This ensures we can safely use either instruction's operands after merge.
+        # are_equivalent handles assign chains (e.g., %x = 0; %y = %x -> %x == %y)
+        #
+        # Operand layout: [size, src, dst]
+        size1, src_op1, _ = inst1.operands
+        size2, src_op2, _ = inst2.operands
+        
+        if not self.dfg.are_equivalent(src_op1, src_op2):
+            return False
+        if not self.dfg.are_equivalent(size1, size2):
+            return False
+        
+        return True
 
     def _process_bb(self, bb: IRBasicBlock) -> bool:
         """Process a basic block, return True if copy state changed."""
@@ -212,6 +227,19 @@ class MemoryCopyElisionPass(IRPass):
         # fixed-size copies (where size is a literal) are tracked in self.copies.
         # Variable-size copies have is_fixed=False and aren't tracked.
         _, src, _ = previous.operands
+
+        # Traverse assign chain to get the canonical operand. This handles
+        # the case where equivalent copies on different paths use different
+        # variable names (e.g., %x = 0 vs %y = 0). Using the root (literal 0)
+        # avoids SSA violations when the original variable isn't defined on
+        # all paths to the current block.
+        #
+        # Safety: _traverse_assign_chain returns a value that dominates the
+        # use site because _copies_equivalent only returns True when operands
+        # share a common assign-chain root (via are_equivalent), and that root
+        # must dominate all paths that use it.
+        if isinstance(src, IRVariable):
+            src = self.dfg._traverse_assign_chain(src)
 
         inst.opcode = previous.opcode
         inst.operands[1] = src

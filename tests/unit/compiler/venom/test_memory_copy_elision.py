@@ -1155,6 +1155,61 @@ def test_cross_bb_copy_diamond_identical_copies():
     _check_pre_post(pre, post)
 
 
+def test_cross_bb_copy_diamond_equivalent_operands():
+    """
+    Test that diamond CFG with copies that have equivalent operands
+    (via assign chains) DOES optimize.
+    
+    are_equivalent handles assign chains, so %x = 0 and %y = 0 are equivalent.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %cond = param
+        jnz %cond, @path1, @path2
+
+    path1:
+        %x = 0
+        calldatacopy 100, %x, 32
+        jmp @merge
+
+    path2:
+        %y = 0  ; Different variable, but equivalent via assign chain
+        calldatacopy 100, %y, 32
+        jmp @merge
+
+    merge:
+        mcopy 200, 100, 32  ; CAN optimize - operands are equivalent
+        %1 = mload 200
+        sink %1
+    """
+    
+    # Optimization happens - operands are equivalent via assign chains
+    post = """
+    _global:
+        %cond = param
+        jnz %cond, @path1, @path2
+
+    path1:
+        %x = 0
+        nop  ; calldatacopy 100, %x, 32
+        jmp @merge
+
+    path2:
+        %y = 0
+        nop  ; calldatacopy 100, %y, 32
+        jmp @merge
+
+    merge:
+        calldatacopy 200, 0, 32
+        %1 = mload 200
+        sink %1
+    """
+    _check_pre_post(pre, post)
+
+
 def test_cross_bb_copy_loop():
     """
     Test that copy info doesn't incorrectly persist through loops.
