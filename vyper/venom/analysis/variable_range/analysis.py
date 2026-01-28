@@ -114,13 +114,12 @@ class VariableRangeAnalysis(IRAnalysis):
                 continue
 
             new_range = self._evaluate_inst(inst, env)
-            if new_range is not None:
-                for output in inst.get_outputs():
-                    self._write_range(env, output, new_range)
+            for output in inst.get_outputs():
+                self._write_range(env, output, new_range)
 
         return env
 
-    def _evaluate_inst(self, inst: IRInstruction, env: RangeState) -> Optional[ValueRange]:
+    def _evaluate_inst(self, inst: IRInstruction, env: RangeState) -> ValueRange:
         """
         Return the resulting range for an instruction, if it can be computed
         """
@@ -128,7 +127,7 @@ class VariableRangeAnalysis(IRAnalysis):
 
         handler = EVAL_DISPATCH.get(opcode)
         if handler is None:
-            return ValueRange.top() if inst.has_outputs else None
+            return ValueRange.top()
         return handler(inst, env)
 
     def _phi_range(self, inst: IRInstruction) -> ValueRange:
@@ -217,14 +216,9 @@ class VariableRangeAnalysis(IRAnalysis):
 
             if current.lo < 0:
                 # Range includes negative values (which are all non-zero)
-                if current.lo > 0 or current.hi < 0:
+                if current.hi < 0:
                     # Range doesn't contain zero, no narrowing needed
                     pass
-                elif current.lo == 0:
-                    # Range is [0, hi], narrow to [1, hi]
-                    new_range = current.clamp(1, None)
-                    if not new_range.is_empty:
-                        self._write_range(state, target, new_range)
                 elif current.hi == 0:
                     # Range is [lo, 0], narrow to [lo, -1]
                     new_range = current.clamp(None, -1)
