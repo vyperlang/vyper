@@ -388,8 +388,10 @@ class MemSSAAbstract(IRAnalysis):
 
             # If the current node is a memory definition, check if
             # it completely contains the query location.
+            # For a store to "clobber" (provide data for) a load, the store's
+            # location must completely contain the load's location.
             if isinstance(current, MemoryDef):
-                if query_loc.completely_contains(current.loc):
+                if current.loc.completely_contains(query_loc):
                     return current
 
             # If the current node is a phi node, check if any of the operands

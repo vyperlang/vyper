@@ -551,7 +551,10 @@ def f(x: Bytes[{buffer_size}]):
     # parent payload - this word will be considered as the head of the
     # abi-encoded inner array and it will be added to base ptr leading to an
     # arithmetic overflow
-    buffer_payload = (2**256 - 0x60,)
+    # originally this was different value (2**256 - 0x60) but memelision
+    # allowed to change memlayout which this relyed on so to preserve
+    # the purpouse of this test it is changed to this
+    buffer_payload = (2**256 - 0x20,)
 
     data += _abi_payload_from_tuple(buffer_payload, buffer_size)
 
