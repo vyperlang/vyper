@@ -63,7 +63,6 @@ class MemoryCopyElisionPass(IRPass):
         # Invalidate analyses that may be affected by IR modifications
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
-        self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
 
     def _merge_copies(self, bb: IRBasicBlock) -> CopyMap:
         """Merge copy info from all predecessors using intersection semantics."""
