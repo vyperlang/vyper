@@ -29,7 +29,7 @@ from vyper.semantics.analysis.base import (
     VarAccess,
     VarInfo,
 )
-from vyper.semantics.analysis.common import VyperNodeVisitorBase
+from vyper.semantics.analysis.common import NodeAccumulator, VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -101,7 +101,7 @@ def _analyze_function_r(node: vy_ast.FunctionDef, err_list: ExceptionList):
 # checks all code paths are terminated.
 # raises an exception if any nodes are unreachable
 def is_terminated(block: list[vy_ast.VyperNode]) -> bool:
-    return TerminatedAnalyzer().visit_block(block).terminated
+    return TerminatedAnalyzer().visit_block(block, False)
 
 
 # helpers
@@ -262,46 +262,38 @@ def check_module_uses(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
     return root_module_info
 
 
-class TerminatedAnalyzer(VyperNodeVisitorBase):
+class TerminatedAnalyzer(NodeAccumulator[bool]):
     scope_name = "function"
 
-    def __init__(self) -> None:
-        self.terminated = False
-
-    def visit(self, node: vy_ast.VyperNode):
-        if self.terminated:
+    def visit(self, node: vy_ast.VyperNode, acc: bool):
+        if acc:
             raise StructureException("Unreachable code!", node)
 
         if node.is_terminus:
-            self.terminated = True
+            return True
 
-        super().visit(node)
+        return super().visit(node, acc)
 
-    def visit_block(self, block: list[vy_ast.VyperNode]) -> "TerminatedAnalyzer":
-        for node in block:
-            self.visit(node)
-
-        return self
-
-    def visit_If(self, node: vy_ast.If):
+    def visit_If(self, node: vy_ast.If, acc: bool):
         # Without an else, even if the "then" block is terminated,
         # the enclosing block might not be
         # We still need the recursive call for the unreachable error
-        body_terminated = TerminatedAnalyzer().visit_block(node.body).terminated
+        body_terminated = self.visit_block(node.body, acc)
 
         if node.orelse is not None:
-            self.terminated = (
-                body_terminated and TerminatedAnalyzer().visit_block(node.orelse).terminated
-            )
+            return body_terminated and self.visit_block(node.orelse, acc)
+        else:
+            return False
 
-    def visit_For(self, node: vy_ast.For):
+    def visit_For(self, node: vy_ast.For, acc: bool):
         # The For loop might never be entered,
         # even if it is terminated, the enclosing block might not be
         # We still need the recursive call for the unreachable error
-        TerminatedAnalyzer().visit_block(node.body)
+        self.visit_block(node.body, False)
+        return False
 
-    def visit_VyperNode(self, node: vy_ast.VyperNode):
-        pass
+    def visit_VyperNode(self, node: vy_ast.VyperNode, acc: bool):
+        return self.dispatch(node, acc)
 
 
 class FunctionAnalyzer(VyperNodeVisitorBase):
