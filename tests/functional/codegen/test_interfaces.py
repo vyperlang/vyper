@@ -275,7 +275,7 @@ def test_external_call_to_interface_kwarg(get_contract, kwarg, typ, expected, ma
     interface_code = f"""
 @external
 @view
-def foo(_max: {typ} = {kwarg}) -> {typ}:
+def foo(_max: {typ} = ...) -> {typ}:
     ...
     """
     code1 = f"""
