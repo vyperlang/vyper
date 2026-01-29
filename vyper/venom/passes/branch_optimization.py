@@ -51,7 +51,7 @@ class BranchOptimizationPass(IRPass):
                     producer = self.dfg.get_producing_instruction(cond)
                 producer_str = str(producer) if producer is not None else "None"
                 self._trace_entries.append(
-                    "  %s: %s range=%s producer=%s" % (bb.label, term_inst, rng, producer_str)
+                    f"  {bb.label}: {term_inst} range={rng} producer={producer_str}"
                 )
                 self._trace_count += 1
             if _range_excludes_zero(rng):
@@ -118,21 +118,15 @@ class BranchOptimizationPass(IRPass):
         if os.environ.get("VYPER_VENOM_BRANCH_STATS"):
             fn_name = str(self.function.name)
             print(
-                "BranchOptimizationPass[%s]: jnz=%d range_true=%d range_false=%d "
-                "heuristic_flip=%d heuristic_insert=%d"
-                % (
-                    fn_name,
-                    self._jnz_seen,
-                    self._range_fold_true,
-                    self._range_fold_false,
-                    self._heuristic_flip,
-                    self._heuristic_insert,
-                ),
+                f"BranchOptimizationPass[{fn_name}]: jnz={self._jnz_seen} "
+                f"range_true={self._range_fold_true} range_false={self._range_fold_false} "
+                f"heuristic_flip={self._heuristic_flip} "
+                f"heuristic_insert={self._heuristic_insert}",
                 file=sys.stderr,
             )
         if self._trace_entries:
             fn_name = str(self.function.name)
-            print("BranchOptimizationPassTrace[%s]:" % fn_name, file=sys.stderr)
+            print(f"BranchOptimizationPassTrace[{fn_name}]:", file=sys.stderr)
             for entry in self._trace_entries:
                 print(entry, file=sys.stderr)
 
