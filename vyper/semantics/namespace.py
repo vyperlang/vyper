@@ -1,8 +1,12 @@
 import contextlib
 
 from vyper.ast.identifiers import validate_identifier
+from vyper.builtins.functions import get_builtin_functions
 from vyper.exceptions import CompilerPanic, NamespaceCollision, UndeclaredDefinition
+from vyper.semantics import environment
+from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.types import PRIMITIVE_TYPES
 
 
 # TODO: Add precise key and value types
@@ -35,6 +39,16 @@ class Namespace(dict):
 
     def __reduce__(self):
         return (Namespace, (dict(self),))
+
+
+"""
+Namespace which surrounds anything, every namespace should be a superset of this one
+"""
+base_namespace: Namespace = Namespace(
+    PRIMITIVE_TYPES
+    | environment.get_constant_vars()
+    | {k: VarInfo(b) for (k, b) in get_builtin_functions().items()}
+)
 
 
 class NamespaceBuilder(dict):
