@@ -34,8 +34,9 @@ Res = TypeVar("Res")
 class NodeAccumulator(Generic[Res]):
     """
     Utility to traverse nodes and accumulate some value over them.
-    To use, create a *stateless* sub-class
-    All state should instead be encapsulated into the `acc` parameter
+    To use, create a sub-class.
+    Since all the logic is in classmethods, there can be no mutable state.
+    Instead encapsulate immutable state in the `acc` parameter.
 
     Add `visit_<ast_type>` methods (ex: `visit_Call`) to handle specific nodes.
 
@@ -46,6 +47,12 @@ class NodeAccumulator(Generic[Res]):
     def visit_VyperNode(self, node, ...):
         return self.dispatch(node, ...)
     ```
+
+    Note:
+    Ideally, there would be a way to add a default value to the methods
+    Sadly this either requires a sentinel value and all the logic that requires
+    Or a `@classmethod @property`, which
+    [were removed in python 3.11](https://docs.python.org/3.11/library/functions.html#classmethod)
     """
 
     scope_name = ""
