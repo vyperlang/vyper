@@ -114,6 +114,10 @@ class VariableRangeAnalysis(IRAnalysis):
         for inst in bb.instructions:
             self._inst_entry_env[inst] = self._copy_state(env)
 
+            if inst.opcode in {"assert", "assert_unreachable"}:
+                self._apply_assert(inst.operands[0], env)
+                continue
+
             if inst.opcode == "phi" or not inst.has_outputs:
                 continue
 
@@ -189,6 +193,30 @@ class VariableRangeAnalysis(IRAnalysis):
             return self._apply_compare(inst, is_true, state)
 
         return state
+
+    def _apply_assert(self, operand: IROperand, state: RangeState) -> RangeState:
+        # Assert requires operand to be non-zero (truthy).
+        state = self._apply_condition(operand, True, state)
+        if isinstance(operand, IRVariable):
+            self._narrow_nonzero(state, operand)
+        return state
+
+    def _narrow_nonzero(self, state: RangeState, var: IRVariable) -> None:
+        current = state.get(var, ValueRange.top())
+        if current.is_top or current.is_empty:
+            return
+
+        if current.lo < 0:
+            if current.hi < 0:
+                return
+            if current.hi == 0:
+                new_range = current.clamp(None, -1)
+                if not new_range.is_empty:
+                    self._write_range(state, var, new_range)
+            return
+
+        nonzero_range = ValueRange((1, UNSIGNED_MAX))
+        self._write_range(state, var, current.intersect(nonzero_range))
 
     def _apply_iszero(self, inst: IRInstruction, is_true: bool, state: RangeState) -> RangeState:
         """Apply iszero-based branch refinement.
