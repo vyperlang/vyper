@@ -6,6 +6,7 @@ from vyper.exceptions import (
     CallViolation,
     FunctionDeclarationException,
     InterfaceViolation,
+    InvalidLiteral,
     InvalidReference,
     InvalidType,
     ModuleNotFound,
@@ -837,4 +838,16 @@ interface Foo:
     """
 
     with pytest.warns(vyper.warnings.Deprecation, match=r"Please use `\.\.\.` as default value\."):
+        compiler.compile_code(code)
+
+
+@pytest.mark.parametrize("decorator", ["@external", "@internal"])
+def test_ellipsis_default_param_outside_interface(decorator):
+    code = f"""
+{decorator}
+def foo(a: uint256 = ...):
+    pass
+    """
+
+    with pytest.raises(InvalidLiteral):
         compiler.compile_code(code)
