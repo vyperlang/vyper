@@ -20,15 +20,6 @@ _COPIES_OPCODES = ("mcopy", *_NONMEM_COPY_OPCODES)
 _LOADS = {"mload": Effects.MEMORY, "sload": Effects.STORAGE, "tload": Effects.TRANSIENT}
 _STORES = {"mstore": Effects.MEMORY, "sstore": Effects.STORAGE, "tstore": Effects.TRANSIENT}
 
-# Maps copy opcodes to the address space they read from
-_COPY_SOURCE_SPACE = {
-    "mcopy": addr_space.MEMORY,
-    "calldatacopy": addr_space.CALLDATA,
-    "codecopy": addr_space.CODE,
-    "dloadbytes": addr_space.DATA,
-    "returndatacopy": addr_space.RETURNDATA,
-}
-
 # Type alias for copy tracking: maps memory location to the copy instruction
 CopyMap = dict[MemoryLocation, IRInstruction]
 
@@ -102,7 +93,7 @@ class MemoryCopyElisionPass(IRPass):
         # so this is a sanity check for that
         write_loc1 = self.base_ptr.get_write_location(inst1, addr_space.MEMORY)
         write_loc2 = self.base_ptr.get_write_location(inst2, addr_space.MEMORY)
-        assert write_loc1 == write_loc2 
+        assert write_loc1 == write_loc2
 
         if inst1 is inst2:
             return True
