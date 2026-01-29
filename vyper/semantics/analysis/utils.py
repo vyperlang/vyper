@@ -21,7 +21,6 @@ from vyper.exceptions import (
 from vyper.semantics import types
 from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarAccess, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
@@ -65,6 +64,8 @@ class _ExprAnalyser:
     """
 
     def __init__(self):
+        from vyper.semantics.namespace import get_namespace
+
         self.namespace = get_namespace()
 
     def get_expr_info(self, node: vy_ast.VyperNode, is_callable: bool = False) -> ExprInfo:

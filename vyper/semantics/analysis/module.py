@@ -1,4 +1,8 @@
-from typing import Any, Optional
+# Weird hack to avoid circular imports
+# TODO: Try to remove
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Optional
 
 from vyper import ast as vy_ast
 from vyper.evm.opcodes import version_check
@@ -39,12 +43,14 @@ from vyper.semantics.analysis.utils import (
     get_expr_info,
 )
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.namespace import NamespaceBuilder, get_namespace, override_global_namespace
 from vyper.semantics.types import TYPE_T, EventT, FlagT, InterfaceT, StructT, VyperType, is_type_t
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import OrderedSet
+
+if TYPE_CHECKING:
+    from vyper.semantics.namespace import NamespaceBuilder
 
 
 def analyze_module(module_ast: vy_ast.Module) -> ModuleT:
@@ -61,6 +67,8 @@ def _analyze_module_r(module_ast: vy_ast.Module, is_interface: bool = False):
         # we don't need to analyse again, skip out
         assert isinstance(module_ast._metadata["type"], ModuleT)
         return module_ast._metadata["type"]
+
+    from vyper.semantics.namespace import get_namespace
 
     # validate semantics and annotate AST with type/semantics information
     namespace = get_namespace()
@@ -751,6 +759,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
     def _load_import(self, import_info: ImportInfo) -> Any:
         path = import_info.compiler_input.path
+        from vyper.semantics.namespace import NamespaceBuilder, override_global_namespace
+
         if path.suffix == ".vy":
             module_ast = import_info.parsed
             with override_global_namespace(NamespaceBuilder()):

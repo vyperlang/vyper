@@ -12,7 +12,6 @@ from vyper.exceptions import (
 )
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
 
 # TODO maybe this should be merged with .types/base.py
@@ -37,6 +36,8 @@ def type_from_abi(abi_type: dict) -> VyperType:
         type_string = "decimal"
     if type_string in ("string", "bytes"):
         type_string = type_string.capitalize()
+
+    from vyper.semantics.namespace import get_namespace
 
     namespace = get_namespace()
 
@@ -104,6 +105,8 @@ def type_from_annotation(
 
 
 def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
+    from vyper.semantics.namespace import get_namespace
+
     namespace = get_namespace()
 
     if isinstance(node, vy_ast.Tuple):

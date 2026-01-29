@@ -2,7 +2,6 @@ from vyper import ast as vy_ast
 from vyper.exceptions import ArrayIndexException, InvalidLiteral, UnfoldableNode, VyperException
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
-from vyper.semantics.namespace import get_namespace
 
 
 def constant_fold(module_ast: vy_ast.Module):
@@ -90,6 +89,8 @@ class ConstantFolder(VyperNodeVisitorBase):
             raise UnfoldableNode("unknown name", node)
 
     def visit_Attribute(self, node) -> vy_ast.ExprNode:
+        from vyper.semantics.namespace import get_namespace
+
         namespace = get_namespace()
         path = []
         value = node.value
@@ -202,6 +203,8 @@ class ConstantFolder(VyperNodeVisitorBase):
     def visit_Call(self, node) -> vy_ast.ExprNode:
         if not isinstance(node.func, vy_ast.Name):
             raise UnfoldableNode("not a builtin", node)
+
+        from vyper.semantics.namespace import get_namespace
 
         namespace = get_namespace()
 
