@@ -280,6 +280,36 @@ def test_multiple_load_store_pairs():
     _check_no_change(pre)
 
 
+def test_sha3_does_not_break_copy_chain():
+    """
+    Test that sha3 (which only READS memory) doesn't break copy chain optimization.
+    sha3 reads memory but doesn't write to it, so tracked copies remain valid.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        calldatacopy 100, 0, 32
+        %hash = sha3 100, 32  ; Reads memory, but doesn't write to it
+        mcopy 200, 100, 32    ; Should still optimize!
+        %1 = mload 200
+        sink %hash, %1
+    """
+
+    # mcopy is transformed to calldatacopy. The first calldatacopy is NOT
+    # nop'd because sha3 reads from it (so it's not dead).
+    post = """
+    _global:
+        calldatacopy 100, 0, 32
+        %hash = sha3 100, 32
+        calldatacopy 200, 0, 32
+        %1 = mload 200
+        sink %hash, %1
+    """
+    _check_pre_post(pre, post)
+
+
 def test_mcopy_chain_longer():
     """
     Test longer mcopy chains: A->B->C->D should become A->D.
