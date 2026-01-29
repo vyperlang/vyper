@@ -5,9 +5,42 @@ from vyper.exceptions import CompilerPanic, NamespaceCollision, UndeclaredDefini
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 
 
+# TODO: Add precise key and value types
 class Namespace(dict):
     """
-    Dictionary subclass that represents the namespace of a contract.
+    Immutable namespace object representing a contract's resolved names.
+    Produced by NamespaceBuilder after analysis is complete.
+    """
+
+    def __eq__(self, other):
+        return self is other
+
+    def __getitem__(self, key):
+        if key not in self:
+            hint = get_levenshtein_error_suggestions(key, self, 0.2)
+            raise UndeclaredDefinition(f"'{key}' has not been declared.", hint=hint)
+        return super().__getitem__(key)
+
+    def __setitem__(self, attr, obj):
+        raise CompilerPanic("Cannot modify an immutable Namespace")
+
+    def __delitem__(self, key):
+        raise CompilerPanic("Cannot modify an immutable Namespace")
+
+    def update(self, other):
+        raise CompilerPanic("Cannot modify an immutable Namespace")
+
+    def clear(self):
+        raise CompilerPanic("Cannot modify an immutable Namespace")
+
+    def __reduce__(self):
+        return (Namespace, (dict(self),))
+
+
+class NamespaceBuilder(dict):
+    """
+    Mutable builder that accumulates names during analysis, with scope tracking.
+    Use .build() to produce an immutable Namespace when done.
 
     Attributes
     ----------
@@ -15,13 +48,11 @@ class Namespace(dict):
         List of sets containing the key names for each scope
     """
 
-    def __new__(cls, *args, **kwargs):
-        self = super().__new__(cls, *args, **kwargs)
-        self._scopes = []
-        return self
+    _scopes: list[set]
 
     def __init__(self):
         super().__init__()
+        self._scopes = []
         # NOTE cyclic imports!
         # TODO: break this cycle by providing an `init_vyper_namespace` in 3rd module
         from vyper.builtins.functions import get_builtin_functions
@@ -96,16 +127,23 @@ class Namespace(dict):
                 msg += f" as a {prev}"
             raise NamespaceCollision(msg, prev_decl=prev_decl)
 
+    def build(self) -> Namespace:
+        """
+        Produce an immutable Namespace from the current contents.
+        """
+        return Namespace(self)
 
+
+# TODO: Rename to get_namespace_builder():
 def get_namespace():
     """
-    Get the global namespace object.
+    Get the global namespace builder object.
     """
     global _namespace
     try:
         return _namespace
     except NameError:
-        _namespace = Namespace()
+        _namespace = NamespaceBuilder()
         return _namespace
 
 

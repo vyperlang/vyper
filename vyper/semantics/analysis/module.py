@@ -39,7 +39,7 @@ from vyper.semantics.analysis.utils import (
     get_expr_info,
 )
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
+from vyper.semantics.namespace import NamespaceBuilder, get_namespace, override_global_namespace
 from vyper.semantics.types import TYPE_T, EventT, FlagT, InterfaceT, StructT, VyperType, is_type_t
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
@@ -159,10 +159,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     scope_name = "module"
 
     def __init__(
-        self, module_node: vy_ast.Module, namespace: Namespace, is_interface: bool = False
+        self, module_node: vy_ast.Module, namespace: NamespaceBuilder, is_interface: bool = False
     ) -> None:
         self.ast = module_node
-        self.namespace = namespace
+        self.namespace: NamespaceBuilder = namespace
         self.is_interface = is_interface
 
         # keep track of exported functions to prevent duplicate exports
@@ -213,11 +213,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             self.visit(n)
 
         # attach namespace to the module for downstream use.
-        _ns = Namespace()
-        # note that we don't just copy the namespace because
-        # there are constructor issues.
-        _ns.update({k: self.namespace[k] for k in self.namespace._scopes[-1]})  # type: ignore
-        self.ast._metadata["namespace"] = _ns
+        self.ast._metadata["namespace"] = self.namespace.build()
 
     def _visit_nodes_linear(self, node_type):
         for node in self._to_visit.copy():
@@ -757,13 +753,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         path = import_info.compiler_input.path
         if path.suffix == ".vy":
             module_ast = import_info.parsed
-            with override_global_namespace(Namespace()):
+            with override_global_namespace(NamespaceBuilder()):
                 module_t = _analyze_module_r(module_ast, is_interface=False)
                 return ModuleInfo(module_t, import_info.alias)
 
         if path.suffix == ".vyi":
             module_ast = import_info.parsed
-            with override_global_namespace(Namespace()):
+            with override_global_namespace(NamespaceBuilder()):
                 module_t = _analyze_module_r(module_ast, is_interface=True)
 
                 # NOTE: might be cleaner to return the whole module, so we
