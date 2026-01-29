@@ -96,6 +96,14 @@ class MemoryCopyElisionPass(IRPass):
 
     def _copies_equivalent(self, inst1: IRInstruction, inst2: IRInstruction) -> bool:
         """Check if two copy instructions are semantically equivalent."""
+
+        # we can assume that the write location since the copies are
+        # compared if they are in the same key in the copies map
+        # so this is a sanity check for that
+        write_loc1 = self.base_ptr.get_write_location(inst1, addr_space.MEMORY)
+        write_loc2 = self.base_ptr.get_write_location(inst2, addr_space.MEMORY)
+        assert write_loc1 == write_loc2 
+
         if inst1 is inst2:
             return True
 
