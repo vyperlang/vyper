@@ -61,7 +61,7 @@ class NodeAccumulator(Generic[Res]):
         raise TypeError("`NodeAccumulator`s cannot be instantiated")
 
     @classmethod
-    def visit(cls, node, acc: Res, *args) -> Res:
+    def visit(cls, node, acc: Res) -> Res:
         # iterate over the MRO until we find a matching visitor function
         # this lets us use a single function to broadly target several
         # node types with a shared parent
@@ -71,7 +71,7 @@ class NodeAccumulator(Generic[Res]):
             with tag_exceptions(node):
                 visitor_fn = getattr(cls, f"visit_{ast_type}", None)
                 if visitor_fn:
-                    return visitor_fn(node, acc, *args)
+                    return visitor_fn(node, acc)
 
         node_type = type(node).__name__
         raise StructureException(
@@ -79,13 +79,13 @@ class NodeAccumulator(Generic[Res]):
         )
 
     @classmethod
-    def visit_block(cls, block, acc: Res, *args) -> Res:
+    def visit_block(cls, block, acc: Res) -> Res:
         for node in block:
-            acc = cls.visit(node, acc, *args)
+            acc = cls.visit(node, acc)
 
         return acc
 
     # Call this to instead accumulate over the children
     @classmethod
-    def dispatch(cls, node, acc: Res, *args) -> Res:
-        return cls.visit_block(node._children, acc, *args)
+    def dispatch(cls, node, acc: Res) -> Res:
+        return cls.visit_block(node._children, acc)
