@@ -103,16 +103,7 @@ class MemoryCopyElisionPass(IRPass):
         if inst1.opcode != inst2.opcode:
             return False
 
-        # Compare source locations using the proper address space analysis.
-        # This uses MemoryLocation which handles alloca tracking, offsets, etc.
-        src_space = _COPY_SOURCE_SPACE[inst1.opcode]
-        src1 = self.base_ptr.get_read_location(inst1, src_space)
-        src2 = self.base_ptr.get_read_location(inst2, src_space)
-
-        if src1 != src2:
-            return False
-
-        # Also verify the source OPERANDS are equivalent (not just locations).
+        # Verify the source OPERANDS are equivalent (not just locations).
         # This ensures we can safely use either instruction's operands after merge.
         # are_equivalent handles assign chains (e.g., %x = 0; %y = %x -> %x == %y)
         #
