@@ -101,7 +101,7 @@ def _analyze_function_r(node: vy_ast.FunctionDef, err_list: ExceptionList):
 # checks all code paths are terminated.
 # raises an exception if any nodes are unreachable
 def is_terminated(block: list[vy_ast.VyperNode]) -> bool:
-    return TerminatedAnalyzer().visit_block(block, False)
+    return TerminatedAnalyzer.visit_block(block, False)
 
 
 # helpers
@@ -265,7 +265,8 @@ def check_module_uses(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
 class TerminatedAnalyzer(NodeAccumulator[bool]):
     scope_name = "function"
 
-    def visit(self, node: vy_ast.VyperNode, acc: bool):
+    @classmethod
+    def visit(cls, node: vy_ast.VyperNode, acc: bool):
         if acc:
             raise StructureException("Unreachable code!", node)
 
@@ -274,26 +275,29 @@ class TerminatedAnalyzer(NodeAccumulator[bool]):
 
         return super().visit(node, acc)
 
-    def visit_If(self, node: vy_ast.If, acc: bool):
+    @classmethod
+    def visit_If(cls, node: vy_ast.If, acc: bool):
         # Without an else, even if the "then" block is terminated,
         # the enclosing block might not be
         # We still need the recursive call for the unreachable error
-        body_terminated = self.visit_block(node.body, acc)
+        body_terminated = cls.visit_block(node.body, acc)
 
         if node.orelse is not None:
-            return body_terminated and self.visit_block(node.orelse, acc)
+            return body_terminated and cls.visit_block(node.orelse, acc)
         else:
             return False
 
-    def visit_For(self, node: vy_ast.For, acc: bool):
+    @classmethod
+    def visit_For(cls, node: vy_ast.For, acc: bool):
         # The For loop might never be entered,
         # even if it is terminated, the enclosing block might not be
         # We still need the recursive call for the unreachable error
-        self.visit_block(node.body, False)
+        cls.visit_block(node.body, False)
         return False
 
-    def visit_VyperNode(self, node: vy_ast.VyperNode, acc: bool):
-        return self.dispatch(node, acc)
+    @classmethod
+    def visit_VyperNode(cls, node: vy_ast.VyperNode, acc: bool):
+        return cls.dispatch(node, acc)
 
 
 class FunctionAnalyzer(VyperNodeVisitorBase):
