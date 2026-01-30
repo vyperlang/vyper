@@ -5,6 +5,9 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis, IRAnalysis
 from vyper.venom.basicblock import IRInstruction
 from vyper.venom.memory_location import MemoryLocation
+from vyper.venom.effects import EMPTY
+
+from vyper.utils import cumtimeit
 
 
 class MemoryAliasAnalysisAbstract(IRAnalysis):
@@ -34,11 +37,11 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
         loc: Optional[MemoryLocation] = None
 
         loc = self.base_ptr.get_read_location(inst, self.addr_space)
-        if loc is not None:
+        if loc is not None and loc != MemoryLocation.EMPTY:
             self._analyze_mem_location(loc)
 
         loc = self.base_ptr.get_write_location(inst, self.addr_space)
-        if loc is not None:
+        if loc is not None and loc != MemoryLocation.EMPTY:
             self._analyze_mem_location(loc)
 
     def _analyze_mem_location(self, loc: MemoryLocation):

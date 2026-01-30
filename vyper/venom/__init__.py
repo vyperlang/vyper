@@ -32,6 +32,7 @@ from vyper.venom.passes import (
 )
 from vyper.venom.passes.fix_calloca import FixCalloca
 from vyper.venom.venom_to_assembly import VenomCompiler
+from vyper.utils import cumtimeit
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
@@ -96,7 +97,8 @@ def _run_passes(fn: IRFunction, flags: VenomOptimizationFlags, ac: IRAnalysesCac
 
         # Run the pass
         pass_instance = pass_cls(ac, fn)
-        pass_instance.run_pass(**kwargs)
+        with cumtimeit(str(pass_cls).replace("<class 'vyper.venom.passes.", "").replace("'>", "")):
+            pass_instance.run_pass(**kwargs)
 
 
 def _run_global_passes(
