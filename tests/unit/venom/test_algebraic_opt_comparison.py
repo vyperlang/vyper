@@ -11,9 +11,13 @@ Tests cover:
 
 from tests.venom_utils import PrePostChecker
 from vyper.venom.passes.algebraic_optimization import AlgebraicOptimizationPass
+from vyper.venom.passes.assert_elimination import AssertEliminationPass
 from vyper.venom.passes.remove_unused_variables import RemoveUnusedVariablesPass
 
 _check_pre_post = PrePostChecker([AlgebraicOptimizationPass, RemoveUnusedVariablesPass])
+_check_with_assert_elim = PrePostChecker(
+    [AlgebraicOptimizationPass, AssertEliminationPass, RemoveUnusedVariablesPass]
+)
 
 
 # =============================================================================
@@ -149,13 +153,14 @@ def test_lt_var_var_overlapping_no_fold():
     """
 
     # Should remain unchanged (comparison not folded)
+    # Note: operands get canonicalized (literal first for commutative ops)
     post = """
     main:
         %x = source
         %y = source
-        %a = and %x, 255
-        %b_base = and %y, 100
-        %b = add %b_base, 100
+        %a = and 255, %x
+        %b_base = and 100, %y
+        %b = add 100, %b_base
         %cmp = lt %a, %b
         sink %cmp
     """
@@ -177,11 +182,12 @@ def test_gt_var_var_unknown_range_no_fold():
     """
 
     # Should remain unchanged - %a has TOP range
+    # Note: operands get canonicalized
     post = """
     main:
         %a = source
         %y = source
-        %b = and %y, 99
+        %b = and 99, %y
         %cmp = gt %a, %b
         sink %cmp
     """
@@ -353,11 +359,12 @@ def test_assert_eliminated_via_comparison_fold():
     """
 
     # cmp folds to 1, assert 1 is eliminated, %a still used by sink
+    # Note: operands get canonicalized
     post = """
     main:
         %x = source
-        %a = and %x, 99
+        %a = and 99, %x
         sink %a
     """
 
-    _check_pre_post(pre, post)
+    _check_with_assert_elim(pre, post)
