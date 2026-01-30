@@ -115,6 +115,8 @@ All type classes are found within the [`semantics/types/`](types) subpackage.
 
 ### Namespace
 
+TODO: This is out of date !
+
 [`namespace.py`](namespace.py) contains the `Namespace` object. `Namespace` is a
 `dict` subclass representing the namespace of a contract. It imposes several
 additional restrictions:
