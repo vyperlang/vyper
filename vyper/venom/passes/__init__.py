@@ -18,6 +18,7 @@ from .lower_dload import LowerDloadPass
 from .make_ssa import MakeSSA
 from .mem2var import Mem2Var
 from .memmerging import MemMergePass
+from .overflow_elimination import OverflowEliminationPass
 from .phi_elimination import PhiEliminationPass
 from .remove_unused_variables import RemoveUnusedVariablesPass
 from .revert_to_assert import RevertToAssert
