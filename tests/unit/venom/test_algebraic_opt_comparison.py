@@ -338,6 +338,39 @@ def test_sgt_var_var_disjoint_always_true():
 
 
 # =============================================================================
+# SIGNED WRAPAROUND EDGE CASES
+# =============================================================================
+
+
+def test_slt_var_var_signed_wrap_no_fold():
+    """
+    slt a, b where a's range includes 2**255 (SIGNED_MIN) must not fold.
+    a ∈ [0, 2**255], b ∈ [0, 0] → signed comparison is not constant.
+    """
+    pre = """
+    main:
+        %x = source
+        %y = source
+        %a = and %x, 0x8000000000000000000000000000000000000000000000000000000000000000
+        %b = and %y, 0
+        %cmp = slt %a, %b
+        sink %cmp
+    """
+
+    # %b folds to 0, but %cmp must not fold due to signed wraparound.
+    post = """
+    main:
+        %x = source
+        %a = and 0x8000000000000000000000000000000000000000000000000000000000000000, %x
+        %b = 0
+        %cmp = slt %a, %b
+        sink %cmp
+    """
+
+    _check_pre_post(pre, post)
+
+
+# =============================================================================
 # ASSERT ELIMINATION via comparison folding
 # =============================================================================
 

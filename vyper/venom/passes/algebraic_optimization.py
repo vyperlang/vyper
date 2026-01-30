@@ -556,6 +556,14 @@ class AlgebraicOptimizationPass(IRPass):
         if b_range.is_top or b_range.is_empty:
             return None
 
+        if signed:
+            # Ranges are stored in a hybrid representation; some evaluators
+            # may produce unsigned ranges that extend past MAX_INT256.
+            # Those values represent negative signed numbers, which breaks
+            # monotonicity for signed comparisons.
+            if a_range.hi > SizeLimits.MAX_INT256 or b_range.hi > SizeLimits.MAX_INT256:
+                return None
+
         if not signed:
             # Unsigned comparison: must handle sign boundary carefully.
             # Negative signed values (< 0) are very large unsigned values (>= 2^255).
