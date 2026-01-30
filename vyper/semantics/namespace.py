@@ -64,19 +64,9 @@ class NamespaceBuilder(dict):
 
     _scopes: list[set]
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, other: Namespace):
+        super().__init__(other)
         self._scopes = []
-        # NOTE cyclic imports!
-        # TODO: break this cycle by providing an `init_vyper_namespace` in 3rd module
-        from vyper.builtins.functions import get_builtin_functions
-        from vyper.semantics import environment
-        from vyper.semantics.analysis.base import VarInfo
-        from vyper.semantics.types import PRIMITIVE_TYPES
-
-        self.update(PRIMITIVE_TYPES)
-        self.update(environment.get_constant_vars())
-        self.update({k: VarInfo(b) for (k, b) in get_builtin_functions().items()})
 
     def __eq__(self, other):
         return self is other
@@ -126,9 +116,10 @@ class NamespaceBuilder(dict):
         for key, value in other.items():
             self.__setitem__(key, value)
 
+    # TODO: Remove, instead of clearing, just make a new one
     def clear(self):
         super().clear()
-        self.__init__()
+        self.__init__(base_namespace)
 
     def validate_assignment(self, attr):
         validate_identifier(attr)
@@ -157,7 +148,7 @@ def get_namespace():
     try:
         return _namespace
     except NameError:
-        _namespace = NamespaceBuilder()
+        _namespace = NamespaceBuilder(base_namespace)
         return _namespace
 
 

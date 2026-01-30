@@ -26,6 +26,8 @@ def namespace():
     """
     Yields a clean `Namespace` object.
     """
+    # TODO: Replace with:
+    # yield NamespaceBuilder(base_namespace)
     obj = get_namespace()
     obj.clear()
     yield obj
