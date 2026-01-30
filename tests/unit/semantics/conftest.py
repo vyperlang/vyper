@@ -28,7 +28,7 @@ def namespace():
     """
     # TODO: Replace with:
     # yield NamespaceBuilder(base_namespace)
-    obj = get_namespace()
-    obj.clear()
-    yield obj
-    obj.clear()
+    namespace_builder = get_namespace()
+    namespace_builder.clear()
+    yield namespace_builder
+    namespace_builder.clear()
