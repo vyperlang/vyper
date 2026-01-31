@@ -65,9 +65,8 @@ def generate_report(base_path: str, head_path: str) -> str:
         body = "## 📊 Bytecode Size Changes (venom)\n\nNo changes detected."
 
     # Full table section
-    body += f"\n\n<details>\n<summary>Full bytecode sizes</summary>\n\n{header}\n{sep}\n"
+    body += f"\n\n## Full bytecode sizes\n\n{header}\n{sep}\n"
     body += "\n".join(full_rows)
-    body += "\n\n</details>"
 
     return body
 
