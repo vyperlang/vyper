@@ -1,20 +1,42 @@
 name: Bytecode Size Report
 
 on:
-  pull_request:
+  pull_request_target:
     branches: [master, main]
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   bytecode-size:
+    # Only run for trusted contributors (owner, member, collaborator)
+    if: contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
     runs-on: ubuntu-latest
     steps:
+      - name: Invalidate existing comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- bytecode-size-report -->';
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number
+            });
+            const existing = comments.find(c => c.body.includes(marker));
+            if (!existing) return;
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existing.id,
+              body: marker + '\n\n⏳ **Recalculating bytecode sizes...**'
+            });
+
       - name: Checkout merge commit (for scripts)
         uses: actions/checkout@v4
         with:
-          ref: refs/pull/${{ github.event.number }}/merge
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
           path: head
           fetch-depth: 0
           fetch-tags: true
@@ -52,7 +74,44 @@ jobs:
         run: python .github/scripts/measure_bytecode.py > ../head-sizes.json
 
       - name: Generate report
-        run: python3 head/.github/scripts/compare_bytecode.py base-sizes.json head-sizes.json >> "$GITHUB_STEP_SUMMARY"
+        id: report
+        run: |
+          python3 head/.github/scripts/compare_bytecode.py base-sizes.json head-sizes.json > report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo 'REPORT<<EOF'
+            cat report.md
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Post or update PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- bytecode-size-report -->';
+            const body = marker + '\n\n' + process.env.REPORT;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number
+            });
+            const existing = comments.find(c => c.body.includes(marker));
+            if (existing) {
+              return github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: body
+              });
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: body
+            });
+        env:
+          REPORT: ${{ steps.report.outputs.REPORT }}
 
       - name: Upload size data
         uses: actions/upload-artifact@v4
