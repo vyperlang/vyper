@@ -248,3 +248,94 @@ def test_no_eliminate_add_with_mod_y():
     """
 
     _check_pre_post(pre, post)
+
+
+def test_eliminate_add_overflow_swapped_operand_order():
+    """
+    Eliminate add overflow check when operands are swapped (add %y, %x).
+    The check compares result to %x, but %x is the second operand in add.
+    """
+    pre = """
+    main:
+        %x_in = source
+        %y_in = source
+        %x = and %x_in, 255
+        %y = and %y_in, 255
+        %res = add %y, %x
+        %cmp = lt %res, %x
+        %ok = iszero %cmp
+        assert %ok
+        sink %res
+    """
+
+    post = """
+    main:
+        %x_in = source
+        %y_in = source
+        %x = and %x_in, 255
+        %y = and %y_in, 255
+        %res = add %y, %x
+        sink %res
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_no_eliminate_sub_underflow_wrong_operand_compared():
+    """
+    Do NOT eliminate sub underflow check when comparing to y instead of x.
+    The correct pattern is: res = sub %x, %y; cmp = gt %res, %x
+    Comparing to %y is wrong and should NOT be eliminated.
+    """
+    pre = """
+    main:
+        %x_in = source
+        %y_in = source
+        %x_base = and %x_in, 100
+        %x = add %x_base, 100
+        %y = and %y_in, 50
+        %res = sub %x, %y
+        %cmp = gt %res, %y
+        %ok = iszero %cmp
+        assert %ok
+        sink %res
+    """
+
+    post = """
+    main:
+        %x_in = source
+        %y_in = source
+        %x_base = and %x_in, 100
+        %x = add %x_base, 100
+        %y = and %y_in, 50
+        %res = sub %x, %y
+        %cmp = gt %res, %y
+        %ok = iszero %cmp
+        assert %ok
+        sink %res
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_eliminate_add_overflow_both_constants():
+    """
+    Eliminate add overflow check when both operands are constants.
+    Constants have known ranges, so the pass should prove no overflow.
+    """
+    pre = """
+    main:
+        %res = add 100, 200
+        %cmp = lt %res, 100
+        %ok = iszero %cmp
+        assert %ok
+        sink %res
+    """
+
+    post = """
+    main:
+        %res = add 100, 200
+        sink %res
+    """
+
+    _check_pre_post(pre, post)

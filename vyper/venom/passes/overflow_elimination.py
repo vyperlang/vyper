@@ -18,14 +18,20 @@ Patterns eliminated:
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
 from vyper.venom.analysis.variable_range import VariableRangeAnalysis
 from vyper.venom.analysis.variable_range.value_range import UNSIGNED_MAX, ValueRange
-from vyper.venom.basicblock import IRInstruction, IRVariable
+from vyper.venom.basicblock import IRInstruction, IROperand, IRVariable
 from vyper.venom.passes.base_pass import IRPass
+
+# Error messages for overflow checks that can be eliminated
+_ELIMINABLE_ERROR_MSGS = {"safeadd", "safesub"}
 
 
 class OverflowEliminationPass(IRPass):
     """
     Eliminates arithmetic overflow checks that VRA proves are always safe.
     """
+
+    dfg: DFGAnalysis
+    range_analysis: VariableRangeAnalysis
 
     def run_pass(self) -> int:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -60,10 +66,7 @@ class OverflowEliminationPass(IRPass):
         Returns True if the assertion can be safely removed.
         """
         # If an error message is set, only consider safeadd/safesub checks
-        if assert_inst.error_msg is not None and assert_inst.error_msg not in {
-            "safeadd",
-            "safesub",
-        }:
+        if assert_inst.error_msg is not None and assert_inst.error_msg not in _ELIMINABLE_ERROR_MSGS:
             return False
 
         operand = assert_inst.operands[0]
@@ -92,10 +95,11 @@ class OverflowEliminationPass(IRPass):
         Eliminate: lt (add x y), x
         Condition: x,y non-negative and max(x)+max(y) fits in 256 bits
 
-        Pattern in Venom IR (reversed operand order):
-          lt %res, %x  means  %res < %x
-          operands[-1] = %res (first in text)
-          operands[-2] = %x (second in text)
+        Venom IR operand order is reversed from textual representation:
+          Text:     lt %res, %x
+          Meaning:  %res < %x
+          List:     operands = [%x, %res]
+          Access:   operands[-1] = %res, operands[-2] = %x
         """
         # lt %res, %x -> operands are [%x, %res] in list, but semantically res < x
         res_operand = lt_inst.operands[-1]  # First in text = result being compared
@@ -133,10 +137,11 @@ class OverflowEliminationPass(IRPass):
         Eliminate: gt (sub x y), x
         Condition: x,y non-negative and min(x) >= max(y)
 
-        Pattern in Venom IR:
-          gt %res, %x  means  %res > %x
-          operands[-1] = %res (first in text)
-          operands[-2] = %x (second in text)
+        Venom IR operand order is reversed from textual representation:
+          Text:     gt %res, %x
+          Meaning:  %res > %x
+          List:     operands = [%x, %res]
+          Access:   operands[-1] = %res, operands[-2] = %x
         """
         res_operand = gt_inst.operands[-1]  # First in text = result being compared
         x_operand = gt_inst.operands[-2]  # Second in text = original operand
@@ -163,23 +168,15 @@ class OverflowEliminationPass(IRPass):
         # If min(x) >= max(y), underflow is impossible
         return x_range.lo >= y_range.hi
 
-    def _get_producer(self, operand) -> IRInstruction | None:
+    def _get_producer(self, operand: IROperand) -> IRInstruction | None:
         """Get the instruction that produces this operand."""
         if not isinstance(operand, IRVariable):
             return None
         return self.dfg.get_producing_instruction(operand)
 
-    def _operands_match(self, op1, op2) -> bool:
+    def _operands_match(self, op1: IROperand, op2: IROperand) -> bool:
         """Check if two operands refer to the same value."""
-        # Direct equality check
-        if op1 == op2:
-            return True
-
-        # If both are variables, check if they're the same variable
-        if isinstance(op1, IRVariable) and isinstance(op2, IRVariable):
-            return op1 == op2
-
-        return False
+        return op1 == op2
 
     def _range_is_non_negative(self, value_range: ValueRange) -> bool:
         """Return True if the range is known, non-empty, and non-negative."""
