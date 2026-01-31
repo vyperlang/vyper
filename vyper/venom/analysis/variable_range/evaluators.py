@@ -703,21 +703,24 @@ def _eval_not(inst: IRInstruction, state: RangeState) -> ValueRange:
 
 
 def _eval_unsigned_full(inst: IRInstruction, state: RangeState) -> ValueRange:
-    """Return the non-negative range [0, SIGNED_MAX].
+    """Return TOP for instructions that can return any 256-bit value.
 
-    This represents unsigned values that fit in the non-negative signed range.
-    While technically uint256 can hold values up to 2^256-1, values >= 2^255
-    are rare in practice and would be negative in signed interpretation.
+    Instructions like sload, calldataload, mload, param, etc. can return
+    any value in the full uint256 range [0, 2^256-1]. In signed representation,
+    this includes both positive values [0, SIGNED_MAX] and negative values
+    [SIGNED_MIN, -1].
 
-    Using [0, SIGNED_MAX] instead of TOP is important because:
-    - After `iszero` false branch, we can narrow to [1, SIGNED_MAX]
-    - This proves subsequent `> 0` checks are always true
-    - TOP cannot be narrowed because non-zero spans both positive and negative
+    We MUST return TOP because:
+    1. Values >= 2^255 are negative in signed interpretation (-2^255 to -1)
+    2. If we returned [0, SIGNED_MAX], after an iszero-false branch we'd
+       incorrectly narrow to [1, SIGNED_MAX], excluding negative values
+    3. Then signed comparisons like sgt(x, 0) would be incorrectly folded
+       to constant 1, but sgt(-1, 0) = 0 at runtime!
 
-    This is a safe approximation: we may miss some optimizations for values
-    >= 2^255, but we won't generate incorrect code.
+    This is a SOUNDNESS requirement, not just a precision tradeoff.
+    Returning [0, SIGNED_MAX] causes MISCOMPILATION for values >= 2^255.
     """
-    return ValueRange((0, SIGNED_MAX))
+    return ValueRange.top()
 
 
 def _eval_bool_result(inst: IRInstruction, state: RangeState) -> ValueRange:
