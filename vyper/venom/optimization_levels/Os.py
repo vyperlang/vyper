@@ -72,6 +72,7 @@ PASSES_Os: List[PassConfig] = [
     MemMergePass,
     RemoveUnusedVariablesPass,
     BranchOptimizationPass,
+    SimplifyCFGPass,  # Clean up dead blocks after branch folding
     AlgebraicOptimizationPass,
     AssertCombinerPass,
     # This improves the performance of cse
