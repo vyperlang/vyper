@@ -141,3 +141,42 @@ def foo() -> bytes32:
 
     c = get_contract(slice_code)
     assert c.foo() == b"defghijklmnopqrstuvwxyz123456789"
+
+
+def test_extract32_signed_clamp_regression(get_contract, tx_failed):
+    """
+    Regression test: extract32 with signed output types must validate bounds.
+    Ensures sign-extension is properly checked for signed integer outputs.
+    """
+    code = """
+@external
+def test_int128_valid() -> int128:
+    # Valid int128 value (positive, fits in int128 range)
+    b: Bytes[64] = b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x7f\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff"
+    return extract32(b, 0, output_type=int128)
+
+@external
+def test_int128_negative() -> int128:
+    # Valid negative int128 (-1)
+    b: Bytes[64] = b"\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff"
+    return extract32(b, 0, output_type=int128)
+
+@external
+def test_int8_valid() -> int8:
+    # Valid int8 (127 = 0x7f, sign extended to 32 bytes)
+    b: Bytes[64] = b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x7f"
+    return extract32(b, 0, output_type=int8)
+
+@external
+def test_int8_negative() -> int8:
+    # Valid negative int8 (-1 = 0xff, sign extended)
+    b: Bytes[64] = b"\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff"
+    return extract32(b, 0, output_type=int8)
+    """  # noqa: E501
+
+    c = get_contract(code)
+    # Test valid values
+    assert c.test_int128_valid() == 2**127 - 1  # max int128
+    assert c.test_int128_negative() == -1
+    assert c.test_int8_valid() == 127  # max int8
+    assert c.test_int8_negative() == -1

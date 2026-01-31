@@ -1,18 +1,15 @@
 # maybe rename this `main.py` or `venom.py`
 # (can have an `__init__.py` which exposes the API).
 
-from typing import Dict, List, Optional
+from typing import Dict, List
 
-from vyper.codegen.ir_node import IRnode
-from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
+from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.ir.compile_ir import AssemblyInstruction
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.fcg import FCGAnalysis
-from vyper.venom.basicblock import IRLabel
 from vyper.venom.check_venom import check_calling_convention
 from vyper.venom.context import DeployInfo, IRContext
 from vyper.venom.function import IRFunction
-from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.optimization_levels.O2 import PASSES_O2
 from vyper.venom.optimization_levels.O3 import PASSES_O3
 from vyper.venom.optimization_levels.Os import PASSES_Os
@@ -157,24 +154,3 @@ def _run_fn_passes_r(
         _run_fn_passes_r(ctx, fcg, next_fn, flags, ir_analyses, visited)
 
     _run_passes(fn, flags, ir_analyses[fn])
-
-
-def generate_venom(
-    ir: IRnode,
-    settings: Settings,
-    data_sections: dict[str, bytes] = None,
-    deploy_info: Optional[DeployInfo] = None,
-) -> IRContext:
-    # Convert "old" IR to "new" IR
-
-    ctx = ir_node_to_venom(ir, deploy_info)
-
-    data_sections = data_sections or {}
-    for section_name, data in data_sections.items():
-        ctx.append_data_section(IRLabel(section_name))
-        ctx.append_data_item(data)
-
-    flags = settings.get_venom_flags()
-    run_passes_on(ctx, flags)
-
-    return ctx
