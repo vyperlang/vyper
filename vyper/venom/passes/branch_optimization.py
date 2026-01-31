@@ -19,7 +19,7 @@ def prefer_iszero(inst: IRInstruction) -> bool:
 
 
 def _range_excludes_zero(rng: ValueRange) -> bool:
-    if rng.is_empty:
+    if rng.is_empty or rng.is_top:
         return False
     return rng.lo > 0 or rng.hi < 0
 
