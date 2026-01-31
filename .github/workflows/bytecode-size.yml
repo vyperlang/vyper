@@ -1,6 +1,8 @@
 name: Bytecode Size Report
 
 on:
+  pull_request:
+    branches: [master, main]
   pull_request_target:
     branches: [master, main]
 
@@ -10,11 +12,15 @@ permissions:
 
 jobs:
   bytecode-size:
-    # Only run for trusted contributors (owner, member, collaborator)
-    if: contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
+    # pull_request: untrusted contributors only (step summary, no comment)
+    # pull_request_target: trusted contributors only (step summary + comment)
+    if: |
+      (github.event_name == 'pull_request' && !contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)) ||
+      (github.event_name == 'pull_request_target' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))
     runs-on: ubuntu-latest
     steps:
       - name: Invalidate existing comment
+        if: github.event_name == 'pull_request_target'
         uses: actions/github-script@v7
         with:
           script: |
@@ -85,6 +91,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Post or update PR comment
+        if: github.event_name == 'pull_request_target'
         uses: actions/github-script@v7
         with:
           script: |
