@@ -416,15 +416,12 @@ def test_comparison_zero():
 
 
 def test_comparison_almost_never():
-    # unsigned:
+    # Algebraic optimizations for comparisons with boundary values:
     #   x < 1 => eq x 0 => iszero x
-    #   MAX_UINT - 1 < x => folded to 0 (range: [0, SIGNED_MAX] never > MAX_UINT-1)
-    # signed
-    #   x < MIN_INT + 1 => folded to 0 (range: [0, SIGNED_MAX] never < MIN_INT+1)
-    #   MAX_INT - 1 < x => eq x MAX_INT
+    #   MAX_INT - 1 < x => eq x MAX_INT (signed)
     #
-    # With range analysis, `source` returns [0, SIGNED_MAX], so comparisons
-    # against extreme values (MAX_UINT-1, MIN_INT+1) are folded to constants.
+    # Note: `source` returns TOP (full uint256 range), so range-based folding
+    # is not possible. These tests verify algebraic transformations only.
 
     max_int256 = 2**255 - 1
 
@@ -457,17 +454,13 @@ def test_comparison_almost_never():
 
 
 def test_comparison_almost_always():
-    # unsigned
+    # Algebraic optimizations for comparisons that are "almost always" true:
     #   x > 0 => iszero(iszero x)
     #   0 < x => iszero(iszero x)
-    #   x < MAX_UINT => always true for non-negative x (range analysis folds this)
-    # signed
-    #   x < MAX_INT => iszero(eq MAX_INT) => iszero(iszero(xor MAX_INT x))
-    #   x > MIN_INT => always true for non-negative x (range analysis folds this)
+    #   x < MAX_INT => iszero(eq MAX_INT x) => iszero(iszero(xor MAX_INT x))
     #
-    # With range analysis, `source` returns [0, SIGNED_MAX], so:
-    # - lt x, MAX_UINT is always true (folded to 1)
-    # - sgt x, MIN_INT is always true (folded to 1)
+    # Note: `source` returns TOP (full uint256 range), so range-based folding
+    # is not possible. These tests verify algebraic transformations only.
 
     max_int256 = 2**255 - 1
     min_int256 = -(2**255)
@@ -510,9 +503,8 @@ def test_comparison_ge_le(val):
     # iszero(x < 100) => 99 < x
     # iszero(x > 100) => 101 > x
     #
-    # Note: negative values are excluded because range analysis on `source`
-    # (which returns [0, SIGNED_MAX]) can fold signed comparisons with
-    # negative literals to constants.
+    # Note: Only positive values are tested. Negative values would require
+    # additional care with signed comparison semantics.
 
     up = val + 1
     down = val - 1
