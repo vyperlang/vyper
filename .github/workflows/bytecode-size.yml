@@ -15,12 +15,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: head
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Checkout base
         uses: actions/checkout@v4
         with:
           ref: ${{ github.base_ref }}
           path: base
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Copy scripts to base
         run: cp -r head/.github/scripts base/.github/
