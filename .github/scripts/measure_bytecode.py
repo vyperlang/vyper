@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure bytecode sizes for thirdparty example contracts with experimental codegen.
+"""Measure bytecode sizes for thirdparty example contracts with venom codegen.
 
 Usage:
     python .github/scripts/measure_bytecode.py            # all contracts
@@ -9,7 +9,6 @@ Usage:
 import argparse
 import glob
 import json
-import os
 import sys
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
@@ -20,11 +19,10 @@ from vyper.compiler.settings import OptimizationLevel, Settings
 DIR_PATH = Path("tests/functional/examples/thirdparty")
 
 OPT_LEVELS = {
-    "O2": OptimizationLevel.GAS,  # O2/gas are equivalent
-    "Os": OptimizationLevel.CODESIZE,  # Os/codesize are equivalent
+    "O2": OptimizationLevel.GAS,
+    "Os": OptimizationLevel.CODESIZE,
+    "O3": OptimizationLevel.O3,
 }
-
-CODEGENS = ["legacy", "venom"]
 
 
 def get_example_vy_filenames(limit: int | None = None):
@@ -32,10 +30,10 @@ def get_example_vy_filenames(limit: int | None = None):
     return files[:limit] if limit else files
 
 
-def compile_with_settings(source_code: str, opt_level: OptimizationLevel, experimental: bool) -> tuple[int | None, str | None]:
-    """Compile with given settings. Returns (size, error)."""
+def compile_with_opt(source_code: str, opt_level: OptimizationLevel) -> tuple[int | None, str | None]:
+    """Compile with venom codegen and given optimization level. Returns (size, error)."""
     try:
-        settings = Settings(experimental_codegen=experimental, optimize=opt_level)
+        settings = Settings(experimental_codegen=True, optimize=opt_level)
         result = compiler.compile_code(source_code, settings=settings, output_formats=["bytecode"])
         bytecode = result.get("bytecode", "")
         size = (len(bytecode) - 2) // 2 if bytecode.startswith("0x") else len(bytecode) // 2
@@ -45,24 +43,17 @@ def compile_with_settings(source_code: str, opt_level: OptimizationLevel, experi
 
 
 def measure_contract(filename: str) -> tuple[str, dict]:
-    """Compile a contract with all codegen/optimization combinations. Returns (filename, results)."""
+    """Compile a contract with all optimization levels. Returns (filename, results)."""
     try:
         with open(DIR_PATH / filename) as f:
             source_code = f.read()
     except Exception as e:
-        error_result = {"size": None, "error": str(e)}
-        return filename, {
-            codegen: {opt: error_result for opt in OPT_LEVELS}
-            for codegen in CODEGENS
-        }
+        return filename, {name: {"size": None, "error": str(e)} for name in OPT_LEVELS}
 
-    results = {}
-    for codegen in CODEGENS:
-        experimental = codegen == "venom"
-        results[codegen] = {
-            opt: dict(zip(["size", "error"], compile_with_settings(source_code, opt_level, experimental)))
-            for opt, opt_level in OPT_LEVELS.items()
-        }
+    results = {
+        name: dict(zip(["size", "error"], compile_with_opt(source_code, opt_level)))
+        for name, opt_level in OPT_LEVELS.items()
+    }
     return filename, results
 
 
@@ -73,16 +64,16 @@ def main():
 
     files = get_example_vy_filenames(args.limit)
     total = len(files)
-    
+
     print(f"Compiling {total} contracts with {cpu_count()} workers...", file=sys.stderr)
-    
+
     file_index = {f: i for i, f in enumerate(files, 1)}
     results = {}
     with Pool() as pool:
         for filename, data in pool.imap_unordered(measure_contract, files):
             print(f"[{file_index[filename]}/{total}] {filename}", file=sys.stderr)
             results[filename] = data
-    
+
     print(json.dumps({"contracts": results}, indent=2))
 
 

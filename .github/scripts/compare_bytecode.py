@@ -4,8 +4,7 @@
 import json
 import sys
 
-CODEGENS = ["legacy", "venom"]
-OPT_LEVELS = ["O2", "Os"]
+OPT_LEVELS = ["O2", "Os", "O3"]
 
 
 def fmt_delta(base_size, head_size, base_err, head_err):
@@ -37,9 +36,9 @@ def generate_report(base_path: str, head_path: str) -> str:
     change_rows = []
     full_rows = []
 
-    # Sort by largest bytecode size on head (venom O2)
+    # Sort by largest bytecode size on head (O2)
     all_files = sorted(set(base.keys()) | set(head.keys()))
-    all_files.sort(key=lambda f: head.get(f, {}).get("venom", {}).get("O2", {}).get("size") or 0, reverse=True)
+    all_files.sort(key=lambda f: head.get(f, {}).get("O2", {}).get("size") or 0, reverse=True)
 
     for file in all_files:
         base_data = base.get(file, {})
@@ -48,23 +47,20 @@ def generate_report(base_path: str, head_path: str) -> str:
         cells = []
         has_change = False
 
-        for codegen in CODEGENS:
-            for opt in OPT_LEVELS:
-                b = base_data.get(codegen, {}).get(opt, {})
-                h = head_data.get(codegen, {}).get(opt, {})
-                cell, changed = fmt_delta(b.get("size"), h.get("size"), b.get("error"), h.get("error"))
-                cells.append(cell)
-                has_change = has_change or changed
+        for opt in OPT_LEVELS:
+            b = base_data.get(opt, {})
+            h = head_data.get(opt, {})
+            cell, changed = fmt_delta(b.get("size"), h.get("size"), b.get("error"), h.get("error"))
+            cells.append(cell)
+            has_change = has_change or changed
 
         row = f"| {file} | {' | '.join(cells)} |"
         full_rows.append(row)
         if has_change:
             change_rows.append(row)
 
-    # Header: Contract | legacy-O2 | legacy-Os | venom-O2 | venom-Os
-    columns = [f"{cg}-{opt}" for cg in CODEGENS for opt in OPT_LEVELS]
-    header = "| Contract | " + " | ".join(columns) + " |"
-    sep = "|" + "|".join("-" * 12 for _ in range(len(columns) + 1)) + "|"
+    header = "| Contract | " + " | ".join(OPT_LEVELS) + " |"
+    sep = "|" + "|".join("-" * 12 for _ in range(len(OPT_LEVELS) + 1)) + "|"
 
     # Changes section
     if change_rows:
