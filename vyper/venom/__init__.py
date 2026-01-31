@@ -21,6 +21,7 @@ from vyper.venom.passes import (
     CSE,
     SCCP,
     AlgebraicOptimizationPass,
+    AssertEliminationPass,
     BranchOptimizationPass,
     DeadStoreElimination,
     FunctionInlinerPass,
@@ -73,6 +74,7 @@ PASS_FLAG_MAP = {
     BranchOptimizationPass: "disable_branch_optimization",
     CSE: "disable_cse",
     SimplifyCFGPass: "disable_simplify_cfg",
+    AssertEliminationPass: "disable_assert_elimination",
 }
 
 

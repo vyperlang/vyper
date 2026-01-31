@@ -355,4 +355,4 @@ class PreParser:
         self.keyword_translations = keyword_translations
         self.for_loop_annotations = for_loop_annotations
         self.hex_string_locations = hex_string_parser.locations
-        self.reformatted_code = untokenize(result).decode("utf-8")
+        self.reformatted_code = untokenize(result).decode("utf-8")  # type: ignore[union-attr]

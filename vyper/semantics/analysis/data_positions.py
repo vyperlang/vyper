@@ -262,7 +262,9 @@ def _allocate_with_overrides_r(
         varinfo.set_position(VarOffset(var_slot))
 
 
-def _get_allocatable(vyper_module: vy_ast.Module) -> list[vy_ast.VyperNode]:
+def _get_allocatable(
+    vyper_module: vy_ast.Module,
+) -> list[vy_ast.InitializesDecl | vy_ast.VariableDecl]:
     allocable = (vy_ast.InitializesDecl, vy_ast.VariableDecl)
     return [node for node in vyper_module.body if isinstance(node, allocable)]
 

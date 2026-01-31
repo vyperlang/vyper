@@ -106,7 +106,12 @@ class LoadAnalysis(IRAnalysis):
 
     def get_read(self, inst: IRInstruction) -> IROperand | MemoryLocation:
         assert inst.opcode == self.space.load_op  # sanity
-        if self.space in (addr_space.MEMORY, addr_space.TRANSIENT, addr_space.STORAGE):
+        if self.space in (
+            addr_space.MEMORY,
+            addr_space.TRANSIENT,
+            addr_space.STORAGE,
+            addr_space.CALLDATA,
+        ):
             memloc = self.base_ptrs.get_read_location(inst, self.space)
             if memloc.is_fixed:
                 return memloc
