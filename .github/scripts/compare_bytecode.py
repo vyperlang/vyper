@@ -12,19 +12,19 @@ def fmt_delta(base_size, head_size, base_err, head_err):
     if base_err and head_err:
         return "❌", False
     if base_err and not head_err:
-        return f"🔧 {head_size}", True
+        return f"🔧 **{head_size}**", True
     if not base_err and head_err:
         return "💥", True
     if base_size is None and head_size is not None:
-        return f"➕ {head_size}", True
+        return f"➕ **{head_size}**", True
     if base_size is not None and head_size is None:
         return "🗑️", True
     if base_size == head_size:
-        return str(head_size), False
+        return f"**{head_size}**", False
     delta = head_size - base_size
     sign = "+" if delta > 0 else ""
     icon = "🔴" if delta > 0 else "🟢"
-    return f"{head_size} ({icon}{sign}{delta})", True
+    return f"**{head_size}** ({icon}{sign}{delta})", True
 
 
 def generate_report(base_path: str, head_path: str) -> str:
