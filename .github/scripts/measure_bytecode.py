@@ -67,10 +67,11 @@ def main():
     
     print(f"Compiling {total} contracts with {cpu_count()} workers...", file=sys.stderr)
     
+    file_index = {f: i for i, f in enumerate(files, 1)}
     results = {}
     with Pool() as pool:
-        for i, (filename, data) in enumerate(pool.imap_unordered(measure_contract, files), 1):
-            print(f"[{i}/{total}] {filename}", file=sys.stderr)
+        for filename, data in pool.imap_unordered(measure_contract, files):
+            print(f"[{file_index[filename]}/{total}] {filename}", file=sys.stderr)
             results[filename] = data
     
     print(json.dumps({"contracts": results}, indent=2))
