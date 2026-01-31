@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure bytecode sizes for thirdparty example contracts with venom codegen.
+"""Measure bytecode sizes for thirdparty example contracts.
 
 Usage:
     python .github/scripts/measure_bytecode.py            # all contracts
@@ -18,11 +18,10 @@ from vyper.compiler.settings import OptimizationLevel, Settings
 
 DIR_PATH = Path("tests/functional/examples/thirdparty")
 
-OPT_LEVELS = {
-    "O2": OptimizationLevel.GAS,
-    "Os": OptimizationLevel.CODESIZE,
-    "O3": OptimizationLevel.O3,
-}
+# legacy: O2, Os only
+# venom: O2, O3, Os
+LEGACY_OPT_LEVELS = {"O2": OptimizationLevel.GAS, "Os": OptimizationLevel.CODESIZE}
+VENOM_OPT_LEVELS = {"O2": OptimizationLevel.GAS, "O3": OptimizationLevel.O3, "Os": OptimizationLevel.CODESIZE}
 
 
 def get_example_vy_filenames(limit: int | None = None):
@@ -30,10 +29,10 @@ def get_example_vy_filenames(limit: int | None = None):
     return files[:limit] if limit else files
 
 
-def compile_with_opt(source_code: str, opt_level: OptimizationLevel) -> tuple[int | None, str | None]:
-    """Compile with venom codegen and given optimization level. Returns (size, error)."""
+def compile_one(source_code: str, opt_level: OptimizationLevel, experimental: bool) -> tuple[int | None, str | None]:
+    """Compile with given settings. Returns (size, error)."""
     try:
-        settings = Settings(experimental_codegen=True, optimize=opt_level)
+        settings = Settings(experimental_codegen=experimental, optimize=opt_level)
         result = compiler.compile_code(source_code, settings=settings, output_formats=["bytecode"])
         bytecode = result.get("bytecode", "")
         size = (len(bytecode) - 2) // 2 if bytecode.startswith("0x") else len(bytecode) // 2
@@ -48,11 +47,21 @@ def measure_contract(filename: str) -> tuple[str, dict]:
         with open(DIR_PATH / filename) as f:
             source_code = f.read()
     except Exception as e:
-        return filename, {name: {"size": None, "error": str(e)} for name in OPT_LEVELS}
+        error = {"size": None, "error": str(e)}
+        return filename, {
+            "legacy": {opt: error for opt in LEGACY_OPT_LEVELS},
+            "venom": {opt: error for opt in VENOM_OPT_LEVELS},
+        }
 
     results = {
-        name: dict(zip(["size", "error"], compile_with_opt(source_code, opt_level)))
-        for name, opt_level in OPT_LEVELS.items()
+        "legacy": {
+            name: dict(zip(["size", "error"], compile_one(source_code, opt, False)))
+            for name, opt in LEGACY_OPT_LEVELS.items()
+        },
+        "venom": {
+            name: dict(zip(["size", "error"], compile_one(source_code, opt, True)))
+            for name, opt in VENOM_OPT_LEVELS.items()
+        },
     }
     return filename, results
 
