@@ -5,11 +5,16 @@ Take a deep breath, follow the instructions, and please
 `create an issue <https://github.com/vyperlang/vyper/issues>`_ if you encounter
 any errors.
 
+.. tip::
+
+    New to Vyper? Start with the :ref:`quickstart` guide to get a project running quickly.
+
 .. note::
 
-    The easiest way to experiment with the language is to use either `Try Vyper! <https://try.vyperlang.org>`_ (maintained by the Vyper team) or the `Remix online compiler <https://remix.ethereum.org>`_ (maintained by the Ethereum Foundation).
-    - To use Try Vyper, go to https://try.vyperlang.org and log in (requires Github login).
-    - To use Remix, go to https://remix.ethereum.org and activate the vyper-remix plugin in the Plugin manager.
+    The easiest way to experiment with the language is to use an online compiler:
+
+    - `Try Vyper! <https://try.vyperlang.org>`_: maintained by the Vyper team, requires GitHub login
+    - `Remix <https://remix.ethereum.org>`_: maintained by the Ethereum Foundation, activate the vyper-remix plugin in the Plugin manager
 
 
 Standalone

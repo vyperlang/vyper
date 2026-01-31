@@ -14,7 +14,7 @@ Moccasin is a Vyper-first development framework built on Titanoboa (Vyper's nati
 
 - Project scaffolding
 - Compilation
-- Testing with pytest
+- Testing with pytest (see :ref:`testing-contracts`)
 - Deployment scripts
 - Network management
 

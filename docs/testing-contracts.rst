@@ -5,6 +5,10 @@ Testing a Contract
 
 For testing Vyper contracts we recommend the use of `pytest <https://docs.pytest.org/en/latest/contents.html>`_ along with `Titanoboa <https://github.com/vyperlang/titanoboa>`_.
 
+.. seealso::
+
+    :ref:`Compiling a Contract <vyper-cli-command>` for compilation options, and :ref:`Built-in Functions <built_in_functions>` for a complete function reference.
+
 Titanoboa
 =========
 

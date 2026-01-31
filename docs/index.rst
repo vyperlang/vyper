@@ -24,8 +24,8 @@ Key Features
 **Safety by default**
 
 * Bounds and overflow checking on array accesses and arithmetic
-* Built-in reentrancy protection via the ``@nonreentrant`` decorator
-* Strong typing with explicit type conversions
+* Built-in reentrancy protection via the ``@nonreentrant`` decorator (see :ref:`control-structures`)
+* Strong typing with explicit :ref:`type conversions <type_conversions>`
 
 **Predictable execution**
 
@@ -35,9 +35,9 @@ Key Features
 
 **Clean code reuse**
 
-* Module imports instead of class inheritance
+* :ref:`Module imports <modules>` instead of class inheritance
 * Explicit ``extcall`` and ``staticcall`` keywords for external contract interactions
-* Support for pure functions that cannot modify state
+* Support for :ref:`pure functions <function-mutability>` that cannot modify state
 
 Compiler-Enforced Security
 ==========================
