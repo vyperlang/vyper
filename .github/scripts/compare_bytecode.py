@@ -33,7 +33,8 @@ def generate_report(base_path: str, head_path: str) -> str:
     with open(head_path) as f:
         head = json.load(f)["contracts"]
 
-    rows = []
+    change_rows = []
+    full_rows = []
 
     for file in sorted(set(base.keys()) | set(head.keys())):
         base_data = base.get(file, {})
@@ -49,15 +50,24 @@ def generate_report(base_path: str, head_path: str) -> str:
             cells.append(cell)
             has_change = has_change or changed
 
+        row = f"| {file} | {' | '.join(cells)} |"
+        full_rows.append(row)
         if has_change:
-            rows.append(f"| {file} | {' | '.join(cells)} |")
+            change_rows.append(row)
 
-    if rows:
-        header = "| Contract | " + " | ".join(f"-{opt}" for opt in OPT_LEVELS) + " |"
-        sep = "|" + "|".join("-" * 10 for _ in range(len(OPT_LEVELS) + 1)) + "|"
-        body = f"## 📊 Bytecode Size Changes (venom)\n\n{header}\n{sep}\n" + "\n".join(rows)
+    header = "| Contract | " + " | ".join(f"-{opt}" for opt in OPT_LEVELS) + " |"
+    sep = "|" + "|".join("-" * 10 for _ in range(len(OPT_LEVELS) + 1)) + "|"
+
+    # Changes section
+    if change_rows:
+        body = f"## 📊 Bytecode Size Changes (venom)\n\n{header}\n{sep}\n" + "\n".join(change_rows)
     else:
         body = "## 📊 Bytecode Size Changes (venom)\n\nNo changes detected."
+
+    # Full table section
+    body += f"\n\n<details>\n<summary>Full bytecode sizes</summary>\n\n{header}\n{sep}\n"
+    body += "\n".join(full_rows)
+    body += "\n\n</details>"
 
     return body
 
