@@ -11,9 +11,10 @@ jobs:
   bytecode-size:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout HEAD (for scripts)
+      - name: Checkout merge commit (for scripts)
         uses: actions/checkout@v4
         with:
+          ref: refs/pull/${{ github.event.number }}/merge
           path: head
           fetch-depth: 0
           fetch-tags: true
@@ -42,11 +43,11 @@ jobs:
         working-directory: base
         run: python .github/scripts/measure_bytecode.py > ../base-sizes.json
 
-      - name: Install vyper (head)
+      - name: Install vyper (merge)
         working-directory: head
         run: pip install .
 
-      - name: Measure head bytecode sizes
+      - name: Measure merge bytecode sizes
         working-directory: head
         run: python .github/scripts/measure_bytecode.py > ../head-sizes.json
 
