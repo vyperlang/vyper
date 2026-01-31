@@ -31,12 +31,13 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
+      - name: Install vyper
+        working-directory: base
+        run: pip install .
 
       - name: Measure base bytecode sizes
         working-directory: base
-        run: uv run .github/scripts/measure_bytecode.py > base-sizes.json
+        run: python .github/scripts/measure_bytecode.py > base-sizes.json
 
       - name: Upload base sizes
         uses: actions/upload-artifact@v4
@@ -54,11 +55,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
+      - name: Install vyper
+        run: pip install .
 
       - name: Measure head bytecode sizes
-        run: uv run .github/scripts/measure_bytecode.py > head-sizes.json
+        run: python .github/scripts/measure_bytecode.py > head-sizes.json
 
       - name: Upload head sizes
         uses: actions/upload-artifact@v4

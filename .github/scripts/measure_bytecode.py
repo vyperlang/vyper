@@ -2,8 +2,8 @@
 """Measure bytecode sizes for thirdparty example contracts with experimental codegen.
 
 Usage:
-    uv run .github/scripts/measure_bytecode.py          # all contracts
-    uv run .github/scripts/measure_bytecode.py --limit 3  # first 3 only (for testing)
+    python .github/scripts/measure_bytecode.py            # all contracts
+    python .github/scripts/measure_bytecode.py --limit 3  # first 3 only (for local testing)
 """
 
 import argparse
