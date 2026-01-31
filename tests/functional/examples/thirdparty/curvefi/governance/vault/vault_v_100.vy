@@ -33,7 +33,7 @@ deployer: immutable(address)
 def __init__(_owner: address):
     self.owner = _owner
 
-    log ApplyOwnership(_owner)
+    log ApplyOwnership(owner=_owner)
 
     deployer = msg.sender
 
@@ -46,8 +46,8 @@ def set_owner(_owner: address):
     assert _owner != deployer
 
     self.owner = _owner
-    log CommitOwnership(_owner)
-    log ApplyOwnership(_owner)
+    log CommitOwnership(future_owner=_owner)
+    log ApplyOwnership(owner=_owner)
 
 
 @external
@@ -71,7 +71,7 @@ def commit_future_owner(_future_owner: address):
     assert msg.sender == self.owner
 
     self.future_owner = _future_owner
-    log CommitOwnership(_future_owner)
+    log CommitOwnership(future_owner=_future_owner)
 
 
 @external
@@ -81,7 +81,7 @@ def apply_future_owner():
     future_owner: address = self.future_owner
     self.owner = future_owner
 
-    log ApplyOwnership(future_owner)
+    log ApplyOwnership(owner=future_owner)
 
 
 @payable
