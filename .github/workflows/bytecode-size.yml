@@ -1,0 +1,63 @@
+name: Bytecode Size Report
+
+on:
+  pull_request:
+    branches: [master, main]
+
+permissions:
+  contents: read
+
+jobs:
+  bytecode-size:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout merge commit (for scripts)
+        uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ github.event.number }}/merge
+          path: head
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Checkout base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+          path: base
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Copy scripts to base
+        run: cp -r head/.github/scripts base/.github/
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install vyper (base)
+        working-directory: base
+        run: pip install .
+
+      - name: Measure base bytecode sizes
+        working-directory: base
+        run: python .github/scripts/measure_bytecode.py > ../base-sizes.json
+
+      - name: Install vyper (merge)
+        working-directory: head
+        run: pip install .
+
+      - name: Measure merge bytecode sizes
+        working-directory: head
+        run: python .github/scripts/measure_bytecode.py > ../head-sizes.json
+
+      - name: Generate report
+        run: python3 head/.github/scripts/compare_bytecode.py base-sizes.json head-sizes.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload size data
+        uses: actions/upload-artifact@v4
+        with:
+          name: bytecode-sizes
+          path: |
+            base-sizes.json
+            head-sizes.json
