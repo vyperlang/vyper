@@ -63,13 +63,16 @@ def main():
     args = parser.parse_args()
 
     files = get_example_vy_filenames(args.limit)
+    total = len(files)
     
-    print(f"Compiling {len(files)} contracts with {cpu_count()} workers...", file=sys.stderr)
+    print(f"Compiling {total} contracts with {cpu_count()} workers...", file=sys.stderr)
     
+    results = {}
     with Pool() as pool:
-        results_list = pool.map(measure_contract, files)
+        for i, (filename, data) in enumerate(pool.imap_unordered(measure_contract, files), 1):
+            print(f"[{i}/{total}] {filename}", file=sys.stderr)
+            results[filename] = data
     
-    results = dict(results_list)
     print(json.dumps({"contracts": results}, indent=2))
 
 
