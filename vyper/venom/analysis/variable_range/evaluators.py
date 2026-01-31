@@ -493,10 +493,18 @@ def _eval_compare(inst: IRInstruction, state: RangeState) -> ValueRange:
     When a range spans the signed/unsigned boundary (contains both negative
     and non-negative values), unsigned comparisons cannot be resolved
     definitively using signed range bounds.
+
+    Operand order in Venom IR: For `lt %a, %b` (meaning %a < %b):
+    - Parser reverses operands, so operands = [%b, %a]
+    - operands[-1] = %a (first in source, LEFT side of comparison)
+    - operands[-2] = %b (second in source, RIGHT side of comparison)
+    - We check: is %a < %b? i.e., is operands[-1] < operands[-2]?
     """
-    lhs = _operand_range(inst.operands[-1], state)
-    rhs = _operand_range(inst.operands[-2], state)
-    if lhs.is_empty or rhs.is_empty:
+    # After parser reversal: operands[-1] = left operand, operands[-2] = right operand
+    # For `lt %a, %b` (is a < b?): left=%a, right=%b, check left < right
+    left = _operand_range(inst.operands[-1], state)
+    right = _operand_range(inst.operands[-2], state)
+    if left.is_empty or right.is_empty:
         return ValueRange.empty()
 
     opcode = inst.opcode
@@ -506,25 +514,25 @@ def _eval_compare(inst: IRInstruction, state: RangeState) -> ValueRange:
     # we cannot make definitive conclusions because negative values in
     # signed representation are large positive values in unsigned.
     if not is_signed:
-        if _range_spans_sign_boundary(lhs) or _range_spans_sign_boundary(rhs):
+        if _range_spans_sign_boundary(left) or _range_spans_sign_boundary(right):
             return ValueRange.bool_range()
 
         # For unsigned comparisons with non-negative ranges, or purely
         # negative ranges (both operands same sign), we can compare directly.
         # But if one is negative and one is positive, the negative one is larger.
-        if lhs.hi < 0 and rhs.lo >= 0:
-            # lhs is all negative (large unsigned), rhs is all non-negative
-            # In unsigned: lhs > rhs always
-            if rhs.hi <= SIGNED_MAX:
+        if left.hi < 0 and right.lo >= 0:
+            # left is all negative (large unsigned), right is all non-negative
+            # In unsigned: left > right always
+            if right.hi <= SIGNED_MAX:
                 if opcode == "lt":
                     return ValueRange.constant(0)
                 else:  # gt
                     return ValueRange.constant(1)
             return ValueRange.bool_range()
-        if lhs.lo >= 0 and rhs.hi < 0:
-            # lhs is all non-negative, rhs is all negative (large unsigned)
-            # In unsigned: lhs < rhs always
-            if lhs.hi <= SIGNED_MAX:
+        if left.lo >= 0 and right.hi < 0:
+            # left is all non-negative, right is all negative (large unsigned)
+            # In unsigned: left < right always
+            if left.hi <= SIGNED_MAX:
                 if opcode == "lt":
                     return ValueRange.constant(1)
                 else:  # gt
@@ -533,16 +541,18 @@ def _eval_compare(inst: IRInstruction, state: RangeState) -> ValueRange:
 
     # Now we can use signed comparison logic (works for both signed ops
     # and unsigned ops where both ranges have the same sign)
+    # For `lt %a, %b`: check if a < b always (left.hi < right.lo)
     if opcode in {"lt", "slt"}:
-        if lhs.hi < rhs.lo:
+        if left.hi < right.lo:
             return ValueRange.constant(1)
-        if lhs.lo >= rhs.hi:
+        if left.lo >= right.hi:
             return ValueRange.constant(0)
     else:
+        # For `gt %a, %b`: check if a > b always (left.lo > right.hi)
         assert opcode in {"gt", "sgt"}
-        if lhs.lo > rhs.hi:
+        if left.lo > right.hi:
             return ValueRange.constant(1)
-        if lhs.hi <= rhs.lo:
+        if left.hi <= right.lo:
             return ValueRange.constant(0)
     return ValueRange.bool_range()
 
