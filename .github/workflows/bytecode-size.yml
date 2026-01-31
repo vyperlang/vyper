@@ -6,7 +6,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   measure-base:
@@ -86,42 +85,4 @@ jobs:
           path: artifacts
 
       - name: Generate report
-        id: report
-        run: |
-          report=$(python3 .github/scripts/compare_bytecode.py artifacts/base-sizes.json artifacts/head-sizes.json)
-          echo "report<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$report" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
-
-      - name: Comment on PR
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const report = `${{ steps.report.outputs.report }}`;
-
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-
-            const botComment = comments.find(c =>
-              c.user.login === 'github-actions[bot]' &&
-              c.body.includes('Bytecode Size Changes')
-            );
-
-            if (botComment) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body: report,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: report,
-              });
-            }
+        run: python3 .github/scripts/compare_bytecode.py artifacts/base-sizes.json artifacts/head-sizes.json >> "$GITHUB_STEP_SUMMARY"
