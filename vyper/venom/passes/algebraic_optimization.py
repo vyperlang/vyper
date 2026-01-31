@@ -561,7 +561,10 @@ class AlgebraicOptimizationPass(IRPass):
             # may produce unsigned ranges that extend past MAX_INT256.
             # Those values represent negative signed numbers, which breaks
             # monotonicity for signed comparisons.
+            # Also check lo bounds for completeness (should be >= MIN_INT256).
             if a_range.hi > SizeLimits.MAX_INT256 or b_range.hi > SizeLimits.MAX_INT256:
+                return None
+            if a_range.lo < SizeLimits.MIN_INT256 or b_range.lo < SizeLimits.MIN_INT256:
                 return None
 
         if not signed:
@@ -620,12 +623,24 @@ class AlgebraicOptimizationPass(IRPass):
     @staticmethod
     def _range_spans_sign_boundary(r) -> bool:
         """
-        Check if a range spans the signed/unsigned boundary.
-        A range spans the boundary if it contains both negative values
-        (which are large unsigned values >= 2^255) and non-negative values.
+        Check if a range spans the signed/unsigned boundary at 2^255.
+
+        The boundary separates:
+        - Non-negative signed values [0, MAX_INT256] (small unsigned: [0, 2^255-1])
+        - Negative signed values [MIN_INT256, -1] (large unsigned: [2^255, 2^256-1])
+
+        A range spans the boundary if it contains values from both regions:
+        - Crosses zero: lo < 0 and hi >= 0
+        - Extends from non-negative into high unsigned: lo >= 0 and hi > MAX_INT256
         """
         if r.is_top:
             return True
         if r.is_empty:
             return False
-        return r.lo < 0 and r.hi >= 0
+        # Crosses zero (signed negative to non-negative)
+        if r.lo < 0 and r.hi >= 0:
+            return True
+        # Extends from non-negative signed into high unsigned territory
+        if r.lo >= 0 and r.hi > SizeLimits.MAX_INT256:
+            return True
+        return False
