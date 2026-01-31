@@ -47,6 +47,9 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
             self.alias_sets[loc] = OrderedSet()
 
         # Check for aliasing with existing locations
+        # NOTE: This is O(n) per location, resulting in O(n^2) total for n locations.
+        # For large contracts, consider using an interval tree or immutable set
+        # data structure to improve lookup performance.
         for other_loc in self.alias_sets:
             if MemoryLocation.may_overlap(loc, other_loc):
                 self.alias_sets[loc].add(other_loc)
