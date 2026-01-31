@@ -1,6 +1,7 @@
 from vyper.utils import SizeLimits, int_bounds, int_log2, is_power_of_two, wrap256
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
+from vyper.venom.analysis.variable_range import VariableRangeAnalysis
 from vyper.venom.basicblock import (
     COMPARATOR_INSTRUCTIONS,
     IRInstruction,
@@ -27,13 +28,16 @@ class AlgebraicOptimizationPass(IRPass):
       - iszero chains
       - binops
       - offset adds
+      - signextend elimination via range analysis
     """
 
     dfg: DFGAnalysis
     updater: InstUpdater
+    range_analysis: VariableRangeAnalysis
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.range_analysis = self.analyses_cache.force_analysis(VariableRangeAnalysis)
         self.updater = InstUpdater(self.dfg)
         self._handle_offset()
 
@@ -154,6 +158,43 @@ class AlgebraicOptimizationPass(IRPass):
                 self.updater.mk_assign(inst, operands[0])
                 return
             # no more cases for these instructions
+            return
+
+        if inst.opcode == "signextend":
+            # text: signextend n, x -> operands[-1]=n (bytes), operands[-2]=x (value)
+            n_op = operands[-1]  # byte count
+            x_op = operands[-2]  # value
+
+            # signextend(n, x) where n >= 31 is always a no-op
+            if self._is_lit(n_op) and n_op.value >= 31:
+                self.updater.mk_assign(inst, x_op)
+                return
+
+            # Range-based elimination: if x is already in the valid signed range
+            # for (n+1) bytes, signextend is a no-op
+            if self._is_lit(n_op):
+                n = n_op.value
+                if 0 <= n < 31:
+                    x_range = self.range_analysis.get_range(x_op, inst)
+                    if not x_range.is_top:
+                        # Compute valid signed range for (n+1) bytes
+                        bits = 8 * (n + 1)
+                        signed_min = -(1 << (bits - 1))
+                        signed_max = (1 << (bits - 1)) - 1
+                        # If x is already in valid range, signextend is no-op
+                        if x_range.lo >= signed_min and x_range.hi <= signed_max:
+                            self.updater.mk_assign(inst, x_op)
+                            return
+
+            # signextend(n, signextend(m, x)) where n >= m -> signextend(m, x)
+            if isinstance(x_op, IRVariable):
+                producer = self.dfg.get_producing_instruction(x_op)
+                if producer is not None and producer.opcode == "signextend":
+                    inner_n = producer.operands[-1]  # inner byte count
+                    if self._is_lit(n_op) and self._is_lit(inner_n):
+                        if n_op.value >= inner_n.value:
+                            self.updater.mk_assign(inst, x_op)
+                            return
             return
 
         if inst.opcode == "exp":
@@ -316,6 +357,81 @@ class AlgebraicOptimizationPass(IRPass):
 
         is_gt = "g" in opcode
         signed = "s" in opcode
+
+        # Range-based comparison optimization
+        # Semantics: lt a, b computes a < b; gt a, b computes a > b
+        # operands[-1] = a (first in text), operands[-2] = b (second in text)
+        # We can optimize when one operand is a literal and we have range info for the other
+        a_op = operands[-1]  # first in text
+        b_op = operands[-2]  # second in text
+
+        if self._is_lit(a_op) and not self._is_lit(b_op):
+            # a is literal, b is variable: comparing lit <?> var
+            lit = a_op.value
+            var_range = self.range_analysis.get_range(b_op, inst)
+            if not var_range.is_top and not var_range.is_empty:
+                if signed:
+                    if var_range.hi <= SizeLimits.MAX_INT256:
+                        lit = wrap256(lit, signed=True)
+                    else:
+                        lit = None
+                else:
+                    if var_range.lo >= 0:
+                        lit = wrap256(lit)
+                    else:
+                        lit = None
+
+                if lit is not None:
+                    if is_gt:
+                        # lit > var: always true if lit > var.hi, always false if lit <= var.lo
+                        if lit > var_range.hi:
+                            self.updater.mk_assign(inst, IRLiteral(1))
+                            return
+                        if lit <= var_range.lo:
+                            self.updater.mk_assign(inst, IRLiteral(0))
+                            return
+                    else:
+                        # lit < var: always true if lit < var.lo, always false if lit >= var.hi
+                        if lit < var_range.lo:
+                            self.updater.mk_assign(inst, IRLiteral(1))
+                            return
+                        if lit >= var_range.hi:
+                            self.updater.mk_assign(inst, IRLiteral(0))
+                            return
+
+        elif self._is_lit(b_op) and not self._is_lit(a_op):
+            # a is variable, b is literal: comparing var <?> lit
+            lit = b_op.value
+            var_range = self.range_analysis.get_range(a_op, inst)
+            if not var_range.is_top and not var_range.is_empty:
+                if signed:
+                    if var_range.hi <= SizeLimits.MAX_INT256:
+                        lit = wrap256(lit, signed=True)
+                    else:
+                        lit = None
+                else:
+                    if var_range.lo >= 0:
+                        lit = wrap256(lit)
+                    else:
+                        lit = None
+
+                if lit is not None:
+                    if is_gt:
+                        # var > lit: always true if var.lo > lit, always false if var.hi <= lit
+                        if var_range.lo > lit:
+                            self.updater.mk_assign(inst, IRLiteral(1))
+                            return
+                        if var_range.hi <= lit:
+                            self.updater.mk_assign(inst, IRLiteral(0))
+                            return
+                    else:
+                        # var < lit: always true if var.hi < lit, always false if var.lo >= lit
+                        if var_range.hi < lit:
+                            self.updater.mk_assign(inst, IRLiteral(1))
+                            return
+                        if var_range.lo >= lit:
+                            self.updater.mk_assign(inst, IRLiteral(0))
+                            return
 
         lo, hi = int_bounds(bits=256, signed=signed)
 

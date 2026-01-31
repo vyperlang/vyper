@@ -45,7 +45,7 @@ class OptimizationLevel(Enum):
                 return cls.GAS
             case "codesize" | "Os":
                 return cls.CODESIZE
-            case "O3":
+            case "O3" | "o3":
                 return cls.O3
         raise ValueError(f"unrecognized optimization level: {val}")
 
@@ -78,6 +78,7 @@ class VenomOptimizationFlags:
     disable_dead_store_elimination: bool = False
     disable_algebraic_optimization: bool = False
     disable_branch_optimization: bool = False
+    disable_assert_elimination: bool = False
     disable_mem2var: bool = False
     disable_simplify_cfg: bool = False
     disable_remove_unused_variables: bool = False
@@ -298,7 +299,7 @@ def _opt_codesize():
 
 
 def _opt_gas():
-    return _settings.optimize == OptimizationLevel.GAS
+    return _settings.optimize == OptimizationLevel.GAS or _settings.optimize == OptimizationLevel.O3
 
 
 def _opt_none():

@@ -4,7 +4,16 @@ from dataclasses import dataclass
 from typing import Optional
 
 import vyper.venom.effects as effects
-from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
+from vyper.evm.address_space import (
+    CALLDATA,
+    CODE,
+    DATA,
+    MEMORY,
+    RETURNDATA,
+    STORAGE,
+    TRANSIENT,
+    AddrSpace,
+)
 from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
@@ -162,6 +171,8 @@ class BasePtrAnalysis(IRAnalysis):
             return self._get_memory_read_location(inst)
         elif addr_space in (STORAGE, TRANSIENT):
             return self._get_storage_read_location(inst, addr_space)
+        elif addr_space in (CALLDATA, DATA, CODE, RETURNDATA):
+            return self._get_copyable_read_location(inst, addr_space)
         else:  # pragma: nocover
             raise CompilerPanic(f"Invalid location type: {addr_space}")
 
@@ -235,6 +246,30 @@ class BasePtrAnalysis(IRAnalysis):
             return MemoryLocation.UNDEFINED
 
         # TODO: add sanity check that the inst has no read effects in this addr_space
+        return MemoryLocation.EMPTY
+
+    def _get_copyable_read_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:
+        """
+        Get read location for read-only/copy-from address spaces.
+
+        These are address spaces that can be copied from but not written to
+        (calldata, code, returndata, data section).
+        """
+        opcode = inst.opcode
+
+        # Bulk copy: calldatacopy, codecopy, dloadbytes, returndatacopy
+        # Operand layout: [size, src_offset, dst]
+        if opcode == addr_space.copy_op:
+            size, src_ofst, _ = inst.operands
+            access_ops = InstAccessOps(ofst=src_ofst, size=size)
+            return self.segment_from_ops(access_ops)
+
+        # Single-word load (if the address space has one): calldataload, dload
+        if addr_space.load_op is not None and opcode == addr_space.load_op:
+            ofst = inst.operands[0]
+            access_ops = InstAccessOps(ofst=ofst, size=IRLiteral(addr_space.word_scale))
+            return self.segment_from_ops(access_ops)
+
         return MemoryLocation.EMPTY
 
     def get_possible_ptrs(self, var: IRVariable) -> set[Ptr]:

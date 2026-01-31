@@ -109,6 +109,7 @@ class BaseEnv:
                 "annotated_ast": export_metadata.get("annotated_ast"),
                 "solc_json": export_metadata.get("solc_json"),
                 "compiler_settings": export_metadata.get("compiler_settings"),
+                "storage_layout": export_metadata.get("storage_layout"),
                 "raw_ir": export_metadata.get("raw_ir"),
                 "blueprint_initcode_prefix": export_metadata.get("blueprint_initcode_prefix"),
                 "python_args": python_args,
@@ -154,6 +155,7 @@ class BaseEnv:
             output_formats["solc_json"] = True
             # settings_dict exports the resolved compiler settings used for compilation
             output_formats["settings_dict"] = True
+            output_formats["layout"] = True
 
         out = _compile(
             source_code,
@@ -184,6 +186,7 @@ class BaseEnv:
                 "annotated_ast": out.get("annotated_ast_dict"),
                 "solc_json": out.get("solc_json"),
                 "compiler_settings": compiler_settings_dict,
+                "storage_layout": out.get("layout"),
                 "deployment_origin": DeploymentOrigin.SOURCE,
             }
 
@@ -203,6 +206,7 @@ class BaseEnv:
         if self.exporter:
             output_formats["solc_json"] = True
             output_formats["settings_dict"] = True
+            output_formats["layout"] = True
 
         out = _compile(source_code, output_formats, input_bundle)
         abi, bytecode = out["abi"], bytes.fromhex(out["bytecode"].removeprefix("0x"))
@@ -231,6 +235,7 @@ class BaseEnv:
                 "annotated_ast": out.get("annotated_ast_dict"),
                 "solc_json": out.get("solc_json"),
                 "compiler_settings": compiler_settings_dict,
+                "storage_layout": out.get("layout"),
                 "blueprint_initcode_prefix": initcode_prefix.hex(),
                 "deployment_origin": DeploymentOrigin.BLUEPRINT,
             }

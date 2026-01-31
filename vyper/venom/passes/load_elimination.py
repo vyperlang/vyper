@@ -98,13 +98,24 @@ class LoadAnalysis(IRAnalysis):
         access_ops = InstAccessOps(ofst=op, size=IRLiteral(self.word_scale))
         return self.base_ptrs.segment_from_ops(access_ops)
 
+    def _normalize_operand(self, op: IROperand) -> IROperand:
+        """Normalize operand through assign chain for consistent lattice keys."""
+        if isinstance(op, IRVariable):
+            return self.dfg._traverse_assign_chain(op)
+        return op
+
     def get_read(self, inst: IRInstruction) -> IROperand | MemoryLocation:
         assert inst.opcode == self.space.load_op  # sanity
-        if self.space in (addr_space.MEMORY, addr_space.TRANSIENT, addr_space.STORAGE):
+        if self.space in (
+            addr_space.MEMORY,
+            addr_space.TRANSIENT,
+            addr_space.STORAGE,
+            addr_space.CALLDATA,
+        ):
             memloc = self.base_ptrs.get_read_location(inst, self.space)
             if memloc.is_fixed:
                 return memloc
-        return inst.operands[0]
+        return self._normalize_operand(inst.operands[0])
 
     def get_write(self, inst: IRInstruction) -> IROperand | MemoryLocation:
         assert inst.opcode == self.space.store_op  # sanity
@@ -112,7 +123,7 @@ class LoadAnalysis(IRAnalysis):
             memloc = self.base_ptrs.get_write_location(inst, self.space)
             if memloc.is_fixed:
                 return memloc
-        return inst.operands[1]
+        return self._normalize_operand(inst.operands[1])
 
     def _handle_bb(
         self, eff: Effects | str, load_opcode: str, store_opcode: str | None, bb: IRBasicBlock
@@ -130,20 +141,12 @@ class LoadAnalysis(IRAnalysis):
                 val, _ = inst.operands
                 ptr = self.get_write(inst)
                 memloc = self.get_memloc(ptr)
-                if memloc is None:
-                    lattice.clear()
-                    lattice[ptr] = OrderedSet([val])
-                    continue
-
-                assert memloc is not None
 
                 # kick out any conflicts
                 for existing_key in lattice.copy().keys():
                     existing_loc = self.get_memloc(existing_key)
-
-                    if store_opcode is not None:
-                        if self.mem_alias.may_alias(existing_loc, memloc):
-                            del lattice[existing_key]
+                    if self.mem_alias.may_alias(existing_loc, memloc):
+                        del lattice[existing_key]
 
                 lattice[ptr] = OrderedSet([val])
             elif isinstance(eff, Effects) and eff in inst.get_write_effects():
@@ -210,29 +213,26 @@ class LoadElimination(IRPass):
             while len(preds := self.cfg.cfg_in(bb)) == 1:
                 bb = preds.first()
             first_inst = bb.instructions[0]
+            preds = list(self.cfg.cfg_in(bb))
             ops = []
-            for pred in self.cfg.cfg_in(bb):
+            for pred in preds:
                 pred_lattice = self._bb_lattice[pred]
-                if ptr not in pred_lattice:
-                    continue
+                # KeyError here indicates analysis bug (ptr must be in all preds)
                 val = pred_lattice[ptr]
-                if len(val) == 0:
-                    continue
+                assert len(val) > 0, (ptr, pred, val)
                 if len(val) > 1:
-                    # could be handled
-                    # but if would require
-                    # more phis
+                    # could be handled but would require more phis
                     return
                 val = val.first()
-                assert val in existing_value
+                assert val in existing_value, (val, existing_value)
                 if not isinstance(val, IRVariable):
-                    # could be extended by
-                    # adding stores to source
-                    # basicblocks
+                    # could be extended by adding stores to source basicblocks
                     return
                 ops.extend([pred.label, val])
 
-            assert len(ops) == 2 * len(existing_value), (ops, existing_value, inst)
+            # each predecessor contributes exactly one (label, value) pair;
+            # note: len(preds) != len(existing_value) when multiple preds have same value
+            assert len(ops) == 2 * len(preds), (ops, preds, inst)
 
             join = self.updater.add_before(first_inst, "phi", ops)
             assert join is not None
