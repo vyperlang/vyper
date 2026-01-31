@@ -9,6 +9,7 @@ Usage:
 import argparse
 import glob
 import json
+import sys
 from pathlib import Path
 
 import vyper.compiler as compiler
@@ -60,7 +61,10 @@ def main():
     args = parser.parse_args()
 
     files = get_example_vy_filenames(args.limit)
-    results = {filename: measure_contract(filename) for filename in files}
+    results = {}
+    for i, filename in enumerate(files, 1):
+        print(f"[{i}/{len(files)}] {filename}", file=sys.stderr)
+        results[filename] = measure_contract(filename)
     print(json.dumps({"contracts": results}, indent=2))
 
 
