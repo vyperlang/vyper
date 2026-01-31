@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  measure-base:
+  bytecode-size:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout HEAD (for scripts)
@@ -30,59 +30,21 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install vyper
+      - name: Install vyper (base)
         working-directory: base
         run: pip install .
 
       - name: Measure base bytecode sizes
         working-directory: base
-        run: python .github/scripts/measure_bytecode.py > base-sizes.json
+        run: python .github/scripts/measure_bytecode.py > ../base-sizes.json
 
-      - name: Upload base sizes
-        uses: actions/upload-artifact@v4
-        with:
-          name: base-sizes
-          path: base/base-sizes.json
-
-  measure-head:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install vyper
+      - name: Install vyper (head)
+        working-directory: head
         run: pip install .
 
       - name: Measure head bytecode sizes
-        run: python .github/scripts/measure_bytecode.py > head-sizes.json
-
-      - name: Upload head sizes
-        uses: actions/upload-artifact@v4
-        with:
-          name: head-sizes
-          path: head-sizes.json
-
-  report:
-    runs-on: ubuntu-latest
-    needs: [measure-base, measure-head]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download base sizes
-        uses: actions/download-artifact@v4
-        with:
-          name: base-sizes
-          path: artifacts
-
-      - name: Download head sizes
-        uses: actions/download-artifact@v4
-        with:
-          name: head-sizes
-          path: artifacts
+        working-directory: head
+        run: python .github/scripts/measure_bytecode.py > ../head-sizes.json
 
       - name: Generate report
-        run: python3 .github/scripts/compare_bytecode.py artifacts/base-sizes.json artifacts/head-sizes.json >> "$GITHUB_STEP_SUMMARY"
+        run: python3 head/.github/scripts/compare_bytecode.py base-sizes.json head-sizes.json >> "$GITHUB_STEP_SUMMARY"
