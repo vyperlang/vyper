@@ -731,8 +731,15 @@ def _eval_address_result(inst: IRInstruction, state: RangeState) -> ValueRange:
 
 
 def _eval_hash_result(inst: IRInstruction, state: RangeState) -> ValueRange:
-    """Return full unsigned range for hash results (256-bit)."""
-    return ValueRange((0, UNSIGNED_MAX))
+    """Return TOP for hash results since they can be any 256-bit value.
+    
+    Hash functions produce arbitrary 256-bit values that span both the
+    positive and negative ranges in signed interpretation. We return TOP
+    rather than trying to represent [0, 2^256-1] because:
+    1. Such a range can't be meaningfully narrowed after iszero checks
+    2. Range-based optimizations on hash values are rare anyway
+    """
+    return ValueRange.top()
 
 
 # Dispatch table mapping opcodes to their evaluator functions
