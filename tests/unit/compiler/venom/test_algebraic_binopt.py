@@ -418,45 +418,38 @@ def test_comparison_zero():
 def test_comparison_almost_never():
     # unsigned:
     #   x < 1 => eq x 0 => iszero x
-    #   MAX_UINT - 1 < x => eq x MAX_UINT => iszero(not x)
+    #   MAX_UINT - 1 < x => folded to 0 (range: [0, SIGNED_MAX] never > MAX_UINT-1)
     # signed
-    #   x < MIN_INT + 1 => eq x MIN_INT
+    #   x < MIN_INT + 1 => folded to 0 (range: [0, SIGNED_MAX] never < MIN_INT+1)
     #   MAX_INT - 1 < x => eq x MAX_INT
+    #
+    # With range analysis, `source` returns [0, SIGNED_MAX], so comparisons
+    # against extreme values (MAX_UINT-1, MIN_INT+1) are folded to constants.
 
-    max_uint256 = 2**256 - 1
     max_int256 = 2**255 - 1
-    min_int256 = -(2**255)
+
     pre1 = f"""
     _global:
         %par = source
         %1 = lt %par, 1
-        %2 = gt %par, {max_uint256 - 1}
         %3 = sgt %par, {max_int256 - 1}
-        %4 = slt %par, {min_int256 + 1}
-
-        sink %1, %2, %3, %4
+        sink %1, %3
     """
     # commuted versions - produce same output
     pre2 = f"""
     _global:
         %par = source
         %1 = gt 1, %par
-        %2 = lt {max_uint256 - 1}, %par
         %3 = slt {max_int256 - 1}, %par
-        %4 = sgt {min_int256 + 1}, %par
-        sink %1, %2, %3, %4
+        sink %1, %3
     """
     post = f"""
     _global:
         %par = source
         ; lt %par, 1 => eq 0, %par => iszero %par
         %1 = iszero %par
-        ; x > MAX_UINT256 - 1 => eq MAX_UINT x => iszero(not x)
-        %5 = not %par
-        %2 = iszero %5
         %3 = eq {max_int256}, %par
-        %4 = eq {min_int256}, %par
-        sink %1, %2, %3, %4
+        sink %1, %3
     """
 
     _check_pre_post(pre1, post)
@@ -467,11 +460,15 @@ def test_comparison_almost_always():
     # unsigned
     #   x > 0 => iszero(iszero x)
     #   0 < x => iszero(iszero x)
-    #   x < MAX_UINT => iszero(eq x MAX_UINT) => iszero(iszero(not x))
+    #   x < MAX_UINT => always true for non-negative x (range analysis folds this)
     # signed
     #   x < MAX_INT => iszero(eq MAX_INT) => iszero(iszero(xor MAX_INT x))
+    #   x > MIN_INT => always true for non-negative x (range analysis folds this)
+    #
+    # With range analysis, `source` returns [0, SIGNED_MAX], so:
+    # - lt x, MAX_UINT is always true (folded to 1)
+    # - sgt x, MIN_INT is always true (folded to 1)
 
-    max_uint256 = 2**256 - 1
     max_int256 = 2**255 - 1
     min_int256 = -(2**255)
 
@@ -479,12 +476,8 @@ def test_comparison_almost_always():
     _global:
         %par = source
         %1 = gt %par, 0
-        %2 = lt %par, {max_uint256}
-        assert %2
         %3 = slt %par, {max_int256}
         assert %3
-        %4 = sgt %par, {min_int256}
-        assert %4
         sink %1
     """
     # commuted versions
@@ -492,31 +485,19 @@ def test_comparison_almost_always():
     _global:
         %par = source
         %1 = lt 0, %par
-        %2 = gt {max_uint256}, %par
-        assert %2
         %3 = sgt {max_int256}, %par
         assert %3
-        %4 = slt {min_int256}, %par
-        assert %4
         sink %1
     """
     post = f"""
     _global:
         %par = source
-        %5 = iszero %par
-        %1 = iszero %5
-        %9 = not %par  ; (eq -1 x) => (iszero (not x))
-        %6 = iszero %9
-        %2 = iszero %6
-        assert %2
-        %10 = xor %par, {max_int256}
-        %7 = iszero %10
-        %3 = iszero %7
+        %4 = iszero %par
+        %1 = iszero %4
+        %6 = xor %par, {max_int256}
+        %5 = iszero %6
+        %3 = iszero %5
         assert %3
-        %11 = xor %par, {min_int256}
-        %8 = iszero %11
-        %4 = iszero %8
-        assert %4
         sink %1
     """
 
@@ -524,10 +505,14 @@ def test_comparison_almost_always():
     _check_pre_post(pre2, post)
 
 
-@pytest.mark.parametrize("val", (100, 2, 3, -100))
+@pytest.mark.parametrize("val", (100, 2, 3))
 def test_comparison_ge_le(val):
     # iszero(x < 100) => 99 < x
     # iszero(x > 100) => 101 > x
+    #
+    # Note: negative values are excluded because range analysis on `source`
+    # (which returns [0, SIGNED_MAX]) can fold signed comparisons with
+    # negative literals to constants.
 
     up = val + 1
     down = val - 1

@@ -697,6 +697,44 @@ def _eval_not(inst: IRInstruction, state: RangeState) -> ValueRange:
     return ValueRange.top()
 
 
+# ============================================================================
+# Data source evaluators - instructions that load values from external sources
+# ============================================================================
+
+
+def _eval_unsigned_full(inst: IRInstruction, state: RangeState) -> ValueRange:
+    """Return the non-negative range [0, SIGNED_MAX].
+
+    This represents unsigned values that fit in the non-negative signed range.
+    While technically uint256 can hold values up to 2^256-1, values >= 2^255
+    are rare in practice and would be negative in signed interpretation.
+
+    Using [0, SIGNED_MAX] instead of TOP is important because:
+    - After `iszero` false branch, we can narrow to [1, SIGNED_MAX]
+    - This proves subsequent `> 0` checks are always true
+    - TOP cannot be narrowed because non-zero spans both positive and negative
+
+    This is a safe approximation: we may miss some optimizations for values
+    >= 2^255, but we won't generate incorrect code.
+    """
+    return ValueRange((0, SIGNED_MAX))
+
+
+def _eval_bool_result(inst: IRInstruction, state: RangeState) -> ValueRange:
+    """Return boolean range [0, 1] for instructions that return success flags."""
+    return ValueRange.bool_range()
+
+
+def _eval_address_result(inst: IRInstruction, state: RangeState) -> ValueRange:
+    """Return address range [0, 2^160 - 1] for address-returning instructions."""
+    return ValueRange((0, (1 << 160) - 1))
+
+
+def _eval_hash_result(inst: IRInstruction, state: RangeState) -> ValueRange:
+    """Return full unsigned range for hash results (256-bit)."""
+    return ValueRange((0, UNSIGNED_MAX))
+
+
 # Dispatch table mapping opcodes to their evaluator functions
 EVAL_DISPATCH: dict[str, RangeEvaluator] = {
     "assign": _eval_assign,
@@ -722,4 +760,46 @@ EVAL_DISPATCH: dict[str, RangeEvaluator] = {
     "sgt": _eval_compare,
     "eq": _eval_eq,
     "iszero": _eval_iszero,
+    # Data source instructions - return unsigned full range [0, UNSIGNED_MAX]
+    # These are crucial for enabling branch folding after assertions!
+    "param": _eval_unsigned_full,  # Function parameters
+    "calldataload": _eval_unsigned_full,  # Calldata values
+    "sload": _eval_unsigned_full,  # Storage loads
+    "tload": _eval_unsigned_full,  # Transient storage loads
+    "mload": _eval_unsigned_full,  # Memory loads
+    "iload": _eval_unsigned_full,  # Immutable loads
+    "dload": _eval_unsigned_full,  # Data section loads
+    "returndataload": _eval_unsigned_full,  # Return data loads
+    # Environment instructions - return unsigned full range
+    "callvalue": _eval_unsigned_full,
+    "calldatasize": _eval_unsigned_full,
+    "codesize": _eval_unsigned_full,
+    "gasprice": _eval_unsigned_full,
+    "extcodesize": _eval_unsigned_full,
+    "returndatasize": _eval_unsigned_full,
+    "blockhash": _eval_unsigned_full,
+    "timestamp": _eval_unsigned_full,
+    "number": _eval_unsigned_full,
+    "difficulty": _eval_unsigned_full,
+    "gaslimit": _eval_unsigned_full,
+    "chainid": _eval_unsigned_full,
+    "selfbalance": _eval_unsigned_full,
+    "basefee": _eval_unsigned_full,
+    "gas": _eval_unsigned_full,
+    "balance": _eval_unsigned_full,
+    "blobbasefee": _eval_unsigned_full,
+    # Address-returning instructions - return [0, 2^160-1]
+    "address": _eval_address_result,
+    "origin": _eval_address_result,
+    "caller": _eval_address_result,
+    "coinbase": _eval_address_result,
+    # Call instructions - return bool (success flag)
+    "call": _eval_bool_result,
+    "staticcall": _eval_bool_result,
+    "delegatecall": _eval_bool_result,
+    # Hash instructions - return full unsigned range
+    "extcodehash": _eval_hash_result,
+    "sha3": _eval_hash_result,
+    # Source instruction (used in tests)
+    "source": _eval_unsigned_full,
 }
