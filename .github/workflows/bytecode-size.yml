@@ -48,3 +48,11 @@ jobs:
 
       - name: Generate report
         run: python3 head/.github/scripts/compare_bytecode.py base-sizes.json head-sizes.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload size data
+        uses: actions/upload-artifact@v4
+        with:
+          name: bytecode-sizes
+          path: |
+            base-sizes.json
+            head-sizes.json
