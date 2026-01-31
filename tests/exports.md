@@ -36,6 +36,7 @@ The exported data is organized into JSON files that mirror the test directory st
         "annotated_ast": {...} | null,
         "solc_json": {...} | null,
         "compiler_settings": {...} | null,
+        "storage_layout": {...} | null,
         "raw_ir": "IR representation" | null,
         "blueprint_initcode_prefix": "0x..." | null,
         "deployed_address": "0x...",
@@ -109,6 +110,7 @@ The exported data is organized into JSON files that mirror the test directory st
 - `calldata` is `abi_encode(ctor_args)`
 - `source_code` is the source of the compilation target, imported modules are accessible from `solc_json`
 - `compiler_settings` contains the resolved compiler settings used for compilation. Non-null only for `deployment_type: "source" | "blueprint"`. Note: `enable_decimals` is always present (resolved default). See [Compiler Settings Schema](#compiler-settings-schema) below.
+- `storage_layout` contains storage, transient storage, and code (immutables) layout information. Non-null only for `deployment_type: "source" | "blueprint"`. See [Storage Layout Schema](#storage-layout-schema) below.
 - `deployment_type` denotes how the contract was deployed
   - this was added because some tests deploy directly from `ir` or from directly from `bytecode`
 - `env` field contains transaction and block environment data:
@@ -185,7 +187,28 @@ It is based on `Settings.as_dict()`, except `enable_decimals` is always included
 | `disable_remove_unused_variables` | `bool` | Disable unused variable removal |
 | `inline_threshold` | `uint \| null` | Inlining size threshold |
 
-  
+### Storage Layout Schema
+
+The `storage_layout` field contains information about where state variables are stored. It has up to three sections:
+
+```json
+{
+  "storage_layout": {
+    "<var_name>": {"slot": <uint>, "n_slots": <uint>, "type": <string>},
+    "<module_alias>": {
+      "<nested_var>": {"slot": <uint>, "n_slots": <uint>, "type": <string>}
+    },
+    "$.nonreentrant_key": {"slot": <uint>, "n_slots": <uint>, "type": "nonreentrant lock"}
+  },
+  "transient_storage_layout": {
+    "<var_name>": {"slot": <uint>, "n_slots": <uint>, "type": <string>}
+  },
+  "code_layout": {
+    "<immutable_name>": {"offset": <uint>, "length": <uint>, "type": <string>}
+  }
+}
+```
+
 ## How it works  
   
 The test export feature provides a way to capture and export all contract deployments and function calls that occur during test execution.   

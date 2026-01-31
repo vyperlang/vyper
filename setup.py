@@ -29,7 +29,7 @@ extras_require = {
         "flake8-bugbear==23.12.2",
         "flake8-use-fstring==1.4",
         "isort==5.13.2",
-        "mypy==1.5",
+        "mypy==1.19",
     ],
     "dev": ["ipython", "pre-commit", "pyinstaller", "twine"],
 }
