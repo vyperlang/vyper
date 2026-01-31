@@ -36,7 +36,11 @@ def generate_report(base_path: str, head_path: str) -> str:
     change_rows = []
     full_rows = []
 
-    for file in sorted(set(base.keys()) | set(head.keys())):
+    # Sort by largest bytecode size on head (O2)
+    all_files = sorted(set(base.keys()) | set(head.keys()))
+    all_files.sort(key=lambda f: head.get(f, {}).get("O2", {}).get("size") or 0, reverse=True)
+    
+    for file in all_files:
         base_data = base.get(file, {})
         head_data = head.get(file, {})
 
