@@ -9,7 +9,9 @@ Usage:
 import argparse
 import glob
 import json
+import os
 import sys
+from multiprocessing import Pool, cpu_count
 from pathlib import Path
 
 import vyper.compiler as compiler
@@ -41,15 +43,15 @@ def compile_with_opt(source_code: str, opt_level: OptimizationLevel) -> tuple[in
         return None, str(e)
 
 
-def measure_contract(filename: str) -> dict:
-    """Compile a contract with all optimization levels."""
+def measure_contract(filename: str) -> tuple[str, dict]:
+    """Compile a contract with all optimization levels. Returns (filename, results)."""
     try:
         with open(DIR_PATH / filename) as f:
             source_code = f.read()
     except Exception as e:
-        return {name: {"size": None, "error": str(e)} for name in OPT_LEVELS}
+        return filename, {name: {"size": None, "error": str(e)} for name in OPT_LEVELS}
 
-    return {
+    return filename, {
         name: dict(zip(["size", "error"], compile_with_opt(source_code, opt)))
         for name, opt in OPT_LEVELS.items()
     }
@@ -61,10 +63,13 @@ def main():
     args = parser.parse_args()
 
     files = get_example_vy_filenames(args.limit)
-    results = {}
-    for i, filename in enumerate(files, 1):
-        print(f"[{i}/{len(files)}] {filename}", file=sys.stderr)
-        results[filename] = measure_contract(filename)
+    
+    print(f"Compiling {len(files)} contracts with {cpu_count()} workers...", file=sys.stderr)
+    
+    with Pool() as pool:
+        results_list = pool.map(measure_contract, files)
+    
+    results = dict(results_list)
     print(json.dumps({"contracts": results}, indent=2))
 
 
