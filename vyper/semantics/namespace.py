@@ -1,4 +1,5 @@
 import contextlib
+import contextvars
 
 from vyper.ast.identifiers import validate_identifier
 from vyper.builtins.functions import get_builtin_functions
@@ -55,26 +56,16 @@ class NamespaceBuilder(dict):
     """
     Mutable builder that accumulates names during analysis, with scope tracking.
     Use .build() to produce an immutable Namespace when done.
-
-    Attributes
-    ----------
-    _scopes : List[Set]
-        List of sets containing the key names for each scope
     """
-
-    _scopes: list[set]
 
     def __init__(self, other: Namespace):
         super().__init__(other)
-        self._scopes = []
 
     def __eq__(self, other):
         return self is other
 
     def __setitem__(self, attr, obj):
-        if self._scopes:
-            self.validate_assignment(attr)
-            self._scopes[-1].add(attr)
+        self.validate_assignment(attr)
         assert isinstance(attr, str), f"not a string: {attr}"
         super().__setitem__(attr, obj)
 
@@ -83,34 +74,6 @@ class NamespaceBuilder(dict):
             hint = get_levenshtein_error_suggestions(key, self, 0.2)
             raise UndeclaredDefinition(f"'{key}' has not been declared.", hint=hint)
         return super().__getitem__(key)
-
-    def __enter__(self):
-        if not self._scopes:
-            raise CompilerPanic("Context manager must be invoked via namespace.enter_scope()")
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        if not self._scopes:
-            raise CompilerPanic("Bad use of namespace as a context manager")
-        for key in self._scopes.pop():
-            del self[key]
-
-    def enter_scope(self):
-        """
-        Enter a new scope within the namespace.
-
-        Called as a context manager, e.g. `with namespace.enter_scope():`
-        All items that are added within the context are removed upon exit.
-        """
-        # NOTE cyclic imports!
-        from vyper.semantics import environment
-
-        self._scopes.append(set())
-
-        if len(self._scopes) == 1:
-            # add mutable vars (`self`) to the initial scope
-            self.update(environment.get_mutable_vars())
-
-        return self
 
     def update(self, other):
         for key, value in other.items():
@@ -132,6 +95,9 @@ class NamespaceBuilder(dict):
                 msg += f" as a {prev}"
             raise NamespaceCollision(msg, prev_decl=prev_decl)
 
+    def copy(self):
+        return NamespaceBuilder(super().copy())
+
     def build(self) -> Namespace:
         """
         Produce an immutable Namespace from the current contents.
@@ -139,27 +105,38 @@ class NamespaceBuilder(dict):
         return Namespace(self)
 
 
-# TODO: Rename to get_namespace_builder():
-def get_namespace():
-    """
-    Get the global namespace builder object.
-    """
-    global _namespace
-    try:
-        return _namespace
-    except NameError:
-        _namespace = NamespaceBuilder(base_namespace)
-        return _namespace
+def _new_builder() -> NamespaceBuilder:
+    nsb = NamespaceBuilder(base_namespace)
+    # Can't be included in base_namespace, as they get mutated
+    nsb.update(environment.get_mutable_vars())
+    return nsb
+
+
+namespace_builder_context = contextvars.ContextVar(
+    "namespace_builder_context", default=_new_builder()
+)
 
 
 @contextlib.contextmanager
-def override_global_namespace(ns):
-    global _namespace
-    tmp = _namespace
+def new_scope():
+    """
+    Creates a brand new module scope
+    """
+    token = namespace_builder_context.set(_new_builder())
     try:
-        # clobber global namespace
-        _namespace = ns
         yield
     finally:
-        # unclobber
-        _namespace = tmp
+        namespace_builder_context.reset(token)
+
+
+@contextlib.contextmanager
+def sub_scope():
+    """
+    Creates a sub-scope of the current scope, making sure mutations do not affect the parent
+    """
+    copy = namespace_builder_context.get().copy()
+    token = namespace_builder_context.set(copy)
+    try:
+        yield
+    finally:
+        namespace_builder_context.reset(token)

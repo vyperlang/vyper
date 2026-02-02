@@ -642,16 +642,27 @@ class Module(TopLevel):
 
     @contextlib.contextmanager
     def namespace(self):
-        from vyper.semantics.namespace import get_namespace, override_global_namespace
+        from vyper.semantics.namespace import (
+            NamespaceBuilder,
+            _new_builder,
+            namespace_builder_context,
+        )
 
         # kludge implementation for backwards compatibility.
         # TODO: replace with type_from_ast
         try:
-            ns = self._metadata["namespace"]
+            ns = NamespaceBuilder(self._metadata["namespace"])
         except AttributeError:
-            ns = get_namespace()
-        with override_global_namespace(ns):
+            ns = _new_builder()
+
+        # TODO: Rewrite this once we are in Python 3.14+ and
+        # ContextVar.set() can be used as a context manager
+        # TODO: Maybe even remove the context manager entirely from Module
+        token = namespace_builder_context.set(ns)
+        try:
             yield
+        finally:
+            namespace_builder_context.reset(token)
 
 
 class FunctionDef(TopLevel):

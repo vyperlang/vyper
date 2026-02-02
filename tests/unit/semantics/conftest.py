@@ -1,7 +1,6 @@
 import pytest
 
 from vyper import ast as vy_ast
-from vyper.semantics.namespace import get_namespace
 
 
 @pytest.fixture(scope="session")
@@ -22,13 +21,11 @@ def build_node():
 
 
 @pytest.fixture
-def namespace():
+def fresh_namespace():
     """
     Yields a clean `Namespace` object.
     """
-    # TODO: Replace with:
-    # yield NamespaceBuilder(base_namespace)
-    namespace_builder = get_namespace()
-    namespace_builder.clear()
-    yield namespace_builder
-    namespace_builder.clear()
+    import vyper.semantics.namespace as namespace
+
+    with namespace.new_scope():
+        yield

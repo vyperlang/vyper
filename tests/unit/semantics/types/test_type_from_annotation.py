@@ -58,7 +58,7 @@ def test_array_value_types_as_arrays(build_node, type_str, location):
 
 @pytest.mark.parametrize("type_str", BASE_TYPES)
 @pytest.mark.parametrize("location", iter(DataLocation))
-def test_base_types_as_multidimensional_arrays(build_node, namespace, type_str, location):
+def test_base_types_as_multidimensional_arrays(build_node, fresh_namespace, type_str, location):
     node = build_node(f"{type_str}[3][5]")
     base_t = PRIMITIVE_TYPES[type_str]
 

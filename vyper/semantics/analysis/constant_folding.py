@@ -89,9 +89,9 @@ class ConstantFolder(VyperNodeVisitorBase):
             raise UnfoldableNode("unknown name", node)
 
     def visit_Attribute(self, node) -> vy_ast.ExprNode:
-        from vyper.semantics.namespace import get_namespace
+        from vyper.semantics.namespace import namespace_builder_context
 
-        namespace = get_namespace()
+        namespace = namespace_builder_context.get().build()
         path = []
         value = node.value
         while isinstance(value, vy_ast.Attribute):
@@ -204,9 +204,9 @@ class ConstantFolder(VyperNodeVisitorBase):
         if not isinstance(node.func, vy_ast.Name):
             raise UnfoldableNode("not a builtin", node)
 
-        from vyper.semantics.namespace import get_namespace
+        from vyper.semantics.namespace import namespace_builder_context
 
-        namespace = get_namespace()
+        namespace = namespace_builder_context.get().build()
 
         func_name = node.func.id
         if func_name not in namespace:
