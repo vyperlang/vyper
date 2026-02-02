@@ -10,11 +10,16 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.types import PRIMITIVE_TYPES
 
 
-# TODO: Add precise key and value types
 class Namespace(dict):
     """
     Immutable namespace object representing a contract's resolved names.
     Produced by NamespaceBuilder after analysis is complete.
+
+    Map from str to
+      VarInfo         - variable/builtin function bindings
+      VyperType       - type instances (e.g. BoolT(), AddressT(), StructT, EventT, FlagT)
+      type[VyperType] - type classes used as constructors (e.g. BytesT, StringT, DArrayT)
+      ModuleInfo      - imported module bindings
     """
 
     def __eq__(self, other):
