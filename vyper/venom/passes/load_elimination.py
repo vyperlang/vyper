@@ -82,7 +82,7 @@ class LoadAnalysis(IRAnalysis):
         for pred in preds[1:]:
             other = self.bb_to_lattice.get(pred, dict())
             common_keys = other.keys() & res.keys()
-            tmp = res.copy()
+            tmp = res
             res = dict()
             for key in common_keys:
                 res[key] = tmp[key] | other[key]
@@ -143,17 +143,21 @@ class LoadAnalysis(IRAnalysis):
                 memloc = self.get_memloc(ptr)
 
                 # kick out any conflicts
-                for existing_key in lattice.copy().keys():
+                to_remove = []
+                for existing_key in lattice.keys():
                     existing_loc = self.get_memloc(existing_key)
                     if self.mem_alias.may_alias(existing_loc, memloc):
-                        del lattice[existing_key]
+                        to_remove.append(existing_key)
+                
+                for key in to_remove:
+                    del lattice[key]
 
                 lattice[ptr] = OrderedSet([val])
             elif isinstance(eff, Effects) and eff in inst.get_write_effects():
                 lattice.clear()
 
         if bb not in self.bb_to_lattice or self.bb_to_lattice[bb] != lattice:
-            self.bb_to_lattice[bb] = lattice.copy()
+            self.bb_to_lattice[bb] = lattice
             return True
         return False
 
