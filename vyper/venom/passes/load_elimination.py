@@ -3,7 +3,7 @@ from collections import deque
 import vyper.evm.address_space as addr_space
 from vyper.evm.address_space import CALLDATA, DATA, AddrSpace
 from vyper.exceptions import CompilerPanic
-from vyper.utils import OrderedSet, cumtimeit
+from vyper.utils import OrderedSet
 from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.mem_alias import mem_alias_type_factory

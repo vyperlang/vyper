@@ -34,7 +34,7 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
         loc: Optional[MemoryLocation] = None
 
         loc = self.base_ptr.get_read_location(inst, self.addr_space)
-        if loc is not None and not loc.is_empty:
+        if loc is not None and not loc.is_empty():
             self._analyze_mem_location(loc)
 
         loc = self.base_ptr.get_write_location(inst, self.addr_space)
