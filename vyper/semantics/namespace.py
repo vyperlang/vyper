@@ -109,11 +109,6 @@ class NamespaceBuilder(dict):
         for key, value in other.items():
             self.__setitem__(key, value)
 
-    # TODO: Remove, instead of clearing, just make a new one
-    def clear(self):
-        super().clear()
-        self.__init__(Namespace.base)
-
     def validate_assignment(self, attr):
         validate_identifier(attr)
 

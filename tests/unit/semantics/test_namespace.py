@@ -20,12 +20,6 @@ def test_builtin_types(fresh_namespace):
         assert Namespace.builder_context.get()[key] == value
 
 
-def test_builtin_types_persist_after_clear(fresh_namespace):
-    Namespace.builder_context.get().clear()
-    for key, value in PRIMITIVE_TYPES.items():
-        assert Namespace.builder_context.get()[key] == value
-
-
 def test_context_manager_constant_vars(fresh_namespace):
     with Namespace.sub_scope():
         for key in environment.CONSTANT_ENVIRONMENT_VARS.keys():
