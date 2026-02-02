@@ -115,22 +115,21 @@ All type classes are found within the [`semantics/types/`](types) subpackage.
 
 ### Namespace
 
-TODO: This is out of date !
-
-[`namespace.py`](namespace.py) contains the `Namespace` object. `Namespace` is a
-`dict` subclass representing the namespace of a contract. It imposes several
+[`namespace.py`](namespace.py) contains two namespace classes: `Namespace` (immutable) and `NamespaceBuilder` (mutable). Both are
+`dict` subclasses representing the namespace of a contract. They imposes several
 additional restrictions:
 
-* Attempting to replace an existing field raises `NamespaceCollision`
+* Attempting to mutate a `Namespace` raises `CompilerPanic`
+* Attempting to replace an existing name on a `NamespaceBuilder` raises `NamespaceCollision`
 * Attempting to access a key that does not exist raises `UndeclaredDefinition`
 
-To ensure that only one copy of `Namespace` exists throughout the package, you
-should access it using the `get_namespace` method:
+To avoid having to pass namespaces everywhere, the `Namespace.builder_context` `ContextVar` is used.
+To get the current namespace:
 
 ```python
-from vyper.semantics.namespace import get_namespace
+from vyper.semantics.namespace import Namespace
 
-namespace = get_namespace()
+namespace = Namespace.builder_context.get()
 ```
 
 #### Scoping and Namespace as a Context Manager
@@ -145,12 +144,12 @@ function
 Additionally, a new scope is entered for each execution of a `for` loop or branch
 of an `if` statement.
 
-Scoping is handled by calling `Namespace.enter_scope` as a
+Scoping is handled by calling `Namespace.sub_scope` as a
 [context manager](https://docs.python.org/3/reference/datamodel.html#with-statement-context-managers).
 Values added while inside the context are removed when the context is exited.
 
 ```python
-with namespace.enter_scope():
+with namespace.sub_scope():
     namespace['foo'] = 42
 
 namespace['foo']  # this raises an UndeclaredDefinition
