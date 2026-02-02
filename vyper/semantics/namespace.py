@@ -41,15 +41,45 @@ class Namespace(dict):
     def __reduce__(self):
         return (Namespace, (dict(self),))
 
+    # -- static namespace infrastructure --
 
-"""
-Namespace which surrounds anything, every namespace should be a superset of this one
-"""
-base_namespace: Namespace = Namespace(
-    PRIMITIVE_TYPES
-    | environment.get_constant_vars()
-    | {k: VarInfo(b) for (k, b) in get_builtin_functions().items()}
-)
+    #: Namespace which surrounds anything, every namespace should be a superset of this one
+    base: "Namespace"
+
+    #: ContextVar tracking the current mutable NamespaceBuilder
+    builder_context: contextvars.ContextVar
+
+    @staticmethod
+    def _new_builder() -> "NamespaceBuilder":
+        nsb = NamespaceBuilder(Namespace.base)
+        # Can't be included in base, as they get mutated
+        nsb.update(environment.get_mutable_vars())
+        return nsb
+
+    @staticmethod
+    @contextlib.contextmanager
+    def new_scope():
+        """
+        Creates a brand new module scope
+        """
+        token = Namespace.builder_context.set(Namespace._new_builder())
+        try:
+            yield
+        finally:
+            Namespace.builder_context.reset(token)
+
+    @staticmethod
+    @contextlib.contextmanager
+    def sub_scope():
+        """
+        Creates a sub-scope of the current scope, making sure mutations do not affect the parent
+        """
+        copy = Namespace.builder_context.get().copy()
+        token = Namespace.builder_context.set(copy)
+        try:
+            yield
+        finally:
+            Namespace.builder_context.reset(token)
 
 
 class NamespaceBuilder(dict):
@@ -82,7 +112,7 @@ class NamespaceBuilder(dict):
     # TODO: Remove, instead of clearing, just make a new one
     def clear(self):
         super().clear()
-        self.__init__(base_namespace)
+        self.__init__(Namespace.base)
 
     def validate_assignment(self, attr):
         validate_identifier(attr)
@@ -105,38 +135,13 @@ class NamespaceBuilder(dict):
         return Namespace(self)
 
 
-def _new_builder() -> NamespaceBuilder:
-    nsb = NamespaceBuilder(base_namespace)
-    # Can't be included in base_namespace, as they get mutated
-    nsb.update(environment.get_mutable_vars())
-    return nsb
-
-
-namespace_builder_context = contextvars.ContextVar(
-    "namespace_builder_context", default=_new_builder()
+# initialize class-level state after NamespaceBuilder is defined
+Namespace.base = Namespace(
+    PRIMITIVE_TYPES
+    | environment.get_constant_vars()
+    | {k: VarInfo(b) for (k, b) in get_builtin_functions().items()}
 )
 
-
-@contextlib.contextmanager
-def new_scope():
-    """
-    Creates a brand new module scope
-    """
-    token = namespace_builder_context.set(_new_builder())
-    try:
-        yield
-    finally:
-        namespace_builder_context.reset(token)
-
-
-@contextlib.contextmanager
-def sub_scope():
-    """
-    Creates a sub-scope of the current scope, making sure mutations do not affect the parent
-    """
-    copy = namespace_builder_context.get().copy()
-    token = namespace_builder_context.set(copy)
-    try:
-        yield
-    finally:
-        namespace_builder_context.reset(token)
+Namespace.builder_context = contextvars.ContextVar(
+    "namespace_builder_context", default=Namespace._new_builder()
+)

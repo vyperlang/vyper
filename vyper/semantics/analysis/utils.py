@@ -64,9 +64,9 @@ class _ExprAnalyser:
     """
 
     def __init__(self):
-        from vyper.semantics.namespace import namespace_builder_context
+        from vyper.semantics.namespace import Namespace
 
-        self.namespace = namespace_builder_context.get().build()
+        self.namespace = Namespace.builder_context.get().build()
 
     def get_expr_info(self, node: vy_ast.VyperNode, is_callable: bool = False) -> ExprInfo:
         t = self.get_exact_type_from_node(node, include_type_exprs=is_callable)

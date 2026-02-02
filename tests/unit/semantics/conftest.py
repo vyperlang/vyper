@@ -25,7 +25,7 @@ def fresh_namespace():
     """
     Yields a clean `Namespace` object.
     """
-    import vyper.semantics.namespace as namespace
+    from vyper.semantics.namespace import Namespace
 
-    with namespace.new_scope():
+    with Namespace.new_scope():
         yield

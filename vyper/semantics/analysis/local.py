@@ -3,7 +3,6 @@
 import contextlib
 from typing import Optional
 
-import vyper.semantics.namespace as namespace
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
@@ -41,6 +40,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS
+from vyper.semantics.namespace import Namespace
 from vyper.semantics.types import (
     TYPE_T,
     VOID_TYPE,
@@ -89,7 +89,7 @@ def _analyze_function_r(node: vy_ast.FunctionDef, err_list: ExceptionList):
             _analyze_function_r(call_t.ast_def, err_list)
 
     try:
-        with namespace.sub_scope():
+        with Namespace.sub_scope():
             analyzer = FunctionAnalyzer(node)
             analyzer.analyze()
     except VyperException as e:
@@ -391,7 +391,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             location, modifiability = (DataLocation.CALLDATA, Modifiability.RUNTIME_CONSTANT)
 
         for arg in self.func.arguments:
-            namespace.namespace_builder_context.get()[arg.name] = VarInfo(
+            Namespace.builder_context.get()[arg.name] = VarInfo(
                 arg.typ, location=location, modifiability=modifiability, decl_node=arg.ast_source
             )
 
@@ -440,7 +440,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         # validate the value before adding it to the namespace
         self.expr_visitor.visit(node.value, typ)
 
-        namespace.namespace_builder_context.get()[name] = VarInfo(
+        Namespace.builder_context.get()[name] = VarInfo(
             typ, location=DataLocation.MEMORY, decl_node=node
         )
 
@@ -656,10 +656,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             # note: using `node.target` here results in bad source location.
             iter_var = self._analyse_list_iter(node.target.target, node.iter, target_type)
 
-        with namespace.sub_scope(), self.enter_for_loop(iter_var):
+        with Namespace.sub_scope(), self.enter_for_loop(iter_var):
             target_name = node.target.target.id
             # maybe we should introduce a new Modifiability: LOOP_VARIABLE
-            namespace.namespace_builder_context.get()[target_name] = VarInfo(
+            Namespace.builder_context.get()[target_name] = VarInfo(
                 target_type, modifiability=Modifiability.RUNTIME_CONSTANT, decl_node=node.target
             )
 
@@ -670,10 +670,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
     def visit_If(self, node):
         self.expr_visitor.visit(node.test, BoolT())
-        with namespace.sub_scope():
+        with Namespace.sub_scope():
             for n in node.body:
                 self.visit(n)
-        with namespace.sub_scope():
+        with Namespace.sub_scope():
             for n in node.orelse:
                 self.visit(n)
 

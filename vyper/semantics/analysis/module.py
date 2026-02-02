@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-import vyper.semantics.namespace as namespace
 from vyper import ast as vy_ast
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
@@ -42,6 +41,7 @@ from vyper.semantics.analysis.utils import (
     get_expr_info,
 )
 from vyper.semantics.data_locations import DataLocation
+from vyper.semantics.namespace import Namespace
 from vyper.semantics.types import TYPE_T, EventT, FlagT, InterfaceT, StructT, VyperType, is_type_t
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
@@ -66,7 +66,7 @@ def _analyze_module_r(module_ast: vy_ast.Module, is_interface: bool = False):
 
     # validate semantics and annotate AST with type/semantics information
 
-    with namespace.new_scope():
+    with Namespace.new_scope():
         analyzer = ModuleAnalyzer(module_ast, is_interface)
         analyzer.analyze_module_body()
 
@@ -211,7 +211,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             self.visit(n)
 
         # attach namespace to the module for downstream use.
-        self.ast._metadata["namespace"] = namespace.namespace_builder_context.get().build()
+        self.ast._metadata["namespace"] = Namespace.builder_context.get().build()
 
     def _visit_nodes_linear(self, node_type):
         for node in self._to_visit.copy():
@@ -479,7 +479,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             rhs = None
             # find the alias of the uninitialized module in this contract
             # to fill out the error message with.
-            for k, v in namespace.namespace_builder_context.get().items():
+            for k, v in Namespace.builder_context.get().items():
                 if isinstance(v, ModuleInfo) and v.module_t == item.module_t:
                     rhs = k
                     break
@@ -590,7 +590,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
     @property
     def _self_t(self):
-        return namespace.namespace_builder_context.get()["self"]
+        return Namespace.builder_context.get()["self"]
 
     def _add_exposed_function(self, func_t, node, relax=True):
         # call this before self._self_t.typ.add_member() for exception raising
@@ -684,7 +684,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         def _validate_self_namespace():
             # block globals if storage variable already exists
             self._self_t.typ._check_add_member(name)
-            namespace.namespace_builder_context.get()[name] = var_info
+            Namespace.builder_context.get()[name] = var_info
 
         if node.is_constant:
             assert node.value is not None  # checked in VariableDecl.validate()
@@ -702,19 +702,19 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             _validate_self_namespace()
             return _finalize()
 
-        namespace.namespace_builder_context.get().validate_assignment(name)
+        Namespace.builder_context.get().validate_assignment(name)
 
         return _finalize()
 
     def visit_FlagDef(self, node):
         obj = FlagT.from_FlagDef(node)
         node._metadata["flag_type"] = obj
-        namespace.namespace_builder_context.get()[node.name] = obj
+        Namespace.builder_context.get()[node.name] = obj
 
     def visit_EventDef(self, node):
         obj = EventT.from_EventDef(node)
         node._metadata["event_type"] = obj
-        namespace.namespace_builder_context.get()[node.name] = obj
+        Namespace.builder_context.get()[node.name] = obj
         self._events.append(obj)
 
     def visit_FunctionDef(self, node):
@@ -745,20 +745,20 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             import_info._typ = module_info
 
-            namespace.namespace_builder_context.get()[import_info.alias] = module_info
+            Namespace.builder_context.get()[import_info.alias] = module_info
 
     def _load_import(self, import_info: ImportInfo) -> Any:
         path = import_info.compiler_input.path
 
         if path.suffix == ".vy":
             module_ast = import_info.parsed
-            with namespace.new_scope():
+            with Namespace.new_scope():
                 module_t = _analyze_module_r(module_ast, is_interface=False)
                 return ModuleInfo(module_t, import_info.alias)
 
         if path.suffix == ".vyi":
             module_ast = import_info.parsed
-            with namespace.new_scope():
+            with Namespace.new_scope():
                 module_t = _analyze_module_r(module_ast, is_interface=True)
 
                 # NOTE: might be cleaner to return the whole module, so we
@@ -776,9 +776,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def visit_InterfaceDef(self, node):
         interface_t = InterfaceT.from_InterfaceDef(node)
         node._metadata["interface_type"] = interface_t
-        namespace.namespace_builder_context.get()[node.name] = interface_t
+        Namespace.builder_context.get()[node.name] = interface_t
 
     def visit_StructDef(self, node):
         struct_t = StructT.from_StructDef(node)
         node._metadata["struct_type"] = struct_t
-        namespace.namespace_builder_context.get()[node.name] = struct_t
+        Namespace.builder_context.get()[node.name] = struct_t
