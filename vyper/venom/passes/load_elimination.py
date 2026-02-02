@@ -148,7 +148,7 @@ class LoadAnalysis(IRAnalysis):
                     existing_loc = self.get_memloc(existing_key)
                     if self.mem_alias.may_alias(existing_loc, memloc):
                         to_remove.append(existing_key)
-                
+
                 for key in to_remove:
                     del lattice[key]
 

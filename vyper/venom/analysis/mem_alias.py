@@ -5,9 +5,6 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis, IRAnalysis
 from vyper.venom.basicblock import IRInstruction
 from vyper.venom.memory_location import MemoryLocation
-from vyper.venom.effects import EMPTY
-
-from vyper.utils import cumtimeit
 
 
 class MemoryAliasAnalysisAbstract(IRAnalysis):
