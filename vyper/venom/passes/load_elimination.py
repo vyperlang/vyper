@@ -3,7 +3,7 @@ from collections import deque
 import vyper.evm.address_space as addr_space
 from vyper.evm.address_space import CALLDATA, DATA, AddrSpace
 from vyper.exceptions import CompilerPanic
-from vyper.utils import OrderedSet
+from vyper.utils import OrderedSet, cumtimeit
 from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.mem_alias import mem_alias_type_factory
@@ -60,7 +60,7 @@ class LoadAnalysis(IRAnalysis):
         self.inst_to_lattice: LoadAnalysis.InstToLattice = dict()
         self.bb_to_lattice: dict[IRBasicBlock, Lattice] = dict()
 
-        worklist = deque(self.cfg.dfs_pre_walk)
+        worklist = deque([self.function.entry])
 
         while len(worklist) > 0:
             bb = worklist.popleft()
