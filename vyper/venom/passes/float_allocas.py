@@ -59,7 +59,7 @@ class FloatAllocas(IRPass):
                                 and len(later_inst.operands) >= 2
                                 and later_inst.operands[1] == inst.output
                             ):
-                                assert False, (
+                                raise AssertionError(
                                     f"palloca {inst} has init mstore {later_inst} "
                                     f"but not immediately after. This violates the "
                                     f"invariant from ir_node_to_venom and will cause "
