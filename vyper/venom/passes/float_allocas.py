@@ -1,3 +1,4 @@
+from vyper.venom.basicblock import IRLiteral
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -41,13 +42,15 @@ class FloatAllocas(IRPass):
                     # dependencies).
                     if inst.opcode == "palloca" and i + 1 < len(insts):
                         next_inst = insts[i + 1]
-                        if (
-                            next_inst.opcode == "mstore"
-                            and len(next_inst.operands) >= 2
-                            and next_inst.operands[1] == inst.output
-                        ):
-                            entry_bb.insert_instruction(next_inst)
-                            i += 1  # skip the moved init store
+                        if next_inst.opcode == "mstore" and len(next_inst.operands) >= 2:
+                            dst = next_inst.operands[1]
+                            if dst == inst.output:
+                                alloca_id = inst.operands[1]
+                                if isinstance(alloca_id, IRLiteral):
+                                    param = self.function.get_param_by_id(alloca_id.value)
+                                    if param is not None and next_inst.operands[0] == param.func_var:
+                                        entry_bb.insert_instruction(next_inst)
+                                        i += 1  # skip the moved init store
                     elif inst.opcode == "palloca":
                         # Debug check: scan for mstore to this palloca later in
                         # the block. If found, the invariant from ir_node_to_venom
