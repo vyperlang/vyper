@@ -448,6 +448,32 @@ def test_selfcall_call_violation(failing_contract_code, assert_compile_failed):
         _ = compile_code(failing_contract_code)
 
 
+def test_mod_by_zero_reverts(get_contract, tx_failed):
+    """
+    Reproduce: mod-by-zero inside a loop in an internal function with parameters
+    should revert, but venom codegen silently returns 0.
+
+    The problem arose when the value was passed via stack and 
+    palloca was used for the first time int the loop
+    """
+
+    src = """
+@internal
+def _helper(x: uint256) -> uint256:
+    for i: uint256 in range(2):
+        x %= x  # iter1: 1%1=0, iter2: 0%0 should revert
+    return 0
+
+@external
+def foo() -> uint256:
+    self._helper(1)
+    return 42
+    """
+    c = get_contract(src)
+    with tx_failed():
+        c.foo()
+
+
 FAILING_CONTRACTS_ARGUMENT_EXCEPTION = [
     """
 # expected no args, args given

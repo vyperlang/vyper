@@ -18,6 +18,9 @@ class FloatAllocas(IRPass):
 
         for bb in self.function.get_basic_blocks():
             if bb is entry_bb:
+                for inst in bb.instructions:
+                    if inst.opcode == "paraminit":
+                        inst.opcode = "mstore"
                 continue
 
             # Extract alloca instructions
@@ -26,6 +29,9 @@ class FloatAllocas(IRPass):
                 if inst.opcode in ("alloca", "palloca", "calloca"):
                     # note: order of allocas impacts bytecode.
                     # TODO: investigate.
+                    entry_bb.insert_instruction(inst)
+                elif inst.opcode == "paraminit":
+                    inst.opcode = "mstore"
                     entry_bb.insert_instruction(inst)
                 else:
                     non_alloca_instructions.append(inst)
