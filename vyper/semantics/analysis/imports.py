@@ -185,6 +185,18 @@ class ImportAnalyzer:
 
     # load an InterfaceT or ModuleInfo from an import.
     # raises FileNotFoundError
+    def _check_duplicate_import(
+        self, file: CompilerInput, node: vy_ast.VyperNode, alias: str
+    ) -> None:
+        # use resolved_path to detect duplicates, not the relative import path,
+        # since different relative paths can resolve to the same file
+        # (e.g., `from . import x` and `from ..pkg import x`)
+        resolved = file.resolved_path
+        if resolved in self.graph.imported_modules:
+            previous_import_stmt = self.graph.imported_modules[resolved]
+            raise DuplicateImport(f"{alias} imported more than once!", previous_import_stmt, node)
+        self.graph.imported_modules[resolved] = node
+
     def _load_import(
         self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
     ) -> tuple[CompilerInput, Any]:
@@ -193,10 +205,12 @@ class ImportAnalyzer:
 
         path = _import_to_path(level, module_str)
 
+        # fast check for same relative path (avoids disk I/O for obvious duplicates)
         if path in self.graph.imported_modules:
             previous_import_stmt = self.graph.imported_modules[path]
             raise DuplicateImport(f"{alias} imported more than once!", previous_import_stmt, node)
 
+        # store relative path for fast check on future imports
         self.graph.imported_modules[path] = node
 
         err = None
@@ -205,6 +219,9 @@ class ImportAnalyzer:
             path_vy = path.with_suffix(".vy")
             file = self._load_file(path_vy, level)
             assert isinstance(file, FileInput)  # mypy hint
+
+            # check resolved path (catches different relative paths to same file)
+            self._check_duplicate_import(file, node, alias)
 
             module_ast = self._ast_from_file(file)
             self._resolve_imports_r(module_ast)
