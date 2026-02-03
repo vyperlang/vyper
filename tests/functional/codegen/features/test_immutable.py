@@ -467,7 +467,6 @@ def __init__(x: uint256):
     assert c.VALUE() == 4
 
 
-
 # verify that complex types are properly decoded in the constructor context
 def test_constructor_dynamic_type_decoding(get_contract):
     code = """
