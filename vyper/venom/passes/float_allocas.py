@@ -1,4 +1,4 @@
-from vyper.venom.basicblock import IRLiteral
+from vyper.venom.basicblock import IRInstruction, IRLiteral
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -21,58 +21,67 @@ class FloatAllocas(IRPass):
             if bb is entry_bb:
                 continue
 
-            # Extract alloca instructions
-            non_alloca_instructions = []
-            insts = bb.instructions
-            i = 0
-            while i < len(insts):
-                inst = insts[i]
-                if inst.opcode in ("alloca", "palloca", "calloca"):
-                    # note: order of allocas impacts bytecode.
-                    # TODO: investigate.
-                    entry_bb.insert_instruction(inst)
-
-                    # If we move a palloca, also move its immediate param init
-                    # store (inserted by ir_node_to_venom). For stack-passed
-                    # params, ir_node_to_venom emits mstore immediately after
-                    # palloca to copy the param value into memory. We must move
-                    # this mstore along with the palloca to ensure the
-                    # initialization happens once at function entry, not on
-                    # every loop iteration (which would break loop-carried
-                    # dependencies).
-                    if inst.opcode == "palloca" and i + 1 < len(insts):
-                        next_inst = insts[i + 1]
-                        if next_inst.opcode == "mstore" and len(next_inst.operands) >= 2:
-                            dst = next_inst.operands[1]
-                            if dst == inst.output:
-                                alloca_id = inst.operands[1]
-                                if isinstance(alloca_id, IRLiteral):
-                                    param = self.function.get_param_by_id(alloca_id.value)
-                                    if param is not None and next_inst.operands[0] == param.func_var:
-                                        entry_bb.insert_instruction(next_inst)
-                                        i += 1  # skip the moved init store
-                    elif inst.opcode == "palloca":
-                        # Debug check: scan for mstore to this palloca later in
-                        # the block. If found, the invariant from ir_node_to_venom
-                        # (mstore immediately follows palloca) was violated.
-                        for j in range(i + 1, len(insts)):
-                            later_inst = insts[j]
-                            if (
-                                later_inst.opcode == "mstore"
-                                and len(later_inst.operands) >= 2
-                                and later_inst.operands[1] == inst.output
-                            ):
-                                raise AssertionError(
-                                    f"palloca {inst} has init mstore {later_inst} "
-                                    f"but not immediately after. This violates the "
-                                    f"invariant from ir_node_to_venom and will cause "
-                                    f"incorrect loop behavior."
-                                )
-                else:
-                    non_alloca_instructions.append(inst)
-                i += 1
-
-            # Replace original instructions with filtered list
-            bb.instructions = non_alloca_instructions
+            bb.instructions = self._float_allocas_from_block(bb, entry_bb)
 
         entry_bb.instructions.append(tmp)
+
+    def _float_allocas_from_block(self, bb, entry_bb):
+        insts = bb.instructions
+        non_alloca = []
+        i = 0
+
+        while i < len(insts):
+            inst = insts[i]
+
+            if inst.opcode not in ("alloca", "palloca", "calloca"):
+                non_alloca.append(inst)
+                i += 1
+                continue
+
+            # note: order of allocas impacts bytecode.
+            # TODO: investigate.
+            entry_bb.insert_instruction(inst)
+
+            if inst.opcode == "palloca" and self._move_palloca_init_store(entry_bb, insts, i, inst):
+                i += 2  # skip the moved init store
+                continue
+
+            i += 1
+
+        return non_alloca
+
+    def _move_palloca_init_store(
+        self, entry_bb, insts: list[IRInstruction], idx: int, palloca_inst: IRInstruction
+    ) -> bool:
+        """
+        Move the synthetic palloca init store (stack-passed params only) to entry.
+        Returns True if an init store was moved and should be skipped in the caller.
+        """
+        if idx + 1 >= len(insts):
+            return False
+
+        next_inst = insts[idx + 1]
+        if not self._is_palloca_init_store(palloca_inst, next_inst):
+            return False
+
+        entry_bb.insert_instruction(next_inst)
+        return True
+
+    def _is_palloca_init_store(
+        self, palloca_inst: IRInstruction, mstore_inst: IRInstruction
+    ) -> bool:
+        if mstore_inst.opcode != "mstore" or len(mstore_inst.operands) < 2:
+            return False
+
+        if mstore_inst.operands[1] != palloca_inst.output:
+            return False
+
+        alloca_id = palloca_inst.operands[1]
+        if not isinstance(alloca_id, IRLiteral):
+            return False
+
+        param = self.function.get_param_by_id(alloca_id.value)
+        if param is None:
+            return False
+
+        return mstore_inst.operands[0] == param.func_var
