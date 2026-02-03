@@ -187,7 +187,7 @@ class ImportAnalyzer:
     # raises FileNotFoundError
     def _check_duplicate_import(
         self, file: CompilerInput, node: vy_ast.VyperNode, alias: str
-    ) -> None:
+    ):
         # use resolved_path to detect duplicates, not the relative import path,
         # since different relative paths can resolve to the same file
         # (e.g., `from . import x` and `from ..pkg import x`)
