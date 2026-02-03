@@ -32,7 +32,13 @@ class FloatAllocas(IRPass):
                     entry_bb.insert_instruction(inst)
 
                     # If we move a palloca, also move its immediate param init
-                    # store (inserted by ir_node_to_venom).
+                    # store (inserted by ir_node_to_venom). For stack-passed
+                    # params, ir_node_to_venom emits mstore immediately after
+                    # palloca to copy the param value into memory. We must move
+                    # this mstore along with the palloca to ensure the
+                    # initialization happens once at function entry, not on
+                    # every loop iteration (which would break loop-carried
+                    # dependencies).
                     if inst.opcode == "palloca" and i + 1 < len(insts):
                         next_inst = insts[i + 1]
                         if (
@@ -42,6 +48,23 @@ class FloatAllocas(IRPass):
                         ):
                             entry_bb.insert_instruction(next_inst)
                             i += 1  # skip the moved init store
+                    elif inst.opcode == "palloca":
+                        # Debug check: scan for mstore to this palloca later in
+                        # the block. If found, the invariant from ir_node_to_venom
+                        # (mstore immediately follows palloca) was violated.
+                        for j in range(i + 1, len(insts)):
+                            later_inst = insts[j]
+                            if (
+                                later_inst.opcode == "mstore"
+                                and len(later_inst.operands) >= 2
+                                and later_inst.operands[1] == inst.output
+                            ):
+                                assert False, (
+                                    f"palloca {inst} has init mstore {later_inst} "
+                                    f"but not immediately after. This violates the "
+                                    f"invariant from ir_node_to_venom and will cause "
+                                    f"incorrect loop behavior."
+                                )
                 else:
                     non_alloca_instructions.append(inst)
                 i += 1
