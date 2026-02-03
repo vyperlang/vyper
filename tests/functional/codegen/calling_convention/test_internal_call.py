@@ -453,7 +453,7 @@ def test_mod_by_zero_reverts(get_contract, tx_failed):
     Reproduce: mod-by-zero inside a loop in an internal function with parameters
     should revert, but venom codegen silently returns 0.
 
-    The problem arose when the value was passed via stack and 
+    The problem arose when the value was passed via stack and
     palloca was used for the first time int the loop
     """
 
