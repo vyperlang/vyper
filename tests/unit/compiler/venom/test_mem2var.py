@@ -1,7 +1,8 @@
-from vyper.venom.passes import Mem2Var, MakeSSA
 from tests.venom_utils import PrePostChecker
+from vyper.venom.passes import MakeSSA, Mem2Var
 
 _check_pre_post = PrePostChecker([Mem2Var, MakeSSA])
+
 
 def test_mem2var_alloca_without_initalization():
     pre = """

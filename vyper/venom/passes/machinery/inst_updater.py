@@ -155,7 +155,12 @@ class InstUpdater:
         return self._insert_instruction(inst, opcode, args, after=True, var=var)
 
     def _insert_instruction(
-        self, inst: IRInstruction, opcode: str, args: list[IROperand], after: bool = False, var: IRVariable | None = None,
+        self,
+        inst: IRInstruction,
+        opcode: str,
+        args: list[IROperand],
+        after: bool = False,
+        var: IRVariable | None = None,
     ) -> Optional[IRVariable]:
         index = inst.parent.instructions.index(inst)
         if after:
