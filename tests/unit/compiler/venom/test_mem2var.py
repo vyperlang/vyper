@@ -30,7 +30,7 @@ def test_mem2var_alloca_without_initalization():
         %x = source
         %ptr = alloca 1, 32
 
-        ; by default set to zero to mimic 
+        ; by default set to zero to mimic
         ; uninitialized memory
         %alloca_ptr_0 = 0
         jmp @loop_header
