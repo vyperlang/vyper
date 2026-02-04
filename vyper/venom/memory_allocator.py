@@ -93,6 +93,8 @@ class MemoryAllocator:
 
     def compute_fn_eom(self) -> int:
         eom = 0
+        for ptr, size in self.global_allocation:
+            eom = max(eom, ptr + size)
         for alloca in self.allocated_fn:
             offset = self.allocated[alloca]
             eom = max(eom, offset + alloca.alloca_size)
