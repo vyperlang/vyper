@@ -62,6 +62,8 @@ class Mem2Var(IRPass):
         assert isinstance(size_lit, IRLiteral)
         size = size_lit.value
 
+        self.updater.add_after(alloca_inst, "assign", [IRLiteral(0)], var=var)
+
         for inst in uses.copy():
             if inst.opcode == "mstore":
                 if size == 32:

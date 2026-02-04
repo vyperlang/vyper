@@ -139,31 +139,31 @@ class InstUpdater:
         self.update(inst, "assign", [op], new_output=new_output)
 
     def add_before(
-        self, inst: IRInstruction, opcode: str, args: list[IROperand]
+        self, inst: IRInstruction, opcode: str, args: list[IROperand], var: IRVariable | None = None
     ) -> Optional[IRVariable]:
         """
         Insert another instruction before the given instruction
         """
-        return self._insert_instruction(inst, opcode, args, after=False)
+        return self._insert_instruction(inst, opcode, args, after=False, var=var)
 
     def add_after(
-        self, inst: IRInstruction, opcode: str, args: list[IROperand]
+        self, inst: IRInstruction, opcode: str, args: list[IROperand], var: IRVariable | None = None
     ) -> Optional[IRVariable]:
         """
         Insert another instruction after the given instruction
         """
-        return self._insert_instruction(inst, opcode, args, after=True)
+        return self._insert_instruction(inst, opcode, args, after=True, var=var)
 
     def _insert_instruction(
-        self, inst: IRInstruction, opcode: str, args: list[IROperand], after: bool = False
+        self, inst: IRInstruction, opcode: str, args: list[IROperand], after: bool = False, var: IRVariable | None = None,
     ) -> Optional[IRVariable]:
         index = inst.parent.instructions.index(inst)
         if after:
             index += 1
 
-        var = None
-        if opcode not in NO_OUTPUT_INSTRUCTIONS:
-            var = inst.parent.parent.get_next_variable()
+        if var is None:
+            if opcode not in NO_OUTPUT_INSTRUCTIONS:
+                var = inst.parent.parent.get_next_variable()
 
         operands = list(args)
         new_inst = IRInstruction(opcode, operands, [var] if var is not None else None)
