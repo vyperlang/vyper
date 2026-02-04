@@ -422,9 +422,6 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             if varaccess is not None:
                 self.loop_variables.pop()
 
-    def visit(self, node):
-        super().visit(node)
-
     def visit_AnnAssign(self, node):
         name = node.get("target.id")
         if name is None:
