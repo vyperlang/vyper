@@ -205,14 +205,6 @@ class ImportAnalyzer:
 
         path = _import_to_path(level, module_str)
 
-        # fast check for same relative path (avoids disk I/O for obvious duplicates)
-        if path in self.graph.imported_modules:
-            previous_import_stmt = self.graph.imported_modules[path]
-            raise DuplicateImport(f"{alias} imported more than once!", previous_import_stmt, node)
-
-        # store relative path for fast check on future imports
-        self.graph.imported_modules[path] = node
-
         err = None
 
         try:
