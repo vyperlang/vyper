@@ -202,6 +202,28 @@ def test_interleaved_case(interleave_point):
     _check_pre_post(pre, post)
 
 
+# TODO: enable when range analysis is available
+# def test_fold_shifted_add_chain():
+#     pre = """
+#     main:
+#         %x = source
+#         %tmp0 = shl %x, 5
+#         %tmp1 = add 32, %tmp0
+#         %tmp2 = add 31, %tmp1
+#         %out = shr %tmp2, 5
+#         sink %out
+#     """
+
+#     post = """
+#     main:
+#         %x = source
+#         %out = add 1, %x
+#         sink %out
+#     """
+
+#     _check_pre_post(pre, post)
+
+
 def test_offsets():
     """
     Test of addition to offset rewrites
