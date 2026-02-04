@@ -228,6 +228,9 @@ class ImportAnalyzer:
         try:
             file = self._load_file(path.with_suffix(".vyi"), level)
             assert isinstance(file, FileInput)  # mypy hint
+
+            self._check_duplicate_import(file, node, alias)
+
             module_ast = self._ast_from_file(file)
             self._resolve_imports_r(module_ast)
 
@@ -241,6 +244,9 @@ class ImportAnalyzer:
             if isinstance(file, FileInput):
                 file = try_parse_abi(file)
             assert isinstance(file, JSONInput)  # mypy hint
+
+            self._check_duplicate_import(file, node, alias)
+
             return file, file.data
         except FileNotFoundError:
             pass
