@@ -74,6 +74,11 @@ def analyze_module(root_module_ast: vy_ast.Module) -> ModuleT:
     _modules_call_graph_with_overrides(imports)
     _modules_compute_reachable_set_with_overrides(imports)
 
+    # check for event name collisions between defined and used events
+    # (needs to be after reachable set with overrides computation since used_events depends on it)
+    for module_ast in imports:
+        module_ast._metadata["type"].validate_used_events()
+
     return ret
 
 
@@ -146,11 +151,6 @@ def _analyze_module_bodies(module_ast: vy_ast.Module) -> None:
         _validate_used_modules(module_ast, module_t)
     finally:
         Namespace.context.reset(token)
-
-    # check for event name collisions between defined and used events
-    # NOTE: must come after analyze_functions() since it accesses
-    # reachable_internal_functions which is populated during analysis
-    module_t.validate_used_events()
 
 
 def _validate_used_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
