@@ -6,6 +6,7 @@ from vyper.exceptions import (
     CallViolation,
     FunctionDeclarationException,
     InterfaceViolation,
+    InvalidLiteral,
     InvalidReference,
     InvalidType,
     ModuleNotFound,
@@ -16,6 +17,10 @@ from vyper.exceptions import (
     TypeMismatch,
     UnknownAttribute,
 )
+import vyper.warnings
+
+# Warnings should be explicitly caught using pytest.warns, or will throw an error
+pytestmark = pytest.mark.filterwarnings("error")
 
 fail_list = [
     (
@@ -824,3 +829,25 @@ import foo as Foo
 
     with pytest.raises(PragmaException):
         compiler.compile_code(code, input_bundle=input_bundle)
+
+
+def test_interface_default_param_value_deprecation_warning():
+    code = """
+interface Foo:
+    def bar(a: uint256 = 123): view
+    """
+
+    with pytest.warns(vyper.warnings.Deprecation, match=r"Please use `\.\.\.` as default value\."):
+        compiler.compile_code(code)
+
+
+@pytest.mark.parametrize("decorator", ["@external", "@internal"])
+def test_ellipsis_default_param_outside_interface(decorator):
+    code = f"""
+{decorator}
+def foo(a: uint256 = ...):
+    pass
+    """
+
+    with pytest.raises(InvalidLiteral):
+        compiler.compile_code(code)

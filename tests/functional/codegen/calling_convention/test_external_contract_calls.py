@@ -1047,7 +1047,7 @@ def foo(arg1: uint256=1) -> uint256:
 
     contract_2 = """
 interface Foo:
-    def foo(arg1: uint256=1) -> uint256: nonpayable
+    def foo(arg1: uint256=...) -> uint256: nonpayable
 
 @external
 def bar(addr: address) -> uint256:
@@ -1071,7 +1071,7 @@ def foo(arg1: uint256, arg2: uint256=1) -> uint256:
 
     contract_2 = """
 interface Foo:
-    def foo(arg1: uint256, arg2: uint256=1) -> uint256: nonpayable
+    def foo(arg1: uint256, arg2: uint256=...) -> uint256: nonpayable
 
 @external
 def bar(addr: address, arg1: uint256) -> uint256:
