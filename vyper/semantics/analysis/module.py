@@ -76,6 +76,9 @@ def _analyze_module_r(module_ast: vy_ast.Module, is_interface: bool = False):
         ret = ModuleT(module_ast)
         module_ast._metadata["type"] = ret
 
+        # check for event name collisions between defined and used events
+        ret.validate_used_events()
+
         # if this is an interface, the function is already validated
         # in `ContractFunction.from_vyi()`
         if not is_interface:

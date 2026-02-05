@@ -47,6 +47,9 @@ class InterfaceT(_UserType):
         structs: dict,
         flags: dict,
     ) -> None:
+        # Note: If an event is reachable by a module, but not defined inside it,
+        # it will not be present in this `events` field, aka module.interface.events
+
         validate_unique_method_ids(list(functions.values()))
 
         members = functions | events | structs | flags
@@ -146,14 +149,6 @@ class InterfaceT(_UserType):
                 f"Contract does not implement all interface functions: {missing_str}", node
             )
 
-    def to_toplevel_abi_dict(self) -> list[dict]:
-        abi = []
-        for event in self.events.values():
-            abi += event.to_toplevel_abi_dict()
-        for func in self.functions.values():
-            abi += func.to_toplevel_abi_dict()
-        return abi
-
     # helper function which performs namespace collision checking
     @classmethod
     def _from_lists(
@@ -240,10 +235,7 @@ class InterfaceT(_UserType):
         for fn_t in module_t.exposed_functions:
             funcs.append((fn_t.name, fn_t))
 
-        event_set: OrderedSet[EventT] = OrderedSet()
-        event_set.update([node._metadata["event_type"] for node in module_t.event_defs])
-        event_set.update(module_t.used_events)
-        events = [(event_t.name, event_t) for event_t in event_set]
+        events = [(e.name, e._metadata["event_type"]) for e in module_t.event_defs]
 
         # these are accessible via import, but they do not show up
         # in the ABI json
@@ -549,6 +541,37 @@ class ModuleT(VyperType):
                 ret.add(call_t.typedef)
 
         return ret
+
+    def validate_used_events(self):
+        # check for name collisions between defined and used events
+        defined_events = {e._metadata["event_type"].name: e for e in self.event_defs}
+        for event in self.used_events:
+            if (
+                event.name in defined_events
+                and event != defined_events[event.name]._metadata["event_type"]
+            ):
+                prev = defined_events[event.name]
+                raise NamespaceCollision(
+                    f"multiple events named '{event.name}'!", event.decl_node, prev_decl=prev
+                )
+
+    def to_toplevel_abi_dict(self) -> list[dict]:
+        # Note: This is not a property only of an interface,
+        # since it requires information which is not local to a module, for example `used_events`
+        abi = []
+        internal_events = self.interface.events
+        external_events = self.used_events
+
+        self.validate_used_events()
+
+        events: OrderedSet[EventT] = OrderedSet(internal_events.values())
+        events.update(external_events)
+
+        for event in events:
+            abi += event.to_toplevel_abi_dict()
+        for func in self.interface.functions.values():
+            abi += func.to_toplevel_abi_dict()
+        return abi
 
     @cached_property
     def immutables(self):
