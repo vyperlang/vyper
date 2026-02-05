@@ -1,5 +1,6 @@
 import pytest
 
+import vyper.warnings
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
@@ -17,7 +18,6 @@ from vyper.exceptions import (
     TypeMismatch,
     UnknownAttribute,
 )
-import vyper.warnings
 
 # Warnings should be explicitly caught using pytest.warns, or will throw an error
 pytestmark = pytest.mark.filterwarnings("error")

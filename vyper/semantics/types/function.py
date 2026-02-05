@@ -942,7 +942,7 @@ def _parse_args(
 
             if not check_modifiability(value, Modifiability.RUNTIME_CONSTANT):
                 raise StateAccessViolation("Value must be literal or environment variable", value)
-            
+
             if not isinstance(value, vy_ast.Ellipsis):
                 validate_expected_type(value, type_)
             keyword_args.append(KeywordArg(argname, type_, ast_source=arg, default_value=value))
