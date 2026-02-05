@@ -1,4 +1,6 @@
 from .algebraic_optimization import AlgebraicOptimizationPass
+from .assert_combiner import AssertCombinerPass
+from .assert_elimination import AssertEliminationPass
 from .assign_elimination import AssignElimination
 from .branch_optimization import BranchOptimizationPass
 from .cfg_normalization import CFGNormalization
@@ -16,6 +18,7 @@ from .lower_dload import LowerDloadPass
 from .make_ssa import MakeSSA
 from .mem2var import Mem2Var
 from .memmerging import MemMergePass
+from .memory_copy_elision import MemoryCopyElisionPass
 from .phi_elimination import PhiEliminationPass
 from .remove_unused_variables import RemoveUnusedVariablesPass
 from .revert_to_assert import RevertToAssert

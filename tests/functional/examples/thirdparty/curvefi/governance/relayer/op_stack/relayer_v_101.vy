@@ -16,7 +16,7 @@ interface IMessenger:
     def xDomainMessageSender() -> address: view
 
 
-enum Agent:
+flag Agent:
     OWNERSHIP
     PARAMETER
     EMERGENCY

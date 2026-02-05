@@ -78,6 +78,7 @@ class VenomOptimizationFlags:
     disable_dead_store_elimination: bool = False
     disable_algebraic_optimization: bool = False
     disable_branch_optimization: bool = False
+    disable_assert_elimination: bool = False
     disable_mem2var: bool = False
     disable_simplify_cfg: bool = False
     disable_remove_unused_variables: bool = False

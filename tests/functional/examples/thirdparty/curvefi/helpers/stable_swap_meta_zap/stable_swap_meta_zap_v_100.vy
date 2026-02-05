@@ -133,7 +133,7 @@ def _base_pool_data(_pool: address) -> (address, DynArray[address, MAX_COINS]):
         base_pool, base_coins = self._fetch_base_pool_data(_pool)
 
         self.base_pool_registry[_pool] = BasePool(
-            {pool_address: base_pool, coins: base_coins}
+            pool_address=base_pool, coins=base_coins
         )
         return base_pool, base_coins
 
