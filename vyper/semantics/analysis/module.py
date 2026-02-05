@@ -297,25 +297,24 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             err_list.raise_if_not_empty()
 
     def validate_initialized_modules(self):
-        # check all `initializes:` modules have `__init__()` called exactly once
+        # check all `initializes:` modules have `__init__()` called exactly once,
+        # and check they are called in dependency order
         module_t = self.ast._metadata["type"]
         should_initialize = {t.module_info.module_t: t for t in module_t.initialized_modules}
+
         # don't call `__init__()` for modules which don't have
         # `__init__()` function
         for m in should_initialize.copy():
-            for f in m.functions.values():
-                if f.is_constructor:
-                    break
-            else:
+            if m.init_function is None:
                 del should_initialize[m]
 
         init_calls = []
-        for f in self.ast.get_children(vy_ast.FunctionDef):
-            if f._metadata["func_type"].is_constructor:
-                init_calls = f.get_descendants(vy_ast.Call)
-                break
+        if module_t.init_function is not None:
+            init_calls = module_t.init_function.ast_def.get_descendants(vy_ast.Call)
 
+        # map of seen __init__() function calls
         seen_initializers = {}
+
         for call_node in init_calls:
             expr_info = call_node.func._expr_info
             if expr_info is None:
@@ -323,7 +322,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 # refactor so that range() is properly tagged.
                 continue
 
-            call_t = call_node.func._expr_info.typ
+            call_t = expr_info.typ
 
             if not isinstance(call_t, ContractFunctionT):
                 continue

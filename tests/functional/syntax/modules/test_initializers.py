@@ -114,6 +114,59 @@ def __init__():
     assert compile_code(main, input_bundle=input_bundle) is not None
 
 
+# test multiple uses in different nodes of the import tree
+def test_distant_use_initialize(make_input_bundle):
+    lib3 = """
+counter: uint256
+
+@deploy
+def __init__():
+    self.counter = 1
+    """
+    lib2 = """
+import lib3
+
+uses: lib3
+
+counter: uint256
+
+@deploy
+def __init__():
+    self.counter = 1
+
+@external
+def foo() ->uint256:
+    return lib3.counter
+    """
+    lib1 = """
+import lib2
+import lib3
+
+uses: lib3
+initializes: lib2[lib3 := lib3]
+
+@deploy
+def __init__():
+    lib2.__init__()
+    lib3.counter += 1
+    """
+    main = """
+import lib1
+import lib3
+
+initializes: lib1[lib3 := lib3]
+initializes: lib3
+
+@deploy
+def __init__():
+    lib3.__init__()
+    lib1.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
+
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
 def test_initialize_multi_line_uses(make_input_bundle):
     lib1 = """
 counter: uint256
@@ -197,10 +250,10 @@ initializes: lib1
 
 @deploy
 def __init__():
-    lib2.__init__()
     # demonstrate we can call lib1.__init__ through lib2.lib1
     # (not sure this should be allowed, really.
     lib2.lib1.__init__()
+    lib2.__init__()
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
 
@@ -234,6 +287,199 @@ def __init__():
     pass
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_initialize_wrong_order(make_input_bundle):
+    lib1 = """
+counter: uint256
+
+@deploy
+def __init__():
+    pass
+    """
+    lib2 = """
+import lib1
+
+uses: lib1
+
+counter: uint256
+
+@deploy
+def __init__():
+    pass
+
+@internal
+def foo():
+    lib1.counter += 1
+    """
+    main = """
+import lib1
+import lib2
+
+initializes: lib2[lib1 := lib1]
+initializes: lib1
+
+@deploy
+def __init__():
+    lib2.__init__()
+    lib1.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    with pytest.raises(InitializerException) as e:
+        assert compile_code(main, input_bundle=input_bundle) is not None
+
+    expected = "Tried to initialize `lib2`, but it depends on `lib1`, "
+    expected += "which has not been initialized yet."
+    assert e.value._message == expected
+    assert e.value._hint == "call `lib1.__init__()` before `lib2.__init__()`."
+
+
+def test_initializer_order_nested(make_input_bundle):
+    lib1 = """
+a: public(uint256)
+
+@deploy
+@payable
+def __init__(x: uint256):
+    self.a = x
+    """
+    lib2 = """
+import lib1
+
+uses: lib1
+
+a: uint256
+
+@deploy
+def __init__():
+    # not initialized when called
+    self.a = lib1.a
+    """
+    lib3 = """
+import lib1
+
+initializes: lib1
+
+a: uint256
+
+@deploy
+@payable
+def __init__(x: uint256):
+    self.a = x
+    lib1.__init__(0)
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
+
+    main1 = """
+import lib1
+import lib2
+import lib3
+
+initializes: lib2[lib1 := lib1]
+initializes: lib3
+
+@deploy
+def __init__():
+    lib3.__init__(0)
+    lib2.__init__()
+    """
+    assert compile_code(main1, input_bundle=input_bundle) is not None
+
+    main2 = """
+import lib1
+import lib2
+import lib3
+
+initializes: lib2[lib1 := lib1]
+initializes: lib3
+
+@deploy
+def __init__():
+    lib2.__init__()  # opposite order!
+    lib3.__init__(0)
+    """
+    with pytest.raises(InitializerException) as e:
+        compile_code(main2, input_bundle=input_bundle)
+
+    expected = "Tried to initialize `lib2`, but it depends on `lib1`, which "
+    expected += "has not been initialized yet."
+    assert e.value._message == expected
+
+    assert e.value._hint == "call `lib1.__init__()` before `lib2.__init__()`."
+
+
+def test_initializer_nested_order2(make_input_bundle):
+    lib1 = """
+import lib4
+
+a: public(uint256)
+
+initializes: lib4
+
+@deploy
+@payable
+def __init__(x: uint256):
+    self.a = x
+    lib4.__init__(x)
+    """
+
+    lib2 = """
+import lib1
+import lib4
+
+uses: lib1
+uses: lib4
+
+a: uint256
+
+@deploy
+def __init__():
+    # not initialized when called
+    self.a = lib1.a + lib4.a
+    """
+
+    lib3 = """
+import lib1
+
+initializes: lib1
+
+a: uint256
+
+@deploy
+@payable
+def __init__(x: uint256):
+    self.a = x
+    lib1.__init__(0)
+    """
+    lib4 = """
+a: uint256
+
+@deploy
+@payable
+def __init__(x: uint256):
+    self.a = x
+    """
+    main = """
+import lib1
+import lib2
+import lib3
+import lib4
+
+initializes: lib2[lib1 := lib1, lib4 := lib4]
+initializes: lib3
+
+@deploy
+def __init__():
+    lib3.__init__(0)
+    lib2.__init__()
+    """
+
+    input_bundle = make_input_bundle(
+        {"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3, "lib4.vy": lib4}
+    )
 
     assert compile_code(main, input_bundle=input_bundle) is not None
 
