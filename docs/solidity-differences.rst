@@ -220,7 +220,7 @@ The compiler generates the mutex. No manual reentrancy guard implementation requ
 
    The 2016 DAO hack exploited reentrancy to drain ~$60M in ETH (worth ~$150M at the time). This led to the Ethereum hard fork that created Ethereum Classic.
 
-The ``@nonreentrant`` decorator, combined with the ``extcall`` keyword, makes reentrancy points visible during review. Note that ``@nonreentrant`` is opt-in and does not prevent all reentrancy patterns (e.g., cross-contract reentrancy).
+The ``extcall`` keyword makes external call sites explicit and easy to spot during code review. Note that ``@nonreentrant`` is opt-in and uses a global lock that protects against same-contract reentrancy. It does not prevent cross-contract reentrancy. See :ref:`control-structures` for details on the lock behavior.
 
 Syntax Differences
 ==================
@@ -291,7 +291,7 @@ Vyper:
     def __init__(_owner: address):
         self.owner = _owner
 
-The ``@deploy`` decorator marks the constructor (added in 0.4.0). By convention, constructor parameters use underscore prefixes to distinguish them from state variables.
+The ``@deploy`` decorator marks the constructor.
 
 Events
 ------
