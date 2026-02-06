@@ -39,7 +39,7 @@ jobs:
               body: marker + '\n\n⏳ **Recalculating bytecode sizes...**'
             });
 
-      - name: Checkout merge commit (for scripts)
+      - name: Checkout merge commit
         uses: actions/checkout@v4
         with:
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
