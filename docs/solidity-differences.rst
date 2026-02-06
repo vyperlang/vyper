@@ -144,7 +144,7 @@ Every function has a calculable maximum gas cost. Unbounded storage iteration ca
 
 .. note::
 
-   Vyper's bounded loops and lack of recursion make gas costs statically analyzable. The official documentation states: "It is possible to compute a precise upper bound for the gas consumption of any Vyper function call."
+   Vyper's bounded loops and lack of recursion make gas costs statically analyzable—every function call has a calculable upper bound (see :ref:`design-principles`).
 
 No Recursion
 ============
