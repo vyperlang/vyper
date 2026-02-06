@@ -31,6 +31,7 @@ from vyper.venom.passes import (
     RevertToAssert,
     SimplifyCFGPass,
     SingleUseExpansion,
+    LoopInvariantHoisting,
 )
 
 # Aggressive optimizations (O3)
@@ -69,6 +70,7 @@ PASSES_O3: List[PassConfig] = [
     (DeadStoreElimination, {"addr_space": TRANSIENT}),
     AssignElimination,
     RemoveUnusedVariablesPass,
+    LoopInvariantHoisting,
     ConcretizeMemLocPass,
     SCCP,
     SimplifyCFGPass,
