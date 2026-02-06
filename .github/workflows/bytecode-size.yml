@@ -82,7 +82,7 @@ jobs:
       - name: Generate report
         id: report
         run: |
-          python3 head/.github/scripts/compare_bytecode.py base-sizes.json head-sizes.json > report.md
+          python3 base/.github/scripts/compare_bytecode.py base-sizes.json head-sizes.json > report.md
           cat report.md >> "$GITHUB_STEP_SUMMARY"
           {
             echo 'REPORT<<EOF'
