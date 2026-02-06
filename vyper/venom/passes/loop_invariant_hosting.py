@@ -37,20 +37,19 @@ class LoopInvariantHoisting(IRPass):
     dfg: DFGAnalysis
 
     def run_pass(self):
-        self.analyses_cache.request_analysis(CFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
-        loops = self.analyses_cache.request_analysis(NaturalLoopDetectionAnalysis)
-        assert isinstance(loops, NaturalLoopDetectionAnalysis)
-        self.loops = loops.loops
+        self.loop_analysis = self.analyses_cache.request_analysis(NaturalLoopDetectionAnalysis)
+        self.loops = self.loop_analysis.loops
         invalidate = False
         while True:
             change = False
-            for from_bb, loop in self.loops.items():
-                hoistable: list[IRInstruction] = self._get_hoistable_loop(from_bb, loop)
+            for header, loop in self.loops.items():
+                hoistable: list[IRInstruction] = self._get_hoistable_loop(header, loop)
                 if len(hoistable) == 0:
                     continue
                 change |= True
-                self._hoist(from_bb, hoistable)
+                self._hoist(header, hoistable)
             if not change:
                 break
             invalidate = True
@@ -59,7 +58,9 @@ class LoopInvariantHoisting(IRPass):
         if invalidate:
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
-    def _hoist(self, target_bb: IRBasicBlock, hoistable: list[IRInstruction]):
+    def _hoist(self, header: IRBasicBlock, hoistable: list[IRInstruction]):
+        target_bb = self.loop_analysis.get_pre_header(header)
+        assert target_bb is not None
         for inst in hoistable:
             bb = inst.parent
             bb.remove_instruction(inst)
@@ -113,6 +114,8 @@ class LoopInvariantHoisting(IRPass):
     def _can_hoist_instruction_ignore_assign(
         self, inst: IRInstruction, loop: OrderedSet[IRBasicBlock], loop_effects: Effects
     ) -> bool:
+        if inst.is_volatile:
+            return False
         if (inst.get_read_effects() & loop_effects) != EMPTY:
             return False
         if _ignore_instruction(inst):

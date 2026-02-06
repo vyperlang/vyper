@@ -88,8 +88,6 @@ def test_loop_detection_analysis(depth, count):
     {loops}
     """
 
-    print(code)
-
     ctx = parse_from_basic_block(code)
     assert len(ctx.functions) == 1
 
@@ -129,7 +127,6 @@ def test_loop_invariant_hoisting_simple(depth, count):
     """
 
     ctx = parse_from_basic_block(pre)
-    print(ctx)
 
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
@@ -141,9 +138,6 @@ def test_loop_invariant_hoisting_simple(depth, count):
     for fn in post_ctx.functions.values():
         ac = IRAnalysesCache(fn)
         _helper_reorder(fn)
-
-    print(ctx)
-    print(post_ctx)
 
     assert_ctx_eq(ctx, post_ctx)
 
@@ -176,7 +170,6 @@ def test_loop_invariant_hoisting_dependant(depth, count):
     """
 
     ctx = parse_from_basic_block(pre)
-    print(ctx)
 
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
@@ -188,8 +181,6 @@ def test_loop_invariant_hoisting_dependant(depth, count):
     for fn in post_ctx.functions.values():
         _helper_reorder(fn)
 
-    print(ctx)
-    print(post_ctx)
 
     assert_ctx_eq(ctx, post_ctx)
 
@@ -216,13 +207,11 @@ def test_loop_invariant_hoisting_unhoistable(depth, count):
     """
 
     ctx = parse_from_basic_block(pre)
-    print(ctx)
 
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
         LoopInvariantHoisting(ac, fn).run_pass()
 
-    print(ctx)
 
     orig = parse_from_basic_block(pre)
 
