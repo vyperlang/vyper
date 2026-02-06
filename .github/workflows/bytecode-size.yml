@@ -2,9 +2,9 @@ name: Bytecode Size Report
 
 on:
   pull_request:
-    branches: [master, main]
+    branches: [master]
   pull_request_target:
-    branches: [master, main]
+    branches: [master]
 
 permissions:
   contents: read
