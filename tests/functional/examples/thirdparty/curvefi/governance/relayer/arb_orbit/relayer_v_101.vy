@@ -17,7 +17,7 @@ interface IArbSys:
     def myCallersAddressWithoutAliasing() -> address: view
 
 
-enum Agent:
+flag Agent:
     OWNERSHIP
     PARAMETER
     EMERGENCY
