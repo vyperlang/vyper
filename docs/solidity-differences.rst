@@ -162,7 +162,7 @@ Storage arrays require a maximum size at compile time:
 
     balances: DynArray[uint256, 100]
 
-Gas costs remain predictable, and attackers cannot grow arrays until iteration exceeds the block limit. For unbounded collections, use ``HashMap``.
+This keeps gas costs predictable and prevents denial-of-service attacks where an attacker grows an array until iteration exceeds the block gas limit. For unbounded collections, use ``HashMap``.
 
 
 Explicit Type Conversions
@@ -200,7 +200,7 @@ Bounds Checking
 
 Array accesses and arithmetic are bounds-checked at runtime. Out-of-bounds access reverts. Integer overflow reverts.
 
-Solidity 0.8+ provides similar overflow protection, but it can be disabled with ``unchecked`` blocks. Vyper keeps checks on by default; opt-out requires explicit ``unsafe_*`` builtins.
+Solidity 0.8+ provides similar overflow protection, which is disabled in ``unchecked`` blocks. In Vyper, there is no way to disable the checks. For cases where wrapping behavior is needed, there are explicit ``unsafe_*`` builtins.
 
 Reentrancy Protection
 =====================
