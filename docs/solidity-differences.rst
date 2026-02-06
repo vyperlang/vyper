@@ -288,8 +288,8 @@ Vyper:
 .. code-block:: vyper
 
     @deploy
-    def __init__(_owner: address):
-        self.owner = _owner
+    def __init__(owner: address):
+        self.owner = owner
 
 The ``@deploy`` decorator marks the constructor.
 
