@@ -187,9 +187,11 @@ Native fixed-point arithmetic with 10 decimal places:
 
 .. code-block:: vyper
 
-    price: decimal = 1.5
-    quantity: decimal = 2.0
-    total: decimal = price * quantity  # 3.0
+    a: decimal = 0.1
+    b: decimal = 0.2
+    total: decimal = a + b  # exactly 0.3
+
+Values like ``0.1`` and ``0.2`` cannot be represented exactly in binary floating point, but Vyper's base-10 decimal type handles them precisely.
 
 Solidity lacks a native fixed-point type, requiring manual integer scaling.
 
