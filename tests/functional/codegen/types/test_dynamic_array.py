@@ -1913,6 +1913,24 @@ def foo():
         c.foo()
 
 
+def test_dynarray_append_single_field_struct_storage(get_contract):
+    """Single-field struct stores value, not pointer."""
+    code = """
+struct Point:
+    x: uint256
+
+data: DynArray[Point, 10]
+
+@external
+def test_append() -> uint256:
+    p: Point = Point(x=42)
+    self.data.append(p)
+    return self.data[0].x
+    """
+    c = get_contract(code)
+    assert c.test_append() == 42
+
+
 def test_dynarray_copy_oog(env, get_contract, tx_failed):
     # GHSA-vgf2-gvx8-xwc3
     code = """
@@ -1967,3 +1985,57 @@ def foo(x: String[1000000], y: String[1000000]) -> DynArray[String[1000000], 2]:
         # depends on EVM version. pre-cancun, will revert due to checking
         # success flag from identity precompile.
         c.foo(calldata0, calldata1, gas=gas_used)
+
+
+def test_dynarray_append_self_ref_regression(get_contract):
+    """
+    Regression test for DynArray.append overlap detection bug.
+    Self-referential appends must copy the arg before append mutates the array.
+    This is critical for complex types (nested arrays, structs, bytes) where
+    the append operation could clobber the source data.
+    """
+    # Test nested DynArray - this is the critical bug case
+    code_nested = """
+@external
+def test_append_self_ref_nested() -> DynArray[DynArray[uint256, 3], 5]:
+    arr: DynArray[DynArray[uint256, 3], 5] = [[1, 2, 3], [4, 5, 6]]
+    arr.append(arr[0])  # Should append [1, 2, 3]
+    return arr  # Expected: [[1, 2, 3], [4, 5, 6], [1, 2, 3]]
+    """
+    c = get_contract(code_nested)
+    assert c.test_append_self_ref_nested() == [[1, 2, 3], [4, 5, 6], [1, 2, 3]]
+
+
+def test_dynarray_append_self_ref_struct_regression(get_contract):
+    """
+    Regression test for DynArray.append with self-referential struct append.
+    """
+    code_struct = """
+struct Point:
+    x: uint256
+    y: uint256
+
+@external
+def test_append_self_ref_struct() -> DynArray[Point, 5]:
+    arr: DynArray[Point, 5] = [Point(x=1, y=2), Point(x=3, y=4)]
+    arr.append(arr[0])  # Should append Point(x=1, y=2)
+    return arr  # Expected: [Point(1,2), Point(3,4), Point(1,2)]
+    """
+    c = get_contract(code_struct)
+    result = c.test_append_self_ref_struct()
+    assert result == [(1, 2), (3, 4), (1, 2)]
+
+
+def test_dynarray_append_self_ref_bytes_regression(get_contract):
+    """
+    Regression test for DynArray.append with self-referential bytes append.
+    """
+    code_bytes = """
+@external
+def test_append_self_ref_bytes() -> DynArray[Bytes[32], 5]:
+    arr: DynArray[Bytes[32], 5] = [b"hello", b"world"]
+    arr.append(arr[0])
+    return arr  # Expected: [b"hello", b"world", b"hello"]
+    """
+    c = get_contract(code_bytes)
+    assert c.test_append_self_ref_bytes() == [b"hello", b"world", b"hello"]

@@ -1562,6 +1562,21 @@ def foo(a:Bytes[{buffer_size}]):
         c.foo(_abi_payload_from_tuple(payload, buffer_size))
 
 
+def test_abi_decode_storage_bytes(get_contract):
+    """Regression test: abi_decode correctly handles storage bytes as input."""
+    code = """
+stored_data: Bytes[128]
+
+@external
+def test_decode() -> uint256:
+    x: uint256 = 42
+    self.stored_data = abi_encode(x)
+    return abi_decode(self.stored_data, uint256)
+    """
+    c = get_contract(code)
+    assert c.test_decode() == 42
+
+
 # returndatasize check for uint256
 def test_returndatasize_check(get_contract, tx_failed):
     code = """

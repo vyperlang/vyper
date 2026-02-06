@@ -6,6 +6,7 @@ from typing import Iterable
 import vyper.ast as vy_ast
 from vyper.ast.utils import ast_to_dict
 from vyper.codegen.ir_node import IRnode
+from vyper.codegen_venom import _pass_via_stack, _returns_word
 from vyper.compiler.output_bundle import SolcJSONWriter, VyperArchiveWriter
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
@@ -16,7 +17,6 @@ from vyper.ir import compile_ir
 from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
 from vyper.utils import safe_relpath
-from vyper.venom.ir_node_to_venom import _pass_via_stack, _returns_word
 from vyper.warnings import ContractSizeLimit, vyper_warn
 
 
@@ -166,29 +166,29 @@ def build_interface_output(compiler_data: CompilerData) -> str:
     return out
 
 
-def build_bb_output(compiler_data: CompilerData) -> IRnode:
-    return compiler_data.venom_deploytime
-
-
-def build_bb_runtime_output(compiler_data: CompilerData) -> IRnode:
-    return compiler_data.venom_runtime
-
-
 def build_cfg_output(compiler_data: CompilerData) -> str:
+    if not compiler_data.settings.experimental_codegen:
+        raise ValueError("cfg output requires --experimental-codegen")
     return compiler_data.venom_deploytime.as_graph()
 
 
 def build_cfg_runtime_output(compiler_data: CompilerData) -> str:
+    if not compiler_data.settings.experimental_codegen:
+        raise ValueError("cfg_runtime output requires --experimental-codegen")
     return compiler_data.venom_runtime.as_graph()
 
 
-def build_ir_output(compiler_data: CompilerData) -> IRnode:
+def build_ir_output(compiler_data: CompilerData):
+    if compiler_data.settings.experimental_codegen:
+        return compiler_data.venom_deploytime
     if compiler_data.show_gas_estimates:
         IRnode.repr_show_gas = True
     return compiler_data.ir_nodes
 
 
-def build_ir_runtime_output(compiler_data: CompilerData) -> IRnode:
+def build_ir_runtime_output(compiler_data: CompilerData):
+    if compiler_data.settings.experimental_codegen:
+        return compiler_data.venom_runtime
     if compiler_data.show_gas_estimates:
         IRnode.repr_show_gas = True
     return compiler_data.ir_runtime

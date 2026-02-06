@@ -45,7 +45,7 @@ _writes = {
     "sstore": STORAGE,
     "tstore": TRANSIENT,
     "mstore": MEMORY,
-    "istore": IMMUTABLES,
+    "istore": IMMUTABLES | MEMORY,
     "call": ALL ^ IMMUTABLES,
     "delegatecall": ALL ^ IMMUTABLES,
     "staticcall": MEMORY | RETURNDATA,
@@ -65,7 +65,7 @@ _writes = {
 _reads = {
     "sload": STORAGE,
     "tload": TRANSIENT,
-    "iload": IMMUTABLES,
+    "iload": IMMUTABLES | MEMORY,
     "mload": MEMORY,
     "mcopy": MEMORY,
     "call": ALL,
