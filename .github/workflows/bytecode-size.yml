@@ -55,6 +55,9 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Copy scripts to base
+        run: cp -r head/.github/scripts base/.github/
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -74,12 +77,12 @@ jobs:
 
       - name: Measure merge bytecode sizes
         working-directory: head
-        run: python3 ../base/.github/scripts/measure_bytecode.py > ../head-sizes.json
+        run: python .github/scripts/measure_bytecode.py > ../head-sizes.json
 
       - name: Generate report
         id: report
         run: |
-          python3 base/.github/scripts/compare_bytecode.py base-sizes.json head-sizes.json > report.md
+          python3 head/.github/scripts/compare_bytecode.py base-sizes.json head-sizes.json > report.md
           cat report.md >> "$GITHUB_STEP_SUMMARY"
           {
             echo 'REPORT<<EOF'
