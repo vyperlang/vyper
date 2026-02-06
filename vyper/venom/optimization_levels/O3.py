@@ -71,8 +71,6 @@ PASSES_O3: List[PassConfig] = [
     AssignElimination,
     RemoveUnusedVariablesPass,
     LoopInvariantHoisting,
-    AssignElimination,
-    RemoveUnusedVariablesPass,
     ConcretizeMemLocPass,
     SCCP,
     SimplifyCFGPass,
