@@ -183,7 +183,7 @@ Vyper allows safe automatic widening (e.g., ``uint8`` to ``uint256``) but requir
 Decimal Type
 ============
 
-Native fixed-point arithmetic with 10 decimal places:
+Native base-10 fixed-point arithmetic with 10 fractional digits:
 
 .. code-block:: vyper
 
