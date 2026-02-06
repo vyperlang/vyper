@@ -137,13 +137,13 @@ Values that are declared in the module scope of a contract, such as storage vari
     a: int128
 
     @internal
-    def foo() -> int128
+    def foo() -> int128:
         return 42
 
     @external
-    def foo() -> int128:
+    def bar() -> int128:
         b: int128 = self.foo()
-        return self.a  + b
+        return self.a + b
 
 Name Shadowing
 **************
@@ -159,6 +159,7 @@ It is not permitted for a memory or calldata variable to shadow the name of an i
         # memory variable cannot have the same name as a constant or immutable variable
         a: bool = False
         return a
+
 .. code-block:: vyper
 
     a: immutable(bool)

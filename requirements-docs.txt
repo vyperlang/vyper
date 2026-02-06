@@ -1,3 +1,4 @@
 shibuya==2024.1.17
 sphinx==7.2.6
 sphinx-copybutton==0.5.2
+sphinx-reredirects==0.1.5

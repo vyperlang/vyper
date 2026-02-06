@@ -12,7 +12,9 @@ Vyper
     :maxdepth: 2
 
     installing-vyper.rst
-    vyper-by-example.rst
+    quickstart.rst
+    solidity-differences.rst
+    vyper-by-example/index
 
 .. toctree::
     :caption: Language Description
