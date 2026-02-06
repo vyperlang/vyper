@@ -198,7 +198,7 @@ Solidity lacks a native fixed-point type, requiring manual integer scaling.
 Bounds Checking
 ===============
 
-Array accesses and arithmetic are bounds-checked. Out-of-bounds access reverts. Integer overflow reverts.
+Array accesses and arithmetic are bounds-checked at runtime. Out-of-bounds access reverts. Integer overflow reverts.
 
 Solidity 0.8+ provides similar overflow protection, but it can be disabled with ``unchecked`` blocks. Vyper keeps checks on by default; opt-out requires explicit ``unsafe_*`` builtins.
 
