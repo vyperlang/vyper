@@ -178,7 +178,7 @@ Vyper requires explicit type conversions:
     addr: address = 0x1234...
     num: uint160 = convert(addr, uint160)
 
-Conversions between signed/unsigned integers or addresses and integers are visible in the code. No implicit casts that might hide bugs.
+Vyper allows safe automatic widening (e.g., ``uint8`` to ``uint256``) but requires explicit ``convert()`` for potentially lossy or semantically significant conversions, such as signed/unsigned, addresses to integers, or narrowing types.
 
 Decimal Type
 ============
