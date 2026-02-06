@@ -137,12 +137,12 @@ Values that are declared in the module scope of a contract, such as storage vari
     a: int128
 
     @internal
-    def _foo() -> int128:
+    def foo() -> int128:
         return 42
 
     @external
     def bar() -> int128:
-        b: int128 = self._foo()
+        b: int128 = self.foo()
         return self.a + b
 
 Name Shadowing
