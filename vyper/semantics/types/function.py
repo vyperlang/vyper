@@ -141,6 +141,7 @@ class ContractFunctionT(VyperType):
 
         self.ast_def = ast_def
 
+        self.is_getter = is_getter
         self._analysed = False
 
         # a list of internal functions this function calls.
@@ -156,11 +157,12 @@ class ContractFunctionT(VyperType):
         self.reachable_internal_functions: OrderedSet[ContractFunctionT] | None = None
         self.reachable_internal_functions_with_overrides: OrderedSet[
             ContractFunctionT
-        ] = OrderedSet()
+        ] | None = None  # Set only during `_function_compute_reachable_set_with_overrides`
 
         # These kinds of functions don't get analyzed (and don't call other functions)
         if self.is_getter or self.from_interface:
             self.reachable_internal_functions = OrderedSet()
+            self.reachable_internal_functions_with_overrides = OrderedSet()
 
         # writes to variables from this function
         self._variable_writes: OrderedSet[VarAccess] = OrderedSet()
@@ -210,12 +212,13 @@ class ContractFunctionT(VyperType):
     def get_variable_accesses(self):
         return self._variable_reads | self._variable_writes
 
-    # TODO: Update to use reachable_internal_functions_with_overrides ?
     def uses_state(self):
         return (
             self.nonreentrant
             or uses_state(self.get_variable_accesses())
-            or any(f.nonreentrant for f in self.reachable_internal_functions)
+            or any(
+                f.nonreentrant for f in self.reachable_internal_functions
+            )  # We shouldn't look at overrides to check if we use state
         )
 
     def get_used_modules(self):

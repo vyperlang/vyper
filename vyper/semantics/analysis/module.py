@@ -1043,6 +1043,13 @@ def _function_compute_reachable_set_with_overrides(
 
     path.append(fn_t)
 
+    # If it has already been through this, reuse output
+    if fn_t.reachable_internal_functions_with_overrides is not None:
+        path.pop()
+        return
+
+    fn_t.reachable_internal_functions_with_overrides = OrderedSet()
+
     for g in fn_t.called_functions_with_overrides:
         # The overrides have been resolved, there should be no abstract left
         assert not g.is_abstract
