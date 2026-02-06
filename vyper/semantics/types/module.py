@@ -517,16 +517,20 @@ class ModuleT(VyperType):
     # it would be nice to rely on the function analyzer to do this analysis,
     # but we don't have the result of function analysis at the time we need to
     # construct `self.interface`.
+    # TODO: self.interface does not use `used_events` anymore, refactor this ?
     def used_events(self) -> OrderedSet[EventT]:
         ret: OrderedSet[EventT] = OrderedSet()
 
         reachable: OrderedSet[ContractFunctionT] = OrderedSet()
         if self.init_function is not None:
             reachable.add(self.init_function)
-            reachable.update(self.init_function.reachable_internal_functions)
+            reachable.update(self.init_function.reachable_internal_functions_with_overrides)
         for fn_t in self.exposed_functions:
+            # getter functions can't emit events, skip them
+            if fn_t.is_getter:
+                continue
             reachable.add(fn_t)
-            reachable.update(fn_t.reachable_internal_functions)
+            reachable.update(fn_t.reachable_internal_functions_with_overrides)
 
         for fn_t in reachable:
             fn_ast = fn_t.decl_node
