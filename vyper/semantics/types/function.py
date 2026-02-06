@@ -84,6 +84,8 @@ class ContractFunctionT(VyperType):
         enum indicating the authority a function has to mutate it's own state.
     nonreentrant : bool
         Whether this function is marked `@nonreentrant` or not
+    is_getter : bool
+        Whether this function is an automatically generated getter for a public member
     """
 
     typeclass = "contract_function"
@@ -102,6 +104,7 @@ class ContractFunctionT(VyperType):
         nonreentrant: bool = False,
         do_raw_return: bool = False,
         ast_def: Optional[vy_ast.VyperNode] = None,
+        is_getter: bool = False,
     ) -> None:
         super().__init__()
 
@@ -114,6 +117,7 @@ class ContractFunctionT(VyperType):
         self.nonreentrant = nonreentrant
         self.do_raw_return = do_raw_return
         self.from_interface = from_interface
+        self.is_getter = is_getter
 
         # sanity check, nonreentrant used to be Optional[str]
         assert isinstance(self.nonreentrant, bool)
@@ -128,7 +132,11 @@ class ContractFunctionT(VyperType):
 
         # recursively reachable from this function
         # to be populated during module analysis.
-        self.reachable_internal_functions: OrderedSet[ContractFunctionT] = OrderedSet()
+        self.reachable_internal_functions: OrderedSet[ContractFunctionT] | None = None
+
+        # These kinds of functions don't get analyzed (and don't call other functions)
+        if self.is_getter or self.from_interface:
+            self.reachable_internal_functions = OrderedSet()
 
         # writes to variables from this function
         self._variable_writes: OrderedSet[VarAccess] = OrderedSet()
@@ -400,7 +408,9 @@ class ContractFunctionT(VyperType):
         )
 
     @classmethod
-    def from_FunctionDef(cls, funcdef: vy_ast.FunctionDef) -> "ContractFunctionT":
+    def from_FunctionDef(
+        cls, funcdef: vy_ast.FunctionDef, is_getter: bool = False
+    ) -> "ContractFunctionT":
         """
         Generate a `ContractFunctionT` object from a `FunctionDef` node.
 
@@ -509,6 +519,7 @@ class ContractFunctionT(VyperType):
             nonreentrant=nonreentrant,
             do_raw_return=decorators.raw_return,
             ast_def=funcdef,
+            is_getter=is_getter,
         )
 
     def set_reentrancy_key_position(self, position: VarOffset) -> None:
@@ -555,6 +566,7 @@ class ContractFunctionT(VyperType):
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.VIEW,
             ast_def=node,
+            is_getter=True,
         )
 
     @property

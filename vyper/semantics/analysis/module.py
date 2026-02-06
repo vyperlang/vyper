@@ -138,6 +138,12 @@ def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT
 
     path.append(fn_t)
 
+    if fn_t.reachable_internal_functions is not None:
+        path.pop()
+        return
+
+    fn_t.reachable_internal_functions = OrderedSet()
+
     for g in fn_t.called_functions:
         if g in fn_t.reachable_internal_functions:
             # already seen

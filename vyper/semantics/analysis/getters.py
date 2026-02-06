@@ -84,7 +84,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
         expanded._original_node = node
         expanded.set_parent(node.parent)
 
-        func_type = ContractFunctionT.from_FunctionDef(expanded)
+        func_type = ContractFunctionT.from_FunctionDef(expanded, is_getter=True)
         expanded._metadata["func_type"] = func_type
 
         # update pointers
