@@ -356,7 +356,7 @@ Vyper (inline declaration):
     interface IERC20:
         def transfer(to: address, amount: uint256) -> bool: nonpayable
 
-Interfaces can also be defined in separate ``.vyi`` files with a different syntax. Vyper ships with built-in interfaces for ERC20, ERC721, etc. via ``from ethereum.ercs import IERC20``.
+Interfaces can also be defined in separate ``.vyi`` files (see :ref:`interfaces`). Vyper ships with built-in interfaces for ERC20, ERC721, etc. via ``from ethereum.ercs import IERC20``.
 
 Error Handling
 --------------
