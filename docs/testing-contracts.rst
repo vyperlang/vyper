@@ -3,7 +3,7 @@
 Testing a Contract
 ##################
 
-For testing Vyper contracts we recommend the use of `pytest <https://docs.pytest.org/en/latest/contents.html>`_ along with `Titanoboa <https://github.com/vyperlang/titanoboa>`_.
+For testing Vyper contracts we recommend the use of `pytest <https://docs.pytest.org/en/latest/contents.html>`_ along with one of the following frameworks:
 
 .. seealso::
 
@@ -12,7 +12,7 @@ For testing Vyper contracts we recommend the use of `pytest <https://docs.pytest
 Titanoboa
 =========
 
-Titanoboa is a Vyper interpreter maintained by the Vyper team. It provides:
+`Titanoboa <https://github.com/vyperlang/titanoboa>`_ is a Vyper interpreter maintained by the Vyper team. It provides:
 
 - Fast execution for testing
 - Pretty tracebacks for debugging
@@ -21,17 +21,23 @@ Titanoboa is a Vyper interpreter maintained by the Vyper team. It provides:
 
 **Getting Started:**
 
-- `Official Titanoboa Documentation <https://titanoboa.readthedocs.io/>`_
-- `Testing Reference <https://titanoboa.readthedocs.io/en/latest/testing.html>`_
-- `API Reference <https://titanoboa.readthedocs.io/en/latest/api.html>`_
+- `Official Titanoboa Documentation <https://titanoboa.readthedocs.io/en/latest/>`_
 
 .. note::
 
     For comprehensive examples and best practices, refer to the official Titanoboa documentation linked above.
 
-Other Frameworks
-================
+Moccasin
+========
 
-**Moccasin** (`GitHub <https://github.com/Cyfrin/moccasin>`_) is a fast, Pythonic smart contract development and testing framework built on Titanoboa.
+`Moccasin <https://github.com/Cyfrin/moccasin>`_ is a fast, Pythonic smart contract testing and development framework built on top of Titanoboa. It provides:
 
-**Brownie** (`GitHub <https://github.com/eth-brownie/brownie>`_) is a Python-based development framework that was previously popular for Vyper testing. However, it is no longer actively maintained. If you encounter Brownie in existing projects, refer to its `documentation <https://eth-brownie.readthedocs.io/>`_, but for new projects we recommend Titanoboa.
+- ZKsync built-in support
+- Named contracts for cleaner address management
+- Custom pytest markers for staging tests
+- Encrypted wallet support (no private keys in ``.env`` files)
+- GitHub and Python dependency installation
+
+**Getting Started:**
+
+- `Official Moccasin Documentation <https://cyfrin.github.io/moccasin/>`_
