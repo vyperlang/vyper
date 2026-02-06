@@ -78,10 +78,10 @@ def bar() -> uint256:
         get_contract(contract, input_bundle=input_bundle)
 
     # Verify the error message is helpful
-    expected_msg = "Cannot call `bar` from `abstract_m` - it is overridden in `override_m` which"
-    " accesses state, but `override_m` is not initialized"
-    assert expected_msg == e.value.message
-    assert "add `initializes: override_m` as a top-level statement to your contract" == e.value.hint
+    expected_msg = "abstract_m.vy` is used but never initialized!"
+    assert expected_msg in e.value.message
+    expected_hint = "add `initializes: abstract_m`"
+    assert expected_hint in e.value.hint
 
 
 def test_stateful_override_with_initializes(get_contract, make_input_bundle):
