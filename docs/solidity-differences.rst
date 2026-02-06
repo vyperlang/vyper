@@ -493,7 +493,7 @@ Use Vyper if:
 - **You have Python experience.** The syntax is familiar.
 - **You want compiler-enforced constraints.** The compiler rejects unbounded loops, implicit conversions, and recursive calls.
 - **You prefer explicit code.** One way to do most things. No modifiers, no inheritance, no operator overloading.
-- **You want safety checks on by default.** Overflow protection and bounds checking require explicit opt-out via ``unsafe_*`` builtins.
+- **You want no global opt-out for safety checks.** Overflow and bounds checks can only be bypassed per-operation via ``unsafe_*`` builtins.
 
 
 Further Reading
