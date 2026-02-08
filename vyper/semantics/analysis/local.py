@@ -691,7 +691,10 @@ class ExprVisitor(VyperNodeVisitorBase):
                         msg = "Cannot modify loop variable"
                         var = s.variable
                         if var.decl_node is not None:
-                            msg += f" `{var.decl_node.target.id}`"
+                            if isinstance(var.decl_node, vy_ast.arg):
+                                msg += f" `{var.decl_node.arg}`"
+                            else:
+                                msg += f" `{var.decl_node.target.id}`"
                         raise ImmutableViolation(msg, var.decl_node, node)
 
                 var_accesses = info._writes | info._reads
