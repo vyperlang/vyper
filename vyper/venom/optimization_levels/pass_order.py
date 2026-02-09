@@ -15,7 +15,7 @@ def validate_pass_order(pass_classes: Sequence[type[IRPass]], pipeline_name: str
             pass_names,
             idx,
             pass_cls,
-            _constraint_refs(pass_cls, "required_predecessors", "must_run_after"),
+            pass_cls.required_predecessors,
             pipeline_name,
             direction="before",
         )
@@ -23,7 +23,7 @@ def validate_pass_order(pass_classes: Sequence[type[IRPass]], pipeline_name: str
             pass_names,
             idx,
             pass_cls,
-            _constraint_refs(pass_cls, "required_successors", "must_run_before"),
+            pass_cls.required_successors,
             pipeline_name,
             direction="after",
         )
@@ -31,9 +31,7 @@ def validate_pass_order(pass_classes: Sequence[type[IRPass]], pipeline_name: str
             pass_names,
             idx,
             pass_cls,
-            _constraint_refs(
-                pass_cls, "required_immediate_predecessors", "must_run_immediately_after"
-            ),
+            pass_cls.required_immediate_predecessors,
             pipeline_name,
             direction="before",
         )
@@ -41,21 +39,10 @@ def validate_pass_order(pass_classes: Sequence[type[IRPass]], pipeline_name: str
             pass_names,
             idx,
             pass_cls,
-            _constraint_refs(
-                pass_cls, "required_immediate_successors", "must_run_immediately_before"
-            ),
+            pass_cls.required_immediate_successors,
             pipeline_name,
             direction="after",
         )
-
-
-def _constraint_refs(
-    pass_cls: type[IRPass], primary_attr: str, legacy_attr: str
-) -> tuple[PassRef, ...]:
-    refs: list[PassRef] = []
-    refs.extend(getattr(pass_cls, primary_attr, ()))
-    refs.extend(getattr(pass_cls, legacy_attr, ()))
-    return tuple(dict.fromkeys(refs))
 
 
 def _validate_non_immediate(

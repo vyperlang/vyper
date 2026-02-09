@@ -90,16 +90,6 @@ def test_validation_happens_after_disable_flag_filtering(monkeypatch):
         )
 
 
-def test_legacy_aliases_still_work():
-    class Producer(IRPass):
-        pass
-
-    class Consumer(IRPass):
-        must_run_after = ("Producer",)
-
-    validate_pass_order([Producer, Consumer], pipeline_name="test")
-
-
 def test_o3_tail_merge_requires_immediate_simplify_cfg():
     with pytest.raises(CompilerPanic, match="TailMergePass"):
         venom._build_fn_pass_pipeline(

@@ -28,12 +28,6 @@ class IRPass:
     required_immediate_predecessors: ClassVar[tuple[PassRef, ...]] = ()
     required_immediate_successors: ClassVar[tuple[PassRef, ...]] = ()
 
-    # Compatibility aliases (deprecated naming, kept for transition).
-    must_run_before: ClassVar[tuple[PassRef, ...]] = ()
-    must_run_after: ClassVar[tuple[PassRef, ...]] = ()
-    must_run_immediately_before: ClassVar[tuple[PassRef, ...]] = ()
-    must_run_immediately_after: ClassVar[tuple[PassRef, ...]] = ()
-
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         self.function = function
         self.analyses_cache = analyses_cache
