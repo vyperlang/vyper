@@ -32,6 +32,7 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "istore",
         "tstore",
         "mstore",
+        "paraminit",
         "calldatacopy",
         "mcopy",
         "extcodecopy",
@@ -57,6 +58,7 @@ VOLATILE_INSTRUCTIONS = frozenset(
 NO_OUTPUT_INSTRUCTIONS = frozenset(
     [
         "mstore",
+        "paraminit",
         "sstore",
         "istore",
         "tstore",

@@ -811,7 +811,7 @@ def _convert_ir_bb(fn, ir, symbols):
                 if _pass_via_stack(_current_func_t)[alloca.name]:
                     param = fn.get_param_by_id(alloca._id)
                     assert param is not None
-                    bb.append_instruction("mstore", param.func_var, ptr)
+                    bb.append_instruction("paraminit", param.func_var, ptr)
                 _alloca_table[alloca._id] = ptr
             return _alloca_table[alloca._id]
         elif ir.value.startswith("$calloca"):
