@@ -92,7 +92,7 @@ class TailMergePass(IRPass):
                 return ("lit", op.value)
             if isinstance(op, IRLabel):
                 return ("label", op.value)
-            return ("other", repr(op))
+            raise CompilerPanic(f"unexpected operand type in tail merge: {type(op)}")
 
         signature = []
         for inst in bb.instructions:
