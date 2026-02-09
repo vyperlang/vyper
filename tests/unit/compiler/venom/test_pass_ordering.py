@@ -98,3 +98,10 @@ def test_legacy_aliases_still_work():
         must_run_after = ("Producer",)
 
     validate_pass_order([Producer, Consumer], pipeline_name="test")
+
+
+def test_o3_tail_merge_requires_immediate_simplify_cfg():
+    with pytest.raises(CompilerPanic, match="TailMergePass"):
+        venom._build_fn_pass_pipeline(
+            VenomOptimizationFlags(level=OptimizationLevel.O3, disable_simplify_cfg=True)
+        )

@@ -83,9 +83,7 @@ PASS_FLAG_MAP = {
 PassRunConfig = tuple[type[IRPass], dict[str, Any]]
 
 
-def _run_passes(
-    fn: IRFunction, pass_pipeline: list[PassRunConfig], ac: IRAnalysesCache
-) -> None:
+def _run_passes(fn: IRFunction, pass_pipeline: list[PassRunConfig], ac: IRAnalysesCache) -> None:
     for pass_cls, kwargs in pass_pipeline:
         pass_instance = pass_cls(ac, fn)
         pass_instance.run_pass(**kwargs)

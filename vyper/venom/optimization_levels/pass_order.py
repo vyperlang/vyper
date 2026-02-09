@@ -32,9 +32,7 @@ def validate_pass_order(pass_classes: Sequence[type[IRPass]], pipeline_name: str
             idx,
             pass_cls,
             _constraint_refs(
-                pass_cls,
-                "required_immediate_predecessors",
-                "must_run_immediately_after",
+                pass_cls, "required_immediate_predecessors", "must_run_immediately_after"
             ),
             pipeline_name,
             direction="before",
@@ -44,9 +42,7 @@ def validate_pass_order(pass_classes: Sequence[type[IRPass]], pipeline_name: str
             idx,
             pass_cls,
             _constraint_refs(
-                pass_cls,
-                "required_immediate_successors",
-                "must_run_immediately_before",
+                pass_cls, "required_immediate_successors", "must_run_immediately_before"
             ),
             pipeline_name,
             direction="after",
