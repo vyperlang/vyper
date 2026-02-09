@@ -32,6 +32,7 @@ from vyper.venom.passes import (
     RevertToAssert,
     SimplifyCFGPass,
     SingleUseExpansion,
+    TailMergePass,
 )
 
 # Aggressive optimizations (O3)
@@ -86,6 +87,8 @@ PASSES_O3: List[PassConfig] = [
     CSE,
     AssignElimination,
     RemoveUnusedVariablesPass,
+    TailMergePass,
+    SimplifyCFGPass,
     SingleUseExpansion,
     DFTPass,
     CFGNormalization,

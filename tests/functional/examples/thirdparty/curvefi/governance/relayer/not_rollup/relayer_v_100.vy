@@ -15,7 +15,7 @@ interface IAgent:
     def execute(_messages: DynArray[Message, MAX_MESSAGES]): nonpayable
 
 
-enum Agent:
+flag Agent:
     OWNERSHIP
     PARAMETER
     EMERGENCY
@@ -44,7 +44,7 @@ messenger: public(address)
 @deploy
 def __init__(_agent_blueprint: address, _messenger: address):
     self.messenger = _messenger
-    log SetMessenger(_messenger)
+    log SetMessenger(messenger=_messenger)
 
     OWNERSHIP_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
     PARAMETER_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
@@ -76,4 +76,4 @@ def set_messenger(_messenger: address):
     assert msg.sender == OWNERSHIP_AGENT
 
     self.messenger = _messenger
-    log SetMessenger(_messenger)
+    log SetMessenger(messenger=_messenger)

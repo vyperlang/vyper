@@ -279,7 +279,7 @@ def __init__(
         )
     )
 
-    log Transfer(empty(address), self, 0)  # <------- Fire empty transfer from
+    log Transfer(sender=empty(address), receiver=self, value=0)  # <------- Fire empty transfer from
     #                                       0x0 to self for indexers to catch.
 
 
@@ -402,7 +402,7 @@ def exchange(
     self._transfer_out(j, out[0], receiver)
 
     # log:
-    log TokenExchange(msg.sender, i, dx_received, j, out[0], out[1], out[2])
+    log TokenExchange(buyer=msg.sender, sold_id=i, tokens_sold=dx_received, bought_id=j, tokens_bought=out[0], fee=out[1], packed_price_scale=out[2])
 
     return out[0]
 
@@ -451,7 +451,7 @@ def exchange_received(
     self._transfer_out(j, out[0], receiver)
 
     # log:
-    log TokenExchange(msg.sender, i, dx_received, j, out[0], out[1], out[2])
+    log TokenExchange(buyer=msg.sender, sold_id=i, tokens_sold=dx_received, bought_id=j, tokens_bought=out[0], fee=out[1], packed_price_scale=out[2])
 
     return out[0]
 
@@ -570,7 +570,7 @@ def add_liquidity(
     # ---------------------------------------------- Log and claim admin fees.
 
     log AddLiquidity(
-        receiver, amounts_received, d_token_fee, token_supply, packed_price_scale
+        provider=receiver, token_amounts=amounts_received, fee=d_token_fee, token_supply=token_supply, packed_price_scale=packed_price_scale
     )
 
     return d_token
@@ -637,7 +637,7 @@ def remove_liquidity(
         # before external calls:
         self._transfer_out(i, withdraw_amounts[i], receiver)
 
-    log RemoveLiquidity(msg.sender, withdraw_amounts, total_supply - _amount)
+    log RemoveLiquidity(provider=msg.sender, token_amounts=withdraw_amounts, token_supply=total_supply - _amount)
 
     # --------------------------- Upkeep xcp oracle --------------------------
 
@@ -721,7 +721,7 @@ def remove_liquidity_one_coin(
     self._transfer_out(i, dy, receiver)
 
     log RemoveLiquidityOne(
-        msg.sender, token_amount, i, dy, approx_fee, packed_price_scale
+        provider=msg.sender, token_amount=token_amount, coin_index=i, coin_amount=dy, approx_fee=approx_fee, packed_price_scale=packed_price_scale
     )
 
     return dy
@@ -1218,7 +1218,7 @@ def _claim_admin_fees():
             # update to self.balances occurs before external contract calls:
             self._transfer_out(i, admin_tokens[i], fee_receiver)
 
-        log ClaimAdminFee(fee_receiver, admin_tokens)
+        log ClaimAdminFee(admin=fee_receiver, tokens=admin_tokens)
 
 
 @internal
@@ -1414,7 +1414,7 @@ def _calc_withdraw_one_coin(
 def _approve(_owner: address, _spender: address, _value: uint256):
     self.allowance[_owner][_spender] = _value
 
-    log Approval(_owner, _spender, _value)
+    log Approval(owner=_owner, spender=_spender, value=_value)
 
 
 @internal
@@ -1424,7 +1424,7 @@ def _transfer(_from: address, _to: address, _value: uint256):
     self.balanceOf[_from] -= _value
     self.balanceOf[_to] += _value
 
-    log Transfer(_from, _to, _value)
+    log Transfer(sender=_from, receiver=_to, value=_value)
 
 
 @view
@@ -1432,7 +1432,7 @@ def _transfer(_from: address, _to: address, _value: uint256):
 def _domain_separator() -> bytes32:
     if chain.id != CACHED_CHAIN_ID:
         return keccak256(
-            _abi_encode(
+            abi_encode(
                 EIP712_TYPEHASH,
                 NAME_HASH,
                 VERSION_HASH,
@@ -1522,7 +1522,7 @@ def permit(
             b"\x19\x01",
             self._domain_separator(),
             keccak256(
-                _abi_encode(
+                abi_encode(
                     EIP2612_TYPEHASH, _owner, _spender, _value, nonce, _deadline
                 )
             ),
@@ -1548,7 +1548,7 @@ def mint(_to: address, _value: uint256) -> bool:
     self.totalSupply += _value
     self.balanceOf[_to] += _value
 
-    log Transfer(empty(address), _to, _value)
+    log Transfer(sender=empty(address), receiver=_to, value=_value)
     return True
 
 
@@ -1563,7 +1563,7 @@ def burnFrom(_to: address, _value: uint256) -> bool:
     self.totalSupply -= _value
     self.balanceOf[_to] -= _value
 
-    log Transfer(_to, empty(address), _value)
+    log Transfer(sender=_to, receiver=empty(address), value=_value)
     return True
 
 
@@ -1962,12 +1962,12 @@ def ramp_A_gamma(
     self.future_A_gamma = future_A_gamma
 
     log RampAgamma(
-        A_gamma[0],
-        future_A,
-        A_gamma[1],
-        future_gamma,
-        block.timestamp,
-        future_time,
+        initial_A=A_gamma[0],
+        future_A=future_A,
+        initial_gamma=A_gamma[1],
+        future_gamma=future_gamma,
+        initial_time=block.timestamp,
+        future_time=future_time,
     )
 
 
@@ -1989,7 +1989,7 @@ def stop_ramp_A_gamma():
 
     # ------ Now (block.timestamp < t1) is always False, so we return saved A.
 
-    log StopRampA(A_gamma[0], A_gamma[1], block.timestamp)
+    log StopRampA(current_A=A_gamma[0], current_gamma=A_gamma[1], time=block.timestamp)
 
 
 @external
@@ -2074,11 +2074,11 @@ def apply_new_parameters(
     # ---------------------------------- LOG ---------------------------------
 
     log NewParameters(
-        new_mid_fee,
-        new_out_fee,
-        new_fee_gamma,
-        new_allowed_extra_profit,
-        new_adjustment_step,
-        new_ma_time,
-        _new_xcp_ma_time,
+        mid_fee=new_mid_fee,
+        out_fee=new_out_fee,
+        fee_gamma=new_fee_gamma,
+        allowed_extra_profit=new_allowed_extra_profit,
+        adjustment_step=new_adjustment_step,
+        ma_time=new_ma_time,
+        xcp_ma_time=_new_xcp_ma_time,
     )
