@@ -101,14 +101,3 @@ class TailMergePass(IRPass):
             signature.append((inst.opcode, outputs, operands))
 
         return tuple(signature)
-
-    def _replace_all_labels(self, label_map: dict[IRLabel, IRLabel]):
-        for bb in self.function.get_basic_blocks():
-            for inst in bb.instructions:
-                inst.replace_operands(label_map)
-
-        # Also update labels in data segment
-        for data_section in self.function.ctx.data_segment:
-            for item in data_section.data_items:
-                if item.data in label_map:
-                    item.data = label_map[item.data]
