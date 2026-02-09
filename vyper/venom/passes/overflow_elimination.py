@@ -66,7 +66,10 @@ class OverflowEliminationPass(IRPass):
         Returns True if the assertion can be safely removed.
         """
         # If an error message is set, only consider safeadd/safesub checks
-        if assert_inst.error_msg is not None and assert_inst.error_msg not in _ELIMINABLE_ERROR_MSGS:
+        if (
+            assert_inst.error_msg is not None
+            and assert_inst.error_msg not in _ELIMINABLE_ERROR_MSGS
+        ):
             return False
 
         operand = assert_inst.operands[0]
