@@ -9,6 +9,9 @@ class LowerDloadPass(IRPass):
     Lower dload and dloadbytes instructions
     """
 
+    # Run after MemMergePass so `dload` patterns are still available for merge opportunities.
+    required_predecessors = ("MemMergePass",)
+
     def run_pass(self):
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(dfg)

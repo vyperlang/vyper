@@ -18,6 +18,16 @@ class IRPass:
     updater: InstUpdater  # optional, does not need to be instantiated
     # Order constraints for pass scheduling.
     # A tuple expresses acceptable alternatives. At least one must match.
+    # - required_predecessors: passes that must appear before this pass.
+    # - required_successors: passes that must appear after this pass.
+    # - required_immediate_predecessors: pass immediately before this pass.
+    # - required_immediate_successors: pass immediately after this pass.
+    required_predecessors: ClassVar[tuple[PassRef, ...]] = ()
+    required_successors: ClassVar[tuple[PassRef, ...]] = ()
+    required_immediate_predecessors: ClassVar[tuple[PassRef, ...]] = ()
+    required_immediate_successors: ClassVar[tuple[PassRef, ...]] = ()
+
+    # Compatibility aliases (deprecated naming, kept for transition).
     must_run_before: ClassVar[tuple[PassRef, ...]] = ()
     must_run_after: ClassVar[tuple[PassRef, ...]] = ()
     must_run_immediately_before: ClassVar[tuple[PassRef, ...]] = ()
