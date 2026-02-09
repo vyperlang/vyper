@@ -86,6 +86,7 @@ PASSES_O3: List[PassConfig] = [
     AssignElimination,
     RemoveUnusedVariablesPass,
     TailMergePass,
+    SimplifyCFGPass,
     SingleUseExpansion,
     DFTPass,
     CFGNormalization,
