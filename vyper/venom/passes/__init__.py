@@ -25,3 +25,4 @@ from .revert_to_assert import RevertToAssert
 from .sccp import SCCP
 from .simplify_cfg import SimplifyCFGPass
 from .single_use_expansion import SingleUseExpansion
+from .tail_merge import TailMergePass
