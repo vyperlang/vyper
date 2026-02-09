@@ -25,8 +25,9 @@ class IRPass:
         # Also update labels in data segment.
         for data_section in self.function.ctx.data_segment:
             for item in data_section.data_items:
-                if item.data in label_map:
-                    item.data = label_map[item.data]
+                data = item.data
+                if isinstance(data, IRLabel) and data in label_map:
+                    item.data = label_map[data]
 
     def run_pass(self, *args, **kwargs):
         raise NotImplementedError(f"Not implemented! {self.__class__}.run_pass()")
