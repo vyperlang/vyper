@@ -52,7 +52,7 @@ def validate_pass_order(pass_classes: Sequence[type[IRPass]], pipeline_name: str
 def _constraint_refs(
     pass_cls: type[IRPass], primary_attr: str, legacy_attr: str
 ) -> tuple[PassRef, ...]:
-    refs = []
+    refs: list[PassRef] = []
     refs.extend(getattr(pass_cls, primary_attr, ()))
     refs.extend(getattr(pass_cls, legacy_attr, ()))
     return tuple(dict.fromkeys(refs))
