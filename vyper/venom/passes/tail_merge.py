@@ -17,22 +17,11 @@ class TailMergePass(IRPass):
     cfg: CFGAnalysis
 
     def run_pass(self):
-        fn = self.function
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
-        changed = False
-        for _ in range(fn.num_basic_blocks):
-            label_map = self._merge_equivalent_tails()
-            if len(label_map) == 0:
-                break
-
-            changed = True
+        label_map = self._merge_equivalent_tails()
+        if len(label_map) > 0:
             self._replace_all_labels(label_map)
-            self.cfg = self.analyses_cache.force_analysis(CFGAnalysis)
-        else:
-            raise CompilerPanic("Too many iterations in tail merge")
-
-        if changed:
             self.analyses_cache.invalidate_analysis(CFGAnalysis)
             self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
