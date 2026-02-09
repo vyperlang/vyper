@@ -12,6 +12,8 @@ class TailMergePass(IRPass):
     - only reachable, non-entry, halting blocks are considered
     - blocks with phi nodes are ignored
     - blocks with live-in variables are ignored
+    - requires running SimplifyCFGPass after this pass to clean up
+      degenerate branches introduced by label rewrites (e.g. jnz @x, @x)
     """
 
     cfg: CFGAnalysis
