@@ -162,7 +162,7 @@ Storage arrays require a maximum size at compile time:
 
     balances: DynArray[uint256, 100]
 
-This keeps gas costs predictable and prevents denial-of-service attacks where an attacker grows an array until iteration exceeds the block gas limit. For unbounded collections, use ``HashMap``.
+This keeps gas costs predictable and can prevent denial-of-service attacks. For unbounded collections, use ``HashMap``.
 
 
 Explicit Type Conversions
