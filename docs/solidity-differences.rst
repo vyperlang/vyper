@@ -98,14 +98,14 @@ For code reuse, Vyper 0.4.0 introduced a module system:
     def __init__():
         ownable.__init__()
 
-Three declarations manage module relationships: ``initializes`` (this contract manages the module's storage), ``uses`` (this contract reads module state without initializing), and ``exports`` (expose module functions in the ABI).
+Three declarations manage module relationships: ``initializes`` (this contract manages the module's storage), ``uses`` (this contract reads module state without initializing), and ``exports`` (expose module functions in the ABI). See :doc:`using-modules` for details.
 
 A contract can be understood by reading one file and its direct imports, and dependencies are explicit.
 
 No Inline Assembly
 ==================
 
-Vyper excludes inline assembly. For low-level operations, use the built-in functions: ``raw_call``, ``raw_create``, ``create_minimal_proxy_to``, ``create_from_blueprint``.
+Vyper excludes inline assembly. For low-level operations, use the :ref:`built-in functions <built_in_functions>`: ``raw_call``, ``raw_create``, ``create_minimal_proxy_to``, ``create_from_blueprint``.
 
 Assembly bypasses compiler safety checks: type verification, overflow protection, memory safety, and requires reviewers to reason about raw opcodes. Vyper's built-in functions provide low-level access through explicit, auditable function calls.
 
@@ -162,7 +162,7 @@ Storage arrays require a maximum size at compile time:
 
     balances: DynArray[uint256, 100]
 
-This keeps gas costs predictable and can prevent denial-of-service attacks. For unbounded collections, use ``HashMap``.
+This keeps gas costs predictable and can prevent denial-of-service attacks. For unbounded collections, use :ref:`HashMap <types>`.
 
 
 Explicit Type Conversions
@@ -178,7 +178,7 @@ Vyper requires explicit type conversions:
     addr: address = 0x1234...
     num: uint160 = convert(addr, uint160)
 
-Vyper allows safe automatic widening (e.g., ``uint8`` to ``uint256``) but requires explicit ``convert()`` for potentially lossy or semantically significant conversions, such as signed/unsigned, addresses to integers, or narrowing types.
+Vyper allows safe automatic widening (e.g., ``uint8`` to ``uint256``) but requires explicit ``convert()`` for potentially lossy or semantically significant conversions, such as signed/unsigned, addresses to integers, or narrowing types. See :ref:`types` for the complete type reference.
 
 Decimal Type
 ============
@@ -200,7 +200,7 @@ Bounds Checking
 
 Array accesses and arithmetic are bounds-checked at runtime. Out-of-bounds access reverts. Integer overflow reverts.
 
-Solidity 0.8+ provides similar overflow protection, which is disabled in ``unchecked`` blocks. In Vyper, there is no way to disable the checks. For cases where wrapping behavior is needed, there are explicit ``unsafe_*`` builtins.
+Solidity 0.8+ provides similar overflow protection, which is disabled in ``unchecked`` blocks. In Vyper, there is no way to disable the checks. For cases where wrapping behavior is needed, there are explicit :ref:`unsafe_* builtins <built_in_functions>`.
 
 Reentrancy Protection
 =====================
@@ -494,11 +494,3 @@ Use Vyper if:
 - **You want compiler-enforced constraints.** The compiler rejects unbounded loops, implicit conversions, and recursive calls.
 - **You prefer explicit code.** One way to do most things. No modifiers, no inheritance, no operator overloading.
 - **You want no global opt-out for safety checks.** Overflow and bounds checks can only be bypassed per-operation via ``unsafe_*`` builtins.
-
-
-Further Reading
-===============
-
-- :ref:`Types <types>` : Type system reference
-- :ref:`Control Structures <control-structures>` : Loops, conditionals, functions
-- :ref:`Interfaces <interfaces>` : Working with external contracts
