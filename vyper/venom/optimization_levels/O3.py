@@ -11,6 +11,7 @@ from vyper.venom.passes import (
     SCCP,
     AlgebraicOptimizationPass,
     AssertCombinerPass,
+    AssertEliminationPass,
     AssignElimination,
     BranchOptimizationPass,
     CFGNormalization,
@@ -24,11 +25,13 @@ from vyper.venom.passes import (
     MakeSSA,
     Mem2Var,
     MemMergePass,
+    MemoryCopyElisionPass,
     PhiEliminationPass,
     RemoveUnusedVariablesPass,
     RevertToAssert,
     SimplifyCFGPass,
     SingleUseExpansion,
+    TailMergePass,
 )
 
 # Aggressive optimizations (O3)
@@ -49,6 +52,7 @@ PASSES_O3: List[PassConfig] = [
     SimplifyCFGPass,
     AssignElimination,
     AlgebraicOptimizationPass,
+    AssertEliminationPass,
     LoadElimination,
     PhiEliminationPass,
     AssignElimination,
@@ -58,6 +62,7 @@ PASSES_O3: List[PassConfig] = [
     SimplifyCFGPass,
     # run memmerge before LowerDload
     MemMergePass,
+    MemoryCopyElisionPass,
     LowerDloadPass,
     RemoveUnusedVariablesPass,
     (DeadStoreElimination, {"addr_space": MEMORY}),
@@ -80,6 +85,8 @@ PASSES_O3: List[PassConfig] = [
     CSE,
     AssignElimination,
     RemoveUnusedVariablesPass,
+    TailMergePass,
+    SimplifyCFGPass,
     SingleUseExpansion,
     DFTPass,
     CFGNormalization,

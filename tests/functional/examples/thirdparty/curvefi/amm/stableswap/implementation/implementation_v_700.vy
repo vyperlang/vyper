@@ -351,7 +351,7 @@ def __init__(
 
     # ------------------------ Fire a transfer event -------------------------
 
-    log Transfer(empty(address), msg.sender, 0)
+    log Transfer(sender=empty(address), receiver=msg.sender, value=0)
 
 
 # ------------------ Token transfers in and out of the AMM -------------------
@@ -680,9 +680,9 @@ def add_liquidity(
     total_supply += mint_amount
     self.balanceOf[_receiver] += mint_amount
     self.total_supply = total_supply
-    log Transfer(empty(address), _receiver, mint_amount)
+    log Transfer(sender=empty(address), receiver=_receiver, value=mint_amount)
 
-    log AddLiquidity(msg.sender, _amounts, fees, D1, total_supply)
+    log AddLiquidity(provider=msg.sender, token_amounts=_amounts, fees=fees, invariant=D1, token_supply=total_supply)
 
     return mint_amount
 
@@ -719,7 +719,7 @@ def remove_liquidity_one_coin(
 
     self._transfer_out(i, dy, _receiver)
 
-    log RemoveLiquidityOne(msg.sender, i, _burn_amount, dy, self.total_supply)
+    log RemoveLiquidityOne(provider=msg.sender, token_id=i, token_amount=_burn_amount, coin_amount=dy, token_supply=self.total_supply)
 
     self.upkeep_oracles(xp, amp, D)
 
@@ -795,11 +795,11 @@ def remove_liquidity_imbalance(
     self._burnFrom(msg.sender, burn_amount)
 
     log RemoveLiquidityImbalance(
-        msg.sender,
-        _amounts,
-        fees,
-        D1,
-        total_supply - burn_amount
+        provider=msg.sender,
+        token_amounts=_amounts,
+        fees=fees,
+        invariant=D1,
+        token_supply=total_supply - burn_amount
     )
 
     return burn_amount
@@ -860,10 +860,10 @@ def remove_liquidity(
     # ------------------------------- Log event ------------------------------
 
     log RemoveLiquidity(
-        msg.sender,
-        amounts,
-        empty(DynArray[uint256, MAX_COINS]),
-        unsafe_sub(total_supply, _burn_amount)
+        provider=msg.sender,
+        token_amounts=amounts,
+        fees=empty(DynArray[uint256, MAX_COINS]),
+        token_supply=unsafe_sub(total_supply, _burn_amount)
     )
 
     # ------- Withdraw admin fees if _claim_admin_fees is set to True --------
@@ -982,7 +982,7 @@ def _exchange(
 
     # ------------------------------------------------------------------------
 
-    log TokenExchange(msg.sender, i, dx, j, dy)
+    log TokenExchange(buyer=msg.sender, sold_id=i, tokens_sold=dx, bought_id=j, tokens_bought=dy)
 
     return dy
 
@@ -1563,7 +1563,7 @@ def _transfer(_from: address, _to: address, _value: uint256):
     self.balanceOf[_from] -= _value
     self.balanceOf[_to] += _value
 
-    log Transfer(_from, _to, _value)
+    log Transfer(sender=_from, receiver=_to, value=_value)
 
 
 @internal
@@ -1571,7 +1571,7 @@ def _burnFrom(_from: address, _burn_amount: uint256):
 
     self.total_supply -= _burn_amount
     self.balanceOf[_from] -= _burn_amount
-    log Transfer(_from, empty(address), _burn_amount)
+    log Transfer(sender=_from, receiver=empty(address), value=_burn_amount)
 
 
 @external
@@ -1599,7 +1599,7 @@ def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
     if _allowance != max_value(uint256):
         _new_allowance: uint256 = _allowance - _value
         self.allowance[_from][msg.sender] = _new_allowance
-        log Approval(_from, msg.sender, _new_allowance)
+        log Approval(owner=_from, spender=msg.sender, value=_new_allowance)
 
     return True
 
@@ -1618,7 +1618,7 @@ def approve(_spender : address, _value : uint256) -> bool:
     """
     self.allowance[msg.sender][_spender] = _value
 
-    log Approval(msg.sender, _spender, _value)
+    log Approval(owner=msg.sender, spender=_spender, value=_value)
     return True
 
 
@@ -1669,7 +1669,7 @@ def permit(
     self.allowance[_owner][_spender] = _value
     self.nonces[_owner] = unsafe_add(nonce, 1)
 
-    log Approval(_owner, _spender, _value)
+    log Approval(owner=_owner, spender=_spender, value=_value)
     return True
 
 
@@ -1844,7 +1844,7 @@ def ramp_A(_future_A: uint256, _future_time: uint256):
     self.initial_A_time = block.timestamp
     self.future_A_time = _future_time
 
-    log RampA(_initial_A, _future_A_p, block.timestamp, _future_time)
+    log RampA(old_A=_initial_A, new_A=_future_A_p, initial_time=block.timestamp, future_time=_future_time)
 
 
 @external
@@ -1858,7 +1858,7 @@ def stop_ramp_A():
     self.future_A_time = block.timestamp
     # now (block.timestamp < t1) is always False, so we return saved A
 
-    log StopRampA(current_A, block.timestamp)
+    log StopRampA(A=current_A, t=block.timestamp)
 
 
 @external
@@ -1874,7 +1874,7 @@ def set_new_fee(_new_fee: uint256, _new_offpeg_fee_multiplier: uint256):
     assert _new_offpeg_fee_multiplier * _new_fee <= MAX_FEE * FEE_DENOMINATOR  # dev: offpeg multiplier exceeds maximum
     self.offpeg_fee_multiplier = _new_offpeg_fee_multiplier
 
-    log ApplyNewFee(_new_fee, _new_offpeg_fee_multiplier)
+    log ApplyNewFee(fee=_new_fee, offpeg_fee_multiplier=_new_offpeg_fee_multiplier)
 
 
 @external
@@ -1890,4 +1890,4 @@ def set_ma_exp_time(_ma_exp_time: uint256, _D_ma_time: uint256):
     self.ma_exp_time = _ma_exp_time
     self.D_ma_time = _D_ma_time
 
-    log SetNewMATime(_ma_exp_time, _D_ma_time)
+    log SetNewMATime(ma_exp_time=_ma_exp_time, D_ma_time=_D_ma_time)

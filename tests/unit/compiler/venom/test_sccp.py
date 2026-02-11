@@ -923,3 +923,85 @@ def test_sccp_mulmod_zero_mod():
     ops = [IRLiteral(0), IRLiteral(20), IRLiteral(10)]
     result = eval_arith("mulmod", ops)
     assert result == 0
+
+
+# =============================================================================
+# Byte Operation Tests
+# =============================================================================
+
+
+def test_sccp_byte():
+    """Test byte constant folding"""
+    pre = """
+    _global:
+        %val = 0x1234567890
+        %idx = 31
+        %b = byte %idx, %val
+        sink %b
+    """
+    post = """
+    _global:
+        %val = 0x1234567890
+        %idx = 31
+        %b = byte 31, 0x1234567890
+        sink 144
+    """
+    # byte(31, 0x1234567890) extracts LSB = 0x90 = 144
+    _check_pre_post(pre, post, hevm=False)
+
+
+def test_sccp_byte_msb():
+    """Test byte extraction of MSB"""
+    pre = """
+    _global:
+        %val = 0x42000000000000000000000000000000000000000000000000000000000000
+        %idx = 0
+        %b = byte %idx, %val
+        sink %b
+    """
+    post = """
+    _global:
+        %val = 0x42000000000000000000000000000000000000000000000000000000000000
+        %idx = 0
+        %b = byte 0, 0x42000000000000000000000000000000000000000000000000000000000000
+        sink 0
+    """
+    # 0x42 is not at the MSB position (byte 0) for this value
+    _check_pre_post(pre, post, hevm=False)
+
+
+def test_sccp_byte_out_of_range():
+    """Test byte with index >= 32 returns 0"""
+    pre = """
+    _global:
+        %val = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+        %idx = 32
+        %b = byte %idx, %val
+        sink %b
+    """
+    post = """
+    _global:
+        %val = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+        %idx = 32
+        %b = byte 32, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+        sink 0
+    """
+    _check_pre_post(pre, post, hevm=False)
+
+
+def test_sccp_byte_all_ones():
+    """Test byte extraction from max uint256 (all 0xFF bytes)"""
+    from vyper.utils import SizeLimits
+    from vyper.venom.basicblock import IRLiteral
+    from vyper.venom.passes.sccp.eval import eval_arith
+
+    # byte(31, 2^256-1) should return 0xFF
+    max_uint = SizeLimits.MAX_UINT256
+    ops = [IRLiteral(max_uint), IRLiteral(31)]
+    result = eval_arith("byte", ops)
+    assert result == 0xFF
+
+    # byte(0, 2^256-1) should also return 0xFF (MSB)
+    ops = [IRLiteral(max_uint), IRLiteral(0)]
+    result = eval_arith("byte", ops)
+    assert result == 0xFF

@@ -691,7 +691,10 @@ class ExprVisitor(VyperNodeVisitorBase):
                         msg = "Cannot modify loop variable"
                         var = s.variable
                         if var.decl_node is not None:
-                            msg += f" `{var.decl_node.target.id}`"
+                            if isinstance(var.decl_node, vy_ast.arg):
+                                msg += f" `{var.decl_node.arg}`"
+                            else:
+                                msg += f" `{var.decl_node.target.id}`"
                         raise ImmutableViolation(msg, var.decl_node, node)
 
                 var_accesses = info._writes | info._reads
@@ -1000,5 +1003,6 @@ def _validate_range_call(node: vy_ast.Call):
             raise StructureException(error, start)
         if not isinstance(end, vy_ast.Int):
             raise StructureException(error, end)
+
         if end.value <= start.value:
             raise StructureException("End must be greater than start", end)

@@ -111,17 +111,6 @@ class SimplifyCFGPass(IRPass):
         assert original_label not in self.label_map
         self.label_map[original_label] = replacement_label
 
-    def _replace_all_labels(self):
-        for bb in self.function.get_basic_blocks():
-            for inst in bb.instructions:
-                inst.replace_operands(self.label_map)
-
-        # Also update labels in data segment
-        for data_section in self.function.ctx.data_segment:
-            for item in data_section.data_items:
-                if item.data in self.label_map:
-                    item.data = self.label_map[item.data]
-
     def remove_unreachable_blocks(self) -> int:
         # Remove unreachable basic blocks
         removed = set()
@@ -183,7 +172,7 @@ class SimplifyCFGPass(IRPass):
         for _ in range(fn.num_basic_blocks):  # essentially `while True`
             self.label_map = {}
             self._collapse_chained_blocks(entry)
-            self._replace_all_labels()
+            self._replace_all_labels(self.label_map)
             self.cfg = self.analyses_cache.force_analysis(CFGAnalysis)
             if self.remove_unreachable_blocks() == 0:
                 break
