@@ -186,7 +186,7 @@ def test_never_read_store(position):
             mstore %ptr, %val  ; Dead store - never read
             stop
     """
-    post = f"""
+    post = """
         _global:
             %val = 42
             nop
