@@ -5,7 +5,13 @@ from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.exceptions import CompilerPanic
 from vyper.venom.optimization_levels.pass_order import validate_pass_order
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.concretize_mem_loc import ConcretizeMemLocPass
+from vyper.venom.passes.fix_mem_locations import FixMemLocationsPass
+from vyper.venom.passes.make_ssa import MakeSSA
+from vyper.venom.passes.mem2var import Mem2Var
+from vyper.venom.passes.revert_to_assert import RevertToAssert
 from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
+from vyper.venom.passes.single_use_expansion import SingleUseExpansion
 from vyper.venom.passes.tail_merge import TailMergePass
 
 
@@ -92,11 +98,10 @@ def test_validation_happens_after_disable_flag_filtering(monkeypatch):
         )
 
 
-def test_o3_tail_merge_requires_immediate_simplify_cfg():
+def test_tail_merge_requires_immediate_simplify_cfg():
+    validate_pass_order([TailMergePass, SimplifyCFGPass], pipeline_name="test")
     with pytest.raises(CompilerPanic, match="TailMergePass"):
-        venom._build_fn_pass_pipeline(
-            VenomOptimizationFlags(level=OptimizationLevel.O3, disable_simplify_cfg=True)
-        )
+        validate_pass_order([TailMergePass, SingleUseExpansion], pipeline_name="test")
 
 
 def test_o3_tail_merge_is_immediately_followed_by_simplify_cfg():
@@ -105,6 +110,44 @@ def test_o3_tail_merge_is_immediately_followed_by_simplify_cfg():
 
     idx = pass_classes.index(TailMergePass)
     assert pass_classes[idx + 1] is SimplifyCFGPass
+
+
+def test_revert_to_assert_requires_immediate_simplify_cfg():
+    validate_pass_order([RevertToAssert, SimplifyCFGPass], pipeline_name="test")
+    with pytest.raises(CompilerPanic, match="RevertToAssert"):
+        validate_pass_order([RevertToAssert, SingleUseExpansion], pipeline_name="test")
+
+
+def test_fix_mem_locations_requires_concretize_after():
+    validate_pass_order(
+        [FixMemLocationsPass, Mem2Var, ConcretizeMemLocPass],
+        pipeline_name="test",
+    )
+    with pytest.raises(CompilerPanic, match="FixMemLocationsPass"):
+        validate_pass_order([FixMemLocationsPass, Mem2Var], pipeline_name="test")
+
+
+def test_concretize_requires_fix_mem_locations_before():
+    validate_pass_order([FixMemLocationsPass, ConcretizeMemLocPass], pipeline_name="test")
+    with pytest.raises(CompilerPanic, match="ConcretizeMemLocPass"):
+        validate_pass_order([ConcretizeMemLocPass], pipeline_name="test")
+
+
+def test_mem2var_requires_make_ssa_before_and_after():
+    validate_pass_order([MakeSSA, Mem2Var, MakeSSA], pipeline_name="test")
+
+    with pytest.raises(CompilerPanic, match="Mem2Var"):
+        validate_pass_order([Mem2Var, MakeSSA], pipeline_name="test")
+
+    with pytest.raises(CompilerPanic, match="Mem2Var"):
+        validate_pass_order([MakeSSA, Mem2Var], pipeline_name="test")
+
+
+def test_disable_simplify_cfg_fails_o2_pipeline_on_revert_constraint():
+    with pytest.raises(CompilerPanic, match="RevertToAssert"):
+        venom._build_fn_pass_pipeline(
+            VenomOptimizationFlags(level=OptimizationLevel.O2, disable_simplify_cfg=True)
+        )
 
 
 def test_error_message_stops_at_instead():

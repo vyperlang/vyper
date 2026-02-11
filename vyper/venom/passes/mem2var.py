@@ -13,6 +13,9 @@ class Mem2Var(IRPass):
     """
 
     function: IRFunction
+    # Mem2Var is intentionally run in an SSA "sandwich".
+    required_predecessors = ("MakeSSA",)
+    required_successors = ("MakeSSA",)
 
     def run_pass(self):
         self.mem_alloc = self.function.ctx.mem_allocator

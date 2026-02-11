@@ -27,6 +27,8 @@ from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
 class ConcretizeMemLocPass(IRPass):
     allocated_in_bb: dict[IRBasicBlock, int]
+    # FixMemLocationsPass seeds pinned allocas whose abstract locations are concretized here.
+    required_predecessors = ("FixMemLocationsPass",)
 
     def run_pass(self):
         self.allocator = self.function.ctx.mem_allocator
