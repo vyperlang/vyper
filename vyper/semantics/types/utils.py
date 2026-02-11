@@ -39,7 +39,7 @@ def type_from_abi(abi_type: dict) -> VyperType:
 
     from vyper.semantics.namespace import Namespace
 
-    namespace = Namespace.builder_context.get().build()
+    namespace = Namespace.context.get()
 
     if "[" in type_string:
         # handle dynarrays, static arrays
@@ -107,7 +107,7 @@ def type_from_annotation(
 def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     from vyper.semantics.namespace import Namespace
 
-    namespace = Namespace.builder_context.get().build()
+    namespace = Namespace.context.get()
 
     if isinstance(node, vy_ast.Tuple):
         tuple_t = namespace["$TupleT"]

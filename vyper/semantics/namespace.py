@@ -13,7 +13,7 @@ from vyper.semantics.types import PRIMITIVE_TYPES
 class Namespace(dict):
     """
     Immutable namespace object representing a contract's resolved names.
-    Produced by NamespaceBuilder after analysis is complete.
+    Do note however that values stored in the namespace are not necessarily immutable !
 
     Map from str to
       VarInfo         - variable/builtin function bindings
@@ -46,75 +46,10 @@ class Namespace(dict):
     def __reduce__(self):
         return (Namespace, (dict(self),))
 
-    # -- static namespace infrastructure --
+    # -- immutable update methods --
 
-    #: Namespace which surrounds anything, every namespace should be a superset of this one
-    base: "Namespace"
-
-    #: ContextVar tracking the current mutable NamespaceBuilder
-    builder_context: contextvars.ContextVar
-
-    @staticmethod
-    def _new_builder() -> "NamespaceBuilder":
-        nsb = NamespaceBuilder(Namespace.base)
-        # Can't be included in base, as they get mutated
-        nsb.update(environment.get_mutable_vars())
-        return nsb
-
-    @staticmethod
-    @contextlib.contextmanager
-    def new_scope():
-        """
-        Creates a brand new module scope
-        """
-        token = Namespace.builder_context.set(Namespace._new_builder())
-        try:
-            yield
-        finally:
-            Namespace.builder_context.reset(token)
-
-    @staticmethod
-    @contextlib.contextmanager
-    def sub_scope():
-        """
-        Creates a sub-scope of the current scope, making sure mutations do not affect the parent
-        """
-        copy = Namespace.builder_context.get().copy()
-        token = Namespace.builder_context.set(copy)
-        try:
-            yield
-        finally:
-            Namespace.builder_context.reset(token)
-
-
-class NamespaceBuilder(dict):
-    """
-    Mutable builder that accumulates names during analysis, with scope tracking.
-    Use .build() to produce an immutable Namespace when done.
-    """
-
-    def __init__(self, other: Namespace):
-        super().__init__(other)
-
-    def __eq__(self, other):
-        return self is other
-
-    def __setitem__(self, attr, obj):
-        self.validate_assignment(attr)
-        assert isinstance(attr, str), f"not a string: {attr}"
-        super().__setitem__(attr, obj)
-
-    def __getitem__(self, key):
-        if key not in self:
-            hint = get_levenshtein_error_suggestions(key, self, 0.2)
-            raise UndeclaredDefinition(f"'{key}' has not been declared.", hint=hint)
-        return super().__getitem__(key)
-
-    def update(self, other):
-        for key, value in other.items():
-            self.__setitem__(key, value)
-
-    def validate_assignment(self, attr):
+    def _validate_assignment(self, attr: str) -> None:
+        """Validate that a name can be assigned."""
         validate_identifier(attr)
 
         if attr in self:
@@ -125,23 +60,64 @@ class NamespaceBuilder(dict):
                 msg += f" as a {prev}"
             raise NamespaceCollision(msg, prev_decl=prev_decl)
 
-    def copy(self):
-        return NamespaceBuilder(super().copy())
+    def with_item(self, key: str, value) -> "Namespace":
+        """Return a new Namespace with the key-value pair added."""
+        self._validate_assignment(key)
+        assert isinstance(key, str), f"not a string: {key}"
+        new_data = dict(self)
+        new_data[key] = value
+        return Namespace(new_data)
 
-    def build(self) -> Namespace:
+    def with_items(self, items: dict) -> "Namespace":
+        """Return a new Namespace with multiple items added."""
+        new_ns = self
+        for key, value in items.items():
+            new_ns = new_ns.with_item(key, value)
+        return new_ns
+
+    # -- static namespace infrastructure --
+
+    #: Namespace which surrounds anything, every namespace should be a superset of this one
+    base: "Namespace"
+
+    #: ContextVar tracking the current immutable Namespace
+    context: contextvars.ContextVar
+
+    @staticmethod
+    def _new_namespace() -> "Namespace":
+        """Create a new namespace initialized with base + mutable vars."""
+        return Namespace.base.with_items(environment.get_mutable_vars())
+
+    @staticmethod
+    @contextlib.contextmanager
+    def new_scope():
         """
-        Produce an immutable Namespace from the current contents.
+        Creates a brand new module scope
         """
-        return Namespace(self)
+        token = Namespace.context.set(Namespace._new_namespace())
+        try:
+            yield
+        finally:
+            Namespace.context.reset(token)
+
+    @staticmethod
+    @contextlib.contextmanager
+    def sub_scope():
+        """
+        Creates a sub-scope of the current scope, making sure mutations do not affect the parent
+        """
+        token = Namespace.context.set(Namespace.context.get())
+        try:
+            yield
+        finally:
+            Namespace.context.reset(token)
 
 
-# initialize class-level state after NamespaceBuilder is defined
+# initialize class-level state
 Namespace.base = Namespace(
     PRIMITIVE_TYPES
     | environment.get_constant_vars()
     | {k: VarInfo(b) for (k, b) in get_builtin_functions().items()}
 )
 
-Namespace.builder_context = contextvars.ContextVar(
-    "namespace_builder_context", default=Namespace._new_builder()
-)
+Namespace.context = contextvars.ContextVar("namespace_context", default=Namespace._new_namespace())
