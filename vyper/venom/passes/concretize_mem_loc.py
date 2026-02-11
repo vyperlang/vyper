@@ -156,6 +156,8 @@ class MemLiveness:
                 if mem in self.used[inst]:
                     self.livesets[mem].add(inst)
 
+        self._mark_store_locations_live()
+
     def _handle_liveat(self, bb: IRBasicBlock) -> bool:
         live: OrderedSet[Allocation] = OrderedSet()
         if len(succs := self.cfg.cfg_out(bb)) > 0:
@@ -243,3 +245,13 @@ class MemLiveness:
         if not isinstance(op, IRVariable):
             return set()
         return self.base_ptrs.get_possible_ptrs(op)
+
+    def _mark_store_locations_live(self):
+        # Keep any surviving stores in the IR "live" for allocation purposes.
+        # DSE can keep stores which alias unknown invoke effects; if we ignored
+        # those stores here, concretization could overlap their allocas.
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                write_op = get_memory_write_op(inst)
+                for ptr in self._find_base_ptrs(write_op):
+                    self.livesets[ptr.base_alloca].add(inst)
