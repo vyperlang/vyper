@@ -11,6 +11,7 @@ from vyper.exceptions import (
     CallViolation,
     CompilerPanic,
     FunctionDeclarationException,
+    InvalidLiteral,
     InvalidType,
     StateAccessViolation,
     StructureException,
@@ -55,7 +56,7 @@ class PositionalArg(_FunctionArg):
 
 @dataclass(kw_only=True)
 class KeywordArg(_FunctionArg):
-    default_value: vy_ast.Ellipsis | vy_ast.Constant
+    default_value: vy_ast.ExprNode
 
 
 # TODO: refactor this into FunctionT (from an ast) and ABIFunctionT (from json)
@@ -939,6 +940,10 @@ def _parse_args(
                             value,
                         )
                     )
+            elif isinstance(value, vy_ast.Ellipsis):
+                raise InvalidLiteral(
+                    "`...` is not allowed as a default value outside of interfaces", value
+                )
 
             if not check_modifiability(value, Modifiability.RUNTIME_CONSTANT):
                 raise StateAccessViolation("Value must be literal or environment variable", value)
