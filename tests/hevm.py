@@ -12,7 +12,6 @@ from vyper.venom.passes import (
     CFGNormalization,
     ConcretizeMemLocPass,
     LowerDloadPass,
-    RemoveUnusedVariablesPass,
     SimplifyCFGPass,
     SingleUseExpansion,
 )
@@ -96,7 +95,6 @@ def _prep_hevm_venom_fn(fn, visitor):
 
     # requirements for venom_to_assembly
     LowerDloadPass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
     ConcretizeMemLocPass(ac, fn).run_pass()
     SingleUseExpansion(ac, fn).run_pass()
     CFGNormalization(ac, fn).run_pass()
