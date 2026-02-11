@@ -66,7 +66,6 @@ def _validate_non_immediate(
 
     if not any(candidate in search_space for candidate in candidates):
         _raise_pass_order_error(
-            pass_names=pass_names,
             idx=idx,
             pass_cls=pass_cls,
             expected=candidates,
@@ -98,7 +97,6 @@ def _validate_immediate(
         return
 
     _raise_pass_order_error(
-        pass_names=pass_names,
         idx=idx,
         pass_cls=pass_cls,
         expected=candidates,
@@ -120,7 +118,6 @@ def _ref_name(ref: PassRef) -> str:
 
 def _raise_pass_order_error(
     *,
-    pass_names: list[str],
     idx: int,
     pass_cls: type[IRPass],
     expected: tuple[str, ...],
@@ -134,8 +131,5 @@ def _raise_pass_order_error(
         f"(index {idx}) {relation} one of [{expected_display}]."
     )
     if actual is not None:
-        message += f" Got [{actual}] instead."
-
-    pipeline_display = " -> ".join(pass_names)
-    message += f" Active pipeline: {pipeline_display}"
+        message += f" Got {actual} instead."
     raise CompilerPanic(message)

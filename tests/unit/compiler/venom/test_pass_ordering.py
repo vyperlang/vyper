@@ -5,6 +5,8 @@ from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.exceptions import CompilerPanic
 from vyper.venom.optimization_levels.pass_order import validate_pass_order
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
+from vyper.venom.passes.tail_merge import TailMergePass
 
 
 @pytest.mark.parametrize(
@@ -95,3 +97,35 @@ def test_o3_tail_merge_requires_immediate_simplify_cfg():
         venom._build_fn_pass_pipeline(
             VenomOptimizationFlags(level=OptimizationLevel.O3, disable_simplify_cfg=True)
         )
+
+
+def test_o3_tail_merge_is_immediately_followed_by_simplify_cfg():
+    pipeline = venom._build_fn_pass_pipeline(VenomOptimizationFlags(level=OptimizationLevel.O3))
+    pass_classes = [pass_cls for pass_cls, _ in pipeline]
+
+    idx = pass_classes.index(TailMergePass)
+    assert pass_classes[idx + 1] is SimplifyCFGPass
+
+
+def test_error_message_stops_at_instead():
+    class A(IRPass):
+        pass
+
+    class B(IRPass):
+        pass
+
+    class C(IRPass):
+        pass
+
+    class D(IRPass):
+        required_immediate_successors = ("E",)
+
+    class E(IRPass):
+        pass
+
+    with pytest.raises(CompilerPanic) as exc:
+        validate_pass_order([A, B, C, D, C, E], pipeline_name="test")
+
+    message = str(exc.value).splitlines()[0]
+    assert message.endswith("instead.")
+    assert "Pipeline context:" not in message
