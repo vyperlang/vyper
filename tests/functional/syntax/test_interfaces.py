@@ -841,6 +841,64 @@ interface Foo:
         compiler.compile_code(code)
 
 
+def test_interface_default_param_value_deprecation_warning_vyi(make_input_bundle):
+    vyi_code = """
+@external
+@view
+def bar(a: uint256 = 123):
+    ...
+    """
+    input_bundle = make_input_bundle({"foo.vyi": vyi_code})
+
+    code = """
+import foo as Foo
+    """
+
+    with pytest.warns(vyper.warnings.Deprecation, match=r"Please use `\.\.\.` as default value\."):
+        compiler.compile_code(code, input_bundle=input_bundle)
+
+
+@pytest.mark.parametrize("default,typ", [
+    ("123", "uint256"),
+    ("True", "bool"),
+    ('empty(address)', "address"),
+])
+def test_interface_default_param_deprecation_various_types(default, typ):
+    code = f"""
+interface Foo:
+    def bar(a: {typ} = {default}): view
+    """
+
+    with pytest.warns(vyper.warnings.Deprecation, match=r"Please use `\.\.\.` as default value\."):
+        compiler.compile_code(code)
+
+
+def test_interface_default_param_multiple_warnings():
+    code = """
+interface Foo:
+    def bar(a: uint256 = 1, b: uint256 = 2): view
+    """
+
+    with pytest.warns(vyper.warnings.Deprecation) as warnings:
+        compiler.compile_code(code)
+
+    dep_warnings = [
+        w for w in warnings if issubclass(w.category, vyper.warnings.Deprecation)
+    ]
+    assert len(dep_warnings) == 2
+
+
+def test_interface_ellipsis_default_no_warning():
+    code = """
+interface Foo:
+    def bar(a: uint256 = ...): view
+    """
+
+    # pytestmark = filterwarnings("error") ensures any unexpected warning
+    # would raise. This verifies ... produces no deprecation warning.
+    compiler.compile_code(code)
+
+
 @pytest.mark.parametrize("decorator", ["@external", "@internal"])
 def test_ellipsis_default_param_outside_interface(decorator):
     code = f"""
@@ -849,5 +907,5 @@ def foo(a: uint256 = ...):
     pass
     """
 
-    with pytest.raises(InvalidLiteral):
+    with pytest.raises(InvalidLiteral, match=r"not allowed.*outside of interfaces"):
         compiler.compile_code(code)
