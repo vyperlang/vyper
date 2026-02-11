@@ -858,11 +858,9 @@ import foo as Foo
         compiler.compile_code(code, input_bundle=input_bundle)
 
 
-@pytest.mark.parametrize("default,typ", [
-    ("123", "uint256"),
-    ("True", "bool"),
-    ('empty(address)', "address"),
-])
+@pytest.mark.parametrize(
+    "default,typ", [("123", "uint256"), ("True", "bool"), ("empty(address)", "address")]
+)
 def test_interface_default_param_deprecation_various_types(default, typ):
     code = f"""
 interface Foo:
@@ -882,9 +880,7 @@ interface Foo:
     with pytest.warns(vyper.warnings.Deprecation) as warnings:
         compiler.compile_code(code)
 
-    dep_warnings = [
-        w for w in warnings if issubclass(w.category, vyper.warnings.Deprecation)
-    ]
+    dep_warnings = [w for w in warnings if issubclass(w.category, vyper.warnings.Deprecation)]
     assert len(dep_warnings) == 2
 
 
