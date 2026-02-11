@@ -144,7 +144,7 @@ def test_basic_not_dead_store_with_mload(positions):
         _global:
             %1 = source
             %ptr_a = {a}
-            %ptr_b = {b}
+            nop
             mstore %ptr_a, 1
             nop
             %2 = mload %ptr_a
@@ -169,7 +169,7 @@ def test_basic_not_dead_store_with_return(positions):
         _global:
             %1 = source
             %ptr_a = {a}
-            %ptr_b = {b}
+            nop
             mstore %ptr_a, 1
             nop
             return %ptr_a, 32
@@ -189,7 +189,7 @@ def test_never_read_store(position):
     post = f"""
         _global:
             %val = 42
-            %ptr = {position}
+            nop
             nop
             stop
     """
@@ -227,7 +227,7 @@ def test_dead_store_different_locations(positions):
         _global:
             %val1 = 42
             %val2 = 24
-            %ptr_a = {a}
+            nop
             %ptr_b = {b}
             nop
             mstore %ptr_b, %val2
