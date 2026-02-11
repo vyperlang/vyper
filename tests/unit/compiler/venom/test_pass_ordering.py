@@ -125,10 +125,7 @@ def test_fix_mem_locations_requires_concretize_after():
     class MidPass(IRPass):
         pass
 
-    validate_pass_order(
-        [FixMemLocationsPass, MidPass, ConcretizeMemLocPass],
-        pipeline_name="test",
-    )
+    validate_pass_order([FixMemLocationsPass, MidPass, ConcretizeMemLocPass], pipeline_name="test")
     with pytest.raises(CompilerPanic, match="FixMemLocationsPass"):
         validate_pass_order([FixMemLocationsPass, MidPass], pipeline_name="test")
 
