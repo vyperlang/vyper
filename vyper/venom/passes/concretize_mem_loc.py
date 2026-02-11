@@ -83,15 +83,9 @@ class ConcretizeMemLocPass(IRPass):
                     assert inst.opcode == "calloca", inst
                     self._remove_unused_calloca(inst)
                     continue
-                if not self.allocator.is_allocated(base_ptr.base_alloca):
-                    # unallocated alloca, we need to allocate it.
-                    #
-                    # the invariant that all abstract mem locs should be already
-                    # allocated by this stage (due to how livesets are calculated)
-                    # only holds if all the dead stores are eliminated.
-                    # however, this doesn't always seem to be the case, so we allocate
-                    # these memory locations now.
-                    self.allocator.allocate(base_ptr.base_alloca)
+                assert self.allocator.is_allocated(base_ptr.base_alloca), (
+                    f"alloca not allocated by livesets: {inst}"
+                )
                 concrete = self.allocator.get_concrete(base_ptr)
                 self.updater.replace(inst, "assign", [concrete])
             if inst.opcode == "gep":
