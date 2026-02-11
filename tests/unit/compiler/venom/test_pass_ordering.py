@@ -5,8 +5,11 @@ from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.exceptions import CompilerPanic
 from vyper.venom.optimization_levels.pass_order import validate_pass_order
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.cfg_normalization import CFGNormalization
 from vyper.venom.passes.concretize_mem_loc import ConcretizeMemLocPass
+from vyper.venom.passes.dft import DFTPass
 from vyper.venom.passes.fix_mem_locations import FixMemLocationsPass
+from vyper.venom.passes.literals_codesize import ReduceLiteralsCodesize
 from vyper.venom.passes.make_ssa import MakeSSA
 from vyper.venom.passes.mem2var import Mem2Var
 from vyper.venom.passes.revert_to_assert import RevertToAssert
@@ -119,10 +122,7 @@ def test_revert_to_assert_requires_immediate_simplify_cfg():
 
 
 def test_fix_mem_locations_requires_concretize_after():
-    validate_pass_order(
-        [FixMemLocationsPass, Mem2Var, ConcretizeMemLocPass],
-        pipeline_name="test",
-    )
+    validate_pass_order([FixMemLocationsPass, Mem2Var, ConcretizeMemLocPass], pipeline_name="test")
     with pytest.raises(CompilerPanic, match="FixMemLocationsPass"):
         validate_pass_order([FixMemLocationsPass, Mem2Var], pipeline_name="test")
 
@@ -148,6 +148,29 @@ def test_disable_simplify_cfg_fails_o2_pipeline_on_revert_constraint():
         venom._build_fn_pass_pipeline(
             VenomOptimizationFlags(level=OptimizationLevel.O2, disable_simplify_cfg=True)
         )
+
+
+def test_dft_requires_single_use_before_and_cfg_normalization_after():
+    validate_pass_order([SingleUseExpansion, DFTPass, CFGNormalization], pipeline_name="test")
+    validate_pass_order(
+        [SingleUseExpansion, ReduceLiteralsCodesize, DFTPass, CFGNormalization],
+        pipeline_name="test",
+    )
+
+    with pytest.raises(CompilerPanic, match="DFTPass"):
+        validate_pass_order([DFTPass, CFGNormalization], pipeline_name="test")
+
+    with pytest.raises(CompilerPanic, match="DFTPass"):
+        validate_pass_order([SingleUseExpansion, DFTPass], pipeline_name="test")
+
+
+def test_o2_dft_is_sandwiched_by_single_use_and_cfg_normalization():
+    pipeline = venom._build_fn_pass_pipeline(VenomOptimizationFlags(level=OptimizationLevel.O2))
+    pass_classes = [pass_cls for pass_cls, _ in pipeline]
+    idx = pass_classes.index(DFTPass)
+
+    assert pass_classes[idx - 1] is SingleUseExpansion
+    assert pass_classes[idx + 1] is CFGNormalization
 
 
 def test_error_message_stops_at_instead():
