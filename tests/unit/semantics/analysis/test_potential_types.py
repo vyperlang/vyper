@@ -35,24 +35,21 @@ def test_attribute_missing_self(build_node, fresh_namespace):
 
 def test_attribute_not_in_self(build_node, fresh_namespace):
     node = build_node("self.foo")
-    ns = Namespace.context.get()
-    Namespace.context.set(ns.with_item("foo", INT128_T))
+    Namespace.add("foo", INT128_T)
     with pytest.raises(InvalidReference):
         get_possible_types_from_node(node)
 
 
 def test_attribute_unknown(build_node, fresh_namespace):
     node = build_node("foo.bar")
-    ns = Namespace.context.get()
-    Namespace.context.set(ns.with_item("foo", AddressT()))
+    Namespace.add("foo", AddressT())
     with pytest.raises(UnknownAttribute):
         get_possible_types_from_node(node)
 
 
 def test_attribute_not_member_type(build_node, fresh_namespace):
     node = build_node("foo.bar")
-    ns = Namespace.context.get()
-    Namespace.context.set(ns.with_item("foo", INT128_T))
+    Namespace.add("foo", INT128_T)
     with pytest.raises(UnknownAttribute):
         get_possible_types_from_node(node)
 
@@ -141,8 +138,7 @@ def test_compare_invalid_op(build_node, fresh_namespace, op, left, right):
 def test_name(build_node, fresh_namespace):
     node = build_node("foo")
     type_def = INT128_T
-    ns = Namespace.context.get()
-    Namespace.context.set(ns.with_item("foo", VarInfo(type_def)))
+    Namespace.add("foo", VarInfo(type_def))
 
     assert get_possible_types_from_node(node) == [type_def]
 
@@ -168,8 +164,7 @@ def test_subscript(build_node, fresh_namespace):
     node = build_node("foo[1]")
     type_ = INT128_T
 
-    ns = Namespace.context.get()
-    Namespace.context.set(ns.with_item("foo", VarInfo(SArrayT(type_, 3))))
+    Namespace.add("foo", VarInfo(SArrayT(type_, 3)))
     assert get_possible_types_from_node(node) == [type_]
 
 
@@ -177,8 +172,7 @@ def test_subscript_out_of_bounds(build_node, fresh_namespace):
     node = build_node("foo[5]")
     type_def = INT128_T
 
-    ns = Namespace.context.get()
-    Namespace.context.set(ns.with_item("foo", VarInfo(SArrayT(type_def, 3))))
+    Namespace.add("foo", VarInfo(SArrayT(type_def, 3)))
     with pytest.raises(ArrayIndexException):
         get_possible_types_from_node(node)
 
@@ -187,8 +181,7 @@ def test_subscript_negative(build_node, fresh_namespace):
     node = build_node("foo[-1]")
     type_def = INT128_T
 
-    ns = Namespace.context.get()
-    Namespace.context.set(ns.with_item("foo", VarInfo(SArrayT(type_def, 3))))
+    Namespace.add("foo", VarInfo(SArrayT(type_def, 3)))
     with pytest.raises(ArrayIndexException):
         get_possible_types_from_node(node)
 
@@ -196,10 +189,8 @@ def test_subscript_negative(build_node, fresh_namespace):
 def test_tuple(build_node, fresh_namespace):
     node = build_node("(foo, bar)")
 
-    ns = Namespace.context.get()
-    ns = ns.with_item("foo", VarInfo(INT128_T))
-    ns = ns.with_item("bar", VarInfo(AddressT()))
-    Namespace.context.set(ns)
+    Namespace.add("foo", VarInfo(INT128_T))
+    Namespace.add("bar", VarInfo(AddressT()))
     types_list = get_possible_types_from_node(node)
 
     assert types_list[0].member_types == [
@@ -211,10 +202,8 @@ def test_tuple(build_node, fresh_namespace):
 def test_tuple_subscript(build_node, fresh_namespace):
     node = build_node("(foo, bar)[1]")
 
-    ns = Namespace.context.get()
-    ns = ns.with_item("foo", VarInfo(INT128_T))
-    ns = ns.with_item("bar", VarInfo(AddressT()))
-    Namespace.context.set(ns)
+    Namespace.add("foo", VarInfo(INT128_T))
+    Namespace.add("bar", VarInfo(AddressT()))
     types_list = get_possible_types_from_node(node)
 
     assert types_list == [Namespace.context.get()["bar"].typ]

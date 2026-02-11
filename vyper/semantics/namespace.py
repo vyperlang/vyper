@@ -91,6 +91,12 @@ class Namespace:
     context: contextvars.ContextVar
 
     @staticmethod
+    def add(key: str, value) -> None:
+        """Add an item to the current namespace context."""
+        ns = Namespace.context.get()
+        Namespace.context.set(ns.with_item(key, value))
+
+    @staticmethod
     def _new_namespace() -> "Namespace":
         """Create a new namespace initialized with base + mutable vars."""
         return Namespace.base.with_items(environment.get_mutable_vars())

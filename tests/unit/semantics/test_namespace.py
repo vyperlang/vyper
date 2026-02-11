@@ -7,11 +7,9 @@ from vyper.semantics.types import PRIMITIVE_TYPES
 
 
 def test_builtin_context_manager(fresh_namespace):
-    ns = Namespace.context.get()
-    Namespace.context.set(ns.with_item("foo", 42))
+    Namespace.add("foo", 42)
     with Namespace.sub_scope():
-        ns = Namespace.context.get()
-        Namespace.context.set(ns.with_item("bar", 1337))
+        Namespace.add("bar", 1337)
 
     assert Namespace.context.get()["foo"] == 42
     assert "bar" not in Namespace.context.get()
@@ -42,11 +40,9 @@ def test_context_manager_mutable_vars(fresh_namespace):
 
 def test_context_manager(fresh_namespace):
     with Namespace.sub_scope():
-        ns = Namespace.context.get()
-        Namespace.context.set(ns.with_item("foo", 42))
+        Namespace.add("foo", 42)
         with Namespace.sub_scope():
-            ns = Namespace.context.get()
-            Namespace.context.set(ns.with_item("bar", 1337))
+            Namespace.add("bar", 1337)
 
         assert Namespace.context.get()["foo"] == 42
         assert "bar" not in Namespace.context.get()
@@ -56,21 +52,17 @@ def test_context_manager(fresh_namespace):
 
 def test_namespace_collision(fresh_namespace):
     with Namespace.sub_scope():
-        ns = Namespace.context.get()
-        Namespace.context.set(ns.with_item("foo", 42))
+        Namespace.add("foo", 42)
         with pytest.raises(NamespaceCollision):
-            ns = Namespace.context.get()
-            Namespace.context.set(ns.with_item("foo", 1337))
+            Namespace.add("foo", 1337)
 
 
 def test_namespace_collision_across_scopes(fresh_namespace):
     with Namespace.sub_scope():
-        ns = Namespace.context.get()
-        Namespace.context.set(ns.with_item("foo", 42))
+        Namespace.add("foo", 42)
         with Namespace.sub_scope():
             with pytest.raises(NamespaceCollision):
-                ns = Namespace.context.get()
-                Namespace.context.set(ns.with_item("foo", 1337))
+                Namespace.add("foo", 1337)
 
 
 def test_undeclared_definition(fresh_namespace):
@@ -81,7 +73,6 @@ def test_undeclared_definition(fresh_namespace):
 def test_undeclared_definition_across_scopes(fresh_namespace):
     with Namespace.sub_scope():
         with Namespace.sub_scope():
-            ns = Namespace.context.get()
-            Namespace.context.set(ns.with_item("foo", 42))
+            Namespace.add("foo", 42)
     with pytest.raises(UndeclaredDefinition):
         Namespace.context.get()["foo"]
