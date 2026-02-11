@@ -83,9 +83,9 @@ class ConcretizeMemLocPass(IRPass):
                     assert inst.opcode == "calloca", inst
                     self._remove_unused_calloca(inst)
                     continue
-                assert self.allocator.is_allocated(base_ptr.base_alloca), (
-                    f"alloca not allocated by livesets: {inst}"
-                )
+                assert self.allocator.is_allocated(
+                    base_ptr.base_alloca
+                ), f"alloca not allocated by livesets: {inst}"
                 concrete = self.allocator.get_concrete(base_ptr)
                 self.updater.replace(inst, "assign", [concrete])
             if inst.opcode == "gep":
