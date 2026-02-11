@@ -9,23 +9,26 @@ def validate_pass_order(pass_classes: Sequence[type[IRPass]], pipeline_name: str
     Validate ordering constraints declared on each pass class.
     """
     pass_names = [pass_cls.__name__ for pass_cls in pass_classes]
+    first_idx, last_idx = _index_pass_positions(pass_names)
 
     for idx, pass_cls in enumerate(pass_classes):
         _validate_non_immediate(
-            pass_names,
             idx,
             pass_cls,
             pass_cls.required_predecessors,
             pipeline_name,
             direction="before",
+            first_idx=first_idx,
+            last_idx=last_idx,
         )
         _validate_non_immediate(
-            pass_names,
             idx,
             pass_cls,
             pass_cls.required_successors,
             pipeline_name,
             direction="after",
+            first_idx=first_idx,
+            last_idx=last_idx,
         )
         _validate_immediate(
             pass_names,
@@ -45,26 +48,43 @@ def validate_pass_order(pass_classes: Sequence[type[IRPass]], pipeline_name: str
         )
 
 
+def _index_pass_positions(pass_names: list[str]) -> tuple[dict[str, int], dict[str, int]]:
+    first_idx: dict[str, int] = {}
+    last_idx: dict[str, int] = {}
+
+    for idx, name in enumerate(pass_names):
+        if name not in first_idx:
+            first_idx[name] = idx
+        last_idx[name] = idx
+
+    return first_idx, last_idx
+
+
 def _validate_non_immediate(
-    pass_names: list[str],
     idx: int,
     pass_cls: type[IRPass],
     refs: tuple[PassRef, ...],
     pipeline_name: str,
     direction: str,
+    first_idx: dict[str, int],
+    last_idx: dict[str, int],
 ) -> None:
     candidates = _normalize_refs(refs)
     if not candidates:
         return
 
     if direction == "before":
-        search_space = pass_names[:idx]
         relation = "must run after"
+        is_satisfied = any(
+            candidate in first_idx and first_idx[candidate] < idx for candidate in candidates
+        )
     else:
-        search_space = pass_names[idx + 1 :]
         relation = "must run before"
+        is_satisfied = any(
+            candidate in last_idx and last_idx[candidate] > idx for candidate in candidates
+        )
 
-    if not any(candidate in search_space for candidate in candidates):
+    if not is_satisfied:
         _raise_pass_order_error(
             idx=idx,
             pass_cls=pass_cls,
