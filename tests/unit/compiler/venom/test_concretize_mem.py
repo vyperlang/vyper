@@ -93,9 +93,7 @@ def test_surviving_store_no_overlap():
     ConcretizeMemLocPass(ac, fn).run_pass()
 
     allocator = ctx.mem_allocator
-    intervals = sorted(
-        (pos, alloca.alloca_size) for alloca, pos in allocator.allocated.items()
-    )
+    intervals = sorted((pos, alloca.alloca_size) for alloca, pos in allocator.allocated.items())
 
     # verify no two allocations overlap — without the fix both would
     # be at position 0, causing the mstore to clobber buf
@@ -131,9 +129,7 @@ def test_surviving_store_no_overlap_large():
     ConcretizeMemLocPass(ac, fn).run_pass()
 
     allocator = ctx.mem_allocator
-    intervals = sorted(
-        (pos, alloca.alloca_size) for alloca, pos in allocator.allocated.items()
-    )
+    intervals = sorted((pos, alloca.alloca_size) for alloca, pos in allocator.allocated.items())
 
     for i in range(len(intervals) - 1):
         pos_a, size_a = intervals[i]
