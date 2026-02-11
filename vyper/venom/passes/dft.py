@@ -20,6 +20,9 @@ class DFTPass(IRPass):
 
     stack_order: StackOrderAnalysis
     cfg: CFGAnalysis
+    # DFT expects single-use-expanded operands and should run just before CFG normalization.
+    required_predecessors = ("SingleUseExpansion",)
+    required_immediate_successors = ("CFGNormalization",)
 
     def run_pass(self) -> None:
         self.data_offspring = {}
