@@ -247,9 +247,14 @@ class MemLiveness:
         return self.base_ptrs.get_possible_ptrs(op)
 
     def _mark_store_locations_live(self):
-        # Keep any surviving stores in the IR "live" for allocation purposes.
-        # DSE can keep stores which alias unknown invoke effects; if we ignored
-        # those stores here, concretization could overlap their allocas.
+        # DSE may preserve stores whose liveness it can't disprove (e.g.,
+        # when an invoke might alias the store target). MemLiveness uses a
+        # different liveness model (liveat ∩ used) that can mark the same
+        # alloca dead. If concretization trusts MemLiveness alone, it may
+        # overlap the "dead" alloca with a live one, but the surviving
+        # store still executes at runtime and clobbers the overlap.
+        # Fix: any store present in the IR forces its target alloca live
+        # at that instruction, preventing overlapping allocation.
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 write_op = get_memory_write_op(inst)
