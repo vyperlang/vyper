@@ -47,6 +47,25 @@ def _get_signed_literal(op: IROperand) -> Optional[int]:
     return wrap256(op.value, signed=True)
 
 
+def _get_uint_constant(op: IROperand, state: RangeState) -> Optional[int]:
+    """Extract unsigned constant: try literal first, then range analysis."""
+    result = _get_uint_literal(op)
+    if result is not None:
+        return result
+    r = _operand_range(op, state)
+    c = r.as_constant()
+    return wrap256(c) if c is not None else None
+
+
+def _get_signed_constant(op: IROperand, state: RangeState) -> Optional[int]:
+    """Extract signed constant: try literal first, then range analysis."""
+    result = _get_signed_literal(op)
+    if result is not None:
+        return result
+    r = _operand_range(op, state)
+    return r.as_constant()
+
+
 def _operand_range(operand: IROperand, env: RangeState) -> ValueRange:
     """Get the range of an operand from the current environment.
 
@@ -213,6 +232,9 @@ def _eval_byte(inst: IRInstruction, state: RangeState) -> ValueRange:
     value_range = _operand_range(value_op, state)
     if value_range.is_empty:
         return ValueRange.empty()
+    # Keep byte index specialization literal-only to preserve conservative
+    # behavior for variable indices, even when state happens to carry a
+    # singleton range.
     index = _get_uint_literal(index_op)
     if index is not None and index >= 32:
         return ValueRange.constant(0)
@@ -257,7 +279,7 @@ def _eval_signextend(inst: IRInstruction, state: RangeState) -> ValueRange:
     value_range = _operand_range(value_op, state)
     if value_range.is_empty:
         return ValueRange.empty()
-    index = _get_uint_literal(index_op)
+    index = _get_uint_constant(index_op, state)
     if index is None:
         return ValueRange.top()
     if index >= 32:
@@ -301,7 +323,7 @@ def _eval_mod(inst: IRInstruction, state: RangeState) -> ValueRange:
     dividend_range = _operand_range(dividend_op, state)
     if dividend_range.is_empty:
         return ValueRange.empty()
-    divisor = _get_uint_literal(divisor_op)
+    divisor = _get_uint_constant(divisor_op, state)
     if divisor is None:
         return ValueRange.top()
     if divisor == 0:
@@ -316,7 +338,7 @@ def _eval_div(inst: IRInstruction, state: RangeState) -> ValueRange:
     dividend_range = _operand_range(dividend_op, state)
     if dividend_range.is_empty:
         return ValueRange.empty()
-    divisor = _get_uint_literal(divisor_op)
+    divisor = _get_uint_constant(divisor_op, state)
     if divisor is None:
         return ValueRange.top()
     if divisor == 0:
@@ -335,7 +357,7 @@ def _eval_shr(inst: IRInstruction, state: RangeState) -> ValueRange:
     value_range = _operand_range(value_op, state)
     if value_range.is_empty:
         return ValueRange.empty()
-    shift = _get_uint_literal(shift_op)
+    shift = _get_uint_constant(shift_op, state)
     if shift is None:
         return ValueRange.top()
     # shift >= 256 always produces 0 regardless of input
@@ -354,7 +376,7 @@ def _eval_shl(inst: IRInstruction, state: RangeState) -> ValueRange:
     value_range = _operand_range(value_op, state)
     if value_range.is_empty:
         return ValueRange.empty()
-    shift = _get_uint_literal(shift_op)
+    shift = _get_uint_constant(shift_op, state)
     if shift is None:
         return ValueRange.top()
     # shift >= 256 always produces 0 regardless of input
@@ -380,7 +402,7 @@ def _eval_sar(inst: IRInstruction, state: RangeState) -> ValueRange:
     """Evaluate sar (arithmetic shift right) instruction."""
     shift_op = inst.operands[-1]
     value_op = inst.operands[-2]
-    shift = _get_uint_literal(shift_op)
+    shift = _get_uint_constant(shift_op, state)
     value_range = _operand_range(value_op, state)
     if shift is None:
         return ValueRange.top()
@@ -408,7 +430,7 @@ def _eval_sdiv(inst: IRInstruction, state: RangeState) -> ValueRange:
     dividend_range = _operand_range(dividend_op, state)
     if dividend_range.is_empty:
         return ValueRange.empty()
-    divisor = _get_signed_literal(divisor_op)
+    divisor = _get_signed_constant(divisor_op, state)
     if divisor is None:
         return ValueRange.top()
     if divisor == 0:
@@ -462,7 +484,7 @@ def _eval_smod(inst: IRInstruction, state: RangeState) -> ValueRange:
     dividend_range = _operand_range(dividend_op, state)
     if dividend_range.is_empty:
         return ValueRange.empty()
-    divisor = _get_signed_literal(divisor_op)
+    divisor = _get_signed_constant(divisor_op, state)
     if divisor is None:
         return ValueRange.top()
     if divisor == 0:
