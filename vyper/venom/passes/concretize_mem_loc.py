@@ -27,6 +27,9 @@ from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
 class ConcretizeMemLocPass(IRPass):
     allocated_in_bb: dict[IRBasicBlock, int]
+    # FixMemLocationsPass seeds pinned allocas whose abstract locations are concretized here.
+    # LowerDloadPass inserts allocas
+    required_predecessors = ("FixMemLocationsPass", "LowerDloadPass")
 
     def run_pass(self):
         self.allocator = self.function.ctx.mem_allocator
@@ -83,15 +86,9 @@ class ConcretizeMemLocPass(IRPass):
                     assert inst.opcode == "calloca", inst
                     self._remove_unused_calloca(inst)
                     continue
-                if not self.allocator.is_allocated(base_ptr.base_alloca):
-                    # unallocated alloca, we need to allocate it.
-                    #
-                    # the invariant that all abstract mem locs should be already
-                    # allocated by this stage (due to how livesets are calculated)
-                    # only holds if all the dead stores are eliminated.
-                    # however, this doesn't always seem to be the case, so we allocate
-                    # these memory locations now.
-                    self.allocator.allocate(base_ptr.base_alloca)
+                assert self.allocator.is_allocated(
+                    base_ptr.base_alloca
+                ), f"alloca not allocated by livesets: {inst}"
                 concrete = self.allocator.get_concrete(base_ptr)
                 self.updater.replace(inst, "assign", [concrete])
             if inst.opcode == "gep":
@@ -155,6 +152,8 @@ class MemLiveness:
             for mem in mems:
                 if mem in self.used[inst]:
                     self.livesets[mem].add(inst)
+
+        self._mark_store_locations_live()
 
     def _handle_liveat(self, bb: IRBasicBlock) -> bool:
         live: OrderedSet[Allocation] = OrderedSet()
@@ -243,3 +242,18 @@ class MemLiveness:
         if not isinstance(op, IRVariable):
             return set()
         return self.base_ptrs.get_possible_ptrs(op)
+
+    def _mark_store_locations_live(self):
+        # DSE may preserve stores whose liveness it can't disprove (e.g.,
+        # when an invoke might alias the store target). MemLiveness uses a
+        # different liveness model (liveat ∩ used) that can mark the same
+        # alloca dead. If concretization trusts MemLiveness alone, it may
+        # overlap the "dead" alloca with a live one, but the surviving
+        # store still executes at runtime and clobbers the overlap.
+        # Fix: any store present in the IR forces its target alloca live
+        # at that instruction, preventing overlapping allocation.
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                write_op = get_memory_write_op(inst)
+                for ptr in self._find_base_ptrs(write_op):
+                    self.livesets[ptr.base_alloca].add(inst)

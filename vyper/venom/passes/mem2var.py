@@ -13,6 +13,10 @@ class Mem2Var(IRPass):
     """
 
     function: IRFunction
+    # Mem2Var is intentionally run in an SSA "sandwich".
+    # FloatAllocas moves pallocas with memory initializations for params
+    required_predecessors = ("MakeSSA", "FloatAllocas")
+    required_successors = ("MakeSSA",)
 
     def run_pass(self):
         self.mem_alloc = self.function.ctx.mem_allocator

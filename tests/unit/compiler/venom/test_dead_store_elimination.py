@@ -5,7 +5,7 @@ from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.analysis.mem_ssa import mem_ssa_type_factory
 from vyper.venom.memory_location import MemoryLocation
-from vyper.venom.passes import SCCP, DeadStoreElimination
+from vyper.venom.passes import SCCP, DeadStoreElimination, RemoveUnusedVariablesPass
 from vyper.venom.passes.base_pass import IRPass
 
 pytestmark = pytest.mark.hevm
@@ -49,6 +49,9 @@ class VolatilePrePostChecker(PrePostChecker):
                 self.pass_objects.append(obj)
                 obj.run_pass(self.addr_space)
 
+            # clean up allocas left dead after DSE
+            RemoveUnusedVariablesPass(ac, fn).run_pass()
+
         post_ctx = parse_from_basic_block(post)
         for fn in post_ctx.functions.values():
             ac = IRAnalysesCache(fn)
@@ -57,6 +60,9 @@ class VolatilePrePostChecker(PrePostChecker):
                 obj = p(ac, fn)
                 self.pass_objects.append(obj)
                 obj.run_pass()
+
+            # clean up allocas left dead after DSE
+            RemoveUnusedVariablesPass(ac, fn).run_pass()
 
         assert_ctx_eq(pre_ctx, post_ctx)
 
@@ -138,7 +144,7 @@ def test_basic_not_dead_store_with_mload(positions):
         _global:
             %1 = source
             %ptr_a = {a}
-            %ptr_b = {b}
+            nop
             mstore %ptr_a, 1
             nop
             %2 = mload %ptr_a
@@ -163,7 +169,7 @@ def test_basic_not_dead_store_with_return(positions):
         _global:
             %1 = source
             %ptr_a = {a}
-            %ptr_b = {b}
+            nop
             mstore %ptr_a, 1
             nop
             return %ptr_a, 32
@@ -180,10 +186,10 @@ def test_never_read_store(position):
             mstore %ptr, %val  ; Dead store - never read
             stop
     """
-    post = f"""
+    post = """
         _global:
             %val = 42
-            %ptr = {position}
+            nop
             nop
             stop
     """
@@ -221,7 +227,7 @@ def test_dead_store_different_locations(positions):
         _global:
             %val1 = 42
             %val2 = 24
-            %ptr_a = {a}
+            nop
             %ptr_b = {b}
             nop
             mstore %ptr_b, %val2
