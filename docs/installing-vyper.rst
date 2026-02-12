@@ -20,22 +20,22 @@ any errors.
 Standalone
 **********
 
-The Vyper CLI can be installed with any ``pip`` compatible tool, for example, ``pipx`` or ``uv tool``. If you do not have ``pipx`` or ``uv`` installed, first, go to the respective tool's installation page:
+The Vyper CLI can be installed with ``uv tool`` or ``pipx``. If you do not have these installed, first visit their installation pages:
 
-- https://github.com/pypa/pipx?tab=readme-ov-file
-- https://github.com/astral-sh/uv?tab=readme-ov-file#uv
+- https://github.com/astral-sh/uv
+- https://github.com/pypa/pipx
 
-Then, the command to install Vyper would be
-
-::
-
-    pipx install vyper
-
-Or,
+Then install Vyper:
 
 ::
 
     uv tool install vyper
+
+or:
+
+::
+
+    pipx install vyper
 
 
 Binaries
@@ -65,23 +65,24 @@ It is **strongly recommended** to install Vyper in **a virtual Python
 environment**, so that new packages installed and dependencies built are
 strictly contained in your Vyper project and will not alter or affect your
 other development environment set-up.
-For easy virtualenv management, we recommend `uv <https://github.com/astral-sh/uv>`_,
-`pyenv <https://github.com/pyenv/pyenv>`_, or `Poetry <https://github.com/python-poetry/poetry>`_.
-
 
 .. note::
 
     To find out more about virtual environments, check out:
     `virtualenv guide <https://docs.python.org/3/library/venv.html>`_.
 
-
 Installing Vyper
 ================
 
-Each tagged version of vyper is uploaded to `pypi <https://pypi.org/project/vyper/>`_, and can be installed using ``pip``:
+Each tagged version of vyper is uploaded to `pypi <https://pypi.org/project/vyper/>`_, and can be installed inside a virtual environment:
 ::
 
     pip install vyper
+
+or:
+::
+
+    uv pip install vyper
 
 To install a specific version use:
 ::
