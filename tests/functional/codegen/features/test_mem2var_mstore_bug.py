@@ -130,3 +130,38 @@ def test_val() -> bytes32:
     """
     c = get_contract(code, compiler_settings=no_inline_settings)
     assert c.test_val() == bytes.fromhex("bb" * 32)
+
+
+@pytest.mark.hevm
+def test_mem2var_dse_concretize_liveness_mismatch_regression(get_contract, no_inline_settings):
+    """
+    Regression for DSE vs concretize mem liveness disagreement:
+    a dead scratch mstore survives DSE but must still keep its alloca live
+    during concretization to avoid overlapping with DynArray memory.
+
+    Without the fix, the keccak scratch alloca could overlap with the
+    DynArray memory, clobbering its length word and causing either a
+    revert or silently wrong array contents.
+    """
+    code = """
+@pure
+def _h() -> address:
+    x: address = convert(2, address)
+    return x
+
+@external
+@pure
+def f() -> DynArray[address, 5]:
+    a: DynArray[address, 5] = [self._h()]
+    b: bytes32 = keccak256(convert(0, bytes32))
+    for i: uint256 in range(1):
+        a[len(a) - 1] = self._h()
+    return a
+    """
+    c = get_contract(code, compiler_settings=no_inline_settings)
+    result = c.f()
+    # verify the DynArray contents are correct, not just that we don't revert.
+    # without the fix, scratch memory could clobber the DynArray length word,
+    # producing wrong length or corrupt entries.
+    expected_addr = "0x" + "0" * 39 + "2"
+    assert result == [expected_addr], f"expected [{expected_addr}], got {result}"
