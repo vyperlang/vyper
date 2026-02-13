@@ -488,10 +488,11 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self.generic_visit(node)
         value = node.node_source_code
 
+        # ignore underscores in numeric literals (PEP 515)
+        value = value.replace("_", "")
+
         # deduce non base-10 types based on prefix
         if value.lower()[:2] == "0x":
-            # ignore underscores
-            value = value.replace("_", "")
             if len(value) % 2:
                 raise SyntaxException(
                     "Hex notation requires an even number of digits",
@@ -504,8 +505,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         elif value.lower()[:2] == "0b":
             node.ast_type = "Bytes"
-            # ignore underscores
-            value = value.replace("_", "")
             mod = (len(value) - 2) % 8
             if mod:
                 raise SyntaxException(

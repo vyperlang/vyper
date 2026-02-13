@@ -311,10 +311,17 @@ STRING: /x?b?("(?!"").*?(?<!\\)(\\\\)*?"|'(?!'').*?(?<!\\)(\\\\)*?')/i
 DOCSTRING: /(""".*?(?<!\\)(\\\\)*?"""|'''.*?(?<!\\)(\\\\)*?''')/is
 
 DEC_NUMBER: /0|[1-9](_?[0-9])*/
-HEX_NUMBER.2: /0x_?[\da-f](_?[\da-f])*/i
-OCT_NUMBER.2: /0o_?[0-7](_?[0-7])*/
-BIN_NUMBER.2 : /0b_?[0-1](_?[0-1])*/i
-FLOAT_NUMBER.2: /((\d+(_\d+)*\.(\d+(_\d+)*)?|\.\d+(_\d+)*)(e[-+]?\d+)?|\d+(_\d+)*(e[-+]?\d+))/i
+HEX_NUMBER.2: /0[xX](_?[\da-f])+/i
+OCT_NUMBER.2: /0[oO](_?[0-7])+/
+BIN_NUMBER.2 : /0[bB](_?[0-1])+/i
+
+// Floating point literals (PEP 515)
+_DIGITPART: /\d(_?\d)*/
+_FRACTION: "." _DIGITPART
+_EXPONENT: /[eE][+-]?/ _DIGITPART
+FLOAT_NUMBER.2: _DIGITPART "." _DIGITPART? _EXPONENT?
+              | _FRACTION _EXPONENT?
+              | _DIGITPART _EXPONENT
 
 _number: DEC_NUMBER
        | HEX_NUMBER
