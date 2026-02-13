@@ -1,9 +1,9 @@
 .. index:: tokens;ERC20, ERC20
 
+.. _erc20:
+
 ERC20 Token
 ***********
-
-.. _erc20:
 
 .. warning::
 
@@ -26,5 +26,5 @@ Key features:
 
    This is example code. Production tokens require additional security review.
 
-Notice how Vyper's overflow protection is built-in: the comment "vyper does not allow underflows"
+Notice how Vyper's overflow/underflow protection is built-in: the comment "vyper does not allow underflows"
 explains why no explicit check is needed when subtracting from balances.

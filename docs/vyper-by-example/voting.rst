@@ -13,7 +13,7 @@ In this contract, we will implement a system for participants to vote on a list
 of proposals. The chairperson of the contract will be able to give each
 participant the right to vote, and each participant may choose to vote, or
 delegate their vote to another voter. Finally, a winning proposal will be
-determined upon calling the ``winningProposals()`` method, which iterates through
+determined upon calling the ``winningProposal()`` method, which iterates through
 all the proposals and returns the one with the greatest number of votes.
 
 .. literalinclude:: ../../examples/voting/ballot.vy
@@ -26,7 +26,7 @@ section by section. Let's begin!
 .. literalinclude:: ../../examples/voting/ballot.vy
   :language: vyper
   :lineno-start: 3
-  :lines: 3-25
+  :lines: 3-28
 
 The variable ``voters`` is initialized as a mapping where the key is
 the voter's public address and the value is a struct describing the
@@ -46,8 +46,8 @@ Let's move onto the constructor.
 
 .. literalinclude:: ../../examples/voting/ballot.vy
   :language: vyper
-  :lineno-start: 53
-  :lines: 53-62
+  :lineno-start: 54
+  :lines: 54-64
 
 In the constructor, we hard-coded the contract to accept an
 array argument of exactly two proposal names of type ``bytes32`` for the contracts
@@ -61,28 +61,28 @@ participant in the contract is given the right to vote by the method
 proposals from the argument and insert them into ``proposals`` mapping with
 their respective index in the original array as its key.
 
-Now that the initial setup is done, lets take a look at the functionality.
+Now that the initial setup is done, let's take a look at the functionality.
 
 .. literalinclude:: ../../examples/voting/ballot.vy
   :language: vyper
   :lineno-start: 66
-  :lines: 66-75
+  :lines: 66-77
 
 .. note:: Throughout this contract, we use a pattern where ``@external`` functions return data from ``@internal`` functions that have the same name prepended with an underscore. This is because Vyper does not allow calls between external functions within the same contract. The internal function handles the logic and allows internal access, while the external function acts as a getter to allow external viewing.
 
 We need a way to control who has the ability to vote. The method
 ``giveRightToVote()`` is a method callable by only the chairperson by taking
-a voter address and granting it the right to vote by incrementing the voter's
+a voter address and granting it the right to vote by setting the voter's
 ``weight`` property. We sequentially check for 3 conditions using ``assert``.
-The ``assert not`` function will check for falsy boolean values -
+The ``assert not`` statement will check for falsy boolean values -
 in this case, we want to know that the voter has not already voted. To represent
 voting power, we will set their ``weight`` to ``1`` and we will keep track of the
 total number of voters by incrementing ``voterCount``.
 
 .. literalinclude:: ../../examples/voting/ballot.vy
   :language: vyper
-  :lineno-start: 120
-  :lines: 120-135
+  :lineno-start: 121
+  :lines: 121-137
 
 In the method ``delegate``, firstly, we check to see that ``msg.sender`` has not
 already voted and secondly, that the target delegate and the ``msg.sender`` are
@@ -94,7 +94,7 @@ transferring voting weight appropriately.
 .. literalinclude:: ../../examples/voting/ballot.vy
   :language: vyper
   :lineno-start: 139
-  :lines: 139-151
+  :lines: 139-153
 
 Now, let's take a look at the logic inside the ``vote()`` method, which is
 surprisingly simple. The method takes the key of the proposal in the ``proposals``
@@ -112,8 +112,8 @@ view functions do not cost gas.
 
 .. literalinclude:: ../../examples/voting/ballot.vy
   :language: vyper
-  :lineno-start: 153
-  :lines: 153-170
+  :lineno-start: 155
+  :lines: 155-171
 
 The ``_winningProposal()`` method returns the key of proposal in the ``proposals``
 mapping. We will keep track of greatest number of votes and the winning
@@ -124,8 +124,8 @@ respectively by looping through all the proposals.
 
 .. literalinclude:: ../../examples/voting/ballot.vy
   :language: vyper
-  :lineno-start: 175
-  :lines: 175-178
+  :lineno-start: 174
+  :lines: 174-180
 
 And finally, the ``winnerName()`` method returns the name of the proposal by
 key'ing into the ``proposals`` mapping with the return result of the

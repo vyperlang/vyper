@@ -167,7 +167,7 @@ Functions may be called internally or externally depending on their :ref:`visibi
 
 See the :ref:`Functions <control-structures-functions>` documentation for more information.
 
-.. _modules:
+.. _modules-struct:
 
 Modules
 ==========
@@ -254,7 +254,7 @@ Once defined, an interface can then be used to make external calls to a given ad
 
     @external
     def test(some_address: address):
-        staticcall FooBar(some_address).calculate()
+        x: uint256 = staticcall FooBar(some_address).calculate()
 
 See the :ref:`Interfaces <interfaces>` documentation for more information.
 

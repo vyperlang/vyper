@@ -74,9 +74,8 @@ For guidance on writing good commit messages, see `How to Write a Git Commit Mes
 To ensure your commit message is properly formatted (wrapped at 72 characters), use the included formatter:
 
 1. Write your commit message in a text file
-2. Run ``python fmt_commit_msg.py commitmsg.txt``
-3. Copy the formatted output
-4. Paste it in your PR description, wrapped in triple backticks
+2. Run ``python fmt_commit_msg.py commitmsg.txt`` (this formats the file in-place)
+3. Paste the formatted message in your PR description, wrapped in triple backticks
 
 The maintainer will use this message when squash-merging your PR.
 

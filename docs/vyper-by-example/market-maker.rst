@@ -1,9 +1,9 @@
 .. index:: market maker, AMM
 
+.. _market_maker:
+
 On-Chain Market Maker
 *********************
-
-.. _market_maker:
 
 .. warning::
 
@@ -22,7 +22,7 @@ How it works:
 3. Users swap tokens for ETH via ``tokensToEth()``
 4. The invariant is maintained: more ETH in = fewer tokens out
 
-The 0.2% fee (``msg.value // 500``) goes to the liquidity provider.
+The 0.2% fee (``msg.value // 500``) on ETH-to-token swaps goes to the liquidity provider.
 
 .. note::
 

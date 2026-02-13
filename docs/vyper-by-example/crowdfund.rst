@@ -25,12 +25,13 @@ previous examples. Let's dive right in.
 
 .. literalinclude:: ../../examples/crowdfund.vy
   :language: vyper
-  :lineno-start: 3
-  :lines: 3-13
+  :lineno-start: 9
+  :lines: 9-14
 
-Like other examples, we begin by initiating our variables - except this time,
-we're not calling them with the ``public`` function. Variables initiated this
-way are, by default, private.
+Like other examples, we begin by initiating our variables. Some variables like
+``deadline``, ``goal`` and ``timelimit`` are declared with the ``public`` function,
+making them readable by external callers. Variables without ``public`` are, by
+default, private.
 
 .. note::
   Unlike the existence of the function ``public()``, there is no equivalent
@@ -46,8 +47,8 @@ of all participants.
 
 .. literalinclude:: ../../examples/crowdfund.vy
   :language: vyper
-  :lineno-start: 9
-  :lines: 9-15
+  :lineno-start: 16
+  :lines: 16-23
 
 Our constructor function takes 3 arguments: the beneficiary's address, the goal
 in wei value, and the difference in time from start to finish of the
@@ -55,12 +56,12 @@ crowdfunding. We initialize the arguments as contract variables with their
 corresponding names. Additionally, a ``self.deadline`` is initialized to set
 a definitive end time for the crowdfunding period.
 
-Now lets take a look at how a person can participate in the crowdfund.
+Now let's take a look at how a person can participate in the crowdfund.
 
 .. literalinclude:: ../../examples/crowdfund.vy
   :language: vyper
-  :lineno-start: 17
-  :lines: 17-23
+  :lineno-start: 25
+  :lines: 25-32
 
 Once again, we see the ``@payable`` decorator on a method, which allows a
 person to send some ether along with a call to the method. In this case,
@@ -71,8 +72,8 @@ total contribution amount.
 
 .. literalinclude:: ../../examples/crowdfund.vy
   :language: vyper
-  :lineno-start: 25
-  :lines: 25-31
+  :lineno-start: 34
+  :lines: 34-42
 
 The ``finalize()`` method is used to complete the crowdfunding process. However,
 to complete the crowdfunding, the method first checks to see if the crowdfunding
@@ -91,8 +92,8 @@ all the participants.
 
 .. literalinclude:: ../../examples/crowdfund.vy
   :language: vyper
-  :lineno-start: 33
-  :lines: 33-42
+  :lineno-start: 44
+  :lines: 44-54
 
 In the ``refund()`` method, we first check that the crowdfunding period is
 indeed over and that the total collected balance is less than the ``goal`` with

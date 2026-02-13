@@ -24,7 +24,7 @@ Key Features
 **Safety by default**
 
 * Bounds and overflow checking on array accesses and arithmetic
-* Built-in reentrancy protection via the ``@nonreentrant`` decorator (see :ref:`control-structures`)
+* Reentrancy protection via the ``@nonreentrant`` decorator (see :ref:`control-structures`)
 * Strong typing with explicit :ref:`type conversions <type_conversions>`
 
 **Predictable execution**
@@ -68,6 +68,6 @@ Vyper eliminates entire vulnerability classes by excluding features that enable 
 These constraints mean developers cannot accidentally introduce dangerous patterns, even under time pressure or with limited blockchain experience.
 
 Decimal Fixed Point
--------------------
+===================
 
 Vyper uses decimal (not binary) fixed point numbers. This ensures that literals like ``0.1`` have exact representations, avoiding the subtle precision errors common in binary floating-point arithmetic.

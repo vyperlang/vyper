@@ -23,7 +23,7 @@ Quick Reference
      - Explicit dependencies
    * - ``assembly { }``
      - Not supported
-     - No direct EVM opcode access; use specific builtins (``raw_call``, ``raw_log``, etc.)
+     - No direct EVM opcode access; use specific builtins (``raw_call``, ``create_minimal_proxy_to``, etc.)
    * - ``while (true)``
      - ``for i in range(n)``
      - Bounded gas costs
@@ -45,7 +45,7 @@ Philosophy
 
 Vyper prioritizes three properties: security, simplicity, and auditability.
 
-To achieve these properties, Vyper excludes features that obscure control flow or make code difficult to reason about. Each omission is a deliberate tradeoff: less flexibility in exchange for explicit behavior. See :ref:`Principles and Goals <design-principles>` for the full rationale.
+To achieve these properties, Vyper excludes features that obscure control flow or make code difficult to reason about. Each omission is a deliberate tradeoff: less flexibility in exchange for explicit behavior. See :ref:`Principles <design-principles>` for the full rationale.
 
 .. note::
 
@@ -218,7 +218,7 @@ The compiler generates the mutex. No manual reentrancy guard implementation requ
 
 .. note::
 
-   The 2016 DAO hack exploited reentrancy to drain ~$60M in ETH (worth ~$150M at the time). This led to the Ethereum hard fork that created Ethereum Classic.
+   The 2016 DAO hack exploited reentrancy to drain ~$60M in ETH. This led to the Ethereum hard fork that created Ethereum Classic.
 
 The ``extcall`` keyword makes external call sites explicit and easy to spot during code review. Note that ``@nonreentrant`` is opt-in and uses a global lock that protects against same-contract reentrancy. It does not prevent cross-contract reentrancy. See :ref:`control-structures` for details on the lock behavior.
 

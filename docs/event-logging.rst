@@ -95,9 +95,9 @@ Logging events is done using the ``log`` statement:
 
 .. code-block:: vyper
 
-   log Transfer(sender=msg.sender, receiver=_to, value=_amount)
+   log Transfer(sender=msg.sender, receiver=_to, value=_value)
 
-The order and types of arguments given must match the order of arguments used when declaring the event.
+The types of arguments given must match those used when declaring the event. When using keyword arguments (as shown above), the order does not matter.
 
 Listening for Events
 ====================

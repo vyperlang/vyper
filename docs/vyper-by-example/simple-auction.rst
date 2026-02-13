@@ -33,7 +33,7 @@ Let's get started!
 .. literalinclude:: ../../examples/auctions/simple_open_auction.vy
   :language: vyper
   :lineno-start: 3
-  :lines: 3-17
+  :lines: 3-19
 
 We begin by declaring a few variables to keep track of our contract state.
 We initialize a global variable ``beneficiary`` by calling ``public`` on the
@@ -57,25 +57,25 @@ Now, the constructor.
 .. literalinclude:: ../../examples/auctions/simple_open_auction.vy
   :language: vyper
   :lineno-start: 22
-  :lines: 22-27
+  :lines: 22-29
 
 The contract is initialized with three arguments: ``_beneficiary`` of type
 ``address``, ``_auction_start`` with type ``uint256`` and ``_bidding_time`` with
 type ``uint256``, the time difference between the start and end of the auction. We
-then store these three pieces of information into the contract variables
-``self.beneficiary``, ``self.auctionStart`` and ``self.auctionEnd`` respectively.
+store the beneficiary and auction start time, then compute ``self.auctionEnd``
+by adding ``_bidding_time`` to ``self.auctionStart``.
 Notice that we have access to the current time by calling ``block.timestamp``.
 ``block`` is an object available within any Vyper contract and provides information
 about the block at the time of calling. Similar to ``block``, another important object
 available to us within the contract is ``msg``, which provides information on the method
 caller as we will soon see.
 
-With initial setup out of the way, lets look at how our users can make bids.
+With initial setup out of the way, let's look at how our users can make bids.
 
 .. literalinclude:: ../../examples/auctions/simple_open_auction.vy
   :language: vyper
-  :lineno-start: 33
-  :lines: 33-46
+  :lineno-start: 31
+  :lines: 31-48
 
 The ``@payable`` decorator will allow a user to send some ether to the
 contract in order to call the decorated method. In this case, a user wanting
@@ -93,6 +93,18 @@ to the next lines; otherwise, the ``bid()`` method will throw an error and rever
 transaction. We then record the previous highest bid in the ``pendingReturns`` mapping
 (following the withdrawal pattern for security), and update ``highestBid`` and
 ``highestBidder`` to reflect the new winning bid.
+
+.. literalinclude:: ../../examples/auctions/simple_open_auction.vy
+  :language: vyper
+  :lineno-start: 50
+  :lines: 50-58
+
+The ``withdraw()`` method allows previously outbid participants to withdraw
+their funds. Rather than sending refunds directly during ``bid()`` (which
+would allow a malicious contract to block new bids), we use the `withdrawal
+pattern <https://docs.soliditylang.org/en/latest/common-patterns.html#withdrawal-from-contracts>`_:
+each bidder pulls their own refund. The method reads the pending amount,
+zeroes it out (to prevent re-entrancy), and sends the funds.
 
 .. literalinclude:: ../../examples/auctions/simple_open_auction.vy
   :language: vyper

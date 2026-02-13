@@ -60,6 +60,8 @@ of the error within the code:
 
     .. code-block:: vyper
 
+        #pragma enable-decimals
+
         @external
         def foo():
             bar: decimal = 3.123456789123456789
@@ -175,6 +177,8 @@ of the error within the code:
     Raises when attempting to perform an action between two or more objects with known, unlike types.
 
     .. code-block:: vyper
+
+        #pragma enable-decimals
 
         @external
         def foo():

@@ -22,7 +22,7 @@ the buyer's receipt of the item, the buyer will mark the item as received in the
 contract, thereby returning the buyer's deposit (not payment), releasing the
 remaining funds to the seller, and completing the transaction.
 
-There are certainly others ways of designing a secure escrow system with less
+There are certainly other ways of designing a secure escrow system with less
 overhead for both the buyer and seller, but for the purpose of this example,
 we want to explore one way how an escrow system can be implemented trustlessly.
 
