@@ -112,6 +112,20 @@ You can define an interface for your contract with the ``implements`` statement:
 
 This imports the defined interface from the vyper file at ``an_interface.vyi`` (or ``an_interface.json`` if using ABI json interface type) and ensures your current contract implements all the necessary external functions. If any interface functions are not included in the contract, it will fail to compile. This is especially useful when developing contracts around well-defined standards such as ERC20.
 
+Multiple ``implements`` statements can be grouped into one:
+
+.. code-block:: vyper
+
+    implements: Foo
+    implements: Bar
+
+    # Equivalent to:
+
+    implements: (
+        Foo,
+        Bar,
+    )
+
 .. note::
 
   Interfaces that implement functions with return values that require an upper bound (e.g. ``Bytes``, ``DynArray``, or ``String``), the upper bound defined in the interface represents the lower bound of the implementation. Assuming a function ``my_func`` returns a value ``String[1]`` in the interface, this would mean for the implementation function of ``my_func`` that the return value must have **at least** length 1. This behavior might change in the future.

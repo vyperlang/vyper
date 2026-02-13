@@ -1,0 +1,129 @@
+name: Bytecode Size Report
+
+on:
+  pull_request:
+    branches: [master]
+  pull_request_target:
+    branches: [master]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  bytecode-size:
+    # pull_request: untrusted contributors only (step summary, no comment)
+    # pull_request_target: trusted contributors only (step summary + comment)
+    if: |
+      (github.event_name == 'pull_request' && !contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)) ||
+      (github.event_name == 'pull_request_target' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invalidate existing comment
+        if: github.event_name == 'pull_request_target'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- bytecode-size-report -->';
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number
+            });
+            const existing = comments.find(c => c.body.includes(marker));
+            if (!existing) return;
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existing.id,
+              body: marker + '\n\n⏳ **Recalculating bytecode sizes...**'
+            });
+
+      - name: Checkout merge commit
+        uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          path: head
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Checkout base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+          path: base
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Copy scripts to base
+        run: cp -r head/.github/scripts base/.github/
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install vyper (base)
+        working-directory: base
+        run: pip install .
+
+      - name: Measure base bytecode sizes
+        working-directory: base
+        run: python .github/scripts/measure_bytecode.py > ../base-sizes.json
+
+      - name: Install vyper (merge)
+        working-directory: head
+        run: pip install .
+
+      - name: Measure merge bytecode sizes
+        working-directory: head
+        run: python .github/scripts/measure_bytecode.py > ../head-sizes.json
+
+      - name: Generate report
+        id: report
+        run: |
+          python3 head/.github/scripts/compare_bytecode.py base-sizes.json head-sizes.json > report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo 'REPORT<<EOF'
+            cat report.md
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Post or update PR comment
+        if: github.event_name == 'pull_request_target'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- bytecode-size-report -->';
+            const body = marker + '\n\n' + process.env.REPORT;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number
+            });
+            const existing = comments.find(c => c.body.includes(marker));
+            if (existing) {
+              return github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: body
+              });
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: body
+            });
+        env:
+          REPORT: ${{ steps.report.outputs.REPORT }}
+
+      - name: Upload size data
+        uses: actions/upload-artifact@v4
+        with:
+          name: bytecode-sizes
+          path: |
+            base-sizes.json
+            head-sizes.json

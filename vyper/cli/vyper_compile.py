@@ -14,7 +14,12 @@ import vyper.evm.opcodes as evm
 from vyper.cli import vyper_json
 from vyper.cli.compile_archive import NotZipInput, compile_from_zip
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
-from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
+from vyper.compiler.settings import (
+    VYPER_TRACEBACK_LIMIT,
+    OptimizationLevel,
+    Settings,
+    VenomOptimizationFlags,
+)
 from vyper.typing import ContractPath, OutputFormats
 from vyper.utils import uniq
 from vyper.warnings import warnings_filter
@@ -31,6 +36,8 @@ method_identifiers - Dictionary of method signature to method identifier
 userdoc            - Natspec user documentation
 devdoc             - Natspec developer documentation
 metadata           - Contract metadata (intended for use by tooling developers)
+symbol_map_runtime - Symbol values in runtime bytecode (intended for use by tooling developers)
+symbol_map         - Symbol values in deployable bytecode (intended for use by tooling developers)
 combined_json      - All of the above format options combined as single JSON output
 layout             - Storage layout of a Vyper contract
 ast                - AST (not yet annotated) in JSON format
@@ -130,7 +137,7 @@ def _parse_args(argv):
         choices=list(evm.EVM_VERSIONS),
         dest="evm_version",
     )
-    parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
+    parser.add_argument("--disable-optimize", help="Do not optimize", action="store_true")
     parser.add_argument(
         "--base64",
         help="Base64 encode the output (only valid in conjunction with `-f archive`",
@@ -139,12 +146,37 @@ def _parse_args(argv):
     parser.add_argument(
         "-O",
         "--optimize",
-        help="Optimization flag (defaults to 'gas')",
-        choices=["gas", "codesize", "none"],
+        help="Optimization level (defaults to 'gas'). Valid options: "
+        "1 (basic), 2 (gas/default), 3 (aggressive - experimental), "
+        "s (size), or legacy names: none (alias for 1), gas, codesize",
+        metavar="LEVEL",
+        dest="optimize",
     )
+    parser.add_argument(
+        "--disable-inlining", help="Disable function inlining optimization", action="store_true"
+    )
+    parser.add_argument(
+        "--disable-cse", help="Disable common subexpression elimination", action="store_true"
+    )
+    parser.add_argument(
+        "--disable-sccp",
+        help="Disable sparse conditional constant propagation",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--disable-load-elimination",
+        help="Disable load elimination optimization",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--disable-dead-store-elimination",
+        help="Disable dead store elimination",
+        action="store_true",
+    )
+    parser.add_argument("--inline-threshold", help="Function inlining cost threshold", type=int)
     parser.add_argument("--debug", help="Compile in debug mode", action="store_true")
     parser.add_argument(
-        "--no-bytecode-metadata", help="Do not add metadata to bytecode", action="store_true"
+        "--disable-bytecode-metadata", help="Do not add metadata to bytecode", action="store_true"
     )
     parser.add_argument(
         "--traceback-limit",
@@ -217,16 +249,34 @@ def _parse_args(argv):
     if args.base64:
         output_formats = ("archive_b64",)
 
-    if args.no_optimize and args.optimize:
-        raise ValueError("Cannot use `--no-optimize` and `--optimize` at the same time!")
+    if args.disable_optimize and args.optimize:
+        raise ValueError("Cannot use `--disable-optimize` and `-O/--optimize` at the same time!")
 
-    settings = Settings()
-
-    # TODO: refactor to something like Settings.from_args()
-    if args.no_optimize:
-        settings.optimize = OptimizationLevel.NONE
+    optimize = None
+    if args.disable_optimize:
+        optimize = OptimizationLevel.NONE
     elif args.optimize is not None:
-        settings.optimize = OptimizationLevel.from_string(args.optimize)
+        # Handle both old-style (none, gas, codesize) and numeric (1, 2, 3, s) arguments
+        opt_level = args.optimize.lower()
+        if opt_level in ["1", "2", "3"]:
+            opt_level = "O" + opt_level
+        elif opt_level == "s":
+            opt_level = "Os"
+        optimize = OptimizationLevel.from_string(opt_level)
+
+    settings = Settings(optimize=optimize)
+
+    # Apply individual flag overrides - ensure venom_flags exists before mutation
+    if settings.venom_flags is None:
+        settings.venom_flags = VenomOptimizationFlags(level=settings.optimize)
+    flags = settings.venom_flags
+    flags.disable_inlining |= args.disable_inlining
+    flags.disable_cse |= args.disable_cse
+    flags.disable_sccp |= args.disable_sccp
+    flags.disable_load_elimination |= args.disable_load_elimination
+    flags.disable_dead_store_elimination |= args.disable_dead_store_elimination
+    if args.inline_threshold is not None:
+        flags.inline_threshold = args.inline_threshold
 
     if args.evm_version:
         settings.evm_version = args.evm_version
@@ -253,7 +303,7 @@ def _parse_args(argv):
         args.show_gas_estimates,
         settings,
         args.storage_layout,
-        args.no_bytecode_metadata,
+        args.disable_bytecode_metadata,
         args.warnings_control,
     )
 

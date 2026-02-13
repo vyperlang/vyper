@@ -31,18 +31,19 @@ class SingleUseExpansion(IRPass):
         i = 0
         while i < len(bb.instructions):
             inst = bb.instructions[i]
-            if inst.opcode in ("store", "offset", "phi", "param"):
+            if inst.opcode in ("assign", "offset", "phi", "param"):
                 i += 1
                 continue
 
-            for j, op in enumerate(inst.operands):
+            ops = inst.operands.copy()
+
+            for j, op in enumerate(ops):
                 # first operand to log is magic
                 if inst.opcode == "log" and j == 0:
                     continue
 
                 if isinstance(op, IRVariable):
                     uses = self.dfg.get_uses(op)
-                    # it's already only used once
                     if len(uses) == 1 and len([x for x in inst.operands if x == op]) == 1:
                         continue
 
@@ -52,9 +53,10 @@ class SingleUseExpansion(IRPass):
                     continue
 
                 var = self.function.get_next_variable()
-                to_insert = IRInstruction("store", [op], var)
+                to_insert = IRInstruction("assign", [op], outputs=[var])
                 bb.insert_instruction(to_insert, index=i)
-                inst.operands[j] = var
+                if len(inst.operands) > j:
+                    inst.operands[j] = var
                 i += 1
 
             i += 1

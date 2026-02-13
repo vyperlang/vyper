@@ -466,7 +466,7 @@ class Len(BuiltinFunctionT):
     def _try_fold(self, node):
         validate_call_args(node, 1)
         arg = node.args[0].get_folded_value()
-        if isinstance(arg, (vy_ast.Str, vy_ast.Bytes)):
+        if isinstance(arg, (vy_ast.Str, vy_ast.Bytes, vy_ast.HexBytes)):
             length = len(arg.value)
         elif isinstance(arg, vy_ast.Hex):
             length = len(arg.bytes_value)

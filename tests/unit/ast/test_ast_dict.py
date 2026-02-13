@@ -99,16 +99,18 @@ def foo() -> uint256:
     dict_out = compiler.compile_code(code, output_formats=["ast_dict"], source_id=0)
     assert dict_out["ast_dict"]["ast"]["body"][1] == {
         "col_offset": 0,
-        "annotation": {
-            "col_offset": 12,
-            "end_col_offset": 15,
-            "node_id": 12,
-            "src": "60:3:0",
-            "ast_type": "Name",
-            "end_lineno": 5,
-            "lineno": 5,
-            "id": "Foo",
-        },
+        "children": [
+            {
+                "col_offset": 12,
+                "end_col_offset": 15,
+                "node_id": 12,
+                "src": "60:3:0",
+                "ast_type": "Name",
+                "end_lineno": 5,
+                "lineno": 5,
+                "id": "Foo",
+            }
+        ],
         "end_col_offset": 15,
         "node_id": 9,
         "src": "48:15:0",
@@ -261,16 +263,17 @@ def foo():
         "settings": {},
         "body": [
             {
-                "alias": None,
                 "ast_type": "Import",
-                "import_info": {
-                    "alias": "lib1",
-                    "file_sha256sum": lib1_file.sha256sum,
-                    "path": "lib1.vy",
-                    "qualified_module_name": "lib1",
-                    "source_id": 0,
-                },
-                "name": "lib1",
+                "import_infos": [
+                    {
+                        "alias": "lib1",
+                        "file_sha256sum": lib1_file.sha256sum,
+                        "path": "lib1.vy",
+                        "qualified_module_name": "lib1",
+                        "source_id": 0,
+                    }
+                ],
+                "names": [{"asname": None, "ast_type": "alias", "name": "lib1", "node_id": 2}],
                 "node_id": 1,
             },
             {
@@ -299,7 +302,9 @@ def foo():
                                 "attr": "foo",
                                 "node_id": 12,
                                 "type": {
+                                    "argument_types": [],
                                     "name": "foo",
+                                    "return_type": None,
                                     "type_decl_node": {"node_id": 119, "source_id": 0},
                                     "typeclass": "contract_function",
                                 },
@@ -405,6 +410,13 @@ def foo():
                     },
                 ],
                 "decorator_list": [{"ast_type": "Name", "id": "internal", "node_id": 37}],
+                "func_type": {
+                    "argument_types": [],
+                    "name": "foo",
+                    "return_type": None,
+                    "type_decl_node": {"node_id": 8, "source_id": 1},
+                    "typeclass": "contract_function",
+                },
                 "doc_string": None,
                 "name": "foo",
                 "node_id": 8,
@@ -423,14 +435,13 @@ def foo():
             "type_decl_node": {"node_id": 0, "source_id": 1},
             "typeclass": "module",
         },
-    }
+    }, "main_ast comparison failed"
 
     # TODO: would be nice to refactor this into bunch of small test cases
     # TODO: write the test in a way which makes the links between nodes
     # clearer
     assert lib1_ast == {
         "ast_type": "Module",
-        "settings": {"enable_decimals": True},
         "body": [
             {
                 "ast_type": "StructDef",
@@ -439,7 +450,17 @@ def foo():
                         "annotation": {"ast_type": "Name", "id": "uint256", "node_id": 5},
                         "ast_type": "AnnAssign",
                         "node_id": 2,
-                        "target": {"ast_type": "Name", "id": "x", "node_id": 3},
+                        "target": {
+                            "ast_type": "Name",
+                            "id": "x",
+                            "node_id": 3,
+                            "type": {
+                                "bits": 256,
+                                "is_signed": False,
+                                "name": "uint256",
+                                "typeclass": "integer",
+                            },
+                        },
                         "value": None,
                     }
                 ],
@@ -461,45 +482,85 @@ def foo():
                         "annotation": {"ast_type": "Name", "id": "decimal", "node_id": 13},
                         "ast_type": "AnnAssign",
                         "node_id": 10,
-                        "target": {"ast_type": "Name", "id": "x", "node_id": 11},
+                        "target": {
+                            "ast_type": "Name",
+                            "id": "x",
+                            "node_id": 11,
+                            "type": {"name": "decimal", "typeclass": "decimal"},
+                        },
                         "value": None,
                     },
                     {
                         "annotation": {
                             "ast_type": "Subscript",
                             "node_id": 18,
-                            "slice": {"ast_type": "Int", "node_id": 21, "value": 20},
+                            "slice": {
+                                "ast_type": "Int",
+                                "node_id": 21,
+                                "value": 20,
+                                "folded_value": {"ast_type": "Int", "node_id": 21, "value": 20},
+                            },
                             "value": {"ast_type": "Name", "id": "Bytes", "node_id": 19},
                         },
                         "ast_type": "AnnAssign",
                         "node_id": 15,
-                        "target": {"ast_type": "Name", "id": "y", "node_id": 16},
+                        "target": {
+                            "ast_type": "Name",
+                            "id": "y",
+                            "node_id": 16,
+                            "type": {"length": 20, "name": "Bytes", "typeclass": "bytes"},
+                        },
                         "value": None,
                     },
                     {
                         "annotation": {
                             "ast_type": "Subscript",
                             "node_id": 26,
-                            "slice": {"ast_type": "Int", "node_id": 29, "value": 32},
+                            "slice": {
+                                "ast_type": "Int",
+                                "node_id": 29,
+                                "value": 32,
+                                "folded_value": {"ast_type": "Int", "node_id": 29, "value": 32},
+                            },
                             "value": {"ast_type": "Name", "id": "String", "node_id": 27},
                         },
                         "ast_type": "AnnAssign",
                         "node_id": 23,
-                        "target": {"ast_type": "Name", "id": "z", "node_id": 24},
+                        "target": {
+                            "ast_type": "Name",
+                            "id": "z",
+                            "node_id": 24,
+                            "type": {"length": 32, "name": "String", "typeclass": "string"},
+                        },
                         "value": None,
                     },
                     {
                         "annotation": {"ast_type": "Name", "id": "uint256", "node_id": 34},
                         "ast_type": "AnnAssign",
                         "node_id": 31,
-                        "target": {"ast_type": "Name", "id": "w", "node_id": 32},
+                        "target": {
+                            "ast_type": "Name",
+                            "id": "w",
+                            "node_id": 32,
+                            "type": {
+                                "bits": 256,
+                                "is_signed": False,
+                                "name": "uint256",
+                                "typeclass": "integer",
+                            },
+                        },
                         "value": None,
                     },
                     {
                         "annotation": {"ast_type": "Name", "id": "address", "node_id": 39},
                         "ast_type": "AnnAssign",
                         "node_id": 36,
-                        "target": {"ast_type": "Name", "id": "u", "node_id": 37},
+                        "target": {
+                            "ast_type": "Name",
+                            "id": "u",
+                            "node_id": 37,
+                            "type": {"name": "address"},
+                        },
                         "value": None,
                     },
                 ],
@@ -537,7 +598,16 @@ def foo():
                                 {
                                     "ast_type": "Subscript",
                                     "node_id": 48,
-                                    "slice": {"ast_type": "Int", "node_id": 51, "value": 1},
+                                    "slice": {
+                                        "ast_type": "Int",
+                                        "node_id": 51,
+                                        "value": 1,
+                                        "folded_value": {
+                                            "ast_type": "Int",
+                                            "node_id": 51,
+                                            "value": 1,
+                                        },
+                                    },
                                     "value": {"ast_type": "Name", "id": "Foo", "node_id": 49},
                                 },
                                 {"ast_type": "Name", "id": "uint256", "node_id": 53},
@@ -565,14 +635,19 @@ def foo():
                     "node_id": 57,
                     "type": {"name": "Foo", "typeclass": "struct"},
                 },
-                "type": {"name": "Foo", "typeclass": "struct"},
                 "value": None,
+                "type": {"name": "Foo", "typeclass": "struct"},
             },
             {
                 "annotation": {
                     "ast_type": "Subscript",
                     "node_id": 64,
-                    "slice": {"ast_type": "Int", "node_id": 67, "value": 1},
+                    "slice": {
+                        "ast_type": "Int",
+                        "node_id": 67,
+                        "value": 1,
+                        "folded_value": {"ast_type": "Int", "node_id": 67, "value": 1},
+                    },
                     "value": {"ast_type": "Name", "id": "Foo", "node_id": 65},
                 },
                 "ast_type": "VariableDecl",
@@ -588,18 +663,18 @@ def foo():
                     "node_id": 62,
                     "type": {
                         "length": 1,
+                        "value_type": {"name": "Foo", "typeclass": "struct"},
                         "name": "$SArray",
                         "typeclass": "static_array",
-                        "value_type": {"name": "Foo", "typeclass": "struct"},
                     },
                 },
+                "value": None,
                 "type": {
                     "length": 1,
+                    "value_type": {"name": "Foo", "typeclass": "struct"},
                     "name": "$SArray",
                     "typeclass": "static_array",
-                    "value_type": {"name": "Foo", "typeclass": "struct"},
                 },
-                "value": None,
             },
             {
                 "annotation": {
@@ -609,7 +684,12 @@ def foo():
                         "ast_type": "Tuple",
                         "elements": [
                             {"ast_type": "Name", "id": "Foo", "node_id": 76},
-                            {"ast_type": "Int", "node_id": 78, "value": 5},
+                            {
+                                "ast_type": "Int",
+                                "node_id": 78,
+                                "value": 5,
+                                "folded_value": {"ast_type": "Int", "node_id": 78, "value": 5},
+                            },
                         ],
                         "node_id": 75,
                     },
@@ -628,18 +708,18 @@ def foo():
                     "node_id": 70,
                     "type": {
                         "length": 5,
+                        "value_type": {"name": "Foo", "typeclass": "struct"},
                         "name": "DynArray",
                         "typeclass": "dynamic_array",
-                        "value_type": {"name": "Foo", "typeclass": "struct"},
                     },
                 },
+                "value": None,
                 "type": {
                     "length": 5,
+                    "value_type": {"name": "Foo", "typeclass": "struct"},
                     "name": "DynArray",
                     "typeclass": "dynamic_array",
-                    "value_type": {"name": "Foo", "typeclass": "struct"},
                 },
-                "value": None,
             },
             {
                 "annotation": {"ast_type": "Name", "id": "Qux", "node_id": 84},
@@ -660,12 +740,12 @@ def foo():
                         "typeclass": "interface",
                     },
                 },
+                "value": None,
                 "type": {
                     "name": "Qux",
                     "type_decl_node": {"node_id": 41, "source_id": 0},
                     "typeclass": "interface",
                 },
-                "value": None,
             },
             {
                 "annotation": {
@@ -694,24 +774,29 @@ def foo():
                     "node_id": 87,
                     "type": {
                         "key_type": {"name": "address"},
+                        "value_type": {"name": "Foo", "typeclass": "struct"},
                         "name": "HashMap",
                         "typeclass": "hashmap",
-                        "value_type": {"name": "Foo", "typeclass": "struct"},
                     },
                 },
+                "value": None,
                 "type": {
                     "key_type": {"name": "address"},
+                    "value_type": {"name": "Foo", "typeclass": "struct"},
                     "name": "HashMap",
                     "typeclass": "hashmap",
-                    "value_type": {"name": "Foo", "typeclass": "struct"},
                 },
-                "value": None,
             },
             {
                 "annotation": {
                     "ast_type": "Subscript",
                     "node_id": 102,
-                    "slice": {"ast_type": "Int", "node_id": 105, "value": 2},
+                    "slice": {
+                        "ast_type": "Int",
+                        "node_id": 105,
+                        "value": 2,
+                        "folded_value": {"ast_type": "Int", "node_id": 105, "value": 2},
+                    },
                     "value": {"ast_type": "Name", "id": "uint256", "node_id": 103},
                 },
                 "ast_type": "VariableDecl",
@@ -727,28 +812,28 @@ def foo():
                     "node_id": 100,
                     "type": {
                         "length": 2,
-                        "name": "$SArray",
-                        "typeclass": "static_array",
                         "value_type": {
                             "bits": 256,
                             "is_signed": False,
                             "name": "uint256",
                             "typeclass": "integer",
                         },
+                        "name": "$SArray",
+                        "typeclass": "static_array",
                     },
                 },
+                "value": None,
                 "type": {
                     "length": 2,
-                    "name": "$SArray",
-                    "typeclass": "static_array",
                     "value_type": {
                         "bits": 256,
                         "is_signed": False,
                         "name": "uint256",
                         "typeclass": "integer",
                     },
+                    "name": "$SArray",
+                    "typeclass": "static_array",
                 },
-                "value": None,
             },
             {
                 "annotation": {
@@ -758,7 +843,12 @@ def foo():
                         "ast_type": "Tuple",
                         "elements": [
                             {"ast_type": "Name", "id": "uint256", "node_id": 114},
-                            {"ast_type": "Int", "node_id": 116, "value": 5},
+                            {
+                                "ast_type": "Int",
+                                "node_id": 116,
+                                "value": 5,
+                                "folded_value": {"ast_type": "Int", "node_id": 116, "value": 5},
+                            },
                         ],
                         "node_id": 113,
                     },
@@ -777,28 +867,28 @@ def foo():
                     "node_id": 108,
                     "type": {
                         "length": 5,
-                        "name": "DynArray",
-                        "typeclass": "dynamic_array",
                         "value_type": {
                             "bits": 256,
                             "is_signed": False,
                             "name": "uint256",
                             "typeclass": "integer",
                         },
+                        "name": "DynArray",
+                        "typeclass": "dynamic_array",
                     },
                 },
+                "value": None,
                 "type": {
                     "length": 5,
-                    "name": "DynArray",
-                    "typeclass": "dynamic_array",
                     "value_type": {
                         "bits": 256,
                         "is_signed": False,
                         "name": "uint256",
                         "typeclass": "integer",
                     },
+                    "name": "DynArray",
+                    "typeclass": "dynamic_array",
                 },
-                "value": None,
             },
             {
                 "args": {
@@ -855,6 +945,17 @@ def foo():
                                 "is_signed": False,
                                 "name": "uint256",
                                 "typeclass": "integer",
+                            },
+                            "folded_value": {
+                                "ast_type": "Int",
+                                "node_id": 126,
+                                "value": 115792089237316195423570985008687907853269984665640564039457584007913129639935,  # noqa: E501
+                                "type": {
+                                    "bits": 256,
+                                    "is_signed": False,
+                                    "name": "uint256",
+                                    "typeclass": "integer",
+                                },
                             },
                         },
                     },
@@ -913,13 +1014,13 @@ def foo():
                             "ast_type": "Attribute",
                             "attr": "foo_var",
                             "node_id": 142,
-                            "type": {"name": "Foo", "typeclass": "struct"},
                             "value": {
                                 "ast_type": "Name",
                                 "id": "self",
                                 "node_id": 143,
                                 "type": {"name": "self"},
                             },
+                            "type": {"name": "Foo", "typeclass": "struct"},
                         },
                         "value": {
                             "args": [
@@ -951,32 +1052,43 @@ def foo():
                             "slice": {
                                 "ast_type": "Int",
                                 "node_id": 157,
+                                "value": 0,
                                 "type": {
                                     "bits": 8,
                                     "is_signed": True,
                                     "name": "int8",
                                     "typeclass": "integer",
                                 },
-                                "value": 0,
+                                "folded_value": {
+                                    "ast_type": "Int",
+                                    "node_id": 157,
+                                    "value": 0,
+                                    "type": {
+                                        "bits": 8,
+                                        "is_signed": True,
+                                        "name": "int8",
+                                        "typeclass": "integer",
+                                    },
+                                },
                             },
-                            "type": {"name": "Foo", "typeclass": "struct"},
                             "value": {
                                 "ast_type": "Attribute",
                                 "attr": "sarray_var",
                                 "node_id": 153,
-                                "type": {
-                                    "length": 1,
-                                    "name": "$SArray",
-                                    "typeclass": "static_array",
-                                    "value_type": {"name": "Foo", "typeclass": "struct"},
-                                },
                                 "value": {
                                     "ast_type": "Name",
                                     "id": "self",
                                     "node_id": 154,
                                     "type": {"name": "self"},
                                 },
+                                "type": {
+                                    "length": 1,
+                                    "value_type": {"name": "Foo", "typeclass": "struct"},
+                                    "name": "$SArray",
+                                    "typeclass": "static_array",
+                                },
                             },
+                            "type": {"name": "Foo", "typeclass": "struct"},
                         },
                         "value": {
                             "args": [
@@ -1008,32 +1120,43 @@ def foo():
                             "slice": {
                                 "ast_type": "Int",
                                 "node_id": 170,
+                                "value": 1,
                                 "type": {
                                     "bits": 8,
                                     "is_signed": True,
                                     "name": "int8",
                                     "typeclass": "integer",
                                 },
-                                "value": 1,
+                                "folded_value": {
+                                    "ast_type": "Int",
+                                    "node_id": 170,
+                                    "value": 1,
+                                    "type": {
+                                        "bits": 8,
+                                        "is_signed": True,
+                                        "name": "int8",
+                                        "typeclass": "integer",
+                                    },
+                                },
                             },
-                            "type": {"name": "Foo", "typeclass": "struct"},
                             "value": {
                                 "ast_type": "Attribute",
                                 "attr": "darray_var",
                                 "node_id": 166,
-                                "type": {
-                                    "length": 5,
-                                    "name": "DynArray",
-                                    "typeclass": "dynamic_array",
-                                    "value_type": {"name": "Foo", "typeclass": "struct"},
-                                },
                                 "value": {
                                     "ast_type": "Name",
                                     "id": "self",
                                     "node_id": 167,
                                     "type": {"name": "self"},
                                 },
+                                "type": {
+                                    "length": 5,
+                                    "value_type": {"name": "Foo", "typeclass": "struct"},
+                                    "name": "DynArray",
+                                    "typeclass": "dynamic_array",
+                                },
                             },
+                            "type": {"name": "Foo", "typeclass": "struct"},
                         },
                         "value": {
                             "args": [
@@ -1066,17 +1189,17 @@ def foo():
                                     "ast_type": "Attribute",
                                     "attr": "sarray_var",
                                     "node_id": 179,
-                                    "type": {
-                                        "length": 1,
-                                        "name": "$SArray",
-                                        "typeclass": "static_array",
-                                        "value_type": {"name": "Foo", "typeclass": "struct"},
-                                    },
                                     "value": {
                                         "ast_type": "Name",
                                         "id": "self",
                                         "node_id": 180,
                                         "type": {"name": "self"},
+                                    },
+                                    "type": {
+                                        "length": 1,
+                                        "value_type": {"name": "Foo", "typeclass": "struct"},
+                                        "name": "$SArray",
+                                        "typeclass": "static_array",
                                     },
                                 },
                                 {
@@ -1092,12 +1215,46 @@ def foo():
                                 },
                             ],
                             "node_id": 178,
-                            "type": {"members": {}, "name": "$Tuple", "typeclass": "tuple"},
+                            "type": {
+                                "member_types": [
+                                    {
+                                        "length": 1,
+                                        "name": "$SArray",
+                                        "typeclass": "static_array",
+                                        "value_type": {"name": "Foo", "typeclass": "struct"},
+                                    },
+                                    {
+                                        "bits": 256,
+                                        "is_signed": False,
+                                        "name": "uint256",
+                                        "typeclass": "integer",
+                                    },
+                                ],
+                                "name": "$Tuple",
+                                "typeclass": "tuple",
+                            },
                         },
                         "value": {
                             "ast_type": "ExtCall",
                             "node_id": 186,
-                            "type": {"members": {}, "name": "$Tuple", "typeclass": "tuple"},
+                            "type": {
+                                "member_types": [
+                                    {
+                                        "length": 1,
+                                        "name": "$SArray",
+                                        "typeclass": "static_array",
+                                        "value_type": {"name": "Foo", "typeclass": "struct"},
+                                    },
+                                    {
+                                        "bits": 256,
+                                        "is_signed": False,
+                                        "name": "uint256",
+                                        "typeclass": "integer",
+                                    },
+                                ],
+                                "name": "$Tuple",
+                                "typeclass": "tuple",
+                            },
                             "value": {
                                 "args": [],
                                 "ast_type": "Call",
@@ -1106,7 +1263,29 @@ def foo():
                                     "attr": "return_tuple",
                                     "node_id": 188,
                                     "type": {
+                                        "argument_types": [],
                                         "name": "return_tuple",
+                                        "return_type": {
+                                            "member_types": [
+                                                {
+                                                    "length": 1,
+                                                    "name": "$SArray",
+                                                    "typeclass": "static_array",
+                                                    "value_type": {
+                                                        "name": "Foo",
+                                                        "typeclass": "struct",
+                                                    },
+                                                },
+                                                {
+                                                    "bits": 256,
+                                                    "is_signed": False,
+                                                    "name": "uint256",
+                                                    "typeclass": "integer",
+                                                },
+                                            ],
+                                            "name": "$Tuple",
+                                            "typeclass": "tuple",
+                                        },
                                         "type_decl_node": {"node_id": 42, "source_id": 0},
                                         "typeclass": "contract_function",
                                     },
@@ -1129,13 +1308,37 @@ def foo():
                                 },
                                 "keywords": [],
                                 "node_id": 187,
-                                "type": {"members": {}, "name": "$Tuple", "typeclass": "tuple"},
+                                "type": {
+                                    "member_types": [
+                                        {
+                                            "length": 1,
+                                            "name": "$SArray",
+                                            "typeclass": "static_array",
+                                            "value_type": {"name": "Foo", "typeclass": "struct"},
+                                        },
+                                        {
+                                            "bits": 256,
+                                            "is_signed": False,
+                                            "name": "uint256",
+                                            "typeclass": "integer",
+                                        },
+                                    ],
+                                    "name": "$Tuple",
+                                    "typeclass": "tuple",
+                                },
                             },
                         },
                     },
                 ],
                 "decorator_list": [{"ast_type": "Name", "id": "internal", "node_id": 194}],
                 "doc_string": None,
+                "func_type": {
+                    "argument_types": [],
+                    "name": "foo",
+                    "return_type": None,
+                    "type_decl_node": {"node_id": 119, "source_id": 0},
+                    "typeclass": "contract_function",
+                },
                 "name": "foo",
                 "node_id": 119,
                 "pos": None,
@@ -1191,6 +1394,13 @@ def foo():
                 ],
                 "decorator_list": [{"ast_type": "Name", "id": "external", "node_id": 208}],
                 "doc_string": None,
+                "func_type": {
+                    "argument_types": [],
+                    "name": "bar",
+                    "return_type": None,
+                    "type_decl_node": {"node_id": 196, "source_id": 0},
+                    "typeclass": "contract_function",
+                },
                 "name": "bar",
                 "node_id": 196,
                 "pos": None,
@@ -1198,17 +1408,18 @@ def foo():
             },
         ],
         "doc_string": None,
+        "is_interface": False,
         "name": None,
         "node_id": 0,
         "path": "lib1.vy",
+        "settings": {"enable_decimals": True},
         "source_id": 0,
-        "is_interface": False,
         "type": {
             "name": "lib1.vy",
             "type_decl_node": {"node_id": 0, "source_id": 0},
             "typeclass": "module",
         },
-    }
+    }, "main_ast comparison failed"
 
 
 def test_output_variable_read_write_analysis(make_input_bundle, chdir_tmp_path):
@@ -1300,9 +1511,9 @@ def qux2():
                 "value": {"ast_type": "Name", "id": "lib1"},
                 "variable_reads": [
                     {
-                        "access_path": [],
-                        "decl_node": {"node_id": 29, "source_id": 1},
                         "name": "counter",
+                        "decl_node": {"node_id": 29, "source_id": 1},
+                        "access_path": [],
                     }
                 ],
             },
@@ -1316,20 +1527,24 @@ def qux2():
                 "value": {"ast_type": "Name", "id": "lib1"},
                 "variable_reads": [
                     {
-                        "access_path": [],
-                        "decl_node": {"node_id": 29, "source_id": 1},
                         "name": "counter",
+                        "decl_node": {"node_id": 29, "source_id": 1},
+                        "access_path": [],
                     }
                 ],
                 "variable_writes": [
                     {
-                        "access_path": [],
-                        "decl_node": {"node_id": 29, "source_id": 1},
                         "name": "counter",
+                        "decl_node": {"node_id": 29, "source_id": 1},
+                        "access_path": [],
                     }
                 ],
             },
-            "value": {"ast_type": "Int", "value": 1},
+            "value": {
+                "ast_type": "Int",
+                "value": 1,
+                "folded_value": {"ast_type": "Int", "value": 1},
+            },
         },
     ]
 
@@ -1351,9 +1566,9 @@ def qux2():
                 "value": {"ast_type": "Name", "id": "lib1"},
                 "variable_reads": [
                     {
-                        "access_path": [],
-                        "decl_node": {"node_id": 29, "source_id": 1},
                         "name": "counter",
+                        "decl_node": {"node_id": 29, "source_id": 1},
+                        "access_path": [],
                     }
                 ],
             },
@@ -1374,9 +1589,9 @@ def qux2():
                 "value": {"ast_type": "Name", "id": "self"},
                 "variable_reads": [
                     {
-                        "access_path": [],
-                        "decl_node": {"node_id": 8, "source_id": 0},
                         "name": "counter",
+                        "decl_node": {"node_id": 8, "source_id": 0},
+                        "access_path": [],
                     }
                 ],
             },
@@ -1390,20 +1605,24 @@ def qux2():
                 "value": {"ast_type": "Name", "id": "lib1"},
                 "variable_reads": [
                     {
-                        "access_path": [],
-                        "decl_node": {"node_id": 29, "source_id": 1},
                         "name": "counter",
+                        "decl_node": {"node_id": 29, "source_id": 1},
+                        "access_path": [],
                     }
                 ],
                 "variable_writes": [
                     {
-                        "access_path": [],
-                        "decl_node": {"node_id": 29, "source_id": 1},
                         "name": "counter",
+                        "decl_node": {"node_id": 29, "source_id": 1},
+                        "access_path": [],
                     }
                 ],
             },
-            "value": {"ast_type": "Int", "value": 1},
+            "value": {
+                "ast_type": "Int",
+                "value": 1,
+                "folded_value": {"ast_type": "Int", "value": 1},
+            },
         },
     ]
 
@@ -1420,21 +1639,21 @@ def qux2():
                     "value": {"ast_type": "Name", "id": "self"},
                     "variable_reads": [
                         {
-                            "access_path": [],
-                            "decl_node": {"node_id": 29, "source_id": 1},
                             "name": "counter",
+                            "decl_node": {"node_id": 29, "source_id": 1},
+                            "access_path": [],
                         },
                         {
-                            "access_path": [],
-                            "decl_node": {"node_id": 8, "source_id": 0},
                             "name": "counter",
+                            "decl_node": {"node_id": 8, "source_id": 0},
+                            "access_path": [],
                         },
                     ],
                     "variable_writes": [
                         {
-                            "access_path": [],
-                            "decl_node": {"node_id": 29, "source_id": 1},
                             "name": "counter",
+                            "decl_node": {"node_id": 29, "source_id": 1},
+                            "access_path": [],
                         }
                     ],
                 },
@@ -1450,20 +1669,24 @@ def qux2():
                 "value": {"ast_type": "Name", "id": "self"},
                 "variable_reads": [
                     {
-                        "access_path": [],
-                        "decl_node": {"node_id": 8, "source_id": 0},
                         "name": "counter",
+                        "decl_node": {"node_id": 8, "source_id": 0},
+                        "access_path": [],
                     }
                 ],
                 "variable_writes": [
                     {
-                        "access_path": [],
-                        "decl_node": {"node_id": 8, "source_id": 0},
                         "name": "counter",
+                        "decl_node": {"node_id": 8, "source_id": 0},
+                        "access_path": [],
                     }
                 ],
             },
-            "value": {"ast_type": "Int", "value": 1},
+            "value": {
+                "ast_type": "Int",
+                "value": 1,
+                "folded_value": {"ast_type": "Int", "value": 1},
+            },
         },
     ]
 
@@ -1477,50 +1700,58 @@ def qux2():
                 "value": {"ast_type": "Name", "id": "lib1"},
                 "variable_reads": [
                     {
-                        "access_path": [],
-                        "decl_node": {"node_id": 34, "source_id": 1},
                         "name": "bars",
+                        "decl_node": {"node_id": 34, "source_id": 1},
+                        "access_path": [],
                     }
                 ],
                 "variable_writes": [
                     {
-                        "access_path": [],
-                        "decl_node": {"node_id": 34, "source_id": 1},
                         "name": "bars",
+                        "decl_node": {"node_id": 34, "source_id": 1},
+                        "access_path": [],
                     }
                 ],
             },
-            "value": {"ast_type": "List", "elements": []},
+            "value": {
+                "ast_type": "List",
+                "elements": [],
+                "folded_value": {"ast_type": "List", "elements": []},
+            },
         },
         {
             "ast_type": "Assign",
             "target": {
                 "ast_type": "Subscript",
-                "slice": {"ast_type": "Int", "value": 0},
+                "slice": {
+                    "ast_type": "Int",
+                    "value": 0,
+                    "folded_value": {"ast_type": "Int", "value": 0},
+                },
                 "value": {
                     "ast_type": "Attribute",
                     "attr": "bars",
                     "value": {"ast_type": "Name", "id": "lib1"},
                     "variable_reads": [
                         {
-                            "access_path": [],
-                            "decl_node": {"node_id": 34, "source_id": 1},
                             "name": "bars",
+                            "decl_node": {"node_id": 34, "source_id": 1},
+                            "access_path": [],
                         }
                     ],
                 },
                 "variable_reads": [
                     {
-                        "access_path": ["$subscript_access"],
-                        "decl_node": {"node_id": 34, "source_id": 1},
                         "name": "bars",
+                        "decl_node": {"node_id": 34, "source_id": 1},
+                        "access_path": ["$subscript_access"],
                     }
                 ],
                 "variable_writes": [
                     {
-                        "access_path": ["$subscript_access"],
-                        "decl_node": {"node_id": 34, "source_id": 1},
                         "name": "bars",
+                        "decl_node": {"node_id": 34, "source_id": 1},
+                        "access_path": ["$subscript_access"],
                     }
                 ],
             },
@@ -1544,39 +1775,43 @@ def qux2():
                 "attr": "items",
                 "value": {
                     "ast_type": "Subscript",
-                    "slice": {"ast_type": "Int", "value": 1},
+                    "slice": {
+                        "ast_type": "Int",
+                        "value": 1,
+                        "folded_value": {"ast_type": "Int", "value": 1},
+                    },
                     "value": {
                         "ast_type": "Attribute",
                         "attr": "bars",
                         "value": {"ast_type": "Name", "id": "lib1"},
                         "variable_reads": [
                             {
-                                "access_path": [],
-                                "decl_node": {"node_id": 34, "source_id": 1},
                                 "name": "bars",
+                                "decl_node": {"node_id": 34, "source_id": 1},
+                                "access_path": [],
                             }
                         ],
                     },
                     "variable_reads": [
                         {
-                            "access_path": ["$subscript_access"],
-                            "decl_node": {"node_id": 34, "source_id": 1},
                             "name": "bars",
+                            "decl_node": {"node_id": 34, "source_id": 1},
+                            "access_path": ["$subscript_access"],
                         }
                     ],
                 },
                 "variable_reads": [
                     {
-                        "access_path": ["$subscript_access", "items"],
-                        "decl_node": {"node_id": 34, "source_id": 1},
                         "name": "bars",
+                        "decl_node": {"node_id": 34, "source_id": 1},
+                        "access_path": ["$subscript_access", "items"],
                     }
                 ],
                 "variable_writes": [
                     {
-                        "access_path": ["$subscript_access", "items"],
-                        "decl_node": {"node_id": 34, "source_id": 1},
                         "name": "bars",
+                        "decl_node": {"node_id": 34, "source_id": 1},
+                        "access_path": ["$subscript_access", "items"],
                     }
                 ],
             },
@@ -1584,7 +1819,11 @@ def qux2():
                 "args": [
                     {
                         "ast_type": "Subscript",
-                        "slice": {"ast_type": "Int", "value": 2},
+                        "slice": {
+                            "ast_type": "Int",
+                            "value": 2,
+                            "folded_value": {"ast_type": "Int", "value": 2},
+                        },
                         "value": {
                             "ast_type": "Attribute",
                             "attr": "Foo",
@@ -1604,65 +1843,77 @@ def qux2():
                 "attr": "a",
                 "value": {
                     "ast_type": "Subscript",
-                    "slice": {"ast_type": "Int", "value": 0},
+                    "slice": {
+                        "ast_type": "Int",
+                        "value": 0,
+                        "folded_value": {"ast_type": "Int", "value": 0},
+                    },
                     "value": {
                         "ast_type": "Attribute",
                         "attr": "items",
                         "value": {
                             "ast_type": "Subscript",
-                            "slice": {"ast_type": "Int", "value": 1},
+                            "slice": {
+                                "ast_type": "Int",
+                                "value": 1,
+                                "folded_value": {"ast_type": "Int", "value": 1},
+                            },
                             "value": {
                                 "ast_type": "Attribute",
                                 "attr": "bars",
                                 "value": {"ast_type": "Name", "id": "lib1"},
                                 "variable_reads": [
                                     {
-                                        "access_path": [],
-                                        "decl_node": {"node_id": 34, "source_id": 1},
                                         "name": "bars",
+                                        "decl_node": {"node_id": 34, "source_id": 1},
+                                        "access_path": [],
                                     }
                                 ],
                             },
                             "variable_reads": [
                                 {
-                                    "access_path": ["$subscript_access"],
-                                    "decl_node": {"node_id": 34, "source_id": 1},
                                     "name": "bars",
+                                    "decl_node": {"node_id": 34, "source_id": 1},
+                                    "access_path": ["$subscript_access"],
                                 }
                             ],
                         },
                         "variable_reads": [
                             {
-                                "access_path": ["$subscript_access", "items"],
-                                "decl_node": {"node_id": 34, "source_id": 1},
                                 "name": "bars",
+                                "decl_node": {"node_id": 34, "source_id": 1},
+                                "access_path": ["$subscript_access", "items"],
                             }
                         ],
                     },
                     "variable_reads": [
                         {
-                            "access_path": ["$subscript_access", "items", "$subscript_access"],
-                            "decl_node": {"node_id": 34, "source_id": 1},
                             "name": "bars",
+                            "decl_node": {"node_id": 34, "source_id": 1},
+                            "access_path": ["$subscript_access", "items", "$subscript_access"],
                         }
                     ],
                 },
                 "variable_reads": [
                     {
-                        "access_path": ["$subscript_access", "items", "$subscript_access", "a"],
-                        "decl_node": {"node_id": 34, "source_id": 1},
                         "name": "bars",
+                        "decl_node": {"node_id": 34, "source_id": 1},
+                        "access_path": ["$subscript_access", "items", "$subscript_access", "a"],
                     }
                 ],
                 "variable_writes": [
                     {
-                        "access_path": ["$subscript_access", "items", "$subscript_access", "a"],
-                        "decl_node": {"node_id": 34, "source_id": 1},
                         "name": "bars",
+                        "decl_node": {"node_id": 34, "source_id": 1},
+                        "access_path": ["$subscript_access", "items", "$subscript_access", "a"],
                     }
                 ],
             },
-            "value": {"ast_type": "Int", "value": 1},
+            "value": {
+                "ast_type": "Int",
+                "value": 1,
+                "folded_value": {"ast_type": "Int", "value": 1},
+            },
         },
         {
             "ast_type": "Assign",
@@ -1671,65 +1922,77 @@ def qux2():
                 "attr": "c",
                 "value": {
                     "ast_type": "Subscript",
-                    "slice": {"ast_type": "Int", "value": 1},
+                    "slice": {
+                        "ast_type": "Int",
+                        "value": 1,
+                        "folded_value": {"ast_type": "Int", "value": 1},
+                    },
                     "value": {
                         "ast_type": "Attribute",
                         "attr": "items",
                         "value": {
                             "ast_type": "Subscript",
-                            "slice": {"ast_type": "Int", "value": 0},
+                            "slice": {
+                                "ast_type": "Int",
+                                "value": 0,
+                                "folded_value": {"ast_type": "Int", "value": 0},
+                            },
                             "value": {
                                 "ast_type": "Attribute",
                                 "attr": "bars",
                                 "value": {"ast_type": "Name", "id": "lib1"},
                                 "variable_reads": [
                                     {
-                                        "access_path": [],
-                                        "decl_node": {"node_id": 34, "source_id": 1},
                                         "name": "bars",
+                                        "decl_node": {"node_id": 34, "source_id": 1},
+                                        "access_path": [],
                                     }
                                 ],
                             },
                             "variable_reads": [
                                 {
-                                    "access_path": ["$subscript_access"],
-                                    "decl_node": {"node_id": 34, "source_id": 1},
                                     "name": "bars",
+                                    "decl_node": {"node_id": 34, "source_id": 1},
+                                    "access_path": ["$subscript_access"],
                                 }
                             ],
                         },
                         "variable_reads": [
                             {
-                                "access_path": ["$subscript_access", "items"],
-                                "decl_node": {"node_id": 34, "source_id": 1},
                                 "name": "bars",
+                                "decl_node": {"node_id": 34, "source_id": 1},
+                                "access_path": ["$subscript_access", "items"],
                             }
                         ],
                     },
                     "variable_reads": [
                         {
-                            "access_path": ["$subscript_access", "items", "$subscript_access"],
-                            "decl_node": {"node_id": 34, "source_id": 1},
                             "name": "bars",
+                            "decl_node": {"node_id": 34, "source_id": 1},
+                            "access_path": ["$subscript_access", "items", "$subscript_access"],
                         }
                     ],
                 },
                 "variable_reads": [
                     {
-                        "access_path": ["$subscript_access", "items", "$subscript_access", "c"],
-                        "decl_node": {"node_id": 34, "source_id": 1},
                         "name": "bars",
+                        "decl_node": {"node_id": 34, "source_id": 1},
+                        "access_path": ["$subscript_access", "items", "$subscript_access", "c"],
                     }
                 ],
                 "variable_writes": [
                     {
-                        "access_path": ["$subscript_access", "items", "$subscript_access", "c"],
-                        "decl_node": {"node_id": 34, "source_id": 1},
                         "name": "bars",
+                        "decl_node": {"node_id": 34, "source_id": 1},
+                        "access_path": ["$subscript_access", "items", "$subscript_access", "c"],
                     }
                 ],
             },
-            "value": {"ast_type": "Decimal", "value": "10.0"},
+            "value": {
+                "ast_type": "Decimal",
+                "value": "10.0",
+                "folded_value": {"ast_type": "Decimal", "value": "10.0"},
+            },
         },
     ]
 

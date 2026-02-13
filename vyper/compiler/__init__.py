@@ -37,6 +37,7 @@ OUTPUT_FORMATS = {
     # requires assembly
     "abi": output.build_abi_output,
     "asm": output.build_asm_output,
+    "asm_runtime": output.build_asm_runtime_output,
     "source_map": output.build_source_map_output,
     "source_map_runtime": output.build_source_map_runtime_output,
     # requires bytecode
@@ -45,6 +46,8 @@ OUTPUT_FORMATS = {
     "blueprint_bytecode": output.build_blueprint_bytecode_output,
     "opcodes": output.build_opcodes_output,
     "opcodes_runtime": output.build_opcodes_runtime_output,
+    "symbol_map": output.build_symbol_map,
+    "symbol_map_runtime": output.build_symbol_map_runtime,
 }
 
 INTERFACE_OUTPUT_FORMATS = [

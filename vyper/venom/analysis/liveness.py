@@ -2,7 +2,8 @@ from collections import deque
 
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, IRAnalysis
+from vyper.venom.analysis.analysis import IRAnalysis
+from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 
 
@@ -53,8 +54,9 @@ class LivenessAnalysis(IRAnalysis):
             if ins or outs:
                 # perf: only copy if changed
                 liveness = liveness.copy()
-                liveness.update(ins)
+                # liveness update: live_in = (live_out - defs) U uses
                 liveness.dropmany(outs)
+                liveness.update(ins)
 
             self.inst_to_liveness[instruction] = liveness
 
