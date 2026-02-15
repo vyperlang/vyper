@@ -67,7 +67,7 @@ Solidity modifiers wrap function execution:
         // ...
     }
 
-Vyper excludes modifiers. While ``onlyOwner`` appears simple, modifiers can execute code before and after the function body, modify state, and obscure the actual logic. Understanding a function requires reading the modifier definitions elsewhere in the codebase.
+While ``onlyOwner`` appears simple, modifiers can execute code before and after the function body, modify state, and obscure the actual logic. Understanding a function requires reading the modifier definitions elsewhere in the codebase. For this reason, Vyper does not have modifiers.
 
 In Vyper, checks are written inline:
 
@@ -140,7 +140,7 @@ Vyper requires all loops to have a compile-time upper bound:
     for i: uint256 in range(count, bound=100):
         # Loop body
 
-Every function has a calculable maximum gas cost. Unbounded storage iteration can exceed the block gas limit, making contracts unusable. Bounded loops prevent this class of issue.
+Unbounded storage iteration can exceed the block gas limit, making contracts unusable. Bounded loops prevent this class of issue.
 
 .. note::
 
@@ -220,7 +220,7 @@ The compiler generates the mutex. No manual reentrancy guard implementation requ
 
    The 2016 DAO hack exploited reentrancy to drain ~$60M in ETH. This led to the Ethereum hard fork that created Ethereum Classic.
 
-The ``extcall`` keyword makes external call sites explicit and easy to spot during code review. Note that ``@nonreentrant`` is opt-in and uses a global lock that protects against same-contract reentrancy. It does not prevent cross-contract reentrancy. See :ref:`control-structures` for details on the lock behavior.
+The ``extcall`` keyword makes external call sites explicit and easy to spot during code review. Note that ``@nonreentrant`` is opt-in and uses a global lock that protects against same-contract reentrancy: if any ``@nonreentrant`` function is executing, no other ``@nonreentrant`` function in the same contract can be entered. It does not prevent cross-contract reentrancy (i.e., contract A calling contract B which calls back into contract A). See :ref:`control-structures` for details on the lock behavior.
 
 Syntax Differences
 ==================
