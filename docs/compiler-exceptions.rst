@@ -174,7 +174,7 @@ of the error within the code:
 
 .. py:exception:: TypeMismatch
 
-    Raises when attempting to perform an action between two or more objects with known, unlike types.
+    Raises when attempting to perform an action between two or more objects with incompatible types.
 
     .. code-block:: vyper
 
