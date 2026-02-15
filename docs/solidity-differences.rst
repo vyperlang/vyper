@@ -100,7 +100,7 @@ For code reuse, Vyper 0.4.0 introduced a module system:
 
 Three declarations manage module relationships: ``initializes`` (this contract manages the module's storage), ``uses`` (this contract reads module state without initializing), and ``exports`` (expose module functions in the ABI). See :doc:`using-modules` for details.
 
-A contract can be understood by reading one file and its direct imports, and dependencies are explicit.
+A contract can be understood by reading one file and its direct imports; dependencies and what is exposed in the external function table are explicit.
 
 No Inline Assembly
 ==================
