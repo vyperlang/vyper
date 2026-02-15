@@ -31,7 +31,7 @@ Key Features
 
 * Decidable gas consumption: every function call has a calculable upper bound
 * Bounded loops only (compile-time maximum iterations)
-* No recursion: execution flow is always linear
+* No recursion: execution flow is structurally decreasing
 
 **Clean code reuse**
 
