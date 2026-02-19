@@ -466,9 +466,9 @@ def _convert_ir_bb(fn, ir, symbols):
         second = _convert_ir_bb(fn, ir.args[1], symbols)
         bb = fn.get_basic_block()
         buf = bb.append_instruction("alloca", 64, get_scratch_alloca_id())
-        bb.append_instruction("mstore", second, buf)
+        bb.append_instruction("mstore", first, buf)
         next_part = bb.append_instruction("gep", buf, 32)
-        bb.append_instruction("mstore", first, next_part)
+        bb.append_instruction("mstore", second, next_part)
         return bb.append_instruction("sha3", 64, buf)
     elif ir.value == "return":
         fn.get_basic_block().append_instruction(
