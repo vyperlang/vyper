@@ -686,6 +686,7 @@ def test_tuple_return_types(get_contract, source_code, args, expected):
 
     assert c.foo(*args) == expected
 
+
 def test_internal_payable_from_nonpayable(get_contract, env):
     # nonpayable can call payable internal
     code = """
