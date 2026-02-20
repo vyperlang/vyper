@@ -23,7 +23,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
-from vyper.utils import keccak256
+from vyper.utils import keccak256, method_id_int
 from vyper.warnings import Deprecation, vyper_warn
 
 
@@ -332,6 +332,107 @@ class EventT(_UserType):
                 ],
                 "anonymous": False,
                 "type": "event",
+            }
+        ]
+
+
+class ErrorT(_UserType):
+    typeclass = "error"
+
+    _invalid_locations = tuple(iter(DataLocation))
+
+    def __init__(self, name: str, arguments: dict, decl_node: Optional[vy_ast.VyperNode] = None):
+        super().__init__(members=arguments)
+        self.name = name
+        self.decl_node = decl_node
+        self.selector = method_id_int(self.signature)
+
+    @property
+    def _id(self):
+        return self.name
+
+    @property
+    def arguments(self):
+        return self.members
+
+    def __repr__(self):
+        args = ",".join(repr(argtype) for argtype in self.arguments.values())
+        return f"error {self.name}({args})"
+
+    @property
+    def signature(self):
+        return f"{self.name}({','.join(v.canonical_abi_type for v in self.arguments.values())})"
+
+    @classmethod
+    def from_abi(cls, abi: dict) -> "ErrorT":
+        members = {item["name"]: type_from_abi(item) for item in abi["inputs"]}
+        return cls(abi["name"], members)
+
+    @classmethod
+    def from_ErrorDef(cls, base_node: vy_ast.ErrorDef) -> "ErrorT":
+        members: dict[str, VyperType] = {}
+
+        if len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass):
+            return cls(base_node.name, members, base_node)
+
+        for node in base_node.body:
+            if not isinstance(node, vy_ast.AnnAssign):
+                raise StructureException("Errors can only contain variable definitions", node)
+            if node.value is not None:
+                raise StructureException("Cannot assign a value during error declaration", node)
+            if not isinstance(node.target, vy_ast.Name):
+                raise StructureException("Invalid syntax for error member name", node.target)
+
+            member_name = node.target.id
+            if member_name in members:
+                raise NamespaceCollision(
+                    f"Error member '{member_name}' has already been declared", node.target
+                )
+
+            members[member_name] = type_from_annotation(node.annotation)
+
+        return cls(base_node.name, members, base_node)
+
+    def _ctor_call_return(self, node: vy_ast.Call) -> "ErrorT":
+        if len(node.keywords) > 0:
+            if len(node.args) > 0:
+                raise InstantiationException(
+                    "Error instantiation requires either all keyword arguments "
+                    "or all positional arguments",
+                    node,
+                )
+
+            validate_kwargs(node, self.arguments, self.typeclass)
+        else:
+            validate_call_args(node, len(self.arguments))
+            for arg, expected in zip(node.args, self.arguments.values()):
+                validate_expected_type(arg, expected)
+
+        return self
+
+    def _ctor_arg_types(self, node):
+        if len(node.keywords) > 0:
+            validate_kwargs(node, self.arguments, self.typeclass)
+            return list(self.arguments.values())
+
+        validate_call_args(node, len(self.arguments))
+        return list(self.arguments.values())
+
+    def _ctor_kwarg_types(self, node):
+        return self.arguments
+
+    def _ctor_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
+        for arg in (*node.args, *[kw.value for kw in node.keywords]):
+            if not check_modifiability(arg, modifiability):
+                return False
+        return True
+
+    def to_toplevel_abi_dict(self) -> list[dict]:
+        return [
+            {
+                "name": self.name,
+                "inputs": [typ.to_abi_arg(name=k) for k, typ in self.arguments.items()],
+                "type": "error",
             }
         ]
 
