@@ -85,7 +85,7 @@ No Class Inheritance
 
 Solidity supports multiple inheritance, which introduces the diamond problem and C3 linearization complexity. Vyper excludes inheritance entirely.
 
-For code reuse, Vyper 0.4.0 introduced a module system:
+In Vyper 0.4.0, introduced a module system for powerful code reuse:
 
 .. code-block:: vyper
 
