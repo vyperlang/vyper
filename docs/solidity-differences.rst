@@ -47,10 +47,6 @@ Vyper prioritizes three properties: security, simplicity, and auditability.
 
 To achieve these properties, Vyper excludes features that obscure control flow or make code difficult to reason about. Each omission is a deliberate tradeoff: less flexibility in exchange for explicit behavior. See :ref:`Principles <design-principles>` for the full rationale.
 
-.. note::
-
-   Curve Finance chose Vyper for its AMM contracts because, in their view, developer errors are more likely than compiler errors. Vyper's restricted feature set reduces the surface area for such mistakes.
-
 No Modifiers
 ============
 
