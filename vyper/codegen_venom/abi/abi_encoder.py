@@ -161,15 +161,27 @@ def _encode_child(
         _abi_encode_to_buf(ctx, static_loc, child_ptr, child_typ)
     else:
         # Dynamic type:
+        #
+        # Ordering invariant: encode child data BEFORE writing the static
+        # offset word.  When a memory argument is passed by reference
+        # (see `_can_pass_memory_arg_by_ref`), `child_ptr` may alias the
+        # destination buffer.  In particular `static_loc` can point into
+        # the same region as `child_ptr`.  Writing the offset word first
+        # would clobber source bytes that `_abi_encode_to_buf` still
+        # needs to read, producing corrupt output.
+        #
+        # Encoding the child first is always safe: it reads from
+        # `child_ptr` and writes to the dynamic section (`dst +
+        # dyn_ofst`), which lies past the static section and therefore
+        # cannot overlap `static_loc`.
+
         # 1. Read current dyn_ofst
         dyn_ofst = ctx.ptr_load(dyn_ofst_val.ptr())
         # 2. Encode child to dynamic section.
-        #    Do this before writing the static offset word so source and
-        #    destination aliasing cannot clobber child source bytes.
         child_dst = b.add(dst, dyn_ofst)
         child_len = _abi_encode_to_buf(ctx, child_dst, child_ptr, child_typ)
 
-        # 3. Write static section offset.
+        # 3. Write static section offset (safe now — child data is already encoded).
         b.mstore(static_loc, dyn_ofst)
 
         # 4. Update dyn_ofst

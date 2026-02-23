@@ -1579,6 +1579,19 @@ class Expr:
     def _can_pass_memory_arg_by_ref(
         self, func_t: ContractFunctionT, arg_name: str, arg_typ, arg_val: VyperValue
     ) -> bool:
+        """Check whether a memory argument can be passed by reference.
+
+        Returns True when the callee is known to never mutate the argument
+        (determined by `_analyze_readonly_memory_args` in module.py) and the
+        value already resides in memory.  Passing by reference avoids an
+        intermediate by-value mcopy into a staging buffer, which is a
+        significant win in call-heavy code.
+
+        Safety: the callee receives the same pointer the caller holds.
+        Because the argument is read-only inside the callee and internal
+        calls are synchronous (the callee completes before the caller
+        resumes), no concurrent mutation can occur.
+        """
         if arg_typ._is_prim_word:
             return False
         if arg_val.location != DataLocation.MEMORY:

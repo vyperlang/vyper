@@ -184,7 +184,13 @@ class Stmt:
         self._store_complex_type(tmp_val.operand, dst_ptr, typ)
 
     def _store_complex_type(self, src: IROperand, dst_ptr: Ptr, typ) -> None:
-        """Store complex value from memory pointer `src` into destination pointer."""
+        """Store complex value from memory pointer `src` into destination pointer.
+
+        IMPORTANT: This performs a direct copy with NO overlap protection.
+        The caller MUST ensure that `src` and `dst_ptr` do not alias.
+        When overlap is possible, use `_copy_complex_type` instead, which
+        stages through a temporary buffer.
+        """
         # Copy src to dst
         if dst_ptr.location == DataLocation.STORAGE:
             # DynArray special case: only copy length + actual elements, not full capacity.

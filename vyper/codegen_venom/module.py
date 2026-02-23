@@ -105,7 +105,24 @@ def _analyze_readonly_memory_args(func_ast: vy_ast.FunctionDef, func_t: Contract
     Compute a conservative map of memory arguments that are read-only in the callee.
 
     This is used to avoid by-value copies at call sites when we can safely pass
-    a memory pointer directly.
+    a memory pointer directly (see `_can_pass_memory_arg_by_ref` in expr.py).
+
+    The analysis is intentionally conservative — an argument is only marked
+    read-only if ALL of the following hold:
+
+    * It is never the target of an assignment (Assign / AnnAssign / AugAssign).
+    * It is never aliased to another local variable (e.g. ``tmp = arg``).
+    * It is never passed to an internal or member function call (which could
+      mutate it in the callee).
+    * It is never the receiver of a mutating member call (e.g. ``.append``).
+
+    For-loop iteration (``for item in arg``) does NOT count as mutation
+    because the loop only reads element addresses from the array; the
+    iteration variable is a separate binding.
+
+    Soundness note: the analysis is local to a single function body and does
+    not perform transitive analysis across callees.  Any argument that is
+    passed into another call is conservatively marked as mutated.
     """
     _init_ir_info(func_t)
     if func_t._ir_info.readonly_memory_args is not None:
