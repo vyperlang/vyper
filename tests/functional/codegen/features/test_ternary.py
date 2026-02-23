@@ -278,3 +278,18 @@ def foo(t: bool):
     else:
         assert c.track_taint_x() == 0
         assert c.track_taint_y() == 1
+
+
+def test_venom_ternary_with_memory_allocation(get_contract):
+    source = """
+buf: Bytes[10]
+
+@external
+def foo() -> Bytes[10]:
+    x: bool = True
+    self.buf = concat(b"\\x01", b"\\x02") if x else b""
+    return self.buf
+    """
+
+    c = get_contract(source)
+    assert c.foo() == b"\x01\x02"

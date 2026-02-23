@@ -56,7 +56,7 @@ class Mem2Var(IRPass):
         var = IRVariable(var_name)
         uses = dfg.get_uses(alloca_inst.output)
 
-        if any(inst.opcode == "add" for inst in uses):
+        if any(inst.opcode in ("add", "phi", "assign") for inst in uses):
             self._fix_adds(alloca_inst)
             return
 
@@ -93,7 +93,7 @@ class Mem2Var(IRPass):
         # snapshot uses before any insertion - add_after mutates the live set
         uses = dfg.get_uses(palloca_inst.output).copy()
 
-        if any(inst.opcode == "add" for inst in uses):
+        if any(inst.opcode in ("add", "phi", "assign") for inst in uses):
             self._fix_adds(palloca_inst)
             return
 
@@ -137,13 +137,22 @@ class Mem2Var(IRPass):
         assert len(inst.operands) == 3
         self._fix_adds(inst)
 
-    def _fix_adds(self, mem_src: IRInstruction):
+    def _fix_adds(self, mem_src: IRInstruction, _visited=None):
+        if _visited is None:
+            _visited = set()
+        if mem_src in _visited:
+            return
+        _visited.add(mem_src)
+
         uses = self.dfg.get_uses(mem_src.output)
         output = mem_src.output
         for inst in uses.copy():
+            if inst.opcode in ("phi", "assign"):
+                self._fix_adds(inst, _visited)
+                continue
             if inst.opcode != "add":
                 continue
             other = [op for op in inst.operands if op != mem_src.output]
             assert len(other) == 1
             self.updater.update(inst, "gep", [output, other[0]])
-            self._fix_adds(inst)
+            self._fix_adds(inst, _visited)

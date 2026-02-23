@@ -8,6 +8,7 @@ from vyper.venom.memory_location import Allocation
 
 
 class MemoryAllocator:
+    global_allocation: set[tuple[int, int]]
     # global state:
     #   all allocated mems, alloca => (ptr, size)
     allocated: dict[Allocation, int]
@@ -31,6 +32,7 @@ class MemoryAllocator:
     def __init__(self):
         self.reserved = set()
 
+        self.global_allocation = set()
         self.allocated = dict()
         self.mems_used = dict()
         self.fn_eom = dict()
@@ -38,6 +40,11 @@ class MemoryAllocator:
 
     def set_position(self, alloca: Allocation, position: int):
         self.allocated[alloca] = position
+
+    def add_global(self, alloca: Allocation):
+        assert alloca in self.allocated
+        ptr = self.allocated[alloca]
+        self.global_allocation.add((ptr, alloca.alloca_size))
 
     def allocate(self, alloca: Allocation) -> int:
         assert alloca not in self.allocated
@@ -71,7 +78,7 @@ class MemoryAllocator:
         return IRLiteral(self.allocated[ptr.base_alloca] + ptr.offset)
 
     def start_fn_allocation(self, fn):
-        self.reserved = set()
+        self.reserved = self.global_allocation.copy()
         self.current_function = fn
         self.allocated_fn = OrderedSet()
 
@@ -86,13 +93,15 @@ class MemoryAllocator:
 
     def compute_fn_eom(self) -> int:
         eom = 0
+        for ptr, size in self.global_allocation:
+            eom = max(eom, ptr + size)
         for alloca in self.allocated_fn:
             offset = self.allocated[alloca]
             eom = max(eom, offset + alloca.alloca_size)
         return eom
 
     def reset(self):
-        self.reserved = set()
+        self.reserved = self.global_allocation.copy()
 
     def reserve(self, alloca: Allocation):
         assert alloca in self.allocated

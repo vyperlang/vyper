@@ -447,6 +447,26 @@ def __init__():
     assert c.x() == 0
 
 
+def test_venom_immutable_corruption(get_contract):
+    code = """
+b: Bytes[33]
+
+@internal
+def foo():
+    self.b = self.b
+
+VALUE: public(immutable(uint256))
+
+@deploy
+def __init__(x: uint256):
+    self.foo()
+    VALUE = x
+    self.foo()
+    """
+    c = get_contract(code, 4)
+    assert c.VALUE() == 4
+
+
 # verify that complex types are properly decoded in the constructor context
 def test_constructor_dynamic_type_decoding(get_contract):
     code = """
