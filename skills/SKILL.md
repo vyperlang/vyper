@@ -10,15 +10,17 @@ Pythonic smart contract language targeting the EVM. v0.4.x, Python 3.11+.
 ## Quick Commands
 
 ```bash
-pip install ".[dev]"                     # one-time: install dev deps (never -e)
-PYTHONPATH=. vyper contract.vy           # compile using local source
-PYTHONPATH=. vyper -f ir_runtime contract.vy # inspect Venom IR
-PYTHONPATH=. vyper -f asm contract.vy    # inspect assembly
-./quicktest.sh -m "not fuzzing"          # run tests (-nauto by default via setup.cfg)
-make lint                                # enforces code style (same as CI)
+uv sync --extra dev              # install deps (per-worktree .venv, recommended)
+uv run vyper contract.vy                # compile a contract
+uv run vyper -f ir_runtime contract.vy  # inspect Venom IR
+uv run vyper -f asm contract.vy         # inspect assembly
+uv run ./quicktest.sh -m "not fuzzing"  # run tests (-nauto by default via setup.cfg)
+uv run make lint                        # enforces code style (same as CI)
 ```
 
-Use `PYTHONPATH=.` to run against local source. **Never use `pip install -e .`** — it creates an egg-link in site-packages that permanently points the venv at one worktree, breaking all other worktrees. Install deps only: `pip install .[dev]` (no `-e`).
+Prefix all commands with `uv run` — it activates the local `.venv` per invocation, which is necessary in non-interactive shells. Each worktree gets its own `.venv`, so no cross-contamination.
+
+Alternative: `pip install ".[dev]"` + `PYTHONPATH=.` prefix on every command. **Never `pip install -e .`** — it creates an egg-link in site-packages that permanently points the venv at one worktree, breaking all others.
 
 ## Compilation Pipeline
 

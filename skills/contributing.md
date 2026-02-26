@@ -109,6 +109,10 @@ If anything you have done requires content updates to any files in `skills/` or 
 ## Git Quick Reference
 
 ```bash
+# ALWAYS check what's pushed before amending.
+# Only amend commits not yet pushed
+git log --oneline origin/<branch>..HEAD
+
 # undo a bad amend or commit (find the pre-amend state in reflog)
 git reflog -10
 git reset --mixed <good-sha>     # unstages changes, keeps working tree
