@@ -79,7 +79,7 @@ Enforced by `make lint` (also what CI runs). Includes `black`, `flake8`, `isort`
 
 | What | Where |
 |------|-------|
-| Main compile function | `vyper.compiler.compile_codes()` |
+| Main compile function | `vyper.compiler.compile_code()` |
 | Pipeline phases | `vyper.compiler.phases.CompilerData` |
 | AST parsing | `vyper.ast.parse.parse_to_ast()` |
 | Semantic analysis | `vyper.semantics.analyze_module()` |
