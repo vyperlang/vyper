@@ -10,13 +10,15 @@ Pythonic smart contract language targeting the EVM. v0.4.x, Python 3.11+.
 ## Quick Commands
 
 ```bash
-pip install -e ".[dev]"                  # install with dev deps
+pip install -e ".[dev]"                  # one-time: install dev deps
+PYTHONPATH=. vyper contract.vy           # compile using local source
+PYTHONPATH=. vyper -f ir_runtime contract.vy # inspect Venom IR
+PYTHONPATH=. vyper -f asm contract.vy    # inspect assembly
 ./quicktest.sh -m "not fuzzing"          # run tests (-nauto by default via setup.cfg)
 make lint                                # enforces code style (same as CI)
-vyper contract.vy                        # compile a contract
-vyper -f ir_runtime contract.vy          # inspect Venom IR
-vyper -f asm contract.vy                 # inspect assembly
 ```
+
+Use `PYTHONPATH=.` to run against local source. Do NOT re-run `pip install -e` after changes — it's only needed once for dev deps. This is especially important with multiple worktrees.
 
 ## Compilation Pipeline
 
