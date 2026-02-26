@@ -93,7 +93,7 @@ Note: first paragraph is pure *why* (the bug mechanism). Second paragraph is a c
 - Fork from `master`
 - Write tests for new features; place them under `tests/`
 - Larger changes: discuss in Discord `#compiler-dev` first
-- PRs are squash-merged — keep the PR title clean (it becomes the commit subject)
+- PRs are squash-merged — the PR title becomes the commit subject. Keep PR title and commit message title in sync.
 - Work from your individual fork. PRs target `vyperlang/vyper` upstream:
   ```bash
   gh pr create --repo vyperlang/vyper --base master --head <fork-owner>:<branch>
