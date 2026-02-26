@@ -103,7 +103,12 @@ Note: first paragraph is pure *why* (the bug mechanism). Second paragraph is a c
   gh pr create --repo vyperlang/vyper --base master --head <fork-owner>:<branch>
   ```
 - Follow the PR template (`.github/PULL_REQUEST_TEMPLATE.md`): What/How/Verify/Commit message/Changelog
-- To edit PR or issue bodies: use `gh pr view <N> --json body -q .body` to get current text, edit in a temp file, then `gh pr edit <N> --body-file <file>`
+- To edit PR or issue bodies:
+  ```bash
+  gh pr view <N> --json body -q .body > /tmp/pr_body.md  # get current text
+  # edit /tmp/pr_body.md with Edit tool
+  gh pr edit <N> --body-file /tmp/pr_body.md              # upload
+  ```
 - **NEVER rebase and force-push a branch that is already under review.** Rebasing destroys review context (inline comments become orphaned, diff history is lost). If you need to pull in upstream changes on a PR branch, **merge `master` into your branch**.
 
 ## Keeping Docs Current
