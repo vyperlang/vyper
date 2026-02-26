@@ -1064,33 +1064,11 @@ class Expr:
         # bytes/string: get pointer, hash the data portion
         # sha3 only works on memory - copy non-memory data first
         key_vv = Expr(key_node, self.ctx).lower()
-
-        if key_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
-            # Copy slot-addressed data to memory before hashing
-            typ = key_node._metadata["type"]
-            buf_val = self.ctx.new_temporary_value(typ)
-            self.ctx.slot_to_memory(
-                key_vv.operand, buf_val.operand, typ.storage_size_in_words, key_vv.location
-            )
-            # Hash from memory buffer
-            buf_ptr = buf_val.ptr()
-            data_ptr = self.ctx.add_offset(buf_ptr, IRLiteral(32))  # skip length word
-            length = self.ctx.ptr_load(buf_ptr)
-            return self.builder.sha3(data_ptr.operand, length)
-
-        if key_vv.location == DataLocation.CODE:
-            # Copy immutable data to memory before hashing
-            typ = key_node._metadata["type"]
-            buf_val = self.ctx.new_temporary_value(typ)
-            self.ctx.code_to_memory(key_vv.operand, buf_val.operand, typ.storage_size_in_words)
-            buf_ptr = buf_val.ptr()
-            data_ptr = self.ctx.add_offset(buf_ptr, IRLiteral(32))  # skip length word
-            length = self.ctx.ptr_load(buf_ptr)
-            return self.builder.sha3(data_ptr.operand, length)
-
-        # Memory/calldata - hash directly
-        data_ptr_op = self.ctx.bytes_data_ptr(key_vv)
-        length = self.ctx.bytestring_length(key_vv)
+        key_typ = key_node._metadata["type"]
+        assert isinstance(key_typ, _BytestringT)
+        key_mem = self.ctx.ensure_bytestring_in_memory(key_vv, key_typ)
+        data_ptr_op = self.ctx.bytes_data_ptr(key_mem)
+        length = self.ctx.bytestring_length(key_mem)
         return self.builder.sha3(data_ptr_op, length)
 
     def _get_bytestring_hash(self, node: vy_ast.VyperNode) -> IROperand:
@@ -1119,33 +1097,12 @@ class Expr:
 
         # Not a constant - compute at runtime
         vv = Expr(node, self.ctx).lower()
-
-        # sha3 only works on memory - copy non-memory data first
-        if vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
-            assert isinstance(node, vy_ast.ExprNode)
-            typ = node._expr_info.typ
-            buf_val = self.ctx.new_temporary_value(typ)
-            self.ctx.slot_to_memory(
-                vv.operand, buf_val.operand, typ.storage_size_in_words, vv.location
-            )
-            buf_ptr = buf_val.ptr()
-            data_ptr = self.ctx.add_offset(buf_ptr, IRLiteral(32))
-            length = self.ctx.ptr_load(buf_ptr)
-            return self.builder.sha3(data_ptr.operand, length)
-
-        if vv.location == DataLocation.CODE:
-            assert isinstance(node, vy_ast.ExprNode)
-            typ = node._expr_info.typ
-            buf_val = self.ctx.new_temporary_value(typ)
-            self.ctx.code_to_memory(vv.operand, buf_val.operand, typ.storage_size_in_words)
-            buf_ptr = buf_val.ptr()
-            data_ptr = self.ctx.add_offset(buf_ptr, IRLiteral(32))
-            length = self.ctx.ptr_load(buf_ptr)
-            return self.builder.sha3(data_ptr.operand, length)
-
-        # Memory/calldata - hash directly
-        data_ptr_op = self.ctx.bytes_data_ptr(vv)
-        length = self.ctx.bytestring_length(vv)
+        assert isinstance(node, vy_ast.ExprNode)
+        typ = node._expr_info.typ
+        assert isinstance(typ, _BytestringT)
+        vv_mem = self.ctx.ensure_bytestring_in_memory(vv, typ)
+        data_ptr_op = self.ctx.bytes_data_ptr(vv_mem)
+        length = self.ctx.bytestring_length(vv_mem)
         return self.builder.sha3(data_ptr_op, length)
 
     def _lower_tuple_subscript(self) -> VyperValue:

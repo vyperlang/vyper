@@ -194,7 +194,7 @@ class VenomCodegenContext:
             DataLocation.TRANSIENT,
         ), f"bytes_data_ptr expects MEMORY, STORAGE, or TRANSIENT, got {loc}"
         word_scale = 32 if loc is None or loc == DataLocation.MEMORY else 1
-        return self.builder.add(vv.operand, IRLiteral(word_scale))
+        return self._with_byte_offset(vv.operand, word_scale)
 
     def bytestring_length(self, vv: VyperValue) -> IROperand:
         """Get length of bytestring from its pointer.
@@ -212,6 +212,24 @@ class VenomCodegenContext:
         if loc is None:
             return self.builder.mload(vv.operand)
         return self.builder.load(vv.operand, loc)
+
+    def ensure_bytestring_in_memory(self, vv: VyperValue, typ: _BytestringT) -> VyperValue:
+        """Return a bytestring value guaranteed to be in memory.
+
+        Hashing and certain builtins require memory-backed bytestring data.
+        STORAGE/TRANSIENT/CODE values are copied into a temporary memory buffer.
+        """
+        if vv.location is DataLocation.STORAGE or vv.location is DataLocation.TRANSIENT:
+            buf_val = self.new_temporary_value(typ)
+            self.slot_to_memory(vv.operand, buf_val.operand, typ.storage_size_in_words, vv.location)
+            return buf_val
+
+        if vv.location is DataLocation.CODE:
+            buf_val = self.new_temporary_value(typ)
+            self.code_to_memory(vv.operand, buf_val.operand, typ.storage_size_in_words)
+            return buf_val
+
+        return vv
 
     def is_constant(self) -> bool:
         """Check if in constant (view) context or range expression."""
@@ -421,6 +439,14 @@ class VenomCodegenContext:
     # For 3+ words, identity precompile produces smaller bytecode.
     _IDENTITY_PRECOMPILE_THRESHOLD = 96  # 3 words
 
+    def _with_byte_offset(self, base: IROperand, byte_offset: int) -> IROperand:
+        """Add a compile-time byte offset to an operand, preserving literals."""
+        if byte_offset == 0:
+            return base
+        if isinstance(base, IRLiteral):
+            return IRLiteral(base.value + byte_offset)
+        return self.builder.add(base, IRLiteral(byte_offset))
+
     def copy_memory(self, dst: IROperand, src: IROperand, size: int) -> None:
         """Copy memory region from src to dst (static size known at compile time).
 
@@ -446,18 +472,8 @@ class VenomCodegenContext:
 
         # Pre-Cancun: word-by-word copy for small copies
         for offset in range(0, size, 32):
-            src_ptr: IROperand
-            if isinstance(src, IRLiteral):
-                src_ptr = IRLiteral(src.value + offset)
-            else:
-                src_ptr = self.builder.add(src, IRLiteral(offset))
-
-            dst_ptr: IROperand
-            if isinstance(dst, IRLiteral):
-                dst_ptr = IRLiteral(dst.value + offset)
-            else:
-                dst_ptr = self.builder.add(dst, IRLiteral(offset))
-
+            src_ptr = self._with_byte_offset(src, offset)
+            dst_ptr = self._with_byte_offset(dst, offset)
             val = self.builder.mload(src_ptr)
             self.builder.mstore(dst_ptr, val)
 
@@ -582,12 +598,7 @@ class VenomCodegenContext:
         b = self.builder
         for i in range(word_count):
             byte_offset = i * 32
-            if byte_offset == 0:
-                imm_offset = offset
-            elif isinstance(offset, IRLiteral):
-                imm_offset = IRLiteral(offset.value + byte_offset)
-            else:
-                imm_offset = b.add(offset, IRLiteral(byte_offset))
+            imm_offset = self._with_byte_offset(offset, byte_offset)
 
             if self.immutables_alloca is not None:
                 ptr = b.gep(self.immutables_alloca, imm_offset)
@@ -595,12 +606,7 @@ class VenomCodegenContext:
             else:
                 word = b.dload(imm_offset)
 
-            if byte_offset == 0:
-                mem_ptr = dst
-            elif isinstance(dst, IRLiteral):
-                mem_ptr = IRLiteral(dst.value + byte_offset)
-            else:
-                mem_ptr = b.add(dst, IRLiteral(byte_offset))
+            mem_ptr = self._with_byte_offset(dst, byte_offset)
 
             b.mstore(mem_ptr, word)
 
@@ -850,23 +856,12 @@ class VenomCodegenContext:
             size = typ.memory_bytes_required
             for i in range(0, size, 32):
                 # Immutables are byte-addressed
-                if i == 0:
-                    imm_offset = offset
-                elif isinstance(offset, IRLiteral):
-                    imm_offset = IRLiteral(offset.value + i)
-                else:
-                    imm_offset = self.builder.add(offset, IRLiteral(i))
+                imm_offset = self._with_byte_offset(offset, i)
 
                 word = self.builder.dload(imm_offset)
 
                 # Memory is byte-addressed
-                mem_ptr: IROperand
-                if i == 0:
-                    mem_ptr = buf
-                elif isinstance(buf, IRLiteral):
-                    mem_ptr = IRLiteral(buf.value + i)
-                else:
-                    mem_ptr = self.builder.add(buf, IRLiteral(i))
+                mem_ptr = self._with_byte_offset(buf, i)
 
                 self.builder.mstore(mem_ptr, word)
 
@@ -890,12 +885,7 @@ class VenomCodegenContext:
             size = typ.memory_bytes_required
             for i in range(0, size, 32):
                 # Immutables are byte-addressed
-                if i == 0:
-                    imm_offset = offset
-                elif isinstance(offset, IRLiteral):
-                    imm_offset = IRLiteral(offset.value + i)
-                else:
-                    imm_offset = self.builder.add(offset, IRLiteral(i))
+                imm_offset = self._with_byte_offset(offset, i)
 
                 if self.immutables_alloca is not None:
                     ptr = self.builder.gep(self.immutables_alloca, imm_offset)
@@ -904,13 +894,7 @@ class VenomCodegenContext:
                     word = self.builder.iload(imm_offset)
 
                 # Memory is byte-addressed
-                mem_ptr: IROperand
-                if i == 0:
-                    mem_ptr = buf
-                elif isinstance(buf, IRLiteral):
-                    mem_ptr = IRLiteral(buf.value + i)
-                else:
-                    mem_ptr = self.builder.add(buf, IRLiteral(i))
+                mem_ptr = self._with_byte_offset(buf, i)
 
                 self.builder.mstore(mem_ptr, word)
 
@@ -933,22 +917,12 @@ class VenomCodegenContext:
             size = typ.memory_bytes_required
             for i in range(0, size, 32):
                 # Memory is byte-addressed
-                if i == 0:
-                    mem_ptr = val
-                elif isinstance(val, IRLiteral):
-                    mem_ptr = IRLiteral(val.value + i)
-                else:
-                    mem_ptr = self.builder.add(val, IRLiteral(i))
+                mem_ptr = self._with_byte_offset(val, i)
 
                 word = self.builder.mload(mem_ptr)
 
                 # Immutables are byte-addressed
-                if i == 0:
-                    imm_offset = offset
-                elif isinstance(offset, IRLiteral):
-                    imm_offset = IRLiteral(offset.value + i)
-                else:
-                    imm_offset = self.builder.add(offset, IRLiteral(i))
+                imm_offset = self._with_byte_offset(offset, i)
 
                 if self.immutables_alloca is not None:
                     ptr = self.builder.gep(self.immutables_alloca, imm_offset)
