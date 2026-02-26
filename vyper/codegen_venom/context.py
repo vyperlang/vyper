@@ -229,6 +229,7 @@ class VenomCodegenContext:
             self.code_to_memory(vv.operand, buf_val.operand, typ.storage_size_in_words)
             return buf_val
 
+        assert vv.location is None or vv.location is DataLocation.MEMORY
         return vv
 
     def is_constant(self) -> bool:
