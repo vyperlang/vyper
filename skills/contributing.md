@@ -31,7 +31,34 @@ Current scopes: `venom`, `lang`, `codegen`, `parser`, `stdlib`, `ux`, `ir`, `tes
 
 ### Formatting
 
-Wrap body at 72 chars. Run `fmt_commit_msg.py` to prepare the "Commit message" section of the PR description (defaults to running on `commitmsg.txt`; modifies in place). See the script for full usage.
+Wrap body at 72 chars. Use `fmt_commit_msg.py` to format — it defaults to `commitmsg.txt` and modifies in place.
+
+**Workflow for writing/updating the commit message in a PR:**
+
+```bash
+# 1. Write the raw commit message (subject + body) to commitmsg.txt
+cat > commitmsg.txt << 'EOF'
+feat[venom]: add tail-merge pass
+
+motivation paragraph here... (see "Body" section below)
+
+implementation paragraph here...
+EOF
+
+# 2. Format it (wraps at 72 chars, preserves lists/code blocks)
+python fmt_commit_msg.py   # reads and overwrites commitmsg.txt
+
+# 3. Get the current PR body
+gh pr view <N> --json body -q .body > /tmp/pr_body.md
+
+# 4. Replace the ```-fenced block under "### Commit message" in /tmp/pr_body.md
+#    with the contents of commitmsg.txt (use Edit tool or sed)
+
+# 5. Upload
+gh pr edit <N> --body-file /tmp/pr_body.md
+```
+
+Do NOT write to `/tmp` or other locations and manually copy-paste — the script is designed to work on `commitmsg.txt` in the repo root. The file is gitignored.
 
 ### Body — Explain Why and Context
 
