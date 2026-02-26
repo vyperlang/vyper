@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Optional, Union
 
+from vyper import ast as vy_ast
 from vyper.codegen.arithmetic import calculate_largest_base, calculate_largest_power
 from vyper.exceptions import CompilerPanic, TypeCheckFailure
 from vyper.semantics.types import DecimalT, IntegerT
@@ -259,3 +260,55 @@ def clamp_basetype(b: VenomBuilder, val: IROperand, typ: Union[IntegerT, Decimal
 
     b.assert_(ok)
     return val
+
+
+def apply_binop(
+    b: VenomBuilder,
+    op: vy_ast.VyperNode,
+    left: IROperand,
+    right: IROperand,
+    typ,
+    base_literal: Optional[int] = None,
+    exp_literal: Optional[int] = None,
+) -> IROperand:
+    """Apply a binary operation with appropriate overflow checking.
+
+    Shared dispatch for both BinOp expressions and AugAssign statements.
+    One function → one HOL proof covers both lower_BinOp and lower_AugAssign.
+
+    For Pow, pass base_literal/exp_literal if the operand is a compile-time
+    constant (needed for bounds computation).
+    """
+    # Bitwise operations - no overflow checks
+    if isinstance(op, vy_ast.BitAnd):
+        return b.and_(left, right)
+    if isinstance(op, vy_ast.BitOr):
+        return b.or_(left, right)
+    if isinstance(op, vy_ast.BitXor):
+        return b.xor(left, right)
+
+    # Shift operations
+    if isinstance(op, vy_ast.LShift):
+        return b.shl(right, left)
+    if isinstance(op, vy_ast.RShift):
+        if isinstance(typ, IntegerT) and typ.is_signed:
+            return b.sar(right, left)
+        return b.shr(right, left)
+
+    # Arithmetic operations with overflow checks
+    if isinstance(op, vy_ast.Add):
+        return safe_add(b, left, right, typ)
+    if isinstance(op, vy_ast.Sub):
+        return safe_sub(b, left, right, typ)
+    if isinstance(op, vy_ast.Mult):
+        return safe_mul(b, left, right, typ)
+    if isinstance(op, vy_ast.Div):
+        return safe_div(b, left, right, typ)
+    if isinstance(op, vy_ast.FloorDiv):
+        return safe_floordiv(b, left, right, typ)
+    if isinstance(op, vy_ast.Mod):
+        return safe_mod(b, left, right, typ)
+    if isinstance(op, vy_ast.Pow):
+        return safe_pow(b, left, right, typ, base_literal=base_literal, exp_literal=exp_literal)
+
+    raise CompilerPanic(f"Unsupported binary operation: {type(op)}")
