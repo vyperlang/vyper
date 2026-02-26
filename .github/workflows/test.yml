@@ -55,7 +55,7 @@ jobs:
 
       - name: Install deps
         # TODO these should really be in setup.py
-        run: pip install shibuya sphinx sphinx-copybutton
+        run: pip install -r requirements-docs.txt
 
       - name: Run docs
         run: sphinx-build -E -b html docs dist/docs -n -q --color
