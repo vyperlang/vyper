@@ -519,3 +519,61 @@ def __init__(os: OuterStruct, single_dyn: DynArray[uint256, 1]):
     assert c2.val_s_b() == "0x1234567890123456789012345678901234567890"
     assert c2.val_d_len() == 0
     assert c2.val_single_dyn() == 0
+
+
+def test_immutable_array_iteration(get_contract):
+    """
+    Regression test: Iterating over an immutable array should use dload
+    (not mload) since immutables are stored in CODE location.
+    """
+    code = """
+arr: immutable(uint256[5])
+
+@deploy
+def __init__():
+    arr = [10, 20, 30, 40, 50]
+
+@external
+@view
+def sum_array() -> uint256:
+    total: uint256 = 0
+    for val: uint256 in arr:
+        total += val
+    return total
+    """
+    c = get_contract(code)
+    assert c.sum_array() == 150
+
+
+def test_immutable_dynarray_iteration(get_contract):
+    """
+    Regression test: Iterating over an immutable DynArray should use
+    dload for element access.
+    """
+    code = """
+arr: immutable(DynArray[uint256, 10])
+
+@deploy
+def __init__(values: DynArray[uint256, 10]):
+    arr = values
+
+@external
+@view
+def sum_array() -> uint256:
+    total: uint256 = 0
+    for val: uint256 in arr:
+        total += val
+    return total
+
+@external
+@view
+def get_length() -> uint256:
+    return len(arr)
+    """
+    c = get_contract(code, [1, 2, 3, 4, 5])
+    assert c.sum_array() == 15
+    assert c.get_length() == 5
+
+    c2 = get_contract(code, [100, 200])
+    assert c2.sum_array() == 300
+    assert c2.get_length() == 2

@@ -192,6 +192,8 @@ class BasePtrAnalysis(IRAnalysis):
         if inst.opcode == "dload":
             # TODO: use FreeVarSpace
             return MemoryLocation(offset=0, size=32)
+        if inst.opcode == "iload":
+            return MemoryLocation.UNDEFINED
         if inst.opcode == "invoke":
             return MemoryLocation.UNDEFINED
 

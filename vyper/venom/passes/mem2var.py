@@ -66,6 +66,14 @@ class Mem2Var(IRPass):
         assert isinstance(size_lit, IRLiteral)
         size = size_lit.value
 
+        # Check if there's at least one mstore (definition)
+        has_mstore = any(inst.opcode == "mstore" for inst in uses)
+
+        # If only uses are [return] or [mload, return] without mstore,
+        # this alloca is never written to - skip promotion
+        if not has_mstore:
+            return
+
         for inst in uses.copy():
             if inst.opcode == "mstore":
                 if size == 32:

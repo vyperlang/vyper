@@ -498,9 +498,10 @@ class VenomCompiler:
             assert log_topic_count in [0, 1, 2, 3, 4], "Invalid topic count"
             operands = inst.operands[1:]
         elif opcode == "ret":
-            # For ret with values, we only treat the return PC as an input operand
-            # The return values must remain on the stack and are not consumed here
-            operands = [inst.operands[-1]]
+            # Schedule all operands (return values + return_pc) to ensure correct stack order.
+            # IR convention: rightmost operand (return_pc) at TOS, values below.
+            # After JUMP consumes return_pc, values are left in correct order for caller.
+            operands = list(inst.operands)
         else:
             operands = inst.operands
 
@@ -633,6 +634,16 @@ class VenomCompiler:
             assembly.extend([f"LOG{log_topic_count}"])
         elif opcode == "nop":
             pass
+        elif opcode == "iload":
+            # iload offset -> MLOAD(offset)
+            # In Venom codegen, immutables are at memory address 0 during constructor.
+            # Stack already has offset on top.
+            assembly.append("MLOAD")
+        elif opcode == "istore":
+            # istore offset, val -> MSTORE(offset, val)
+            # After operand reordering, stack has offset below val.
+            # MSTORE consumes offset from the top, so swap once first.
+            assembly.extend(["SWAP1", "MSTORE"])
         elif opcode in PSEUDO_INSTRUCTION:  # pragma: nocover
             raise CompilerPanic(f"Bad instruction: {opcode}")
         elif opcode in TEST_INSTRUCTIONS:  # pragma: nocover

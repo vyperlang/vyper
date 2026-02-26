@@ -250,6 +250,18 @@ def test_dead_store_memory_copy():
     _check_pre_post(pre, pre)
 
 
+def test_codecopy_not_dead_when_read_via_iload_and_different_alloca():
+    pre = """
+        _global:
+            %a = alloca 1, 32
+            %b = alloca 32
+            codecopy %a, 0, 32
+            %v = iload %b
+            sink %v
+    """
+    _check_pre_post(pre, pre, hevm=False)
+
+
 def _generate_jnz_configurations(cond, then, else_):
     return [f"jnz {cond}, {then}, {else_}", f"jnz {cond}, {else_}, {then}"]
 

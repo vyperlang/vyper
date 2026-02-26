@@ -7,9 +7,9 @@ from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
 class FixCalloca(IRGlobalPass):
     """
-    Fix callocas after ir_node_to_venom but before function inlining
-    point to abstract memory locations and fixup ids so that they can
-    be reified with the callee function
+    Fix callocas after IR generation but before function inlining.
+    Point to abstract memory locations and fixup ids so that they can
+    be reified with the callee function.
     """
 
     def run_pass(self):
