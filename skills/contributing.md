@@ -98,11 +98,31 @@ Note: first paragraph is pure *why* (the bug mechanism). Second paragraph is a c
   ```bash
   gh pr create --repo vyperlang/vyper --base master --head <fork-owner>:<branch>
   ```
+- Follow the PR template (`.github/PULL_REQUEST_TEMPLATE.md`): What/How/Verify/Commit message/Changelog
+- To edit PR or issue bodies: use `gh pr view <N> --json body -q .body` to get current text, edit in a temp file, then `gh pr edit <N> --body-file <file>`
 - **NEVER rebase and force-push a branch that is already under review.** Rebasing destroys review context (inline comments become orphaned, diff history is lost). If you need to pull in upstream changes on a PR branch, **merge `master` into your branch**.
 
 ## Keeping Docs Current
 
 If anything you have done requires content updates to any files in `skills/` or `CLAUDE.md`, update them as part of the same PR.
+
+## Git Quick Reference
+
+```bash
+# undo a bad amend or commit (find the pre-amend state in reflog)
+git reflog -10
+git reset --mixed <good-sha>     # unstages changes, keeps working tree
+git add <files> && git commit    # recommit cleanly
+
+# sync with upstream on a branch under review (NEVER rebase+force-push)
+git merge master
+
+# interactive rebase doesn't work in non-interactive shells — use reset+cherry-pick instead
+git stash                        # protect uncommitted work
+git reset --hard <target>
+git cherry-pick <commits>        # resolve conflicts manually
+git stash pop
+```
 
 ## Code Style Summary
 
