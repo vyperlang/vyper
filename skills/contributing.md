@@ -29,6 +29,10 @@ Current scopes: `venom`, `lang`, `codegen`, `parser`, `stdlib`, `ux`, `ir`, `tes
 - ~50 chars, lowercase, no period
 - Scope in brackets: `feat[venom]: add tail-merge pass`
 
+### Formatting
+
+Wrap body at 72 chars. Run `fmt_commit_msg.py` to prepare the "Commit message" section of the PR description (defaults to running on `commitmsg.txt`; modifies in place). See the script for full usage.
+
 ### Body — Explain Why and Context
 
 The body is the most important part. It should answer:
