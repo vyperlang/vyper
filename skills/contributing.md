@@ -36,10 +36,8 @@ Wrap body at 72 chars. Use `fmt_commit_msg.py` to format — it defaults to `com
 **Workflow for writing/updating the commit message in a PR:**
 
 ```bash
-# 1. Write the raw commit message (subject + body) to commitmsg.txt
+# 1. Write the raw commit message (body) to commitmsg.txt
 cat > commitmsg.txt << 'EOF'
-feat[venom]: add tail-merge pass
-
 motivation paragraph here... (see "Body" section below)
 
 implementation paragraph here...
