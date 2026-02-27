@@ -362,7 +362,7 @@ class VyperNode:
         return getattr(self, "_description", type(self).__name__)
 
     @property
-    def module_node(self):
+    def module_node(self) -> "Module":
         if isinstance(self, Module):
             return self
         return self.get_ancestor(Module)
