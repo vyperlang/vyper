@@ -49,22 +49,57 @@ from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import OrderedSet
 
 
-def analyze_module(module_ast: vy_ast.Module) -> ModuleT:
+def analyze_module(root_module_ast: vy_ast.Module) -> ModuleT:
     """
     Analyze a Vyper module AST node, recursively analyze all its imports,
     add all module-level objects to the namespace, type-check/validate
     semantics and annotate with type and analysis info
     """
-    return _analyze_module_r(module_ast)
+    # Collect module members, partial validation
+    ret = _compute_module_type_r(root_module_ast)
+
+    # Remainder of validation: everything that requires module-level/cross-module information
+    # Notably function bodies
+    all_modules = _get_all_modules(root_module_ast)
+    for module_ast in all_modules:
+        _analyze_module_bodies(module_ast)
+
+    return ret
 
 
-def _analyze_module_r(module_ast: vy_ast.Module):
+def _get_all_modules(root_module_ast: vy_ast.Module) -> list[vy_ast.Module]:
+    """
+    Collect all modules in the import graph (dependencies first).
+    Uses the import_infos metadata populated during import resolution.
+    """
+    seen: list[vy_ast.Module] = []
+
+    def _collect_r(module_ast: vy_ast.Module):
+        if module_ast in seen:
+            return
+        # Process imports first (dependencies before dependents)
+        for node in module_ast.get_children((vy_ast.Import, vy_ast.ImportFrom)):
+            for info in node._metadata.get("import_infos", []):
+                if isinstance(info.parsed, list):
+                    # It's a json abi, we don't need to recurse as it can't import anything
+                    continue
+                assert isinstance(
+                    info.parsed, vy_ast.Module
+                ), f"was: {type(info.parsed)} not Module"
+                _collect_r(info.parsed)
+        seen.append(module_ast)
+
+    _collect_r(root_module_ast)
+    return seen
+
+
+def _compute_module_type_r(module_ast: vy_ast.Module) -> ModuleT:
+    """validate semantics and annotate AST with type/semantics information"""
+
     if "type" in module_ast._metadata:
         # we don't need to analyse again, skip out
         assert isinstance(module_ast._metadata["type"], ModuleT)
         return module_ast._metadata["type"]
-
-    # validate semantics and annotate AST with type/semantics information
 
     with Namespace.new_scope():
         analyzer = ModuleAnalyzer(module_ast)
@@ -76,17 +111,169 @@ def _analyze_module_r(module_ast: vy_ast.Module):
         ret = ModuleT(module_ast)
         module_ast._metadata["type"] = ret
 
-        # check for event name collisions between defined and used events
-        ret.validate_used_events()
-
-        # if this is an interface, the function is already validated
-        # in `ContractFunction.from_vyi()`
-        if not module_ast.is_interface:
-            analyze_functions(module_ast)
-            analyzer.validate_initialized_modules()
-            analyzer.validate_used_modules()
-
     return ret
+
+
+def _analyze_module_bodies(module_ast: vy_ast.Module) -> None:
+    """
+    Use module types to validate function bodies
+    Also sets type metadata for nodes therein
+    """
+    # interfaces don't have function bodies to validate
+    if module_ast.is_interface:
+        return
+
+    module_t = module_ast._metadata["type"]
+    namespace = module_ast._metadata["namespace"]
+
+    # Restore namespace context for this module
+    # TODO: Use `.set` as context manager once we update to python 3.14
+    token = Namespace.context.set(namespace)
+    try:
+        analyze_functions(module_ast)
+        _validate_exports_uses(module_ast, module_t)
+        _validate_initialized_modules(module_ast, module_t)
+        _validate_used_modules(module_ast, module_t)
+    finally:
+        Namespace.context.reset(token)
+
+    # check for event name collisions between defined and used events
+    # NOTE: must come after analyze_functions() since it accesses
+    # reachable_internal_functions which is populated during analysis
+    module_t.validate_used_events()
+
+
+def _validate_used_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
+    """Check all `uses:` modules are actually used."""
+    should_use = {}
+
+    uses_decls = module_t.uses_decls
+    for decl in uses_decls:
+        info = decl._metadata["uses_info"]
+        for m in info.used_modules:
+            should_use[m.module_t] = (m, info)
+
+    initialized_modules = {t.module_info.module_t: t for t in module_t.initialized_modules}
+
+    all_used_modules: OrderedSet[ModuleT] = OrderedSet()
+
+    for f in module_t.functions.values():
+        for u in f.get_used_modules():
+            all_used_modules.add(u.module_t)
+
+    for decl in module_t.exports_decls:
+        info = decl._metadata["exports_info"]
+        all_used_modules.update([u.module_t for u in info.used_modules])
+
+    for used_module in all_used_modules:
+        if used_module in initialized_modules:
+            continue
+
+        if used_module in should_use:
+            del should_use[used_module]
+
+    if len(should_use) > 0:
+        err_list = ExceptionList()
+        for used_module_info, uses_info in should_use.values():
+            msg = f"`{used_module_info.alias}` is declared as used, but "
+            msg += f"its state is not actually used in {module_t}!"
+            hint = f"delete `uses: {used_module_info.alias}`"
+            err_list.append(BorrowException(msg, uses_info.node, hint=hint))
+
+        err_list.raise_if_not_empty()
+
+
+def _validate_initialized_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
+    """Check all `initializes:` modules have `__init__()` called exactly once."""
+    # only call `__init__()` for modules which have an
+    # `__init__()` function
+    should_initialize = {
+        t.module_info.module_t: t
+        for t in module_t.initialized_modules
+        if any(f.is_constructor for f in t.module_info.module_t.functions.values())
+    }
+
+    constructor = module_t.init_function
+
+    # Methods called by the constructor
+    init_calls: list[vy_ast.Call] = []
+    if constructor is not None:
+        init_calls = constructor.ast_def.get_descendants(vy_ast.Call)  # type: ignore
+
+    seen_initializers: dict[ModuleT, vy_ast.VyperNode] = {}
+    for call_node in init_calls:
+        expr_info = call_node.func._expr_info
+        if expr_info is None:
+            # this can happen for range() calls; CMC 2024-02-05 try to
+            # refactor so that range() is properly tagged.
+            continue
+
+        call_t = expr_info.typ
+
+        if not isinstance(call_t, ContractFunctionT):
+            continue
+
+        if not call_t.is_constructor:
+            continue
+
+        # XXX: check this works as expected for nested attributes
+        initialized_module = call_node.func.value._expr_info.module_info  # type: ignore
+
+        if initialized_module.module_t in seen_initializers:
+            seen_location = seen_initializers[initialized_module.module_t]
+            msg = f"tried to initialize `{initialized_module.alias}`, "
+            msg += "but its __init__() function was already called!"
+            raise InitializerException(msg, call_node.func, seen_location)
+
+        if initialized_module.module_t not in should_initialize:
+            msg = f"tried to initialize `{initialized_module.alias}`, "
+            msg += "but it is not in initializer list!"
+            hint = f"add `initializes: {initialized_module.alias}` "
+            hint += "as a top-level statement to your contract"
+            raise InitializerException(msg, call_node.func, hint=hint)
+
+        del should_initialize[initialized_module.module_t]
+        seen_initializers[initialized_module.module_t] = call_node.func
+
+    if len(should_initialize) > 0:
+        err_list = ExceptionList()
+        for s in should_initialize.values():
+            msg = "not initialized!"
+            hint = f"add `{s.module_info.alias}.__init__()` to "
+            hint += "your `__init__()` function"
+
+            # grab the init function AST node for error message
+            # (it could be None, it's ok since it's just for diagnostics)
+            init_func_node = None
+            if constructor is not None:
+                init_func_node = constructor.decl_node
+            err_list.append(InitializerException(msg, init_func_node, s.node, hint=hint))
+
+        err_list.raise_if_not_empty()
+
+
+def _validate_exports_uses(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
+    """
+    Check that exported functions that use state have proper `uses:` declarations.
+
+    This is deferred from visit_ExportsDecl because uses_state() requires
+    reachable_internal_functions which is populated during body analysis.
+    """
+    for decl in module_t.exports_decls:
+        info = decl._metadata["exports_info"]
+        for func_t in info.functions:
+            export_node = info.function_export_source.get(func_t)
+            if export_node is None:
+                continue
+
+            with tag_exceptions(export_node):
+                if func_t.uses_state():
+                    module_info = check_module_uses(export_node)
+
+                    # guaranteed by earlier checks in visit_ExportsDecl:
+                    assert module_info is not None
+
+                    info.used_modules.add(module_info)
 
 
 def _analyze_call_graph(module_ast: vy_ast.Module):
@@ -258,116 +445,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if count == len(nodes):
                 err_list.raise_if_not_empty()
 
-    def validate_used_modules(self):
-        # check all `uses:` modules are actually used
-        should_use = {}
-
-        module_t = self.ast._metadata["type"]
-        uses_decls = module_t.uses_decls
-        for decl in uses_decls:
-            info = decl._metadata["uses_info"]
-            for m in info.used_modules:
-                should_use[m.module_t] = (m, info)
-
-        initialized_modules = {t.module_info.module_t: t for t in module_t.initialized_modules}
-
-        all_used_modules = OrderedSet()
-
-        for f in module_t.functions.values():
-            for u in f.get_used_modules():
-                all_used_modules.add(u.module_t)
-
-        for decl in module_t.exports_decls:
-            info = decl._metadata["exports_info"]
-            all_used_modules.update([u.module_t for u in info.used_modules])
-
-        for used_module in all_used_modules:
-            if used_module in initialized_modules:
-                continue
-
-            if used_module in should_use:
-                del should_use[used_module]
-
-        if len(should_use) > 0:
-            err_list = ExceptionList()
-            for used_module_info, uses_info in should_use.values():
-                msg = f"`{used_module_info.alias}` is declared as used, but "
-                msg += f"its state is not actually used in {module_t}!"
-                hint = f"delete `uses: {used_module_info.alias}`"
-                err_list.append(BorrowException(msg, uses_info.node, hint=hint))
-
-            err_list.raise_if_not_empty()
-
-    def validate_initialized_modules(self):
-        # check all `initializes:` modules have `__init__()` called exactly once
-        module_t = self.ast._metadata["type"]
-
-        # only call `__init__()` for modules which have an
-        # `__init__()` function
-        should_initialize = {
-            t.module_info.module_t: t
-            for t in module_t.initialized_modules
-            if any(f.is_constructor for f in t.module_info.module_t.functions.values())
-        }
-
-        constructor = module_t.init_function
-
-        # Methods called by the constructor
-        init_calls = []
-        if constructor is not None:
-            init_calls = constructor.ast_def.get_descendants(vy_ast.Call)
-
-        seen_initializers = {}
-        for call_node in init_calls:
-            expr_info = call_node.func._expr_info
-            if expr_info is None:
-                # this can happen for range() calls; CMC 2024-02-05 try to
-                # refactor so that range() is properly tagged.
-                continue
-
-            call_t = expr_info.typ
-
-            if not isinstance(call_t, ContractFunctionT):
-                continue
-
-            if not call_t.is_constructor:
-                continue
-
-            # XXX: check this works as expected for nested attributes
-            initialized_module = call_node.func.value._expr_info.module_info
-
-            if initialized_module.module_t in seen_initializers:
-                seen_location = seen_initializers[initialized_module.module_t]
-                msg = f"tried to initialize `{initialized_module.alias}`, "
-                msg += "but its __init__() function was already called!"
-                raise InitializerException(msg, call_node.func, seen_location)
-
-            if initialized_module.module_t not in should_initialize:
-                msg = f"tried to initialize `{initialized_module.alias}`, "
-                msg += "but it is not in initializer list!"
-                hint = f"add `initializes: {initialized_module.alias}` "
-                hint += "as a top-level statement to your contract"
-                raise InitializerException(msg, call_node.func, hint=hint)
-
-            del should_initialize[initialized_module.module_t]
-            seen_initializers[initialized_module.module_t] = call_node.func
-
-        if len(should_initialize) > 0:
-            err_list = ExceptionList()
-            for s in should_initialize.values():
-                msg = "not initialized!"
-                hint = f"add `{s.module_info.alias}.__init__()` to "
-                hint += "your `__init__()` function"
-
-                # grab the init function AST node for error message
-                # (it could be None, it's ok since it's just for diagnostics)
-                init_func_node = None
-                if constructor is not None:
-                    init_func_node = constructor.decl_node
-                err_list.append(InitializerException(msg, init_func_node, s.node, hint=hint))
-
-            err_list.raise_if_not_empty()
-
     def visit_ImplementsDecl(self, node):
         interface_types = list()
         for name in node.children:
@@ -510,7 +587,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def visit_ExportsDecl(self, node):
         exports = vy_ast.as_tuple(node.annotation)
         exported_funcs = []
-        used_modules = OrderedSet()
+        used_modules: OrderedSet[ModuleInfo] = OrderedSet()
+        function_export_source: dict[ContractFunctionT, vy_ast.VyperNode] = {}
 
         # CMC 2024-04-13 TODO: reduce nesting in this function
 
@@ -584,17 +662,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     self._self_t.typ.add_member(func_t.name, func_t)
 
                     exported_funcs.append(func_t)
+                    function_export_source[func_t] = export
 
-                    # check module uses
-                    if func_t.uses_state():
-                        module_info = check_module_uses(export)
-
-                        # guaranteed by above checks:
-                        assert module_info is not None
-
-                        used_modules.add(module_info)
-
-        node._metadata["exports_info"] = ExportsInfo(exported_funcs, used_modules)
+        node._metadata["exports_info"] = ExportsInfo(
+            exported_funcs, used_modules, function_export_source
+        )
 
     @property
     def _self_t(self):
@@ -761,13 +833,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if path.suffix == ".vy":
             module_ast = import_info.parsed
             with Namespace.new_scope():
-                module_t = _analyze_module_r(module_ast)
+                module_t = _compute_module_type_r(module_ast)
                 return ModuleInfo(module_t, import_info.alias)
 
         if path.suffix == ".vyi":
             module_ast = import_info.parsed
             with Namespace.new_scope():
-                module_t = _analyze_module_r(module_ast)
+                module_t = _compute_module_type_r(module_ast)
 
                 # NOTE: might be cleaner to return the whole module, so we
                 # have a ModuleInfo, that way we don't need to have different

@@ -165,6 +165,10 @@ class UsesInfo(AnalysisResult):
 class ExportsInfo(AnalysisResult):
     functions: list["ContractFunctionT"]
     used_modules: OrderedSet[ModuleInfo]
+    # mapping from function to export node
+    function_export_source: dict["ContractFunctionT", vy_ast.VyperNode] = field(
+        default_factory=dict
+    )
 
 
 @dataclass
