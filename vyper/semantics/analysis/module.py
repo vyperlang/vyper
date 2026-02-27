@@ -56,6 +56,7 @@ def analyze_module(root_module_ast: vy_ast.Module) -> ModuleT:
     semantics and annotate with type and analysis info
     """
     imports = _extract_imports(root_module_ast)
+    # TODO: Now that module analysis is split in two, try to move this inside _compute_module_type_r
     _annotate_overrides(imports)
 
     # Collect module members, partial validation
