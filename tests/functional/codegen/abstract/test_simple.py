@@ -1586,7 +1586,10 @@ def foo() -> uint256:
 
     # TODO: Maybe improve error message so it includes overrides ?
     # Something like a.foo -> b.forwarder -> b.foo -resolves_to-> a.foo
-    assert "Contract contains cyclic function call: foo -> forwarder -> foo" == e.value.message
+    # Note: The cycle can be detected starting from either function depending on processing order
+    assert (
+        "Contract contains cyclic function call: forwarder -> foo -> forwarder" == e.value.message
+    )
 
 
 OVERRIDE_DEFAULT_PARAM_CALLS = [
