@@ -90,9 +90,9 @@ def _analyze_function_r(node: vy_ast.FunctionDef, err_list: ExceptionList):
             _analyze_function_r(call_t.ast_def, err_list)
 
     try:
-        with Namespace.sub_scope():
-            analyzer = FunctionAnalyzer(node)
-            analyzer.analyze()
+        Namespace.context.set(node.module_node._metadata["namespace"])
+        analyzer = FunctionAnalyzer(node)
+        analyzer.analyze()
     except VyperException as e:
         err_list.append(e)
 
