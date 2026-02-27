@@ -68,8 +68,14 @@ def analyze_module(root_module_ast: vy_ast.Module) -> ModuleT:
     # Remainder of validation: everything that requires module-level/cross-module information
     # Notably function bodies
     all_modules = _get_all_modules(root_module_ast)
+
+    # These must be two different loops, because of cross-module calls and abstract resolution
     for module_ast in all_modules:
-        _analyze_call_graph(module_ast)
+        _build_call_graph(module_ast)
+
+    for module_ast in all_modules:
+        _compute_reachable_sets(module_ast)
+
     for module_ast in all_modules:
         _analyze_module_bodies(module_ast)
 
@@ -398,9 +404,10 @@ def _annotate_overrides(imports: ImportDict) -> None:
                 other_func._metadata["overridden_by"] = func
 
 
-def _analyze_call_graph(module_ast: vy_ast.Module):
+def _build_call_graph(module_ast: vy_ast.Module):
     # get list of internal function calls made by each function
     # CMC 2024-02-03 note: this could be cleaner in analysis/local.py
+    Namespace.context.set(module_ast._metadata["namespace"])
     function_defs = module_ast.get_children(vy_ast.FunctionDef)
 
     for func in function_defs:
@@ -433,6 +440,11 @@ def _analyze_call_graph(module_ast: vy_ast.Module):
 
                 concrete_t = get_concrete_func_t(call_t)
                 fn_t.called_functions.add(concrete_t)
+
+
+def _compute_reachable_sets(module_ast: vy_ast.Module):
+    Namespace.context.set(module_ast._metadata["namespace"])
+    function_defs = module_ast.get_children(vy_ast.FunctionDef)
 
     for func in function_defs:
         fn_t = func._metadata["func_type"]
