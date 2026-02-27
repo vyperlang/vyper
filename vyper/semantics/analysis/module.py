@@ -63,16 +63,15 @@ def analyze_module(root_module_ast: vy_ast.Module) -> ModuleT:
     # Collect module members, partial validation
     ret = _compute_module_type_r(root_module_ast)
 
+    _modules_check_overrides(imports)
+
     # Remainder of validation: everything that requires module-level/cross-module information
     # Notably function bodies
     all_modules = _get_all_modules(root_module_ast)
     for module_ast in all_modules:
+        _analyze_call_graph(module_ast)
+    for module_ast in all_modules:
         _analyze_module_bodies(module_ast)
-
-    _modules_check_overrides(imports)
-
-    _modules_call_graph_with_overrides(imports)
-    _modules_compute_reachable_set_with_overrides(imports)
 
     # check for event name collisions between defined and used events
     # (needs to be after reachable set with overrides computation since used_events depends on it)
@@ -120,7 +119,6 @@ def _compute_module_type_r(module_ast: vy_ast.Module) -> ModuleT:
         analyzer = ModuleAnalyzer(module_ast)
         analyzer.analyze_module_body()
 
-        _analyze_call_graph(module_ast)
         generate_public_variable_getters(module_ast)
 
         ret = ModuleT(module_ast)
@@ -424,7 +422,17 @@ def _analyze_call_graph(module_ast: vy_ast.Module):
             if isinstance(call_t, ContractFunctionT) and (
                 call_t.is_internal or call_t.is_constructor
             ):
-                fn_t.called_functions.add(call_t)
+                # Makes sure a function is not abstract, by potentially following overrides
+                def get_concrete_func_t(func_t: ContractFunctionT) -> ContractFunctionT:
+                    if func_t.is_abstract:
+                        assert func_t.overridden_by is not None
+                        override_t = func_t.overridden_by._metadata["func_type"]
+                        return get_concrete_func_t(override_t)
+                    else:
+                        return func_t
+
+                concrete_t = get_concrete_func_t(call_t)
+                fn_t.called_functions.add(concrete_t)
 
     for func in function_defs:
         fn_t = func._metadata["func_type"]
@@ -432,7 +440,6 @@ def _analyze_call_graph(module_ast: vy_ast.Module):
         # compute reachable set and validate the call graph
         _compute_reachable_set(fn_t)
 
-        # Might not be required, since we check it again with overrides
         if fn_t.nonreentrant:
             for g in fn_t.reachable_internal_functions:
                 if g.nonreentrant:
@@ -997,96 +1004,3 @@ def _modules_check_overrides(imports: ImportDict):
                 override_t = abstract_t.overridden_by._metadata["func_type"]
 
                 override_t.override_discrepancies(abstract_t).raise_if_not_empty()
-
-
-# TODO: rewrite using fn_t.called_functions
-def _function_call_graph_with_overrides(func: vy_ast.FunctionDef):
-    fn_t = func._metadata["func_type"]
-    function_calls = func.get_descendants(vy_ast.Call)
-
-    for call in function_calls:
-        try:
-            call_t = get_exact_type_from_node(call.func)
-        except VyperException:
-            # there is a problem getting the call type. this might be
-            # an issue, but it will be handled properly later. right now
-            # we just want to be able to construct the call graph.
-            continue
-
-        if isinstance(call_t, ContractFunctionT) and (call_t.is_internal or call_t.is_constructor):
-            # Makes sure a function is not abstract, by potentially following overrides
-            def get_concrete_func_t(func_t: ContractFunctionT) -> ContractFunctionT:
-                if func_t.is_abstract:
-                    assert func_t.overridden_by is not None
-                    override_t = func_t.overridden_by._metadata["func_type"]
-                    return get_concrete_func_t(override_t)
-                else:
-                    return func_t
-
-            concrete_t = get_concrete_func_t(call_t)
-
-            fn_t.called_functions_with_overrides.add(concrete_t)
-
-
-def _modules_call_graph_with_overrides(imports: ImportDict):
-    for module_ast in imports:
-        for func in module_ast.get_children(vy_ast.FunctionDef):
-            _function_call_graph_with_overrides(func)
-
-
-# compute reachable set and validate the call graph (detect cycles)
-# Should put functions in an order such that dependencies always come before dependents
-def _function_compute_reachable_set_with_overrides(
-    fn_t: ContractFunctionT, path: list[ContractFunctionT] = None
-) -> None:
-    path = path or []
-
-    path.append(fn_t)
-
-    # If it has already been through this, reuse output
-    if fn_t.reachable_internal_functions_with_overrides is not None:
-        path.pop()
-        return
-
-    fn_t.reachable_internal_functions_with_overrides = OrderedSet()
-
-    for g in fn_t.called_functions_with_overrides:
-        # The overrides have been resolved, there should be no abstract left
-        assert not g.is_abstract
-
-        if g in fn_t.reachable_internal_functions_with_overrides:
-            # already seen
-            continue
-
-        if g in path:
-            extended_path = path + [g]
-            message = " -> ".join([f.name for f in extended_path])
-            raise CallViolation(f"Contract contains cyclic function call: {message}")
-
-        _function_compute_reachable_set_with_overrides(g, path=path)
-
-        g_reachable = g.reachable_internal_functions_with_overrides
-        assert fn_t not in g_reachable  # sanity check
-        fn_t.reachable_internal_functions_with_overrides.update(g_reachable)
-
-        fn_t.reachable_internal_functions_with_overrides.add(g)
-
-    path.pop()
-
-
-def _modules_compute_reachable_set_with_overrides(imports: ImportDict):
-    for module_ast in imports:
-        for func in module_ast.get_children(vy_ast.FunctionDef):
-            fn_t = func._metadata["func_type"]
-
-            _function_compute_reachable_set_with_overrides(fn_t)
-
-            if fn_t.nonreentrant:
-                for g in fn_t.reachable_internal_functions_with_overrides:
-                    if g.nonreentrant:
-                        # TODO: improve the error message by displaying the exact
-                        # path through the call graph
-                        msg = f"Cannot call `{g.name}` since it is"
-                        msg += f" `@nonreentrant` and reachable from `{fn_t.name}`"
-                        msg += ", which is also marked `@nonreentrant`"
-                        raise CallViolation(msg, func, g.ast_def)

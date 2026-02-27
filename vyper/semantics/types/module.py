@@ -524,13 +524,13 @@ class ModuleT(VyperType):
         reachable: OrderedSet[ContractFunctionT] = OrderedSet()
         if self.init_function is not None:
             reachable.add(self.init_function)
-            reachable.update(self.init_function.reachable_internal_functions_with_overrides)
+            reachable.update(self.init_function.reachable_internal_functions)
         for fn_t in self.exposed_functions:
             # getter functions can't emit events, skip them
             if fn_t.is_getter:
                 continue
             reachable.add(fn_t)
-            reachable.update(fn_t.reachable_internal_functions_with_overrides)
+            reachable.update(fn_t.reachable_internal_functions)
 
         for fn_t in reachable:
             fn_ast = fn_t.decl_node

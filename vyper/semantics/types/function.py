@@ -148,21 +148,16 @@ class ContractFunctionT(VyperType):
         # to be populated during module analysis.
         # The with_overrides variant replaces called abstract functions by their override.
         self.called_functions: OrderedSet[ContractFunctionT] = OrderedSet()
-        self.called_functions_with_overrides: OrderedSet[ContractFunctionT] = OrderedSet()
 
         # recursively reachable from this function
         # to be populated during module analysis.
         # The with_overrides variant replaces called abstract functions by their override,
         # which might in turn reach more functions.
         self.reachable_internal_functions: OrderedSet[ContractFunctionT] | None = None
-        self.reachable_internal_functions_with_overrides: OrderedSet[
-            ContractFunctionT
-        ] | None = None  # Set only during `_function_compute_reachable_set_with_overrides`
 
         # These kinds of functions don't get analyzed (and don't call other functions)
         if self.is_getter or self.from_interface:
             self.reachable_internal_functions = OrderedSet()
-            self.reachable_internal_functions_with_overrides = OrderedSet()
 
         # writes to variables from this function
         self._variable_writes: OrderedSet[VarAccess] = OrderedSet()
