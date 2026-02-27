@@ -106,6 +106,9 @@ class DeadStoreElimination(IRPass):
             if clobbered:
                 continue
 
+            if bb.instructions and bb.instructions[-1].opcode == "ret":
+                return True
+
             # Otherwise, we add the block's offsprings to the worklist.
             # for all successor blocks, start from the 0'th instruction
             next_inst_idx = 0
