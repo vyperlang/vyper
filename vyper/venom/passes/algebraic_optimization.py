@@ -433,6 +433,13 @@ class AlgebraicOptimizationPass(IRPass):
                             self.updater.mk_assign(inst, IRLiteral(0))
                             return
 
+        elif not self._is_lit(a_op) and not self._is_lit(b_op):
+            # Both operands are variables: var <?> var
+            result = self._try_fold_var_var_comparison(a_op, b_op, inst, is_gt, signed)
+            if result is not None:
+                self.updater.mk_assign(inst, IRLiteral(result))
+                return
+
         lo, hi = int_bounds(bits=256, signed=signed)
 
         if not isinstance(operands[0], IRLiteral):
@@ -528,3 +535,112 @@ class AlgebraicOptimizationPass(IRPass):
             # remove the iszero!
             assert len(after.operands) == 1, after
             self.updater.update(after, "assign", after.operands)
+
+    def _try_fold_var_var_comparison(
+        self, a_op: IROperand, b_op: IROperand, inst: IRInstruction, is_gt: bool, signed: bool
+    ) -> int | None:
+        """
+        Try to fold a comparison where both operands are variables.
+        Returns 0, 1, or None (cannot fold).
+
+        For signed comparisons (slt, sgt): straightforward range comparison.
+        For unsigned comparisons (lt, gt): must handle sign boundary -
+        negative signed values are large unsigned values (>= 2^255).
+        """
+        a_range = self.range_analysis.get_range(a_op, inst)
+        b_range = self.range_analysis.get_range(b_op, inst)
+
+        # Cannot fold if either range is unknown or empty
+        if a_range.is_top or a_range.is_empty:
+            return None
+        if b_range.is_top or b_range.is_empty:
+            return None
+
+        if signed:
+            # Ranges are stored in a hybrid representation; some evaluators
+            # may produce unsigned ranges that extend past MAX_INT256.
+            # Those values represent negative signed numbers, which breaks
+            # monotonicity for signed comparisons.
+            # Also check lo bounds for completeness (should be >= MIN_INT256).
+            if a_range.hi > SizeLimits.MAX_INT256 or b_range.hi > SizeLimits.MAX_INT256:
+                return None
+            if a_range.lo < SizeLimits.MIN_INT256 or b_range.lo < SizeLimits.MIN_INT256:
+                return None
+
+        if not signed:
+            # Unsigned comparison: must handle sign boundary carefully.
+            # Negative signed values (< 0) are very large unsigned values (>= 2^255).
+            # If a range spans the boundary (contains both negative and non-negative),
+            # we cannot fold because the result depends on which values are picked.
+
+            a_spans = self._range_spans_sign_boundary(a_range)
+            b_spans = self._range_spans_sign_boundary(b_range)
+
+            if a_spans or b_spans:
+                # Cannot fold - range spans signed/unsigned boundary
+                return None
+
+            # Both ranges are on the same side of the boundary.
+            # Check for the case where one is all-negative and one is all-non-negative.
+            a_all_negative = a_range.hi < 0
+            a_all_non_negative = a_range.lo >= 0
+            b_all_negative = b_range.hi < 0
+            b_all_non_negative = b_range.lo >= 0
+
+            if a_all_negative and b_all_non_negative:
+                # a is all negative (large unsigned), b is all non-negative (small unsigned)
+                # In unsigned: a > b always
+                # Extra safety: ensure b doesn't extend into high unsigned territory
+                if b_range.hi <= SizeLimits.MAX_INT256:
+                    return 1 if is_gt else 0  # gt -> 1, lt -> 0
+                return None
+
+            if a_all_non_negative and b_all_negative:
+                # a is all non-negative (small unsigned), b is all negative (large unsigned)
+                # In unsigned: a < b always
+                if a_range.hi <= SizeLimits.MAX_INT256:
+                    return 0 if is_gt else 1  # gt -> 0, lt -> 1
+                return None
+
+            # Both on same side - fall through to standard comparison logic
+
+        # Standard range comparison (works for signed, and unsigned when both same side)
+        if is_gt:
+            # a > b: always true if a.lo > b.hi, always false if a.hi <= b.lo
+            if a_range.lo > b_range.hi:
+                return 1
+            if a_range.hi <= b_range.lo:
+                return 0
+        else:
+            # a < b: always true if a.hi < b.lo, always false if a.lo >= b.hi
+            if a_range.hi < b_range.lo:
+                return 1
+            if a_range.lo >= b_range.hi:
+                return 0
+
+        return None
+
+    @staticmethod
+    def _range_spans_sign_boundary(r) -> bool:
+        """
+        Check if a range spans the signed/unsigned boundary at 2^255.
+
+        The boundary separates:
+        - Non-negative signed values [0, MAX_INT256] (small unsigned: [0, 2^255-1])
+        - Negative signed values [MIN_INT256, -1] (large unsigned: [2^255, 2^256-1])
+
+        A range spans the boundary if it contains values from both regions:
+        - Crosses zero: lo < 0 and hi >= 0
+        - Extends from non-negative into high unsigned: lo >= 0 and hi > MAX_INT256
+        """
+        if r.is_top:
+            return True
+        if r.is_empty:
+            return False
+        # Crosses zero (signed negative to non-negative)
+        if r.lo < 0 and r.hi >= 0:
+            return True
+        # Extends from non-negative signed into high unsigned territory
+        if r.lo >= 0 and r.hi > SizeLimits.MAX_INT256:
+            return True
+        return False
