@@ -51,3 +51,93 @@ def test_simple_jump_case():
         sink %res2
     """
     _check_pre_post(pre, post)
+
+
+def test_range_fold_always_true():
+    pre = """
+    main:
+        %x = 5
+        %cond = gt %x, 0
+        jnz %cond, @then, @else
+    then:
+        %t = add %x, 1
+        sink %t
+    else:
+        %e = sub %x, 1
+        sink %e
+    """
+
+    post = """
+    main:
+        %x = 5
+        jmp @then
+    then:
+        %t = add %x, 1
+        sink %t
+    else:
+        %e = sub %x, 1
+        sink %e
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_range_fold_always_false():
+    pre = """
+    main:
+        %x = 0
+        %cond = gt %x, 0
+        jnz %cond, @then, @else
+    then:
+        %t = add %x, 1
+        sink %t
+    else:
+        %e = sub %x, 1
+        sink %e
+    """
+
+    post = """
+    main:
+        %x = 0
+        jmp @else
+    then:
+        %t = add %x, 1
+        sink %t
+    else:
+        %e = sub %x, 1
+        sink %e
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_range_fold_after_assert():
+    pre = """
+    main:
+        %x = source
+        %cond = gt %x, 0
+        assert %cond
+        jnz %cond, @then, @else
+    then:
+        %t = add %x, 1
+        sink %t
+    else:
+        %e = sub %x, 1
+        sink %e
+    """
+
+    post = """
+    main:
+        %x = source
+        %cond = gt %x, 0
+        assert %cond
+        jmp @then
+    then:
+        %t = add %x, 1
+        sink %t
+    else:
+        %e = sub %x, 1
+        sink %e
+    """
+
+    _check_pre_post(pre, post)
