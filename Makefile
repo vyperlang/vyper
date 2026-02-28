@@ -56,7 +56,7 @@ freeze: clean init
 	echo Generating binary...
 	export OS="$$(uname -s | tr A-Z a-z)" && \
 	export VERSION="$$(PYTHONPATH=. python vyper/cli/vyper_compile.py --version)" && \
-	pyinstaller --target-architecture=universal2 --clean --onefile vyper/cli/vyper_compile.py --name "vyper.$${VERSION}.$${OS}" --add-data vyper:vyper
+	pyinstaller --target-architecture=universal2 --clean --onedir vyper/cli/vyper_compile.py --name "vyper.$${VERSION}.$${OS}" --add-data vyper:vyper
 
 clean: clean-build clean-docs clean-pyc clean-test
 
