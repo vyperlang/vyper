@@ -1167,11 +1167,7 @@ class Expr:
         return result
 
     def _lower_array_membership(
-        self,
-        needle: IROperand,
-        haystack_vv: VyperValue,
-        haystack_typ,
-        is_in: bool,
+        self, needle: IROperand, haystack_vv: VyperValue, haystack_typ, is_in: bool
     ) -> IRVariable:
         """Lower array membership test: x in array or x not in array.
 
