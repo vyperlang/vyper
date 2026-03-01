@@ -35,6 +35,7 @@ from vyper.semantics.types import (
     InterfaceT,
     StringT,
     TupleT,
+    VyperType,
     is_type_t,
 )
 from vyper.semantics.types.base import VOID_TYPE
@@ -1768,14 +1769,23 @@ class Expr:
         # Evaluate contract address (the interface value)
         contract_address = Expr(call_node.func.value, self.ctx).lower_value()
 
-        # Evaluate arguments
-        arg_vvs = [Expr(arg, self.ctx).lower() for arg in call_node.args]
+        # Evaluate arguments.
+        # For primitive words, materialize values directly to avoid carrying
+        # location metadata through later ABI-pack staging.
+        arg_vals: list[tuple[IROperand, VyperType]] = []
+        for i, arg in enumerate(call_node.args):
+            arg_typ = fn_type.arguments[i].typ
+            if arg_typ._is_prim_word:
+                arg_vals.append((Expr(arg, self.ctx).lower_value(), arg_typ))
+            else:
+                arg_vv = Expr(arg, self.ctx).lower()
+                arg_vals.append((self.ctx.unwrap(arg_vv), arg_vv.typ))
 
         # Parse kwargs
         call_kwargs = self._parse_external_call_kwargs(call_node)
 
         # Calculate buffer size needed
-        args_tuple_t = TupleT(tuple(fn_type.arguments[i].typ for i in range(len(arg_vvs))))
+        args_tuple_t = TupleT(tuple(fn_type.arguments[i].typ for i in range(len(arg_vals))))
         args_abi_t = args_tuple_t.abi_type
         args_abi_size = args_abi_t.size_bound()
 
@@ -1799,20 +1809,19 @@ class Expr:
         self.ctx.ptr_store(buf.base_ptr(), IRLiteral(method_id))
 
         # ABI-encode arguments starting at buf+32
-        if len(arg_vvs) > 0:
+        if len(arg_vals) > 0:
             # Create temp buffer for args in memory
             args_val = self.ctx.new_temporary_value(args_tuple_t)
 
             # Store each arg at its position in args_buf
             offset = 0
-            for i, arg_vv in enumerate(arg_vvs):
+            for i, (arg_val, arg_src_typ) in enumerate(arg_vals):
                 arg_typ = fn_type.arguments[i].typ
-                arg_val = self.ctx.unwrap(arg_vv)
                 if offset == 0:
                     dst = args_val.operand
                 else:
                     dst = b.add(args_val.operand, IRLiteral(offset))
-                self.ctx.store_memory(arg_val, dst, arg_typ, src_typ=arg_vv.typ)
+                self.ctx.store_memory(arg_val, dst, arg_typ, src_typ=arg_src_typ)
                 offset += arg_typ.memory_bytes_required
 
             # ABI-encode from args_buf to buf+32
