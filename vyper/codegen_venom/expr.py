@@ -884,7 +884,7 @@ class Expr:
         index_typ = node.slice._metadata["type"]
 
         # Propagate location from base (storage/memory/transient)
-        data_loc = base_vv.location or DataLocation.MEMORY
+        data_loc = self.ctx.value_location(base_vv)
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
         elem_size = elem_typ.get_size_in(data_loc)
@@ -896,10 +896,7 @@ class Expr:
                 # Dynamic array: load length from first word.
                 # Use pointer-aware loading so ctor-time immutable reads come
                 # from the immutable staging area (not constructor args code).
-                if base_vv.is_stack_value:
-                    length = self.builder.load(base, data_loc)
-                else:
-                    length = self.ctx.get_dyn_array_length(base_vv.ptr())
+                length = self.ctx.value_word_load(base_vv, base, data_loc)
             else:
                 # Static array: compile-time length
                 length = IRLiteral(base_typ.count)
@@ -1186,20 +1183,7 @@ class Expr:
             )
 
         haystack = haystack_vv.operand
-        location = haystack_vv.location if haystack_vv.location is not None else DataLocation.MEMORY
-
-        # Constants have UNSET location - use MEMORY sizing (same as CODE)
-        if location == DataLocation.UNSET:
-            location = DataLocation.MEMORY
-
-        def _load_array_word(addr: IROperand) -> IROperand:
-            # Stack values are raw pointer operands, so use direct load dispatch.
-            if haystack_vv.is_stack_value:
-                return self.builder.load(addr, location)
-
-            if location == DataLocation.MEMORY:
-                return self.ctx.ptr_load(Ptr(addr, location, haystack_vv.ptr().buf))
-            return self.ctx.ptr_load(Ptr(addr, location))
+        location = self.ctx.value_location(haystack_vv)
 
         # Determine word scale based on location
         # Storage: 1 slot per word, Memory: 32 bytes per word
@@ -1208,10 +1192,7 @@ class Expr:
         # Get array properties
         length: IROperand
         if isinstance(haystack_typ, DArrayT):
-            if haystack_vv.is_stack_value:
-                length = self.builder.load(haystack, location)
-            else:
-                length = self.ctx.get_dyn_array_length(haystack_vv.ptr())
+            length = self.ctx.value_word_load(haystack_vv, haystack, location)
             bound = haystack_typ.count
             offset_base = word_scale * DYNAMIC_ARRAY_OVERHEAD
         elif isinstance(haystack_typ, SArrayT):
@@ -1270,7 +1251,7 @@ class Expr:
         elem_addr = self.builder.add(haystack, total_offset)
 
         # Load element and compare
-        elem_val = _load_array_word(elem_addr)
+        elem_val = self.ctx.value_word_load(haystack_vv, elem_addr, location)
         match = self.builder.eq(elem_val, needle)
         self.builder.jnz(match, found_block.label, incr_block.label)
 

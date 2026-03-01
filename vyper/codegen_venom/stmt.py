@@ -665,35 +665,18 @@ class Stmt:
             array_vv = Expr(node.iter, self.ctx).lower()
         array = array_vv.operand
         array_typ = node.iter._metadata["type"]
-        location = array_vv.location or node.iter._expr_info.location
-
-        # If array is a stack value (e.g., from ternary expression), the operand
-        # is a pointer to memory. Use MEMORY as the location.
-        if location == DataLocation.UNSET:
-            location = DataLocation.MEMORY
+        location = self.ctx.value_location(array_vv, node.iter._expr_info.location)
 
         # Determine word scale based on location
         # Storage/Transient: 1 slot per word, Memory: 32 bytes per word
         is_slot_addressed = location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
         word_scale = 1 if is_slot_addressed else 32
 
-        def _load_array_word(addr: IROperand) -> IROperand:
-            # Stack values are raw pointer operands, so use direct load dispatch.
-            if array_vv.is_stack_value:
-                return self.builder.load(addr, location)
-
-            if location == DataLocation.MEMORY:
-                return self.ctx.ptr_load(Ptr(addr, location, array_vv.ptr().buf))
-            return self.ctx.ptr_load(Ptr(addr, location))
-
         # Get length and bound
         length: IROperand
         if isinstance(array_typ, DArrayT):
             # Dynamic array: length is first word
-            if array_vv.is_stack_value:
-                length = self.builder.load(array, location)
-            else:
-                length = self.ctx.get_dyn_array_length(array_vv.ptr())
+            length = self.ctx.value_word_load(array_vv, array, location)
             bound = array_typ.count
         elif isinstance(array_typ, SArrayT):
             # Static array: length is compile-time constant
@@ -760,7 +743,7 @@ class Stmt:
             if is_slot_addressed:
                 if elem_size == 1:
                     # Single slot: load from storage/transient, mstore to memory
-                    val = _load_array_word(elem_addr)
+                    val = self.ctx.value_word_load(array_vv, elem_addr, location)
                     self.builder.mstore(item_local.value.operand, val)
                 else:
                     # Multi-slot: use generic helper that dispatches on location
@@ -770,11 +753,14 @@ class Stmt:
             else:
                 if elem_size <= 32:
                     # Single word: load dispatches on location (mload/calldataload/dload)
-                    val = _load_array_word(elem_addr)
+                    val = self.ctx.value_word_load(array_vv, elem_addr, location)
                     self.builder.mstore(item_local.value.operand, val)
                 else:
-                    # Multi-word: use context helper which handles pre-Cancun
-                    self.ctx.copy_memory(item_local.value.operand, elem_addr, elem_size)
+                    # Multi-word: copy from memory/calldata/code into loop local.
+                    # CODE copies are immutable-aware in constructor context.
+                    self.ctx.copy_word_aligned_to_memory(
+                        item_local.value.operand, elem_addr, elem_size, location
+                    )
 
             self._lower_body(node.body)
             body_finish = self.builder.current_block

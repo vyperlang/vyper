@@ -208,6 +208,44 @@ class VenomCodegenContext:
             return self.builder.mload(vv.operand)
         return self.builder.load(vv.operand, loc)
 
+    def value_location(
+        self, vv: VyperValue, fallback: Optional[DataLocation] = None
+    ) -> DataLocation:
+        """Resolve the effective location for a VyperValue.
+
+        UNSET/None locations are normalized to MEMORY.
+        """
+        location = vv.location if vv.location is not None else fallback
+        if location is None or location == DataLocation.UNSET:
+            return DataLocation.MEMORY
+        return location
+
+    def value_word_load(
+        self,
+        vv: VyperValue,
+        addr: Optional[IROperand] = None,
+        fallback: Optional[DataLocation] = None,
+    ) -> IROperand:
+        """Load one word from an address associated with a VyperValue.
+
+        Stack values are expected to represent memory pointers. If a future code
+        path attempts to treat a non-memory stack value as a pointer, fail fast.
+        """
+        if addr is None:
+            addr = vv.operand
+
+        location = self.value_location(vv, fallback)
+
+        if vv.is_stack_value:
+            if location != DataLocation.MEMORY:
+                raise CompilerPanic(f"stack pointer load requires MEMORY location, got {location}")
+            return self.builder.mload(addr)
+
+        if location == DataLocation.MEMORY:
+            return self.builder.mload(addr)
+
+        return self.ptr_load(Ptr(addr, location))
+
     def ensure_bytestring_in_memory(self, vv: VyperValue, typ: _BytestringT) -> VyperValue:
         """Return a bytestring value guaranteed to be in memory.
 
@@ -446,6 +484,35 @@ class VenomCodegenContext:
         # staticcall(gas, IDENTITY_PRECOMPILE, src, length, dst, length)
         success = b.staticcall(b.gas(), IRLiteral(IDENTITY_PRECOMPILE), src, length, dst, length)
         b.assert_(success)
+
+    def copy_word_aligned_to_memory(
+        self, dst: IROperand, src: IROperand, size: int, src_location: DataLocation
+    ) -> None:
+        """Copy a word-aligned region from src_location into memory.
+
+        CODE copies are immutable-aware in constructor context.
+        """
+        if size == 0:
+            return
+
+        if size % 32 != 0:
+            raise CompilerPanic(f"expected word-aligned copy size, got {size}")
+
+        if src_location == DataLocation.MEMORY:
+            self.copy_memory(dst, src, size)
+            return
+
+        if src_location == DataLocation.CALLDATA:
+            self.builder.calldatacopy(dst, src, IRLiteral(size))
+            return
+
+        if src_location == DataLocation.CODE:
+            self.code_to_memory(src, dst, size // 32)
+            return
+
+        raise CompilerPanic(
+            f"copy_word_aligned_to_memory: unexpected source location {src_location}"
+        )
 
     def load_calldata(self, offset: IROperand, typ: VyperType) -> IROperand:
         """Load from calldata.

@@ -614,6 +614,94 @@ def __init__(values: DynArray[uint256, 10]):
     assert c2.ctor_not_in_nine() is True
 
 
+def test_constructor_reads_immutable_dynarray_single_word_compound_elements(get_contract):
+    code = """
+arr: immutable(DynArray[uint256[1], 3])
+ctor_total: public(uint256)
+ctor_second: public(uint256)
+
+@deploy
+def __init__(values: DynArray[uint256[1], 3]):
+    arr = values
+
+    total: uint256 = 0
+    for item: uint256[1] in arr:
+        total += item[0]
+    self.ctor_total = total
+
+    if len(arr) > 1:
+        self.ctor_second = arr[1][0]
+    """
+
+    c = get_contract(code, [[5], [7], [11]])
+    assert c.ctor_total() == 23
+    assert c.ctor_second() == 7
+
+    c2 = get_contract(code, [[9]])
+    assert c2.ctor_total() == 9
+    assert c2.ctor_second() == 0
+
+
+def test_constructor_reads_immutable_dynarray_multi_word_elements(get_contract):
+    code = """
+arr: immutable(DynArray[uint256[2], 3])
+ctor_total: public(uint256)
+ctor_second_right: public(uint256)
+
+@deploy
+def __init__(values: DynArray[uint256[2], 3]):
+    arr = values
+
+    total: uint256 = 0
+    for pair: uint256[2] in arr:
+        total += pair[0] + pair[1]
+    self.ctor_total = total
+
+    if len(arr) > 1:
+        self.ctor_second_right = arr[1][1]
+    """
+
+    c = get_contract(code, [[1, 2], [3, 4]])
+    assert c.ctor_total() == 10
+    assert c.ctor_second_right() == 4
+
+    c2 = get_contract(code, [])
+    assert c2.ctor_total() == 0
+    assert c2.ctor_second_right() == 0
+
+
+def test_constructor_immutable_dynarray_ternary_len_and_membership(get_contract):
+    code = """
+left: immutable(DynArray[uint256, 4])
+right: immutable(DynArray[uint256, 4])
+selected_len: public(uint256)
+selected_has_seven: public(bool)
+selected_has_ninetynine: public(bool)
+
+@deploy
+def __init__(
+    use_left: bool,
+    left_values: DynArray[uint256, 4],
+    right_values: DynArray[uint256, 4]
+):
+    left = left_values
+    right = right_values
+    self.selected_len = len(left if use_left else right)
+    self.selected_has_seven = 7 in (left if use_left else right)
+    self.selected_has_ninetynine = 99 in (left if use_left else right)
+    """
+
+    c = get_contract(code, True, [7, 1, 2], [5])
+    assert c.selected_len() == 3
+    assert c.selected_has_seven() is True
+    assert c.selected_has_ninetynine() is False
+
+    c2 = get_contract(code, False, [7, 1, 2], [5])
+    assert c2.selected_len() == 1
+    assert c2.selected_has_seven() is False
+    assert c2.selected_has_ninetynine() is False
+
+
 @pytest.mark.parametrize("arg", [0, 1])
 def test_uninitialized_immutable_dynarray_read_reverts(get_contract, tx_failed, arg):
     code = """
