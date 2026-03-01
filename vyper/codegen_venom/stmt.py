@@ -25,7 +25,7 @@ from vyper.venom.basicblock import IRLiteral, IROperand
 from .buffer import Ptr
 from .calling_convention import returns_stack_count
 from .context import Constancy, VenomCodegenContext
-from .expr import Expr
+from .expr import Expr, _get_root_variable
 from .value import VyperValue
 
 
@@ -66,7 +66,7 @@ class Stmt:
         var = self.ctx.new_variable(varname, ltyp)
 
         rhs = Expr(node.value, self.ctx).lower()
-        self._assign_value(var.value.ptr(), rhs, ltyp)
+        self._assign_value(var.value.ptr(), rhs, ltyp, src_node=node.value, dst_node=node.target)
 
     def lower_Assign(self) -> None:
         """Lower regular assignment.
@@ -108,21 +108,47 @@ class Stmt:
         # like `c[0] = c.pop()` where RHS modifies array length.
         src = Expr(node.value, self.ctx).lower()
         dst_ptr = self._get_target_ptr(target)
-        self._assign_value(dst_ptr, src, target_typ)
+        self._assign_value(dst_ptr, src, target_typ, src_node=node.value, dst_node=target)
 
-    def _assign_value(self, dst_ptr: Ptr, src: VyperValue, typ) -> None:
+    def _assign_value(
+        self,
+        dst_ptr: Ptr,
+        src: VyperValue,
+        typ,
+        *,
+        src_node: Optional[vy_ast.VyperNode] = None,
+        dst_node: Optional[vy_ast.VyperNode] = None,
+    ) -> None:
         """Assign a VyperValue to a destination pointer.
 
         Handles both primitive word types (direct store) and complex types
         (with overlap-safe copying when source and dest are in the same
         address space).
         """
+        if isinstance(typ, _BytestringT) and src_node is not None and self._is_empty_value(src_node):
+            # Empty bytes/string assignment only needs a zero length word.
+            if dst_ptr.location == DataLocation.STORAGE:
+                self.builder.sstore(dst_ptr.operand, IRLiteral(0))
+            elif dst_ptr.location == DataLocation.TRANSIENT:
+                self.builder.tstore(dst_ptr.operand, IRLiteral(0))
+            else:
+                self.ctx.ptr_store(dst_ptr, IRLiteral(0))
+            return
+
         if typ._is_prim_word:
             self.ctx.ptr_store(dst_ptr, self.ctx.unwrap(src))
         else:
-            self._copy_complex_type(dst_ptr, src, typ)
+            self._copy_complex_type(dst_ptr, src, typ, src_node=src_node, dst_node=dst_node)
 
-    def _copy_complex_type(self, dst_ptr: Ptr, src_vv: VyperValue, typ) -> None:
+    def _copy_complex_type(
+        self,
+        dst_ptr: Ptr,
+        src_vv: VyperValue,
+        typ,
+        *,
+        src_node: Optional[vy_ast.VyperNode] = None,
+        dst_node: Optional[vy_ast.VyperNode] = None,
+    ) -> None:
         """Copy complex type into `dst_ptr`.
 
         Materializes `src_vv` to memory (via unwrap), then stages through a
@@ -134,8 +160,14 @@ class Stmt:
         src_typ = src_vv.typ
         src = self.ctx.unwrap(src_vv)  # always a memory ptr for complex types
 
+        should_stage = False
         if src_loc is DataLocation.MEMORY and dst_ptr.location is DataLocation.MEMORY:
-            # Both in memory — stage through temp for overlap safety.
+            # Stage only when source and destination are views of the same memory root.
+            src_root = _get_root_variable(src_node) if src_node is not None else None
+            dst_root = _get_root_variable(dst_node) if dst_node is not None else None
+            should_stage = src_root is not None and src_root == dst_root
+
+        if should_stage:
             tmp_val = self.ctx.new_temporary_value(src_typ)
             self.ctx.copy_memory(tmp_val.operand, src, src_typ.memory_bytes_required)
             src = tmp_val.operand
@@ -147,7 +179,11 @@ class Stmt:
 
         Only called from `_copy_complex_type` which handles staging when needed.
         """
-        if src_typ != typ and dst_ptr.location is not DataLocation.MEMORY:
+        if (
+            src_typ != typ
+            and dst_ptr.location is not DataLocation.MEMORY
+            and not (isinstance(src_typ, _BytestringT) and isinstance(typ, _BytestringT))
+        ):
             # Normalize source into destination layout before writing to
             # storage/transient/code locations that don't carry src_typ.
             normalized = self.ctx.new_temporary_value(typ)
