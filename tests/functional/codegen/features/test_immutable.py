@@ -577,3 +577,18 @@ def get_length() -> uint256:
     c2 = get_contract(code, [100, 200])
     assert c2.sum_array() == 300
     assert c2.get_length() == 2
+
+
+@pytest.mark.parametrize("arg", [0, 1])
+def test_uninitialized_immutable_dynarray_read_reverts(get_contract, tx_failed, arg):
+    code = """
+arr: immutable(DynArray[uint256, 1])
+
+@deploy
+def __init__(arg: uint256):
+    x: uint256 = arr[0]
+    arr = []
+    """
+
+    with tx_failed():
+        get_contract(code, arg)

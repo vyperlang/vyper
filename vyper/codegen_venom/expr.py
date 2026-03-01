@@ -897,8 +897,10 @@ class Expr:
         if bounds_check:
             length: IROperand = IRLiteral(0)
             if isinstance(base_typ, DArrayT):
-                # Dynamic array: load length from first word
-                length = self.builder.load(base, data_loc)
+                # Dynamic array: load length from first word.
+                # Use pointer-aware loading so ctor-time immutable reads come
+                # from the immutable staging area (not constructor args code).
+                length = self.ctx.get_dyn_array_length(base_vv.ptr())
             else:
                 # Static array: compile-time length
                 length = IRLiteral(base_typ.count)
