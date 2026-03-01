@@ -1430,7 +1430,7 @@ class Expr:
                 # Memory-passed arg: allocate buffer, copy value, pass pointer.
                 # Backend passes can forward safe readonly arguments.
                 buf_val = self.ctx.new_temporary_value(arg_t.typ)
-                self.ctx.store_memory(arg_op, buf_val.operand, arg_t.typ)
+                self.ctx.store_memory(arg_op, buf_val.operand, arg_t.typ, src_typ=arg_val.typ)
                 invoke_args.append(buf_val.operand)
 
         # Emit invoke instruction

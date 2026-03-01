@@ -2061,3 +2061,29 @@ def _make() -> R:
     c = get_contract(code)
     expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
     assert c.foo() == [expected]
+
+
+def test_venom_internal_call_dynarray_bytes_elem_size_mismatch(get_contract):
+    code = """
+struct R:
+    x0: DynArray[Bytes[540], 9]
+
+@external
+@pure
+def foo() -> DynArray[DynArray[Bytes[704], 13], 7]:
+    result: DynArray[Bytes[704], 13] = self._id(self._make().x0)
+    return [result]
+
+@pure
+def _id(a: DynArray[Bytes[704], 13]) -> DynArray[Bytes[704], 13]:
+    return a
+
+@pure
+def _make() -> R:
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    return R(x0=[v, v, v, v])
+    """
+
+    c = get_contract(code)
+    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == [expected]
