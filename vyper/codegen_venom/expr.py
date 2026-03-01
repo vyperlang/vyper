@@ -900,7 +900,10 @@ class Expr:
                 # Dynamic array: load length from first word.
                 # Use pointer-aware loading so ctor-time immutable reads come
                 # from the immutable staging area (not constructor args code).
-                length = self.ctx.get_dyn_array_length(base_vv.ptr())
+                if base_vv.is_stack_value:
+                    length = self.builder.load(base, data_loc)
+                else:
+                    length = self.ctx.get_dyn_array_length(base_vv.ptr())
             else:
                 # Static array: compile-time length
                 length = IRLiteral(base_typ.count)
