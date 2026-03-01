@@ -236,14 +236,15 @@ class Expr:
         offset = 0
         for i, elem_node in enumerate(node.elements):
             elem_typ = typ.member_types[i]
-            elem_val = Expr(elem_node, self.ctx).lower_value()
+            elem_vv = Expr(elem_node, self.ctx).lower()
+            elem_val = self.ctx.unwrap(elem_vv)
 
             if offset == 0:
                 dst = val.operand
             else:
                 dst = self.builder.add(val.operand, IRLiteral(offset))
 
-            self.ctx.store_memory(elem_val, dst, elem_typ)
+            self.ctx.store_memory(elem_val, dst, elem_typ, src_typ=elem_vv.typ)
             offset += elem_typ.memory_bytes_required
 
         return val
@@ -278,14 +279,15 @@ class Expr:
 
         # Store each element
         for elem_node in node.elements:
-            elem_val = Expr(elem_node, self.ctx).lower_value()
+            elem_vv = Expr(elem_node, self.ctx).lower()
+            elem_val = self.ctx.unwrap(elem_vv)
 
             if data_offset == 0:
                 dst = val.operand
             else:
                 dst = self.builder.add(val.operand, IRLiteral(data_offset))
 
-            self.ctx.store_memory(elem_val, dst, elem_typ)
+            self.ctx.store_memory(elem_val, dst, elem_typ, src_typ=elem_vv.typ)
             data_offset += elem_size
 
         return val

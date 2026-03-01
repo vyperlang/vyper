@@ -131,17 +131,18 @@ class Stmt:
         no aliasing is possible and the staging copy is skipped.
         """
         src_loc = src_vv.location  # None for stack values, else DataLocation
+        src_typ = src_vv.typ
         src = self.ctx.unwrap(src_vv)  # always a memory ptr for complex types
 
         if src_loc is DataLocation.MEMORY and dst_ptr.location is DataLocation.MEMORY:
             # Both in memory — stage through temp for overlap safety.
-            tmp_val = self.ctx.new_temporary_value(typ)
-            self.ctx.copy_memory(tmp_val.operand, src, typ.memory_bytes_required)
+            tmp_val = self.ctx.new_temporary_value(src_typ)
+            self.ctx.copy_memory(tmp_val.operand, src, src_typ.memory_bytes_required)
             src = tmp_val.operand
 
-        self._store_complex_type(dst_ptr, src, typ)
+        self._store_complex_type(dst_ptr, src, typ, src_typ)
 
-    def _store_complex_type(self, dst_ptr: Ptr, src: IROperand, typ) -> None:
+    def _store_complex_type(self, dst_ptr: Ptr, src: IROperand, typ, src_typ) -> None:
         """Store complex value from memory `src` into `dst_ptr` (no overlap guard).
 
         Only called from `_copy_complex_type` which handles staging when needed.
@@ -174,7 +175,7 @@ class Stmt:
             else:
                 self.ctx.store_immutable(src, dst_ptr.operand, typ)
         else:
-            self.ctx.copy_memory(dst_ptr.operand, src, typ.memory_bytes_required)
+            self.ctx.store_memory(src, dst_ptr.operand, typ, src_typ=src_typ)
 
     def _lower_tuple_unpack(self) -> None:
         """Lower tuple unpacking assignment: a, b = expr.

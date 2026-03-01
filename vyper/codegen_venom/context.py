@@ -20,10 +20,12 @@ from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, MemoryAllocationException, StateAccessViolation
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types import VyperType
+from vyper.semantics.types import TupleT, VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
+from vyper.semantics.types.subscriptable import DArrayT, SArrayT
+from vyper.semantics.types.user import StructT
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 
@@ -356,7 +358,9 @@ class VenomCodegenContext:
             # Complex types: return pointer (caller handles copy if needed)
             return ptr
 
-    def store_memory(self, val: IROperand, ptr: IROperand, typ: VyperType) -> None:
+    def store_memory(
+        self, val: IROperand, ptr: IROperand, typ: VyperType, src_typ: Optional[VyperType] = None
+    ) -> None:
         """Store value to memory pointer.
 
         For primitive word types, stores the value directly via mstore.
@@ -368,6 +372,9 @@ class VenomCodegenContext:
         complex types that happen to fit in one word. The caller passes
         a pointer to struct data, not the struct value itself.
         """
+        if src_typ is None:
+            src_typ = typ
+
         if typ._is_prim_word:
             self.builder.mstore(ptr, val)
         elif isinstance(typ, _BytestringT):
@@ -383,9 +390,120 @@ class VenomCodegenContext:
             # Copy 32 (length word) + ceil32(length) bytes
             copy_len = self.builder.add(padded_len, IRLiteral(32))
             self.copy_memory_dynamic(ptr, val, copy_len)
+        elif src_typ != typ:
+            # Layout-aware copy for assignments between compatible but not
+            # identical memory layouts (e.g. DynArray[Bytes[540]] -> DynArray[Bytes[704]]).
+            self._store_memory_typed(dst=ptr, dst_typ=typ, src=val, src_typ=src_typ)
         else:
             # Complex type: val is a pointer, copy memory
             self.copy_memory(ptr, val, typ.memory_bytes_required)
+
+    def _store_memory_typed(
+        self, dst: IROperand, dst_typ: VyperType, src: IROperand, src_typ: VyperType
+    ) -> None:
+        """Store memory value with potential source/destination type layout differences."""
+        if dst_typ._is_prim_word:
+            self.builder.mstore(dst, self.builder.mload(src))
+            return
+
+        if isinstance(dst_typ, _BytestringT) and isinstance(src_typ, _BytestringT):
+            # Bytes/string assignment is value-based: copy actual runtime length.
+            self.store_memory(src, dst, dst_typ)
+            return
+
+        if isinstance(dst_typ, DArrayT) and isinstance(src_typ, DArrayT):
+            self._copy_dynarray_memory_typed(dst, dst_typ, src, src_typ)
+            return
+
+        if isinstance(dst_typ, SArrayT) and isinstance(src_typ, SArrayT):
+            count = src_typ.count
+            dst_elem_t = dst_typ.value_type
+            src_elem_t = src_typ.value_type
+            dst_elem_size = dst_elem_t.memory_bytes_required
+            src_elem_size = src_elem_t.memory_bytes_required
+            for i in range(count):
+                dst_ptr = self._with_byte_offset(dst, i * dst_elem_size)
+                src_ptr = self._with_byte_offset(src, i * src_elem_size)
+                self._store_memory_typed(dst_ptr, dst_elem_t, src_ptr, src_elem_t)
+            return
+
+        if isinstance(dst_typ, TupleT) and isinstance(src_typ, TupleT):
+            dst_ofst = 0
+            src_ofst = 0
+            for dst_member_t, src_member_t in zip(dst_typ.member_types, src_typ.member_types):
+                dst_ptr = self._with_byte_offset(dst, dst_ofst)
+                src_ptr = self._with_byte_offset(src, src_ofst)
+                self._store_memory_typed(dst_ptr, dst_member_t, src_ptr, src_member_t)
+                dst_ofst += dst_member_t.memory_bytes_required
+                src_ofst += src_member_t.memory_bytes_required
+            return
+
+        if isinstance(dst_typ, StructT) and isinstance(src_typ, StructT):
+            dst_ofst = 0
+            src_ofst = 0
+            for name, dst_member_t in dst_typ.member_types.items():
+                src_member_t = src_typ.member_types[name]
+                dst_ptr = self._with_byte_offset(dst, dst_ofst)
+                src_ptr = self._with_byte_offset(src, src_ofst)
+                self._store_memory_typed(dst_ptr, dst_member_t, src_ptr, src_member_t)
+                dst_ofst += dst_member_t.memory_bytes_required
+                src_ofst += src_member_t.memory_bytes_required
+            return
+
+        # Fallback for compatible layouts not covered above.
+        self.copy_memory(dst, src, dst_typ.memory_bytes_required)
+
+    def _copy_dynarray_memory_typed(
+        self, dst: IROperand, dst_typ: DArrayT, src: IROperand, src_typ: DArrayT
+    ) -> None:
+        """Copy DynArray in memory when source and destination element layouts may differ."""
+        b = self.builder
+        length = b.mload(src)
+        b.mstore(dst, length)
+
+        dst_elem_t = dst_typ.value_type
+        src_elem_t = src_typ.value_type
+        dst_elem_size = dst_elem_t.memory_bytes_required
+        src_elem_size = src_elem_t.memory_bytes_required
+
+        src_data = self._with_byte_offset(src, 32)
+        dst_data = self._with_byte_offset(dst, 32)
+
+        # Fast path when element layouts match: copy exactly `length` elements.
+        if src_elem_t == dst_elem_t and src_elem_size == dst_elem_size:
+            data_size = b.mul(length, IRLiteral(dst_elem_size))
+            self.copy_memory_dynamic(dst_data, src_data, data_size)
+            return
+
+        cond_block = b.create_block("typed_dyn_copy_cond")
+        body_block = b.create_block("typed_dyn_copy_body")
+        exit_block = b.create_block("typed_dyn_copy_exit")
+
+        counter = b.assign(IRLiteral(0))
+        b.jmp(cond_block.label)
+
+        b.append_block(cond_block)
+        b.set_block(cond_block)
+        done = b.iszero(b.lt(counter, length))
+        cond_finish = b.current_block
+
+        b.append_block(body_block)
+        b.set_block(body_block)
+
+        src_ofst = b.mul(counter, IRLiteral(src_elem_size))
+        dst_ofst = b.mul(counter, IRLiteral(dst_elem_size))
+        src_elem_ptr = b.add(src_data, src_ofst)
+        dst_elem_ptr = b.add(dst_data, dst_ofst)
+
+        self._store_memory_typed(dst_elem_ptr, dst_elem_t, src_elem_ptr, src_elem_t)
+
+        new_counter = b.add(counter, IRLiteral(1))
+        b.assign_to(new_counter, counter)
+        b.jmp(cond_block.label)
+
+        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
+        b.append_block(exit_block)
+        b.set_block(exit_block)
 
     # Threshold for using identity precompile vs unrolling (pre-Cancun).
     # Identity precompile has ~25 bytes overhead, unrolling is ~15 bytes/word.

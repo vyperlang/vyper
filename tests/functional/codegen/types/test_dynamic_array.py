@@ -2039,3 +2039,25 @@ def test_append_self_ref_bytes() -> DynArray[Bytes[32], 5]:
     """
     c = get_contract(code_bytes)
     assert c.test_append_self_ref_bytes() == [b"hello", b"world", b"hello"]
+
+
+def test_venom_dynarray_bytes_elem_size_mismatch(get_contract):
+    code = """
+struct R:
+    x0: DynArray[Bytes[540], 9]
+
+@external
+@pure
+def foo() -> DynArray[DynArray[Bytes[704], 13], 7]:
+    result: DynArray[Bytes[540], 9] = self._make().x0
+    return [result]
+
+@pure
+def _make() -> R:
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    return R(x0=[v, v, v, v])
+    """
+
+    c = get_contract(code)
+    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == [expected]
