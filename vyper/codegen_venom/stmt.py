@@ -204,6 +204,8 @@ class Stmt:
         # src is a pointer to the source tuple in memory
         src_tuple_typ = src_vv.typ
         dst_tuple_typ = target._metadata["type"]
+        assert isinstance(src_tuple_typ, TupleT)
+        assert isinstance(dst_tuple_typ, TupleT)
         targets = target.elements
 
         # First pass: load all values from source tuple to temp variables.
