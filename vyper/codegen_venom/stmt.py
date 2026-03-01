@@ -239,10 +239,22 @@ class Stmt:
             else:
                 # Complex element type: val is a memory pointer in source layout.
                 if target_ptr.location is DataLocation.MEMORY:
-                    # Keep source snapshot stable across earlier tuple stores.
-                    staged = self.ctx.new_temporary_value(src_elem_typ)
-                    self.ctx.copy_memory(staged.operand, val, src_elem_typ.memory_bytes_required)
-                    val = staged.operand
+                    if src_elem_typ != dst_elem_typ:
+                        # Normalize into destination layout (implicitly snapshots
+                        # source data, protecting against aliasing from earlier writes).
+                        normalized = self.ctx.new_temporary_value(dst_elem_typ)
+                        self.ctx.store_memory(
+                            val, normalized.operand, dst_elem_typ, src_typ=src_elem_typ
+                        )
+                        val = normalized.operand
+                        src_elem_typ = dst_elem_typ
+                    else:
+                        # Same layout: explicit snapshot for aliasing safety.
+                        staged = self.ctx.new_temporary_value(src_elem_typ)
+                        self.ctx.copy_memory(
+                            staged.operand, val, src_elem_typ.memory_bytes_required
+                        )
+                        val = staged.operand
                 self._store_complex_type(target_ptr, val, dst_elem_typ, src_elem_typ)
 
     def lower_AugAssign(self) -> None:
@@ -765,8 +777,11 @@ class Stmt:
                     val = self.builder.load(elem_addr, location)
                     self.builder.mstore(item_local.value.operand, val)
                 else:
-                    # Multi-word: use context helper which handles pre-Cancun
-                    self.ctx.copy_memory(item_local.value.operand, elem_addr, elem_size)
+                    # Multi-word: layout-aware copy handles element size mismatches
+                    self.ctx.store_memory(
+                        elem_addr, item_local.value.operand,
+                        target_type, src_typ=array_typ.value_type
+                    )
 
             self._lower_body(node.body)
             body_finish = self.builder.current_block
