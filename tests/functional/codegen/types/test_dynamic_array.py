@@ -2087,3 +2087,78 @@ def _make() -> R:
     c = get_contract(code)
     expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
     assert c.foo() == [expected]
+
+
+def test_venom_external_call_dynarray_bytes_elem_size_mismatch(get_contract):
+    code = """
+interface IHelper:
+    def id(a: DynArray[Bytes[704], 13]) -> DynArray[Bytes[704], 13]: view
+
+struct R:
+    x0: DynArray[Bytes[540], 9]
+
+@external
+@view
+def foo() -> DynArray[DynArray[Bytes[704], 13], 7]:
+    result: DynArray[Bytes[704], 13] = staticcall IHelper(self).id(self._make().x0)
+    return [result]
+
+@external
+@view
+def id(a: DynArray[Bytes[704], 13]) -> DynArray[Bytes[704], 13]:
+    return a
+
+@pure
+def _make() -> R:
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    return R(x0=[v, v, v, v])
+    """
+
+    c = get_contract(code)
+    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == [expected]
+
+
+def test_venom_internal_return_dynarray_bytes_elem_size_mismatch(get_contract):
+    code = """
+struct R:
+    x0: DynArray[Bytes[540], 9]
+
+@external
+@pure
+def foo() -> DynArray[DynArray[Bytes[704], 13], 7]:
+    return [self._ret()]
+
+@pure
+def _ret() -> DynArray[Bytes[704], 13]:
+    result: DynArray[Bytes[540], 9] = self._make().x0
+    return result
+
+@pure
+def _make() -> R:
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    return R(x0=[v, v, v, v])
+    """
+
+    c = get_contract(code)
+    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == [expected]
+
+
+def test_venom_append_bytes_elem_size_mismatch(get_contract):
+    code = """
+@external
+@pure
+def foo() -> DynArray[Bytes[704], 13]:
+    out: DynArray[Bytes[704], 13] = []
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    out.append(v)
+    out.append(v)
+    out.append(v)
+    out.append(v)
+    return out
+    """
+
+    c = get_contract(code)
+    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == expected

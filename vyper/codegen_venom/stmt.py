@@ -824,19 +824,22 @@ class Stmt:
 
         # Evaluate return value if present
         ret_val: Optional[IROperand] = None
+        ret_src_typ = None
         if node.value is not None:
-            # lower_value() handles all locations (storage, memory, code)
-            # and returns a usable value (loaded for primitives, memory ptr for complex)
-            ret_val = Expr(node.value, self.ctx).lower_value()
+            # lower() preserves source type so return coercions can use
+            # layout-aware copying when source and declared return type differ.
+            ret_vv = Expr(node.value, self.ctx).lower()
+            ret_val = self.ctx.unwrap(ret_vv)
+            ret_src_typ = ret_vv.typ
 
         # Dispatch: internal vs external
         if self.ctx.return_pc is not None:
-            self._lower_internal_return(ret_val, func_t)
+            self._lower_internal_return(ret_val, func_t, ret_src_typ)
         else:
-            self._lower_external_return(ret_val, func_t)
+            self._lower_external_return(ret_val, func_t, ret_src_typ)
 
     def _lower_internal_return(
-        self, ret_val: Optional[IROperand], func_t: ContractFunctionT
+        self, ret_val: Optional[IROperand], func_t: ContractFunctionT, ret_src_typ=None
     ) -> None:
         """Lower internal function return.
 
@@ -878,14 +881,14 @@ class Stmt:
 
         elif self.ctx.return_buffer is not None:
             # Memory return - store to buffer, caller reads it
-            self.ctx.store_memory(ret_val, self.ctx.return_buffer, ret_typ)
+            self.ctx.store_memory(ret_val, self.ctx.return_buffer, ret_typ, src_typ=ret_src_typ)
             self.builder.ret(return_pc)
 
         else:
             raise CompilerPanic("Internal function missing return mechanism")
 
     def _lower_external_return(
-        self, ret_val: Optional[IROperand], func_t: ContractFunctionT
+        self, ret_val: Optional[IROperand], func_t: ContractFunctionT, ret_src_typ=None
     ) -> None:
         """Lower external function return.
 
@@ -905,13 +908,24 @@ class Stmt:
         ret_typ = func_t.return_type
         assert ret_typ is not None
 
+        if (
+            ret_src_typ is not None
+            and not ret_typ._is_prim_word
+            and ret_src_typ != ret_typ
+            and ret_val is not None
+        ):
+            normalized = self.ctx.new_temporary_value(ret_typ)
+            self.ctx.store_memory(ret_val, normalized.operand, ret_typ, src_typ=ret_src_typ)
+            ret_val = normalized.operand
+            ret_src_typ = ret_typ
+
         # Raw return: return bytes directly without ABI encoding
         # The @raw_return decorator bypasses ABI encoding for proxy patterns
         if func_t.do_raw_return:
             # ret_val is a pointer to [length (32 bytes)][data...]
             # Copy to a fresh buffer to ensure it's in memory
             buf_val = self.ctx.new_temporary_value(ret_typ)
-            self.ctx.store_memory(ret_val, buf_val.operand, ret_typ)
+            self.ctx.store_memory(ret_val, buf_val.operand, ret_typ, src_typ=ret_src_typ)
 
             # Get length from first 32 bytes
             return_len = self.builder.mload(buf_val.operand)
@@ -968,22 +982,23 @@ class Stmt:
             arg_nodes = call_node.args
 
         # Lower all argument expressions
-        # lower_value() handles storage/code -> memory copy for complex types
         args = []
         for arg in arg_nodes:
             arg_typ = arg._metadata["type"]
-            args.append((Expr(arg, self.ctx).lower_value(), arg_typ))
+            arg_vv = Expr(arg, self.ctx).lower()
+            arg_val = self.ctx.unwrap(arg_vv)
+            args.append((arg_val, arg_typ, arg_vv.typ))
 
         # Split into indexed (topics) and non-indexed (data)
         topic_vals = []
         data_vals = []
         data_typs = []
 
-        for (arg_val, arg_typ), is_indexed in zip(args, event.indexed):
+        for (arg_val, arg_typ, src_typ), is_indexed in zip(args, event.indexed):
             if is_indexed:
                 topic_vals.append((arg_val, arg_typ))
             else:
-                data_vals.append(arg_val)
+                data_vals.append((arg_val, src_typ))
                 data_typs.append(arg_typ)
 
         # Build topics list - starts with event signature hash
@@ -1006,12 +1021,12 @@ class Stmt:
 
             # Store each data value into the tuple buffer
             offset = 0
-            for val, typ in zip(data_vals, data_typs):
+            for (val, src_typ), typ in zip(data_vals, data_typs):
                 if offset == 0:
                     dst = data_buf._ptr
                 else:
                     dst = self.builder.add(data_buf._ptr, IRLiteral(offset))
-                self.ctx.store_memory(val, dst, typ)
+                self.ctx.store_memory(val, dst, typ, src_typ=src_typ)
                 offset += typ.memory_bytes_required
 
             # Allocate ABI encoding output buffer
@@ -1197,7 +1212,7 @@ class Stmt:
         # We need to store it at a location so we can encode the tuple
         # For a tuple (string,), we store the string pointer, then encode
         tuple_buf = self.ctx.allocate_buffer(wrapped_typ.memory_bytes_required)
-        self.ctx.store_memory(msg_val, tuple_buf._ptr, msg_typ)
+        self.ctx.store_memory(msg_val, tuple_buf._ptr, msg_typ, src_typ=msg_vv.typ)
 
         # ABI encode the wrapped message to payload buffer
         encoded_len = abi_encode_to_buf(self.ctx, payload_buf, tuple_buf._ptr, wrapped_typ)

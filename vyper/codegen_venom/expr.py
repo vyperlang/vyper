@@ -60,7 +60,7 @@ class _CallKwargs:
     value: IROperand  # ETH value to send (CALL only)
     gas: IROperand  # Gas limit for the call
     skip_contract_check: bool  # Skip extcodesize check
-    default_return_value: Optional[IROperand]  # Default if returndatasize==0
+    default_return_value: Optional[VyperValue]  # Default if returndatasize==0
 
 
 # Environment variable prefixes for attribute access
@@ -1491,14 +1491,15 @@ class Expr:
         offset = 0
         for field_name in struct_t.tuple_keys():
             field_typ = struct_t.member_types[field_name]
-            field_val = Expr(member_vals[field_name], self.ctx).lower_value()
+            field_vv = Expr(member_vals[field_name], self.ctx).lower()
+            field_val = self.ctx.unwrap(field_vv)
 
             if offset == 0:
                 dst = val.operand
             else:
                 dst = self.builder.add(val.operand, IRLiteral(offset))
 
-            self.ctx.store_memory(field_val, dst, field_typ)
+            self.ctx.store_memory(field_val, dst, field_typ, src_typ=field_vv.typ)
             offset += field_typ.memory_bytes_required
 
         return val
@@ -1570,14 +1571,18 @@ class Expr:
         assert len(node.args) == 1
         arg_node = node.args[0]
 
+        arg_vv = Expr(arg_node, self.ctx).lower()
+        arg_val = self.ctx.unwrap(arg_vv)
+        elem_src_typ = arg_vv.typ
+
         if not elem_typ._is_prim_word and _potential_overlap_ast(darray_node, arg_node):
             # Overlap detected: copy arg to temp buffer first
-            arg_val = Expr(arg_node, self.ctx).lower_value()
             temp_buf = self.ctx.new_temporary_value(elem_typ)
-            self.ctx.store_memory(arg_val, temp_buf.operand, elem_typ)
+            self.ctx.store_memory(arg_val, temp_buf.operand, elem_typ, src_typ=elem_src_typ)
             elem_val = temp_buf.operand
+            elem_src_typ = elem_typ
         else:
-            elem_val = Expr(arg_node, self.ctx).lower_value()
+            elem_val = arg_val
 
         # Get location from VyperValue
         data_loc = darray_vv.location or DataLocation.MEMORY
@@ -1605,7 +1610,7 @@ class Expr:
         if elem_typ._is_prim_word:
             self.builder.store(elem_ptr, elem_val, data_loc)
         elif data_loc == DataLocation.MEMORY:
-            self.ctx.store_memory(elem_val, elem_ptr, elem_typ)
+            self.ctx.store_memory(elem_val, elem_ptr, elem_typ, src_typ=elem_src_typ)
         elif data_loc == DataLocation.STORAGE:
             self.ctx.store_storage(elem_val, elem_ptr, elem_typ)
         elif data_loc == DataLocation.TRANSIENT:
@@ -1699,9 +1704,13 @@ class Expr:
         value: IROperand = IRLiteral(0)
         gas: IROperand = self.builder.gas()
         skip_contract_check = False
-        default_return_value = None
+        default_return_value: Optional[VyperValue] = None
 
         for kw in call_node.keywords:
+            if kw.arg == "default_return_value":
+                default_return_value = Expr(kw.value, self.ctx).lower()
+                continue
+
             kw_val = Expr(kw.value, self.ctx).lower_value()
             if kw.arg == "value":
                 value = kw_val
@@ -1712,8 +1721,6 @@ class Expr:
                 if not isinstance(kw_val, IRLiteral):
                     raise CompilerPanic(f"Expected IRLiteral for keyword, got {type(kw_val)}")
                 skip_contract_check = bool(kw_val.value)
-            elif kw.arg == "default_return_value":
-                default_return_value = kw_val
             else:
                 raise CompilerPanic(f"Unexpected keyword argument: {kw.arg}")
 
@@ -1751,13 +1758,13 @@ class Expr:
         contract_address = Expr(call_node.func.value, self.ctx).lower_value()
 
         # Evaluate arguments
-        args = [Expr(arg, self.ctx).lower_value() for arg in call_node.args]
+        arg_vvs = [Expr(arg, self.ctx).lower() for arg in call_node.args]
 
         # Parse kwargs
         call_kwargs = self._parse_external_call_kwargs(call_node)
 
         # Calculate buffer size needed
-        args_tuple_t = TupleT(tuple(fn_type.arguments[i].typ for i in range(len(args))))
+        args_tuple_t = TupleT(tuple(fn_type.arguments[i].typ for i in range(len(arg_vvs))))
         args_abi_t = args_tuple_t.abi_type
         args_abi_size = args_abi_t.size_bound()
 
@@ -1781,19 +1788,20 @@ class Expr:
         self.ctx.ptr_store(buf.base_ptr(), IRLiteral(method_id))
 
         # ABI-encode arguments starting at buf+32
-        if len(args) > 0:
+        if len(arg_vvs) > 0:
             # Create temp buffer for args in memory
             args_val = self.ctx.new_temporary_value(args_tuple_t)
 
             # Store each arg at its position in args_buf
             offset = 0
-            for i, arg_val in enumerate(args):
+            for i, arg_vv in enumerate(arg_vvs):
                 arg_typ = fn_type.arguments[i].typ
+                arg_val = self.ctx.unwrap(arg_vv)
                 if offset == 0:
                     dst = args_val.operand
                 else:
                     dst = b.add(args_val.operand, IRLiteral(offset))
-                self.ctx.store_memory(arg_val, dst, arg_typ)
+                self.ctx.store_memory(arg_val, dst, arg_typ, src_typ=arg_vv.typ)
                 offset += arg_typ.memory_bytes_required
 
             # ABI-encode from args_buf to buf+32
@@ -1881,13 +1889,15 @@ class Expr:
             # Store default value - needs wrapping if single value
             if needs_external_call_wrap(return_t):
                 # Wrap single value in tuple
-                self.ctx.store_memory(
-                    call_kwargs.default_return_value, result_val.operand, return_t
-                )
+                default_vv = call_kwargs.default_return_value
+                assert default_vv is not None
+                default_val = self.ctx.unwrap(default_vv)
+                self.ctx.store_memory(default_val, result_val.operand, return_t, src_typ=default_vv.typ)
             else:
-                self.ctx.store_memory(
-                    call_kwargs.default_return_value, result_val.operand, return_t
-                )
+                default_vv = call_kwargs.default_return_value
+                assert default_vv is not None
+                default_val = self.ctx.unwrap(default_vv)
+                self.ctx.store_memory(default_val, result_val.operand, return_t, src_typ=default_vv.typ)
 
             # Check extcodesize if not skipped (contract might have selfdestructed)
             if not call_kwargs.skip_contract_check:
