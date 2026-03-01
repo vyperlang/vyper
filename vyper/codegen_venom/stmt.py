@@ -147,7 +147,7 @@ class Stmt:
 
         Only called from `_copy_complex_type` which handles staging when needed.
         """
-        if src_typ != typ:
+        if src_typ != typ and dst_ptr.location is not DataLocation.MEMORY:
             # Normalize source into destination layout before writing to
             # storage/transient/code locations that don't carry src_typ.
             normalized = self.ctx.new_temporary_value(typ)
@@ -183,7 +183,10 @@ class Stmt:
             else:
                 self.ctx.store_immutable(src, dst_ptr.operand, typ)
         else:
-            self.ctx.store_memory(src, dst_ptr.operand, typ, src_typ=src_typ)
+            if src_typ == typ:
+                self.ctx.copy_memory(dst_ptr.operand, src, typ.memory_bytes_required)
+            else:
+                self.ctx.store_memory(src, dst_ptr.operand, typ, src_typ=src_typ)
 
     def _lower_tuple_unpack(self) -> None:
         """Lower tuple unpacking assignment: a, b = expr.
@@ -218,6 +221,23 @@ class Stmt:
             src_member_types = tuple(src_member_types.values())
         if isinstance(dst_member_types, dict):
             dst_member_types = tuple(dst_member_types.values())
+
+        # If source and destination may alias in memory, snapshot the source tuple once.
+        # This preserves tuple-assignment semantics (a, b = b, a) for complex members
+        # without staging each element individually.
+        src_expr = node.value.reduced()
+        source_is_memory_view = isinstance(
+            src_expr, (vy_ast.Name, vy_ast.Attribute, vy_ast.Subscript)
+        )
+        if (
+            source_is_memory_view
+            and src_vv.location is DataLocation.MEMORY
+            and any(not t._is_prim_word for t in src_member_types)
+        ):
+            staged_src = self.ctx.new_temporary_value(src_tuple_typ)
+            self.ctx.copy_memory(staged_src.operand, src, src_tuple_typ.memory_bytes_required)
+            src = staged_src.operand
+
         for src_elem_typ, dst_elem_typ in zip(src_member_types, dst_member_types):
             if src_offset == 0:
                 elem_ptr = src
@@ -240,23 +260,6 @@ class Stmt:
                 self.ctx.ptr_store(target_ptr, val)
             else:
                 # Complex element type: val is a memory pointer in source layout.
-                if target_ptr.location is DataLocation.MEMORY:
-                    if src_elem_typ != dst_elem_typ:
-                        # Normalize into destination layout (implicitly snapshots
-                        # source data, protecting against aliasing from earlier writes).
-                        normalized = self.ctx.new_temporary_value(dst_elem_typ)
-                        self.ctx.store_memory(
-                            val, normalized.operand, dst_elem_typ, src_typ=src_elem_typ
-                        )
-                        val = normalized.operand
-                        src_elem_typ = dst_elem_typ
-                    else:
-                        # Same layout: explicit snapshot for aliasing safety.
-                        staged = self.ctx.new_temporary_value(src_elem_typ)
-                        self.ctx.copy_memory(
-                            staged.operand, val, src_elem_typ.memory_bytes_required
-                        )
-                        val = staged.operand
                 self._store_complex_type(target_ptr, val, dst_elem_typ, src_elem_typ)
 
     def lower_AugAssign(self) -> None:
@@ -933,6 +936,9 @@ class Stmt:
         if (
             ret_src_typ is not None
             and not ret_typ._is_prim_word
+            and not (
+                isinstance(ret_typ, _BytestringT) and isinstance(ret_src_typ, _BytestringT)
+            )
             and ret_src_typ != ret_typ
             and ret_val is not None
         ):

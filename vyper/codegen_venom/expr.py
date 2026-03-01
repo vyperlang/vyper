@@ -1584,16 +1584,20 @@ class Expr:
         else:
             elem_val = arg_val
 
-        if not elem_typ._is_prim_word and elem_src_typ != elem_typ:
-            # Normalize source layout for non-memory destinations.
+        # Get location from VyperValue
+        data_loc = darray_vv.location or DataLocation.MEMORY
+        word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
+
+        if (
+            data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT, DataLocation.CODE)
+            and not elem_typ._is_prim_word
+            and elem_src_typ != elem_typ
+        ):
+            # Normalize source layout for locations that only understand destination layout.
             normalized = self.ctx.new_temporary_value(elem_typ)
             self.ctx.store_memory(elem_val, normalized.operand, elem_typ, src_typ=elem_src_typ)
             elem_val = normalized.operand
             elem_src_typ = elem_typ
-
-        # Get location from VyperValue
-        data_loc = darray_vv.location or DataLocation.MEMORY
-        word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
         elem_size = elem_typ.get_size_in(data_loc)
         capacity = darray_typ.count  # Maximum length
