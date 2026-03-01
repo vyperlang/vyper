@@ -2257,6 +2257,23 @@ def foo() -> DynArray[Bytes[704], 3]:
     assert c.foo() == expected
 
 
+def test_venom_nested_dynarray_bytes_elem_size_mismatch(get_contract):
+    code = """
+@external
+@pure
+def foo() -> DynArray[DynArray[Bytes[704], 13], 3]:
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    inner: DynArray[Bytes[540], 9] = [v, v]
+    src: DynArray[DynArray[Bytes[540], 9], 3] = [inner, inner]
+    result: DynArray[DynArray[Bytes[704], 13], 3] = src
+    return result
+    """
+
+    c = get_contract(code)
+    inner = [b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == [inner, inner]
+
+
 def test_venom_storage_assign_dynarray_bytes_elem_size_mismatch(get_contract):
     code = """
 a: DynArray[Bytes[704], 13]
