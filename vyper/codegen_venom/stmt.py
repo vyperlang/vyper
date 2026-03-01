@@ -779,8 +779,10 @@ class Stmt:
                 else:
                     # Multi-word: layout-aware copy handles element size mismatches
                     self.ctx.store_memory(
-                        elem_addr, item_local.value.operand,
-                        target_type, src_typ=array_typ.value_type
+                        elem_addr,
+                        item_local.value.operand,
+                        target_type,
+                        src_typ=array_typ.value_type,
                     )
 
             self._lower_body(node.body)
