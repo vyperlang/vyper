@@ -677,11 +677,23 @@ class Stmt:
         is_slot_addressed = location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
         word_scale = 1 if is_slot_addressed else 32
 
+        def _load_array_word(addr: IROperand) -> IROperand:
+            # Stack values are raw pointer operands, so use direct load dispatch.
+            if array_vv.is_stack_value:
+                return self.builder.load(addr, location)
+
+            if location == DataLocation.MEMORY:
+                return self.ctx.ptr_load(Ptr(addr, location, array_vv.ptr().buf))
+            return self.ctx.ptr_load(Ptr(addr, location))
+
         # Get length and bound
         length: IROperand
         if isinstance(array_typ, DArrayT):
             # Dynamic array: length is first word
-            length = self.builder.load(array, location)
+            if array_vv.is_stack_value:
+                length = self.builder.load(array, location)
+            else:
+                length = self.ctx.get_dyn_array_length(array_vv.ptr())
             bound = array_typ.count
         elif isinstance(array_typ, SArrayT):
             # Static array: length is compile-time constant
@@ -748,7 +760,7 @@ class Stmt:
             if is_slot_addressed:
                 if elem_size == 1:
                     # Single slot: load from storage/transient, mstore to memory
-                    val = self.builder.load(elem_addr, location)
+                    val = _load_array_word(elem_addr)
                     self.builder.mstore(item_local.value.operand, val)
                 else:
                     # Multi-slot: use generic helper that dispatches on location
@@ -758,7 +770,7 @@ class Stmt:
             else:
                 if elem_size <= 32:
                     # Single word: load dispatches on location (mload/calldataload/dload)
-                    val = self.builder.load(elem_addr, location)
+                    val = _load_array_word(elem_addr)
                     self.builder.mstore(item_local.value.operand, val)
                 else:
                     # Multi-word: use context helper which handles pre-Cancun

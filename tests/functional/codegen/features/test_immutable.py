@@ -579,6 +579,41 @@ def get_length() -> uint256:
     assert c2.get_length() == 2
 
 
+def test_constructor_reads_from_immutable_dynarray(get_contract):
+    code = """
+arr: immutable(DynArray[uint256, 10])
+ctor_len: public(uint256)
+ctor_sum: public(uint256)
+ctor_has_two: public(bool)
+ctor_not_in_nine: public(bool)
+
+@deploy
+def __init__(values: DynArray[uint256, 10]):
+    arr = values
+    self.ctor_len = len(arr)
+
+    total: uint256 = 0
+    for value: uint256 in arr:
+        total += value
+    self.ctor_sum = total
+
+    self.ctor_has_two = 2 in arr
+    self.ctor_not_in_nine = 9 not in arr
+    """
+
+    c = get_contract(code, [1, 2, 3, 4])
+    assert c.ctor_len() == 4
+    assert c.ctor_sum() == 10
+    assert c.ctor_has_two() is True
+    assert c.ctor_not_in_nine() is True
+
+    c2 = get_contract(code, [])
+    assert c2.ctor_len() == 0
+    assert c2.ctor_sum() == 0
+    assert c2.ctor_has_two() is False
+    assert c2.ctor_not_in_nine() is True
+
+
 @pytest.mark.parametrize("arg", [0, 1])
 def test_uninitialized_immutable_dynarray_read_reverts(get_contract, tx_failed, arg):
     code = """

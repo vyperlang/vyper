@@ -35,9 +35,16 @@ def lower_len(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # For bytes/string/DynArray: length is stored at pointer
     arg_vv = Expr(arg_node, ctx).lower()
-    # Use the location from the VyperValue
-    location = arg_vv.location or DataLocation.MEMORY
-    return ctx.builder.load(arg_vv.operand, location)
+
+    # Stack values carry a raw pointer operand without pointer metadata,
+    # so keep location-based load dispatch for this case.
+    if arg_vv.is_stack_value:
+        location = arg_vv.location or DataLocation.MEMORY
+        return ctx.builder.load(arg_vv.operand, location)
+
+    # Located values should use pointer-aware dispatch so ctor-time immutable
+    # reads use the immutable staging area instead of dload on initcode.
+    return ctx.ptr_load(arg_vv.ptr())
 
 
 def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand, VyperValue]:

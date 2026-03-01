@@ -468,13 +468,9 @@ class Expr:
                 # For storage/memory arrays, use loop with early break
                 # Don't unwrap - iterate directly over storage/memory location
                 right_val = Expr(node.right, self.ctx).lower()
-                # Default to MEMORY if location is None (e.g., for stack values)
-                location = (
-                    right_val.location if right_val.location is not None else DataLocation.MEMORY
-                )
                 return VyperValue.from_stack_op(
                     self._lower_array_membership(
-                        left, right_val.operand, right_typ, location, isinstance(op, vy_ast.In)
+                        left, right_val, right_typ, isinstance(op, vy_ast.In)
                     ),
                     result_typ,
                 )
@@ -1173,9 +1169,8 @@ class Expr:
     def _lower_array_membership(
         self,
         needle: IROperand,
-        haystack: IROperand,
+        haystack_vv: VyperValue,
         haystack_typ,
-        location: DataLocation,
         is_in: bool,
     ) -> IRVariable:
         """Lower array membership test: x in array or x not in array.
@@ -1194,9 +1189,21 @@ class Expr:
                 "`in` not allowed for arrays of non-base types, tracked in issue #2637", self.node
             )
 
+        haystack = haystack_vv.operand
+        location = haystack_vv.location if haystack_vv.location is not None else DataLocation.MEMORY
+
         # Constants have UNSET location - use MEMORY sizing (same as CODE)
         if location == DataLocation.UNSET:
             location = DataLocation.MEMORY
+
+        def _load_array_word(addr: IROperand) -> IROperand:
+            # Stack values are raw pointer operands, so use direct load dispatch.
+            if haystack_vv.is_stack_value:
+                return self.builder.load(addr, location)
+
+            if location == DataLocation.MEMORY:
+                return self.ctx.ptr_load(Ptr(addr, location, haystack_vv.ptr().buf))
+            return self.ctx.ptr_load(Ptr(addr, location))
 
         # Determine word scale based on location
         # Storage: 1 slot per word, Memory: 32 bytes per word
@@ -1205,7 +1212,10 @@ class Expr:
         # Get array properties
         length: IROperand
         if isinstance(haystack_typ, DArrayT):
-            length = self.builder.load(haystack, location)
+            if haystack_vv.is_stack_value:
+                length = self.builder.load(haystack, location)
+            else:
+                length = self.ctx.get_dyn_array_length(haystack_vv.ptr())
             bound = haystack_typ.count
             offset_base = word_scale * DYNAMIC_ARRAY_OVERHEAD
         elif isinstance(haystack_typ, SArrayT):
@@ -1264,7 +1274,7 @@ class Expr:
         elem_addr = self.builder.add(haystack, total_offset)
 
         # Load element and compare
-        elem_val = self.builder.load(elem_addr, location)
+        elem_val = _load_array_word(elem_addr)
         match = self.builder.eq(elem_val, needle)
         self.builder.jnz(match, found_block.label, incr_block.label)
 
