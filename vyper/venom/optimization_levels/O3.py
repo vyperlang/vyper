@@ -80,6 +80,7 @@ PASSES_O3: List[PassConfig] = [
     SCCP,
     SimplifyCFGPass,
     MemMergePass,
+    LoadElimination,
     MemoryCopyElisionPass,
     RemoveUnusedVariablesPass,
     BranchOptimizationPass,

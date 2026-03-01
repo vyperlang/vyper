@@ -75,6 +75,7 @@ PASSES_Os: List[PassConfig] = [
     SCCP,
     SimplifyCFGPass,
     MemMergePass,
+    LoadElimination,
     RemoveUnusedVariablesPass,
     BranchOptimizationPass,
     AlgebraicOptimizationPass,

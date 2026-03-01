@@ -1770,16 +1770,10 @@ class Expr:
         contract_address = Expr(call_node.func.value, self.ctx).lower_value()
 
         # Evaluate arguments.
-        # For primitive words, materialize values directly to avoid carrying
-        # location metadata through later ABI-pack staging.
         arg_vals: list[tuple[IROperand, VyperType]] = []
         for i, arg in enumerate(call_node.args):
-            arg_typ = fn_type.arguments[i].typ
-            if arg_typ._is_prim_word:
-                arg_vals.append((Expr(arg, self.ctx).lower_value(), arg_typ))
-            else:
-                arg_vv = Expr(arg, self.ctx).lower()
-                arg_vals.append((self.ctx.unwrap(arg_vv), arg_vv.typ))
+            arg_vv = Expr(arg, self.ctx).lower()
+            arg_vals.append((self.ctx.unwrap(arg_vv), arg_vv.typ))
 
         # Parse kwargs
         call_kwargs = self._parse_external_call_kwargs(call_node)
