@@ -147,6 +147,14 @@ class Stmt:
 
         Only called from `_copy_complex_type` which handles staging when needed.
         """
+        if src_typ != typ:
+            # Normalize source into destination layout before writing to
+            # storage/transient/code locations that don't carry src_typ.
+            normalized = self.ctx.new_temporary_value(typ)
+            self.ctx.store_memory(src, normalized.operand, typ, src_typ=src_typ)
+            src = normalized.operand
+            src_typ = typ
+
         if dst_ptr.location == DataLocation.STORAGE:
             # DynArray special case: only copy length + actual elements, not full capacity.
             # This matches legacy codegen behavior (core.py:_dynarray_make_setter).
@@ -190,57 +198,52 @@ class Stmt:
         assert isinstance(node, vy_ast.Assign)
         assert isinstance(node.target, vy_ast.Tuple)
         target = node.target
-        src = Expr(node.value, self.ctx).lower().operand
+        src_vv = Expr(node.value, self.ctx).lower()
+        src = self.ctx.unwrap(src_vv)
 
-        # src is a pointer to the tuple in memory
-        tuple_typ = target._metadata["type"]
+        # src is a pointer to the source tuple in memory
+        src_tuple_typ = src_vv.typ
+        dst_tuple_typ = target._metadata["type"]
         targets = target.elements
 
         # First pass: load all values from source tuple to temp variables.
         # This ensures correct semantics for overlapping cases like a,b = b,a.
         temp_vals = []
-        offset = 0
-        member_types = tuple_typ.member_types
-        if isinstance(member_types, dict):
-            member_types = member_types.values()
-        for elem_typ in member_types:
-            if offset == 0:
+        src_offset = 0
+        src_member_types = src_tuple_typ.member_types
+        dst_member_types = dst_tuple_typ.member_types
+        if isinstance(src_member_types, dict):
+            src_member_types = tuple(src_member_types.values())
+        if isinstance(dst_member_types, dict):
+            dst_member_types = tuple(dst_member_types.values())
+        for src_elem_typ, dst_elem_typ in zip(src_member_types, dst_member_types):
+            if src_offset == 0:
                 elem_ptr = src
             elif isinstance(src, IRLiteral):
-                elem_ptr = IRLiteral(src.value + offset)
+                elem_ptr = IRLiteral(src.value + src_offset)
             else:
-                elem_ptr = self.builder.add(src, IRLiteral(offset))
+                elem_ptr = self.builder.add(src, IRLiteral(src_offset))
 
             # Load the value
-            val = self.ctx.load_memory(elem_ptr, elem_typ)
-            temp_vals.append((val, elem_typ))
+            val = self.ctx.load_memory(elem_ptr, src_elem_typ)
+            temp_vals.append((val, src_elem_typ, dst_elem_typ))
 
-            offset += elem_typ.memory_bytes_required
+            src_offset += src_elem_typ.memory_bytes_required
 
         # Second pass: assign each loaded value to its target
-        for (val, elem_typ), target_node in zip(temp_vals, targets):
+        for (val, src_elem_typ, dst_elem_typ), target_node in zip(temp_vals, targets):
             target_ptr = self._get_target_ptr(target_node)
 
-            if elem_typ._is_prim_word:
+            if dst_elem_typ._is_prim_word:
                 self.ctx.ptr_store(target_ptr, val)
             else:
-                # Complex element type: val is a memory pointer
-                if target_ptr.location == DataLocation.STORAGE:
-                    # For single-word types, need to load value from memory
-                    if elem_typ.storage_size_in_words == 1:
-                        loaded_val = self.builder.mload(val)
-                        self.builder.sstore(target_ptr.operand, loaded_val)
-                    else:
-                        self.ctx.store_storage(val, target_ptr.operand, elem_typ)
-                elif target_ptr.location == DataLocation.TRANSIENT:
-                    # For single-word types, need to load value from memory
-                    if elem_typ.storage_size_in_words == 1:
-                        loaded_val = self.builder.mload(val)
-                        self.builder.tstore(target_ptr.operand, loaded_val)
-                    else:
-                        self.ctx.store_transient(val, target_ptr.operand, elem_typ)
-                else:
-                    self.ctx.copy_memory(target_ptr.operand, val, elem_typ.memory_bytes_required)
+                # Complex element type: val is a memory pointer in source layout.
+                if target_ptr.location is DataLocation.MEMORY:
+                    # Keep source snapshot stable across earlier tuple stores.
+                    staged = self.ctx.new_temporary_value(src_elem_typ)
+                    self.ctx.copy_memory(staged.operand, val, src_elem_typ.memory_bytes_required)
+                    val = staged.operand
+                self._store_complex_type(target_ptr, val, dst_elem_typ, src_elem_typ)
 
     def lower_AugAssign(self) -> None:
         """Lower augmented assignment.
