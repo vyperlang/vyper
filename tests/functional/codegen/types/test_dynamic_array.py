@@ -2243,18 +2243,19 @@ def test_venom_sarray_bytes_elem_size_mismatch(get_contract):
     code = """
 @external
 @pure
-def foo() -> DynArray[Bytes[704], 3]:
+def foo() -> DynArray[DynArray[Bytes[704], 13], 3]:
     v: Bytes[64] = concat(b'', 0xeeb5)
-    src: Bytes[540][3] = [v, v, v]
-    out: DynArray[Bytes[704], 3] = []
-    for item: Bytes[704] in src:
+    inner: DynArray[Bytes[540], 9] = [v, v]
+    src: DynArray[Bytes[540], 9][3] = [inner, inner, inner]
+    out: DynArray[DynArray[Bytes[704], 13], 3] = []
+    for item: DynArray[Bytes[704], 13] in src:
         out.append(item)
     return out
     """
 
     c = get_contract(code)
-    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
-    assert c.foo() == expected
+    expected = [b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == [expected, expected, expected]
 
 
 def test_venom_nested_dynarray_bytes_elem_size_mismatch(get_contract):
