@@ -1893,18 +1893,11 @@ class Expr:
             b.append_block(default_bb)
             b.set_block(default_bb)
 
-            # Store default value - needs wrapping if single value
-            if needs_external_call_wrap(return_t):
-                # Wrap single value in tuple
-                default_vv = call_kwargs.default_return_value
-                assert default_vv is not None
-                default_val = self.ctx.unwrap(default_vv)
-                self.ctx.store_memory(default_val, result_val.operand, return_t, src_typ=default_vv.typ)
-            else:
-                default_vv = call_kwargs.default_return_value
-                assert default_vv is not None
-                default_val = self.ctx.unwrap(default_vv)
-                self.ctx.store_memory(default_val, result_val.operand, return_t, src_typ=default_vv.typ)
+            # Store default value
+            default_vv = call_kwargs.default_return_value
+            assert default_vv is not None
+            default_val = self.ctx.unwrap(default_vv)
+            self.ctx.store_memory(default_val, result_val.operand, return_t, src_typ=default_vv.typ)
 
             # Check extcodesize if not skipped (contract might have selfdestructed)
             if not call_kwargs.skip_contract_check:

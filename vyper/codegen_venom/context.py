@@ -450,8 +450,7 @@ class VenomCodegenContext:
                 src_ofst += src_member_t.memory_bytes_required
             return
 
-        # Fallback for compatible layouts not covered above.
-        self.copy_memory(dst, src, dst_typ.memory_bytes_required)
+        raise CompilerPanic(f"_store_memory_typed: unhandled types {src_typ} -> {dst_typ}")
 
     def _copy_dynarray_memory_typed(
         self, dst: IROperand, dst_typ: DArrayT, src: IROperand, src_typ: DArrayT
