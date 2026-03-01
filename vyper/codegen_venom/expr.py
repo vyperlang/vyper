@@ -1771,7 +1771,7 @@ class Expr:
 
         # Evaluate arguments.
         arg_vals: list[tuple[IROperand, VyperType]] = []
-        for i, arg in enumerate(call_node.args):
+        for _, arg in enumerate(call_node.args):
             arg_vv = Expr(arg, self.ctx).lower()
             arg_vals.append((self.ctx.unwrap(arg_vv), arg_vv.typ))
 
