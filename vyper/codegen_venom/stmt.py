@@ -125,7 +125,11 @@ class Stmt:
         (with overlap-safe copying when source and dest are in the same
         address space).
         """
-        if isinstance(typ, _BytestringT) and src_node is not None and self._is_empty_value(src_node):
+        if (
+            isinstance(typ, _BytestringT)
+            and src_node is not None
+            and self._is_empty_value(src_node)
+        ):
             # Empty bytes/string assignment only needs a zero length word.
             if dst_ptr.location == DataLocation.STORAGE:
                 self.builder.sstore(dst_ptr.operand, IRLiteral(0))
@@ -220,6 +224,13 @@ class Stmt:
                 self.ctx.store_immutable(src, dst_ptr.operand, typ)
         else:
             if src_typ == typ:
+                self.ctx.copy_memory(dst_ptr.operand, src, typ.memory_bytes_required)
+            elif (
+                isinstance(src_typ, _BytestringT)
+                and isinstance(typ, _BytestringT)
+                and src_typ.memory_bytes_required == typ.memory_bytes_required
+            ):
+                # Same in-memory layout (same padded payload size): direct copy is enough.
                 self.ctx.copy_memory(dst_ptr.operand, src, typ.memory_bytes_required)
             else:
                 self.ctx.store_memory(src, dst_ptr.operand, typ, src_typ=src_typ)
@@ -972,9 +983,7 @@ class Stmt:
         if (
             ret_src_typ is not None
             and not ret_typ._is_prim_word
-            and not (
-                isinstance(ret_typ, _BytestringT) and isinstance(ret_src_typ, _BytestringT)
-            )
+            and not (isinstance(ret_typ, _BytestringT) and isinstance(ret_src_typ, _BytestringT))
             and ret_src_typ != ret_typ
             and ret_val is not None
         ):
