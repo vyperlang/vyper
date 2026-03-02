@@ -165,9 +165,8 @@ class Stmt:
                 self.builder.tstore(dst_ptr.operand, val)
             else:
                 self.ctx.store_transient(src, dst_ptr.operand, typ)
-        elif dst_ptr.location == DataLocation.CODE:
-            # Immutables in constructor - use ptr_store which handles GEP from immutables_alloca
-            # For single-word types, load value from temp buffer first
+        elif dst_ptr.location == DataLocation.IMMUTABLES:
+            # Immutables in constructor
             if typ.memory_bytes_required <= 32:
                 val = self.builder.mload(src)
                 self.ctx.ptr_store(dst_ptr, val)
@@ -414,7 +413,7 @@ class Stmt:
             # Check if it's an immutable assignment in constructor
             varinfo = target._expr_info.var_info
             if varinfo is not None and varinfo.is_immutable and self.ctx.is_ctor_context:
-                return Ptr(IRLiteral(varinfo.position.position), DataLocation.CODE)
+                return Ptr(IRLiteral(varinfo.position.position), DataLocation.IMMUTABLES)
 
             raise CompilerPanic(f"Unknown variable: {varname}")
 
@@ -429,7 +428,7 @@ class Stmt:
 
                 # Immutable in constructor context
                 if varinfo.is_immutable and self.ctx.is_ctor_context:
-                    return Ptr(IRLiteral(varinfo.position.position), DataLocation.CODE)
+                    return Ptr(IRLiteral(varinfo.position.position), DataLocation.IMMUTABLES)
 
                 if varinfo.is_constant:
                     raise TypeCheckFailure("Cannot assign to constant")
@@ -756,11 +755,13 @@ class Stmt:
                     val = self.ctx.load_word(elem_addr, location)
                     self.builder.mstore(item_local.value.operand, val)
                 else:
-                    # Multi-word: copy from memory/calldata/code into loop local.
-                    # CODE copies are immutable-aware in constructor context.
-                    self.ctx.copy_word_aligned_to_memory(
-                        item_local.value.operand, elem_addr, elem_size, location
-                    )
+                    # Multi-word: word-by-word load from source, store to memory
+                    dst = item_local.value.operand
+                    for i in range(0, elem_size, 32):
+                        src_ptr = self.ctx._with_byte_offset(elem_addr, i)
+                        dst_ptr = self.ctx._with_byte_offset(dst, i)
+                        val = self.ctx.load_word(src_ptr, location)
+                        self.builder.mstore(dst_ptr, val)
 
             self._lower_body(node.body)
             body_finish = self.builder.current_block

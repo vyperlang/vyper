@@ -646,13 +646,10 @@ class Expr:
         if varinfo.is_constant:
             return Expr(varinfo.decl_node.value, self.ctx).lower()
 
-        # Case 4: Immutable - always CODE location (iload/istore handle ctor vs runtime)
+        # Case 4: Immutable - IMMUTABLES location
         if varinfo.is_immutable:
             typ = node._metadata["type"]
-            # Immutables use iload/istore - CODE location handles both contexts
-            # In constructor: iload/istore access immutable staging area
-            # After deploy: dload accesses deployed bytecode
-            ptr = Ptr(operand=IRLiteral(varinfo.position.position), location=DataLocation.CODE)
+            ptr = Ptr(operand=IRLiteral(varinfo.position.position), location=DataLocation.IMMUTABLES)
             return VyperValue.from_ptr(ptr, typ)
 
         raise CompilerPanic(f"Unknown variable: {varname}")
@@ -722,9 +719,9 @@ class Expr:
             if varinfo.is_constant:
                 return Expr(varinfo.decl_node.value, self.ctx).lower()
 
-            # Immutable state variable - always CODE location
+            # Immutable state variable
             if varinfo.is_immutable:
-                ptr = Ptr(operand=IRLiteral(varinfo.position.position), location=DataLocation.CODE)
+                ptr = Ptr(operand=IRLiteral(varinfo.position.position), location=DataLocation.IMMUTABLES)
                 return VyperValue.from_ptr(ptr, typ)
 
             # Regular storage/transient variable - return location, don't load!
