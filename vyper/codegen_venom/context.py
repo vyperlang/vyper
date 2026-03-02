@@ -158,9 +158,9 @@ class VenomCodegenContext:
             if vv.location == DataLocation.IMMUTABLES:
                 return self.load_immutable_to_memory(vv.operand, vv.typ)
             if vv.location == DataLocation.STORAGE:
-                return self.load_storage(vv.operand, vv.typ)
+                return self.load_storage_to_memory(vv.operand, vv.typ)
             if vv.location == DataLocation.TRANSIENT:
-                return self.load_transient(vv.operand, vv.typ)
+                return self.load_transient_to_memory(vv.operand, vv.typ)
             # MEMORY location: return pointer directly
             return vv.operand
 
@@ -487,7 +487,7 @@ class VenomCodegenContext:
     # Storage is word-addressed (word_scale=1): slot N is at slot N, not byte N*32.
     # This differs from memory which is byte-addressed (word_scale=32).
 
-    def load_storage(self, slot: IROperand, typ: VyperType) -> IROperand:
+    def load_storage_to_memory(self, slot: IROperand, typ: VyperType) -> IROperand:
         """Load value from storage slot.
 
         For primitive types, returns sload result directly.
@@ -654,7 +654,7 @@ class VenomCodegenContext:
 
     # === Transient Storage (EIP-1153, Cancun+) ===
 
-    def load_transient(self, slot: IROperand, typ: VyperType) -> IROperand:
+    def load_transient_to_memory(self, slot: IROperand, typ: VyperType) -> IROperand:
         """Load from transient storage (Cancun+).
 
         For primitive types, returns tload result directly.
