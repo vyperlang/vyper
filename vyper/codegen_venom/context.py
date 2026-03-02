@@ -206,9 +206,6 @@ class VenomCodegenContext:
         """
         if location == DataLocation.IMMUTABLES:
             if self.is_ctor_context:
-                if self.immutables_alloca is not None:
-                    ptr = self.builder.gep(self.immutables_alloca, addr)
-                    return self.builder.mload(ptr)
                 return self.builder.iload(addr)
             return self.builder.dload(addr)
         return self.builder.load(addr, location)
@@ -758,11 +755,7 @@ class VenomCodegenContext:
     def store_word(self, addr: IROperand, val: IROperand, location: DataLocation) -> None:
         """Store a single word to addr at the given location."""
         if location == DataLocation.IMMUTABLES:
-            if self.immutables_alloca is not None:
-                ptr = self.builder.gep(self.immutables_alloca, addr)
-                self.builder.mstore(ptr, val)
-            else:
-                self.builder.istore(addr, val)
+            self.builder.istore(addr, val)
         elif location == DataLocation.MEMORY:
             self.builder.mstore(addr, val)
         elif location == DataLocation.STORAGE:
