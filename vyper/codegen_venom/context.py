@@ -208,6 +208,8 @@ class VenomCodegenContext:
             if self.is_ctor_context:
                 return self.builder.iload(addr)
             return self.builder.dload(addr)
+        # NOTE: CODE falls through to builder.load (dload). If a future
+        # code path needs ctor-aware CODE loads, add an explicit branch here.
         return self.builder.load(addr, location)
 
     def ensure_bytestring_in_memory(self, vv: VyperValue, typ: _BytestringT) -> VyperValue:
