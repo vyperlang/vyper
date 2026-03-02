@@ -888,6 +888,7 @@ class Expr:
 
         # Propagate location from base (storage/memory/transient)
         data_loc = base_vv.location
+        assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
         elem_size = elem_typ.get_size_in(data_loc)
@@ -965,6 +966,7 @@ class Expr:
 
         # Preserve location from base (storage or transient)
         location = base_vv.location
+        assert location is not None
         ptr = Ptr(operand=slot, location=location)
         return VyperValue.from_ptr(ptr, value_typ)
 
@@ -1048,6 +1050,7 @@ class Expr:
 
         # Propagate location from base
         data_loc = base_vv.location
+        assert data_loc is not None
 
         # Compute offset by summing sizes of preceding elements
         attrs = list(base_typ.tuple_keys())
@@ -1080,6 +1083,7 @@ class Expr:
 
         # Propagate location from base
         data_loc = base_vv.location
+        assert data_loc is not None
 
         # Find field index and compute offset
         attrs = list(base_typ.tuple_keys())
@@ -1185,6 +1189,7 @@ class Expr:
 
         haystack = haystack_vv.operand
         location = haystack_vv.location
+        assert location is not None
 
         # Determine word scale based on location
         # Storage: 1 slot per word, Memory: 32 bytes per word
@@ -1572,6 +1577,7 @@ class Expr:
 
         # Get location from VyperValue
         data_loc = darray_vv.location
+        assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
         elem_size = elem_typ.get_size_in(data_loc)
@@ -1636,6 +1642,7 @@ class Expr:
 
         # Get location from VyperValue
         data_loc = darray_vv.location
+        assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
         elem_size = elem_typ.get_size_in(data_loc)

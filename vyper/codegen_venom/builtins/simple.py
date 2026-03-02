@@ -34,6 +34,7 @@ def lower_len(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # For bytes/string/DynArray: length is stored at pointer
     arg_vv = Expr(arg_node, ctx).lower()
+    assert arg_vv.location is not None
     return ctx.load_word(arg_vv.operand, arg_vv.location)
 
 

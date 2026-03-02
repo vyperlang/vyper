@@ -665,6 +665,7 @@ class Stmt:
         array = array_vv.operand
         array_typ = node.iter._metadata["type"]
         location = array_vv.location
+        assert location is not None
 
         # Determine word scale based on location
         # Storage/Transient: 1 slot per word, Memory: 32 bytes per word
