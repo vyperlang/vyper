@@ -119,7 +119,7 @@ def safe_div(b: VenomBuilder, x: IROperand, y: IROperand, typ: DecimalT) -> IROp
     # use gt since for every number in two's complement
     # which is not zero is greater then 0
     # if you read it as not signed
-    not_zero = b.gt(y, IRLiteral(0))
+    not_zero = b.iszero(b.iszero(y))
     with b.error_context("safediv"):
         b.assert_(not_zero)
 
@@ -142,7 +142,7 @@ def safe_floordiv(b: VenomBuilder, x: IROperand, y: IROperand, typ: IntegerT) ->
     # use gt since for every number in two's complement
     # which is not zero is greater then 0
     # if you read it as not signed
-    not_zero = b.gt(y, IRLiteral(0))
+    not_zero = b.iszero(b.iszero(y))
     with b.error_context("safediv"):
         b.assert_(not_zero)
 
@@ -175,7 +175,7 @@ def safe_mod(
     is_signed = typ.is_signed
 
     with b.error_context("safemod"):
-        not_zero = b.gt(y, IRLiteral(0))
+        not_zero = b.iszero(b.iszero(y))
         b.assert_(not_zero)
 
         MOD = b.smod if is_signed else b.mod
