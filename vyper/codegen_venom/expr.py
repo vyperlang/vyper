@@ -68,49 +68,6 @@ class _CallKwargs:
 ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
 
-def _get_root_variable(node: vy_ast.VyperNode) -> Optional[str]:
-    """Extract the root variable name from an AST expression.
-
-    Examples:
-        arr -> "arr"
-        self.arr -> "self.arr"
-        arr[0] -> "arr"
-        self.arr[i].field -> "self.arr"
-
-    Returns None if the expression doesn't have a clear root variable.
-    """
-    if isinstance(node, vy_ast.Name):
-        return node.id
-    if isinstance(node, vy_ast.Attribute):
-        # Handle self.x -> "self.x"
-        if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
-            return f"self.{node.attr}"
-        # For struct field access, get root of the struct
-        return _get_root_variable(node.value)
-    if isinstance(node, vy_ast.Subscript):
-        # arr[i] -> root of arr
-        return _get_root_variable(node.value)
-    return None
-
-
-def _potential_overlap_ast(darray_node: vy_ast.VyperNode, arg_node: vy_ast.VyperNode) -> bool:
-    """Check if arg_node potentially references the same variable as darray_node.
-
-    This is a conservative check - returns True if unsure.
-    Used to prevent issues like arr.append(arr[0]) where reading the arg
-    could be affected by the append operation modifying the array.
-
-    Reference: vyper/codegen/core.py:potential_overlap
-    """
-    darray_root = _get_root_variable(darray_node)
-    arg_root = _get_root_variable(arg_node)
-
-    if darray_root is None or arg_root is None:
-        # Can't determine roots - be conservative
-        return True
-
-    return darray_root == arg_root
-
 
 class Expr:
     """Lower Vyper expressions to Venom IR.
@@ -1576,8 +1533,10 @@ class Expr:
         arg_val = self.ctx.unwrap(arg_vv)
         elem_src_typ = arg_vv.typ
 
-        if not elem_typ._is_prim_word and _potential_overlap_ast(darray_node, arg_node):
-            # Overlap detected: copy arg to temp buffer first
+        if not elem_typ._is_prim_word:
+            # Always stage complex elements through a temp buffer to guard
+            # against aliasing (e.g. arr.append(arr[0])).
+            # MemoryCopyElisionPass eliminates the copy when safe.
             temp_buf = self.ctx.new_temporary_value(elem_typ)
             self.ctx.store_memory(arg_val, temp_buf.operand, elem_typ, src_typ=elem_src_typ)
             elem_val = temp_buf.operand
