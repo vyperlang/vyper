@@ -454,8 +454,6 @@ class VenomCodegenContext:
         success = b.staticcall(b.gas(), IRLiteral(IDENTITY_PRECOMPILE), src, length, dst, length)
         b.assert_(success)
 
-
-
     def load_calldata(self, offset: IROperand, typ: VyperType) -> IROperand:
         """Load from calldata.
 
@@ -569,9 +567,15 @@ class VenomCodegenContext:
         """
         # TODO: refactor — DataLocation should have word_scale/word_addressable
         # properties (like AddrSpace does) instead of hardcoding this.
-        _byte_addressed = (DataLocation.MEMORY, DataLocation.CODE, DataLocation.IMMUTABLES, DataLocation.CALLDATA)
-        assert location in _byte_addressed, \
-            f"copy_to_memory: expected byte-addressed location, got {location}"
+        _byte_addressed = (
+            DataLocation.MEMORY,
+            DataLocation.CODE,
+            DataLocation.IMMUTABLES,
+            DataLocation.CALLDATA,
+        )
+        assert (
+            location in _byte_addressed
+        ), f"copy_to_memory: expected byte-addressed location, got {location}"
         for i in range(0, size, 32):
             src_ptr = self._with_byte_offset(src, i)
             dst_ptr = self._with_byte_offset(dst, i)

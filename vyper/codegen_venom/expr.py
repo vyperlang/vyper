@@ -649,7 +649,9 @@ class Expr:
         # Case 4: Immutable - IMMUTABLES location
         if varinfo.is_immutable:
             typ = node._metadata["type"]
-            ptr = Ptr(operand=IRLiteral(varinfo.position.position), location=DataLocation.IMMUTABLES)
+            ptr = Ptr(
+                operand=IRLiteral(varinfo.position.position), location=DataLocation.IMMUTABLES
+            )
             return VyperValue.from_ptr(ptr, typ)
 
         raise CompilerPanic(f"Unknown variable: {varname}")
@@ -721,7 +723,9 @@ class Expr:
 
             # Immutable state variable
             if varinfo.is_immutable:
-                ptr = Ptr(operand=IRLiteral(varinfo.position.position), location=DataLocation.IMMUTABLES)
+                ptr = Ptr(
+                    operand=IRLiteral(varinfo.position.position), location=DataLocation.IMMUTABLES
+                )
                 return VyperValue.from_ptr(ptr, typ)
 
             # Regular storage/transient variable - return location, don't load!

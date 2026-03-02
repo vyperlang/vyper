@@ -740,13 +740,9 @@ class Stmt:
 
             # Copy element to loop variable (always in memory)
             if is_slot_addressed:
-                self.ctx.slot_to_memory(
-                    elem_addr, item_local.value.operand, elem_size, location
-                )
+                self.ctx.slot_to_memory(elem_addr, item_local.value.operand, elem_size, location)
             else:
-                self.ctx.copy_to_memory(
-                    item_local.value.operand, elem_addr, elem_size, location
-                )
+                self.ctx.copy_to_memory(item_local.value.operand, elem_addr, elem_size, location)
 
             self._lower_body(node.body)
             body_finish = self.builder.current_block
