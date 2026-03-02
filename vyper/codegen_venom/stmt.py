@@ -111,12 +111,7 @@ class Stmt:
         self._assign_value(dst_ptr, src, target_typ, src_node=node.value)
 
     def _assign_value(
-        self,
-        dst_ptr: Ptr,
-        src: VyperValue,
-        typ,
-        *,
-        src_node: Optional[vy_ast.VyperNode] = None,
+        self, dst_ptr: Ptr, src: VyperValue, typ, *, src_node: Optional[vy_ast.VyperNode] = None
     ) -> None:
         """Assign a VyperValue to a destination pointer.
 
@@ -158,9 +153,7 @@ class Stmt:
         # Always stage when both src and dst are in memory to guard against
         # aliasing.  MemoryCopyElisionPass will eliminate the redundant copy
         # when src/dst are provably non-overlapping (different allocas).
-        should_stage = (
-            src_loc is DataLocation.MEMORY and dst_ptr.location is DataLocation.MEMORY
-        )
+        should_stage = src_loc is DataLocation.MEMORY and dst_ptr.location is DataLocation.MEMORY
 
         if should_stage:
             tmp_val = self.ctx.new_temporary_value(src_typ)

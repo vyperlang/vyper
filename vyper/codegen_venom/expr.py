@@ -68,7 +68,6 @@ class _CallKwargs:
 ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
 
-
 class Expr:
     """Lower Vyper expressions to Venom IR.
 
