@@ -114,13 +114,10 @@ def safe_div(b: VenomBuilder, x: IROperand, y: IROperand, typ: DecimalT) -> IROp
     # Multiply numerator by divisor first
     x_scaled = b.mul(x, IRLiteral(typ.divisor))
 
-    # Clamp divisor > 0 for unsigned, or use sgt for signed
-    if typ.is_signed:
-        y_gt_zero = b.sgt(y, IRLiteral(0))
-    else:
-        y_gt_zero = b.gt(y, IRLiteral(0))
+    # check if divisor != zero
+    not_zero = b.iszero(b.iszero(y))
     with b.error_context("safediv"):
-        b.assert_(y_gt_zero)
+        b.assert_(not_zero)
 
     DIV = b.sdiv if typ.is_signed else b.div
     res = DIV(x_scaled, y)
@@ -136,13 +133,10 @@ def safe_floordiv(b: VenomBuilder, x: IROperand, y: IROperand, typ: IntegerT) ->
 
     is_signed = typ.is_signed
 
-    # Clamp divisor > 0
-    if is_signed:
-        y_gt_zero = b.sgt(y, IRLiteral(0))
-    else:
-        y_gt_zero = b.gt(y, IRLiteral(0))
+    # check if divisor != zero
+    not_zero = b.iszero(b.iszero(y))
     with b.error_context("safediv"):
-        b.assert_(y_gt_zero)
+        b.assert_(not_zero)
 
     DIV = b.sdiv if is_signed else b.div
     res: IROperand = DIV(x, y)
@@ -173,12 +167,8 @@ def safe_mod(
     is_signed = typ.is_signed
 
     with b.error_context("safemod"):
-        # Clamp divisor > 0
-        if is_signed:
-            y_gt_zero = b.sgt(y, IRLiteral(0))
-        else:
-            y_gt_zero = b.gt(y, IRLiteral(0))
-        b.assert_(y_gt_zero)
+        not_zero = b.iszero(b.iszero(y))
+        b.assert_(not_zero)
 
         MOD = b.smod if is_signed else b.mod
         return MOD(x, y)
