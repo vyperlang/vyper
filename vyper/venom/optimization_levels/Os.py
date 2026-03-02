@@ -25,6 +25,7 @@ from vyper.venom.passes import (
     MakeSSA,
     Mem2Var,
     MemMergePass,
+    MemoryCopyElisionPass,
     PhiEliminationPass,
     ReadonlyInvokeArgCopyForwardingPass,
     ReduceLiteralsCodesize,
@@ -64,6 +65,8 @@ PASSES_Os: List[PassConfig] = [
     ReadonlyInvokeArgCopyForwardingPass,
     # run memmerge before LowerDload
     MemMergePass,
+    MemoryCopyElisionPass,
+    LoadElimination,
     LowerDloadPass,
     RemoveUnusedVariablesPass,
     (DeadStoreElimination, {"addr_space": MEMORY}),

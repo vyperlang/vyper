@@ -25,7 +25,7 @@ from vyper.venom.basicblock import IRLiteral, IROperand
 from .buffer import Ptr
 from .calling_convention import returns_stack_count
 from .context import Constancy, VenomCodegenContext
-from .expr import Expr, _get_root_variable
+from .expr import Expr
 from .value import VyperValue
 
 
@@ -66,7 +66,7 @@ class Stmt:
         var = self.ctx.new_variable(varname, ltyp)
 
         rhs = Expr(node.value, self.ctx).lower()
-        self._assign_value(var.value.ptr(), rhs, ltyp, src_node=node.value, dst_node=node.target)
+        self._assign_value(var.value.ptr(), rhs, ltyp, src_node=node.value)
 
     def lower_Assign(self) -> None:
         """Lower regular assignment.
@@ -104,7 +104,7 @@ class Stmt:
         # like `c[0] = c.pop()` where RHS modifies array length.
         src = Expr(node.value, self.ctx).lower()
         dst_ptr = self._get_target_ptr(target)
-        self._assign_value(dst_ptr, src, target_typ, src_node=node.value, dst_node=target)
+        self._assign_value(dst_ptr, src, target_typ, src_node=node.value)
 
     def _assign_value(
         self,
@@ -112,8 +112,7 @@ class Stmt:
         src: VyperValue,
         typ,
         *,
-        src_node: vy_ast.VyperNode,
-        dst_node: vy_ast.VyperNode,
+        src_node: Optional[vy_ast.VyperNode] = None,
     ) -> None:
         """Assign a VyperValue to a destination pointer.
 
@@ -129,34 +128,26 @@ class Stmt:
         if typ._is_prim_word:
             self.ctx.ptr_store(dst_ptr, self.ctx.unwrap(src))
         else:
-            self._copy_complex_type(dst_ptr, src, typ, src_node=src_node, dst_node=dst_node)
+            self._copy_complex_type(dst_ptr, src, typ)
 
-    def _copy_complex_type(
-        self,
-        dst_ptr: Ptr,
-        src_vv: VyperValue,
-        typ,
-        *,
-        src_node: vy_ast.VyperNode,
-        dst_node: vy_ast.VyperNode,
-    ) -> None:
+    def _copy_complex_type(self, dst_ptr: Ptr, src_vv: VyperValue, typ) -> None:
         """Copy complex type into `dst_ptr`.
 
         Materializes `src_vv` to memory (via unwrap), then stages through a
         temporary buffer when source and destination are both in memory
-        (potential aliasing).  When they are in different address spaces
-        no aliasing is possible and the staging copy is skipped.
+        (potential aliasing).  MemoryCopyElisionPass eliminates the staging
+        copy when src/dst are provably non-overlapping.
         """
         src_loc = src_vv.location  # None for stack values, else DataLocation
         src_typ = src_vv.typ
         src = self.ctx.unwrap(src_vv)  # always a memory ptr for complex types
 
-        should_stage = False
-        if src_loc is DataLocation.MEMORY and dst_ptr.location is DataLocation.MEMORY:
-            # Stage only when source and destination are views of the same memory root.
-            src_root = _get_root_variable(src_node)
-            dst_root = _get_root_variable(dst_node)
-            should_stage = src_root is None or dst_root is None or src_root == dst_root
+        # Always stage when both src and dst are in memory to guard against
+        # aliasing.  MemoryCopyElisionPass will eliminate the redundant copy
+        # when src/dst are provably non-overlapping (different allocas).
+        should_stage = (
+            src_loc is DataLocation.MEMORY and dst_ptr.location is DataLocation.MEMORY
+        )
 
         if should_stage:
             tmp_val = self.ctx.new_temporary_value(src_typ)
