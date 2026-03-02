@@ -115,10 +115,6 @@ def safe_div(b: VenomBuilder, x: IROperand, y: IROperand, typ: DecimalT) -> IROp
     x_scaled = b.mul(x, IRLiteral(typ.divisor))
 
     # check if divisor != zero
-    # even if the number is signed you can
-    # use gt since for every number in two's complement
-    # which is not zero is greater then 0
-    # if you read it as not signed
     not_zero = b.iszero(b.iszero(y))
     with b.error_context("safediv"):
         b.assert_(not_zero)
@@ -138,10 +134,6 @@ def safe_floordiv(b: VenomBuilder, x: IROperand, y: IROperand, typ: IntegerT) ->
     is_signed = typ.is_signed
 
     # check if divisor != zero
-    # even if the number is signed you can
-    # use gt since for every number in two's complement
-    # which is not zero is greater then 0
-    # if you read it as not signed
     not_zero = b.iszero(b.iszero(y))
     with b.error_context("safediv"):
         b.assert_(not_zero)
