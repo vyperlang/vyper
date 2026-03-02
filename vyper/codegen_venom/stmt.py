@@ -665,7 +665,7 @@ class Stmt:
             array_vv = Expr(node.iter, self.ctx).lower()
         array = array_vv.operand
         array_typ = node.iter._metadata["type"]
-        location = self.ctx.value_location(array_vv, node.iter._expr_info.location)
+        location = array_vv.location
 
         # Determine word scale based on location
         # Storage/Transient: 1 slot per word, Memory: 32 bytes per word
@@ -676,7 +676,7 @@ class Stmt:
         length: IROperand
         if isinstance(array_typ, DArrayT):
             # Dynamic array: length is first word
-            length = self.ctx.value_word_load(array_vv, array, location)
+            length = self.ctx.load_word(array, location)
             bound = array_typ.count
         elif isinstance(array_typ, SArrayT):
             # Static array: length is compile-time constant
@@ -743,7 +743,7 @@ class Stmt:
             if is_slot_addressed:
                 if elem_size == 1:
                     # Single slot: load from storage/transient, mstore to memory
-                    val = self.ctx.value_word_load(array_vv, elem_addr, location)
+                    val = self.ctx.load_word(elem_addr, location)
                     self.builder.mstore(item_local.value.operand, val)
                 else:
                     # Multi-slot: use generic helper that dispatches on location
@@ -753,7 +753,7 @@ class Stmt:
             else:
                 if elem_size <= 32:
                     # Single word: load dispatches on location (mload/calldataload/dload)
-                    val = self.ctx.value_word_load(array_vv, elem_addr, location)
+                    val = self.ctx.load_word(elem_addr, location)
                     self.builder.mstore(item_local.value.operand, val)
                 else:
                     # Multi-word: copy from memory/calldata/code into loop local.

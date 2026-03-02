@@ -34,7 +34,7 @@ def lower_len(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # For bytes/string/DynArray: length is stored at pointer
     arg_vv = Expr(arg_node, ctx).lower()
-    return ctx.value_word_load(arg_vv)
+    return ctx.load_word(arg_vv.operand, arg_vv.location)
 
 
 def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand, VyperValue]:

@@ -841,7 +841,9 @@ class Expr:
         else_block_finish.append_instruction("jmp", exit_block.label)
 
         result_typ = node._metadata["type"]
-        return VyperValue.from_stack_op(result, result_typ)
+        if result_typ._is_prim_word:
+            return VyperValue.from_stack_op(result, result_typ)
+        return self._make_ptr_value(result, DataLocation.MEMORY, result_typ)
 
     # === Subscript Operations ===
 
@@ -884,7 +886,7 @@ class Expr:
         index_typ = node.slice._metadata["type"]
 
         # Propagate location from base (storage/memory/transient)
-        data_loc = self.ctx.value_location(base_vv)
+        data_loc = base_vv.location
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
         elem_size = elem_typ.get_size_in(data_loc)
@@ -896,7 +898,7 @@ class Expr:
                 # Dynamic array: load length from first word.
                 # Use pointer-aware loading so ctor-time immutable reads come
                 # from the immutable staging area (not constructor args code).
-                length = self.ctx.value_word_load(base_vv, base, data_loc)
+                length = self.ctx.load_word(base, data_loc)
             else:
                 # Static array: compile-time length
                 length = IRLiteral(base_typ.count)
@@ -963,7 +965,7 @@ class Expr:
         slot = self.builder.sha3(ptr.operand, IRLiteral(64))
 
         # Preserve location from base (storage or transient)
-        location = base_vv.location or DataLocation.STORAGE
+        location = base_vv.location
         ptr = Ptr(operand=slot, location=location)
         return VyperValue.from_ptr(ptr, value_typ)
 
@@ -1046,7 +1048,7 @@ class Expr:
         index = reduced_slice.value
 
         # Propagate location from base
-        data_loc = base_vv.location or DataLocation.MEMORY
+        data_loc = base_vv.location
 
         # Compute offset by summing sizes of preceding elements
         attrs = list(base_typ.tuple_keys())
@@ -1078,7 +1080,7 @@ class Expr:
         attr = node.attr
 
         # Propagate location from base
-        data_loc = base_vv.location or DataLocation.MEMORY
+        data_loc = base_vv.location
 
         # Find field index and compute offset
         attrs = list(base_typ.tuple_keys())
@@ -1183,7 +1185,7 @@ class Expr:
             )
 
         haystack = haystack_vv.operand
-        location = self.ctx.value_location(haystack_vv)
+        location = haystack_vv.location
 
         # Determine word scale based on location
         # Storage: 1 slot per word, Memory: 32 bytes per word
@@ -1192,7 +1194,7 @@ class Expr:
         # Get array properties
         length: IROperand
         if isinstance(haystack_typ, DArrayT):
-            length = self.ctx.value_word_load(haystack_vv, haystack, location)
+            length = self.ctx.load_word(haystack, location)
             bound = haystack_typ.count
             offset_base = word_scale * DYNAMIC_ARRAY_OVERHEAD
         elif isinstance(haystack_typ, SArrayT):
@@ -1251,7 +1253,7 @@ class Expr:
         elem_addr = self.builder.add(haystack, total_offset)
 
         # Load element and compare
-        elem_val = self.ctx.value_word_load(haystack_vv, elem_addr, location)
+        elem_val = self.ctx.load_word(elem_addr, location)
         match = self.builder.eq(elem_val, needle)
         self.builder.jnz(match, found_block.label, incr_block.label)
 
@@ -1570,7 +1572,7 @@ class Expr:
             elem_val = Expr(arg_node, self.ctx).lower_value()
 
         # Get location from VyperValue
-        data_loc = darray_vv.location or DataLocation.MEMORY
+        data_loc = darray_vv.location
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
         elem_size = elem_typ.get_size_in(data_loc)
@@ -1634,7 +1636,7 @@ class Expr:
         darray_ptr = darray_vv.operand
 
         # Get location from VyperValue
-        data_loc = darray_vv.location or DataLocation.MEMORY
+        data_loc = darray_vv.location
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
         elem_size = elem_typ.get_size_in(data_loc)

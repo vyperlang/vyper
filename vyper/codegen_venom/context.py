@@ -208,43 +208,28 @@ class VenomCodegenContext:
             return self.builder.mload(vv.operand)
         return self.builder.load(vv.operand, loc)
 
-    def value_location(
-        self, vv: VyperValue, fallback: Optional[DataLocation] = None
-    ) -> DataLocation:
-        """Resolve the effective location for a VyperValue.
+    def load_word(self, addr: IROperand, location: DataLocation) -> IROperand:
+        """Load a single word from addr at the given location.
 
-        UNSET/None locations are normalized to MEMORY.
+        Like builder.load() but handles CODE correctly in constructor context
+        (uses immutables_alloca / iload instead of dload).
         """
-        location = vv.location if vv.location is not None else fallback
-        if location is None or location == DataLocation.UNSET:
-            return DataLocation.MEMORY
-        return location
-
-    def value_word_load(
-        self,
-        vv: VyperValue,
-        addr: Optional[IROperand] = None,
-        fallback: Optional[DataLocation] = None,
-    ) -> IROperand:
-        """Load one word from an address associated with a VyperValue.
-
-        Stack values are expected to represent memory pointers. If a future code
-        path attempts to treat a non-memory stack value as a pointer, fail fast.
-        """
-        if addr is None:
-            addr = vv.operand
-
-        location = self.value_location(vv, fallback)
-
-        if vv.is_stack_value:
-            if location != DataLocation.MEMORY:
-                raise CompilerPanic(f"stack pointer load requires MEMORY location, got {location}")
-            return self.builder.mload(addr)
-
         if location == DataLocation.MEMORY:
             return self.builder.mload(addr)
-
-        return self.ptr_load(Ptr(addr, location))
+        if location == DataLocation.STORAGE:
+            return self.builder.sload(addr)
+        if location == DataLocation.TRANSIENT:
+            return self.builder.tload(addr)
+        if location == DataLocation.CALLDATA:
+            return self.builder.calldataload(addr)
+        if location == DataLocation.CODE:
+            if self.is_ctor_context:
+                if self.immutables_alloca is not None:
+                    ptr = self.builder.gep(self.immutables_alloca, addr)
+                    return self.builder.mload(ptr)
+                return self.builder.iload(addr)
+            return self.builder.dload(addr)
+        raise CompilerPanic(f"load_word: unsupported location {location}")
 
     def ensure_bytestring_in_memory(self, vv: VyperValue, typ: _BytestringT) -> VyperValue:
         """Return a bytestring value guaranteed to be in memory.
