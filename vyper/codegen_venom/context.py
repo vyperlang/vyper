@@ -97,8 +97,9 @@ class VenomCodegenContext:
     # Range expression context - set to True when evaluating range/iterator expressions
     in_range_expr: bool = False
 
-    # Immutables region alloca (for constructor context)
-    # When set, iload/istore use GEP from this base instead of raw offsets
+    # Immutables region alloca (for constructor context).
+    # Reserves memory at position 0 for immutables staging;
+    # used by deploy epilogue to copy staging area into bytecode.
     immutables_alloca: Optional[IRVariable] = None
 
     def new_alloca_id(self) -> int:
@@ -536,9 +537,10 @@ class VenomCodegenContext:
     def slot_to_memory(
         self, slot: IROperand, buf: IROperand, word_count: int, location: DataLocation
     ) -> None:
-        """Load multi-word slot-addressed value to memory buffer.
+        """Load word_count words from slot-addressed location to memory buffer.
 
-        Generic helper that dispatches based on location (STORAGE or TRANSIENT).
+        For slot-addressed locations (storage, transient) where slots
+        increment by 1.  For byte-addressed locations, use copy_to_memory.
         """
         if location == DataLocation.STORAGE:
             self._load_storage_to_memory(slot, buf, word_count)
@@ -557,10 +559,13 @@ class VenomCodegenContext:
     def copy_to_memory(
         self, dst: IROperand, src: IROperand, size: int, location: DataLocation
     ) -> None:
-        """Copy a region from any byte-addressed location into memory.
+        """Copy size bytes from src at location into dst (memory).
 
+        For byte-addressed locations (memory, code, immutables, calldata).
         Word-by-word using load_word, so IMMUTABLES is handled correctly
         in both constructor and runtime contexts.
+
+        For slot-addressed locations (storage, transient), use slot_to_memory.
         """
         for i in range(0, size, 32):
             src_ptr = self._with_byte_offset(src, i)
@@ -699,7 +704,7 @@ class VenomCodegenContext:
         """Load immutable value into a memory buffer.
 
         Uses load_word which dispatches correctly for IMMUTABLES
-        (iload/gep+mload in ctor, dload at runtime).
+        (iload in ctor, dload at runtime).
 
         For primitive word types, returns the loaded value directly.
         For complex types, allocates a memory buffer and returns the pointer.

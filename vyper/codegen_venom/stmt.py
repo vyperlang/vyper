@@ -740,28 +740,13 @@ class Stmt:
 
             # Copy element to loop variable (always in memory)
             if is_slot_addressed:
-                if elem_size == 1:
-                    # Single slot: load from storage/transient, mstore to memory
-                    val = self.ctx.load_word(elem_addr, location)
-                    self.builder.mstore(item_local.value.operand, val)
-                else:
-                    # Multi-slot: use generic helper that dispatches on location
-                    self.ctx.slot_to_memory(
-                        elem_addr, item_local.value.operand, elem_size, location
-                    )
+                self.ctx.slot_to_memory(
+                    elem_addr, item_local.value.operand, elem_size, location
+                )
             else:
-                if elem_size <= 32:
-                    # Single word: load dispatches on location (mload/calldataload/dload)
-                    val = self.ctx.load_word(elem_addr, location)
-                    self.builder.mstore(item_local.value.operand, val)
-                else:
-                    # Multi-word: word-by-word load from source, store to memory
-                    dst = item_local.value.operand
-                    for i in range(0, elem_size, 32):
-                        src_ptr = self.ctx._with_byte_offset(elem_addr, i)
-                        dst_ptr = self.ctx._with_byte_offset(dst, i)
-                        val = self.ctx.load_word(src_ptr, location)
-                        self.builder.mstore(dst_ptr, val)
+                self.ctx.copy_to_memory(
+                    item_local.value.operand, elem_addr, elem_size, location
+                )
 
             self._lower_body(node.body)
             body_finish = self.builder.current_block
