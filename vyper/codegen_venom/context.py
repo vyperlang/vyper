@@ -567,6 +567,11 @@ class VenomCodegenContext:
 
         For slot-addressed locations (storage, transient), use slot_to_memory.
         """
+        # TODO: refactor — DataLocation should have word_scale/word_addressable
+        # properties (like AddrSpace does) instead of hardcoding this.
+        _byte_addressed = (DataLocation.MEMORY, DataLocation.CODE, DataLocation.IMMUTABLES, DataLocation.CALLDATA)
+        assert location in _byte_addressed, \
+            f"copy_to_memory: expected byte-addressed location, got {location}"
         for i in range(0, size, 32):
             src_ptr = self._with_byte_offset(src, i)
             dst_ptr = self._with_byte_offset(dst, i)
