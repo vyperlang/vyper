@@ -23,6 +23,7 @@ from vyper.utils import method_id_int
 from vyper.venom.basicblock import IRLiteral, IROperand
 
 from .buffer import Ptr
+from .calling_convention import returns_stack_count
 from .context import Constancy, VenomCodegenContext
 from .expr import Expr
 from .value import VyperValue
@@ -849,7 +850,7 @@ class Stmt:
             self.builder.ret(return_pc)
             return
 
-        returns_count = self.ctx.returns_stack_count(func_t)
+        returns_count = returns_stack_count(func_t)
         ret_typ = func_t.return_type
         assert ret_typ is not None
 

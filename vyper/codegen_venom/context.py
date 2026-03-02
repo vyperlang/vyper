@@ -14,7 +14,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
-from vyper.codegen.core import is_tuple_like
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.constants import IDENTITY_PRECOMPILE
 from vyper.codegen_venom.value import VyperValue
@@ -101,10 +100,6 @@ class VenomCodegenContext:
     # Immutables region alloca (for constructor context)
     # When set, iload/istore use GEP from this base instead of raw offsets
     immutables_alloca: Optional[IRVariable] = None
-
-    # Constants for internal function calling convention
-    MAX_STACK_ARGS: int = 6
-    MAX_STACK_RETURNS: int = 2
 
     def new_alloca_id(self) -> int:
         """Generate unique alloca ID."""
@@ -301,49 +296,6 @@ class VenomCodegenContext:
             else Constancy.Mutable,
             is_ctor_context=is_ctor or self.is_ctor_context,
         )
-
-    # === Internal Function Helpers ===
-
-    def is_word_type(self, typ: VyperType) -> bool:
-        """Check if type fits in one stack slot (32 bytes)."""
-        return typ.memory_bytes_required == 32
-
-    def pass_via_stack(self, func_t: ContractFunctionT) -> dict[str, bool]:
-        """Determine which args pass via stack vs memory.
-
-        Returns dict mapping arg name -> True if stack, False if memory.
-        Word types pass via stack up to MAX_STACK_ARGS.
-        """
-        ret = {}
-        stack_items = 0
-
-        # Return takes one stack slot if it's a word type
-        if func_t.return_type is not None and self.is_word_type(func_t.return_type):
-            stack_items += 1
-
-        for arg in func_t.arguments:
-            if not self.is_word_type(arg.typ) or stack_items > self.MAX_STACK_ARGS:
-                ret[arg.name] = False
-            else:
-                ret[arg.name] = True
-                stack_items += 1
-
-        return ret
-
-    def returns_stack_count(self, func_t: ContractFunctionT) -> int:
-        """How many values returned via stack (0, 1, or 2 for tuples)."""
-        ret_t = func_t.return_type
-        if ret_t is None:
-            return 0
-
-        if is_tuple_like(ret_t):
-            members = ret_t.tuple_items()  # type: ignore[attr-defined]
-            if 1 <= len(members) <= self.MAX_STACK_RETURNS:
-                if all(self.is_word_type(t) for (_k, t) in members):
-                    return len(members)
-            return 0
-
-        return 1 if self.is_word_type(ret_t) else 0
 
     # === Nonreentrant Lock Support ===
 

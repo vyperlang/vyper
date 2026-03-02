@@ -48,6 +48,7 @@ from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 
 from .abi import abi_decode_to_buf, abi_encode_to_buf
 from .buffer import Buffer, Ptr
+from .calling_convention import pass_via_stack, returns_stack_count
 from .context import VenomCodegenContext
 from .value import VyperValue
 
@@ -1366,8 +1367,8 @@ class Expr:
                 node,
             )
 
-        returns_count = self.ctx.returns_stack_count(func_t)
-        pass_via_stack = self.ctx.pass_via_stack(func_t)
+        returns_count = returns_stack_count(func_t)
+        pass_via_stack_dict = pass_via_stack(func_t)
 
         # Generate function label
         # Format: "internal {function_id} {name}({arg_types})_runtime"
@@ -1416,7 +1417,7 @@ class Expr:
             arg_t = func_t.arguments[i]
             arg_op = self.ctx.unwrap(arg_val)
 
-            if pass_via_stack[arg_t.name]:
+            if pass_via_stack_dict[arg_t.name]:
                 # Stack-passed arg: use value directly
                 # For struct/tuple types that fit in one word, arg_val is a memory
                 # pointer (from unwrap), so we need to load the actual value
