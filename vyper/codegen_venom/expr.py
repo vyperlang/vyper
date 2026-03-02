@@ -649,15 +649,10 @@ class Expr:
         # Case 2: Address properties
         attr = node.attr
         if attr == "balance":
-            # Check if it's self.balance
-            if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
-                return VyperValue.from_stack_op(self.builder.selfbalance(), UINT256_T)
             sub = Expr(node.value, self.ctx).lower_value()
             return VyperValue.from_stack_op(self.builder.balance(sub), UINT256_T)
 
         if attr == "codesize":
-            if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
-                return VyperValue.from_stack_op(self.builder.codesize(), UINT256_T)
             sub = Expr(node.value, self.ctx).lower_value()
             return VyperValue.from_stack_op(self.builder.extcodesize(sub), UINT256_T)
 
@@ -1497,16 +1492,15 @@ class Expr:
     def _lower_dynarray_append(self) -> VyperValue:
         """Lower DynArray.append(val).
 
-        1. Check for potential overlap between darray and arg
-        2. If overlap and non-primitive, copy arg to temp buffer first
-        3. Load current length
+        1. For non-primitive elements, stage arg to a temporary buffer
+           (conservative alias guard)
+        2. Load current length
         4. Assert length < capacity (bounds check)
         5. Compute element pointer: data_ptr + length * elem_size
         6. Store element
         7. Increment and store new length
 
         Reference: vyper/codegen/core.py:append_dyn_array
-        Reference: vyper/codegen/expr.py (potential_overlap check before append)
         """
         node = self.node
         assert isinstance(node, vy_ast.Call)
@@ -1520,12 +1514,10 @@ class Expr:
         darray_vv = Expr(darray_node, self.ctx).lower()
         darray_ptr = darray_vv.operand
 
-        # Get the element value
-        # Check for potential overlap: if arg references same variable as darray,
-        # and element is not primitive, copy arg to temp buffer first.
-        # This prevents issues like arr.append(arr[0]) where reading the arg
-        # could be affected by the append operation.
-        # Reference: vyper/codegen/expr.py lines 729-735
+        # Get the element value.
+        # For complex elements, always stage through a temporary buffer to
+        # guard against aliasing cases like arr.append(arr[0]). Backend passes
+        # can elide the staging copy when it is provably redundant.
         assert len(node.args) == 1
         arg_node = node.args[0]
 
