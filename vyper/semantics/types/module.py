@@ -479,9 +479,9 @@ class ModuleT(VyperType):
                 ret.append(used_module)
         return ret
 
-    @property
+    @cached_property
     def initialized_modules(self):
-        # modules which are initialized to
+        # modules which are initialized
         ret = []
         for node in self.initializes_decls:
             info = node._metadata["initializes_info"]
