@@ -961,8 +961,8 @@ def test_mcopy_chain_with_allocas():
         %a2 = alloca 64
         %a3 = alloca 64
         nop
-        mcopy %a3, %a1, 64
-        %1 = mload %a3
+        nop
+        %1 = mload %a1
         sink %1
     """
     _check_pre_post(pre, post)
@@ -984,8 +984,9 @@ def test_different_allocas_not_redundant():
     _global:
         %a1 = alloca 64
         %a2 = alloca 64
-        mcopy %a2, %a1, 64
-        %1 = mload %a2
+        nop
+        %2 = gep 0, %a1
+        %1 = mload %2
         sink %1
     """
     _check_no_change(pre)
@@ -1853,3 +1854,108 @@ def test_cross_bb_copy_with_nested_gep_different_inner_geps():
 
     # mcopy should NOT be optimized - different inner geps break equivalence
     _check_no_change(pre)
+
+def test_invoke_allocation_translation():
+    pre = """
+    main:
+        %dst = alloca 1, 64
+        %ret_buf = alloca 2, 64
+        invoke @fn, %ret_buf
+        mcopy %dst, %ret_buf, 64
+        %res = mload %dst
+        sink %res
+    """
+
+    post = """
+    main:
+        %dst = alloca 1, 64
+        %ret_buf = alloca 2, 64
+        invoke @fn, %ret_buf
+        nop
+        %res = mload %ret_buf
+        sink %res
+    """
+
+    _check_pre_post(pre, post)
+
+def test_mcopy_translation_non_rewriteble():
+    pre = """
+    main:
+        %dst = alloca 1, 64
+        %ret_buf = alloca 2, 64
+        invoke @fn, %ret_buf
+        mcopy %dst, %ret_buf, 64
+        %2 = gep 32, %dst
+        mstore %2, 123
+        %a = mload %dst
+        %3 = gep 32, %dst
+        %b = mload %3
+        %res = add %a, %b
+        sink %res
+    """
+
+    post = """
+    main:
+        %dst = alloca 1, 64
+        %ret_buf = alloca 2, 64
+        invoke @fn, %ret_buf
+        nop
+        %2 = gep 32, %dst
+        %4 = gep 32, %ret_buf
+        mstore %4, 123
+        %a = mload %ret_buf
+        %3 = gep 32, %dst
+        %5 = gep 32, %ret_buf
+        %b = mload %5
+        %res = add %a, %b
+        sink %res
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_mcopy_translation_non_rewriteble_multiple_bb():
+    pre = """
+    main:
+        %cond = source
+        %dst = alloca 1, 64
+        %ret_buf = alloca 2, 64
+        invoke @fn, %ret_buf
+        mcopy %dst, %ret_buf, 64
+        jnz %cond, @then, @after
+    then:
+        %2 = gep 32, %dst
+        mstore %2, 123
+        jmp @after
+    after:
+        %a = mload %dst
+        %3 = gep 32, %dst
+        %b = mload %3
+        %res = add %a, %b
+        sink %res
+    """
+
+    post = """
+    main:
+        %cond = source
+        %dst = alloca 1, 64
+        %ret_buf = alloca 2, 64
+        invoke @fn, %ret_buf
+        nop
+        jnz %cond, @then, @after
+    then:
+        %2 = gep 32, %dst
+        %4 = gep 32, %ret_buf
+        mstore %4, 123
+        jmp @after
+    after:
+        %a = mload %ret_buf
+        %3 = gep 32, %dst
+        %5 = gep 32, %ret_buf
+        %b = mload %5
+        %res = add %a, %b
+        sink %res
+    """
+
+    _check_pre_post(pre, post)
+
