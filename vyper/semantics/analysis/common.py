@@ -51,7 +51,7 @@ class NodeAccumulator(Generic[Res]):
 
     scope_name = ""
 
-    def visit(self, node, acc: Res) -> Res:
+    def visit(self, node, acc: Res, *args) -> Res:
         # iterate over the MRO until we find a matching visitor function
         # this lets us use a single function to broadly target several
         # node types with a shared parent
@@ -61,7 +61,7 @@ class NodeAccumulator(Generic[Res]):
             with tag_exceptions(node):
                 visitor_fn = getattr(self, f"visit_{ast_type}", None)
                 if visitor_fn:
-                    return visitor_fn(node, acc)
+                    return visitor_fn(node, acc, *args)
 
         node_type = type(node).__name__
         raise StructureException(

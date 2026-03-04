@@ -28,6 +28,7 @@ from vyper.semantics.analysis.base import (
     VarAccess,
     VarOffset,
 )
+from vyper.semantics.analysis.common import NodeAccumulator
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
@@ -43,6 +44,117 @@ from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import OrderedSet, keccak256
 from vyper.warnings import Deprecation, vyper_warn
+
+
+def _get_module_info(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
+    """Get ModuleInfo from a node if it references a module."""
+    # First try _expr_info if available (set during local analysis)
+    if node._expr_info is not None and node._expr_info.module_info is not None:
+        return node._expr_info.module_info
+
+    # Fall back to namespace lookup (works before local analysis)
+    if isinstance(node, vy_ast.Name):
+        module_node = node.module_node
+        if module_node is not None and "namespace" in module_node._metadata:
+            namespace = module_node._metadata["namespace"]
+            try:
+                info = namespace[node.id]
+                if isinstance(info, ModuleInfo):
+                    return info
+            except (KeyError, AttributeError):
+                pass
+
+    return None
+
+
+class NodeComparer(NodeAccumulator[bool]):
+    """
+    Compares two AST nodes for exact structural equality.
+    For module references, compares resolved module identity.
+    """
+
+    def visit(self, node: vy_ast.VyperNode, acc: bool, other: vy_ast.VyperNode) -> bool:
+        # Check nodes are the same type
+        if type(node) is not type(other):
+            return False
+
+        return super().visit(node, acc, other)
+
+    def visit_Constant(self, node: vy_ast.Constant, acc: bool, other: vy_ast.Constant) -> bool:
+        return node.value == other.value
+
+    def visit_Name(self, node: vy_ast.Name, acc: bool, other: vy_ast.Name) -> bool:
+        mod1 = _get_module_info(node)
+        mod2 = _get_module_info(other)
+
+        # Both are modules
+        if mod1 is not None and mod2 is not None:
+            return mod1.module_t is mod2.module_t
+
+        # Both are local reference
+        if mod1 is None and mod2 is None:
+            return node.id == other.id
+
+        return False
+
+    def visit_Attribute(self, node: vy_ast.Attribute, acc: bool, other: vy_ast.Attribute) -> bool:
+        return node.attr == other.attr and self.visit(node.value, acc, other.value)
+
+    def visit_BinOp(self, node: vy_ast.BinOp, acc: bool, other: vy_ast.BinOp) -> bool:
+        return (
+            type(node.op) is type(other.op)
+            and self.visit(node.left, acc, other.left)
+            and self.visit(node.right, acc, other.right)
+        )
+
+    def visit_UnaryOp(self, node: vy_ast.UnaryOp, acc: bool, other: vy_ast.UnaryOp) -> bool:
+        return type(node.op) is type(other.op) and self.visit(node.operand, acc, other.operand)
+
+    def visit_BoolOp(self, node: vy_ast.BoolOp, acc: bool, other: vy_ast.BoolOp) -> bool:
+        return (
+            type(node.op) is type(other.op)
+            and len(node.values) == len(other.values)
+            and all(self.visit(a, acc, b) for a, b in zip(node.values, other.values))
+        )
+
+    def visit_Compare(self, node: vy_ast.Compare, acc: bool, other: vy_ast.Compare) -> bool:
+        return (
+            type(node.op) is type(other.op)
+            and self.visit(node.left, acc, other.left)
+            and self.visit(node.right, acc, other.right)
+        )
+
+    def visit_List(self, node: vy_ast.List, acc: bool, other: vy_ast.List) -> bool:
+        return len(node.elements) == len(other.elements) and all(
+            self.visit(a, acc, b) for a, b in zip(node.elements, other.elements)
+        )
+
+    def visit_Tuple(self, node: vy_ast.Tuple, acc: bool, other: vy_ast.Tuple) -> bool:
+        return len(node.elements) == len(other.elements) and all(
+            self.visit(a, acc, b) for a, b in zip(node.elements, other.elements)
+        )
+
+    def visit_Call(self, node: vy_ast.Call, acc: bool, other: vy_ast.Call) -> bool:
+        return (
+            self.visit(node.func, acc, other.func)
+            and len(node.args) == len(other.args)
+            and all(self.visit(a, acc, b) for a, b in zip(node.args, other.args))
+            and len(node.keywords) == len(other.keywords)
+            and all(
+                kw1.arg == kw2.arg and self.visit(kw1.value, acc, kw2.value)
+                for kw1, kw2 in zip(node.keywords, other.keywords)
+            )
+        )
+
+    def visit_Subscript(self, node: vy_ast.Subscript, acc: bool, other: vy_ast.Subscript) -> bool:
+        return self.visit(node.value, acc, other.value) and self.visit(node.slice, acc, other.slice)
+
+    def visit_IfExp(self, node: vy_ast.IfExp, acc: bool, other: vy_ast.IfExp) -> bool:
+        return (
+            self.visit(node.test, acc, other.test)
+            and self.visit(node.body, acc, other.body)
+            and self.visit(node.orelse, acc, other.orelse)
+        )
 
 
 @dataclass
@@ -708,18 +820,19 @@ class ContractFunctionT(VyperType):
             def default_values_match() -> bool:
                 if isinstance(p_abstract, KeywordArg):
                     if not isinstance(p_override, KeywordArg):
+                        # Default cannot be overridden by non-default
                         return False
 
                     if isinstance(p_abstract.default_value, vy_ast.Ellipsis):
+                        # `...` default can be overridden by any default
                         return True
 
-                    # overrides can themselves be abstract, so this is possible
-                    if isinstance(p_abstract.default_value, vy_ast.Ellipsis):
-                        return False
-
-                    # TODO: Add tests with more default values to make sure this is okay
-                    return p_abstract.default_value == p_override.default_value
+                    # other defaults must match exactly, 1 + 1 cannot be overridden by 2
+                    return NodeComparer().visit(
+                        p_abstract.default_value, False, p_override.default_value
+                    )
                 else:
+                    # Non-default can be overridden by both default and non-default
                     return True
 
             if (

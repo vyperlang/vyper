@@ -284,6 +284,128 @@ SUCCESSFUL_OVERRIDES = [
         "5, 15",
         20,
     ),
+    # === SEMANTIC DEFAULT VALUE MATCHING ===
+    # Environment variable default matching (msg.sender)
+    (
+        "x: uint256, a: address = msg.sender",
+        "address",
+        "a",
+        "x: uint256, a: address = msg.sender",
+        "address",
+        "1",
+        None,  # Will be msg.sender
+    ),
+    # Environment variable default matching (block.number)
+    (
+        "x: uint256, b: uint256 = block.number",
+        "uint256",
+        "b",
+        "x: uint256, b: uint256 = block.number",
+        "uint256",
+        "1",
+        None,  # Will be block.number
+    ),
+    # === ADDITIONAL DEFAULT EXPRESSION TYPES ===
+    # Boolean literal default
+    (
+        "x: uint256, flag: bool = True",
+        "bool",
+        "flag",
+        "x: uint256, flag: bool = True",
+        "bool",
+        "1",
+        True,
+    ),
+    # Address literal default
+    (
+        "x: uint256, addr: address = 0x0000000000000000000000000000000000012345",
+        "address",
+        "addr",
+        "x: uint256, addr: address = 0x0000000000000000000000000000000000012345",
+        "address",
+        "1",
+        "0x0000000000000000000000000000000000012345",
+    ),
+    # Array literal default
+    (
+        "x: uint256, arr: uint256[2] = [10, 20]",
+        "uint256",
+        "arr[0] + arr[1]",
+        "x: uint256, arr: uint256[2] = [10, 20]",
+        "uint256",
+        "1",
+        30,
+    ),
+    # Power expression default (2**8)
+    (
+        "x: uint256, val: uint256 = 2**8",
+        "uint256",
+        "val",
+        "x: uint256, val: uint256 = 2**8",
+        "uint256",
+        "1",
+        256,
+    ),
+    # Built-in function default: empty()
+    (
+        "x: uint256, addr: address = empty(address)",
+        "address",
+        "addr",
+        "x: uint256, addr: address = empty(address)",
+        "address",
+        "1",
+        "0x" + "00" * 20,
+    ),
+    # Built-in function default: min_value()
+    (
+        "x: uint256, val: int128 = min_value(int128)",
+        "int128",
+        "val",
+        "x: uint256, val: int128 = min_value(int128)",
+        "int128",
+        "1",
+        -(2**127),
+    ),
+    # Bytes literal default (bytes4)
+    (
+        "x: uint256, data: bytes4 = 0xdeadbeef",
+        "bytes4",
+        "data",
+        "x: uint256, data: bytes4 = 0xdeadbeef",
+        "bytes4",
+        "1",
+        b"\xde\xad\xbe\xef",
+    ),
+    # tx.origin environment variable
+    (
+        "x: uint256, origin: address = tx.origin",
+        "address",
+        "origin",
+        "x: uint256, origin: address = tx.origin",
+        "address",
+        "1",
+        None,  # Will be tx.origin
+    ),
+    # block.coinbase environment variable
+    (
+        "x: uint256, coinbase: address = block.coinbase",
+        "address",
+        "coinbase",
+        "x: uint256, coinbase: address = block.coinbase",
+        "address",
+        "1",
+        None,  # Will be block.coinbase
+    ),
+    # block.timestamp environment variable
+    (
+        "x: uint256, ts: uint256 = block.timestamp",
+        "uint256",
+        "ts",
+        "x: uint256, ts: uint256 = block.timestamp",
+        "uint256",
+        "1",
+        None,  # Will be block.timestamp
+    ),
 ]
 
 FAILING_OVERRIDES = [
@@ -503,6 +625,27 @@ FAILING_OVERRIDES = [
         "uint256",
         "x + y",
         "x: uint256, y: uint256 = ...",
+        "uint256",
+        FunctionDeclarationException,
+        "Override parameter mismatch",
+    ),
+    # === DIFFERENT DEFAULT VALUES ===
+    # Different environment variables (msg.sender vs tx.origin)
+    (
+        "x: uint256, a: address = tx.origin",
+        "address",
+        "a",
+        "x: uint256, a: address = msg.sender",
+        "address",
+        FunctionDeclarationException,
+        "Override parameter mismatch",
+    ),
+    # Different environment variables (block.number vs block.timestamp)
+    (
+        "x: uint256, b: uint256 = block.timestamp",
+        "uint256",
+        "b",
+        "x: uint256, b: uint256 = block.number",
         "uint256",
         FunctionDeclarationException,
         "Override parameter mismatch",
@@ -1896,3 +2039,330 @@ def test() -> uint256:
         get_contract(contract, input_bundle=input_bundle)
 
     assert "Override parameter mismatch" in e.value.message
+
+
+def test_different_import_same_name_default_mismatch(get_contract, make_input_bundle):
+    """
+    Test that lib.BAR in abstract != lib.BAR in override when lib is a different import.
+    Even though syntactically identical (both `lib.BAR`), they refer to different modules.
+    The comparison resolves module identity, not just the alias name.
+    """
+    # Two different libraries with same constant name
+    lib_a = """
+BAR: constant(uint256) = 10
+    """
+
+    lib_b = """
+BAR: constant(uint256) = 10
+    """
+
+    # Abstract module imports lib_a as 'lib'
+    abstract_module = """
+import lib_a as lib
+
+@abstract
+def foo(x: uint256 = lib.BAR) -> uint256: ...
+    """
+
+    # Override imports lib_b as 'lib' - same alias name, different module!
+    override_contract = """
+import lib_b as lib
+import abstract_module
+
+initializes: abstract_module
+
+@override(abstract_module)
+def foo(x: uint256 = lib.BAR) -> uint256:
+    return x
+    """
+
+    main_contract = """
+import override_contract
+import abstract_module
+
+initializes: override_contract
+uses: abstract_module
+
+@external
+def test() -> uint256:
+    return abstract_module.foo()
+    """
+
+    input_bundle = make_input_bundle(
+        {
+            "lib_a.vy": lib_a,
+            "lib_b.vy": lib_b,
+            "abstract_module.vy": abstract_module,
+            "override_contract.vy": override_contract,
+        }
+    )
+
+    # Should fail: both defaults are `lib.BAR` but `lib` refers to different modules
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(main_contract, input_bundle=input_bundle)
+
+    assert "Override parameter mismatch" in e.value.message
+
+
+def test_default_param_constant_reference_override(get_contract, make_input_bundle):
+    """Test override with constant reference default parameter - both use same constant"""
+
+    constants_lib = """
+FOO: constant(uint256) = 42
+    """
+
+    abstract_module = """
+import constants_lib
+
+@abstract
+def bar(x: uint256 = constants_lib.FOO) -> uint256: ...
+    """
+
+    override_contract = """
+import abstract_module
+import constants_lib
+
+initializes: abstract_module
+
+@external
+def call_bar() -> uint256:
+    return self.bar()
+
+@override(abstract_module)
+def bar(x: uint256 = constants_lib.FOO) -> uint256:
+    return x
+    """
+
+    input_bundle = make_input_bundle(
+        {"constants_lib.vy": constants_lib, "abstract_module.vy": abstract_module}
+    )
+
+    c = get_contract(override_contract, input_bundle=input_bundle)
+    assert c.call_bar() == 42
+
+
+def test_default_param_struct_instantiation_override(get_contract, make_input_bundle):
+    """Test override with struct instantiation default parameter"""
+
+    types_lib = """
+struct Point:
+    x: uint256
+    y: uint256
+    """
+
+    abstract_module = """
+import types_lib
+
+@abstract
+def process(p: types_lib.Point = types_lib.Point(x=10, y=20)) -> uint256: ...
+    """
+
+    override_contract = """
+import abstract_module
+import types_lib
+
+initializes: abstract_module
+
+@external
+def call_process() -> uint256:
+    return self.process()
+
+@override(abstract_module)
+def process(p: types_lib.Point = types_lib.Point(x=10, y=20)) -> uint256:
+    return p.x + p.y
+    """
+
+    input_bundle = make_input_bundle(
+        {"types_lib.vy": types_lib, "abstract_module.vy": abstract_module}
+    )
+
+    c = get_contract(override_contract, input_bundle=input_bundle)
+    assert c.call_process() == 30
+
+
+def test_default_param_arithmetic_expression_override(get_contract, make_input_bundle):
+    """Test override with arithmetic expression default parameter"""
+
+    constants_lib = """
+BASE: constant(uint256) = 100
+    """
+
+    abstract_module = """
+import constants_lib
+
+@abstract
+def calc(x: uint256 = constants_lib.BASE + 5) -> uint256: ...
+    """
+
+    override_contract = """
+import abstract_module
+import constants_lib
+
+initializes: abstract_module
+
+@external
+def call_calc() -> uint256:
+    return self.calc()
+
+@override(abstract_module)
+def calc(x: uint256 = constants_lib.BASE + 5) -> uint256:
+    return x
+    """
+
+    input_bundle = make_input_bundle(
+        {"constants_lib.vy": constants_lib, "abstract_module.vy": abstract_module}
+    )
+
+    c = get_contract(override_contract, input_bundle=input_bundle)
+    assert c.call_calc() == 105
+
+
+def test_default_param_bool_operation_override(get_contract, make_input_bundle):
+    """Test override with boolean operation default parameter"""
+
+    constants_lib = """
+FLAG_A: constant(bool) = True
+FLAG_B: constant(bool) = False
+    """
+
+    abstract_module = """
+import constants_lib
+
+@abstract
+def check(flag: bool = constants_lib.FLAG_A and not constants_lib.FLAG_B) -> bool: ...
+    """
+
+    override_contract = """
+import abstract_module
+import constants_lib
+
+initializes: abstract_module
+
+@external
+def call_check() -> bool:
+    return self.check()
+
+@override(abstract_module)
+def check(flag: bool = constants_lib.FLAG_A and not constants_lib.FLAG_B) -> bool:
+    return flag
+    """
+
+    input_bundle = make_input_bundle(
+        {"constants_lib.vy": constants_lib, "abstract_module.vy": abstract_module}
+    )
+
+    c = get_contract(override_contract, input_bundle=input_bundle)
+    assert c.call_check() is True
+
+
+def test_default_param_comparison_expression_override(get_contract, make_input_bundle):
+    """Test override with comparison expression default parameter"""
+
+    constants_lib = """
+THRESHOLD: constant(uint256) = 100
+    """
+
+    abstract_module = """
+import constants_lib
+
+@abstract
+def is_above(result: bool = constants_lib.THRESHOLD > 50) -> bool: ...
+    """
+
+    override_contract = """
+import abstract_module
+import constants_lib
+
+initializes: abstract_module
+
+@external
+def call_is_above() -> bool:
+    return self.is_above()
+
+@override(abstract_module)
+def is_above(result: bool = constants_lib.THRESHOLD > 50) -> bool:
+    return result
+    """
+
+    input_bundle = make_input_bundle(
+        {"constants_lib.vy": constants_lib, "abstract_module.vy": abstract_module}
+    )
+
+    c = get_contract(override_contract, input_bundle=input_bundle)
+    assert c.call_is_above() is True
+
+
+def test_default_param_nested_struct_override(get_contract, make_input_bundle):
+    """Test override with nested struct instantiation default parameter"""
+
+    types_lib = """
+struct Inner:
+    value: uint256
+
+struct Outer:
+    inner: Inner
+    extra: uint256
+    """
+
+    abstract_module = """
+import types_lib
+
+@abstract
+def process(
+    data: types_lib.Outer = types_lib.Outer(inner=types_lib.Inner(value=5),
+    extra=10)
+) -> uint256: ...
+    """
+
+    override_contract = """
+import abstract_module
+import types_lib
+
+initializes: abstract_module
+
+@external
+def call_process() -> uint256:
+    return self.process()
+
+@override(abstract_module)
+def process(
+    data: types_lib.Outer = types_lib.Outer(inner=types_lib.Inner(value=5),
+    extra=10)
+) -> uint256:
+    return data.inner.value + data.extra
+    """
+
+    input_bundle = make_input_bundle(
+        {"types_lib.vy": types_lib, "abstract_module.vy": abstract_module}
+    )
+
+    c = get_contract(override_contract, input_bundle=input_bundle)
+    assert c.call_process() == 15
+
+
+def test_default_param_max_value_override(get_contract, make_input_bundle):
+    """Test override with max_value() built-in default parameter"""
+
+    abstract_module = """
+@abstract
+def get_max(val: uint8 = max_value(uint8)) -> uint8: ...
+    """
+
+    override_contract = """
+import abstract_module
+
+initializes: abstract_module
+
+@external
+def call_get_max() -> uint8:
+    return self.get_max()
+
+@override(abstract_module)
+def get_max(val: uint8 = max_value(uint8)) -> uint8:
+    return val
+    """
+
+    input_bundle = make_input_bundle({"abstract_module.vy": abstract_module})
+
+    c = get_contract(override_contract, input_bundle=input_bundle)
+    assert c.call_get_max() == 255
