@@ -10,7 +10,6 @@ from vyper.exceptions import (
     CompilerPanic,
     EvmVersionException,
     ExceptionList,
-    FunctionDeclarationException,
     ImmutableViolation,
     InitializerException,
     InterfaceViolation,
@@ -352,7 +351,7 @@ def _build_call_graph(module_ast: vy_ast.Module):
                 # Resolve overrides
                 while call_t.is_abstract:
                     call_t = call_t.overridden_by
-                
+
                 fn_t.called_functions.add(call_t)
 
 
@@ -869,29 +868,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._self_t.typ.add_member(func_t.name, func_t)
         node._metadata["func_type"] = func_t
         self._add_exposed_function(func_t, node)
-
-        # Register override relationships
-        for module_info in func_t.overrides:
-            if module_info.ownership != ModuleOwnership.INITIALIZES:
-                msg = f"Cannot override method from `{module_info.alias}`"
-                msg += " - module is not initialized"
-                hint = f"add `initializes: {module_info.alias}` "
-                hint += "as a top-level statement to your contract"
-                raise FunctionDeclarationException(msg, node, hint=hint)
-
-            abstract_t = module_info.module_t.functions.get(node.name)
-
-            if abstract_t is None:
-                # TODO: Handle case where we try to override a method which does not exist
-                continue
-
-            if not abstract_t.is_abstract:
-                msg = f"Cannot override `{node.name}` from `{module_info.alias}`"
-                msg += " - method is not abstract"
-                hint = "only abstract methods can be overridden"
-                raise FunctionDeclarationException(msg, node, hint=hint)
-
-            abstract_t.set_overridden_by(func_t, module_info.alias)
 
     def visit_Import(self, node):
         self._add_import(node)

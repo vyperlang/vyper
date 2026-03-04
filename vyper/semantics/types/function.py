@@ -24,6 +24,7 @@ from vyper.semantics.analysis.base import (
     FunctionVisibility,
     Modifiability,
     ModuleInfo,
+    ModuleOwnership,
     StateMutability,
     VarAccess,
     VarOffset,
@@ -65,6 +66,7 @@ def _get_module_info(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
                 pass
 
     return None
+
 
 class NodeComparer(NodeAccumulator[bool]):
     """
@@ -198,8 +200,6 @@ class ContractFunctionT(VyperType):
         enum indicating the authority a function has to mutate it's own state.
     is_abstract : bool
         Whether this function is abstract
-    overrides: list[ModuleInfo]
-        Modules containing abstract methods overridden by this function
     nonreentrant : bool
         Whether this function is marked `@nonreentrant` or not
     is_getter : bool
@@ -219,7 +219,6 @@ class ContractFunctionT(VyperType):
         function_visibility: FunctionVisibility,
         state_mutability: StateMutability,
         is_abstract: bool,
-        overrides: list[ModuleInfo],
         from_interface: bool = False,
         nonreentrant: bool = False,
         do_raw_return: bool = False,
@@ -236,7 +235,6 @@ class ContractFunctionT(VyperType):
         self.mutability = state_mutability
 
         self.is_abstract = is_abstract
-        self.overrides = overrides
 
         self.nonreentrant = nonreentrant
         self.do_raw_return = do_raw_return
@@ -400,7 +398,6 @@ class ContractFunctionT(VyperType):
             [],
             return_type,
             is_abstract=False,
-            overrides=[],
             from_interface=True,
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.from_abi(abi),
@@ -462,7 +459,6 @@ class ContractFunctionT(VyperType):
             function_visibility,
             state_mutability,
             is_abstract=False,
-            overrides=[],
             from_interface=True,
             nonreentrant=False,
             ast_def=funcdef,
@@ -547,7 +543,6 @@ class ContractFunctionT(VyperType):
             function_visibility,
             decorators.state_mutability,
             is_abstract=False,
-            overrides=[],
             from_interface=True,
             nonreentrant=False,
             ast_def=funcdef,
@@ -577,21 +572,6 @@ class ContractFunctionT(VyperType):
             function_visibility = FunctionVisibility.INTERNAL
 
         is_abstract = decorators.is_abstract
-        
-        overrides = []
-        for name in decorators.override_nodes:
-            from vyper.semantics.namespace import Namespace
-
-            try:
-                module_info = Namespace.context.get()[name.id]
-            except KeyError:
-                # Module is not imported, error will be reported elsewhere
-                continue
-
-            # TODO: Add error message for trying to override something else than a module
-            assert isinstance(module_info, ModuleInfo)
-
-            overrides.append(module_info)
 
         if function_visibility != FunctionVisibility.INTERNAL:
             if is_abstract:
@@ -600,10 +580,10 @@ class ContractFunctionT(VyperType):
                     decorators.abstract_node,
                 )
 
-            if overrides:
+            if decorators.override_nodes:
                 raise FunctionDeclarationException(
                     f"@override decorator is not allowed on {function_visibility.value} functions",
-                    overrides[0],
+                    decorators.override_nodes[0],
                 )
 
         positional_args, keyword_args = _parse_args(funcdef, is_abstract=is_abstract)
@@ -684,7 +664,7 @@ class ContractFunctionT(VyperType):
         else:
             nonreentrant = decorators.nonreentrant_node is not None
 
-        return cls(
+        self = cls(
             funcdef.name,
             positional_args,
             keyword_args,
@@ -692,13 +672,54 @@ class ContractFunctionT(VyperType):
             function_visibility,
             decorators.state_mutability,
             is_abstract,
-            overrides,
             from_interface=False,
             nonreentrant=nonreentrant,
             do_raw_return=decorators.raw_return,
             ast_def=funcdef,
             is_getter=is_getter,
         )
+
+        # Validate overrides and set `overridden_by` on corresponding abstract methods
+        for name in decorators.override_nodes:
+            from vyper.semantics.namespace import Namespace
+
+            try:
+                module_info = Namespace.context.get()[name.id]
+            except KeyError:
+                # Module is not imported, error will be reported elsewhere
+                continue
+
+            # TODO: Add error message for trying to override something else than a module
+            assert isinstance(module_info, ModuleInfo)
+
+            if module_info.ownership != ModuleOwnership.INITIALIZES:
+                msg = f"Cannot override method from `{module_info.alias}`"
+                msg += " - module is not initialized"
+                hint = f"add `initializes: {module_info.alias}` "
+                hint += "as a top-level statement to your contract"
+                raise FunctionDeclarationException(msg, funcdef, hint=hint)
+
+            abstract_t = module_info.module_t.functions.get(funcdef.name)
+            if abstract_t is None:
+                # TODO: Handle case where method does not exist in module
+                continue
+
+            if not abstract_t.is_abstract:
+                msg = f"Cannot override `{funcdef.name}` from `{module_info.alias}`"
+                msg += " - method is not abstract"
+                hint = "only abstract methods can be overridden"
+                raise FunctionDeclarationException(msg, funcdef, hint=hint)
+
+            if hasattr(abstract_t, "_overridden_by"):
+                raise FunctionDeclarationException(
+                    f"Method `{funcdef.name}` from `{module_info.alias}` is already overridden",
+                    funcdef,
+                    hint="each abstract method can only be overridden once",
+                )
+
+            abstract_t.set_overridden_by(self)
+
+        return self
 
     def set_reentrancy_key_position(self, position: VarOffset) -> None:
         if hasattr(self, "reentrancy_key_position"):
@@ -708,13 +729,8 @@ class ContractFunctionT(VyperType):
 
         self.reentrancy_key_position = position
 
-    def set_overridden_by(self, func_t: "ContractFunctionT", local_module_name: str) -> None:
-        if hasattr(self, "_overridden_by"):
-            raise FunctionDeclarationException(
-                f"Method `{func_t.name}` from `{local_module_name}` is already overridden",
-                func_t.ast_def,
-                hint="each abstract method can only be overridden once",
-            )
+    def set_overridden_by(self, func_t: "ContractFunctionT") -> None:
+        assert not hasattr(self, "_overridden_by")
         self._overridden_by = func_t
 
     @property
@@ -756,7 +772,6 @@ class ContractFunctionT(VyperType):
             [],
             return_type,
             is_abstract=False,
-            overrides=[],
             from_interface=False,
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.VIEW,
