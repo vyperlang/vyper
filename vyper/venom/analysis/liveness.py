@@ -113,6 +113,9 @@ class LivenessAnalysis(IRAnalysis):
 
                 for label, var in inst.phi_operands:
                     if label == source.label:
+                        # to force order
+                        if var in liveness:
+                            liveness.remove(var)
                         liveness.add(var)
                     else:
                         if var in liveness:
