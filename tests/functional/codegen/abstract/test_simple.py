@@ -1089,8 +1089,8 @@ def __init__(): ...
         # fails on the abstract before it has a chance to fail on the override
         assert e.value.message == "@abstract decorator is not allowed on deploy functions"
     else:
-        # fails on the missing abstract before it has a chance to fail on the override
-        assert e.value.message == "Cannot override `__init__` from `foo` - method is not abstract"
+        # fails on the @override decorator validation
+        assert e.value.message == "@override decorator is not allowed on deploy functions"
 
 
 def test_override_non_initialized_module_fails(get_contract, make_input_bundle):

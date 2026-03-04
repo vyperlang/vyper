@@ -40,7 +40,7 @@ def ir_for_self_call(stmt_expr: vy_ast.Call, context):
 
     # Resolve overrides
     while func_t.is_abstract:
-        func_t = func_t.overridden_by._metadata["func_type"]
+        func_t = func_t.ast_def._metadata["overridden_by"]._metadata["func_type"]
 
     pos_args_ir = [Expr(x, context).ir_node for x in stmt_expr.args]
 

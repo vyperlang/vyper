@@ -221,7 +221,6 @@ class ContractFunctionT(VyperType):
         state_mutability: StateMutability,
         is_abstract: bool,
         overrides: list[vy_ast.Name],  # TODO: Chose element type
-        overridden_by: vy_ast.FunctionDef | None,  # not None iff is_abstract is True
         from_interface: bool = False,
         nonreentrant: bool = False,
         do_raw_return: bool = False,
@@ -237,11 +236,8 @@ class ContractFunctionT(VyperType):
         self.visibility = function_visibility
         self.mutability = state_mutability
 
-        # Something is overridden if and only if it is abstract
-        assert is_abstract == (overridden_by is not None)
         self.is_abstract = is_abstract
         self.overrides = overrides
-        self.overridden_by = overridden_by
 
         self.nonreentrant = nonreentrant
         self.do_raw_return = do_raw_return
@@ -406,7 +402,6 @@ class ContractFunctionT(VyperType):
             return_type,
             is_abstract=False,
             overrides=[],
-            overridden_by=None,
             from_interface=True,
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.from_abi(abi),
@@ -469,7 +464,6 @@ class ContractFunctionT(VyperType):
             state_mutability,
             is_abstract=False,
             overrides=[],
-            overridden_by=None,
             from_interface=True,
             nonreentrant=False,
             ast_def=funcdef,
@@ -555,7 +549,6 @@ class ContractFunctionT(VyperType):
             decorators.state_mutability,
             is_abstract=False,
             overrides=[],
-            overridden_by=None,
             from_interface=True,
             nonreentrant=False,
             ast_def=funcdef,
@@ -599,12 +592,6 @@ class ContractFunctionT(VyperType):
                     f"@override decorator is not allowed on {function_visibility.value} functions",
                     overrides[0],
                 )
-
-        if is_abstract and "overridden_by" not in funcdef._metadata:
-            ex = FunctionDeclarationException("Abstract function was not overridden", funcdef)
-            raise ex
-
-        overridden_by = funcdef._metadata["overridden_by"] if is_abstract else None
 
         positional_args, keyword_args = _parse_args(funcdef, is_abstract=is_abstract)
 
@@ -693,7 +680,6 @@ class ContractFunctionT(VyperType):
             decorators.state_mutability,
             is_abstract,
             overrides,
-            overridden_by,
             from_interface=False,
             nonreentrant=nonreentrant,
             do_raw_return=decorators.raw_return,
@@ -743,7 +729,6 @@ class ContractFunctionT(VyperType):
             return_type,
             is_abstract=False,
             overrides=[],
-            overridden_by=None,
             from_interface=False,
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.VIEW,
