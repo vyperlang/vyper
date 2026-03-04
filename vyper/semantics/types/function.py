@@ -66,7 +66,6 @@ def _get_module_info(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
 
     return None
 
-
 class NodeComparer(NodeAccumulator[bool]):
     """
     Compares two AST nodes for exact structural equality.
@@ -199,8 +198,8 @@ class ContractFunctionT(VyperType):
         enum indicating the authority a function has to mutate it's own state.
     is_abstract : bool
         Whether this function is abstract
-    overrides: list[vy_ast.Name]
-        Names of the packages that contain a method overridden by this one
+    overrides: list[ModuleInfo]
+        Modules containing abstract methods overridden by this function
     nonreentrant : bool
         Whether this function is marked `@nonreentrant` or not
     is_getter : bool
@@ -220,7 +219,7 @@ class ContractFunctionT(VyperType):
         function_visibility: FunctionVisibility,
         state_mutability: StateMutability,
         is_abstract: bool,
-        overrides: list[vy_ast.Name],  # TODO: Chose element type
+        overrides: list[ModuleInfo],
         from_interface: bool = False,
         nonreentrant: bool = False,
         do_raw_return: bool = False,
@@ -578,7 +577,21 @@ class ContractFunctionT(VyperType):
             function_visibility = FunctionVisibility.INTERNAL
 
         is_abstract = decorators.is_abstract
-        overrides = decorators.override_nodes
+        
+        overrides = []
+        for name in decorators.override_nodes:
+            from vyper.semantics.namespace import Namespace
+
+            try:
+                module_info = Namespace.context.get()[name.id]
+            except KeyError:
+                # Module is not imported, error will be reported elsewhere
+                continue
+
+            # TODO: Add error message for trying to override something else than a module
+            assert isinstance(module_info, ModuleInfo)
+
+            overrides.append(module_info)
 
         if function_visibility != FunctionVisibility.INTERNAL:
             if is_abstract:

@@ -878,27 +878,15 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._add_exposed_function(func_t, node)
 
         # Register override relationships
-
-        overridden_modules = [name.id for name in func_t.overrides]
-
-        for overridden_module in overridden_modules:
-            try:
-                overridden_module_info = Namespace.context.get()[overridden_module]
-            except KeyError:
-                # Module is not imported, error will be reported elsewhere
-                continue
-
-            assert isinstance(overridden_module_info, ModuleInfo)
-
-            if overridden_module_info.ownership != ModuleOwnership.INITIALIZES:
-                msg = f"Cannot override method from `{overridden_module}`"
+        for module_info in func_t.overrides:
+            if module_info.ownership != ModuleOwnership.INITIALIZES:
+                msg = f"Cannot override method from `{module_info.alias}`"
                 msg += " - module is not initialized"
-                hint = f"add `initializes: {overridden_module}` "
+                hint = f"add `initializes: {module_info.alias}` "
                 hint += "as a top-level statement to your contract"
                 raise FunctionDeclarationException(msg, node, hint=hint)
 
-            other_module_t = overridden_module_info.module_t
-            abstract_t = other_module_t.functions.get(node.name)
+            abstract_t = module_info.module_t.functions.get(node.name)
 
             if abstract_t is None:
                 # TODO: Handle case where we try to override a method which does not exist
@@ -906,14 +894,14 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             other_func = abstract_t.ast_def
             if not abstract_t.is_abstract:
-                msg = f"Cannot override `{node.name}` from `{overridden_module}`"
+                msg = f"Cannot override `{node.name}` from `{module_info.alias}`"
                 msg += " - method is not abstract"
                 hint = "only abstract methods can be overridden"
                 raise FunctionDeclarationException(msg, node, hint=hint)
 
             if "overridden_by" in other_func._metadata:
                 raise FunctionDeclarationException(
-                    f"Method `{node.name}` from `{overridden_module}` is already overridden",
+                    f"Method `{node.name}` from `{module_info.alias}` is already overridden",
                     node,
                     hint="each abstract method can only be overridden once",
                 )
