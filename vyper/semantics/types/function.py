@@ -708,6 +708,21 @@ class ContractFunctionT(VyperType):
 
         self.reentrancy_key_position = position
 
+    def set_overridden_by(self, func_t: "ContractFunctionT", local_module_name: str) -> None:
+        if hasattr(self, "_overridden_by"):
+            raise FunctionDeclarationException(
+                f"Method `{func_t.name}` from `{local_module_name}` is already overridden",
+                func_t.ast_def,
+                hint="each abstract method can only be overridden once",
+            )
+        self._overridden_by = func_t
+
+    @property
+    def overridden_by(self) -> "ContractFunctionT":
+        if not hasattr(self, "_overridden_by"):
+            raise FunctionDeclarationException("Abstract function was not overridden", self.ast_def)
+        return self._overridden_by
+
     @classmethod
     def getter_from_VariableDecl(cls, node: vy_ast.VariableDecl) -> "ContractFunctionT":
         """

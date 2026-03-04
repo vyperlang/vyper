@@ -349,18 +349,11 @@ def _build_call_graph(module_ast: vy_ast.Module):
             if isinstance(call_t, ContractFunctionT) and (
                 call_t.is_internal or call_t.is_constructor
             ):
-                # Makes sure a function is not abstract, by potentially following overrides
-                def get_concrete_func_t(func_t: ContractFunctionT) -> ContractFunctionT:
-                    if func_t.is_abstract:
-                        assert func_t.ast_def is not None  # guaranteed for abstract functions
-                        override_func = func_t.ast_def._metadata["overridden_by"]
-                        override_t = override_func._metadata["func_type"]
-                        return get_concrete_func_t(override_t)
-                    else:
-                        return func_t
-
-                concrete_t = get_concrete_func_t(call_t)
-                fn_t.called_functions.add(concrete_t)
+                # Resolve overrides
+                while call_t.is_abstract:
+                    call_t = call_t.overridden_by
+                
+                fn_t.called_functions.add(call_t)
 
 
 def _compute_reachable_sets(module_ast: vy_ast.Module):
@@ -892,21 +885,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 # TODO: Handle case where we try to override a method which does not exist
                 continue
 
-            other_func = abstract_t.ast_def
             if not abstract_t.is_abstract:
                 msg = f"Cannot override `{node.name}` from `{module_info.alias}`"
                 msg += " - method is not abstract"
                 hint = "only abstract methods can be overridden"
                 raise FunctionDeclarationException(msg, node, hint=hint)
 
-            if "overridden_by" in other_func._metadata:
-                raise FunctionDeclarationException(
-                    f"Method `{node.name}` from `{module_info.alias}` is already overridden",
-                    node,
-                    hint="each abstract method can only be overridden once",
-                )
-
-            other_func._metadata["overridden_by"] = node
+            abstract_t.set_overridden_by(func_t, module_info.alias)
 
     def visit_Import(self, node):
         self._add_import(node)
@@ -965,9 +950,6 @@ def _modules_check_overrides(imports: ImportDict):
         for func in module_ast.get_children(vy_ast.FunctionDef):
             func_t = func._metadata["func_type"]
             if func_t.is_abstract:
-                if "overridden_by" not in func._metadata:
-                    raise FunctionDeclarationException("Abstract function was not overridden", func)
-                override_func = func._metadata["overridden_by"]
-                override_t = override_func._metadata["func_type"]
+                override_t = func_t.overridden_by
 
                 override_t.override_discrepancies(func_t).raise_if_not_empty()
