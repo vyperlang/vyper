@@ -1144,6 +1144,122 @@ def bar() -> uint256:
     assert e.value.hint == "only abstract methods can be overridden"
 
 
+OVERRIDE_NON_MODULE_CASES = [
+    """
+struct MyStruct:
+    value: uint256
+
+@override(MyStruct)
+def bar() -> uint256:
+    return 42
+    """,
+    """
+flag Status:
+    IDLE
+    RUNNING
+
+@override(Status)
+def bar() -> uint256:
+    return 42
+    """,
+    """
+event MyEvent:
+    value: uint256
+
+@override(MyEvent)
+def bar() -> uint256:
+    return 42
+    """,
+    """
+interface IFoo:
+    def foo() -> uint256: nonpayable
+
+@override(IFoo)
+def bar() -> uint256:
+    return 42
+    """,
+    """
+MY_CONST: constant(uint256) = 123
+
+@override(MY_CONST)
+def bar() -> uint256:
+    return 42
+        """,
+    # This fails with an UndeclaredDefinition error, because my_var is not yet analyzed
+    #    """
+    # my_var: uint256
+    #
+    # @override(my_var)
+    # def bar() -> uint256:
+    #     return 42
+    #     """,
+]
+
+
+@pytest.mark.parametrize("contract_code", OVERRIDE_NON_MODULE_CASES)
+def test_override_non_module_fails(contract_code, get_contract):
+    """Test that @override on a non-module fails with proper error"""
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(contract_code)
+
+    # Expected error message pattern (to be implemented)
+    assert "not a module" in e.value.message or "is not a module" in e.value.message
+
+
+def test_override_nonexistent_method_fails(get_contract, make_input_bundle):
+    """Test that overriding a method that doesn't exist in the module fails"""
+    contract = """
+import foo
+
+initializes: foo
+
+@override(foo)
+def bar() -> uint256:
+    return 42
+    """
+
+    foo = """
+@abstract
+def different_method() -> uint256: ...
+    """
+
+    input_bundle = make_input_bundle({"foo.vy": foo})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    # Expected error message (to be implemented)
+    assert "Cannot override `bar` from `foo`" in e.value.message
+    assert "method does not exist" in e.value.message
+
+
+def test_override_nonexistent_method_with_hint(get_contract, make_input_bundle):
+    """Test that overriding a nonexistent method suggests similar names"""
+    contract = """
+import foo
+
+initializes: foo
+
+@override(foo)
+def barr() -> uint256:
+    return 42
+    """
+
+    foo = """
+@abstract
+def bar() -> uint256: ...
+    """
+
+    input_bundle = make_input_bundle({"foo.vy": foo})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    assert "method does not exist" in e.value.message
+    assert e.value.hint is not None
+    assert "bar" in e.value.hint
+
+
 def test_duplicate_override_fails(get_contract, make_input_bundle):
     """Test that overriding the same abstract method twice fails with proper error"""
     contract = """

@@ -30,6 +30,7 @@ from vyper.semantics.analysis.base import (
     VarOffset,
 )
 from vyper.semantics.analysis.common import NodeAccumulator
+from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
@@ -689,8 +690,8 @@ class ContractFunctionT(VyperType):
                 # Module is not imported, error will be reported elsewhere
                 continue
 
-            # TODO: Add error message for trying to override something else than a module
-            assert isinstance(module_info, ModuleInfo)
+            if not isinstance(module_info, ModuleInfo):
+                raise FunctionDeclarationException(f"`{name.id}` is not a module", name)
 
             if module_info.ownership != ModuleOwnership.INITIALIZES:
                 msg = f"Cannot override method from `{module_info.alias}`"
@@ -701,8 +702,12 @@ class ContractFunctionT(VyperType):
 
             abstract_t = module_info.module_t.functions.get(funcdef.name)
             if abstract_t is None:
-                # TODO: Handle case where method does not exist in module
-                continue
+                msg = f"Cannot override `{funcdef.name}` from `{module_info.alias}`"
+                msg += " - method does not exist"
+                lev_hint = get_levenshtein_error_suggestions(
+                    funcdef.name, module_info.module_t.functions, 0.3
+                )
+                raise FunctionDeclarationException(msg, funcdef, hint=lev_hint)
 
             if not abstract_t.is_abstract:
                 msg = f"Cannot override `{funcdef.name}` from `{module_info.alias}`"
