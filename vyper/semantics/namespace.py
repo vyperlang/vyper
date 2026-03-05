@@ -112,11 +112,15 @@ def get_namespace():
 @contextlib.contextmanager
 def override_global_namespace(ns):
     global _namespace
-    tmp = _namespace
+    had_namespace = "_namespace" in globals()
+    tmp = _namespace if had_namespace else None
     try:
         # clobber global namespace
         _namespace = ns
         yield
     finally:
         # unclobber
-        _namespace = tmp
+        if had_namespace:
+            _namespace = tmp
+        else:
+            del _namespace
