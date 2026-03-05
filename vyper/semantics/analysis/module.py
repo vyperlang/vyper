@@ -177,7 +177,7 @@ def _validate_initialized_modules(module_ast: vy_ast.Module, module_t: ModuleT) 
     should_initialize = {
         t.module_info.module_t: t
         for t in module_t.initialized_modules
-        if any(f.is_constructor for f in t.module_info.module_t.functions.values())
+        if t.module_info.module_t.init_function is not None
     }
 
     constructor = module_t.init_function
