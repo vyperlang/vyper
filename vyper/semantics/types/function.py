@@ -248,6 +248,8 @@ class ContractFunctionT(VyperType):
 
         self.ast_def = ast_def
 
+        self._overridden_by: ContractFunctionT | None = None
+
         self._analysed = False
 
         # a list of internal functions this function calls.
@@ -724,7 +726,7 @@ class ContractFunctionT(VyperType):
                 hint = "only abstract methods can be overridden"
                 raise FunctionDeclarationException(msg, funcdef, hint=hint)
 
-            if hasattr(abstract_t, "_overridden_by"):
+            if abstract_t._overridden_by is not None:
                 raise FunctionDeclarationException(
                     f"Method `{funcdef.name}` from `{module_info.alias}` is already overridden",
                     funcdef,
@@ -744,12 +746,12 @@ class ContractFunctionT(VyperType):
         self.reentrancy_key_position = position
 
     def set_overridden_by(self, func_t: "ContractFunctionT") -> None:
-        assert not hasattr(self, "_overridden_by")
+        assert self._overridden_by is None
         self._overridden_by = func_t
 
     @property
     def overridden_by(self) -> "ContractFunctionT":
-        if not hasattr(self, "_overridden_by"):
+        if self._overridden_by is None:
             raise FunctionDeclarationException("Abstract function was not overridden", self.ast_def)
         return self._overridden_by
 
