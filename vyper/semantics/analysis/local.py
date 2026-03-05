@@ -750,6 +750,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         # CMC 2024-02-05 annotate the event type for codegen usage
         # TODO: refactor this
         node._metadata["type"] = f.typedef
+        self.func.mark_emitted_event(f.typedef)
         self.expr_visitor.visit(node.value, t)
 
     def visit_Raise(self, node):

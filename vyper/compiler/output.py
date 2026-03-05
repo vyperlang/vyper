@@ -232,22 +232,13 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         fn_id = fn_t._function_id
         return f"{fn_t.name} ({fn_id})"
 
-    exposed_fns = module_t.exposed_functions.copy()
-    if module_t.init_function is not None:
-        exposed_fns.append(module_t.init_function)
-
-    for fn_t in exposed_fns:
+    for fn_t in module_t.reachable_functions:
         assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
-        for rif_t in fn_t.reachable_internal_functions:
-            k = _fn_identifier(rif_t)
-            if k in sigs:
-                # sanity check that keys are injective with functions
-                assert sigs[k] == rif_t, (k, sigs[k], rif_t)
-            sigs[k] = rif_t
-
-        fn_id = _fn_identifier(fn_t)
-        assert fn_id not in sigs
-        sigs[fn_id] = fn_t
+        k = _fn_identifier(fn_t)
+        if k in sigs:
+            # sanity check that keys are injective with functions
+            assert sigs[k] == fn_t, (k, sigs[k], fn_t)
+        sigs[k] = fn_t
 
     def _to_dict(func_t):
         ret = vars(func_t).copy()

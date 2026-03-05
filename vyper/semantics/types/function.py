@@ -43,6 +43,7 @@ from vyper.semantics.types.bytestrings import BytesT
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
+from vyper.semantics.types.user import EventT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import OrderedSet, keccak256
 from vyper.warnings import Deprecation, vyper_warn
@@ -274,6 +275,9 @@ class ContractFunctionT(VyperType):
         # list of modules used (accessed state) by this function
         self._used_modules: OrderedSet[ModuleInfo] = OrderedSet()
 
+        # events emitted by this function (populated during analysis)
+        self._emitted_events: OrderedSet[EventT] = OrderedSet()
+
         # to be populated during codegen
         self._ir_info: Any = None
         self._function_id: Optional[int] = None
@@ -328,6 +332,12 @@ class ContractFunctionT(VyperType):
 
     def mark_used_module(self, module_info):
         self._used_modules.add(module_info)
+
+    def get_emitted_events(self):
+        return self._emitted_events
+
+    def mark_emitted_event(self, event: EventT):
+        self._emitted_events.add(event)
 
     def mark_variable_writes(self, var_infos):
         self._variable_writes.update(var_infos)

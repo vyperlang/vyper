@@ -13,12 +13,11 @@ from vyper.exceptions import (
 from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.utils import (
     check_modifiability,
-    get_exact_type_from_node,
     validate_expected_type,
     validate_unique_method_ids,
 )
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types.base import TYPE_T, VyperType, is_type_t
+from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.user import EventT, FlagT, StructT, _UserType
@@ -514,35 +513,31 @@ class ModuleT(VyperType):
         return {f.name: f._metadata["func_type"] for f in self.function_defs}
 
     @cached_property
-    # it would be nice to rely on the function analyzer to do this analysis,
-    # but we don't have the result of function analysis at the time we need to
-    # construct `self.interface`.
-    # TODO: self.interface does not use `used_events` anymore, refactor this ?
+    def reachable_functions(self) -> OrderedSet[ContractFunctionT]:
+        """
+        All functions reachable from entry points (init + exposed functions).
+        """
+        ret: OrderedSet[ContractFunctionT] = OrderedSet()
+
+        if self.init_function is not None:
+            ret.update(self.init_function.reachable_internal_functions)
+            ret.add(self.init_function)
+        for fn_t in self.exposed_functions:
+            ret.update(fn_t.reachable_internal_functions)
+            ret.add(fn_t)
+
+        return ret
+
+    @cached_property
     def used_events(self) -> OrderedSet[EventT]:
+        """
+        Collect events emitted from reachable functions.
+        Events are recorded during function analysis via FunctionAnalyzer.visit_Log().
+        """
         ret: OrderedSet[EventT] = OrderedSet()
 
-        reachable: OrderedSet[ContractFunctionT] = OrderedSet()
-        if self.init_function is not None:
-            reachable.add(self.init_function)
-            reachable.update(self.init_function.reachable_internal_functions)
-        for fn_t in self.exposed_functions:
-            # getter functions can't emit events, skip them
-            if fn_t.is_getter:
-                continue
-            reachable.add(fn_t)
-            reachable.update(fn_t.reachable_internal_functions)
-
-        for fn_t in reachable:
-            fn_ast = fn_t.decl_node
-            assert isinstance(fn_ast, vy_ast.FunctionDef)
-
-            for node in fn_ast.get_descendants(vy_ast.Log):
-                call_t = get_exact_type_from_node(node.value.func)
-                if not is_type_t(call_t, EventT):
-                    # this is an error, but it will be handled later
-                    continue
-
-                ret.add(call_t.typedef)
+        for fn_t in self.reachable_functions:
+            ret.update(fn_t.get_emitted_events())
 
         return ret
 
