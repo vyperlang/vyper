@@ -156,6 +156,35 @@ def test_invalid_usages_compile_error(bad_code):
         compiler.compile_code(bad_code[0])
 
 
+def test_invalid_usages_compile_error_not_polluted_by_prior_compilation():
+    poison_code = """
+a: HashMap[Bytes[10], uint256]
+
+@external
+def foo():
+    self.a[msg.data] += 1
+    """
+    with pytest.raises(StructureException):
+        compiler.compile_code(poison_code)
+
+    for bad_code in (
+        """
+@external
+def foo() -> Bytes[4]:
+    bar: Bytes[4] = msg.data
+    return bar
+        """,
+        """
+@external
+def foo() -> Bytes[7]:
+    bar: Bytes[7] = concat(msg.data, 0xc0ffee)
+    return bar
+        """,
+    ):
+        with pytest.raises(StructureException):
+            compiler.compile_code(bad_code)
+
+
 def test_runtime_failure_bounds_check(get_contract, tx_failed):
     code = """
 @external

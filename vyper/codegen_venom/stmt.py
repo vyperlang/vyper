@@ -165,9 +165,8 @@ class Stmt:
                 self.builder.tstore(dst_ptr.operand, val)
             else:
                 self.ctx.store_transient(src, dst_ptr.operand, typ)
-        elif dst_ptr.location == DataLocation.CODE:
-            # Immutables in constructor - use ptr_store which handles GEP from immutables_alloca
-            # For single-word types, load value from temp buffer first
+        elif dst_ptr.location == DataLocation.IMMUTABLES:
+            # Immutables in constructor
             if typ.memory_bytes_required <= 32:
                 val = self.builder.mload(src)
                 self.ctx.ptr_store(dst_ptr, val)
@@ -414,7 +413,7 @@ class Stmt:
             # Check if it's an immutable assignment in constructor
             varinfo = target._expr_info.var_info
             if varinfo is not None and varinfo.is_immutable and self.ctx.is_ctor_context:
-                return Ptr(IRLiteral(varinfo.position.position), DataLocation.CODE)
+                return Ptr(IRLiteral(varinfo.position.position), DataLocation.IMMUTABLES)
 
             raise CompilerPanic(f"Unknown variable: {varname}")
 
@@ -429,7 +428,7 @@ class Stmt:
 
                 # Immutable in constructor context
                 if varinfo.is_immutable and self.ctx.is_ctor_context:
-                    return Ptr(IRLiteral(varinfo.position.position), DataLocation.CODE)
+                    return Ptr(IRLiteral(varinfo.position.position), DataLocation.IMMUTABLES)
 
                 if varinfo.is_constant:
                     raise TypeCheckFailure("Cannot assign to constant")
@@ -665,12 +664,8 @@ class Stmt:
             array_vv = Expr(node.iter, self.ctx).lower()
         array = array_vv.operand
         array_typ = node.iter._metadata["type"]
-        location = array_vv.location or node.iter._expr_info.location
-
-        # If array is a stack value (e.g., from ternary expression), the operand
-        # is a pointer to memory. Use MEMORY as the location.
-        if location == DataLocation.UNSET:
-            location = DataLocation.MEMORY
+        location = array_vv.location
+        assert location is not None
 
         # Determine word scale based on location
         # Storage/Transient: 1 slot per word, Memory: 32 bytes per word
@@ -681,7 +676,7 @@ class Stmt:
         length: IROperand
         if isinstance(array_typ, DArrayT):
             # Dynamic array: length is first word
-            length = self.builder.load(array, location)
+            length = self.ctx.load_word(array, location)
             bound = array_typ.count
         elif isinstance(array_typ, SArrayT):
             # Static array: length is compile-time constant
@@ -746,23 +741,9 @@ class Stmt:
 
             # Copy element to loop variable (always in memory)
             if is_slot_addressed:
-                if elem_size == 1:
-                    # Single slot: load from storage/transient, mstore to memory
-                    val = self.builder.load(elem_addr, location)
-                    self.builder.mstore(item_local.value.operand, val)
-                else:
-                    # Multi-slot: use generic helper that dispatches on location
-                    self.ctx.slot_to_memory(
-                        elem_addr, item_local.value.operand, elem_size, location
-                    )
+                self.ctx.slot_to_memory(elem_addr, item_local.value.operand, elem_size, location)
             else:
-                if elem_size <= 32:
-                    # Single word: load dispatches on location (mload/calldataload/dload)
-                    val = self.builder.load(elem_addr, location)
-                    self.builder.mstore(item_local.value.operand, val)
-                else:
-                    # Multi-word: use context helper which handles pre-Cancun
-                    self.ctx.copy_memory(item_local.value.operand, elem_addr, elem_size)
+                self.ctx.copy_to_memory(item_local.value.operand, elem_addr, elem_size, location)
 
             self._lower_body(node.body)
             body_finish = self.builder.current_block
