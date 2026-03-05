@@ -224,7 +224,7 @@ class ContractFunctionT(VyperType):
         from_interface: bool = False,
         nonreentrant: bool = False,
         do_raw_return: bool = False,
-        ast_def: Optional[vy_ast.VyperNode] = None,
+        ast_def: vy_ast.FunctionDef | vy_ast.VariableDecl | None = None,
         is_getter: bool = False,
     ) -> None:
         super().__init__()
