@@ -50,18 +50,21 @@ class _Tx(_EnvType):
     _type_members = {"origin": AddressT(), "gasprice": UINT256_T}
 
 
-CONSTANT_ENVIRONMENT_VARS = {t._id: t for t in (_Block(), _Chain(), _Tx(), _Msg())}
+_CONSTANT_ENV_TYPES = (_Block, _Chain, _Tx, _Msg)
+
+CONSTANT_ENVIRONMENT_VARS = {cls._id for cls in _CONSTANT_ENV_TYPES}
 
 
 def get_constant_vars() -> Dict:
     """
     Get a dictionary of constant environment variables.
     """
-    result = {}
-    for k, v in CONSTANT_ENVIRONMENT_VARS.items():
-        result[k] = VarInfo(v, modifiability=Modifiability.RUNTIME_CONSTANT)
-
-    return result
+    # create fresh instances each call to avoid mutable singleton pollution
+    # (BytesT() in _Msg gets mutated by compare_type side effects)
+    return {
+        t._id: VarInfo(t, modifiability=Modifiability.RUNTIME_CONSTANT)
+        for t in (cls() for cls in _CONSTANT_ENV_TYPES)
+    }
 
 
 MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {"self": SelfT}
