@@ -49,22 +49,25 @@ from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import OrderedSet
 
 
-def analyze_module(root_module_ast: vy_ast.Module) -> ModuleT:
+def analyze_module(
+    root_module_ast: vy_ast.Module, all_modules: OrderedSet[vy_ast.Module] | None = None
+) -> ModuleT:
     """
     Analyze a Vyper module AST node, recursively analyze all its imports,
     add all module-level objects to the namespace, type-check/validate
     semantics and annotate with type and analysis info
     """
-    imports = _extract_imports(root_module_ast)
+    # When all_modules is None (e.g., tests with single modules), default to just the root
+    if all_modules is None:
+        all_modules = OrderedSet([root_module_ast])
 
     # Collect module members, partial validation
     ret = _compute_module_type_r(root_module_ast)
 
-    _modules_check_overrides(imports)
+    _modules_check_overrides(all_modules)
 
     # Remainder of validation: everything that requires module-level/cross-module information
     # Notably function bodies
-    all_modules = _get_all_modules(root_module_ast)
 
     # These must be two different loops, because of cross-module calls and abstract resolution
     for module_ast in all_modules:
@@ -78,36 +81,10 @@ def analyze_module(root_module_ast: vy_ast.Module) -> ModuleT:
 
     # check for event name collisions between defined and used events
     # (needs to be after reachable set with overrides computation since used_events depends on it)
-    for module_ast in imports:
+    for module_ast in all_modules:
         module_ast._metadata["type"].validate_used_events()
 
     return ret
-
-
-def _get_all_modules(root_module_ast: vy_ast.Module) -> list[vy_ast.Module]:
-    """
-    Collect all modules in the import graph (dependencies first).
-    Uses the import_infos metadata populated during import resolution.
-    """
-    seen: list[vy_ast.Module] = []
-
-    def _collect_r(module_ast: vy_ast.Module):
-        if module_ast in seen:
-            return
-        # Process imports first (dependencies before dependents)
-        for node in module_ast.get_children((vy_ast.Import, vy_ast.ImportFrom)):
-            for info in node._metadata.get("import_infos", []):
-                if isinstance(info.parsed, list):
-                    # It's a json abi, we don't need to recurse as it can't import anything
-                    continue
-                assert isinstance(
-                    info.parsed, vy_ast.Module
-                ), f"was: {type(info.parsed)} not Module"
-                _collect_r(info.parsed)
-        seen.append(module_ast)
-
-    _collect_r(root_module_ast)
-    return seen
 
 
 def _compute_module_type_r(module_ast: vy_ast.Module) -> ModuleT:
@@ -285,42 +262,6 @@ def _validate_exports_uses(module_ast: vy_ast.Module, module_t: ModuleT) -> None
                     assert module_info is not None
 
                     info.used_modules.add(module_info)
-
-
-# For each module, the module corresponding to each identifier
-ImportDict = dict[vy_ast.Module, dict[str, vy_ast.Module]]
-
-
-def _extract_imports(module_ast: vy_ast.Module, imports: ImportDict | None = None) -> ImportDict:
-    imports = imports if imports is not None else {}
-
-    if module_ast in imports:
-        # We have already seen this module, skip it
-        return imports
-
-    import_infos = [
-        import_info
-        for import_node in module_ast.get_children((vy_ast.Import, vy_ast.ImportFrom))
-        for import_info in import_node._metadata["import_infos"]
-    ]
-
-    imports[module_ast] = dict()
-
-    local_imports = imports[module_ast]
-
-    for import_info in import_infos:
-        if import_info.alias in local_imports:
-            # There is a name clash somewhere, but it will be reported later
-            pass
-        local_imports[import_info.alias] = import_info.parsed
-
-        if isinstance(import_info.parsed, list):
-            # It's a json abi, we don't need to recurse as it can import anything
-            continue
-
-        _extract_imports(import_info.parsed, imports)
-
-    return imports
 
 
 def _build_call_graph(module_ast: vy_ast.Module):
@@ -921,8 +862,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         Namespace.add(node.name, struct_t)
 
 
-def _modules_check_overrides(imports: ImportDict):
-    for module_ast in imports:
+def _modules_check_overrides(all_modules: OrderedSet[vy_ast.Module]):
+    for module_ast in all_modules:
         for func in module_ast.get_children(vy_ast.FunctionDef):
             func_t = func._metadata["func_type"]
             if func_t.is_abstract:

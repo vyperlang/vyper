@@ -187,10 +187,10 @@ class CompilerData:
 
     @cached_property
     def _annotate(self) -> tuple[natspec.NatspecOutput, vy_ast.Module]:
-        module = self._resolve_imports[0]
-        analyze_module(module)
-        nspec = natspec.parse_natspec(module)
-        return nspec, module
+        root_module, imports, _ = self._resolve_imports
+        analyze_module(root_module, imports.seen)
+        nspec = natspec.parse_natspec(root_module)
+        return nspec, root_module
 
     @cached_property
     def natspec(self) -> natspec.NatspecOutput:
