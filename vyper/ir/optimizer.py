@@ -2,6 +2,7 @@ import operator
 from typing import List, Optional, Tuple, Union
 
 from vyper.codegen.ir_node import IRnode
+from vyper.compiler.settings import get_global_settings
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import (
@@ -550,10 +551,15 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
 
     if value in ("assert", "assert_unreachable") and _is_int(argz[0]):
         if _evm_int(argz[0]) == 0:
-            raise StaticAssertionException(
-                f"assertion found to fail at compile time. (hint: did you mean `raise`?) {node}",
-                ast_source,
-            )
+            settings = get_global_settings()
+            if settings and settings.no_static_assert:
+                pass  # leave the assertion in place; it will revert at runtime
+            else:
+                raise StaticAssertionException(
+                    f"assertion found to fail at compile time."
+                    f" (hint: did you mean `raise`?) {node}",
+                    ast_source,
+                )
         else:
             changed = True
             return finalize("seq", [])

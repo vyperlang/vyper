@@ -332,6 +332,7 @@ def get_settings(input_dict: dict) -> Settings:
 
     # TODO: maybe change these to camelCase for consistency
     enable_decimals = input_dict["settings"].get("enable_decimals", None)
+    no_static_assert = input_dict["settings"].get("noStaticAssert", None)
 
     # Create Venom optimization flags with the optimization level
     venom_flags = VenomOptimizationFlags(level=optimize)
@@ -372,6 +373,7 @@ def get_settings(input_dict: dict) -> Settings:
         experimental_codegen=experimental_codegen,
         debug=debug,
         enable_decimals=enable_decimals,
+        no_static_assert=no_static_assert,
         venom_flags=venom_flags,
     )
 

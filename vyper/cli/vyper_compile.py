@@ -218,6 +218,12 @@ def _parse_args(argv):
         dest="experimental_codegen",
     )
     parser.add_argument("--enable-decimals", help="Enable decimals", action="store_true")
+    parser.add_argument(
+        "--experimental-no-static-assert",
+        help="Don't raise compile-time errors for provably failing assertions",
+        action="store_true",
+        dest="no_static_assert",
+    )
 
     parser.add_argument(
         "-W", help="Control warnings", dest="warnings_control", choices=["error", "none"]
@@ -288,6 +294,9 @@ def _parse_args(argv):
 
     if args.enable_decimals:
         settings.enable_decimals = args.enable_decimals
+
+    if args.no_static_assert:
+        settings.no_static_assert = args.no_static_assert
 
     if args.verbose:
         print(f"cli specified: `{settings}`", file=sys.stderr)

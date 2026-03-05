@@ -3,6 +3,7 @@ from enum import Enum
 from functools import reduce
 from typing import Union
 
+from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
@@ -314,10 +315,14 @@ class SCCP(IRPass):
                 if lat.value != 0:
                     inst.make_nop()
                 else:
-                    raise StaticAssertionException(
-                        f"assertion found to fail at compile time ({inst.error_msg}).",
-                        inst.get_ast_source(),
-                    )
+                    settings = get_global_settings()
+                    if settings and settings.no_static_assert:
+                        pass  # leave the assertion in place; it will revert at runtime
+                    else:
+                        raise StaticAssertionException(
+                            f"assertion found to fail at compile time ({inst.error_msg}).",
+                            inst.get_ast_source(),
+                        )
 
         elif inst.opcode == "phi":
             return
