@@ -49,39 +49,38 @@ from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import OrderedSet
 
 
-def analyze_module(
-    root_module_ast: vy_ast.Module, all_modules: OrderedSet[vy_ast.Module] | None = None
-) -> ModuleT:
+def analyze_modules(modules: OrderedSet[vy_ast.Module]) -> ModuleT:
     """
-    Analyze a Vyper module AST node, recursively analyze all its imports,
-    add all module-level objects to the namespace, type-check/validate
-    semantics and annotate with type and analysis info
-    """
-    # When all_modules is None (e.g., tests with single modules), default to just the root
-    if all_modules is None:
-        all_modules = OrderedSet([root_module_ast])
+    Analyze Vyper module ASTs, add all module-level objects to the namespace,
+    type-check/validate semantics and annotate with type and analysis info.
 
+    The root module (compilation target) must be the last element in `modules`.
+    """
+    # The root module is always the last element, since dependencies are sorted
+    root_module_ast = list(modules)[-1]
+
+    # TODO: Instead of being recursive, use `modules`
     # Collect module members, partial validation
     ret = _compute_module_type_r(root_module_ast)
 
-    _modules_check_overrides(all_modules)
+    _modules_check_overrides(modules)
 
     # Remainder of validation: everything that requires module-level/cross-module information
     # Notably function bodies
 
     # These must be two different loops, because of cross-module calls and abstract resolution
-    for module_ast in all_modules:
+    for module_ast in modules:
         _build_call_graph(module_ast)
 
-    for module_ast in all_modules:
+    for module_ast in modules:
         _compute_reachable_sets(module_ast)
 
-    for module_ast in all_modules:
+    for module_ast in modules:
         _analyze_module_bodies(module_ast)
 
     # check for event name collisions between defined and used events
     # (needs to be after reachable set with overrides computation since used_events depends on it)
-    for module_ast in all_modules:
+    for module_ast in modules:
         module_ast._metadata["type"].validate_used_events()
 
     return ret

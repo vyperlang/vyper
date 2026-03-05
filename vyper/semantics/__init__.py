@@ -1,8 +1,8 @@
 def __getattr__(name):
-    if name == "analyze_module":
-        from .analysis.module import analyze_module
+    if name == "analyze_modules":
+        from .analysis.module import analyze_modules
 
-        return analyze_module
+        return analyze_modules
     if name == "validate_compilation_target":
         from .analysis.global_ import validate_compilation_target
 

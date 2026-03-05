@@ -6,11 +6,11 @@ def __getattr__(name):
         from .global_ import validate_compilation_target
 
         return validate_compilation_target
-    if name == "analyze_module":
-        from .module import analyze_module
+    if name == "analyze_modules":
+        from .module import analyze_modules
 
-        return analyze_module
+        return analyze_modules
     raise AttributeError(name)
 
 
-__all__ = ["validate_compilation_target", "analyze_module"]
+__all__ = ["validate_compilation_target", "analyze_modules"]

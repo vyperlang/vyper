@@ -17,7 +17,7 @@ from vyper.compiler.settings import (
     should_run_legacy_optimizer,
 )
 from vyper.ir import compile_ir, optimizer
-from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
+from vyper.semantics import analyze_modules, set_data_positions, validate_compilation_target
 from vyper.semantics.analysis.data_positions import generate_layout_export
 from vyper.semantics.analysis.imports import resolve_imports
 from vyper.semantics.types.function import ContractFunctionT
@@ -188,7 +188,7 @@ class CompilerData:
     @cached_property
     def _annotate(self) -> tuple[natspec.NatspecOutput, vy_ast.Module]:
         root_module, imports, _ = self._resolve_imports
-        analyze_module(root_module, imports.seen)
+        analyze_modules(imports.seen)
         nspec = natspec.parse_natspec(root_module)
         return nspec, root_module
 
