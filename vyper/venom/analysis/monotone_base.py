@@ -4,7 +4,7 @@ from vyper.venom.analysis import CFGAnalysis
 from vyper.venom.basicblock import IRInstruction, IRBasicBlock
 from collections import deque
 from enum import Enum
-from typing import TypeVar, Type, Generic
+from typing import TypeVar, Generic
 
 class Direction(Enum):
     Forward = 1
@@ -12,13 +12,12 @@ class Direction(Enum):
 
 class LatticeBase:
     def copy(self) -> Lattice:
-        pass
+        raise NotImplementedError()
 
 
 Lattice = TypeVar("Lattice", bound=LatticeBase)
 class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
     def analyze(self):
-        worklist = deque()
         self.inst_lattice: dict[IRInstruction, Lattice] = {}
         self.bb_output: dict[IRBasicBlock, Lattice]= {}
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
@@ -26,6 +25,11 @@ class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
         for bb in self.function.get_basic_blocks():
             bottom: Lattice = self._bottom()
             self.bb_output[bb] = bottom
+
+        if self._direction() == Direction.Forward:
+            worklist = deque(self.cfg.dfs_pre_walk)
+        else:
+            worklist = deque(self.cfg.dfs_post_walk)
 
         while worklist:
             bb = worklist.popleft()
@@ -47,9 +51,8 @@ class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
             instructions = reversed(instructions)
         
         for inst in instructions:
-            self.inst_lattice[inst] = current_lattice.copy()
-            
             current_lattice = self._transfer_function(inst, current_lattice)
+            self.inst_lattice[inst] = current_lattice.copy()
 
         if bb not in self.bb_output or self.bb_output[bb] != current_lattice:
             self.bb_output[bb] = current_lattice
