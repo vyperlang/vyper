@@ -156,8 +156,51 @@ def bar() -> uint256:
     with pytest.raises(ImmutableViolation) as e:
         get_contract(contract, input_bundle=input_bundle)
 
-    # TODO: Should be a better error message
-    assert "Cannot access `abstract_m` state!" in e.value.message
+    expected_msg = (
+        "Cannot call abstract method `bar` from module `abstract_m` which is not `uses`-ed"
+    )
+    assert expected_msg in e.value.message
+    expected_hint = "add `uses: abstract_m` as a top-level statement to your contract"
+    assert e.value.hint == expected_hint
+
+
+def test_call_to_abstract_with_initializes_fails(get_contract, make_input_bundle):
+    """
+    Test that calling an abstract method from a module you initialize fails.
+    When you `initializes:` a module, you must provide overrides, so calling
+    abstract methods through the abstract interface is disallowed - use `uses:` instead.
+    """
+    contract = """
+import abstract_m
+
+initializes: abstract_m
+
+@external
+def my_method() -> uint256:
+    return abstract_m.bar()  # Cannot call abstract method when you initialize
+
+@override(abstract_m)
+def bar() -> uint256:
+    return 42
+    """
+
+    abstract_m = """
+@abstract
+def bar() -> uint256: ...
+    """
+
+    input_bundle = make_input_bundle({"abstract_m.vy": abstract_m})
+
+    with pytest.raises(ImmutableViolation) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    expected_msg = "Cannot call abstract method `bar` from overridden module `abstract_m`"
+    assert expected_msg in e.value.message
+    expected_hint = (
+        "either call `self.bar` directly, or if you do not wish to override it, "
+        "replace `initializes: abstract_m` by `uses: abstract_m`"
+    )
+    assert e.value.hint == expected_hint
 
 
 SUCCESSFUL_OVERRIDES = [
@@ -2024,21 +2067,31 @@ def foo() -> uint256:
     ...
     '''
 
-    contract = """
+    override_module = """
 import abstract_module
 
 initializes: abstract_module
-
-@external
-def test() -> uint256:
-    return abstract_module.foo()
 
 @override(abstract_module)
 def foo() -> uint256:
     return 42
     """
 
-    input_bundle = make_input_bundle({"abstract_module.vy": abstract_module})
+    contract = """
+import abstract_module
+import override_module
+
+uses: abstract_module
+initializes: override_module
+
+@external
+def test() -> uint256:
+    return abstract_module.foo()
+    """
+
+    input_bundle = make_input_bundle(
+        {"abstract_module.vy": abstract_module, "override_module.vy": override_module}
+    )
 
     # Should compile successfully
     c = get_contract(contract, input_bundle=input_bundle)

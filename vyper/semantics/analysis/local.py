@@ -261,6 +261,47 @@ def check_module_uses(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
     return root_module_info
 
 
+def check_module_uses_for_abstract(
+    node: vy_ast.ExprNode, func_t: "ContractFunctionT"
+) -> Optional[ModuleInfo]:
+    """
+    Validate module usage when calling an abstract method.
+    Abstract methods require their module being `uses`-ed.
+    """
+    module_infos = _get_module_chain(node)
+
+    if len(module_infos) == 0:
+        return None
+
+    for module_info in module_infos:
+        if module_info.ownership == ModuleOwnership.USES:
+            # Correct ownership
+            continue
+        elif module_info.ownership == ModuleOwnership.INITIALIZES:
+            msg = f"Cannot call abstract method `{func_t.name}` "
+            msg += f"from overridden module `{module_info.alias}`"
+
+            hint = f"either call `self.{func_t.name}` directly, or if you do not "
+            hint += f"wish to override it, replace `initializes: {module_info.alias}` "
+            hint += f"by `uses: {module_info.alias}`"
+
+            raise ImmutableViolation(msg, hint=hint)
+        elif module_info.ownership == ModuleOwnership.NO_OWNERSHIP:
+            msg = f"Cannot call abstract method `{func_t.name}` "
+            msg += f"from module `{module_info.alias}` which is not `uses`-ed"
+
+            hint = f"add `uses: {module_info.alias}` "
+            hint += "as a top-level statement to your contract"
+
+            raise ImmutableViolation(msg, hint=hint)
+        else:
+            raise AssertionError("unreachable")
+
+    # the leftmost-referenced module
+    root_module_info = module_infos[0]
+    return root_module_info
+
+
 class TerminatedAnalyzer(NodeAccumulator[bool]):
     scope_name = "function"
 
@@ -964,9 +1005,10 @@ class ExprVisitor(VyperNodeVisitorBase):
                     self.function_analyzer._handle_module_access(node.func)
 
                 if func_type.is_abstract:
-                    # Treat abstract method calls as mutable access for initializes
-                    # TODO: Replace this with separate logic for better error messages
-                    self.function_analyzer._handle_module_access(node.func)
+                    # calling an abstract function requires we `uses` its module
+                    root_module_info = check_module_uses_for_abstract(node.func, func_type)
+                    if root_module_info is not None:
+                        self.func.mark_used_module(root_module_info)
 
                     # Note: We don't check what the override touches, as this would severely hurt
                     # usability. The module which hosts the override is responsible for its state.
