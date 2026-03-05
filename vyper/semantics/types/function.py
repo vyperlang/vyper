@@ -248,7 +248,6 @@ class ContractFunctionT(VyperType):
 
         self.ast_def = ast_def
 
-        self.is_getter = is_getter
         self._analysed = False
 
         # a list of internal functions this function calls.
@@ -822,9 +821,12 @@ class ContractFunctionT(VyperType):
             if not btyp.is_subtype_of(atyp):
                 return False
 
-        # TODO: This is the wrong way round !
+        # Return type should be covariant, not contravariant!
         # It should be:
         # if return_type and not return_type.is_subtype_of(other_return_type):  # type: ignore
+        # This is currently done to allow things like IERC20's name field to be implemented by
+        # strings of any length. `String[0]` is thus able to be implemented by a `String[20]`.
+        # TODO: Once we have a system which removes the need for this hack, change it
         if return_type and not other_return_type.is_subtype_of(return_type):  # type: ignore
             return False
 
