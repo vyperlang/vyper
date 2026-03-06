@@ -78,7 +78,7 @@ class NodeComparer(NodeAccumulator[bool]):
 
     def visit(self, node: vy_ast.VyperNode, acc: bool, other: vy_ast.VyperNode) -> bool:
         # acc is unused, we use a NodeAccumulator only for its output
-        assert acc == False, "input acc is unused, must be False"
+        assert acc is False, "input acc is unused, must be False"
         # Check nodes are the same type
         if type(node) is not type(other):
             return False
