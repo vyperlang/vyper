@@ -8,6 +8,7 @@ from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     CallViolation,
+    CompilerPanic,
     ExceptionList,
     FunctionDeclarationException,
     ImmutableViolation,
@@ -295,7 +296,7 @@ def check_module_uses_for_abstract(
 
             raise ImmutableViolation(msg, hint=hint)
         else:
-            raise AssertionError("unreachable")
+            raise CompilerPanic("unreachable")
 
     # the leftmost-referenced module
     root_module_info = module_infos[0]
