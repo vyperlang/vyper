@@ -1,7 +1,8 @@
 from __future__ import annotations
-from vyper.venom.analysis.analysis import IRAnalysis
+from vyper.venom.analysis.analysis import IRAnalysis, IRAnalysesCache
 from vyper.venom.analysis import CFGAnalysis
 from vyper.venom.basicblock import IRInstruction, IRBasicBlock
+from vyper.venom.function import IRFunction
 from collections import deque
 from enum import Enum
 from typing import TypeVar, Generic
@@ -17,6 +18,9 @@ class LatticeBase:
 
 Lattice = TypeVar("Lattice", bound=LatticeBase)
 class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
+    def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
+        super().__init__(analyses_cache, function)
+
     def analyze(self):
         self.inst_lattice: dict[IRInstruction, Lattice] = {}
         self.bb_output: dict[IRBasicBlock, Lattice]= {}
