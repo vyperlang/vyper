@@ -66,7 +66,7 @@ class Stmt:
         var = self.ctx.new_variable(varname, ltyp)
 
         rhs = Expr(node.value, self.ctx).lower()
-        self._assign_value(var.value.ptr(), rhs, ltyp)
+        self._assign_value(var.value.ptr(), rhs, ltyp, src_node=node.value)
 
     def lower_Assign(self) -> None:
         """Lower regular assignment.
@@ -108,15 +108,31 @@ class Stmt:
         # like `c[0] = c.pop()` where RHS modifies array length.
         src = Expr(node.value, self.ctx).lower()
         dst_ptr = self._get_target_ptr(target)
-        self._assign_value(dst_ptr, src, target_typ)
+        self._assign_value(dst_ptr, src, target_typ, src_node=node.value)
 
-    def _assign_value(self, dst_ptr: Ptr, src: VyperValue, typ) -> None:
+    def _assign_value(
+        self, dst_ptr: Ptr, src: VyperValue, typ, *, src_node: Optional[vy_ast.VyperNode] = None
+    ) -> None:
         """Assign a VyperValue to a destination pointer.
 
         Handles both primitive word types (direct store) and complex types
         (with overlap-safe copying when source and dest are in the same
         address space).
         """
+        if (
+            isinstance(typ, _BytestringT)
+            and src_node is not None
+            and self._is_empty_value(src_node)
+        ):
+            # Empty bytes/string assignment only needs a zero length word.
+            if dst_ptr.location == DataLocation.STORAGE:
+                self.builder.sstore(dst_ptr.operand, IRLiteral(0))
+            elif dst_ptr.location == DataLocation.TRANSIENT:
+                self.builder.tstore(dst_ptr.operand, IRLiteral(0))
+            else:
+                self.ctx.ptr_store(dst_ptr, IRLiteral(0))
+            return
+
         if typ._is_prim_word:
             self.ctx.ptr_store(dst_ptr, self.ctx.unwrap(src))
         else:
@@ -127,25 +143,42 @@ class Stmt:
 
         Materializes `src_vv` to memory (via unwrap), then stages through a
         temporary buffer when source and destination are both in memory
-        (potential aliasing).  When they are in different address spaces
-        no aliasing is possible and the staging copy is skipped.
+        (potential aliasing).  MemoryCopyElisionPass eliminates the staging
+        copy when src/dst are provably non-overlapping.
         """
         src_loc = src_vv.location  # None for stack values, else DataLocation
+        src_typ = src_vv.typ
         src = self.ctx.unwrap(src_vv)  # always a memory ptr for complex types
 
-        if src_loc is DataLocation.MEMORY and dst_ptr.location is DataLocation.MEMORY:
-            # Both in memory — stage through temp for overlap safety.
-            tmp_val = self.ctx.new_temporary_value(typ)
-            self.ctx.copy_memory(tmp_val.operand, src, typ.memory_bytes_required)
+        # Always stage when both src and dst are in memory to guard against
+        # aliasing.  MemoryCopyElisionPass will eliminate the redundant copy
+        # when src/dst are provably non-overlapping (different allocas).
+        should_stage = src_loc is DataLocation.MEMORY and dst_ptr.location is DataLocation.MEMORY
+
+        if should_stage:
+            tmp_val = self.ctx.new_temporary_value(src_typ)
+            self.ctx.copy_memory(tmp_val.operand, src, src_typ.memory_bytes_required)
             src = tmp_val.operand
 
-        self._store_complex_type(dst_ptr, src, typ)
+        self._store_complex_type(dst_ptr, src, typ, src_typ)
 
-    def _store_complex_type(self, dst_ptr: Ptr, src: IROperand, typ) -> None:
+    def _store_complex_type(self, dst_ptr: Ptr, src: IROperand, typ, src_typ) -> None:
         """Store complex value from memory `src` into `dst_ptr` (no overlap guard).
 
         Only called from `_copy_complex_type` which handles staging when needed.
         """
+        if (
+            src_typ != typ
+            and dst_ptr.location is not DataLocation.MEMORY
+            and not (isinstance(src_typ, _BytestringT) and isinstance(typ, _BytestringT))
+        ):
+            # Normalize source into destination layout before writing to
+            # storage/transient/code locations that don't carry src_typ.
+            normalized = self.ctx.new_temporary_value(typ)
+            self.ctx.store_memory(src, normalized.operand, typ, src_typ=src_typ)
+            src = normalized.operand
+            src_typ = typ
+
         if dst_ptr.location == DataLocation.STORAGE:
             # DynArray special case: only copy length + actual elements, not full capacity.
             # This matches legacy codegen behavior (core.py:_dynarray_make_setter).
@@ -174,7 +207,17 @@ class Stmt:
             else:
                 self.ctx.store_immutable(src, dst_ptr.operand, typ)
         else:
-            self.ctx.copy_memory(dst_ptr.operand, src, typ.memory_bytes_required)
+            if src_typ == typ:
+                self.ctx.copy_memory(dst_ptr.operand, src, typ.memory_bytes_required)
+            elif (
+                isinstance(src_typ, _BytestringT)
+                and isinstance(typ, _BytestringT)
+                and src_typ.memory_bytes_required == typ.memory_bytes_required
+            ):
+                # Same in-memory layout (same padded payload size): direct copy is enough.
+                self.ctx.copy_memory(dst_ptr.operand, src, typ.memory_bytes_required)
+            else:
+                self.ctx.store_memory(src, dst_ptr.operand, typ, src_typ=src_typ)
 
     def _lower_tuple_unpack(self) -> None:
         """Lower tuple unpacking assignment: a, b = expr.
@@ -189,57 +232,66 @@ class Stmt:
         assert isinstance(node, vy_ast.Assign)
         assert isinstance(node.target, vy_ast.Tuple)
         target = node.target
-        src = Expr(node.value, self.ctx).lower().operand
+        src_vv = Expr(node.value, self.ctx).lower()
+        src = self.ctx.unwrap(src_vv)
 
-        # src is a pointer to the tuple in memory
-        tuple_typ = target._metadata["type"]
+        # src is a pointer to the source tuple in memory
+        src_tuple_typ = src_vv.typ
+        dst_tuple_typ = target._metadata["type"]
+        assert isinstance(src_tuple_typ, TupleT)
+        assert isinstance(dst_tuple_typ, TupleT)
         targets = target.elements
 
         # First pass: load all values from source tuple to temp variables.
         # This ensures correct semantics for overlapping cases like a,b = b,a.
         temp_vals = []
-        offset = 0
-        member_types = tuple_typ.member_types
-        if isinstance(member_types, dict):
-            member_types = member_types.values()
-        for elem_typ in member_types:
-            if offset == 0:
+        src_offset = 0
+        src_member_types = src_tuple_typ.member_types
+        dst_member_types = dst_tuple_typ.member_types
+        if isinstance(src_member_types, dict):
+            src_member_types = tuple(src_member_types.values())
+        if isinstance(dst_member_types, dict):
+            dst_member_types = tuple(dst_member_types.values())
+
+        # If source and destination may alias in memory, snapshot the source tuple once.
+        # This preserves tuple-assignment semantics (a, b = b, a) for complex members
+        # without staging each element individually.
+        src_expr = node.value.reduced()
+        source_is_memory_view = isinstance(
+            src_expr, (vy_ast.Name, vy_ast.Attribute, vy_ast.Subscript)
+        )
+        if (
+            source_is_memory_view
+            and src_vv.location is DataLocation.MEMORY
+            and any(not t._is_prim_word for t in src_member_types)
+        ):
+            staged_src = self.ctx.new_temporary_value(src_tuple_typ)
+            self.ctx.copy_memory(staged_src.operand, src, src_tuple_typ.memory_bytes_required)
+            src = staged_src.operand
+
+        for src_elem_typ, dst_elem_typ in zip(src_member_types, dst_member_types):
+            if src_offset == 0:
                 elem_ptr = src
             elif isinstance(src, IRLiteral):
-                elem_ptr = IRLiteral(src.value + offset)
+                elem_ptr = IRLiteral(src.value + src_offset)
             else:
-                elem_ptr = self.builder.add(src, IRLiteral(offset))
+                elem_ptr = self.builder.add(src, IRLiteral(src_offset))
 
             # Load the value
-            val = self.ctx.load_memory(elem_ptr, elem_typ)
-            temp_vals.append((val, elem_typ))
+            val = self.ctx.load_memory(elem_ptr, src_elem_typ)
+            temp_vals.append((val, src_elem_typ, dst_elem_typ))
 
-            offset += elem_typ.memory_bytes_required
+            src_offset += src_elem_typ.memory_bytes_required
 
         # Second pass: assign each loaded value to its target
-        for (val, elem_typ), target_node in zip(temp_vals, targets):
+        for (val, src_elem_typ, dst_elem_typ), target_node in zip(temp_vals, targets):
             target_ptr = self._get_target_ptr(target_node)
 
-            if elem_typ._is_prim_word:
+            if dst_elem_typ._is_prim_word:
                 self.ctx.ptr_store(target_ptr, val)
             else:
-                # Complex element type: val is a memory pointer
-                if target_ptr.location == DataLocation.STORAGE:
-                    # For single-word types, need to load value from memory
-                    if elem_typ.storage_size_in_words == 1:
-                        loaded_val = self.builder.mload(val)
-                        self.builder.sstore(target_ptr.operand, loaded_val)
-                    else:
-                        self.ctx.store_storage(val, target_ptr.operand, elem_typ)
-                elif target_ptr.location == DataLocation.TRANSIENT:
-                    # For single-word types, need to load value from memory
-                    if elem_typ.storage_size_in_words == 1:
-                        loaded_val = self.builder.mload(val)
-                        self.builder.tstore(target_ptr.operand, loaded_val)
-                    else:
-                        self.ctx.store_transient(val, target_ptr.operand, elem_typ)
-                else:
-                    self.ctx.copy_memory(target_ptr.operand, val, elem_typ.memory_bytes_required)
+                # Complex element type: val is a memory pointer in source layout.
+                self._store_complex_type(target_ptr, val, dst_elem_typ, src_elem_typ)
 
     def lower_AugAssign(self) -> None:
         """Lower augmented assignment.
@@ -761,8 +813,13 @@ class Stmt:
                     val = self.builder.load(elem_addr, location)
                     self.builder.mstore(item_local.value.operand, val)
                 else:
-                    # Multi-word: use context helper which handles pre-Cancun
-                    self.ctx.copy_memory(item_local.value.operand, elem_addr, elem_size)
+                    # Multi-word: layout-aware copy handles element size mismatches
+                    self.ctx.store_memory(
+                        elem_addr,
+                        item_local.value.operand,
+                        target_type,
+                        src_typ=array_typ.value_type,
+                    )
 
             self._lower_body(node.body)
             body_finish = self.builder.current_block
@@ -823,19 +880,22 @@ class Stmt:
 
         # Evaluate return value if present
         ret_val: Optional[IROperand] = None
+        ret_src_typ = None
         if node.value is not None:
-            # lower_value() handles all locations (storage, memory, code)
-            # and returns a usable value (loaded for primitives, memory ptr for complex)
-            ret_val = Expr(node.value, self.ctx).lower_value()
+            # lower() preserves source type so return coercions can use
+            # layout-aware copying when source and declared return type differ.
+            ret_vv = Expr(node.value, self.ctx).lower()
+            ret_val = self.ctx.unwrap(ret_vv)
+            ret_src_typ = ret_vv.typ
 
         # Dispatch: internal vs external
         if self.ctx.return_pc is not None:
-            self._lower_internal_return(ret_val, func_t)
+            self._lower_internal_return(ret_val, func_t, ret_src_typ)
         else:
-            self._lower_external_return(ret_val, func_t)
+            self._lower_external_return(ret_val, func_t, ret_src_typ)
 
     def _lower_internal_return(
-        self, ret_val: Optional[IROperand], func_t: ContractFunctionT
+        self, ret_val: Optional[IROperand], func_t: ContractFunctionT, ret_src_typ=None
     ) -> None:
         """Lower internal function return.
 
@@ -877,14 +937,14 @@ class Stmt:
 
         elif self.ctx.return_buffer is not None:
             # Memory return - store to buffer, caller reads it
-            self.ctx.store_memory(ret_val, self.ctx.return_buffer, ret_typ)
+            self.ctx.store_memory(ret_val, self.ctx.return_buffer, ret_typ, src_typ=ret_src_typ)
             self.builder.ret(return_pc)
 
         else:
             raise CompilerPanic("Internal function missing return mechanism")
 
     def _lower_external_return(
-        self, ret_val: Optional[IROperand], func_t: ContractFunctionT
+        self, ret_val: Optional[IROperand], func_t: ContractFunctionT, ret_src_typ=None
     ) -> None:
         """Lower external function return.
 
@@ -904,13 +964,25 @@ class Stmt:
         ret_typ = func_t.return_type
         assert ret_typ is not None
 
+        if (
+            ret_src_typ is not None
+            and not ret_typ._is_prim_word
+            and not (isinstance(ret_typ, _BytestringT) and isinstance(ret_src_typ, _BytestringT))
+            and ret_src_typ != ret_typ
+            and ret_val is not None
+        ):
+            normalized = self.ctx.new_temporary_value(ret_typ)
+            self.ctx.store_memory(ret_val, normalized.operand, ret_typ, src_typ=ret_src_typ)
+            ret_val = normalized.operand
+            ret_src_typ = ret_typ
+
         # Raw return: return bytes directly without ABI encoding
         # The @raw_return decorator bypasses ABI encoding for proxy patterns
         if func_t.do_raw_return:
             # ret_val is a pointer to [length (32 bytes)][data...]
             # Copy to a fresh buffer to ensure it's in memory
             buf_val = self.ctx.new_temporary_value(ret_typ)
-            self.ctx.store_memory(ret_val, buf_val.operand, ret_typ)
+            self.ctx.store_memory(ret_val, buf_val.operand, ret_typ, src_typ=ret_src_typ)
 
             # Get length from first 32 bytes
             return_len = self.builder.mload(buf_val.operand)
@@ -967,22 +1039,23 @@ class Stmt:
             arg_nodes = call_node.args
 
         # Lower all argument expressions
-        # lower_value() handles storage/code -> memory copy for complex types
         args = []
         for arg in arg_nodes:
             arg_typ = arg._metadata["type"]
-            args.append((Expr(arg, self.ctx).lower_value(), arg_typ))
+            arg_vv = Expr(arg, self.ctx).lower()
+            arg_val = self.ctx.unwrap(arg_vv)
+            args.append((arg_val, arg_typ, arg_vv.typ))
 
         # Split into indexed (topics) and non-indexed (data)
         topic_vals = []
         data_vals = []
         data_typs = []
 
-        for (arg_val, arg_typ), is_indexed in zip(args, event.indexed):
+        for (arg_val, arg_typ, src_typ), is_indexed in zip(args, event.indexed):
             if is_indexed:
                 topic_vals.append((arg_val, arg_typ))
             else:
-                data_vals.append(arg_val)
+                data_vals.append((arg_val, src_typ))
                 data_typs.append(arg_typ)
 
         # Build topics list - starts with event signature hash
@@ -1005,12 +1078,12 @@ class Stmt:
 
             # Store each data value into the tuple buffer
             offset = 0
-            for val, typ in zip(data_vals, data_typs):
+            for (val, src_typ), typ in zip(data_vals, data_typs):
                 if offset == 0:
                     dst = data_buf._ptr
                 else:
                     dst = self.builder.add(data_buf._ptr, IRLiteral(offset))
-                self.ctx.store_memory(val, dst, typ)
+                self.ctx.store_memory(val, dst, typ, src_typ=src_typ)
                 offset += typ.memory_bytes_required
 
             # Allocate ABI encoding output buffer
@@ -1196,7 +1269,7 @@ class Stmt:
         # We need to store it at a location so we can encode the tuple
         # For a tuple (string,), we store the string pointer, then encode
         tuple_buf = self.ctx.allocate_buffer(wrapped_typ.memory_bytes_required)
-        self.ctx.store_memory(msg_val, tuple_buf._ptr, msg_typ)
+        self.ctx.store_memory(msg_val, tuple_buf._ptr, msg_typ, src_typ=msg_vv.typ)
 
         # ABI encode the wrapped message to payload buffer
         encoded_len = abi_encode_to_buf(self.ctx, payload_buf, tuple_buf._ptr, wrapped_typ)

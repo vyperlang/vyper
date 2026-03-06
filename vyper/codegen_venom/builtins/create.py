@@ -257,15 +257,16 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Encode ctor args after bytecode
     # First, store ctor args to a temp buffer
-    ctor_arg_values = [Expr(arg, ctx).lower_value() for arg in ctor_arg_nodes]
+    ctor_arg_vvs = [Expr(arg, ctx).lower() for arg in ctor_arg_nodes]
     ctor_args_val = ctx.new_temporary_value(ctor_tuple_typ)
     offset = 0
-    for val, arg_t in zip(ctor_arg_values, ctor_arg_types):
+    for vv, arg_t in zip(ctor_arg_vvs, ctor_arg_types):
+        val = ctx.unwrap(vv)
         if offset == 0:
             dst = ctor_args_val.operand
         else:
             dst = b.add(ctor_args_val.operand, IRLiteral(offset))
-        ctx.store_memory(val, dst, arg_t)
+        ctx.store_memory(val, dst, arg_t, src_typ=vv.typ)
         offset += arg_t.memory_bytes_required
 
     # Now ABI encode from ctor_args_val to args_start
@@ -523,15 +524,16 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         args_buf = ctx.allocate_buffer(ctor_abi_size, annotation="ctor_args_buf")
 
         # Evaluate and store ctor args to temp buffer
-        ctor_arg_values = [Expr(arg, ctx).lower_value() for arg in ctor_arg_nodes]
+        ctor_arg_vvs = [Expr(arg, ctx).lower() for arg in ctor_arg_nodes]
         ctor_args_src = ctx.new_temporary_value(ctor_tuple_typ)
         offset = 0
-        for val, arg_t in zip(ctor_arg_values, ctor_arg_types):
+        for vv, arg_t in zip(ctor_arg_vvs, ctor_arg_types):
+            val = ctx.unwrap(vv)
             if offset == 0:
                 dst = ctor_args_src.operand
             else:
                 dst = b.add(ctor_args_src.operand, IRLiteral(offset))
-            ctx.store_memory(val, dst, arg_t)
+            ctx.store_memory(val, dst, arg_t, src_typ=vv.typ)
             offset += arg_t.memory_bytes_required
 
         # ABI encode from ctor_args_src to args_buf (BEFORE msize!)

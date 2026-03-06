@@ -35,6 +35,7 @@ from vyper.semantics.types import (
     InterfaceT,
     StringT,
     TupleT,
+    VyperType,
     is_type_t,
 )
 from vyper.semantics.types.base import VOID_TYPE
@@ -60,55 +61,11 @@ class _CallKwargs:
     value: IROperand  # ETH value to send (CALL only)
     gas: IROperand  # Gas limit for the call
     skip_contract_check: bool  # Skip extcodesize check
-    default_return_value: Optional[IROperand]  # Default if returndatasize==0
+    default_return_value: Optional[VyperValue]  # Default if returndatasize==0
 
 
 # Environment variable prefixes for attribute access
 ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
-
-
-def _get_root_variable(node: vy_ast.VyperNode) -> Optional[str]:
-    """Extract the root variable name from an AST expression.
-
-    Examples:
-        arr -> "arr"
-        self.arr -> "self.arr"
-        arr[0] -> "arr"
-        self.arr[i].field -> "self.arr"
-
-    Returns None if the expression doesn't have a clear root variable.
-    """
-    if isinstance(node, vy_ast.Name):
-        return node.id
-    if isinstance(node, vy_ast.Attribute):
-        # Handle self.x -> "self.x"
-        if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
-            return f"self.{node.attr}"
-        # For struct field access, get root of the struct
-        return _get_root_variable(node.value)
-    if isinstance(node, vy_ast.Subscript):
-        # arr[i] -> root of arr
-        return _get_root_variable(node.value)
-    return None
-
-
-def _potential_overlap_ast(darray_node: vy_ast.VyperNode, arg_node: vy_ast.VyperNode) -> bool:
-    """Check if arg_node potentially references the same variable as darray_node.
-
-    This is a conservative check - returns True if unsure.
-    Used to prevent issues like arr.append(arr[0]) where reading the arg
-    could be affected by the append operation modifying the array.
-
-    Reference: vyper/codegen/core.py:potential_overlap
-    """
-    darray_root = _get_root_variable(darray_node)
-    arg_root = _get_root_variable(arg_node)
-
-    if darray_root is None or arg_root is None:
-        # Can't determine roots - be conservative
-        return True
-
-    return darray_root == arg_root
 
 
 class Expr:
@@ -236,14 +193,15 @@ class Expr:
         offset = 0
         for i, elem_node in enumerate(node.elements):
             elem_typ = typ.member_types[i]
-            elem_val = Expr(elem_node, self.ctx).lower_value()
+            elem_vv = Expr(elem_node, self.ctx).lower()
+            elem_val = self.ctx.unwrap(elem_vv)
 
             if offset == 0:
                 dst = val.operand
             else:
                 dst = self.builder.add(val.operand, IRLiteral(offset))
 
-            self.ctx.store_memory(elem_val, dst, elem_typ)
+            self.ctx.store_memory(elem_val, dst, elem_typ, src_typ=elem_vv.typ)
             offset += elem_typ.memory_bytes_required
 
         return val
@@ -278,14 +236,15 @@ class Expr:
 
         # Store each element
         for elem_node in node.elements:
-            elem_val = Expr(elem_node, self.ctx).lower_value()
+            elem_vv = Expr(elem_node, self.ctx).lower()
+            elem_val = self.ctx.unwrap(elem_vv)
 
             if data_offset == 0:
                 dst = val.operand
             else:
                 dst = self.builder.add(val.operand, IRLiteral(data_offset))
 
-            self.ctx.store_memory(elem_val, dst, elem_typ)
+            self.ctx.store_memory(elem_val, dst, elem_typ, src_typ=elem_vv.typ)
             data_offset += elem_size
 
         return val
@@ -689,15 +648,10 @@ class Expr:
         # Case 2: Address properties
         attr = node.attr
         if attr == "balance":
-            # Check if it's self.balance
-            if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
-                return VyperValue.from_stack_op(self.builder.selfbalance(), UINT256_T)
             sub = Expr(node.value, self.ctx).lower_value()
             return VyperValue.from_stack_op(self.builder.balance(sub), UINT256_T)
 
         if attr == "codesize":
-            if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
-                return VyperValue.from_stack_op(self.builder.codesize(), UINT256_T)
             sub = Expr(node.value, self.ctx).lower_value()
             return VyperValue.from_stack_op(self.builder.extcodesize(sub), UINT256_T)
 
@@ -1428,7 +1382,7 @@ class Expr:
                 # Memory-passed arg: allocate buffer, copy value, pass pointer.
                 # Backend passes can forward safe readonly arguments.
                 buf_val = self.ctx.new_temporary_value(arg_t.typ)
-                self.ctx.store_memory(arg_op, buf_val.operand, arg_t.typ)
+                self.ctx.store_memory(arg_op, buf_val.operand, arg_t.typ, src_typ=arg_val.typ)
                 invoke_args.append(buf_val.operand)
 
         # Emit invoke instruction
@@ -1489,14 +1443,15 @@ class Expr:
         offset = 0
         for field_name in struct_t.tuple_keys():
             field_typ = struct_t.member_types[field_name]
-            field_val = Expr(member_vals[field_name], self.ctx).lower_value()
+            field_vv = Expr(member_vals[field_name], self.ctx).lower()
+            field_val = self.ctx.unwrap(field_vv)
 
             if offset == 0:
                 dst = val.operand
             else:
                 dst = self.builder.add(val.operand, IRLiteral(offset))
 
-            self.ctx.store_memory(field_val, dst, field_typ)
+            self.ctx.store_memory(field_val, dst, field_typ, src_typ=field_vv.typ)
             offset += field_typ.memory_bytes_required
 
         return val
@@ -1536,16 +1491,15 @@ class Expr:
     def _lower_dynarray_append(self) -> VyperValue:
         """Lower DynArray.append(val).
 
-        1. Check for potential overlap between darray and arg
-        2. If overlap and non-primitive, copy arg to temp buffer first
-        3. Load current length
+        1. For non-primitive elements, stage arg to a temporary buffer
+           (conservative alias guard)
+        2. Load current length
         4. Assert length < capacity (bounds check)
         5. Compute element pointer: data_ptr + length * elem_size
         6. Store element
         7. Increment and store new length
 
         Reference: vyper/codegen/core.py:append_dyn_array
-        Reference: vyper/codegen/expr.py (potential_overlap check before append)
         """
         node = self.node
         assert isinstance(node, vy_ast.Call)
@@ -1559,27 +1513,42 @@ class Expr:
         darray_vv = Expr(darray_node, self.ctx).lower()
         darray_ptr = darray_vv.operand
 
-        # Get the element value
-        # Check for potential overlap: if arg references same variable as darray,
-        # and element is not primitive, copy arg to temp buffer first.
-        # This prevents issues like arr.append(arr[0]) where reading the arg
-        # could be affected by the append operation.
-        # Reference: vyper/codegen/expr.py lines 729-735
+        # Get the element value.
+        # For complex elements, always stage through a temporary buffer to
+        # guard against aliasing cases like arr.append(arr[0]). Backend passes
+        # can elide the staging copy when it is provably redundant.
         assert len(node.args) == 1
         arg_node = node.args[0]
 
-        if not elem_typ._is_prim_word and _potential_overlap_ast(darray_node, arg_node):
-            # Overlap detected: copy arg to temp buffer first
-            arg_val = Expr(arg_node, self.ctx).lower_value()
+        arg_vv = Expr(arg_node, self.ctx).lower()
+        arg_val = self.ctx.unwrap(arg_vv)
+        elem_src_typ = arg_vv.typ
+
+        if not elem_typ._is_prim_word:
+            # Always stage complex elements through a temp buffer to guard
+            # against aliasing (e.g. arr.append(arr[0])).
+            # MemoryCopyElisionPass eliminates the copy when safe.
             temp_buf = self.ctx.new_temporary_value(elem_typ)
-            self.ctx.store_memory(arg_val, temp_buf.operand, elem_typ)
+            self.ctx.store_memory(arg_val, temp_buf.operand, elem_typ, src_typ=elem_src_typ)
             elem_val = temp_buf.operand
+            elem_src_typ = elem_typ
         else:
-            elem_val = Expr(arg_node, self.ctx).lower_value()
+            elem_val = arg_val
 
         # Get location from VyperValue
         data_loc = darray_vv.location or DataLocation.MEMORY
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
+
+        if (
+            data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT, DataLocation.CODE)
+            and not elem_typ._is_prim_word
+            and elem_src_typ != elem_typ
+        ):
+            # Normalize source layout for locations that only understand destination layout.
+            normalized = self.ctx.new_temporary_value(elem_typ)
+            self.ctx.store_memory(elem_val, normalized.operand, elem_typ, src_typ=elem_src_typ)
+            elem_val = normalized.operand
+            elem_src_typ = elem_typ
 
         elem_size = elem_typ.get_size_in(data_loc)
         capacity = darray_typ.count  # Maximum length
@@ -1603,7 +1572,7 @@ class Expr:
         if elem_typ._is_prim_word:
             self.builder.store(elem_ptr, elem_val, data_loc)
         elif data_loc == DataLocation.MEMORY:
-            self.ctx.store_memory(elem_val, elem_ptr, elem_typ)
+            self.ctx.store_memory(elem_val, elem_ptr, elem_typ, src_typ=elem_src_typ)
         elif data_loc == DataLocation.STORAGE:
             self.ctx.store_storage(elem_val, elem_ptr, elem_typ)
         elif data_loc == DataLocation.TRANSIENT:
@@ -1697,9 +1666,13 @@ class Expr:
         value: IROperand = IRLiteral(0)
         gas: IROperand = self.builder.gas()
         skip_contract_check = False
-        default_return_value = None
+        default_return_value: Optional[VyperValue] = None
 
         for kw in call_node.keywords:
+            if kw.arg == "default_return_value":
+                default_return_value = Expr(kw.value, self.ctx).lower()
+                continue
+
             kw_val = Expr(kw.value, self.ctx).lower_value()
             if kw.arg == "value":
                 value = kw_val
@@ -1710,8 +1683,6 @@ class Expr:
                 if not isinstance(kw_val, IRLiteral):
                     raise CompilerPanic(f"Expected IRLiteral for keyword, got {type(kw_val)}")
                 skip_contract_check = bool(kw_val.value)
-            elif kw.arg == "default_return_value":
-                default_return_value = kw_val
             else:
                 raise CompilerPanic(f"Unexpected keyword argument: {kw.arg}")
 
@@ -1748,14 +1719,17 @@ class Expr:
         # Evaluate contract address (the interface value)
         contract_address = Expr(call_node.func.value, self.ctx).lower_value()
 
-        # Evaluate arguments
-        args = [Expr(arg, self.ctx).lower_value() for arg in call_node.args]
+        # Evaluate arguments.
+        arg_vals: list[tuple[IROperand, VyperType]] = []
+        for _, arg in enumerate(call_node.args):
+            arg_vv = Expr(arg, self.ctx).lower()
+            arg_vals.append((self.ctx.unwrap(arg_vv), arg_vv.typ))
 
         # Parse kwargs
         call_kwargs = self._parse_external_call_kwargs(call_node)
 
         # Calculate buffer size needed
-        args_tuple_t = TupleT(tuple(fn_type.arguments[i].typ for i in range(len(args))))
+        args_tuple_t = TupleT(tuple(fn_type.arguments[i].typ for i in range(len(arg_vals))))
         args_abi_t = args_tuple_t.abi_type
         args_abi_size = args_abi_t.size_bound()
 
@@ -1779,19 +1753,19 @@ class Expr:
         self.ctx.ptr_store(buf.base_ptr(), IRLiteral(method_id))
 
         # ABI-encode arguments starting at buf+32
-        if len(args) > 0:
+        if len(arg_vals) > 0:
             # Create temp buffer for args in memory
             args_val = self.ctx.new_temporary_value(args_tuple_t)
 
             # Store each arg at its position in args_buf
             offset = 0
-            for i, arg_val in enumerate(args):
+            for i, (arg_val, arg_src_typ) in enumerate(arg_vals):
                 arg_typ = fn_type.arguments[i].typ
                 if offset == 0:
                     dst = args_val.operand
                 else:
                     dst = b.add(args_val.operand, IRLiteral(offset))
-                self.ctx.store_memory(arg_val, dst, arg_typ)
+                self.ctx.store_memory(arg_val, dst, arg_typ, src_typ=arg_src_typ)
                 offset += arg_typ.memory_bytes_required
 
             # ABI-encode from args_buf to buf+32
@@ -1876,16 +1850,11 @@ class Expr:
             b.append_block(default_bb)
             b.set_block(default_bb)
 
-            # Store default value - needs wrapping if single value
-            if needs_external_call_wrap(return_t):
-                # Wrap single value in tuple
-                self.ctx.store_memory(
-                    call_kwargs.default_return_value, result_val.operand, return_t
-                )
-            else:
-                self.ctx.store_memory(
-                    call_kwargs.default_return_value, result_val.operand, return_t
-                )
+            # Store default value
+            default_vv = call_kwargs.default_return_value
+            assert default_vv is not None
+            default_val = self.ctx.unwrap(default_vv)
+            self.ctx.store_memory(default_val, result_val.operand, return_t, src_typ=default_vv.typ)
 
             # Check extcodesize if not skipped (contract might have selfdestructed)
             if not call_kwargs.skip_contract_check:
