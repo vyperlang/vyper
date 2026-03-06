@@ -1249,6 +1249,74 @@ def test_override_non_module_fails(contract_code, get_contract):
     assert "not a module" in e.value.message or "is not a module" in e.value.message
 
 
+@pytest.mark.parametrize("invalid_arg", ["1", '"hello"', "foo.bar", "foo + bar"])
+def test_override_invalid_argument_type(get_contract, make_input_bundle, invalid_arg):
+    """
+    Test that @override() with non-identifier arguments raises StructureException
+    """
+    abstract_m = """
+@abstract
+def bar() -> uint256: ...
+    """
+
+    contract = f"""
+import abstract_m
+initializes: abstract_m
+
+@override({invalid_arg})
+def bar() -> uint256:
+    return 42
+    """
+
+    input_bundle = make_input_bundle({"abstract_m.vy": abstract_m})
+
+    with pytest.raises(StructureException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+
+    assert "@override argument must be a module identifier" in str(e.value)
+
+
+def test_override_zero_arguments(get_contract, make_input_bundle):
+    """Test that @override() with no arguments raises StructureException"""
+    abstract_m = """
+@abstract
+def bar() -> uint256: ...
+    """
+    contract = """
+import abstract_m
+initializes: abstract_m
+
+@override()
+def bar() -> uint256:
+    return 42
+    """
+    input_bundle = make_input_bundle({"abstract_m.vy": abstract_m})
+    with pytest.raises(StructureException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+    assert "@override takes a single argument (0 given)" in str(e.value)
+
+
+@pytest.mark.parametrize("args", ["abstract_m, abstract_m", "a, b, c"])
+def test_override_multiple_arguments(get_contract, make_input_bundle, args):
+    """Test that @override() with 2+ arguments raises StructureException"""
+    abstract_m = """
+@abstract
+def bar() -> uint256: ...
+    """
+    contract = f"""
+import abstract_m
+initializes: abstract_m
+
+@override({args})
+def bar() -> uint256:
+    return 42
+    """
+    input_bundle = make_input_bundle({"abstract_m.vy": abstract_m})
+    with pytest.raises(StructureException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+    assert "@override takes a single argument" in str(e.value)
+
+
 def test_override_nonexistent_method_fails(get_contract, make_input_bundle):
     """Test that overriding a method that doesn't exist in the module fails"""
     contract = """

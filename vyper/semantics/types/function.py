@@ -1221,18 +1221,21 @@ class _ParsedDecorators:
             # TODO: Add a smart hint that takes into account
             # which modules are initialized with a method of the same name
             raise StructureException(
-                "override decorator needs a parameter"
-                " (the module containing the method to override)",
+                "@override needs a parameter (the module containing the method to override)",
                 decorator_node,
             )
         num_args = len(decorator_node.args)
         if num_args != 1:
             # TODO: Add a smart hint that shows multiple consecutive decorators
             raise StructureException(
-                f"override decorator takes a single parameter ({num_args} given)", decorator_node
+                f"@override takes a single argument ({num_args} given)", decorator_node
             )
 
-        self.override_nodes.append(decorator_node.args[0])
+        arg = decorator_node.args[0]
+        if not isinstance(arg, vy_ast.Name):
+            raise StructureException("@override argument must be a module identifier", arg)
+
+        self.override_nodes.append(arg)
 
     @property
     def state_mutability(self) -> StateMutability:
