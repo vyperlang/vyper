@@ -21,7 +21,6 @@ from vyper.exceptions import (
 from vyper.semantics import types
 from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarAccess, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
@@ -65,7 +64,9 @@ class _ExprAnalyser:
     """
 
     def __init__(self):
-        self.namespace = get_namespace()
+        from vyper.semantics.namespace import Namespace
+
+        self.namespace = Namespace.context.get()
 
     def get_expr_info(self, node: vy_ast.VyperNode, is_callable: bool = False) -> ExprInfo:
         t = self.get_exact_type_from_node(node, include_type_exprs=is_callable)
@@ -437,7 +438,7 @@ def _is_empty_list(node):
 
 def _is_type_in_list(obj, types_list):
     # check if a type object is in a list of types
-    return any(i.compare_type(obj) for i in types_list)
+    return any(i.is_equivalent_to(obj) for i in types_list)
 
 
 # NOTE: dead fn
@@ -519,6 +520,8 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
         tmp = []
         for c in common_types:
             for t in new_types:
+                # TODO: This can add either the supertype or the subtype to tmp depending on
+                # the order
                 if t.compare_type(c) or c.compare_type(t):
                     tmp.append(c)
                     break
@@ -596,7 +599,7 @@ def validate_expected_type(node, expected_type):
                 return
     else:
         for given, expected in itertools.product(given_types, expected_type):
-            if expected.compare_type(given):
+            if given.is_subtype_of(expected):
                 return
 
     # validation failed, prepare a meaningful error message

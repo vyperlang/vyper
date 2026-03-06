@@ -214,13 +214,19 @@ class Convert(BuiltinFunctionT):
                 value_types = sorted(value_types, key=lambda v: (v.is_signed, v.bits), reverse=True)
             else:
                 # filter out the target type from list of possible types
-                value_types = [i for i in value_types if not target_type.compare_type(i)]
+                value_types = [i for i in value_types if not i.is_equivalent_to(target_type)]
 
         value_type = value_types.pop()
 
         # block conversions between same type
-        if target_type.compare_type(value_type):
-            raise InvalidType(f"Value and target type are both '{target_type}'", node)
+        if value_type.is_subtype_of(target_type):
+            hint = "Remove the conversion, it is unnecessary"
+            if target_type.is_subtype_of(value_type):
+                raise InvalidType(f"Value and target type are both '{target_type}'", node, hint)
+            else:
+                raise InvalidType(
+                    f"Value is a subtype of target type '{value_type} <: {target_type}'", node, hint
+                )
 
         return [value_type, TYPE_T(target_type)]
 
@@ -2525,7 +2531,7 @@ class Epsilon(TypenameFoldedFunctionT):
         self._validate_arg_types(node)
         input_type = type_from_annotation(node.args[0])
 
-        if not input_type.compare_type(DecimalT()):
+        if not input_type.is_subtype_of(DecimalT()):
             raise InvalidType(f"Expected decimal type but got {input_type} instead", node)
 
         return vy_ast.Decimal.from_node(node, value=input_type.epsilon)

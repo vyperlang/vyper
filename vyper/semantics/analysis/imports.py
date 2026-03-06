@@ -156,6 +156,9 @@ class ImportAnalyzer:
     def _add_imports(
         self, import_node: vy_ast.Import | vy_ast.ImportFrom, level: int, module_prefix: str
     ) -> None:
+        assert "import_infos" not in import_node._metadata
+        import_node._metadata["import_infos"] = list()
+
         for alias_node in import_node.names:
             # x.y[name] as y[alias]
             name = alias_node.name
@@ -177,9 +180,6 @@ class ImportAnalyzer:
             # check resolved path (catches different relative paths to same file)
             self._check_duplicate_import(compiler_input, alias_node, alias)
             self._compiler_inputs[compiler_input] = ast
-
-            if "import_infos" not in import_node._metadata:
-                import_node._metadata["import_infos"] = list()
 
             import_node._metadata["import_infos"].append(
                 ImportInfo(alias, qualified_module_name, compiler_input, ast)

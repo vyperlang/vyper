@@ -13,12 +13,11 @@ from vyper.exceptions import (
 from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.utils import (
     check_modifiability,
-    get_exact_type_from_node,
     validate_expected_type,
     validate_unique_method_ids,
 )
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types.base import TYPE_T, VyperType, is_type_t
+from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.user import EventT, FlagT, StructT, _UserType
@@ -47,6 +46,9 @@ class InterfaceT(_UserType):
         structs: dict,
         flags: dict,
     ) -> None:
+        # Note: If an event is reachable by a module, but not defined inside it,
+        # it will not be present in this `events` field, aka module.interface.events
+
         validate_unique_method_ids(list(functions.values()))
 
         members = functions | events | structs | flags
@@ -146,14 +148,6 @@ class InterfaceT(_UserType):
                 f"Contract does not implement all interface functions: {missing_str}", node
             )
 
-    def to_toplevel_abi_dict(self) -> list[dict]:
-        abi = []
-        for event in self.events.values():
-            abi += event.to_toplevel_abi_dict()
-        for func in self.functions.values():
-            abi += func.to_toplevel_abi_dict()
-        return abi
-
     # helper function which performs namespace collision checking
     @classmethod
     def _from_lists(
@@ -240,10 +234,7 @@ class InterfaceT(_UserType):
         for fn_t in module_t.exposed_functions:
             funcs.append((fn_t.name, fn_t))
 
-        event_set: OrderedSet[EventT] = OrderedSet()
-        event_set.update([node._metadata["event_type"] for node in module_t.event_defs])
-        event_set.update(module_t.used_events)
-        events = [(event_t.name, event_t) for event_t in event_set]
+        events = [(e.name, e._metadata["event_type"]) for e in module_t.event_defs]
 
         # these are accessible via import, but they do not show up
         # in the ABI json
@@ -522,33 +513,64 @@ class ModuleT(VyperType):
         return {f.name: f._metadata["func_type"] for f in self.function_defs}
 
     @cached_property
-    # it would be nice to rely on the function analyzer to do this analysis,
-    # but we don't have the result of function analysis at the time we need to
-    # construct `self.interface`.
-    def used_events(self) -> OrderedSet[EventT]:
-        ret: OrderedSet[EventT] = OrderedSet()
+    def reachable_functions(self) -> OrderedSet[ContractFunctionT]:
+        """
+        All functions reachable from entry points (init + exposed functions).
+        """
+        ret: OrderedSet[ContractFunctionT] = OrderedSet()
 
-        reachable: OrderedSet[ContractFunctionT] = OrderedSet()
         if self.init_function is not None:
-            reachable.add(self.init_function)
-            reachable.update(self.init_function.reachable_internal_functions)
+            ret.update(self.init_function.reachable_internal_functions)
+            ret.add(self.init_function)
         for fn_t in self.exposed_functions:
-            reachable.add(fn_t)
-            reachable.update(fn_t.reachable_internal_functions)
-
-        for fn_t in reachable:
-            fn_ast = fn_t.decl_node
-            assert isinstance(fn_ast, vy_ast.FunctionDef)
-
-            for node in fn_ast.get_descendants(vy_ast.Log):
-                call_t = get_exact_type_from_node(node.value.func)
-                if not is_type_t(call_t, EventT):
-                    # this is an error, but it will be handled later
-                    continue
-
-                ret.add(call_t.typedef)
+            ret.update(fn_t.reachable_internal_functions)
+            ret.add(fn_t)
 
         return ret
+
+    @cached_property
+    def used_events(self) -> OrderedSet[EventT]:
+        """
+        Collect events emitted from reachable functions.
+        Events are recorded during function analysis via FunctionAnalyzer.visit_Log().
+        """
+        ret: OrderedSet[EventT] = OrderedSet()
+
+        for fn_t in self.reachable_functions:
+            ret.update(fn_t.get_emitted_events())
+
+        return ret
+
+    def validate_used_events(self):
+        # check for name collisions between defined and used events
+        defined_events = {e._metadata["event_type"].name: e for e in self.event_defs}
+        for event in self.used_events:
+            if (
+                event.name in defined_events
+                and event != defined_events[event.name]._metadata["event_type"]
+            ):
+                prev = defined_events[event.name]
+                raise NamespaceCollision(
+                    f"multiple events named '{event.name}'!", event.decl_node, prev_decl=prev
+                )
+
+    def to_toplevel_abi_dict(self) -> list[dict]:
+        # Note: This is not a property only of an interface,
+        # since it requires information which is not local to a module, for example `used_events`
+        abi = []
+        internal_events = self.interface.events
+        external_events = self.used_events
+
+        self.validate_used_events()
+
+        events: OrderedSet[EventT] = OrderedSet(internal_events.values())
+        events.update(external_events)
+
+        for event in events:
+            abi += event.to_toplevel_abi_dict()
+        for func in self.interface.functions.values():
+            abi += func.to_toplevel_abi_dict()
+        return abi
 
     @cached_property
     def immutables(self):

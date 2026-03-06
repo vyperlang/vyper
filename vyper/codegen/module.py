@@ -435,6 +435,8 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
 
     # module_t internal functions first so we have the function info
     for func_ast in internal_functions:
+        if func_ast._metadata["func_type"].is_abstract:
+            continue
         func_ir = _ir_for_internal_function(func_ast, module_t, False)
         internal_functions_ir.append(IRnode.from_list(func_ir))
 
@@ -471,6 +473,9 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
         ctor_internal_func_irs = []
 
         reachable_from_ctor = init_func_t.reachable_internal_functions
+        assert (
+            reachable_from_ctor is not None
+        ), "generate_ir_for_module was called before call graph construction"
         for func_t in reachable_from_ctor:
             id_generator.ensure_id(func_t)
             fn_ast = func_t.ast_def

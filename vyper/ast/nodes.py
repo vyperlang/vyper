@@ -362,7 +362,7 @@ class VyperNode:
         return getattr(self, "_description", type(self).__name__)
 
     @property
-    def module_node(self):
+    def module_node(self) -> "Module":
         if isinstance(self, Module):
             return self
         return self.get_ancestor(Module)
@@ -642,20 +642,27 @@ class Module(TopLevel):
 
     @contextlib.contextmanager
     def namespace(self):
-        from vyper.semantics.namespace import get_namespace, override_global_namespace
+        from vyper.semantics.namespace import Namespace
 
         # kludge implementation for backwards compatibility.
         # TODO: replace with type_from_ast
         try:
             ns = self._metadata["namespace"]
         except AttributeError:
-            ns = get_namespace()
-        with override_global_namespace(ns):
+            ns = Namespace._new_namespace()
+
+        # TODO: Rewrite this once we are in Python 3.14+ and
+        # ContextVar.set() can be used as a context manager
+        # TODO: Maybe even remove the context manager entirely from Module
+        token = Namespace.context.set(ns)
+        try:
             yield
+        finally:
+            Namespace.context.reset(token)
 
 
 class FunctionDef(TopLevel):
-    __slots__ = ("args", "returns", "decorator_list", "pos")
+    __slots__ = ("args", "returns", "decorator_list")
 
 
 class DocStr(VyperNode):
