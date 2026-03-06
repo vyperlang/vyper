@@ -8,7 +8,7 @@ A module is a set of function definitions and variable declarations which enable
 Declaring and using modules
 ===========================
 
-The simplest way to define a module is to write a contract. In Vyper, any contract is a valid module! For example, the following contract is also a valid module.
+Any ``.vy`` file is a module. When a module is the entry point of compilation, it becomes a contract upon deployment. For example, the following module can be both deployed directly and imported by other modules.
 
 .. code-block:: vyper
 

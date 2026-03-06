@@ -185,7 +185,7 @@ Therefore, a module encapsulates
 * functionality (types and functions), and
 * state (variables), which may be tightly coupled with that functionality 
 
-Modules can be added to contracts by importing them from a ``.vy`` file. Any ``.vy`` file is a valid module which can be imported into another contract! This is a very powerful feature which allows you to assemble contracts via other contracts as building blocks.
+Modules can be imported from any ``.vy`` file. Any ``.vy`` file is a valid module which can be imported into another module. When the entry-point module is compiled and deployed, it becomes a contract.
 
 .. code-block:: vyper
     # my_module.vy
@@ -236,7 +236,7 @@ Interfaces
 
 An interface is a set of function definitions used to enable calls between smart contracts. A contract interface defines all of that contract's externally available functions. By importing the interface, your contract now knows how to call these functions in other contracts.
 
-Interfaces can be added to contracts either through inline definition, or by importing them from a separate ``.vyi`` file.
+Interfaces can be added to a module either through inline definition, or by importing them from a separate ``.vyi`` file.
 
 .. code-block:: vyper
 
