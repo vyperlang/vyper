@@ -1,7 +1,15 @@
 from tests.venom_utils import parse_venom
 from vyper.venom.analysis import IRAnalysesCache
+from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsAnalysis
 from vyper.venom.basicblock import IRLabel
 from vyper.venom.passes import ReadonlyMemoryArgsAnalysisPass
+
+
+def _analyze_readonly_args(src: str):
+    ctx = parse_venom(src)
+    analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
+    readonly_by_fn = ReadonlyMemoryArgsAnalysis(analyses, ctx).analyze()
+    return ctx, readonly_by_fn
 
 
 def _run_readonly_analysis(src: str):
@@ -9,6 +17,22 @@ def _run_readonly_analysis(src: str):
     analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
     ReadonlyMemoryArgsAnalysisPass(analyses, ctx).run_pass()
     return ctx
+
+
+def test_analysis_returns_indices_without_mutating_functions():
+    src = """
+    function entry {
+    entry:
+        %arg = param
+        mload %arg
+        stop
+    }
+    """
+
+    ctx, readonly_by_fn = _analyze_readonly_args(src)
+    fn = ctx.get_function(IRLabel("entry"))
+    assert readonly_by_fn[fn] == (0,)
+    assert fn._readonly_memory_invoke_arg_idxs == ()
 
 
 def test_gep_write_marks_param_mutable():
