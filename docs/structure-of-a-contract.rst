@@ -3,9 +3,9 @@
 Structure of a Contract
 #######################
 
-Vyper contracts are contained within files. Each file contains exactly one contract.
+Each Vyper source file contains exactly one module.
 
-This section provides a quick overview of the types of data present within a contract, with links to other sections where you can obtain more details.
+This section provides a quick overview of the types of data present within a module, with links to other sections where you can obtain more details.
 
 .. _structure-versions:
 
@@ -36,12 +36,12 @@ The following declaration is equivalent, and, prior to 0.3.10, was the only supp
     # @version ^0.4.0
 
 
-In the above examples, the contract will only compile with Vyper versions ``0.4.x``.
+In the above examples, the module will only compile with Vyper versions ``0.4.x``.
 
 Optimization Mode
 -----------------
 
-The optimization mode can be one of ``"none"``, ``"codesize"``, or ``"gas"`` (default). For example, adding the following line to a contract will cause it to try to optimize for codesize:
+The optimization mode can be one of ``"none"``, ``"codesize"``, or ``"gas"`` (default). For example, adding the following line to a module will cause it to try to optimize for codesize:
 
 .. code-block:: vyper
 
@@ -95,7 +95,7 @@ Using ``from`` you can perform both absolute and relative imports. You may optio
     # with an alias
     from my_package import foo as bar
 
-Relative imports are possible by prepending dots to the contract name. A single leading dot indicates a relative import starting with the current package. Two leading dots indicate a relative import from the parent of the current package:
+Relative imports are possible by prepending dots to the module name. A single leading dot indicates a relative import starting with the current package. Two leading dots indicate a relative import from the parent of the current package:
 
 .. code-block:: vyper
 
@@ -109,7 +109,7 @@ Further higher directories can be accessed with ``...``, ``....`` etc., as in Py
 Searching For Imports
 -----------------------------
 
-When looking for a file to import, Vyper will first search relative to the same folder as the contract being compiled. It then checks for the file in the provided search paths, in the precedence provided. Vyper checks for the file name with a ``.vy`` suffix first, then ``.vyi``, then ``.json``.
+When looking for a file to import, Vyper will first search relative to the same folder as the module being compiled. It then checks for the file in the provided search paths, in the precedence provided. Vyper checks for the file name with a ``.vy`` suffix first, then ``.vyi``, then ``.json``.
 
 When using the :ref:`vyper CLI <vyper-cli-command>`, the search path defaults to the current working directory, plus the python `syspath <https://docs.python.org/3.11/library/sys.html#sys.path>`_. You can append to the search path with the ``-p`` flag, e.g.:
 
@@ -155,7 +155,7 @@ See the documentation on :ref:`Types<types>` or :ref:`Scoping and Declarations<s
 Functions
 =========
 
-Functions are executable units of code within a contract.
+Functions are executable units of code within a module.
 
 .. code-block:: vyper
 

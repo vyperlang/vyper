@@ -5,7 +5,7 @@ Compiler Exceptions
 
 .. _exceptions-common:
 
-Vyper raises one or more of the following exceptions when an issue is encountered while compiling a contract.
+Vyper raises one or more of the following exceptions when an issue is encountered while compiling a module.
 
 Whenever possible, exceptions include a source highlight displaying the location
 of the error within the code:
@@ -36,7 +36,7 @@ of the error within the code:
 
 .. py:exception:: EvmVersionException
 
-    Raises when a contract contains an action that cannot be performed with the active EVM ruleset.
+    Raises when a module contains an action that cannot be performed with the active EVM ruleset.
 
 .. py:exception:: FunctionDeclarationException
 
@@ -120,7 +120,7 @@ of the error within the code:
 
 .. py:exception:: NatSpecSyntaxException
 
-    Raises when a contract contains an invalid :ref:`NatSpec<natspec>` docstring.
+    Raises when a module contains an invalid :ref:`NatSpec<natspec>` docstring.
 
     .. code-block:: python
 
@@ -208,7 +208,7 @@ of the error within the code:
 
 .. py:exception:: VersionException
 
-    Raises when a contract version string is malformed or incompatible with the current compiler version.
+    Raises when a module version string is malformed or incompatible with the current compiler version.
 
 .. py:exception:: ZeroDivisionException
 

@@ -101,7 +101,7 @@ You can see all the available built-in interfaces in the `Vyper GitHub <https://
 Implementing an Interface
 =========================
 
-You can define an interface for your contract with the ``implements`` statement:
+You can define an interface for your module with the ``implements`` statement:
 
 .. code-block:: vyper
 
@@ -158,7 +158,7 @@ Standalone interfaces are written using a variant of standard Vyper syntax. The 
 Extracting Interfaces
 =====================
 
-Vyper has a built-in format option to allow you to easily export a Vyper interface from a pre-existing contract.
+Vyper has a built-in format option to allow you to easily export a Vyper interface from a pre-existing module.
 
 ::
 

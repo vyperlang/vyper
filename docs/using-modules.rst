@@ -49,7 +49,7 @@ A module can be imported using ``import`` or ``from ... import`` statements. The
     from . import ownable        # accessible as `ownable`
     from . import ownable as ow  # accessible as `ow`
 
-When importing using the ``as`` keyword, the module will be referred to by its alias in the rest of the contract.
+When importing using the ``as`` keyword, the module will be referred to by its alias in the rest of the importing module.
 
 The ``_times_two()`` helper function in the above module can be immediately used without any further work since it is "pure" and doesn't depend on initialized state.
 
