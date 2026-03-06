@@ -110,7 +110,7 @@ You can define an interface for your module with the ``implements`` statement:
     implements: FooBarInterface
 
 
-This imports the defined interface from the vyper file at ``an_interface.vyi`` (or ``an_interface.json`` if using ABI json interface type) and ensures your current contract implements all the necessary external functions. If any interface functions are not included in the contract, it will fail to compile. This is especially useful when developing contracts around well-defined standards such as ERC20.
+This imports the defined interface from the vyper file at ``an_interface.vyi`` (or ``an_interface.json`` if using ABI json interface type) and ensures your current module implements all the necessary external functions. If any interface functions are not included in the module, it will fail to compile. This is especially useful when developing contracts around well-defined standards such as ERC20.
 
 Multiple ``implements`` statements can be grouped into one:
 
@@ -132,7 +132,7 @@ Multiple ``implements`` statements can be grouped into one:
 
 .. note::
 
-  Prior to v0.4.0, ``implements`` required that events defined in an interface were re-defined in the "implementing" contract. As of v0.4.0, this is no longer required because events can be used just by importing them. Any events used in a contract will automatically be exported in the ABI output.
+  Prior to v0.4.0, ``implements`` required that events defined in an interface were re-defined in the "implementing" module. As of v0.4.0, this is no longer required because events can be used just by importing them. Any events used in a contract will automatically be exported in the ABI output.
 
 .. note::
 
