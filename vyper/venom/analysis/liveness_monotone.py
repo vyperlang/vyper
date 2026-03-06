@@ -24,7 +24,8 @@ class LivenessMonotoneAnalysis(MonotoneAnalysis[LivenessLattice]):
     def _transfer_function(self, inst: IRInstruction, input_lattice: LivenessLattice) -> LivenessLattice:
         result : LivenessLattice = input_lattice.copy()
         for output in inst.get_outputs():
-            result.data.remove(output)
+            if output in result.data:
+                result.data.remove(output)
         
         for op in inst.operands:
             if isinstance(op, IRVariable):
