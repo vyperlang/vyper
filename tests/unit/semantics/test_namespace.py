@@ -2,8 +2,7 @@ import pytest
 
 from vyper.exceptions import CompilerPanic, NamespaceCollision, UndeclaredDefinition
 from vyper.semantics import environment
-from vyper.semantics import namespace as namespace_module
-from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
+from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types import PRIMITIVE_TYPES
 
 
@@ -97,11 +96,3 @@ def test_undeclared_definition_across_scopes(namespace):
         namespace["foo"]
 
 
-def test_override_global_namespace_without_prior_init(monkeypatch):
-    monkeypatch.delattr(namespace_module, "_namespace", raising=False)
-
-    temp_namespace = Namespace()
-    with override_global_namespace(temp_namespace):
-        assert namespace_module._namespace is temp_namespace
-
-    assert not hasattr(namespace_module, "_namespace")
