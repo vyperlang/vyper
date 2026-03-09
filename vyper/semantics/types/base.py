@@ -1,3 +1,4 @@
+import copy
 from functools import cached_property
 from typing import Any, Dict, Optional, Tuple, Union
 
@@ -367,7 +368,13 @@ class VyperType:
 
     def get_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
         if key in self.members:
-            return self.members[key]
+            member = self.members[key]
+            # Bytes/string member types can be length-inferred during type comparison.
+            # Return a copy for open-ended member types so member access cannot poison
+            # the stored namespace type across expressions or compilations.
+            if isinstance(member, VyperType) and member._is_bytestring and member._length == 0:
+                return copy.copy(member)
+            return member
 
         # special error message for types with no members
         if not self.members:

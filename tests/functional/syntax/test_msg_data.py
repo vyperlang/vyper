@@ -2,7 +2,7 @@ import pytest
 from eth_utils import to_bytes
 
 from vyper import compiler
-from vyper.exceptions import StructureException, TypeMismatch
+from vyper.exceptions import StructureException, TypeMismatch, VyperException
 from vyper.utils import method_id
 
 
@@ -183,6 +183,27 @@ def foo() -> Bytes[7]:
     ):
         with pytest.raises(StructureException):
             compiler.compile_code(bad_code)
+
+
+def test_invalid_usages_compile_error_not_polluted_within_same_module():
+    bad_code = """
+a: HashMap[Bytes[10], uint256]
+
+@external
+def poison():
+    self.a[msg.data] += 1
+
+@external
+def bad() -> Bytes[4]:
+    bar: Bytes[4] = msg.data
+    return bar
+    """
+    with pytest.raises(VyperException) as exc_info:
+        compiler.compile_code(bad_code)
+
+    err = str(exc_info.value)
+    assert err.count("StructureException: msg.data is only allowed") == 2
+    assert "TypeMismatch" not in err
 
 
 def test_runtime_failure_bounds_check(get_contract, tx_failed):
