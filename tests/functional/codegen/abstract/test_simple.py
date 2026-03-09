@@ -1293,7 +1293,31 @@ def bar() -> uint256:
     input_bundle = make_input_bundle({"abstract_m.vy": abstract_m})
     with pytest.raises(StructureException) as e:
         get_contract(contract, input_bundle=input_bundle)
-    assert "@override takes a single argument (0 given)" in str(e.value)
+    assert "@override takes an argument (the module containing the method to override)" in str(
+        e.value
+    )
+
+
+def test_override_no_arguments(get_contract, make_input_bundle):
+    """Test that @override raises StructureException"""
+    abstract_m = """
+@abstract
+def bar() -> uint256: ...
+    """
+    contract = """
+import abstract_m
+initializes: abstract_m
+
+@override
+def bar() -> uint256:
+    return 42
+    """
+    input_bundle = make_input_bundle({"abstract_m.vy": abstract_m})
+    with pytest.raises(StructureException) as e:
+        get_contract(contract, input_bundle=input_bundle)
+    assert "@override takes an argument (the module containing the method to override)" in str(
+        e.value
+    )
 
 
 @pytest.mark.parametrize("args", ["abstract_m, abstract_m", "a, b, c"])

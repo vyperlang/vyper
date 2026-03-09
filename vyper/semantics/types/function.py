@@ -1219,20 +1219,28 @@ class _ParsedDecorators:
         return self.abstract_node is not None
 
     def add_override(self, decorator_node: vy_ast.Name | vy_ast.Call):
+        # TODO: Add a smart hint that takes into account
+        # which modules are initialized with a method of the same name
+        missing_parameter = StructureException(
+            "@override takes an argument (the module containing the method to override)",
+            decorator_node,
+        )
+
         if isinstance(decorator_node, vy_ast.Name):
-            # TODO: Add a smart hint that takes into account
-            # which modules are initialized with a method of the same name
-            raise StructureException(
-                "@override needs a parameter (the module containing the method to override)",
-                decorator_node,
-            )
+            raise missing_parameter
+
         num_args = len(decorator_node.args)
-        if num_args != 1:
+
+        if num_args == 0:
+            raise missing_parameter
+
+        if num_args > 1:
             # TODO: Add a smart hint that shows multiple consecutive decorators
             raise StructureException(
                 f"@override takes a single argument ({num_args} given)", decorator_node
             )
 
+        assert num_args == 1
         arg = decorator_node.args[0]
         if not isinstance(arg, vy_ast.Name):
             raise StructureException("@override argument must be a module identifier", arg)
