@@ -94,5 +94,3 @@ def test_undeclared_definition_across_scopes(namespace):
             namespace["foo"] = 42
     with pytest.raises(UndeclaredDefinition):
         namespace["foo"]
-
-
