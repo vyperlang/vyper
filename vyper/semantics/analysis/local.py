@@ -444,18 +444,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                 ),
             )
 
-        for node in self.fn_node.body:
-            self.visit(node)
-
-        _is_terminated = is_terminated(self.fn_node.body)
-
         if self.func.is_abstract:
             # The doc string (if present) will be parsed differently,
             # and so not be present in self.fn_node.body
-            valid_body = (
-                not _is_terminated
-                and len(self.fn_node.body) == 1
-                and isinstance(self.fn_node.body[0].value, vy_ast.Ellipsis)
+            valid_body = len(self.fn_node.body) == 1 and isinstance(
+                self.fn_node.body[0].value, vy_ast.Ellipsis
             )
 
             if not valid_body:
@@ -478,15 +471,16 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                 )
                 raise FunctionDeclarationException(msg, self.fn_node, hint=hint)
 
-        elif self.func.return_type:
-            if not _is_terminated:
-                raise FunctionDeclarationException(
-                    f"Missing return statement in function '{self.fn_node.name}'", self.fn_node
-                )
-        else:
-            # refactoring note: the call to is_terminated is still required
-            # for its unreachable code detection side effect
-            pass
+        for node in self.fn_node.body:
+            self.visit(node)
+
+        # Note: also checks unreachable code
+        _is_terminated = is_terminated(self.fn_node.body) or self.func.is_abstract
+
+        if self.func.return_type and not _is_terminated:
+            raise FunctionDeclarationException(
+                f"Missing return statement in function '{self.fn_node.name}'", self.fn_node
+            )
 
         # visit default args
         assert self.func.n_keyword_args == len(self.fn_node.args.defaults)
