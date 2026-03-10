@@ -138,7 +138,7 @@ class Settings:
     debug: Optional[bool] = None
     enable_decimals: Optional[bool] = None
     nonreentrancy_by_default: Optional[bool] = None
-    no_static_assert: Optional[bool] = None
+    disable_static_exceptions: Optional[bool] = None
     venom_flags: Optional[VenomOptimizationFlags] = None
 
     def __post_init__(self):
@@ -153,8 +153,8 @@ class Settings:
             assert isinstance(self.enable_decimals, bool)
         if self.nonreentrancy_by_default is not None:
             assert isinstance(self.nonreentrancy_by_default, bool)
-        if self.no_static_assert is not None:
-            assert isinstance(self.no_static_assert, bool)
+        if self.disable_static_exceptions is not None:
+            assert isinstance(self.disable_static_exceptions, bool)
 
         if self.venom_flags is not None:
             assert isinstance(self.venom_flags, VenomOptimizationFlags)
@@ -183,8 +183,8 @@ class Settings:
             ret.append(" --debug")
         if self.enable_decimals is True:
             ret.append(" --enable-decimals")
-        if self.no_static_assert is True:
-            ret.append(" --experimental-no-static-assert")
+        if self.disable_static_exceptions is True:
+            ret.append(" --disable-static-exceptions")
 
         return "".join(ret)
 

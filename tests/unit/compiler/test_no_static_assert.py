@@ -5,7 +5,7 @@ from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import StaticAssertionException
 
 
-def test_no_static_assert_legacy(get_contract, tx_failed):
+def test_disable_static_exceptions_legacy(get_contract, tx_failed):
     code = """
 @external
 def foo():
@@ -18,14 +18,14 @@ def foo():
 
     # with the flag, it should compile but revert at runtime
     settings = Settings(
-        optimize=OptimizationLevel.GAS, experimental_codegen=False, no_static_assert=True
+        optimize=OptimizationLevel.GAS, experimental_codegen=False, disable_static_exceptions=True
     )
     c = get_contract(code, compiler_settings=settings)
     with tx_failed():
         c.foo()
 
 
-def test_no_static_assert_underflow(get_contract, tx_failed):
+def test_disable_static_exceptions_underflow(get_contract, tx_failed):
     code = """
 @external
 def foo() -> uint256:
@@ -39,7 +39,7 @@ def foo() -> uint256:
 
     # with the flag, it should compile but revert at runtime
     settings = Settings(
-        optimize=OptimizationLevel.GAS, experimental_codegen=True, no_static_assert=True
+        optimize=OptimizationLevel.GAS, experimental_codegen=True, disable_static_exceptions=True
     )
     c = get_contract(code, compiler_settings=settings)
     with tx_failed():

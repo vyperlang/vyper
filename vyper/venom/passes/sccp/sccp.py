@@ -316,7 +316,7 @@ class SCCP(IRPass):
                     inst.make_nop()
                 else:
                     settings = get_global_settings()
-                    if settings and settings.no_static_assert:
+                    if settings and settings.disable_static_exceptions:
                         pass  # leave the assertion in place; it will revert at runtime
                     else:
                         raise StaticAssertionException(

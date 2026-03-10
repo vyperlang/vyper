@@ -552,7 +552,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
     if value in ("assert", "assert_unreachable") and _is_int(argz[0]):
         if _evm_int(argz[0]) == 0:
             settings = get_global_settings()
-            if settings and settings.no_static_assert:
+            if settings and settings.disable_static_exceptions:
                 pass  # leave the assertion in place; it will revert at runtime
             else:
                 raise StaticAssertionException(
