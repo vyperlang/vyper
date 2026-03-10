@@ -321,6 +321,9 @@ class ContractFunctionT(VyperType):
         return self._variable_reads | self._variable_writes
 
     def uses_state(self):
+        assert (
+            self.reachable_internal_functions is not None
+        ), "uses_state called before _compute_reachable_set"
         return (
             self.nonreentrant
             or uses_state(self.get_variable_accesses())
