@@ -493,10 +493,18 @@ def _eval_compare(inst: IRInstruction, state: RangeState) -> ValueRange:
     When a range spans the signed/unsigned boundary (contains both negative
     and non-negative values), unsigned comparisons cannot be resolved
     definitively using signed range bounds.
+
+    Operand order in Venom IR: For `lt %a, %b` (meaning %a < %b):
+    - Parser reverses operands, so operands = [%b, %a]
+    - operands[-1] = %a (first in source, LEFT side of comparison)
+    - operands[-2] = %b (second in source, RIGHT side of comparison)
+    - We check: is %a < %b? i.e., is operands[-1] < operands[-2]?
     """
-    lhs = _operand_range(inst.operands[-1], state)
-    rhs = _operand_range(inst.operands[-2], state)
-    if lhs.is_empty or rhs.is_empty:
+    # After parser reversal: operands[-1] = left operand, operands[-2] = right operand
+    # For `lt %a, %b` (is a < b?): left=%a, right=%b, check left < right
+    left = _operand_range(inst.operands[-1], state)
+    right = _operand_range(inst.operands[-2], state)
+    if left.is_empty or right.is_empty:
         return ValueRange.empty()
 
     opcode = inst.opcode
@@ -506,25 +514,25 @@ def _eval_compare(inst: IRInstruction, state: RangeState) -> ValueRange:
     # we cannot make definitive conclusions because negative values in
     # signed representation are large positive values in unsigned.
     if not is_signed:
-        if _range_spans_sign_boundary(lhs) or _range_spans_sign_boundary(rhs):
+        if _range_spans_sign_boundary(left) or _range_spans_sign_boundary(right):
             return ValueRange.bool_range()
 
         # For unsigned comparisons with non-negative ranges, or purely
         # negative ranges (both operands same sign), we can compare directly.
         # But if one is negative and one is positive, the negative one is larger.
-        if lhs.hi < 0 and rhs.lo >= 0:
-            # lhs is all negative (large unsigned), rhs is all non-negative
-            # In unsigned: lhs > rhs always
-            if rhs.hi <= SIGNED_MAX:
+        if left.hi < 0 and right.lo >= 0:
+            # left is all negative (large unsigned), right is all non-negative
+            # In unsigned: left > right always
+            if right.hi <= SIGNED_MAX:
                 if opcode == "lt":
                     return ValueRange.constant(0)
                 else:  # gt
                     return ValueRange.constant(1)
             return ValueRange.bool_range()
-        if lhs.lo >= 0 and rhs.hi < 0:
-            # lhs is all non-negative, rhs is all negative (large unsigned)
-            # In unsigned: lhs < rhs always
-            if lhs.hi <= SIGNED_MAX:
+        if left.lo >= 0 and right.hi < 0:
+            # left is all non-negative, right is all negative (large unsigned)
+            # In unsigned: left < right always
+            if left.hi <= SIGNED_MAX:
                 if opcode == "lt":
                     return ValueRange.constant(1)
                 else:  # gt
@@ -533,16 +541,18 @@ def _eval_compare(inst: IRInstruction, state: RangeState) -> ValueRange:
 
     # Now we can use signed comparison logic (works for both signed ops
     # and unsigned ops where both ranges have the same sign)
+    # For `lt %a, %b`: check if a < b always (left.hi < right.lo)
     if opcode in {"lt", "slt"}:
-        if lhs.hi < rhs.lo:
+        if left.hi < right.lo:
             return ValueRange.constant(1)
-        if lhs.lo >= rhs.hi:
+        if left.lo >= right.hi:
             return ValueRange.constant(0)
     else:
+        # For `gt %a, %b`: check if a > b always (left.lo > right.hi)
         assert opcode in {"gt", "sgt"}
-        if lhs.lo > rhs.hi:
+        if left.lo > right.hi:
             return ValueRange.constant(1)
-        if lhs.hi <= rhs.lo:
+        if left.hi <= right.lo:
             return ValueRange.constant(0)
     return ValueRange.bool_range()
 
@@ -697,6 +707,54 @@ def _eval_not(inst: IRInstruction, state: RangeState) -> ValueRange:
     return ValueRange.top()
 
 
+# ============================================================================
+# Data source evaluators - instructions that load values from external sources
+# ============================================================================
+
+
+def _eval_unsigned_full(inst: IRInstruction, state: RangeState) -> ValueRange:
+    """Return TOP for instructions that can return any 256-bit value.
+
+    Instructions like sload, calldataload, mload, param, etc. can return
+    any value in the full uint256 range [0, 2^256-1]. In signed representation,
+    this includes both positive values [0, SIGNED_MAX] and negative values
+    [SIGNED_MIN, -1].
+
+    We MUST return TOP because:
+    1. Values >= 2^255 are negative in signed interpretation (-2^255 to -1)
+    2. If we returned [0, SIGNED_MAX], after an iszero-false branch we'd
+       incorrectly narrow to [1, SIGNED_MAX], excluding negative values
+    3. Then signed comparisons like sgt(x, 0) would be incorrectly folded
+       to constant 1, but sgt(-1, 0) = 0 at runtime!
+
+    This is a SOUNDNESS requirement, not just a precision tradeoff.
+    Returning [0, SIGNED_MAX] causes MISCOMPILATION for values >= 2^255.
+    """
+    return ValueRange.top()
+
+
+def _eval_bool_result(inst: IRInstruction, state: RangeState) -> ValueRange:
+    """Return boolean range [0, 1] for instructions that return success flags."""
+    return ValueRange.bool_range()
+
+
+def _eval_address_result(inst: IRInstruction, state: RangeState) -> ValueRange:
+    """Return address range [0, 2^160 - 1] for address-returning instructions."""
+    return ValueRange((0, (1 << 160) - 1))
+
+
+def _eval_hash_result(inst: IRInstruction, state: RangeState) -> ValueRange:
+    """Return TOP for hash results since they can be any 256-bit value.
+    
+    Hash functions produce arbitrary 256-bit values that span both the
+    positive and negative ranges in signed interpretation. We return TOP
+    rather than trying to represent [0, 2^256-1] because:
+    1. Such a range can't be meaningfully narrowed after iszero checks
+    2. Range-based optimizations on hash values are rare anyway
+    """
+    return ValueRange.top()
+
+
 # Dispatch table mapping opcodes to their evaluator functions
 EVAL_DISPATCH: dict[str, RangeEvaluator] = {
     "assign": _eval_assign,
@@ -722,4 +780,46 @@ EVAL_DISPATCH: dict[str, RangeEvaluator] = {
     "sgt": _eval_compare,
     "eq": _eval_eq,
     "iszero": _eval_iszero,
+    # Data source instructions - return unsigned full range [0, UNSIGNED_MAX]
+    # These are crucial for enabling branch folding after assertions!
+    "param": _eval_unsigned_full,  # Function parameters
+    "calldataload": _eval_unsigned_full,  # Calldata values
+    "sload": _eval_unsigned_full,  # Storage loads
+    "tload": _eval_unsigned_full,  # Transient storage loads
+    "mload": _eval_unsigned_full,  # Memory loads
+    "iload": _eval_unsigned_full,  # Immutable loads
+    "dload": _eval_unsigned_full,  # Data section loads
+    "returndataload": _eval_unsigned_full,  # Return data loads
+    # Environment instructions - return unsigned full range
+    "callvalue": _eval_unsigned_full,
+    "calldatasize": _eval_unsigned_full,
+    "codesize": _eval_unsigned_full,
+    "gasprice": _eval_unsigned_full,
+    "extcodesize": _eval_unsigned_full,
+    "returndatasize": _eval_unsigned_full,
+    "blockhash": _eval_unsigned_full,
+    "timestamp": _eval_unsigned_full,
+    "number": _eval_unsigned_full,
+    "difficulty": _eval_unsigned_full,
+    "gaslimit": _eval_unsigned_full,
+    "chainid": _eval_unsigned_full,
+    "selfbalance": _eval_unsigned_full,
+    "basefee": _eval_unsigned_full,
+    "gas": _eval_unsigned_full,
+    "balance": _eval_unsigned_full,
+    "blobbasefee": _eval_unsigned_full,
+    # Address-returning instructions - return [0, 2^160-1]
+    "address": _eval_address_result,
+    "origin": _eval_address_result,
+    "caller": _eval_address_result,
+    "coinbase": _eval_address_result,
+    # Call instructions - return bool (success flag)
+    "call": _eval_bool_result,
+    "staticcall": _eval_bool_result,
+    "delegatecall": _eval_bool_result,
+    # Hash instructions - return full unsigned range
+    "extcodehash": _eval_hash_result,
+    "sha3": _eval_hash_result,
+    # Source instruction (used in tests)
+    "source": _eval_unsigned_full,
 }
