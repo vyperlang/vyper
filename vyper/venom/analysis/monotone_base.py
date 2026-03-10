@@ -75,7 +75,9 @@ class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
             predecessors = self.cfg.cfg_out(bb)
             
         for pred in predecessors:
-            input_lattices.append(self.bb_output[pred])
+            lattice = self.bb_output[pred]
+            lattice = self._edge_transfer(pred, bb, lattice)
+            input_lattices.append(lattice)
         
         if not input_lattices:
             return self._bottom()
@@ -96,3 +98,13 @@ class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
     def _transfer_function(self, inst: IRInstruction, input_lattice: Lattice) -> Lattice:
         """Transfer function for an instruction"""
         raise NotImplementedError()
+    
+    def _edge_transfer(self, source: IRBasicBlock, target: IRBasicBlock, input_lattice: Lattice) -> Lattice:
+        """
+        Transfer function between basic block
+        This can be used if you want to specify the lattice for target basic block
+        depending on condition in source basicblock.
+
+        Left as identity for most of the analyses
+        """
+        return input_lattice
