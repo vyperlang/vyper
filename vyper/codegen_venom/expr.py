@@ -1359,6 +1359,10 @@ class Expr:
         func_t = node.func._metadata.get("type")
         assert func_t is not None
 
+        # Resolve overrides
+        while func_t.is_abstract:
+            func_t = func_t.overridden_by
+
         # Check constancy: can't call mutable internal functions from view/pure contexts
         if self.ctx.is_constant() and func_t.is_mutable:
             raise StateAccessViolation(
@@ -1374,7 +1378,7 @@ class Expr:
         # Format: "internal {function_id} {name}({arg_types})_runtime"
         suffix = "_deploy" if self.ctx.is_ctor_context else "_runtime"
         argz = ",".join([str(arg.typ) for arg in func_t.arguments])
-        target_label = f"internal {func_t._function_id} {func_name}({argz}){suffix}"
+        target_label = f"internal {func_t._function_id} {func_t.name}({argz}){suffix}"
 
         # Allocate return buffer
         return_buf: Optional[IROperand] = None
