@@ -85,6 +85,12 @@ class NodeComparer(NodeAccumulator[bool]):
 
         return super().visit(node, acc, other)
 
+    def visit_VyperNode(self, node: vy_ast.VyperNode, acc: bool, other: vy_ast.VyperNode) -> bool:
+        # Means there is some valid default value syntax we did not account for
+        # The reason this is not a user-land error is that any invalid syntax should already have
+        # been handled at the abstract method definition
+        raise CompilerPanic("unreachable")
+
     def visit_Constant(self, node: vy_ast.Constant, acc: bool, other: vy_ast.Constant) -> bool:
         return node.value == other.value
 
