@@ -1356,12 +1356,7 @@ class Expr:
 
         # Get function type from the function attribute's metadata
         # node._metadata["type"] is the return type, we need the function type
-        func_t = node.func._metadata.get("type")
-        assert func_t is not None
-
-        # Resolve overrides
-        while func_t.is_abstract:
-            func_t = func_t.overridden_by
+        func_t = node.func._metadata["type"].get_concrete_override()
 
         # Check constancy: can't call mutable internal functions from view/pure contexts
         if self.ctx.is_constant() and func_t.is_mutable:

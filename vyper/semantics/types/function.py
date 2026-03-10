@@ -326,10 +326,24 @@ class ContractFunctionT(VyperType):
     def get_variable_accesses(self):
         return self._variable_reads | self._variable_writes
 
+    def get_concrete_override(self):
+        """
+        Returns the non-abstract method which overrides this method, or itself if it is not abstract
+        """
+        # By the fact there can be no import cycles on modules, we know this can never enter in an
+        # infinite loop, if it somehow did, python would raise a RecursionError
+        if self.is_abstract:
+            assert (
+                self.overridden_by is not None
+            ), "get_concrete_override must be called once overrides have been resolved"
+            return self.overridden_by.get_concrete_override()
+        else:
+            return self
+
     def uses_state(self):
         assert (
             self.reachable_internal_functions is not None
-        ), "uses_state called before _compute_reachable_set"
+        ), "uses_state must be called after _compute_reachable_set has run"
         return (
             self.nonreentrant
             or uses_state(self.get_variable_accesses())

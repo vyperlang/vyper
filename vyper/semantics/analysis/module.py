@@ -288,11 +288,9 @@ def _build_call_graph(module_ast: vy_ast.Module):
             if isinstance(call_t, ContractFunctionT) and (
                 call_t.is_internal or call_t.is_constructor
             ):
-                # Resolve overrides
-                while call_t.is_abstract:
-                    call_t = call_t.overridden_by
-
-                fn_t.called_functions.add(call_t)
+                # We directly add the concrete override to the call graph
+                # This makes sure things like recursion cycles get identified properly
+                fn_t.called_functions.add(call_t.get_concrete_override())
 
 
 def _compute_reachable_sets(module_ast: vy_ast.Module):
