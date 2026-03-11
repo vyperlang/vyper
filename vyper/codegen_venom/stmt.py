@@ -826,10 +826,7 @@ class Stmt:
             else:
                 # Memory, complex type: type-aware copy handles
                 # layout mismatches (e.g. DynArray[Bytes[540]] -> Bytes[704])
-                self.ctx.store_memory(
-                    elem_addr, dst, target_type,
-                    src_typ=array_typ.value_type,
-                )
+                self.ctx.store_memory(elem_addr, dst, target_type, src_typ=array_typ.value_type)
 
             self._lower_body(node.body)
             body_finish = self.builder.current_block

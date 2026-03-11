@@ -7,6 +7,8 @@ from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 
 # common properties for environment variables
 class _EnvType(VyperType):
+    _id: str
+
     def __eq__(self, other):
         return self is other
 
