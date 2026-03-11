@@ -561,8 +561,6 @@ class ModuleT(VyperType):
         internal_events = self.interface.events
         external_events = self.used_events
 
-        self.validate_used_events()
-
         events: OrderedSet[EventT] = OrderedSet(internal_events.values())
         events.update(external_events)
 
