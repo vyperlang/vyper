@@ -49,23 +49,12 @@ from vyper.utils import OrderedSet, keccak256
 from vyper.warnings import Deprecation, vyper_warn
 
 
-def _get_module_info(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
+def _get_module_info(node: vy_ast.Name) -> Optional[ModuleInfo]:
     """Get ModuleInfo from a node if it references a module."""
-    # First try _expr_info if available (set during local analysis)
-    if node._expr_info is not None and node._expr_info.module_info is not None:
-        return node._expr_info.module_info
 
-    # Fall back to namespace lookup (works before local analysis)
-    if isinstance(node, vy_ast.Name):
-        module_node = node.module_node
-        if module_node is not None and "namespace" in module_node._metadata:
-            namespace = module_node._metadata["namespace"]
-            try:
-                info = namespace[node.id]
-                if isinstance(info, ModuleInfo):
-                    return info
-            except (KeyError, AttributeError):
-                pass
+    info = node.module_node._metadata["namespace"][node.id]
+    if isinstance(info, ModuleInfo):
+        return info
 
     return None
 
