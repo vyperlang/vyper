@@ -50,6 +50,8 @@ class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
 
 
     def _process_bb(self, bb: IRBasicBlock, current_lattice: Lattice) -> bool:
+        current_lattice = self._pre_basicblock_trasfer(bb, current_lattice)
+
         instructions = bb.instructions
         if self._direction() == Direction.Backwards:
             instructions = reversed(instructions)
@@ -107,4 +109,7 @@ class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
 
         Left as identity for most of the analyses
         """
+        return input_lattice
+    
+    def _pre_basicblock_trasfer(self, bb: IRBasicBlock, input_lattice: Lattice) -> Lattice:
         return input_lattice

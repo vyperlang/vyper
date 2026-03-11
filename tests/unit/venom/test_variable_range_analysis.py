@@ -236,7 +236,7 @@ def test_iszero_true_branch_forces_zero():
 
 
 def test_phi_merges_ranges():
-    analysis, _, fn = _analyze(
+    analysis, mono, fn = _analyze(
         """
         function test {
         entry:
@@ -267,6 +267,10 @@ def test_phi_merges_ranges():
     use_inst = next(inst for inst in merge_bb.instructions if inst.opcode == "add")
 
     rng = analysis.get_range(merged_var, use_inst)
+    assert rng.lo == 1
+    assert rng.hi == 20
+
+    rng = mono.get_range(merged_var, use_inst)
     assert rng.lo == 1
     assert rng.hi == 20
 

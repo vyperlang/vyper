@@ -19,11 +19,15 @@ class RangeLattice(LatticeBase):
         return RangeLattice(self.data.copy())
 
 class VariableRangeMonotoneAnalysis(MonotoneAnalysis[RangeLattice]):
+
+    # after this many visits to a block, start applying widening
+    WIDEN_THRESHOLD = 2
+
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
 
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        self.visited_counts: dict[tuple[IRBasicBlock, IRBasicBlock], int] = defaultdict(lambda : 0)
+        self._visit_count: dict[IRBasicBlock, int] = defaultdict(lambda : 0)
 
     def _direction(self) -> Direction:
         return Direction.Forward
@@ -89,6 +93,78 @@ class VariableRangeMonotoneAnalysis(MonotoneAnalysis[RangeLattice]):
             return state
         new_state = self._apply_condition(cond, branch, state.data)
         return RangeLattice(new_state)
+
+    def _pre_basicblock_trasfer(self, bb: IRBasicBlock, input_lattice: RangeLattice) -> RangeLattice:
+        self._normalize_state(input_lattice.data)
+
+        state = input_lattice.data
+
+        # Apply widening if visited too many times (loop back-edge)
+        if self._visit_count[bb] > self.WIDEN_THRESHOLD:
+            old_state = self.inst_lattice[bb.instructions[0]].data
+            if old_state is not None:
+                state = self._widen_states(old_state, state)
+
+        for inst in bb.instructions:
+            if inst.opcode != "phi" or inst.output is None:
+                break
+            phi_range = self._phi_range(inst)
+            self._write_range(state, inst.output, phi_range)
+
+        return RangeLattice(state)
+
+    def _widen_states(self, old_state: RangeState, new_state: RangeState) -> RangeState:
+        """
+        Widen per-variable ranges to guarantee convergence in loops
+        """
+        result = dict(new_state)
+        for var in result:
+            old_range = old_state.get(var, ValueRange.top())
+            new_range = result[var]
+            widened = self._widen_range(old_range, new_range)
+            result[var] = widened
+        return result
+
+    def _widen_range(self, old_range: ValueRange, new_range: ValueRange) -> ValueRange:
+        """
+        Return a widened range between two iterations.
+
+        If the new bounds exceed the previous ones, widen to TOP; otherwise keep
+        the new (tighter or equal) bounds.
+        """
+        if old_range.is_top or new_range.is_top:
+            return ValueRange.top()
+        if old_range.is_empty:
+            return new_range
+        if new_range.is_empty:
+            return old_range
+
+        # If the range is growing, widen to top
+        # TODO: more precise widening possible using a finite set of
+        # thresholds (e.g., powers of 2, type boundaries) instead of
+        # jumping straight to top.
+        if new_range.lo < old_range.lo or new_range.hi > old_range.hi:
+            return ValueRange.top()
+
+        return new_range
+
+    def _phi_range(self, inst: IRInstruction) -> ValueRange:
+        assert inst.opcode == "phi"
+        phi_range = ValueRange.empty()
+        for label, var in inst.phi_operands:
+            pred_bb = self.function.get_basic_block(label.value)
+            pred_lattice = self.bb_output[pred_bb]
+            pred_state = self._edge_transfer(pred_bb, inst.parent, pred_lattice).data
+            assert isinstance(var, IRVariable)  # phi operands are always variables
+            phi_range = phi_range.union(pred_state.get(var, ValueRange.top()))
+        return phi_range if not phi_range.is_empty else ValueRange.top()
+
+
+    def _normalize_state(self, state: RangeState) -> RangeState:
+        to_delete = [var for var, rng in state.items() if rng.is_top]
+        for var in to_delete:
+            del state[var]
+        return state
 
     def _apply_condition(self, operand: IROperand, is_true: bool, state: RangeState) -> RangeState:
         if isinstance(operand, IRLiteral):
