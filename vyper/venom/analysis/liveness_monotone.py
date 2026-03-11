@@ -1,7 +1,9 @@
-from vyper.venom.analysis.monotone_base import LatticeBase, MonotoneAnalysis, Direction
-from vyper.venom.basicblock import IRVariable, IRInstruction
 from dataclasses import dataclass
+
 from vyper.utils import OrderedSet
+from vyper.venom.analysis.monotone_base import Direction, LatticeBase, MonotoneAnalysis
+from vyper.venom.basicblock import IRInstruction, IRVariable
+
 
 @dataclass
 class LivenessLattice(LatticeBase):
@@ -9,6 +11,7 @@ class LivenessLattice(LatticeBase):
 
     def copy(self):
         return LivenessLattice(self.data.copy())
+
 
 class LivenessMonotoneAnalysis(MonotoneAnalysis[LivenessLattice]):
     def _direction(self) -> Direction:
@@ -21,12 +24,14 @@ class LivenessMonotoneAnalysis(MonotoneAnalysis[LivenessLattice]):
     def _bottom(self):
         return LivenessLattice(OrderedSet())
 
-    def _transfer_function(self, inst: IRInstruction, input_lattice: LivenessLattice) -> LivenessLattice:
-        result : LivenessLattice = input_lattice.copy()
+    def _transfer_function(
+        self, inst: IRInstruction, input_lattice: LivenessLattice
+    ) -> LivenessLattice:
+        result: LivenessLattice = input_lattice.copy()
         for output in inst.get_outputs():
             if output in result.data:
                 result.data.remove(output)
-        
+
         for op in inst.operands:
             if isinstance(op, IRVariable):
                 result.data.add(op)

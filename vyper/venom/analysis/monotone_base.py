@@ -1,15 +1,19 @@
 from __future__ import annotations
-from vyper.venom.analysis.analysis import IRAnalysis, IRAnalysesCache
-from vyper.venom.analysis import CFGAnalysis
-from vyper.venom.basicblock import IRInstruction, IRBasicBlock
-from vyper.venom.function import IRFunction
+
 from collections import deque
 from enum import Enum
-from typing import TypeVar, Generic
+from typing import Generic, TypeVar, Iterator
+
+from vyper.venom.analysis import CFGAnalysis
+from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction
+from vyper.venom.function import IRFunction
+
 
 class Direction(Enum):
     Forward = 1
     Backwards = 2
+
 
 class LatticeBase:
     def copy(self) -> Lattice:
@@ -17,15 +21,17 @@ class LatticeBase:
 
 
 Lattice = TypeVar("Lattice", bound=LatticeBase)
+
+
 class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
 
     def analyze(self):
         self.inst_lattice: dict[IRInstruction, Lattice] = {}
-        self.bb_output: dict[IRBasicBlock, Lattice]= {}
+        self.bb_output: dict[IRBasicBlock, Lattice] = {}
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
-    
+
         for bb in self.function.get_basic_blocks():
             bottom: Lattice = self._bottom()
             self.bb_output[bb] = bottom
@@ -48,14 +54,13 @@ class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
                     for predecessor in self.cfg.cfg_in(bb):
                         worklist.append(predecessor)
 
-
     def _process_bb(self, bb: IRBasicBlock, current_lattice: Lattice) -> bool:
         current_lattice = self._pre_basicblock_trasfer(bb, current_lattice)
 
-        instructions = bb.instructions
+        instructions: Iterator[IRInstruction] = bb.instructions
         if self._direction() == Direction.Backwards:
             instructions = reversed(instructions)
-        
+
         for inst in instructions:
             current_lattice = self._transfer_function(inst, current_lattice)
             self.inst_lattice[inst] = current_lattice.copy()
@@ -75,15 +80,15 @@ class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
             predecessors = self.cfg.cfg_in(bb)
         else:
             predecessors = self.cfg.cfg_out(bb)
-            
+
         for pred in predecessors:
             lattice = self.bb_output[pred]
             lattice = self._edge_transfer(pred, bb, lattice)
             input_lattices.append(lattice)
-        
+
         if not input_lattices:
             return self._bottom()
-        
+
         result = input_lattices[0]
         for lattice in input_lattices[1:]:
             result = self._join(result, lattice)
@@ -95,13 +100,14 @@ class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
     def _join(self, a: Lattice, b: Lattice) -> Lattice:
         """Join operation for the lattice"""
         raise NotImplementedError()
-    
 
     def _transfer_function(self, inst: IRInstruction, input_lattice: Lattice) -> Lattice:
         """Transfer function for an instruction"""
         raise NotImplementedError()
-    
-    def _edge_transfer(self, source: IRBasicBlock, target: IRBasicBlock, input_lattice: Lattice) -> Lattice:
+
+    def _edge_transfer(
+        self, source: IRBasicBlock, target: IRBasicBlock, input_lattice: Lattice
+    ) -> Lattice:
         """
         Transfer function between basic block
         This can be used if you want to specify the lattice for target basic block
@@ -110,6 +116,6 @@ class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
         Left as identity for most of the analyses
         """
         return input_lattice
-    
+
     def _pre_basicblock_trasfer(self, bb: IRBasicBlock, input_lattice: Lattice) -> Lattice:
         return input_lattice

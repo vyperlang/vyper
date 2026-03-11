@@ -1,15 +1,24 @@
-from vyper.venom.analysis.monotone_base import MonotoneAnalysis, LatticeBase, Direction
-from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.analysis import DFGAnalysis
-from vyper.venom.basicblock import IRInstruction, IRBasicBlock, IRVariable, IROperand, IRLiteral, IRLabel
-from vyper.venom.function import IRFunction
-from vyper.utils import wrap256
-
-from .value_range import SIGNED_MAX, SIGNED_MIN, UNSIGNED_MAX, RangeState, ValueRange
-from .evaluators import EVAL_DISPATCH
-from dataclasses import dataclass
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Optional
+
+from vyper.utils import wrap256
+from vyper.venom.analysis import DFGAnalysis
+from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis.monotone_base import Direction, LatticeBase, MonotoneAnalysis
+from vyper.venom.basicblock import (
+    IRBasicBlock,
+    IRInstruction,
+    IRLabel,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+)
+from vyper.venom.function import IRFunction
+
+from .evaluators import EVAL_DISPATCH
+from .value_range import SIGNED_MAX, SIGNED_MIN, UNSIGNED_MAX, RangeState, ValueRange
+
 
 @dataclass
 class RangeLattice(LatticeBase):
@@ -18,8 +27,8 @@ class RangeLattice(LatticeBase):
     def copy(self):
         return RangeLattice(self.data.copy())
 
-class VariableRangeMonotoneAnalysis(MonotoneAnalysis[RangeLattice]):
 
+class VariableRangeMonotoneAnalysis(MonotoneAnalysis[RangeLattice]):
     # after this many visits to a block, start applying widening
     WIDEN_THRESHOLD = 2
 
@@ -27,7 +36,7 @@ class VariableRangeMonotoneAnalysis(MonotoneAnalysis[RangeLattice]):
         super().__init__(analyses_cache, function)
 
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        self._visit_count: dict[IRBasicBlock, int] = defaultdict(lambda : 0)
+        self._visit_count: dict[IRBasicBlock, int] = defaultdict(lambda: 0)
 
     def _direction(self) -> Direction:
         return Direction.Forward
@@ -76,7 +85,9 @@ class VariableRangeMonotoneAnalysis(MonotoneAnalysis[RangeLattice]):
             return ValueRange.top()
         return handler(inst, env)
 
-    def _edge_transfer(self, source: IRBasicBlock, target: IRBasicBlock, input_lattice: RangeLattice) -> RangeLattice:
+    def _edge_transfer(
+        self, source: IRBasicBlock, target: IRBasicBlock, input_lattice: RangeLattice
+    ) -> RangeLattice:
         state = input_lattice.copy()
         term = source.instructions[-1]
         if term.opcode != "jnz":
@@ -94,7 +105,9 @@ class VariableRangeMonotoneAnalysis(MonotoneAnalysis[RangeLattice]):
         new_state = self._apply_condition(cond, branch, state.data)
         return RangeLattice(new_state)
 
-    def _pre_basicblock_trasfer(self, bb: IRBasicBlock, input_lattice: RangeLattice) -> RangeLattice:
+    def _pre_basicblock_trasfer(
+        self, bb: IRBasicBlock, input_lattice: RangeLattice
+    ) -> RangeLattice:
         self._normalize_state(input_lattice.data)
 
         state = input_lattice.data
@@ -158,7 +171,6 @@ class VariableRangeMonotoneAnalysis(MonotoneAnalysis[RangeLattice]):
             assert isinstance(var, IRVariable)  # phi operands are always variables
             phi_range = phi_range.union(pred_state.get(var, ValueRange.top()))
         return phi_range if not phi_range.is_empty else ValueRange.top()
-
 
     def _normalize_state(self, state: RangeState) -> RangeState:
         to_delete = [var for var, rng in state.items() if rng.is_top]
@@ -371,7 +383,6 @@ class VariableRangeMonotoneAnalysis(MonotoneAnalysis[RangeLattice]):
                 else:
                     self._write_range(state, var, current.clamp(bound, max_bound))
 
-
     def get_range(self, operand: IROperand, inst: IRInstruction) -> ValueRange:
         """
         Get the variable's value range of an operand at the point
@@ -390,4 +401,3 @@ class VariableRangeMonotoneAnalysis(MonotoneAnalysis[RangeLattice]):
         if env is None:
             return ValueRange.top()
         return env.data.get(operand, ValueRange.top())
-

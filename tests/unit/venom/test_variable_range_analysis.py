@@ -374,7 +374,7 @@ def test_mod_literal_range():
     rng = analysis.get_range(mod_inst.output, entry.instructions[-1])
     assert rng.lo == 0
     assert rng.hi == 9
-    
+
     rng = mono.get_range(mod_inst.output, entry.instructions[-1])
     assert rng.lo == 0
     assert rng.hi == 9
@@ -640,6 +640,7 @@ def test_iszero_false_branch_narrows_when_proven_nonnegative():
     rng = mono.get_range(len_var, use_inst)
     assert rng.lo >= 1  # zero excluded!
 
+
 def test_iszero_false_branch_with_zero_constant_is_bottom():
     """iszero false branch with 0 input should produce BOTTOM (unreachable)."""
     analysis, mono, fn = _analyze(
@@ -877,6 +878,7 @@ def test_eq_false_branch_does_not_narrow_to_nothing():
     assert rng.lo == 999
     assert mono.get_range(x_var, use_inst).is_top
 
+
 def test_mul_constants():
     """Test multiplication of two constants."""
     analysis, mono, fn = _analyze(
@@ -930,6 +932,7 @@ def test_mul_constant_by_range():
     rng = mono.get_range(mul_inst.output, entry.instructions[-1])
     assert rng.lo == 0
     assert rng.hi == 45
+
 
 def test_mul_two_ranges():
     """Test multiplication of two bounded ranges."""
@@ -1300,7 +1303,6 @@ def test_not_constant():
     assert rng.hi == -1
 
 
-
 def test_not_all_ones():
     """Test NOT of -1 (all bits set) gives 0."""
     analysis, _, fn = _analyze(
@@ -1368,6 +1370,7 @@ def test_not_unknown_is_top():
 
     rng = mono.get_range(not_inst.output, entry.instructions[-1])
     assert rng.is_top
+
 
 # =============================================================================
 # BUG REGRESSION TESTS
@@ -1451,7 +1454,6 @@ def test_bug_eq_negative_constant_with_max_uint_miscompile():
     )
 
 
-
 def test_bug_unsigned_lt_false_branch_excludes_negatives():
     """
     Bug: When unsigned `lt %x, bound` is false and x has a signed range,
@@ -1502,7 +1504,6 @@ def test_bug_unsigned_lt_false_branch_excludes_negatives():
     assert (
         x_range.lo < 0 or x_range.is_top
     ), f"Expected range to include negatives or be TOP, got {x_range}"
-
 
 
 def test_bug_signextend_produces_bottom_for_out_of_range_input():
