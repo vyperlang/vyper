@@ -471,13 +471,9 @@ class Expr:
                 # For storage/memory arrays, use loop with early break
                 # Don't unwrap - iterate directly over storage/memory location
                 right_val = Expr(node.right, self.ctx).lower()
-                # Default to MEMORY if location is None (e.g., for stack values)
-                location = (
-                    right_val.location if right_val.location is not None else DataLocation.MEMORY
-                )
                 return VyperValue.from_stack_op(
                     self._lower_array_membership(
-                        left, right_val.operand, right_typ, location, isinstance(op, vy_ast.In)
+                        left, right_val, right_typ, isinstance(op, vy_ast.In)
                     ),
                     result_typ,
                 )
@@ -653,13 +649,12 @@ class Expr:
         if varinfo.is_constant:
             return Expr(varinfo.decl_node.value, self.ctx).lower()
 
-        # Case 4: Immutable - always CODE location (iload/istore handle ctor vs runtime)
+        # Case 4: Immutable - IMMUTABLES location
         if varinfo.is_immutable:
             typ = node._metadata["type"]
-            # Immutables use iload/istore - CODE location handles both contexts
-            # In constructor: iload/istore access immutable staging area
-            # After deploy: dload accesses deployed bytecode
-            ptr = Ptr(operand=IRLiteral(varinfo.position.position), location=DataLocation.CODE)
+            ptr = Ptr(
+                operand=IRLiteral(varinfo.position.position), location=DataLocation.IMMUTABLES
+            )
             return VyperValue.from_ptr(ptr, typ)
 
         raise CompilerPanic(f"Unknown variable: {varname}")
@@ -729,9 +724,11 @@ class Expr:
             if varinfo.is_constant:
                 return Expr(varinfo.decl_node.value, self.ctx).lower()
 
-            # Immutable state variable - always CODE location
+            # Immutable state variable
             if varinfo.is_immutable:
-                ptr = Ptr(operand=IRLiteral(varinfo.position.position), location=DataLocation.CODE)
+                ptr = Ptr(
+                    operand=IRLiteral(varinfo.position.position), location=DataLocation.IMMUTABLES
+                )
                 return VyperValue.from_ptr(ptr, typ)
 
             # Regular storage/transient variable - return location, don't load!
@@ -848,7 +845,9 @@ class Expr:
         else_block_finish.append_instruction("jmp", exit_block.label)
 
         result_typ = node._metadata["type"]
-        return VyperValue.from_stack_op(result, result_typ)
+        if result_typ._is_prim_word:
+            return VyperValue.from_stack_op(result, result_typ)
+        return self._make_ptr_value(result, DataLocation.MEMORY, result_typ)
 
     # === Subscript Operations ===
 
@@ -891,7 +890,8 @@ class Expr:
         index_typ = node.slice._metadata["type"]
 
         # Propagate location from base (storage/memory/transient)
-        data_loc = base_vv.location or DataLocation.MEMORY
+        data_loc = base_vv.location
+        assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
         elem_size = elem_typ.get_size_in(data_loc)
@@ -900,8 +900,8 @@ class Expr:
         if bounds_check:
             length: IROperand = IRLiteral(0)
             if isinstance(base_typ, DArrayT):
-                # Dynamic array: load length from first word
-                length = self.builder.load(base, data_loc)
+                # Dynamic array: load length from first word.
+                length = self.ctx.load_word(base, data_loc)
             else:
                 # Static array: compile-time length
                 length = IRLiteral(base_typ.count)
@@ -968,7 +968,8 @@ class Expr:
         slot = self.builder.sha3(ptr.operand, IRLiteral(64))
 
         # Preserve location from base (storage or transient)
-        location = base_vv.location or DataLocation.STORAGE
+        location = base_vv.location
+        assert location is not None
         ptr = Ptr(operand=slot, location=location)
         return VyperValue.from_ptr(ptr, value_typ)
 
@@ -1051,7 +1052,8 @@ class Expr:
         index = reduced_slice.value
 
         # Propagate location from base
-        data_loc = base_vv.location or DataLocation.MEMORY
+        data_loc = base_vv.location
+        assert data_loc is not None
 
         # Compute offset by summing sizes of preceding elements
         attrs = list(base_typ.tuple_keys())
@@ -1083,7 +1085,8 @@ class Expr:
         attr = node.attr
 
         # Propagate location from base
-        data_loc = base_vv.location or DataLocation.MEMORY
+        data_loc = base_vv.location
+        assert data_loc is not None
 
         # Find field index and compute offset
         attrs = list(base_typ.tuple_keys())
@@ -1169,12 +1172,7 @@ class Expr:
         return result
 
     def _lower_array_membership(
-        self,
-        needle: IROperand,
-        haystack: IROperand,
-        haystack_typ,
-        location: DataLocation,
-        is_in: bool,
+        self, needle: IROperand, haystack_vv: VyperValue, haystack_typ, is_in: bool
     ) -> IRVariable:
         """Lower array membership test: x in array or x not in array.
 
@@ -1192,9 +1190,9 @@ class Expr:
                 "`in` not allowed for arrays of non-base types, tracked in issue #2637", self.node
             )
 
-        # Constants have UNSET location - use MEMORY sizing (same as CODE)
-        if location == DataLocation.UNSET:
-            location = DataLocation.MEMORY
+        haystack = haystack_vv.operand
+        location = haystack_vv.location
+        assert location is not None
 
         # Determine word scale based on location
         # Storage: 1 slot per word, Memory: 32 bytes per word
@@ -1203,7 +1201,7 @@ class Expr:
         # Get array properties
         length: IROperand
         if isinstance(haystack_typ, DArrayT):
-            length = self.builder.load(haystack, location)
+            length = self.ctx.load_word(haystack, location)
             bound = haystack_typ.count
             offset_base = word_scale * DYNAMIC_ARRAY_OVERHEAD
         elif isinstance(haystack_typ, SArrayT):
@@ -1262,7 +1260,7 @@ class Expr:
         elem_addr = self.builder.add(haystack, total_offset)
 
         # Load element and compare
-        elem_val = self.builder.load(elem_addr, location)
+        elem_val = self.ctx.load_word(elem_addr, location)
         match = self.builder.eq(elem_val, needle)
         self.builder.jnz(match, found_block.label, incr_block.label)
 
@@ -1586,7 +1584,8 @@ class Expr:
             elem_val = arg_val
 
         # Get location from VyperValue
-        data_loc = darray_vv.location or DataLocation.MEMORY
+        data_loc = darray_vv.location
+        assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
         if (
@@ -1661,7 +1660,8 @@ class Expr:
         darray_ptr = darray_vv.operand
 
         # Get location from VyperValue
-        data_loc = darray_vv.location or DataLocation.MEMORY
+        data_loc = darray_vv.location
+        assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
         elem_size = elem_typ.get_size_in(data_loc)
