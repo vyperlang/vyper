@@ -7,8 +7,6 @@ from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 
 # common properties for environment variables
 class _EnvType(VyperType):
-    _id: str
-
     def __eq__(self, other):
         return self is other
 
@@ -62,7 +60,7 @@ class _Tx(_EnvType):
     _type_members = {"origin": AddressT(), "gasprice": UINT256_T}
 
 
-_CONSTANT_ENV_TYPES = (_Block, _Chain, _Tx, _Msg)
+_CONSTANT_ENV_TYPES: tuple[type[_EnvType], ...] = (_Block, _Chain, _Tx, _Msg)
 
 CONSTANT_ENVIRONMENT_VARS = {cls._id for cls in _CONSTANT_ENV_TYPES}
 
@@ -83,7 +81,7 @@ def get_constant_vars() -> Dict:
     }
 
 
-MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {"self": SelfT}
+MUTABLE_ENVIRONMENT_VARS: Dict[str, type[VyperType]] = {"self": SelfT}
 
 
 def get_mutable_vars() -> Dict:

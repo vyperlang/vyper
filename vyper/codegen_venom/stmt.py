@@ -1247,7 +1247,6 @@ class Stmt:
         try:
             self.ctx.constancy = Constancy.Constant
             msg_vv = Expr(msg, self.ctx).lower()
-            msg_val = self.ctx.unwrap(msg_vv)  # Copies storage/transient to memory
         finally:
             self.ctx.constancy = old_constancy
 
@@ -1272,11 +1271,11 @@ class Stmt:
         # Payload buffer starts at buf + 32
         payload_buf = self.builder.add(buf._ptr, IRLiteral(32))
 
-        # msg_val is a pointer to the string in memory
+        # msg is materialized to memory here
         # We need to store it at a location so we can encode the tuple
         # For a tuple (string,), we store the string pointer, then encode
         tuple_buf = self.ctx.allocate_buffer(wrapped_typ.memory_bytes_required)
-        self.ctx.store_memory(msg_val, tuple_buf._ptr, msg_typ, src_typ=msg_vv.typ)
+        self.ctx.store_vyper_value(msg_vv, tuple_buf._ptr, msg_typ)
 
         # ABI encode the wrapped message to payload buffer
         encoded_len = abi_encode_to_buf(self.ctx, payload_buf, tuple_buf._ptr, wrapped_typ)
