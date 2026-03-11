@@ -1716,7 +1716,17 @@ class Expr:
 
         for kw in call_node.keywords:
             if kw.arg == "default_return_value":
-                default_return_value = Expr(kw.value, self.ctx).lower()
+                drv_vv = Expr(kw.value, self.ctx).lower()
+                # Eagerly materialize mutable-location values so the read
+                # happens before CALL, not in the post-call default block
+                # (avoids reentrancy-dependent fallback semantics).
+                if drv_vv.location is not None and drv_vv.location in (
+                    DataLocation.STORAGE,
+                    DataLocation.TRANSIENT,
+                ):
+                    materialized = self.ctx.unwrap(drv_vv)
+                    drv_vv = VyperValue.from_stack_op(materialized, drv_vv.typ)
+                default_return_value = drv_vv
                 continue
 
             kw_val = Expr(kw.value, self.ctx).lower_value()
