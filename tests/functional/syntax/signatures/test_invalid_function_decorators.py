@@ -80,6 +80,14 @@ def test():
     """,
         StructureException,
     ),
+    (
+        """
+@abstract()
+def foo():
+    pass
+    """,
+        StructureException,
+    ),
 ]
 
 

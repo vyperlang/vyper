@@ -1356,7 +1356,7 @@ def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
         # Decorators with argument clause: `@something()`
         elif isinstance(decorator, vy_ast.Call):
             decorators_without_parameters = (
-                ["reentrant", "nonreentrant", "raw_return"]
+                ["reentrant", "nonreentrant", "raw_return", "abstract"]
                 + FunctionVisibility.values()
                 + StateMutability.values()
             )
