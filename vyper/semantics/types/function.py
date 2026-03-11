@@ -1330,6 +1330,9 @@ def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
                 f"Unknown decorator: {name}", decorator  # noqa: B023
             )
 
+        def bad_decorator_syntax(decorator) -> StructureException:
+            return StructureException("Bad decorator syntax", decorator)
+
         # Decorators without argument clause: `@something`
         if isinstance(decorator, vy_ast.Name):
             if decorator.id == "nonreentrant":
@@ -1358,7 +1361,9 @@ def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
                 + StateMutability.values()
             )
 
-            assert isinstance(decorator.func, vy_ast.Name)
+            # Things like @foo.bar()
+            if not isinstance(decorator.func, vy_ast.Name):
+                raise bad_decorator_syntax(decorator)
 
             if decorator.func.id == "override":
                 ret.add_override(decorator)
@@ -1375,7 +1380,7 @@ def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
                 raise unknown_decorator(decorator.func.id)
 
         else:
-            raise StructureException("Bad decorator syntax", decorator)
+            raise bad_decorator_syntax(decorator)
 
     if ret.state_mutability == StateMutability.PURE and ret.nonreentrant_node is not None:
         raise StructureException(

@@ -62,6 +62,24 @@ def __init__():
     """,
         FunctionDeclarationException,
     ),
+    (
+        """
+@foo.bar
+@external
+def test():
+    pass
+    """,
+        StructureException,
+    ),
+    (
+        """
+@foo.bar()
+@external
+def test():
+    pass
+    """,
+        StructureException,
+    ),
 ]
 
 
