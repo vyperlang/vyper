@@ -808,20 +808,32 @@ class Stmt:
             elem_addr = self.builder.add(array, total_offset)
 
             # Copy element to loop variable (always in memory)
+            dst = item_local.value.operand
             if is_slot_addressed:
-                self.ctx.slot_to_memory(elem_addr, item_local.value.operand, elem_size, location)
-            else:
+                self.ctx.slot_to_memory(elem_addr, dst, elem_size, location)
+            elif location is DataLocation.MEMORY:
                 if elem_size <= 32:
-                    # Single word: load_word handles all byte-addressed locations
-                    # including IMMUTABLES (iload in ctor, dload at runtime)
-                    val = self.ctx.load_word(elem_addr, location)
-                    self.builder.mstore(item_local.value.operand, val)
+                    val = self.builder.mload(elem_addr)
+                    self.builder.mstore(dst, val)
                 else:
-                    # Multi-word: layout-aware copy handles element size mismatches
+                    # Layout-aware copy for element size mismatches
                     self.ctx.store_memory(
-                        elem_addr,
-                        item_local.value.operand,
-                        target_type,
+                        elem_addr, dst, target_type,
+                        src_typ=array_typ.value_type,
+                    )
+            else:
+                # Non-memory byte-addressed (IMMUTABLES, CODE, CALLDATA):
+                # materialize to memory first via location-aware copy
+                if target_type == array_typ.value_type:
+                    # Same type: copy directly to loop var
+                    self.ctx.copy_to_memory(dst, elem_addr, elem_size, location)
+                else:
+                    # Type mismatch: copy to temp, then repack
+                    tmp_buf = self.ctx.allocate_buffer(elem_size)
+                    tmp = tmp_buf.base_ptr().operand
+                    self.ctx.copy_to_memory(tmp, elem_addr, elem_size, location)
+                    self.ctx.store_memory(
+                        tmp, dst, target_type,
                         src_typ=array_typ.value_type,
                     )
 
