@@ -88,6 +88,7 @@ class ConcretizeMemLocPass(IRPass):
             if inst.opcode == "gep":
                 inst.opcode = "add"
 
+
 class MemLiveness:
     function: IRFunction
     cfg: CFGAnalysis

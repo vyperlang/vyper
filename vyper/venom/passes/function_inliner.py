@@ -87,7 +87,6 @@ class FunctionInlinerPass(IRGlobalPass):
             self.analyses_caches[fn].invalidate_analysis(DFGAnalysis)
             self.analyses_caches[fn].invalidate_analysis(CFGAnalysis)
 
-
     def _inline_call_site(self, func: IRFunction, call_site: IRInstruction) -> None:
         """
         Inline function into call site.
