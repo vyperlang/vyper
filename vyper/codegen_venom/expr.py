@@ -1585,7 +1585,7 @@ class Expr:
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
         if (
-            data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT, DataLocation.CODE)
+            data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT)
             and not elem_typ._is_prim_word
             and elem_src_typ != elem_typ
         ):
