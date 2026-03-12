@@ -431,6 +431,7 @@ class VenomCodegenContext:
             return
 
         if isinstance(dst_typ, SArrayT) and isinstance(src_typ, SArrayT):
+            assert src_typ.count == dst_typ.count
             count = src_typ.count
             dst_elem_t = dst_typ.value_type
             src_elem_t = src_typ.value_type
