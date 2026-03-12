@@ -61,7 +61,7 @@ VENOM_GRAMMAR = """
     DOUBLE_QUOTE: "\\""
     IDENT: (DIGIT|LETTER|"_")+
     HEXSTR: "x" DOUBLE_QUOTE (HEXDIGIT|"_")+ DOUBLE_QUOTE
-    CONST: SIGNED_INT | "0x" HEXDIGIT+
+    CONST: SIGNED_INT | "-"? "0x" HEXDIGIT+
 
     %ignore WS
     %ignore COMMENT
@@ -288,7 +288,10 @@ class VenomTransformer(Transformer):
         return IRVariable(var_ident[1:])
 
     def CONST(self, val) -> IRLiteral:
-        if str(val).startswith("0x"):
+        val = str(val)
+        if val.startswith("-0x"):
+            return IRLiteral(-int(val[1:], 16))
+        if val.startswith("0x"):
             return IRLiteral(int(val, 16))
         return IRLiteral(int(val))
 

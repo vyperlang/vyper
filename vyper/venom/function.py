@@ -39,9 +39,17 @@ class IRFunction:
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
 
+    # Indices of invoke args that are read-only memory pointers
+    _readonly_memory_invoke_arg_idxs: tuple
+    # Internal-call metadata (excluding return_pc):
+    # - number of invoke params
+    # - whether first invoke param is a memory return buffer
+    _invoke_param_count: Optional[int]
+    _has_memory_return_buffer_param: Optional[bool]
+
     # Used during code generation
     _ast_source_stack: list[IRnode]
-    _error_msg_stack: list[str]
+    _error_msg_stack: list[Optional[str]]
 
     def __init__(self, name: IRLabel, ctx: IRContext = None):
         self.ctx = ctx  # type: ignore
@@ -51,6 +59,10 @@ class IRFunction:
         self._basic_block_dict = {}
 
         self.last_variable = 0
+
+        self._readonly_memory_invoke_arg_idxs = ()
+        self._invoke_param_count = None
+        self._has_memory_return_buffer_param = None
 
         self._ast_source_stack = []
         self._error_msg_stack = []
@@ -132,6 +144,15 @@ class IRFunction:
         if isinstance(ir, IRnode):
             self._ast_source_stack.append(ir.ast_source)
             self._error_msg_stack.append(ir.error_msg)
+
+    def push_error_msg(self, error_msg: Optional[str]):
+        """Push an error message without changing ast_source."""
+        self._error_msg_stack.append(error_msg)
+
+    def pop_error_msg(self):
+        """Pop an error message."""
+        assert len(self._error_msg_stack) > 0, "Empty error stack"
+        self._error_msg_stack.pop()
 
     def pop_source(self):
         assert len(self._ast_source_stack) > 0, "Empty source stack"
