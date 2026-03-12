@@ -182,26 +182,21 @@ class Stmt:
             src = normalized.operand
             src_typ = typ
 
-        if dst_ptr.location == DataLocation.STORAGE:
+        loc = dst_ptr.location
+        is_slot_addressed = loc in (DataLocation.STORAGE, DataLocation.TRANSIENT)
+
+        if is_slot_addressed:
             # DynArray special case: only copy length + actual elements, not full capacity.
             # This matches legacy codegen behavior (core.py:_dynarray_make_setter).
             if isinstance(typ, DArrayT):
-                self._copy_dynarray_to_storage(src, dst_ptr.operand, typ, transient=False)
-            elif typ.storage_size_in_words == 1:
-                val = self.builder.mload(src)
-                self.builder.sstore(dst_ptr.operand, val)
+                transient = loc is DataLocation.TRANSIENT
+                self._copy_dynarray_to_storage(src, dst_ptr.operand, typ, transient=transient)
             else:
-                self.ctx.store_storage(src, dst_ptr.operand, typ)
-        elif dst_ptr.location == DataLocation.TRANSIENT:
-            # DynArray special case for transient storage
-            if isinstance(typ, DArrayT):
-                self._copy_dynarray_to_storage(src, dst_ptr.operand, typ, transient=True)
-            elif typ.storage_size_in_words == 1:
-                val = self.builder.mload(src)
-                self.builder.tstore(dst_ptr.operand, val)
-            else:
-                self.ctx.store_transient(src, dst_ptr.operand, typ)
-        elif dst_ptr.location == DataLocation.IMMUTABLES:
+                # store_storage / store_transient handle single-word mload internally.
+                store_fn = self.ctx.store_transient if loc is DataLocation.TRANSIENT \
+                    else self.ctx.store_storage
+                store_fn(src, dst_ptr.operand, typ)
+        elif loc == DataLocation.IMMUTABLES:
             # Immutables in constructor
             if typ.memory_bytes_required <= 32:
                 val = self.builder.mload(src)
@@ -209,17 +204,8 @@ class Stmt:
             else:
                 self.ctx.store_immutable(src, dst_ptr.operand, typ)
         else:
-            if src_typ == typ:
-                self.ctx.copy_memory(dst_ptr.operand, src, typ.memory_bytes_required)
-            elif (
-                isinstance(src_typ, _BytestringT)
-                and isinstance(typ, _BytestringT)
-                and src_typ.memory_bytes_required == typ.memory_bytes_required
-            ):
-                # Same in-memory layout (same padded payload size): direct copy is enough.
-                self.ctx.copy_memory(dst_ptr.operand, src, typ.memory_bytes_required)
-            else:
-                self.ctx.store_memory(src, dst_ptr.operand, typ, src_typ=src_typ)
+            # Memory destination: use layout-aware copy when types differ.
+            self.ctx.store_memory(src, dst_ptr.operand, typ, src_typ=src_typ)
 
     def _lower_tuple_unpack(self) -> None:
         """Lower tuple unpacking assignment: a, b = expr.
