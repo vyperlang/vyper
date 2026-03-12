@@ -432,15 +432,7 @@ class VenomCodegenContext:
 
         if isinstance(dst_typ, SArrayT) and isinstance(src_typ, SArrayT):
             assert src_typ.count == dst_typ.count
-            count = src_typ.count
-            dst_elem_t = dst_typ.value_type
-            src_elem_t = src_typ.value_type
-            dst_elem_size = dst_elem_t.memory_bytes_required
-            src_elem_size = src_elem_t.memory_bytes_required
-            for i in range(count):
-                dst_ptr = self._with_byte_offset(dst, i * dst_elem_size)
-                src_ptr = self._with_byte_offset(src, i * src_elem_size)
-                self._store_memory_typed(dst_ptr, dst_elem_t, src_ptr, src_elem_t)
+            self._copy_sarray_memory_typed(dst, dst_typ, src, src_typ)
             return
 
         if isinstance(dst_typ, TupleT) and isinstance(src_typ, TupleT):
@@ -467,6 +459,62 @@ class VenomCodegenContext:
             return
 
         raise CompilerPanic(f"_store_memory_typed: unhandled types {src_typ} -> {dst_typ}")
+
+    def _copy_sarray_memory_typed(
+        self, dst: IROperand, dst_typ: SArrayT, src: IROperand, src_typ: SArrayT
+    ) -> None:
+        """Copy SArray in memory when source and destination element layouts
+        may differ.
+
+        Mirrors the legacy codegen heuristic (_complex_make_setter):
+        batch-copy when element layouts match and no dynamic-sized children;
+        otherwise emit a runtime loop that copies element-by-element.
+        """
+        count = src_typ.count
+        dst_elem_t = dst_typ.value_type
+        src_elem_t = src_typ.value_type
+        dst_elem_size = dst_elem_t.memory_bytes_required
+        src_elem_size = src_elem_t.memory_bytes_required
+
+        # Fast path: batch copy when element layouts match and there is no
+        # dynamic-sized data (same heuristic as legacy _complex_make_setter).
+        if dst_elem_size == src_elem_size and not dst_typ.abi_type.is_dynamic():
+            self.copy_memory(dst, src, dst_typ.memory_bytes_required)
+            return
+
+        # Slow path: runtime loop, element-by-element copy.
+        b = self.builder
+        length = IRLiteral(count)
+
+        cond_block = b.create_block("typed_sa_copy_cond")
+        body_block = b.create_block("typed_sa_copy_body")
+        exit_block = b.create_block("typed_sa_copy_exit")
+
+        counter = b.assign(IRLiteral(0))
+        b.jmp(cond_block.label)
+
+        b.append_block(cond_block)
+        b.set_block(cond_block)
+        done = b.iszero(b.lt(counter, length))
+        cond_finish = b.current_block
+
+        b.append_block(body_block)
+        b.set_block(body_block)
+
+        src_ofst = b.mul(counter, IRLiteral(src_elem_size))
+        dst_ofst = b.mul(counter, IRLiteral(dst_elem_size))
+        src_elem_ptr = b.add(src, src_ofst)
+        dst_elem_ptr = b.add(dst, dst_ofst)
+
+        self._store_memory_typed(dst_elem_ptr, dst_elem_t, src_elem_ptr, src_elem_t)
+
+        new_counter = b.add(counter, IRLiteral(1))
+        b.assign_to(new_counter, counter)
+        b.jmp(cond_block.label)
+
+        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
+        b.append_block(exit_block)
+        b.set_block(exit_block)
 
     def _copy_dynarray_memory_typed(
         self, dst: IROperand, dst_typ: DArrayT, src: IROperand, src_typ: DArrayT
