@@ -116,8 +116,8 @@ class Stmt:
         src: VyperValue,
         typ,
         *,
-        src_node: Optional[vy_ast.VyperNode] = None,
-        dst_node: Optional[vy_ast.VyperNode] = None,
+        src_node: vy_ast.VyperNode,
+        dst_node: vy_ast.VyperNode,
     ) -> None:
         """Assign a VyperValue to a destination pointer.
 
@@ -125,11 +125,7 @@ class Stmt:
         (with overlap-safe copying when source and dest are in the same
         address space).
         """
-        if (
-            isinstance(typ, _BytestringT)
-            and src_node is not None
-            and self._is_empty_value(src_node)
-        ):
+        if isinstance(typ, _BytestringT) and self._is_empty_value(src_node):
             # Empty bytes/string assignment only needs a zero length word.
             if dst_ptr.location == DataLocation.STORAGE:
                 self.builder.sstore(dst_ptr.operand, IRLiteral(0))
@@ -150,8 +146,8 @@ class Stmt:
         src_vv: VyperValue,
         typ,
         *,
-        src_node: Optional[vy_ast.VyperNode] = None,
-        dst_node: Optional[vy_ast.VyperNode] = None,
+        src_node: vy_ast.VyperNode,
+        dst_node: vy_ast.VyperNode,
     ) -> None:
         """Copy complex type into `dst_ptr`.
 
@@ -167,7 +163,6 @@ class Stmt:
         should_stage = False
         if src_loc is DataLocation.MEMORY and dst_ptr.location is DataLocation.MEMORY:
             # Stage only when source and destination are views of the same memory root.
-            assert src_node is not None and dst_node is not None, "missing AST nodes for memory→memory aliasing check"
             src_root = _get_root_variable(src_node)
             dst_root = _get_root_variable(dst_node)
             should_stage = src_root is None or dst_root is None or src_root == dst_root
