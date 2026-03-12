@@ -57,7 +57,7 @@ Vyper has four built-ins for contract creation; the first three contract creatio
     * Cheap to call (no ``DELEGATECALL`` overhead), expensive to create (200 gas per deployed byte)
     * Invokes constructor, requires a special "blueprint" contract to be deployed
     * Performs an ``EXTCODESIZE`` check to check there is code at ``target``
-* ``raw_create(initcode: Bytes[...], ...)```
+* ``raw_create(initcode: Bytes[...], ...)``
     * Low-level create. Takes the given initcode, along with the arguments to be abi-encoded, and deploys the initcode after concatenating the abi-encoded arguments.
 
 .. py:function:: create_minimal_proxy_to(target: address, value: uint256 = 0, revert_on_failure: bool = True[, salt: bytes32]) -> address
@@ -257,7 +257,7 @@ Vyper has four built-ins for contract creation; the first three contract creatio
 
     .. warning::
 
-        This method deletes the contract from the blockchain. All non-ether assets associated with this contract are "burned" and the contract is no longer accessible.
+        As of the Cancun hardfork (EIP-6780), this opcode no longer deletes contract code unless called in the same transaction as contract creation. It only transfers the contract's ETH balance to the specified address.
 
     .. note::
 
@@ -349,17 +349,21 @@ Cryptography
 
         @external
         @view
-        def foo(hash: bytes32, v: uint8, r:bytes32, s:bytes32) -> address:
+        def foo(hash: bytes32, v: uint8, r: bytes32, s: bytes32) -> address:
             return ecrecover(hash, v, r, s)
 
+    Alternatively, ``v``, ``r``, and ``s`` can be passed as ``uint256``:
+
+    .. code-block:: vyper
 
         @external
         @view
-        def foo(hash: bytes32, v: uint256, r:uint256, s:uint256) -> address:
+        def bar(hash: bytes32, v: uint256, r: uint256, s: uint256) -> address:
             return ecrecover(hash, v, r, s)
+
     .. code-block:: vyper
 
-        >>> ExampleContract.foo('0x6c9c5e133b8aafb2ea74f524a5263495e7ae5701c7248805f7b511d973dc7055',
+        >>> ExampleContract.bar('0x6c9c5e133b8aafb2ea74f524a5263495e7ae5701c7248805f7b511d973dc7055',
              28,
              78616903610408968922803823221221116251138855211764625814919875002740131251724,
              37668412420813231458864536126575229553064045345107737433087067088194345044408
@@ -376,7 +380,7 @@ Cryptography
 
         @external
         @view
-        def foo(_value: Bytes[100]) -> bytes32
+        def foo(_value: Bytes[100]) -> bytes32:
             return keccak256(_value)
 
     .. code-block:: vyper
@@ -394,7 +398,7 @@ Cryptography
 
         @external
         @view
-        def foo(_value: Bytes[100]) -> bytes32
+        def foo(_value: Bytes[100]) -> bytes32:
             return sha256(_value)
 
     .. code-block:: vyper

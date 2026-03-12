@@ -12,18 +12,9 @@ from typing import Optional
 from vyper import ast as vy_ast
 from vyper.codegen.core import calculate_type_for_external_return
 from vyper.codegen_venom.abi import abi_encode_to_buf
-from vyper.codegen_venom.arithmetic import (
-    safe_add,
-    safe_div,
-    safe_floordiv,
-    safe_mod,
-    safe_mul,
-    safe_pow,
-    safe_sub,
-)
+from vyper.codegen_venom.arithmetic import apply_binop
 from vyper.exceptions import CompilerPanic, TypeCheckFailure
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types import IntegerT
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
@@ -32,6 +23,7 @@ from vyper.utils import method_id_int
 from vyper.venom.basicblock import IRLiteral, IROperand
 
 from .buffer import Ptr
+from .calling_convention import returns_stack_count
 from .context import Constancy, VenomCodegenContext
 from .expr import Expr
 from .value import VyperValue
@@ -173,9 +165,8 @@ class Stmt:
                 self.builder.tstore(dst_ptr.operand, val)
             else:
                 self.ctx.store_transient(src, dst_ptr.operand, typ)
-        elif dst_ptr.location == DataLocation.CODE:
-            # Immutables in constructor - use ptr_store which handles GEP from immutables_alloca
-            # For single-word types, load value from temp buffer first
+        elif dst_ptr.location == DataLocation.IMMUTABLES:
+            # Immutables in constructor
             if typ.memory_bytes_required <= 32:
                 val = self.builder.mload(src)
                 self.ctx.ptr_store(dst_ptr, val)
@@ -280,8 +271,16 @@ class Stmt:
         # Evaluate the RHS (AugAssign is always on primitives)
         right = Expr(right_node, self.ctx).lower_value()
 
-        # Apply the operation
-        result = self._apply_augassign_op(op, left, right, target_typ, right_node)
+        # Extract pow literal for bounds checking
+        exp_literal = None
+        if isinstance(op, vy_ast.Pow):
+            right_reduced = right_node.reduced()
+            if not isinstance(right_reduced, vy_ast.Int):
+                raise TypeCheckFailure("AugAssign pow requires literal exponent")
+            exp_literal = right_reduced.value
+
+        # Apply the operation (shared with lower_BinOp via apply_binop)
+        result = apply_binop(self.builder, op, left, right, target_typ, exp_literal=exp_literal)
 
         # Store result back
         self.ctx.ptr_store(dst_ptr, result)
@@ -414,7 +413,7 @@ class Stmt:
             # Check if it's an immutable assignment in constructor
             varinfo = target._expr_info.var_info
             if varinfo is not None and varinfo.is_immutable and self.ctx.is_ctor_context:
-                return Ptr(IRLiteral(varinfo.position.position), DataLocation.CODE)
+                return Ptr(IRLiteral(varinfo.position.position), DataLocation.IMMUTABLES)
 
             raise CompilerPanic(f"Unknown variable: {varname}")
 
@@ -429,7 +428,7 @@ class Stmt:
 
                 # Immutable in constructor context
                 if varinfo.is_immutable and self.ctx.is_ctor_context:
-                    return Ptr(IRLiteral(varinfo.position.position), DataLocation.CODE)
+                    return Ptr(IRLiteral(varinfo.position.position), DataLocation.IMMUTABLES)
 
                 if varinfo.is_constant:
                     raise TypeCheckFailure("Cannot assign to constant")
@@ -450,89 +449,6 @@ class Stmt:
             return Expr(target, self.ctx).lower().ptr()
 
         raise CompilerPanic(f"Unsupported assignment target: {type(target)}")
-
-    def _apply_augassign_op(
-        self,
-        op: vy_ast.VyperNode,
-        left: IROperand,
-        right: IROperand,
-        typ,
-        right_node: vy_ast.VyperNode,
-    ) -> IROperand:
-        """Apply augmented assignment operation.
-
-        Reuses arithmetic/bitwise logic from Expr class.
-        """
-        # Bitwise operations - no overflow checks
-        if isinstance(op, vy_ast.BitAnd):
-            return self.builder.and_(left, right)
-        if isinstance(op, vy_ast.BitOr):
-            return self.builder.or_(left, right)
-        if isinstance(op, vy_ast.BitXor):
-            return self.builder.xor(left, right)
-
-        # Shift operations
-        if isinstance(op, vy_ast.LShift):
-            return self.builder.shl(right, left)
-        if isinstance(op, vy_ast.RShift):
-            if isinstance(typ, IntegerT) and typ.is_signed:
-                return self.builder.sar(right, left)
-            return self.builder.shr(right, left)
-
-        # Arithmetic operations with overflow checks
-        if isinstance(op, vy_ast.Add):
-            return self._safe_add(left, right, typ)
-        if isinstance(op, vy_ast.Sub):
-            return self._safe_sub(left, right, typ)
-        if isinstance(op, vy_ast.Mult):
-            return self._safe_mul(left, right, typ)
-        if isinstance(op, vy_ast.Div):
-            return self._safe_div(left, right, typ)
-        if isinstance(op, vy_ast.FloorDiv):
-            return self._safe_floordiv(left, right, typ)
-        if isinstance(op, vy_ast.Mod):
-            return self._safe_mod(left, right, typ)
-        if isinstance(op, vy_ast.Pow):
-            return self._safe_pow(left, right, typ, right_node)
-
-        raise CompilerPanic(f"Unsupported AugAssign op: {type(op)}")
-
-    # === Safe Arithmetic Operations ===
-    # Delegating to arithmetic.py module functions
-
-    def _safe_add(self, x: IROperand, y: IROperand, typ) -> IROperand:
-        """Add with overflow checking."""
-        return safe_add(self.builder, x, y, typ)
-
-    def _safe_sub(self, x: IROperand, y: IROperand, typ) -> IROperand:
-        """Subtract with overflow checking."""
-        return safe_sub(self.builder, x, y, typ)
-
-    def _safe_mul(self, x: IROperand, y: IROperand, typ) -> IROperand:
-        """Multiply with overflow checking."""
-        return safe_mul(self.builder, x, y, typ)
-
-    def _safe_div(self, x: IROperand, y: IROperand, typ) -> IROperand:
-        """Decimal division with overflow checking."""
-        return safe_div(self.builder, x, y, typ)
-
-    def _safe_floordiv(self, x: IROperand, y: IROperand, typ) -> IROperand:
-        """Integer floor division with overflow checking."""
-        return safe_floordiv(self.builder, x, y, typ)
-
-    def _safe_mod(self, x: IROperand, y: IROperand, typ) -> IROperand:
-        """Modulo with divisor check."""
-        return safe_mod(self.builder, x, y, typ)
-
-    def _safe_pow(self, x: IROperand, y: IROperand, typ, right_node: vy_ast.VyperNode) -> IROperand:
-        """Exponentiation - only with literal exponent for bounds checking."""
-        # For AugAssign, we require a literal exponent for bounds check
-        right_reduced = right_node.reduced()
-        if not isinstance(right_reduced, vy_ast.Int):
-            raise TypeCheckFailure("AugAssign pow requires literal exponent")
-
-        exp_literal = right_reduced.value
-        return safe_pow(self.builder, x, y, typ, base_literal=None, exp_literal=exp_literal)
 
     # === Control Flow Statements ===
 
@@ -748,12 +664,8 @@ class Stmt:
             array_vv = Expr(node.iter, self.ctx).lower()
         array = array_vv.operand
         array_typ = node.iter._metadata["type"]
-        location = array_vv.location or node.iter._expr_info.location
-
-        # If array is a stack value (e.g., from ternary expression), the operand
-        # is a pointer to memory. Use MEMORY as the location.
-        if location == DataLocation.UNSET:
-            location = DataLocation.MEMORY
+        location = array_vv.location
+        assert location is not None
 
         # Determine word scale based on location
         # Storage/Transient: 1 slot per word, Memory: 32 bytes per word
@@ -764,7 +676,7 @@ class Stmt:
         length: IROperand
         if isinstance(array_typ, DArrayT):
             # Dynamic array: length is first word
-            length = self.builder.load(array, location)
+            length = self.ctx.load_word(array, location)
             bound = array_typ.count
         elif isinstance(array_typ, SArrayT):
             # Static array: length is compile-time constant
@@ -829,23 +741,9 @@ class Stmt:
 
             # Copy element to loop variable (always in memory)
             if is_slot_addressed:
-                if elem_size == 1:
-                    # Single slot: load from storage/transient, mstore to memory
-                    val = self.builder.load(elem_addr, location)
-                    self.builder.mstore(item_local.value.operand, val)
-                else:
-                    # Multi-slot: use generic helper that dispatches on location
-                    self.ctx.slot_to_memory(
-                        elem_addr, item_local.value.operand, elem_size, location
-                    )
+                self.ctx.slot_to_memory(elem_addr, item_local.value.operand, elem_size, location)
             else:
-                if elem_size <= 32:
-                    # Single word: load dispatches on location (mload/calldataload/dload)
-                    val = self.builder.load(elem_addr, location)
-                    self.builder.mstore(item_local.value.operand, val)
-                else:
-                    # Multi-word: use context helper which handles pre-Cancun
-                    self.ctx.copy_memory(item_local.value.operand, elem_addr, elem_size)
+                self.ctx.copy_to_memory(item_local.value.operand, elem_addr, elem_size, location)
 
             self._lower_body(node.body)
             body_finish = self.builder.current_block
@@ -933,7 +831,7 @@ class Stmt:
             self.builder.ret(return_pc)
             return
 
-        returns_count = self.ctx.returns_stack_count(func_t)
+        returns_count = returns_stack_count(func_t)
         ret_typ = func_t.return_type
         assert ret_typ is not None
 

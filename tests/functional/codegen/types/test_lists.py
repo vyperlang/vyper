@@ -922,3 +922,21 @@ def foo(x: uint256[2500]) -> uint256:
         # depends on EVM version. pre-cancun, will revert due to checking
         # success flag from identity precompile.
         c.foo(array, gas=gas_used)
+
+
+def test_return_list_size_one(get_contract):
+    code = """
+@external
+@pure
+def gen_func_1() -> uint256[1]:
+    return self._f()
+
+@internal
+@pure
+def _f() -> uint256[1]:
+    return [42]
+    """
+
+    c = get_contract(code)
+    output = c.gen_func_1()
+    assert output == [42]

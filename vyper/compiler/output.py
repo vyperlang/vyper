@@ -6,7 +6,7 @@ from typing import Iterable
 import vyper.ast as vy_ast
 from vyper.ast.utils import ast_to_dict
 from vyper.codegen.ir_node import IRnode
-from vyper.codegen_venom import _pass_via_stack, _returns_word
+from vyper.codegen_venom.calling_convention import pass_via_stack, returns_stack_count
 from vyper.compiler.output_bundle import SolcJSONWriter, VyperArchiveWriter
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
@@ -268,12 +268,12 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         ret["function_id"] = func_t._function_id
 
         if func_t.is_internal and compiler_data.settings.experimental_codegen:
-            pass_via_stack = _pass_via_stack(func_t)
+            pass_via_stack_dict = pass_via_stack(func_t)
             pass_via_stack_list = [
-                arg for (arg, is_stack_arg) in pass_via_stack.items() if is_stack_arg
+                arg for (arg, is_stack_arg) in pass_via_stack_dict.items() if is_stack_arg
             ]
             ret["venom_via_stack"] = pass_via_stack_list
-            ret["venom_return_via_stack"] = _returns_word(func_t)
+            ret["venom_return_via_stack"] = returns_stack_count(func_t) > 0
 
         keep_keys = {
             "name",

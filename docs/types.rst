@@ -216,7 +216,7 @@ Operator       Description
 ``x >> y``     Right shift
 =============  ======================
 
-Shifting is only available for 256-bit wide types. That is, ``x`` must be ``uint256``, and ``y`` can be any unsigned integer. The right shift for ``uint256`` compiles to a signed right shift (EVM ``SHR`` instruction).
+Shifting is only available for 256-bit wide types. That is, ``x`` must be ``uint256``, and ``y`` can be any unsigned integer. The right shift for ``uint256`` compiles to an unsigned right shift (EVM ``SHR`` instruction).
 
 
 .. note::
@@ -290,7 +290,7 @@ The address type holds an Ethereum address.
 Values
 ******
 
-An address type can hold an Ethereum address which equates to 20 bytes or 160 bits. Address literals must be written in hexadecimal notation with a leading ``0x`` and must be `checksummed <https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md>`_.
+An address type can hold an Ethereum address which equates to 20 bytes or 160 bits. Address literals must be written in hexadecimal notation with a leading ``0x`` and must be `checksummed <https://github.com/ethereum/EIPs/blob/master/EIPS/eip-55.md>`_.
 
 .. _members-of-addresses:
 
@@ -341,10 +341,10 @@ Keyword                               Description
 ====================================  ============================================================
 ``keccak256(x)``                      Return the keccak256 hash as bytes32.
 ``concat(x, ...)``                    Concatenate multiple inputs.
-``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
+``slice(x, start, length)``           Return a slice of ``length`` bytes starting at ``start``.
 ====================================  ============================================================
 
-Where ``x`` is a byte array and ``_start`` as well as ``_len`` are integer values.
+Where ``x`` is a byte array and ``start`` as well as ``length`` are integer values.
 
 .. index:: !bytes
 

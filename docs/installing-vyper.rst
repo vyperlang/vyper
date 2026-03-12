@@ -5,32 +5,37 @@ Take a deep breath, follow the instructions, and please
 `create an issue <https://github.com/vyperlang/vyper/issues>`_ if you encounter
 any errors.
 
+.. tip::
+
+    New to Vyper? Start with the :ref:`quickstart` guide to get a project running quickly.
+
 .. note::
 
-    The easiest way to experiment with the language is to use either `Try Vyper! <https://try.vyperlang.org>`_ (maintained by the Vyper team) or the `Remix online compiler <https://remix.ethereum.org>`_ (maintained by the Ethereum Foundation).
-    - To use Try Vyper, go to https://try.vyperlang.org and log in (requires Github login).
-    - To use remix, go to https://remix.ethereum.org and activate the vyper-remix plugin in the Plugin manager.
+    The easiest way to experiment with the language is to use an online compiler:
+
+    - `Try Vyper! <https://try.vyperlang.org>`_: maintained by the Vyper team, requires GitHub login
+    - `Remix <https://remix.ethereum.org>`_: maintained by the Ethereum Foundation, activate the vyper-remix plugin in the Plugin manager
 
 
 Standalone
 **********
 
-The Vyper CLI can be installed with any ``pip`` compatible tool, for example, ``pipx`` or ``uv tool``. If you do not have ``pipx`` or ``uv`` installed, first, go to the respective tool's installation page:
+The Vyper CLI can be installed with ``uv tool`` or ``pipx``. If you do not have these installed, first visit their installation pages:
 
-- https://github.com/pypa/pipx?tab=readme-ov-file
-- https://github.com/astral-sh/uv?tab=readme-ov-file#uv
+- https://github.com/astral-sh/uv
+- https://github.com/pypa/pipx
 
-Then, the command to install Vyper would be
-
-::
-
-    pipx install vyper
-
-Or,
+Then install Vyper:
 
 ::
 
     uv tool install vyper
+
+or:
+
+::
+
+    pipx install vyper
 
 
 Binaries
@@ -60,23 +65,24 @@ It is **strongly recommended** to install Vyper in **a virtual Python
 environment**, so that new packages installed and dependencies built are
 strictly contained in your Vyper project and will not alter or affect your
 other development environment set-up.
-For easy virtualenv management, we recommend either `pyenv <https://github.com/pyenv/pyenv>`_
-or `Poetry <https://github.com/python-poetry/poetry>`_.
-
 
 .. note::
 
     To find out more about virtual environments, check out:
     `virtualenv guide <https://docs.python.org/3/library/venv.html>`_.
 
-
 Installing Vyper
 ================
 
-Each tagged version of vyper is uploaded to `pypi <https://pypi.org/project/vyper/>`_, and can be installed using ``pip``:
+Each tagged version of vyper is uploaded to `pypi <https://pypi.org/project/vyper/>`_, and can be installed inside a virtual environment:
 ::
 
     pip install vyper
+
+or:
+::
+
+    uv pip install vyper
 
 To install a specific version use:
 ::
@@ -112,7 +118,7 @@ The normal parameters are also supported, for example:
 ::
 
     docker run -v $(pwd):/code vyperlang/vyper -f abi /code/<contract_file.vy>
-    [{'name': 'test1', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}, {'type': 'bytes', 'name': 'b'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 441}, {'name': 'test2', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 316}]
+    [{"stateMutability": "nonpayable", "type": "function", "name": "test1", "inputs": [{"name": "a", "type": "uint256"}, {"name": "b", "type": "bytes"}], "outputs": []}, {"stateMutability": "nonpayable", "type": "function", "name": "test2", "inputs": [{"name": "a", "type": "uint256"}], "outputs": []}]
 
 .. note::
 
@@ -121,7 +127,7 @@ The normal parameters are also supported, for example:
 nix
 ***
 
-View the versions supported through nix at `nix package search <https://search.nixos.org/packages?channel=21.05&show=vyper&from=0&size=50&sort=relevance&query=vyper>`_ 
+View the versions supported through nix at `nix package search <https://search.nixos.org/packages?show=vyper&query=vyper>`_ 
 
 .. note::
 

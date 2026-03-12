@@ -19,6 +19,18 @@ if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
+def _assert_slice_bounds(
+    ctx: VenomCodegenContext, start: IROperand, length: IROperand, src_len: IROperand
+) -> None:
+    """Assert `start + length <= src_len` with overflow protection."""
+    b = ctx.builder
+    end = b.add(start, length)
+    arithmetic_overflow = b.lt(end, start)
+    buffer_oob = b.gt(end, src_len)
+    oob = b.or_(arithmetic_overflow, buffer_oob)
+    b.assert_(b.iszero(oob))
+
+
 def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     """
     concat(a, b, ...) -> bytes | string
@@ -139,13 +151,7 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     start = Expr(start_node, ctx).lower_value()
     length = Expr(length_node, ctx).lower_value()
 
-    # Bounds check: start + length <= src_length, with overflow check
-    end = b.add(start, length)
-    # Check for arithmetic overflow (if end wrapped around, end < start)
-    arithmetic_overflow = b.lt(end, start)
-    buffer_oob = b.gt(end, src_len)
-    oob = b.or_(arithmetic_overflow, buffer_oob)
-    b.assert_(b.iszero(oob))
+    _assert_slice_bounds(ctx, start, length, src_len)
 
     # Allocate output buffer
     out_val = ctx.new_temporary_value(out_t)
@@ -205,12 +211,7 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
         if src_node.value.id == "msg" and src_node.attr == "data":
             # msg.data: use calldatacopy, bounds check against calldatasize
             src_len = b.calldatasize()
-            end = b.add(start, length)
-            # Check for arithmetic overflow (if end wrapped around, end < start)
-            arithmetic_overflow = b.lt(end, start)
-            buffer_oob = b.gt(end, src_len)
-            oob = b.or_(arithmetic_overflow, buffer_oob)
-            b.assert_(b.iszero(oob))
+            _assert_slice_bounds(ctx, start, length, src_len)
             # calldatacopy(destOffset, offset, size)
             b.calldatacopy(out_data.operand, start, length)
             ctx.ptr_store(out_val.ptr(), length)
@@ -219,12 +220,7 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
         elif src_node.value.id == "self" and src_node.attr == "code":
             # self.code: use codecopy, bounds check against codesize
             src_len = b.codesize()
-            end = b.add(start, length)
-            # Check for arithmetic overflow (if end wrapped around, end < start)
-            arithmetic_overflow = b.lt(end, start)
-            buffer_oob = b.gt(end, src_len)
-            oob = b.or_(arithmetic_overflow, buffer_oob)
-            b.assert_(b.iszero(oob))
+            _assert_slice_bounds(ctx, start, length, src_len)
             # codecopy(destOffset, offset, size)
             b.codecopy(out_data.operand, start, length)
             ctx.ptr_store(out_val.ptr(), length)
@@ -233,12 +229,7 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
     # <addr>.code: use extcodecopy
     addr = Expr(src_node.value, ctx).lower_value()
     src_len = b.extcodesize(addr)
-    end = b.add(start, length)
-    # Check for arithmetic overflow (if end wrapped around, end < start)
-    arithmetic_overflow = b.lt(end, start)
-    buffer_oob = b.gt(end, src_len)
-    oob = b.or_(arithmetic_overflow, buffer_oob)
-    b.assert_(b.iszero(oob))
+    _assert_slice_bounds(ctx, start, length, src_len)
     # extcodecopy(address, destOffset, offset, size)
     b.extcodecopy(addr, out_data.operand, start, length)
     ctx.ptr_store(out_val.ptr(), length)

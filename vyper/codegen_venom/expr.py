@@ -17,15 +17,7 @@ from vyper.codegen.core import (
     calculate_type_for_external_return,
     needs_external_call_wrap,
 )
-from vyper.codegen_venom.arithmetic import (
-    safe_add,
-    safe_div,
-    safe_floordiv,
-    safe_mod,
-    safe_mul,
-    safe_pow,
-    safe_sub,
-)
+from vyper.codegen_venom.arithmetic import apply_binop
 from vyper.exceptions import (
     CompilerPanic,
     StateAccessViolation,
@@ -56,6 +48,7 @@ from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 
 from .abi import abi_decode_to_buf, abi_encode_to_buf
 from .buffer import Buffer, Ptr
+from .calling_convention import pass_via_stack, returns_stack_count
 from .context import VenomCodegenContext
 from .value import VyperValue
 
@@ -338,97 +331,27 @@ class Expr:
         typ = node.left._metadata["type"]
         result_typ = node._metadata["type"]
 
-        # Bitwise operations - no overflow checks needed
-        if isinstance(op, vy_ast.BitAnd):
-            return VyperValue.from_stack_op(self.builder.and_(left, right), result_typ)
-        if isinstance(op, vy_ast.BitOr):
-            return VyperValue.from_stack_op(self.builder.or_(left, right), result_typ)
-        if isinstance(op, vy_ast.BitXor):
-            return VyperValue.from_stack_op(self.builder.xor(left, right), result_typ)
-
-        # Shift operations - only 256-bit types allowed (uint256, int256, bytes32)
-        if isinstance(op, vy_ast.LShift):
+        # Defensive: shifts only valid for 256-bit types
+        if isinstance(op, (vy_ast.LShift, vy_ast.RShift)):
             is_valid = (isinstance(typ, IntegerT) and typ.bits == 256) or (
                 isinstance(typ, BytesM_T) and typ.m == 32
             )
             if not is_valid:
                 raise CompilerPanic("Shift operations require 256-bit types")
-            # shl(bits, value) - operand order is (bits, value)
-            return VyperValue.from_stack_op(self.builder.shl(right, left), result_typ)
 
-        if isinstance(op, vy_ast.RShift):
-            is_valid = (isinstance(typ, IntegerT) and typ.bits == 256) or (
-                isinstance(typ, BytesM_T) and typ.m == 32
-            )
-            if not is_valid:
-                raise CompilerPanic("Shift operations require 256-bit types")
-            # bytes32 uses unsigned shift (shr), signed integers use arithmetic shift (sar)
-            if isinstance(typ, IntegerT) and typ.is_signed:
-                return VyperValue.from_stack_op(self.builder.sar(right, left), result_typ)
-            else:
-                return VyperValue.from_stack_op(self.builder.shr(right, left), result_typ)
-
-        # Arithmetic operations with overflow checks
-        if isinstance(op, vy_ast.Add):
-            return VyperValue.from_stack_op(self._safe_add(left, right, typ), result_typ)
-
-        if isinstance(op, vy_ast.Sub):
-            return VyperValue.from_stack_op(self._safe_sub(left, right, typ), result_typ)
-
-        if isinstance(op, vy_ast.Mult):
-            return VyperValue.from_stack_op(self._safe_mul(left, right, typ, node), result_typ)
-
-        if isinstance(op, vy_ast.Div):
-            return VyperValue.from_stack_op(self._safe_div(left, right, typ, node), result_typ)
-
-        if isinstance(op, vy_ast.FloorDiv):
-            return VyperValue.from_stack_op(self._safe_floordiv(left, right, typ, node), result_typ)
-
-        if isinstance(op, vy_ast.Mod):
-            return VyperValue.from_stack_op(self._safe_mod(left, right, typ), result_typ)
-
+        # Extract pow literals for bounds checking
+        base_literal = None
+        exp_literal = None
         if isinstance(op, vy_ast.Pow):
-            return VyperValue.from_stack_op(self._safe_pow(left, right, typ, node), result_typ)
+            left_reduced = node.left.reduced()
+            right_reduced = node.right.reduced()
+            base_literal = left_reduced.value if isinstance(left_reduced, vy_ast.Int) else None
+            exp_literal = right_reduced.value if isinstance(right_reduced, vy_ast.Int) else None
 
-        raise CompilerPanic(f"Unsupported BinOp: {type(op)}")
-
-    def _safe_add(self, x: IROperand, y: IROperand, typ) -> IROperand:
-        """Add with overflow checking."""
-        return safe_add(self.builder, x, y, typ)
-
-    def _safe_sub(self, x: IROperand, y: IROperand, typ) -> IROperand:
-        """Subtract with overflow checking."""
-        return safe_sub(self.builder, x, y, typ)
-
-    def _safe_mul(self, x: IROperand, y: IROperand, typ, node: vy_ast.BinOp) -> IROperand:
-        """Multiply with overflow checking."""
-        return safe_mul(self.builder, x, y, typ)
-
-    def _safe_div(self, x: IROperand, y: IROperand, typ, node: vy_ast.BinOp) -> IROperand:
-        """Decimal division with overflow checking."""
-        return safe_div(self.builder, x, y, typ)
-
-    def _safe_floordiv(self, x: IROperand, y: IROperand, typ, node: vy_ast.BinOp) -> IROperand:
-        """Integer floor division with overflow checking."""
-        return safe_floordiv(self.builder, x, y, typ)
-
-    def _safe_mod(self, x: IROperand, y: IROperand, typ) -> IROperand:
-        """Modulo with divisor check."""
-        return safe_mod(self.builder, x, y, typ)
-
-    def _safe_pow(self, x: IROperand, y: IROperand, typ, node: vy_ast.BinOp) -> IROperand:
-        """Exponentiation with bounds checking.
-
-        Requires at least one operand to be a literal for bounds computation.
-        """
-        # Get the reduced nodes to check for literals
-        left_node = node.left.reduced()
-        right_node = node.right.reduced()
-
-        base_literal = left_node.value if isinstance(left_node, vy_ast.Int) else None
-        exp_literal = right_node.value if isinstance(right_node, vy_ast.Int) else None
-
-        return safe_pow(self.builder, x, y, typ, base_literal, exp_literal)
+        result = apply_binop(
+            self.builder, op, left, right, typ, base_literal=base_literal, exp_literal=exp_literal
+        )
+        return VyperValue.from_stack_op(result, result_typ)
 
     # === Unary Operations ===
 
@@ -545,13 +468,9 @@ class Expr:
                 # For storage/memory arrays, use loop with early break
                 # Don't unwrap - iterate directly over storage/memory location
                 right_val = Expr(node.right, self.ctx).lower()
-                # Default to MEMORY if location is None (e.g., for stack values)
-                location = (
-                    right_val.location if right_val.location is not None else DataLocation.MEMORY
-                )
                 return VyperValue.from_stack_op(
                     self._lower_array_membership(
-                        left, right_val.operand, right_typ, location, isinstance(op, vy_ast.In)
+                        left, right_val, right_typ, isinstance(op, vy_ast.In)
                     ),
                     result_typ,
                 )
@@ -727,13 +646,12 @@ class Expr:
         if varinfo.is_constant:
             return Expr(varinfo.decl_node.value, self.ctx).lower()
 
-        # Case 4: Immutable - always CODE location (iload/istore handle ctor vs runtime)
+        # Case 4: Immutable - IMMUTABLES location
         if varinfo.is_immutable:
             typ = node._metadata["type"]
-            # Immutables use iload/istore - CODE location handles both contexts
-            # In constructor: iload/istore access immutable staging area
-            # After deploy: dload accesses deployed bytecode
-            ptr = Ptr(operand=IRLiteral(varinfo.position.position), location=DataLocation.CODE)
+            ptr = Ptr(
+                operand=IRLiteral(varinfo.position.position), location=DataLocation.IMMUTABLES
+            )
             return VyperValue.from_ptr(ptr, typ)
 
         raise CompilerPanic(f"Unknown variable: {varname}")
@@ -803,9 +721,11 @@ class Expr:
             if varinfo.is_constant:
                 return Expr(varinfo.decl_node.value, self.ctx).lower()
 
-            # Immutable state variable - always CODE location
+            # Immutable state variable
             if varinfo.is_immutable:
-                ptr = Ptr(operand=IRLiteral(varinfo.position.position), location=DataLocation.CODE)
+                ptr = Ptr(
+                    operand=IRLiteral(varinfo.position.position), location=DataLocation.IMMUTABLES
+                )
                 return VyperValue.from_ptr(ptr, typ)
 
             # Regular storage/transient variable - return location, don't load!
@@ -922,7 +842,9 @@ class Expr:
         else_block_finish.append_instruction("jmp", exit_block.label)
 
         result_typ = node._metadata["type"]
-        return VyperValue.from_stack_op(result, result_typ)
+        if result_typ._is_prim_word:
+            return VyperValue.from_stack_op(result, result_typ)
+        return self._make_ptr_value(result, DataLocation.MEMORY, result_typ)
 
     # === Subscript Operations ===
 
@@ -965,7 +887,8 @@ class Expr:
         index_typ = node.slice._metadata["type"]
 
         # Propagate location from base (storage/memory/transient)
-        data_loc = base_vv.location or DataLocation.MEMORY
+        data_loc = base_vv.location
+        assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
         elem_size = elem_typ.get_size_in(data_loc)
@@ -974,8 +897,8 @@ class Expr:
         if bounds_check:
             length: IROperand = IRLiteral(0)
             if isinstance(base_typ, DArrayT):
-                # Dynamic array: load length from first word
-                length = self.builder.load(base, data_loc)
+                # Dynamic array: load length from first word.
+                length = self.ctx.load_word(base, data_loc)
             else:
                 # Static array: compile-time length
                 length = IRLiteral(base_typ.count)
@@ -1042,7 +965,8 @@ class Expr:
         slot = self.builder.sha3(ptr.operand, IRLiteral(64))
 
         # Preserve location from base (storage or transient)
-        location = base_vv.location or DataLocation.STORAGE
+        location = base_vv.location
+        assert location is not None
         ptr = Ptr(operand=slot, location=location)
         return VyperValue.from_ptr(ptr, value_typ)
 
@@ -1064,33 +988,11 @@ class Expr:
         # bytes/string: get pointer, hash the data portion
         # sha3 only works on memory - copy non-memory data first
         key_vv = Expr(key_node, self.ctx).lower()
-
-        if key_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
-            # Copy slot-addressed data to memory before hashing
-            typ = key_node._metadata["type"]
-            buf_val = self.ctx.new_temporary_value(typ)
-            self.ctx.slot_to_memory(
-                key_vv.operand, buf_val.operand, typ.storage_size_in_words, key_vv.location
-            )
-            # Hash from memory buffer
-            buf_ptr = buf_val.ptr()
-            data_ptr = self.ctx.add_offset(buf_ptr, IRLiteral(32))  # skip length word
-            length = self.ctx.ptr_load(buf_ptr)
-            return self.builder.sha3(data_ptr.operand, length)
-
-        if key_vv.location == DataLocation.CODE:
-            # Copy immutable data to memory before hashing
-            typ = key_node._metadata["type"]
-            buf_val = self.ctx.new_temporary_value(typ)
-            self.ctx.code_to_memory(key_vv.operand, buf_val.operand, typ.storage_size_in_words)
-            buf_ptr = buf_val.ptr()
-            data_ptr = self.ctx.add_offset(buf_ptr, IRLiteral(32))  # skip length word
-            length = self.ctx.ptr_load(buf_ptr)
-            return self.builder.sha3(data_ptr.operand, length)
-
-        # Memory/calldata - hash directly
-        data_ptr_op = self.ctx.bytes_data_ptr(key_vv)
-        length = self.ctx.bytestring_length(key_vv)
+        key_typ = key_node._metadata["type"]
+        assert isinstance(key_typ, _BytestringT)
+        key_mem = self.ctx.ensure_bytestring_in_memory(key_vv, key_typ)
+        data_ptr_op = self.ctx.bytes_data_ptr(key_mem)
+        length = self.ctx.bytestring_length(key_mem)
         return self.builder.sha3(data_ptr_op, length)
 
     def _get_bytestring_hash(self, node: vy_ast.VyperNode) -> IROperand:
@@ -1119,33 +1021,12 @@ class Expr:
 
         # Not a constant - compute at runtime
         vv = Expr(node, self.ctx).lower()
-
-        # sha3 only works on memory - copy non-memory data first
-        if vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
-            assert isinstance(node, vy_ast.ExprNode)
-            typ = node._expr_info.typ
-            buf_val = self.ctx.new_temporary_value(typ)
-            self.ctx.slot_to_memory(
-                vv.operand, buf_val.operand, typ.storage_size_in_words, vv.location
-            )
-            buf_ptr = buf_val.ptr()
-            data_ptr = self.ctx.add_offset(buf_ptr, IRLiteral(32))
-            length = self.ctx.ptr_load(buf_ptr)
-            return self.builder.sha3(data_ptr.operand, length)
-
-        if vv.location == DataLocation.CODE:
-            assert isinstance(node, vy_ast.ExprNode)
-            typ = node._expr_info.typ
-            buf_val = self.ctx.new_temporary_value(typ)
-            self.ctx.code_to_memory(vv.operand, buf_val.operand, typ.storage_size_in_words)
-            buf_ptr = buf_val.ptr()
-            data_ptr = self.ctx.add_offset(buf_ptr, IRLiteral(32))
-            length = self.ctx.ptr_load(buf_ptr)
-            return self.builder.sha3(data_ptr.operand, length)
-
-        # Memory/calldata - hash directly
-        data_ptr_op = self.ctx.bytes_data_ptr(vv)
-        length = self.ctx.bytestring_length(vv)
+        assert isinstance(node, vy_ast.ExprNode)
+        typ = node._expr_info.typ
+        assert isinstance(typ, _BytestringT)
+        vv_mem = self.ctx.ensure_bytestring_in_memory(vv, typ)
+        data_ptr_op = self.ctx.bytes_data_ptr(vv_mem)
+        length = self.ctx.bytestring_length(vv_mem)
         return self.builder.sha3(data_ptr_op, length)
 
     def _lower_tuple_subscript(self) -> VyperValue:
@@ -1168,7 +1049,8 @@ class Expr:
         index = reduced_slice.value
 
         # Propagate location from base
-        data_loc = base_vv.location or DataLocation.MEMORY
+        data_loc = base_vv.location
+        assert data_loc is not None
 
         # Compute offset by summing sizes of preceding elements
         attrs = list(base_typ.tuple_keys())
@@ -1200,7 +1082,8 @@ class Expr:
         attr = node.attr
 
         # Propagate location from base
-        data_loc = base_vv.location or DataLocation.MEMORY
+        data_loc = base_vv.location
+        assert data_loc is not None
 
         # Find field index and compute offset
         attrs = list(base_typ.tuple_keys())
@@ -1286,12 +1169,7 @@ class Expr:
         return result
 
     def _lower_array_membership(
-        self,
-        needle: IROperand,
-        haystack: IROperand,
-        haystack_typ,
-        location: DataLocation,
-        is_in: bool,
+        self, needle: IROperand, haystack_vv: VyperValue, haystack_typ, is_in: bool
     ) -> IRVariable:
         """Lower array membership test: x in array or x not in array.
 
@@ -1309,9 +1187,9 @@ class Expr:
                 "`in` not allowed for arrays of non-base types, tracked in issue #2637", self.node
             )
 
-        # Constants have UNSET location - use MEMORY sizing (same as CODE)
-        if location == DataLocation.UNSET:
-            location = DataLocation.MEMORY
+        haystack = haystack_vv.operand
+        location = haystack_vv.location
+        assert location is not None
 
         # Determine word scale based on location
         # Storage: 1 slot per word, Memory: 32 bytes per word
@@ -1320,7 +1198,7 @@ class Expr:
         # Get array properties
         length: IROperand
         if isinstance(haystack_typ, DArrayT):
-            length = self.builder.load(haystack, location)
+            length = self.ctx.load_word(haystack, location)
             bound = haystack_typ.count
             offset_base = word_scale * DYNAMIC_ARRAY_OVERHEAD
         elif isinstance(haystack_typ, SArrayT):
@@ -1379,7 +1257,7 @@ class Expr:
         elem_addr = self.builder.add(haystack, total_offset)
 
         # Load element and compare
-        elem_val = self.builder.load(elem_addr, location)
+        elem_val = self.ctx.load_word(elem_addr, location)
         match = self.builder.eq(elem_val, needle)
         self.builder.jnz(match, found_block.label, incr_block.label)
 
@@ -1487,8 +1365,8 @@ class Expr:
                 node,
             )
 
-        returns_count = self.ctx.returns_stack_count(func_t)
-        pass_via_stack = self.ctx.pass_via_stack(func_t)
+        returns_count = returns_stack_count(func_t)
+        pass_via_stack_dict = pass_via_stack(func_t)
 
         # Generate function label
         # Format: "internal {function_id} {name}({arg_types})_runtime"
@@ -1537,7 +1415,7 @@ class Expr:
             arg_t = func_t.arguments[i]
             arg_op = self.ctx.unwrap(arg_val)
 
-            if pass_via_stack[arg_t.name]:
+            if pass_via_stack_dict[arg_t.name]:
                 # Stack-passed arg: use value directly
                 # For struct/tuple types that fit in one word, arg_val is a memory
                 # pointer (from unwrap), so we need to load the actual value
@@ -1698,7 +1576,8 @@ class Expr:
             elem_val = Expr(arg_node, self.ctx).lower_value()
 
         # Get location from VyperValue
-        data_loc = darray_vv.location or DataLocation.MEMORY
+        data_loc = darray_vv.location
+        assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
         elem_size = elem_typ.get_size_in(data_loc)
@@ -1762,7 +1641,8 @@ class Expr:
         darray_ptr = darray_vv.operand
 
         # Get location from VyperValue
-        data_loc = darray_vv.location or DataLocation.MEMORY
+        data_loc = darray_vv.location
+        assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
         elem_size = elem_typ.get_size_in(data_loc)

@@ -35,6 +35,7 @@ from vyper.venom.builder import VenomBuilder
 from vyper.venom.context import IRContext
 from vyper.venom.memory_location import Allocation
 
+from .calling_convention import pass_via_stack, returns_stack_count
 from .context import Constancy, VenomCodegenContext
 from .expr import Expr
 from .stmt import Stmt
@@ -1312,8 +1313,8 @@ def _generate_internal_function(
         builder.ctx.mem_allocator.add_global(imm_alloc)
 
     # Set up return handling
-    pass_via_stack = codegen_ctx.pass_via_stack(func_t)
-    returns_count = codegen_ctx.returns_stack_count(func_t)
+    pass_via_stack_dict = pass_via_stack(func_t)
+    returns_count = returns_stack_count(func_t)
     has_memory_return_buffer = func_t.return_type is not None and returns_count == 0
 
     # Structured invoke metadata used by backend passes.
@@ -1327,7 +1328,7 @@ def _generate_internal_function(
 
     # Handle function arguments
     for arg in func_t.arguments:
-        if pass_via_stack[arg.name]:
+        if pass_via_stack_dict[arg.name]:
             # Stack-passed: receive value, allocate memory, store
             val = builder.param()
             var = codegen_ctx.new_variable(arg.name, arg.typ, mutable=True)

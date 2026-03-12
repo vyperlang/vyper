@@ -14,7 +14,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
-from vyper.codegen.core import is_tuple_like
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.constants import IDENTITY_PRECOMPILE
 from vyper.codegen_venom.value import VyperValue
@@ -98,13 +97,10 @@ class VenomCodegenContext:
     # Range expression context - set to True when evaluating range/iterator expressions
     in_range_expr: bool = False
 
-    # Immutables region alloca (for constructor context)
-    # When set, iload/istore use GEP from this base instead of raw offsets
+    # Immutables region alloca (for constructor context).
+    # Reserves memory at position 0 for immutables staging;
+    # used by deploy epilogue to copy staging area into bytecode.
     immutables_alloca: Optional[IRVariable] = None
-
-    # Constants for internal function calling convention
-    MAX_STACK_ARGS: int = 6
-    MAX_STACK_RETURNS: int = 2
 
     def new_alloca_id(self) -> int:
         """Generate unique alloca ID."""
@@ -151,7 +147,7 @@ class VenomCodegenContext:
         """Unwrap a VyperValue, loading from location if needed.
 
         - If already a value (location=None): return operand directly
-        - If complex type (>32 bytes): return operand as pointer (or copy for CODE)
+        - If complex type (>32 bytes): return operand as pointer (or copy)
         - Otherwise: emit load instruction and return the loaded value
         """
         if vv.location is None:
@@ -159,27 +155,17 @@ class VenomCodegenContext:
 
         # Complex types (>32 bytes)
         if vv.typ is not None and not vv.typ._is_prim_word:
-            # CODE location requires copy to memory (can't use pointer directly)
-            if vv.location == DataLocation.CODE:
-                if self.is_ctor_context:
-                    return self.load_immutable_ctor(vv.operand, vv.typ)
-                return self.load_immutable(vv.operand, vv.typ)
-            # STORAGE location requires copy to memory
+            if vv.location == DataLocation.IMMUTABLES:
+                return self.load_immutable_to_memory(vv.operand, vv.typ)
             if vv.location == DataLocation.STORAGE:
-                return self.load_storage(vv.operand, vv.typ)
-            # TRANSIENT location requires copy to memory
+                return self.load_storage_to_memory(vv.operand, vv.typ)
             if vv.location == DataLocation.TRANSIENT:
-                return self.load_transient(vv.operand, vv.typ)
+                return self.load_transient_to_memory(vv.operand, vv.typ)
             # MEMORY location: return pointer directly
             return vv.operand
 
         # Primitive word type: emit load based on location
-        if vv.location == DataLocation.CODE:
-            # ctor context uses iload; runtime uses dload
-            if self.is_ctor_context:
-                return self.builder.iload(vv.operand)
-            return self.builder.dload(vv.operand)
-        return self.builder.load(vv.operand, vv.location)
+        return self.load_word(vv.operand, vv.location)
 
     def bytes_data_ptr(self, vv: VyperValue) -> IROperand:
         """Get pointer to bytestring data (skipping length word).
@@ -194,7 +180,7 @@ class VenomCodegenContext:
             DataLocation.TRANSIENT,
         ), f"bytes_data_ptr expects MEMORY, STORAGE, or TRANSIENT, got {loc}"
         word_scale = 32 if loc is None or loc == DataLocation.MEMORY else 1
-        return self.builder.add(vv.operand, IRLiteral(word_scale))
+        return self._with_byte_offset(vv.operand, word_scale)
 
     def bytestring_length(self, vv: VyperValue) -> IROperand:
         """Get length of bytestring from its pointer.
@@ -212,6 +198,41 @@ class VenomCodegenContext:
         if loc is None:
             return self.builder.mload(vv.operand)
         return self.builder.load(vv.operand, loc)
+
+    def load_word(self, addr: IROperand, location: DataLocation) -> IROperand:
+        """Load a single word from addr at the given location.
+
+        Handles IMMUTABLES via iload (ctor) or dload (runtime).
+        CODE always uses dload (for constructor args in code section).
+        """
+        if location == DataLocation.IMMUTABLES:
+            if self.is_ctor_context:
+                return self.builder.iload(addr)
+            return self.builder.dload(addr)
+        # NOTE: CODE falls through to builder.load (dload). If a future
+        # code path needs ctor-aware CODE loads, add an explicit branch here.
+        return self.builder.load(addr, location)
+
+    def ensure_bytestring_in_memory(self, vv: VyperValue, typ: _BytestringT) -> VyperValue:
+        """Return a bytestring value guaranteed to be in memory.
+
+        Hashing and certain builtins require memory-backed bytestring data.
+        STORAGE/TRANSIENT/CODE values are copied into a temporary memory buffer.
+        """
+        if vv.location is DataLocation.STORAGE or vv.location is DataLocation.TRANSIENT:
+            buf_val = self.new_temporary_value(typ)
+            self.slot_to_memory(vv.operand, buf_val.operand, typ.storage_size_in_words, vv.location)
+            return buf_val
+
+        if vv.location is DataLocation.IMMUTABLES:
+            buf_val = self.new_temporary_value(typ)
+            self.copy_to_memory(
+                buf_val.operand, vv.operand, typ.memory_bytes_required, DataLocation.IMMUTABLES
+            )
+            return buf_val
+
+        assert vv.location is None or vv.location is DataLocation.MEMORY
+        return vv
 
     def is_constant(self) -> bool:
         """Check if in constant (view) context or range expression."""
@@ -282,49 +303,6 @@ class VenomCodegenContext:
             else Constancy.Mutable,
             is_ctor_context=is_ctor or self.is_ctor_context,
         )
-
-    # === Internal Function Helpers ===
-
-    def is_word_type(self, typ: VyperType) -> bool:
-        """Check if type fits in one stack slot (32 bytes)."""
-        return typ.memory_bytes_required == 32
-
-    def pass_via_stack(self, func_t: ContractFunctionT) -> dict[str, bool]:
-        """Determine which args pass via stack vs memory.
-
-        Returns dict mapping arg name -> True if stack, False if memory.
-        Word types pass via stack up to MAX_STACK_ARGS.
-        """
-        ret = {}
-        stack_items = 0
-
-        # Return takes one stack slot if it's a word type
-        if func_t.return_type is not None and self.is_word_type(func_t.return_type):
-            stack_items += 1
-
-        for arg in func_t.arguments:
-            if not self.is_word_type(arg.typ) or stack_items > self.MAX_STACK_ARGS:
-                ret[arg.name] = False
-            else:
-                ret[arg.name] = True
-                stack_items += 1
-
-        return ret
-
-    def returns_stack_count(self, func_t: ContractFunctionT) -> int:
-        """How many values returned via stack (0, 1, or 2 for tuples)."""
-        ret_t = func_t.return_type
-        if ret_t is None:
-            return 0
-
-        if is_tuple_like(ret_t):
-            members = ret_t.tuple_items()  # type: ignore[attr-defined]
-            if 1 <= len(members) <= self.MAX_STACK_RETURNS:
-                if all(self.is_word_type(t) for (_k, t) in members):
-                    return len(members)
-            return 0
-
-        return 1 if self.is_word_type(ret_t) else 0
 
     # === Nonreentrant Lock Support ===
 
@@ -421,6 +399,14 @@ class VenomCodegenContext:
     # For 3+ words, identity precompile produces smaller bytecode.
     _IDENTITY_PRECOMPILE_THRESHOLD = 96  # 3 words
 
+    def _with_byte_offset(self, base: IROperand, byte_offset: int) -> IROperand:
+        """Add a compile-time byte offset to an operand, preserving literals."""
+        if byte_offset == 0:
+            return base
+        if isinstance(base, IRLiteral):
+            return IRLiteral(base.value + byte_offset)
+        return self.builder.add(base, IRLiteral(byte_offset))
+
     def copy_memory(self, dst: IROperand, src: IROperand, size: int) -> None:
         """Copy memory region from src to dst (static size known at compile time).
 
@@ -446,18 +432,8 @@ class VenomCodegenContext:
 
         # Pre-Cancun: word-by-word copy for small copies
         for offset in range(0, size, 32):
-            src_ptr: IROperand
-            if isinstance(src, IRLiteral):
-                src_ptr = IRLiteral(src.value + offset)
-            else:
-                src_ptr = self.builder.add(src, IRLiteral(offset))
-
-            dst_ptr: IROperand
-            if isinstance(dst, IRLiteral):
-                dst_ptr = IRLiteral(dst.value + offset)
-            else:
-                dst_ptr = self.builder.add(dst, IRLiteral(offset))
-
+            src_ptr = self._with_byte_offset(src, offset)
+            dst_ptr = self._with_byte_offset(dst, offset)
             val = self.builder.mload(src_ptr)
             self.builder.mstore(dst_ptr, val)
 
@@ -511,7 +487,7 @@ class VenomCodegenContext:
     # Storage is word-addressed (word_scale=1): slot N is at slot N, not byte N*32.
     # This differs from memory which is byte-addressed (word_scale=32).
 
-    def load_storage(self, slot: IROperand, typ: VyperType) -> IROperand:
+    def load_storage_to_memory(self, slot: IROperand, typ: VyperType) -> IROperand:
         """Load value from storage slot.
 
         For primitive types, returns sload result directly.
@@ -559,9 +535,10 @@ class VenomCodegenContext:
     def slot_to_memory(
         self, slot: IROperand, buf: IROperand, word_count: int, location: DataLocation
     ) -> None:
-        """Load multi-word slot-addressed value to memory buffer.
+        """Load word_count words from slot-addressed location to memory buffer.
 
-        Generic helper that dispatches based on location (STORAGE or TRANSIENT).
+        For slot-addressed locations (storage, transient) where slots
+        increment by 1.  For byte-addressed locations, use copy_to_memory.
         """
         if location == DataLocation.STORAGE:
             self._load_storage_to_memory(slot, buf, word_count)
@@ -577,130 +554,107 @@ class VenomCodegenContext:
         """
         self._store_memory_to_storage(buf, slot, word_count)
 
-    def code_to_memory(self, offset: IROperand, dst: IROperand, word_count: int) -> None:
-        """Copy multi-word immutable from CODE to memory."""
+    def copy_to_memory(
+        self, dst: IROperand, src: IROperand, size: int, location: DataLocation
+    ) -> None:
+        """Copy size bytes from src at location into dst (memory).
+
+        For byte-addressed locations (memory, code, immutables, calldata).
+        Word-by-word using load_word, so IMMUTABLES is handled correctly
+        in both constructor and runtime contexts.
+
+        For slot-addressed locations (storage, transient), use slot_to_memory.
+        """
+        # TODO: refactor — DataLocation should have word_scale/word_addressable
+        # properties (like AddrSpace does) instead of hardcoding this.
+        _byte_addressed = (
+            DataLocation.MEMORY,
+            DataLocation.CODE,
+            DataLocation.IMMUTABLES,
+            DataLocation.CALLDATA,
+        )
+        assert (
+            location in _byte_addressed
+        ), f"copy_to_memory: expected byte-addressed location, got {location}"
+        for i in range(0, size, 32):
+            src_ptr = self._with_byte_offset(src, i)
+            dst_ptr = self._with_byte_offset(dst, i)
+            word = self.load_word(src_ptr, location)
+            self.builder.mstore(dst_ptr, word)
+
+    def _word_copy_loop(
+        self,
+        src_addr: IROperand,
+        dst_addr: IROperand,
+        word_count: int,
+        load_fn,
+        store_fn,
+        src_scale: int,
+        dst_scale: int,
+        prefix: str,
+    ) -> None:
+        """Emit a word-copy loop between two address spaces.
+
+        Parameterized over load/store functions and addressing scales.
+        Slot-addressed spaces (storage, transient) use scale=1.
+        Byte-addressed spaces (memory) use scale=32.
+
+        Used for storage↔memory and transient↔memory bulk copies.
+        One parameterized loop → one HOL inductive proof covers all 4 directions.
+        """
         b = self.builder
-        for i in range(word_count):
-            byte_offset = i * 32
-            if byte_offset == 0:
-                imm_offset = offset
-            elif isinstance(offset, IRLiteral):
-                imm_offset = IRLiteral(offset.value + byte_offset)
-            else:
-                imm_offset = b.add(offset, IRLiteral(byte_offset))
 
-            if self.immutables_alloca is not None:
-                ptr = b.gep(self.immutables_alloca, imm_offset)
-                word = b.mload(ptr)
-            else:
-                word = b.dload(imm_offset)
+        cond_block = b.create_block(f"{prefix}_cond")
+        body_block = b.create_block(f"{prefix}_body")
+        exit_block = b.create_block(f"{prefix}_exit")
 
-            if byte_offset == 0:
-                mem_ptr = dst
-            elif isinstance(dst, IRLiteral):
-                mem_ptr = IRLiteral(dst.value + byte_offset)
-            else:
-                mem_ptr = b.add(dst, IRLiteral(byte_offset))
+        counter = b.assign(IRLiteral(0))
+        b.jmp(cond_block.label)
 
-            b.mstore(mem_ptr, word)
+        b.append_block(cond_block)
+        b.set_block(cond_block)
+        done = b.eq(counter, IRLiteral(word_count))
+        cond_finish = b.current_block
+
+        b.append_block(body_block)
+        b.set_block(body_block)
+
+        if src_scale == 1:
+            src_offset = b.add(src_addr, counter)
+        else:
+            src_offset = b.add(src_addr, b.mul(counter, IRLiteral(src_scale)))
+        val = load_fn(src_offset)
+
+        if dst_scale == 1:
+            dst_offset = b.add(dst_addr, counter)
+        else:
+            dst_offset = b.add(dst_addr, b.mul(counter, IRLiteral(dst_scale)))
+        store_fn(dst_offset, val)
+
+        new_counter = b.add(counter, IRLiteral(1))
+        b.assign_to(new_counter, counter)
+        b.jmp(cond_block.label)
+
+        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
+
+        b.append_block(exit_block)
+        b.set_block(exit_block)
 
     def _load_storage_to_memory(self, slot: IROperand, buf: IROperand, word_count: int) -> None:
-        """Load multi-word storage value to memory buffer.
-
-        Storage is word-addressed, memory is byte-addressed.
-        Always emits IR loop (matches legacy `repeat` behavior).
-        """
-        b = self.builder
-
-        # Create blocks
-        cond_block = b.create_block("s2m_cond")
-        body_block = b.create_block("s2m_body")
-        exit_block = b.create_block("s2m_exit")
-
-        # Entry: counter = 0, jump to cond
-        counter = b.assign(IRLiteral(0))
-        b.jmp(cond_block.label)
-
-        # Condition block: if counter == word_count, goto exit, else goto body
-        b.append_block(cond_block)
-        b.set_block(cond_block)
-        done = b.eq(counter, IRLiteral(word_count))
-        cond_finish = b.current_block
-
-        # Body block
-        b.append_block(body_block)
-        b.set_block(body_block)
-
-        # Storage slot = base_slot + counter (storage is word-addressed)
-        current_slot = b.add(slot, counter)
-        val = b.sload(current_slot)
-
-        # Memory offset = buf + counter * 32 (memory is byte-addressed)
-        mem_offset = b.add(buf, b.mul(counter, IRLiteral(32)))
-        b.mstore(mem_offset, val)
-
-        # Increment counter and jump back to cond
-        new_counter = b.add(counter, IRLiteral(1))
-        b.assign_to(new_counter, counter)
-        b.jmp(cond_block.label)
-
-        # Add conditional jump from cond block (after body processed)
-        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
-
-        # Exit block
-        b.append_block(exit_block)
-        b.set_block(exit_block)
+        """Load multi-word storage value to memory buffer."""
+        self._word_copy_loop(
+            slot, buf, word_count, self.builder.sload, self.builder.mstore, 1, 32, "s2m"
+        )
 
     def _store_memory_to_storage(self, buf: IROperand, slot: IROperand, word_count: int) -> None:
-        """Store memory buffer to multi-word storage.
-
-        Memory is byte-addressed, storage is word-addressed.
-        Always emits IR loop (matches legacy `repeat` behavior).
-        """
-        b = self.builder
-
-        # Create blocks
-        cond_block = b.create_block("m2s_cond")
-        body_block = b.create_block("m2s_body")
-        exit_block = b.create_block("m2s_exit")
-
-        # Entry: counter = 0, jump to cond
-        counter = b.assign(IRLiteral(0))
-        b.jmp(cond_block.label)
-
-        # Condition block: if counter == word_count, goto exit, else goto body
-        b.append_block(cond_block)
-        b.set_block(cond_block)
-        done = b.eq(counter, IRLiteral(word_count))
-        cond_finish = b.current_block
-
-        # Body block
-        b.append_block(body_block)
-        b.set_block(body_block)
-
-        # Memory offset = buf + counter * 32 (memory is byte-addressed)
-        mem_offset = b.add(buf, b.mul(counter, IRLiteral(32)))
-        val = b.mload(mem_offset)
-
-        # Storage slot = base_slot + counter (storage is word-addressed)
-        current_slot = b.add(slot, counter)
-        b.sstore(current_slot, val)
-
-        # Increment counter and jump back to cond
-        new_counter = b.add(counter, IRLiteral(1))
-        b.assign_to(new_counter, counter)
-        b.jmp(cond_block.label)
-
-        # Add conditional jump from cond block (after body processed)
-        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
-
-        # Exit block
-        b.append_block(exit_block)
-        b.set_block(exit_block)
+        """Store memory buffer to multi-word storage."""
+        self._word_copy_loop(
+            buf, slot, word_count, self.builder.mload, self.builder.sstore, 32, 1, "m2s"
+        )
 
     # === Transient Storage (EIP-1153, Cancun+) ===
 
-    def load_transient(self, slot: IROperand, typ: VyperType) -> IROperand:
+    def load_transient_to_memory(self, slot: IROperand, typ: VyperType) -> IROperand:
         """Load from transient storage (Cancun+).
 
         For primitive types, returns tload result directly.
@@ -739,222 +693,53 @@ class VenomCodegenContext:
             self._store_memory_to_transient(val, slot, typ.storage_size_in_words)
 
     def _load_transient_to_memory(self, slot: IROperand, buf: IROperand, word_count: int) -> None:
-        """Load multi-word transient storage value to memory buffer.
-
-        Always emits IR loop (matches legacy `repeat` behavior).
-        """
-        b = self.builder
-
-        # Create blocks
-        cond_block = b.create_block("t2m_cond")
-        body_block = b.create_block("t2m_body")
-        exit_block = b.create_block("t2m_exit")
-
-        # Entry: counter = 0, jump to cond
-        counter = b.assign(IRLiteral(0))
-        b.jmp(cond_block.label)
-
-        # Condition block: if counter == word_count, goto exit, else goto body
-        b.append_block(cond_block)
-        b.set_block(cond_block)
-        done = b.eq(counter, IRLiteral(word_count))
-        cond_finish = b.current_block
-
-        # Body block
-        b.append_block(body_block)
-        b.set_block(body_block)
-
-        # Transient slot = base_slot + counter (word-addressed)
-        current_slot = b.add(slot, counter)
-        val = b.tload(current_slot)
-
-        # Memory offset = buf + counter * 32 (byte-addressed)
-        mem_offset = b.add(buf, b.mul(counter, IRLiteral(32)))
-        b.mstore(mem_offset, val)
-
-        # Increment counter and jump back to cond
-        new_counter = b.add(counter, IRLiteral(1))
-        b.assign_to(new_counter, counter)
-        b.jmp(cond_block.label)
-
-        # Add conditional jump from cond block (after body processed)
-        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
-
-        # Exit block
-        b.append_block(exit_block)
-        b.set_block(exit_block)
+        """Load multi-word transient storage value to memory buffer."""
+        self._word_copy_loop(
+            slot, buf, word_count, self.builder.tload, self.builder.mstore, 1, 32, "t2m"
+        )
 
     def _store_memory_to_transient(self, buf: IROperand, slot: IROperand, word_count: int) -> None:
-        """Store memory buffer to multi-word transient storage.
-
-        Always emits IR loop (matches legacy `repeat` behavior).
-        """
-        b = self.builder
-
-        # Create blocks
-        cond_block = b.create_block("m2t_cond")
-        body_block = b.create_block("m2t_body")
-        exit_block = b.create_block("m2t_exit")
-
-        # Entry: counter = 0, jump to cond
-        counter = b.assign(IRLiteral(0))
-        b.jmp(cond_block.label)
-
-        # Condition block: if counter == word_count, goto exit, else goto body
-        b.append_block(cond_block)
-        b.set_block(cond_block)
-        done = b.eq(counter, IRLiteral(word_count))
-        cond_finish = b.current_block
-
-        # Body block
-        b.append_block(body_block)
-        b.set_block(body_block)
-
-        # Memory offset = buf + counter * 32 (byte-addressed)
-        mem_offset = b.add(buf, b.mul(counter, IRLiteral(32)))
-        val = b.mload(mem_offset)
-
-        # Transient slot = base_slot + counter (word-addressed)
-        current_slot = b.add(slot, counter)
-        b.tstore(current_slot, val)
-
-        # Increment counter and jump back to cond
-        new_counter = b.add(counter, IRLiteral(1))
-        b.assign_to(new_counter, counter)
-        b.jmp(cond_block.label)
-
-        # Add conditional jump from cond block (after body processed)
-        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
-
-        # Exit block
-        b.append_block(exit_block)
-        b.set_block(exit_block)
+        """Store memory buffer to multi-word transient storage."""
+        self._word_copy_loop(
+            buf, slot, word_count, self.builder.mload, self.builder.tstore, 32, 1, "m2t"
+        )
 
     # === Immutables ===
 
     # Immutables are stored in bytecode (CODE location), accessed via iload/istore.
     # They are byte-addressed (word_scale=32), like memory.
 
-    def load_immutable(self, offset: IROperand, typ: VyperType) -> IROperand:
-        """Load immutable value from deployed bytecode (runtime).
+    def load_immutable_to_memory(self, offset: IROperand, typ: VyperType) -> IROperand:
+        """Load immutable value into a memory buffer.
 
-        For primitive word types, returns dload result directly.
-        For complex types (structs, arrays), allocates memory buffer and copies.
+        Uses load_word which dispatches correctly for IMMUTABLES
+        (iload in ctor, dload at runtime).
+
+        For primitive word types, returns the loaded value directly.
+        For complex types, allocates a memory buffer and returns the pointer.
         """
         if typ._is_prim_word:
-            return self.builder.dload(offset)
-        else:
-            # Multi-word immutable: copy to memory buffer
-            val = self.new_temporary_value(typ)
-            buf = val.operand
-            size = typ.memory_bytes_required
-            for i in range(0, size, 32):
-                # Immutables are byte-addressed
-                if i == 0:
-                    imm_offset = offset
-                elif isinstance(offset, IRLiteral):
-                    imm_offset = IRLiteral(offset.value + i)
-                else:
-                    imm_offset = self.builder.add(offset, IRLiteral(i))
+            return self.load_word(offset, DataLocation.IMMUTABLES)
 
-                word = self.builder.dload(imm_offset)
-
-                # Memory is byte-addressed
-                mem_ptr: IROperand
-                if i == 0:
-                    mem_ptr = buf
-                elif isinstance(buf, IRLiteral):
-                    mem_ptr = IRLiteral(buf.value + i)
-                else:
-                    mem_ptr = self.builder.add(buf, IRLiteral(i))
-
-                self.builder.mstore(mem_ptr, word)
-
-            return buf
-
-    def load_immutable_ctor(self, offset: IROperand, typ: VyperType) -> IROperand:
-        """Load immutable value during constructor (uses GEP + mload).
-
-        For primitive word types, returns single mload result directly.
-        For complex types (structs, arrays), allocates memory buffer and copies.
-        """
-        if typ._is_prim_word:
-            if self.immutables_alloca is not None:
-                ptr = self.builder.gep(self.immutables_alloca, offset)
-                return self.builder.mload(ptr)
-            return self.builder.iload(offset)
-        else:
-            # Multi-word immutable: copy to memory buffer
-            val = self.new_temporary_value(typ)
-            buf = val.operand
-            size = typ.memory_bytes_required
-            for i in range(0, size, 32):
-                # Immutables are byte-addressed
-                if i == 0:
-                    imm_offset = offset
-                elif isinstance(offset, IRLiteral):
-                    imm_offset = IRLiteral(offset.value + i)
-                else:
-                    imm_offset = self.builder.add(offset, IRLiteral(i))
-
-                if self.immutables_alloca is not None:
-                    ptr = self.builder.gep(self.immutables_alloca, imm_offset)
-                    word = self.builder.mload(ptr)
-                else:
-                    word = self.builder.iload(imm_offset)
-
-                # Memory is byte-addressed
-                mem_ptr: IROperand
-                if i == 0:
-                    mem_ptr = buf
-                elif isinstance(buf, IRLiteral):
-                    mem_ptr = IRLiteral(buf.value + i)
-                else:
-                    mem_ptr = self.builder.add(buf, IRLiteral(i))
-
-                self.builder.mstore(mem_ptr, word)
-
-            return buf
+        val = self.new_temporary_value(typ)
+        self.copy_to_memory(val.operand, offset, typ.memory_bytes_required, DataLocation.IMMUTABLES)
+        return val.operand
 
     def store_immutable(self, val: IROperand, offset: IROperand, typ: VyperType) -> None:
         """Store immutable value (during constructor only).
 
-        For primitive types (<=32 bytes), direct mstore via GEP.
-        For multi-word types, val is memory ptr, copy to immutables.
+        For primitive types (<=32 bytes), store single word.
+        For multi-word types, val is memory ptr, copy word-by-word.
         """
         if typ.memory_bytes_required <= 32:
-            if self.immutables_alloca is not None:
-                ptr = self.builder.gep(self.immutables_alloca, offset)
-                self.builder.mstore(ptr, val)
-            else:
-                self.builder.istore(offset, val)
+            self.store_word(offset, val, DataLocation.IMMUTABLES)
         else:
-            # Multi-word: val is memory pointer, copy to immutables
             size = typ.memory_bytes_required
             for i in range(0, size, 32):
-                # Memory is byte-addressed
-                if i == 0:
-                    mem_ptr = val
-                elif isinstance(val, IRLiteral):
-                    mem_ptr = IRLiteral(val.value + i)
-                else:
-                    mem_ptr = self.builder.add(val, IRLiteral(i))
-
+                mem_ptr = self._with_byte_offset(val, i)
                 word = self.builder.mload(mem_ptr)
-
-                # Immutables are byte-addressed
-                if i == 0:
-                    imm_offset = offset
-                elif isinstance(offset, IRLiteral):
-                    imm_offset = IRLiteral(offset.value + i)
-                else:
-                    imm_offset = self.builder.add(offset, IRLiteral(i))
-
-                if self.immutables_alloca is not None:
-                    ptr = self.builder.gep(self.immutables_alloca, imm_offset)
-                    self.builder.mstore(ptr, word)
-                else:
-                    self.builder.istore(imm_offset, word)
+                imm_offset = self._with_byte_offset(offset, i)
+                self.store_word(imm_offset, word, DataLocation.IMMUTABLES)
 
     # === Dynamic Array Length ===
 
@@ -977,40 +762,23 @@ class VenomCodegenContext:
 
     def ptr_load(self, src: Ptr) -> IROperand:
         """Load 32-byte value from pointer. Dispatches on location."""
-        if src.location == DataLocation.MEMORY:
-            return self.builder.mload(src.operand)
-        elif src.location == DataLocation.STORAGE:
-            return self.builder.sload(src.operand)
-        elif src.location == DataLocation.TRANSIENT:
-            return self.builder.tload(src.operand)
-        elif src.location == DataLocation.CALLDATA:
-            return self.builder.calldataload(src.operand)
-        elif src.location == DataLocation.CODE:
-            # Immutables: ctor context uses GEP from immutables_alloca, runtime uses dload
-            if self.is_ctor_context:
-                if self.immutables_alloca is not None:
-                    # Use GEP to get proper memory address within immutables region
-                    ptr = self.builder.gep(self.immutables_alloca, src.operand)
-                    return self.builder.mload(ptr)
-                return self.builder.iload(src.operand)
-            return self.builder.dload(src.operand)
-        else:
-            raise CompilerPanic(f"cannot load from: {src.location}")
+        return self.load_word(src.operand, src.location)
 
     def ptr_store(self, dst: Ptr, val: IROperand) -> None:
         """Store 32-byte value to pointer. Dispatches on location."""
-        if dst.location == DataLocation.MEMORY:
-            self.builder.mstore(dst.operand, val)
-        elif dst.location == DataLocation.STORAGE:
-            self.builder.sstore(dst.operand, val)
-        elif dst.location == DataLocation.TRANSIENT:
-            self.builder.tstore(dst.operand, val)
-        elif dst.location == DataLocation.CODE:
-            # Immutables in constructor context - use GEP from immutables_alloca
-            if self.immutables_alloca is not None:
-                ptr = self.builder.gep(self.immutables_alloca, dst.operand)
-                self.builder.mstore(ptr, val)
-            else:
-                self.builder.istore(dst.operand, val)
+        return self.store_word(dst.operand, val, dst.location)
+
+    def store_word(self, addr: IROperand, val: IROperand, location: DataLocation) -> None:
+        """Store a single word to addr at the given location."""
+        if location == DataLocation.IMMUTABLES:
+            self.builder.istore(addr, val)
+        elif location == DataLocation.MEMORY:
+            self.builder.mstore(addr, val)
+        elif location == DataLocation.STORAGE:
+            self.builder.sstore(addr, val)
+        elif location == DataLocation.TRANSIENT:
+            self.builder.tstore(addr, val)
+        elif location == DataLocation.CODE:
+            raise CompilerPanic("cannot store to CODE")
         else:
-            raise CompilerPanic(f"cannot store to: {dst.location}")
+            raise CompilerPanic(f"cannot store to: {location}")
