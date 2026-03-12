@@ -35,7 +35,7 @@ class Buffer:
 @dataclass(frozen=True)
 class Ptr:
     """
-    A pointer to a location (memory, storage, calldata, transient).
+    A pointer to a location (memory, storage, calldata, code, transient).
 
     location is required - a Ptr always points somewhere.
 
