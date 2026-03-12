@@ -2361,6 +2361,13 @@ def test_soundness_literal_not_normalized_to_signed():
     cmp_inst = entry.instructions[1]
     rng = analysis.get_range(cmp_inst.output, entry.instructions[-1])
 
+    # SIGNED_MAX > SIGNED_MIN, so slt should return 0
+    # If the literal 2^255 is not normalized, the analysis might wrongly return 1
+    assert rng.lo == 0 and rng.hi == 0, (
+        f"Expected slt(SIGNED_MAX, 2^255) = {{0}}, got {rng}. "
+        f"2^255 should be normalized to SIGNED_MIN (-2^255) in signed representation."
+    )
+
     rng = mono.get_range(cmp_inst.output, entry.instructions[-1])
 
     # SIGNED_MAX > SIGNED_MIN, so slt should return 0
@@ -2369,6 +2376,8 @@ def test_soundness_literal_not_normalized_to_signed():
         f"Expected slt(SIGNED_MAX, 2^255) = {{0}}, got {rng}. "
         f"2^255 should be normalized to SIGNED_MIN (-2^255) in signed representation."
     )
+
+
 
 
 def test_soundness_literal_not_normalized_sgt():
@@ -2395,6 +2404,12 @@ def test_soundness_literal_not_normalized_sgt():
     entry = fn.get_basic_block("entry")
     cmp_inst = entry.instructions[1]
     rng = analysis.get_range(cmp_inst.output, entry.instructions[-1])
+
+    # SIGNED_MAX > SIGNED_MIN, so sgt should return 1
+    assert rng.lo == 1 and rng.hi == 1, (
+        f"Expected sgt(SIGNED_MAX, 2^255) = {{1}}, got {rng}. "
+        f"2^255 should be normalized to SIGNED_MIN."
+    )
 
     rng = mono.get_range(cmp_inst.output, entry.instructions[-1])
 
