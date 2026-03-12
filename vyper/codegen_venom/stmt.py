@@ -93,15 +93,11 @@ class Stmt:
         if isinstance(target, vy_ast.Tuple):
             return self._lower_tuple_unpack()
 
-        # Special case: empty Bytestring assignment to storage/transient.
+        # Special case: empty Bytestring assignment — just zero the length word.
         if isinstance(target_typ, _BytestringT) and self._is_empty_value(node.value):
             dst_ptr = self._get_target_ptr(target)
-            if dst_ptr.location == DataLocation.STORAGE:
-                self.builder.sstore(dst_ptr.operand, IRLiteral(0))
-                return
-            elif dst_ptr.location == DataLocation.TRANSIENT:
-                self.builder.tstore(dst_ptr.operand, IRLiteral(0))
-                return
+            self.ctx.ptr_store(dst_ptr, IRLiteral(0))
+            return
 
         # IMPORTANT: Evaluate RHS first, then compute LHS target pointer.
         # This matches legacy codegen and ensures proper semantics for cases
@@ -127,12 +123,7 @@ class Stmt:
         """
         if isinstance(typ, _BytestringT) and self._is_empty_value(src_node):
             # Empty bytes/string assignment only needs a zero length word.
-            if dst_ptr.location == DataLocation.STORAGE:
-                self.builder.sstore(dst_ptr.operand, IRLiteral(0))
-            elif dst_ptr.location == DataLocation.TRANSIENT:
-                self.builder.tstore(dst_ptr.operand, IRLiteral(0))
-            else:
-                self.ctx.ptr_store(dst_ptr, IRLiteral(0))
+            self.ctx.ptr_store(dst_ptr, IRLiteral(0))
             return
 
         if typ._is_prim_word:
