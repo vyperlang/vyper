@@ -167,9 +167,10 @@ class Stmt:
         should_stage = False
         if src_loc is DataLocation.MEMORY and dst_ptr.location is DataLocation.MEMORY:
             # Stage only when source and destination are views of the same memory root.
-            src_root = _get_root_variable(src_node) if src_node is not None else None
-            dst_root = _get_root_variable(dst_node) if dst_node is not None else None
-            should_stage = src_root is not None and src_root == dst_root
+            assert src_node is not None and dst_node is not None, "missing AST nodes for memory→memory aliasing check"
+            src_root = _get_root_variable(src_node)
+            dst_root = _get_root_variable(dst_node)
+            should_stage = src_root is None or dst_root is None or src_root == dst_root
 
         if should_stage:
             tmp_val = self.ctx.new_temporary_value(src_typ)
