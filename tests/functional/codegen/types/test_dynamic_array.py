@@ -2308,3 +2308,40 @@ def foo() -> DynArray[DynArray[Bytes[704], 13], 3]:
     c = get_contract(code)
     expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
     assert c.foo() == [expected]
+
+
+def test_venom_transient_assign_dynarray_bytes_elem_size_mismatch(get_contract):
+    code = """
+a: transient(DynArray[Bytes[704], 13])
+
+@external
+def foo() -> DynArray[Bytes[704], 13]:
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    x: DynArray[Bytes[540], 9] = [v, v, v, v]
+    self.a = x
+    return self.a
+    """
+
+    c = get_contract(code)
+    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == expected
+
+
+def test_venom_event_dynarray_bytes_elem_size_mismatch(get_contract, env):
+    code = """
+event MyEvent:
+    data: DynArray[Bytes[704], 13]
+
+@external
+def foo():
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    x: DynArray[Bytes[540], 9] = [v, v, v, v]
+    log MyEvent(x)
+    """
+
+    c = get_contract(code)
+    c.foo()
+    logs = env.get_logs(c)
+    assert len(logs) == 1
+    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
+    assert logs[0].args.data == expected
