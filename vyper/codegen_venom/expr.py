@@ -1342,7 +1342,7 @@ class Expr:
 
         Calling convention:
         1. Allocate return buffer if needed
-        2. Store memory-passed args to calloca slots
+        2. Store memory-passed args to alloca slots
         3. Load stack-passed args to stack
         4. Emit invoke instruction
         5. For multi-return, copy stack outputs to caller memory

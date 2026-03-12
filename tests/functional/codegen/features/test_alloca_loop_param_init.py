@@ -1,9 +1,9 @@
 """
-Regression test for palloca param initialization being incorrectly repeated in loops.
+Regression test for alloca param initialization being incorrectly repeated in loops.
 
-When a stack-passed parameter is copied into palloca inside a loop body, the
+When a stack-passed parameter is copied into an alloca inside a loop body, the
 initializer mstore was being left in the loop after FloatAllocas moved the
-palloca to the entry block. This re-initialized the parameter each iteration,
+alloca to the entry block. This re-initialized the parameter each iteration,
 breaking loop-carried dependencies and suppressing expected reverts.
 """
 import copy
@@ -44,7 +44,7 @@ def foo() -> uint256:
 def test_memory_param_loop_store_not_hoisted(get_contract, no_inline_settings):
     """
     Ensure memory-passed params don't have first user mstore hoisted
-    when palloca is floated to entry.
+    when alloca is floated to entry.
     """
     code = """
 @internal
