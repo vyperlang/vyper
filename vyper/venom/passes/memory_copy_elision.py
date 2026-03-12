@@ -326,6 +326,11 @@ class MemoryCopyElisionPass(IRPass):
             self.updater.nop(inst)
             return True
 
+        read_loc = self.base_ptr.get_read_location(inst, addr_space.MEMORY)
+        if not write_loc.is_concrete and write_loc == read_loc:
+            self.updater.nop(inst)
+            return True
+
         return False
 
     def _try_elide_load_store(self, inst: IRInstruction, write_loc: MemoryLocation, eff: Effects):
@@ -369,8 +374,13 @@ class MemoryCopyElisionPass(IRPass):
         if write_loc.alloca.alloca_size != write_loc.size:
             return
 
-        read_uses = self.base_ptr.vars_in_allocations[read_loc.alloca]
-        temp_memory = len(read_uses) == 1
+        read_var_uses = self.base_ptr.vars_in_allocations[read_loc.alloca]
+        uses = set()
+        for var_use in read_var_uses:
+            for use in self.dfg.get_uses(var_use):
+                uses.add(use)
+
+        temp_memory = len(uses) == 1
         
         translates_to = read_loc.alloca
         if translates_to == write_loc.alloca:

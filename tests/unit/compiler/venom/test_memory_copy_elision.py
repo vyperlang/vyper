@@ -1034,10 +1034,10 @@ def test_repeated_alloca_mcopy_with_intermediate_reads():
     _global:
         %a1 = alloca 64
         %a2 = alloca 64
-        mcopy %a2, %a1, 64
-        %1 = mload %a2
         nop
-        %2 = mload %a2
+        %1 = mload %a1
+        nop
+        %2 = mload %a1
         %3 = add %1, %2
         sink %3
     """
@@ -1062,12 +1062,26 @@ def test_no_repeated_alloca_mcopy_elision_when_source_modified():
         mcopy %a2, %a1, 64
         %1 = mload %a2
         mstore %a1, 999
-        mcopy %a2, %a1, 64
         %2 = mload %a2
         %3 = add %1, %2
-        sink %3
+        %4 = mload %a1
+        sink %3, %4
     """
-    _check_no_change(pre)
+
+    post = """
+    _global:
+        %a1 = alloca 64
+        %a2 = alloca 64
+        mcopy %a2, %a1, 64
+        %1 = mload %a1
+        mstore %a1, 999
+        %2 = mload %a2
+        %3 = add %1, %2
+        %4 = mload %a1
+        sink %3, %4
+    """
+
+    _check_pre_post(pre, post)
 
 
 def test_calldatacopy_mcopy_chain_with_alloca():
