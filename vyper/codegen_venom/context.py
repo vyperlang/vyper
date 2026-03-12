@@ -473,6 +473,8 @@ class VenomCodegenContext:
         """Copy DynArray in memory when source and destination element layouts may differ."""
         b = self.builder
         length = b.mload(src)
+        # defensive: runtime length must not exceed destination capacity
+        b.assert_(b.iszero(b.gt(length, IRLiteral(dst_typ.length))))
         b.mstore(dst, length)
 
         dst_elem_t = dst_typ.value_type
