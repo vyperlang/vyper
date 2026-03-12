@@ -1,11 +1,7 @@
-from vyper.codegen_venom.calling_convention import (
-    is_word_type,
-    pass_via_stack,
-    returns_stack_count,
-)
+from vyper.codegen_venom.calling_convention import is_word_type, pass_via_stack, returns_stack_count
+from vyper.semantics.analysis.base import FunctionVisibility, StateMutability
 from vyper.semantics.types import AddressT, BoolT
 from vyper.semantics.types.function import ContractFunctionT, PositionalArg
-from vyper.semantics.analysis.base import FunctionVisibility, StateMutability
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import SArrayT, TupleT
 
