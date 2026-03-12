@@ -2310,6 +2310,7 @@ def foo() -> DynArray[DynArray[Bytes[704], 13], 3]:
     assert c.foo() == [expected]
 
 
+@pytest.mark.requires_evm_version("cancun")
 def test_venom_transient_assign_dynarray_bytes_elem_size_mismatch(get_contract):
     code = """
 a: transient(DynArray[Bytes[704], 13])
