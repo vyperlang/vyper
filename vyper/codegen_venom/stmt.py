@@ -128,26 +128,17 @@ class Stmt:
     def _copy_complex_type(self, dst_ptr: Ptr, src_vv: VyperValue, typ) -> None:
         """Copy complex type into `dst_ptr`.
 
-        Materializes `src_vv` to memory (via unwrap), then stages through a
-        temporary buffer when source and destination are both in memory
-        (potential aliasing).  MemoryCopyElisionPass eliminates the staging
-        copy when src/dst are provably non-overlapping.
+        Always stages through a temporary buffer to guard against aliasing.
+        MemoryCopyElisionPass eliminates the staging copy when src/dst are
+        provably non-overlapping.
         """
-        src_loc = src_vv.location  # None for stack values, else DataLocation
         src_typ = src_vv.typ
         src = self.ctx.unwrap(src_vv)  # always a memory ptr for complex types
 
-        # Always stage when both src and dst are in memory to guard against
-        # aliasing.  MemoryCopyElisionPass will eliminate the redundant copy
-        # when src/dst are provably non-overlapping (different allocas).
-        should_stage = src_loc is DataLocation.MEMORY and dst_ptr.location is DataLocation.MEMORY
+        tmp_val = self.ctx.new_temporary_value(src_typ)
+        self.ctx.copy_memory(tmp_val.operand, src, src_typ.memory_bytes_required)
 
-        if should_stage:
-            tmp_val = self.ctx.new_temporary_value(src_typ)
-            self.ctx.copy_memory(tmp_val.operand, src, src_typ.memory_bytes_required)
-            src = tmp_val.operand
-
-        self._store_complex_type(dst_ptr, src, typ, src_typ)
+        self._store_complex_type(dst_ptr, tmp_val.operand, typ, src_typ)
 
     def _store_complex_type(self, dst_ptr: Ptr, src: IROperand, typ, src_typ) -> None:
         """Store complex value from memory `src` into `dst_ptr` (no overlap guard).
