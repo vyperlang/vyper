@@ -206,6 +206,27 @@ def bad() -> Bytes[4]:
     assert "TypeMismatch" not in err
 
 
+def test_successful_compilation_no_cross_pollution():
+    """Compile two contracts sequentially that use msg.data via slice();
+    verify the first compilation's BytesT._length mutation doesn't leak."""
+    code_a = """
+@external
+def foo() -> uint256:
+    val: Bytes[100] = slice(msg.data, 0, 100)
+    return convert(slice(val, 4, 32), uint256)
+    """
+    code_b = """
+@external
+def bar() -> uint256:
+    val: Bytes[36] = slice(msg.data, 0, 36)
+    return convert(slice(val, 4, 32), uint256)
+    """
+    # Both should compile without error; A's larger slice must not
+    # poison B's msg.data type with a fixed _length.
+    compiler.compile_code(code_a)
+    compiler.compile_code(code_b)
+
+
 def test_runtime_failure_bounds_check(get_contract, tx_failed):
     code = """
 @external
