@@ -670,6 +670,32 @@ def __init__(values: DynArray[uint256[2], 3]):
     assert c2.ctor_second_right() == 0
 
 
+def test_immutable_dynarray_multi_word_runtime_iteration(get_contract):
+    """
+    Regression test: iterating over an immutable DynArray with multi-word
+    elements (uint256[2] = 64 bytes) at RUNTIME (not constructor).
+    Immutables are in CODE location at runtime, so copy must use dload,
+    not mcopy/mload.
+    """
+    code = """
+arr: immutable(DynArray[uint256[2], 3])
+
+@deploy
+def __init__(values: DynArray[uint256[2], 3]):
+    arr = values
+
+@external
+@view
+def sum_pairs() -> uint256:
+    total: uint256 = 0
+    for pair: uint256[2] in arr:
+        total += pair[0] + pair[1]
+    return total
+    """
+    c = get_contract(code, [[1, 2], [3, 4], [5, 6]])
+    assert c.sum_pairs() == 21
+
+
 def test_constructor_immutable_dynarray_ternary_len_and_membership(get_contract):
     code = """
 left: immutable(DynArray[uint256, 4])
