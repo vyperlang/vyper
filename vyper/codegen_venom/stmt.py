@@ -107,7 +107,7 @@ class Stmt:
         self._assign_value(dst_ptr, src, target_typ, src_node=node.value)
 
     def _assign_value(
-        self, dst_ptr: Ptr, src: VyperValue, typ, *, src_node: Optional[vy_ast.VyperNode] = None
+        self, dst_ptr: Ptr, src: VyperValue, typ, *, src_node: vy_ast.VyperNode
     ) -> None:
         """Assign a VyperValue to a destination pointer.
 
