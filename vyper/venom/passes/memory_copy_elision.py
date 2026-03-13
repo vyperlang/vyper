@@ -378,7 +378,8 @@ class MemoryCopyElisionPass(IRPass):
         uses = set()
         for var_use in read_var_uses:
             for use in self.dfg.get_uses(var_use):
-                uses.add(use)
+                if not self._use_dominates(use, inst):
+                    uses.add(use)
 
         temp_memory = len(uses) == 1
         
@@ -388,6 +389,15 @@ class MemoryCopyElisionPass(IRPass):
         while translates_to in self.total_translation:
             translates_to, temp_memory = self.total_translation[translates_to]
         self.total_translation[write_loc.alloca] = (translates_to, temp_memory)
+
+    def _use_dominates(self, use: IRInstruction, inst: IRInstruction) -> bool:
+        if use.parent == inst.parent:
+            bb = inst.parent
+            use_idx = bb.instructions.index(use)
+            inst_idx = bb.instructions.index(inst)
+            return use_idx < inst_idx
+
+        return False
 
     def _try_update_from_translates_read(self, inst: IRInstruction):
         read_loc = self.base_ptr.get_read_location(inst, addr_space.MEMORY)

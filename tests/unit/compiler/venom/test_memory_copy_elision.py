@@ -1892,7 +1892,7 @@ def test_invoke_allocation_translation():
 
     _check_pre_post(pre, post)
 
-def test_mcopy_translation_non_rewriteble():
+def test_mcopy_translation_non_rewriteble_tmp():
     pre = """
     main:
         %dst = alloca 1, 64
