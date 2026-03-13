@@ -193,8 +193,11 @@ class Stmt:
                 self._copy_dynarray_to_storage(src, dst_ptr.operand, typ, transient=transient)
             else:
                 # store_storage / store_transient handle single-word mload internally.
-                store_fn = self.ctx.store_transient if loc is DataLocation.TRANSIENT \
+                store_fn = (
+                    self.ctx.store_transient
+                    if loc is DataLocation.TRANSIENT
                     else self.ctx.store_storage
+                )
                 store_fn(src, dst_ptr.operand, typ)
         elif loc == DataLocation.IMMUTABLES:
             # Immutables in constructor
