@@ -165,7 +165,7 @@ class MemoryCopyElisionPass(IRPass):
         # Clear loads at BB boundary (loads are still per-BB only)
         for e in self.loads.values():
             e.clear()
-        for inst in bb.instructions:
+        for inst in bb.instructions.copy():
             if Effects.MEMORY in inst.get_write_effects():
                 self._try_update_from_translates_write(inst)
             if Effects.MEMORY in inst.get_read_effects():
