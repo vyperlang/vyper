@@ -77,15 +77,9 @@ class ConcretizeMemLocPass(IRPass):
 
     def _handle_bb(self, bb: IRBasicBlock):
         for inst in bb.instructions:
-            if inst.opcode in ("alloca", "palloca", "calloca"):
+            if inst.opcode == "alloca":
                 base_ptr = self.base_ptrs.ptr_from_op(inst.output)
-                if base_ptr is None:
-                    # calloca's palloca was nop'd (DSE removed stores, then
-                    # RemoveUnusedVariables nop'd the palloca). The memory
-                    # isn't used, so remove calloca and its uses.
-                    assert inst.opcode == "calloca", inst
-                    self._remove_unused_calloca(inst)
-                    continue
+                assert base_ptr is not None, f"alloca without base ptr: {inst}"
                 assert self.allocator.is_allocated(
                     base_ptr.base_alloca
                 ), f"alloca not allocated by livesets: {inst}"
@@ -93,10 +87,6 @@ class ConcretizeMemLocPass(IRPass):
                 self.updater.replace(inst, "assign", [concrete])
             if inst.opcode == "gep":
                 inst.opcode = "add"
-
-    def _remove_unused_calloca(self, inst: IRInstruction):
-        to_remove = self.dfg.get_transitive_uses(inst)
-        self.updater.nop_multi(to_remove)
 
 
 class MemLiveness:
@@ -216,9 +206,7 @@ class MemLiveness:
         # this is to get positions where the memory location
         # are used/already used so we dont allocate
         # memory before the place where it is firstly used
-        used: OrderedSet[Allocation] = OrderedSet(
-            Allocation(inst) for inst in self.function.get_live_pallocas()
-        )
+        used: OrderedSet[Allocation] = OrderedSet()
         if len(preds := self.cfg.cfg_in(bb)) > 0:
             for other in (self.used[pred.instructions[-1]] for pred in preds):
                 used.update(other)
