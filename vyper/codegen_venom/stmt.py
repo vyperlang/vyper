@@ -766,9 +766,12 @@ class Stmt:
             elem_addr = self.builder.add(array, total_offset)
 
             # Copy element to loop variable (always in memory).
-            # Invariant: type mismatches (target_type != value_type) only
-            # occur for memory sources — for-loop var type always matches
-            # the array element type for non-memory locations.
+            # Note: type mismatches (target_type != value_type) are possible
+            # for any source location (the type checker allows e.g.
+            # Bytes[704] target with Bytes[540] elements). For non-memory
+            # sources, the linear copy is safe for flat types since the
+            # source is smaller than the destination buffer. Only the
+            # memory path uses type-aware copying (store_memory).
             dst = item_local.value.operand
             if is_slot_addressed:
                 # Word-addressed (STORAGE, TRANSIENT)
