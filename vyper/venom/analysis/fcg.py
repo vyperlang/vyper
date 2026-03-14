@@ -1,5 +1,5 @@
 from vyper.utils import OrderedSet
-from vyper.venom.analysis.analysis import IRGlobalAnalysis, IRGlobalAnalysesCache
+from vyper.venom.analysis.analysis import IRGlobalAnalysesCache, IRGlobalAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLabel
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
