@@ -3,11 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from vyper.venom.basicblock import IRInstruction, IRLabel, IROperand, IRVariable
-from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.memory_location import memory_write_ops
 
-from .analysis import IRAnalysesCache
+from .analysis import IRGlobalAnalysis
 from .dfg import DFGAnalysis
 
 
@@ -17,16 +16,14 @@ class _FnParamInfo:
     invoke_param_index: dict[IRVariable, int]
 
 
-class ReadonlyMemoryArgsAnalysis:
+class ReadonlyMemoryArgsAnalysis(IRGlobalAnalysis):
     """
-    Infer readonly invoke-arg positions from Venom IR without mutating the IR.
+    Infer readonly invoke-arg positions from Venom IR.
     """
 
-    def __init__(self, analyses_caches: dict[IRFunction, IRAnalysesCache], ctx: IRContext):
-        self.analyses_caches = analyses_caches
-        self.ctx = ctx
+    readonly_idxs_by_fn: dict[IRFunction, tuple[int, ...]]
 
-    def analyze(self) -> dict[IRFunction, tuple[int, ...]]:
+    def analyze(self):
         functions = tuple(self.ctx.get_functions())
         infos = {fn: self._collect_param_info(fn) for fn in functions}
 
@@ -43,10 +40,13 @@ class ReadonlyMemoryArgsAnalysis:
                     readonly_by_fn[fn] = new_state
                     changed = True
 
-        return {
+        self.readonly_idxs_by_fn = {
             fn: tuple(i for i, is_ro in enumerate(state) if is_ro)
             for fn, state in readonly_by_fn.items()
         }
+
+    def get_readonly_invoke_arg_idxs(self, fn: IRFunction) -> tuple[int, ...]:
+        return self.readonly_idxs_by_fn.get(fn, ())
 
     def _collect_param_info(self, fn: IRFunction) -> _FnParamInfo:
         params = [inst.output for inst in fn.entry.param_instructions]

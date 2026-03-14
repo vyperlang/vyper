@@ -1,4 +1,4 @@
-from .analysis import IRAnalysesCache, IRAnalysis
+from .analysis import IRAnalysesCache, IRAnalysis, IRGlobalAnalysesCache, IRGlobalAnalysis
 from .base_ptr_analysis import BasePtrAnalysis
 from .cfg import CFGAnalysis
 from .dfg import DFGAnalysis

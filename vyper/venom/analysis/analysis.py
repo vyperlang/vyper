@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Type, TypeVar
 
 if TYPE_CHECKING:
+    from vyper.venom.context import IRContext
     from vyper.venom.function import IRFunction
 
 
@@ -33,6 +34,38 @@ class IRAnalysis:
 
 
 T = TypeVar("T", bound=IRAnalysis)
+
+
+class IRGlobalAnalysis:
+    """
+    Base class for analyses over the entire IR context.
+    """
+
+    ctx: IRContext
+    analyses_cache: IRGlobalAnalysesCache
+
+    def __init__(self, analyses_cache: IRGlobalAnalysesCache, ctx: IRContext):
+        self.analyses_cache = analyses_cache
+        self.ctx = ctx
+
+    @property
+    def analyses_caches(self) -> dict[IRFunction, IRAnalysesCache]:
+        return self.analyses_cache.function_analyses_caches
+
+    def analyze(self, *args, **kwargs):
+        """
+        Override this method to perform the analysis.
+        """
+        raise NotImplementedError
+
+    def invalidate(self):
+        """
+        Override this method to respond to an invalidation request.
+        """
+        pass
+
+
+GT = TypeVar("GT", bound=IRGlobalAnalysis)
 
 
 class IRAnalysesCache:
@@ -81,6 +114,52 @@ class IRAnalysesCache:
         and is cached.
         """
         assert issubclass(analysis_cls, IRAnalysis), f"{analysis_cls} is not an IRAnalysis"
+        if analysis_cls in self.analyses_cache:
+            self.invalidate_analysis(analysis_cls)
+
+        return self.request_analysis(analysis_cls, *args, **kwargs)
+
+
+class IRGlobalAnalysesCache:
+    """
+    A cache for global IR analyses.
+    """
+
+    ctx: IRContext
+    function_analyses_caches: dict[IRFunction, IRAnalysesCache]
+    analyses_cache: dict[Type[IRGlobalAnalysis], IRGlobalAnalysis]
+
+    def __init__(self, ctx: IRContext, function_analyses_caches: dict[IRFunction, IRAnalysesCache]):
+        self.ctx = ctx
+        self.function_analyses_caches = function_analyses_caches
+        self.analyses_cache = {}
+
+    def request_analysis(self, analysis_cls: Type[GT], *args, **kwargs) -> GT:
+        assert issubclass(analysis_cls, IRGlobalAnalysis), (
+            f"{analysis_cls} is not an IRGlobalAnalysis"
+        )
+        if analysis_cls in self.analyses_cache:
+            ret = self.analyses_cache[analysis_cls]
+            assert isinstance(ret, analysis_cls)
+            return ret
+
+        analysis = analysis_cls(self, self.ctx)
+        self.analyses_cache[analysis_cls] = analysis
+        analysis.analyze(*args, **kwargs)
+        return analysis
+
+    def invalidate_analysis(self, analysis_cls: Type[IRGlobalAnalysis]):
+        assert issubclass(analysis_cls, IRGlobalAnalysis), (
+            f"{analysis_cls} is not an IRGlobalAnalysis"
+        )
+        analysis = self.analyses_cache.pop(analysis_cls, None)
+        if analysis is not None:
+            analysis.invalidate()
+
+    def force_analysis(self, analysis_cls: Type[GT], *args, **kwargs) -> GT:
+        assert issubclass(analysis_cls, IRGlobalAnalysis), (
+            f"{analysis_cls} is not an IRGlobalAnalysis"
+        )
         if analysis_cls in self.analyses_cache:
             self.invalidate_analysis(analysis_cls)
 
