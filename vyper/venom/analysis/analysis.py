@@ -80,6 +80,23 @@ class IRAnalysesCache:
         self.analyses_cache = {}
         self.function = function
 
+    def _ensure_global_analyses_cache(self) -> "IRGlobalAnalysesCache":
+        global_cache = self.function.ctx.global_analyses_cache
+        if global_cache is None:
+            function_analyses_caches = {
+                fn: IRAnalysesCache(fn) for fn in self.function.ctx.functions.values()
+            }
+            function_analyses_caches[self.function] = self
+            global_cache = IRGlobalAnalysesCache(self.function.ctx, function_analyses_caches)
+            self.function.ctx.global_analyses_cache = global_cache
+            return global_cache
+
+        for fn in self.function.ctx.functions.values():
+            if fn not in global_cache.function_analyses_caches:
+                global_cache.function_analyses_caches[fn] = IRAnalysesCache(fn)
+        global_cache.function_analyses_caches[self.function] = self
+        return global_cache
+
     # python3.12:
     #   def request_analysis[T](self, analysis_cls: Type[T], *args, **kwargs) -> T:
     def request_analysis(self, analysis_cls: Type[T], *args, **kwargs) -> T:
@@ -87,6 +104,11 @@ class IRAnalysesCache:
         Request a specific analysis to be run on the IR. The result is cached and
         returned if the analysis has already been run.
         """
+        if issubclass(analysis_cls, IRGlobalAnalysis):
+            return self._ensure_global_analyses_cache().request_analysis(
+                analysis_cls, *args, **kwargs
+            )
+
         assert issubclass(analysis_cls, IRAnalysis), f"{analysis_cls} is not an IRAnalysis"
         if analysis_cls in self.analyses_cache:
             ret = self.analyses_cache[analysis_cls]
@@ -103,6 +125,12 @@ class IRAnalysesCache:
         """
         Invalidate a specific analysis. This will remove the analysis from the cache.
         """
+        if issubclass(analysis_cls, IRGlobalAnalysis):
+            global_cache = self.function.ctx.global_analyses_cache
+            if global_cache is not None:
+                global_cache.invalidate_analysis(analysis_cls)
+            return
+
         assert issubclass(analysis_cls, IRAnalysis), f"{analysis_cls} is not an IRAnalysis"
         analysis = self.analyses_cache.pop(analysis_cls, None)
         if analysis is not None:
@@ -113,6 +141,11 @@ class IRAnalysesCache:
         Force a specific analysis to be run on the IR even if it has already been run,
         and is cached.
         """
+        if issubclass(analysis_cls, IRGlobalAnalysis):
+            return self._ensure_global_analyses_cache().force_analysis(
+                analysis_cls, *args, **kwargs
+            )
+
         assert issubclass(analysis_cls, IRAnalysis), f"{analysis_cls} is not an IRAnalysis"
         if analysis_cls in self.analyses_cache:
             self.invalidate_analysis(analysis_cls)

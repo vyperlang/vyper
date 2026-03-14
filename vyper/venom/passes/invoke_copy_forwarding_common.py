@@ -4,7 +4,6 @@ from collections import deque
 from collections.abc import Iterator
 
 import vyper.evm.address_space as addr_space
-from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import (
     BasePtrAnalysis,
     DFGAnalysis,
@@ -37,12 +36,7 @@ class InvokeCopyForwardingBase(IRPass):
         self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.mem_alias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
         self.updater = InstUpdater(self.dfg)
-        global_analyses_cache = self.function.ctx.global_analyses_cache
-        if global_analyses_cache is None:
-            raise CompilerPanic("Invoke copy forwarding requires initialized global analyses")
-        self.readonly_memory_args = global_analyses_cache.request_analysis(
-            ReadonlyMemoryArgsAnalysis
-        )
+        self.readonly_memory_args = self.analyses_cache.force_analysis(ReadonlyMemoryArgsAnalysis)
 
     def _finish(self, changed: bool) -> None:
         if changed:

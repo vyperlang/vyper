@@ -5,6 +5,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache
 from vyper.venom.analysis.fcg import FCGAnalysis
+from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
@@ -42,7 +43,7 @@ class FunctionInlinerPass(IRGlobalPass):
         self.inline_count = 0
 
         function_count = len(self.ctx.functions)
-        self.fcg = self.ctx.global_analyses_cache.request_analysis(FCGAnalysis)
+        self.fcg = self.analyses_caches[entry].force_analysis(FCGAnalysis)
         self.walk = self._build_call_walk(entry)
 
         for _ in range(function_count):
@@ -57,9 +58,10 @@ class FunctionInlinerPass(IRGlobalPass):
             self.ctx.remove_function(candidate)
             self.walk.remove(candidate)
 
+            self.analyses_caches[entry].invalidate_analysis(ReadonlyMemoryArgsAnalysis)
             # TODO: check if recomputing this is a perf issue or we should rather
             # update it in-place.
-            self.fcg = self.ctx.global_analyses_cache.force_analysis(FCGAnalysis)
+            self.fcg = self.analyses_caches[entry].force_analysis(FCGAnalysis)
 
     def _select_inline_candidate(self) -> Optional[IRFunction]:
         for func in self.walk:
