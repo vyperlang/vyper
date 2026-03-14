@@ -135,9 +135,9 @@ class IRGlobalAnalysesCache:
         self.analyses_cache = {}
 
     def request_analysis(self, analysis_cls: Type[GT], *args, **kwargs) -> GT:
-        assert issubclass(analysis_cls, IRGlobalAnalysis), (
-            f"{analysis_cls} is not an IRGlobalAnalysis"
-        )
+        assert issubclass(
+            analysis_cls, IRGlobalAnalysis
+        ), f"{analysis_cls} is not an IRGlobalAnalysis"
         if analysis_cls in self.analyses_cache:
             ret = self.analyses_cache[analysis_cls]
             assert isinstance(ret, analysis_cls)
@@ -149,17 +149,17 @@ class IRGlobalAnalysesCache:
         return analysis
 
     def invalidate_analysis(self, analysis_cls: Type[IRGlobalAnalysis]):
-        assert issubclass(analysis_cls, IRGlobalAnalysis), (
-            f"{analysis_cls} is not an IRGlobalAnalysis"
-        )
+        assert issubclass(
+            analysis_cls, IRGlobalAnalysis
+        ), f"{analysis_cls} is not an IRGlobalAnalysis"
         analysis = self.analyses_cache.pop(analysis_cls, None)
         if analysis is not None:
             analysis.invalidate()
 
     def force_analysis(self, analysis_cls: Type[GT], *args, **kwargs) -> GT:
-        assert issubclass(analysis_cls, IRGlobalAnalysis), (
-            f"{analysis_cls} is not an IRGlobalAnalysis"
-        )
+        assert issubclass(
+            analysis_cls, IRGlobalAnalysis
+        ), f"{analysis_cls} is not an IRGlobalAnalysis"
         if analysis_cls in self.analyses_cache:
             self.invalidate_analysis(analysis_cls)
 

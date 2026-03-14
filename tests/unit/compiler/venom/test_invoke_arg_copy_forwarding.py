@@ -2,10 +2,7 @@ from tests.venom_utils import parse_venom
 from vyper.venom.analysis import IRAnalysesCache, IRGlobalAnalysesCache
 from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsAnalysis
 from vyper.venom.basicblock import IRLabel, IRVariable
-from vyper.venom.passes import (
-    InternalReturnCopyForwardingPass,
-    ReadonlyInvokeArgCopyForwardingPass,
-)
+from vyper.venom.passes import InternalReturnCopyForwardingPass, ReadonlyInvokeArgCopyForwardingPass
 
 
 def _run_copy_forwarding(src: str, setup=None):

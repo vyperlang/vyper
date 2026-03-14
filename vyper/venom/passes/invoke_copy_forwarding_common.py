@@ -40,7 +40,9 @@ class InvokeCopyForwardingBase(IRPass):
         global_analyses_cache = self.function.ctx.global_analyses_cache
         if global_analyses_cache is None:
             raise CompilerPanic("Invoke copy forwarding requires initialized global analyses")
-        self.readonly_memory_args = global_analyses_cache.request_analysis(ReadonlyMemoryArgsAnalysis)
+        self.readonly_memory_args = global_analyses_cache.request_analysis(
+            ReadonlyMemoryArgsAnalysis
+        )
 
     def _finish(self, changed: bool) -> None:
         if changed:

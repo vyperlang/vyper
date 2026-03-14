@@ -3,7 +3,14 @@ from typing import Optional
 
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import (
+    IRBasicBlock,
+    IRInstruction,
+    IRLabel,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+)
 from vyper.venom.memory_location import (
     Allocation,
     get_memory_read_op,
@@ -98,9 +105,7 @@ class MemLivenessAnalysis(IRAnalysis):
         return before != self.liveat[bb.instructions[0]]
 
     def _handle_used(self, bb: IRBasicBlock) -> bool:
-        used: OrderedSet[Allocation] = OrderedSet(
-            Allocation(inst) for inst in self.function.get_live_pallocas()
-        )
+        used: OrderedSet[Allocation] = OrderedSet()
         if len(preds := self.cfg.cfg_in(bb)) > 0:
             for other in (self.used[pred.instructions[-1]] for pred in preds):
                 used.update(other)

@@ -1,10 +1,6 @@
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import BasePtrAnalysis, DFGAnalysis, MemLivenessAnalysis
-from vyper.venom.basicblock import (
-    IRBasicBlock,
-    IRInstruction,
-    IRVariable,
-)
+from vyper.venom.basicblock import IRBasicBlock
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
@@ -68,4 +64,3 @@ class ConcretizeMemLocPass(IRPass):
                 self.updater.replace(inst, "assign", [concrete])
             if inst.opcode == "gep":
                 inst.opcode = "add"
-
