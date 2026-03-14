@@ -1,7 +1,6 @@
 from collections import deque
 
 import vyper.evm.address_space as addr_space
-from vyper.evm.address_space import CALLDATA, DATA, AddrSpace
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
@@ -47,15 +46,15 @@ class LoadAnalysis(IRAnalysis):
         self.analyses_cache.invalidate_analysis(StorageAliasAnalysis)
         self.analyses_cache.invalidate_analysis(TransientAliasAnalysis)
 
-    def get_space(self, eff: Effects | str) -> AddrSpace:
+    def get_space(self, eff: Effects | str) -> addr_space.AddrSpace:
         if isinstance(eff, Effects):
             ret = to_addr_space(eff)
             assert ret is not None
             return ret
         if eff == "dload":
-            return DATA
+            return addr_space.DATA
         if eff == "calldataload":
-            return CALLDATA
+            return addr_space.CALLDATA
 
         raise CompilerPanic(f"invalid effect {eff}")  # pragma: nocover
 
