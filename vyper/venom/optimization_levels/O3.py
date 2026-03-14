@@ -69,6 +69,7 @@ PASSES_O3: List[PassConfig] = [
     # run memmerge before LowerDload
     MemMergePass,
     MemoryCopyElisionPass,
+    LoadElimination,
     LowerDloadPass,
     RemoveUnusedVariablesPass,
     (DeadStoreElimination, {"addr_space": MEMORY}),

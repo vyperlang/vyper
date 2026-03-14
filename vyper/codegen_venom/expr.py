@@ -67,50 +67,6 @@ class _CallKwargs:
 ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
 
-def _get_root_variable(node: vy_ast.VyperNode) -> Optional[str]:
-    """Extract the root variable name from an AST expression.
-
-    Examples:
-        arr -> "arr"
-        self.arr -> "self.arr"
-        arr[0] -> "arr"
-        self.arr[i].field -> "self.arr"
-
-    Returns None if the expression doesn't have a clear root variable.
-    """
-    if isinstance(node, vy_ast.Name):
-        return node.id
-    if isinstance(node, vy_ast.Attribute):
-        # Handle self.x -> "self.x"
-        if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
-            return f"self.{node.attr}"
-        # For struct field access, get root of the struct
-        return _get_root_variable(node.value)
-    if isinstance(node, vy_ast.Subscript):
-        # arr[i] -> root of arr
-        return _get_root_variable(node.value)
-    return None
-
-
-def _potential_overlap_ast(darray_node: vy_ast.VyperNode, arg_node: vy_ast.VyperNode) -> bool:
-    """Check if arg_node potentially references the same variable as darray_node.
-
-    This is a conservative check - returns True if unsure.
-    Used to prevent issues like arr.append(arr[0]) where reading the arg
-    could be affected by the append operation modifying the array.
-
-    Reference: vyper/codegen/core.py:potential_overlap
-    """
-    darray_root = _get_root_variable(darray_node)
-    arg_root = _get_root_variable(arg_node)
-
-    if darray_root is None or arg_root is None:
-        # Can't determine roots - be conservative
-        return True
-
-    return darray_root == arg_root
-
-
 class Expr:
     """Lower Vyper expressions to Venom IR.
 
@@ -684,15 +640,10 @@ class Expr:
         # Case 2: Address properties
         attr = node.attr
         if attr == "balance":
-            # Check if it's self.balance
-            if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
-                return VyperValue.from_stack_op(self.builder.selfbalance(), UINT256_T)
             sub = Expr(node.value, self.ctx).lower_value()
             return VyperValue.from_stack_op(self.builder.balance(sub), UINT256_T)
 
         if attr == "codesize":
-            if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
-                return VyperValue.from_stack_op(self.builder.codesize(), UINT256_T)
             sub = Expr(node.value, self.ctx).lower_value()
             return VyperValue.from_stack_op(self.builder.extcodesize(sub), UINT256_T)
 
@@ -1534,16 +1485,15 @@ class Expr:
     def _lower_dynarray_append(self) -> VyperValue:
         """Lower DynArray.append(val).
 
-        1. Check for potential overlap between darray and arg
-        2. If overlap and non-primitive, copy arg to temp buffer first
-        3. Load current length
+        1. For non-primitive elements, stage arg to a temporary buffer
+           (conservative alias guard)
+        2. Load current length
         4. Assert length < capacity (bounds check)
         5. Compute element pointer: data_ptr + length * elem_size
         6. Store element
         7. Increment and store new length
 
         Reference: vyper/codegen/core.py:append_dyn_array
-        Reference: vyper/codegen/expr.py (potential_overlap check before append)
         """
         node = self.node
         assert isinstance(node, vy_ast.Call)
@@ -1557,12 +1507,10 @@ class Expr:
         darray_vv = Expr(darray_node, self.ctx).lower()
         darray_ptr = darray_vv.operand
 
-        # Get the element value
-        # Check for potential overlap: if arg references same variable as darray,
-        # and element is not primitive, copy arg to temp buffer first.
-        # This prevents issues like arr.append(arr[0]) where reading the arg
-        # could be affected by the append operation.
-        # Reference: vyper/codegen/expr.py lines 729-735
+        # Get the element value.
+        # For complex elements, always stage through a temporary buffer to
+        # guard against aliasing cases like arr.append(arr[0]). Backend passes
+        # can elide the staging copy when it is provably redundant.
         assert len(node.args) == 1
         arg_node = node.args[0]
 
@@ -1570,8 +1518,10 @@ class Expr:
         arg_val = self.ctx.unwrap(arg_vv)
         elem_src_typ = arg_vv.typ
 
-        if not elem_typ._is_prim_word and _potential_overlap_ast(darray_node, arg_node):
-            # Overlap detected: copy arg to temp buffer first
+        if not elem_typ._is_prim_word:
+            # Always stage complex elements through a temp buffer to guard
+            # against aliasing (e.g. arr.append(arr[0])).
+            # MemoryCopyElisionPass eliminates the copy when safe.
             temp_buf = self.ctx.new_temporary_value(elem_typ)
             self.ctx.store_vyper_value(arg_vv, temp_buf.operand, elem_typ)
             elem_val = temp_buf.operand
