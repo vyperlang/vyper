@@ -7,9 +7,24 @@ if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
 
 
-class IRAnalysis:
+class IRAnalysisBase:
     """
-    Base class for all Venom IR analyses.
+    Common base for all Venom IR analyses (per-function and global).
+    """
+
+    def analyze(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def invalidate(self):
+        pass
+
+
+T = TypeVar("T", bound=IRAnalysisBase)
+
+
+class IRAnalysis(IRAnalysisBase):
+    """
+    Base class for per-function Venom IR analyses.
     """
 
     function: IRFunction
@@ -19,24 +34,8 @@ class IRAnalysis:
         self.analyses_cache = analyses_cache
         self.function = function
 
-    def analyze(self, *args, **kwargs):
-        """
-        Override this method to perform the analysis.
-        """
-        raise NotImplementedError
 
-    def invalidate(self):
-        """
-        Override this method to respond to an invalidation request, and possibly
-        invalidate any other analyses that depend on this one.
-        """
-        pass
-
-
-T = TypeVar("T", bound=IRAnalysis)
-
-
-class IRGlobalAnalysis:
+class IRGlobalAnalysis(IRAnalysisBase):
     """
     Base class for analyses over the entire IR context.
     """
@@ -51,18 +50,6 @@ class IRGlobalAnalysis:
     @property
     def analyses_caches(self) -> dict[IRFunction, IRAnalysesCache]:
         return self.analyses_cache.function_analyses_caches
-
-    def analyze(self, *args, **kwargs):
-        """
-        Override this method to perform the analysis.
-        """
-        raise NotImplementedError
-
-    def invalidate(self):
-        """
-        Override this method to respond to an invalidation request.
-        """
-        pass
 
 
 GT = TypeVar("GT", bound=IRGlobalAnalysis)
@@ -97,8 +84,6 @@ class IRAnalysesCache:
         global_cache.function_analyses_caches[self.function] = self
         return global_cache
 
-    # python3.12:
-    #   def request_analysis[T](self, analysis_cls: Type[T], *args, **kwargs) -> T:
     def request_analysis(self, analysis_cls: Type[T], *args, **kwargs) -> T:
         """
         Request a specific analysis to be run on the IR. The result is cached and
@@ -121,7 +106,7 @@ class IRAnalysesCache:
 
         return analysis
 
-    def invalidate_analysis(self, analysis_cls: Type[IRAnalysis]):
+    def invalidate_analysis(self, analysis_cls: Type[IRAnalysisBase]):
         """
         Invalidate a specific analysis. This will remove the analysis from the cache.
         """
