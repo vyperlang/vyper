@@ -146,13 +146,14 @@ def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags) -> None:
         ir_analyses[fn] = IRAnalysesCache(fn)
 
     assert ctx.entry_function is not None
-    fcg = ir_analyses[ctx.entry_function].force_analysis(FCGAnalysis)
+
+    ctx.global_analyses_cache = IRGlobalAnalysesCache(ctx, ir_analyses)
+    fcg = ctx.global_analyses_cache.force_analysis(FCGAnalysis)
 
     # Remove functions not reachable from entry.
     for fn in fcg.get_unreachable_functions():
         ctx.remove_function(fn)
 
-    ctx.global_analyses_cache = IRGlobalAnalysesCache(ctx, ir_analyses)
     ctx.global_analyses_cache.force_analysis(ReadonlyMemoryArgsAnalysis)
 
     pass_pipeline = _build_fn_pass_pipeline(flags)
