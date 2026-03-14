@@ -53,12 +53,11 @@ def pass_via_stack(func_t) -> dict[str, bool]:
     ret = {}
     stack_items = 0
 
-    # Return takes one stack slot if it's a word type
-    if func_t.return_type is not None and is_word_type(func_t.return_type):
-        stack_items += 1
+    # Reserve stack slots for return values
+    stack_items += returns_stack_count(func_t)
 
     for arg in func_t.arguments:
-        if not is_word_type(arg.typ) or stack_items > MAX_STACK_ARGS:
+        if not is_word_type(arg.typ) or stack_items >= MAX_STACK_ARGS:
             ret[arg.name] = False
         else:
             ret[arg.name] = True

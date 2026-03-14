@@ -71,7 +71,7 @@ class InvokeCopyForwardingBase(IRPass):
         return callee._has_memory_return_buffer_param
 
     def _is_alloca_like(self, inst: IRInstruction | None) -> bool:
-        return inst is not None and inst.opcode in ("alloca", "calloca")
+        return inst is not None and inst.opcode == "alloca"
 
     def _matches_alloca_size(self, inst: IRInstruction, expected_size: int) -> bool:
         size = inst.operands[0]

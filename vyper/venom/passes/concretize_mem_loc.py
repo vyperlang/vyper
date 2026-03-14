@@ -58,15 +58,9 @@ class ConcretizeMemLocPass(IRPass):
 
     def _handle_bb(self, bb: IRBasicBlock):
         for inst in bb.instructions:
-            if inst.opcode in ("alloca", "palloca", "calloca"):
+            if inst.opcode == "alloca":
                 base_ptr = self.base_ptrs.ptr_from_op(inst.output)
-                if base_ptr is None:
-                    # calloca's palloca was nop'd (DSE removed stores, then
-                    # RemoveUnusedVariables nop'd the palloca). The memory
-                    # isn't used, so remove calloca and its uses.
-                    assert inst.opcode == "calloca", inst
-                    self._remove_unused_calloca(inst)
-                    continue
+                assert base_ptr is not None, f"alloca without base ptr: {inst}"
                 assert self.allocator.is_allocated(
                     base_ptr.base_alloca
                 ), f"alloca not allocated by livesets: {inst}"
@@ -75,6 +69,3 @@ class ConcretizeMemLocPass(IRPass):
             if inst.opcode == "gep":
                 inst.opcode = "add"
 
-    def _remove_unused_calloca(self, inst: IRInstruction):
-        to_remove = self.dfg.get_transitive_uses(inst)
-        self.updater.nop_multi(to_remove)

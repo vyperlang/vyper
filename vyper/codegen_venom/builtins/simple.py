@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Union
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.value import VyperValue
-from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import DArrayT
@@ -35,9 +34,8 @@ def lower_len(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # For bytes/string/DynArray: length is stored at pointer
     arg_vv = Expr(arg_node, ctx).lower()
-    # Use the location from the VyperValue
-    location = arg_vv.location or DataLocation.MEMORY
-    return ctx.builder.load(arg_vv.operand, location)
+    assert arg_vv.location is not None
+    return ctx.load_word(arg_vv.operand, arg_vv.location)
 
 
 def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand, VyperValue]:

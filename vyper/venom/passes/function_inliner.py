@@ -87,55 +87,6 @@ class FunctionInlinerPass(IRGlobalPass):
             self.analyses_caches[fn].invalidate_analysis(DFGAnalysis)
             self.analyses_caches[fn].invalidate_analysis(CFGAnalysis)
 
-        caller_funcs = set([call_site.parent.parent for call_site in call_sites])
-        # match callocas to pallocas
-        for fn in caller_funcs:
-            callocas: dict[int, IRInstruction] = {}
-            found = set()
-            for bb in fn.get_basic_blocks():
-                for inst in bb.instructions:
-                    # we can see calloca allocated variables in the
-                    # called function via either alloca or calloca,
-                    # depending on if the called function itself has
-                    # inlined any callsites (see demotion of calloca
-                    # to alloca below). this handles both cases.
-                    if inst.opcode in ("alloca", "calloca"):
-                        assert len(inst.operands) >= 2, inst
-                        alloca_id_op = inst.operands[1]
-                        alloca_id = alloca_id_op.value
-                        assert isinstance(alloca_id, int)  # help mypy
-                        if alloca_id in callocas:
-                            # this can happen when we have a->b->c and a->c,
-                            # and both b and c get inlined.
-                            calloca_inst = callocas[alloca_id]
-                            inst.opcode = "assign"
-                            inst.operands = [calloca_inst.output]
-                        else:
-                            callocas[alloca_id] = inst
-
-                    if inst.opcode == "palloca":
-                        _, alloca_id_op = inst.operands
-                        alloca_id = alloca_id_op.value
-                        assert isinstance(alloca_id, int)
-                        if alloca_id not in callocas:
-                            # this is our own palloca, not one that got
-                            # inlined
-                            continue
-                        inst.opcode = "assign"
-                        calloca_inst = callocas[alloca_id]
-                        inst.operands = [calloca_inst.output]
-                        found.add(alloca_id)
-
-            for bb in fn.get_basic_blocks():
-                for inst in bb.instructions:
-                    if inst.opcode != "calloca":
-                        continue
-                    size, alloca_id, callee = inst.operands
-                    if alloca_id.value in found:
-                        # demote to alloca so that mem2var will work
-                        inst.opcode = "alloca"
-                        inst.operands = [size, alloca_id]
-
     def _inline_call_site(self, func: IRFunction, call_site: IRInstruction) -> None:
         """
         Inline function into call site.
@@ -178,9 +129,6 @@ class FunctionInlinerPass(IRGlobalPass):
                     val = ops[param_idx]
                     inst.operands = [val]
                     param_idx += 1
-                elif inst.opcode == "palloca":
-                    # will be handled at the toplevel `inline_function`
-                    pass
                 elif inst.opcode == "ret":
                     # ret may be: ret @return_pc  OR  ret v1, v2, ..., @return_pc
                     # The last operand is the return PC (label or variable);

@@ -32,7 +32,6 @@ from vyper.venom.passes import (
     SimplifyCFGPass,
 )
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.passes.fix_calloca import FixCalloca
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
@@ -117,7 +116,6 @@ def _run_global_passes(
     ctx: IRContext, flags: VenomOptimizationFlags, ir_analyses: dict[IRFunction, IRAnalysesCache]
 ) -> None:
     ctx.global_analyses_cache = IRGlobalAnalysesCache(ctx, ir_analyses)
-    FixCalloca(ir_analyses, ctx).run_pass()
     ctx.global_analyses_cache.force_analysis(ReadonlyMemoryArgsAnalysis)
     # Clean unreachable blocks before passes that require dominator analysis
     for fn in ctx.get_functions():

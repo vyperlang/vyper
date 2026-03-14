@@ -34,10 +34,10 @@ def test_builtin_types_persist_after_clear(namespace):
 
 def test_context_manager_constant_vars(namespace):
     with namespace.enter_scope():
-        for key in environment.CONSTANT_ENVIRONMENT_VARS.keys():
+        for key in environment.CONSTANT_ENVIRONMENT_VARS:
             assert key in namespace
 
-    for key in environment.CONSTANT_ENVIRONMENT_VARS.keys():
+    for key in environment.CONSTANT_ENVIRONMENT_VARS:
         assert key in namespace
 
 
