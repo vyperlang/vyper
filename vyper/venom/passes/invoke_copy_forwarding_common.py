@@ -36,7 +36,7 @@ class InvokeCopyForwardingBase(IRPass):
         self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.mem_alias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
         self.updater = InstUpdater(self.dfg)
-        self.readonly_memory_args = self.analyses_cache.force_analysis(ReadonlyMemoryArgsAnalysis)
+        self.readonly_memory_args = self.analyses_cache.request_analysis(ReadonlyMemoryArgsAnalysis)
 
     def _finish(self, changed: bool) -> None:
         if changed:
