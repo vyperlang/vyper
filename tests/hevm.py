@@ -43,8 +43,8 @@ def _prep_hevm_venom_ctx(ctx, verbose=False):
     visitor = _FunctionVisitor()
 
     ir_analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
-    global_cache = IRGlobalAnalysesCache(ctx, ir_analyses)
-    fcg = global_cache.force_analysis(FCGAnalysis)
+    ctx.global_analyses_cache = IRGlobalAnalysesCache(ctx, ir_analyses)
+    fcg = ctx.global_analyses_cache.force_analysis(FCGAnalysis)
 
     _prep_hevm_venom_fn(fn=ctx.entry_function, fcg=fcg, ir_analyses=ir_analyses, visitor=visitor)
 
