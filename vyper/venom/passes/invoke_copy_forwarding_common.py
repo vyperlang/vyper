@@ -36,7 +36,9 @@ class InvokeCopyForwardingBase(IRPass):
         self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.mem_alias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
         self.updater = InstUpdater(self.dfg)
-        self.readonly_memory_args = self.analyses_cache.request_analysis(
+        # force (not request): recompute after prior optimizations may have
+        # eliminated writes, allowing more parameters to be classified readonly
+        self.readonly_memory_args = self.analyses_cache.force_analysis(
             ReadonlyMemoryArgsGlobalAnalysis
         )
 
