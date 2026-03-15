@@ -41,15 +41,15 @@ class IRGlobalAnalysis(IRAnalysisBase):
     """
 
     ctx: IRContext
-    analyses_cache: IRGlobalAnalysesCache
+    global_analyses_cache: IRGlobalAnalysesCache
 
-    def __init__(self, analyses_cache: IRGlobalAnalysesCache, ctx: IRContext):
-        self.analyses_cache = analyses_cache
+    def __init__(self, global_analyses_cache: IRGlobalAnalysesCache, ctx: IRContext):
+        self.global_analyses_cache = global_analyses_cache
         self.ctx = ctx
 
     @property
     def analyses_caches(self) -> dict[IRFunction, IRAnalysesCache]:
-        return self.analyses_cache.function_analyses_caches
+        return self.global_analyses_cache.function_analyses_caches
 
 
 GT = TypeVar("GT", bound=IRGlobalAnalysis)

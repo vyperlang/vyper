@@ -1,6 +1,6 @@
 from tests.venom_utils import parse_venom
 from vyper.venom.analysis import IRAnalysesCache, IRGlobalAnalysesCache
-from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsAnalysis
+from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.basicblock import IRLabel
 
 
@@ -8,7 +8,7 @@ def _analyze_readonly_args(src: str):
     ctx = parse_venom(src)
     analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
     ctx.global_analyses_cache = IRGlobalAnalysesCache(ctx, analyses)
-    readonly_analysis = ctx.global_analyses_cache.request_analysis(ReadonlyMemoryArgsAnalysis)
+    readonly_analysis = ctx.global_analyses_cache.request_analysis(ReadonlyMemoryArgsGlobalAnalysis)
     return ctx, readonly_analysis
 
 

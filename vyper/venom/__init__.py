@@ -5,9 +5,9 @@ from typing import Any, Dict, List
 
 from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.ir.compile_ir import AssemblyInstruction
-from vyper.venom.analysis import IRGlobalAnalysesCache, ReadonlyMemoryArgsAnalysis
+from vyper.venom.analysis import IRGlobalAnalysesCache, ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.analysis.fcg import FCGAnalysis
+from vyper.venom.analysis.fcg import FCGGlobalAnalysis
 from vyper.venom.check_venom import check_calling_convention
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
@@ -116,7 +116,7 @@ def _run_global_passes(
     ctx: IRContext, flags: VenomOptimizationFlags, ir_analyses: dict[IRFunction, IRAnalysesCache]
 ) -> None:
     ctx.global_analyses_cache = IRGlobalAnalysesCache(ctx, ir_analyses)
-    ctx.global_analyses_cache.force_analysis(ReadonlyMemoryArgsAnalysis)
+    ctx.global_analyses_cache.force_analysis(ReadonlyMemoryArgsGlobalAnalysis)
     # Clean unreachable blocks before passes that require dominator analysis
     for fn in ctx.get_functions():
         SimplifyCFGPass(ir_analyses[fn], fn).run_pass()
@@ -148,13 +148,13 @@ def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags) -> None:
     assert ctx.entry_function is not None
 
     ctx.global_analyses_cache = IRGlobalAnalysesCache(ctx, ir_analyses)
-    fcg = ctx.global_analyses_cache.force_analysis(FCGAnalysis)
+    fcg = ctx.global_analyses_cache.force_analysis(FCGGlobalAnalysis)
 
     # Remove functions not reachable from entry.
     for fn in fcg.get_unreachable_functions():
         ctx.remove_function(fn)
 
-    ctx.global_analyses_cache.force_analysis(ReadonlyMemoryArgsAnalysis)
+    ctx.global_analyses_cache.force_analysis(ReadonlyMemoryArgsGlobalAnalysis)
 
     pass_pipeline = _build_fn_pass_pipeline(flags)
     _run_fn_passes(ctx, fcg, ctx.entry_function, pass_pipeline, ir_analyses)
@@ -163,7 +163,7 @@ def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags) -> None:
 
 def _run_fn_passes(
     ctx: IRContext,
-    fcg: FCGAnalysis,
+    fcg: FCGGlobalAnalysis,
     fn: IRFunction,
     pass_pipeline: list[PassRunConfig],
     ir_analyses: dict[IRFunction, IRAnalysesCache],
@@ -175,7 +175,7 @@ def _run_fn_passes(
 
 def _run_fn_passes_r(
     ctx: IRContext,
-    fcg: FCGAnalysis,
+    fcg: FCGGlobalAnalysis,
     fn: IRFunction,
     pass_pipeline: list[PassRunConfig],
     ir_analyses: dict[IRFunction, IRAnalysesCache],

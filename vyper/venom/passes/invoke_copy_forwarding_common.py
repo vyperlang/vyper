@@ -11,7 +11,7 @@ from vyper.venom.analysis import (
     LivenessAnalysis,
     MemoryAliasAnalysis,
 )
-from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsAnalysis
+from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.effects import EMPTY, Effects
 from vyper.venom.passes.base_pass import IRPass
@@ -28,7 +28,7 @@ class InvokeCopyForwardingBase(IRPass):
     base_ptr: BasePtrAnalysis
     mem_alias: MemoryAliasAnalysis
     updater: InstUpdater
-    readonly_memory_args: ReadonlyMemoryArgsAnalysis
+    readonly_memory_args: ReadonlyMemoryArgsGlobalAnalysis
 
     def _prepare(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -36,7 +36,7 @@ class InvokeCopyForwardingBase(IRPass):
         self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.mem_alias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
         self.updater = InstUpdater(self.dfg)
-        self.readonly_memory_args = self.analyses_cache.request_analysis(ReadonlyMemoryArgsAnalysis)
+        self.readonly_memory_args = self.analyses_cache.request_analysis(ReadonlyMemoryArgsGlobalAnalysis)
 
     def _finish(self, changed: bool) -> None:
         if changed:

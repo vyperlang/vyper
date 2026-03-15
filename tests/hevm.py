@@ -6,7 +6,7 @@ import pytest
 from tests.venom_utils import parse_from_basic_block
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.venom.analysis import IRAnalysesCache, IRGlobalAnalysesCache
-from vyper.venom.analysis.fcg import FCGAnalysis
+from vyper.venom.analysis.fcg import FCGGlobalAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLiteral
 from vyper.venom.passes import (
     CFGNormalization,
@@ -44,7 +44,7 @@ def _prep_hevm_venom_ctx(ctx, verbose=False):
 
     ir_analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
     ctx.global_analyses_cache = IRGlobalAnalysesCache(ctx, ir_analyses)
-    fcg = ctx.global_analyses_cache.force_analysis(FCGAnalysis)
+    fcg = ctx.global_analyses_cache.force_analysis(FCGGlobalAnalysis)
 
     _prep_hevm_venom_fn(fn=ctx.entry_function, fcg=fcg, ir_analyses=ir_analyses, visitor=visitor)
 

@@ -16,7 +16,7 @@ class _FnParamInfo:
     invoke_param_index: dict[IRVariable, int]
 
 
-class ReadonlyMemoryArgsAnalysis(IRGlobalAnalysis):
+class ReadonlyMemoryArgsGlobalAnalysis(IRGlobalAnalysis):
     """
     Infer readonly invoke-arg positions from Venom IR.
     """

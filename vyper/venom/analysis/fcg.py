@@ -5,7 +5,7 @@ from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 
 
-class FCGAnalysis(IRGlobalAnalysis):
+class FCGGlobalAnalysis(IRGlobalAnalysis):
     """
     Compute the function call graph for the context.
     Only analyzes functions reachable from entry.
