@@ -21,11 +21,11 @@ class Allocation:
 
     def __post_init__(self):
         # sanity check
-        assert self.inst.opcode in ("alloca", "palloca"), self.inst
+        assert self.inst.opcode == "alloca", self.inst
 
     @property
     def alloca_size(self) -> int:
-        assert self.inst.opcode in ("alloca", "palloca"), self.inst
+        assert self.inst.opcode == "alloca", self.inst
         size = self.inst.operands[0]
         assert isinstance(size, IRLiteral)
         return size.value
