@@ -602,3 +602,50 @@ def eval_not(operand: ValueRange) -> ValueRange:
         return ValueRange.constant(wrap256(result, signed=True))
 
     return ValueRange.top()
+
+
+def eval_op(opcode: str, lhs: ValueRange, rhs: ValueRange) -> ValueRange:
+    """Evaluate a binary opcode on two ranges.
+
+    Pure case dispatch. For unary ops, caller passes ValueRange.top() as rhs
+    (unused by the evaluator).
+    """
+    if opcode == "add":
+        return eval_add(lhs, rhs)
+    if opcode == "sub":
+        return eval_sub(lhs, rhs)
+    if opcode == "mul":
+        return eval_mul(lhs, rhs)
+    if opcode == "and":
+        return eval_and(lhs, rhs)
+    if opcode == "or":
+        return eval_or(lhs, rhs)
+    if opcode == "xor":
+        return eval_xor(lhs, rhs)
+    if opcode == "byte":
+        return eval_byte(lhs, rhs)
+    if opcode == "signextend":
+        return eval_signextend(lhs, rhs)
+    if opcode == "mod":
+        return eval_mod(lhs, rhs)
+    if opcode == "div":
+        return eval_div(lhs, rhs)
+    if opcode == "sdiv":
+        return eval_sdiv(lhs, rhs)
+    if opcode == "smod":
+        return eval_smod(lhs, rhs)
+    if opcode == "shr":
+        return eval_shr(lhs, rhs)
+    if opcode == "shl":
+        return eval_shl(lhs, rhs)
+    if opcode == "sar":
+        return eval_sar(lhs, rhs)
+    if opcode == "eq":
+        return eval_eq(lhs, rhs)
+    if opcode in ("lt", "gt", "slt", "sgt"):
+        return eval_compare(opcode, lhs, rhs)
+    if opcode == "iszero":
+        return eval_iszero(lhs)
+    if opcode == "not":
+        return eval_not(lhs)
+    return ValueRange.top()

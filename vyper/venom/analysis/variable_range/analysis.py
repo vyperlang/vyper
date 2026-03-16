@@ -14,27 +14,7 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 
-from .evaluators import (
-    eval_add,
-    eval_and,
-    eval_byte,
-    eval_compare,
-    eval_div,
-    eval_eq,
-    eval_iszero,
-    eval_mod,
-    eval_mul,
-    eval_not,
-    eval_or,
-    eval_sar,
-    eval_sdiv,
-    eval_shl,
-    eval_shr,
-    eval_signextend,
-    eval_smod,
-    eval_sub,
-    eval_xor,
-)
+from .evaluators import eval_op
 from .value_range import SIGNED_MAX, SIGNED_MIN, UNSIGNED_MAX, RangeState, ValueRange
 
 
@@ -45,31 +25,6 @@ def _operand_range(operand: IROperand, env: RangeState) -> ValueRange:
     if isinstance(operand, IRVariable):
         return env.get(operand, ValueRange.top())
     return ValueRange.top()
-
-
-_BINARY_EVAL = {
-    "add": eval_add,
-    "sub": eval_sub,
-    "mul": eval_mul,
-    "and": eval_and,
-    "or": eval_or,
-    "xor": eval_xor,
-    "byte": eval_byte,
-    "signextend": eval_signextend,
-    "mod": eval_mod,
-    "div": eval_div,
-    "sdiv": eval_sdiv,
-    "smod": eval_smod,
-    "shr": eval_shr,
-    "shl": eval_shl,
-    "sar": eval_sar,
-    "eq": eval_eq,
-}
-
-_UNARY_EVAL = {
-    "iszero": eval_iszero,
-    "not": eval_not,
-}
 
 
 class VariableRangeAnalysis(IRAnalysis):
@@ -180,7 +135,7 @@ class VariableRangeAnalysis(IRAnalysis):
     def _evaluate_inst(self, inst: IRInstruction, env: RangeState) -> ValueRange:
         """
         Return the resulting range for an instruction.
-        Converts IR operands to ranges, then calls pure evaluators.
+        Converts IR operands to ranges, then delegates to eval_op.
         Unknown opcodes conservatively return TOP.
         """
         opcode = inst.opcode
@@ -188,16 +143,13 @@ class VariableRangeAnalysis(IRAnalysis):
         if opcode == "assign":
             return _operand_range(inst.operands[-1], env)
 
-        # Unary operations
-        if opcode in _UNARY_EVAL:
-            arg = _operand_range(inst.operands[-1], env)
-            return _UNARY_EVAL[opcode](arg)
-
-        # Check for known binary opcode before extracting operands
-        is_compare = opcode in ("lt", "gt", "slt", "sgt")
-        handler = _BINARY_EVAL.get(opcode)
-        if not is_compare and handler is None and opcode != "xor":
+        if len(inst.operands) == 0:
             return ValueRange.top()
+
+        if len(inst.operands) == 1:
+            # Unary: pass lhs only, rhs is ignored by eval_op
+            lhs = _operand_range(inst.operands[-1], env)
+            return eval_op(opcode, lhs, ValueRange.top())
 
         first_op, second_op = inst.operands[-1], inst.operands[-2]
         lhs = _operand_range(first_op, env)
@@ -212,12 +164,7 @@ class VariableRangeAnalysis(IRAnalysis):
         ):
             return ValueRange.empty() if lhs.is_empty else ValueRange.constant(0)
 
-        if is_compare:
-            return eval_compare(opcode, lhs, rhs)
-
-        if handler is None:
-            return ValueRange.top()
-        return handler(lhs, rhs)
+        return eval_op(opcode, lhs, rhs)
 
     def _phi_range(self, inst: IRInstruction) -> ValueRange:
         assert inst.opcode == "phi"
