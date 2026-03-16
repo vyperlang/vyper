@@ -180,7 +180,7 @@ class TestByteVariableIndex:
         var_idx = IRVariable("%idx")
         var_x = IRVariable("%x")
         inst = make_byte_inst(var_idx, var_x)
-        state = {var_idx: ValueRange((0, 31)), var_x: ValueRange.constant(0x1234)}
+        state = {var_idx: ValueRange.iv(0, 31), var_x: ValueRange.constant(0x1234)}
         result = _eval_byte(inst, state)
         assert result.lo == 0
         assert result.hi == 255
@@ -219,7 +219,7 @@ class TestByteNegativeRange:
         """byte with range including negatives returns [0, 255]."""
         var_x = IRVariable("%x")
         inst = make_byte_inst(0, var_x)
-        state = {var_x: ValueRange((-128, 127))}
+        state = {var_x: ValueRange.iv(-128, 127)}
         result = _eval_byte(inst, state)
         assert result.lo == 0
         assert result.hi == 255
@@ -228,7 +228,7 @@ class TestByteNegativeRange:
         """byte with purely negative range returns [0, 255]."""
         var_x = IRVariable("%x")
         inst = make_byte_inst(15, var_x)
-        state = {var_x: ValueRange((-1000, -1))}
+        state = {var_x: ValueRange.iv(-1000, -1)}
         result = _eval_byte(inst, state)
         assert result.lo == 0
         assert result.hi == 255
@@ -247,7 +247,7 @@ class TestByteValueBelowBytePosition:
         var_x = IRVariable("%x")
         inst = make_byte_inst(0, var_x)
         # Byte 0 extracts bits 248-255, so any value < 2^248 has byte 0 = 0
-        state = {var_x: ValueRange((0, 2**247))}
+        state = {var_x: ValueRange.iv(0, 2**247)}
         result = _eval_byte(inst, state)
         assert result.is_constant
         assert result.lo == 0
@@ -257,7 +257,7 @@ class TestByteValueBelowBytePosition:
         var_x = IRVariable("%x")
         inst = make_byte_inst(30, var_x)
         # Byte 30 extracts bits 8-15, so any value < 256 has byte 30 = 0
-        state = {var_x: ValueRange((0, 255))}
+        state = {var_x: ValueRange.iv(0, 255)}
         result = _eval_byte(inst, state)
         assert result.is_constant
         assert result.lo == 0
@@ -268,7 +268,7 @@ class TestByteValueBelowBytePosition:
         inst = make_byte_inst(20, var_x)
         # Byte 20 extracts bits at position (31-20)*8 = 88 to 95
         # Any value < 2^88 has byte 20 = 0
-        state = {var_x: ValueRange((0, 2**87))}
+        state = {var_x: ValueRange.iv(0, 2**87)}
         result = _eval_byte(inst, state)
         assert result.is_constant
         assert result.lo == 0
@@ -287,7 +287,7 @@ class TestByteSamePrefixBounded:
         var_x = IRVariable("%x")
         inst = make_byte_inst(31, var_x)
         # Byte 31 is the LSB, extracting bits 0-7
-        state = {var_x: ValueRange((0, 10))}
+        state = {var_x: ValueRange.iv(0, 10)}
         result = _eval_byte(inst, state)
         assert result.lo == 0
         assert result.hi == 10
@@ -296,7 +296,7 @@ class TestByteSamePrefixBounded:
         """byte(31, [0, 255]) returns [0, 255]."""
         var_x = IRVariable("%x")
         inst = make_byte_inst(31, var_x)
-        state = {var_x: ValueRange((0, 255))}
+        state = {var_x: ValueRange.iv(0, 255)}
         result = _eval_byte(inst, state)
         assert result.lo == 0
         assert result.hi == 255
@@ -305,7 +305,7 @@ class TestByteSamePrefixBounded:
         """byte(31, [100, 200]) returns [100, 200]."""
         var_x = IRVariable("%x")
         inst = make_byte_inst(31, var_x)
-        state = {var_x: ValueRange((100, 200))}
+        state = {var_x: ValueRange.iv(100, 200)}
         result = _eval_byte(inst, state)
         assert result.lo == 100
         assert result.hi == 200
@@ -315,7 +315,7 @@ class TestByteSamePrefixBounded:
         var_x = IRVariable("%x")
         inst = make_byte_inst(30, var_x)
         # 0x100 to 0x1FF all have byte 30 = 1
-        state = {var_x: ValueRange((0x100, 0x1FF))}
+        state = {var_x: ValueRange.iv(0x100, 0x1FF)}
         result = _eval_byte(inst, state)
         assert result.lo == 1
         assert result.hi == 1
@@ -324,7 +324,7 @@ class TestByteSamePrefixBounded:
         """byte(30, [0x180, 0x1C0]) returns [1, 1]."""
         var_x = IRVariable("%x")
         inst = make_byte_inst(30, var_x)
-        state = {var_x: ValueRange((0x180, 0x1C0))}
+        state = {var_x: ValueRange.iv(0x180, 0x1C0)}
         result = _eval_byte(inst, state)
         assert result.lo == 1
         assert result.hi == 1
@@ -343,7 +343,7 @@ class TestByteDifferentPrefix:
         var_x = IRVariable("%x")
         inst = make_byte_inst(31, var_x)
         # Range spans from 0x00 to 0x100, byte 31 covers full range
-        state = {var_x: ValueRange((0, 256))}
+        state = {var_x: ValueRange.iv(0, 256)}
         result = _eval_byte(inst, state)
         assert result.lo == 0
         assert result.hi == 255
@@ -355,7 +355,7 @@ class TestByteDifferentPrefix:
         # For byte 30: shift = (31-30)*8 = 8
         # lo_prefix = lo >> 16, hi_prefix = hi >> 16
         # [0, 0x20000] has lo_prefix=0, hi_prefix=2 (different)
-        state = {var_x: ValueRange((0, 0x20000))}
+        state = {var_x: ValueRange.iv(0, 0x20000)}
         result = _eval_byte(inst, state)
         assert result.lo == 0
         assert result.hi == 255
@@ -364,7 +364,7 @@ class TestByteDifferentPrefix:
         """byte(31, [0, 1000]) returns [0, 255]."""
         var_x = IRVariable("%x")
         inst = make_byte_inst(31, var_x)
-        state = {var_x: ValueRange((0, 1000))}
+        state = {var_x: ValueRange.iv(0, 1000)}
         result = _eval_byte(inst, state)
         assert result.lo == 0
         assert result.hi == 255
@@ -376,7 +376,7 @@ class TestByteDifferentPrefix:
         # For byte 29: shift = (31-29)*8 = 16
         # lo_prefix = lo >> 24, hi_prefix = hi >> 24
         # [0x10000, 0x3000000] has lo_prefix=0, hi_prefix=3 (different)
-        state = {var_x: ValueRange((0x10000, 0x3000000))}
+        state = {var_x: ValueRange.iv(0x10000, 0x3000000)}
         result = _eval_byte(inst, state)
         assert result.lo == 0
         assert result.hi == 255
@@ -424,7 +424,7 @@ class TestByteEdgeCases:
         """Test byte 31 at the boundary between valid and invalid indices."""
         var_x = IRVariable("%x")
         inst = make_byte_inst(31, var_x)
-        state = {var_x: ValueRange((128, 255))}
+        state = {var_x: ValueRange.iv(128, 255)}
         result = _eval_byte(inst, state)
         assert result.lo == 128
         assert result.hi == 255
@@ -486,7 +486,7 @@ class TestByteSoundness:
             lo, hi = hi, lo
         var_x = IRVariable("%x")
         inst = make_byte_inst(31, var_x)
-        state = {var_x: ValueRange((lo, hi))}
+        state = {var_x: ValueRange.iv(lo, hi)}
         result_range = _eval_byte(inst, state)
 
         # Check that all values in [lo, hi] produce results in result_range
@@ -506,7 +506,7 @@ class TestByteSoundness:
             lo, hi = hi, lo
         var_x = IRVariable("%x")
         inst = make_byte_inst(30, var_x)
-        state = {var_x: ValueRange((lo, hi))}
+        state = {var_x: ValueRange.iv(lo, hi)}
         result_range = _eval_byte(inst, state)
 
         # Check bounds

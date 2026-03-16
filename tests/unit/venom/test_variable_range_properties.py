@@ -106,7 +106,7 @@ def value_range_strategy(draw: st.DrawFn, allow_empty: bool = False) -> ValueRan
         hi = draw(int256_strategy)
         if lo > hi:
             lo, hi = hi, lo
-        return ValueRange((lo, hi))
+        return ValueRange.iv(lo, hi)
 
 
 @st.composite
@@ -116,7 +116,7 @@ def nonnegative_range_strategy(draw: st.DrawFn) -> ValueRange:
 
     if range_type == "top":
         # For non-negative, use [0, UINT256_MAX]
-        return ValueRange((0, UINT256_MAX))
+        return ValueRange.iv(0, UINT256_MAX)
     elif range_type == "constant":
         val = draw(uint256_strategy)
         return ValueRange.constant(val)
@@ -125,7 +125,7 @@ def nonnegative_range_strategy(draw: st.DrawFn) -> ValueRange:
         hi = draw(uint256_strategy)
         if lo > hi:
             lo, hi = hi, lo
-        return ValueRange((lo, hi))
+        return ValueRange.iv(lo, hi)
 
 
 @st.composite
@@ -487,7 +487,7 @@ class TestValueRangeBasics:
         elif rng.is_empty:
             assert result.is_empty
         else:
-            assert result.bounds == rng.bounds
+            assert result == rng
 
     @given(value_range_strategy())
     @settings(deadline=None)
@@ -499,7 +499,7 @@ class TestValueRangeBasics:
         elif rng.is_empty:
             assert result.is_empty
         else:
-            assert result.bounds == rng.bounds
+            assert result == rng
 
     @given(value_range_strategy())
     @settings(deadline=None)
@@ -511,9 +511,9 @@ class TestValueRangeBasics:
     def test_bottom_canonical_representation(self) -> None:
         """All BOTTOM representations should be equal (canonical form)."""
         # Different ways to create BOTTOM (lo > hi)
-        bottom1 = ValueRange((1, 0))
-        bottom2 = ValueRange((2, 1))
-        bottom3 = ValueRange((100, 0))
+        bottom1 = ValueRange.iv(1, 0)
+        bottom2 = ValueRange.iv(2, 1)
+        bottom3 = ValueRange.iv(100, 0)
         bottom4 = ValueRange.empty()
 
         # All should be equal due to canonical normalization
@@ -522,11 +522,11 @@ class TestValueRangeBasics:
         assert bottom3 == bottom4
         assert bottom1 == bottom4
 
-        # All should have canonical bounds (1, 0)
-        assert bottom1.bounds == (1, 0)
-        assert bottom2.bounds == (1, 0)
-        assert bottom3.bounds == (1, 0)
-        assert bottom4.bounds == (1, 0)
+        # All should be bottom
+        assert bottom1.is_bottom
+        assert bottom2.is_bottom
+        assert bottom3.is_bottom
+        assert bottom4.is_bottom
 
     @given(int256_strategy)
     @settings(deadline=None)
@@ -985,12 +985,12 @@ class TestBitwiseSoundness:
     def test_or_with_zero_identity(self) -> None:
         """OR with 0 should return the other operand's range."""
         var_x = IRVariable("%x")
-        test_range = ValueRange((10, 20))
+        test_range = ValueRange.iv(10, 20)
         inst = make_inst("or", var_x, 0)
         state = {var_x: test_range}
         result_range = _eval_or(inst, state)
         assert (
-            result_range.bounds == test_range.bounds
+            result_range == test_range
         ), f"OR with 0 should preserve range, got {result_range}"
 
     def test_or_with_all_ones_absorbing(self) -> None:
@@ -1041,14 +1041,14 @@ class TestBitwiseSoundness:
         """
         var_x = IRVariable("%x")
         # Input range includes negatives
-        test_range = ValueRange((-128, 127))
+        test_range = ValueRange.iv(-128, 127)
         inst = make_inst("and", var_x, -1)
         state = {var_x: test_range}
         result_range = _eval_and(inst, state)
 
         # AND with -1 is identity, should preserve input range
         assert (
-            result_range.bounds == test_range.bounds
+            result_range == test_range
         ), f"AND with -1 should be identity, expected {test_range}, got {result_range}"
 
         # Verify a negative value is in range
