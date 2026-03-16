@@ -2378,8 +2378,6 @@ def test_soundness_literal_not_normalized_to_signed():
     )
 
 
-
-
 def test_soundness_literal_not_normalized_sgt():
     """
     Soundness issue: Literals >= 2^255 not normalized - sgt variant.

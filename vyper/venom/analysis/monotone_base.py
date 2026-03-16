@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from enum import Enum
-from typing import Generic, TypeVar, Iterator
+from typing import Generic, TypeVar
 
 from vyper.venom.analysis import CFGAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
@@ -16,7 +16,7 @@ class Direction(Enum):
 
 
 class LatticeBase:
-    def copy(self) -> Lattice:
+    def copy(self) -> Lattice:  # type: ignore
         raise NotImplementedError()
 
 
@@ -57,9 +57,9 @@ class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
     def _process_bb(self, bb: IRBasicBlock, current_lattice: Lattice) -> bool:
         current_lattice = self._pre_basicblock_transfer(bb, current_lattice)
 
-        instructions: Iterator[IRInstruction] = bb.instructions
+        instructions = bb.instructions
         if self._direction() == Direction.Backwards:
-            instructions = reversed(instructions)
+            instructions = list(reversed(instructions))
 
         for inst in instructions:
             current_lattice = self._transfer_function(inst, current_lattice)
