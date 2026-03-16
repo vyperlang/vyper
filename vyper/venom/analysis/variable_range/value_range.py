@@ -37,6 +37,11 @@ class ValueRange:
     - VRangeKind.TOP: unknown / full range
     - VRangeKind.BOT: empty / unreachable
     - VRangeKind.IV:  concrete interval [_lo, _hi] where _lo <= _hi
+
+    Construction: use the factory methods top(), empty(), iv(), constant().
+    The raw constructor ValueRange(IV, lo, hi) enforces lo <= hi (raises
+    ValueError otherwise). The smart constructor iv(lo, hi) normalizes
+    lo > hi to BOT instead of raising.
     """
 
     _kind: VRangeKind = VRangeKind.TOP
@@ -86,7 +91,11 @@ class ValueRange:
 
     @classmethod
     def iv(cls, lo: int, hi: int) -> ValueRange:
-        """Create an interval [lo, hi]. Returns BOT if lo > hi."""
+        """Create an interval [lo, hi], normalizing lo > hi to BOT.
+
+        Unlike the raw constructor (which raises on lo > hi), this
+        smart constructor treats invalid bounds as empty ranges.
+        """
         if lo > hi:
             return cls(VRangeKind.BOT)
         return cls(VRangeKind.IV, lo, hi)
