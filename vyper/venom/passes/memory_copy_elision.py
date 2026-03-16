@@ -8,9 +8,14 @@ from vyper.venom.analysis import (
     LivenessAnalysis,
     MemoryAliasAnalysis,
 )
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable, IRLiteral
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
 from vyper.venom.effects import Effects, to_addr_space
-from vyper.venom.memory_location import MemoryLocation, Allocation, get_memory_read_op, update_read_location, update_write_location
+from vyper.venom.memory_location import (
+    Allocation,
+    MemoryLocation,
+    update_read_location,
+    update_write_location,
+)
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
@@ -128,7 +133,7 @@ class MemoryCopyElisionPass(IRPass):
 
         if len(preds) == 0:
             return TranslateMap()
-        
+
         # Start with first predecessor's state
         first_pred = preds[0]
         if first_pred not in self.bb_copies:
@@ -151,10 +156,8 @@ class MemoryCopyElisionPass(IRPass):
                     new_result[key] = result[key]
 
             result = new_result
-        
+
         return result
-
-
 
     def _process_bb(self, bb: IRBasicBlock) -> bool:
         """Process a basic block, return True if copy state changed."""
@@ -210,7 +213,9 @@ class MemoryCopyElisionPass(IRPass):
                     self._try_create_translate(inst)
 
             elif _volatile_memory(inst):
-                self._invalidate(self.base_ptr.get_write_location(inst, addr_space.MEMORY), Effects.MEMORY)
+                self._invalidate(
+                    self.base_ptr.get_write_location(inst, addr_space.MEMORY), Effects.MEMORY
+                )
 
         # Check if state changed
         change = False
@@ -250,21 +255,20 @@ class MemoryCopyElisionPass(IRPass):
 
             for mem_loc in to_remove:
                 del self.copies[mem_loc]
-            
+
             if write_loc.is_concrete:
                 self.total_translation.clear()
             else:
-                to_remove = []
+                to_remove_allocations = []
                 for dst, translate in self.total_translation.items():
                     src, temp = translate
                     if temp:
                         continue
                     if dst == write_loc.alloca or src == write_loc.alloca:
-                        to_remove.append(dst)
+                        to_remove_allocations.append(dst)
 
-                for item in to_remove:
+                for item in to_remove_allocations:
                     del self.total_translation[item]
-
 
         vars_to_remove = []
         for var, (mem_loc, _) in self.loads[eff].items():
@@ -382,7 +386,7 @@ class MemoryCopyElisionPass(IRPass):
                     uses.add(use)
 
         temp_memory = len(uses) == 1
-        
+
         translates_to = read_loc.alloca
         if translates_to == write_loc.alloca:
             return
@@ -410,7 +414,7 @@ class MemoryCopyElisionPass(IRPass):
     def _update_base_allocation_read(self, inst: IRInstruction, read_loc: MemoryLocation):
         if read_loc.alloca not in self.total_translation:
             return
-        
+
         if read_loc.offset is None:
             return
 
@@ -418,8 +422,11 @@ class MemoryCopyElisionPass(IRPass):
 
         new_operand = new_base.inst.output
         if read_loc.offset != 0:
-            new_operand = self.updater.add_before(inst, "gep", [new_base.inst.output, IRLiteral(read_loc.offset)])
-            assert new_operand is not None
+            tmp = self.updater.add_before(
+                inst, "gep", [new_base.inst.output, IRLiteral(read_loc.offset)]
+            )
+            assert tmp is not None
+            new_operand = tmp  # help mypy
             self.base_ptr.new_gep(new_operand, new_base, read_loc.offset)
 
         update_read_location(inst, new_operand)
@@ -435,19 +442,22 @@ class MemoryCopyElisionPass(IRPass):
     def _update_base_allocation_write(self, inst: IRInstruction, write_loc: MemoryLocation):
         if write_loc.alloca not in self.total_translation:
             return
-        
+
         if write_loc.offset is None:
             return
 
         new_base, temp = self.total_translation[write_loc.alloca]
-        
+
         if not temp:
             return
 
         new_operand = new_base.inst.output
         if write_loc.offset != 0:
-            new_operand = self.updater.add_before(inst, "gep", [new_base.inst.output, IRLiteral(write_loc.offset)])
-            assert new_operand is not None
+            tmp = self.updater.add_before(
+                inst, "gep", [new_base.inst.output, IRLiteral(write_loc.offset)]
+            )
+            assert tmp is not None
+            new_operand = tmp  # help mypy
             self.base_ptr.new_gep(new_operand, new_base, write_loc.offset)
 
         update_write_location(inst, new_operand)

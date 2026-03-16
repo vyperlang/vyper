@@ -1869,6 +1869,7 @@ def test_cross_bb_copy_with_nested_gep_different_inner_geps():
     # mcopy should NOT be optimized - different inner geps break equivalence
     _check_no_change(pre)
 
+
 def test_invoke_allocation_translation():
     pre = """
     main:
@@ -1891,6 +1892,7 @@ def test_invoke_allocation_translation():
     """
 
     _check_pre_post(pre, post)
+
 
 def test_mcopy_translation_non_rewriteble_tmp():
     pre = """
@@ -1972,4 +1974,3 @@ def test_mcopy_translation_non_rewriteble_multiple_bb():
     """
 
     _check_pre_post(pre, post)
-

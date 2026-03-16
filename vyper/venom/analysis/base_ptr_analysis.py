@@ -74,7 +74,7 @@ class BasePtrAnalysis(IRAnalysis):
             if changed:
                 for succ in self.cfg.cfg_out(bb):
                     worklist.append(succ)
-        
+
         self.vars_in_allocations = dict()
         for var, ptrs in self.var_to_mem.items():
             for ptr in ptrs:
@@ -90,7 +90,7 @@ class BasePtrAnalysis(IRAnalysis):
         if ptr.base_alloca not in self.vars_in_allocations:
             self.vars_in_allocations[ptr.base_alloca] = set()
         self.vars_in_allocations[ptr.base_alloca].add(var)
-    
+
     def _handle_inst(self, inst: IRInstruction) -> bool:
         if inst.num_outputs != 1:
             return False
