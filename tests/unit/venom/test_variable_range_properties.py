@@ -884,9 +884,7 @@ class TestBitwiseSoundness:
     @settings(deadline=None, max_examples=200)
     def test_or_soundness(self, a: int, b: int) -> None:
         """OR: result must be in computed range."""
-        result_range = eval_or(
-            ValueRange.constant(to_signed(a)), ValueRange.constant(to_signed(b))
-        )
+        result_range = eval_or(ValueRange.constant(to_signed(a)), ValueRange.constant(to_signed(b)))
         actual = eval_evm_or(a, b)
         assert value_in_range(
             actual, result_range

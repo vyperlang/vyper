@@ -2,13 +2,7 @@ from __future__ import annotations
 
 from vyper.utils import wrap256
 
-from .value_range import (
-    RANGE_WIDTH_LIMIT,
-    SIGNED_MAX,
-    SIGNED_MIN,
-    UNSIGNED_MAX,
-    ValueRange,
-)
+from .value_range import RANGE_WIDTH_LIMIT, SIGNED_MAX, SIGNED_MIN, UNSIGNED_MAX, ValueRange
 
 
 def _range_spans_sign_boundary(r: ValueRange) -> bool:
@@ -123,14 +117,16 @@ def eval_and(lhs: ValueRange, rhs: ValueRange) -> ValueRange:
     other = None
 
     if lhs.is_constant:
-        mask = wrap256(lhs.as_constant())
+        mask = lhs.as_constant()
         other = rhs
     elif rhs.is_constant:
-        mask = wrap256(rhs.as_constant())
+        mask = rhs.as_constant()
         other = lhs
 
     if mask is None or other is None:
         return ValueRange.top()
+
+    mask = wrap256(mask)
 
     # AND with -1 (all bits set) is identity
     if mask == UNSIGNED_MAX:
