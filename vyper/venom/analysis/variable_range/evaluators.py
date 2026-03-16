@@ -88,7 +88,7 @@ def _eval_add(inst: IRInstruction, state: RangeState) -> ValueRange:
     hi = lhs.hi + rhs.hi
     if hi > UNSIGNED_MAX:
         return ValueRange.top()
-    return ValueRange((lo, hi))
+    return ValueRange.iv(lo, hi)
 
 
 def _eval_sub(inst: IRInstruction, state: RangeState) -> ValueRange:
@@ -109,7 +109,7 @@ def _eval_sub(inst: IRInstruction, state: RangeState) -> ValueRange:
     hi = lhs.hi - rhs.lo
     if lo < SIGNED_MIN or hi > UNSIGNED_MAX or lo > hi:
         return ValueRange.top()
-    return ValueRange((lo, hi))
+    return ValueRange.iv(lo, hi)
 
 
 def _eval_mul(inst: IRInstruction, state: RangeState) -> ValueRange:
@@ -144,7 +144,7 @@ def _eval_mul(inst: IRInstruction, state: RangeState) -> ValueRange:
     hi = lhs.hi * rhs.hi
     if hi > UNSIGNED_MAX:
         return ValueRange.top()
-    return ValueRange((lo, hi))
+    return ValueRange.iv(lo, hi)
 
 
 def _eval_and(inst: IRInstruction, state: RangeState) -> ValueRange:
@@ -194,12 +194,12 @@ def _eval_and(inst: IRInstruction, state: RangeState) -> ValueRange:
     # could be any value from 0 to the mask.
     if other_range.lo < 0:
         # Range includes negative values, result could be [0, mask]
-        return ValueRange((0, literal))
+        return ValueRange.iv(0, literal)
 
     # For non-negative ranges, the result is bounded by both the range
     # maximum and the mask
     hi = min(other_range.hi, literal)
-    return ValueRange((0, hi))
+    return ValueRange.iv(0, hi)
 
 
 def _eval_byte(inst: IRInstruction, state: RangeState) -> ValueRange:
@@ -234,7 +234,7 @@ def _eval_byte(inst: IRInstruction, state: RangeState) -> ValueRange:
             # Same prefix - byte range is bounded
             lo_byte = (value_range.lo >> shift) & 0xFF
             hi_byte = (value_range.hi >> shift) & 0xFF
-            return ValueRange((lo_byte, hi_byte))
+            return ValueRange.iv(lo_byte, hi_byte)
 
     return ValueRange.bytes_range()
 
@@ -291,7 +291,7 @@ def _eval_signextend(inst: IRInstruction, state: RangeState) -> ValueRange:
 
     # For wide ranges or ranges outside target, the low bits could be
     # anything, so return the full signed range for the given byte width
-    return ValueRange((lo, hi))
+    return ValueRange.iv(lo, hi)
 
 
 def _eval_mod(inst: IRInstruction, state: RangeState) -> ValueRange:
@@ -306,7 +306,7 @@ def _eval_mod(inst: IRInstruction, state: RangeState) -> ValueRange:
         return ValueRange.top()
     if divisor == 0:
         return ValueRange.constant(0)
-    return ValueRange((0, divisor - 1))
+    return ValueRange.iv(0, divisor - 1)
 
 
 def _eval_div(inst: IRInstruction, state: RangeState) -> ValueRange:
@@ -325,7 +325,7 @@ def _eval_div(inst: IRInstruction, state: RangeState) -> ValueRange:
     # interpretation, but this requires handling disjoint ranges
     if dividend_range.lo < 0:
         return ValueRange.top()
-    return ValueRange((dividend_range.lo // divisor, dividend_range.hi // divisor))
+    return ValueRange.iv(dividend_range.lo // divisor, dividend_range.hi // divisor)
 
 
 def _eval_shr(inst: IRInstruction, state: RangeState) -> ValueRange:
@@ -344,7 +344,7 @@ def _eval_shr(inst: IRInstruction, state: RangeState) -> ValueRange:
     if value_range.lo < 0:
         return ValueRange.top()
     amount = 1 << shift
-    return ValueRange((value_range.lo // amount, value_range.hi // amount))
+    return ValueRange.iv(value_range.lo // amount, value_range.hi // amount)
 
 
 def _eval_shl(inst: IRInstruction, state: RangeState) -> ValueRange:
@@ -373,7 +373,7 @@ def _eval_shl(inst: IRInstruction, state: RangeState) -> ValueRange:
     # If conversion causes lo > hi (range wraps around), return TOP
     if result_lo > result_hi:
         return ValueRange.top()
-    return ValueRange((result_lo, result_hi))
+    return ValueRange.iv(result_lo, result_hi)
 
 
 def _eval_sar(inst: IRInstruction, state: RangeState) -> ValueRange:
@@ -393,8 +393,8 @@ def _eval_sar(inst: IRInstruction, state: RangeState) -> ValueRange:
             return ValueRange.constant(0)
         if value_range.hi < 0:
             return ValueRange.constant(-1)
-        return ValueRange((-1, 0))
-    return ValueRange((value_range.lo >> shift, value_range.hi >> shift))
+        return ValueRange.iv(-1, 0)
+    return ValueRange.iv(value_range.lo >> shift, value_range.hi >> shift)
 
 
 def _eval_sdiv(inst: IRInstruction, state: RangeState) -> ValueRange:
@@ -448,7 +448,7 @@ def _eval_sdiv(inst: IRInstruction, state: RangeState) -> ValueRange:
         # TODO: could be more precise for negative divisors
         return ValueRange.top()
 
-    return ValueRange((result_lo, result_hi))
+    return ValueRange.iv(result_lo, result_hi)
 
 
 def _eval_smod(inst: IRInstruction, state: RangeState) -> ValueRange:
@@ -472,13 +472,13 @@ def _eval_smod(inst: IRInstruction, state: RangeState) -> ValueRange:
     # Result sign follows dividend sign, so we can narrow based on dividend range
     if dividend_range.lo >= 0:
         # Dividend is non-negative, result is non-negative
-        return ValueRange((0, min(limit, dividend_range.hi)))
+        return ValueRange.iv(0, min(limit, dividend_range.hi))
     elif dividend_range.hi <= 0:
         # Dividend is non-positive, result is non-positive
-        return ValueRange((max(-limit, dividend_range.lo), 0))
+        return ValueRange.iv(max(-limit, dividend_range.lo), 0)
     else:
         # Dividend spans zero, result could be in full range
-        return ValueRange((-limit, limit))
+        return ValueRange.iv(-limit, limit)
 
 
 def _eval_compare(inst: IRInstruction, state: RangeState) -> ValueRange:

@@ -12,12 +12,14 @@ from .value_range import (
     SIGNED_MIN,
     UNSIGNED_MAX,
     RangeState,
+    VRangeKind,
     ValueRange,
 )
 
 __all__ = [
     "VariableRangeAnalysis",
     "ValueRange",
+    "VRangeKind",
     "RangeState",
     "SIGNED_MIN",
     "SIGNED_MAX",
