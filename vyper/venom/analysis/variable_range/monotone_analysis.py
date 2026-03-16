@@ -105,7 +105,7 @@ class VariableRangeMonotoneAnalysis(MonotoneAnalysis[RangeLattice]):
         new_state = self._apply_condition(cond, branch, state.data)
         return RangeLattice(new_state)
 
-    def _pre_basicblock_trasfer(
+    def _pre_basicblock_transfer(
         self, bb: IRBasicBlock, input_lattice: RangeLattice
     ) -> RangeLattice:
         self._normalize_state(input_lattice.data)

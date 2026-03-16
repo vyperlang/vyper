@@ -55,7 +55,7 @@ class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
                         worklist.append(predecessor)
 
     def _process_bb(self, bb: IRBasicBlock, current_lattice: Lattice) -> bool:
-        current_lattice = self._pre_basicblock_trasfer(bb, current_lattice)
+        current_lattice = self._pre_basicblock_transfer(bb, current_lattice)
 
         instructions: Iterator[IRInstruction] = bb.instructions
         if self._direction() == Direction.Backwards:
@@ -117,5 +117,5 @@ class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
         """
         return input_lattice
 
-    def _pre_basicblock_trasfer(self, bb: IRBasicBlock, input_lattice: Lattice) -> Lattice:
+    def _pre_basicblock_transfer(self, bb: IRBasicBlock, input_lattice: Lattice) -> Lattice:
         return input_lattice
