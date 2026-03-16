@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import Callable
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -38,6 +39,7 @@ from vyper.venom.analysis.variable_range.value_range import (
     SIGNED_MIN,
     UNSIGNED_MAX,
     ValueRange,
+    VRangeKind,
 )
 
 # =============================================================================
@@ -526,6 +528,29 @@ class TestValueRangeBasics:
         assert bottom2.is_bottom
         assert bottom3.is_bottom
         assert bottom4.is_bottom
+
+    def test_top_constructor_canonicalizes_payload(self) -> None:
+        """TOP should ignore any payload and normalize to a canonical value."""
+        top1 = ValueRange()
+        top2 = ValueRange(VRangeKind.TOP, 1, 2)
+
+        assert top1.is_top
+        assert top2.is_top
+        assert top1 == top2
+
+    def test_bottom_constructor_canonicalizes_payload(self) -> None:
+        """BOTTOM should ignore any payload and normalize to a canonical value."""
+        bottom1 = ValueRange.empty()
+        bottom2 = ValueRange(VRangeKind.BOT, 7, 9)
+
+        assert bottom1.is_bottom
+        assert bottom2.is_bottom
+        assert bottom1 == bottom2
+
+    def test_invalid_interval_constructor_rejected(self) -> None:
+        """Raw IV construction must preserve the interval invariant."""
+        with pytest.raises(ValueError, match="IV requires lo <= hi"):
+            ValueRange(VRangeKind.IV, 5, 1)
 
     @given(int256_strategy)
     @settings(deadline=None)
