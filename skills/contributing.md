@@ -80,10 +80,10 @@ provenance through arithmetic. When a ternary expression merges two
 pointer paths via a `phi` node, the `add` sits downstream of the phi
 rather than as a direct use of the alloca — so `_fix_adds` never saw it.
 
-The same gap existed in the caller guards: `_process_alloca_var` and
-`_process_palloca_var` only dispatched to `_fix_adds` when a direct
-`add` use was present, silently skipping allocas whose only non-trivial
-uses were behind phi/assign nodes.
+The same gap existed in the caller guard: `_process_alloca_var`
+only dispatched to `_fix_adds` when a direct `add` use was present,
+silently skipping allocas whose only non-trivial uses were behind
+phi/assign nodes.
 
 Additionally, following phi/assign chains introduces the possibility of
 cycles through loop back-edges, so add a visited set to terminate
