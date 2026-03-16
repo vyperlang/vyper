@@ -33,6 +33,16 @@ TranslateMap = dict[Allocation, tuple[Allocation, bool]]
 class MemoryCopyElisionPass(IRPass):
     base_ptr: BasePtrAnalysis
     copies: CopyMap
+    # Total translation: if full allocation is copied you can replace the uses
+    # of the destination by uses of source
+    # main:
+    #   %ptr = alloca 1, 256
+    #   ...
+    #   %new_ptr = alloca 1, 256
+    #   mcopy %new_ptr, %ptr, 256
+    #   %res = mload %new_ptr <- this can be rewritten to %ptr
+    #
+    # this can be done as long as the source and destionation are in sync
     total_translation: TranslateMap
     loads: dict[Effects, dict[IRVariable, tuple[MemoryLocation, IRInstruction]]]
     # For cross-BB analysis: maps BB -> copy state at end of BB
