@@ -150,9 +150,7 @@ class _BytestringT(VyperType):
     def from_literal(cls, node: vy_ast.Constant) -> "_BytestringT":
         if not isinstance(node, cls._valid_literal):
             raise UnexpectedNodeType(f"Not a {cls._id}: {node}")
-        t = cls()
-        t.set_min_length(len(node.value))
-        return t
+        return cls(len(node.value))
 
 
 class BytesT(_BytestringT):

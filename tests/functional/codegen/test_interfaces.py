@@ -761,10 +761,10 @@ def test_json_interface_implements(type_str, make_input_bundle, make_file):
 
 @pytest.mark.parametrize("type_str,value", type_str_params)
 def test_json_interface_calls(get_contract, type_str, value, make_input_bundle, make_file):
-    code = interface_test_code.format(type_str)
+    interface_code = interface_test_code.format(type_str)
 
-    abi = compile_code(code, output_formats=["abi"])["abi"]
-    c1 = get_contract(code)
+    abi = compile_code(interface_code, output_formats=["abi"])["abi"]
+    c1 = get_contract(interface_code)
 
     code = f"""
 import jsonabi as jsonabi
