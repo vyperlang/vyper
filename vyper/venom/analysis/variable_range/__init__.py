@@ -12,8 +12,8 @@ from .value_range import (
     SIGNED_MIN,
     UNSIGNED_MAX,
     RangeState,
-    VRangeKind,
     ValueRange,
+    VRangeKind,
 )
 
 __all__ = [

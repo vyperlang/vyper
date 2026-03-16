@@ -989,9 +989,7 @@ class TestBitwiseSoundness:
         inst = make_inst("or", var_x, 0)
         state = {var_x: test_range}
         result_range = _eval_or(inst, state)
-        assert (
-            result_range == test_range
-        ), f"OR with 0 should preserve range, got {result_range}"
+        assert result_range == test_range, f"OR with 0 should preserve range, got {result_range}"
 
     def test_or_with_all_ones_absorbing(self) -> None:
         """OR with -1 (all bits set) should return -1."""
