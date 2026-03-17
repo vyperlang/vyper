@@ -185,14 +185,24 @@ class TestByteVariableIndex:
         assert result.lo == 0
         assert result.hi == 255
 
-    def test_variable_index_with_constant_value(self) -> None:
-        """byte with variable index returns [0, 255] even with constant value."""
+    def test_variable_index_with_constant_range(self) -> None:
+        """byte with variable index that has constant range can be resolved."""
         var_idx = IRVariable("%idx")
         inst = make_byte_inst(var_idx, 0xFF00FF)
         state = {var_idx: ValueRange.constant(0)}
         result = _eval_byte(inst, state)
-        # Even though value is constant, index is variable so we can't
-        # determine which byte to extract
+        # Now we resolve the variable to its constant value
+        # byte(0, 0xFF00FF) extracts the highest byte which is 0
+        assert result.lo == 0
+        assert result.hi == 0
+
+    def test_variable_index_unknown_range(self) -> None:
+        """byte with variable index and unknown range returns [0, 255]."""
+        var_idx = IRVariable("%idx")
+        inst = make_byte_inst(var_idx, 0xFF00FF)
+        state = {var_idx: ValueRange.top()}
+        result = _eval_byte(inst, state)
+        # Index has unknown range, so we can't determine which byte
         assert result.lo == 0
         assert result.hi == 255
 
