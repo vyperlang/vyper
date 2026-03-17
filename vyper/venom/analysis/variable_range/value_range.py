@@ -45,14 +45,16 @@ class ValueRange:
     """
 
     _kind: VRangeKind = VRangeKind.TOP
-    _lo: int = 0
-    _hi: int = 0
+    _lo: Optional[int] = None
+    _hi: Optional[int] = None
 
     def __post_init__(self):
         if self._kind == VRangeKind.TOP or self._kind == VRangeKind.BOT:
-            object.__setattr__(self, "_lo", 0)
-            object.__setattr__(self, "_hi", 0)
+            object.__setattr__(self, "_lo", None)
+            object.__setattr__(self, "_hi", None)
         elif self._kind == VRangeKind.IV:
+            if self._lo is None or self._hi is None:
+                raise ValueError("IV requires lo and hi values")
             if self._lo > self._hi:
                 raise ValueError("IV requires lo <= hi; use ValueRange.iv() for smart construction")
         else:
@@ -60,16 +62,18 @@ class ValueRange:
 
     @property
     def lo(self) -> int:
-        """Lower bound. For TOP, returns SIGNED_MIN."""
+        """Lower bound. For TOP, returns SIGNED_MIN. Raises on BOT."""
         if self._kind == VRangeKind.TOP:
             return SIGNED_MIN
+        assert self._lo is not None, "BOT has no lo bound"
         return self._lo
 
     @property
     def hi(self) -> int:
-        """Upper bound. For TOP, returns UNSIGNED_MAX."""
+        """Upper bound. For TOP, returns UNSIGNED_MAX. Raises on BOT."""
         if self._kind == VRangeKind.TOP:
             return UNSIGNED_MAX
+        assert self._hi is not None, "BOT has no hi bound"
         return self._hi
 
     @classmethod
