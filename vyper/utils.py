@@ -231,7 +231,6 @@ def sha256sum(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).digest().hex()
 
 
-# TODO: Deprecate
 def get_long_version():
     from vyper import __long_version__
 

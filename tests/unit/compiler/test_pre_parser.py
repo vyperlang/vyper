@@ -60,8 +60,10 @@ def foo(contract_address: address) -> int128:
 def test_version_pragma(get_contract):
     from vyper import __version__
 
+    installed_version = ".".join(__version__.split(".")[:3])
+
     code = f"""
-# @version {__version__}
+# @version {installed_version}
 
 @external
 def test():
@@ -74,8 +76,10 @@ def test_version_pragma2(get_contract):
     # new, `#pragma` way of doing things
     from vyper import __version__
 
+    installed_version = ".".join(__version__.split(".")[:3])
+
     code = f"""
-#pragma version {__version__}
+#pragma version {installed_version}
 
 @external
 def test():

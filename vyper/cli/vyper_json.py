@@ -56,7 +56,9 @@ def _parse_args(argv):
         help="JSON file to compile from. If none is given, Vyper will receive it from stdin.",
         nargs="?",
     )
-    parser.add_argument("--version", action="version", version=vyper.__version__)
+    parser.add_argument(
+        "--version", action="version", version=f"{vyper.__version__}+commit.{vyper.__commit__}"
+    )
     parser.add_argument(
         "-o",
         help="Filename to save JSON output to. If the file exists it will be overwritten.",

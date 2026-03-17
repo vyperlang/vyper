@@ -45,42 +45,40 @@ the language and compile to ``bytecode`` and/or ``IR``.
 **Note: While the vyper version of the online compiler is updated on a regular basis it might
 be a bit behind the latest version found in the master branch of this repository.**
 
+## Testing (using pytest)
+
+(Complete [installation steps](https://docs.vyperlang.org/en/latest/installing-vyper.html) first.)
+
+```bash
+make dev-init
+./quicktest.sh -m "not fuzzing"
+```
+
+## Testing (with hevm)
+
+Install hevm by downloading it from the releases page (https://github.com/ethereum/hevm/releases/latest) and making sure it is in your PATH. hevm tests can be enabled with `--hevm` flag, and hevm tests can be selected with the `-m hevm` marker. For instance, `./quicktest.sh -m "hevm" --hevm`.
+
+## Developing (working on the compiler)
+
+A useful script to have in your PATH is something like the following:
+```bash
+$ cat ~/.local/bin/vyc
+#!/usr/bin/env bash
+PYTHONPATH=. python vyper/cli/vyper_compile.py "$@"
+```
+
+To run a python performance profile (to find compiler perf hotspots):
+```bash
+PYTHONPATH=. python -m cProfile -s tottime vyper/cli/vyper_compile.py "$@"
+```
+
+To get a call graph from a python profile, pip install `gprof2dot` and `xdot`, and run it like `gprof2dot -f pstats stats | xdot -`. (See https://stackoverflow.com/a/23164271/).
+
+The utility timer functions `timeit`, `profileit` and `cumtimeit` are available in `vyper/utils.py`.
+
+
 # Contributing
 * See Issues tab, and feel free to submit your own issues
 * Add PRs if you discover a solution to an existing issue
 * For further discussions and questions, post in [Discussions](https://github.com/vyperlang/vyper/discussions) or talk to us on [Discord](https://discord.gg/6tw7PTM7C2)
 * For more information, see [Contributing](http://docs.vyperlang.org/en/latest/contributing.html)
-
-## Contributing Code
-
-Once you have cloned the repo and `cd`ed into it, you can use the following commands:
-
-* `uv run vyper path/to/file.vy` to run your local copy of the compiler
-* `uv run pytest -m "not fuzzing"` to test your changes (if you forget the `-m "not fuzzing"` it will take very long)
-    Useful pytest flags:
-        * `-x`: Fail test run on first test failure
-        * `--instafail`: Show reason for test failure directly, instead of at the end of a test run
-        * `--disable-warnings`: Hide warnings which occurred during tests
-* `make mypy` to type check your changes
-* `make lint` to check your files are correctly formatted (also runs mypy)
-
-Note: `uv run` automatically sets up a venv and installs/updates packages there, so there is no install command.
-
-### Other Tips
-
-#### Checking performance
-
-To run a python performance profile (to find compiler perf hotspots):
-```bash
-uv run python -m cProfile -s tottime vyper/cli/vyper_compile.py path/to/file.vy
-```
-
-The utility timer functions `timeit`, `profileit` and `cumtimeit` are available in `vyper/utils.py`.
-
-#### Getting call graph
-
-To get a call graph from a python profile, install `gprof2dot` and `xdot`, and run it like `gprof2dot -f pstats stats | xdot -`. (See https://stackoverflow.com/a/23164271/).
-
-#### Testing with hevm
-
-Install hevm by downloading it from the releases page (https://github.com/ethereum/hevm/releases/latest) and making sure it is in your PATH. hevm tests can be enabled with `--hevm` flag, and hevm tests can be selected with the `-m hevm` marker. For instance, `uv run pytest -m "hevm" --hevm`.

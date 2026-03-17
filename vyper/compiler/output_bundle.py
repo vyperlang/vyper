@@ -7,12 +7,11 @@ from functools import cached_property
 from pathlib import PurePath
 from typing import Optional
 
-import vyper
 from vyper.compiler.input_bundle import CompilerInput, JSONInput, _NotFound
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic
-from vyper.utils import safe_relpath
+from vyper.utils import get_long_version, safe_relpath
 
 # data structures and routines for constructing "output bundles",
 # basically reproducible builds of a vyper contract, with varying
@@ -162,7 +161,8 @@ class OutputBundleWriter:
         raise NotImplementedError(f"output: {self.__class__}")
 
     def write(self):
-        self.write_version(f"v{vyper.__version__}")
+        long_version = get_long_version()
+        self.write_version(f"v{long_version}")
         self.write_compilation_target([self.bundle.compilation_target_path])
         self.write_search_paths(self.bundle.used_search_paths)
         self.write_settings(self.compiler_data.original_settings)

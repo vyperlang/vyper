@@ -1,28 +1,45 @@
 SHELL := /bin/bash
 
-.PHONY: test lint clean clean-pyc clean-build clean-test docs
+ifeq (, $(shell which pip3))
+	pip := $(shell which pip3)
+else
+	pip := $(shell which pip)
+endif
+
+.PHONY: test dev-deps lint clean clean-pyc clean-build clean-test docs
+
+init:
+	python setup.py install
+
+dev-init:
+	${pip} install .[dev]
 
 test:
-	uv run pytest
+	pytest
 
 lint: mypy black flake8 isort
 
 mypy:
-	uv run mypy -p vyper
+	mypy \
+		--disable-error-code "annotation-unchecked" \
+		--follow-imports=silent \
+		--ignore-missing-imports \
+		--implicit-optional \
+		-p vyper
 
 black:
-	uv run black vyper/ tests/
+	black -C -t py311 vyper/ tests/ setup.py --force-exclude=vyper/version.py
 
 flake8: black
-	uv run flake8 vyper/ tests/
+	flake8 --enable-extensions=FS003 vyper/ tests/
 
 isort: black
-	uv run isort vyper/ tests/
+	isort vyper/ tests/ setup.py
 
 docs:
 	rm -f docs/vyper.rst
 	rm -f docs/modules.rst
-	uv run sphinx-apidoc -o docs/ -d 2 vyper/
+	sphinx-apidoc -o docs/ -d 2 vyper/
 	$(MAKE) -C docs clean
 	$(MAKE) -C docs html
 	# To display docs, run:
@@ -31,15 +48,15 @@ docs:
 	# xdg-open docs/_build/html/index.html (Linux)
 
 release: clean
-	uv build
-	uv run twine check dist/*
-	#uv run twine upload dist/*
+	python setup.py sdist bdist_wheel
+	twine check dist/*
+	#twine upload dist/*
 
-freeze: clean
+freeze: clean init
 	echo Generating binary...
 	export OS="$$(uname -s | tr A-Z a-z)" && \
-	export VERSION="$$(uv run vyper --version)" && \
-	uv run pyinstaller --target-architecture=universal2 --clean --onefile vyper/cli/vyper_compile.py --name "vyper.$${VERSION}.$${OS}" --add-data vyper:vyper
+	export VERSION="$$(PYTHONPATH=. python vyper/cli/vyper_compile.py --version)" && \
+	pyinstaller --target-architecture=universal2 --clean --onefile vyper/cli/vyper_compile.py --name "vyper.$${VERSION}.$${OS}" --add-data vyper:vyper
 
 clean: clean-build clean-docs clean-pyc clean-test
 
