@@ -1975,6 +1975,7 @@ def test_mcopy_translation_non_rewriteble_multiple_bb():
 
     _check_pre_post(pre, post)
 
+
 def test_memcopy_translate_multiple_copies():
     pre = """
     main:
