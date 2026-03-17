@@ -63,7 +63,7 @@ def type_from_abi(abi_type: dict) -> VyperType:
             if type_string in ("Bytes", "String"):
                 # special handling for bytes, string, since
                 # the type ctor is in the namespace instead of a concrete type.
-                return t()
+                return t(None)
             return t
         except KeyError:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None

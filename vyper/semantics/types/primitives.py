@@ -411,7 +411,7 @@ class AddressT(_PrimT):
         "codehash": BytesM_T(32),
         "codesize": UINT(256),
         "is_contract": BoolT(),
-        "code": BytesT(),
+        "code": BytesT(None),
     }
 
     @cached_property

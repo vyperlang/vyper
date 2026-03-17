@@ -22,8 +22,8 @@ TYPES = {
     DecimalT(): "decimal",
     INT128_T: "int128",
     UINT256_T: "uint256",
-    BytesT: "Bytes[1]",
-    StringT: "String[1]",
+    BytesT(1): "Bytes[1]",
+    StringT(1): "String[1]",
 }
 
 VALID_LITERALS = {
@@ -36,8 +36,12 @@ VALID_LITERALS = {
     DecimalT(): ["-1.666", "3.31337", "8008135.0", "1.2345678901"],
     INT128_T: ["-1", "0", "12", "42"],
     UINT256_T: ["0", "12", "42"],
-    BytesT: ["b''", "b'this is thirty three bytes long!!'", r"b'\xbe\xef'"],
-    StringT: ["''", "'hello'", "'this is thirty three chars long!!'", "'-42'"],
+    BytesT(0): ["b''"],
+    BytesT(2): [r"b'\xbe\xef'", "b'Hi'"],
+    BytesT(33): ["b'this is thirty three bytes long!!'"],
+    StringT(0): ["''"],
+    StringT(3): ["'-42'", "'Hi!'"],
+    StringT(33): ["'this is thirty three chars long!!'"],
 }
 
 
@@ -71,7 +75,7 @@ def do_validate_node(type_, node):
         type_.validate_literal(node)
 
 
-@pytest.mark.parametrize("type_", TYPES.keys())
+@pytest.mark.parametrize("type_", VALID_LITERALS.keys())
 def test_valid_literals(build_node, type_):
     sources = VALID_LITERALS[type_]
     for source in sources:
@@ -107,8 +111,6 @@ def test_from_annotation_literal(build_node, type_, source):
 
 
 def _check_type_equals(type_, t):
-    if type_ in (BytesT, StringT):
-        type_ = type_()
     if not type_.compare_type(t):
         raise InvalidType(f"{type_} != {t}")
 
