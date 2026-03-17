@@ -17,7 +17,7 @@ class Direction(Enum):
 
 class LatticeBase:
     def copy(self) -> Lattice:  # type: ignore
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma: no cover
 
 
 Lattice = TypeVar("Lattice", bound=LatticeBase)
@@ -72,7 +72,7 @@ class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
         return False
 
     def _direction(self) -> Direction:
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma: no cover
 
     def _compute_join(self, bb: IRBasicBlock) -> Lattice:
         input_lattices = []
@@ -95,15 +95,15 @@ class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
         return result
 
     def _bottom(self) -> Lattice:
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma: no cover
 
     def _join(self, a: Lattice, b: Lattice) -> Lattice:
         """Join operation for the lattice"""
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma: no cover
 
     def _transfer_function(self, inst: IRInstruction, input_lattice: Lattice) -> Lattice:
         """Transfer function for an instruction"""
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma: no cover
 
     def _edge_transfer(
         self, source: IRBasicBlock, target: IRBasicBlock, input_lattice: Lattice
