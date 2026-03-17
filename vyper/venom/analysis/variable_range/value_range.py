@@ -50,8 +50,8 @@ class ValueRange:
 
     def __post_init__(self):
         if self._kind == VRangeKind.TOP or self._kind == VRangeKind.BOT:
-            object.__setattr__(self, "_lo", None)
-            object.__setattr__(self, "_hi", None)
+            if self._lo is not None or self._hi is not None:
+                raise ValueError(f"{self._kind.name} does not take lo/hi values")
         elif self._kind == VRangeKind.IV:
             if self._lo is None or self._hi is None:
                 raise ValueError("IV requires lo and hi values")

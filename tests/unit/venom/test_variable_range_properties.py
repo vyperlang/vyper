@@ -529,23 +529,21 @@ class TestValueRangeBasics:
         assert bottom3.is_bottom
         assert bottom4.is_bottom
 
-    def test_top_constructor_canonicalizes_payload(self) -> None:
-        """TOP should ignore any payload and normalize to a canonical value."""
+    def test_top_constructor_rejects_payload(self) -> None:
+        """TOP must not accept lo/hi values."""
         top1 = ValueRange()
-        top2 = ValueRange(VRangeKind.TOP, 1, 2)
-
         assert top1.is_top
-        assert top2.is_top
-        assert top1 == top2
 
-    def test_bottom_constructor_canonicalizes_payload(self) -> None:
-        """BOTTOM should ignore any payload and normalize to a canonical value."""
+        with pytest.raises(ValueError, match="TOP does not take lo/hi"):
+            ValueRange(VRangeKind.TOP, 1, 2)
+
+    def test_bottom_constructor_rejects_payload(self) -> None:
+        """BOTTOM must not accept lo/hi values."""
         bottom1 = ValueRange.empty()
-        bottom2 = ValueRange(VRangeKind.BOT, 7, 9)
-
         assert bottom1.is_bottom
-        assert bottom2.is_bottom
-        assert bottom1 == bottom2
+
+        with pytest.raises(ValueError, match="BOT does not take lo/hi"):
+            ValueRange(VRangeKind.BOT, 7, 9)
 
     def test_invalid_interval_constructor_rejected(self) -> None:
         """Raw IV construction must preserve the interval invariant."""
