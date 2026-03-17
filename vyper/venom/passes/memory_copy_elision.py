@@ -146,14 +146,14 @@ class MemoryCopyElisionPass(IRPass):
 
         # Start with first predecessor's state
         first_pred = preds[0]
-        if first_pred not in self.bb_copies:
+        if first_pred not in self.bb_translates:
             return {}
 
         result = self.bb_translates[first_pred].copy()
 
         # Intersect with other predecessors
         for pred in preds[1:]:
-            if pred not in self.bb_copies:
+            if pred not in self.bb_translates:
                 # If any predecessor hasn't been processed, be conservative
                 return {}
             other = self.bb_translates[pred]
