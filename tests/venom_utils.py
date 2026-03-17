@@ -15,7 +15,11 @@ def parse_from_basic_block(source: str, funcname="_global"):
 
 
 def instructions_eq(i1: IRInstruction, i2: IRInstruction) -> bool:
-    return i1.output == i2.output and i1.opcode == i2.opcode and i1.operands == i2.operands
+    return (
+        i1.get_outputs() == i2.get_outputs()
+        and i1.opcode == i2.opcode
+        and i1.operands == i2.operands
+    )
 
 
 def assert_bb_eq(bb1: IRBasicBlock, bb2: IRBasicBlock):
@@ -66,14 +70,8 @@ class PrePostChecker:
         self.default_hevm = default_hevm
         self.pass_objects = list()
 
-    def __call__(self, pre: str, post: str, hevm: bool | None = None) -> list[IRPass]:
-        from tests.hevm import hevm_check_venom
-
+    def run_passes(self, pre: str, post: str) -> tuple[IRContext, IRContext]:
         self.pass_objects.clear()
-
-        if hevm is None:
-            hevm = self.default_hevm
-
         pre_ctx = parse_from_basic_block(pre)
         for fn in pre_ctx.functions.values():
             ac = IRAnalysesCache(fn)
@@ -90,7 +88,24 @@ class PrePostChecker:
                 self.pass_objects.append(obj)
                 obj.run_pass()
 
+        return pre_ctx, post_ctx
+
+    def __call__(self, pre: str, post: str, hevm: bool | None = None) -> list[IRPass]:
+        pre_ctx, post_ctx = self.run_passes(pre, post)
+
+        self.check(pre_ctx, post_ctx, pre, post, hevm)
+
+        return self.pass_objects
+
+    def check(
+        self, pre_ctx: IRContext, post_ctx: IRContext, pre: str, post: str, hevm: bool | None = None
+    ):
+        from tests.hevm import hevm_check_venom
+
         assert_ctx_eq(pre_ctx, post_ctx)
+
+        if hevm is None:
+            hevm = self.default_hevm
 
         if hevm:
             hevm_check_venom(pre, post)

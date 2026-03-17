@@ -1,0 +1,28 @@
+.. index:: tokens;ERC4626, ERC4626, vault
+
+ERC4626 Tokenized Vault
+***********************
+
+.. _erc4626:
+
+.. warning::
+
+   This is example code for learning purposes. Do not use in production without thorough review and testing.
+
+ERC4626 standardizes yield-bearing vaults. Users deposit assets and receive shares
+representing their portion of the vault.
+
+.. literalinclude:: ../../examples/tokens/ERC4626.vy
+  :language: vyper
+  :linenos:
+
+The vault implements:
+
+- ``deposit`` / ``withdraw``: Exchange assets for shares
+- ``mint`` / ``redeem``: Exchange shares for assets
+- Share price calculation based on ``totalAssets / totalSupply``
+
+.. note::
+
+   The ``DEBUG_steal_tokens`` function is for testing share price changes.
+   Do not include in production code.

@@ -20,17 +20,27 @@ class FloatAllocas(IRPass):
             if bb is entry_bb:
                 continue
 
-            # Extract alloca instructions
-            non_alloca_instructions = []
-            for inst in bb.instructions:
-                if inst.opcode in ("alloca", "palloca", "calloca"):
-                    # note: order of allocas impacts bytecode.
-                    # TODO: investigate.
-                    entry_bb.insert_instruction(inst)
-                else:
-                    non_alloca_instructions.append(inst)
-
-            # Replace original instructions with filtered list
-            bb.instructions = non_alloca_instructions
+            bb.instructions = self._float_allocas_from_block(bb, entry_bb)
 
         entry_bb.instructions.append(tmp)
+
+    def _float_allocas_from_block(self, bb, entry_bb):
+        insts = bb.instructions
+        non_alloca = []
+        i = 0
+
+        while i < len(insts):
+            inst = insts[i]
+
+            if inst.opcode != "alloca":
+                non_alloca.append(inst)
+                i += 1
+                continue
+
+            # note: order of allocas impacts bytecode.
+            # TODO: investigate.
+            entry_bb.insert_instruction(inst)
+
+            i += 1
+
+        return non_alloca

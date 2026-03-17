@@ -7,7 +7,7 @@ import pytest
 from tests.venom_utils import assert_ctx_eq, parse_venom
 from vyper.compiler import compile_code
 from vyper.compiler.phases import generate_bytecode
-from vyper.compiler.settings import OptimizationLevel
+from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.venom import generate_assembly_experimental, run_passes_on
 from vyper.venom.context import IRContext
 
@@ -85,26 +85,30 @@ def _helper1(vyper_source, optimize):
     Check that we are able to run passes on the round-tripped venom code
     and that it is valid (generates bytecode)
     """
-    # note: compiling any later stage than bb_runtime like `asm` or
-    # `bytecode` modifies the bb_runtime data structure in place and results
-    # in normalization of the venom cfg (which breaks again make_ssa)
-    out = compile_code(vyper_source, output_formats=["bb_runtime"])
+    from vyper.compiler.settings import Settings
 
-    bb_runtime = out["bb_runtime"]
-    venom_code = IRContext.__repr__(bb_runtime)
+    settings = Settings(experimental_codegen=True)
+    # note: compiling any later stage than ir_runtime like `asm` or
+    # `bytecode` modifies the ir_runtime data structure in place and results
+    # in normalization of the venom cfg (which breaks again make_ssa)
+    out = compile_code(vyper_source, settings=settings, output_formats=["ir_runtime"])
+
+    ir_runtime = out["ir_runtime"]
+    venom_code = IRContext.__repr__(ir_runtime)
 
     ctx = parse_venom(venom_code)
 
-    assert_ctx_eq(bb_runtime, ctx)
+    assert_ctx_eq(ir_runtime, ctx)
 
     # check it's valid to run venom passes+analyses
     # (note this breaks bytecode equality, in the future we should
     # test that separately)
-    run_passes_on(ctx, optimize)
+    flags = VenomOptimizationFlags(level=optimize)
+    run_passes_on(ctx, flags)
 
     # test we can generate assembly+bytecode
     asm = generate_assembly_experimental(ctx)
-    generate_bytecode(asm, compiler_metadata=None)
+    generate_bytecode(asm)
 
 
 def _helper2(vyper_source, optimize, compiler_settings):
@@ -116,17 +120,17 @@ def _helper2(vyper_source, optimize, compiler_settings):
     # bytecode equivalence only makes sense if we use venom pipeline
     settings.experimental_codegen = True
 
-    out = compile_code(vyper_source, settings=settings, output_formats=["bb_runtime"])
-    bb_runtime = out["bb_runtime"]
-    venom_code = IRContext.__repr__(bb_runtime)
+    out = compile_code(vyper_source, settings=settings, output_formats=["ir_runtime"])
+    ir_runtime = out["ir_runtime"]
+    venom_code = IRContext.__repr__(ir_runtime)
 
     ctx = parse_venom(venom_code)
 
-    assert_ctx_eq(bb_runtime, ctx)
+    assert_ctx_eq(ir_runtime, ctx)
 
     # test we can generate assembly+bytecode
     asm = generate_assembly_experimental(ctx, optimize=optimize)
-    bytecode = generate_bytecode(asm, compiler_metadata=None)
+    bytecode, _ = generate_bytecode(asm)
 
     out = compile_code(vyper_source, settings=settings, output_formats=["bytecode_runtime"])
     assert "0x" + bytecode.hex() == out["bytecode_runtime"]

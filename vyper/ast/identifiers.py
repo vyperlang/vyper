@@ -64,6 +64,8 @@ RESERVED_KEYWORDS = _PYTHON_RESERVED_KEYWORDS | {
     "internal",
     "payable",
     "nonreentrant",
+    "staticcall",
+    "extcall",
     # "class" keywords
     "interface",
     "struct",

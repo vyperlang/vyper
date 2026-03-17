@@ -157,7 +157,6 @@ class MemMergePass(IRPass):
                     # if the load is used by any instructions besides the ones
                     # we are removing, we can't delete it. (in the future this
                     # may be handled by "remove unused effects" pass).
-                    assert isinstance(inst.output, IRVariable)  # help mypy
                     uses = self.dfg.get_uses(inst.output)
                     if not all(use in copy.insts for use in uses):
                         continue
@@ -270,7 +269,6 @@ class MemMergePass(IRPass):
                     if len(copies) > 0:
                         _barrier_for(copies)
 
-                assert inst.output is not None, inst
                 self._loads[inst.output] = src_op.value
 
             elif inst.opcode == "mstore":
@@ -415,8 +413,8 @@ class MemMergePass(IRPass):
             dload = inst
             src = dload.operands[0]
 
-            assert dload.output is not None
-            uses = self.dfg.get_uses(dload.output)
+            dload_out = dload.output
+            uses = self.dfg.get_uses(dload_out)
             if len(uses) == 1:
                 mstore: IRInstruction = uses.first()
                 if mstore.opcode != "mstore":
@@ -431,7 +429,7 @@ class MemMergePass(IRPass):
             # that uses dload. If we would not restrain ourself to basic
             # block we would have to check if the mstore dominates all of
             # the other uses
-            uses_bb = dload.parent.get_uses().get(dload.output, OrderedSet())
+            uses_bb = dload.parent.get_uses().get(dload_out, OrderedSet())
             if len(uses_bb) == 0:
                 continue
 
@@ -444,10 +442,8 @@ class MemMergePass(IRPass):
 
             var, dst = mstore.operands
 
-            if var != dload.output:
+            if var != dload_out:
                 continue
-
-            assert isinstance(var, IRVariable)  # help mypy
             new_var = bb.parent.get_next_variable()
 
             self.updater.add_before(mstore, "dloadbytes", [IRLiteral(32), src, dst])
@@ -455,7 +451,7 @@ class MemMergePass(IRPass):
 
             mload = mstore  # clarity
 
-            self.updater.move_uses(dload.output, mload)
+            self.updater.move_uses(dload_out, mload)
             self.updater.nop(dload)
 
 

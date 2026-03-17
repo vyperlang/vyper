@@ -23,7 +23,7 @@ As of 0.3.10, the recommended way to specify the version pragma is as follows:
 
 .. code-block:: vyper
 
-    #pragma version ^0.3.0
+    #pragma version ^0.4.0
 
 .. note::
 
@@ -33,10 +33,10 @@ The following declaration is equivalent, and, prior to 0.3.10, was the only supp
 
 .. code-block:: vyper
 
-    # @version ^0.3.0
+    # @version ^0.4.0
 
 
-In the above examples, the contract will only compile with Vyper versions ``0.3.x``.
+In the above examples, the contract will only compile with Vyper versions ``0.4.x``.
 
 Optimization Mode
 -----------------
@@ -167,7 +167,7 @@ Functions may be called internally or externally depending on their :ref:`visibi
 
 See the :ref:`Functions <control-structures-functions>` documentation for more information.
 
-.. _modules:
+.. _modules-struct:
 
 Modules
 ==========
@@ -254,7 +254,7 @@ Once defined, an interface can then be used to make external calls to a given ad
 
     @external
     def test(some_address: address):
-        FooBar(some_address).calculate()
+        x: uint256 = staticcall FooBar(some_address).calculate()
 
 See the :ref:`Interfaces <interfaces>` documentation for more information.
 

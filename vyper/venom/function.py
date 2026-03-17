@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
-from vyper.venom.memory_location import MemoryLocation
 
 if TYPE_CHECKING:
     from vyper.venom.context import IRContext
@@ -35,20 +34,30 @@ class IRFunction:
     args: list
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
-    _volatile_memory: list[MemoryLocation]
+
+    # Indices of invoke args that are read-only memory pointers
+    _readonly_memory_invoke_arg_idxs: tuple
+    # Internal-call metadata (excluding return_pc):
+    # - number of invoke params
+    # - whether first invoke param is a memory return buffer
+    _invoke_param_count: Optional[int]
+    _has_memory_return_buffer_param: Optional[bool]
 
     # Used during code generation
     _ast_source_stack: list[IRnode]
-    _error_msg_stack: list[str]
+    _error_msg_stack: list[Optional[str]]
 
     def __init__(self, name: IRLabel, ctx: IRContext = None):
         self.ctx = ctx  # type: ignore
         self.name = name
         self.args = []
         self._basic_block_dict = {}
-        self._volatile_memory = []
 
         self.last_variable = 0
+
+        self._readonly_memory_invoke_arg_idxs = ()
+        self._invoke_param_count = None
+        self._has_memory_return_buffer_param = None
 
         self._ast_source_stack = []
         self._error_msg_stack = []
@@ -118,8 +127,8 @@ class IRFunction:
         varmap: dict[IRVariable, IRVariable] = defaultdict(self.get_next_variable)
         for bb in self.get_basic_blocks():
             for inst in bb.instructions:
-                if inst.output:
-                    inst.output = varmap[inst.output]
+                if inst.has_outputs:
+                    inst.set_outputs([varmap[o] for o in inst.get_outputs()])
 
                 for i, op in enumerate(inst.operands):
                     if not isinstance(op, IRVariable):
@@ -130,6 +139,15 @@ class IRFunction:
         if isinstance(ir, IRnode):
             self._ast_source_stack.append(ir.ast_source)
             self._error_msg_stack.append(ir.error_msg)
+
+    def push_error_msg(self, error_msg: Optional[str]):
+        """Push an error message without changing ast_source."""
+        self._error_msg_stack.append(error_msg)
+
+    def pop_error_msg(self):
+        """Pop an error message."""
+        assert len(self._error_msg_stack) > 0, "Empty error stack"
+        self._error_msg_stack.pop()
 
     def pop_source(self):
         assert len(self._ast_source_stack) > 0, "Empty source stack"
@@ -164,10 +182,6 @@ class IRFunction:
         for bb in self.get_basic_blocks():
             new_bb = bb.copy()
             new.append_basic_block(new_bb)
-
-        # Copy volatile memory locations
-        for mem in self._volatile_memory:
-            new.add_volatile_memory(mem.offset, mem.size)
 
         return new
 
@@ -216,18 +230,3 @@ class IRFunction:
         ret = ret.strip() + "\n}"
         ret += f"  ; close function {self.name}"
         return ret
-
-    def add_volatile_memory(self, offset: int, size: int) -> MemoryLocation:
-        """
-        Add a volatile memory location with the given offset and size.
-        Returns the created MemoryLocation object.
-        """
-        volatile_mem = MemoryLocation(offset=offset, size=size)
-        self._volatile_memory.append(volatile_mem)
-        return volatile_mem
-
-    def get_all_volatile_memory(self) -> list[MemoryLocation]:
-        """
-        Return all volatile memory locations.
-        """
-        return self._volatile_memory

@@ -3,7 +3,8 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings
-from vyper.ir.compile_ir import _merge_jumpdests
+from vyper.evm.assembler.instructions import PUSHLABEL, Label
+from vyper.evm.assembler.optimizer import _merge_jumpdests
 
 codes = [
     """
@@ -82,18 +83,18 @@ def test_dead_code_eliminator(code):
     c = CompilerData(code, settings=Settings(optimize=OptimizationLevel.NONE))
 
     # get the labels
-    initcode_asm = [i for i in c.assembly if isinstance(i, str)]
-    runtime_asm = [i for i in c.assembly_runtime if isinstance(i, str)]
+    initcode_labels = [i for i in c.assembly if isinstance(i, Label)]
+    runtime_labels = [i for i in c.assembly_runtime if isinstance(i, Label)]
 
     ctor_only = "ctor_only()"
     runtime_only = "runtime_only()"
 
     # qux reachable from unoptimized initcode, foo not reachable.
-    assert any(ctor_only in instr for instr in initcode_asm)
-    assert all(runtime_only not in instr for instr in initcode_asm)
+    assert any(ctor_only in label.label for label in initcode_labels)
+    assert all(runtime_only not in label.label for label in initcode_labels)
 
-    assert any(runtime_only in instr for instr in runtime_asm)
-    assert all(ctor_only not in instr for instr in runtime_asm)
+    assert any(runtime_only in label.label for label in runtime_labels)
+    assert all(ctor_only not in label.label for label in runtime_labels)
 
 
 def test_library_code_eliminator(make_input_bundle, experimental_codegen):
@@ -118,8 +119,8 @@ def foo():
     library.some_function()
     """
     input_bundle = make_input_bundle({"library.vy": library})
-    res = compile_code(code, input_bundle=input_bundle, output_formats=["asm"])
-    asm = res["asm"]
+    res = compile_code(code, input_bundle=input_bundle, output_formats=["asm_runtime"])
+    asm = res["asm_runtime"]
 
     if not experimental_codegen:
         assert "some_function()" in asm  # Venom function inliner will remove this
@@ -129,6 +130,6 @@ def foo():
 
 
 def test_merge_jumpdests():
-    asm = ["_sym_label_0", "JUMP", "PUSH0", "_sym_label_0", "JUMPDEST", "_sym_label_0", "JUMPDEST"]
+    asm = [PUSHLABEL(Label("label_0")), "JUMP", "PUSH0", Label("label_0"), Label("_label_0")]
 
     assert _merge_jumpdests(asm) is False, "should not return True as no changes were made"

@@ -234,6 +234,21 @@ def foo():
     assert e.value._message == "Cannot modify loop variable `b`"
 
 
+def test_modify_loop_variable_function_param():
+    # GH issue 4797
+    code = """
+@internal
+def boo(a: DynArray[uint256, 12] = []):
+    for i: uint256 in a:
+        a[0] = 1
+    """
+    vyper_module = parse_to_ast(code)
+    with pytest.raises(ImmutableViolation) as e:
+        analyze_module(vyper_module)
+
+    assert e.value._message == "Cannot modify loop variable `a`"
+
+
 iterator_inference_codes = [
     """
 @external
