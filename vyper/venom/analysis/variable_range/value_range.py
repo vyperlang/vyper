@@ -28,7 +28,7 @@ class VRangeKind(Enum):
     IV = auto()
 
 
-@dataclass(frozen=True, slots=True, init=False)
+@dataclass(frozen=True, slots=True)
 class ValueRange:
     """Immutable interval representation for 256-bit modular arithmetic.
 
@@ -48,22 +48,15 @@ class ValueRange:
     _lo: int = 0
     _hi: int = 0
 
-    def __init__(self, kind: VRangeKind = VRangeKind.TOP, lo: int = 0, hi: int = 0) -> None:
-        if kind == VRangeKind.TOP:
-            lo = 0
-            hi = 0
-        elif kind == VRangeKind.BOT:
-            lo = 0
-            hi = 0
-        elif kind == VRangeKind.IV:
-            if lo > hi:
+    def __post_init__(self):
+        if self._kind == VRangeKind.TOP or self._kind == VRangeKind.BOT:
+            object.__setattr__(self, "_lo", 0)
+            object.__setattr__(self, "_hi", 0)
+        elif self._kind == VRangeKind.IV:
+            if self._lo > self._hi:
                 raise ValueError("IV requires lo <= hi; use ValueRange.iv() for smart construction")
         else:
-            raise TypeError(f"invalid ValueRange kind: {kind!r}")
-
-        object.__setattr__(self, "_kind", kind)
-        object.__setattr__(self, "_lo", lo)
-        object.__setattr__(self, "_hi", hi)
+            raise TypeError(f"invalid ValueRange kind: {self._kind!r}")
 
     @property
     def lo(self) -> int:
