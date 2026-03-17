@@ -46,7 +46,7 @@ class _Msg(_EnvType):
         # types.
         super().__init__(
             {
-                "data": BytesT(),
+                "data": BytesT(None),
                 "gas": UINT256_T,
                 "mana": UINT256_T,
                 "sender": AddressT(),
