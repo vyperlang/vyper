@@ -115,7 +115,7 @@ class Namespace:
 
     @staticmethod
     @contextlib.contextmanager
-    def sub_scope():
+    def enter_sub_scope():
         """
         Creates a sub-scope of the current scope, making sure mutations do not affect the parent
         """

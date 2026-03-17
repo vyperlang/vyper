@@ -390,11 +390,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if self.func.is_abstract:
             # The doc string (if present) will be parsed differently,
             # and so not be present in self.fn_node.body
-            valid_body = len(self.fn_node.body) == 1 and isinstance(
+            is_abstract_body = len(self.fn_node.body) == 1 and isinstance(
                 self.fn_node.body[0].value, vy_ast.Ellipsis
             )
 
-            if not valid_body:
+            if not is_abstract_body:
                 func_name = self.func.name
 
                 msg = "Abstract function must have `...` as body"
@@ -592,7 +592,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             raise StructureException(
                 "`...` is only allowed in abstract methods "
                 "and methods inside interface files (`.vyi`). "
-                "Did you mean to mark me `@abstract` or to import my module as a `.vyi` file?",
+                "Did you mean to mark this function `@abstract` "
+                "or to import this module as a `.vyi` file?",
                 node,
             )
 
@@ -690,7 +691,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             # note: using `node.target` here results in bad source location.
             iter_var = self._analyse_list_iter(node.target.target, node.iter, target_type)
 
-        with Namespace.sub_scope(), self.enter_for_loop(iter_var):
+        with Namespace.enter_sub_scope(), self.enter_for_loop(iter_var):
             target_name = node.target.target.id
             # maybe we should introduce a new Modifiability: LOOP_VARIABLE
             Namespace.add(
@@ -707,10 +708,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
     def visit_If(self, node):
         self.expr_visitor.visit(node.test, BoolT())
-        with Namespace.sub_scope():
+        with Namespace.enter_sub_scope():
             for n in node.body:
                 self.visit(n)
-        with Namespace.sub_scope():
+        with Namespace.enter_sub_scope():
             for n in node.orelse:
                 self.visit(n)
 

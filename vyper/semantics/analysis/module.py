@@ -70,7 +70,7 @@ def analyze_modules(modules: OrderedSet[vy_ast.Module]) -> ModuleT:
 
     # These must be two different loops, because of cross-module calls and abstract resolution
     for module_ast in modules:
-        _build_call_edges(module_ast)
+        _build_call_graph_edges(module_ast)
 
     for module_ast in modules:
         _compute_reachable_sets(module_ast)
@@ -263,8 +263,8 @@ def _validate_exports_uses(module_ast: vy_ast.Module, module_t: ModuleT) -> None
                     info.used_modules.add(module_info)
 
 
-def _build_call_edges(module_ast: vy_ast.Module):
-    # get list of direct internal function calls made by each function
+def _build_call_graph_edges(module_ast: vy_ast.Module):
+    # get list of internal function calls made by each function
     # CMC 2024-02-03 note: this could be cleaner in analysis/local.py
     with module_ast.namespace():
         function_defs = module_ast.get_children(vy_ast.FunctionDef)
@@ -866,4 +866,5 @@ def _modules_check_overrides(all_modules: OrderedSet[vy_ast.Module]):
             if func_t.is_abstract:
                 override_t = func_t.overridden_by
 
-                override_t.override_discrepancies(func_t).raise_if_not_empty()
+                err_list = override_t.compute_override_discrepancies(func_t)
+                err_list.raise_if_not_empty()

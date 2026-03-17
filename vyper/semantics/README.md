@@ -144,12 +144,12 @@ function
 Additionally, a new scope is entered for each execution of a `for` loop or branch
 of an `if` statement.
 
-Scoping is handled by calling `Namespace.sub_scope` as a
+Scoping is handled by calling `Namespace.enter_sub_scope` as a
 [context manager](https://docs.python.org/3/reference/datamodel.html#with-statement-context-managers).
 Values added while inside the context are removed when the context is exited.
 
 ```python
-with namespace.sub_scope():
+with namespace.enter_sub_scope():
     namespace['foo'] = 42
 
 namespace['foo']  # this raises an UndeclaredDefinition

@@ -848,7 +848,7 @@ class ContractFunctionT(VyperType):
 
         return self.mutability == other.mutability
 
-    def override_discrepancies(self, abstract_t: "ContractFunctionT") -> ExceptionList:
+    def compute_override_discrepancies(self, abstract_t: "ContractFunctionT") -> ExceptionList:
         assert self.is_internal
         assert abstract_t.is_internal
         assert abstract_t.is_abstract
