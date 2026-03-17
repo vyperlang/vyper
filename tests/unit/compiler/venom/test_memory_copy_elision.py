@@ -1974,3 +1974,42 @@ def test_mcopy_translation_non_rewriteble_multiple_bb():
     """
 
     _check_pre_post(pre, post)
+
+def test_memcopy_translate_multiple_copies():
+    pre = """
+    main:
+        %a = alloca 1, 64
+        %b = alloca 2, 64
+        %c = alloca 3, 64
+        invoke @fn, %a
+        mcopy %b, %a, 64
+        mcopy %c, %b, 64
+        %pc = gep 32, %c
+        mstore %pc, 777
+        %pc2 = gep 32, %b
+        mstore %pc2, 666
+        %pb = gep 32, %b
+        %x = mload %pb
+        sink %x
+    """
+
+    post = """
+    main:
+        %a = alloca 1, 64
+        %b = alloca 2, 64
+        %c = alloca 3, 64
+        invoke @fn, %a
+        nop
+        nop
+        %pc = gep 32, %c
+        nop
+        %pc2 = gep 32, %b
+        %1 = gep 32, %a
+        mstore %1, 666
+        %pb = gep 32, %b
+        %2 = gep 32, %a
+        %x = mload %2
+        sink %x
+    """
+
+    _check_pre_post(pre, post)
