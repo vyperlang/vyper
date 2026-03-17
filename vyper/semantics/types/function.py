@@ -1139,6 +1139,7 @@ def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
 def _pretty_param(param: _FunctionArg) -> str:
     return f"`{param.name}: {param.typ._id}`"
 
+
 def _default_values_match(p_override, p_abstract) -> bool:
     if isinstance(p_abstract, KeywordArg):
         if not isinstance(p_override, KeywordArg):
@@ -1150,41 +1151,40 @@ def _default_values_match(p_override, p_abstract) -> bool:
             return True
 
         # other defaults must match exactly, 1 + 1 cannot be overridden by 2
-        return NodeComparer().visit(
-            p_abstract.default_value, False, p_override.default_value
-        )
+        return NodeComparer().visit(p_abstract.default_value, False, p_override.default_value)
     else:
         # Non-default can be overridden by both default and non-default
         return True
 
-def _parameter_override_discrepancy(
-        p_override: _FunctionArg, p_abstract: _FunctionArg | None
-    ) -> VyperException | None:
-        if p_abstract is None:
-            if isinstance(p_override, KeywordArg):
-                return None
-            else:
-                return FunctionDeclarationException(
-                    f"Override has mandatory parameter {_pretty_param(p_override)} "
-                    "not present in the abstract method.",
-                    p_override.ast_source,
-                    hint="Remove the extra parameter, or add a default value",
-                )
 
-        if (
-            p_override.name == p_abstract.name
-            and p_override.typ.is_supertype_of(p_abstract.typ)
-            and _default_values_match(p_override, p_abstract)
-        ):
+def _parameter_override_discrepancy(
+    p_override: _FunctionArg, p_abstract: _FunctionArg | None
+) -> VyperException | None:
+    if p_abstract is None:
+        if isinstance(p_override, KeywordArg):
             return None
         else:
             return FunctionDeclarationException(
-                "Override parameter mismatch: "
-                f"Got {_pretty_param(p_override)}, "
-                f"but expected {_pretty_param(p_abstract)} (or stricter)",
+                f"Override has mandatory parameter {_pretty_param(p_override)} "
+                "not present in the abstract method.",
                 p_override.ast_source,
-                p_abstract.ast_source,
+                hint="Remove the extra parameter, or add a default value",
             )
+
+    if (
+        p_override.name == p_abstract.name
+        and p_override.typ.is_supertype_of(p_abstract.typ)
+        and _default_values_match(p_override, p_abstract)
+    ):
+        return None
+    else:
+        return FunctionDeclarationException(
+            "Override parameter mismatch: "
+            f"Got {_pretty_param(p_override)}, "
+            f"but expected {_pretty_param(p_abstract)} (or stricter)",
+            p_override.ast_source,
+            p_abstract.ast_source,
+        )
 
 
 @dataclass
