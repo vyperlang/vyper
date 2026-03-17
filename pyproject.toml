@@ -3,6 +3,51 @@
 # verbose regular expressions by Black.  Use [ ] to denote a significant space
 # character.
 
+[build-system]
+requires = ["setuptools>=61.0", "setuptools_scm>=7.1.0,<8.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vyper"
+dynamic = ["version"]
+description = "Vyper: the Pythonic Programming Language for the EVM"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.11,<4"
+authors = [{ name = "Vyper Team" }]
+keywords = ["ethereum", "evm", "smart contract", "language"]
+classifiers = [
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "cbor2>=5.4.6,<6",
+    "pycryptodome>=3.5.1,<4",
+    "packaging>=23.1",
+    "lark>=1.0.0,<2",
+    "wheel",
+    "immutables",
+]
+
+[project.scripts]
+vyper = "vyper.cli.vyper_compile:_parse_cli_args"
+fang = "vyper.cli.vyper_ir:_parse_cli_args"
+vyper-json = "vyper.cli.vyper_json:_parse_cli_args"
+venom = "vyper.cli.venom_main:_parse_cli_args"
+
+[project.urls]
+Homepage = "https://github.com/vyperlang/vyper"
+
+[tool.setuptools.packages.find]
+include = ["vyper*"]
+
+[tool.setuptools.package-data]
+"vyper.ast" = ["grammar.lark"]
+
 [tool.black]
 line-length = 100
 target-version = ['py311']
@@ -22,3 +67,111 @@ exclude = '''
   | venv
 )/
 '''
+force-exclude = 'vyper/version\.py'
+skip-magic-trailing-comma = true
+
+[tool.isort]
+force_grid_wrap = 0
+include_trailing_comma = true
+known_first_party = ["vyper"]
+profile = "black"
+multi_line_output = 3
+use_parentheses = true
+ensure_newline_before_comments = true
+line_length = 100
+skip = ["vyper/version.py"]
+
+[tool.pytest.ini_options]
+addopts = "-n auto --dist worksteal --strict-markers"
+python_files = "test_*.py"
+testpaths = ["tests"]
+xfail_strict = true
+markers = [
+    "fuzzing: Run Hypothesis fuzz test suite (deselect with '-m \"not fuzzing\"')",
+    "requires_evm_version(version): Mark tests that require at least a specific EVM version and would throw EvmVersionException otherwise",
+    "venom_xfail: mark a test case as a regression (expected to fail) under the venom pipeline",
+    "hevm: run tests marked for symbolic execution",
+]
+
+[tool.mypy]
+disable_error_code = ["annotation-unchecked"]
+follow_imports = "silent"
+ignore_missing_imports = true
+implicit_optional = true
+
+[tool.coverage.run]
+branch = true
+source = ["vyper"]
+# this is not available on the CI step that performs `coverage combine`
+omit = ["vyper/version.py"]
+# allow `coverage combine` to combine reports from heterogeneous OSes.
+# (mainly important for consolidating coverage reports in the CI).
+relative_files = true
+
+# TODO: Remove once fully transitioned to uv
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0,<9.0",
+    "pytest-cov>=4.1,<5.0",
+    "pytest-instafail>=0.4,<1.0",
+    "pytest-xdist>=3.0,<3.4",
+    "pytest-split>=0.7.0,<1.0",
+    "eth_abi>=5.0.0,<6.0.0",
+    "py-evm>=0.12.1b1",
+    "lark==1.1.9",
+    "hypothesis[lark]>=6.0,<7.0",
+    "eth-stdlib==0.2.7",
+    "eth-account==0.12.2",
+    "setuptools",
+    "hexbytes>=1.2",
+    "pyrevm>=0.3.2",
+]
+lint = [
+    "black==23.12.0",
+    "flake8==6.1.0",
+    "flake8-bugbear==23.12.2",
+    "flake8-use-fstring==1.4",
+    "isort==5.13.2",
+    "mypy==1.19",
+]
+dev = [
+    "vyper[test,lint]",
+    "ipython",
+    "pre-commit",
+    "pyinstaller",
+    "twine",
+]
+
+[dependency-groups]
+test = [
+    "pytest>=8.0,<9.0",
+    "pytest-cov>=4.1,<5.0",
+    "pytest-instafail>=0.4,<1.0",
+    "pytest-xdist>=3.0,<3.4",
+    "pytest-split>=0.7.0,<1.0",
+    "eth_abi>=5.0.0,<6.0.0",
+    "py-evm>=0.12.1b1",
+    "lark==1.1.9",
+    "hypothesis[lark]>=6.0,<7.0",
+    "eth-stdlib==0.2.7",
+    "eth-account==0.12.2",
+    "setuptools",
+    "hexbytes>=1.2",
+    "pyrevm>=0.3.2",
+]
+lint = [
+    "black==23.12.0",
+    "flake8==6.1.0",
+    "flake8-bugbear==23.12.2",
+    "flake8-use-fstring==1.4",
+    "isort==5.13.2",
+    "mypy==1.19",
+]
+dev = [
+    { include-group = "test" },
+    { include-group = "lint" },
+    "ipython",
+    "pre-commit",
+    "pyinstaller",
+    "twine",
+]
