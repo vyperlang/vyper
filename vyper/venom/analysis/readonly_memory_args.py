@@ -2,37 +2,30 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from vyper.venom.analysis import DFGAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLabel, IROperand, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.memory_location import memory_write_ops
-from vyper.venom.passes.base_pass import IRGlobalPass
+
+from .analysis import IRGlobalAnalysis
+from .dfg import DFGAnalysis
 
 
 @dataclass(frozen=True)
 class _FnParamInfo:
-    # params that are passed via invoke operands (all params except return_pc)
     invoke_params: tuple[IRVariable, ...]
-    # map param var -> invoke operand index
     invoke_param_index: dict[IRVariable, int]
 
 
-class ReadonlyMemoryArgsAnalysisPass(IRGlobalPass):
+class ReadonlyMemoryArgsGlobalAnalysis(IRGlobalAnalysis):
     """
     Infer readonly invoke-arg positions from Venom IR.
-
-    The result is stored on each IRFunction as:
-      `_readonly_memory_invoke_arg_idxs: tuple[int, ...]`
-    where indices are relative to invoke stack args (excluding label).
-
-    Analysis is conservative and interprocedural:
-    - local writes through a parameter-derived pointer mark it mutable
-    - passing a parameter-derived pointer to a non-readonly callee arg marks it mutable
-    - fixed-point iteration propagates mutability through the call graph
     """
 
-    def run_pass(self):
-        infos = {fn: self._collect_param_info(fn) for fn in self.ctx.get_functions()}
+    readonly_idxs_by_fn: dict[IRFunction, tuple[int, ...]]
+
+    def analyze(self):
+        functions = tuple(self.ctx.get_functions())
+        infos = {fn: self._collect_param_info(fn) for fn in functions}
 
         readonly_by_fn: dict[IRFunction, tuple[bool, ...]] = {}
         for fn, info in infos.items():
@@ -47,9 +40,13 @@ class ReadonlyMemoryArgsAnalysisPass(IRGlobalPass):
                     readonly_by_fn[fn] = new_state
                     changed = True
 
-        for fn, state in readonly_by_fn.items():
-            idxs = tuple(i for i, is_ro in enumerate(state) if is_ro)
-            fn._readonly_memory_invoke_arg_idxs = idxs
+        self.readonly_idxs_by_fn = {
+            fn: tuple(i for i, is_ro in enumerate(state) if is_ro)
+            for fn, state in readonly_by_fn.items()
+        }
+
+    def get_readonly_invoke_arg_idxs(self, fn: IRFunction) -> tuple[int, ...]:
+        return self.readonly_idxs_by_fn.get(fn, ())
 
     def _collect_param_info(self, fn: IRFunction) -> _FnParamInfo:
         params = [inst.output for inst in fn.entry.param_instructions]
@@ -57,15 +54,11 @@ class ReadonlyMemoryArgsAnalysisPass(IRGlobalPass):
             return _FnParamInfo(tuple(), {})
 
         if fn._invoke_param_count is not None:
-            # Structured metadata populated by codegen for internal functions.
             invoke_count = min(fn._invoke_param_count, len(params))
             invoke_params = tuple(params[:invoke_count])
         elif self._has_ret_instruction(fn):
-            # Conservative fallback for test/manual IR that uses internal-call
-            # convention but does not populate invoke metadata.
             invoke_params = tuple(params[:-1])
         else:
-            # Entry/non-invoked functions have no return_pc operand in practice.
             invoke_params = tuple(params)
 
         invoke_param_index = {var: i for i, var in enumerate(invoke_params)}
@@ -101,8 +94,6 @@ class ReadonlyMemoryArgsAnalysisPass(IRGlobalPass):
             if var in root_memo:
                 return root_memo[var]
             if var in root_active:
-                # Cycles through phi/self-assign can arise in SSA-like IR.
-                # Return "all params" here so we remain conservative for mutability.
                 return all_param_roots
 
             idx = info.invoke_param_index.get(var, None)
@@ -142,7 +133,6 @@ class ReadonlyMemoryArgsAnalysisPass(IRGlobalPass):
     ) -> None:
         target = inst.operands[0]
         if not isinstance(target, IRLabel):
-            # Conservative fallback for malformed/manual IR.
             for op in inst.operands[1:]:
                 for idx in root_param_indices(op):
                     mutable[idx] = True
@@ -203,7 +193,6 @@ class ReadonlyMemoryArgsAnalysisPass(IRGlobalPass):
         return frozenset(roots)
 
     def _root_from_sub(self, inst: IRInstruction, root_param_indices_var) -> frozenset[int]:
-        # IR order for sub(a, b) is [b, a].
         if len(inst.operands) != 2:
             return frozenset()
         b, a = inst.operands
@@ -215,7 +204,6 @@ class ReadonlyMemoryArgsAnalysisPass(IRGlobalPass):
         return frozenset(roots)
 
     def _root_from_gep(self, inst: IRInstruction, root_param_indices_var) -> frozenset[int]:
-        # IR order for gep(ptr, offset) is [ptr, offset].
         if len(inst.operands) != 2:
             return frozenset()
         base, offset = inst.operands

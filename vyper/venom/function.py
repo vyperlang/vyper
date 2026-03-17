@@ -35,8 +35,6 @@ class IRFunction:
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
 
-    # Indices of invoke args that are read-only memory pointers
-    _readonly_memory_invoke_arg_idxs: tuple
     # Internal-call metadata (excluding return_pc):
     # - number of invoke params
     # - whether first invoke param is a memory return buffer
@@ -55,7 +53,6 @@ class IRFunction:
 
         self.last_variable = 0
 
-        self._readonly_memory_invoke_arg_idxs = ()
         self._invoke_param_count = None
         self._has_memory_return_buffer_param = None
 

@@ -3,7 +3,9 @@ from typing import List, Optional
 from vyper.compiler.settings import VenomOptimizationFlags
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, FCGAnalysis, IRAnalysesCache
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache
+from vyper.venom.analysis.fcg import FCGGlobalAnalysis
+from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
@@ -24,7 +26,7 @@ class FunctionInlinerPass(IRGlobalPass):
     """
 
     inline_count: int
-    fcg: FCGAnalysis
+    fcg: FCGGlobalAnalysis
     flags: VenomOptimizationFlags
 
     def __init__(
@@ -41,7 +43,7 @@ class FunctionInlinerPass(IRGlobalPass):
         self.inline_count = 0
 
         function_count = len(self.ctx.functions)
-        self.fcg = self.analyses_caches[entry].request_analysis(FCGAnalysis)
+        self.fcg = self.analyses_caches[entry].force_analysis(FCGGlobalAnalysis)
         self.walk = self._build_call_walk(entry)
 
         for _ in range(function_count):
@@ -56,9 +58,10 @@ class FunctionInlinerPass(IRGlobalPass):
             self.ctx.remove_function(candidate)
             self.walk.remove(candidate)
 
+            self.analyses_caches[entry].invalidate_analysis(ReadonlyMemoryArgsGlobalAnalysis)
             # TODO: check if recomputing this is a perf issue or we should rather
             # update it in-place.
-            self.fcg = self.analyses_caches[entry].force_analysis(FCGAnalysis)
+            self.fcg = self.analyses_caches[entry].force_analysis(FCGGlobalAnalysis)
 
     def _select_inline_candidate(self) -> Optional[IRFunction]:
         for func in self.walk:

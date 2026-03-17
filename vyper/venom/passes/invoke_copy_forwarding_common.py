@@ -11,6 +11,7 @@ from vyper.venom.analysis import (
     LivenessAnalysis,
     MemoryAliasAnalysis,
 )
+from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.effects import EMPTY, Effects
 from vyper.venom.passes.base_pass import IRPass
@@ -27,6 +28,7 @@ class InvokeCopyForwardingBase(IRPass):
     base_ptr: BasePtrAnalysis
     mem_alias: MemoryAliasAnalysis
     updater: InstUpdater
+    readonly_memory_args: ReadonlyMemoryArgsGlobalAnalysis
 
     def _prepare(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -34,6 +36,11 @@ class InvokeCopyForwardingBase(IRPass):
         self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.mem_alias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
         self.updater = InstUpdater(self.dfg)
+        # force (not request): recompute after prior optimizations may have
+        # eliminated writes, allowing more parameters to be classified readonly
+        self.readonly_memory_args = self.analyses_cache.force_analysis(
+            ReadonlyMemoryArgsGlobalAnalysis
+        )
 
     def _finish(self, changed: bool) -> None:
         if changed:
@@ -78,7 +85,7 @@ class InvokeCopyForwardingBase(IRPass):
         if callee is None:
             return False
 
-        readonly_idxs = callee._readonly_memory_invoke_arg_idxs
+        readonly_idxs = self.readonly_memory_args.get_readonly_invoke_arg_idxs(callee)
         return (operand_idx - 1) in readonly_idxs
 
     def _get_invoke_callee(self, invoke_inst: IRInstruction):
