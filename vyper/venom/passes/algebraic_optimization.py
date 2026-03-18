@@ -205,12 +205,6 @@ class AlgebraicOptimizationPass(IRPass):
         if base == imm_base:
             return False
 
-        # Only fold through single-use intermediates — folding through
-        # multi-use doesn't eliminate instructions and the variable
-        # reference change can increase DUP depth in codegen
-        if isinstance(imm_base, IRVariable) and not self.dfg.is_single_use(imm_base):
-            return False
-
         if offset == 0:
             self.updater.mk_assign(inst, base)
             return True
