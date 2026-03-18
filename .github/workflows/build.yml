@@ -50,12 +50,12 @@ jobs:
 
       - name: Generate Binary
         run: |
-          uv pip install --system \
+          uv venv && \
+          uv pip install \
             --no-binary pycryptodome \
             --no-binary cbor2 \
             --no-binary immutables \
-            . && \
-          uv pip install --system pyinstaller && \
+            . pyinstaller && \
           make freeze
 
 
