@@ -2896,6 +2896,30 @@ dev = [
     { name = "setuptools" },
     { name = "twine" },
 ]
+lint = [
+    { name = "black" },
+    { name = "flake8" },
+    { name = "flake8-bugbear" },
+    { name = "flake8-use-fstring" },
+    { name = "isort" },
+    { name = "mypy" },
+]
+test = [
+    { name = "eth-abi" },
+    { name = "eth-account" },
+    { name = "eth-stdlib" },
+    { name = "hexbytes" },
+    { name = "hypothesis", extra = ["lark"] },
+    { name = "lark" },
+    { name = "py-evm" },
+    { name = "pyrevm" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-instafail" },
+    { name = "pytest-split" },
+    { name = "pytest-xdist" },
+    { name = "setuptools" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -2933,6 +2957,30 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3.0,<3.4" },
     { name = "setuptools" },
     { name = "twine" },
+]
+lint = [
+    { name = "black", specifier = "==23.12.0" },
+    { name = "flake8", specifier = "==6.1.0" },
+    { name = "flake8-bugbear", specifier = "==23.12.2" },
+    { name = "flake8-use-fstring", specifier = "==1.4" },
+    { name = "isort", specifier = "==5.13.2" },
+    { name = "mypy", specifier = "==1.19" },
+]
+test = [
+    { name = "eth-abi", specifier = ">=5.0.0,<6.0.0" },
+    { name = "eth-account", specifier = "==0.12.2" },
+    { name = "eth-stdlib", specifier = "==0.2.7" },
+    { name = "hexbytes", specifier = ">=1.2" },
+    { name = "hypothesis", extras = ["lark"], specifier = ">=6.0,<7.0" },
+    { name = "lark", specifier = "==1.1.9" },
+    { name = "py-evm", specifier = ">=0.12.1b1" },
+    { name = "pyrevm", specifier = ">=0.3.2" },
+    { name = "pytest", specifier = ">=8.0,<9.0" },
+    { name = "pytest-cov", specifier = ">=4.1,<5.0" },
+    { name = "pytest-instafail", specifier = ">=0.4,<1.0" },
+    { name = "pytest-split", specifier = ">=0.7.0,<1.0" },
+    { name = "pytest-xdist", specifier = ">=3.0,<3.4" },
+    { name = "setuptools" },
 ]
 
 [[package]]

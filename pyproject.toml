@@ -88,7 +88,7 @@ omit = ["vyper/version.py"]
 relative_files = true
 
 [dependency-groups]
-dev = [
+test = [
     "pytest>=8.0,<9.0",
     "pytest-cov>=4.1,<5.0",
     "pytest-instafail>=0.4,<1.0",
@@ -103,12 +103,18 @@ dev = [
     "setuptools",
     "hexbytes>=1.2",
     "pyrevm>=0.3.2",
+]
+lint = [
     "black==23.12.0",
     "flake8==6.1.0",
     "flake8-bugbear==23.12.2",
     "flake8-use-fstring==1.4",
     "isort==5.13.2",
     "mypy==1.19",
+]
+dev = [
+    { include-group = "test" },
+    { include-group = "lint" },
     "ipython",
     "pre-commit",
     "pyinstaller",
