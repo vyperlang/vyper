@@ -2015,6 +2015,7 @@ def test_memcopy_translate_multiple_copies():
 
     _check_pre_post(pre, post)
 
+
 def test_memcopy_total_translate_with_more_writes():
     pre = """
     main:
