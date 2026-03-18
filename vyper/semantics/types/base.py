@@ -176,7 +176,9 @@ class VyperType:
             return self.storage_size_in_words
         if location == DataLocation.MEMORY:
             return self.memory_bytes_required
-        if location == DataLocation.CODE:
+        if location in (DataLocation.CODE, DataLocation.IMMUTABLES):
+            return self.memory_bytes_required
+        if location == DataLocation.CALLDATA:
             return self.memory_bytes_required
 
         raise CompilerPanic(f"unreachable: invalid location {location}")  # pragma: nocover

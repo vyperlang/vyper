@@ -1,10 +1,13 @@
 import textwrap
 from dataclasses import dataclass, field
-from typing import Iterator, Optional
+from typing import TYPE_CHECKING, Iterator, Optional
 
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.memory_allocator import MemoryAllocator
+
+if TYPE_CHECKING:
+    from vyper.venom.analysis.analysis import IRGlobalAnalysesCache
 
 
 @dataclass
@@ -43,7 +46,9 @@ class IRContext:
     data_segment: list[DataSection]
     last_label: int
     last_variable: int
+    last_alloca_id: int
     mem_allocator: MemoryAllocator
+    global_analyses_cache: Optional["IRGlobalAnalysesCache"]
 
     def __init__(self) -> None:
         self.functions = {}
@@ -52,8 +57,10 @@ class IRContext:
 
         self.last_label = 0
         self.last_variable = 0
+        self.last_alloca_id = 0
 
         self.mem_allocator = MemoryAllocator()
+        self.global_analyses_cache = None
 
     def get_basic_blocks(self) -> Iterator[IRBasicBlock]:
         for fn in self.functions.values():
@@ -91,6 +98,10 @@ class IRContext:
     def get_next_variable(self) -> IRVariable:
         self.last_variable += 1
         return IRVariable(f"%{self.last_variable}")
+
+    def get_next_alloca_id(self) -> int:
+        self.last_alloca_id += 1
+        return self.last_alloca_id
 
     def get_last_variable(self) -> str:
         return f"%{self.last_variable}"

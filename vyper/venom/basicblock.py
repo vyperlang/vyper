@@ -14,10 +14,12 @@ if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "sink"])
+BB_TERMINATORS = frozenset(
+    ["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "sink", "invalid", "selfdestruct"]
+)
 
 # Terminators that halt program/message call execution
-HALTING_TERMINATORS = frozenset(["return", "revert", "stop", "invalid"])
+HALTING_TERMINATORS = frozenset(["return", "revert", "stop", "invalid", "selfdestruct"])
 
 VOLATILE_INSTRUCTIONS = frozenset(
     [
@@ -174,6 +176,8 @@ class IRLiteral(IROperand):
     def __repr__(self) -> str:
         if abs(self.value) < 1024:
             return str(self.value)
+        if self.value < 0:
+            return f"-0x{abs(self.value):x}"
         return f"0x{self.value:x}"
 
 
@@ -420,7 +424,7 @@ class IRInstruction:
     def code_size_cost(self) -> int:
         if self.opcode in ("ret", "param"):
             return 0
-        if self.opcode in ("assign", "palloca", "alloca", "calloca"):
+        if self.opcode in ("assign", "alloca"):
             return 1
         return 2
 
