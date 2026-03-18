@@ -10,6 +10,7 @@ from vyper.exceptions import (
     CompilerPanic,
     EvmVersionException,
     ExceptionList,
+    FunctionDeclarationException,
     ImmutableViolation,
     InitializerException,
     InterfaceViolation,
@@ -34,6 +35,7 @@ from vyper.semantics.analysis.base import (
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.constant_folding import constant_fold
 from vyper.semantics.analysis.getters import generate_public_variable_getters
+from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.local import ExprVisitor, analyze_functions, check_module_uses
 from vyper.semantics.analysis.utils import (
     check_modifiability,
@@ -337,6 +339,50 @@ def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT
         fn_t.reachable_internal_functions.add(g)
 
     path.pop()
+
+
+def _validate_overrides(func_t: ContractFunctionT, node: vy_ast.FunctionDef):
+    """Validate @override decorators and set `overridden_by` on abstract methods."""
+    for name in func_t.override_nodes:
+        try:
+            module_info = get_namespace()[name.id]
+        except KeyError:
+            # Module is not imported, error will be reported elsewhere
+            continue
+
+        if not isinstance(module_info, ModuleInfo):
+            raise FunctionDeclarationException(f"`{name.id}` is not a module", name)
+
+        if module_info.ownership != ModuleOwnership.INITIALIZES:
+            msg = f"Cannot override method from `{module_info.alias}`"
+            msg += " - module is not initialized"
+            hint = f"add `initializes: {module_info.alias}` "
+            hint += "as a top-level statement to your contract"
+            raise FunctionDeclarationException(msg, node, hint=hint)
+
+        abstract_t = module_info.module_t.functions.get(node.name)
+        if abstract_t is None:
+            msg = f"Cannot override `{node.name}` from `{module_info.alias}`"
+            msg += " - method does not exist"
+            lev_hint = get_levenshtein_error_suggestions(
+                node.name, module_info.module_t.functions, 0.3
+            )
+            raise FunctionDeclarationException(msg, node, hint=lev_hint)
+
+        if not abstract_t.is_abstract:
+            msg = f"Cannot override `{node.name}` from `{module_info.alias}`"
+            msg += " - method is not abstract"
+            hint = "only abstract methods can be overridden"
+            raise FunctionDeclarationException(msg, node, hint=hint)
+
+        if abstract_t._overridden_by is not None:
+            raise FunctionDeclarationException(
+                f"Method `{node.name}` from `{module_info.alias}` is already overridden",
+                node,
+                hint="each abstract method can only be overridden once",
+            )
+
+        abstract_t.set_overridden_by(func_t)
 
 
 class ModuleAnalyzer(VyperNodeVisitorBase):
@@ -800,6 +846,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 )
         else:
             func_t = ContractFunctionT.from_FunctionDef(node)
+            _validate_overrides(func_t, node)
 
         self._self_t.typ.add_member(func_t.name, func_t)
         node._metadata["func_type"] = func_t

@@ -25,12 +25,10 @@ from vyper.semantics.analysis.base import (
     FunctionVisibility,
     Modifiability,
     ModuleInfo,
-    ModuleOwnership,
     StateMutability,
     VarAccess,
     VarOffset,
 )
-from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
@@ -224,6 +222,7 @@ class ContractFunctionT(VyperType):
         nonreentrant: bool = False,
         do_raw_return: bool = False,
         ast_def: vy_ast.FunctionDef | vy_ast.VariableDecl | None = None,
+        override_nodes: list[vy_ast.Name] | None = None,
     ) -> None:
         super().__init__()
 
@@ -244,6 +243,8 @@ class ContractFunctionT(VyperType):
         assert isinstance(self.nonreentrant, bool)
 
         self.ast_def = ast_def
+
+        self.override_nodes: list[vy_ast.Name] = override_nodes or []
 
         self._overridden_by: ContractFunctionT | None = None
 
@@ -682,7 +683,7 @@ class ContractFunctionT(VyperType):
         else:
             nonreentrant = decorators.nonreentrant_node is not None
 
-        self = cls(
+        return cls(
             funcdef.name,
             positional_args,
             keyword_args,
@@ -694,53 +695,8 @@ class ContractFunctionT(VyperType):
             nonreentrant=nonreentrant,
             do_raw_return=decorators.raw_return,
             ast_def=funcdef,
+            override_nodes=decorators.override_nodes,
         )
-
-        # Validate overrides and set `overridden_by` on corresponding abstract methods
-        for name in decorators.override_nodes:
-            from vyper.semantics.namespace import get_namespace
-
-            try:
-                module_info = get_namespace()[name.id]
-            except KeyError:
-                # Module is not imported, error will be reported elsewhere
-                continue
-
-            if not isinstance(module_info, ModuleInfo):
-                raise FunctionDeclarationException(f"`{name.id}` is not a module", name)
-
-            if module_info.ownership != ModuleOwnership.INITIALIZES:
-                msg = f"Cannot override method from `{module_info.alias}`"
-                msg += " - module is not initialized"
-                hint = f"add `initializes: {module_info.alias}` "
-                hint += "as a top-level statement to your contract"
-                raise FunctionDeclarationException(msg, funcdef, hint=hint)
-
-            abstract_t = module_info.module_t.functions.get(funcdef.name)
-            if abstract_t is None:
-                msg = f"Cannot override `{funcdef.name}` from `{module_info.alias}`"
-                msg += " - method does not exist"
-                lev_hint = get_levenshtein_error_suggestions(
-                    funcdef.name, module_info.module_t.functions, 0.3
-                )
-                raise FunctionDeclarationException(msg, funcdef, hint=lev_hint)
-
-            if not abstract_t.is_abstract:
-                msg = f"Cannot override `{funcdef.name}` from `{module_info.alias}`"
-                msg += " - method is not abstract"
-                hint = "only abstract methods can be overridden"
-                raise FunctionDeclarationException(msg, funcdef, hint=hint)
-
-            if abstract_t._overridden_by is not None:
-                raise FunctionDeclarationException(
-                    f"Method `{funcdef.name}` from `{module_info.alias}` is already overridden",
-                    funcdef,
-                    hint="each abstract method can only be overridden once",
-                )
-
-            abstract_t.set_overridden_by(self)
-
-        return self
 
     def set_reentrancy_key_position(self, position: VarOffset) -> None:
         if hasattr(self, "reentrancy_key_position"):
