@@ -1,7 +1,7 @@
-from vyper.venom.analysis import CFGAnalysis, LivenessAnalysis
-from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis.analysis import IRAnalysis
+from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
-from vyper.venom.function import IRFunction
 
 # needed [top, ... , bottom]
 Needed = list[IRVariable]
@@ -37,17 +37,15 @@ def _max_same_prefix(stack_a: Needed, stack_b: Needed):
     return res
 
 
-class StackOrderAnalysis:
-    function: IRFunction
+class StackOrderAnalysis(IRAnalysis):
     liveness: LivenessAnalysis
     cfg: CFGAnalysis
     _from_to: dict[tuple[IRBasicBlock, IRBasicBlock], Needed]
 
-    def __init__(self, ac: IRAnalysesCache):
+    def analyze(self):
         self._from_to = dict()
-        self.ac = ac
-        self.liveness = ac.request_analysis(LivenessAnalysis)
-        self.cfg = ac.request_analysis(CFGAnalysis)
+        self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
     def analyze_bb(self, bb: IRBasicBlock) -> Needed:
         self.needed: Needed = []
