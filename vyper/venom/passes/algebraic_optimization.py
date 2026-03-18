@@ -44,17 +44,14 @@ class VarInfo:
     _kind: VarInfoKind
     _base: IROperand | None  # for AFFINE: the root variable (None = pure constant)
     _offset: int  # for AFFINE: the constant offset (wrap256)
-    _producer: str | None  # opcode that produced this value
 
     @classmethod
-    def unknown(cls, producer: str | None = None) -> "VarInfo":
-        return cls(_kind=VarInfoKind.UNKNOWN, _base=None, _offset=0, _producer=producer)
+    def unknown(cls) -> "VarInfo":
+        return cls(_kind=VarInfoKind.UNKNOWN, _base=None, _offset=0)
 
     @classmethod
-    def affine(cls, base: IROperand | None, offset: int, producer: str | None = None) -> "VarInfo":
-        return cls(
-            _kind=VarInfoKind.AFFINE, _base=base, _offset=wrap256(offset), _producer=producer
-        )
+    def affine(cls, base: IROperand | None, offset: int) -> "VarInfo":
+        return cls(_kind=VarInfoKind.AFFINE, _base=base, _offset=wrap256(offset))
 
     @property
     def is_affine(self) -> bool:
@@ -84,10 +81,10 @@ def transfer_add(lhs: VarInfo, rhs: VarInfo, out: IRVariable) -> VarInfo:
     """Pure: (VarInfo, VarInfo, output_var) -> VarInfo for add."""
     if lhs.is_affine and rhs.is_affine:
         if lhs._base is None:
-            return VarInfo.affine(rhs._base, rhs._offset + lhs._offset, producer="add")
+            return VarInfo.affine(rhs._base, rhs._offset + lhs._offset)
         if rhs._base is None:
-            return VarInfo.affine(lhs._base, lhs._offset + rhs._offset, producer="add")
-    return VarInfo.affine(out, 0, producer="add")
+            return VarInfo.affine(lhs._base, lhs._offset + rhs._offset)
+    return VarInfo.affine(out, 0)
 
 
 def transfer_sub(minuend: VarInfo, subtrahend: VarInfo, out: IRVariable) -> VarInfo:
@@ -96,14 +93,14 @@ def transfer_sub(minuend: VarInfo, subtrahend: VarInfo, out: IRVariable) -> VarI
     if minuend.is_affine and subtrahend.is_affine:
         if subtrahend._base is None:
             return VarInfo.affine(
-                minuend._base, minuend._offset - subtrahend._offset, producer="sub"
+                minuend._base, minuend._offset - subtrahend._offset
             )
-    return VarInfo.affine(out, 0, producer="sub")
+    return VarInfo.affine(out, 0)
 
 
 def transfer_assign(src: VarInfo) -> VarInfo:
     """Pure: VarInfo -> VarInfo (inherit)."""
-    return VarInfo(src._kind, src._base, src._offset, _producer="assign")
+    return VarInfo(src._kind, src._base, src._offset)
 
 
 class AlgebraicOptimizationPass(IRPass):
@@ -157,7 +154,7 @@ class AlgebraicOptimizationPass(IRPass):
                 elif inst.opcode == "assign":
                     info[inst.output] = transfer_assign(_lookup(inst.operands[0], info))
                 else:
-                    info[inst.output] = VarInfo.affine(inst.output, 0, producer=inst.opcode)
+                    info[inst.output] = VarInfo.affine(inst.output, 0)
         return info
 
     # --- Rewrite phase (imperative shell) ---
