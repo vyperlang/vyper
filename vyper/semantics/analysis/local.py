@@ -31,7 +31,7 @@ from vyper.semantics.analysis.base import (
     VarAccess,
     VarInfo,
 )
-from vyper.semantics.analysis.common import NodeAccumulator, VyperNodeVisitorBase
+from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -42,7 +42,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS
-from vyper.semantics.namespace import Namespace
+from vyper.semantics.namespace import override_global_namespace
 from vyper.semantics.types import (
     TYPE_T,
     VOID_TYPE,
@@ -90,9 +90,13 @@ def _analyze_function_r(node: vy_ast.FunctionDef, err_list: ExceptionList):
             assert isinstance(call_t.ast_def, vy_ast.FunctionDef)  # help mypy
             _analyze_function_r(call_t.ast_def, err_list)
 
+    namespace = node.module_node._metadata["namespace"]
+
     try:
-        with node.module_node.namespace():
-            FunctionAnalyzer(node).analyze()
+        with override_global_namespace(namespace):
+            with namespace.enter_scope():
+                analyzer = FunctionAnalyzer(node, namespace)
+                analyzer.analyze()
     except VyperException as e:
         err_list.append(e)
 
@@ -100,7 +104,31 @@ def _analyze_function_r(node: vy_ast.FunctionDef, err_list: ExceptionList):
 # checks all code paths are terminated.
 # raises an exception if any nodes are unreachable
 def is_terminated(block: list[vy_ast.VyperNode]) -> bool:
-    return TerminatedAnalyzer().visit_block(block, False)
+    terminated = False
+
+    for node in block:
+        if terminated:
+            raise StructureException("Unreachable code!", node)
+
+        if node.is_terminus:
+            terminated = True
+
+        if isinstance(node, vy_ast.If):
+            # Without an else, even if the "then" block is terminated,
+            # the enclosing block might not be
+            # We still need the recursive call for the unreachable error
+            body_terminated = is_terminated(node.body)
+
+            if node.orelse is not None:
+                terminated = body_terminated and is_terminated(node.orelse)
+
+        if isinstance(node, vy_ast.For):
+            # The For loop might never be entered,
+            # even if it is terminated, the enclosing block might not be
+            # We still need the recursive call for the unreachable error
+            is_terminated(node.body)
+
+    return terminated
 
 
 # helpers
@@ -302,40 +330,6 @@ def check_module_uses_for_abstract(
     return root_module_info
 
 
-class TerminatedAnalyzer(NodeAccumulator[bool]):
-    scope_name = "function"
-
-    def visit(self, node: vy_ast.VyperNode, acc: bool):
-        if acc:
-            raise StructureException("Unreachable code!", node)
-
-        if node.is_terminus:
-            return True
-
-        return super().visit(node, acc)
-
-    def visit_If(self, node: vy_ast.If, acc: bool):
-        # Without an else, even if the "then" block is terminated,
-        # the enclosing block might not be
-        # We still need the recursive call for the unreachable error
-        body_terminated = self.visit_block(node.body, acc)
-
-        if node.orelse is not None:
-            return body_terminated and self.visit_block(node.orelse, acc)
-        else:
-            return False
-
-    def visit_For(self, node: vy_ast.For, acc: bool):
-        # The For loop might never be entered,
-        # even if it is terminated, the enclosing block might not be
-        # We still need the recursive call for the unreachable error
-        self.visit_block(node.body, False)
-        return False
-
-    def visit_VyperNode(self, node: vy_ast.VyperNode, acc: bool):
-        return self.dispatch(node, acc)
-
-
 class FunctionAnalyzer(VyperNodeVisitorBase):
     """
     Semantic analyzer for Vyper function definitions.
@@ -355,8 +349,9 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
     ignored_types = (vy_ast.Pass,)
     scope_name = "function"
 
-    def __init__(self, fn_node: vy_ast.FunctionDef) -> None:
+    def __init__(self, fn_node: vy_ast.FunctionDef, namespace: dict) -> None:
         self.fn_node = fn_node
+        self.namespace = namespace
         self.func: ContractFunctionT = fn_node._metadata["func_type"]
         self.expr_visitor = ExprVisitor(self)
 
@@ -377,14 +372,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             location, modifiability = (DataLocation.CALLDATA, Modifiability.RUNTIME_CONSTANT)
 
         for arg in self.func.arguments:
-            Namespace.add(
-                arg.name,
-                VarInfo(
-                    arg.typ,
-                    location=location,
-                    modifiability=modifiability,
-                    decl_node=arg.ast_source,
-                ),
+            self.namespace[arg.name] = VarInfo(
+                arg.typ, location=location, modifiability=modifiability, decl_node=arg.ast_source
             )
 
         if self.func.is_abstract:
@@ -462,7 +451,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         # validate the value before adding it to the namespace
         self.expr_visitor.visit(node.value, typ)
 
-        Namespace.add(name, VarInfo(typ, location=DataLocation.MEMORY, decl_node=node))
+        self.namespace[name] = VarInfo(typ, location=DataLocation.MEMORY, decl_node=node)
 
         self.expr_visitor.visit(node.target, typ)
 
@@ -691,14 +680,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             # note: using `node.target` here results in bad source location.
             iter_var = self._analyse_list_iter(node.target.target, node.iter, target_type)
 
-        with Namespace.enter_sub_scope(), self.enter_for_loop(iter_var):
+        with self.namespace.enter_scope(), self.enter_for_loop(iter_var):
             target_name = node.target.target.id
             # maybe we should introduce a new Modifiability: LOOP_VARIABLE
-            Namespace.add(
-                target_name,
-                VarInfo(
-                    target_type, modifiability=Modifiability.RUNTIME_CONSTANT, decl_node=node.target
-                ),
+            self.namespace[target_name] = VarInfo(
+                target_type, modifiability=Modifiability.RUNTIME_CONSTANT, decl_node=node.target
             )
 
             self.expr_visitor.visit(node.target.target, target_type)
@@ -708,10 +694,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
     def visit_If(self, node):
         self.expr_visitor.visit(node.test, BoolT())
-        with Namespace.enter_sub_scope():
+        with self.namespace.enter_scope():
             for n in node.body:
                 self.visit(n)
-        with Namespace.enter_sub_scope():
+        with self.namespace.enter_scope():
             for n in node.orelse:
                 self.visit(n)
 

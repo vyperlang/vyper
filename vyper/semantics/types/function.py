@@ -19,6 +19,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
     VyperException,
+    tag_exceptions,
 )
 from vyper.semantics.analysis.base import (
     FunctionVisibility,
@@ -29,7 +30,6 @@ from vyper.semantics.analysis.base import (
     VarAccess,
     VarOffset,
 )
-from vyper.semantics.analysis.common import NodeAccumulator
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.utils import (
     check_modifiability,
@@ -59,31 +59,35 @@ def _get_module_info(node: vy_ast.Name) -> Optional[ModuleInfo]:
     return None
 
 
-class NodeComparer(NodeAccumulator[bool]):
+# TODO: Shouldn't be here, and should have better structure
+class NodeComparer:
     """
     Compares two AST nodes for exact structural equality.
     For module references, compares resolved module identity.
     """
 
-    def visit(self, node: vy_ast.VyperNode, acc: bool, other: vy_ast.VyperNode) -> bool:
-        # acc is unused, we use a NodeAccumulator only for its output
-        assert acc is False, "input acc is unused, must be False"
+    def visit(self, node: vy_ast.VyperNode, other: vy_ast.VyperNode) -> bool:
         # Check nodes are the same type
         if type(node) is not type(other):
             return False
 
-        return super().visit(node, acc, other)
+        for class_ in node.__class__.mro():
+            ast_type = class_.__name__
 
-    def visit_VyperNode(self, node: vy_ast.VyperNode, acc: bool, other: vy_ast.VyperNode) -> bool:
+            with tag_exceptions(node):
+                visitor_fn = getattr(self, f"visit_{ast_type}", None)
+                if visitor_fn:
+                    return visitor_fn(node, other)
+
         # Means there is some valid default value syntax we did not account for
         # The reason this is not a user-land error is that any invalid syntax should already have
         # been handled at the abstract method definition
         raise CompilerPanic("unreachable")
 
-    def visit_Constant(self, node: vy_ast.Constant, acc: bool, other: vy_ast.Constant) -> bool:
+    def visit_Constant(self, node: vy_ast.Constant, other: vy_ast.Constant) -> bool:
         return node.value == other.value
 
-    def visit_Name(self, node: vy_ast.Name, acc: bool, other: vy_ast.Name) -> bool:
+    def visit_Name(self, node: vy_ast.Name, other: vy_ast.Name) -> bool:
         mod1 = _get_module_info(node)
         mod2 = _get_module_info(other)
 
@@ -97,63 +101,63 @@ class NodeComparer(NodeAccumulator[bool]):
 
         return False
 
-    def visit_Attribute(self, node: vy_ast.Attribute, acc: bool, other: vy_ast.Attribute) -> bool:
-        return node.attr == other.attr and self.visit(node.value, acc, other.value)
+    def visit_Attribute(self, node: vy_ast.Attribute, other: vy_ast.Attribute) -> bool:
+        return node.attr == other.attr and self.visit(node.value, other.value)
 
-    def visit_BinOp(self, node: vy_ast.BinOp, acc: bool, other: vy_ast.BinOp) -> bool:
+    def visit_BinOp(self, node: vy_ast.BinOp, other: vy_ast.BinOp) -> bool:
         return (
             type(node.op) is type(other.op)
-            and self.visit(node.left, acc, other.left)
-            and self.visit(node.right, acc, other.right)
+            and self.visit(node.left, other.left)
+            and self.visit(node.right, other.right)
         )
 
-    def visit_UnaryOp(self, node: vy_ast.UnaryOp, acc: bool, other: vy_ast.UnaryOp) -> bool:
-        return type(node.op) is type(other.op) and self.visit(node.operand, acc, other.operand)
+    def visit_UnaryOp(self, node: vy_ast.UnaryOp, other: vy_ast.UnaryOp) -> bool:
+        return type(node.op) is type(other.op) and self.visit(node.operand, other.operand)
 
-    def visit_BoolOp(self, node: vy_ast.BoolOp, acc: bool, other: vy_ast.BoolOp) -> bool:
+    def visit_BoolOp(self, node: vy_ast.BoolOp, other: vy_ast.BoolOp) -> bool:
         return (
             type(node.op) is type(other.op)
             and len(node.values) == len(other.values)
-            and all(self.visit(a, acc, b) for a, b in zip(node.values, other.values))
+            and all(self.visit(a, b) for a, b in zip(node.values, other.values))
         )
 
-    def visit_Compare(self, node: vy_ast.Compare, acc: bool, other: vy_ast.Compare) -> bool:
+    def visit_Compare(self, node: vy_ast.Compare, other: vy_ast.Compare) -> bool:
         return (
             type(node.op) is type(other.op)
-            and self.visit(node.left, acc, other.left)
-            and self.visit(node.right, acc, other.right)
+            and self.visit(node.left, other.left)
+            and self.visit(node.right, other.right)
         )
 
-    def visit_List(self, node: vy_ast.List, acc: bool, other: vy_ast.List) -> bool:
+    def visit_List(self, node: vy_ast.List, other: vy_ast.List) -> bool:
         return len(node.elements) == len(other.elements) and all(
-            self.visit(a, acc, b) for a, b in zip(node.elements, other.elements)
+            self.visit(a, b) for a, b in zip(node.elements, other.elements)
         )
 
-    def visit_Tuple(self, node: vy_ast.Tuple, acc: bool, other: vy_ast.Tuple) -> bool:
+    def visit_Tuple(self, node: vy_ast.Tuple, other: vy_ast.Tuple) -> bool:
         return len(node.elements) == len(other.elements) and all(
-            self.visit(a, acc, b) for a, b in zip(node.elements, other.elements)
+            self.visit(a, b) for a, b in zip(node.elements, other.elements)
         )
 
-    def visit_Call(self, node: vy_ast.Call, acc: bool, other: vy_ast.Call) -> bool:
+    def visit_Call(self, node: vy_ast.Call, other: vy_ast.Call) -> bool:
         return (
-            self.visit(node.func, acc, other.func)
+            self.visit(node.func, other.func)
             and len(node.args) == len(other.args)
-            and all(self.visit(a, acc, b) for a, b in zip(node.args, other.args))
+            and all(self.visit(a, b) for a, b in zip(node.args, other.args))
             and len(node.keywords) == len(other.keywords)
             and all(
-                kw1.arg == kw2.arg and self.visit(kw1.value, acc, kw2.value)
+                kw1.arg == kw2.arg and self.visit(kw1.value, kw2.value)
                 for kw1, kw2 in zip(node.keywords, other.keywords)
             )
         )
 
-    def visit_Subscript(self, node: vy_ast.Subscript, acc: bool, other: vy_ast.Subscript) -> bool:
-        return self.visit(node.value, acc, other.value) and self.visit(node.slice, acc, other.slice)
+    def visit_Subscript(self, node: vy_ast.Subscript, other: vy_ast.Subscript) -> bool:
+        return self.visit(node.value, other.value) and self.visit(node.slice, other.slice)
 
-    def visit_IfExp(self, node: vy_ast.IfExp, acc: bool, other: vy_ast.IfExp) -> bool:
+    def visit_IfExp(self, node: vy_ast.IfExp, other: vy_ast.IfExp) -> bool:
         return (
-            self.visit(node.test, acc, other.test)
-            and self.visit(node.body, acc, other.body)
-            and self.visit(node.orelse, acc, other.orelse)
+            self.visit(node.test, other.test)
+            and self.visit(node.body, other.body)
+            and self.visit(node.orelse, other.orelse)
         )
 
 
@@ -201,8 +205,6 @@ class ContractFunctionT(VyperType):
         Whether this function is abstract
     nonreentrant : bool
         Whether this function is marked `@nonreentrant` or not
-    is_getter : bool
-        Whether this function is an automatically generated getter for a public member
     """
 
     typeclass = "contract_function"
@@ -222,7 +224,6 @@ class ContractFunctionT(VyperType):
         nonreentrant: bool = False,
         do_raw_return: bool = False,
         ast_def: vy_ast.FunctionDef | vy_ast.VariableDecl | None = None,
-        is_getter: bool = False,
     ) -> None:
         super().__init__()
 
@@ -238,7 +239,6 @@ class ContractFunctionT(VyperType):
         self.nonreentrant = nonreentrant
         self.do_raw_return = do_raw_return
         self.from_interface = from_interface
-        self.is_getter = is_getter
 
         # sanity check, nonreentrant used to be Optional[str]
         assert isinstance(self.nonreentrant, bool)
@@ -258,11 +258,7 @@ class ContractFunctionT(VyperType):
         # to be populated during module analysis.
         # The with_overrides variant replaces called abstract functions by their override,
         # which might in turn reach more functions.
-        self.reachable_internal_functions: OrderedSet[ContractFunctionT] | None = None
-
-        # These kinds of functions don't get analyzed (and don't call other functions)
-        if self.is_getter or self.from_interface:
-            self.reachable_internal_functions = OrderedSet()
+        self.reachable_internal_functions: OrderedSet[ContractFunctionT] = OrderedSet()
 
         # writes to variables from this function
         self._variable_writes: OrderedSet[VarAccess] = OrderedSet()
@@ -336,9 +332,7 @@ class ContractFunctionT(VyperType):
         return (
             self.nonreentrant
             or uses_state(self.get_variable_accesses())
-            or any(
-                f.nonreentrant for f in self.reachable_internal_functions
-            )  # We shouldn't look at overrides to check if we use state
+            or any(f.nonreentrant for f in self.reachable_internal_functions)
         )
 
     def get_used_modules(self):
@@ -575,9 +569,7 @@ class ContractFunctionT(VyperType):
         )
 
     @classmethod
-    def from_FunctionDef(
-        cls, funcdef: vy_ast.FunctionDef, is_getter: bool = False
-    ) -> "ContractFunctionT":
+    def from_FunctionDef(cls, funcdef: vy_ast.FunctionDef) -> "ContractFunctionT":
         """
         Generate a `ContractFunctionT` object from a `FunctionDef` node.
 
@@ -702,15 +694,14 @@ class ContractFunctionT(VyperType):
             nonreentrant=nonreentrant,
             do_raw_return=decorators.raw_return,
             ast_def=funcdef,
-            is_getter=is_getter,
         )
 
         # Validate overrides and set `overridden_by` on corresponding abstract methods
         for name in decorators.override_nodes:
-            from vyper.semantics.namespace import Namespace
+            from vyper.semantics.namespace import get_namespace
 
             try:
-                module_info = Namespace.context.get()[name.id]
+                module_info = get_namespace()[name.id]
             except KeyError:
                 # Module is not imported, error will be reported elsewhere
                 continue
@@ -806,7 +797,6 @@ class ContractFunctionT(VyperType):
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.VIEW,
             ast_def=node,
-            is_getter=True,
         )
 
     @property
@@ -1140,7 +1130,7 @@ def _pretty_param(param: _FunctionArg) -> str:
     return f"`{param.name}: {param.typ._id}`"
 
 
-def _default_values_match(p_override, p_abstract) -> bool:
+def _default_values_match(p_override: _FunctionArg, p_abstract: _FunctionArg) -> bool:
     if isinstance(p_abstract, KeywordArg):
         if not isinstance(p_override, KeywordArg):
             # Default cannot be overridden by non-default
@@ -1151,7 +1141,7 @@ def _default_values_match(p_override, p_abstract) -> bool:
             return True
 
         # other defaults must match exactly, 1 + 1 cannot be overridden by 2
-        return NodeComparer().visit(p_abstract.default_value, False, p_override.default_value)
+        return NodeComparer().visit(p_abstract.default_value, p_override.default_value)
     else:
         # Non-default can be overridden by both default and non-default
         return True

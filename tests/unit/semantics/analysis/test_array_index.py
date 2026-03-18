@@ -12,7 +12,7 @@ from vyper.utils import OrderedSet
 
 
 @pytest.mark.parametrize("value", ["address", "Bytes[10]", "decimal", "bool"])
-def test_type_mismatch(value):
+def test_type_mismatch(namespace, value):
     code = f"""
 
 a: uint256[3]
@@ -27,7 +27,7 @@ def foo(b: {value}):
 
 
 @pytest.mark.parametrize("value", ["1.0", "0.0", "'foo'", "0x00", "b'\x01'", "False"])
-def test_invalid_literal(value):
+def test_invalid_literal(namespace, value):
     code = f"""
 
 a: uint256[3]
@@ -42,7 +42,7 @@ def foo():
 
 
 @pytest.mark.parametrize("value", [-1, 3, -(2**127), 2**127 - 1, 2**256 - 1])
-def test_out_of_bounds(value):
+def test_out_of_bounds(namespace, value):
     code = f"""
 
 a: uint256[3]
@@ -57,7 +57,7 @@ def foo():
 
 
 @pytest.mark.parametrize("value", ["b", "self.b"])
-def test_undeclared_definition(value):
+def test_undeclared_definition(namespace, value):
     code = f"""
 
 a: uint256[3]
@@ -72,7 +72,7 @@ def foo():
 
 
 @pytest.mark.parametrize("value", ["a", "foo", "int128"])
-def test_invalid_reference(value):
+def test_invalid_reference(namespace, value):
     code = f"""
 
 a: uint256[3]
