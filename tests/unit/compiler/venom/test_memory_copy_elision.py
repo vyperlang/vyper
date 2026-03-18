@@ -2014,3 +2014,38 @@ def test_memcopy_translate_multiple_copies():
     """
 
     _check_pre_post(pre, post)
+
+def test_memcopy_total_translate_with_more_writes():
+    pre = """
+    main:
+        %a = alloca 1, 64
+        %b = alloca 2, 64
+        %c = alloca 3, 128
+        %d = alloca 3, 128
+        invoke @fn, %a
+        mcopy %b, %a, 64
+        mcopy %c, %b, 64
+        mstore %c, 1
+        mcopy %d, %c, 64
+        %res1 = mload %d
+        %res2 = mload %c
+        sink %res1, %res2
+    """
+
+    post = """
+    main:
+        %a = alloca 1, 64
+        %b = alloca 2, 64
+        %c = alloca 3, 128
+        %d = alloca 3, 128
+        invoke @fn, %a
+        nop
+        mcopy %c, %a, 64
+        mstore %c, 1
+        mcopy %d, %c, 64
+        %res1 = mload %d
+        %res2 = mload %c
+        sink %res1, %res2
+    """
+
+    _check_pre_post(pre, post)
