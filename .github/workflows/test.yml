@@ -299,16 +299,16 @@ jobs:
 
     - name: Combine coverage
       run: |
-        uv run --no-dev coverage combine coverage-files/**/.coverage
+        uv run --no-dev --group test coverage combine coverage-files/**/.coverage
 
     - name: Coverage report
       # coverage report and fail if coverage is too low
       run: |
-        uv run --no-dev coverage report --fail-under=90
+        uv run --no-dev --group test coverage report --fail-under=90
 
     - name: Generate coverage.xml
       run: |
-        uv run --no-dev coverage xml
+        uv run --no-dev --group test coverage xml
 
     - name: Upload coverage artifacts
       # upload coverage sqlite db for debugging
