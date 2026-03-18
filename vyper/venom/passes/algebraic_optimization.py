@@ -23,6 +23,14 @@ def lit_eq(op: IROperand, val: int) -> bool:
     return isinstance(op, IRLiteral) and wrap256(op.value) == wrap256(val)
 
 
+def _push_size(value: int) -> int:
+    """Number of data bytes needed for a PUSH instruction."""
+    value = wrap256(value)
+    if value == 0:
+        return 0  # PUSH0
+    return (value.bit_length() + 7) // 8
+
+
 # --- VarInfo ADT (pure, immutable) ---
 
 
@@ -184,17 +192,19 @@ class AlgebraicOptimizationPass(IRPass):
         if base == inst.output:
             return False
 
-        # Find the immediate variable operand of this instruction
+        # Find the immediate variable operand and current literal
         if inst.opcode == "add":
             val_op, lit_op = self._extract_value_and_literal_operands(inst)
             if val_op is None or lit_op is None:
                 return False
             imm_base = val_op
+            curr_lit = lit_op.value
         else:  # sub
             op0, op1 = inst.operands
             if not isinstance(op0, IRLiteral) or isinstance(op1, IRLiteral):
                 return False
             imm_base = op1
+            curr_lit = op0.value
 
         # Only rewrite if chain folding found a deeper base
         if base == imm_base:
@@ -203,6 +213,11 @@ class AlgebraicOptimizationPass(IRPass):
         if offset == 0:
             self.updater.mk_assign(inst, base)
             return True
+
+        # Don't rewrite if it would increase literal byte width
+        if _push_size(offset) > _push_size(curr_lit):
+            return False
+
         self.updater.update(inst, "add", [base, IRLiteral(offset)])
         return True
 
