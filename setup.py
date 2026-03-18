@@ -34,5 +34,5 @@ setup(
         "local_scheme": _local_version_suffix,
         "version_scheme": _global_version,
         "write_to": "vyper/version.py",
-    },
+    }
 )

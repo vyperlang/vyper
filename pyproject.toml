@@ -51,6 +51,7 @@ include = ["vyper*"]
 line-length = 100
 target-version = ['py311']
 force-exclude = 'vyper/version\.py'
+skip-magic-trailing-comma = true
 
 [tool.isort]
 force_grid_wrap = 0
