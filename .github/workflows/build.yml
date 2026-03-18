@@ -50,12 +50,12 @@ jobs:
 
       - name: Generate Binary
         run: |
-          uv pip install \
+          uv pip install --system \
             --no-binary pycryptodome \
             --no-binary cbor2 \
             --no-binary immutables \
             . && \
-          uv pip install pyinstaller && \
+          uv pip install --system pyinstaller && \
           make freeze
 
 
@@ -90,8 +90,8 @@ jobs:
 
       - name: Generate Binary
         run: >-
-          uv pip install . &&
-          uv pip install pyinstaller &&
+          uv pip install --system . &&
+          uv pip install --system pyinstaller &&
           ./make.cmd freeze
 
       - name: Upload Artifact

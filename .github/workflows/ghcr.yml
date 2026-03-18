@@ -42,7 +42,7 @@ jobs:
 
       - name: Generate vyper/version.py
         run: |
-          uv pip install .
+          uv pip install --system .
           echo "VYPER_VERSION=$(PYTHONPATH=. python vyper/cli/vyper_compile.py --version)" >> "$GITHUB_ENV"
 
       - name: generate tag suffix
