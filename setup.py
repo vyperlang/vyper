@@ -4,6 +4,7 @@ import re
 
 from setuptools import setup
 
+
 # strip local version
 def _local_version_suffix(version):
     """
@@ -19,7 +20,6 @@ def _local_version_suffix(version):
     return f"+commit.{_hash}"
 
 
-
 def _global_version(version):
     from setuptools_scm.version import guess_next_dev_version
 
@@ -27,6 +27,7 @@ def _global_version(version):
     # minor regex hack to avoid messing too much with setuptools-scm internals
     version_str = guess_next_dev_version(version)
     return re.sub(r"\.dev\d+", "", version_str)
+
 
 setup(
     use_scm_version={

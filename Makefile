@@ -11,13 +11,13 @@ mypy:
 	uv run mypy -p vyper
 
 black:
-	uv run black vyper/ tests/
+	uv run black vyper/ tests/ setup.py
 
 flake8: black
 	uv run flake8 vyper/ tests/
 
 isort: black
-	uv run isort vyper/ tests/
+	uv run isort vyper/ tests/ setup.py
 
 docs:
 	rm -f docs/vyper.rst
