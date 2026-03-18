@@ -92,9 +92,7 @@ def transfer_sub(minuend: VarInfo, subtrahend: VarInfo, out: IRVariable) -> VarI
     (minuend - subtrahend)."""
     if minuend.is_affine and subtrahend.is_affine:
         if subtrahend._base is None:
-            return VarInfo.affine(
-                minuend._base, minuend._offset - subtrahend._offset
-            )
+            return VarInfo.affine(minuend._base, minuend._offset - subtrahend._offset)
     return VarInfo.affine(out, 0)
 
 
