@@ -172,7 +172,7 @@ class AlgebraicOptimizationPass(IRPass):
             return
         if self._rewrite_affine(inst):
             return
-        if self._rewrite_producer(inst):
+        if self._rewrite_or_skip_producer(inst):
             return
         self._rewrite_local(inst)
 
@@ -224,8 +224,9 @@ class AlgebraicOptimizationPass(IRPass):
         self.updater.update(inst, "add", [base, IRLiteral(offset)])
         return True
 
-    def _rewrite_producer(self, inst: IRInstruction) -> bool:
-        """Producer-based pattern rewrites."""
+    def _rewrite_or_skip_producer(self, inst: IRInstruction) -> bool:
+        """Producer-based pattern rewrites. Returns True if a rewrite was
+        applied OR if the opcode should be skipped by _rewrite_local."""
         operands = inst.operands
 
         # balance(address()) -> selfbalance()
