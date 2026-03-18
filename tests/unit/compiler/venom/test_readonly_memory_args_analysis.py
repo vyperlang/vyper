@@ -1,14 +1,31 @@
 from tests.venom_utils import parse_venom
-from vyper.venom.analysis import IRAnalysesCache
+from vyper.venom.analysis import IRAnalysesCache, IRGlobalAnalysesCache
+from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.basicblock import IRLabel
-from vyper.venom.passes import ReadonlyMemoryArgsAnalysisPass
 
 
-def _run_readonly_analysis(src: str):
+def _analyze_readonly_args(src: str):
     ctx = parse_venom(src)
     analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
-    ReadonlyMemoryArgsAnalysisPass(analyses, ctx).run_pass()
-    return ctx
+    ctx.global_analyses_cache = IRGlobalAnalysesCache(ctx, analyses)
+    readonly_analysis = ctx.global_analyses_cache.request_analysis(ReadonlyMemoryArgsGlobalAnalysis)
+    return ctx, readonly_analysis
+
+
+def test_analysis_returns_indices_without_mutating_functions():
+    src = """
+    function entry {
+    entry:
+        %arg = param
+        mload %arg
+        stop
+    }
+    """
+
+    ctx, readonly_analysis = _analyze_readonly_args(src)
+    fn = ctx.get_function(IRLabel("entry"))
+    assert readonly_analysis.get_readonly_invoke_arg_idxs(fn) == (0,)
+    assert not hasattr(fn, "_readonly_memory_invoke_arg_idxs")
 
 
 def test_gep_write_marks_param_mutable():
@@ -23,9 +40,9 @@ def test_gep_write_marks_param_mutable():
     }
     """
 
-    ctx = _run_readonly_analysis(src)
+    ctx, readonly_analysis = _analyze_readonly_args(src)
     fn = ctx.get_function(IRLabel("f"))
-    assert fn._readonly_memory_invoke_arg_idxs == ()
+    assert readonly_analysis.get_readonly_invoke_arg_idxs(fn) == ()
 
 
 def test_gep_read_keeps_param_readonly():
@@ -40,9 +57,9 @@ def test_gep_read_keeps_param_readonly():
     }
     """
 
-    ctx = _run_readonly_analysis(src)
+    ctx, readonly_analysis = _analyze_readonly_args(src)
     fn = ctx.get_function(IRLabel("f"))
-    assert fn._readonly_memory_invoke_arg_idxs == (0,)
+    assert readonly_analysis.get_readonly_invoke_arg_idxs(fn) == (0,)
 
 
 def test_add_of_two_params_marks_both_mutable():
@@ -58,9 +75,9 @@ def test_add_of_two_params_marks_both_mutable():
     }
     """
 
-    ctx = _run_readonly_analysis(src)
+    ctx, readonly_analysis = _analyze_readonly_args(src)
     fn = ctx.get_function(IRLabel("f"))
-    assert fn._readonly_memory_invoke_arg_idxs == ()
+    assert readonly_analysis.get_readonly_invoke_arg_idxs(fn) == ()
 
 
 def test_phi_of_two_params_marks_both_mutable():
@@ -85,9 +102,9 @@ def test_phi_of_two_params_marks_both_mutable():
     }
     """
 
-    ctx = _run_readonly_analysis(src)
+    ctx, readonly_analysis = _analyze_readonly_args(src)
     fn = ctx.get_function(IRLabel("f"))
-    assert fn._readonly_memory_invoke_arg_idxs == ()
+    assert readonly_analysis.get_readonly_invoke_arg_idxs(fn) == ()
 
 
 def test_function_without_retpc_keeps_all_params():
@@ -100,9 +117,9 @@ def test_function_without_retpc_keeps_all_params():
     }
     """
 
-    ctx = _run_readonly_analysis(src)
+    ctx, readonly_analysis = _analyze_readonly_args(src)
     fn = ctx.get_function(IRLabel("entry"))
-    assert fn._readonly_memory_invoke_arg_idxs == (0,)
+    assert readonly_analysis.get_readonly_invoke_arg_idxs(fn) == (0,)
 
 
 def test_non_label_invoke_target_marks_args_mutable():
@@ -117,8 +134,8 @@ def test_non_label_invoke_target_marks_args_mutable():
     }
     """
 
-    ctx = _run_readonly_analysis(src)
+    ctx, readonly_analysis = _analyze_readonly_args(src)
     fn = ctx.get_function(IRLabel("f"))
     # `%arg` is conservatively mutable due unknown invoke target.
     # `%target` stays readonly because it is only used as call target.
-    assert fn._readonly_memory_invoke_arg_idxs == (0,)
+    assert readonly_analysis.get_readonly_invoke_arg_idxs(fn) == (0,)

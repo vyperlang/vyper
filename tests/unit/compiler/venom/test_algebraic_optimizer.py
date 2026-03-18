@@ -202,6 +202,98 @@ def test_interleaved_case(interleave_point):
     _check_pre_post(pre, post)
 
 
+def test_fold_add_chain():
+    """add(add(x, 3), 5) => add(x, 8)"""
+    pre = """
+    main:
+        %x = source
+        %tmp = add 3, %x
+        %out = add 5, %tmp
+        sink %out
+    """
+    post = """
+    main:
+        %x = source
+        %out = add 8, %x
+        sink %out
+    """
+    _check_pre_post(pre, post)
+
+
+def test_fold_sub_lit_chain():
+    """(x + 10) - 3 => x + 7 (sub with var - lit)"""
+    pre = """
+    main:
+        %x = source
+        %tmp = add 10, %x
+        %out = sub %tmp, 3
+        sink %out
+    """
+    post = """
+    main:
+        %x = source
+        %out = add 7, %x
+        sink %out
+    """
+    _check_pre_post(pre, post)
+
+
+def test_fold_add_chain_cancels_to_zero():
+    """(x + 5) - 5 => x (constants cancel)"""
+    pre = """
+    main:
+        %x = source
+        %tmp = add 5, %x
+        %out = sub %tmp, 5
+        sink %out
+    """
+    post = """
+    main:
+        %x = source
+        %out = assign %x
+        sink %out
+    """
+    _check_pre_post(pre, post)
+
+
+def test_fold_add_chain_multi_use_stops():
+    """Don't fold through intermediates with multiple uses."""
+    pre = """
+    main:
+        %x = source
+        %tmp = add 3, %x
+        %out = add 5, %tmp
+        sink %out, %tmp
+    """
+    post = """
+    main:
+        %x = source
+        %tmp = add 3, %x
+        %out = add 5, %tmp
+        sink %out, %tmp
+    """
+    _check_pre_post(pre, post)
+
+
+def test_fold_add_chain_three_deep():
+    """add(add(add(x, 1), 2), 3) => add(x, 6)"""
+    pre = """
+    main:
+        %x = source
+        %t1 = add 1, %x
+        %t2 = add 2, %t1
+        %out = add 3, %t2
+        sink %out
+    """
+    post = """
+    main:
+        %x = source
+        %out = add 6, %x
+        sink %out
+    """
+    _check_pre_post(pre, post)
+
+
 def test_offsets():
     """
     Test of addition to offset rewrites
