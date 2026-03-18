@@ -2,7 +2,7 @@ import pytest
 
 from vyper import compiler
 from vyper.compiler import compile_code
-from vyper.exceptions import FunctionDeclarationException, StructureException
+from vyper.exceptions import FunctionDeclarationException, StructureException, UndeclaredDefinition
 
 FAILING_CONTRACTS = [
     (
@@ -395,3 +395,33 @@ def test() -> uint256:
         compile_code(contract, input_bundle=input_bundle)
 
     assert expected_message in str(e.value)
+
+
+def test_override_undefined_module():
+    """Test that @override() with an undefined module name raises UndeclaredDefinition"""
+    contract = """
+@override(nonexistent_module)
+def bar() -> uint256:
+    return 42
+    """
+    with pytest.raises(UndeclaredDefinition) as e:
+        compile_code(contract)
+    assert "'nonexistent_module' has not been declared" in str(e.value)
+
+
+def test_override_module_not_imported(make_input_bundle):
+    """Test that @override() referencing a module that exists but wasn't imported raises error"""
+    abstract_m = """
+@abstract
+def bar() -> uint256: ...
+    """
+    # Module exists in bundle but is NOT imported in contract
+    contract = """
+@override(abstract_m)
+def bar() -> uint256:
+    return 42
+    """
+    input_bundle = make_input_bundle({"abstract_m.vy": abstract_m})
+    with pytest.raises(UndeclaredDefinition) as e:
+        compile_code(contract, input_bundle=input_bundle)
+    assert "'abstract_m' has not been declared" in str(e.value)
