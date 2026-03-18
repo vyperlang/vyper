@@ -41,9 +41,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       - name: Generate vyper/version.py
-        run: |
-          uv pip install --system .
-          echo "VYPER_VERSION=$(PYTHONPATH=. python vyper/cli/vyper_compile.py --version)" >> "$GITHUB_ENV"
+        run: echo "VYPER_VERSION=$(uv run --no-dev vyper --version)" >> "$GITHUB_ENV"
 
       - name: generate tag suffix
         if: ${{ github.event_name != 'release' }}

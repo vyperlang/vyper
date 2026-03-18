@@ -91,13 +91,12 @@ jobs:
     - name: Build Vyper
       run: |
         set -Eeuxo pipefail
-        uv pip install .
-        echo "VYPER_VERSION=$(vyper --version | cut -f1 -d'+')" >> $GITHUB_ENV
+        echo "VYPER_VERSION=$(uv run --no-dev vyper --version | cut -f1 -d'+')" >> $GITHUB_ENV
 
     - name: Install Vyper
       run: |
         mkdir era-compiler-tester/vyper-bin
-        cp $(which vyper) era-compiler-tester/vyper-bin/vyper-${{ env.VYPER_VERSION }}
+        cp $(uv run --no-dev which vyper) era-compiler-tester/vyper-bin/vyper-${{ env.VYPER_VERSION }}
 
     - name: Run tester (fast)
       # Run era tester with no LLVM optimizations

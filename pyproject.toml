@@ -119,12 +119,13 @@ docs = [
     "sphinx-copybutton==0.5.2",
     "sphinx-reredirects==0.1.5",
 ]
+freeze = ["pyinstaller"]
 dev = [
     { include-group = "test" },
     { include-group = "lint" },
     { include-group = "docs" },
+    { include-group = "freeze" },
     "ipython",
     "pre-commit",
-    "pyinstaller",
     "twine",
 ]

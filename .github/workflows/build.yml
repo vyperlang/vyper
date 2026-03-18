@@ -49,14 +49,9 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       - name: Generate Binary
-        run: |
-          uv venv && \
-          uv pip install \
-            --no-binary pycryptodome \
-            --no-binary cbor2 \
-            --no-binary immutables \
-            . pyinstaller && \
-          make freeze
+        env:
+          UV_NO_BINARY_PACKAGE: pycryptodome,cbor2,immutables
+        run: make freeze
 
 
       - name: Upload Artifact
@@ -89,10 +84,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       - name: Generate Binary
-        run: >-
-          uv pip install --system . &&
-          uv pip install --system pyinstaller &&
-          ./make.cmd freeze
+        run: ./make.cmd freeze
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

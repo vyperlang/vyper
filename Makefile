@@ -38,8 +38,8 @@ release: clean
 freeze: clean
 	echo Generating binary...
 	export OS="$$(uname -s | tr A-Z a-z)" && \
-	export VERSION="$$(uv run vyper --version)" && \
-	uv run pyinstaller --target-architecture=universal2 --clean --onefile vyper/cli/vyper_compile.py --name "vyper.$${VERSION}.$${OS}" --add-data vyper:vyper
+	export VERSION="$$(uv run --no-dev vyper --version)" && \
+	uv run --no-dev --group freeze pyinstaller --target-architecture=universal2 --clean --onefile vyper/cli/vyper_compile.py --name "vyper.$${VERSION}.$${OS}" --add-data vyper:vyper
 
 clean: clean-build clean-docs clean-pyc clean-test
 
