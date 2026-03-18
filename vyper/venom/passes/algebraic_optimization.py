@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from enum import Enum, auto
 
 from vyper.utils import SizeLimits, int_bounds, int_log2, is_power_of_two, wrap256
 from vyper.venom.analysis.dfg import DFGAnalysis
@@ -32,34 +31,18 @@ def _push_size(value: int) -> int:
 
 
 # --- VarInfo ADT (pure, immutable) ---
-
-
-class VarInfoKind(Enum):
-    UNKNOWN = auto()  # no information
-    AFFINE = auto()  # base + offset
+# Represents affine knowledge: value = base + offset (mod 2^256).
+# base=None means a pure constant (offset only).
 
 
 @dataclass(frozen=True, slots=True)
 class VarInfo:
-    _kind: VarInfoKind
-    _base: IROperand | None  # for AFFINE: the root variable (None = pure constant)
-    _offset: int  # for AFFINE: the constant offset (wrap256)
+    base: IROperand | None  # root variable, or None for pure constant
+    offset: int  # constant offset (wrap256)
 
     @classmethod
-    def unknown(cls) -> "VarInfo":
-        return cls(_kind=VarInfoKind.UNKNOWN, _base=None, _offset=0)
-
-    @classmethod
-    def affine(cls, base: IROperand | None, offset: int) -> "VarInfo":
-        return cls(_kind=VarInfoKind.AFFINE, _base=base, _offset=wrap256(offset))
-
-    @property
-    def is_affine(self) -> bool:
-        return self._kind == VarInfoKind.AFFINE
-
-    @property
-    def is_unknown(self) -> bool:
-        return self._kind == VarInfoKind.UNKNOWN
+    def of(cls, base: IROperand | None, offset: int = 0) -> "VarInfo":
+        return cls(base=base, offset=wrap256(offset))
 
 
 # --- Pure transfer functions (module-level, no self) ---
@@ -70,35 +53,33 @@ def _lookup(op: IROperand, info: dict[IRVariable, VarInfo]) -> VarInfo:
     if isinstance(op, IRVariable):
         if op in info:
             return info[op]
-        return VarInfo.affine(op, 0)
+        return VarInfo.of(op)
     if isinstance(op, IRLiteral):
-        return VarInfo.affine(None, op.value)
-    # IRLabel or other
-    return VarInfo.unknown()
+        return VarInfo.of(None, op.value)
+    # IRLabel — not trackable
+    return VarInfo.of(op)
 
 
 def transfer_add(lhs: VarInfo, rhs: VarInfo, out: IRVariable) -> VarInfo:
     """Pure: (VarInfo, VarInfo, output_var) -> VarInfo for add."""
-    if lhs.is_affine and rhs.is_affine:
-        if lhs._base is None:
-            return VarInfo.affine(rhs._base, rhs._offset + lhs._offset)
-        if rhs._base is None:
-            return VarInfo.affine(lhs._base, lhs._offset + rhs._offset)
-    return VarInfo.affine(out, 0)
+    if lhs.base is None:
+        return VarInfo.of(rhs.base, rhs.offset + lhs.offset)
+    if rhs.base is None:
+        return VarInfo.of(lhs.base, lhs.offset + rhs.offset)
+    return VarInfo.of(out)
 
 
 def transfer_sub(minuend: VarInfo, subtrahend: VarInfo, out: IRVariable) -> VarInfo:
     """Pure: (VarInfo, VarInfo, output_var) -> VarInfo for sub
     (minuend - subtrahend)."""
-    if minuend.is_affine and subtrahend.is_affine:
-        if subtrahend._base is None:
-            return VarInfo.affine(minuend._base, minuend._offset - subtrahend._offset)
-    return VarInfo.affine(out, 0)
+    if subtrahend.base is None:
+        return VarInfo.of(minuend.base, minuend.offset - subtrahend.offset)
+    return VarInfo.of(out)
 
 
 def transfer_assign(src: VarInfo) -> VarInfo:
-    """Pure: VarInfo -> VarInfo (inherit)."""
-    return VarInfo(src._kind, src._base, src._offset)
+    """Pure: VarInfo -> VarInfo (inherit). VarInfo is frozen, so identity."""
+    return src
 
 
 class AlgebraicOptimizationPass(IRPass):
@@ -124,6 +105,9 @@ class AlgebraicOptimizationPass(IRPass):
         self.updater = InstUpdater(self.dfg)
         self._handle_offset()
 
+        # Two passes: iszero chain optimization can expose new affine
+        # folding opportunities (e.g. removing iszero nodes that were
+        # blocking chain traversal), so we recompute and rewrite after.
         self.var_info = self._compute_var_info()
         self._rewrite_all()
         self._optimize_iszero_chains()
@@ -152,7 +136,7 @@ class AlgebraicOptimizationPass(IRPass):
                 elif inst.opcode == "assign":
                     info[inst.output] = transfer_assign(_lookup(inst.operands[0], info))
                 else:
-                    info[inst.output] = VarInfo.affine(inst.output, 0)
+                    info[inst.output] = VarInfo.of(inst.output)
         return info
 
     # --- Rewrite phase (imperative shell) ---
@@ -179,11 +163,11 @@ class AlgebraicOptimizationPass(IRPass):
         if inst.opcode not in ("add", "sub"):
             return False
         vi = self.var_info.get(inst.output)
-        if vi is None or not vi.is_affine or vi._base is None:
+        if vi is None or vi.base is None:
             return False
 
-        base = vi._base
-        offset = vi._offset
+        base = vi.base
+        offset = vi.offset
         if base == inst.output:
             return False
 
