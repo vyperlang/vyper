@@ -167,9 +167,16 @@ lint = [
     "isort==5.13.2",
     "mypy==1.19",
 ]
+docs = [
+    "shibuya==2024.1.17",
+    "sphinx==7.2.6",
+    "sphinx-copybutton==0.5.2",
+    "sphinx-reredirects==0.1.5",
+]
 dev = [
     { include-group = "test" },
     { include-group = "lint" },
+    { include-group = "docs" },
     "ipython",
     "pre-commit",
     "pyinstaller",
