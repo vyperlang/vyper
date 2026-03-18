@@ -155,7 +155,7 @@ class ValueRange:
         if other._kind == VRangeKind.BOT:
             return self
 
-        return ValueRange.iv(min(self._lo, other._lo), max(self._hi, other._hi))
+        return ValueRange.iv(min(self.lo, other.lo), max(self.hi, other.hi))
 
     def intersect(self, other: ValueRange) -> ValueRange:
         """Compute the intersection (meet) of two ranges."""
@@ -166,8 +166,8 @@ class ValueRange:
         if self._kind == VRangeKind.BOT or other._kind == VRangeKind.BOT:
             return ValueRange.empty()
 
-        lo = max(self._lo, other._lo)
-        hi = min(self._hi, other._hi)
+        lo = max(self.lo, other.lo)
+        hi = min(self.hi, other.hi)
         return ValueRange.iv(lo, hi)
 
     def clamp(self, lo: Optional[int] = None, hi: Optional[int] = None) -> ValueRange:
@@ -178,8 +178,8 @@ class ValueRange:
         elif self._kind == VRangeKind.BOT:
             return self
         else:
-            new_lo = self._lo if lo is None else max(self._lo, lo)
-            new_hi = self._hi if hi is None else min(self._hi, hi)
+            new_lo = self.lo if lo is None else max(self.lo, lo)
+            new_hi = self.hi if hi is None else min(self.hi, hi)
         return ValueRange.iv(new_lo, new_hi)
 
     def __repr__(self) -> str:
@@ -187,9 +187,9 @@ class ValueRange:
             return "TOP"
         if self._kind == VRangeKind.BOT:
             return "BOTTOM"
-        if self._lo == self._hi:
-            return f"{{{self._lo}}}"
-        return f"[{self._lo}, {self._hi}]"
+        if self.lo == self.hi:
+            return f"{{{self.lo}}}"
+        return f"[{self.lo}, {self.hi}]"
 
 
 RangeState = dict[IRVariable, ValueRange]
