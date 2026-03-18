@@ -152,6 +152,22 @@ class AlgebraicOptimizationPass(IRPass):
             inst.flip()
             operands = inst.operands
 
+        # balance(address()) → selfbalance()
+        # note: extcodesize(address()) → codesize() is NOT safe because
+        # during initcode EXTCODESIZE(ADDRESS()) returns 0 while CODESIZE
+        # returns the initcode length.
+        if inst.opcode == "balance":
+            op = operands[0]
+            if isinstance(op, IRVariable):
+                producer = self.dfg.get_producing_instruction(op)
+                if producer is not None and producer.opcode == "address":
+                    self.updater.update(inst, "selfbalance", [])
+                    return
+            return
+
+        if inst.opcode == "extcodesize":
+            return
+
         if inst.opcode in {"shl", "shr", "sar"}:
             # (x >> 0) == (x << 0) == x
             if lit_eq(operands[1], 0):

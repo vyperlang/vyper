@@ -578,7 +578,7 @@ class VenomCompiler:
         # Step 5: Emit the EVM instruction(s)
         if opcode in _ONE_TO_ONE_INSTRUCTIONS:
             assembly.append(opcode.upper())
-        elif opcode in ("alloca", "palloca", "calloca"):
+        elif opcode == "alloca":
             pass
         elif opcode == "param":
             pass
