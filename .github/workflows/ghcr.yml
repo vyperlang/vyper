@@ -36,11 +36,13 @@ jobs:
         name: Install python
         with:
           python-version: "3.11"
-          cache: "pip"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
 
       - name: Generate vyper/version.py
         run: |
-          pip install .
+          uv pip install .
           echo "VYPER_VERSION=$(PYTHONPATH=. python vyper/cli/vyper_compile.py --version)" >> "$GITHUB_ENV"
 
       - name: generate tag suffix

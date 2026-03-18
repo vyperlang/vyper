@@ -21,25 +21,21 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: "3.11"
-        cache: "pip"
 
-    - name: Install Dependencies
-      run: pip install .[lint]
-
-    - name: Debug dependencies
-      run: pip freeze
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
 
     - name: Run Black
-      run: black --check -C --force-exclude=vyper/version.py ./vyper ./tests ./setup.py
+      run: uv run --no-dev --group lint black --check -C --force-exclude=vyper/version.py ./vyper ./tests ./setup.py
 
     - name: Run flake8
-      run: flake8 ./vyper ./tests ./setup.py
+      run: uv run --no-dev --group lint flake8 ./vyper ./tests ./setup.py
 
     - name: Run isort
-      run: isort --check-only --diff ./vyper ./tests ./setup.py
+      run: uv run --no-dev --group lint isort --check-only --diff ./vyper ./tests ./setup.py
 
     - name: Run mypy
-      run: make mypy
+      run: uv run --no-dev --group lint make mypy
 
   docs:
     runs-on: ubuntu-latest
@@ -51,14 +47,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: "pip"
 
-      - name: Install deps
-        # TODO these should really be in setup.py
-        run: pip install -r requirements-docs.txt
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
 
       - name: Run docs
-        run: sphinx-build -E -b html docs dist/docs -n -q --color
+        run: uv run --no-dev --group docs sphinx-build -E -b html docs dist/docs -n -q --color
 
   # Symbolic tests
   symbolic-tests:
@@ -72,10 +66,9 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: "3.11"
-        cache: "pip"
 
-    - name: Install dependencies
-      run: pip install .[test]
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
 
     - name: Install hevm
       run: |
@@ -92,6 +85,7 @@ jobs:
 
     - name: Run tests
       run: >
+        uv run --no-dev --group test
         pytest
         -m "hevm"
         --hevm
@@ -181,16 +175,13 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version[0] || '3.11' }}
-        cache: "pip"
 
-    - name: Install dependencies
-      run: pip install .[test]
-
-    - name: Debug dependencies
-      run: pip freeze
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
 
     - name: Run tests
       run: >
+        uv run --no-dev --group test
         pytest
         -m "not fuzzing"
         --optimize ${{ matrix.opt-mode || 'gas' }}
@@ -241,10 +232,9 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: "3.11"
-        cache: "pip"
 
-    - name: Install dependencies
-      run: pip install .[test]
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
 
     # fetch test durations
     # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
@@ -254,6 +244,7 @@ jobs:
 
     - name: Run tests
       run: |
+        uv run --no-dev --group test \
         pytest \
           -m "fuzzing" \
           --splits 120 \
@@ -296,10 +287,9 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: "3.11"
-        cache: "pip"
-  
-    - name: Install coverage
-      run: pip install coverage
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
 
     - name: Download coverage artifacts
       uses: actions/download-artifact@v4
@@ -309,16 +299,16 @@ jobs:
 
     - name: Combine coverage
       run: |
-        coverage combine coverage-files/**/.coverage
+        uv run --no-dev coverage combine coverage-files/**/.coverage
 
     - name: Coverage report
       # coverage report and fail if coverage is too low
       run: |
-        coverage report --fail-under=90
+        uv run --no-dev coverage report --fail-under=90
 
     - name: Generate coverage.xml
       run: |
-        coverage xml
+        uv run --no-dev coverage xml
 
     - name: Upload coverage artifacts
       # upload coverage sqlite db for debugging

@@ -63,21 +63,16 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install vyper (base)
-        working-directory: base
-        run: pip install .
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
 
       - name: Measure base bytecode sizes
         working-directory: base
-        run: python .github/scripts/measure_bytecode.py > ../base-sizes.json
-
-      - name: Install vyper (merge)
-        working-directory: head
-        run: pip install .
+        run: uv run --no-dev python .github/scripts/measure_bytecode.py > ../base-sizes.json
 
       - name: Measure merge bytecode sizes
         working-directory: head
-        run: python .github/scripts/measure_bytecode.py > ../head-sizes.json
+        run: uv run --no-dev python .github/scripts/measure_bytecode.py > ../head-sizes.json
 
       - name: Generate report
         id: report
