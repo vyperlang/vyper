@@ -250,6 +250,18 @@ def test_dead_store_memory_copy():
     _check_pre_post(pre, pre)
 
 
+def test_codecopy_not_dead_when_read_via_iload_and_different_alloca():
+    pre = """
+        _global:
+            %a = alloca 1, 32
+            %b = alloca 32
+            codecopy %a, 0, 32
+            %v = iload %b
+            sink %v
+    """
+    _check_pre_post(pre, pre, hevm=False)
+
+
 def _generate_jnz_configurations(cond, then, else_):
     return [f"jnz {cond}, {then}, {else_}", f"jnz {cond}, {else_}, {then}"]
 
@@ -1075,6 +1087,42 @@ def test_volatile_derived_location_store():
       %3 = add %1, 32
       mstore %3, 1
       ret %2
+    """
+    _check_pre_post(pre, post, hevm=False)
+
+
+def test_mstore_before_ret_is_not_dead():
+    """Memory stores before ret (internal function return) are live because
+    the caller can observe memory after the function returns.
+    Regression test: DSE was eliminating the free memory pointer update
+    in alloc()-style functions, causing all allocations to alias."""
+    pre = """
+    _global:
+        %ptr = mload 64
+        %new_ptr = add 64, %ptr
+        mstore 64, %new_ptr
+        ret %ptr
+    """
+    _check_no_change(pre, hevm=False)
+
+
+def test_mstore_before_ret_clobbered_is_dead():
+    """A store before ret that is clobbered by a later store IS dead."""
+    pre = """
+    _global:
+        %ptr = mload 64
+        %new_ptr = add 64, %ptr
+        mstore 64, %new_ptr
+        mstore 64, %ptr
+        ret %ptr
+    """
+    post = """
+    _global:
+        %ptr = mload 64
+        nop
+        nop
+        mstore 64, %ptr
+        ret %ptr
     """
     _check_pre_post(pre, post, hevm=False)
 

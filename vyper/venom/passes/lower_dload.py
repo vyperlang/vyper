@@ -43,10 +43,12 @@ class LowerDloadPass(IRPass):
                 inst.opcode = "mload"
                 inst.operands = [dst]
             elif inst.opcode == "dloadbytes":
-                _, src, _ = inst.operands
+                # dloadbytes and codecopy operands (IR stack order): [size, src, dst]
+                # (displayed in reverse as: dst, src, size)
+                size, src, dst_op = inst.operands
                 code_ptr = fn.get_next_variable()
                 bb.insert_instruction(
                     IRInstruction("add", [src, IRLabel("code_end")], [code_ptr]), index=idx
                 )
                 inst.opcode = "codecopy"
-                inst.operands[1] = code_ptr
+                inst.operands = [size, code_ptr, dst_op]

@@ -1913,6 +1913,24 @@ def foo():
         c.foo()
 
 
+def test_dynarray_append_single_field_struct_storage(get_contract):
+    """Single-field struct stores value, not pointer."""
+    code = """
+struct Point:
+    x: uint256
+
+data: DynArray[Point, 10]
+
+@external
+def test_append() -> uint256:
+    p: Point = Point(x=42)
+    self.data.append(p)
+    return self.data[0].x
+    """
+    c = get_contract(code)
+    assert c.test_append() == 42
+
+
 def test_dynarray_copy_oog(env, get_contract, tx_failed):
     # GHSA-vgf2-gvx8-xwc3
     code = """
@@ -1967,3 +1985,364 @@ def foo(x: String[1000000], y: String[1000000]) -> DynArray[String[1000000], 2]:
         # depends on EVM version. pre-cancun, will revert due to checking
         # success flag from identity precompile.
         c.foo(calldata0, calldata1, gas=gas_used)
+
+
+def test_dynarray_append_self_ref_regression(get_contract):
+    """
+    Regression test for DynArray.append overlap detection bug.
+    Self-referential appends must copy the arg before append mutates the array.
+    This is critical for complex types (nested arrays, structs, bytes) where
+    the append operation could clobber the source data.
+    """
+    # Test nested DynArray - this is the critical bug case
+    code_nested = """
+@external
+def test_append_self_ref_nested() -> DynArray[DynArray[uint256, 3], 5]:
+    arr: DynArray[DynArray[uint256, 3], 5] = [[1, 2, 3], [4, 5, 6]]
+    arr.append(arr[0])  # Should append [1, 2, 3]
+    return arr  # Expected: [[1, 2, 3], [4, 5, 6], [1, 2, 3]]
+    """
+    c = get_contract(code_nested)
+    assert c.test_append_self_ref_nested() == [[1, 2, 3], [4, 5, 6], [1, 2, 3]]
+
+
+def test_dynarray_append_self_ref_struct_regression(get_contract):
+    """
+    Regression test for DynArray.append with self-referential struct append.
+    """
+    code_struct = """
+struct Point:
+    x: uint256
+    y: uint256
+
+@external
+def test_append_self_ref_struct() -> DynArray[Point, 5]:
+    arr: DynArray[Point, 5] = [Point(x=1, y=2), Point(x=3, y=4)]
+    arr.append(arr[0])  # Should append Point(x=1, y=2)
+    return arr  # Expected: [Point(1,2), Point(3,4), Point(1,2)]
+    """
+    c = get_contract(code_struct)
+    result = c.test_append_self_ref_struct()
+    assert result == [(1, 2), (3, 4), (1, 2)]
+
+
+def test_dynarray_append_self_ref_bytes_regression(get_contract):
+    """
+    Regression test for DynArray.append with self-referential bytes append.
+    """
+    code_bytes = """
+@external
+def test_append_self_ref_bytes() -> DynArray[Bytes[32], 5]:
+    arr: DynArray[Bytes[32], 5] = [b"hello", b"world"]
+    arr.append(arr[0])
+    return arr  # Expected: [b"hello", b"world", b"hello"]
+    """
+    c = get_contract(code_bytes)
+    assert c.test_append_self_ref_bytes() == [b"hello", b"world", b"hello"]
+
+
+def test_venom_dynarray_bytes_elem_size_mismatch(get_contract):
+    code = """
+struct R:
+    x0: DynArray[Bytes[540], 9]
+
+@external
+@pure
+def foo() -> DynArray[DynArray[Bytes[704], 13], 7]:
+    result: DynArray[Bytes[540], 9] = self._make().x0
+    return [result]
+
+@pure
+def _make() -> R:
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    return R(x0=[v, v, v, v])
+    """
+
+    c = get_contract(code)
+    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == [expected]
+
+
+def test_venom_internal_call_dynarray_bytes_elem_size_mismatch(get_contract):
+    code = """
+struct R:
+    x0: DynArray[Bytes[540], 9]
+
+@external
+@pure
+def foo() -> DynArray[DynArray[Bytes[704], 13], 7]:
+    result: DynArray[Bytes[704], 13] = self._id(self._make().x0)
+    return [result]
+
+@pure
+def _id(a: DynArray[Bytes[704], 13]) -> DynArray[Bytes[704], 13]:
+    return a
+
+@pure
+def _make() -> R:
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    return R(x0=[v, v, v, v])
+    """
+
+    c = get_contract(code)
+    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == [expected]
+
+
+def test_venom_external_call_dynarray_bytes_elem_size_mismatch(get_contract):
+    code = """
+interface IHelper:
+    def id(a: DynArray[Bytes[704], 13]) -> DynArray[Bytes[704], 13]: view
+
+struct R:
+    x0: DynArray[Bytes[540], 9]
+
+@external
+@view
+def foo() -> DynArray[DynArray[Bytes[704], 13], 7]:
+    result: DynArray[Bytes[704], 13] = staticcall IHelper(self).id(self._make().x0)
+    return [result]
+
+@external
+@view
+def id(a: DynArray[Bytes[704], 13]) -> DynArray[Bytes[704], 13]:
+    return a
+
+@pure
+def _make() -> R:
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    return R(x0=[v, v, v, v])
+    """
+
+    c = get_contract(code)
+    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == [expected]
+
+
+def test_venom_internal_return_dynarray_bytes_elem_size_mismatch(get_contract):
+    code = """
+struct R:
+    x0: DynArray[Bytes[540], 9]
+
+@external
+@pure
+def foo() -> DynArray[DynArray[Bytes[704], 13], 7]:
+    return [self._ret()]
+
+@pure
+def _ret() -> DynArray[Bytes[704], 13]:
+    result: DynArray[Bytes[540], 9] = self._make().x0
+    return result
+
+@pure
+def _make() -> R:
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    return R(x0=[v, v, v, v])
+    """
+
+    c = get_contract(code)
+    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == [expected]
+
+
+def test_venom_append_bytes_elem_size_mismatch(get_contract):
+    code = """
+@external
+@pure
+def foo() -> DynArray[Bytes[704], 13]:
+    out: DynArray[Bytes[704], 13] = []
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    out.append(v)
+    out.append(v)
+    out.append(v)
+    out.append(v)
+    return out
+    """
+
+    c = get_contract(code)
+    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == expected
+
+
+def test_venom_tuple_unpack_dynarray_bytes_elem_size_mismatch(get_contract):
+    code = """
+@external
+@pure
+def foo() -> DynArray[DynArray[Bytes[704], 13], 2]:
+    a: DynArray[Bytes[704], 13] = []
+    b: DynArray[Bytes[704], 13] = []
+    a, b = self._ret_pair()
+    return [a, b]
+
+@internal
+@pure
+def _ret_pair() -> (DynArray[Bytes[540], 9], DynArray[Bytes[540], 9]):
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    x: DynArray[Bytes[540], 9] = [v, v, v, v]
+    return x, x
+    """
+
+    c = get_contract(code)
+    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == [expected, expected]
+
+
+def test_venom_for_loop_bytes_elem_size_mismatch(get_contract):
+    code = """
+@external
+@pure
+def foo() -> DynArray[Bytes[704], 13]:
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    src: DynArray[Bytes[540], 9] = [v, v, v]
+    out: DynArray[Bytes[704], 13] = []
+    for item: Bytes[704] in src:
+        out.append(item)
+    return out
+    """
+
+    c = get_contract(code)
+    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == expected
+
+
+def test_venom_struct_ctor_bytes_elem_size_mismatch(get_contract):
+    code = """
+struct S:
+    data: DynArray[Bytes[704], 13]
+
+@external
+@pure
+def foo() -> DynArray[Bytes[704], 13]:
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    src: DynArray[Bytes[540], 9] = [v, v, v, v]
+    s: S = S(data=src)
+    return s.data
+    """
+
+    c = get_contract(code)
+    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == expected
+
+
+def test_venom_external_return_direct_bytes_elem_size_mismatch(get_contract):
+    code = """
+@external
+@pure
+def foo() -> DynArray[Bytes[704], 13]:
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    result: DynArray[Bytes[540], 9] = [v, v, v, v]
+    return result
+    """
+
+    c = get_contract(code)
+    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == expected
+
+
+def test_venom_sarray_bytes_elem_size_mismatch(get_contract):
+    code = """
+@external
+@pure
+def foo() -> DynArray[DynArray[Bytes[704], 13], 3]:
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    inner: DynArray[Bytes[540], 9] = [v, v]
+    src: DynArray[Bytes[540], 9][3] = [inner, inner, inner]
+    out: DynArray[DynArray[Bytes[704], 13], 3] = []
+    for item: DynArray[Bytes[704], 13] in src:
+        out.append(item)
+    return out
+    """
+
+    c = get_contract(code)
+    expected = [b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == [expected, expected, expected]
+
+
+def test_venom_nested_dynarray_bytes_elem_size_mismatch(get_contract):
+    code = """
+@external
+@pure
+def foo() -> DynArray[DynArray[Bytes[704], 13], 3]:
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    inner: DynArray[Bytes[540], 9] = [v, v]
+    src: DynArray[DynArray[Bytes[540], 9], 3] = [inner, inner]
+    result: DynArray[DynArray[Bytes[704], 13], 3] = src
+    return result
+    """
+
+    c = get_contract(code)
+    inner = [b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == [inner, inner]
+
+
+def test_venom_storage_assign_dynarray_bytes_elem_size_mismatch(get_contract):
+    code = """
+a: DynArray[Bytes[704], 13]
+
+@external
+def foo() -> DynArray[Bytes[704], 13]:
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    x: DynArray[Bytes[540], 9] = [v, v, v, v]
+    self.a = x
+    return self.a
+    """
+
+    c = get_contract(code)
+    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == expected
+
+
+def test_venom_storage_append_dynarray_bytes_elem_size_mismatch(get_contract):
+    code = """
+a: DynArray[DynArray[Bytes[704], 13], 3]
+
+@external
+def foo() -> DynArray[DynArray[Bytes[704], 13], 3]:
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    x: DynArray[Bytes[540], 9] = [v, v, v, v]
+    self.a = []
+    self.a.append(x)
+    return self.a
+    """
+
+    c = get_contract(code)
+    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == [expected]
+
+
+@pytest.mark.requires_evm_version("cancun")
+def test_venom_transient_assign_dynarray_bytes_elem_size_mismatch(get_contract):
+    code = """
+a: transient(DynArray[Bytes[704], 13])
+
+@external
+def foo() -> DynArray[Bytes[704], 13]:
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    x: DynArray[Bytes[540], 9] = [v, v, v, v]
+    self.a = x
+    return self.a
+    """
+
+    c = get_contract(code)
+    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
+    assert c.foo() == expected
+
+
+def test_venom_event_dynarray_bytes_elem_size_mismatch(get_contract, env):
+    code = """
+event MyEvent:
+    data: DynArray[Bytes[704], 13]
+
+@external
+def foo():
+    v: Bytes[64] = concat(b'', 0xeeb5)
+    x: DynArray[Bytes[540], 9] = [v, v, v, v]
+    log MyEvent(x)
+    """
+
+    c = get_contract(code)
+    c.foo()
+    logs = env.get_logs(c)
+    assert len(logs) == 1
+    expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
+    assert logs[0].args.data == expected

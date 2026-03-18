@@ -17,14 +17,7 @@ from vyper.evm.address_space import (
 from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.basicblock import (
-    IRBasicBlock,
-    IRInstruction,
-    IRLabel,
-    IRLiteral,
-    IROperand,
-    IRVariable,
-)
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.memory_location import (
     Allocation,
     InstAccessOps,
@@ -58,8 +51,8 @@ class Ptr:
 class BasePtrAnalysis(IRAnalysis):
     """
     Analysis to get every possible base pointer for variables.
-    The alloca/palloca are sources of base pointer and other instruction
-    (gep/assign/calloca) are used to manipulate these base pointers
+    The alloca is the source of base pointer and other instructions
+    (gep/assign) are used to manipulate these base pointers
     """
 
     var_to_mem: dict[IRVariable, set[Ptr]]
@@ -88,20 +81,8 @@ class BasePtrAnalysis(IRAnalysis):
         original = self.var_to_mem.get(inst.output, set())
 
         opcode = inst.opcode
-        if opcode in ("alloca", "palloca"):
+        if opcode == "alloca":
             self.var_to_mem[inst.output] = set([Ptr.from_alloca(inst)])
-
-        elif opcode == "calloca":
-            size, _id, callee_label = inst.operands
-            assert isinstance(size, IRLiteral)
-            assert isinstance(callee_label, IRLabel)
-            callee = self.function.ctx.get_function(callee_label)
-            palloca_inst = callee.get_palloca_inst(_id.value)
-            # palloca instruction can get modified (e.g. nop'ed) by previous
-            # passes. check it is still a palloca before adding it to the
-            # allocation set
-            if palloca_inst is not None and palloca_inst.opcode == "palloca":
-                self.var_to_mem[inst.output] = set([Ptr.from_alloca(palloca_inst)])
 
         elif opcode == "gep":
             assert isinstance(inst.operands[0], IRVariable), inst.parent
@@ -192,7 +173,11 @@ class BasePtrAnalysis(IRAnalysis):
         if inst.opcode == "dload":
             # TODO: use FreeVarSpace
             return MemoryLocation(offset=0, size=32)
+        if inst.opcode == "iload":
+            return MemoryLocation.UNDEFINED
         if inst.opcode == "invoke":
+            return MemoryLocation.UNDEFINED
+        if inst.opcode == "ret":
             return MemoryLocation.UNDEFINED
 
         if inst.get_read_effects() & effects.MEMORY == effects.EMPTY:

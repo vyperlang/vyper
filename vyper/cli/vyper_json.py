@@ -35,13 +35,11 @@ TRANSLATE_MAP = {
     "metadata": "metadata",
     "layout": "layout",
     "userdoc": "userdoc",
-    "bb": "bb",
-    "bb_runtime": "bb_runtime",
     "cfg": "cfg",
     "cfg_runtime": "cfg_runtime",
 }
 
-VENOM_KEYS = ("bb", "bb_runtime", "cfg", "cfg_runtime")
+VENOM_KEYS = ("cfg", "cfg_runtime")
 
 
 def _parse_cli_args():
@@ -483,10 +481,6 @@ def format_to_output_dict(compiler_data: dict) -> dict:
 
         if any(i in data for i in VENOM_KEYS):
             venom = {}
-            if "bb" in data:
-                venom["bb"] = repr(data["bb"])
-            if "bb_runtime" in data:
-                venom["bb_runtime"] = repr(data["bb_runtime"])
             if "cfg" in data:
                 venom["cfg"] = data["cfg"]
             if "cfg_runtime" in data:

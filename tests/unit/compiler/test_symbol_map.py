@@ -1,12 +1,11 @@
 from vyper.compiler import compile_code
-from vyper.compiler.settings import Settings
+from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
 
 TEST_CODE = """
 @internal
 def foo(a: uint256) -> uint256:
     return a + 1
 
-# force foo to not be inlined
 @external
 def bar(a: uint256) -> uint256:
     return self.foo(a)
@@ -19,10 +18,10 @@ def baz(a: uint256) -> uint256:
 
 def test_simple_map():
     code = TEST_CODE
+    settings = Settings(experimental_codegen=True, optimize=OptimizationLevel.GAS)
+    settings.venom_flags = VenomOptimizationFlags(disable_inlining=True)
     output = compile_code(
-        code,
-        output_formats=["symbol_map_runtime", "metadata"],
-        settings=Settings(experimental_codegen=True),
+        code, output_formats=["symbol_map_runtime", "metadata"], settings=settings
     )
     meta = output["metadata"]
     symbol_map = output["symbol_map_runtime"]

@@ -58,7 +58,7 @@ Methods
 The following conventions **should** be used when naming functions or methods. Consistent naming provides logical consistency throughout the codebase and makes it easier for future readers to understand what a method does (and does not) do.
 
     * ``get_``: For simple data retrieval without any side effects.
-    * ``fetch_``: For retreivals that may have some sort of side effect.
+    * ``fetch_``: For retrievals that may have some sort of side effect.
     * ``build_``: For creation of a new object that is derived from some other data.
     * ``set_``: For adding a new value or modifying an existing one within an object.
     * ``add_``: For adding a new attribute or other value to an object. Raises an exception if the value already exists.

@@ -126,6 +126,83 @@ def test_mcopy_redundant_elimination():
     _check_pre_post(pre, post)
 
 
+def test_repeated_mcopy_elision_with_intermediate_reads():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 200, 100, 32
+        %1 = mload 200
+        mcopy 200, 100, 32
+        %2 = mload 200
+        %3 = add %1, %2
+        sink %3
+    """
+
+    post = """
+    _global:
+        mcopy 200, 100, 32
+        %1 = mload 200
+        nop  ; mcopy 200, 100, 32              [memory copy elision - redundant repeated mcopy]
+        %2 = mload 200
+        %3 = add %1, %2
+        sink %3
+    """
+    _check_pre_post(pre, post)
+
+
+def test_no_repeated_mcopy_elision_when_source_modified():
+    """
+    When the source buffer is modified between two identical mcopy operations,
+    the second mcopy must NOT be elided because the source data may have changed.
+
+    The read of %1 between the copies makes the first mcopy observable,
+    preventing dead-store elimination from removing it instead.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 200, 100, 32
+        %1 = mload 200
+        mstore 100, 999
+        mcopy 200, 100, 32
+        %2 = mload 200
+        %3 = add %1, %2
+        sink %3
+    """
+    _check_no_change(pre)
+
+
+def test_no_repeated_mcopy_elision_when_dest_modified():
+    """
+    When the destination is modified between two identical mcopies,
+    the second mcopy must NOT be elided because the destination contents
+    no longer match the source.
+
+    Reading %2 after the mstore makes the write to 200 observable (not
+    dead-store eliminated), and reading %1 makes the first mcopy observable.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 200, 100, 32
+        %1 = mload 200
+        mstore 200, 999
+        %2 = mload 200
+        mcopy 200, 100, 32
+        %3 = mload 200
+        %4 = add %1, %2
+        %5 = add %4, %3
+        sink %5
+    """
+    _check_no_change(pre)
+
+
 def test_no_elision_with_intermediate_write():
     """
     Test that copy elision doesn't happen if there's an intermediate write
@@ -935,6 +1012,61 @@ def test_same_alloca_redundant():
         stop
     """
     _check_pre_post(pre, post)
+
+
+def test_repeated_alloca_mcopy_with_intermediate_reads():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %a1 = alloca 64
+        %a2 = alloca 64
+        mcopy %a2, %a1, 64
+        %1 = mload %a2
+        mcopy %a2, %a1, 64
+        %2 = mload %a2
+        %3 = add %1, %2
+        sink %3
+    """
+    post = """
+    _global:
+        %a1 = alloca 64
+        %a2 = alloca 64
+        mcopy %a2, %a1, 64
+        %1 = mload %a2
+        nop
+        %2 = mload %a2
+        %3 = add %1, %2
+        sink %3
+    """
+    _check_pre_post(pre, post)
+
+
+def test_no_repeated_alloca_mcopy_elision_when_source_modified():
+    """
+    When the source alloca buffer is modified between two identical mcopy
+    operations, the second mcopy must NOT be elided because the source
+    data may have changed.
+
+    The read of %1 between the copies makes the first mcopy observable.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %a1 = alloca 64
+        %a2 = alloca 64
+        mcopy %a2, %a1, 64
+        %1 = mload %a2
+        mstore %a1, 999
+        mcopy %a2, %a1, 64
+        %2 = mload %a2
+        %3 = add %1, %2
+        sink %3
+    """
+    _check_no_change(pre)
 
 
 def test_calldatacopy_mcopy_chain_with_alloca():
