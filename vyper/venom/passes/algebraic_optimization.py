@@ -40,19 +40,12 @@ class VarInfo:
 
     @classmethod
     def unknown(cls, producer: str | None = None) -> "VarInfo":
-        return cls(
-            _kind=VarInfoKind.UNKNOWN, _base=None, _offset=0, _producer=producer
-        )
+        return cls(_kind=VarInfoKind.UNKNOWN, _base=None, _offset=0, _producer=producer)
 
     @classmethod
-    def affine(
-        cls, base: IROperand | None, offset: int, producer: str | None = None
-    ) -> "VarInfo":
+    def affine(cls, base: IROperand | None, offset: int, producer: str | None = None) -> "VarInfo":
         return cls(
-            _kind=VarInfoKind.AFFINE,
-            _base=base,
-            _offset=wrap256(offset),
-            _producer=producer,
+            _kind=VarInfoKind.AFFINE, _base=base, _offset=wrap256(offset), _producer=producer
         )
 
     @property
@@ -83,27 +76,19 @@ def transfer_add(lhs: VarInfo, rhs: VarInfo, out: IRVariable) -> VarInfo:
     """Pure: (VarInfo, VarInfo, output_var) -> VarInfo for add."""
     if lhs.is_affine and rhs.is_affine:
         if lhs._base is None:
-            return VarInfo.affine(
-                rhs._base, rhs._offset + lhs._offset, producer="add"
-            )
+            return VarInfo.affine(rhs._base, rhs._offset + lhs._offset, producer="add")
         if rhs._base is None:
-            return VarInfo.affine(
-                lhs._base, lhs._offset + rhs._offset, producer="add"
-            )
+            return VarInfo.affine(lhs._base, lhs._offset + rhs._offset, producer="add")
     return VarInfo.affine(out, 0, producer="add")
 
 
-def transfer_sub(
-    minuend: VarInfo, subtrahend: VarInfo, out: IRVariable
-) -> VarInfo:
+def transfer_sub(minuend: VarInfo, subtrahend: VarInfo, out: IRVariable) -> VarInfo:
     """Pure: (VarInfo, VarInfo, output_var) -> VarInfo for sub
     (minuend - subtrahend)."""
     if minuend.is_affine and subtrahend.is_affine:
         if subtrahend._base is None:
             return VarInfo.affine(
-                minuend._base,
-                minuend._offset - subtrahend._offset,
-                producer="sub",
+                minuend._base, minuend._offset - subtrahend._offset, producer="sub"
             )
     return VarInfo.affine(out, 0, producer="sub")
 
@@ -160,17 +145,11 @@ class AlgebraicOptimizationPass(IRPass):
                     # sub computes operands[1] - operands[0]
                     minuend = _lookup(inst.operands[1], info)
                     subtrahend = _lookup(inst.operands[0], info)
-                    info[inst.output] = transfer_sub(
-                        minuend, subtrahend, inst.output
-                    )
+                    info[inst.output] = transfer_sub(minuend, subtrahend, inst.output)
                 elif inst.opcode == "assign":
-                    info[inst.output] = transfer_assign(
-                        _lookup(inst.operands[0], info)
-                    )
+                    info[inst.output] = transfer_assign(_lookup(inst.operands[0], info))
                 else:
-                    info[inst.output] = VarInfo.affine(
-                        inst.output, 0, producer=inst.opcode
-                    )
+                    info[inst.output] = VarInfo.affine(inst.output, 0, producer=inst.opcode)
         return info
 
     # --- Rewrite phase (imperative shell) ---
