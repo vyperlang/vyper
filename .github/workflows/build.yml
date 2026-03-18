@@ -50,7 +50,7 @@ jobs:
 
       - name: Generate Binary
         env:
-          UV_NO_BINARY_PACKAGE: pycryptodome,cbor2,immutables
+          UV_NO_BINARY_PACKAGE: pycryptodome cbor2 immutables
         run: make freeze
 
 
