@@ -15,7 +15,6 @@ def _make_func(args, return_type=None):
         return_type=return_type,
         function_visibility=FunctionVisibility.INTERNAL,
         state_mutability=StateMutability.NONPAYABLE,
-        is_abstract=False,
     )
 
 
