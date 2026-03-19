@@ -762,7 +762,7 @@ def _resolve(node: vy_ast.Name) -> ModuleT | VarInfo | VyperType:
     return info
 
 
-def _semantically_equal_node_r(node1: vy_ast.VyperNode, node2: vy_ast.VyperNode) -> bool:
+def _structurally_equivalent_node_r(node1: vy_ast.VyperNode, node2: vy_ast.VyperNode) -> bool:
     assert type(node1) is type(node2)
 
     if isinstance(node1, vy_ast.Name):
@@ -789,35 +789,37 @@ def _semantically_equal_node_r(node1: vy_ast.VyperNode, node2: vy_ast.VyperNode)
 
     else:
         return all(
-            _semantically_equal_any_r(
+            _structurally_equivalent_any_r(
                 getattr(node1, field_name, None), getattr(node2, field_name, None)
             )
             for field_name in node1.get_comparison_fields()
         )
 
 
-def _semantically_equal_any_r(v1: Any, v2: Any) -> bool:
+def _structurally_equivalent_any_r(v1: Any, v2: Any) -> bool:
     if type(v1) is not type(v2):
         return False
 
     if isinstance(v1, vy_ast.VyperNode):
-        return _semantically_equal_node_r(v1, v2)
+        return _structurally_equivalent_node_r(v1, v2)
 
     if isinstance(v1, list):
-        return len(v1) == len(v2) and all(_semantically_equal_any_r(a, b) for a, b in zip(v1, v2))
+        return len(v1) == len(v2) and all(_structurally_equivalent_any_r(a, b) for a, b in zip(v1, v2))
 
     return v1 == v2
 
 
-def semantically_equal(node1: vy_ast.VyperNode, node2: vy_ast.VyperNode) -> bool:
+def structurally_equivalent(node1: vy_ast.VyperNode, node2: vy_ast.VyperNode) -> bool:
     """
-    Two nodes are semantically equal if the have the same structure, and their identifiers point to
-    the same things.
+    Two nodes are structurally equivalent if they have the same structure and
+    their identifiers point to the same things.
 
-    For example "self.foo" can be semantically equal to "other_module.foo" if the latter comes from
-    a module which imports the former's module as other_module.
+    For example "self.foo" can be structurally equivalent to "other_module.foo"
+    if the latter comes from a module which imports the former's module as
+    other_module.
 
-    However, "1 + 1" is not semantically equal to "2", as they do not have the same structure.
+    However, "1 + 1" is not structurally equivalent to "2", as they do not have
+    the same structure.
     """
 
-    return _semantically_equal_any_r(node1, node2)
+    return _structurally_equivalent_any_r(node1, node2)

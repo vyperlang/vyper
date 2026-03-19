@@ -2,7 +2,7 @@ from vyper.ast import parse_to_ast
 from vyper.ast.nodes import Attribute
 from vyper.compiler.phases import CompilerData
 from vyper.semantics.analysis import analyze_modules
-from vyper.semantics.analysis.utils import semantically_equal
+from vyper.semantics.analysis.utils import structurally_equivalent
 from vyper.utils import OrderedSet
 
 
@@ -38,7 +38,7 @@ def bar() -> uint256:
 
     # Even though textually identical, they should NOT be semantically equal
     # because they refer to different storage variables in different modules
-    assert not semantically_equal(self_foo_1, self_foo_2)
+    assert not structurally_equivalent(self_foo_1, self_foo_2)
 
 
 def test_self_foo_equals_imported_module_foo(make_input_bundle):
@@ -86,4 +86,4 @@ def baz() -> uint256:
 
     # They should be semantically equal since lib.FOO refers to the same
     # storage variable as self.FOO in the lib module
-    assert semantically_equal(self_foo, lib_foo)
+    assert structurally_equivalent(self_foo, lib_foo)

@@ -43,7 +43,7 @@ from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
     get_expr_info,
-    semantically_equal,
+    structurally_equivalent,
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
@@ -917,7 +917,7 @@ def _default_values_match(p_override: _FunctionArg, p_abstract: _FunctionArg) ->
             return True
 
         # other defaults must match exactly, 1 + 1 cannot be overridden by 2
-        return semantically_equal(p_abstract.default_value, p_override.default_value)
+        return structurally_equivalent(p_abstract.default_value, p_override.default_value)
     else:
         # Non-default can be overridden by both default and non-default
         return True
