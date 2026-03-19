@@ -804,7 +804,9 @@ def _structurally_equivalent_any_r(v1: Any, v2: Any) -> bool:
         return _structurally_equivalent_node_r(v1, v2)
 
     if isinstance(v1, list):
-        return len(v1) == len(v2) and all(_structurally_equivalent_any_r(a, b) for a, b in zip(v1, v2))
+        return len(v1) == len(v2) and all(
+            _structurally_equivalent_any_r(a, b) for a, b in zip(v1, v2)
+        )
 
     return v1 == v2
 
