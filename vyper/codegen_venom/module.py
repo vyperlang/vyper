@@ -1128,8 +1128,8 @@ def _handle_kwargs(
                 default_val = Expr(default_node, ctx).lower_value()
                 ctx.ptr_store(var.value.ptr(), default_val)
             else:
-                default_val = Expr(default_node, ctx).lower().operand
-                ctx.store_memory(default_val, var.value.operand, arg.typ)
+                default_vv = Expr(default_node, ctx).lower()
+                ctx.store_vyper_value(default_vv, var.value.operand, arg.typ)
 
 
 def _create_kwarg_allocas(
@@ -1213,8 +1213,8 @@ def _init_kwargs_in_entry_point(
                 default_val = Expr(default_node, ctx).lower_value()
                 ctx.builder.mstore(alloca_ptr, default_val)
             else:
-                default_val = Expr(default_node, ctx).lower().operand
-                ctx.store_memory(default_val, alloca_ptr, arg.typ)
+                default_vv = Expr(default_node, ctx).lower()
+                ctx.store_vyper_value(default_vv, alloca_ptr, arg.typ)
 
 
 def _register_kwarg_variables(ctx: VenomCodegenContext, func_t: ContractFunctionT) -> None:

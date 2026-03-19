@@ -8,7 +8,6 @@ from .common_subexpression_elimination import CSE
 from .concretize_mem_loc import ConcretizeMemLocPass
 from .dead_store_elimination import DeadStoreElimination
 from .dft import DFTPass
-from .fix_calloca import FixCalloca
 from .fix_mem_locations import FixMemLocationsPass
 from .float_allocas import FloatAllocas
 from .function_inliner import FunctionInlinerPass
@@ -22,7 +21,6 @@ from .memmerging import MemMergePass
 from .memory_copy_elision import MemoryCopyElisionPass
 from .phi_elimination import PhiEliminationPass
 from .readonly_invoke_arg_copy_forwarding import ReadonlyInvokeArgCopyForwardingPass
-from .readonly_memory_args_analysis import ReadonlyMemoryArgsAnalysisPass
 from .remove_unused_variables import RemoveUnusedVariablesPass
 from .revert_to_assert import RevertToAssert
 from .sccp import SCCP

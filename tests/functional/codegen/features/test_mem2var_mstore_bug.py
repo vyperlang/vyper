@@ -1,9 +1,9 @@
 """
-Regression tests for mem2var/palloca/calloca handling.
+Regression tests for mem2var alloca handling.
 
 Tests memory-passed parameter handling when DSE eliminates unused
-stores to palloca memory. The corresponding calloca and mcopy in
-the caller should also be eliminated.
+stores to alloca memory. The corresponding caller alloca and mcopy
+should also be eliminated.
 """
 import copy
 
@@ -49,12 +49,12 @@ def test_val() -> uint256:
 
 
 @pytest.mark.hevm
-def test_mem2var_calloca_tracking_bug(get_contract, no_inline_settings):
+def test_mem2var_alloca_tracking_bug(get_contract, no_inline_settings):
     """
-    Test that unused palloca parameters are handled correctly.
+    Test that unused alloca parameters are handled correctly.
 
-    When DSE eliminates stores to palloca (because the callee doesn't read
-    the parameter), the corresponding calloca in the caller should also be
+    When DSE eliminates stores to an alloca (because the callee doesn't read
+    the parameter), the corresponding caller alloca should also be
     eliminated along with the mcopy that populates it.
     """
     code = """
@@ -79,7 +79,7 @@ def test_val() -> uint256:
 @pytest.mark.hevm
 def test_mem2var_mstore_then_mload_same_location(get_contract, no_inline_settings):
     """
-    Test writing then reading from the same palloca location.
+    Test writing then reading from the same alloca location.
 
     The mstore should update memory, and the subsequent mload should see it.
     If mem2var creates two definitions of the same variable, behavior is undefined.

@@ -8,7 +8,7 @@ class ReadonlyInvokeArgCopyForwardingPass(InvokeCopyForwardingBase):
     """
     Forward staged memory args into readonly invoke parameters:
 
-      %tmp = alloca/calloca ...
+      %tmp = alloca ...
       mcopy %tmp, %src, ...
       invoke @callee, ..., %tmp, ...
 
@@ -42,7 +42,7 @@ class ReadonlyInvokeArgCopyForwardingPass(InvokeCopyForwardingBase):
 
         root = self._assign_root_var(dst)
         root_inst = self.dfg.get_producing_instruction(root)
-        if root_inst is None or root_inst.opcode not in ("alloca", "calloca"):
+        if root_inst is None or root_inst.opcode != "alloca":
             return False
 
         aliases = self._collect_assign_aliases(root)

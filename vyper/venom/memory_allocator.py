@@ -19,7 +19,7 @@ class MemoryAllocator:
     #   function => end of memory for that function
     fn_eom: dict[IRFunction, int]
 
-    # mems allocated in current function (allocas/pallocas)
+    # mems allocated in current function
     allocated_fn: OrderedSet[Allocation]
     # current function
     current_function: IRFunction

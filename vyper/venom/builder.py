@@ -163,18 +163,6 @@ class VenomBuilder:
         """Allocate abstract memory. Returns pointer. (IR-specific)"""
         return self._emit1("alloca", size, alloca_id)
 
-    def palloca(self, size: int, alloca_id: int) -> IRVariable:
-        """Allocate parameter memory in callee frame. Returns pointer. (IR-specific)"""
-        return self._emit1("palloca", size, alloca_id)
-
-    def calloca(self, size: int, alloca_id: int, callsite: IRLabel) -> IRVariable:
-        """Allocate argument staging memory at call site. Returns pointer. (IR-specific)
-
-        Used for memory-passed arguments when calling internal functions.
-        The callsite label links this allocation to a specific invoke.
-        """
-        return self._emit1("calloca", size, alloca_id, callsite)
-
     def gep(self, ptr: Operand, offset: Operand) -> IRVariable:
         """Get element pointer into memory region. (IR-specific)
 

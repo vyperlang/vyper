@@ -3,7 +3,9 @@ from typing import List, Optional
 from vyper.compiler.settings import VenomOptimizationFlags
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, FCGAnalysis, IRAnalysesCache
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache
+from vyper.venom.analysis.fcg import FCGGlobalAnalysis
+from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
@@ -24,7 +26,7 @@ class FunctionInlinerPass(IRGlobalPass):
     """
 
     inline_count: int
-    fcg: FCGAnalysis
+    fcg: FCGGlobalAnalysis
     flags: VenomOptimizationFlags
 
     def __init__(
@@ -41,7 +43,7 @@ class FunctionInlinerPass(IRGlobalPass):
         self.inline_count = 0
 
         function_count = len(self.ctx.functions)
-        self.fcg = self.analyses_caches[entry].request_analysis(FCGAnalysis)
+        self.fcg = self.analyses_caches[entry].force_analysis(FCGGlobalAnalysis)
         self.walk = self._build_call_walk(entry)
 
         for _ in range(function_count):
@@ -56,9 +58,10 @@ class FunctionInlinerPass(IRGlobalPass):
             self.ctx.remove_function(candidate)
             self.walk.remove(candidate)
 
+            self.analyses_caches[entry].invalidate_analysis(ReadonlyMemoryArgsGlobalAnalysis)
             # TODO: check if recomputing this is a perf issue or we should rather
             # update it in-place.
-            self.fcg = self.analyses_caches[entry].force_analysis(FCGAnalysis)
+            self.fcg = self.analyses_caches[entry].force_analysis(FCGGlobalAnalysis)
 
     def _select_inline_candidate(self) -> Optional[IRFunction]:
         for func in self.walk:
@@ -86,55 +89,6 @@ class FunctionInlinerPass(IRGlobalPass):
             fn = call_site.parent.parent
             self.analyses_caches[fn].invalidate_analysis(DFGAnalysis)
             self.analyses_caches[fn].invalidate_analysis(CFGAnalysis)
-
-        caller_funcs = set([call_site.parent.parent for call_site in call_sites])
-        # match callocas to pallocas
-        for fn in caller_funcs:
-            callocas: dict[int, IRInstruction] = {}
-            found = set()
-            for bb in fn.get_basic_blocks():
-                for inst in bb.instructions:
-                    # we can see calloca allocated variables in the
-                    # called function via either alloca or calloca,
-                    # depending on if the called function itself has
-                    # inlined any callsites (see demotion of calloca
-                    # to alloca below). this handles both cases.
-                    if inst.opcode in ("alloca", "calloca"):
-                        assert len(inst.operands) >= 2, inst
-                        alloca_id_op = inst.operands[1]
-                        alloca_id = alloca_id_op.value
-                        assert isinstance(alloca_id, int)  # help mypy
-                        if alloca_id in callocas:
-                            # this can happen when we have a->b->c and a->c,
-                            # and both b and c get inlined.
-                            calloca_inst = callocas[alloca_id]
-                            inst.opcode = "assign"
-                            inst.operands = [calloca_inst.output]
-                        else:
-                            callocas[alloca_id] = inst
-
-                    if inst.opcode == "palloca":
-                        _, alloca_id_op = inst.operands
-                        alloca_id = alloca_id_op.value
-                        assert isinstance(alloca_id, int)
-                        if alloca_id not in callocas:
-                            # this is our own palloca, not one that got
-                            # inlined
-                            continue
-                        inst.opcode = "assign"
-                        calloca_inst = callocas[alloca_id]
-                        inst.operands = [calloca_inst.output]
-                        found.add(alloca_id)
-
-            for bb in fn.get_basic_blocks():
-                for inst in bb.instructions:
-                    if inst.opcode != "calloca":
-                        continue
-                    size, alloca_id, callee = inst.operands
-                    if alloca_id.value in found:
-                        # demote to alloca so that mem2var will work
-                        inst.opcode = "alloca"
-                        inst.operands = [size, alloca_id]
 
     def _inline_call_site(self, func: IRFunction, call_site: IRInstruction) -> None:
         """
@@ -178,9 +132,6 @@ class FunctionInlinerPass(IRGlobalPass):
                     val = ops[param_idx]
                     inst.operands = [val]
                     param_idx += 1
-                elif inst.opcode == "palloca":
-                    # will be handled at the toplevel `inline_function`
-                    pass
                 elif inst.opcode == "ret":
                     # ret may be: ret @return_pc  OR  ret v1, v2, ..., @return_pc
                     # The last operand is the return PC (label or variable);
