@@ -207,9 +207,8 @@ class ContractFunctionT(VyperType):
         # By the fact there can be no import cycles on modules, we know this can never enter in an
         # infinite loop, if it somehow did, python would raise a RecursionError
         if self.is_abstract:
-            assert (
-                self.overridden_by is not None
-            ), "get_concrete_override must be called once overrides have been resolved"
+            # get_concrete_override must be called once overrides have been resolved
+            assert self.overridden_by is not None
             return self.overridden_by.get_concrete_override()
         else:
             return self
