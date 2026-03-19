@@ -19,7 +19,6 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
     VyperException,
-    tag_exceptions,
 )
 from vyper.semantics.analysis.base import (
     FunctionVisibility,
@@ -57,37 +56,13 @@ def _get_module_info(node: vy_ast.Name) -> Optional[ModuleInfo]:
     return None
 
 
-# TODO: Shouldn't be here, and should have better structure
-class NodeComparer:
-    """
-    Compares two AST nodes for exact structural equality.
-    For module references, compares resolved module identity.
-    """
+def _semantically_equal_node(node1: vy_ast.VyperNode, node2: vy_ast.VyperNode) -> bool:
+    assert type(node1) is type(node2)
 
-    def visit(self, node: vy_ast.VyperNode, other: vy_ast.VyperNode) -> bool:
-        # Check nodes are the same type
-        if type(node) is not type(other):
-            return False
-
-        for class_ in node.__class__.mro():
-            ast_type = class_.__name__
-
-            with tag_exceptions(node):
-                visitor_fn = getattr(self, f"visit_{ast_type}", None)
-                if visitor_fn:
-                    return visitor_fn(node, other)
-
-        # Means there is some valid default value syntax we did not account for
-        # The reason this is not a user-land error is that any invalid syntax should already have
-        # been handled at the abstract method definition
-        raise CompilerPanic("unreachable")
-
-    def visit_Constant(self, node: vy_ast.Constant, other: vy_ast.Constant) -> bool:
-        return node.value == other.value
-
-    def visit_Name(self, node: vy_ast.Name, other: vy_ast.Name) -> bool:
-        mod1 = _get_module_info(node)
-        mod2 = _get_module_info(other)
+    if isinstance(node1, vy_ast.Name):
+        assert isinstance(node2, vy_ast.Name)
+        mod1 = _get_module_info(node1)
+        mod2 = _get_module_info(node2)
 
         # Both are modules
         if mod1 is not None and mod2 is not None:
@@ -95,68 +70,39 @@ class NodeComparer:
 
         # Both are local reference
         if mod1 is None and mod2 is None:
-            return node.id == other.id
+            return node1.id == node2.id
 
         return False
 
-    def visit_Attribute(self, node: vy_ast.Attribute, other: vy_ast.Attribute) -> bool:
-        return node.attr == other.attr and self.visit(node.value, other.value)
-
-    def visit_BinOp(self, node: vy_ast.BinOp, other: vy_ast.BinOp) -> bool:
-        return (
-            type(node.op) is type(other.op)
-            and self.visit(node.left, other.left)
-            and self.visit(node.right, other.right)
-        )
-
-    def visit_UnaryOp(self, node: vy_ast.UnaryOp, other: vy_ast.UnaryOp) -> bool:
-        return type(node.op) is type(other.op) and self.visit(node.operand, other.operand)
-
-    def visit_BoolOp(self, node: vy_ast.BoolOp, other: vy_ast.BoolOp) -> bool:
-        return (
-            type(node.op) is type(other.op)
-            and len(node.values) == len(other.values)
-            and all(self.visit(a, b) for a, b in zip(node.values, other.values))
-        )
-
-    def visit_Compare(self, node: vy_ast.Compare, other: vy_ast.Compare) -> bool:
-        return (
-            type(node.op) is type(other.op)
-            and self.visit(node.left, other.left)
-            and self.visit(node.right, other.right)
-        )
-
-    def visit_List(self, node: vy_ast.List, other: vy_ast.List) -> bool:
-        return len(node.elements) == len(other.elements) and all(
-            self.visit(a, b) for a, b in zip(node.elements, other.elements)
-        )
-
-    def visit_Tuple(self, node: vy_ast.Tuple, other: vy_ast.Tuple) -> bool:
-        return len(node.elements) == len(other.elements) and all(
-            self.visit(a, b) for a, b in zip(node.elements, other.elements)
-        )
-
-    def visit_Call(self, node: vy_ast.Call, other: vy_ast.Call) -> bool:
-        return (
-            self.visit(node.func, other.func)
-            and len(node.args) == len(other.args)
-            and all(self.visit(a, b) for a, b in zip(node.args, other.args))
-            and len(node.keywords) == len(other.keywords)
-            and all(
-                kw1.arg == kw2.arg and self.visit(kw1.value, kw2.value)
-                for kw1, kw2 in zip(node.keywords, other.keywords)
+    else:
+        return all(
+            _semantically_equal_any(
+                getattr(node1, field_name, None), getattr(node2, field_name, None)
             )
+            for field_name in node1.get_comparison_fields()
         )
 
-    def visit_Subscript(self, node: vy_ast.Subscript, other: vy_ast.Subscript) -> bool:
-        return self.visit(node.value, other.value) and self.visit(node.slice, other.slice)
 
-    def visit_IfExp(self, node: vy_ast.IfExp, other: vy_ast.IfExp) -> bool:
-        return (
-            self.visit(node.test, other.test)
-            and self.visit(node.body, other.body)
-            and self.visit(node.orelse, other.orelse)
-        )
+def _semantically_equal_any(v1: Any, v2: Any) -> bool:
+    if type(v1) is not type(v2):
+        return False
+
+    if isinstance(v1, vy_ast.VyperNode):
+        return _semantically_equal_node(v1, v2)
+
+    if isinstance(v1, list):
+        return len(v1) == len(v2) and all(_semantically_equal_any(a, b) for a, b in zip(v1, v2))
+
+    return v1 == v2
+
+
+def semantically_equal(node1: vy_ast.VyperNode, node2: vy_ast.VyperNode) -> bool:
+    """
+    Compares two AST nodes for exact structural equality.
+    For module references, compares resolved module identity.
+    """
+
+    return _semantically_equal_any(node1, node2)
 
 
 @dataclass
@@ -1097,7 +1043,7 @@ def _default_values_match(p_override: _FunctionArg, p_abstract: _FunctionArg) ->
             return True
 
         # other defaults must match exactly, 1 + 1 cannot be overridden by 2
-        return NodeComparer().visit(p_abstract.default_value, p_override.default_value)
+        return semantically_equal(p_abstract.default_value, p_override.default_value)
     else:
         # Non-default can be overridden by both default and non-default
         return True

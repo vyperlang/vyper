@@ -687,7 +687,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             else:
                 raise StructureException(
-                    f"not a function or interface: `{info.typ}`", info.typ.decl_node, export_annotation
+                    f"not a function or interface: `{info.typ}`",
+                    info.typ.decl_node,
+                    export_annotation,
                 )
 
             for func_t in funcs:
