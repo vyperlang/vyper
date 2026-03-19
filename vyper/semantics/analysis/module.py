@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from itertools import zip_longest
 from typing import Optional
 
 from vyper import ast as vy_ast
@@ -29,6 +30,7 @@ from vyper.semantics.analysis.base import (
     Modifiability,
     ModuleInfo,
     ModuleOwnership,
+    StateMutability,
     UsesInfo,
     VarInfo,
 )
@@ -41,11 +43,12 @@ from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
     get_expr_info,
+    semantically_equal,
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
 from vyper.semantics.types import TYPE_T, EventT, FlagT, InterfaceT, StructT, VyperType, is_type_t
-from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types.function import ContractFunctionT, KeywordArg, _FunctionArg
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import OrderedSet
@@ -899,6 +902,159 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self.namespace[node.name] = struct_t
 
 
+def _pretty_param(param: _FunctionArg) -> str:
+    return f"`{param.name}: {param.typ._id}`"
+
+
+def _default_values_match(p_override: _FunctionArg, p_abstract: _FunctionArg) -> bool:
+    if isinstance(p_abstract, KeywordArg):
+        if not isinstance(p_override, KeywordArg):
+            # Default cannot be overridden by non-default
+            return False
+
+        if isinstance(p_abstract.default_value, vy_ast.Ellipsis):
+            # `...` default can be overridden by any default
+            return True
+
+        # other defaults must match exactly, 1 + 1 cannot be overridden by 2
+        return semantically_equal(p_abstract.default_value, p_override.default_value)
+    else:
+        # Non-default can be overridden by both default and non-default
+        return True
+
+
+def _parameter_override_discrepancy(
+    p_override: _FunctionArg, p_abstract: _FunctionArg | None
+) -> VyperException | None:
+    if p_abstract is None:
+        if isinstance(p_override, KeywordArg):
+            return None
+        else:
+            return FunctionDeclarationException(
+                f"Override has mandatory parameter {_pretty_param(p_override)} "
+                "not present in the abstract method.",
+                p_override.ast_source,
+                hint="Remove the extra parameter, or add a default value",
+            )
+
+    if (
+        p_override.name == p_abstract.name
+        and p_override.typ.is_supertype_of(p_abstract.typ)
+        and _default_values_match(p_override, p_abstract)
+    ):
+        return None
+    else:
+        return FunctionDeclarationException(
+            "Override parameter mismatch: "
+            f"Got {_pretty_param(p_override)}, "
+            f"but expected {_pretty_param(p_abstract)} (or stricter)",
+            p_override.ast_source,
+            p_abstract.ast_source,
+        )
+
+
+def _compute_override_discrepancies(
+    override_t: ContractFunctionT, abstract_t: ContractFunctionT
+) -> ExceptionList:
+    assert override_t.is_internal
+    assert abstract_t.is_internal
+    assert abstract_t.is_abstract
+
+    parameters_override = override_t.arguments
+    return_type_override = override_t.return_type
+
+    parameters_abstract = abstract_t.arguments
+    return_type_abstract = abstract_t.return_type
+
+    discrepancies: ExceptionList = ExceptionList()
+
+    # Parameter validation
+
+    if len(parameters_override) < len(parameters_abstract):
+        discrepancies.append(
+            FunctionDeclarationException(
+                "Override does not have the correct number of parameters. Has "
+                f"{len(parameters_override)}, should have {len(parameters_abstract)} (or more)",
+                override_t.ast_def,
+                abstract_t.ast_def,
+            )
+        )
+    else:
+        for p_override, p_abstract in zip_longest(parameters_override, parameters_abstract):
+            discrepancy = _parameter_override_discrepancy(p_override, p_abstract)
+
+            if discrepancy is not None:
+                discrepancies.append(discrepancy)
+
+    # Return type validation
+
+    if return_type_abstract:
+        if return_type_override:
+            if not return_type_override.is_subtype_of(return_type_abstract):
+                discrepancies.append(
+                    FunctionDeclarationException(
+                        "Override return type mismatch: "
+                        f"Got {return_type_override}, but expected {return_type_abstract}",
+                        override_t.ast_def,
+                        abstract_t.ast_def,
+                    )
+                )
+        else:
+            discrepancies.append(
+                FunctionDeclarationException(
+                    "Override return type mismatch: "
+                    f"Got no return type, but expected {return_type_abstract}",
+                    override_t.ast_def,
+                    abstract_t.ast_def,
+                )
+            )
+    else:
+        if return_type_override:
+            discrepancies.append(
+                FunctionDeclarationException(
+                    "Override return type mismatch: "
+                    f"Got {return_type_override}, but expected no return type",
+                    override_t.ast_def,
+                    abstract_t.ast_def,
+                )
+            )
+
+    # Mutability validation
+
+    if override_t.mutability > abstract_t.mutability:
+        # There is nothing stricter than @pure
+        or_stricter = " (or stricter)" if abstract_t.mutability != StateMutability.PURE else ""
+
+        discrepancies.append(
+            FunctionDeclarationException(
+                "Override mutability mismatch: "
+                f"Got {override_t.mutability}, but expected {abstract_t.mutability}{or_stricter}",
+                override_t.ast_def,
+                abstract_t.ast_def,
+            )
+        )
+
+    # Reentrancy validation
+
+    if override_t.nonreentrant != abstract_t.nonreentrant:
+
+        def _is(b: bool) -> str:
+            return "is" if b else "isn't"
+
+        action = "add a" if abstract_t.nonreentrant else "remove the"
+        discrepancies.append(
+            FunctionDeclarationException(
+                f"Override reentrancy mismatch: Override {_is(override_t.nonreentrant)} "
+                "non-reentrant, unlike the method it is overriding.",
+                override_t.ast_def,
+                abstract_t.ast_def,
+                hint=f"{action} @nonreentrant decorator",
+            )
+        )
+
+    return discrepancies
+
+
 def _modules_check_overrides(all_modules: OrderedSet[vy_ast.Module]):
     for module_ast in all_modules:
         for func in module_ast.get_children(vy_ast.FunctionDef):
@@ -906,5 +1062,5 @@ def _modules_check_overrides(all_modules: OrderedSet[vy_ast.Module]):
             if func_t.is_abstract:
                 override_t = func_t.overridden_by
 
-                err_list = override_t.compute_override_discrepancies(func_t)
+                err_list = _compute_override_discrepancies(override_t, func_t)
                 err_list.raise_if_not_empty()
