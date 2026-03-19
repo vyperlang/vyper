@@ -1306,6 +1306,7 @@ class Expr:
         # Get function type from the function attribute's metadata
         # node._metadata["type"] is the return type, we need the function type
         func_t = node.func._metadata["type"].get_concrete_override()
+        assert func_name == func_t.name
 
         # Check constancy: can't call mutable internal functions from view/pure contexts
         if self.ctx.is_constant() and func_t.is_mutable:
@@ -1322,7 +1323,7 @@ class Expr:
         # Format: "internal {function_id} {name}({arg_types})_runtime"
         suffix = "_deploy" if self.ctx.is_ctor_context else "_runtime"
         argz = ",".join([str(arg.typ) for arg in func_t.arguments])
-        target_label = f"internal {func_t._function_id} {func_t.name}({argz}){suffix}"
+        target_label = f"internal {func_t._function_id} {func_name}({argz}){suffix}"
 
         # Allocate return buffer
         return_buf: Optional[IROperand] = None
