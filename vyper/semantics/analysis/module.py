@@ -288,8 +288,7 @@ def _build_call_graph_edges(module_ast: vy_ast.Module):
                 if isinstance(call_t, ContractFunctionT) and (
                     call_t.is_internal or call_t.is_constructor
                 ):
-                    # We directly add the concrete override to the call graph
-                    # This makes sure things like recursion cycles get identified properly
+                    # Call graph is defined in terms of concrete functions (i.e. non-abstract)
                     fn_t.called_functions.add(call_t.get_concrete_override())
 
 
