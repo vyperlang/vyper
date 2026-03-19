@@ -690,7 +690,7 @@ class ContractFunctionT(VyperType):
             return_type,
             function_visibility,
             decorators.state_mutability,
-            is_abstract,
+            is_abstract=is_abstract,
             from_interface=False,
             nonreentrant=nonreentrant,
             do_raw_return=decorators.raw_return,
