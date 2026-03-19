@@ -249,7 +249,7 @@ def _validate_exports_uses(module_ast: vy_ast.Module, module_t: ModuleT) -> None
     for decl in module_t.exports_decls:
         info = decl._metadata["exports_info"]
         for func_t in info.functions:
-            export_node = info.function_export_source.get(func_t)
+            export_node = info.functions.get(func_t)
             if export_node is None:
                 continue
 
@@ -625,9 +625,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
     def visit_ExportsDecl(self, node):
         export_annotations = vy_ast.as_tuple(node.annotation)
-        exported_funcs = []
-        used_modules: OrderedSet[ModuleInfo] = OrderedSet()
-        function_export_source: dict[ContractFunctionT, vy_ast.VyperNode] = {}
+        exported_funcs: dict[ContractFunctionT, vy_ast.VyperNode] = {}
 
         # CMC 2024-04-13 TODO: reduce nesting in this function
 
@@ -702,12 +700,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 with tag_exceptions(export_annotation):  # tag exceptions with specific export
                     self._self_t.typ.add_member(func_t.name, func_t)
 
-                    exported_funcs.append(func_t)
-                    function_export_source[func_t] = export_annotation
+                    exported_funcs[func_t] = export_annotation
 
-        node._metadata["exports_info"] = ExportsInfo(
-            exported_funcs, used_modules, function_export_source
-        )
+        node._metadata["exports_info"] = ExportsInfo(functions=exported_funcs)
 
     @property
     def _self_t(self):

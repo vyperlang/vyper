@@ -163,12 +163,10 @@ class UsesInfo(AnalysisResult):
 # analysis result of ExportsDecl
 @dataclass
 class ExportsInfo(AnalysisResult):
-    functions: list["ContractFunctionT"]
-    used_modules: OrderedSet[ModuleInfo]
     # mapping from function to export node
-    function_export_source: dict["ContractFunctionT", vy_ast.VyperNode] = field(
-        default_factory=dict
-    )
+    functions: dict["ContractFunctionT", vy_ast.VyperNode]
+    # Populated during `_validate_exports_uses`
+    used_modules: OrderedSet[ModuleInfo] = field(default_factory=OrderedSet)
 
 
 @dataclass
