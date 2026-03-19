@@ -215,9 +215,6 @@ class ContractFunctionT(VyperType):
             return self
 
     def uses_state(self):
-        assert (
-            self.reachable_internal_functions is not None
-        ), "uses_state must be called after _compute_reachable_set has run"
         return (
             self.nonreentrant
             or uses_state(self.get_variable_accesses())

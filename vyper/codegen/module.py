@@ -473,9 +473,6 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
         ctor_internal_func_irs = []
 
         reachable_from_ctor = init_func_t.reachable_internal_functions
-        assert (
-            reachable_from_ctor is not None
-        ), "generate_ir_for_module was called before call graph construction"
         for func_t in reachable_from_ctor:
             id_generator.ensure_id(func_t)
             fn_ast = func_t.ast_def

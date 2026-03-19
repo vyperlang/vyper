@@ -199,8 +199,6 @@ def generate_deploy_venom(
     if init_func_t is not None:
         id_generator.ensure_id(init_func_t)
 
-        assert init_func_t.reachable_internal_functions is not None
-
         # Assign IDs to reachable internal functions from constructor
         for func_t in init_func_t.reachable_internal_functions:
             id_generator.ensure_id(func_t)
