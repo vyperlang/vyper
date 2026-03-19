@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import itertools
-from typing import Any, Callable, Iterable, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Iterable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
@@ -24,6 +26,9 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
+
+if TYPE_CHECKING:
+    from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.utils import OrderedSet, checksum_encode, int_to_fourbytes
@@ -741,60 +746,78 @@ def validate_kwargs(node: vy_ast.Call, members: dict[str, VyperType], typeclass:
         raise InstantiationException(msg, node)
 
 
-def _get_module_info(node: vy_ast.Name) -> Optional[ModuleInfo]:
-    """Get ModuleInfo from a node if it references a module."""
-
+def _resolve(node: vy_ast.Name) -> ModuleT | VarInfo | VyperType:
+    """
+    Resolve a Name node to its semantic entity.
+    Module references (ModuleInfo and `self`) are normalized to ModuleT.
+    """
     info = node.module_node._metadata["namespace"][node.id]
     if isinstance(info, ModuleInfo):
-        return info
+        return info.module_t
 
-    return None
+    # `self` refers to its containing module
+    if isinstance(info, VarInfo) and info.decl_node is None and node.id == "self":
+        return node.module_node._metadata["type"]
+
+    return info
 
 
-def _semantically_equal_node(node1: vy_ast.VyperNode, node2: vy_ast.VyperNode) -> bool:
+def _semantically_equal_node_r(node1: vy_ast.VyperNode, node2: vy_ast.VyperNode) -> bool:
     assert type(node1) is type(node2)
 
     if isinstance(node1, vy_ast.Name):
         assert isinstance(node2, vy_ast.Name)
-        mod1 = _get_module_info(node1)
-        mod2 = _get_module_info(node2)
+        info1 = _resolve(node1)
+        info2 = _resolve(node2)
 
-        # Both are modules
-        if mod1 is not None and mod2 is not None:
-            return mod1.module_t is mod2.module_t
+        if type(info1) is not type(info2):
+            return False
 
-        # Both are local reference
-        if mod1 is None and mod2 is None:
-            return node1.id == node2.id
+        if isinstance(info1, VarInfo):
+            # Both built-ins/env-vars
+            if info1.decl_node is None and info2.decl_node is None:
+                return node1.id == node2.id
 
-        return False
+            # One built-in/env-var, one user-land
+            if info1.decl_node is None or info2.decl_node is None:
+                return False
+
+            # Both user-land
+            return info1.decl_node is info2.decl_node
+
+        return info1 is info2
 
     else:
         return all(
-            _semantically_equal_any(
+            _semantically_equal_any_r(
                 getattr(node1, field_name, None), getattr(node2, field_name, None)
             )
             for field_name in node1.get_comparison_fields()
         )
 
 
-def _semantically_equal_any(v1: Any, v2: Any) -> bool:
+def _semantically_equal_any_r(v1: Any, v2: Any) -> bool:
     if type(v1) is not type(v2):
         return False
 
     if isinstance(v1, vy_ast.VyperNode):
-        return _semantically_equal_node(v1, v2)
+        return _semantically_equal_node_r(v1, v2)
 
     if isinstance(v1, list):
-        return len(v1) == len(v2) and all(_semantically_equal_any(a, b) for a, b in zip(v1, v2))
+        return len(v1) == len(v2) and all(_semantically_equal_any_r(a, b) for a, b in zip(v1, v2))
 
     return v1 == v2
 
 
 def semantically_equal(node1: vy_ast.VyperNode, node2: vy_ast.VyperNode) -> bool:
     """
-    Compares two AST nodes for exact structural equality.
-    For module references, compares resolved module identity.
+    Two nodes are semantically equal if the have the same structure, and their identifiers point to
+    the same things.
+
+    For example "self.foo" can be semantically equal to "other_module.foo" if the latter comes from
+    a module which imports the former's module as other_module.
+
+    However, "1 + 1" is not semantically equal to "2", as they do not have the same structure.
     """
 
-    return _semantically_equal_any(node1, node2)
+    return _semantically_equal_any_r(node1, node2)

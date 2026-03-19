@@ -2076,3 +2076,45 @@ def get_max(val: uint8 = max_value(uint8)) -> uint8:
 
     c = get_contract(override_contract, input_bundle=input_bundle)
     assert c.call_get_max() == 255
+
+
+def test_immutable_not_equal_across_modules(get_contract, make_input_bundle):
+    """
+    Test that self.FOO (immutable) in two different modules is NOT semantically equal,
+    even if they have the same name. Each module's immutable is distinct.
+    """
+    abstract_module = """
+FOO: immutable(uint256)
+
+@deploy
+def __init__():
+    FOO = 42
+
+@abstract
+def bar(x: uint256 = FOO) -> uint256: ...
+    """
+
+    # Override module has its own FOO immutable - should NOT match
+    override_contract = """
+import abstract_module
+
+initializes: abstract_module
+
+FOO: immutable(uint256)
+
+@deploy
+def __init__():
+    FOO = 100
+    abstract_module.__init__()
+
+@override(abstract_module)
+def bar(x: uint256 = FOO) -> uint256:
+    return x
+    """
+
+    input_bundle = make_input_bundle({"abstract_module.vy": abstract_module})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        get_contract(override_contract, input_bundle=input_bundle)
+
+    assert "Override parameter mismatch" in e.value.message
