@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass, field
 from functools import cached_property
@@ -590,12 +592,12 @@ class ContractFunctionT(VyperType):
 
         self.reentrancy_key_position = position
 
-    def set_overridden_by(self, func_t: "ContractFunctionT") -> None:
+    def set_overridden_by(self, func_t: ContractFunctionT) -> None:
         assert self._overridden_by is None
         self._overridden_by = func_t
 
     @property
-    def overridden_by(self) -> "ContractFunctionT":
+    def overridden_by(self) -> ContractFunctionT:
         if self._overridden_by is None:
             raise FunctionDeclarationException("Abstract function was not overridden", self.ast_def)
         return self._overridden_by
@@ -678,7 +680,7 @@ class ContractFunctionT(VyperType):
 
         return self.mutability == other.mutability
 
-    def compute_override_discrepancies(self, abstract_t: "ContractFunctionT") -> ExceptionList:
+    def compute_override_discrepancies(self, abstract_t: ContractFunctionT) -> ExceptionList:
         assert self.is_internal
         assert abstract_t.is_internal
         assert abstract_t.is_abstract

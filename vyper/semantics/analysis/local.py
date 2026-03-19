@@ -1,4 +1,5 @@
 # CMC 2024-02-03 TODO: rename me to function.py
+from __future__ import annotations
 
 import contextlib
 import textwrap
@@ -290,7 +291,7 @@ def check_module_uses(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
 
 
 def check_module_uses_for_abstract(
-    node: vy_ast.ExprNode, func_t: "ContractFunctionT"
+    node: vy_ast.ExprNode, func_t: ContractFunctionT
 ) -> Optional[ModuleInfo]:
     """
     Validate module usage when calling an abstract method.

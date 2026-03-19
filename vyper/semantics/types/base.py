@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from functools import cached_property
 from typing import Any, Dict, Optional, Tuple, Union
 
@@ -306,7 +308,7 @@ class VyperType:
     def validate_index_type(self, node: vy_ast.Subscript) -> None:
         raise StructureException(f"Not an indexable type: '{self}'", node)
 
-    def is_supertype_of(self, other: "VyperType") -> bool:
+    def is_supertype_of(self, other: VyperType) -> bool:
         """
         Compare this type object against another type object.
 
@@ -330,7 +332,7 @@ class VyperType:
         """
         return self.compare_type(other)
 
-    def is_subtype_of(self, other: "VyperType") -> bool:
+    def is_subtype_of(self, other: VyperType) -> bool:
         """
         Compare this type object against another type object.
 
@@ -354,7 +356,7 @@ class VyperType:
         """
         return other.is_supertype_of(self)
 
-    def is_equivalent_to(self, other: "VyperType") -> bool:
+    def is_equivalent_to(self, other: VyperType) -> bool:
         """
         Compare this type object against another type object.
 
