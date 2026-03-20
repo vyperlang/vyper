@@ -39,8 +39,7 @@ def _push_size(value: int) -> int:
 class VarInfo:
     base: IROperand | None  # root variable, or None for pure constant
     offset: int  # constant offset (wrap256)
-    iszero_depth: int  # number of iszero applications from iszero_root
-    iszero_root: IROperand | None  # operand at the base of the iszero chain
+    iszero_depth: int  # number of iszero applications (0 = not in a chain)
 
     @classmethod
     def of(
@@ -48,11 +47,8 @@ class VarInfo:
         base: IROperand | None,
         offset: int = 0,
         iszero_depth: int = 0,
-        iszero_root: IROperand | None = None,
     ) -> "VarInfo":
-        return cls(
-            base=base, offset=wrap256(offset), iszero_depth=iszero_depth, iszero_root=iszero_root
-        )
+        return cls(base=base, offset=wrap256(offset), iszero_depth=iszero_depth)
 
 
 # --- Pure transfer functions (module-level, no self) ---
@@ -66,6 +62,7 @@ def _lookup(op: IROperand, info: dict[IRVariable, VarInfo]) -> VarInfo:
         return VarInfo.of(op)
     if isinstance(op, IRLiteral):
         return VarInfo.of(None, op.value)
+    assert isinstance(op, IRLabel)
     # IRLabel — tracked as opaque base (not decomposable)
     return VarInfo.of(op)
 
@@ -92,13 +89,9 @@ def transfer_assign(src: VarInfo) -> VarInfo:
     return src
 
 
-def transfer_iszero(src: VarInfo, op: IROperand) -> VarInfo:
+def transfer_iszero(src: VarInfo) -> VarInfo:
     """Pure: extend or start an iszero chain."""
-    if src.iszero_depth > 0:
-        # extend existing chain
-        return VarInfo.of(None, iszero_depth=src.iszero_depth + 1, iszero_root=src.iszero_root)
-    # start new chain — root is the operand fed into this iszero
-    return VarInfo.of(None, iszero_depth=1, iszero_root=op)
+    return VarInfo.of(None, iszero_depth=src.iszero_depth + 1)
 
 
 class AlgebraicOptimizationPass(IRPass):
@@ -150,7 +143,7 @@ class AlgebraicOptimizationPass(IRPass):
                     info[inst.output] = transfer_assign(_lookup(inst.operands[0], info))
                 elif inst.opcode == "iszero":
                     src = _lookup(inst.operands[0], info)
-                    info[inst.output] = transfer_iszero(src, inst.operands[0])
+                    info[inst.output] = transfer_iszero(src)
                 else:
                     info[inst.output] = VarInfo.of(inst.output)
         return info
@@ -657,11 +650,11 @@ class AlgebraicOptimizationPass(IRPass):
             # e.g. gt x 0, slt x MAX_INT256
             # produce iszero(iszero(xor x N)) directly, with
             # xor x 0 = x and xor x -1 = not x as special cases
-            val = operands[0].value
+            val = wrap256(operands[0].value)
             x = operands[1]
             if val == 0:
                 inner = x
-            elif wrap256(val) == wrap256(-1):
+            elif val == wrap256(-1):
                 inner = self.updater.add_before(inst, "not", [x])
             else:
                 inner = self.updater.add_before(inst, "xor", [operands[0], x])
