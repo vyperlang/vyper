@@ -275,6 +275,30 @@ def test_fold_add_chain_multi_use_stops():
     _check_pre_post(pre, post)
 
 
+def test_fold_stops_at_multi_use_intermediate():
+    """Don't fold past a multi-use intermediate deeper in the chain.
+    %a has multiple uses so it should be preserved as the base, even
+    though the lattice flattens all the way to %x."""
+    pre = """
+    main:
+        %x = source
+        %a = add 3, %x
+        %b = add 5, %a
+        %out = add 7, %b
+        sink %out, %a
+    """
+    # %a is multi-use (sink + %b). %b is single-use.
+    # The walk stops at %a: %out = %a + 12, not %x + 15.
+    post = """
+    main:
+        %x = source
+        %a = add 3, %x
+        %out = add 12, %a
+        sink %out, %a
+    """
+    _check_pre_post(pre, post)
+
+
 def test_fold_add_chain_three_deep():
     """add(add(add(x, 1), 2), 3) => add(x, 6)"""
     pre = """

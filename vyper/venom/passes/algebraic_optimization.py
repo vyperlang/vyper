@@ -237,22 +237,57 @@ class AlgebraicOptimizationPass(IRPass):
         if base == imm_base:
             return False
 
-        # Don't fold through multi-use intermediates — this destroys
-        # CSE opportunities for shared base pointers (e.g. alloca+64
-        # used by multiple mcopy destinations).
-        if isinstance(imm_base, IRVariable) and not self.dfg.is_single_use(imm_base):
+        # Walk from imm_base toward lattice base, stopping at the first
+        # multi-use intermediate. This preserves shared base pointers
+        # for CSE/DFT (e.g. alloca+64 used by multiple mcopy destinations).
+        eff_base = self._effective_affine_base(imm_base, base)
+        if eff_base == imm_base:
             return False
 
-        if offset == 0:
-            self.updater.mk_assign(inst, base)
+        # compute offset relative to effective base
+        if eff_base == base:
+            eff_offset = offset
+        else:
+            if not isinstance(eff_base, IRVariable):
+                return False
+            vi_eff = self.var_info.get(eff_base)
+            if vi_eff is None or vi_eff.base != base:
+                return False
+            eff_offset = wrap256(offset - vi_eff.offset)
+
+        if eff_offset == 0:
+            self.updater.mk_assign(inst, eff_base)
             return True
 
         # Don't rewrite if it would increase literal byte width
-        if _push_size(offset) > _push_size(curr_lit):
+        if _push_size(eff_offset) > _push_size(curr_lit):
             return False
 
-        self.updater.update(inst, "add", [base, IRLiteral(offset)])
+        self.updater.update(inst, "add", [eff_base, IRLiteral(eff_offset)])
         return True
+
+    def _effective_affine_base(self, imm_base: IROperand, lattice_base: IROperand) -> IROperand:
+        """Walk producers from imm_base toward lattice_base, return the
+        deepest reachable base without crossing multi-use intermediates."""
+        current = imm_base
+        while current != lattice_base:
+            if not isinstance(current, IRVariable):
+                return current
+            if not self.dfg.is_single_use(current):
+                return current
+            prod = self.dfg.get_producing_instruction(current)
+            if prod is None:
+                return current
+            if prod.opcode == "assign":
+                current = prod.operands[0]
+            elif prod.opcode == "add":
+                val_op, lit_op = self._extract_value_and_literal_operands(prod)
+                if val_op is None or lit_op is None:
+                    return current
+                current = val_op
+            else:
+                return current
+        return lattice_base
 
     def _rewrite_or_skip_producer(self, inst: IRInstruction) -> bool:
         """Producer-based pattern rewrites. Returns True if a rewrite was
