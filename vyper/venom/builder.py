@@ -370,10 +370,6 @@ class VenomBuilder:
     def sha3(self, ptr: Operand, size: Operand) -> IRVariable:
         return self._emit1_evm("sha3", ptr, size)
 
-    def sha3_64(self, a: Operand, b: Operand) -> IRVariable:
-        """Hash two 32-byte values (optimized keccak). (IR-specific)"""
-        return self._emit1("sha3_64", a, b)
-
     # === Data Copy ===
     def calldatacopy(self, dst: Operand, src: Operand, size: Operand) -> None:
         """Copy size bytes from calldata[src] to memory[dst]."""
