@@ -54,8 +54,7 @@ jobs:
           cache: "pip"
 
       - name: Install deps
-        # TODO these should really be in setup.py
-        run: pip install -r requirements-docs.txt
+        run: pip install .[docs]
 
       - name: Run docs
         run: sphinx-build -E -b html docs dist/docs -n -q --color
