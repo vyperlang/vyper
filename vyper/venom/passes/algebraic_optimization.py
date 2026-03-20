@@ -174,13 +174,20 @@ class AlgebraicOptimizationPass(IRPass):
             if keep >= depth:
                 continue
 
-            # walk back (depth - keep) iszero producers from op
+            # walk back (depth - keep) iszero producers from op.
+            # bail if the chain no longer matches — mid-pass rewrites
+            # (e.g. comparator handler) can change opcodes, making
+            # the pre-computed iszero_depth stale.
             target: IROperand = op
             for _ in range(depth - keep):
+                if not isinstance(target, IRVariable):
+                    break
                 prod = self.dfg.get_producing_instruction(target)
-                assert prod is not None and prod.opcode == "iszero"
+                if prod is None or prod.opcode != "iszero":
+                    break
                 target = prod.operands[0]
-            replacements[op] = target
+            else:
+                replacements[op] = target
 
         if len(replacements) > 0:
             self.updater.update_operands(inst, replacements)
