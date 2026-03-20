@@ -56,7 +56,7 @@ def test_simple_jump_case(iszero_count):
         {post_chain}
         jnz %{jnz_cond}, @then, @else
     then:
-        %4 = add 74, %par
+        %4 = add 10, %3
         sink %4
     else:
         %5 = add %3, %par
@@ -256,8 +256,8 @@ def test_fold_add_chain_cancels_to_zero():
     _check_pre_post(pre, post)
 
 
-def test_fold_add_chain_multi_use():
-    """Lattice sees through multi-use intermediates."""
+def test_fold_add_chain_multi_use_stops():
+    """Don't fold through intermediates with multiple uses."""
     pre = """
     main:
         %x = source
@@ -269,7 +269,7 @@ def test_fold_add_chain_multi_use():
     main:
         %x = source
         %tmp = add 3, %x
-        %out = add 8, %x
+        %out = add 5, %tmp
         sink %out, %tmp
     """
     _check_pre_post(pre, post)
