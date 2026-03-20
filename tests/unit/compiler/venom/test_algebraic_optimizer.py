@@ -310,14 +310,17 @@ def test_iszero_chain_after_comparator_rewrite():
     else:
         sink %x
     """
-    # The comparator handler rewrites gt %x, 5 and absorbs the
-    # iszero at %a. The forward-computed targets still point to
-    # %cmp as the root, so jnz gets redirected directly.
+    # The comparator handler flips gt to lt and absorbs the iszero
+    # at %a (converting it to assign). The chain is now stale —
+    # %cmp has inverted semantics. The chain validator detects that
+    # %a is no longer iszero and bails out, leaving jnz %b intact.
     post = """
     main:
         %x = source
         %cmp = gt 6, %x
-        jnz %cmp, @then, @else
+        %a = %cmp
+        %b = iszero %a
+        jnz %b, @then, @else
     then:
         sink %x
     else:

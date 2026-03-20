@@ -156,6 +156,16 @@ class AlgebraicOptimizationPass(IRPass):
                 self._rewrite_inst(inst)
                 self._flip_inst(inst)
 
+    def _chain_valid(self, chain: tuple[IROperand, ...]) -> bool:
+        """Verify iszero chain is still intact (not mutated by mid-pass rewrites)."""
+        for var in chain[1:]:  # chain[0] is the root, skip it
+            if not isinstance(var, IRVariable):
+                return False
+            prod = self.dfg.get_producing_instruction(var)
+            if prod is None or prod.opcode != "iszero":
+                return False
+        return True
+
     def _rewrite_iszero_uses(self, inst: IRInstruction):
         """Shorten iszero chains at use sites via forward-computed targets."""
         if inst.opcode == "iszero":
@@ -177,7 +187,7 @@ class AlgebraicOptimizationPass(IRPass):
             else:
                 keep = 2 - depth % 2
 
-            if keep < depth:
+            if keep < depth and self._chain_valid(chain):
                 replacements[op] = chain[keep]
 
         if len(replacements) > 0:
