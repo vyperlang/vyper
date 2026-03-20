@@ -94,7 +94,7 @@ jobs:
         pytest
         -m "hevm"
         --hevm
-        --cov-config=setup.cfg
+        --cov-config=pyproject.toml
         --cov=vyper
         tests/
  
@@ -197,7 +197,7 @@ jobs:
         --evm-backend ${{ matrix.evm-backend || 'revm' }}
         ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
         ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }}
-        --cov-config=setup.cfg
+        --cov-config=pyproject.toml
         --cov=vyper
         tests/
 
@@ -258,7 +258,7 @@ jobs:
           --splits 120 \
           --group ${{ matrix.group }} \
           --splitting-algorithm least_duration \
-          --cov-config=setup.cfg \
+          --cov-config=pyproject.toml \
           --cov=vyper \
           tests/
 
