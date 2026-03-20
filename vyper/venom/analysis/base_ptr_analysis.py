@@ -92,6 +92,32 @@ class BasePtrAnalysis(IRAnalysis):
             ptrs = self.get_possible_ptrs(inst.operands[0])
             self.var_to_mem[inst.output] = set(ptr.offset_by(offset) for ptr in ptrs)
 
+        elif opcode in ("add", "sub"):
+            rhs, lhs = inst.operands
+            lhs_ptrs = self.get_possible_ptrs(lhs) if isinstance(lhs, IRVariable) else set()
+            rhs_ptrs = self.get_possible_ptrs(rhs) if isinstance(rhs, IRVariable) else set()
+
+            out_ptrs: set[Ptr] = set()
+
+            # Preserve exact offsets when one side is a pointer and the other
+            # is a known integer literal.
+            if lhs_ptrs and isinstance(rhs, IRLiteral):
+                delta = rhs.value if opcode == "add" else -rhs.value
+                out_ptrs.update(ptr.offset_by(delta) for ptr in lhs_ptrs)
+            if opcode == "add" and rhs_ptrs and isinstance(lhs, IRLiteral):
+                out_ptrs.update(ptr.offset_by(lhs.value) for ptr in rhs_ptrs)
+
+            # Pointer arithmetic with a dynamic offset still aliases the same
+            # allocation, but with unknown offset.
+            if not out_ptrs:
+                if lhs_ptrs and not rhs_ptrs:
+                    out_ptrs.update(ptr.offset_by(None) for ptr in lhs_ptrs)
+                elif opcode == "add" and rhs_ptrs and not lhs_ptrs:
+                    out_ptrs.update(ptr.offset_by(None) for ptr in rhs_ptrs)
+
+            if out_ptrs:
+                self.var_to_mem[inst.output] = out_ptrs
+
         elif opcode == "phi":
             phi_sources = set()
             for _, var in inst.phi_operands:
