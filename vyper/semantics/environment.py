@@ -2,6 +2,7 @@ from typing import Dict
 
 from vyper.semantics.analysis.base import Modifiability, VarInfo
 from vyper.semantics.types import AddressT, BytesT, SelfT, VyperType
+from vyper.semantics.types.infinity import INF
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 
 
@@ -46,7 +47,7 @@ class _Msg(_EnvType):
         # types.
         super().__init__(
             {
-                "data": BytesT(None),
+                "data": BytesT(INF),
                 "gas": UINT256_T,
                 "mana": UINT256_T,
                 "sender": AddressT(),

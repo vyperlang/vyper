@@ -17,6 +17,7 @@ from vyper.utils import checksum_encode, int_bounds, is_checksum_encoded
 
 from .base import VyperType
 from .bytestrings import BytesT
+from .infinity import INF
 
 
 class _PrimT(VyperType):
@@ -411,7 +412,7 @@ class AddressT(_PrimT):
         "codehash": BytesM_T(32),
         "codesize": UINT(256),
         "is_contract": BoolT(),
-        "code": BytesT(None),
+        "code": BytesT(INF),
     }
 
     @cached_property

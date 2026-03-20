@@ -14,6 +14,7 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
+from vyper.semantics.types.infinity import INF
 
 # TODO maybe this should be merged with .types/base.py
 
@@ -63,7 +64,7 @@ def type_from_abi(abi_type: dict) -> VyperType:
             if type_string in ("Bytes", "String"):
                 # special handling for bytes, string, since
                 # the type ctor is in the namespace instead of a concrete type.
-                return t(None)
+                return t(INF)
             return t
         except KeyError:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
