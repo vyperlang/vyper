@@ -60,20 +60,22 @@ be a bit behind the latest version found in the master branch of this repository
 Make sure you have `uv` installed
 
 1. Clone this repo and `cd` into it
-2. Run `uv sync`
-3. Run `source .venv/bin/activate` to activate the virtual environment
-4. Run `vyper --version` to verify the setup
+2. Run `git fetch --tags git@github.com:vyperlang/vyper.git` to get the tags necessary for version inference
+3. Run `uv sync`
+4. Run `source .venv/bin/activate` to activate the virtual environment
+5. Run `vyper --version` to verify the setup
 
 #### pip
 
 Make sure you have `pip`, `setuptools`, and `pytest` installed
 
 1. Clone this repo and `cd` into it
-2. Run `python -m venv .venv` to create a virtual environment
-3. Run `source .venv/bin/activate` to activate it
-4. Run `make init` to install the main dependencies
-5. Run `make dev-init` to install the dev dependencies
-6. Run `vyper --version` to verify the setup
+2. Run `git fetch --tags git@github.com:vyperlang/vyper.git` to get the tags necessary for version inference
+3. Run `python -m venv .venv` to create a virtual environment
+4. Run `source .venv/bin/activate` to activate it
+5. Run `make init` to install the main dependencies
+6. Run `make dev-init` to install the dev dependencies
+7. Run `vyper --version` to verify the setup
 
 ### Commands
 
