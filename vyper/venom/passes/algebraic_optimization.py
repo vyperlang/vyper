@@ -39,11 +39,10 @@ def _push_size(value: int) -> int:
 class VarInfo:
     base: IROperand | None  # root variable, or None for pure constant
     offset: int  # constant offset (wrap256)
-    iszero_depth: int  # number of iszero applications (0 = not in a chain)
 
     @classmethod
-    def of(cls, base: IROperand | None, offset: int = 0, iszero_depth: int = 0) -> "VarInfo":
-        return cls(base=base, offset=wrap256(offset), iszero_depth=iszero_depth)
+    def of(cls, base: IROperand | None, offset: int = 0) -> "VarInfo":
+        return cls(base=base, offset=wrap256(offset))
 
 
 # --- Pure transfer functions (module-level, no self) ---
@@ -84,11 +83,6 @@ def transfer_assign(src: VarInfo) -> VarInfo:
     return src
 
 
-def transfer_iszero(src: VarInfo) -> VarInfo:
-    """Pure: extend or start an iszero chain."""
-    return VarInfo.of(None, iszero_depth=src.iszero_depth + 1)
-
-
 class AlgebraicOptimizationPass(IRPass):
     """
     This pass reduces algebraic evaluatable expressions.
@@ -105,9 +99,7 @@ class AlgebraicOptimizationPass(IRPass):
     updater: InstUpdater
     range_analysis: VariableRangeAnalysis
     var_info: dict[IRVariable, VarInfo]
-    # forward-computed targets for iszero chain shortening.
-    # maps each iszero chain output to (root, first_output, second_output, ...)
-    # so the rewrite can index by `keep` without walking the DFG backward.
+    # (root, 1st_iszero_out, 2nd, ...) per chain output, built forward
     iszero_targets: dict[IRVariable, tuple[IROperand, ...]]
 
     def run_pass(self):
@@ -144,16 +136,14 @@ class AlgebraicOptimizationPass(IRPass):
                 elif inst.opcode == "assign":
                     info[inst.output] = transfer_assign(_lookup(inst.operands[0], info))
                 elif inst.opcode == "iszero":
-                    src = _lookup(inst.operands[0], info)
-                    info[inst.output] = transfer_iszero(src)
-                    # build chain targets forward: (root, 1st output, 2nd, ...)
+                    # build iszero chain targets forward: (root, 1st, 2nd, ...)
                     inp = inst.operands[0]
                     if isinstance(inp, IRVariable) and inp in targets:
                         prev = targets[inp]
                     else:
-                        # new chain, root is the input operand
                         prev = (inp,)
                     targets[inst.output] = prev + (inst.output,)
+                    info[inst.output] = VarInfo.of(inst.output)
                 else:
                     info[inst.output] = VarInfo.of(inst.output)
         return info, targets
@@ -168,7 +158,7 @@ class AlgebraicOptimizationPass(IRPass):
                 self._flip_inst(inst)
 
     def _rewrite_iszero_uses(self, inst: IRInstruction):
-        """Use lattice iszero_depth to shorten iszero chains at use sites."""
+        """Shorten iszero chains at use sites via forward-computed targets."""
         if inst.opcode == "iszero":
             return  # iszero-to-iszero links are left alone
 
@@ -176,23 +166,19 @@ class AlgebraicOptimizationPass(IRPass):
         for op in inst.operands:
             if not isinstance(op, IRVariable):
                 continue
-            vi = self.var_info.get(op)
-            if vi is None or vi.iszero_depth == 0:
+            chain = self.iszero_targets.get(op)
+            if chain is None:
                 continue
 
-            depth = vi.iszero_depth
+            # chain = (root, 1st_iszero_out, 2nd, ..., op)
+            # depth = len(chain) - 1 (root is not an iszero)
+            depth = len(chain) - 1
             if inst.opcode in ("jnz", "assert", "assert_unreachable"):
                 keep = depth % 2
             else:
                 keep = 2 - depth % 2
 
-            if keep >= depth:
-                continue
-
-            # index into forward-computed targets: targets[keep] is the
-            # operand to use when keeping `keep` iszeros from the root.
-            chain = self.iszero_targets.get(op)
-            if chain is not None and keep < len(chain):
+            if keep < depth:
                 replacements[op] = chain[keep]
 
         if len(replacements) > 0:
