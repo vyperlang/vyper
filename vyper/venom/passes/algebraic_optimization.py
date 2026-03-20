@@ -138,7 +138,11 @@ class AlgebraicOptimizationPass(IRPass):
                     if inst.opcode == "iszero":
                         # build iszero chain targets: (root, 1st, 2nd, ...)
                         inp = inst.operands[0]
-                        prev = targets[inp] if isinstance(inp, IRVariable) and inp in targets else (inp,)
+                        prev = (
+                            targets[inp]
+                            if isinstance(inp, IRVariable) and inp in targets
+                            else (inp,)
+                        )
                         targets[inst.output] = prev + (inst.output,)
                     info[inst.output] = VarInfo.of(inst.output)
         return info, targets
@@ -277,204 +281,189 @@ class AlgebraicOptimizationPass(IRPass):
     # --- Local peephole rules ---
 
     def _rewrite_local(self, inst: IRInstruction):
-        operands = inst.operands
-        inst_out = inst.output
-
-        # TODO nice to have rules:
-        # -1 * x => 0 - x
-        # x // -1 => 0 - x (?)
-        # x + (-1) => x - 1  # save codesize, maybe for all negative numbers)
-        # 1 // x => x == 1(?)
-        # 1 % x => x > 1(?)
-        # !!x => x > 0  # saves 1 gas as of shanghai
-
-        # make logic easier for commutative instructions.
-        if inst.flippable and self._is_lit(operands[1]) and not self._is_lit(operands[0]):
+        # normalize: literal to operands[0] for commutative ops
+        if inst.flippable and self._is_lit(inst.operands[1]) and not self._is_lit(inst.operands[0]):
             inst.flip()
-            operands = inst.operands
 
-        if inst.opcode in {"shl", "shr", "sar"}:
-            # (x >> 0) == (x << 0) == x
-            if lit_eq(operands[1], 0):
-                self.updater.mk_assign(inst, operands[0])
-                return
-            # no more cases for these instructions
-            return
-
-        if inst.opcode == "signextend":
-            # text: signextend n, x -> operands[-1]=n (bytes), operands[-2]=x (value)
-            n_op = operands[-1]  # byte count
-            x_op = operands[-2]  # value
-
-            # signextend(n, x) where n >= 31 is always a no-op
-            if self._is_lit(n_op) and n_op.value >= 31:
-                self.updater.mk_assign(inst, x_op)
-                return
-
-            # Range-based elimination: if x is already in the valid signed range
-            # for (n+1) bytes, signextend is a no-op
-            if self._is_lit(n_op):
-                n = n_op.value
-                if 0 <= n < 31:
-                    x_range = self.range_analysis.get_range(x_op, inst)
-                    if not x_range.is_top:
-                        # Compute valid signed range for (n+1) bytes
-                        bits = 8 * (n + 1)
-                        signed_min = -(1 << (bits - 1))
-                        signed_max = (1 << (bits - 1)) - 1
-                        # If x is already in valid range, signextend is no-op
-                        if x_range.lo >= signed_min and x_range.hi <= signed_max:
-                            self.updater.mk_assign(inst, x_op)
-                            return
-            return
-
-        if inst.opcode == "exp":
-            # x ** 0 -> 1
-            if lit_eq(operands[0], 0):
-                self.updater.mk_assign(inst, IRLiteral(1))
-                return
-
-            # 1 ** x -> 1
-            if lit_eq(operands[1], 1):
-                self.updater.mk_assign(inst, IRLiteral(1))
-                return
-
-            # 0 ** x -> iszero x
-            if lit_eq(operands[1], 0):
-                self.updater.update(inst, "iszero", [operands[0]])
-                return
-
-            # x ** 1 -> x
-            if lit_eq(operands[0], 1):
-                self.updater.mk_assign(inst, operands[1])
-                return
-
-            # no more cases for this instruction
-            return
-
-        if inst.opcode == "gep":
-            if lit_eq(inst.operands[1], 0):
-                self.updater.mk_assign(inst, inst.operands[0])
-            return
-
-        if inst.opcode in {"add", "sub", "xor"}:
-            # (x - x) == (x ^ x) == 0
-            if inst.opcode in ("xor", "sub") and operands[0] == operands[1]:
-                self.updater.mk_assign(inst, IRLiteral(0))
-                return
-
-            # (x + 0) == (0 + x)  -> x
-            # x - 0 -> x
-            # (x ^ 0) == (0 ^ x)  -> x
-            if lit_eq(operands[0], 0):
-                self.updater.mk_assign(inst, operands[1])
-                return
-
-            # (-1) - x -> ~x
-            # from two's complement
-            if inst.opcode == "sub" and lit_eq(operands[1], -1):
-                self.updater.update(inst, "not", [operands[0]])
-                return
-
-            # x ^ 0xFFFF..FF -> ~x
-            if inst.opcode == "xor" and lit_eq(operands[0], -1):
-                self.updater.update(inst, "not", [operands[1]])
-                return
-
-            return
-
-        # x & 0xFF..FF -> x
-        if inst.opcode == "and" and lit_eq(operands[0], -1):
-            self.updater.mk_assign(inst, operands[1])
-            return
-
-        if inst.opcode in ("mul", "and", "div", "sdiv", "mod", "smod"):
-            # (x * 0) == (x & 0) == (x // 0) == (x % 0) -> 0
-            if any(lit_eq(op, 0) for op in operands):
-                self.updater.mk_assign(inst, IRLiteral(0))
-                return
-
-        if inst.opcode in {"mul", "div", "sdiv", "mod", "smod"}:
-            if inst.opcode in ("mod", "smod") and lit_eq(operands[0], 1):
-                # x % 1 -> 0
-                self.updater.mk_assign(inst, IRLiteral(0))
-                return
-
-            # (x * 1) == (1 * x) == (x // 1)  -> x
-            if inst.opcode in ("mul", "div", "sdiv") and lit_eq(operands[0], 1):
-                self.updater.mk_assign(inst, operands[1])
-                return
-
-            if self._is_lit(operands[0]) and is_power_of_two(operands[0].value):
-                val = operands[0].value
-                # x % (2^n) -> x & (2^n - 1)
-                if inst.opcode == "mod":
-                    self.updater.update(inst, "and", [IRLiteral(val - 1), operands[1]])
-                    return
-                # x / (2^n) -> x >> n
-                if inst.opcode == "div":
-                    self.updater.update(inst, "shr", [operands[1], IRLiteral(int_log2(val))])
-                    return
-                # x * (2^n) -> x << n
-                if inst.opcode == "mul":
-                    self.updater.update(inst, "shl", [operands[1], IRLiteral(int_log2(val))])
-                    return
-            return
-
-        uses = self.dfg.get_uses(inst_out)
-
-        is_truthy = all(i.opcode in TRUTHY_INSTRUCTIONS for i in uses)
-        prefer_iszero = all(i.opcode in ("assert", "iszero") for i in uses)
-
-        # TODO rules like:
-        # not x | not y => not (x & y)
-        # x | not y => not (not x & y)
-
-        if inst.opcode == "or":
-            # x | 0xff..ff == 0xff..ff
-            if any(lit_eq(op, SizeLimits.MAX_UINT256) for op in operands):
-                self.updater.mk_assign(inst, IRLiteral(SizeLimits.MAX_UINT256))
-                return
-
-            # x | n -> 1 in truthy positions (if n is non zero)
-            if is_truthy and self._is_lit(operands[0]) and operands[0].value != 0:
-                self.updater.mk_assign(inst, IRLiteral(1))
-                return
-
-            # x | 0 -> x
-            if lit_eq(operands[0], 0):
-                self.updater.mk_assign(inst, operands[1])
-                return
-
-        if inst.opcode == "eq":
-            # x == x -> 1
-            if operands[0] == operands[1]:
-                self.updater.mk_assign(inst, IRLiteral(1))
-                return
-
-            # x == 0 -> iszero x
-            if lit_eq(operands[0], 0):
-                self.updater.update(inst, "iszero", [operands[1]])
-                return
-
-            # eq x -1 -> iszero(~x)
-            # (saves codesize, not gas)
-            if lit_eq(operands[0], -1):
-                var = self.updater.add_before(inst, "not", [operands[1]])
-                assert var is not None  # help mypy
-                self.updater.update(inst, "iszero", [var])
-                return
-
-            if prefer_iszero:
-                # (eq x y) has the same truthyness as (iszero (xor x y))
-                tmp = self.updater.add_before(inst, "xor", [operands[0], operands[1]])
-
-                assert tmp is not None  # help mypy
-                self.updater.update(inst, "iszero", [tmp])
-                return
-
-        if inst.opcode in COMPARATOR_INSTRUCTIONS:
+        opcode = inst.opcode
+        if opcode in ("shl", "shr", "sar"):
+            self._rule_shift(inst)
+        elif opcode == "signextend":
+            self._rule_signextend(inst)
+        elif opcode == "exp":
+            self._rule_exp(inst)
+        elif opcode == "gep":
+            self._rule_gep(inst)
+        elif opcode in ("add", "sub", "xor"):
+            self._rule_additive(inst)
+        elif opcode == "and":
+            self._rule_and(inst)
+        elif opcode in ("mul", "div", "sdiv", "mod", "smod"):
+            self._rule_multiplicative(inst)
+        elif opcode == "or":
+            self._rule_or(inst)
+        elif opcode == "eq":
+            self._rule_eq(inst)
+        elif opcode in COMPARATOR_INSTRUCTIONS:
+            uses = self.dfg.get_uses(inst.output)
+            prefer_iszero = all(i.opcode in ("assert", "iszero") for i in uses)
             self._optimize_comparator_instruction(inst, prefer_iszero)
+
+    # --- Per-opcode rewrite rules ---
+
+    def _rule_shift(self, inst: IRInstruction):
+        # (x >> 0) == (x << 0) == x
+        if lit_eq(inst.operands[1], 0):
+            self.updater.mk_assign(inst, inst.operands[0])
+
+    def _rule_signextend(self, inst: IRInstruction):
+        n_op = inst.operands[-1]  # byte count
+        x_op = inst.operands[-2]  # value
+
+        # signextend(n, x) where n >= 31 is always a no-op
+        if self._is_lit(n_op) and n_op.value >= 31:
+            self.updater.mk_assign(inst, x_op)
+            return
+
+        # range-based: if x is in the valid signed range for (n+1) bytes,
+        # signextend is a no-op
+        if not self._is_lit(n_op):
+            return
+        n = n_op.value
+        if not (0 <= n < 31):
+            return
+        x_range = self.range_analysis.get_range(x_op, inst)
+        if x_range.is_top:
+            return
+        bits = 8 * (n + 1)
+        if x_range.lo >= -(1 << (bits - 1)) and x_range.hi <= (1 << (bits - 1)) - 1:
+            self.updater.mk_assign(inst, x_op)
+
+    def _rule_exp(self, inst: IRInstruction):
+        ops = inst.operands
+        # x ** 0 -> 1
+        if lit_eq(ops[0], 0):
+            self.updater.mk_assign(inst, IRLiteral(1))
+        # 1 ** x -> 1
+        elif lit_eq(ops[1], 1):
+            self.updater.mk_assign(inst, IRLiteral(1))
+        # 0 ** x -> iszero x
+        elif lit_eq(ops[1], 0):
+            self.updater.update(inst, "iszero", [ops[0]])
+        # x ** 1 -> x
+        elif lit_eq(ops[0], 1):
+            self.updater.mk_assign(inst, ops[1])
+
+    def _rule_gep(self, inst: IRInstruction):
+        if lit_eq(inst.operands[1], 0):
+            self.updater.mk_assign(inst, inst.operands[0])
+
+    def _rule_additive(self, inst: IRInstruction):
+        ops = inst.operands
+        opcode = inst.opcode
+
+        # (x - x) == (x ^ x) == 0
+        if opcode in ("xor", "sub") and ops[0] == ops[1]:
+            self.updater.mk_assign(inst, IRLiteral(0))
+            return
+
+        # x + 0, x - 0, x ^ 0 -> x
+        if lit_eq(ops[0], 0):
+            self.updater.mk_assign(inst, ops[1])
+            return
+
+        # (-1) - x -> ~x
+        if opcode == "sub" and lit_eq(ops[1], -1):
+            self.updater.update(inst, "not", [ops[0]])
+            return
+
+        # x ^ -1 -> ~x
+        if opcode == "xor" and lit_eq(ops[0], -1):
+            self.updater.update(inst, "not", [ops[1]])
+
+    def _rule_and(self, inst: IRInstruction):
+        ops = inst.operands
+        # x & -1 -> x
+        if lit_eq(ops[0], -1):
+            self.updater.mk_assign(inst, ops[1])
+            return
+        # x & 0 -> 0
+        if any(lit_eq(op, 0) for op in ops):
+            self.updater.mk_assign(inst, IRLiteral(0))
+
+    def _rule_multiplicative(self, inst: IRInstruction):
+        ops = inst.operands
+        opcode = inst.opcode
+
+        # x * 0, x / 0, x % 0 -> 0
+        if any(lit_eq(op, 0) for op in ops):
+            self.updater.mk_assign(inst, IRLiteral(0))
+            return
+
+        # x % 1 -> 0
+        if opcode in ("mod", "smod") and lit_eq(ops[0], 1):
+            self.updater.mk_assign(inst, IRLiteral(0))
+            return
+
+        # x * 1, x / 1 -> x
+        if opcode in ("mul", "div", "sdiv") and lit_eq(ops[0], 1):
+            self.updater.mk_assign(inst, ops[1])
+            return
+
+        # power-of-two strength reduction
+        if not (self._is_lit(ops[0]) and is_power_of_two(ops[0].value)):
+            return
+        val = ops[0].value
+        if opcode == "mod":
+            self.updater.update(inst, "and", [IRLiteral(val - 1), ops[1]])
+        elif opcode == "div":
+            self.updater.update(inst, "shr", [ops[1], IRLiteral(int_log2(val))])
+        elif opcode == "mul":
+            self.updater.update(inst, "shl", [ops[1], IRLiteral(int_log2(val))])
+
+    def _rule_or(self, inst: IRInstruction):
+        ops = inst.operands
+        # x | -1 -> -1
+        if any(lit_eq(op, SizeLimits.MAX_UINT256) for op in ops):
+            self.updater.mk_assign(inst, IRLiteral(SizeLimits.MAX_UINT256))
+            return
+
+        # x | n -> 1 in truthy positions (if n != 0)
+        uses = self.dfg.get_uses(inst.output)
+        is_truthy = all(i.opcode in TRUTHY_INSTRUCTIONS for i in uses)
+        if is_truthy and self._is_lit(ops[0]) and ops[0].value != 0:
+            self.updater.mk_assign(inst, IRLiteral(1))
+            return
+
+        # x | 0 -> x
+        if lit_eq(ops[0], 0):
+            self.updater.mk_assign(inst, ops[1])
+
+    def _rule_eq(self, inst: IRInstruction):
+        ops = inst.operands
+        # x == x -> 1
+        if ops[0] == ops[1]:
+            self.updater.mk_assign(inst, IRLiteral(1))
+            return
+
+        # x == 0 -> iszero x
+        if lit_eq(ops[0], 0):
+            self.updater.update(inst, "iszero", [ops[1]])
+            return
+
+        # eq x -1 -> iszero(~x)
+        if lit_eq(ops[0], -1):
+            var = self.updater.add_before(inst, "not", [ops[1]])
+            assert var is not None
+            self.updater.update(inst, "iszero", [var])
+            return
+
+        # in prefer_iszero context: eq x y -> iszero(xor x y)
+        uses = self.dfg.get_uses(inst.output)
+        if all(i.opcode in ("assert", "iszero") for i in uses):
+            tmp = self.updater.add_before(inst, "xor", [ops[0], ops[1]])
+            assert tmp is not None
+            self.updater.update(inst, "iszero", [tmp])
 
     # --- Unchanged methods ---
 
