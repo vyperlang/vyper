@@ -56,7 +56,7 @@ def _lookup(op: IROperand, info: dict[IRVariable, VarInfo]) -> VarInfo:
         return VarInfo.of(op)
     if isinstance(op, IRLiteral):
         return VarInfo.of(None, op.value)
-    # IRLabel — not trackable
+    # IRLabel — tracked as opaque base (not decomposable)
     return VarInfo.of(op)
 
 
@@ -169,6 +169,8 @@ class AlgebraicOptimizationPass(IRPass):
         base = vi.base
         offset = vi.offset
         if base == inst.output:
+            return False
+        if isinstance(base, IRLabel):
             return False
 
         # Find the immediate variable operand and current literal
