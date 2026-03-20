@@ -1,18 +1,8 @@
 from __future__ import annotations
 
-from typing import Callable, Optional
-
 from vyper.utils import wrap256
-from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
 
-from .value_range import (
-    RANGE_WIDTH_LIMIT,
-    SIGNED_MAX,
-    SIGNED_MIN,
-    UNSIGNED_MAX,
-    RangeState,
-    ValueRange,
-)
+from .value_range import RANGE_WIDTH_LIMIT, SIGNED_MAX, SIGNED_MIN, UNSIGNED_MAX, ValueRange
 
 
 def _range_spans_sign_boundary(r: ValueRange) -> bool:
@@ -29,48 +19,8 @@ def _range_spans_sign_boundary(r: ValueRange) -> bool:
     return r.lo < 0 and r.hi >= 0
 
 
-# Type alias for range evaluator functions
-RangeEvaluator = Callable[[IRInstruction, RangeState], ValueRange]
-
-
-def _get_uint_literal(op: IROperand) -> Optional[int]:
-    """Extract unsigned literal value from operand, if it is a literal."""
-    if not isinstance(op, IRLiteral):
-        return None
-    return wrap256(op.value)
-
-
-def _get_signed_literal(op: IROperand) -> Optional[int]:
-    """Extract signed literal value from operand, if it is a literal."""
-    if not isinstance(op, IRLiteral):
-        return None
-    return wrap256(op.value, signed=True)
-
-
-def _operand_range(operand: IROperand, env: RangeState) -> ValueRange:
-    """Get the range of an operand from the current environment.
-
-    Literals are normalized to signed representation since the range system
-    uses signed bounds internally. This ensures values >= 2^255 are treated
-    as negative numbers (e.g., 2^255 becomes SIGNED_MIN).
-    """
-    if isinstance(operand, IRLiteral):
-        return ValueRange.constant(wrap256(operand.value, signed=True))
-    if isinstance(operand, IRVariable):
-        return env.get(operand, ValueRange.top())
-    return ValueRange.top()
-
-
-def _eval_assign(inst: IRInstruction, state: RangeState) -> ValueRange:
-    """Evaluate assign instruction."""
-    op = inst.operands[-1]
-    return _operand_range(op, state)
-
-
-def _eval_add(inst: IRInstruction, state: RangeState) -> ValueRange:
+def eval_add(lhs: ValueRange, rhs: ValueRange) -> ValueRange:
     """Evaluate add instruction."""
-    lhs = _operand_range(inst.operands[-1], state)
-    rhs = _operand_range(inst.operands[-2], state)
     if lhs.is_empty or rhs.is_empty:
         return ValueRange.empty()
     if lhs.is_constant and rhs.is_constant:
@@ -88,13 +38,11 @@ def _eval_add(inst: IRInstruction, state: RangeState) -> ValueRange:
     hi = lhs.hi + rhs.hi
     if hi > UNSIGNED_MAX:
         return ValueRange.top()
-    return ValueRange((lo, hi))
+    return ValueRange.iv(lo, hi)
 
 
-def _eval_sub(inst: IRInstruction, state: RangeState) -> ValueRange:
+def eval_sub(lhs: ValueRange, rhs: ValueRange) -> ValueRange:
     """Evaluate sub instruction."""
-    lhs = _operand_range(inst.operands[-1], state)
-    rhs = _operand_range(inst.operands[-2], state)
     if lhs.is_empty or rhs.is_empty:
         return ValueRange.empty()
     if lhs.is_constant and rhs.is_constant:
@@ -109,13 +57,11 @@ def _eval_sub(inst: IRInstruction, state: RangeState) -> ValueRange:
     hi = lhs.hi - rhs.lo
     if lo < SIGNED_MIN or hi > UNSIGNED_MAX or lo > hi:
         return ValueRange.top()
-    return ValueRange((lo, hi))
+    return ValueRange.iv(lo, hi)
 
 
-def _eval_mul(inst: IRInstruction, state: RangeState) -> ValueRange:
+def eval_mul(lhs: ValueRange, rhs: ValueRange) -> ValueRange:
     """Evaluate mul instruction."""
-    lhs = _operand_range(inst.operands[-1], state)
-    rhs = _operand_range(inst.operands[-2], state)
     if lhs.is_empty or rhs.is_empty:
         return ValueRange.empty()
 
@@ -144,10 +90,10 @@ def _eval_mul(inst: IRInstruction, state: RangeState) -> ValueRange:
     hi = lhs.hi * rhs.hi
     if hi > UNSIGNED_MAX:
         return ValueRange.top()
-    return ValueRange((lo, hi))
+    return ValueRange.iv(lo, hi)
 
 
-def _eval_and(inst: IRInstruction, state: RangeState) -> ValueRange:
+def eval_and(lhs: ValueRange, rhs: ValueRange) -> ValueRange:
     """Evaluate bitwise and instruction.
 
     For `and x, mask` where mask is a literal:
@@ -164,82 +110,80 @@ def _eval_and(inst: IRInstruction, state: RangeState) -> ValueRange:
     Special case: AND with -1 (all bits set) is identity, so return
     the input range unchanged.
     """
-    first = inst.operands[-1]
-    second = inst.operands[-2]
-    first_range = _operand_range(first, state)
-    second_range = _operand_range(second, state)
-
-    if first_range.is_empty or second_range.is_empty:
+    if lhs.is_empty or rhs.is_empty:
         return ValueRange.empty()
 
-    literal: Optional[int] = None
-    other_range: Optional[ValueRange] = None
+    mask = None
+    other = None
 
-    if isinstance(first, IRLiteral):
-        literal = wrap256(first.value)
-        other_range = second_range
-    elif isinstance(second, IRLiteral):
-        literal = wrap256(second.value)
-        other_range = first_range
+    if lhs.is_constant:
+        mask = lhs.as_constant()
+        other = rhs
+    elif rhs.is_constant:
+        mask = rhs.as_constant()
+        other = lhs
 
-    if literal is None or other_range is None:
+    if mask is None or other is None:
         return ValueRange.top()
 
+    mask = wrap256(mask)
+
     # AND with -1 (all bits set) is identity
-    if literal == UNSIGNED_MAX:
-        return other_range
+    if mask == UNSIGNED_MAX:
+        return other
 
     # If the range includes negative values, those are large unsigned values
     # with potentially all bits set in the low positions. The AND result
     # could be any value from 0 to the mask.
-    if other_range.lo < 0:
+    if other.lo < 0:
         # Range includes negative values, result could be [0, mask]
-        return ValueRange((0, literal))
+        return ValueRange.iv(0, mask)
 
     # For non-negative ranges, the result is bounded by both the range
     # maximum and the mask
-    hi = min(other_range.hi, literal)
-    return ValueRange((0, hi))
+    hi = min(other.hi, mask)
+    return ValueRange.iv(0, hi)
 
 
-def _eval_byte(inst: IRInstruction, state: RangeState) -> ValueRange:
+def eval_byte(index: ValueRange, value: ValueRange) -> ValueRange:
     """Evaluate byte instruction.
 
     EVM byte(N, x) returns the N-th byte (from high end, big-endian).
     When N >= 32, the result is always 0.
     """
-    index_op = inst.operands[-1]
-    value_op = inst.operands[-2]
-    value_range = _operand_range(value_op, state)
-    if value_range.is_empty:
+    if index.is_empty or value.is_empty:
         return ValueRange.empty()
-    index = _get_uint_literal(index_op)
-    if index is not None and index >= 32:
+
+    idx = index.as_constant()
+    if idx is not None:
+        idx = wrap256(idx)
+
+    if idx is not None and idx >= 32:
         return ValueRange.constant(0)
 
-    # Use value_range to constrain result when possible
-    if index is not None and not value_range.is_top and value_range.lo >= 0:
+    # Use value range to constrain result when possible
+    if idx is not None and not value.is_top and value.lo >= 0:
         # byte N extracts bits at position (31-N)*8 to (31-N)*8+7
-        shift = (31 - index) * 8
+        shift = (31 - idx) * 8
 
         # If entire range is below this byte position, result is 0
-        if value_range.hi < (1 << shift):
+        if value.hi < (1 << shift):
             return ValueRange.constant(0)
 
         # Check if range spans multiple "byte boundaries"
-        lo_prefix = value_range.lo >> (shift + 8)
-        hi_prefix = value_range.hi >> (shift + 8)
+        lo_prefix = value.lo >> (shift + 8)
+        hi_prefix = value.hi >> (shift + 8)
 
         if lo_prefix == hi_prefix:
             # Same prefix - byte range is bounded
-            lo_byte = (value_range.lo >> shift) & 0xFF
-            hi_byte = (value_range.hi >> shift) & 0xFF
-            return ValueRange((lo_byte, hi_byte))
+            lo_byte = (value.lo >> shift) & 0xFF
+            hi_byte = (value.hi >> shift) & 0xFF
+            return ValueRange.iv(lo_byte, hi_byte)
 
     return ValueRange.bytes_range()
 
 
-def _eval_signextend(inst: IRInstruction, state: RangeState) -> ValueRange:
+def eval_signextend(index: ValueRange, value: ValueRange) -> ValueRange:
     """Evaluate signextend instruction.
 
     SIGNEXTEND(b, x) sign-extends x from (b+1)*8 bits to 256 bits.
@@ -252,26 +196,27 @@ def _eval_signextend(inst: IRInstruction, state: RangeState) -> ValueRange:
     The old implementation incorrectly intersected the input range with
     the output range, which would give BOTTOM for inputs like 384.
     """
-    index_op = inst.operands[-1]
-    value_op = inst.operands[-2]
-    value_range = _operand_range(value_op, state)
-    if value_range.is_empty:
+    if index.is_empty or value.is_empty:
         return ValueRange.empty()
-    index = _get_uint_literal(index_op)
-    if index is None:
-        return ValueRange.top()
-    if index >= 32:
-        return value_range
 
-    bits = 8 * (index + 1)
+    idx = index.as_constant()
+    if idx is not None:
+        idx = wrap256(idx)
+
+    if idx is None:
+        return ValueRange.top()
+    if idx >= 32:
+        return value
+
+    bits = 8 * (idx + 1)
     sign_bit = 1 << (bits - 1)
     mask = (1 << bits) - 1
     lo = -(1 << (bits - 1))  # e.g., -128 for index=0
     hi = (1 << (bits - 1)) - 1  # e.g., 127 for index=0
 
     # For constant inputs, compute the exact result
-    if value_range.is_constant:
-        val = value_range.lo
+    if value.is_constant:
+        val = value.lo
         # Extract low bits and sign-extend
         low_bits = val & mask
         if low_bits & sign_bit:
@@ -285,203 +230,189 @@ def _eval_signextend(inst: IRInstruction, state: RangeState) -> ValueRange:
     # For ranges, if the range fits within the target signed range,
     # we can intersect. Otherwise, the result could be any value
     # in the signed output range since high bits are ignored.
-    if value_range.lo >= lo and value_range.hi <= hi:
+    if value.lo >= lo and value.hi <= hi:
         # Input already within target range, sign extension is identity
-        return value_range
+        return value
 
     # For wide ranges or ranges outside target, the low bits could be
     # anything, so return the full signed range for the given byte width
-    return ValueRange((lo, hi))
+    return ValueRange.iv(lo, hi)
 
 
-def _eval_mod(inst: IRInstruction, state: RangeState) -> ValueRange:
+def eval_mod(dividend: ValueRange, divisor: ValueRange) -> ValueRange:
     """Evaluate mod instruction."""
-    dividend_op = inst.operands[-1]
-    divisor_op = inst.operands[-2]
-    dividend_range = _operand_range(dividend_op, state)
-    if dividend_range.is_empty:
+    if dividend.is_empty or divisor.is_empty:
         return ValueRange.empty()
-    divisor = _get_uint_literal(divisor_op)
-    if divisor is None:
+    d = divisor.as_constant()
+    if d is None:
         return ValueRange.top()
-    if divisor == 0:
+    d = wrap256(d)
+    if d == 0:
         return ValueRange.constant(0)
-    return ValueRange((0, divisor - 1))
+    return ValueRange.iv(0, d - 1)
 
 
-def _eval_div(inst: IRInstruction, state: RangeState) -> ValueRange:
+def eval_div(dividend: ValueRange, divisor: ValueRange) -> ValueRange:
     """Evaluate div instruction (unsigned division)."""
-    dividend_op = inst.operands[-1]
-    divisor_op = inst.operands[-2]
-    dividend_range = _operand_range(dividend_op, state)
-    if dividend_range.is_empty:
+    if dividend.is_empty or divisor.is_empty:
         return ValueRange.empty()
-    divisor = _get_uint_literal(divisor_op)
-    if divisor is None:
+    d = divisor.as_constant()
+    if d is None:
         return ValueRange.top()
-    if divisor == 0:
+    d = wrap256(d)
+    if d == 0:
         return ValueRange.constant(0)
     # TODO: could handle negative dividend ranges by converting to unsigned
     # interpretation, but this requires handling disjoint ranges
-    if dividend_range.lo < 0:
+    if dividend.lo < 0:
         return ValueRange.top()
-    return ValueRange((dividend_range.lo // divisor, dividend_range.hi // divisor))
+    return ValueRange.iv(dividend.lo // d, dividend.hi // d)
 
 
-def _eval_shr(inst: IRInstruction, state: RangeState) -> ValueRange:
+def eval_shr(shift: ValueRange, value: ValueRange) -> ValueRange:
     """Evaluate shr (shift right) instruction."""
-    shift_op = inst.operands[-1]
-    value_op = inst.operands[-2]
-    value_range = _operand_range(value_op, state)
-    if value_range.is_empty:
+    if shift.is_empty or value.is_empty:
         return ValueRange.empty()
-    shift = _get_uint_literal(shift_op)
-    if shift is None:
+    s = shift.as_constant()
+    if s is None:
         return ValueRange.top()
+    s = wrap256(s)
     # shift >= 256 always produces 0 regardless of input
-    if shift >= 256:
+    if s >= 256:
         return ValueRange.constant(0)
-    if value_range.lo < 0:
+    if value.lo < 0:
         return ValueRange.top()
-    amount = 1 << shift
-    return ValueRange((value_range.lo // amount, value_range.hi // amount))
+    amount = 1 << s
+    return ValueRange.iv(value.lo // amount, value.hi // amount)
 
 
-def _eval_shl(inst: IRInstruction, state: RangeState) -> ValueRange:
+def eval_shl(shift: ValueRange, value: ValueRange) -> ValueRange:
     """Evaluate shl (shift left) instruction."""
-    shift_op = inst.operands[-1]
-    value_op = inst.operands[-2]
-    value_range = _operand_range(value_op, state)
-    if value_range.is_empty:
+    if shift.is_empty or value.is_empty:
         return ValueRange.empty()
-    shift = _get_uint_literal(shift_op)
-    if shift is None:
+    s = shift.as_constant()
+    if s is None:
         return ValueRange.top()
+    s = wrap256(s)
     # shift >= 256 always produces 0 regardless of input
-    if shift >= 256:
+    if s >= 256:
         return ValueRange.constant(0)
-    if value_range.lo < 0:
+    if value.lo < 0:
         return ValueRange.top()
-    max_input = UNSIGNED_MAX >> shift
-    if value_range.hi > max_input:
+    max_input = UNSIGNED_MAX >> s
+    if value.hi > max_input:
         return ValueRange.top()
-    result_lo = value_range.lo << shift
-    result_hi = value_range.hi << shift
+    result_lo = value.lo << s
+    result_hi = value.hi << s
     # Convert to signed representation for consistency with range system
     result_lo = wrap256(result_lo, signed=True)
     result_hi = wrap256(result_hi, signed=True)
     # If conversion causes lo > hi (range wraps around), return TOP
     if result_lo > result_hi:
         return ValueRange.top()
-    return ValueRange((result_lo, result_hi))
+    return ValueRange.iv(result_lo, result_hi)
 
 
-def _eval_sar(inst: IRInstruction, state: RangeState) -> ValueRange:
+def eval_sar(shift: ValueRange, value: ValueRange) -> ValueRange:
     """Evaluate sar (arithmetic shift right) instruction."""
-    shift_op = inst.operands[-1]
-    value_op = inst.operands[-2]
-    shift = _get_uint_literal(shift_op)
-    value_range = _operand_range(value_op, state)
-    if shift is None:
-        return ValueRange.top()
-    if value_range.is_empty:
+    if shift.is_empty or value.is_empty:
         return ValueRange.empty()
-    if value_range.hi > SIGNED_MAX:
+    s = shift.as_constant()
+    if s is None:
         return ValueRange.top()
-    if shift >= 256:
-        if value_range.lo >= 0:
+    s = wrap256(s)
+    if value.hi > SIGNED_MAX:
+        return ValueRange.top()
+    if s >= 256:
+        if value.lo >= 0:
             return ValueRange.constant(0)
-        if value_range.hi < 0:
+        if value.hi < 0:
             return ValueRange.constant(-1)
-        return ValueRange((-1, 0))
-    return ValueRange((value_range.lo >> shift, value_range.hi >> shift))
+        return ValueRange.iv(-1, 0)
+    return ValueRange.iv(value.lo >> s, value.hi >> s)
 
 
-def _eval_sdiv(inst: IRInstruction, state: RangeState) -> ValueRange:
+def eval_sdiv(dividend: ValueRange, divisor: ValueRange) -> ValueRange:
     """Evaluate sdiv (signed division) instruction.
 
     EVM sdiv interprets both operands as signed and returns a signed result.
     Special case: SIGNED_MIN / -1 = SIGNED_MIN (overflow, doesn't negate).
     """
-    dividend_op = inst.operands[-1]
-    divisor_op = inst.operands[-2]
-    dividend_range = _operand_range(dividend_op, state)
-    if dividend_range.is_empty:
+    if dividend.is_empty or divisor.is_empty:
         return ValueRange.empty()
-    divisor = _get_signed_literal(divisor_op)
-    if divisor is None:
+    d = divisor.as_constant()
+    # d is already signed from as_constant()
+    if d is None:
         return ValueRange.top()
-    if divisor == 0:
+    if d == 0:
         return ValueRange.constant(0)
 
     # For constant dividend, compute exact result
-    if dividend_range.is_constant:
-        dividend = dividend_range.lo
+    if dividend.is_constant:
+        dv = dividend.lo
         # Special case: SIGNED_MIN / -1 = SIGNED_MIN (no negation due to overflow)
-        if dividend == SIGNED_MIN and divisor == -1:
+        if dv == SIGNED_MIN and d == -1:
             return ValueRange.constant(SIGNED_MIN)
         # Standard signed division
-        sign = -1 if (dividend < 0) != (divisor < 0) else 1
-        result = sign * (abs(dividend) // abs(divisor))
+        sign = -1 if (dv < 0) != (d < 0) else 1
+        result = sign * (abs(dv) // abs(d))
         return ValueRange.constant(result)
 
     # For ranges, compute bounds
     # Division by positive divisor preserves order: lo/d <= x/d <= hi/d
     # Division by negative divisor reverses order: hi/d <= x/d <= lo/d
-    if divisor > 0:
+    if d > 0:
         # Truncation toward zero means we need to be careful with bounds
         # Python uses floor division, so for negative dividends we adjust
-        if dividend_range.lo >= 0:
-            result_lo = dividend_range.lo // divisor
-            result_hi = dividend_range.hi // divisor
-        elif dividend_range.hi < 0:
+        if dividend.lo >= 0:
+            result_lo = dividend.lo // d
+            result_hi = dividend.hi // d
+        elif dividend.hi < 0:
             # Both negative: division truncates toward zero
             # -7 // 3 in EVM = -2 (truncate), in Python = -3 (floor)
-            result_hi = -(abs(dividend_range.lo) // divisor)
-            result_lo = -(abs(dividend_range.hi) // divisor)
+            result_hi = -(abs(dividend.lo) // d)
+            result_lo = -(abs(dividend.hi) // d)
         else:
             # Range spans zero - result spans from negative to positive
-            result_lo = -(abs(dividend_range.lo) // divisor)
-            result_hi = dividend_range.hi // divisor
+            result_lo = -(abs(dividend.lo) // d)
+            result_hi = dividend.hi // d
     else:
         # Negative divisor - more complex, return TOP for now
         # TODO: could be more precise for negative divisors
         return ValueRange.top()
 
-    return ValueRange((result_lo, result_hi))
+    return ValueRange.iv(result_lo, result_hi)
 
 
-def _eval_smod(inst: IRInstruction, state: RangeState) -> ValueRange:
+def eval_smod(dividend: ValueRange, divisor: ValueRange) -> ValueRange:
     """Evaluate smod (signed modulo) instruction.
 
     EVM smod: the result has the same sign as the dividend.
     smod(x, y) = sign(x) * (abs(x) % abs(y))
     """
-    dividend_op = inst.operands[-1]
-    divisor_op = inst.operands[-2]
-    dividend_range = _operand_range(dividend_op, state)
-    if dividend_range.is_empty:
+    if dividend.is_empty or divisor.is_empty:
         return ValueRange.empty()
-    divisor = _get_signed_literal(divisor_op)
-    if divisor is None:
+    d = divisor.as_constant()
+    # d is already signed from as_constant()
+    if d is None:
         return ValueRange.top()
-    if divisor == 0:
+    if d == 0:
         return ValueRange.constant(0)
-    limit = abs(divisor) - 1
+    limit = abs(d) - 1
 
     # Result sign follows dividend sign, so we can narrow based on dividend range
-    if dividend_range.lo >= 0:
+    if dividend.lo >= 0:
         # Dividend is non-negative, result is non-negative
-        return ValueRange((0, min(limit, dividend_range.hi)))
-    elif dividend_range.hi <= 0:
+        return ValueRange.iv(0, min(limit, dividend.hi))
+    elif dividend.hi <= 0:
         # Dividend is non-positive, result is non-positive
-        return ValueRange((max(-limit, dividend_range.lo), 0))
+        return ValueRange.iv(max(-limit, dividend.lo), 0)
     else:
         # Dividend spans zero, result could be in full range
-        return ValueRange((-limit, limit))
+        return ValueRange.iv(-limit, limit)
 
 
-def _eval_compare(inst: IRInstruction, state: RangeState) -> ValueRange:
+def eval_compare(opcode: str, lhs: ValueRange, rhs: ValueRange) -> ValueRange:
     """Evaluate comparison instructions (lt, gt, slt, sgt).
 
     IMPORTANT: EVM lt/gt are UNSIGNED comparisons, while slt/sgt are SIGNED.
@@ -494,12 +425,9 @@ def _eval_compare(inst: IRInstruction, state: RangeState) -> ValueRange:
     and non-negative values), unsigned comparisons cannot be resolved
     definitively using signed range bounds.
     """
-    lhs = _operand_range(inst.operands[-1], state)
-    rhs = _operand_range(inst.operands[-2], state)
     if lhs.is_empty or rhs.is_empty:
         return ValueRange.empty()
 
-    opcode = inst.opcode
     is_signed = opcode in {"slt", "sgt"}
 
     # For unsigned comparisons, if either range spans the sign boundary,
@@ -547,7 +475,7 @@ def _eval_compare(inst: IRInstruction, state: RangeState) -> ValueRange:
     return ValueRange.bool_range()
 
 
-def _eval_eq(inst: IRInstruction, state: RangeState) -> ValueRange:
+def eval_eq(lhs: ValueRange, rhs: ValueRange) -> ValueRange:
     """Evaluate eq (equality) instruction.
 
     IMPORTANT: In EVM, eq compares 256-bit values directly. -1 and MAX_UINT
@@ -557,9 +485,6 @@ def _eval_eq(inst: IRInstruction, state: RangeState) -> ValueRange:
     since the same value can be represented as both -1 (signed) and
     MAX_UINT (unsigned) in our range representation.
     """
-    lhs = _operand_range(inst.operands[-1], state)
-    rhs = _operand_range(inst.operands[-2], state)
-
     if lhs.is_empty or rhs.is_empty:
         return ValueRange.empty()
 
@@ -592,20 +517,18 @@ def _eval_eq(inst: IRInstruction, state: RangeState) -> ValueRange:
     return ValueRange.bool_range()
 
 
-def _eval_iszero(inst: IRInstruction, state: RangeState) -> ValueRange:
+def eval_iszero(operand: ValueRange) -> ValueRange:
     """Evaluate iszero instruction."""
-    operand = inst.operands[-1]
-    target = _operand_range(operand, state)
-    if target.is_empty:
+    if operand.is_empty:
         return ValueRange.empty()
-    if target.is_constant:
-        return ValueRange.constant(int(target.lo == 0))
-    if target.lo > 0 or target.hi < 0:
+    if operand.is_constant:
+        return ValueRange.constant(int(operand.lo == 0))
+    if operand.lo > 0 or operand.hi < 0:
         return ValueRange.constant(0)
     return ValueRange.bool_range()
 
 
-def _eval_or(inst: IRInstruction, state: RangeState) -> ValueRange:
+def eval_or(lhs: ValueRange, rhs: ValueRange) -> ValueRange:
     """Evaluate bitwise or instruction.
 
     For `or x, y`:
@@ -614,68 +537,51 @@ def _eval_or(inst: IRInstruction, state: RangeState) -> ValueRange:
     - If either operand is -1 (all bits set): return -1
     - Otherwise: return TOP (hard to bound precisely)
     """
-    first = inst.operands[-1]
-    second = inst.operands[-2]
-    first_range = _operand_range(first, state)
-    second_range = _operand_range(second, state)
-
-    if first_range.is_empty or second_range.is_empty:
+    if lhs.is_empty or rhs.is_empty:
         return ValueRange.empty()
 
     # Both constants: compute exact result
-    if first_range.is_constant and second_range.is_constant:
+    if lhs.is_constant and rhs.is_constant:
         # Convert to unsigned for bitwise op, then wrap result
-        a = wrap256(first_range.lo)
-        b = wrap256(second_range.lo)
+        a = wrap256(lhs.lo)
+        b = wrap256(rhs.lo)
         return ValueRange.constant(wrap256(a | b, signed=True))
 
     # If either is constant 0: return the other
-    if first_range.is_constant and first_range.lo == 0:
-        return second_range
-    if second_range.is_constant and second_range.lo == 0:
-        return first_range
+    if lhs.is_constant and lhs.lo == 0:
+        return rhs
+    if rhs.is_constant and rhs.lo == 0:
+        return lhs
 
     # If either is -1 (all bits set): result is -1
-    if first_range.is_constant and wrap256(first_range.lo) == UNSIGNED_MAX:
+    if lhs.is_constant and wrap256(lhs.lo) == UNSIGNED_MAX:
         return ValueRange.constant(-1)
-    if second_range.is_constant and wrap256(second_range.lo) == UNSIGNED_MAX:
+    if rhs.is_constant and wrap256(rhs.lo) == UNSIGNED_MAX:
         return ValueRange.constant(-1)
 
     return ValueRange.top()
 
 
-def _eval_xor(inst: IRInstruction, state: RangeState) -> ValueRange:
+def eval_xor(lhs: ValueRange, rhs: ValueRange) -> ValueRange:
     """Evaluate bitwise xor instruction.
 
     For `xor x, y`:
-    - If x and y are the same variable: return 0
     - If both are constants: return x ^ y
     - Otherwise: return TOP
     """
-    first = inst.operands[-1]
-    second = inst.operands[-2]
-    first_range = _operand_range(first, state)
-    second_range = _operand_range(second, state)
-
-    if first_range.is_empty or second_range.is_empty:
+    if lhs.is_empty or rhs.is_empty:
         return ValueRange.empty()
 
-    # Self-xor optimization: xor %x, %x = 0
-    # Must check after empty check to return BOTTOM for unreachable code
-    if isinstance(first, IRVariable) and isinstance(second, IRVariable):
-        if first == second:
-            return ValueRange.constant(0)
-
     # Both constants: compute exact result
-    if first_range.is_constant and second_range.is_constant:
-        a = wrap256(first_range.lo)
-        b = wrap256(second_range.lo)
+    if lhs.is_constant and rhs.is_constant:
+        a = wrap256(lhs.lo)
+        b = wrap256(rhs.lo)
         return ValueRange.constant(wrap256(a ^ b, signed=True))
 
     return ValueRange.top()
 
 
-def _eval_not(inst: IRInstruction, state: RangeState) -> ValueRange:
+def eval_not(operand: ValueRange) -> ValueRange:
     """Evaluate bitwise not instruction.
 
     EVM NOT: ~x = UNSIGNED_MAX ^ x (flips all bits)
@@ -683,43 +589,59 @@ def _eval_not(inst: IRInstruction, state: RangeState) -> ValueRange:
     For constant input: return exact result
     Otherwise: return TOP
     """
-    operand = inst.operands[-1]
-    operand_range = _operand_range(operand, state)
-
-    if operand_range.is_empty:
+    if operand.is_empty:
         return ValueRange.empty()
 
-    if operand_range.is_constant:
-        val = wrap256(operand_range.lo)
+    if operand.is_constant:
+        val = wrap256(operand.lo)
         result = UNSIGNED_MAX ^ val
         return ValueRange.constant(wrap256(result, signed=True))
 
     return ValueRange.top()
 
 
-# Dispatch table mapping opcodes to their evaluator functions
-EVAL_DISPATCH: dict[str, RangeEvaluator] = {
-    "assign": _eval_assign,
-    "add": _eval_add,
-    "sub": _eval_sub,
-    "mul": _eval_mul,
-    "and": _eval_and,
-    "or": _eval_or,
-    "xor": _eval_xor,
-    "not": _eval_not,
-    "byte": _eval_byte,
-    "signextend": _eval_signextend,
-    "mod": _eval_mod,
-    "div": _eval_div,
-    "sdiv": _eval_sdiv,
-    "shr": _eval_shr,
-    "shl": _eval_shl,
-    "sar": _eval_sar,
-    "smod": _eval_smod,
-    "lt": _eval_compare,
-    "gt": _eval_compare,
-    "slt": _eval_compare,
-    "sgt": _eval_compare,
-    "eq": _eval_eq,
-    "iszero": _eval_iszero,
-}
+def eval_op(opcode: str, lhs: ValueRange, rhs: ValueRange) -> ValueRange:
+    """Evaluate a binary opcode on two ranges.
+
+    Pure case dispatch. For unary ops, caller passes ValueRange.top() as rhs
+    (unused by the evaluator).
+    """
+    if opcode == "add":
+        return eval_add(lhs, rhs)
+    if opcode == "sub":
+        return eval_sub(lhs, rhs)
+    if opcode == "mul":
+        return eval_mul(lhs, rhs)
+    if opcode == "and":
+        return eval_and(lhs, rhs)
+    if opcode == "or":
+        return eval_or(lhs, rhs)
+    if opcode == "xor":
+        return eval_xor(lhs, rhs)
+    if opcode == "byte":
+        return eval_byte(lhs, rhs)
+    if opcode == "signextend":
+        return eval_signextend(lhs, rhs)
+    if opcode == "mod":
+        return eval_mod(lhs, rhs)
+    if opcode == "div":
+        return eval_div(lhs, rhs)
+    if opcode == "sdiv":
+        return eval_sdiv(lhs, rhs)
+    if opcode == "smod":
+        return eval_smod(lhs, rhs)
+    if opcode == "shr":
+        return eval_shr(lhs, rhs)
+    if opcode == "shl":
+        return eval_shl(lhs, rhs)
+    if opcode == "sar":
+        return eval_sar(lhs, rhs)
+    if opcode == "eq":
+        return eval_eq(lhs, rhs)
+    if opcode in ("lt", "gt", "slt", "sgt"):
+        return eval_compare(opcode, lhs, rhs)
+    if opcode == "iszero":
+        return eval_iszero(lhs)
+    if opcode == "not":
+        return eval_not(lhs)
+    return ValueRange.top()

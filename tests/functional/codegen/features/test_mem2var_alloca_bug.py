@@ -1,12 +1,12 @@
 """
-Regression test for mem2var palloca miscompile bug.
+Regression test for mem2var alloca miscompile bug.
 
 The bug occurred when:
 1. An internal function has a memory-passed parameter (>32 bytes)
-2. The palloca is only used for mload/mstore at offset 0 (no pointer arithmetic)
+2. The alloca is only used for mload/mstore at offset 0 (no pointer arithmetic)
 3. mem2var incorrectly used the SIZE as the mload address instead of the actual address
 
-Tests disable function inlining to ensure the palloca code path is exercised.
+Tests disable function inlining to ensure the alloca code path is exercised.
 """
 import copy
 
@@ -25,7 +25,7 @@ def no_inline_settings(compiler_settings):
 
 
 @pytest.mark.hevm
-def test_mem2var_palloca_struct_first_field(get_contract, no_inline_settings):
+def test_mem2var_alloca_struct_first_field(get_contract, no_inline_settings):
     """
     A 64-byte struct is passed via memory. Accessing only the first field
     (offset 0) means no pointer arithmetic, which triggered the bug.
@@ -49,7 +49,7 @@ def test_val() -> uint256:
 
 
 @pytest.mark.hevm
-def test_mem2var_palloca_array_first_element(get_contract, no_inline_settings):
+def test_mem2var_alloca_array_first_element(get_contract, no_inline_settings):
     """
     A 64-byte array (uint256[2]) passed via memory. Accessing only arr[0]
     (offset 0) means no pointer arithmetic, which triggered the bug.
@@ -69,7 +69,7 @@ def test_val() -> uint256:
 
 
 @pytest.mark.hevm
-def test_mem2var_palloca_bytes32_array(get_contract, no_inline_settings):
+def test_mem2var_alloca_bytes32_array(get_contract, no_inline_settings):
     """
     Test with bytes32[2] array (64 bytes, memory-passed).
     """

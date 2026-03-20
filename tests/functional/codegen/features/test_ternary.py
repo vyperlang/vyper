@@ -166,6 +166,20 @@ def test_ternary_simple(get_contract, code, test, inputs):
     assert c.foo(test, x, y) == (x if test else y)
 
 
+@pytest.mark.parametrize("test", [True, False])
+def test_ternary_dynarray_subscript(get_contract, test):
+    code = """
+@external
+def foo(t: bool, a: DynArray[uint256, 3], b: DynArray[uint256, 3]) -> uint256:
+    return (a if t else b)[0]
+    """
+    c = get_contract(code)
+
+    a = [11, 22]
+    b = [33, 44]
+    assert c.foo(test, a, b) == (a if test else b)[0]
+
+
 tuple_codes = [
     """
 @external
