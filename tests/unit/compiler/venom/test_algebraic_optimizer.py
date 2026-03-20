@@ -294,6 +294,41 @@ def test_fold_add_chain_three_deep():
     _check_pre_post(pre, post)
 
 
+def test_iszero_chain_after_comparator_rewrite():
+    """Comparator rewrite can mutate an iszero in the chain (e.g. gt -> slt
+    removes an iszero), making the pre-computed iszero_depth stale.
+    The walk must bail out gracefully instead of asserting."""
+    pre = """
+    main:
+        %x = source
+        %cmp = gt %x, 5
+        %a = iszero %cmp
+        %b = iszero %a
+        jnz %b, @then, @else
+    then:
+        sink %x
+    else:
+        sink %x
+    """
+    # The comparator handler flips gt to lt and absorbs the iszero
+    # at %a (converting it to assign). The chain is now stale —
+    # %cmp has inverted semantics. The chain validator detects that
+    # %a is no longer iszero and bails out, leaving jnz %b intact.
+    post = """
+    main:
+        %x = source
+        %cmp = gt 6, %x
+        %a = %cmp
+        %b = iszero %a
+        jnz %b, @then, @else
+    then:
+        sink %x
+    else:
+        sink %x
+    """
+    _check_pre_post(pre, post)
+
+
 def test_offsets():
     """
     Test of addition to offset rewrites
