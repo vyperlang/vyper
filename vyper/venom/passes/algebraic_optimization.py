@@ -39,10 +39,20 @@ def _push_size(value: int) -> int:
 class VarInfo:
     base: IROperand | None  # root variable, or None for pure constant
     offset: int  # constant offset (wrap256)
+    iszero_depth: int  # number of iszero applications from iszero_root
+    iszero_root: IROperand | None  # operand at the base of the iszero chain
 
     @classmethod
-    def of(cls, base: IROperand | None, offset: int = 0) -> "VarInfo":
-        return cls(base=base, offset=wrap256(offset))
+    def of(
+        cls,
+        base: IROperand | None,
+        offset: int = 0,
+        iszero_depth: int = 0,
+        iszero_root: IROperand | None = None,
+    ) -> "VarInfo":
+        return cls(
+            base=base, offset=wrap256(offset), iszero_depth=iszero_depth, iszero_root=iszero_root
+        )
 
 
 # --- Pure transfer functions (module-level, no self) ---
@@ -82,6 +92,15 @@ def transfer_assign(src: VarInfo) -> VarInfo:
     return src
 
 
+def transfer_iszero(src: VarInfo, op: IROperand) -> VarInfo:
+    """Pure: extend or start an iszero chain."""
+    if src.iszero_depth > 0:
+        # extend existing chain
+        return VarInfo.of(None, iszero_depth=src.iszero_depth + 1, iszero_root=src.iszero_root)
+    # start new chain — root is the operand fed into this iszero
+    return VarInfo.of(None, iszero_depth=1, iszero_root=op)
+
+
 class AlgebraicOptimizationPass(IRPass):
     """
     This pass reduces algebraic evaluatable expressions.
@@ -105,12 +124,6 @@ class AlgebraicOptimizationPass(IRPass):
         self.updater = InstUpdater(self.dfg)
         self._handle_offset()
 
-        # Two passes: iszero chain optimization can expose new affine
-        # folding opportunities (e.g. removing iszero nodes that were
-        # blocking chain traversal), so we recompute and rewrite after.
-        self.var_info = self._compute_var_info()
-        self._rewrite_all()
-        self._optimize_iszero_chains()
         self.var_info = self._compute_var_info()
         self._rewrite_all()
 
@@ -135,6 +148,9 @@ class AlgebraicOptimizationPass(IRPass):
                     info[inst.output] = transfer_sub(minuend, subtrahend, inst.output)
                 elif inst.opcode == "assign":
                     info[inst.output] = transfer_assign(_lookup(inst.operands[0], info))
+                elif inst.opcode == "iszero":
+                    src = _lookup(inst.operands[0], info)
+                    info[inst.output] = transfer_iszero(src, inst.operands[0])
                 else:
                     info[inst.output] = VarInfo.of(inst.output)
         return info
@@ -144,8 +160,42 @@ class AlgebraicOptimizationPass(IRPass):
     def _rewrite_all(self):
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
+                self._rewrite_iszero_uses(inst)
                 self._rewrite_inst(inst)
                 self._flip_inst(inst)
+
+    def _rewrite_iszero_uses(self, inst: IRInstruction):
+        """Use lattice iszero_depth to shorten iszero chains at use sites."""
+        if inst.opcode == "iszero":
+            return  # iszero-to-iszero links are left alone
+
+        replacements: dict[IROperand, IROperand] = {}
+        for op in inst.operands:
+            if not isinstance(op, IRVariable):
+                continue
+            vi = self.var_info.get(op)
+            if vi is None or vi.iszero_depth == 0:
+                continue
+
+            depth = vi.iszero_depth
+            if inst.opcode in ("jnz", "assert", "assert_unreachable"):
+                keep = depth % 2
+            else:
+                keep = 2 - depth % 2
+
+            if keep >= depth:
+                continue
+
+            # walk back (depth - keep) iszero producers from op
+            target: IROperand = op
+            for _ in range(depth - keep):
+                prod = self.dfg.get_producing_instruction(target)
+                assert prod is not None and prod.opcode == "iszero"
+                target = prod.operands[0]
+            replacements[op] = target
+
+        if len(replacements) > 0:
+            self.updater.update_operands(inst, replacements)
 
     def _rewrite_inst(self, inst: IRInstruction):
         if inst.num_outputs != 1:
@@ -440,55 +490,6 @@ class AlgebraicOptimizationPass(IRPass):
 
     # --- Unchanged methods ---
 
-    def _optimize_iszero_chains(self) -> None:
-        fn = self.function
-        for bb in fn.get_basic_blocks():
-            for inst in bb.instructions:
-                if inst.opcode != "iszero":
-                    continue
-
-                iszero_chain = self._get_iszero_chain(inst.operands[0])
-                iszero_count = len(iszero_chain)
-                if iszero_count == 0:
-                    continue
-
-                inst_out = inst.output
-                for use_inst in self.dfg.get_uses(inst_out).copy():
-                    opcode = use_inst.opcode
-
-                    if opcode == "iszero":
-                        # We keep iszero instuctions as is
-                        continue
-                    if opcode in ("jnz", "assert", "assert_unreachable"):
-                        # instructions that accept a truthy value as input:
-                        # we can remove up to all the iszero instructions
-                        keep_count = 1 - iszero_count % 2
-                    else:
-                        # all other instructions:
-                        # we need to keep at least one or two iszero instructions
-                        keep_count = 1 + iszero_count % 2
-
-                    if keep_count >= iszero_count:
-                        continue
-
-                    out_var = iszero_chain[keep_count].operands[0]
-                    self.updater.update_operands(use_inst, {inst_out: out_var})
-
-    def _get_iszero_chain(self, op: IROperand) -> list[IRInstruction]:
-        chain: list[IRInstruction] = []
-
-        while True:
-            if not isinstance(op, IRVariable):
-                break
-            inst = self.dfg.get_producing_instruction(op)
-            if inst is None or inst.opcode != "iszero":
-                break
-            op = inst.operands[0]
-            chain.append(inst)
-
-        chain.reverse()
-        return chain
-
     def _handle_offset(self):
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
@@ -638,14 +639,33 @@ class AlgebraicOptimizationPass(IRPass):
 
         if lit_eq(operands[0], almost_never):
             # (lt x 1), (gt x (MAX_UINT256 - 1)), (slt x (MIN_INT256 + 1))
-
+            if never == 0:
+                # eq x 0 => iszero x
+                self.updater.update(inst, "iszero", [operands[1]])
+                return
+            if wrap256(never) == wrap256(-1):
+                # eq x -1 => iszero(not x)
+                var = self.updater.add_before(inst, "not", [operands[1]])
+                assert var is not None
+                self.updater.update(inst, "iszero", [var])
+                return
             self.updater.update(inst, "eq", [operands[1], IRLiteral(never)])
             return
 
         # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
         if prefer_iszero and lit_eq(operands[0], almost_always):
             # e.g. gt x 0, slt x MAX_INT256
-            tmp = self.updater.add_before(inst, "eq", operands)
+            # produce iszero(iszero(xor x N)) directly, with
+            # xor x 0 = x and xor x -1 = not x as special cases
+            val = operands[0].value
+            x = operands[1]
+            if val == 0:
+                inner = x
+            elif wrap256(val) == wrap256(-1):
+                inner = self.updater.add_before(inst, "not", [x])
+            else:
+                inner = self.updater.add_before(inst, "xor", [operands[0], x])
+            tmp = self.updater.add_before(inst, "iszero", [inner])
             self.updater.update(inst, "iszero", [tmp])
             return
 
