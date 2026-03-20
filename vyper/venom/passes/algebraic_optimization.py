@@ -248,6 +248,8 @@ class AlgebraicOptimizationPass(IRPass):
         if eff_base == base:
             eff_offset = offset
         else:
+            if not isinstance(eff_base, IRVariable):
+                return False
             vi_eff = self.var_info.get(eff_base)
             if vi_eff is None or vi_eff.base != base:
                 return False
