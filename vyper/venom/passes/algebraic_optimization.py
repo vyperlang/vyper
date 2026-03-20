@@ -229,6 +229,12 @@ class AlgebraicOptimizationPass(IRPass):
         if base == imm_base:
             return False
 
+        # Don't fold through multi-use intermediates — this destroys
+        # CSE opportunities for shared base pointers (e.g. alloca+64
+        # used by multiple mcopy destinations).
+        if isinstance(imm_base, IRVariable) and not self.dfg.is_single_use(imm_base):
+            return False
+
         if offset == 0:
             self.updater.mk_assign(inst, base)
             return True
