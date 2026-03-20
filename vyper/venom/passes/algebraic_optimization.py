@@ -42,12 +42,7 @@ class VarInfo:
     iszero_depth: int  # number of iszero applications (0 = not in a chain)
 
     @classmethod
-    def of(
-        cls,
-        base: IROperand | None,
-        offset: int = 0,
-        iszero_depth: int = 0,
-    ) -> "VarInfo":
+    def of(cls, base: IROperand | None, offset: int = 0, iszero_depth: int = 0) -> "VarInfo":
         return cls(base=base, offset=wrap256(offset), iszero_depth=iszero_depth)
 
 
