@@ -129,22 +129,17 @@ class AlgebraicOptimizationPass(IRPass):
                     rhs = _lookup(inst.operands[0], info)
                     info[inst.output] = transfer_add(lhs, rhs, inst.output)
                 elif inst.opcode == "sub":
-                    # sub computes operands[1] - operands[0]
                     minuend = _lookup(inst.operands[1], info)
                     subtrahend = _lookup(inst.operands[0], info)
                     info[inst.output] = transfer_sub(minuend, subtrahend, inst.output)
                 elif inst.opcode == "assign":
                     info[inst.output] = transfer_assign(_lookup(inst.operands[0], info))
-                elif inst.opcode == "iszero":
-                    # build iszero chain targets forward: (root, 1st, 2nd, ...)
-                    inp = inst.operands[0]
-                    if isinstance(inp, IRVariable) and inp in targets:
-                        prev = targets[inp]
-                    else:
-                        prev = (inp,)
-                    targets[inst.output] = prev + (inst.output,)
-                    info[inst.output] = VarInfo.of(inst.output)
                 else:
+                    if inst.opcode == "iszero":
+                        # build iszero chain targets: (root, 1st, 2nd, ...)
+                        inp = inst.operands[0]
+                        prev = targets[inp] if isinstance(inp, IRVariable) and inp in targets else (inp,)
+                        targets[inst.output] = prev + (inst.output,)
                     info[inst.output] = VarInfo.of(inst.output)
         return info, targets
 
@@ -493,7 +488,8 @@ class AlgebraicOptimizationPass(IRPass):
                 ):
                     inst.opcode = "offset"
 
-    def _is_lit(self, operand: IROperand) -> bool:
+    @staticmethod
+    def _is_lit(operand: IROperand) -> bool:
         return isinstance(operand, IRLiteral)
 
     def _extract_value_and_literal_operands(
@@ -518,6 +514,59 @@ class AlgebraicOptimizationPass(IRPass):
         if inst.flippable and self._is_lit(ops[0]) and not self._is_lit(ops[1]):
             inst.flip()
 
+    def _try_range_cmp(
+        self, inst: IRInstruction, operands: list, is_gt: bool, signed: bool
+    ) -> int | None:
+        """Try to resolve a comparison to a constant using range analysis.
+        Returns 0 or 1 if resolved, None otherwise."""
+        a_op = operands[-1]  # first in text
+        b_op = operands[-2]  # second in text
+
+        # identify which operand is the literal and which is the variable
+        if self._is_lit(a_op) and not self._is_lit(b_op):
+            lit_val, var_op = a_op.value, b_op
+            lit_is_first = True
+        elif self._is_lit(b_op) and not self._is_lit(a_op):
+            lit_val, var_op = b_op.value, a_op
+            lit_is_first = False
+        else:
+            return None
+
+        var_range = self.range_analysis.get_range(var_op, inst)
+        if var_range.is_top or var_range.is_empty:
+            return None
+
+        # normalize literal to match range representation
+        if signed:
+            if var_range.hi > SizeLimits.MAX_INT256:
+                return None
+            lit_val = wrap256(lit_val, signed=True)
+        else:
+            if var_range.lo < 0:
+                return None
+            lit_val = wrap256(lit_val)
+
+        # determine effective comparison direction:
+        # lit_is_first with is_gt means "lit > var"
+        # lit_is_first without is_gt means "lit < var"
+        # flipping lit_is_first flips the direction
+        lit_gt_var = is_gt == lit_is_first
+
+        if lit_gt_var:
+            # lit > var: always true if lit > var.hi, always false if lit <= var.lo
+            if lit_val > var_range.hi:
+                return 1
+            if lit_val <= var_range.lo:
+                return 0
+        else:
+            # var > lit: always true if var.lo > lit, always false if var.hi <= lit
+            if var_range.lo > lit_val:
+                return 1
+            if var_range.hi <= lit_val:
+                return 0
+
+        return None
+
     def _optimize_comparator_instruction(self, inst, prefer_iszero):
         opcode, operands = inst.opcode, inst.operands
         assert opcode in COMPARATOR_INSTRUCTIONS  # sanity
@@ -531,80 +580,13 @@ class AlgebraicOptimizationPass(IRPass):
         is_gt = "g" in opcode
         signed = "s" in opcode
 
-        # Range-based comparison optimization
-        # Semantics: lt a, b computes a < b; gt a, b computes a > b
-        # operands[-1] = a (first in text), operands[-2] = b (second in text)
-        # We can optimize when one operand is a literal and we have range info for the other
-        a_op = operands[-1]  # first in text
-        b_op = operands[-2]  # second in text
-
-        if self._is_lit(a_op) and not self._is_lit(b_op):
-            # a is literal, b is variable: comparing lit <?> var
-            lit = a_op.value
-            var_range = self.range_analysis.get_range(b_op, inst)
-            if not var_range.is_top and not var_range.is_empty:
-                if signed:
-                    if var_range.hi <= SizeLimits.MAX_INT256:
-                        lit = wrap256(lit, signed=True)
-                    else:
-                        lit = None
-                else:
-                    if var_range.lo >= 0:
-                        lit = wrap256(lit)
-                    else:
-                        lit = None
-
-                if lit is not None:
-                    if is_gt:
-                        # lit > var: always true if lit > var.hi, always false if lit <= var.lo
-                        if lit > var_range.hi:
-                            self.updater.mk_assign(inst, IRLiteral(1))
-                            return
-                        if lit <= var_range.lo:
-                            self.updater.mk_assign(inst, IRLiteral(0))
-                            return
-                    else:
-                        # lit < var: always true if lit < var.lo, always false if lit >= var.hi
-                        if lit < var_range.lo:
-                            self.updater.mk_assign(inst, IRLiteral(1))
-                            return
-                        if lit >= var_range.hi:
-                            self.updater.mk_assign(inst, IRLiteral(0))
-                            return
-
-        elif self._is_lit(b_op) and not self._is_lit(a_op):
-            # a is variable, b is literal: comparing var <?> lit
-            lit = b_op.value
-            var_range = self.range_analysis.get_range(a_op, inst)
-            if not var_range.is_top and not var_range.is_empty:
-                if signed:
-                    if var_range.hi <= SizeLimits.MAX_INT256:
-                        lit = wrap256(lit, signed=True)
-                    else:
-                        lit = None
-                else:
-                    if var_range.lo >= 0:
-                        lit = wrap256(lit)
-                    else:
-                        lit = None
-
-                if lit is not None:
-                    if is_gt:
-                        # var > lit: always true if var.lo > lit, always false if var.hi <= lit
-                        if var_range.lo > lit:
-                            self.updater.mk_assign(inst, IRLiteral(1))
-                            return
-                        if var_range.hi <= lit:
-                            self.updater.mk_assign(inst, IRLiteral(0))
-                            return
-                    else:
-                        # var < lit: always true if var.hi < lit, always false if var.lo >= lit
-                        if var_range.hi < lit:
-                            self.updater.mk_assign(inst, IRLiteral(1))
-                            return
-                        if var_range.lo >= lit:
-                            self.updater.mk_assign(inst, IRLiteral(0))
-                            return
+        # Range-based comparison optimization.
+        # Try to resolve comparisons with one literal operand using
+        # range analysis on the other.
+        result = self._try_range_cmp(inst, operands, is_gt, signed)
+        if result is not None:
+            self.updater.mk_assign(inst, IRLiteral(result))
+            return
 
         lo, hi = int_bounds(bits=256, signed=signed)
 
