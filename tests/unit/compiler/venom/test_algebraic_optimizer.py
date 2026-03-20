@@ -310,16 +310,14 @@ def test_iszero_chain_after_comparator_rewrite():
     else:
         sink %x
     """
-    # The comparator handler rewrites gt %x, 5 -> slt 6, %x and
-    # absorbs the iszero at %a. The iszero chain is broken but
-    # the pass must not crash.
+    # The comparator handler rewrites gt %x, 5 and absorbs the
+    # iszero at %a. The forward-computed targets still point to
+    # %cmp as the root, so jnz gets redirected directly.
     post = """
     main:
         %x = source
         %cmp = gt 6, %x
-        %a = %cmp
-        %b = iszero %a
-        jnz %b, @then, @else
+        jnz %cmp, @then, @else
     then:
         sink %x
     else:
