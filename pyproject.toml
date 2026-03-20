@@ -12,13 +12,13 @@ name = "vyper"
 dynamic = ["version"]
 description = "Vyper: the Pythonic Programming Language for the EVM"
 readme = "README.md"
-license = "Apache-2.0"
-license-files = ["LICENSE"]
+license = {text = "Apache License 2.0"}
 requires-python = ">=3.11,<4"
 authors = [{ name = "Vyper Team" }]
 keywords = ["ethereum", "evm", "smart contract", "language"]
 classifiers = [
     "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
