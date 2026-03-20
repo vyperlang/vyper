@@ -4,7 +4,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
 
 
 class LivenessAnalysis(IRAnalysis):
@@ -110,15 +110,16 @@ class LivenessAnalysis(IRAnalysis):
 
         # Map every phi operand (from all sources) to its phi index,
         # and record the matching operand from `source` for each phi.
-        operand_to_phi_idx: dict[IRVariable, int] = {}
+        operand_to_phi_idx: dict[IROperand, int] = {}
         phi_matching: dict[int, IRVariable] = {}
         for i, phi in enumerate(phis):
             for label, var in phi.phi_operands:
                 operand_to_phi_idx[var] = i
                 if label == source.label:
+                    assert isinstance(var, IRVariable)
                     phi_matching[i] = var
 
-        result = OrderedSet()
+        result: OrderedSet[IRVariable] = OrderedSet()
         placed: set[int] = set()
 
         for var in liveness:
