@@ -105,6 +105,10 @@ class AlgebraicOptimizationPass(IRPass):
     updater: InstUpdater
     range_analysis: VariableRangeAnalysis
     var_info: dict[IRVariable, VarInfo]
+    # forward-computed targets for iszero chain shortening.
+    # maps each iszero chain output to (root, first_output, second_output, ...)
+    # so the rewrite can index by `keep` without walking the DFG backward.
+    iszero_targets: dict[IRVariable, tuple[IROperand, ...]]
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -112,15 +116,18 @@ class AlgebraicOptimizationPass(IRPass):
         self.updater = InstUpdater(self.dfg)
         self._handle_offset()
 
-        self.var_info = self._compute_var_info()
+        self.var_info, self.iszero_targets = self._compute_var_info()
         self._rewrite_all()
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     # --- Forward propagation (imperative shell) ---
 
-    def _compute_var_info(self) -> dict[IRVariable, VarInfo]:
+    def _compute_var_info(
+        self,
+    ) -> tuple[dict[IRVariable, VarInfo], dict[IRVariable, tuple[IROperand, ...]]]:
         info: dict[IRVariable, VarInfo] = {}
+        targets: dict[IRVariable, tuple[IROperand, ...]] = {}
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 if inst.num_outputs != 1:
@@ -139,9 +146,17 @@ class AlgebraicOptimizationPass(IRPass):
                 elif inst.opcode == "iszero":
                     src = _lookup(inst.operands[0], info)
                     info[inst.output] = transfer_iszero(src)
+                    # build chain targets forward: (root, 1st output, 2nd, ...)
+                    inp = inst.operands[0]
+                    if isinstance(inp, IRVariable) and inp in targets:
+                        prev = targets[inp]
+                    else:
+                        # new chain, root is the input operand
+                        prev = (inp,)
+                    targets[inst.output] = prev + (inst.output,)
                 else:
                     info[inst.output] = VarInfo.of(inst.output)
-        return info
+        return info, targets
 
     # --- Rewrite phase (imperative shell) ---
 
@@ -174,20 +189,11 @@ class AlgebraicOptimizationPass(IRPass):
             if keep >= depth:
                 continue
 
-            # walk back (depth - keep) iszero producers from op.
-            # bail if the chain no longer matches — mid-pass rewrites
-            # (e.g. comparator handler) can change opcodes, making
-            # the pre-computed iszero_depth stale.
-            target: IROperand = op
-            for _ in range(depth - keep):
-                if not isinstance(target, IRVariable):
-                    break
-                prod = self.dfg.get_producing_instruction(target)
-                if prod is None or prod.opcode != "iszero":
-                    break
-                target = prod.operands[0]
-            else:
-                replacements[op] = target
+            # index into forward-computed targets: targets[keep] is the
+            # operand to use when keeping `keep` iszeros from the root.
+            chain = self.iszero_targets.get(op)
+            if chain is not None and keep < len(chain):
+                replacements[op] = chain[keep]
 
         if len(replacements) > 0:
             self.updater.update_operands(inst, replacements)
