@@ -508,15 +508,15 @@ def test_comparison_almost_always():
         %6 = not %par
         %7 = iszero %6
         %2 = iszero %7
-        assert %2
-        %8 = xor %par, {max_int256}
+        assert %6
+        %8 = xor {max_int256}, %par
         %9 = iszero %8
         %3 = iszero %9
-        assert %3
-        %10 = xor %par, {min_int256}
+        assert %8
+        %10 = xor {min_int256}, %par
         %11 = iszero %10
         %4 = iszero %11
-        assert %4
+        assert %10
         sink %1
     """
 

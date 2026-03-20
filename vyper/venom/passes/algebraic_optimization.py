@@ -112,8 +112,12 @@ class AlgebraicOptimizationPass(IRPass):
         self.updater = InstUpdater(self.dfg)
         self._handle_offset()
 
-        self.var_info = self._compute_var_info()
-        self._rewrite_all()
+        # two iterations: the first pass may create new iszero chains
+        # (e.g. comparator rewrites) or change operands (iszero shortening)
+        # that expose new folding opportunities in the second pass.
+        for _ in range(2):
+            self.var_info = self._compute_var_info()
+            self._rewrite_all()
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
@@ -174,13 +178,19 @@ class AlgebraicOptimizationPass(IRPass):
             if keep >= depth:
                 continue
 
-            # walk back (depth - keep) iszero producers from op
+            # walk back (depth - keep) iszero producers from op.
+            # the chain may not match if prior rewrites changed opcodes,
+            # in which case we bail out for this operand.
             target: IROperand = op
             for _ in range(depth - keep):
+                if not isinstance(target, IRVariable):
+                    break
                 prod = self.dfg.get_producing_instruction(target)
-                assert prod is not None and prod.opcode == "iszero"
+                if prod is None or prod.opcode != "iszero":
+                    break
                 target = prod.operands[0]
-            replacements[op] = target
+            else:
+                replacements[op] = target
 
         if len(replacements) > 0:
             self.updater.update_operands(inst, replacements)
