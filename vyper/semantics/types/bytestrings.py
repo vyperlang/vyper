@@ -2,6 +2,7 @@ from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Bytes, ABI_String, ABIType
 from vyper.exceptions import CompilerPanic, StructureException, UnexpectedNodeType, UnexpectedValue
 from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.infinity import INF, Inf
 from vyper.semantics.types.utils import get_index_value
 from vyper.utils import ceil32
 
@@ -13,8 +14,8 @@ class _BytestringT(VyperType):
 
     Attributes
     ----------
-    _length : int | None
-        The maximum allowable length of the data within the type, where None represents infinity.
+    _length : int | Inf
+        The maximum allowable length of the data within the type, where INF represents infinity.
     """
 
     # this is a carveout because currently we allow dynamic arrays of
@@ -24,7 +25,7 @@ class _BytestringT(VyperType):
     _equality_attrs = ("_length",)
     _is_bytestring: bool = True
 
-    def __init__(self, length: int | None) -> None:
+    def __init__(self, length: int | Inf) -> None:
         super().__init__()
 
         self._length = length
@@ -36,7 +37,7 @@ class _BytestringT(VyperType):
         return {"length": self.length}
 
     @property
-    def length(self) -> int | None:
+    def length(self) -> int | Inf:
         """
         Property method used to check the length of a type.
         """
@@ -51,7 +52,7 @@ class _BytestringT(VyperType):
 
     def validate_literal(self, node: vy_ast.Constant) -> None:
         super().validate_literal(node)
-        
+
         assert len(node.value) == self.length, "literal must be constructed with correct length"
 
     @property
@@ -61,7 +62,7 @@ class _BytestringT(VyperType):
         # because this data type is single-bytes, we make it so it takes the max 32 byte
         # boundary as it's size, instead of giving it a size that is not cleanly divisible by 32
 
-        if self.length is None:
+        if self.length is INF:
             raise CompilerPanic("Bytes[INF] and String[INF] don't have a size !")
 
         return 32 + ceil32(self.length)
@@ -70,15 +71,15 @@ class _BytestringT(VyperType):
         if not super().compare_type(other):
             return False
 
-        if self.length is None:
+        if self.length is INF:
             # INF >= INF
             # INF >= n
             return True
-        
-        if other.length is None:
+
+        if other.length is INF:
             # n < INF
             return False
-        
+
         return self._length >= other._length
 
     @classmethod

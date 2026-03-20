@@ -324,7 +324,7 @@ class Slice(BuiltinFunctionT):
                     raise ArgumentException(f"slice out of bounds for {arg_type}", start_expr)
                 if length_literal is not None and start_literal + length_literal > arg_type.length:
                     raise ArgumentException(f"slice out of bounds for {arg_type}", node)
-    
+
         length = length_literal if length_literal is not None else arg_type.length
 
         if isinstance(arg_type, StringT):
