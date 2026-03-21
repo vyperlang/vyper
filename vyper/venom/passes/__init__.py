@@ -19,6 +19,7 @@ from .make_ssa import MakeSSA
 from .mem2var import Mem2Var
 from .memmerging import MemMergePass
 from .memory_copy_elision import MemoryCopyElisionPass
+from .overflow_elimination import OverflowEliminationPass
 from .phi_elimination import PhiEliminationPass
 from .readonly_invoke_arg_copy_forwarding import ReadonlyInvokeArgCopyForwardingPass
 from .remove_unused_variables import RemoveUnusedVariablesPass
