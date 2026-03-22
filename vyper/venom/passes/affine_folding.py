@@ -2,7 +2,14 @@ from vyper.utils import wrap256
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
-from vyper.venom.passes.algebraic_optimization import VarInfo, _lookup, _push_size, transfer_add, transfer_assign, transfer_sub
+from vyper.venom.passes.algebraic_optimization import (
+    VarInfo,
+    _lookup,
+    _push_size,
+    transfer_add,
+    transfer_assign,
+    transfer_sub,
+)
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 

@@ -1,5 +1,5 @@
-from .algebraic_optimization import AlgebraicOptimizationPass
 from .affine_folding import AffineFoldingPass
+from .algebraic_optimization import AlgebraicOptimizationPass
 from .assert_combiner import AssertCombinerPass
 from .assert_elimination import AssertEliminationPass
 from .assign_elimination import AssignElimination

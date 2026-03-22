@@ -9,8 +9,8 @@ from vyper.venom.optimization_levels.types import PassConfig
 from vyper.venom.passes import (
     CSE,
     SCCP,
-    AlgebraicOptimizationPass,
     AffineFoldingPass,
+    AlgebraicOptimizationPass,
     AssertCombinerPass,
     AssignElimination,
     BranchOptimizationPass,

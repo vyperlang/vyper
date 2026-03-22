@@ -118,11 +118,7 @@ class AlgebraicOptimizationPass(IRPass):
                 if inst.opcode != "iszero" or inst.num_outputs != 1:
                     continue
                 inp = inst.operands[0]
-                prev = (
-                    targets[inp]
-                    if isinstance(inp, IRVariable) and inp in targets
-                    else (inp,)
-                )
+                prev = targets[inp] if isinstance(inp, IRVariable) and inp in targets else (inp,)
                 targets[inst.output] = prev + (inst.output,)
         return targets
 
