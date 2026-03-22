@@ -14,8 +14,7 @@ class Mem2Var(IRPass):
 
     function: IRFunction
     # Mem2Var is intentionally run in an SSA "sandwich".
-    # FloatAllocas moves allocas to the entry block
-    required_predecessors = ("MakeSSA", "FloatAllocas")
+    required_predecessors = ("MakeSSA",)
     required_successors = ("MakeSSA",)
 
     def run_pass(self):
