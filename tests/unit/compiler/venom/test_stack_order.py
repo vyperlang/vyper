@@ -389,6 +389,29 @@ def test_stack_order_entry_instruction():
     _check_pre_post(pre, post)
 
 
+def test_stack_order_liveness_dependence_error(get_contract):
+    """
+    This cause error with venom_to_assembly
+    more about it: https://github.com/vyperlang/vyper/pull/4859
+    """
+    code = """
+gen_var0: int128
+gen_var1: int128
+counter: int128
+
+@external
+def returnzero() -> int128:
+    self.gen_var0 = self.gen_var1
+    for i: uint256 in range(1):
+        self.gen_var1 = min(self.gen_var0, self.gen_var0)
+        self.counter |= self.gen_var1
+    return self.gen_var1
+    """
+
+    c = get_contract(code)
+    assert c.returnzero() == 0
+
+
 @pytest.mark.xfail
 def test_stack_order_two_trees():
     pre = """
