@@ -19,7 +19,6 @@ from vyper.venom.passes import (
     DeadStoreElimination,
     DFTPass,
     FixMemLocationsPass,
-    FloatAllocas,
     InternalReturnCopyForwardingPass,
     LoadElimination,
     LowerDloadPass,
@@ -41,7 +40,6 @@ from vyper.venom.passes import (
 # Aggressive optimizations (O3)
 PASSES_O3: List[PassConfig] = [
     FixMemLocationsPass,
-    FloatAllocas,
     SimplifyCFGPass,
     MakeSSA,
     PhiEliminationPass,

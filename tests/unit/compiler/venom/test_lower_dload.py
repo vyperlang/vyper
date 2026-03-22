@@ -1,6 +1,6 @@
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.passes import FloatAllocas, LowerDloadPass
+from vyper.venom.passes import LowerDloadPass
 
 """
 test dload/dloadbytes -> codecopy pass
@@ -12,7 +12,6 @@ def _check_pre_post(pre, post):
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
         LowerDloadPass(ac, fn).run_pass()
-        FloatAllocas(ac, fn).run_pass()
     assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
