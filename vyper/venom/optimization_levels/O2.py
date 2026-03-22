@@ -9,6 +9,7 @@ from vyper.venom.optimization_levels.types import PassConfig
 from vyper.venom.passes import (
     CSE,
     SCCP,
+    AffineFoldingPass,
     AlgebraicOptimizationPass,
     AssertCombinerPass,
     AssignElimination,
@@ -39,6 +40,7 @@ PASSES_O2: List[PassConfig] = [
     SimplifyCFGPass,
     MakeSSA,
     PhiEliminationPass,
+    AffineFoldingPass,
     AlgebraicOptimizationPass,
     SCCP,
     SimplifyCFGPass,
@@ -49,6 +51,7 @@ PASSES_O2: List[PassConfig] = [
     SCCP,
     SimplifyCFGPass,
     AssignElimination,
+    AffineFoldingPass,
     AlgebraicOptimizationPass,
     LoadElimination,
     PhiEliminationPass,
@@ -78,6 +81,7 @@ PASSES_O2: List[PassConfig] = [
     LoadElimination,
     RemoveUnusedVariablesPass,
     BranchOptimizationPass,
+    AffineFoldingPass,
     AlgebraicOptimizationPass,
     AssertCombinerPass,
     # This improves the performance of cse
