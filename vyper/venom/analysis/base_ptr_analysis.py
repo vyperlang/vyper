@@ -17,14 +17,7 @@ from vyper.evm.address_space import (
 from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.basicblock import (
-    IRBasicBlock,
-    IRInstruction,
-    IRLabel,
-    IRLiteral,
-    IROperand,
-    IRVariable,
-)
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.memory_location import (
     Allocation,
     InstAccessOps,
@@ -58,8 +51,8 @@ class Ptr:
 class BasePtrAnalysis(IRAnalysis):
     """
     Analysis to get every possible base pointer for variables.
-    The alloca/palloca are sources of base pointer and other instruction
-    (gep/assign/calloca) are used to manipulate these base pointers
+    The alloca is the source of base pointer and other instructions
+    (gep/assign) are used to manipulate these base pointers
     """
 
     var_to_mem: dict[IRVariable, set[Ptr]]
@@ -88,20 +81,8 @@ class BasePtrAnalysis(IRAnalysis):
         original = self.var_to_mem.get(inst.output, set())
 
         opcode = inst.opcode
-        if opcode in ("alloca", "palloca"):
+        if opcode == "alloca":
             self.var_to_mem[inst.output] = set([Ptr.from_alloca(inst)])
-
-        elif opcode == "calloca":
-            size, _id, callee_label = inst.operands
-            assert isinstance(size, IRLiteral)
-            assert isinstance(callee_label, IRLabel)
-            callee = self.function.ctx.get_function(callee_label)
-            palloca_inst = callee.get_palloca_inst(_id.value)
-            # palloca instruction can get modified (e.g. nop'ed) by previous
-            # passes. check it is still a palloca before adding it to the
-            # allocation set
-            if palloca_inst is not None and palloca_inst.opcode == "palloca":
-                self.var_to_mem[inst.output] = set([Ptr.from_alloca(palloca_inst)])
 
         elif opcode == "gep":
             assert isinstance(inst.operands[0], IRVariable), inst.parent
@@ -110,6 +91,32 @@ class BasePtrAnalysis(IRAnalysis):
                 offset = inst.operands[1].value
             ptrs = self.get_possible_ptrs(inst.operands[0])
             self.var_to_mem[inst.output] = set(ptr.offset_by(offset) for ptr in ptrs)
+
+        elif opcode in ("add", "sub"):
+            rhs, lhs = inst.operands
+            lhs_ptrs = self.get_possible_ptrs(lhs) if isinstance(lhs, IRVariable) else set()
+            rhs_ptrs = self.get_possible_ptrs(rhs) if isinstance(rhs, IRVariable) else set()
+
+            out_ptrs: set[Ptr] = set()
+
+            # Preserve exact offsets when one side is a pointer and the other
+            # is a known integer literal.
+            if lhs_ptrs and isinstance(rhs, IRLiteral):
+                delta = rhs.value if opcode == "add" else -rhs.value
+                out_ptrs.update(ptr.offset_by(delta) for ptr in lhs_ptrs)
+            if opcode == "add" and rhs_ptrs and isinstance(lhs, IRLiteral):
+                out_ptrs.update(ptr.offset_by(lhs.value) for ptr in rhs_ptrs)
+
+            # Pointer arithmetic with a dynamic offset still aliases the same
+            # allocation, but with unknown offset.
+            if not out_ptrs:
+                if lhs_ptrs and not rhs_ptrs:
+                    out_ptrs.update(ptr.offset_by(None) for ptr in lhs_ptrs)
+                elif opcode == "add" and rhs_ptrs and not lhs_ptrs:
+                    out_ptrs.update(ptr.offset_by(None) for ptr in rhs_ptrs)
+
+            if out_ptrs:
+                self.var_to_mem[inst.output] = out_ptrs
 
         elif opcode == "phi":
             phi_sources = set()
@@ -192,7 +199,11 @@ class BasePtrAnalysis(IRAnalysis):
         if inst.opcode == "dload":
             # TODO: use FreeVarSpace
             return MemoryLocation(offset=0, size=32)
+        if inst.opcode == "iload":
+            return MemoryLocation.UNDEFINED
         if inst.opcode == "invoke":
+            return MemoryLocation.UNDEFINED
+        if inst.opcode == "ret":
             return MemoryLocation.UNDEFINED
 
         if inst.get_read_effects() & effects.MEMORY == effects.EMPTY:

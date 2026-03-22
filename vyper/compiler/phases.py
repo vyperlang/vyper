@@ -24,7 +24,7 @@ from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
 from vyper.utils import ERC5202_PREFIX, sha256sum
-from vyper.venom import DeployInfo, generate_assembly_experimental, generate_venom
+from vyper.venom import generate_assembly_experimental
 from vyper.warnings import VyperWarning, vyper_warn
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
@@ -255,24 +255,19 @@ class CompilerData:
 
     @cached_property
     def venom_runtime(self):
-        runtime_venom = generate_venom(self.ir_runtime, self.settings)
-        return runtime_venom
+        assert self.settings.experimental_codegen
+        from vyper.codegen_venom import generate_venom_runtime
+
+        return generate_venom_runtime(self.global_ctx, self.settings)
 
     @cached_property
     def venom_deploytime(self):
-        data_sections = {"runtime_begin": self.bytecode_runtime}
-        if self.bytecode_metadata is not None:
-            data_sections["cbor_metadata"] = self.bytecode_metadata
+        assert self.settings.experimental_codegen
+        from vyper.codegen_venom import generate_venom_deploy
 
-        deploy_info = DeployInfo(
-            runtime_codesize=len(self.bytecode_runtime),
-            immutables_len=self.compilation_target._metadata["type"].immutable_section_bytes,
+        return generate_venom_deploy(
+            self.global_ctx, self.settings, self.bytecode_runtime, self.bytecode_metadata
         )
-
-        venom_ctx = generate_venom(
-            self.ir_nodes, self.settings, data_sections=data_sections, deploy_info=deploy_info
-        )
-        return venom_ctx
 
     @cached_property
     def assembly(self) -> list:

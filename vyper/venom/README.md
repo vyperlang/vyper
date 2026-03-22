@@ -177,7 +177,7 @@ An operand can be a label, a variable, or a literal.
 By convention, variables have a `%-` prefix, e.g. `%1` is a valid variable. However, the prefix is not required.
 
 ## Instructions
-To enable Venom IR in Vyper, use the `--experimental-codegen` CLI flag or its alias `--venom`, or the corresponding pragma statements (e.g. `#pragma experimental-codegen`). To view the Venom IR output, use `-f bb_runtime` for the runtime code, or `-f bb` to see the deploy code. To get a dot file (for use e.g. with `xdot -`), use `-f cfg` or `-f cfg_runtime`.
+To enable Venom IR in Vyper, use the `--experimental-codegen` CLI flag or the corresponding pragma statements (e.g. `#pragma experimental-codegen`). To view the Venom IR output, use `-f ir_runtime` for the runtime code, or `-f ir` to see the deploy code. To get a dot file (for use e.g. with `xdot -`), use `-f cfg` or `-f cfg_runtime`.
 
 Assembly can be inspected with `-f asm`, whereas an opcode view of the final bytecode can be seen with `-f opcodes` or `-f opcodes_runtime`, respectively.
 
@@ -200,16 +200,6 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
   - The output is the offset value itself.
   - Because the SSA form does not allow changing values of registers, handling mutable variables can be tricky. The `alloca` instruction is meant to simplify that.
   
-- `palloca`
-  - ```
-    %out = palloca size, offset, id
-    ```
-  - Like the `alloca` instruction but only used for parameters of internal functions which are passed by memory.
-- `calloca`
-  - ```
-    out = calloca size, offset, id, <callsite label>
-    ```
-  - Similar to the `calloca` instruction but only used for parameters of internal functions which are passed by memory. Used at the call-site of a call.
 - `iload`
   - ```
     %out = iload offset
@@ -287,18 +277,6 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
     ```
   - Similar to `stop`, but used for constructor exit. The assembler is expected to jump to a special initcode sequence which returns the runtime code.
   - Might translate to something like  `_sym__ctor_exit JUMP`.
-- `sha3_64`
-  - ```
-    %out = sha3_64 x, y
-    ```
-  - Shortcut to access the `SHA3` EVM opcode where `%out` is the result.
-  - Essentially translates to
-    ```
-    PUSH y PUSH FREE_VAR_SPACE MSTORE
-    PUSH x PUSH FREE_VAR_SPACE2 MSTORE
-    PUSH 64 PUSH FREE_VAR_SPACE SHA3
-    ```
-    where `FREE_VAR_SPACE` and `FREE_VAR_SPACE2` are locations reserved by the compiler, set to 0 and 32 respectively.
 
 - `assert`
   - ```

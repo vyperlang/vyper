@@ -52,4 +52,4 @@ def _relay(_agent: agent_lib.Agent, _messages: DynArray[agent_lib.Message, agent
     """
     extcall self.agent[_agent].execute(_messages)
 
-    log Relay(_agent, _messages)
+    log Relay(agent=_agent, messages=_messages)

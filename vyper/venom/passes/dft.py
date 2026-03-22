@@ -2,8 +2,7 @@ from collections import defaultdict, deque
 
 import vyper.venom.effects as effects
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
-from vyper.venom.analysis.stack_order import StackOrderAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis, StackOrderAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
@@ -20,6 +19,9 @@ class DFTPass(IRPass):
 
     stack_order: StackOrderAnalysis
     cfg: CFGAnalysis
+    # DFT expects single-use-expanded operands and should run just before CFG normalization.
+    required_predecessors = ("SingleUseExpansion",)
+    required_immediate_successors = ("CFGNormalization",)
 
     def run_pass(self) -> None:
         self.data_offspring = {}
@@ -27,7 +29,7 @@ class DFTPass(IRPass):
 
         self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
-        self.stack_order = StackOrderAnalysis(self.analyses_cache)
+        self.stack_order = self.analyses_cache.force_analysis(StackOrderAnalysis)
 
         worklist = deque(self.cfg.dfs_post_walk)
 

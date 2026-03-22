@@ -5,7 +5,7 @@ from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.analysis.mem_ssa import mem_ssa_type_factory
 from vyper.venom.memory_location import MemoryLocation
-from vyper.venom.passes import SCCP, DeadStoreElimination
+from vyper.venom.passes import SCCP, DeadStoreElimination, RemoveUnusedVariablesPass
 from vyper.venom.passes.base_pass import IRPass
 
 pytestmark = pytest.mark.hevm
@@ -49,6 +49,9 @@ class VolatilePrePostChecker(PrePostChecker):
                 self.pass_objects.append(obj)
                 obj.run_pass(self.addr_space)
 
+            # clean up allocas left dead after DSE
+            RemoveUnusedVariablesPass(ac, fn).run_pass()
+
         post_ctx = parse_from_basic_block(post)
         for fn in post_ctx.functions.values():
             ac = IRAnalysesCache(fn)
@@ -57,6 +60,9 @@ class VolatilePrePostChecker(PrePostChecker):
                 obj = p(ac, fn)
                 self.pass_objects.append(obj)
                 obj.run_pass()
+
+            # clean up allocas left dead after DSE
+            RemoveUnusedVariablesPass(ac, fn).run_pass()
 
         assert_ctx_eq(pre_ctx, post_ctx)
 
@@ -138,7 +144,7 @@ def test_basic_not_dead_store_with_mload(positions):
         _global:
             %1 = source
             %ptr_a = {a}
-            %ptr_b = {b}
+            nop
             mstore %ptr_a, 1
             nop
             %2 = mload %ptr_a
@@ -163,7 +169,7 @@ def test_basic_not_dead_store_with_return(positions):
         _global:
             %1 = source
             %ptr_a = {a}
-            %ptr_b = {b}
+            nop
             mstore %ptr_a, 1
             nop
             return %ptr_a, 32
@@ -180,10 +186,10 @@ def test_never_read_store(position):
             mstore %ptr, %val  ; Dead store - never read
             stop
     """
-    post = f"""
+    post = """
         _global:
             %val = 42
-            %ptr = {position}
+            nop
             nop
             stop
     """
@@ -221,7 +227,7 @@ def test_dead_store_different_locations(positions):
         _global:
             %val1 = 42
             %val2 = 24
-            %ptr_a = {a}
+            nop
             %ptr_b = {b}
             nop
             mstore %ptr_b, %val2
@@ -242,6 +248,18 @@ def test_dead_store_memory_copy():
             return 128, 64
     """
     _check_pre_post(pre, pre)
+
+
+def test_codecopy_not_dead_when_read_via_iload_and_different_alloca():
+    pre = """
+        _global:
+            %a = alloca 1, 32
+            %b = alloca 32
+            codecopy %a, 0, 32
+            %v = iload %b
+            sink %v
+    """
+    _check_pre_post(pre, pre, hevm=False)
 
 
 def _generate_jnz_configurations(cond, then, else_):
@@ -1069,6 +1087,42 @@ def test_volatile_derived_location_store():
       %3 = add %1, 32
       mstore %3, 1
       ret %2
+    """
+    _check_pre_post(pre, post, hevm=False)
+
+
+def test_mstore_before_ret_is_not_dead():
+    """Memory stores before ret (internal function return) are live because
+    the caller can observe memory after the function returns.
+    Regression test: DSE was eliminating the free memory pointer update
+    in alloc()-style functions, causing all allocations to alias."""
+    pre = """
+    _global:
+        %ptr = mload 64
+        %new_ptr = add 64, %ptr
+        mstore 64, %new_ptr
+        ret %ptr
+    """
+    _check_no_change(pre, hevm=False)
+
+
+def test_mstore_before_ret_clobbered_is_dead():
+    """A store before ret that is clobbered by a later store IS dead."""
+    pre = """
+    _global:
+        %ptr = mload 64
+        %new_ptr = add 64, %ptr
+        mstore 64, %new_ptr
+        mstore 64, %ptr
+        ret %ptr
+    """
+    post = """
+    _global:
+        %ptr = mload 64
+        nop
+        nop
+        mstore 64, %ptr
+        ret %ptr
     """
     _check_pre_post(pre, post, hevm=False)
 

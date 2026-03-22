@@ -1,9 +1,9 @@
 """
-Regression tests for mem2var/palloca/calloca handling.
+Regression tests for mem2var alloca handling.
 
 Tests memory-passed parameter handling when DSE eliminates unused
-stores to palloca memory. The corresponding calloca and mcopy in
-the caller should also be eliminated.
+stores to alloca memory. The corresponding caller alloca and mcopy
+should also be eliminated.
 """
 import copy
 
@@ -49,12 +49,12 @@ def test_val() -> uint256:
 
 
 @pytest.mark.hevm
-def test_mem2var_calloca_tracking_bug(get_contract, no_inline_settings):
+def test_mem2var_alloca_tracking_bug(get_contract, no_inline_settings):
     """
-    Test that unused palloca parameters are handled correctly.
+    Test that unused alloca parameters are handled correctly.
 
-    When DSE eliminates stores to palloca (because the callee doesn't read
-    the parameter), the corresponding calloca in the caller should also be
+    When DSE eliminates stores to an alloca (because the callee doesn't read
+    the parameter), the corresponding caller alloca should also be
     eliminated along with the mcopy that populates it.
     """
     code = """
@@ -79,7 +79,7 @@ def test_val() -> uint256:
 @pytest.mark.hevm
 def test_mem2var_mstore_then_mload_same_location(get_contract, no_inline_settings):
     """
-    Test writing then reading from the same palloca location.
+    Test writing then reading from the same alloca location.
 
     The mstore should update memory, and the subsequent mload should see it.
     If mem2var creates two definitions of the same variable, behavior is undefined.
@@ -130,3 +130,38 @@ def test_val() -> bytes32:
     """
     c = get_contract(code, compiler_settings=no_inline_settings)
     assert c.test_val() == bytes.fromhex("bb" * 32)
+
+
+@pytest.mark.hevm
+def test_mem2var_dse_concretize_liveness_mismatch_regression(get_contract, no_inline_settings):
+    """
+    Regression for DSE vs concretize mem liveness disagreement:
+    a dead scratch mstore survives DSE but must still keep its alloca live
+    during concretization to avoid overlapping with DynArray memory.
+
+    Without the fix, the keccak scratch alloca could overlap with the
+    DynArray memory, clobbering its length word and causing either a
+    revert or silently wrong array contents.
+    """
+    code = """
+@pure
+def _h() -> address:
+    x: address = convert(2, address)
+    return x
+
+@external
+@pure
+def f() -> DynArray[address, 5]:
+    a: DynArray[address, 5] = [self._h()]
+    b: bytes32 = keccak256(convert(0, bytes32))
+    for i: uint256 in range(1):
+        a[len(a) - 1] = self._h()
+    return a
+    """
+    c = get_contract(code, compiler_settings=no_inline_settings)
+    result = c.f()
+    # verify the DynArray contents are correct, not just that we don't revert.
+    # without the fix, scratch memory could clobber the DynArray length word,
+    # producing wrong length or corrupt entries.
+    expected_addr = "0x" + "0" * 39 + "2"
+    assert result == [expected_addr], f"expected [{expected_addr}], got {result}"

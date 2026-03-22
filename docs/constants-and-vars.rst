@@ -46,7 +46,7 @@ Name                  Type             Value
 The self Variable
 -----------------
 
-``self`` is an environment variable used to reference a contract from within itself. Along with the normal :ref:`address<address>` members, ``self`` allows you to read and write to state variables and to call private functions within the contract.
+``self`` is an environment variable used to reference a contract from within itself. Along with the normal :ref:`address<address>` members, ``self`` allows you to read and write to state variables and to call internal functions within the contract.
 
 ==================== ================ ==========================
 Name                 Type             Value

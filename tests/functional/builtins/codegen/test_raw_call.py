@@ -669,3 +669,30 @@ def foo(a: address):
 @pytest.mark.parametrize("source_code,exc", uncompilable_code)
 def test_invalid_type_exception(assert_compile_failed, get_contract, source_code, exc):
     assert_compile_failed(lambda: get_contract(source_code), exc)
+
+
+def test_raw_call_storage_bytes_data(get_contract):
+    """raw_call correctly handles storage bytes being passed as data argument."""
+    # Test that storage bytes are properly copied to memory before call
+    # Uses identity precompile to echo back the data
+    code = """
+stored_data: Bytes[100]
+
+@external
+def set_data(data: Bytes[100]):
+    self.stored_data = data
+
+@external
+def call_with_storage_bytes() -> Bytes[100]:
+    # Pass storage bytes directly to raw_call
+    return raw_call(
+        0x0000000000000000000000000000000000000004,  # identity precompile
+        self.stored_data,
+        max_outsize=100
+    )
+    """
+
+    c = get_contract(code)
+    test_data = b"hello world"
+    c.set_data(test_data)
+    assert c.call_with_storage_bytes() == test_data

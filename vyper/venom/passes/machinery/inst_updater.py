@@ -86,8 +86,7 @@ class InstUpdater:
     # similar behaviour as update but it wont change the instruction
     # it self but insert new instruction with new data
     # this is so there is a way to change instruction without
-    # changing it inplace if there is such a case where the data
-    # would be needed in future such as palloca/calloca pairs
+    # changing it inplace
     def replace(
         self,
         inst: IRInstruction,

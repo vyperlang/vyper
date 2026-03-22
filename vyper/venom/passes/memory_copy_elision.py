@@ -124,7 +124,6 @@ class MemoryCopyElisionPass(IRPass):
         # Clear loads at BB boundary (loads are still per-BB only)
         for e in self.loads.values():
             e.clear()
-
         for inst in bb.instructions:
             if inst.opcode in _LOADS:
                 eff = _LOADS[inst.opcode]
@@ -149,6 +148,9 @@ class MemoryCopyElisionPass(IRPass):
                     self.copies[write_loc] = inst
 
             elif inst.opcode == "mcopy":
+                if self._try_elide_redundant_copy(inst):
+                    continue
+
                 self._try_elide_copy(inst)
 
                 write_loc = self.base_ptr.get_write_location(inst, addr_space.MEMORY)
@@ -172,7 +174,6 @@ class MemoryCopyElisionPass(IRPass):
             self.copies.clear()
         if not write_loc.is_fixed:
             self.loads[eff].clear()
-
         if Effects.MEMORY in eff:
             to_remove = []
             for mem_loc, copy_inst in self.copies.items():
@@ -231,6 +232,28 @@ class MemoryCopyElisionPass(IRPass):
 
         inst.opcode = previous.opcode
         inst.operands[1] = src
+
+    def _try_elide_redundant_copy(self, inst: IRInstruction) -> bool:
+        """
+        Elide mcopy when destination is already known to contain the same bytes.
+
+        This catches repeated idempotent copies such as:
+          mcopy dst, src, N
+          ... only reads / non-aliasing writes ...
+          mcopy dst, src, N
+
+        Reads from dst do not invalidate copy facts, so this remains valid
+        as long as neither src nor dst was clobbered in between.
+        """
+        assert inst.opcode == "mcopy"
+
+        write_loc = self.base_ptr.get_write_location(inst, addr_space.MEMORY)
+        previous = self.copies.get(write_loc)
+        if previous is not None and self._copies_equivalent(previous, inst):
+            self.updater.nop(inst)
+            return True
+
+        return False
 
     def _try_elide_load_store(self, inst: IRInstruction, write_loc: MemoryLocation, eff: Effects):
         val = inst.operands[0]

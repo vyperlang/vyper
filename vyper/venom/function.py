@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 
 if TYPE_CHECKING:
     from vyper.venom.context import IRContext
@@ -32,25 +32,29 @@ class IRFunction:
     name: IRLabel  # symbol name
     ctx: IRContext
     args: list
-    # all the pallocas that are needed
-    # TODO try to use only args
-    # Pallocas created during IR construction, keyed by alloca_id.
-    _allocated_args: dict[int, IRInstruction]
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
 
+    # Internal-call metadata (excluding return_pc):
+    # - number of invoke params
+    # - whether first invoke param is a memory return buffer
+    _invoke_param_count: Optional[int]
+    _has_memory_return_buffer_param: Optional[bool]
+
     # Used during code generation
     _ast_source_stack: list[IRnode]
-    _error_msg_stack: list[str]
+    _error_msg_stack: list[Optional[str]]
 
     def __init__(self, name: IRLabel, ctx: IRContext = None):
         self.ctx = ctx  # type: ignore
         self.name = name
         self.args = []
-        self._allocated_args = dict()
         self._basic_block_dict = {}
 
         self.last_variable = 0
+
+        self._invoke_param_count = None
+        self._has_memory_return_buffer_param = None
 
         self._ast_source_stack = []
         self._error_msg_stack = []
@@ -133,6 +137,15 @@ class IRFunction:
             self._ast_source_stack.append(ir.ast_source)
             self._error_msg_stack.append(ir.error_msg)
 
+    def push_error_msg(self, error_msg: Optional[str]):
+        """Push an error message without changing ast_source."""
+        self._error_msg_stack.append(error_msg)
+
+    def pop_error_msg(self):
+        """Pop an error message."""
+        assert len(self._error_msg_stack) > 0, "Empty error stack"
+        self._error_msg_stack.pop()
+
     def pop_source(self):
         assert len(self._ast_source_stack) > 0, "Empty source stack"
         self._ast_source_stack.pop()
@@ -144,29 +157,6 @@ class IRFunction:
             if param.id_ == id_:
                 return param
         return None
-
-    def get_live_pallocas(self) -> Iterator[IRInstruction]:
-        """
-        Return pallocas that haven't been nop'd by earlier passes.
-        """
-        for inst in self._allocated_args.values():
-            if inst.opcode == "palloca":
-                yield inst
-
-    def get_palloca_inst(self, alloca_id: int) -> Optional[IRInstruction]:
-        """
-        Get the palloca instruction for the given alloca_id.
-        Returns None if not found.
-        """
-        return self._allocated_args.get(alloca_id)
-
-    def has_palloca(self, alloca_id: int) -> bool:
-        """Check if an alloca_id exists in the pallocas."""
-        return alloca_id in self._allocated_args
-
-    def set_palloca(self, alloca_id: int, inst: IRInstruction) -> None:
-        """Register a palloca instruction for the given alloca_id."""
-        self._allocated_args[alloca_id] = inst
 
     def get_param_by_name(self, var: IRVariable | str) -> Optional[IRParameter]:
         if isinstance(var, str):

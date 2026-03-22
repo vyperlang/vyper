@@ -28,6 +28,8 @@ class FixMemLocationsPass(IRPass):
 
     free_ptr1: IRVariable
     free_ptr2: IRVariable
+    # Pinned allocas introduced here must be concretized before lowering/codegen.
+    required_successors = ("ConcretizeMemLocPass",)
 
     def run_pass(self):
         # this dfg is here just for the updater since this is run before the

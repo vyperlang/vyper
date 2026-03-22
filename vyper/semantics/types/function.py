@@ -11,6 +11,7 @@ from vyper.exceptions import (
     CallViolation,
     CompilerPanic,
     FunctionDeclarationException,
+    InvalidLiteral,
     InvalidType,
     StateAccessViolation,
     StructureException,
@@ -38,6 +39,7 @@ from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import OrderedSet, keccak256
+from vyper.warnings import Deprecation, vyper_warn
 
 
 @dataclass
@@ -54,7 +56,7 @@ class PositionalArg(_FunctionArg):
 
 @dataclass(kw_only=True)
 class KeywordArg(_FunctionArg):
-    default_value: vy_ast.VyperNode
+    default_value: vy_ast.ExprNode
 
 
 # TODO: refactor this into FunctionT (from an ast) and ABIFunctionT (from json)
@@ -308,7 +310,7 @@ class ContractFunctionT(VyperType):
                 "Default functions cannot appear in interfaces", funcdef
             )
 
-        positional_args, keyword_args = _parse_args(funcdef)
+        positional_args, keyword_args = _parse_args(funcdef, is_interface=True)
 
         return_type = _parse_return_type(funcdef)
 
@@ -372,7 +374,7 @@ class ContractFunctionT(VyperType):
                 "Default functions cannot appear in interfaces", funcdef
             )
 
-        positional_args, keyword_args = _parse_args(funcdef)
+        positional_args, keyword_args = _parse_args(funcdef, is_interface=True)
 
         return_type = _parse_return_type(funcdef)
 
@@ -929,9 +931,25 @@ def _parse_args(
             positional_args.append(PositionalArg(argname, type_, ast_source=arg))
         else:
             value = funcdef.args.defaults[i - n_positional_args]
+            if is_interface:
+                if not isinstance(value, vy_ast.Ellipsis):
+                    vyper_warn(
+                        Deprecation(
+                            "Please use `...` as default value. (Values "
+                            "for default parameters in interfaces have always been ignored.)",
+                            value,
+                        )
+                    )
+            elif isinstance(value, vy_ast.Ellipsis):
+                raise InvalidLiteral(
+                    "`...` is not allowed as a default value outside of interfaces", value
+                )
+
             if not check_modifiability(value, Modifiability.RUNTIME_CONSTANT):
                 raise StateAccessViolation("Value must be literal or environment variable", value)
-            validate_expected_type(value, type_)
+
+            if not isinstance(value, vy_ast.Ellipsis):
+                validate_expected_type(value, type_)
             keyword_args.append(KeywordArg(argname, type_, ast_source=arg, default_value=value))
 
         argnames.add(argname)
