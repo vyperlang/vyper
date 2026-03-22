@@ -25,7 +25,7 @@ Lattice = TypeVar("Lattice", bound=LatticeBase)
 
 class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
-        super().__init__(analyses_cache, function)
+        IRAnalysis.__init__(self, analyses_cache, function)
 
     def analyze(self):
         self.inst_lattice: dict[IRInstruction, Lattice] = {}
