@@ -9,7 +9,6 @@ from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAn
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
-from vyper.venom.passes import FloatAllocas
 from vyper.venom.passes.base_pass import IRGlobalPass
 
 
@@ -84,7 +83,6 @@ class FunctionInlinerPass(IRGlobalPass):
         Inline function into call sites.
         """
         for call_site in call_sites:
-            FloatAllocas(self.analyses_caches[func], func).run_pass()
             self._inline_call_site(func, call_site)
             fn = call_site.parent.parent
             self.analyses_caches[fn].invalidate_analysis(DFGAnalysis)
