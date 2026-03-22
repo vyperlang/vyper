@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-
 from vyper.utils import SizeLimits, int_bounds, int_log2, is_power_of_two, wrap256
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
@@ -20,67 +18,6 @@ TRUTHY_INSTRUCTIONS = ("iszero", "jnz", "assert", "assert_unreachable")
 
 def lit_eq(op: IROperand, val: int) -> bool:
     return isinstance(op, IRLiteral) and wrap256(op.value) == wrap256(val)
-
-
-def _push_size(value: int) -> int:
-    """Number of data bytes needed for a PUSH instruction."""
-    value = wrap256(value)
-    if value == 0:
-        return 0  # PUSH0
-    return (value.bit_length() + 7) // 8
-
-
-# --- VarInfo ADT (pure, immutable) ---
-# Represents affine knowledge: value = base + offset (mod 2^256).
-# base=None means a pure constant (offset only).
-
-
-@dataclass(frozen=True, slots=True)
-class VarInfo:
-    base: IROperand | None  # root variable, or None for pure constant
-    offset: int  # constant offset (wrap256)
-
-    @classmethod
-    def of(cls, base: IROperand | None, offset: int = 0) -> "VarInfo":
-        return cls(base=base, offset=wrap256(offset))
-
-
-# --- Pure transfer functions (module-level, no self) ---
-
-
-def _lookup(op: IROperand, info: dict[IRVariable, VarInfo]) -> VarInfo:
-    """Look up the VarInfo for an operand."""
-    if isinstance(op, IRVariable):
-        if op in info:
-            return info[op]
-        return VarInfo.of(op)
-    if isinstance(op, IRLiteral):
-        return VarInfo.of(None, op.value)
-    assert isinstance(op, IRLabel)
-    # IRLabel — tracked as opaque base (not decomposable)
-    return VarInfo.of(op)
-
-
-def transfer_add(lhs: VarInfo, rhs: VarInfo, out: IRVariable) -> VarInfo:
-    """Pure: (VarInfo, VarInfo, output_var) -> VarInfo for add."""
-    if lhs.base is None:
-        return VarInfo.of(rhs.base, rhs.offset + lhs.offset)
-    if rhs.base is None:
-        return VarInfo.of(lhs.base, lhs.offset + rhs.offset)
-    return VarInfo.of(out)
-
-
-def transfer_sub(minuend: VarInfo, subtrahend: VarInfo, out: IRVariable) -> VarInfo:
-    """Pure: (VarInfo, VarInfo, output_var) -> VarInfo for sub
-    (minuend - subtrahend)."""
-    if subtrahend.base is None:
-        return VarInfo.of(minuend.base, minuend.offset - subtrahend.offset)
-    return VarInfo.of(out)
-
-
-def transfer_assign(src: VarInfo) -> VarInfo:
-    """Pure: VarInfo -> VarInfo (inherit). VarInfo is frozen, so identity."""
-    return src
 
 
 class AlgebraicOptimizationPass(IRPass):
