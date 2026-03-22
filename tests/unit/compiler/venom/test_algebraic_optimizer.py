@@ -2,11 +2,11 @@ import pytest
 
 import vyper
 from tests.venom_utils import PrePostChecker
-from vyper.venom.passes import AlgebraicOptimizationPass, RemoveUnusedVariablesPass
+from vyper.venom.passes import AffineFoldingPass, AlgebraicOptimizationPass, RemoveUnusedVariablesPass
 
 pytestmark = pytest.mark.hevm
 
-_check_pre_post = PrePostChecker([AlgebraicOptimizationPass, RemoveUnusedVariablesPass])
+_check_pre_post = PrePostChecker([AffineFoldingPass, AlgebraicOptimizationPass, RemoveUnusedVariablesPass])
 
 
 @pytest.mark.parametrize("iszero_count", range(5))

@@ -91,14 +91,12 @@ class AlgebraicOptimizationPass(IRPass):
       - iszero chains
       - binops
       - offset adds
-      - affine chain folding (lattice-driven)
       - signextend elimination via range analysis
     """
 
     dfg: DFGAnalysis
     updater: InstUpdater
     range_analysis: VariableRangeAnalysis
-    var_info: dict[IRVariable, VarInfo]
     # (root, 1st_iszero_out, 2nd, ...) per chain output, built forward
     iszero_targets: dict[IRVariable, tuple[IROperand, ...]]
 
@@ -108,44 +106,25 @@ class AlgebraicOptimizationPass(IRPass):
         self.updater = InstUpdater(self.dfg)
         self._handle_offset()
 
-        self.var_info, self.iszero_targets = self._compute_var_info()
+        self.iszero_targets = self._compute_iszero_targets()
         self._rewrite_all()
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
-    # --- Forward propagation (imperative shell) ---
-
-    def _compute_var_info(
-        self,
-    ) -> tuple[dict[IRVariable, VarInfo], dict[IRVariable, tuple[IROperand, ...]]]:
-        info: dict[IRVariable, VarInfo] = {}
+    def _compute_iszero_targets(self) -> dict[IRVariable, tuple[IROperand, ...]]:
         targets: dict[IRVariable, tuple[IROperand, ...]] = {}
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
-                if inst.num_outputs != 1:
+                if inst.opcode != "iszero" or inst.num_outputs != 1:
                     continue
-                if inst.opcode == "add":
-                    lhs = _lookup(inst.operands[1], info)
-                    rhs = _lookup(inst.operands[0], info)
-                    info[inst.output] = transfer_add(lhs, rhs, inst.output)
-                elif inst.opcode == "sub":
-                    minuend = _lookup(inst.operands[1], info)
-                    subtrahend = _lookup(inst.operands[0], info)
-                    info[inst.output] = transfer_sub(minuend, subtrahend, inst.output)
-                elif inst.opcode == "assign":
-                    info[inst.output] = transfer_assign(_lookup(inst.operands[0], info))
-                else:
-                    if inst.opcode == "iszero":
-                        # build iszero chain targets: (root, 1st, 2nd, ...)
-                        inp = inst.operands[0]
-                        prev = (
-                            targets[inp]
-                            if isinstance(inp, IRVariable) and inp in targets
-                            else (inp,)
-                        )
-                        targets[inst.output] = prev + (inst.output,)
-                    info[inst.output] = VarInfo.of(inst.output)
-        return info, targets
+                inp = inst.operands[0]
+                prev = (
+                    targets[inp]
+                    if isinstance(inp, IRVariable) and inp in targets
+                    else (inp,)
+                )
+                targets[inst.output] = prev + (inst.output,)
+        return targets
 
     # --- Rewrite phase (imperative shell) ---
 
@@ -198,96 +177,9 @@ class AlgebraicOptimizationPass(IRPass):
             return
         if inst.is_volatile or inst.opcode == "assign" or inst.is_pseudo:
             return
-        if self._rewrite_affine(inst):
-            return
         if self._rewrite_or_skip_producer(inst):
             return
         self._rewrite_local(inst)
-
-    def _rewrite_affine(self, inst: IRInstruction) -> bool:
-        """Lattice-driven affine chain folding."""
-        if inst.opcode not in ("add", "sub"):
-            return False
-        vi = self.var_info.get(inst.output)
-        if vi is None or vi.base is None:
-            return False
-
-        base = vi.base
-        offset = vi.offset
-        if base == inst.output:
-            return False
-        if isinstance(base, IRLabel):
-            return False
-
-        # Find the immediate variable operand and current literal
-        if inst.opcode == "add":
-            val_op, lit_op = self._extract_value_and_literal_operands(inst)
-            if val_op is None or lit_op is None:
-                return False
-            imm_base = val_op
-            curr_lit = lit_op.value
-        else:  # sub
-            op0, op1 = inst.operands
-            if not isinstance(op0, IRLiteral) or isinstance(op1, IRLiteral):
-                return False
-            imm_base = op1
-            curr_lit = op0.value
-
-        # Only rewrite if chain folding found a deeper base
-        if base == imm_base:
-            return False
-
-        # Walk from imm_base toward lattice base, stopping at the first
-        # multi-use intermediate. This preserves shared base pointers
-        # for CSE/DFT (e.g. alloca+64 used by multiple mcopy destinations).
-        eff_base = self._effective_affine_base(imm_base, base)
-        if eff_base == imm_base:
-            return False
-
-        # compute offset relative to effective base
-        if eff_base == base:
-            eff_offset = offset
-        else:
-            if not isinstance(eff_base, IRVariable):
-                return False
-            vi_eff = self.var_info.get(eff_base)
-            if vi_eff is None or vi_eff.base != base:
-                return False
-            eff_offset = wrap256(offset - vi_eff.offset)
-
-        if eff_offset == 0:
-            self.updater.mk_assign(inst, eff_base)
-            return True
-
-        # Don't rewrite if it would increase literal byte width
-        if _push_size(eff_offset) > _push_size(curr_lit):
-            return False
-
-        self.updater.update(inst, "add", [eff_base, IRLiteral(eff_offset)])
-        return True
-
-    def _effective_affine_base(self, imm_base: IROperand, lattice_base: IROperand) -> IROperand:
-        """Walk producers from imm_base toward lattice_base, return the
-        deepest reachable base without crossing multi-use intermediates."""
-        current = imm_base
-        while current != lattice_base:
-            if not isinstance(current, IRVariable):
-                return current
-            if not self.dfg.is_single_use(current):
-                return current
-            prod = self.dfg.get_producing_instruction(current)
-            if prod is None:
-                return current
-            if prod.opcode == "assign":
-                current = prod.operands[0]
-            elif prod.opcode == "add":
-                val_op, lit_op = self._extract_value_and_literal_operands(prod)
-                if val_op is None or lit_op is None:
-                    return current
-                current = val_op
-            else:
-                return current
-        return lattice_base
 
     def _rewrite_or_skip_producer(self, inst: IRInstruction) -> bool:
         """Producer-based pattern rewrites. Returns True if a rewrite was
@@ -525,21 +417,6 @@ class AlgebraicOptimizationPass(IRPass):
     @staticmethod
     def _is_lit(operand: IROperand) -> bool:
         return isinstance(operand, IRLiteral)
-
-    def _extract_value_and_literal_operands(
-        self, inst: IRInstruction
-    ) -> tuple[IROperand | None, IRLiteral | None]:
-        value_op = None
-        literal_op = None
-        for op in inst.operands:
-            if self._is_lit(op):
-                if literal_op is not None:
-                    return None, None
-                literal_op = op
-            else:
-                value_op = op
-        assert isinstance(literal_op, IRLiteral) or literal_op is None  # help mypy
-        return value_op, literal_op
 
     def _flip_inst(self, inst: IRInstruction):
         ops = inst.operands
