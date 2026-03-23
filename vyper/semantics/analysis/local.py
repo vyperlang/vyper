@@ -115,18 +115,15 @@ def is_terminated(block: list[vy_ast.VyperNode]) -> bool:
             terminated = True
 
         if isinstance(node, vy_ast.If):
-            # Without an else, even if the "then" block is terminated,
-            # the enclosing block might not be
-            # We still need the recursive call for the unreachable error
-            body_terminated = is_terminated(node.body)
 
             if node.orelse is not None:
-                terminated = body_terminated and is_terminated(node.orelse)
+                terminated = is_terminated(node.body) and is_terminated(node.orelse)
+            else:
+                # call is_terminated for its side effects
+                is_terminated(node.body)
 
         if isinstance(node, vy_ast.For):
-            # The For loop might never be entered,
-            # even if it is terminated, the enclosing block might not be
-            # We still need the recursive call for the unreachable error
+            # call is_terminated for its side effects
             is_terminated(node.body)
 
     return terminated
