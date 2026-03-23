@@ -429,11 +429,7 @@ class ContractFunctionT(VyperType):
 
         return_type = _parse_return_type(funcdef)
 
-        body = funcdef.body
-
-        if len(body) != 1 or not (
-            isinstance(body[0], vy_ast.Expr) and isinstance(body[0].value, vy_ast.Ellipsis)
-        ):
+        if not is_ellipsis_body(funcdef.body):
             raise FunctionDeclarationException(
                 "function body in an interface can only be `...`!", funcdef
             )
@@ -855,6 +851,16 @@ class ContractFunctionT(VyperType):
     def abi_signature_for_kwargs(self, kwargs: list[KeywordArg]) -> str:
         args = self.positional_args + kwargs  # type: ignore
         return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
+
+
+def is_ellipsis_body(body: list[vy_ast.VyperNode]) -> bool:
+    # Despite appearances, this does allow a docstring preceding the ellipsis
+    # Docstrings are parsed specially, and do not show up as string literals
+    return (
+        len(body) == 1
+        and isinstance(body[0], vy_ast.Expr)
+        and isinstance(body[0].value, vy_ast.Ellipsis)
+    )
 
 
 def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:

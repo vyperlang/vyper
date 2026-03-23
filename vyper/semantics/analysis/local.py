@@ -64,7 +64,12 @@ from vyper.semantics.types import (
     is_type_t,
     map_void,
 )
-from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
+from vyper.semantics.types.function import (
+    ContractFunctionT,
+    MemberFunctionT,
+    StateMutability,
+    is_ellipsis_body,
+)
 from vyper.semantics.types.utils import type_from_annotation
 
 
@@ -358,32 +363,23 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                 arg.typ, location=location, modifiability=modifiability, decl_node=arg.ast_source
             )
 
-        if self.func.is_abstract:
-            # The doc string (if present) will be parsed differently,
-            # and so not be present in self.fn_node.body
-            is_abstract_body = len(self.fn_node.body) == 1 and isinstance(
-                self.fn_node.body[0].value, vy_ast.Ellipsis
+        if self.func.is_abstract and not is_ellipsis_body(self.fn_node.body):
+            func_name = self.func.name
+
+            msg = "Abstract function must have `...` as body"
+            msg += " (can be preceded by a doc comment)"
+
+            hint = "If you want to provide a default implementation, write a function like"
+            hint += f"{func_name}_default, and instruct your users to override your function as:"
+            hint += textwrap.dedent(
+                f"""
+                ```
+                @override(my_module)
+                def {func_name}(<function parameters here>) -> {self.func.return_type}:
+                    return {func_name}_default(<function arguments here>)
+                ```"""
             )
-
-            if not is_abstract_body:
-                func_name = self.func.name
-
-                msg = "Abstract function must have `...` as body"
-                msg += " (can be preceded by a doc comment)"
-
-                hint = "If you want to provide a default implementation, write a function like"
-                hint += (
-                    f"{func_name}_default, and instruct your users to override your function as:"
-                )
-                hint += textwrap.dedent(
-                    f"""
-                    ```
-                    @override(my_module)
-                    def {func_name}(<function parameters here>) -> {self.func.return_type}:
-                        return {func_name}_default(<function arguments here>)
-                    ```"""
-                )
-                raise FunctionDeclarationException(msg, self.fn_node, hint=hint)
+            raise FunctionDeclarationException(msg, self.fn_node, hint=hint)
 
         for node in self.fn_node.body:
             self.visit(node)
