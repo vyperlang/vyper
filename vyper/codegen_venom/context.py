@@ -909,16 +909,6 @@ class VenomCodegenContext:
                 imm_offset = self._with_byte_offset(offset, i)
                 self.store_word(imm_offset, word, DataLocation.IMMUTABLES)
 
-    # === Dynamic Array Length ===
-
-    def get_dyn_array_length(self, ptr: Ptr) -> IROperand:
-        """Get length of dynamic array. Works for any location."""
-        return self.ptr_load(ptr)
-
-    def set_dyn_array_length(self, ptr: Ptr, length: IROperand) -> None:
-        """Set length of dynamic array. Works for any location."""
-        self.ptr_store(ptr, length)
-
     # === Ptr Operations ===
 
     def add_offset(self, p: Ptr, n: IROperand | int) -> Ptr:
