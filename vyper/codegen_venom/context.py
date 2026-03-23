@@ -104,10 +104,6 @@ class VenomCodegenContext:
     # used by deploy epilogue to copy staging area into bytecode.
     immutables_alloca: Optional[IRVariable] = None
 
-    def new_alloca_id(self) -> int:
-        """Generate unique alloca ID."""
-        return self.builder.ctx.get_next_alloca_id()
-
     def new_variable(self, name: str, typ: VyperType, mutable: bool = True) -> LocalVariable:
         """Allocate memory for a named variable, register it, return the variable."""
         buf = self.allocate_buffer(typ.memory_bytes_required, annotation=name)
@@ -654,8 +650,7 @@ class VenomCodegenContext:
             raise MemoryAllocationException(
                 f"Tried to allocate {size} bytes! (limit is {self._ALLOCATION_LIMIT} (2**64) bytes)"
             )
-        alloca_id = self.new_alloca_id()
-        ptr = self.builder.alloca(size, alloca_id)
+        ptr = self.builder.alloca(size)
         return Buffer(_ptr=ptr, size=size, annotation=annotation)
 
     # === Storage Operations ===
