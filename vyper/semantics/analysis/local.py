@@ -397,13 +397,15 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
     @contextlib.contextmanager
     def enter_for_loop(self, varaccess: Optional[VarAccess]):
-        if varaccess is not None:
-            self.loop_variables.append(varaccess)
+        if varaccess is None:
+            yield
+            return
+
+        self.loop_variables.append(varaccess)
         try:
             yield
         finally:
-            if varaccess is not None:
-                self.loop_variables.pop()
+            self.loop_variables.pop()
 
     def visit_AnnAssign(self, node):
         name = node.get("target.id")
