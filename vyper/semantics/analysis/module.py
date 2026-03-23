@@ -1039,7 +1039,7 @@ def _compute_override_discrepancies(
     if override_t.nonreentrant != abstract_t.nonreentrant:
 
         def _is(b: bool) -> str:
-            return "is" if b else "isn't"
+            return "is" if b else "is not"
 
         action = "add a" if abstract_t.nonreentrant else "remove the"
         discrepancies.append(
