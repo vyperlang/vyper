@@ -86,22 +86,3 @@ class Mem2Var(IRPass):
                     self.updater.add_before(inst, "mstore", [var, alloca_inst.output])
                 inst.operands[1] = alloca_inst.output
 
-    def _fix_adds(self, mem_src: IRInstruction, _visited=None):
-        if _visited is None:
-            _visited = set()
-        if mem_src in _visited:
-            return
-        _visited.add(mem_src)
-
-        uses = self.dfg.get_uses(mem_src.output)
-        output = mem_src.output
-        for inst in uses.copy():
-            if inst.opcode in ("phi", "assign"):
-                self._fix_adds(inst, _visited)
-                continue
-            if inst.opcode != "add":
-                continue
-            other = [op for op in inst.operands if op != mem_src.output]
-            assert len(other) == 1
-            self.updater.update(inst, "gep", [output, other[0]])
-            self._fix_adds(inst, _visited)
