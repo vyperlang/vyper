@@ -362,26 +362,31 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                 arg.typ, location=location, modifiability=modifiability, decl_node=arg.ast_source
             )
 
-        if self.func.is_abstract and not is_ellipsis_body(self.fn_node.body):
-            func_name = self.func.name
+        if self.func.is_abstract:
+            if not is_ellipsis_body(self.fn_node.body):
+                func_name = self.func.name
 
-            msg = "Abstract function must have `...` as body"
-            msg += " (can be preceded by a doc comment)"
+                msg = "Abstract function must have `...` as body"
+                msg += " (can be preceded by a doc comment)"
 
-            hint = "To provide a default implementation, define a regular function (for example "
-            hint += f"named {func_name}_default) that override implementations can call."
-            raise FunctionDeclarationException(msg, self.fn_node, hint=hint)
+                hint = "To provide a default implementation, define a regular function "
+                hint += f"(for example named {func_name}_default) "
+                hint += "that override implementations can call."
+                raise FunctionDeclarationException(msg, self.fn_node, hint=hint)
 
-        for node in self.fn_node.body:
-            self.visit(node)
+        else:
+            # Concrete method
 
-        # Note: also checks unreachable code
-        _is_terminated = is_terminated(self.fn_node.body) or self.func.is_abstract
+            for node in self.fn_node.body:
+                self.visit(node)
 
-        if self.func.return_type and not _is_terminated:
-            raise FunctionDeclarationException(
-                f"Missing return statement in function '{self.fn_node.name}'", self.fn_node
-            )
+            # also called for side effect (checking unreachable code)
+            _is_terminated = is_terminated(self.fn_node.body)
+
+            if self.func.return_type and not _is_terminated:
+                raise FunctionDeclarationException(
+                    f"Missing return statement in function '{self.fn_node.name}'", self.fn_node
+                )
 
         # visit default args
         assert self.func.n_keyword_args == len(self.fn_node.args.defaults)
@@ -544,10 +549,6 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                     " and only on ones that are either @abstract or in an interface file (`.vyi`)",
                     node,
                 )
-            is_abstract = func._metadata["func_type"].is_abstract
-
-            if is_abstract:
-                return
 
             raise StructureException(
                 "`...` is only allowed in abstract methods "
