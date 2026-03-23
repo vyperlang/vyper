@@ -159,9 +159,9 @@ class VenomBuilder:
     def msize(self) -> IRVariable:
         return self._emit1_evm("msize")
 
-    def alloca(self, size: int, alloca_id: int) -> IRVariable:
+    def alloca(self, size: int) -> IRVariable:
         """Allocate abstract memory. Returns pointer. (IR-specific)"""
-        return self._emit1("alloca", size, alloca_id)
+        return self._emit1("alloca", size)
 
     def gep(self, ptr: Operand, offset: Operand) -> IRVariable:
         """Get element pointer into memory region. (IR-specific)

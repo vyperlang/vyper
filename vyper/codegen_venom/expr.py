@@ -1330,8 +1330,7 @@ class Expr:
         if func_t.return_type is not None:
             if returns_count > 0:
                 # Multi-return: allocate scratch buffer
-                alloca_id = self.ctx.new_alloca_id()
-                return_buf = self.builder.alloca(32 * returns_count, alloca_id)
+                return_buf = self.builder.alloca(32 * returns_count)
             else:
                 # Memory return: allocate buffer for full return type
                 return_buf = self.ctx.new_temporary_value(func_t.return_type).operand
