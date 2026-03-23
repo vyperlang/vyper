@@ -1665,11 +1665,11 @@ def test_interleaved_copies_different_regions():
     _check_pre_post(pre, post)
 
 
-def test_cross_bb_copy_with_gep_different_geps():
+def test_cross_bb_copy_with_add_different_adds():
     """
-    Two paths with different gep instructions that compute same value.
-    Should NOT optimize because gep results are different variables,
-    and _traverse_assign_chain stops at gep (not assign).
+    Two paths with different add instructions that compute same value.
+    Should NOT optimize because add results are different variables,
+    and _traverse_assign_chain stops at add (not assign).
     """
     if not version_check(begin="cancun"):
         return
@@ -1681,14 +1681,14 @@ def test_cross_bb_copy_with_gep_different_geps():
         jnz %cond, @path1, @path2
 
     path1:
-        %gep1 = gep 32, %base
-        %x = assign %gep1
+        %add1 = add 32, %base
+        %x = assign %add1
         calldatacopy 100, %x, 32
         jmp @merge
 
     path2:
-        %gep2 = gep 32, %base
-        %y = assign %gep2
+        %add2 = add 32, %base
+        %y = assign %add2
         calldatacopy 100, %y, 32
         jmp @merge
 
@@ -1698,14 +1698,14 @@ def test_cross_bb_copy_with_gep_different_geps():
         sink %1
     """
 
-    # mcopy should NOT be optimized - different geps break equivalence
+    # mcopy should NOT be optimized - different adds break equivalence
     _check_no_change(pre)
 
 
-def test_cross_bb_copy_with_gep_in_dominator():
+def test_cross_bb_copy_with_add_in_dominator():
     """
-    Single gep in common dominator, assign chains through it.
-    SHOULD optimize because the gep dominates merge point.
+    Single add in common dominator, assign chains through it.
+    SHOULD optimize because the add dominates merge point.
     """
     if not version_check(begin="cancun"):
         return
@@ -1714,16 +1714,16 @@ def test_cross_bb_copy_with_gep_in_dominator():
     _global:
         %cond = param
         %base = alloca 256
-        %gep = gep 32, %base
+        %add = add 32, %base
         jnz %cond, @path1, @path2
 
     path1:
-        %x = assign %gep
+        %x = assign %add
         calldatacopy 100, %x, 32
         jmp @merge
 
     path2:
-        %y = assign %gep
+        %y = assign %add
         calldatacopy 100, %y, 32
         jmp @merge
 
@@ -1737,31 +1737,31 @@ def test_cross_bb_copy_with_gep_in_dominator():
     _global:
         %cond = param
         %base = alloca 256
-        %gep = gep 32, %base
+        %add = add 32, %base
         jnz %cond, @path1, @path2
 
     path1:
-        %x = assign %gep
+        %x = assign %add
         nop  ; calldatacopy 100, %x, 32 [dead store - overwritten at merge]
         jmp @merge
 
     path2:
-        %y = assign %gep
+        %y = assign %add
         nop  ; calldatacopy 100, %y, 32 [dead store - overwritten at merge]
         jmp @merge
 
     merge:
-        calldatacopy 200, %gep, 32
+        calldatacopy 200, %add, 32
         %1 = mload 200
         sink %1
     """
     _check_pre_post(pre, post)
 
 
-def test_cross_bb_copy_with_longer_assign_chain_through_gep():
+def test_cross_bb_copy_with_longer_assign_chain_through_add():
     """
-    Longer assign chain that goes through a gep in dominator.
-    Should optimize - the gep dominates merge point.
+    Longer assign chain that goes through a add in dominator.
+    Should optimize - the add dominates merge point.
     """
     if not version_check(begin="cancun"):
         return
@@ -1770,17 +1770,17 @@ def test_cross_bb_copy_with_longer_assign_chain_through_gep():
     _global:
         %cond = param
         %base = alloca 256
-        %gep = gep 32, %base
+        %add = add 32, %base
         jnz %cond, @path1, @path2
 
     path1:
-        %a = assign %gep
+        %a = assign %add
         %b = assign %a
         calldatacopy 100, %b, 32
         jmp @merge
 
     path2:
-        %c = assign %gep
+        %c = assign %add
         %d = assign %c
         calldatacopy 100, %d, 32
         jmp @merge
@@ -1795,33 +1795,33 @@ def test_cross_bb_copy_with_longer_assign_chain_through_gep():
     _global:
         %cond = param
         %base = alloca 256
-        %gep = gep 32, %base
+        %add = add 32, %base
         jnz %cond, @path1, @path2
 
     path1:
-        %a = assign %gep
+        %a = assign %add
         %b = assign %a
         nop  ; calldatacopy [dead store]
         jmp @merge
 
     path2:
-        %c = assign %gep
+        %c = assign %add
         %d = assign %c
         nop  ; calldatacopy [dead store]
         jmp @merge
 
     merge:
-        calldatacopy 200, %gep, 32
+        calldatacopy 200, %add, 32
         %1 = mload 200
         sink %1
     """
     _check_pre_post(pre, post)
 
 
-def test_cross_bb_copy_with_nested_gep_different_inner_geps():
+def test_cross_bb_copy_with_nested_add_different_inner_adds():
     """
-    Nested gep (gep of gep) with different inner gep instructions in each path.
-    Should NOT optimize - the inner geps are different variables.
+    Nested add (add of add) with different inner add instructions in each path.
+    Should NOT optimize - the inner adds are different variables.
     """
     if not version_check(begin="cancun"):
         return
@@ -1830,17 +1830,17 @@ def test_cross_bb_copy_with_nested_gep_different_inner_geps():
     _global:
         %cond = param
         %base = alloca 256
-        %gep = gep 32, %base
+        %add = add 32, %base
         jnz %cond, @path1, @path2
 
     path1:
-        %inner1 = gep 64, %gep
+        %inner1 = add 64, %add
         %a = assign %inner1
         calldatacopy 100, %a, 32
         jmp @merge
 
     path2:
-        %inner2 = gep 64, %gep
+        %inner2 = add 64, %add
         %b = assign %inner2
         calldatacopy 100, %b, 32
         jmp @merge
@@ -1851,5 +1851,5 @@ def test_cross_bb_copy_with_nested_gep_different_inner_geps():
         sink %1
     """
 
-    # mcopy should NOT be optimized - different inner geps break equivalence
+    # mcopy should NOT be optimized - different inner adds break equivalence
     _check_no_change(pre)
