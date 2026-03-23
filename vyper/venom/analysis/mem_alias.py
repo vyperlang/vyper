@@ -74,6 +74,11 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
 
         return result
 
+    def get_alias_set(self, loc: MemoryLocation) -> OrderedSet[MemoryLocation] | None:
+        if loc not in self.alias_sets:
+            self._analyze_mem_location(loc)
+        return self.alias_sets.get(loc, None)
+
     def mark_volatile(self, loc: MemoryLocation) -> MemoryLocation:
         volatile_loc = loc.mk_volatile()
 
