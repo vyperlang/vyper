@@ -44,7 +44,7 @@ class Mem2Var(IRPass):
         Otherwise, it is left as is.
         """
 
-        assert len(alloca_inst.operands) >= 1, (alloca_inst, alloca_inst.parent)
+        assert len(alloca_inst.operands) == 1, (alloca_inst, alloca_inst.parent)
 
         size_lit = alloca_inst.operands[0]
         var_name = self._mk_varname(var.value)
@@ -52,7 +52,6 @@ class Mem2Var(IRPass):
         uses = dfg.get_uses(alloca_inst.output)
 
         if any(inst.opcode in ("add", "phi", "assign") for inst in uses):
-            self._fix_adds(alloca_inst)
             return
 
         if not all2(inst.opcode in ["mstore", "mload", "return"] for inst in uses):
