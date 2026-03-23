@@ -1032,18 +1032,15 @@ def _compute_override_discrepancies(
     # Reentrancy validation
 
     if override_t.nonreentrant != abstract_t.nonreentrant:
+        reentrancy_o = "non-reentrant" if override_t.nonreentrant else "reentrant"
+        reentrancy_a = "non-reentrant" if abstract_t.nonreentrant else "reentrant"
 
-        def _is(b: bool) -> str:
-            return "is" if b else "is not"
-
-        action = "add a" if abstract_t.nonreentrant else "remove the"
         discrepancies.append(
             FunctionDeclarationException(
-                f"Override reentrancy mismatch: Override {_is(override_t.nonreentrant)} "
-                "non-reentrant, unlike the method it is overriding.",
+                f"Override reentrancy mismatch: a {reentrancy_o} method cannot override "
+                f"a {reentrancy_a} method.",
                 override_t.ast_def,
                 abstract_t.ast_def,
-                hint=f"{action} @nonreentrant decorator",
             )
         )
 
