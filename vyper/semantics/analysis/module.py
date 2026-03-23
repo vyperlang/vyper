@@ -59,9 +59,14 @@ def analyze_modules(modules: OrderedSet[vy_ast.Module]) -> ModuleT:
     Analyze Vyper module ASTs, add all module-level objects to the namespace,
     type-check/validate semantics and annotate with type and analysis info.
 
-    The root module (compilation target) must be the last element in `modules`.
+    This function assumes `modules` comes from ImportAnalyzer.seen after import analysis.
+    In other words, it must:
+    1. be sorted in the post-order of the import tree:
+        each module must come after every one of its imports.
+    2. contain a single root:
+        each module must be imported by another one, except for a single module
     """
-    # The root module is always the last element, since dependencies are sorted
+    # Since dependencies are sorted, the root module is always the last element
     root_module_ast = list(modules)[-1]
 
     # TODO: Instead of being recursive, use `modules`
