@@ -115,7 +115,6 @@ def is_terminated(block: list[vy_ast.VyperNode]) -> bool:
             terminated = True
 
         if isinstance(node, vy_ast.If):
-
             if node.orelse is not None:
                 terminated = is_terminated(node.body) and is_terminated(node.orelse)
             else:
