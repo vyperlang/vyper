@@ -794,14 +794,14 @@ INVALID_DECORATOR_OVERRIDES = [
     (
         "@nonreentrant",
         "",
-        "Override reentrancy mismatch: Override isn't non-reentrant, unlike the method it is"
+        "Override reentrancy mismatch: Override is not non-reentrant, unlike the method it is"
         " overriding.",
         "add a @nonreentrant decorator",
     ),
     (
         "@nonreentrant",
         "@nonpayable",
-        "Override reentrancy mismatch: Override isn't non-reentrant, unlike the method it is"
+        "Override reentrancy mismatch: Override is not non-reentrant, unlike the method it is"
         " overriding.",
         "add a @nonreentrant decorator",
     ),
@@ -823,21 +823,21 @@ INVALID_DECORATOR_OVERRIDES = [
     (
         "@nonreentrant\n@nonpayable",
         "@nonpayable",
-        "Override reentrancy mismatch: Override isn't non-reentrant, unlike the method it is"
+        "Override reentrancy mismatch: Override is not non-reentrant, unlike the method it is"
         " overriding.",
         "add a @nonreentrant decorator",
     ),
     (
         "@nonreentrant\n@view",
         "@view",
-        "Override reentrancy mismatch: Override isn't non-reentrant, unlike the method it is"
+        "Override reentrancy mismatch: Override is not non-reentrant, unlike the method it is"
         " overriding.",
         "add a @nonreentrant decorator",
     ),
     (
         "@nonreentrant\n@payable",
         "@payable",
-        "Override reentrancy mismatch: Override isn't non-reentrant, unlike the method it is"
+        "Override reentrancy mismatch: Override is not non-reentrant, unlike the method it is"
         " overriding.",
         "add a @nonreentrant decorator",
     ),
