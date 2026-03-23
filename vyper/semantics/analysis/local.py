@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import contextlib
-import textwrap
 from typing import Optional
 
 from vyper import ast as vy_ast
@@ -369,16 +368,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             msg = "Abstract function must have `...` as body"
             msg += " (can be preceded by a doc comment)"
 
-            hint = "If you want to provide a default implementation, write a function like"
-            hint += f"{func_name}_default, and instruct your users to override your function as:"
-            hint += textwrap.dedent(
-                f"""
-                ```
-                @override(my_module)
-                def {func_name}(<function parameters here>) -> {self.func.return_type}:
-                    return {func_name}_default(<function arguments here>)
-                ```"""
-            )
+            hint = "To provide a default implementation, define a regular function (for example "
+            hint += f"named {func_name}_default) that override implementations can call."
             raise FunctionDeclarationException(msg, self.fn_node, hint=hint)
 
         for node in self.fn_node.body:
