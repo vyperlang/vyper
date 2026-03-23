@@ -301,24 +301,23 @@ def _build_call_graph_edges(module_ast: vy_ast.Module):
 
 
 def _compute_and_validate_reachable_sets(module_ast: vy_ast.Module):
-    with override_global_namespace(module_ast._metadata["namespace"]):
-        function_defs = module_ast.get_children(vy_ast.FunctionDef)
+    function_defs = module_ast.get_children(vy_ast.FunctionDef)
 
-        for func in function_defs:
-            fn_t = func._metadata["func_type"]
+    for func in function_defs:
+        fn_t = func._metadata["func_type"]
 
-            # compute reachable set and validate the call graph
-            _compute_and_validate_reachable_set(fn_t)
+        # compute reachable set and validate the call graph
+        _compute_and_validate_reachable_set(fn_t)
 
-            if fn_t.nonreentrant:
-                for g in fn_t.reachable_internal_functions:
-                    if g.nonreentrant:
-                        # TODO: improve the error message by displaying the exact
-                        # path through the call graph
-                        msg = f"Cannot call `{g.name}` since it is"
-                        msg += f" `@nonreentrant` and reachable from `{fn_t.name}`"
-                        msg += ", which is also marked `@nonreentrant`"
-                        raise CallViolation(msg, func, g.ast_def)
+        if fn_t.nonreentrant:
+            for g in fn_t.reachable_internal_functions:
+                if g.nonreentrant:
+                    # TODO: improve the error message by displaying the exact
+                    # path through the call graph
+                    msg = f"Cannot call `{g.name}` since it is"
+                    msg += f" `@nonreentrant` and reachable from `{fn_t.name}`"
+                    msg += ", which is also marked `@nonreentrant`"
+                    raise CallViolation(msg, func, g.ast_def)
 
 
 # compute reachable set and validate the call graph (detect cycles)
