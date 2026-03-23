@@ -994,36 +994,25 @@ def _compute_override_discrepancies(
 
     # Return type validation
 
-    if return_type_abstract:
-        if return_type_override:
-            if not return_type_override.is_subtype_of(return_type_abstract):
-                discrepancies.append(
-                    FunctionDeclarationException(
-                        "Override return type mismatch: "
-                        f"Got {return_type_override}, but expected {return_type_abstract}",
-                        override_t.ast_def,
-                        abstract_t.ast_def,
-                    )
-                )
-        else:
-            discrepancies.append(
-                FunctionDeclarationException(
-                    "Override return type mismatch: "
-                    f"Got no return type, but expected {return_type_abstract}",
-                    override_t.ast_def,
-                    abstract_t.ast_def,
-                )
+    both_return_and_match = (
+        return_type_abstract
+        and return_type_override
+        and return_type_override.is_subtype_of(return_type_abstract)
+    )
+    neither_returns = not return_type_abstract and not return_type_override
+
+    return_types_match = both_return_and_match or neither_returns
+
+    if not return_types_match:
+        discrepancies.append(
+            FunctionDeclarationException(
+                "Override return type mismatch: "
+                f"Got {return_type_override or 'no return type'}, "
+                f"but expected {return_type_abstract or 'no return type'}",
+                override_t.ast_def,
+                abstract_t.ast_def,
             )
-    else:
-        if return_type_override:
-            discrepancies.append(
-                FunctionDeclarationException(
-                    "Override return type mismatch: "
-                    f"Got {return_type_override}, but expected no return type",
-                    override_t.ast_def,
-                    abstract_t.ast_def,
-                )
-            )
+        )
 
     # Mutability validation
 
