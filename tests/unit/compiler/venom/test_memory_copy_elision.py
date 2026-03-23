@@ -1677,7 +1677,7 @@ def test_cross_bb_copy_with_gep_different_geps():
     pre = """
     _global:
         %cond = param
-        %base = alloca 1, 256
+        %base = alloca 256
         jnz %cond, @path1, @path2
 
     path1:
@@ -1713,7 +1713,7 @@ def test_cross_bb_copy_with_gep_in_dominator():
     pre = """
     _global:
         %cond = param
-        %base = alloca 1, 256
+        %base = alloca 256
         %gep = gep 32, %base
         jnz %cond, @path1, @path2
 
@@ -1736,7 +1736,7 @@ def test_cross_bb_copy_with_gep_in_dominator():
     post = """
     _global:
         %cond = param
-        %base = alloca 1, 256
+        %base = alloca 256
         %gep = gep 32, %base
         jnz %cond, @path1, @path2
 
@@ -1769,7 +1769,7 @@ def test_cross_bb_copy_with_longer_assign_chain_through_gep():
     pre = """
     _global:
         %cond = param
-        %base = alloca 1, 256
+        %base = alloca 256
         %gep = gep 32, %base
         jnz %cond, @path1, @path2
 
@@ -1794,7 +1794,7 @@ def test_cross_bb_copy_with_longer_assign_chain_through_gep():
     post = """
     _global:
         %cond = param
-        %base = alloca 1, 256
+        %base = alloca 256
         %gep = gep 32, %base
         jnz %cond, @path1, @path2
 
@@ -1829,7 +1829,7 @@ def test_cross_bb_copy_with_nested_gep_different_inner_geps():
     pre = """
     _global:
         %cond = param
-        %base = alloca 1, 256
+        %base = alloca 256
         %gep = gep 32, %base
         jnz %cond, @path1, @path2
 

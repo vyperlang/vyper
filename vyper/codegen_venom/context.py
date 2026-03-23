@@ -12,7 +12,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.constants import IDENTITY_PRECOMPILE
@@ -28,9 +28,6 @@ from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.semantics.types.user import StructT
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
-
-if TYPE_CHECKING:
-    pass
 
 
 class Constancy(Enum):
@@ -911,16 +908,6 @@ class VenomCodegenContext:
                 word = self.builder.mload(mem_ptr)
                 imm_offset = self._with_byte_offset(offset, i)
                 self.store_word(imm_offset, word, DataLocation.IMMUTABLES)
-
-    # === Dynamic Array Length ===
-
-    def get_dyn_array_length(self, ptr: Ptr) -> IROperand:
-        """Get length of dynamic array. Works for any location."""
-        return self.ptr_load(ptr)
-
-    def set_dyn_array_length(self, ptr: Ptr, length: IROperand) -> None:
-        """Set length of dynamic array. Works for any location."""
-        self.ptr_store(ptr, length)
 
     # === Ptr Operations ===
 

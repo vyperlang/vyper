@@ -1286,8 +1286,9 @@ def _generate_internal_function(
     )
 
     # Reserve immutables region for ctor context internal functions.
-    # Uses position 0 to match the constructor's allocation. This ensures
-    # all ctor-context functions access immutables at the same memory location.
+    # Explicitly sets position 0 to match the constructor's allocation.
+    # This ensures all ctor-context functions access immutables at the
+    # same memory location.
     if is_ctor_context and immutables_len > 0:
         codegen_ctx.immutables_alloca = builder.alloca(immutables_len)
         # Get the alloca instruction (just appended) and force position 0
