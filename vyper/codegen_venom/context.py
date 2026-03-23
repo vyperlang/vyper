@@ -12,7 +12,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.constants import IDENTITY_PRECOMPILE
@@ -28,9 +28,6 @@ from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.semantics.types.user import StructT
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
-
-if TYPE_CHECKING:
-    pass
 
 
 class Constancy(Enum):
