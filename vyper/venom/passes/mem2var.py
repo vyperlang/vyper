@@ -18,11 +18,9 @@ class Mem2Var(IRPass):
     required_successors = ("MakeSSA",)
 
     def run_pass(self):
-        self.mem_alloc = self.function.ctx.mem_allocator
         self.analyses_cache.request_analysis(CFGAnalysis)
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(dfg)
-        self.dfg = dfg
 
         self.var_name_count = 0
         for var, inst in dfg.outputs.copy().items():
@@ -47,8 +45,6 @@ class Mem2Var(IRPass):
         assert len(alloca_inst.operands) == 1, (alloca_inst, alloca_inst.parent)
 
         size_lit = alloca_inst.operands[0]
-        var_name = self._mk_varname(var.value)
-        var = IRVariable(var_name)
         uses = dfg.get_uses(alloca_inst.output)
 
         if not all2(inst.opcode in ["mstore", "mload", "return"] for inst in uses):
@@ -56,6 +52,7 @@ class Mem2Var(IRPass):
 
         assert isinstance(size_lit, IRLiteral)
         size = size_lit.value
+        var = IRVariable(self._mk_varname(var.value))
 
         # Check if there's at least one mstore (definition)
         has_mstore = any(inst.opcode == "mstore" for inst in uses)
