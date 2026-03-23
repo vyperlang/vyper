@@ -78,7 +78,7 @@ def analyze_modules(modules: OrderedSet[vy_ast.Module]) -> ModuleT:
         _build_call_graph_edges(module_ast)
 
     for module_ast in modules:
-        _compute_reachable_sets(module_ast)
+        _compute_and_validate_reachable_sets(module_ast)
 
     for module_ast in modules:
         _analyze_module_bodies(module_ast)
@@ -295,7 +295,7 @@ def _build_call_graph_edges(module_ast: vy_ast.Module):
                     fn_t.called_functions.add(call_t.get_concrete_override())
 
 
-def _compute_reachable_sets(module_ast: vy_ast.Module):
+def _compute_and_validate_reachable_sets(module_ast: vy_ast.Module):
     with override_global_namespace(module_ast._metadata["namespace"]):
         function_defs = module_ast.get_children(vy_ast.FunctionDef)
 
@@ -303,7 +303,7 @@ def _compute_reachable_sets(module_ast: vy_ast.Module):
             fn_t = func._metadata["func_type"]
 
             # compute reachable set and validate the call graph
-            _compute_reachable_set(fn_t)
+            _compute_and_validate_reachable_set(fn_t)
 
             if fn_t.nonreentrant:
                 for g in fn_t.reachable_internal_functions:
@@ -317,7 +317,9 @@ def _compute_reachable_sets(module_ast: vy_ast.Module):
 
 
 # compute reachable set and validate the call graph (detect cycles)
-def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT] = None) -> None:
+def _compute_and_validate_reachable_set(
+    fn_t: ContractFunctionT, path: list[ContractFunctionT] = None
+) -> None:
     path = path or []
 
     path.append(fn_t)
@@ -332,7 +334,7 @@ def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT
             message = " -> ".join([f.name for f in extended_path])
             raise CallViolation(f"Contract contains cyclic function call: {message}")
 
-        _compute_reachable_set(g, path=path)
+        _compute_and_validate_reachable_set(g, path=path)
 
         g_reachable = g.reachable_internal_functions
         assert fn_t not in g_reachable  # sanity check
