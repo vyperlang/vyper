@@ -206,11 +206,7 @@ def generate_deploy_venom(
         # Generate constructor
         assert isinstance(init_func_t.ast_def, vy_ast.FunctionDef)
         _generate_constructor(
-            deploy_builder,
-            module_t,
-            init_func_t.ast_def,
-            len(runtime_bytecode),
-            immutables_len,
+            deploy_builder, module_t, init_func_t.ast_def, len(runtime_bytecode), immutables_len
         )
 
         # Generate internal functions reachable from constructor

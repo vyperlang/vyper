@@ -85,4 +85,3 @@ class Mem2Var(IRPass):
                 if size <= 32:
                     self.updater.add_before(inst, "mstore", [var, alloca_inst.output])
                 inst.operands[1] = alloca_inst.output
-
