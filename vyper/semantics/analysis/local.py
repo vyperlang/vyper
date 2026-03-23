@@ -329,21 +329,6 @@ def check_module_uses_for_abstract(
 
 
 class FunctionAnalyzer(VyperNodeVisitorBase):
-    """
-    Semantic analyzer for Vyper function definitions.
-
-    Analyzes function bodies to enforce language rules and ensure correctness.
-
-    Responsibilities:
-    - Type checking and assignment compatibility
-    - Mutability enforcement (pure/view/nonpayable/payable)
-    - Variable scope management and tracking
-    - Control flow validation (return/break/continue)
-    - Loop variable protection
-    - Module access tracking for 'uses'/'initializes'
-    - Immutability validation (constants, immutables, calldata)
-    """
-
     ignored_types = (vy_ast.Pass,)
     scope_name = "function"
 
@@ -745,25 +730,6 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
 
 class ExprVisitor(VyperNodeVisitorBase):
-    """
-    Expression visitor for semantic analysis and type checking of Vyper expressions.
-
-    This visitor class traverses expression nodes in the Vyper AST and performs:
-    1. Type validation - ensures expressions have correct and compatible types
-    2. Type annotation - annotates each expression node with its computed type
-    3. Access tracking - tracks variable reads and writes for dependency analysis
-    4. Mutability checking - enforces function mutability constraints (pure/view/nonpayable)
-    5. Loop variable immutability - prevents modification of loop iteration variables
-    6. Module access validation - ensures proper module usage declarations
-    7. Constant folding validation - validates compile-time constant expressions
-
-    The visitor is used in two contexts:
-    - With a FunctionAnalyzer: for analyzing expressions within function bodies,
-      enforcing function-specific constraints like mutability and tracking variable access
-    - Standalone: for analyzing module-level constant expressions where function
-      context is not applicable
-    """
-
     def __init__(self, function_analyzer: Optional[FunctionAnalyzer] = None):
         self.function_analyzer = function_analyzer
 
