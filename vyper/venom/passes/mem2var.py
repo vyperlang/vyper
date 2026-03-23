@@ -51,9 +51,6 @@ class Mem2Var(IRPass):
         var = IRVariable(var_name)
         uses = dfg.get_uses(alloca_inst.output)
 
-        if any(inst.opcode in ("phi", "assign") for inst in uses):
-            return
-
         if not all2(inst.opcode in ["mstore", "mload", "return"] for inst in uses):
             return
 
