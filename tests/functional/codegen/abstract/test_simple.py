@@ -984,13 +984,13 @@ import foo
 initializes: foo
 
 @override(foo)
-def barr() -> uint256:
+def long_method_name_z() -> uint256:
     return 42
     """
 
     foo = """
 @abstract
-def bar() -> uint256: ...
+def long_method_name_a() -> uint256: ...
     """
 
     input_bundle = make_input_bundle({"foo.vy": foo})
@@ -1000,7 +1000,7 @@ def bar() -> uint256: ...
 
     assert "method does not exist" in e.value.message
     assert e.value.hint is not None
-    assert "bar" in e.value.hint
+    assert "long_method_name_a" in e.value.hint
 
 
 def test_duplicate_override_fails(get_contract, make_input_bundle):
