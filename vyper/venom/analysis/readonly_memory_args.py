@@ -199,4 +199,3 @@ class ReadonlyMemoryArgsGlobalAnalysis(IRGlobalAnalysis):
         if isinstance(b, IRVariable):
             roots.update(root_param_indices_var(b))
         return frozenset(roots)
-
