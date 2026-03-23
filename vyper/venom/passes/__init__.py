@@ -1,3 +1,4 @@
+from .affine_folding import AffineFoldingPass
 from .algebraic_optimization import AlgebraicOptimizationPass
 from .assert_combiner import AssertCombinerPass
 from .assert_elimination import AssertEliminationPass
@@ -9,7 +10,6 @@ from .concretize_mem_loc import ConcretizeMemLocPass
 from .dead_store_elimination import DeadStoreElimination
 from .dft import DFTPass
 from .fix_mem_locations import FixMemLocationsPass
-from .float_allocas import FloatAllocas
 from .function_inliner import FunctionInlinerPass
 from .internal_return_copy_forwarding import InternalReturnCopyForwardingPass
 from .literals_codesize import ReduceLiteralsCodesize
