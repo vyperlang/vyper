@@ -461,6 +461,7 @@ def _generate_selector_section_sparse(
 
             # Copy 2-byte header to memory at offset (32 - 2) = 30
             # so mload(0) reads it right-aligned in a 32-byte word
+            # TODO: PROBLEM
             dst = 32 - SZ_BUCKET_HEADER
             builder.codecopy(IRLiteral(dst), bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
             jumpdest = builder.mload(IRLiteral(0))
@@ -719,6 +720,7 @@ def _generate_selector_section_dense(
         # Copy 5-byte header to memory at offset (32 - 5) = 27
         # so mload(0) reads it right-aligned in a 32-byte word
         dst = 32 - SZ_BUCKET_HEADER
+        # TODO: PROBLEM
         builder.codecopy(IRLiteral(dst), bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
         hdr_info = builder.mload(IRLiteral(0))
 
@@ -741,6 +743,7 @@ def _generate_selector_section_dense(
         func_info_location = builder.add(bucket_location, func_info_offset)
 
         # Copy function info to memory
+        # TODO: PROBLEM
         dst = 32 - func_info_size
         assert func_info_size >= SZ_BUCKET_HEADER  # otherwise mload will have dirty bytes
         builder.codecopy(IRLiteral(dst), func_info_location, IRLiteral(func_info_size))
@@ -1063,6 +1066,7 @@ def _register_positional_args(ctx: VenomCodegenContext, func_t: ContractFunction
 
         # Allocate memory for the arg
         var = ctx.new_variable(arg.name, arg.typ, mutable=False)
+        assert isinstance(var.value.operand, IRVariable)
 
         # Get the element location in calldata (handles ABI offset indirection for dynamic types)
         elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
@@ -1109,6 +1113,7 @@ def _handle_kwargs(
 
     for i, arg in enumerate(func_t.keyword_args):
         var = ctx.new_variable(arg.name, arg.typ, mutable=False)
+        assert isinstance(var.value.operand, IRVariable)
 
         if i < kwargs_from_calldata:
             # Copy from calldata using ABI decoder
@@ -1463,6 +1468,7 @@ def _register_constructor_args(ctx: VenomCodegenContext, func_t: ContractFunctio
 
         # Allocate memory for the arg
         var = ctx.new_variable(arg.name, arg.typ, mutable=False)
+        assert isinstance(var.value.operand, IRVariable)
 
         # Get element location in data section (handles ABI offset for dynamic types)
         elem_src = _getelemptr_abi(ctx, data_tuple, arg.typ, static_offset)
