@@ -380,6 +380,7 @@ def _generate_selector_section_sparse(
     For functions with kwargs, generates ONE shared common body with
     separate entry points that handle kwargs and jump to the common body.
     """
+    codegen_ctx = VenomCodegenContext(module_t, builder)
     runtime_ctx = builder.ctx
 
     # Check calldatasize >= SELECTOR_BYTES (4 bytes)
@@ -461,9 +462,9 @@ def _generate_selector_section_sparse(
 
             # Copy 2-byte header to memory at offset (32 - 2) = 30
             # so mload(0) reads it right-aligned in a 32-byte word
-            # TODO: PROBLEM
-            dst = 32 - SZ_BUCKET_HEADER
-            builder.codecopy(IRLiteral(dst), bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
+            buf = codegen_ctx.allocate_buffer(32, annotation="selector scratch")
+            dst = builder.add(buf._ptr, IRLiteral(32 - SZ_BUCKET_HEADER))
+            builder.codecopy(dst, bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
             jumpdest = builder.mload(IRLiteral(0))
 
             # Dynamic jump to bucket (must list all possible targets)
