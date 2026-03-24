@@ -964,7 +964,8 @@ class VenomCodegenContext:
     def store_word(self, addr: IROperand, val: IROperand, location: DataLocation) -> None:
         """Store a single word to addr at the given location."""
         if location == DataLocation.IMMUTABLES:
-            assert isinstance(addr, IRVariable)
+            assert self.immutables_alloca is not None
+            addr = self.builder.add(self.immutables_alloca, addr)
             self.builder.istore(addr, val)
         elif location == DataLocation.MEMORY:
             assert isinstance(addr, IRVariable)
