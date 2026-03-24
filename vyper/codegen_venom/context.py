@@ -170,7 +170,7 @@ class VenomCodegenContext:
         return self.load_word(vv.operand, vv.location)
 
     def store_vyper_value(
-        self, vv: VyperValue, ptr: IROperand, typ: Optional[VyperType] = None
+        self, vv: VyperValue, ptr: IRVariable, typ: Optional[VyperType] = None
     ) -> None:
         """Store a VyperValue into memory, preserving its source layout."""
         if typ is None:
@@ -374,7 +374,7 @@ class VenomCodegenContext:
             return ptr
 
     def store_memory(
-        self, val: IROperand, ptr: IROperand, typ: VyperType, src_typ: Optional[VyperType] = None
+        self, val: IROperand, ptr: IRVariable, typ: VyperType, src_typ: Optional[VyperType] = None
     ) -> None:
         """Store value to memory pointer.
 
@@ -415,7 +415,7 @@ class VenomCodegenContext:
             self.copy_memory(ptr, val, typ.memory_bytes_required)
 
     def _store_memory_typed(
-        self, dst: IROperand, dst_typ: VyperType, src: IROperand, src_typ: VyperType
+        self, dst: IRVariable, dst_typ: VyperType, src: IROperand, src_typ: VyperType
     ) -> None:
         """Store memory value with potential source/destination type layout differences."""
         if dst_typ._is_prim_word:
@@ -443,6 +443,7 @@ class VenomCodegenContext:
             for dst_member_t, src_member_t in zip(dst_typ.member_types, src_typ.member_types):
                 dst_ptr = self._with_byte_offset(dst, dst_ofst)
                 src_ptr = self._with_byte_offset(src, src_ofst)
+                assert isinstance(dst_ptr, IRVariable)
                 self._store_memory_typed(dst_ptr, dst_member_t, src_ptr, src_member_t)
                 dst_ofst += dst_member_t.memory_bytes_required
                 src_ofst += src_member_t.memory_bytes_required
@@ -455,6 +456,7 @@ class VenomCodegenContext:
                 src_member_t = src_typ.member_types[name]
                 dst_ptr = self._with_byte_offset(dst, dst_ofst)
                 src_ptr = self._with_byte_offset(src, src_ofst)
+                assert isinstance(dst_ptr, IRVariable)
                 self._store_memory_typed(dst_ptr, dst_member_t, src_ptr, src_member_t)
                 dst_ofst += dst_member_t.memory_bytes_required
                 src_ofst += src_member_t.memory_bytes_required
@@ -463,7 +465,7 @@ class VenomCodegenContext:
         raise CompilerPanic(f"_store_memory_typed: unhandled types {src_typ} -> {dst_typ}")
 
     def _copy_sarray_memory_typed(
-        self, dst: IROperand, dst_typ: SArrayT, src: IROperand, src_typ: SArrayT
+        self, dst: IRVariable, dst_typ: SArrayT, src: IROperand, src_typ: SArrayT
     ) -> None:
         """Copy SArray in memory when source and destination element layouts
         may differ.
@@ -539,6 +541,7 @@ class VenomCodegenContext:
         # Fast path when element layouts match: copy exactly `length` elements.
         if src_elem_t == dst_elem_t and src_elem_size == dst_elem_size:
             data_size = b.mul(length, IRLiteral(dst_elem_size))
+            assert isinstance(dst_data, IRVariable)
             self.copy_memory_dynamic(dst_data, src_data, data_size)
             return
 
