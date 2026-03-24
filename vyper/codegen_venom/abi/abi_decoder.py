@@ -35,7 +35,7 @@ from vyper.semantics.types import (
     _BytestringT,
 )
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -246,7 +246,7 @@ def _make_ptr_value(operand, location: DataLocation, typ) -> VyperValue:
 
 
 def _decode_primitive(
-    ctx: VenomCodegenContext, dst: IROperand, src: VyperValue, typ: VyperType
+    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, typ: VyperType
 ) -> None:
     """Decode a primitive (word-sized) type."""
     b = ctx.builder
