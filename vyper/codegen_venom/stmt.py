@@ -20,7 +20,7 @@ from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.semantics.types.user import EventT, StructT
 from vyper.utils import method_id_int
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 from .buffer import Ptr
 from .calling_convention import returns_stack_count
@@ -142,6 +142,7 @@ class Stmt:
         # src/dst are provably non-overlapping (different allocas).
         if src_loc is DataLocation.MEMORY and dst_ptr.location is DataLocation.MEMORY:
             tmp_val = self.ctx.new_temporary_value(src_typ)
+            assert isinstance(tmp_val.operand, IRVariable)
             self.ctx.copy_memory(tmp_val.operand, src, src_typ.memory_bytes_required)
             src = tmp_val.operand
 
@@ -160,6 +161,7 @@ class Stmt:
             # Normalize source into destination layout before writing to
             # storage/transient/code locations that don't carry src_typ.
             normalized = self.ctx.new_temporary_value(typ)
+            assert isinstance(normalized.operand, IRVariable)
             self.ctx.store_memory(src, normalized.operand, typ, src_typ=src_typ)
             src = normalized.operand
             src_typ = typ
@@ -189,6 +191,7 @@ class Stmt:
             else:
                 self.ctx.store_immutable(src, dst_ptr.operand, typ)
         else:
+            assert isinstance(dst_ptr.operand, IRVariable)
             # Memory destination: use layout-aware copy when types differ.
             self.ctx.store_memory(src, dst_ptr.operand, typ, src_typ=src_typ)
 
@@ -239,6 +242,7 @@ class Stmt:
             and any(not t._is_prim_word for t in src_member_types)
         ):
             staged_src = self.ctx.new_temporary_value(src_tuple_typ)
+            assert isinstance(staged_src.operand, IRVariable)
             self.ctx.copy_memory(staged_src.operand, src, src_tuple_typ.memory_bytes_required)
             src = staged_src.operand
 
@@ -716,6 +720,7 @@ class Stmt:
 
         # Allocate loop variable (copy of element, not reference)
         item_local = self.ctx.new_variable(varname, target_type, mutable=False)
+        assert isinstance(item_local.value.operand, IRVariable)
         self.ctx.forvars[varname] = True
 
         # Create blocks
@@ -940,6 +945,7 @@ class Stmt:
             and ret_val is not None
         ):
             normalized = self.ctx.new_temporary_value(ret_typ)
+            assert isinstance(normalized.operand, IRVariable)
             self.ctx.store_memory(ret_val, normalized.operand, ret_typ, src_typ=ret_src_typ)
             ret_val = normalized.operand
             ret_src_typ = ret_typ
@@ -950,6 +956,7 @@ class Stmt:
             # ret_val is a pointer to [length (32 bytes)][data...]
             # Copy to a fresh buffer to ensure it's in memory
             buf_val = self.ctx.new_temporary_value(ret_typ)
+            assert isinstance(buf_val.operand, IRVariable)
             self.ctx.store_memory(ret_val, buf_val.operand, ret_typ, src_typ=ret_src_typ)
 
             # Get length from first 32 bytes
