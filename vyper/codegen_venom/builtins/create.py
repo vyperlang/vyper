@@ -18,7 +18,7 @@ from vyper.ir.compile_ir import assembly_to_evm
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import TupleT
 from vyper.utils import bytes_to_int
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -199,6 +199,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     # This is critical when ctor args might modify the storage location that holds
     # the bytecode (cf. test_raw_create_change_initcode_size).
     if bytecode_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
+        assert bytecode_vv.location is not None
         # Allocate memory buffer and copy from storage/transient
         mem_buf = ctx.new_temporary_value(bytecode_typ)
         ctx.slot_to_memory(
@@ -216,6 +217,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         bytecode_len_tmp = b.mload(bytecode_vv.operand)
         # Copy length word + data
         copy_size = b.add(bytecode_len_tmp, IRLiteral(32))
+        assert isinstance(mem_buf.operand, IRVariable)
         ctx.copy_memory_dynamic(mem_buf.operand, bytecode_vv.operand, copy_size)
         bytecode = mem_buf.operand
 
@@ -265,6 +267,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
             dst = ctor_args_val.operand
         else:
             dst = b.add(ctor_args_val.operand, IRLiteral(offset))
+        assert isinstance(dst, IRVariable)
         ctx.store_vyper_value(vv, dst, arg_t)
         offset += arg_t.memory_bytes_required
 
@@ -531,6 +534,8 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
                 dst = ctor_args_src.operand
             else:
                 dst = b.add(ctor_args_src.operand, IRLiteral(offset))
+
+            assert isinstance(dst, IRVariable)
             ctx.store_vyper_value(vv, dst, arg_t)
             offset += arg_t.memory_bytes_required
 
