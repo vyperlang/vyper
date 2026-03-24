@@ -9,6 +9,7 @@ from vyper.semantics.types.primitives import IntegerT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.utils import get_index_value, type_from_annotation
 from vyper.warnings import VyperWarning, vyper_warn
+from vyper.semantics.types.infinity import INF
 
 
 class _SubscriptableT(VyperType):
@@ -215,8 +216,12 @@ class SArrayT(_SequenceT):
         if not value_type.is_valid_element_type:
             raise StructureException(f"arrays of {value_type} are not allowed!")
 
-        # note: validates index is a vy_ast.Int.
+        # note: validates index
         length = get_index_value(node.slice)
+
+        # TODO: Add proper error message, either here or somewhere else
+        assert length is not INF
+
         return cls(value_type, length)
 
 

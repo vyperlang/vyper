@@ -55,13 +55,16 @@ class _Msg(_EnvType):
             }
         )
 
+class _Inf(_EnvType):
+    _id = "INF"
+
 
 class _Tx(_EnvType):
     _id = "tx"
     _type_members = {"origin": AddressT(), "gasprice": UINT256_T}
 
 
-_CONSTANT_ENV_TYPES: tuple[type[_EnvType], ...] = (_Block, _Chain, _Tx, _Msg)
+_CONSTANT_ENV_TYPES: tuple[type[_EnvType], ...] = (_Block, _Chain, _Tx, _Msg, _Inf)
 
 CONSTANT_ENVIRONMENT_VARS = {cls._id for cls in _CONSTANT_ENV_TYPES}
 

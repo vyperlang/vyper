@@ -14,7 +14,7 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
-from vyper.semantics.types.infinity import INF
+from vyper.semantics.types.infinity import Inf, INF
 
 # TODO maybe this should be merged with .types/base.py
 
@@ -177,7 +177,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     return typ_
 
 
-def get_index_value(node: vy_ast.VyperNode) -> int:
+def get_index_value(node: vy_ast.VyperNode) -> int | Inf:
     """
     Return the literal value for a `Subscript` index.
 
@@ -197,6 +197,10 @@ def get_index_value(node: vy_ast.VyperNode) -> int:
     from vyper.semantics.analysis.utils import get_possible_types_from_node
 
     node = node.reduced()
+
+    # TODO: Maybe instead check that get_possible_types_from_node(node) is _Inf ?
+    if isinstance(node, vy_ast.Name) and node.id == "INF":
+        return INF
 
     if not isinstance(node, vy_ast.Int):
         # even though the subscript is an invalid type, first check if it's a valid _something_
