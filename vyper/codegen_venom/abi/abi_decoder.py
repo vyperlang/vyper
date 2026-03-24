@@ -383,7 +383,7 @@ def _decode_dyn_array(
 
 
 def _decode_complex(
-    ctx: VenomCodegenContext, dst: IROperand, src: VyperValue, typ: VyperType, hi: IROperand = None
+    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, typ: VyperType, hi: IROperand = None
 ) -> None:
     """
     Decode a complex type (tuple/struct/static array).
@@ -428,7 +428,7 @@ def _decode_complex(
 
 
 def _abi_decode_to_buf(
-    ctx: VenomCodegenContext, dst: IROperand, src: VyperValue, hi: IROperand = None
+    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, hi: IROperand = None
 ) -> None:
     """
     Internal decoder dispatcher.
@@ -452,7 +452,7 @@ def _abi_decode_to_buf(
 
 
 def abi_decode_to_buf(
-    ctx: VenomCodegenContext, dst: IROperand, src: VyperValue, hi: IROperand = None
+    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, hi: IROperand = None
 ) -> None:
     """
     Decode ABI-encoded src to Vyper-encoded dst.
