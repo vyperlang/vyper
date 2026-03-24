@@ -631,9 +631,10 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         call_len = b.add(IRLiteral(4), encoded_len)
 
     # Make the staticcall to console.log
-    # TODO: PROBLEM
+    buf = ctx.allocate_buffer(0)
+    retptr = ctx.allocate_buffer(0)
     b.staticcall(
-        b.gas(), IRLiteral(CONSOLE_ADDRESS), call_start, call_len, IRLiteral(0), IRLiteral(0)
+        b.gas(), IRLiteral(CONSOLE_ADDRESS), call_start, call_len, retptr._ptr, IRLiteral(0)
     )
 
     return IRLiteral(0)

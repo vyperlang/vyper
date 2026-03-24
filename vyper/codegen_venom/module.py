@@ -462,7 +462,7 @@ def _generate_selector_section_sparse(
 
             # Copy 2-byte header to memory at offset (32 - 2) = 30
             # so mload(0) reads it right-aligned in a 32-byte word
-            buf = codegen_ctx.allocate_buffer(32, annotation="selector scratch")
+            buf = codegen_ctx.allocate_pinned_buffer(32, 0, annotation="selector scratch")
             dst = builder.add(buf._ptr, IRLiteral(32 - SZ_BUCKET_HEADER))
             builder.codecopy(dst, bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
             jumpdest = builder.mload(IRLiteral(0))
@@ -720,9 +720,14 @@ def _generate_selector_section_dense(
 
         # Copy 5-byte header to memory at offset (32 - 5) = 27
         # so mload(0) reads it right-aligned in a 32-byte word
+        codegen_ctx = VenomCodegenContext(
+            module_ctx=module_t,
+            builder=builder,
+        )
         dst = 32 - SZ_BUCKET_HEADER
-        # TODO: PROBLEM
-        builder.codecopy(IRLiteral(dst), bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
+        header_buf = codegen_ctx.allocate_pinned_buffer(32, 0, annotation="header")
+        dst = builder.add(header_buf._ptr, IRLiteral(32 - SZ_BUCKET_HEADER))
+        builder.codecopy(dst, bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
         hdr_info = builder.mload(IRLiteral(0))
 
         # Extract bucket header fields:
@@ -744,10 +749,14 @@ def _generate_selector_section_dense(
         func_info_location = builder.add(bucket_location, func_info_offset)
 
         # Copy function info to memory
-        # TODO: PROBLEM
-        dst = 32 - func_info_size
+        codegen_ctx = VenomCodegenContext(
+            module_ctx=module_t,
+            builder=builder,
+        )
+        header_buf = codegen_ctx.allocate_pinned_buffer(32, 0)
+        dst = builder.add(header_buf._ptr, IRLiteral(32 - func_info_size))
         assert func_info_size >= SZ_BUCKET_HEADER  # otherwise mload will have dirty bytes
-        builder.codecopy(IRLiteral(dst), func_info_location, IRLiteral(func_info_size))
+        builder.codecopy(dst, func_info_location, IRLiteral(func_info_size))
         func_info = builder.mload(IRLiteral(0))
 
         # Extract function info fields:

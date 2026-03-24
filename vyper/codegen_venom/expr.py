@@ -1829,8 +1829,8 @@ class Expr:
         b.append_block(fail_bb)
         b.set_block(fail_bb)
         rds = b.returndatasize()
-        # TODO: PROBLEM
-        b.returndatacopy(IRLiteral(0), IRLiteral(0), rds)
+        dst = self.ctx.allocate_buffer(0)
+        b.returndatacopy(dst._ptr, IRLiteral(0), rds)
         b.revert(IRLiteral(0), rds)
 
         # Continue block

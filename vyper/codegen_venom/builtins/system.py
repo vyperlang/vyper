@@ -147,9 +147,8 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         out_ptr = b.add(out_val.operand, IRLiteral(32))
     else:
         out_val = None
-        out_ptr = IRLiteral(0)
+        out_ptr = ctx.allocate_buffer(0)._ptr
 
-    # TODO: PROBLEM
     # Build the call instruction
     if is_delegate:
         # delegatecall(gas, to, argsptr, argsz, retptr, retsz)
@@ -171,8 +170,8 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         b.append_block(fail_label)
         b.set_block(fail_label)
         ret_size = b.returndatasize()
-        # TODO: PROBLEM
-        b.returndatacopy(IRLiteral(0), IRLiteral(0), ret_size)
+        dst = ctx.allocate_buffer(0)
+        b.returndatacopy(dst._ptr, IRLiteral(0), ret_size)
         b.revert(IRLiteral(0), ret_size)
 
         b.append_block(ok_label)

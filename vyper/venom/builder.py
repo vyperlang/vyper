@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Sequence, Union
 
 from vyper.exceptions import CompilerPanic
-from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IROperand, IRVariable, IRInstruction
 from vyper.venom.function import IRFunction
 
 if TYPE_CHECKING:
@@ -36,6 +36,13 @@ class VenomBuilder:
     def current_block(self) -> IRBasicBlock:
         """Get current emission target block."""
         return self._current_bb
+
+    def get_last_inst(self, expected: str | None = None) -> IRInstruction:
+        if expected is None:
+            return self._current_bb.instructions[-1]
+        else:
+            assert self._current_bb.instructions[-1].opcode == expected
+            return self._current_bb.instructions[-1]
 
     def create_block(self, suffix: str = "") -> IRBasicBlock:
         """Create new block with auto-generated label. Does NOT switch to it or append it."""
