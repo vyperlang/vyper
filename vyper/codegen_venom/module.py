@@ -465,7 +465,7 @@ def _generate_selector_section_sparse(
             buf = codegen_ctx.allocate_pinned_buffer(32, 0, annotation="selector scratch")
             dst = builder.add(buf._ptr, IRLiteral(32 - SZ_BUCKET_HEADER))
             builder.codecopy(dst, bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
-            jumpdest = builder.mload(IRLiteral(0))
+            jumpdest = builder.mload(buf._ptr)
 
             # Dynamic jump to bucket (must list all possible targets)
             builder.djmp(jumpdest, *jump_targets)
