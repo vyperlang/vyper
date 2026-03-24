@@ -13,7 +13,7 @@ from vyper import ast as vy_ast
 from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.types import AddressT, BytesM_T, BytesT, IntegerT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -159,6 +159,7 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     # Copy bytes from src_data + start to out_data
     copy_src = b.add(src_data, start)
+    assert isinstance(out_data.operand, IRVariable)
     ctx.copy_memory_dynamic(out_data.operand, copy_src, length)
 
     # Store length
@@ -205,6 +206,7 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
     out_t = node._metadata["type"]
     out_val = ctx.new_temporary_value(out_t)
     out_data = ctx.add_offset(out_val.ptr(), IRLiteral(32))
+    assert isinstance(out_data.operand, IRVariable)
 
     # Determine which opcode to use
     if isinstance(src_node.value, vy_ast.Name):

@@ -10,7 +10,7 @@ from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import DArrayT
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -58,6 +58,7 @@ def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand,
     else:
         # Allocate memory buffer
         val = ctx.new_temporary_value(typ)
+        assert isinstance(val.operand, IRVariable)
 
         # Explicitly zero the memory buffer
         # For bytestrings/dynarrays, just zero the length word (first 32 bytes)
@@ -71,15 +72,12 @@ def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand,
         return val
 
 
-def _zero_memory(ctx: VenomCodegenContext, ptr: IROperand, size: int) -> None:
+def _zero_memory(ctx: VenomCodegenContext, ptr: IRVariable, size: int) -> None:
     """Zero out a memory region by writing zeros word by word."""
     for offset in range(0, size, 32):
         if offset == 0:
             dst = ptr
-        elif isinstance(ptr, IRLiteral):
-            dst = IRLiteral(ptr.value + offset)
-        else:
-            dst = ctx.builder.add(ptr, IRLiteral(offset))
+        dst = ctx.builder.add(ptr, IRLiteral(offset))
         ctx.builder.mstore(dst, IRLiteral(0))
 
 
