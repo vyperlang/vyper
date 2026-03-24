@@ -497,7 +497,13 @@ class Concat(BuiltinFunctionT):
 
         length = 0
         for arg_t in arg_types:
-            length += arg_t.length
+            arg_length = arg_t.length
+
+            if arg_length is INF:
+                length = INF
+                break
+
+            length += arg_length
 
         if isinstance(arg_types[0], (StringT)):
             return_type = StringT(length)
