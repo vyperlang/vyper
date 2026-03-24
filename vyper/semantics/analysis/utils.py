@@ -134,7 +134,7 @@ class _ExprAnalyser:
 
         return types_list[0]
 
-    def get_possible_types_from_node(self, node, include_type_exprs=False):
+    def get_possible_types_from_node(self, node, include_type_exprs=False) -> list[VyperType]:
         """
         Find all possible types for a given node.
         If the node's metadata contains type information, then that type is returned.
@@ -613,8 +613,23 @@ def validate_expected_type(node, expected_type):
     if not isinstance(node, (vy_ast.List, vy_ast.Tuple)) and node.get_descendants(
         vy_ast.Name, include_self=True
     ):
-        given = given_types[0]
-        raise TypeMismatch(f"Given reference has type {given}, expected {expected_str}", node)
+        given: VyperType = given_types[0]
+        hint = None
+        failed_bytes_subtyping = isinstance(given, BytesT) and any(
+            isinstance(expected, BytesT) for expected in expected_type
+        )
+        failed_string_subtyping = isinstance(given, StringT) and any(
+            isinstance(expected, StringT) for expected in expected_type
+        )
+
+        if failed_bytes_subtyping or failed_string_subtyping:
+            hint = "To reduce the maximum size, either: Use `slice` (with a constant length)"
+            hint += "to get a subset. Or use `convert` which will revert if the runtime length "
+            hint += "is too big"
+
+        raise TypeMismatch(
+            f"Given reference has type {given}, expected {expected_str}", node, hint=hint
+        )
     else:
         if len(given_types) == 1:
             given_str = str(given_types[0])

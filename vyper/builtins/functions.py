@@ -63,6 +63,7 @@ from vyper.semantics.analysis.utils import (
     validate_expected_type,
 )
 from vyper.semantics.types import (
+    INF,
     TYPE_T,
     AddressT,
     BoolT,
@@ -313,8 +314,9 @@ class Slice(BuiltinFunctionT):
             if length_literal < 1:
                 raise ArgumentException("Length cannot be less than 1", length_expr)
 
-        if not is_adhoc_slice:
+        if not is_adhoc_slice and arg_type.length is not INF:
             # arg_type.length is only valid when `not is_adhoc_slice`.
+            # and if type is Bytes[INF] or String[INF], no length is out of bounds
 
             if length_literal is not None and length_literal > arg_type.length:
                 raise ArgumentException(f"slice out of bounds for {arg_type}", length_expr)
@@ -322,7 +324,10 @@ class Slice(BuiltinFunctionT):
             if start_literal is not None:
                 if start_literal > arg_type.length:
                     raise ArgumentException(f"slice out of bounds for {arg_type}", start_expr)
-                if length_literal is not None and start_literal + length_literal > arg_type.length:
+                if (
+                    length_literal is not None
+                    and start_literal + length_literal > arg_type.length
+                ):
                     raise ArgumentException(f"slice out of bounds for {arg_type}", node)
 
         length = length_literal if length_literal is not None else arg_type.length
