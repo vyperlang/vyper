@@ -282,7 +282,7 @@ def _decode_bytestring(
 
 
 def _decode_dyn_array(
-    ctx: VenomCodegenContext, dst: IROperand, src: VyperValue, typ: DArrayT, hi: IROperand = None
+    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, typ: DArrayT, hi: IROperand = None
 ) -> None:
     """
     Decode a dynamic array.
