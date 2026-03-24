@@ -187,6 +187,7 @@ class Expr:
 
         # Allocate memory for the tuple
         val = self.ctx.new_temporary_value(typ)
+        assert isinstance(val.operand, IRVariable)
 
         # Store each element at its correct offset
         offset = 0
@@ -223,6 +224,7 @@ class Expr:
 
         # Allocate memory for the array
         val = self.ctx.new_temporary_value(typ)
+        assert isinstance(val.operand, IRVariable)
 
         # DArrayT has a length word at offset 0
         if isinstance(typ, DArrayT):
@@ -1377,6 +1379,7 @@ class Expr:
                 # Memory-passed arg: allocate buffer, copy value, pass pointer.
                 # Backend passes can forward safe readonly arguments.
                 buf_val = self.ctx.new_temporary_value(arg_t.typ)
+                assert isinstance(buf_val.operand, IRVariable)
                 self.ctx.store_vyper_value(arg_val, buf_val.operand, arg_t.typ)
                 invoke_args.append(buf_val.operand)
 
@@ -1385,6 +1388,7 @@ class Expr:
             outs = self.builder.invoke(IRLabel(target_label), invoke_args, returns=returns_count)
             # Copy stack returns to buffer
             assert return_buf is not None
+            assert isinstance(return_buf, IRVariable)
             for i, outv in enumerate(outs):
                 if i == 0:
                     dst = return_buf
@@ -1428,6 +1432,7 @@ class Expr:
 
         # Allocate memory for the struct
         val = self.ctx.new_temporary_value(struct_t)
+        assert isinstance(val.operand, IRVariable)
 
         # Build map of field name -> value node from keywords
         member_vals = {}
@@ -1523,6 +1528,7 @@ class Expr:
             # against aliasing (e.g. arr.append(arr[0])).
             # MemoryCopyElisionPass eliminates the copy when safe.
             temp_buf = self.ctx.new_temporary_value(elem_typ)
+            assert isinstance(temp_buf.operand, IRVariable)
             self.ctx.store_vyper_value(arg_vv, temp_buf.operand, elem_typ)
             elem_val = temp_buf.operand
             elem_src_typ = elem_typ
@@ -1541,6 +1547,7 @@ class Expr:
         ):
             # Normalize source layout for locations that only understand destination layout.
             normalized = self.ctx.new_temporary_value(elem_typ)
+            assert isinstance(normalized.operand, IRVariable)
             self.ctx.store_memory(elem_val, normalized.operand, elem_typ, src_typ=elem_src_typ)
             elem_val = normalized.operand
             elem_src_typ = elem_typ
@@ -1761,6 +1768,7 @@ class Expr:
         if len(arg_vals) > 0:
             # Create temp buffer for args in memory
             args_val = self.ctx.new_temporary_value(args_tuple_t)
+            assert isinstance(args_val.operand, IRVariable)
 
             # Store each arg at its position in args_buf
             offset = 0
@@ -1821,6 +1829,7 @@ class Expr:
         b.append_block(fail_bb)
         b.set_block(fail_bb)
         rds = b.returndatasize()
+        # TODO: PROBLEM
         b.returndatacopy(IRLiteral(0), IRLiteral(0), rds)
         b.revert(IRLiteral(0), rds)
 
@@ -1838,6 +1847,7 @@ class Expr:
 
         # Allocate result buffer
         result_val = self.ctx.new_temporary_value(wrapped_return_t)
+        assert isinstance(result_val.operand, IRVariable)
 
         # Handle default_return_value
         if call_kwargs.default_return_value is not None:

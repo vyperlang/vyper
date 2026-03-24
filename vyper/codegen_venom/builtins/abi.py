@@ -96,7 +96,6 @@ def _create_tuple_in_memory(
         else:
             dst = b.add(val.operand, IRLiteral(offset))
 
-
         if typ._is_prim_word:
             b.mstore(dst, arg)
         else:
