@@ -391,6 +391,7 @@ class VenomCodegenContext:
             src_typ = typ
 
         if typ._is_prim_word:
+            assert isinstance(ptr, IRVariable)
             self.builder.mstore(ptr, val)
         elif isinstance(typ, _BytestringT):
             # Bytestring: copy length word + ceil32(actual data), not max size
@@ -418,6 +419,7 @@ class VenomCodegenContext:
     ) -> None:
         """Store memory value with potential source/destination type layout differences."""
         if dst_typ._is_prim_word:
+            assert isinstance(dst, IRVariable)
             self.builder.mstore(dst, self.builder.mload(src))
             return
 
@@ -517,7 +519,7 @@ class VenomCodegenContext:
         b.set_block(exit_block)
 
     def _copy_dynarray_memory_typed(
-        self, dst: IROperand, dst_typ: DArrayT, src: IROperand, src_typ: DArrayT
+        self, dst: IRVariable, dst_typ: DArrayT, src: IROperand, src_typ: DArrayT
     ) -> None:
         """Copy DynArray in memory when source and destination element layouts may differ."""
         b = self.builder
@@ -583,7 +585,7 @@ class VenomCodegenContext:
             return IRLiteral(base.value + byte_offset)
         return self.builder.add(base, IRLiteral(byte_offset))
 
-    def copy_memory(self, dst: IROperand, src: IROperand, size: int) -> None:
+    def copy_memory(self, dst: IRVariable, src: IROperand, size: int) -> None:
         """Copy memory region from src to dst (static size known at compile time).
 
         Uses mcopy for Cancun+. Pre-Cancun uses identity precompile for large
@@ -611,9 +613,10 @@ class VenomCodegenContext:
             src_ptr = self._with_byte_offset(src, offset)
             dst_ptr = self._with_byte_offset(dst, offset)
             val = self.builder.mload(src_ptr)
+            assert isinstance(dst_ptr, IRVariable)
             self.builder.mstore(dst_ptr, val)
 
-    def copy_memory_dynamic(self, dst: IROperand, src: IROperand, length: IROperand) -> None:
+    def copy_memory_dynamic(self, dst: IRVariable, src: IROperand, length: IROperand) -> None:
         """Copy memory region with dynamic length (known at runtime).
 
         Uses mcopy for Cancun+, otherwise identity precompile (address 4).
@@ -643,6 +646,7 @@ class VenomCodegenContext:
             # Allocate buffer and copy calldata to it
             size = typ.memory_bytes_required
             val = self.new_temporary_value(typ)
+            assert isinstance(val.operand, IRVariable)
             self.builder.calldatacopy(val.operand, offset, IRLiteral(size))
             return val.operand
 
@@ -679,6 +683,7 @@ class VenomCodegenContext:
             if typ.storage_size_in_words == 1:
                 # Single-word complex type: sload and store to memory
                 loaded = self.builder.sload(slot)
+                assert isinstance(val.operand, IRVariable)
                 self.builder.mstore(val.operand, loaded)
             else:
                 # Multi-word: copy from storage to memory
@@ -756,6 +761,7 @@ class VenomCodegenContext:
             src_ptr = self._with_byte_offset(src, i)
             dst_ptr = self._with_byte_offset(dst, i)
             word = self.load_word(src_ptr, location)
+            assert isinstance(dst_ptr, IRVariable)
             self.builder.mstore(dst_ptr, word)
 
     def _word_copy_loop(
@@ -846,6 +852,7 @@ class VenomCodegenContext:
             if typ.storage_size_in_words == 1:
                 # Single-word complex type: tload and store to memory
                 loaded = self.builder.tload(slot)
+                assert isinstance(val.operand, IRVariable)
                 self.builder.mstore(val.operand, loaded)
             else:
                 # Multi-word: copy from transient storage to memory
@@ -947,8 +954,10 @@ class VenomCodegenContext:
     def store_word(self, addr: IROperand, val: IROperand, location: DataLocation) -> None:
         """Store a single word to addr at the given location."""
         if location == DataLocation.IMMUTABLES:
+            assert isinstance(addr, IRVariable)
             self.builder.istore(addr, val)
         elif location == DataLocation.MEMORY:
+            assert isinstance(addr, IRVariable)
             self.builder.mstore(addr, val)
         elif location == DataLocation.STORAGE:
             self.builder.sstore(addr, val)
