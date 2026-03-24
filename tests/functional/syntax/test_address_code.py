@@ -4,7 +4,7 @@ from typing import Type
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import NamespaceCollision, StructureException, VyperException
+from vyper.exceptions import NamespaceCollision, StructureException, TypeMismatch, VyperException
 
 # For reproducibility, use precompiled data of `hello: public(uint256)` using vyper 0.3.1
 PRECOMPILED_ABI = """[{"stateMutability": "view", "type": "function", "name": "hello", "inputs": [], "outputs": [{"name": "", "type": "uint256"}], "gas": 2460}]"""  # noqa: E501, FS003
@@ -81,8 +81,8 @@ a: HashMap[Bytes[4], uint256]
 def foo(x: address):
     self.a[x.code] += 1
 """,
-            StructureException,
-            "(address).code is only allowed inside of a slice function with a constant length",
+            TypeMismatch,
+            "Given reference has type Bytes[INF], expected Bytes[4]",
         ),
         (
             # `len` not supported
@@ -103,8 +103,8 @@ def code_slice(x: address, y: uint256) -> Bytes[4]:
     z: Bytes[4] = slice(x.code, 0, y)
     return z
 """,
-            StructureException,
-            "(address).code is only allowed inside of a slice function with a constant length",
+            TypeMismatch,
+            "Given reference has type Bytes[INF], expected Bytes[4]",
         ),
         (
             # `self.code` is already defined since `self` is address

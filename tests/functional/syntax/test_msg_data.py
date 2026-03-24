@@ -108,7 +108,7 @@ def foo() -> Bytes[4]:
     bar: Bytes[4] = msg.data
     return bar
     """,
-        StructureException,
+        TypeMismatch,
     ),
     (
         """
@@ -117,7 +117,7 @@ def foo() -> Bytes[7]:
     bar: Bytes[7] = concat(msg.data, 0xc0ffee)
     return bar
     """,
-        StructureException,
+        TypeMismatch,
     ),
     (
         """
@@ -136,7 +136,7 @@ a: HashMap[Bytes[10], uint256]
 def foo():
     self.a[msg.data] += 1
     """,
-        StructureException,
+        TypeMismatch,
     ),
     (
         """
@@ -164,7 +164,7 @@ a: HashMap[Bytes[10], uint256]
 def foo():
     self.a[msg.data] += 1
     """
-    with pytest.raises(StructureException):
+    with pytest.raises(TypeMismatch):
         compiler.compile_code(poison_code)
 
     for bad_code in (
@@ -181,7 +181,7 @@ def foo() -> Bytes[7]:
     return bar
         """,
     ):
-        with pytest.raises(StructureException):
+        with pytest.raises(TypeMismatch):
             compiler.compile_code(bad_code)
 
 
@@ -202,8 +202,12 @@ def bad() -> Bytes[4]:
         compiler.compile_code(bad_code)
 
     err = str(exc_info.value)
-    assert err.count("StructureException: msg.data is only allowed") == 2
-    assert "TypeMismatch" not in err
+    # Both errors should be TypeMismatch about Bytes[INF]
+    assert err.count("TypeMismatch") == 2
+    assert err.count("Bytes[INF]") == 2
+    # Each error should mention the correct expected type (not polluted)
+    assert "Bytes[10]" in err  # for HashMap key
+    assert "Bytes[4]" in err  # for direct assignment
 
 
 def test_successful_compilation_no_cross_pollution():
