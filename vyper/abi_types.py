@@ -1,4 +1,5 @@
 from vyper.exceptions import InvalidABIType
+from vyper.semantics.types.infinity import INF
 from vyper.utils import ceil32
 
 
@@ -154,7 +155,7 @@ class ABI_StaticArray(ABIType):
 
 class ABI_Bytes(ABIType):
     def __init__(self, bytes_bound):
-        if not bytes_bound >= 0:
+        if bytes_bound is not INF and not bytes_bound >= 0:
             raise InvalidABIType("Negative bytes_bound provided to ABI_Bytes")
 
         self.bytes_bound = bytes_bound
