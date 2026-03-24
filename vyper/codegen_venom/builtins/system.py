@@ -15,7 +15,7 @@ from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import ArgumentException, StateAccessViolation
 from vyper.semantics.types import BytesT, TupleT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -149,6 +149,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         out_val = None
         out_ptr = IRLiteral(0)
 
+    # TODO: PROBLEM
     # Build the call instruction
     if is_delegate:
         # delegatecall(gas, to, argsptr, argsz, retptr, retsz)
@@ -170,6 +171,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         b.append_block(fail_label)
         b.set_block(fail_label)
         ret_size = b.returndatasize()
+        # TODO: PROBLEM
         b.returndatacopy(IRLiteral(0), IRLiteral(0), ret_size)
         b.revert(IRLiteral(0), ret_size)
 
@@ -210,6 +212,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
             # Copy bytes (length + data) inline starting at offset 32
             # bytes_t.memory_bytes_required = 32 (length) + ceil32(max_outsize) (data)
             bytes_ptr = ctx.add_offset(tuple_local.ptr(), IRLiteral(32))
+            assert isinstance(bytes_ptr.operand, IRVariable)
             ctx.copy_memory(bytes_ptr.operand, out_val.operand, bytes_t.memory_bytes_required)
 
             return tuple_local
