@@ -4,7 +4,14 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Sequence, Union
 
 from vyper.exceptions import CompilerPanic
-from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IROperand, IRVariable, IRInstruction
+from vyper.venom.basicblock import (
+    IRBasicBlock,
+    IRInstruction,
+    IRLabel,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+)
 from vyper.venom.function import IRFunction
 
 if TYPE_CHECKING:
@@ -153,7 +160,7 @@ class VenomBuilder:
 
     # === Memory ===
     def mload(self, ptr: Operand) -> IRVariable:
-        assert isinstance(ptr, (IRLiteral, int))
+        assert isinstance(ptr, IRVariable)
         return self._emit1_evm("mload", ptr)
 
     def mstore(self, ptr: IRVariable, val: Operand) -> None:

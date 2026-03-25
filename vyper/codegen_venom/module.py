@@ -359,7 +359,9 @@ def _generate_selector_section_linear(
         _generate_fallback_body(builder, module_t, func_t, default_function)
     else:
         # No fallback - revert
-        revert_buffer = codegen_ctx.allocate_pinned_buffer(0, 0, annotation="fallback revert buffer")
+        revert_buffer = codegen_ctx.allocate_pinned_buffer(
+            0, 0, annotation="fallback revert buffer"
+        )
         builder.revert(revert_buffer._ptr, IRLiteral(0))
 
 
@@ -599,7 +601,9 @@ def _generate_selector_section_sparse(
         _generate_fallback_body(builder, module_t, func_t, default_function)
     else:
         # No fallback - revert
-        revert_buffer = codegen_ctx.allocate_pinned_buffer(0, 0, annotation="fallback revert buffer")
+        revert_buffer = codegen_ctx.allocate_pinned_buffer(
+            0, 0, annotation="fallback revert buffer"
+        )
         builder.revert(revert_buffer._ptr, IRLiteral(0))
 
 
@@ -725,10 +729,7 @@ def _generate_selector_section_dense(
 
         # Copy 5-byte header to memory at offset (32 - 5) = 27
         # so mload(0) reads it right-aligned in a 32-byte word
-        codegen_ctx = VenomCodegenContext(
-            module_ctx=module_t,
-            builder=builder,
-        )
+        codegen_ctx = VenomCodegenContext(module_ctx=module_t, builder=builder)
         dst = 32 - SZ_BUCKET_HEADER
         header_buf = codegen_ctx.allocate_pinned_buffer(32, 0, annotation="header")
         dst = builder.add(header_buf._ptr, IRLiteral(32 - SZ_BUCKET_HEADER))
@@ -754,10 +755,7 @@ def _generate_selector_section_dense(
         func_info_location = builder.add(bucket_location, func_info_offset)
 
         # Copy function info to memory
-        codegen_ctx = VenomCodegenContext(
-            module_ctx=module_t,
-            builder=builder,
-        )
+        codegen_ctx = VenomCodegenContext(module_ctx=module_t, builder=builder)
         header_buf = codegen_ctx.allocate_pinned_buffer(32, 0)
         dst = builder.add(header_buf._ptr, IRLiteral(32 - func_info_size))
         assert func_info_size >= SZ_BUCKET_HEADER  # otherwise mload will have dirty bytes
@@ -1437,8 +1435,8 @@ def _generate_constructor(
         # Force msize to be past immutables region (like legacy's GH issue 3101 fix)
         # This ensures builtins using msize() don't clobber immutables
         # mload X touches bytes X to X+32, so touch the last word
-        touch_offset = max(0, immutables_len - 32)
-        builder.mload(IRLiteral(touch_offset))
+        touch_src = builder.add(alloca_inst.output, max(0, immutables_len - 32))
+        builder.mload(touch_src)
 
     # Register constructor args from DATA section (not calldata)
     # Constructor args are appended to the deploy code

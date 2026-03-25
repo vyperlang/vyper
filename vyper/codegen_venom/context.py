@@ -665,8 +665,10 @@ class VenomCodegenContext:
         alloca_id = self.new_alloca_id()
         ptr = self.builder.alloca(size, alloca_id)
         return Buffer(_ptr=ptr, size=size, annotation=annotation)
-    
-    def allocate_pinned_buffer(self, size: int, position: int, annotation: Optional[str] = None) -> Buffer:
+
+    def allocate_pinned_buffer(
+        self, size: int, position: int, annotation: Optional[str] = None
+    ) -> Buffer:
         res = self.allocate_buffer(size, annotation)
         alloca_inst = self.builder.get_last_inst("alloca")
         self.builder.ctx.mem_allocator.set_position(Allocation(alloca_inst), position)

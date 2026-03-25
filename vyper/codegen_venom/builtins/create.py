@@ -64,7 +64,9 @@ def _has_kwarg(node: vy_ast.Call, kwarg_name: str) -> bool:
     return any(kw.arg == kwarg_name for kw in node.keywords)
 
 
-def _check_create_result(ctx: VenomCodegenContext, b, addr: IROperand, revert_on_failure: bool) -> IROperand:
+def _check_create_result(
+    ctx: VenomCodegenContext, b, addr: IROperand, revert_on_failure: bool
+) -> IROperand:
     """Optionally check CREATE/CREATE2 result and revert on failure.
 
     CREATE/CREATE2 return 0 on failure (out of gas or constructor reverts).

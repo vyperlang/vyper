@@ -2,7 +2,7 @@ from typing import ClassVar
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.base_ptr_analysis import Ptr
-from vyper.venom.basicblock import IRLiteral, IRInstruction
+from vyper.venom.basicblock import IRInstruction, IRLiteral
 from vyper.venom.function import IRFunction
 from vyper.venom.memory_location import Allocation
 

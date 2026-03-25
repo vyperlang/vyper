@@ -1131,7 +1131,9 @@ class Stmt:
             self.builder.append_block(fail_block)
             self.builder.set_block(fail_block)
             with self.builder.error_context("user assert"):
-                revert_buffer = self.ctx.allocate_pinned_buffer(0, 0, annotation="user assert revert buffer")
+                revert_buffer = self.ctx.allocate_pinned_buffer(
+                    0, 0, annotation="user assert revert buffer"
+                )
                 self.builder.revert(revert_buffer._ptr, IRLiteral(0))
 
             # Ok block: continue
@@ -1154,7 +1156,9 @@ class Stmt:
         if node.exc is None:
             # Bare raise: revert 0, 0
             with self.builder.error_context("user raise"):
-                revert_buffer = self.ctx.allocate_pinned_buffer(0, 0, annotation="user raise revert buffer")
+                revert_buffer = self.ctx.allocate_pinned_buffer(
+                    0, 0, annotation="user raise revert buffer"
+                )
                 self.builder.revert(revert_buffer._ptr, IRLiteral(0))
         elif isinstance(node.exc, vy_ast.Name) and node.exc.id == "UNREACHABLE":
             # UNREACHABLE: invalid opcode
