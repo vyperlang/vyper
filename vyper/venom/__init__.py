@@ -8,7 +8,7 @@ from vyper.ir.compile_ir import AssemblyInstruction
 from vyper.venom.analysis import IRGlobalAnalysesCache, ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.fcg import FCGGlobalAnalysis
-from vyper.venom.check_venom import check_calling_convention
+from vyper.venom.check_venom import check_calling_convention, check_mem_ops
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.optimization_levels.O2 import PASSES_O2
@@ -133,9 +133,11 @@ def _run_global_passes(
         FunctionInlinerPass(ir_analyses, ctx, flags).run_pass()
 
 
-def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags) -> None:
+def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags, disable_mem_checks = False) -> None:
     ir_analyses: dict[IRFunction, IRAnalysesCache] = {}
     # Validate calling convention invariants before running passes
+    if not disable_mem_checks:
+        check_mem_ops(ctx)
     check_calling_convention(ctx)
     for fn in ctx.functions.values():
         ir_analyses[fn] = IRAnalysesCache(fn)

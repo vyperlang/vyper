@@ -37,7 +37,6 @@ from vyper.venom.passes import (
 
 # Optimize for size
 PASSES_Os: List[PassConfig] = [
-    FixMemLocationsPass,
     SimplifyCFGPass,
     MakeSSA,
     PhiEliminationPass,
