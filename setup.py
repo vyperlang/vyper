@@ -13,15 +13,15 @@ extras_require = {
         "pytest-instafail>=0.4,<1.0",
         "pytest-xdist>=3.0,<3.4",
         "pytest-split>=0.7.0,<1.0",
-        "eth-tester[py-evm]>=0.10.0b4,<0.11",
-        "eth_abi>=4.0.0,<5.0.0",
-        "py-evm>=0.10.0b4,<0.11",
-        "web3==6.0.0",
+        "eth_abi>=5.0.0,<6.0.0",
+        "py-evm>=0.12.1b1",
         "lark==1.1.9",
         "hypothesis[lark]>=6.0,<7.0",
         "eth-stdlib==0.2.7",
+        "eth-account==0.12.2",
         "setuptools",
         "hexbytes>=1.2",
+        "pyrevm>=0.3.2",
     ],
     "lint": [
         "black==23.12.0",
@@ -29,14 +29,14 @@ extras_require = {
         "flake8-bugbear==23.12.2",
         "flake8-use-fstring==1.4",
         "isort==5.13.2",
-        "mypy==1.5",
+        "mypy==1.19",
     ],
     "dev": ["ipython", "pre-commit", "pyinstaller", "twine"],
 }
 
 extras_require["dev"] = extras_require["dev"] + extras_require["test"] + extras_require["lint"]
 
-with open("README.md", "r") as f:
+with open("README.md", "r", encoding="utf-8") as f:
     long_description = f.read()
 
 
@@ -87,33 +87,33 @@ setup(
     keywords="ethereum evm smart contract language",
     include_package_data=True,
     packages=["vyper"],
-    python_requires=">=3.10,<4",
+    python_requires=">=3.11,<4",
     py_modules=["vyper"],
     install_requires=[
         "cbor2>=5.4.6,<6",
-        "asttokens>=2.0.5,<3",
         "pycryptodome>=3.5.1,<4",
-        "packaging>=23.1,<24",
-        "importlib-metadata",
+        "packaging>=23.1",
+        "lark>=1.0.0,<2",
         "wheel",
+        "immutables",
     ],
-    setup_requires=["pytest-runner", "setuptools_scm>=7.1.0,<8.0.0"],
-    tests_require=extras_require["test"],
+    setup_requires=["setuptools_scm>=7.1.0,<8.0.0"],
     extras_require=extras_require,
     entry_points={
         "console_scripts": [
             "vyper=vyper.cli.vyper_compile:_parse_cli_args",
-            "vyper-serve=vyper.cli.vyper_serve:_parse_cli_args",
             "fang=vyper.cli.vyper_ir:_parse_cli_args",
             "vyper-json=vyper.cli.vyper_json:_parse_cli_args",
+            "venom=vyper.cli.venom_main:_parse_cli_args",
         ]
     },
     classifiers=[
         "Intended Audience :: Developers",
         "License :: OSI Approved :: Apache Software License",
-        "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
     ],
     package_data={"vyper.ast": ["grammar.lark"]},
     data_files=[("", [hash_file_rel_path])],

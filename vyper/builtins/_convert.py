@@ -219,14 +219,14 @@ def _literal_int(expr, arg_typ, out_typ):
     # TODO: possible to reuse machinery from expr.py?
     if isinstance(expr, vy_ast.Hex):
         val = int(expr.value, 16)
-    elif isinstance(expr, vy_ast.Bytes):
+    elif isinstance(expr, (vy_ast.Bytes, vy_ast.HexBytes)):
         val = int.from_bytes(expr.value, "big")
     elif isinstance(expr, (vy_ast.Int, vy_ast.Decimal, vy_ast.NameConstant)):
         val = expr.value
     else:  # pragma: no cover
         raise CompilerPanic("unreachable")
 
-    if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and out_typ.is_signed:
+    if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes, vy_ast.HexBytes)) and out_typ.is_signed:
         val = _signextend(expr, val, arg_typ)
 
     lo, hi = out_typ.int_bounds
@@ -244,6 +244,7 @@ def _literal_decimal(expr, arg_typ, out_typ):
         val = decimal.Decimal(int(expr.value, 16))
     else:
         val = decimal.Decimal(expr.value)  # should work for Int, Decimal
+        assert isinstance(expr.value, int)
         val *= DECIMAL_DIVISOR
 
     # sanity check type checker did its job
@@ -252,7 +253,7 @@ def _literal_decimal(expr, arg_typ, out_typ):
     val = int(val)
 
     # apply sign extension, if expected
-    if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and out_typ.is_signed:
+    if isinstance(expr, vy_ast.Hex) and out_typ.is_signed:
         val = _signextend(expr, val, arg_typ)
 
     lo, hi = out_typ.int_bounds
@@ -463,7 +464,7 @@ def to_flag(expr, arg, out_typ):
 def convert(expr, context):
     assert len(expr.args) == 2, "bad typecheck: convert"
 
-    arg_ast = expr.args[0]
+    arg_ast = expr.args[0].reduced()
     arg = Expr(arg_ast, context).ir_node
     original_arg = arg
 

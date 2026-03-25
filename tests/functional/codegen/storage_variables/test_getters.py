@@ -1,4 +1,10 @@
-def test_state_accessor(get_contract_with_gas_estimation_for_constants):
+import pytest
+
+from vyper import compile_code
+from vyper.exceptions import OverflowException, TypeMismatch
+
+
+def test_state_accessor(get_contract):
     state_accessor = """
 y: HashMap[int128, int128]
 
@@ -12,12 +18,12 @@ def foo() -> int128:
 
     """
 
-    c = get_contract_with_gas_estimation_for_constants(state_accessor)
-    c.oo(transact={})
+    c = get_contract(state_accessor)
+    c.oo()
     assert c.foo() == 5
 
 
-def test_getter_code(get_contract_with_gas_estimation_for_constants):
+def test_getter_code(get_contract):
     getter_code = """
 interface V:
     def foo(): nonpayable
@@ -58,7 +64,7 @@ def __init__():
     e = [2, 3]
     """
 
-    c = get_contract_with_gas_estimation_for_constants(getter_code)
+    c = get_contract(getter_code)
     assert c.x() == 7
     assert c.y(1) == 9
     assert c.z() == b"cow"
@@ -94,7 +100,36 @@ def __init__():
 
     contract = get_contract(code)
 
-    for item in contract._classic_contract.abi:
+    for item in contract.abi:
         if item["type"] == "constructor":
             continue
         assert item["stateMutability"] == "view"
+
+
+@pytest.mark.parametrize(
+    "typ,index,expected_error",
+    [
+        ("uint256", "-1", TypeMismatch),
+        ("uint256", "0-1", TypeMismatch),
+        ("uint256", "0-1+1", TypeMismatch),
+        ("uint256", "2**256", OverflowException),
+        ("uint256", "2**256 // 2", OverflowException),
+        ("uint256", "2 * 2**255", OverflowException),
+        ("int256", "-2**255", TypeMismatch),
+        ("int256", "-2**256", OverflowException),
+        ("int256", "2**255", TypeMismatch),
+        ("int256", "2**256 - 5", OverflowException),
+        ("int256", "2 * 2**254", TypeMismatch),
+        ("int8", "*".join(["2"] * 7), TypeMismatch),
+    ],
+)
+def test_hashmap_index_checks(typ, index, expected_error):
+    code = f"""
+m: HashMap[{typ}, uint256]
+
+@external
+def foo():
+    self.m[{index}] = 2
+    """
+    with pytest.raises(expected_error):
+        compile_code(code)

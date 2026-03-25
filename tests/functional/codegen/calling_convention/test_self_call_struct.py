@@ -1,7 +1,7 @@
 from tests.utils import decimal_to_int
 
 
-def test_call_to_self_struct(w3, get_contract):
+def test_call_to_self_struct(env, get_contract):
     code = """
 struct MyStruct:
     e1: decimal
@@ -26,11 +26,11 @@ def wrap_get_my_struct_BROKEN(_e1: decimal) -> MyStruct:
     c = get_contract(code)
     assert c.wrap_get_my_struct_WORKING(decimal_to_int("0.1")) == (
         decimal_to_int("0.1"),
-        w3.eth.get_block(w3.eth.block_number)["timestamp"],
+        env.timestamp,
     )
     assert c.wrap_get_my_struct_BROKEN(decimal_to_int("0.1")) == (
         decimal_to_int("0.1"),
-        w3.eth.get_block(w3.eth.block_number)["timestamp"],
+        env.timestamp,
     )
 
 

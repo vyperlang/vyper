@@ -12,7 +12,9 @@ Vyper
     :maxdepth: 2
 
     installing-vyper.rst
-    vyper-by-example.rst
+    quickstart.rst
+    solidity-differences.rst
+    vyper-by-example/index
 
 .. toctree::
     :caption: Language Description
@@ -25,6 +27,7 @@ Vyper
     control-structures.rst
     scoping-and-declarations.rst
     built-in-functions.rst
+    using-modules.rst
     interfaces.rst
     event-logging.rst
     natspec.rst

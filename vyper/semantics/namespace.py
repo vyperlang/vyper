@@ -71,6 +71,12 @@ class Namespace(dict):
 
         self._scopes.append(set())
 
+        # refresh constant env vars with fresh instances — compare_type()
+        # mutates BytesT._length, so they must not be shared across
+        # function analyses.
+        # TODO: remove once compare_type no longer mutates types.
+        dict.update(self, environment.get_constant_vars())
+
         if len(self._scopes) == 1:
             # add mutable vars (`self`) to the initial scope
             self.update(environment.get_mutable_vars())
@@ -93,7 +99,7 @@ class Namespace(dict):
             prev_decl = getattr(prev, "decl_node", None)
             msg = f"'{attr}' has already been declared"
             if prev_decl is None:
-                msg += " as a {prev}"
+                msg += f" as a {prev}"
             raise NamespaceCollision(msg, prev_decl=prev_decl)
 
 

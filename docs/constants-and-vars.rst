@@ -11,23 +11,27 @@ Environment variables always exist in the namespace and are primarily used to pr
 Block and Transaction Properties
 --------------------------------
 
-==================== ================ =========================================================
-Name                 Type             Value
-==================== ================ =========================================================
-``block.coinbase``   ``address``      Current block miner's address
-``block.difficulty`` ``uint256``      Current block difficulty
-``block.prevrandao`` ``bytes32``      Current randomness beacon provided by the beacon chain
-``block.number``     ``uint256``      Current block number
-``block.prevhash``   ``bytes32``      Equivalent to ``blockhash(block.number - 1)``
-``block.timestamp``  ``uint256``      Current block epoch timestamp
-``chain.id``         ``uint256``      Chain ID
-``msg.data``         ``Bytes``        Message data
-``msg.gas``          ``uint256``      Remaining gas
-``msg.sender``       ``address``      Sender of the message (current call)
-``msg.value``        ``uint256``      Number of wei sent with the message
-``tx.origin``        ``address``      Sender of the transaction (full call chain)
-``tx.gasprice``      ``uint256``      Gas price of current transaction in wei
-==================== ================ =========================================================
+===================== ================ =========================================================
+Name                  Type             Value
+===================== ================ =========================================================
+``block.coinbase``    ``address``      Current block miner's address
+``block.difficulty``  ``uint256``      Current block difficulty
+``block.prevrandao``  ``bytes32``      Current randomness beacon provided by the beacon chain
+``block.number``      ``uint256``      Current block number
+``block.gaslimit``    ``uint256``      Current block's gas limit
+``block.basefee``     ``uint256``      Current block's base fee
+``block.blobbasefee`` ``uint256``      Current block's blob gas base fee
+``block.prevhash``    ``bytes32``      Equivalent to ``blockhash(block.number - 1)``
+``block.timestamp``   ``uint256``      Current block epoch timestamp
+``chain.id``          ``uint256``      Chain ID
+``msg.data``          ``Bytes``        Message data
+``msg.gas``           ``uint256``      Remaining gas
+``msg.mana``          ``uint256``      Remaining gas (alias for ``msg.gas``)
+``msg.sender``        ``address``      Sender of the message (current call)
+``msg.value``         ``uint256``      Number of wei sent with the message
+``tx.origin``         ``address``      Sender of the transaction (full call chain)
+``tx.gasprice``       ``uint256``      Gas price of current transaction in wei
+===================== ================ =========================================================
 
 .. note::
 
@@ -42,7 +46,7 @@ Name                 Type             Value
 The self Variable
 -----------------
 
-``self`` is an environment variable used to reference a contract from within itself. Along with the normal :ref:`address<address>` members, ``self`` allows you to read and write to state variables and to call private functions within the contract.
+``self`` is an environment variable used to reference a contract from within itself. Along with the normal :ref:`address<address>` members, ``self`` allows you to read and write to state variables and to call internal functions within the contract.
 
 ==================== ================ ==========================
 Name                 Type             Value
@@ -98,6 +102,6 @@ Custom constants can be defined at a global level in Vyper. To define a constant
     TOTAL_SUPPLY: constant(uint256) = 10000000
     total_supply: public(uint256)
 
-    @external
+    @deploy
     def __init__():
         self.total_supply = TOTAL_SUPPLY

@@ -289,7 +289,7 @@ def safe_div(x, y):
         if max(abs(lo), abs(hi)) * typ.divisor > 2**256 - 1:  # pragma: nocover
             # stub to prevent us from adding fixed point numbers we don't know
             # how to deal with
-            raise UnimplementedException("safe_mul for decimal{typ.bits}x{typ.decimals}")
+            raise UnimplementedException(f"safe_mul for decimal{typ.bits}x{typ.decimals}")
         x = ["mul", x, typ.divisor]
 
     DIV = "sdiv" if typ.is_signed else "div"
@@ -334,6 +334,8 @@ def safe_div(x, y):
 def safe_mod(x, y):
     typ = x.typ
     MOD = "smod" if typ.is_signed else "mod"
+    # TODO: (force) propagate safemod error msg down to all children,
+    # overriding the "clamp" error msg.
     return IRnode.from_list([MOD, x, clamp("gt", y, 0)], error_msg="safemod")
 
 

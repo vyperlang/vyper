@@ -127,5 +127,5 @@ def foo():
 
 
 @pytest.mark.parametrize("good_code", valid_list)
-def test_as_wei_success(good_code, get_contract_with_gas_estimation):
-    assert get_contract_with_gas_estimation(good_code) is not None
+def test_as_wei_success(good_code, get_contract):
+    assert get_contract(good_code) is not None

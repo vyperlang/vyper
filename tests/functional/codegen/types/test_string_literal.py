@@ -1,4 +1,4 @@
-def test_string_literal_return(get_contract_with_gas_estimation):
+def test_string_literal_return(get_contract):
     code = """
 @external
 def test() -> String[100]:
@@ -10,13 +10,13 @@ def testb() -> Bytes[100]:
     return b"hello world!"
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.test() == "hello world!"
     assert c.testb() == b"hello world!"
 
 
-def test_string_convert(get_contract_with_gas_estimation):
+def test_string_convert(get_contract):
     code = """
 @external
 def testb() -> String[100]:
@@ -27,13 +27,13 @@ def testbb() -> String[100]:
     return convert(convert("hello world!", Bytes[100]), String[100])
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.testb() == "hello world!"
     assert c.testbb() == "hello world!"
 
 
-def test_str_assign(get_contract_with_gas_estimation):
+def test_str_assign(get_contract):
     code = """
 @external
 def test() -> String[100]:
@@ -41,6 +41,6 @@ def test() -> String[100]:
     return a
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.test() == "baba black sheep"

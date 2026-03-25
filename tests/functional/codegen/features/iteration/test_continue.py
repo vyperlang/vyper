@@ -3,7 +3,7 @@ import pytest
 from vyper.exceptions import StructureException
 
 
-def test_continue1(get_contract_with_gas_estimation):
+def test_continue1(get_contract):
     code = """
 @external
 def foo() -> bool:
@@ -12,11 +12,11 @@ def foo() -> bool:
         return False
     return True
 """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.foo()
 
 
-def test_continue2(get_contract_with_gas_estimation):
+def test_continue2(get_contract):
     code = """
 @external
 def foo() -> int128:
@@ -27,11 +27,11 @@ def foo() -> int128:
         x -= 1
     return x
 """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.foo() == 3
 
 
-def test_continue3(get_contract_with_gas_estimation):
+def test_continue3(get_contract):
     code = """
 @external
 def foo() -> int128:
@@ -41,11 +41,11 @@ def foo() -> int128:
         continue
     return x
 """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.foo() == 3
 
 
-def test_continue4(get_contract_with_gas_estimation):
+def test_continue4(get_contract):
     code = """
 @external
 def foo() -> int128:
@@ -56,7 +56,7 @@ def foo() -> int128:
         x += 1
     return x
 """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.foo() == 3
 
 
@@ -94,5 +94,5 @@ def foo():
 
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
-def test_block_fail(assert_compile_failed, get_contract_with_gas_estimation, bad_code, exc):
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)
+def test_block_fail(assert_compile_failed, get_contract, bad_code, exc):
+    assert_compile_failed(lambda: get_contract(bad_code), exc)

@@ -1,4 +1,4 @@
-def test_comment_test(get_contract_with_gas_estimation):
+def test_comment_test(get_contract):
     comment_test = """
 @external
 def foo() -> int128:
@@ -6,6 +6,6 @@ def foo() -> int128:
     return 3
     """
 
-    c = get_contract_with_gas_estimation(comment_test)
+    c = get_contract(comment_test)
     assert c.foo() == 3
     print("Passed comment test")

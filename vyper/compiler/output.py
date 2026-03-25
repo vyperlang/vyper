@@ -1,16 +1,23 @@
-import warnings
+import base64
 from collections import deque
 from pathlib import PurePath
+from typing import Iterable
 
-from vyper.ast import ast_to_dict, parse_natspec
+import vyper.ast as vy_ast
+from vyper.ast.utils import ast_to_dict
 from vyper.codegen.ir_node import IRnode
+from vyper.codegen_venom.calling_convention import pass_via_stack, returns_stack_count
+from vyper.compiler.output_bundle import SolcJSONWriter, VyperArchiveWriter
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
+from vyper.evm.assembler.symbols import resolve_symbols
+from vyper.exceptions import VyperException
 from vyper.ir import compile_ir
-from vyper.semantics.types.function import FunctionVisibility, StateMutability
+from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
-from vyper.warnings import ContractSizeLimitWarning
+from vyper.utils import safe_relpath
+from vyper.warnings import ContractSizeLimit, vyper_warn
 
 
 def build_ast_dict(compiler_data: CompilerData) -> dict:
@@ -21,30 +28,88 @@ def build_ast_dict(compiler_data: CompilerData) -> dict:
     return ast_dict
 
 
+def _get_reachable_imports(compiler_data: CompilerData) -> Iterable[vy_ast.Module]:
+    import_analysis = compiler_data.resolved_imports
+
+    # get all reachable imports including recursion
+    # (NOTE: does not include imported json interfaces.)
+    imported_modules = list(import_analysis.compiler_inputs.values())
+    imported_modules = [mod for mod in imported_modules if isinstance(mod, vy_ast.Module)]
+    if import_analysis.toplevel_module in imported_modules:
+        # this shouldn't actually happen, but remove in case our
+        # assumption is violated in the future
+        imported_modules.remove(import_analysis.toplevel_module)
+
+    return imported_modules
+
+
 def build_annotated_ast_dict(compiler_data: CompilerData) -> dict:
+    imported_modules = _get_reachable_imports(compiler_data)
     annotated_ast_dict = {
         "contract_name": str(compiler_data.contract_path),
         "ast": ast_to_dict(compiler_data.annotated_vyper_module),
+        "imports": [ast_to_dict(ast) for ast in imported_modules],
     }
     return annotated_ast_dict
 
 
 def build_devdoc(compiler_data: CompilerData) -> dict:
-    userdoc, devdoc = parse_natspec(compiler_data.annotated_vyper_module)
-    return devdoc
+    return compiler_data.natspec.devdoc
 
 
 def build_userdoc(compiler_data: CompilerData) -> dict:
-    userdoc, devdoc = parse_natspec(compiler_data.annotated_vyper_module)
-    return userdoc
+    return compiler_data.natspec.userdoc
+
+
+def _request_bytecode_for_bundle(compiler_data: CompilerData, pretty_output_type: str) -> None:
+    """
+    request bytecode to ensure the input compiles through all the
+    compilation passes, emit warnings if there are any issues
+    (this allows use cases like sending a bug reproduction while
+    still alerting the user in the common case that they didn't
+    mean to have a bug). called for its side effects.
+
+    params:
+        compiler_data: CompilerData
+        pretty_output_type: str, human readable type of the output
+    """
+    # must be able to parse + resolve imports
+    _ = compiler_data.resolved_imports
+    try:
+        _ = compiler_data.bytecode
+    except VyperException as e:
+        msg = "Exceptions encountered during code generation"
+        msg += f" (but producing {pretty_output_type} anyway): {e}"
+        vyper_warn(msg)
+
+
+def build_solc_json(compiler_data: CompilerData) -> str:
+    _request_bytecode_for_bundle(compiler_data, pretty_output_type="output")
+    writer = SolcJSONWriter(compiler_data)
+    writer.write()
+    return writer.output()
+
+
+def build_archive(compiler_data: CompilerData) -> bytes:
+    _request_bytecode_for_bundle(compiler_data, pretty_output_type="archive")
+    writer = VyperArchiveWriter(compiler_data)
+    writer.write()
+    return writer.output()
+
+
+def build_archive_b64(compiler_data: CompilerData) -> str:
+    return base64.b64encode(build_archive(compiler_data)).decode("ascii")
+
+
+def build_integrity(compiler_data: CompilerData) -> str:
+    return compiler_data.integrity_sum
 
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
     interface = compiler_data.annotated_vyper_module._metadata["type"].interface
     stem = PurePath(compiler_data.contract_path).stem
-    # capitalize words separated by '_'
-    # ex: test_interface.vy -> TestInterface
-    name = "".join([x.capitalize() for x in stem.split("_")])
+
+    name = stem.title().replace("_", "")
     out = f"\n# External Interfaces\ninterface {name}:\n"
 
     for func in interface.functions.values():
@@ -62,49 +127,68 @@ def build_interface_output(compiler_data: CompilerData) -> str:
     interface = compiler_data.annotated_vyper_module._metadata["type"].interface
     out = ""
 
-    if interface.events:
-        out = "# Events\n\n"
+    if len(interface.structs) > 0:
+        out += "# Structs\n\n"
+        for struct in interface.structs.values():
+            out += f"struct {struct.name}:\n"
+            for member_name, member_type in struct.members.items():
+                out += f"    {member_name}: {member_type}\n"
+            out += "\n\n"
+
+    if len(interface.flags) > 0:
+        out += "# Flags\n\n"
+        for flag in interface.flags.values():
+            out += f"flag {flag.name}:\n"
+            for flag_value in flag._flag_members:
+                out += f"    {flag_value}\n"
+            out += "\n\n"
+
+    if len(interface.events) > 0:
+        out += "# Events\n\n"
         for event in interface.events.values():
             encoded_args = "\n    ".join(f"{name}: {typ}" for name, typ in event.arguments.items())
-            out = f"{out}event {event.name}:\n    {encoded_args if event.arguments else 'pass'}\n"
+            out += f"event {event.name}:\n    {encoded_args if event.arguments else 'pass'}\n\n\n"
 
-    if interface.functions:
-        out = f"{out}\n# Functions\n\n"
+    if len(interface.functions) > 0:
+        out += "# Functions\n\n"
         for func in interface.functions.values():
             if func.visibility == FunctionVisibility.INTERNAL or func.name == "__init__":
                 continue
             if func.mutability != StateMutability.NONPAYABLE:
-                out = f"{out}@{func.mutability.value}\n"
+                out += f"@{func.mutability.value}\n"
             args = ", ".join([f"{arg.name}: {arg.typ}" for arg in func.arguments])
             return_value = f" -> {func.return_type}" if func.return_type is not None else ""
-            out = f"{out}@external\ndef {func.name}({args}){return_value}:\n    ...\n\n"
+            out += f"@external\ndef {func.name}({args}){return_value}:\n    ...\n\n\n"
+
+    out = out.rstrip("\n")
+    out += "\n"
 
     return out
 
 
-def build_bb_output(compiler_data: CompilerData) -> IRnode:
-    return compiler_data.venom_functions[0]
-
-
-def build_bb_runtime_output(compiler_data: CompilerData) -> IRnode:
-    return compiler_data.venom_functions[1]
-
-
 def build_cfg_output(compiler_data: CompilerData) -> str:
-    return compiler_data.venom_functions[0].as_graph()
+    if not compiler_data.settings.experimental_codegen:
+        raise ValueError("cfg output requires --experimental-codegen")
+    return compiler_data.venom_deploytime.as_graph()
 
 
 def build_cfg_runtime_output(compiler_data: CompilerData) -> str:
-    return compiler_data.venom_functions[1].as_graph()
+    if not compiler_data.settings.experimental_codegen:
+        raise ValueError("cfg_runtime output requires --experimental-codegen")
+    return compiler_data.venom_runtime.as_graph()
 
 
-def build_ir_output(compiler_data: CompilerData) -> IRnode:
+def build_ir_output(compiler_data: CompilerData):
+    if compiler_data.settings.experimental_codegen:
+        return compiler_data.venom_deploytime
     if compiler_data.show_gas_estimates:
         IRnode.repr_show_gas = True
     return compiler_data.ir_nodes
 
 
-def build_ir_runtime_output(compiler_data: CompilerData) -> IRnode:
+def build_ir_runtime_output(compiler_data: CompilerData):
+    if compiler_data.settings.experimental_codegen:
+        return compiler_data.venom_runtime
     if compiler_data.show_gas_estimates:
         IRnode.repr_show_gas = True
     return compiler_data.ir_runtime
@@ -128,18 +212,36 @@ def build_ir_runtime_dict_output(compiler_data: CompilerData) -> dict:
     return _ir_to_dict(compiler_data.ir_runtime)
 
 
-def build_metadata_output(compiler_data: CompilerData) -> dict:
-    sigs = compiler_data.function_signatures
+def build_settings_output(compiler_data: CompilerData) -> dict:
+    return compiler_data.settings.as_dict()
 
-    def _var_rec_dict(variable_record):
-        ret = vars(variable_record).copy()
-        ret["typ"] = str(ret["typ"])
-        if ret["data_offset"] is None:
-            del ret["data_offset"]
-        for k in ("blockscopes", "defined_at", "encoding"):
-            del ret[k]
-        ret["location"] = ret["location"].name
-        return ret
+
+def build_metadata_output(compiler_data: CompilerData) -> dict:
+    # need ir info to be computed
+    _ = compiler_data.function_signatures
+    module_t = compiler_data.annotated_vyper_module._metadata["type"]
+    sigs = dict[str, ContractFunctionT]()
+
+    def _fn_identifier(fn_t):
+        fn_id = fn_t._function_id
+        return f"{fn_t.name} ({fn_id})"
+
+    exposed_fns = module_t.exposed_functions.copy()
+    if module_t.init_function is not None:
+        exposed_fns.append(module_t.init_function)
+
+    for fn_t in exposed_fns:
+        assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
+        for rif_t in fn_t.reachable_internal_functions:
+            k = _fn_identifier(rif_t)
+            if k in sigs:
+                # sanity check that keys are injective with functions
+                assert sigs[k] == rif_t, (k, sigs[k], rif_t)
+            sigs[k] = rif_t
+
+        fn_id = _fn_identifier(fn_t)
+        assert fn_id not in sigs
+        sigs[fn_id] = fn_t
 
     def _to_dict(func_t):
         ret = vars(func_t).copy()
@@ -161,6 +263,18 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         ret["frame_info"] = vars(func_t._ir_info.frame_info).copy()
         del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
 
+        ret["module_path"] = safe_relpath(func_t.decl_node.module_node.resolved_path)
+        ret["source_id"] = func_t.decl_node.module_node.source_id
+        ret["function_id"] = func_t._function_id
+
+        if func_t.is_internal and compiler_data.settings.experimental_codegen:
+            pass_via_stack_dict = pass_via_stack(func_t)
+            pass_via_stack_list = [
+                arg for (arg, is_stack_arg) in pass_via_stack_dict.items() if is_stack_arg
+            ]
+            ret["venom_via_stack"] = pass_via_stack_list
+            ret["venom_return_via_stack"] = returns_stack_count(func_t) > 0
+
         keep_keys = {
             "name",
             "return_type",
@@ -172,6 +286,11 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             "visibility",
             "_ir_identifier",
             "nonreentrant_key",
+            "module_path",
+            "source_id",
+            "function_id",
+            "venom_via_stack",
+            "venom_return_via_stack",
         }
         ret = {k: v for k, v in ret.items() if k in keep_keys}
         return ret
@@ -188,9 +307,13 @@ def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
 
 def build_abi_output(compiler_data: CompilerData) -> list:
     module_t = compiler_data.annotated_vyper_module._metadata["type"]
-    _ = compiler_data.ir_runtime  # ensure _ir_info is generated
+    if not compiler_data.annotated_vyper_module.is_interface:
+        _ = compiler_data.ir_runtime  # ensure _ir_info is generated
 
     abi = module_t.interface.to_toplevel_abi_dict()
+    if module_t.init_function:
+        abi += module_t.init_function.to_toplevel_abi_dict()
+
     if compiler_data.show_gas_estimates:
         # Add gas estimates for each function to ABI
         gas_estimates = build_gas_estimates(compiler_data.function_signatures)
@@ -212,6 +335,10 @@ def build_asm_output(compiler_data: CompilerData) -> str:
     return _build_asm(compiler_data.assembly)
 
 
+def build_asm_runtime_output(compiler_data: CompilerData) -> str:
+    return _build_asm(compiler_data.assembly_runtime)
+
+
 def build_layout_output(compiler_data: CompilerData) -> StorageLayout:
     # in the future this might return (non-storage) layout,
     # for now only storage layout is returned.
@@ -219,26 +346,24 @@ def build_layout_output(compiler_data: CompilerData) -> StorageLayout:
 
 
 def _build_asm(asm_list):
-    output_string = ""
+    output_string = "__entry__:"
     in_push = 0
-    for node in asm_list:
-        if isinstance(node, list):
-            output_string += "{ " + _build_asm(node) + "} "
+    for item in asm_list:
+        if isinstance(item, (compile_ir.Label, compile_ir.DataHeader)):
+            output_string += f"\n\n{item}:"
             continue
 
         if in_push > 0:
-            assert isinstance(node, int), node
-            output_string += hex(node)[2:].rjust(2, "0")
-            if in_push == 1:
-                output_string += " "
+            assert isinstance(item, int), item
+            output_string += hex(item)[2:].rjust(2, "0")
             in_push -= 1
         else:
-            output_string += str(node) + " "
+            output_string += f"\n    {item}"
 
-            if isinstance(node, str) and node.startswith("PUSH") and node != "PUSH0":
+            if isinstance(item, str) and item.startswith("PUSH") and item != "PUSH0":
                 assert in_push == 0
-                in_push = int(node[4:])
-                output_string += "0x"
+                in_push = int(item[4:])
+                output_string += " 0x"
 
     return output_string
 
@@ -248,16 +373,17 @@ def _build_node_identifier(ast_node):
     return (ast_node.module_node.source_id, ast_node.node_id)
 
 
-def build_source_map_output(compiler_data: CompilerData) -> dict:
+def _getpos(node):
+    return (node.lineno, node.col_offset, node.end_lineno, node.end_col_offset)
+
+
+def _build_source_map_output(compiler_data, bytecode, pc_maps):
     """
     Generate source map output in various formats. Note that integrations
     are encouraged to use pc_ast_map since the information it provides is
     a superset of the other formats, and the other types are included
     for legacy reasons.
     """
-    bytecode, pc_maps = compile_ir.assembly_to_evm(
-        compiler_data.assembly_runtime, insert_compiler_metadata=False
-    )
     # sort the pc maps alphabetically
     # CMC 2024-03-09 is this really necessary?
     out = {}
@@ -271,7 +397,7 @@ def build_source_map_output(compiler_data: CompilerData) -> dict:
         # tag it with source id
         ast_map[0] = compiler_data.annotated_vyper_module
 
-    pc_pos_map = {k: compile_ir.getpos(v) for (k, v) in ast_map.items()}
+    pc_pos_map = {k: _getpos(v) for (k, v) in ast_map.items()}
     node_id_map = {k: _build_node_identifier(v) for (k, v) in ast_map.items()}
     compressed_map = _compress_source_map(ast_map, out["pc_jump_map"], len(bytecode))
     out["pc_pos_map_compressed"] = compressed_map
@@ -280,6 +406,18 @@ def build_source_map_output(compiler_data: CompilerData) -> dict:
     # hint to consumers what the fields in pc_ast_map mean
     out["pc_ast_map_item_keys"] = ("source_id", "node_id")
     return out
+
+
+def build_source_map_output(compiler_data: CompilerData) -> dict:
+    bytecode = compiler_data.bytecode
+    source_map = compiler_data.source_map
+    return _build_source_map_output(compiler_data, bytecode, source_map)
+
+
+def build_source_map_runtime_output(compiler_data: CompilerData) -> dict:
+    bytecode = compiler_data.bytecode_runtime
+    source_map = compiler_data.source_map_runtime
+    return _build_source_map_output(compiler_data, bytecode, source_map)
 
 
 # generate a solidity-style source map. this functionality is deprecated
@@ -312,6 +450,16 @@ def _compress_source_map(ast_map, jump_map, bytecode_size):
     return ";".join(ret)
 
 
+def build_symbol_map(compiler_data: CompilerData) -> dict[str, int]:
+    sym, _, _ = resolve_symbols(compiler_data.assembly)
+    return {k.label: v for (k, v) in sym.items()}
+
+
+def build_symbol_map_runtime(compiler_data: CompilerData) -> dict[str, int]:
+    sym, _, _ = resolve_symbols(compiler_data.assembly_runtime)
+    return {k.label: v for (k, v) in sym.items()}
+
+
 def build_bytecode_output(compiler_data: CompilerData) -> str:
     return f"0x{compiler_data.bytecode.hex()}"
 
@@ -326,13 +474,14 @@ EIP170_CONTRACT_SIZE_LIMIT: int = 2**14 + 2**13
 
 def build_bytecode_runtime_output(compiler_data: CompilerData) -> str:
     compiled_bytecode_runtime_length = len(compiler_data.bytecode_runtime)
+    # NOTE: we should actually add the size of the immutables section to this.
     if compiled_bytecode_runtime_length > EIP170_CONTRACT_SIZE_LIMIT:
-        warnings.warn(
-            f"Length of compiled bytecode is bigger than Ethereum contract size limit "
-            "(see EIP-170: https://eips.ethereum.org/EIPS/eip-170): "
-            f"{compiled_bytecode_runtime_length}b > {EIP170_CONTRACT_SIZE_LIMIT}b",
-            ContractSizeLimitWarning,
-            stacklevel=2,
+        vyper_warn(
+            ContractSizeLimit(
+                f"Length of compiled bytecode is bigger than Ethereum contract size limit "
+                "(see EIP-170: https://eips.ethereum.org/EIPS/eip-170): "
+                f"{compiled_bytecode_runtime_length}b > {EIP170_CONTRACT_SIZE_LIMIT}b"
+            )
         )
     return f"0x{compiler_data.bytecode_runtime.hex()}"
 

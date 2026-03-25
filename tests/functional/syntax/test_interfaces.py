@@ -1,18 +1,26 @@
 import pytest
 
+import vyper.warnings
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
+    CallViolation,
+    FunctionDeclarationException,
     InterfaceViolation,
+    InvalidLiteral,
     InvalidReference,
     InvalidType,
     ModuleNotFound,
     NamespaceCollision,
+    PragmaException,
     StructureException,
     SyntaxException,
     TypeMismatch,
     UnknownAttribute,
 )
+
+# Warnings should be explicitly caught using pytest.warns, or will throw an error
+pytestmark = pytest.mark.filterwarnings("error")
 
 fail_list = [
     (
@@ -157,12 +165,12 @@ totalSupply: public(uint256)
 
 @external
 def transfer(_to : address, _value : uint256) -> bool:
-    log Transfer(msg.sender, _to, _value)
+    log Transfer(sender=msg.sender, receiver=_to, value=_value)
     return True
 
 @external
 def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
-    log IERC20.Transfer(_from, _to, _value)
+    log IERC20.Transfer(sender=_from, receiver=_to, value=_value)
     return True
 
 @external
@@ -213,6 +221,23 @@ implements: Self
 def protected_view_fn() -> String[100]:
     return empty(String[100])
     """,
+        InterfaceViolation,
+    ),
+    (
+        """
+interface ITestInterface:
+    def foo() -> uint256: view
+
+interface ITestInterface2:
+    def bar() -> uint256: view
+
+implements: (
+    ITestInterface,
+    ITestInterface2,
+)
+
+foo: public(constant(uint256)) = 1
+        """,
         InterfaceViolation,
     ),
 ]
@@ -357,6 +382,45 @@ foo: public(immutable(uint256))
 def __init__(x: uint256):
     foo = x
     """,
+    """
+interface Foo:
+  def foo() -> uint256: nonpayable
+
+interface Bar:
+  def bar() -> uint256: nonpayable
+
+
+implements: (
+    Foo,
+    Bar,
+)
+
+@external
+def foo() -> uint256:
+    return 0
+
+@external
+def bar() -> uint256:
+    return 0
+    """,
+    # single method can implement multiple interfaces
+    """
+interface Foo:
+  def foo() -> uint256: nonpayable
+
+interface Foo2:
+  def foo() -> uint256: nonpayable
+
+
+implements: (
+    Foo,
+    Foo2,
+)
+
+@external
+def foo() -> uint256:
+    return 0
+    """,
     # no namespace collision of interface after storage variable
     """
 a: constant(uint256) = 1
@@ -380,13 +444,22 @@ def test_interfaces_success(good_code):
 
 
 def test_imports_and_implements_within_interface(make_input_bundle):
-    interface_code = """
+    ibar_code = """
+@external
+def foobar():
+    ...
+"""
+    ifoo_code = """
+import bar
+
+implements: bar
+
 @external
 def foobar():
     ...
 """
 
-    input_bundle = make_input_bundle({"foo.vyi": interface_code})
+    input_bundle = make_input_bundle({"foo.vyi": ifoo_code, "bar.vyi": ibar_code})
 
     code = """
 import foo as Foo
@@ -401,23 +474,434 @@ def foobar():
     assert compiler.compile_code(code, input_bundle=input_bundle) is not None
 
 
-def test_builtins_not_found():
+def test_builtins_not_found(make_input_bundle):
     code = """
 from vyper.interfaces import foobar
     """
+    input_bundle = make_input_bundle({"code.vy": code})
+    file_input = input_bundle.load_file("code.vy")
     with pytest.raises(ModuleNotFound) as e:
-        compiler.compile_code(code)
-
+        compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
     assert e.value._message == "vyper.interfaces.foobar"
     assert e.value._hint == "try renaming `vyper.interfaces` to `ethereum.ercs`"
+    assert "code.vy:" in str(e.value)
 
 
 @pytest.mark.parametrize("erc", ("ERC20", "ERC721", "ERC4626"))
-def test_builtins_not_found2(erc):
+def test_builtins_not_found2(erc, make_input_bundle):
     code = f"""
 from ethereum.ercs import {erc}
     """
+    input_bundle = make_input_bundle({"code.vy": code})
+    file_input = input_bundle.load_file("code.vy")
     with pytest.raises(ModuleNotFound) as e:
-        compiler.compile_code(code)
+        compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
     assert e.value._message == f"ethereum.ercs.{erc}"
     assert e.value._hint == f"try renaming `{erc}` to `I{erc}`"
+    assert "code.vy:" in str(e.value)
+
+
+def test_interface_body_check(make_input_bundle):
+    interface_code = """
+@external
+def foobar():
+    return ...
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": interface_code})
+
+    code = """
+import foo as Foo
+
+implements: Foo
+
+@external
+def foobar():
+    pass
+"""
+    with pytest.raises(FunctionDeclarationException) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert e.value._message == "function body in an interface can only be `...`!"
+
+
+def test_interface_body_check2(make_input_bundle):
+    interface_code = """
+@external
+def foobar():
+    ...
+
+@external
+def bar():
+    ...
+
+@external
+def baz():
+    ...
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": interface_code})
+
+    code = """
+import foo
+
+implements: foo
+
+@external
+def foobar():
+    pass
+
+@external
+def bar():
+    pass
+
+@external
+def baz():
+    pass
+"""
+
+    assert compiler.compile_code(code, input_bundle=input_bundle) is not None
+
+
+def test_interfaces_in_different_files_check(make_input_bundle):
+    foo = """
+def foo() -> uint256: ...
+    """
+    bar = """
+def bar() -> uint256: ...
+    """
+
+    input_bundle = make_input_bundle({"foo.vyi": foo, "bar.vyi": bar})
+
+    code = """
+import foo as Foo
+import bar as Bar
+
+implements: (
+    Foo,
+    Bar,
+)
+
+@external
+def foo() -> uint256:
+    return 0
+
+@external
+def bar() -> uint256:
+    return 0
+    """
+
+    res = compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert res is not None
+
+
+def test_implements_in_interface_file_check(make_input_bundle):
+    foo = """
+def foo() -> uint256: ...
+    """
+    bar = """
+def bar() -> uint256: ...
+    """
+    qux = """
+from interfaces import foo as Foo, bar as Bar
+
+implements: (
+    Foo,
+    Bar,
+)
+
+def foo() -> uint256: ...
+def bar() -> uint256: ...
+def qux() -> uint256: ...
+    """
+
+    input_bundle = make_input_bundle(
+        {"interfaces/foo.vyi": foo, "interfaces/bar.vyi": bar, "interfaces/qux.vyi": qux}
+    )
+
+    code = """
+from interfaces import qux as Qux
+
+implements: (
+    Qux,
+)
+
+@external
+def foo() -> uint256:
+    return 0
+
+@external
+def bar() -> uint256:
+    return 0
+
+@external
+def qux() -> uint256:
+    return 0
+    """
+
+    res = compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert res is not None
+
+
+def test_interface_file_type_check(make_input_bundle):
+    interface_code = """
+"""
+
+    input_bundle = make_input_bundle({"foo.vy": interface_code})
+
+    code = """
+import foo as Foo
+
+implements: Foo
+"""
+    with pytest.raises(StructureException) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert (
+        e.value._message == "Not an interface!"
+        " (Since vyper v0.4.0, interface files are required to have a .vyi suffix.)"
+    )
+
+
+invalid_visibility_code = [
+    """
+import foo as Foo
+implements: Foo
+@external
+def foobar():
+    pass
+    """,
+    """
+import foo as Foo
+implements: Foo
+@internal
+def foobar():
+    pass
+    """,
+    """
+import foo as Foo
+implements: Foo
+def foobar():
+    pass
+    """,
+]
+
+
+@pytest.mark.parametrize("code", invalid_visibility_code)
+def test_internal_visibility_in_interface(make_input_bundle, code):
+    interface_code = """
+@internal
+def foobar():
+    ...
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": interface_code})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert e.value._message == "Interface functions can only be marked as `@external`"
+
+
+external_visibility_interface = [
+    """
+@external
+def foobar():
+    ...
+def bar():
+    ...
+    """,
+    """
+def foobar():
+    ...
+@external
+def bar():
+    ...
+    """,
+]
+
+
+@pytest.mark.parametrize("iface", external_visibility_interface)
+def test_internal_implemenatation_of_external_interface(make_input_bundle, iface):
+    input_bundle = make_input_bundle({"foo.vyi": iface})
+
+    code = """
+import foo as Foo
+implements: Foo
+@internal
+def foobar():
+    pass
+def bar():
+    pass
+    """
+
+    with pytest.raises(InterfaceViolation) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert e.value.message == "Contract does not implement all interface functions: bar(), foobar()"
+
+
+def test_intrinsic_interfaces_different_types(make_input_bundle, get_contract):
+    lib1 = """
+@external
+@view
+def foo():
+    pass
+    """
+    lib2 = """
+@external
+@view
+def foo():
+    pass
+    """
+    main = """
+import lib1
+import lib2
+
+@external
+def bar():
+    assert lib1.__at__(self) == lib2.__at__(self)
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    with pytest.raises(TypeMismatch):
+        compiler.compile_code(main, input_bundle=input_bundle)
+
+
+def test_intrinsic_interfaces_default_function(make_input_bundle, get_contract):
+    lib1 = """
+@external
+@payable
+def __default__():
+    pass
+    """
+    main = """
+import lib1
+
+@external
+def bar():
+    extcall lib1.__at__(self).__default__()
+
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    with pytest.raises(CallViolation):
+        compiler.compile_code(main, input_bundle=input_bundle)
+
+
+def test_intrinsic_interfaces_default_function_staticcall(make_input_bundle, get_contract):
+    lib1 = """
+@external
+@view
+def __default__() -> int128:
+    return 43
+    """
+    main = """
+import lib1
+
+@external
+def bar():
+    foo:int128 = 0
+    foo = staticcall lib1.__at__(self).__default__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    with pytest.raises(CallViolation):
+        compiler.compile_code(main, input_bundle=input_bundle)
+
+
+def test_nonreentrant_pragma_blocked_in_vyi(make_input_bundle):
+    ifoo_code = """
+# pragma nonreentrancy on
+
+@external
+def foobar():
+    ...
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": ifoo_code})
+
+    code = """
+import foo as Foo
+"""
+
+    with pytest.raises(PragmaException):
+        compiler.compile_code(code, input_bundle=input_bundle)
+
+
+def test_interface_default_param_value_deprecation_warning():
+    code = """
+interface Foo:
+    def bar(a: uint256 = 123): view
+    """
+
+    with pytest.warns(vyper.warnings.Deprecation, match=r"Please use `\.\.\.` as default value\."):
+        compiler.compile_code(code)
+
+
+def test_interface_default_param_value_deprecation_warning_vyi(make_input_bundle):
+    vyi_code = """
+@external
+@view
+def bar(a: uint256 = 123):
+    ...
+    """
+    input_bundle = make_input_bundle({"foo.vyi": vyi_code})
+
+    code = """
+import foo as Foo
+    """
+
+    with pytest.warns(vyper.warnings.Deprecation, match=r"Please use `\.\.\.` as default value\."):
+        compiler.compile_code(code, input_bundle=input_bundle)
+
+
+@pytest.mark.parametrize(
+    "default,typ", [("123", "uint256"), ("True", "bool"), ("empty(address)", "address")]
+)
+def test_interface_default_param_deprecation_various_types(default, typ):
+    code = f"""
+interface Foo:
+    def bar(a: {typ} = {default}): view
+    """
+
+    with pytest.warns(vyper.warnings.Deprecation, match=r"Please use `\.\.\.` as default value\."):
+        compiler.compile_code(code)
+
+
+def test_interface_default_param_multiple_warnings():
+    code = """
+interface Foo:
+    def bar(a: uint256 = 1, b: uint256 = 2): view
+    """
+
+    with pytest.warns(vyper.warnings.Deprecation) as warnings:
+        compiler.compile_code(code)
+
+    dep_warnings = [w for w in warnings if issubclass(w.category, vyper.warnings.Deprecation)]
+    assert len(dep_warnings) == 2
+
+
+def test_interface_ellipsis_default_no_warning():
+    code = """
+interface Foo:
+    def bar(a: uint256 = ...): view
+    """
+
+    # pytestmark = filterwarnings("error") ensures any unexpected warning
+    # would raise. This verifies ... produces no deprecation warning.
+    compiler.compile_code(code)
+
+
+@pytest.mark.parametrize("decorator", ["@external", "@internal"])
+def test_ellipsis_default_param_outside_interface(decorator):
+    code = f"""
+{decorator}
+def foo(a: uint256 = ...):
+    pass
+    """
+
+    with pytest.raises(InvalidLiteral, match=r"not allowed.*outside of interfaces"):
+        compiler.compile_code(code)

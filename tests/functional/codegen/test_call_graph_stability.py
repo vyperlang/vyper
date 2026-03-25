@@ -11,6 +11,11 @@ from vyper.compiler.phases import CompilerData
 
 
 def _valid_identifier(attr):
+    if attr == "foo":
+        # the entry point to the test is named foo(),
+        # skip it to avoid collision
+        return False
+
     return attr not in RESERVED_KEYWORDS
 
 

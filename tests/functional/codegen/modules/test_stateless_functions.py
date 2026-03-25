@@ -2,11 +2,13 @@ import hypothesis.strategies as st
 import pytest
 from hypothesis import given, settings
 
+from tests.utils import working_directory
 from vyper import compiler
 from vyper.exceptions import (
     CallViolation,
     DuplicateImport,
     ImportCycle,
+    ModuleNotFound,
     StructureException,
     TypeMismatch,
 )
@@ -14,7 +16,7 @@ from vyper.exceptions import (
 # test modules which have no variables - "libraries"
 
 
-def test_simple_library(get_contract, make_input_bundle, w3):
+def test_simple_library(get_contract, make_input_bundle, env):
     library_source = """
 @internal
 def foo() -> uint256:
@@ -31,7 +33,65 @@ def bar() -> uint256:
 
     c = get_contract(main, input_bundle=input_bundle)
 
-    assert c.bar() == w3.eth.block_number
+    assert c.bar() == env.block_number
+
+
+def test_builtin_shadowing(get_contract, make_input_bundle, tmp_path):
+    library_source = """
+@internal
+def add(x: uint256, y: uint256) -> uint256:
+    return x + y
+    """
+    main = """
+# relative import of a module with same name as stdlib `math`
+from . import math
+
+@external
+def bar(x: uint256, y: uint256) -> uint256:
+    return math.add(x, y)
+    """
+    input_bundle = make_input_bundle({"math.vy": library_source})
+
+    # chdir so that `math.vy` is accessible via relative path
+    with working_directory(tmp_path):
+        c = get_contract(main, input_bundle=input_bundle)
+
+    assert c.bar(1, 2) == 1 + 2
+
+
+# math is a builtin module, can't import module test
+def test_builtin_shadowing2(get_contract, make_input_bundle, tmp_path):
+    library_source = """
+    """
+    main = """
+from math import test
+    """
+    input_bundle = make_input_bundle({"math/test.vy": library_source})
+
+    with working_directory(tmp_path):
+        with pytest.raises(ModuleNotFound):
+            get_contract(main, input_bundle=input_bundle)
+
+
+def test_builtin_shadowing3(get_contract, make_input_bundle, tmp_path):
+    library_source = """
+@internal
+def add(x: uint256, y: uint256) -> uint256:
+    return x + y
+    """
+    main = """
+from .math import test
+
+@external
+def bar(x: uint256, y: uint256) -> uint256:
+    return test.add(x, y)
+    """
+    input_bundle = make_input_bundle({"math/test.vy": library_source})
+
+    with working_directory(tmp_path):
+        c = get_contract(main, input_bundle=input_bundle)
+
+    assert c.bar(1, 2) == 1 + 2
 
 
 # is this the best place for this?
@@ -179,7 +239,7 @@ def qux() -> library.SomeStruct:
     input_bundle = make_input_bundle({"library.vy": library_source, "contract.vy": contract_source})
     c = get_contract(contract_source, input_bundle=input_bundle)
 
-    assert c.bar((1,)) == []
+    assert c.bar((1,)) is None
 
     assert c.baz() == (2,)
     assert c.qux() == (1,)
@@ -207,7 +267,7 @@ def foo(x: uint256):
 
     c = get_contract(contract_source, input_bundle=input_bundle)
 
-    c.foo(7, transact={})
+    c.foo(7)
 
     assert c.counter() == 7
 
@@ -258,9 +318,52 @@ def test_reject_duplicate_imports(make_input_bundle):
 import library
 import library as library2
     """
-    input_bundle = make_input_bundle({"library.vy": library_source, "contract.vy": contract_source})
+    input_bundle = make_input_bundle({"library.vy": library_source})
     with pytest.raises(DuplicateImport):
         compiler.compile_code(contract_source, input_bundle=input_bundle)
+
+
+def test_reject_duplicate_builtin_imports(make_input_bundle):
+    contract_source = """
+import math
+import math as math2
+    """
+    with pytest.raises(DuplicateImport):
+        compiler.compile_code(contract_source)
+
+
+def test_accept_builtin_and_relative_with_same_path_math(make_input_bundle):
+    local_math = """
+    """
+
+    contract_source = """
+import math as builtin_math
+from . import math as local_math
+    """
+
+    input_bundle = make_input_bundle({"math.vyi": local_math})
+
+    # Needs the correct folder for the relative lookup to work
+    contract_path = input_bundle.search_paths[0] / "contract.vy"
+
+    compiler.compile_code(contract_source, input_bundle=input_bundle, contract_path=contract_path)
+
+
+def test_accept_builtin_and_relative_with_same_path_ierc20(make_input_bundle):
+    local_ierc20 = """
+    """
+
+    contract_source = """
+from ethereum.ercs import IERC20 as builtin_IERC20
+from .ethereum.ercs import IERC20 as local_IERC20
+    """
+
+    input_bundle = make_input_bundle({"ethereum/ercs/IERC20.vyi": local_ierc20})
+
+    # Needs the correct folder for the relative lookup to work
+    contract_path = input_bundle.search_paths[0] / "contract.vy"
+
+    compiler.compile_code(contract_source, input_bundle=input_bundle, contract_path=contract_path)
 
 
 def test_nested_module_access(get_contract, make_input_bundle):

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from vyper.codegen.context import Constancy, Context
 from vyper.codegen.ir_node import IRnode
@@ -10,6 +10,9 @@ from vyper.semantics.types import VyperType
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.utils import MemoryPositions
+
+if TYPE_CHECKING:
+    from vyper.venom.basicblock import IRVariable
 
 
 @dataclass
@@ -28,6 +31,9 @@ class _FuncIRInfo:
     func_t: ContractFunctionT
     gas_estimate: Optional[int] = None
     frame_info: Optional[FrameInfo] = None
+    func_ir: Optional["InternalFuncIR"] = None
+    # For venom codegen: maps kwarg names to alloca IRVariables for sharing between entry points
+    kwarg_alloca_vars: Optional[dict[str, "IRVariable"]] = None
 
     @property
     def visibility(self):
@@ -56,6 +62,10 @@ class _FuncIRInfo:
         else:
             self.frame_info = frame_info
 
+    def set_func_ir(self, func_ir: "InternalFuncIR") -> None:
+        assert self.func_t.is_internal or self.func_t.is_deploy
+        self.func_ir = func_ir
+
     @property
     # common entry point for external function with kwargs
     def external_function_base_entry_label(self) -> str:
@@ -78,7 +88,7 @@ class _FuncIRInfo:
 class EntryPointInfo:
     func_t: ContractFunctionT
     min_calldatasize: int  # the min calldata required for this entry point
-    ir_node: IRnode  # the ir for this entry point
+    ir_node: Optional[IRnode] = None  # the ir for this entry point (None for venom codegen)
 
     def __post_init__(self):
         # sanity check ABI v2 properties guaranteed by the spec.
@@ -165,6 +175,7 @@ def get_nonreentrant_lock(func_t):
         return [check_notset], [["seq"]]
 
     else:
+        assert func_t.mutability >= StateMutability.NONPAYABLE  # sanity
         pre = ["seq", check_notset, [STORE, nkey, temp_value]]
         post = [STORE, nkey, final_value]
         return [pre], [post]

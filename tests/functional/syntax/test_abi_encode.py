@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import InvalidLiteral, TypeMismatch
 
 fail_list = [
     (
@@ -42,9 +42,35 @@ def foo(x: uint256) -> Bytes[36]:
         """
 @external
 def foo(x: uint256) -> Bytes[36]:
+    return _abi_encode(x, method_id=b"abc")
+    """,
+        InvalidLiteral,  # len(method_id) must be greater than 3
+    ),
+    (
+        """
+@external
+def foo(x: uint256) -> Bytes[36]:
     return _abi_encode(x, method_id=0x1234567890)
     """,
         TypeMismatch,  # len(method_id) must be less than 4
+    ),
+    (
+        """
+@external
+def foo(x: uint256) -> Bytes[36]:
+    return _abi_encode(x, method_id=0x123456)
+    """,
+        TypeMismatch,  # len(method_id) must be greater than 3
+    ),
+    (
+        """
+@external
+def foo() -> Bytes[132]:
+    x: uint256 = 1
+    y: Bytes[32] = b"234"
+    return abi_encode(x, y, method_id=b"")
+        """,
+        InvalidLiteral,  # len(method_id) must be 4
     ),
 ]
 
@@ -80,6 +106,11 @@ def foo(x: Bytes[1]) -> Bytes[68]:
 @external
 def foo(x: Bytes[1]) -> Bytes[68]:
     return _abi_encode(x, ensure_tuple=False, method_id=0x12345678)
+    """,
+    """
+@external
+def foo(x: Bytes[1]) -> Bytes[68]:
+    return _abi_encode(x, ensure_tuple=False, method_id=b"1234")
     """,
     """
 BAR: constant(DynArray[uint256, 5]) = [1, 2, 3, 4, 5]

@@ -6,16 +6,6 @@ from vyper.evm import opcodes
 from vyper.exceptions import CompilerPanic
 
 
-@pytest.fixture(params=list(opcodes.EVM_VERSIONS))
-def evm_version(request):
-    default = opcodes.active_evm_version
-    try:
-        opcodes.active_evm_version = opcodes.EVM_VERSIONS[request.param]
-        yield request.param
-    finally:
-        opcodes.active_evm_version = default
-
-
 def test_opcodes():
     code = """
 @external
@@ -55,7 +45,7 @@ def test_get_opcodes(evm_version):
     if evm_version in ("shanghai", "cancun"):
         assert "PUSH0" in ops
 
-    if evm_version in ("cancun",):
+    if evm_version in ("cancun", "prague"):
         for op in ("TLOAD", "TSTORE", "MCOPY"):
             assert op in ops
     else:

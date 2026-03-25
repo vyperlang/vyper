@@ -14,8 +14,6 @@ module: ( DOCSTRING
         | flag_def
         | event_def
         | function_def
-        | immutable_def
-        | transient_def
         | exports_decl
         | _NEWLINE )*
 
@@ -32,9 +30,8 @@ _import_path: (_import_name ".")* _import_name
 import_alias: _AS NAME
 ?import_list: _import_name [import_alias] ("," _import_name [import_alias] )* [","]
 _import_from: _FROM (DOT* _import_path | DOT+)
-import: _IMPORT DOT* _import_path [import_alias]
-      | _import_from _IMPORT ( WILDCARD | _import_name [import_alias] )
-      | _import_from _IMPORT "(" import_list ")"
+import: _IMPORT DOT* _import_path [import_alias] ("," _import_path [import_alias] )* [","]
+      | _import_from _IMPORT ( WILDCARD | import_list )
 
 // Constant definitions
 // NOTE: Temporary until decorators used
@@ -43,19 +40,10 @@ constant_private: NAME ":" constant
 constant_with_getter: NAME ":" "public" "(" constant ")"
 constant_def: (constant_private | constant_with_getter) "=" expr
 
-// immutable definitions
-// NOTE: Temporary until decorators used
-immutable: "immutable" "(" type ")"
-immutable_def: NAME ":" immutable
-
-// transient definitions
-transient: "transient" "(" type ")"
-transient_def: NAME ":" transient
-
 variable: NAME ":" type
 // NOTE: Temporary until decorators used
-variable_with_getter: NAME ":" "public" "(" (type | immutable | transient) ")"
-variable_def: variable | variable_with_getter
+variable_annotation: ("public" | "reentrant" | "immutable" | "transient") "(" (variable_annotation | type) ")"
+variable_def: NAME ":" (variable_annotation | type)
 
 // A decorator "wraps" a method, modifying it's context.
 // NOTE: One or more can be applied (some combos might conflict)
@@ -297,7 +285,7 @@ call: atom_expr "(" [arguments] ")"
 empty: "empty" "(" type ")"
 
 // special rule to handle types as "arguments" (for `_abi_decode` builtin)
-abi_decode: "_abi_decode" "(" arg "," type ( "," kwarg )* ")"
+abi_decode: ("_abi_decode" | "abi_decode") "(" arg "," type ( "," kwarg )* ")"
 
 special_builtins: empty | abi_decode
 
@@ -318,14 +306,21 @@ COMMENT: /#[^\n\r]*/
 _NEWLINE: ( /\r?\n[\t ]*/ | COMMENT )+
 
 
-STRING: /b?("(?!"").*?(?<!\\)(\\\\)*?"|'(?!'').*?(?<!\\)(\\\\)*?')/i
+STRING: /x?b?("(?!"").*?(?<!\\)(\\\\)*?"|'(?!'').*?(?<!\\)(\\\\)*?')/i
 DOCSTRING: /(""".*?(?<!\\)(\\\\)*?"""|'''.*?(?<!\\)(\\\\)*?''')/is
 
-DEC_NUMBER: /0|[1-9]\d*/i
-HEX_NUMBER.2: /0x[\da-f]*/i
-OCT_NUMBER.2: /0o[0-7]*/i
-BIN_NUMBER.2 : /0b[0-1]*/i
-FLOAT_NUMBER.2: /((\d+\.\d*|\.\d+)(e[-+]?\d+)?|\d+(e[-+]?\d+))/i
+DEC_NUMBER: /0|[1-9](_?[0-9])*/
+HEX_NUMBER.2: /0[xX](_?[\da-f])+/i
+OCT_NUMBER.2: /0[oO](_?[0-7])+/
+BIN_NUMBER.2 : /0[bB](_?[0-1])+/i
+
+// Floating point literals (PEP 515)
+_DIGITPART: /\d(_?\d)*/
+_FRACTION: "." _DIGITPART
+_EXPONENT: /[eE][+-]?/ _DIGITPART
+FLOAT_NUMBER.2: _DIGITPART "." _DIGITPART? _EXPONENT?
+              | _FRACTION _EXPONENT?
+              | _DIGITPART _EXPONENT
 
 _number: DEC_NUMBER
        | HEX_NUMBER

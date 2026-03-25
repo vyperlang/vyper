@@ -8,11 +8,12 @@ from pathlib import Path, PurePath
 from typing import Any, Callable, Hashable, Optional
 
 import vyper
-from vyper.compiler.input_bundle import FileInput, JSONInputBundle
-from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.compiler.input_bundle import FileInput, JSONInput, JSONInputBundle, _normpath
+from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import JSONError
 from vyper.utils import OrderedSet, keccak256
+from vyper.warnings import Deprecation, vyper_warn
 
 TRANSLATE_MAP = {
     "abi": "abi",
@@ -22,17 +23,23 @@ TRANSLATE_MAP = {
     "evm.methodIdentifiers": "method_identifiers",
     "evm.bytecode.object": "bytecode",
     "evm.bytecode.opcodes": "opcodes",
+    "evm.bytecode.sourceMap": "source_map",
+    "evm.bytecode.symbolMap": "symbol_map",
     "evm.deployedBytecode.object": "bytecode_runtime",
     "evm.deployedBytecode.opcodes": "opcodes_runtime",
-    "evm.deployedBytecode.sourceMap": "source_map",
-    "evm.deployedBytecode.sourceMapFull": "source_map_full",
+    "evm.deployedBytecode.sourceMap": "source_map_runtime",
+    "evm.deployedBytecode.symbolMap": "symbol_map_runtime",
     "interface": "interface",
     "ir": "ir_dict",
     "ir_runtime": "ir_runtime_dict",
     "metadata": "metadata",
     "layout": "layout",
     "userdoc": "userdoc",
+    "cfg": "cfg",
+    "cfg_runtime": "cfg_runtime",
 }
+
+VENOM_KEYS = ("cfg", "cfg_runtime")
 
 
 def _parse_cli_args():
@@ -58,12 +65,6 @@ def _parse_args(argv):
         default=None,
         dest="output_file",
     )
-    parser.add_argument(
-        "-p",
-        help="Set a base import path. Vyper searches here if a file is not found in the JSON.",
-        default=None,
-        dest="root_folder",
-    )
     parser.add_argument("--pretty-json", help="Output JSON in pretty format.", action="store_true")
     parser.add_argument(
         "--traceback",
@@ -82,7 +83,7 @@ def _parse_args(argv):
 
     exc_handler = exc_handler_raises if args.traceback else exc_handler_to_dict
     output_json = json.dumps(
-        compile_json(input_json, exc_handler, args.root_folder, json_path),
+        compile_json(input_json, exc_handler, json_path),
         indent=2 if args.pretty_json else None,
         sort_keys=True,
         default=str,
@@ -190,7 +191,7 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
 
         # some validation
         if not isinstance(value, dict):
-            raise JSONError("invalid interface (must be a dictionary):\n{json.dumps(value)}")
+            raise JSONError(f"invalid interface (must be a dictionary):\n{json.dumps(value)}")
         if "content" in value:
             if not isinstance(value["content"], str):
                 raise JSONError(f"invalid 'content' (expected string):\n{json.dumps(value)}")
@@ -199,17 +200,46 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
                 raise JSONError(f"invalid 'abi' (expected list):\n{json.dumps(value)}")
         else:
             raise JSONError(
-                "invalid interface (must contain either 'content' or 'abi'):\n{json.dumps(value)}"
+                f"invalid interface (must contain either 'content' or 'abi'):\n{json.dumps(value)}"
             )
         if "content" in value and "abi" in value:
             raise JSONError(
-                "invalid interface (found both 'content' and 'abi'):\n{json.dumps(value)}"
+                f"invalid interface (found both 'content' and 'abi'):\n{json.dumps(value)}"
             )
 
         ret[path] = value
         seen[path.stem] = True
 
     return ret
+
+
+def get_storage_layout_overrides(input_dict: dict) -> dict[PurePath, JSONInput]:
+    storage_layout_overrides: dict[PurePath, JSONInput] = {}
+
+    for path, value in input_dict.get("storage_layout_overrides", {}).items():
+        if path not in input_dict["sources"]:
+            raise JSONError(f"unknown target for storage layout override: {path}")
+
+        if not isinstance(value, dict) and len(value.items()) != 1:
+            raise JSONError(f"invalid storage layout override: {value}")
+        override_path, override_data = next(iter(value.items()))
+        override_path = _normpath(override_path)
+        storage_layout_input = JSONInput(
+            contents=json.dumps(override_data),
+            data=override_data,
+            source_id=-1,
+            path=override_path,
+            resolved_path=override_path,
+        )
+
+        path = PurePath(path)
+        if path in storage_layout_overrides:
+            raise JSONError(
+                f"duplicate key {path} in storage layout override: {storage_layout_overrides}"
+            )
+        storage_layout_overrides[path] = storage_layout_input
+
+    return storage_layout_overrides
 
 
 # get unique output formats for each contract, given the input_dict
@@ -227,8 +257,15 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
             outputs.remove(key)
             outputs.update([i for i in TRANSLATE_MAP if i.startswith(key)])
 
+        should_output_venom = any(
+            input_dict["settings"].get(alias, False)
+            for alias in ("venomExperimental", "experimentalCodegen")
+        )
+
         if "*" in outputs:
             outputs = TRANSLATE_MAP.values()
+            if not should_output_venom:
+                outputs = [k for k in outputs if k not in VENOM_KEYS]
         else:
             try:
                 outputs = [TRANSLATE_MAP[i] for i in outputs]
@@ -237,11 +274,17 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
 
         outputs = sorted(list(outputs))
 
+        if not should_output_venom and any(k in outputs for k in VENOM_KEYS):
+            selected_venom_keys = [k for k in outputs if k in VENOM_KEYS]
+            raise JSONError(
+                f"requested {selected_venom_keys} but experimentalCodegen not selected!"
+            )
+
         if path == "*":
             output_paths = [PurePath(path) for path in input_dict["sources"].keys()]
         else:
             output_paths = [PurePath(path)]
-            if str(output_paths[0]) not in input_dict["sources"]:
+            if output_paths[0].as_posix() not in input_dict["sources"]:
                 raise JSONError(f"outputSelection references unknown contract '{output_paths[0]}'")
 
         for output_path in output_paths:
@@ -250,23 +293,34 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
     return output_formats
 
 
-def compile_from_input_dict(
-    input_dict: dict, exc_handler: Callable = exc_handler_raises, root_folder: Optional[str] = None
-) -> tuple[dict, dict]:
-    if root_folder is None:
-        root_folder = "."
+def get_search_paths(input_dict: dict) -> list[PurePath]:
+    ret = input_dict["settings"].get("search_paths", ".")
+    return [PurePath(p) for p in ret]
 
-    if input_dict["language"] != "Vyper":
-        raise JSONError(f"Invalid language '{input_dict['language']}' - Only Vyper is supported.")
 
+def get_settings(input_dict: dict) -> Settings:
     evm_version = get_evm_version(input_dict)
 
     optimize = input_dict["settings"].get("optimize")
-    if isinstance(optimize, bool):
+    opt_level = input_dict["settings"].get("optLevel")
+
+    if optimize is not None and opt_level is not None:
+        raise JSONError("both 'optimize' and 'optLevel' cannot be set")
+
+    experimental_codegen = input_dict["settings"].get("experimentalCodegen")
+    if experimental_codegen is None:
+        experimental_codegen = input_dict["settings"].get("venomExperimental")
+    elif input_dict["settings"].get("venomExperimental") is not None:
+        raise JSONError("both experimentalCodegen and venomExperimental cannot be set")
+
+    if opt_level is not None:
+        optimize = OptimizationLevel.from_string(opt_level)
+    elif isinstance(optimize, bool):
         # bool optimization level for backwards compatibility
-        warnings.warn(
-            "optimize: <bool> is deprecated! please use one of 'gas', 'codesize', 'none'.",
-            stacklevel=2,
+        vyper_warn(
+            Deprecation(
+                "optimize: <bool> is deprecated! please use one of 'gas', 'codesize', 'none'."
+            )
         )
         optimize = OptimizationLevel.default() if optimize else OptimizationLevel.NONE
     elif isinstance(optimize, str):
@@ -274,19 +328,78 @@ def compile_from_input_dict(
     else:
         assert optimize is None
 
-    settings = Settings(evm_version=evm_version, optimize=optimize)
+    debug = input_dict["settings"].get("debug", None)
+
+    # TODO: maybe change these to camelCase for consistency
+    enable_decimals = input_dict["settings"].get("enable_decimals", None)
+
+    # Create Venom optimization flags with the optimization level
+    venom_flags = VenomOptimizationFlags(level=optimize)
+
+    # Check for Venom-specific settings
+    venom_settings = input_dict["settings"].get("venom", {})
+    if venom_settings:
+        # TODO: refactor this
+        flag_mapping = {
+            "disableInlining": ("disable_inlining", bool),
+            "disableCSE": ("disable_cse", bool),
+            "disableSCCP": ("disable_sccp", bool),
+            "disableLoadElimination": ("disable_load_elimination", bool),
+            "disableDeadStoreElimination": ("disable_dead_store_elimination", bool),
+            "disableAlgebraicOptimization": ("disable_algebraic_optimization", bool),
+            "disableBranchOptimization": ("disable_branch_optimization", bool),
+            "disableMem2Var": ("disable_mem2var", bool),
+            "disableSimplifyCFG": ("disable_simplify_cfg", bool),
+            "disableRemoveUnusedVariables": ("disable_remove_unused_variables", bool),
+            "inlineThreshold": ("inline_threshold", int),
+            "disableAssertElimination": ("disable_assert_elimination", bool),
+        }
+
+        # merge user-provided settings into venom_flags
+        for json_field, (attr_name, expected_type) in flag_mapping.items():
+            if json_field in venom_settings:
+                value = venom_settings[json_field]
+                if not isinstance(value, expected_type):
+                    raise JSONError(
+                        f"venom.{json_field} must be {expected_type.__name__}, "
+                        f"got {type(value).__name__}"
+                    )
+                setattr(venom_flags, attr_name, value)
+
+    return Settings(
+        evm_version=evm_version,
+        optimize=optimize,
+        experimental_codegen=experimental_codegen,
+        debug=debug,
+        enable_decimals=enable_decimals,
+        venom_flags=venom_flags,
+    )
+
+
+def compile_from_input_dict(
+    input_dict: dict, exc_handler: Callable = exc_handler_raises
+) -> tuple[dict, dict]:
+    if input_dict["language"] != "Vyper":
+        raise JSONError(f"Invalid language '{input_dict['language']}' - Only Vyper is supported.")
+
+    settings = get_settings(input_dict)
 
     no_bytecode_metadata = not input_dict["settings"].get("bytecodeMetadata", True)
 
+    integrity = input_dict.get("integrity")
+
     sources = get_inputs(input_dict)
+    storage_layout_overrides = get_storage_layout_overrides(input_dict)
     output_formats = get_output_formats(input_dict)
     compilation_targets = list(output_formats.keys())
+    search_paths = get_search_paths(input_dict)
 
-    input_bundle = JSONInputBundle(sources, search_paths=[Path(root_folder)])
+    input_bundle = JSONInputBundle(sources, search_paths=search_paths)
 
     res, warnings_dict = {}, {}
     warnings.simplefilter("always")
     for contract_path in compilation_targets:
+        storage_layout_override = storage_layout_overrides.get(contract_path)
         with warnings.catch_warnings(record=True) as caught_warnings:
             try:
                 # use load_file to get a unique source_id
@@ -296,6 +409,8 @@ def compile_from_input_dict(
                     file,
                     input_bundle=input_bundle,
                     output_formats=output_formats[contract_path],
+                    storage_layout_override=storage_layout_override,
+                    integrity_sum=integrity,
                     settings=settings,
                     no_bytecode_metadata=no_bytecode_metadata,
                 )
@@ -314,7 +429,7 @@ def compile_from_input_dict(
 def format_to_output_dict(compiler_data: dict) -> dict:
     output_dict: dict = {"compiler": f"vyper-{vyper.__version__}", "contracts": {}, "sources": {}}
     for path, data in compiler_data.items():
-        path = str(path)  # Path breaks json serializability
+        path = path.as_posix()  # Path breaks json serializability
         output_dict["sources"][path] = {"id": data["source_id"]}
 
         for k in ("ast_dict", "annotated_ast_dict"):
@@ -334,28 +449,43 @@ def format_to_output_dict(compiler_data: dict) -> dict:
             if key in data:
                 output_contracts[key] = data[key]
 
+        if "layout" in data:
+            output_contracts["layout"] = data["layout"]
+
         if "method_identifiers" in data:
             output_contracts["evm"] = {"methodIdentifiers": data["method_identifiers"]}
 
         evm_keys = ("bytecode", "opcodes")
-        if any(i in data for i in evm_keys):
+        pc_maps_keys = ("source_map",)
+        if any(i in data for i in evm_keys + pc_maps_keys):
             evm = output_contracts.setdefault("evm", {}).setdefault("bytecode", {})
             if "bytecode" in data:
                 evm["object"] = data["bytecode"]
             if "opcodes" in data:
                 evm["opcodes"] = data["opcodes"]
+            if "source_map" in data:
+                evm["sourceMap"] = data["source_map"]
+            if "symbol_map" in data:
+                evm["symbolMap"] = data["symbol_map"]
 
-        pc_maps_keys = ("source_map", "source_map_full")
-        if any(i + "_runtime" in data for i in evm_keys) or any(i in data for i in pc_maps_keys):
+        if any(i + "_runtime" in data for i in evm_keys + pc_maps_keys):
             evm = output_contracts.setdefault("evm", {}).setdefault("deployedBytecode", {})
             if "bytecode_runtime" in data:
                 evm["object"] = data["bytecode_runtime"]
             if "opcodes_runtime" in data:
                 evm["opcodes"] = data["opcodes_runtime"]
-            if "source_map" in data:
-                evm["sourceMap"] = data["source_map"]["pc_pos_map_compressed"]
-            if "source_map_full" in data:
-                evm["sourceMapFull"] = data["source_map_full"]
+            if "source_map_runtime" in data:
+                evm["sourceMap"] = data["source_map_runtime"]
+            if "symbol_map_runtime" in data:
+                evm["symbolMap"] = data["symbol_map_runtime"]
+
+        if any(i in data for i in VENOM_KEYS):
+            venom = {}
+            if "cfg" in data:
+                venom["cfg"] = data["cfg"]
+            if "cfg_runtime" in data:
+                venom["cfg_runtime"] = data["cfg_runtime"]
+            output_contracts["venom"] = venom
 
     return output_dict
 
@@ -378,7 +508,6 @@ def _raise_on_duplicate_keys(ordered_pairs: list[tuple[Hashable, Any]]) -> dict:
 def compile_json(
     input_json: dict | str,
     exc_handler: Callable = exc_handler_raises,
-    root_folder: Optional[str] = None,
     json_path: Optional[str] = None,
 ) -> dict:
     try:
@@ -392,7 +521,7 @@ def compile_json(
             input_dict = input_json
 
         try:
-            compiler_data, warn_data = compile_from_input_dict(input_dict, exc_handler, root_folder)
+            compiler_data, warn_data = compile_from_input_dict(input_dict, exc_handler)
             if "errors" in compiler_data:
                 return compiler_data
         except KeyError as exc:

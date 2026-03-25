@@ -1,4 +1,3 @@
-import warnings
 from typing import Any, Dict, Optional, Tuple
 
 from vyper import ast as vy_ast
@@ -9,6 +8,7 @@ from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.primitives import IntegerT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.utils import get_index_value, type_from_annotation
+from vyper.warnings import VyperWarning, vyper_warn
 
 
 class _SubscriptableT(VyperType):
@@ -46,7 +46,7 @@ class HashMapT(_SubscriptableT):
 
     _equality_attrs = ("key_type", "value_type")
 
-    # disallow everything but storage
+    # disallow everything but storage or transient
     _invalid_locations = (
         DataLocation.UNSET,
         DataLocation.CALLDATA,
@@ -84,10 +84,11 @@ class HashMapT(_SubscriptableT):
             )
 
         k_ast, v_ast = node.slice.elements
-        key_type = type_from_annotation(k_ast, DataLocation.STORAGE)
+        key_type = type_from_annotation(k_ast)
         if not key_type._as_hashmap_key:
             raise InvalidType("can only use primitive types as HashMap key!", k_ast)
 
+        # TODO: thread through actual location - might also be TRANSIENT
         value_type = type_from_annotation(v_ast, DataLocation.STORAGE)
 
         return cls(key_type, value_type)
@@ -112,7 +113,7 @@ class _SequenceT(_SubscriptableT):
             raise InvalidType("Array length is invalid")
 
         if length >= 2**64:
-            warnings.warn("Use of large arrays can be unsafe!", stacklevel=2)
+            vyper_warn(VyperWarning("Use of large arrays can be unsafe!"))
 
         super().__init__(UINT256_T, value_type)
         self.length = length
@@ -127,6 +128,8 @@ class _SequenceT(_SubscriptableT):
     def validate_index_type(self, node):
         # TODO break this cycle
         from vyper.semantics.analysis.utils import validate_expected_type
+
+        node = node.reduced()
 
         if isinstance(node, vy_ast.Int):
             if node.value < 0:
@@ -164,9 +167,9 @@ class SArrayT(_SequenceT):
         return f"{self.value_type}[{self.length}]"
 
     @property
-    def _as_array(self):
-        # a static array is arrayable if its value_type is arrayble.
-        return self.value_type._as_array
+    def is_valid_element_type(self):
+        # a static array is a valid array element if its value_type is.
+        return self.value_type.is_valid_element_type
 
     @property
     def abi_type(self) -> ABIType:
@@ -209,7 +212,7 @@ class SArrayT(_SequenceT):
 
         value_type = type_from_annotation(node.value)
 
-        if not value_type._as_array:
+        if not value_type.is_valid_element_type:
             raise StructureException(f"arrays of {value_type} are not allowed!")
 
         # note: validates index is a vy_ast.Int.
@@ -225,7 +228,7 @@ class DArrayT(_SequenceT):
     typeclass = "dynamic_array"
 
     _valid_literal = (vy_ast.List,)
-    _as_array = True
+    is_valid_element_type = True
 
     _id = "DynArray"  # CMC 2024-03-03 maybe this would be better as repr(self)
 
@@ -290,9 +293,7 @@ class DArrayT(_SequenceT):
         if not isinstance(node.slice, vy_ast.Tuple) or len(node.slice.elements) != 2:
             raise StructureException(err_msg, node.slice)
 
-        length_node = node.slice.elements[1]
-        if length_node.has_folded_value:
-            length_node = length_node.get_folded_value()
+        length_node = node.slice.elements[1].reduced()
 
         if not isinstance(length_node, vy_ast.Int):
             raise StructureException(err_msg, length_node)
@@ -329,11 +330,23 @@ class TupleT(VyperType):
 
     def __init__(self, member_types: Tuple[VyperType, ...]) -> None:
         super().__init__()
+        for mt in member_types:
+            if not mt.is_valid_member_type:
+                raise StructureException(f"not a valid tuple member: {mt}")
         self.member_types = member_types
         self.key_type = UINT256_T  # API Compatibility
 
     def __repr__(self):
-        return "(" + ", ".join(repr(t) for t in self.member_types) + ")"
+        if len(self.member_types) == 1:
+            (t,) = self.member_types
+            return f"({t},)"
+        return "(" + ", ".join(f"{t}" for t in self.member_types) + ")"
+
+    # TODO should we instead set _equality_attrs = ("member_types",)?
+    def _addl_dict_fields(self):
+        ret = {}
+        ret["member_types"] = [t.to_dict() for t in self.member_types]
+        return ret
 
     @property
     def length(self):
@@ -367,6 +380,8 @@ class TupleT(VyperType):
         return sum(i.size_in_bytes for i in self.member_types)
 
     def validate_index_type(self, node):
+        node = node.reduced()
+
         if not isinstance(node, vy_ast.Int):
             raise InvalidType("Tuple indexes must be literals", node)
         if node.value < 0:
@@ -375,6 +390,7 @@ class TupleT(VyperType):
             raise ArrayIndexException("Index out of range", node)
 
     def get_subscripted_type(self, node):
+        node = node.reduced()
         return self.member_types[node.value]
 
     def compare_type(self, other):

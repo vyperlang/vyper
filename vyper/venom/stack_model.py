@@ -30,7 +30,7 @@ class StackModel:
     def pop(self, num: int = 1) -> None:
         del self._stack[len(self._stack) - num :]
 
-    def get_depth(self, op: IROperand, n: int = 1) -> int:
+    def get_depth(self, op: IROperand) -> int:
         """
         Returns the depth of the n-th matching operand in the stack map.
         If the operand is not in the stack map, returns NOT_IN_STACK.
@@ -39,10 +39,7 @@ class StackModel:
 
         for i, stack_op in enumerate(reversed(self._stack)):
             if stack_op.value == op.value:
-                if n <= 1:
-                    return -i
-                else:
-                    n -= 1
+                return -i
 
         return StackModel.NOT_IN_STACK  # type: ignore
 

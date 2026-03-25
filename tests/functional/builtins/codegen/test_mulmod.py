@@ -1,11 +1,11 @@
-def test_uint256_mulmod(tx_failed, get_contract_with_gas_estimation):
+def test_uint256_mulmod(tx_failed, get_contract):
     uint256_code = """
 @external
 def _uint256_mulmod(x: uint256, y: uint256, z: uint256) -> uint256:
     return uint256_mulmod(x, y, z)
     """
 
-    c = get_contract_with_gas_estimation(uint256_code)
+    c = get_contract(uint256_code)
 
     assert c._uint256_mulmod(3, 1, 2) == 1
     assert c._uint256_mulmod(200, 3, 601) == 600
@@ -15,7 +15,7 @@ def _uint256_mulmod(x: uint256, y: uint256, z: uint256) -> uint256:
         c._uint256_mulmod(2, 2, 0)
 
 
-def test_uint256_mulmod_complex(get_contract_with_gas_estimation):
+def test_uint256_mulmod_complex(get_contract):
     modexper = """
 @external
 def exponential(base: uint256, exponent: uint256, modulus: uint256) -> uint256:
@@ -27,14 +27,12 @@ def exponential(base: uint256, exponent: uint256, modulus: uint256) -> uint256:
     return o
     """
 
-    c = get_contract_with_gas_estimation(modexper)
+    c = get_contract(modexper)
     assert c.exponential(3, 5, 100) == 43
     assert c.exponential(2, 997, 997) == 2
 
 
-def test_uint256_mulmod_ext_call(
-    w3, side_effects_contract, assert_side_effects_invoked, get_contract
-):
+def test_uint256_mulmod_ext_call(side_effects_contract, assert_side_effects_invoked, get_contract):
     code = """
 interface Foo:
     def foo(x: uint256) -> uint256: nonpayable
@@ -49,10 +47,10 @@ def foo(f: Foo) -> uint256:
 
     assert c2.foo(c1.address) == 600
 
-    assert_side_effects_invoked(c1, lambda: c2.foo(c1.address, transact={}))
+    assert_side_effects_invoked(c1, lambda: c2.foo(c1.address))
 
 
-def test_uint256_mulmod_internal_call(get_contract_with_gas_estimation):
+def test_uint256_mulmod_internal_call(get_contract):
     code = """
 @external
 def foo() -> uint256:
@@ -71,12 +69,12 @@ def c() -> uint256:
     return 601
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.foo() == 600
 
 
-def test_uint256_mulmod_evaluation_order(get_contract_with_gas_estimation):
+def test_uint256_mulmod_evaluation_order(get_contract):
     code = """
 a: uint256
 
@@ -101,7 +99,7 @@ def bar() -> uint256:
     return 5
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.foo1() == 2
     assert c.foo2() == 1

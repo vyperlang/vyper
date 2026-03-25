@@ -2,72 +2,50 @@
 
 ## Supported Versions
 
-Vyper is currently in limited beta.
-This means that we only support the latest release and that you may encounter issues using it.
-It is un-audited software, use with caution.
+- it is recommended to follow the list of known [vulnerabilities](https://github.com/vyperlang/vyper/security/advisories) and stay up-to-date with the latest releases
+  - as of May 2024, the [`0.4.0`](https://github.com/vyperlang/vyper/releases/tag/v0.4.0) release is the most comprehensively reviewed one and is recommended for use in production environments
+- if a compiler vulnerability is found, a new compiler version with a patch will be released. The vulnerable version itself is not updated (see the examples below).
+  - `example1`: suppose `0.4.0` is the latest version and a hypothetical vulnerability is found in `0.4.0`, then a patch will be released in `0.4.1`
+  - `example2`: suppose `0.4.0` is the latest version and a hypothetical vulnerability is found both in `0.3.10` and `0.4.0`, then a patch will be released only in `0.4.1`
 
-## Audit reports
+## Compiler Audits
 
-Vyper is constantly changing and improving.
-This means the latest version available may not be audited.
-We try to ensure the highest security code possible, but occasionally things slip through.
+- Vyper conducts recurring security audits with multiple firms. Additionally, a competitive audit with [CodeHawks](https://www.codehawks.com/contests/cll5rujmw0001js08menkj7hc) was conducted during the fall of 2023.
+- all Vyper audits can be found in a separate repository: [vyperlang/audits](https://github.com/vyperlang/audits)
 
-### Compiler Audits
 
-At specific releases, we conduct audits with experienced security professionals to ensure that the codebase quality is high,
-and that we minimize the chance of critical bugs as much as possible.
+## Known Vyper Vulnerabilities
 
-Here are the audits we have undergone in the past:
-
-| Audit Type | Audit Date | Auditor | Version | Report Link |
-| ---------- | ---------- | ------- | ------- | ----------- |
-| Preliminary Review | October 28, 2019 | [ConsenSys Diligence](https://consensys.net/diligence/) | 0.1.0b13 | https://consensys.net/diligence/audits/2019/10/vyper/ |
-
-### Major Project Audits
-
-Please read prior audit reports for projects that use Vyper here:
-
-<!-- Please use the tagged version if possible, or commit hash if a non-tagged version was used. -->
-
-| Project | Version | Report Link |
-| ------- | ------- | ----------- |
-| [Uniswap](https://uniswap.io) | 35038d2 | https://medium.com/consensys-diligence/uniswap-audit-b90335ac007 |
-| [Computable](https://github.com/computablelabs/computable) | 0.1.0b10 | https://github.com/trailofbits/publications/raw/master/reviews/computable.pdf |
-
-## Known Vyper Vulnerabilities and Exposures (VVEs)
-
-The link below is a list of all publicly disclosed vulnerabilities and exposures.
+- The link below lists all publicly disclosed vulnerabilities and exposures.
 Best Practices dictate that when we are first made aware of a potential vulnerability,
-we take the precaution of assessing it's potential impact to deployed projects first.
-When we are confident that a disclosure will not impact known projects that use Vyper,
+we take precautions by assessing its potential impact on deployed projects.
+When we are confident that disclosure will not impact known projects that use Vyper,
 we will add an entry to the list of security advisories for posterity and reference by others.
 
-https://github.com/vyperlang/vyper/security/advisories
+  - list of publicly known vulnerabilities: https://github.com/vyperlang/vyper/security/advisories
+
+
+## Bug Bounty Program
+- Vyper runs a bug bounty program via the Ethereum Foundation.
+  - Bugs should be reported through the [Ethereum Foundation's bounty program](https://ethereum.org/bug-bounty).
+
+### Scope
+- Rules from the Ethereum Foundation's bug bounty program apply; for any questions please reach out [here](mailto:bounty@ethereum.org). Here we further clarify the scope of the Vyper bounty program.
+- If a compiler bug affects production code, it is in scope (excluding known issues).
+  - This includes bugs in older compiler versions still used in production.
+- If a compiler bug does not currently affect production but is likely to in the future, it is in scope.
+  - This mainly applies to the latest compiler release (e.g., a new release is available but contracts are not yet deployed with it).
+  - Experimental features (e.g. `--experimental-codegen`) are out of scope, as they are not intended for production and are unlikely to affect production code.
+  - Bugs in older compiler versions are generally out of scope, as they are no longer used for new contracts.
+    - There might be exceptions, e.g., when an L2 doesn't support recent compiler releases. In such cases, it might be reasonable for an older version to be used. It is up to the discretion of the EF & Vyper team to decide if the bug is in scope.
+- If a vulnerability affects multiple contracts, the whitehat is eligible for only one payout (though the severity of the bug may increase).
+- Eligibility for project-specific bounties is independent of this bounty.
+- [Security advisories](https://github.com/vyperlang/vyper/security/advisories) and [known issues](https://github.com/vyperlang/vyper/issues) are not eligible for the bounty program, as they are publicly disclosed and protocols should structure their contracts accordingly.
+- Individuals or organizations contracted or engaged specifically for security development, auditing, or testing of this project are ineligible for the bounty program.
 
 ## Reporting a Vulnerability
 
-If you think you have found a security vulnerability with a project that has used Vyper,
-please report the vulnerability to the relevant project's security disclosure program prior
-to reporting to us. If one is not available, submit it at https://github.com/vyperlang/vyper/security/advisories.
+- If you think you have found a security vulnerability caused by the compiler with a project that has used Vyper,
+please report the vulnerability to the relevant project's security disclosure program before reporting to us. Additionally, please privately disclose the compiler vulnerability at https://github.com/vyperlang/vyper/security/advisories.
 
-**Please Do Not Log An Issue** mentioning the vulnerability.
-
-If you have contacted the relevant project, or you have found something that you do not think affects
-a particular project, please also email your vulnerability to security@vyperlang.org. Our PGP key is:
-```
------BEGIN PGP PUBLIC KEY BLOCK-----
-Version: OpenPGP.js v4.7.2
-Comment: https://openpgpjs.org
-
-xjMEXiC9KhYJKwYBBAHaRw8BAQdAMMsB1qaofcbuG5/4Hmm1GD8M+2lKJ50B
-YI2G44/nquDNK3Z5cGVyLXNlY3VyaXR5QHBtLm1lIDx2eXBlci1zZWN1cml0
-eUBwbS5tZT7CeAQQFgoAIAUCXiC9KgYLCQcIAwIEFQgKAgQWAgEAAhkBAhsD
-Ah4BAAoJENARd3wFTk2lbdIBALELumbNOvueWQJSN8g+AYmb2i2XGDkuhWB0
-ZK8maVfpAPwINHjx8vmNZ2T/aML2dpmaL7h2g13OTDjt1nYeTMVCD844BF4g
-vSoSCisGAQQBl1UBBQEBB0A7Lb7v2tyRBAasuwwzF94OzrbqVybJ5cgxsO3F
-N+XKBAMBCAfCYQQYFggACQUCXiC9KgIbDAAKCRDQEXd8BU5NpRLzAQC+gaZ6
-lg4OrPFHOK9zYqbQ0zpx+tadKaEoo51jzsjCLgEAmp01XCX7/0Ln1TtUFzMy
-fRy18qk7KR6zOg2RRch5gQQ=
-=O37G
------END PGP PUBLIC KEY BLOCK-----
-```
+- **Please Do Not Log An Issue** mentioning the vulnerability.

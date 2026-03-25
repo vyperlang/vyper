@@ -89,8 +89,8 @@ def large_output(a: String[33], b: String[33], reverse=True) -> String[64]:
 
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
-def test_block_fail(assert_compile_failed, get_contract_with_gas_estimation, bad_code, exc):
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)
+def test_block_fail(assert_compile_failed, get_contract, bad_code, exc):
+    assert_compile_failed(lambda: get_contract(bad_code), exc)
 
 
 valid_list = [

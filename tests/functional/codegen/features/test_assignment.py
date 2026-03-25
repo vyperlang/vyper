@@ -1,9 +1,10 @@
 import pytest
 
-from vyper.exceptions import ImmutableViolation, InvalidType, TypeMismatch
+from vyper.evm.opcodes import version_check
+from vyper.exceptions import CodegenPanic, ImmutableViolation, InvalidType, TypeMismatch
 
 
-def test_augassign(get_contract_with_gas_estimation):
+def test_augassign(get_contract):
     augassign_test = """
 @external
 def augadd(x: int128, y: int128) -> int128:
@@ -30,13 +31,228 @@ def augmod(x: int128, y: int128) -> int128:
     return z
     """
 
-    c = get_contract_with_gas_estimation(augassign_test)
+    c = get_contract(augassign_test)
 
     assert c.augadd(5, 12) == 17
     assert c.augmul(5, 12) == 60
     assert c.augsub(5, 12) == -7
     assert c.augmod(5, 12) == 5
     print("Passed aug-assignment test")
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        """
+@external
+def poc():
+    a: DynArray[uint256, 2] = [1, 2]
+    a[1] += a.pop()
+    """,
+        """
+a: DynArray[uint256, 2]
+
+def side_effect() -> uint256:
+    return self.a.pop()
+
+@external
+def poc():
+    self.a = [1, 2]
+    self.a[1] += self.side_effect()
+    """,
+        """
+a: DynArray[uint256, 2]
+
+def side_effect() -> uint256:
+    self.a = [1]
+    return 1
+
+@external
+def poc():
+    self.a = [1, 2]
+    self.a[1] += self.side_effect()
+    """,
+        """
+a: DynArray[uint256, 2]
+
+interface Foo:
+    def foo() -> uint256: nonpayable
+
+@external
+def foo() -> uint256:
+    return self.a.pop()
+
+@external
+def poc():
+    self.a = [1, 2]
+    # panics due to extcall
+    self.a[1] += extcall Foo(self).foo()
+    """,
+    ],
+)
+@pytest.mark.xfail(strict=True, raises=CodegenPanic)
+def test_augassign_oob(get_contract, tx_failed, source):
+    # xfail here (with panic):
+    c = get_contract(source)
+
+    # not reached until the panic is fixed
+    with tx_failed(c):
+        c.poc()
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        """
+@external
+def entry() -> DynArray[uint256, 2]:
+    a: DynArray[uint256, 2] = [1, 1]
+    a[1] += a[1]
+    return a
+    """,
+        """
+@external
+def entry() -> DynArray[uint256, 2]:
+    a: uint256 = 1
+    a += a
+    b: DynArray[uint256, 2] = [a, a]
+    b[0] -= b[0]
+    b[0] += b[1] // 2
+    return b
+    """,
+        """
+a: DynArray[uint256, 2]
+
+def read() -> uint256:
+    return self.a[1]
+
+@external
+def entry() -> DynArray[uint256, 2]:
+    self.a = [1, 1]
+    self.a[1] += self.read()
+    return self.a
+    """,
+        """
+interface Foo:
+    def foo() -> uint256: nonpayable
+
+@external
+def foo() -> uint256:
+    return 1
+
+@external
+def entry() -> DynArray[uint256, 2]:
+    # memory variable, can't be overwritten by extcall, so there
+    # is no panic
+    a: DynArray[uint256, 2] = [1, 1]
+    a[1] += extcall Foo(self).foo()
+    return a
+    """,
+        """
+interface Foo:
+    def foo() -> uint256: nonpayable
+
+def get_foo() -> uint256:
+    return extcall Foo(self).foo()
+
+@external
+def foo() -> uint256:
+    return 1
+
+@external
+def entry() -> DynArray[uint256, 2]:
+    # memory variable, can't be overwritten by extcall, so there
+    # is no panic
+    a: DynArray[uint256, 2] = [1, 1]
+    # extcall hidden inside internal function
+    a[1] += self.get_foo()
+    return a
+    """,
+        """
+a: public(DynArray[uint256, 2])
+
+interface Foo:
+    def foo() -> uint256: view
+
+@external
+def foo() -> uint256:
+    return self.a[1]
+
+@external
+def entry() -> DynArray[uint256, 2]:
+    self.a = [1, 1]
+    self.a[1] += staticcall Foo(self).foo()
+    return self.a
+    """,
+    ],
+)
+def test_augassign_rhs_references_lhs2(get_contract, source):
+    c = get_contract(source)
+    assert c.entry() == [1, 2]
+
+
+@pytest.mark.requires_evm_version("cancun")
+def test_augassign_rhs_references_lhs_transient(get_contract):
+    source = """
+x: transient(DynArray[uint256, 2])
+
+def read() -> uint256:
+    return self.x[0]
+
+@external
+def entry() -> DynArray[uint256, 2]:
+    self.x = [1, 1]
+    # test augassign with state read hidden behind function call
+    self.x[0] += self.read()
+    # augassign with direct state read
+    self.x[1] += self.x[0]
+    return self.x
+    """
+    c = get_contract(source)
+
+    assert c.entry() == [2, 3]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        """
+x: transient(DynArray[uint256, 2])
+
+def write() -> uint256:
+    return self.x.pop()
+
+@external
+def entry() -> DynArray[uint256, 2]:
+    self.x = [1, 1]
+    # hide state write behind function call
+    self.x[1] += self.write()
+    return self.x
+    """,
+        """
+x: transient(DynArray[uint256, 2])
+
+@external
+def entry() -> DynArray[uint256, 2]:
+    self.x = [1, 1]
+    # direct state write
+    self.x[1] += self.x.pop()
+    return self.x
+    """,
+    ],
+)
+@pytest.mark.xfail(strict=True, raises=CodegenPanic)
+def test_augassign_rhs_references_lhs_transient2(get_contract, tx_failed, source):
+    if not version_check(begin="cancun"):
+        # no transient available before cancun
+        pytest.skip()
+
+    # xfail here (with panic):
+    c = get_contract(source)
+
+    # not reached until the panic is fixed
+    with tx_failed(c):
+        c.entry()
 
 
 @pytest.mark.parametrize(
@@ -48,7 +264,7 @@ def augmod(x: int128, y: int128) -> int128:
         ("Bytes[5]", b"vyper", b"conda"),
     ],
 )
-def test_internal_assign(get_contract_with_gas_estimation, typ, in_val, out_val):
+def test_internal_assign(get_contract, typ, in_val, out_val):
     code = f"""
 @internal
 def foo(x: {typ}) -> {typ}:
@@ -59,12 +275,12 @@ def foo(x: {typ}) -> {typ}:
 def bar(x: {typ}) -> {typ}:
     return self.foo(x)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.bar(in_val) == out_val
 
 
-def test_internal_assign_struct(get_contract_with_gas_estimation):
+def test_internal_assign_struct(get_contract):
     code = """
 flag Bar:
     BAD
@@ -85,12 +301,12 @@ def foo(x: Foo) -> Foo:
 def bar(x: Foo) -> Foo:
     return self.foo(x)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.bar((123, [1, 2, 4], "vyper")) == (789, [4, 2, 1], "conda")
 
 
-def test_internal_assign_struct_member(get_contract_with_gas_estimation):
+def test_internal_assign_struct_member(get_contract):
     code = """
 flag Bar:
     BAD
@@ -112,12 +328,12 @@ def foo(x: Foo) -> Foo:
 def bar(x: Foo) -> Foo:
     return self.foo(x)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.bar((123, [1, 2, 4], "vyper")) == (789, [1, 2], "vyper")
 
 
-def test_internal_augassign(get_contract_with_gas_estimation):
+def test_internal_augassign(get_contract):
     code = """
 @internal
 def foo(x: int128) -> int128:
@@ -128,13 +344,13 @@ def foo(x: int128) -> int128:
 def bar(x: int128) -> int128:
     return self.foo(x)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.bar(123) == 200
 
 
 @pytest.mark.parametrize("typ", ["DynArray[uint256, 3]", "uint256[3]"])
-def test_internal_augassign_arrays(get_contract_with_gas_estimation, typ):
+def test_internal_augassign_arrays(get_contract, typ):
     code = f"""
 @internal
 def foo(x: {typ}) -> {typ}:
@@ -145,30 +361,30 @@ def foo(x: {typ}) -> {typ}:
 def bar(x: {typ}) -> {typ}:
     return self.foo(x)
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.bar([1, 2, 3]) == [1, 79, 3]
 
 
-def test_invalid_external_assign(assert_compile_failed, get_contract_with_gas_estimation):
+def test_invalid_external_assign(assert_compile_failed, get_contract):
     code = """
 @external
 def foo(x: int128):
     x = 5
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ImmutableViolation)
+    assert_compile_failed(lambda: get_contract(code), ImmutableViolation)
 
 
-def test_invalid_external_augassign(assert_compile_failed, get_contract_with_gas_estimation):
+def test_invalid_external_augassign(assert_compile_failed, get_contract):
     code = """
 @external
 def foo(x: int128):
     x += 5
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ImmutableViolation)
+    assert_compile_failed(lambda: get_contract(code), ImmutableViolation)
 
 
-def test_valid_literal_increment(get_contract_with_gas_estimation):
+def test_valid_literal_increment(get_contract):
     code = """
 storx: uint256
 
@@ -190,14 +406,14 @@ def foo3(y: uint256) -> uint256:
     self.storx += 1
     return self.storx
 """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.foo1() == 123
     assert c.foo2() == 123
     assert c.foo3(11) == 12
 
 
-def test_invalid_uint256_assignment(assert_compile_failed, get_contract_with_gas_estimation):
+def test_invalid_uint256_assignment(assert_compile_failed, get_contract):
     code = """
 storx: uint256
 
@@ -207,10 +423,10 @@ def foo2() -> uint256:
     x += 1
     return x
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
-def test_invalid_uint256_assignment_calculate_literals(get_contract_with_gas_estimation):
+def test_invalid_uint256_assignment_calculate_literals(get_contract):
     code = """
 storx: uint256
 
@@ -220,13 +436,13 @@ def foo2() -> uint256:
     x = 3 * 4 // 2 + 1 - 2
     return x
 """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.foo2() == 5
 
 
 # See #838. Confirm that nested keys and structs work properly.
-def test_nested_map_key_works(get_contract_with_gas_estimation):
+def test_nested_map_key_works(get_contract):
     code = """
 struct X:
     a: int128
@@ -248,12 +464,12 @@ def get(i: int128) -> int128:
     idx: int128 = self.test_map1[i].a
     return self.test_map2[idx].c
     """
-    c = get_contract_with_gas_estimation(code)
-    assert c.set(transact={})
+    c = get_contract(code)
+    c.set()
     assert c.get(1) == 111
 
 
-def test_nested_map_key_problem(get_contract_with_gas_estimation):
+def test_nested_map_key_problem(get_contract):
     code = """
 struct X:
     a: int128
@@ -274,8 +490,8 @@ def set():
 def get() -> int128:
     return self.test_map2[self.test_map1[1].a].c
     """
-    c = get_contract_with_gas_estimation(code)
-    assert c.set(transact={})
+    c = get_contract(code)
+    c.set()
     assert c.get() == 111
 
 
@@ -349,13 +565,11 @@ def foo():
     """,
     ],
 )
-def test_invalid_implicit_conversions(
-    contract, assert_compile_failed, get_contract_with_gas_estimation
-):
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), TypeMismatch)
+def test_invalid_implicit_conversions(contract, assert_compile_failed, get_contract):
+    assert_compile_failed(lambda: get_contract(contract), TypeMismatch)
 
 
-def test_invalid_nonetype_assignment(assert_compile_failed, get_contract_with_gas_estimation):
+def test_invalid_nonetype_assignment(assert_compile_failed, get_contract):
     code = """
 @internal
 def bar():
@@ -365,7 +579,7 @@ def bar():
 def foo():
     ret : bool = self.bar()
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidType)
+    assert_compile_failed(lambda: get_contract(code), InvalidType)
 
     # GH issue 2418
 

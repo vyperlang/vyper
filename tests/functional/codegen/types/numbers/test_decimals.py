@@ -3,10 +3,12 @@ from decimal import getcontext
 
 import pytest
 
+import vyper.compiler.settings as compiler_settings
 from tests.utils import decimal_to_int
 from vyper import compile_code
 from vyper.exceptions import (
     DecimalOverrideException,
+    FeatureException,
     InvalidOperation,
     OverflowException,
     TypeMismatch,
@@ -52,7 +54,7 @@ def foo(x: decimal) -> decimal:
         compile_code(code)
 
 
-def test_decimal_test(get_contract_with_gas_estimation):
+def test_decimal_test(get_contract):
     decimal_test = """
 @external
 def foo() -> int256:
@@ -100,7 +102,7 @@ def foop() -> int256:
     return(floor(1999.0 % 1000.0))
     """
 
-    c = get_contract_with_gas_estimation(decimal_test)
+    c = get_contract(decimal_test)
 
     assert c.foo() == 999
     assert c.fop() == 999
@@ -117,7 +119,7 @@ def foop() -> int256:
     print("Passed basic addition, subtraction and multiplication tests")
 
 
-def test_harder_decimal_test(get_contract_with_gas_estimation):
+def test_harder_decimal_test(get_contract):
     harder_decimal_test = """
 @external
 def phooey(inp: decimal) -> decimal:
@@ -149,7 +151,7 @@ def iarg() -> uint256:
     return x
     """
 
-    c = get_contract_with_gas_estimation(harder_decimal_test)
+    c = get_contract(harder_decimal_test)
     assert c.phooey(decimal_to_int("1.2")) == decimal_to_int("20736.0")
     assert c.phooey(decimal_to_int("-1.2")) == decimal_to_int("20736.0")
     assert c.arg(decimal_to_int("-3.7")) == decimal_to_int("-3.7")
@@ -161,7 +163,7 @@ def iarg() -> uint256:
     print("Passed fractional multiplication test")
 
 
-def test_mul_overflow(tx_failed, get_contract_with_gas_estimation):
+def test_mul_overflow(tx_failed, get_contract):
     mul_code = """
 
 @external
@@ -170,7 +172,7 @@ def _num_mul(x: decimal, y: decimal) -> decimal:
 
     """
 
-    c = get_contract_with_gas_estimation(mul_code)
+    c = get_contract(mul_code)
 
     x = decimal_to_int("85070591730234615865843651857942052864")
     y = decimal_to_int("136112946768375385385349842973")
@@ -245,7 +247,7 @@ def foo(x: decimal, y: decimal) -> decimal:
     )
 
 
-def test_decimal_min_max_literals(tx_failed, get_contract_with_gas_estimation):
+def test_decimal_min_max_literals(tx_failed, get_contract):
     code = """
 @external
 def maximum():
@@ -254,13 +256,13 @@ def maximum():
 def minimum():
     a: decimal = -18707220957835557353007165858768422651595.9365500928
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
-    assert c.maximum() == []
-    assert c.minimum() == []
+    assert c.maximum() is None
+    assert c.minimum() is None
 
 
-def test_scientific_notation(get_contract_with_gas_estimation):
+def test_scientific_notation(get_contract):
     code = """
 @external
 def foo() -> decimal:
@@ -270,7 +272,7 @@ def foo() -> decimal:
 def bar(num: decimal) -> decimal:
     return num + -1e38
     """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.foo() == decimal_to_int("1e-10")  # Smallest possible decimal
     assert c.bar(decimal_to_int("1e37")) == decimal_to_int("-9e37")  # Math lines up
@@ -297,7 +299,7 @@ def foo():
         compile_code(code)
 
 
-def test_replace_decimal_nested_intermediate_underflow(dummy_input_bundle):
+def test_replace_decimal_nested_intermediate_underflow():
     code = """
 @external
 def foo():
@@ -317,3 +319,22 @@ def foo():
         compile_code(code)
 
     assert e.value._hint == "did you mean `5.0 / 9.0`?"
+
+
+def test_decimals_blocked():
+    code = """
+@external
+def foo(x: decimal):
+    pass
+    """
+    # enable_decimals default to False normally, but defaults to True in the
+    # test suite. this test manually overrides the default value to test the
+    # "normal" behavior of enable_decimals outside of the test suite.
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        with pytest.raises(FeatureException) as e:
+            compile_code(code)
+        assert e.value._message == "decimals are not allowed unless `--enable-decimals` is set"
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True

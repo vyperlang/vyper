@@ -61,7 +61,7 @@ def foo(f: Foo):
     s: uint256 = staticcall f.foo()
     """,
     # TODO: tokenizer currently has issue with log+staticcall/extcall, e.g.
-    # `log Bar(staticcall f.foo() + extcall f.bar())`
+    # `log Bar(_value=staticcall f.foo() + extcall f.bar())`
 ]
 
 
@@ -305,7 +305,7 @@ def bar():
     extcall Foo(msg.sender)
     """,
         StructureException,
-        "Function `type(interface Foo)` cannot be called without assigning the result",
+        "Function `type(Foo)` cannot be called without assigning the result",
         None,
     ),
 ]

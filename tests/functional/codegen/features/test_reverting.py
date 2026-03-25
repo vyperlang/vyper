@@ -1,13 +1,9 @@
-import pytest
 from eth.codecs import abi
-from eth_tester.exceptions import TransactionFailed
 
 from vyper.utils import method_id
 
-pytestmark = pytest.mark.usefixtures("memory_mocker")
 
-
-def test_revert_reason(w3, tx_failed, get_contract_with_gas_estimation):
+def test_revert_reason(env, tx_failed, get_contract):
     reverty_code = """
 @external
 def foo():
@@ -17,11 +13,11 @@ def foo():
 
     revert_bytes = method_id("NoFives()")
 
-    with tx_failed(TransactionFailed, exc_text=f"execution reverted: {revert_bytes}"):
-        get_contract_with_gas_estimation(reverty_code).foo(transact={})
+    with tx_failed(exc_text=revert_bytes.hex()):
+        get_contract(reverty_code).foo()
 
 
-def test_revert_reason_typed(w3, tx_failed, get_contract_with_gas_estimation):
+def test_revert_reason_typed(env, tx_failed, get_contract):
     reverty_code = """
 @external
 def foo():
@@ -32,11 +28,11 @@ def foo():
 
     revert_bytes = method_id("NoFives(uint256)") + abi.encode("(uint256)", (5,))
 
-    with tx_failed(TransactionFailed, exc_text=f"execution reverted: {revert_bytes}"):
-        get_contract_with_gas_estimation(reverty_code).foo(transact={})
+    with tx_failed(exc_text=revert_bytes.hex()):
+        get_contract(reverty_code).foo()
 
 
-def test_revert_reason_typed_no_variable(w3, tx_failed, get_contract_with_gas_estimation):
+def test_revert_reason_typed_no_variable(env, tx_failed, get_contract):
     reverty_code = """
 @external
 def foo():
@@ -46,5 +42,5 @@ def foo():
 
     revert_bytes = method_id("NoFives(uint256)") + abi.encode("(uint256)", (5,))
 
-    with tx_failed(TransactionFailed, exc_text=f"execution reverted: {revert_bytes}"):
-        get_contract_with_gas_estimation(reverty_code).foo(transact={})
+    with tx_failed(exc_text=revert_bytes.hex()):
+        get_contract(reverty_code).foo()

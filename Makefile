@@ -31,7 +31,7 @@ black:
 	black -C -t py311 vyper/ tests/ setup.py --force-exclude=vyper/version.py
 
 flake8: black
-	flake8 vyper/ tests/
+	flake8 --enable-extensions=FS003 vyper/ tests/
 
 isort: black
 	isort vyper/ tests/ setup.py

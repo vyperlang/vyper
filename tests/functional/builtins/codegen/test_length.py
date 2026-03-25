@@ -1,7 +1,7 @@
 import pytest
 
 
-def test_test_length(get_contract_with_gas_estimation):
+def test_test_length(get_contract):
     test_length = """
 y: Bytes[10]
 
@@ -12,13 +12,13 @@ def foo(inp: Bytes[10]) -> uint256:
     return len(inp) * 100 + len(x) * 10 + len(self.y)
     """
 
-    c = get_contract_with_gas_estimation(test_length)
+    c = get_contract(test_length)
     assert c.foo(b"badminton") == 954, c.foo(b"badminton")
     print("Passed length test")
 
 
 @pytest.mark.parametrize("typ", ["DynArray[uint256, 50]", "Bytes[50]", "String[50]"])
-def test_zero_length(get_contract_with_gas_estimation, typ):
+def test_zero_length(get_contract, typ):
     code = f"""
 @external
 def boo() -> uint256:
@@ -26,5 +26,5 @@ def boo() -> uint256:
     return e
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.boo() == 0

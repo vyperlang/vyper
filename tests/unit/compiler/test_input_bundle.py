@@ -4,7 +4,7 @@ from pathlib import Path, PurePath
 import pytest
 
 from tests.utils import working_directory
-from vyper.compiler.input_bundle import ABIInput, FileInput, FilesystemInputBundle, JSONInputBundle
+from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, JSONInput, JSONInputBundle
 
 
 # FilesystemInputBundle which uses same search path as make_file
@@ -56,30 +56,28 @@ def test_search_path_precedence(make_file, tmp_path, tmp_path_factory, input_bun
     file = ib.load_file("foo.vy")
 
     assert isinstance(file, FileInput)
-    assert file == FileInput(0, "foo.vy", filepaths[2], "contents 2")
+    assert file == FileInput(0, Path("foo.vy"), filepaths[2], "contents 2")
 
     with ib.search_path(tmpdir):
         file = ib.load_file("foo.vy")
 
         assert isinstance(file, FileInput)
-        assert file == FileInput(1, "foo.vy", filepaths[1], "contents 1")
+        assert file == FileInput(1, PurePath("foo.vy"), filepaths[1], "contents 1")
 
 
 # special rules for handling json files
-def test_load_abi(make_file, input_bundle, tmp_path):
+def test_load_json_file(make_file, input_bundle, tmp_path):
     contents = json.dumps("some string")
 
     path = make_file("foo.json", contents)
 
-    file = input_bundle.load_file("foo.json")
-    assert isinstance(file, ABIInput)
-    assert file == ABIInput(0, "foo.json", path, "some string")
+    file = input_bundle.load_json_file("foo.json")
+    assert file == JSONInput(0, PurePath("foo.json"), path, contents, "some string")
 
     # suffix doesn't matter
     path = make_file("foo.txt", contents)
-    file = input_bundle.load_file("foo.txt")
-    assert isinstance(file, ABIInput)
-    assert file == ABIInput(1, "foo.txt", path, "some string")
+    file = input_bundle.load_json_file("foo.txt")
+    assert file == JSONInput(1, PurePath("foo.txt"), path, contents, "some string")
 
 
 # check that unique paths give unique source ids
@@ -89,23 +87,23 @@ def test_source_id_file_input(make_file, input_bundle, tmp_path):
 
     file = input_bundle.load_file("foo.vy")
     assert file.source_id == 0
-    assert file == FileInput(0, "foo.vy", foopath, "contents")
+    assert file == FileInput(0, PurePath("foo.vy"), foopath, "contents")
 
     file2 = input_bundle.load_file("bar.vy")
     # source id increments
     assert file2.source_id == 1
-    assert file2 == FileInput(1, "bar.vy", barpath, "contents 2")
+    assert file2 == FileInput(1, PurePath("bar.vy"), barpath, "contents 2")
 
     file3 = input_bundle.load_file("foo.vy")
     assert file3.source_id == 0
-    assert file3 == FileInput(0, "foo.vy", foopath, "contents")
+    assert file3 == FileInput(0, PurePath("foo.vy"), foopath, "contents")
 
     # test source id is stable across different search paths
     with working_directory(tmp_path):
         with input_bundle.search_path(Path(".")):
             file4 = input_bundle.load_file("foo.vy")
             assert file4.source_id == 0
-            assert file4 == FileInput(0, "foo.vy", foopath, "contents")
+            assert file4 == FileInput(0, PurePath("foo.vy"), foopath, "contents")
 
     # test source id is stable even when requested filename is different
     with working_directory(tmp_path.parent):
@@ -124,31 +122,31 @@ def test_source_id_json_input(make_file, input_bundle, tmp_path):
 
     barpath = make_file("bar.json", contents2)
 
-    file = input_bundle.load_file("foo.json")
-    assert isinstance(file, ABIInput)
-    assert file == ABIInput(0, "foo.json", foopath, "some string")
+    file = input_bundle.load_json_file("foo.json")
+    assert file == JSONInput(0, PurePath("foo.json"), foopath, contents, "some string")
 
-    file2 = input_bundle.load_file("bar.json")
-    assert isinstance(file2, ABIInput)
-    assert file2 == ABIInput(1, "bar.json", barpath, ["some list"])
+    file2 = input_bundle.load_json_file("bar.json")
+    assert file2 == JSONInput(1, PurePath("bar.json"), barpath, contents2, ["some list"])
 
-    file3 = input_bundle.load_file("foo.json")
+    file3 = input_bundle.load_json_file("foo.json")
     assert file3.source_id == 0
-    assert file3 == ABIInput(0, "foo.json", foopath, "some string")
+    assert file3 == JSONInput(0, PurePath("foo.json"), foopath, contents, "some string")
 
     # test source id is stable across different search paths
     with working_directory(tmp_path):
         with input_bundle.search_path(Path(".")):
-            file4 = input_bundle.load_file("foo.json")
+            file4 = input_bundle.load_json_file("foo.json")
             assert file4.source_id == 0
-            assert file4 == ABIInput(0, "foo.json", foopath, "some string")
+            assert file4 == JSONInput(0, PurePath("foo.json"), foopath, contents, "some string")
 
     # test source id is stable even when requested filename is different
     with working_directory(tmp_path.parent):
         with input_bundle.search_path(Path(".")):
-            file5 = input_bundle.load_file(Path(tmp_path.stem) / "foo.json")
+            file5 = input_bundle.load_json_file(Path(tmp_path.stem) / "foo.json")
             assert file5.source_id == 0
-            assert file5 == ABIInput(0, Path(tmp_path.stem) / "foo.json", foopath, "some string")
+            assert file5 == JSONInput(
+                0, Path(tmp_path.stem) / "foo.json", foopath, contents, "some string"
+            )
 
 
 # test some pathological case where the file changes underneath
@@ -157,14 +155,14 @@ def test_mutating_file_source_id(make_file, input_bundle, tmp_path):
 
     file = input_bundle.load_file("foo.vy")
     assert file.source_id == 0
-    assert file == FileInput(0, "foo.vy", foopath, "contents")
+    assert file == FileInput(0, PurePath("foo.vy"), foopath, "contents")
 
     foopath = make_file("foo.vy", "new contents")
 
     file = input_bundle.load_file("foo.vy")
     # source id hasn't changed, even though contents have
     assert file.source_id == 0
-    assert file == FileInput(0, "foo.vy", foopath, "new contents")
+    assert file == FileInput(0, PurePath("foo.vy"), foopath, "new contents")
 
 
 # test the os.normpath behavior of symlink
@@ -238,7 +236,8 @@ def test_json_input_abi():
     input_bundle = JSONInputBundle(files, [PurePath(".")])
 
     file = input_bundle.load_file(foopath)
-    assert file == ABIInput(0, foopath, foopath, some_abi)
+    abi_contents = json.dumps({"abi": some_abi})
+    assert file == JSONInput(0, foopath, foopath, abi_contents, some_abi)
 
-    file = input_bundle.load_file(barpath)
-    assert file == ABIInput(1, barpath, barpath, some_abi)
+    file = input_bundle.load_json_file(barpath)
+    assert file == JSONInput(1, barpath, barpath, some_abi_str, some_abi)

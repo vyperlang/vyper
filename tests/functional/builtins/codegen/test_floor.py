@@ -4,7 +4,7 @@ from decimal import Decimal
 from tests.utils import decimal_to_int
 
 
-def test_floor(get_contract_with_gas_estimation):
+def test_floor(get_contract):
     code = """
 x: decimal
 
@@ -43,7 +43,7 @@ def fou() -> int256:
     c: decimal = a / b
     return floor(c)
 """
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
     assert c.x_floor() == 504
     assert c.foo() == 1
     assert c.fop() == 1
@@ -53,7 +53,7 @@ def fou() -> int256:
     assert c.fou() == 3
 
 
-def test_floor_negative(get_contract_with_gas_estimation):
+def test_floor_negative(get_contract):
     code = """
 x: decimal
 
@@ -99,7 +99,7 @@ def floor_param(p: decimal) -> int256:
     return floor(p)
 """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.x_floor() == -505
     assert c.foo() == -7
@@ -112,7 +112,7 @@ def floor_param(p: decimal) -> int256:
     assert c.floor_param(decimal_to_int("-0.0000000001")) == -1
 
 
-def test_floor_ext_call(w3, side_effects_contract, assert_side_effects_invoked, get_contract):
+def test_floor_ext_call(side_effects_contract, assert_side_effects_invoked, get_contract):
     code = """
 interface Foo:
     def foo(x: decimal) -> decimal: nonpayable
@@ -127,10 +127,10 @@ def foo(a: Foo) -> int256:
 
     assert c2.foo(c1.address) == 2
 
-    assert_side_effects_invoked(c1, lambda: c2.foo(c1.address, transact={}))
+    assert_side_effects_invoked(c1, lambda: c2.foo(c1.address))
 
 
-def test_floor_internal_call(get_contract_with_gas_estimation):
+def test_floor_internal_call(get_contract):
     code = """
 @external
 def foo() -> int256:
@@ -141,6 +141,6 @@ def bar() -> decimal:
     return 2.5
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.foo() == 2

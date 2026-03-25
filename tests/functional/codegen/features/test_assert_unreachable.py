@@ -1,21 +1,23 @@
-def test_unreachable_refund(w3, get_contract):
+from tests.evm_backends.base_env import EvmError
+
+
+def test_unreachable_refund(env, get_contract, tx_failed):
     code = """
 @external
 def foo():
     assert msg.sender != msg.sender, UNREACHABLE
     """
+    env.set_balance(env.deployer, 10**20)
 
     c = get_contract(code)
-    a0 = w3.eth.accounts[0]
     gas_sent = 10**6
-    tx_hash = c.foo(transact={"from": a0, "gas": gas_sent, "gasPrice": 10})
-    tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
+    with tx_failed(EvmError, exc_text=env.invalid_opcode_error):
+        c.foo(gas=gas_sent, gas_price=10)
 
-    assert tx_receipt["status"] == 0
-    assert tx_receipt["gasUsed"] == gas_sent  # Drains all gains sent
+    assert env.last_result.gas_used == gas_sent  # Drains all gas sent per INVALID opcode
 
 
-def test_basic_unreachable(w3, get_contract, tx_failed):
+def test_basic_unreachable(env, get_contract, tx_failed):
     code = """
 @external
 def foo(val: int128) -> bool:
@@ -28,15 +30,15 @@ def foo(val: int128) -> bool:
 
     assert c.foo(2) is True
 
-    with tx_failed(exc_text="Invalid opcode 0xfe"):
+    with tx_failed(EvmError, exc_text=env.invalid_opcode_error):
         c.foo(1)
-    with tx_failed(exc_text="Invalid opcode 0xfe"):
+    with tx_failed(EvmError, exc_text=env.invalid_opcode_error):
         c.foo(-1)
-    with tx_failed(exc_text="Invalid opcode 0xfe"):
+    with tx_failed(EvmError, exc_text=env.invalid_opcode_error):
         c.foo(-2)
 
 
-def test_basic_call_unreachable(w3, get_contract, tx_failed):
+def test_basic_call_unreachable(env, get_contract, tx_failed):
     code = """
 
 @view
@@ -54,13 +56,13 @@ def foo(val: int128) -> int128:
 
     assert c.foo(33) == -123
 
-    with tx_failed(exc_text="Invalid opcode 0xfe"):
+    with tx_failed(EvmError, exc_text=env.invalid_opcode_error):
         c.foo(1)
-    with tx_failed(exc_text="Invalid opcode 0xfe"):
+    with tx_failed(EvmError, exc_text=env.invalid_opcode_error):
         c.foo(-1)
 
 
-def test_raise_unreachable(w3, get_contract, tx_failed):
+def test_raise_unreachable(env, get_contract, tx_failed):
     code = """
 @external
 def foo():
@@ -69,5 +71,5 @@ def foo():
 
     c = get_contract(code)
 
-    with tx_failed(exc_text="Invalid opcode 0xfe"):
+    with tx_failed(EvmError, exc_text=env.invalid_opcode_error):
         c.foo()

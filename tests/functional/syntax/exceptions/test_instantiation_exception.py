@@ -1,5 +1,6 @@
 import pytest
 
+from vyper.compiler import compile_code
 from vyper.exceptions import InstantiationException
 
 invalid_list = [
@@ -77,5 +78,33 @@ def __init__():
 
 
 @pytest.mark.parametrize("bad_code", invalid_list)
-def test_instantiation_exception(bad_code, get_contract, assert_compile_failed):
-    assert_compile_failed(lambda: get_contract(bad_code), InstantiationException)
+def test_instantiation_exception(bad_code):
+    with pytest.raises(InstantiationException):
+        compile_code(bad_code)
+
+
+def test_instantiation_exception_module(make_input_bundle):
+    main = """
+# main.vy
+import lib
+
+initializes: lib
+
+x:lib
+
+@external
+def foo() -> (uint256, uint256):
+    return (self.x.bar(), self.x.bar())
+    """
+    lib = """
+# lib.vy
+a:uint256
+
+@internal
+def bar()->uint256:
+    self.a += 1
+    return self.a
+    """
+    input_bundle = make_input_bundle({"lib.vy": lib})
+    with pytest.raises(InstantiationException):
+        compile_code(main, input_bundle=input_bundle)
