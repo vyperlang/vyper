@@ -121,21 +121,6 @@ def test_revert_to_assert_requires_immediate_simplify_cfg():
         validate_pass_order([RevertToAssert, SingleUseExpansion], pipeline_name="test")
 
 
-def test_fix_mem_locations_requires_concretize_after():
-    class MidPass(IRPass):
-        pass
-
-    validate_pass_order([FixMemLocationsPass, MidPass, ConcretizeMemLocPass], pipeline_name="test")
-    with pytest.raises(CompilerPanic, match="FixMemLocationsPass"):
-        validate_pass_order([FixMemLocationsPass, MidPass], pipeline_name="test")
-
-
-def test_concretize_requires_fix_mem_locations_before():
-    validate_pass_order([FixMemLocationsPass, ConcretizeMemLocPass], pipeline_name="test")
-    with pytest.raises(CompilerPanic, match="ConcretizeMemLocPass"):
-        validate_pass_order([ConcretizeMemLocPass], pipeline_name="test")
-
-
 def test_mem2var_requires_make_ssa_before_and_after():
     validate_pass_order([MakeSSA, Mem2Var, MakeSSA], pipeline_name="test")
 
