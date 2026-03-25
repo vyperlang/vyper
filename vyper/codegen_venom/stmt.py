@@ -1070,7 +1070,7 @@ class Stmt:
         else:
             # No data - use zero size
             log_buf = self.ctx.allocate_pinned_buffer(0, 0, annotation="log empty buffer")
-            abi_buf_ptr = log_buf._ptr 
+            abi_buf_ptr = log_buf._ptr
             encoded_len = IRLiteral(0)
 
         # Emit log instruction

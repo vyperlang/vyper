@@ -133,7 +133,7 @@ def _run_global_passes(
         FunctionInlinerPass(ir_analyses, ctx, flags).run_pass()
 
 
-def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags, disable_mem_checks = False) -> None:
+def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags, disable_mem_checks=False) -> None:
     ir_analyses: dict[IRFunction, IRAnalysesCache] = {}
     # Validate calling convention invariants before running passes
     if not disable_mem_checks:

@@ -1,5 +1,6 @@
+from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import IRAnalysesCache, VarDefinition
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRVariable, IRLiteral
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.memory_location import (
@@ -197,6 +198,7 @@ def check_calling_convention(context: IRContext):
     if errors:
         raise ExceptionGroup("venom calling convention errors", errors)
 
+
 def check_mem_ops(context: IRContext):
     for fn in context.get_functions():
         for bb in fn.get_basic_blocks():
@@ -206,9 +208,9 @@ def check_mem_ops(context: IRContext):
                 if write_op is not None:
                     size = get_write_max_size(inst)
                     if size is not None and isinstance(write_op, IRLiteral):
-                        assert False, (bb, inst)
+                        raise CompilerPanic("Concrete memory write")  # pragma: no cover
                 if read_op is not None:
                     size = get_read_size(inst)
                     if size is None or not isinstance(read_op, IRLiteral):
                         continue
-                    assert False, (bb, inst)
+                    raise CompilerPanic("Concrete memory read")  # pragma: no cover
