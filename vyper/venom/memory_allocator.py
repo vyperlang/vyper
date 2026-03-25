@@ -2,7 +2,7 @@ from typing import ClassVar
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.base_ptr_analysis import Ptr
-from vyper.venom.basicblock import IRLiteral
+from vyper.venom.basicblock import IRLiteral, IRInstruction
 from vyper.venom.function import IRFunction
 from vyper.venom.memory_location import Allocation
 
@@ -111,3 +111,12 @@ class MemoryAllocator:
     def reserve_all(self):
         for mem in self.allocated_fn:
             self.reserve(mem)
+
+    def clone_alloca(self, orig: IRInstruction, clone: IRInstruction):
+        assert orig.opcode == "alloca"
+        assert clone.opcode == "alloca"
+
+        orig_allocation = Allocation(orig)
+        if self.is_allocated(orig_allocation):
+            clone_allocation = Allocation(clone)
+            self.set_position(clone_allocation, self.allocated[orig_allocation])
