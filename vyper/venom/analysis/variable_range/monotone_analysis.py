@@ -27,6 +27,7 @@ class RangeLattice(LatticeBase):
     def copy(self):
         return RangeLattice(self.data.copy())
 
+
 def _operand_range(operand: IROperand, env: RangeState) -> ValueRange:
     """Convert an IR operand to its ValueRange using the current environment."""
     if isinstance(operand, IRLiteral):
@@ -34,6 +35,7 @@ def _operand_range(operand: IROperand, env: RangeState) -> ValueRange:
     if isinstance(operand, IRVariable):
         return env.get(operand, ValueRange.top())
     return ValueRange.top()
+
 
 class VariableRangeMonotoneAnalysis(MonotoneAnalysis[RangeLattice]):
     # after this many visits to a block, start applying widening
