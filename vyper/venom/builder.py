@@ -346,7 +346,7 @@ class VenomBuilder:
         gas: Operand,
         addr: Operand,
         val: Operand,
-        argsptr: Operand,
+        argsptr: IRVariable,
         argsz: Operand,
         retptr: IRVariable,
         retsz: Operand,
@@ -486,7 +486,7 @@ class VenomBuilder:
         return self._emit1_evm("blobbasefee")
 
     # === Logging ===
-    def log(self, topic_count: int, offset: Operand, size: Operand, *topics: Operand) -> None:
+    def log(self, topic_count: int, offset: IRVariable, size: Operand, *topics: Operand) -> None:
         """Emit log with N topics.
 
         Args:

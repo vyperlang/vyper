@@ -218,6 +218,8 @@ class VenomCodegenContext:
         """
         if location == DataLocation.IMMUTABLES:
             if self.is_ctor_context:
+                assert self.immutables_alloca is not None
+                addr = self.builder.add(addr, self.immutables_alloca)
                 return self.builder.iload(addr)
             return self.builder.dload(addr)
         # NOTE: CODE falls through to builder.load (dload). If a future

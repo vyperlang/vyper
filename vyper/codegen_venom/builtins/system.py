@@ -246,13 +246,14 @@ def lower_send(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     else:
         gas = Expr(gas_node, ctx).lower_value()
 
+    argsptr_buf = ctx.allocate_pinned_buffer(0, 0, annotation="lower send args buffer")
     retptr_buf = ctx.allocate_pinned_buffer(0, 0, annotation="lower send retptr buffer")
     # call(gas, to, value, 0, 0, 0, 0)
     success = b.call(
         gas,
         to,
         value,
-        IRLiteral(0),  # No input data
+        argsptr_buf._ptr,  # No input data
         IRLiteral(0),
         retptr_buf._ptr,  # No output
         IRLiteral(0),

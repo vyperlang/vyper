@@ -1069,7 +1069,8 @@ class Stmt:
             encoded_len = abi_encode_to_buf(self.ctx, abi_buf_ptr, data_buf._ptr, tuple_typ)
         else:
             # No data - use zero size
-            abi_buf_ptr = IRLiteral(0)
+            log_buf = self.ctx.allocate_pinned_buffer(0, 0, annotation="log empty buffer")
+            abi_buf_ptr = log_buf._ptr 
             encoded_len = IRLiteral(0)
 
         # Emit log instruction
