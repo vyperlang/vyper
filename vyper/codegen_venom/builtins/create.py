@@ -64,7 +64,7 @@ def _has_kwarg(node: vy_ast.Call, kwarg_name: str) -> bool:
     return any(kw.arg == kwarg_name for kw in node.keywords)
 
 
-def _check_create_result(b, addr: IROperand, revert_on_failure: bool) -> IROperand:
+def _check_create_result(ctx: VenomCodegenContext, b, addr: IROperand, revert_on_failure: bool) -> IROperand:
     """Optionally check CREATE/CREATE2 result and revert on failure.
 
     CREATE/CREATE2 return 0 on failure (out of gas or constructor reverts).
@@ -84,8 +84,11 @@ def _check_create_result(b, addr: IROperand, revert_on_failure: bool) -> IROpera
         # Failure path: bubble up revert data
         b.set_block(fail_bb)
         revert_size = b.returndatasize()
-        b.returndatacopy(IRLiteral(0), IRLiteral(0), revert_size)
-        b.revert(IRLiteral(0), revert_size)
+        revert_buffer = ctx.allocate_pinned_buffer(
+            0, 0, annotation="create revert on failure buffer"
+        )
+        b.returndatacopy(revert_buffer._ptr, IRLiteral(0), revert_size)
+        b.revert(revert_buffer._ptr, revert_size)
 
         # Success path
         b.set_block(exit_bb)
@@ -242,7 +245,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
             addr = b.create2(value, bytecode_ptr, bytecode_len, salt)
         else:
             addr = b.create(value, bytecode_ptr, bytecode_len)
-        return _check_create_result(b, addr, revert_on_failure)
+        return _check_create_result(ctx, b, addr, revert_on_failure)
 
     # With ctor args: need to ABI-encode and append to bytecode
     # Create tuple type for encoding
@@ -285,7 +288,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     else:
         addr = b.create(value, buf._ptr, total_len)
 
-    return _check_create_result(b, addr, revert_on_failure)
+    return _check_create_result(ctx, b, addr, revert_on_failure)
 
 
 def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
@@ -357,7 +360,7 @@ def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -
     else:
         addr = b.create(value, buf._ptr, IRLiteral(buf_len))
 
-    return _check_create_result(b, addr, revert_on_failure)
+    return _check_create_result(ctx, b, addr, revert_on_failure)
 
 
 def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
@@ -438,7 +441,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     else:
         addr = b.create(value, buf, buf_len)
 
-    return _check_create_result(b, addr, revert_on_failure)
+    return _check_create_result(ctx, b, addr, revert_on_failure)
 
 
 def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
@@ -571,7 +574,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     else:
         addr = b.create(value, mem_ofst, total_len)
 
-    return _check_create_result(b, addr, revert_on_failure)
+    return _check_create_result(ctx, b, addr, revert_on_failure)
 
 
 HANDLERS = {

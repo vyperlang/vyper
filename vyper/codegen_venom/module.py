@@ -257,6 +257,8 @@ def _generate_selector_section_linear(
     For functions with kwargs, generates ONE shared common body with
     separate entry points that handle kwargs and jump to the common body.
     """
+    codegen_ctx = VenomCodegenContext(module_t, builder)
+
     # Check calldatasize >= SELECTOR_BYTES (4 bytes)
     calldatasize = builder.calldatasize()
     has_selector = builder.iszero(builder.lt(calldatasize, IRLiteral(SELECTOR_BYTES)))
@@ -357,7 +359,8 @@ def _generate_selector_section_linear(
         _generate_fallback_body(builder, module_t, func_t, default_function)
     else:
         # No fallback - revert
-        builder.revert(IRLiteral(0), IRLiteral(0))
+        revert_buffer = codegen_ctx.allocate_pinned_buffer(0, 0, annotation="fallback revert buffer")
+        builder.revert(revert_buffer._ptr, IRLiteral(0))
 
 
 def _generate_selector_section_sparse(
@@ -596,7 +599,8 @@ def _generate_selector_section_sparse(
         _generate_fallback_body(builder, module_t, func_t, default_function)
     else:
         # No fallback - revert
-        builder.revert(IRLiteral(0), IRLiteral(0))
+        revert_buffer = codegen_ctx.allocate_pinned_buffer(0, 0, annotation="fallback revert buffer")
+        builder.revert(revert_buffer._ptr, IRLiteral(0))
 
 
 def _generate_selector_section_dense(
@@ -626,6 +630,7 @@ def _generate_selector_section_dense(
     For functions with kwargs, generates ONE shared common body with
     separate entry points that handle kwargs and jump to the common body.
     """
+    fallback_codegen_ctx = VenomCodegenContext(module_t, builder)
     runtime_ctx = builder.ctx
 
     # Check calldatasize >= SELECTOR_BYTES (4 bytes)
@@ -728,7 +733,7 @@ def _generate_selector_section_dense(
         header_buf = codegen_ctx.allocate_pinned_buffer(32, 0, annotation="header")
         dst = builder.add(header_buf._ptr, IRLiteral(32 - SZ_BUCKET_HEADER))
         builder.codecopy(dst, bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
-        hdr_info = builder.mload(IRLiteral(0))
+        hdr_info = builder.mload(header_buf._ptr)
 
         # Extract bucket header fields:
         # hdr_info layout (right-aligned in 32 bytes):
@@ -757,7 +762,7 @@ def _generate_selector_section_dense(
         dst = builder.add(header_buf._ptr, IRLiteral(32 - func_info_size))
         assert func_info_size >= SZ_BUCKET_HEADER  # otherwise mload will have dirty bytes
         builder.codecopy(dst, func_info_location, IRLiteral(func_info_size))
-        func_info = builder.mload(IRLiteral(0))
+        func_info = builder.mload(header_buf._ptr)
 
         # Extract function info fields:
         # func_info layout (right-aligned):
@@ -871,7 +876,10 @@ def _generate_selector_section_dense(
         _generate_fallback_body(builder, module_t, func_t, default_function)
     else:
         # No fallback - revert
-        builder.revert(IRLiteral(0), IRLiteral(0))
+        revert_buffer = fallback_codegen_ctx.allocate_pinned_buffer(
+            0, 0, annotation="fallback revert buffer"
+        )
+        builder.revert(revert_buffer._ptr, IRLiteral(0))
 
 
 def _emit_entry_checks(

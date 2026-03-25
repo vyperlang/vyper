@@ -153,6 +153,7 @@ class VenomBuilder:
 
     # === Memory ===
     def mload(self, ptr: Operand) -> IRVariable:
+        assert isinstance(ptr, (IRLiteral, int))
         return self._emit1_evm("mload", ptr)
 
     def mstore(self, ptr: IRVariable, val: Operand) -> None:
