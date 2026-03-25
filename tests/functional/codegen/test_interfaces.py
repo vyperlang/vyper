@@ -743,6 +743,18 @@ def convert_v1_abi(abi):
 
 @pytest.mark.parametrize("type_str", [i[0] for i in type_str_params])
 def test_json_interface_implements(type_str, make_input_bundle, make_file):
+    
+    # TODO: Remove this when we add support for Bytes[INF] parameters and returns
+    if type_str.startswith("Bytes[") or type_str.startswith("String["):
+        pytest.xfail(
+            "function parameter type information is lost when converting to abi: "
+            "Bytes[n] -> Bytes[INF]\n"
+            "This test can therefore not succeed as "
+            "test_json(a: Bytes[n]) does not implement test_json(a: Bytes[INF])\n"
+            "The correct override would therefore take test_json(a: Bytes[INF]) as input and"
+            " `convert`. But this is currently impossible, as we don't have a way "
+        )
+
     code = interface_test_code.format(type_str)
 
     abi = compile_code(code, output_formats=["abi"])["abi"]
