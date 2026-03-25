@@ -19,6 +19,7 @@ from vyper.venom.optimization_levels.types import PassConfig
 from vyper.venom.passes import (
     CSE,
     SCCP,
+    AffineFoldingPass,
     AlgebraicOptimizationPass,
     AssertEliminationPass,
     BranchOptimizationPass,
@@ -66,6 +67,7 @@ def generate_assembly_experimental(
 # Mapping of pass classes to their disable flag names
 # Passes not in this map are considered essential and always run
 PASS_FLAG_MAP = {
+    AffineFoldingPass: "disable_algebraic_optimization",
     AlgebraicOptimizationPass: "disable_algebraic_optimization",
     SCCP: "disable_sccp",
     Mem2Var: "disable_mem2var",

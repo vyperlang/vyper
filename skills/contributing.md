@@ -74,9 +74,9 @@ Do explain the *reasoning* behind structural decisions, the bug mechanism, or th
 ```
 fix[venom]: fix allocation in ternary fall through (#4846)
 
-`Mem2Var._fix_adds` converts `add` instructions on alloca pointers into
-`gep` (get-element-pointer) so that `BasePtrAnalysis` can track pointer
-provenance through arithmetic. When a ternary expression merges two
+`Mem2Var._fix_adds` ensures `add` instructions on alloca pointers are
+recognized by `BasePtrAnalysis` so it can track pointer provenance
+through arithmetic. When a ternary expression merges two
 pointer paths via a `phi` node, the `add` sits downstream of the phi
 rather than as a direct use of the alloca — so `_fix_adds` never saw it.
 
