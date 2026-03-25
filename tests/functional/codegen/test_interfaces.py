@@ -542,7 +542,7 @@ import BadJSONInterface
 @external
 def foo(x: BadJSONInterface) -> Bytes[2]:
     return slice(extcall x.returns_Bytes3(), 0, 2)
-    """
+    """ # This should compile !
 
     bad_c = get_contract(external_contract)
 
@@ -573,18 +573,21 @@ def __init__(addr: BadJSONInterface):
 @external
 def test_fail1() -> Bytes[2]:
     # should compile, but raise runtime exception
-    return extcall self.foo.returns_Bytes3()
+    return extcall self.foo.returns_Bytes3() # Unsafe !
 
 @external
 def test_fail2() -> Bytes[2]:
     # should compile, but raise runtime exception
-    x: Bytes[2] = extcall self.foo.returns_Bytes3()
+    x: Bytes[2] = extcall self.foo.returns_Bytes3() # Unsafe !
     return x
 
 @external
 def test_fail3() -> Bytes[3]:
     # should revert - returns_Bytes3 is inferred to have return type Bytes[2]
     # (because test_fail3 comes after test_fail1)
+    # Shouldn't revert !
+    # We call an external method which returns a Bytes[3] and expect a Bytes[3]
+    # But like the others it's unsafe, and so should not compile
     return extcall self.foo.returns_Bytes3()
     """
 
@@ -798,7 +801,7 @@ import jsonabi as jsonabi
 @view
 def test_call(a: address, b: {type_str}) -> {type_str}:
     return staticcall jsonabi(a).test_json(b)
-    """
+    """ # Is unsafe, as both `b` and the return of `test_json` might be too big
     input_bundle = make_input_bundle({"jsonabi.json": json.dumps(abi)})
 
     c2 = get_contract(code, input_bundle=input_bundle)
