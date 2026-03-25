@@ -530,7 +530,7 @@ def test_fail2() -> Bytes[3]:
 
 
 # test data returned from external interface gets clamped
-def test_json_abi_bytes_clampers(get_contract, tx_failed, assert_compile_failed, make_input_bundle):
+def test_json_abi_bytes_clampers_1(get_contract, tx_failed, assert_compile_failed, make_input_bundle):
     external_contract = """
 @external
 def returns_Bytes3() -> Bytes[3]:
@@ -542,6 +542,23 @@ import BadJSONInterface
 @external
 def foo(x: BadJSONInterface) -> Bytes[2]:
     return slice(extcall x.returns_Bytes3(), 0, 2)
+    """
+
+    bad_c = get_contract(external_contract)
+
+    bad_json_interface = json.dumps(compile_code(external_contract, output_formats=["abi"])["abi"])
+    input_bundle = make_input_bundle({"BadJSONInterface.json": bad_json_interface})
+
+    assert_compile_failed(
+        lambda: get_contract(should_not_compile, input_bundle=input_bundle), ArgumentException
+    )
+
+# test data returned from external interface gets clamped
+def test_json_abi_bytes_clampers_2(get_contract, tx_failed, assert_compile_failed, make_input_bundle):
+    external_contract = """
+@external
+def returns_Bytes3() -> Bytes[3]:
+    return b"123"
     """
 
     code = """
@@ -572,16 +589,12 @@ def test_fail3() -> Bytes[3]:
     """
 
     bad_c = get_contract(external_contract)
+    assert bad_c.returns_Bytes3() == b"123"
 
     bad_json_interface = json.dumps(compile_code(external_contract, output_formats=["abi"])["abi"])
     input_bundle = make_input_bundle({"BadJSONInterface.json": bad_json_interface})
 
-    assert_compile_failed(
-        lambda: get_contract(should_not_compile, input_bundle=input_bundle), ArgumentException
-    )
-
     c = get_contract(code, bad_c.address, input_bundle=input_bundle)
-    assert bad_c.returns_Bytes3() == b"123"
 
     with tx_failed():
         c.test_fail1()
