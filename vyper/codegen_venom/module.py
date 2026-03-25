@@ -203,19 +203,10 @@ def generate_deploy_venom(
         for func_t in init_func_t.reachable_internal_functions:
             id_generator.ensure_id(func_t)
 
-        # Create shared alloca_id for immutables region
-        # This ensures all ctor-context functions use the same memory region
-        immutables_alloca_id = deploy_ctx.get_next_alloca_id() if immutables_len > 0 else None
-
         # Generate constructor
         assert isinstance(init_func_t.ast_def, vy_ast.FunctionDef)
         _generate_constructor(
-            deploy_builder,
-            module_t,
-            init_func_t.ast_def,
-            len(runtime_bytecode),
-            immutables_len,
-            immutables_alloca_id,
+            deploy_builder, module_t, init_func_t.ast_def, len(runtime_bytecode), immutables_len
         )
 
         # Generate internal functions reachable from constructor
@@ -226,7 +217,6 @@ def generate_deploy_venom(
                 func_t.ast_def,
                 is_ctor_context=True,
                 immutables_len=immutables_len,
-                immutables_alloca_id=immutables_alloca_id,
             )
     else:
         # No constructor - just deploy runtime
@@ -1168,8 +1158,7 @@ def _create_kwarg_allocas(
     kwarg_vars: dict[str, IRVariable] = {}
     for arg in func_t.keyword_args:
         size = arg.typ.memory_bytes_required
-        alloca_id = builder.ctx.get_next_alloca_id()
-        ptr = builder.alloca(size, alloca_id)
+        ptr = builder.alloca(size)
         kwarg_vars[arg.name] = ptr
 
     func_t._ir_info.kwarg_alloca_vars = kwarg_vars
@@ -1294,7 +1283,6 @@ def _generate_internal_function(
     func_ast: vy_ast.FunctionDef,
     is_ctor_context: bool,
     immutables_len: int = 0,
-    immutables_alloca_id: Optional[int] = None,
 ) -> None:
     """Generate an internal function."""
     func_t = func_ast._metadata["func_type"]
@@ -1319,11 +1307,11 @@ def _generate_internal_function(
     )
 
     # Reserve immutables region for ctor context internal functions.
-    # Uses the SHARED alloca_id and explicitly sets position 0 to match
-    # the constructor's allocation. This ensures all ctor-context functions
-    # access immutables at the same memory location.
-    if is_ctor_context and immutables_len > 0 and immutables_alloca_id is not None:
-        codegen_ctx.immutables_alloca = builder.alloca(immutables_len, immutables_alloca_id)
+    # Explicitly sets position 0 to match the constructor's allocation.
+    # This ensures all ctor-context functions access immutables at the
+    # same memory location.
+    if is_ctor_context and immutables_len > 0:
+        codegen_ctx.immutables_alloca = builder.alloca(immutables_len)
         # Get the alloca instruction (just appended) and force position 0
         alloca_inst = builder._current_bb.instructions[-1]
         assert alloca_inst.opcode == "alloca", f"Expected alloca, got {alloca_inst.opcode}"
@@ -1391,7 +1379,6 @@ def _generate_constructor(
     func_ast: vy_ast.FunctionDef,
     runtime_codesize: int,
     immutables_len: int,
-    immutables_alloca_id: Optional[int],
 ) -> None:
     """Generate constructor (deploy) code."""
     func_t = func_ast._metadata["func_type"]
@@ -1421,8 +1408,8 @@ def _generate_constructor(
     # to bypass the normal allocation algorithm. This matches the legacy
     # codegen behavior.
     # (GH issue 3101)
-    if immutables_len > 0 and immutables_alloca_id is not None:
-        codegen_ctx.immutables_alloca = builder.alloca(immutables_len, immutables_alloca_id)
+    if immutables_len > 0:
+        codegen_ctx.immutables_alloca = builder.alloca(immutables_len)
         # Get the alloca instruction (just appended) and force position 0
         alloca_inst = builder._current_bb.instructions[-1]
         assert alloca_inst.opcode == "alloca", f"Expected alloca, got {alloca_inst.opcode}"
@@ -1513,8 +1500,7 @@ def _emit_deploy_epilogue(
     """
     # Dynamically allocate memory for runtime code + immutables
     total_size = runtime_codesize + immutables_len
-    alloca_id = builder.ctx.get_next_alloca_id()
-    dst_ptr = builder.alloca(total_size, alloca_id)
+    dst_ptr = builder.alloca(total_size)
 
     # Copy immutables from deployment memory to runtime position
     if immutables_len > 0:

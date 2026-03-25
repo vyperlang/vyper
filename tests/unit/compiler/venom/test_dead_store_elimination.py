@@ -253,7 +253,7 @@ def test_dead_store_memory_copy():
 def test_codecopy_not_dead_when_read_via_iload_and_different_alloca():
     pre = """
         _global:
-            %a = alloca 1, 32
+            %a = alloca 32
             %b = alloca 32
             codecopy %a, 0, 32
             %v = iload %b

@@ -28,13 +28,13 @@ def test_analysis_returns_indices_without_mutating_functions():
     assert not hasattr(fn, "_readonly_memory_invoke_arg_idxs")
 
 
-def test_gep_write_marks_param_mutable():
+def test_add_write_marks_param_mutable():
     src = """
     function f {
     f:
         %arg = param
         %retpc = param
-        %ptr = gep 32, %arg
+        %ptr = add 32, %arg
         mstore %ptr, 1
         ret %retpc
     }
@@ -45,13 +45,13 @@ def test_gep_write_marks_param_mutable():
     assert readonly_analysis.get_readonly_invoke_arg_idxs(fn) == ()
 
 
-def test_gep_read_keeps_param_readonly():
+def test_add_read_keeps_param_readonly():
     src = """
     function f {
     f:
         %arg = param
         %retpc = param
-        %ptr = gep 32, %arg
+        %ptr = add 32, %arg
         %val = mload %ptr
         ret %retpc
     }
