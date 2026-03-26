@@ -19,7 +19,6 @@ from vyper.venom.passes import (
     ConcretizeMemLocPass,
     DeadStoreElimination,
     DFTPass,
-    FixMemLocationsPass,
     InternalReturnCopyForwardingPass,
     LoadElimination,
     LowerDloadPass,
