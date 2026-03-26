@@ -46,6 +46,7 @@ class _Msg(_EnvType):
     }
 
 
+# TODO: Is more of a built-in Constant, and should be Modifiability.CONSTANT
 class _Inf(_EnvType):
     _id = "INF"
 
