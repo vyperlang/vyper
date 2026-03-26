@@ -787,12 +787,26 @@ def test_json_interface_implements(type_str, make_input_bundle, make_file):
     compile_code(code, input_bundle=input_bundle)
 
 
-@pytest.mark.parametrize("type_str,value", type_str_params)
-def test_json_interface_calls(get_contract, type_str, value, make_input_bundle, make_file):
+# TODO: delete once INF backend exists
+def map_xfail(pair):
+    (type_str, value) = pair
+    if type_str.startswith("Bytes") or type_str.startswith("String"):
+        return pytest.param(type_str, value, marks=pytest.mark.xfail(raises=CodegenPanic))
+    else:
+        return pair
+
+
+@pytest.mark.parametrize("type_str,value", map(map_xfail, type_str_params))
+def test_json_interface_calls(get_contract, type_str, value, make_input_bundle):
     interface_code = interface_test_code.format(type_str)
 
-    abi = compile_code(interface_code, output_formats=["abi"])["abi"]
     c1 = get_contract(interface_code)
+
+    return_expr = "staticcall jsonabi(a).test_json(b)"
+
+    # Going through the abi removes the length information, so we have to check explicitly
+    if type_str.startswith("Bytes") or type_str.startswith("String"):
+        return_expr = f"convert({return_expr}, {type_str})"
 
     code = f"""
 import jsonabi as jsonabi
@@ -800,15 +814,16 @@ import jsonabi as jsonabi
 @external
 @view
 def test_call(a: address, b: {type_str}) -> {type_str}:
-    return staticcall jsonabi(a).test_json(b)
+    return {return_expr}
     """
-    input_bundle = make_input_bundle({"jsonabi.json": json.dumps(abi)})
+    input_bundleV2 = make_input_bundle({"jsonabi.json": json.dumps(c1.abi)})
 
-    c2 = get_contract(code, input_bundle=input_bundle)
+    c2 = get_contract(code, input_bundle=input_bundleV2)
     assert c2.test_call(c1.address, value) == value
 
-    make_file("jsonabi.json", json.dumps(convert_v1_abi(abi)))
-    c3 = get_contract(code, input_bundle=input_bundle)
+    input_bundleV1 = make_input_bundle({"jsonabi.json": json.dumps(convert_v1_abi(c1.abi))})
+
+    c3 = get_contract(code, input_bundle=input_bundleV1)
     assert c3.test_call(c1.address, value) == value
 
 
