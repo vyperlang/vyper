@@ -549,10 +549,9 @@ def foo(x: JSONInterface) -> Bytes[2]:
     assert c.foo(ext_c.address) == b"12"  # slice takes first 2 elements
 
 
-# test data returned from external interface gets clamped
-def test_json_abi_bytes_clampers_2(
-    get_contract, tx_failed, assert_compile_failed, make_input_bundle
-):
+# TODO: unmark once INF backend exists
+@pytest.mark.xfail(raises=CodegenPanic)
+def test_json_abi_bytes_convert(get_contract, tx_failed, assert_compile_failed, make_input_bundle):
     external_contract = """
 @external
 def returns_Bytes3() -> Bytes[3]:
@@ -560,46 +559,53 @@ def returns_Bytes3() -> Bytes[3]:
     """
 
     code = """
-import BadJSONInterface
+import JSONInterface
 
-foo: BadJSONInterface
+foo: JSONInterface
 
 @deploy
-def __init__(addr: BadJSONInterface):
+def __init__(addr: JSONInterface):
     self.foo = addr
 
 @external
 def test_fail1() -> Bytes[2]:
-    # should compile, but raise runtime exception
-    return extcall self.foo.returns_Bytes3()
+    # should compile, but reverts
+    return convert(extcall self.foo.returns_Bytes3(), Bytes[2])
 
 @external
 def test_fail2() -> Bytes[2]:
-    # should compile, but raise runtime exception
-    x: Bytes[2] = extcall self.foo.returns_Bytes3()
-    return x
+
+    # should compile and not revert
+    x: Bytes[INF] = extcall self.foo.returns_Bytes3()
+
+    # should compile, but reverts
+    return convert(x, Bytes[2])
 
 @external
-def test_fail3() -> Bytes[3]:
-    # should revert - returns_Bytes3 is inferred to have return type Bytes[2]
-    # (because test_fail3 comes after test_fail1)
+def test_succeed1() -> Bytes[INF]:
+    # should compile and not revert
     return extcall self.foo.returns_Bytes3()
+
+@external
+def test_succeed2() -> Bytes[3]:
+    # should compile and not revert
+    return convert(extcall self.foo.returns_Bytes3(), Bytes[3])
     """
 
-    bad_c = get_contract(external_contract)
-    assert bad_c.returns_Bytes3() == b"123"
+    ext_c = get_contract(external_contract)
+    assert ext_c.returns_Bytes3() == b"123"
 
-    bad_json_interface = json.dumps(compile_code(external_contract, output_formats=["abi"])["abi"])
-    input_bundle = make_input_bundle({"BadJSONInterface.json": bad_json_interface})
+    input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(ext_c.abi)})
 
-    c = get_contract(code, bad_c.address, input_bundle=input_bundle)
+    c = get_contract(code, ext_c.address, input_bundle=input_bundle)
 
     with tx_failed():
         c.test_fail1()
     with tx_failed():
         c.test_fail2()
-    with tx_failed():
-        c.test_fail3()
+
+    assert c.test_succeed1() == b"123"
+    assert c.test_succeed2() == b"123"
 
 
 def test_units_interface(env, get_contract, make_input_bundle):
