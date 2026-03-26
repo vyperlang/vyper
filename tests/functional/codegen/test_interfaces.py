@@ -5,12 +5,7 @@ from eth_utils import to_wei
 
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code, compile_from_file_input
-from vyper.exceptions import (
-    ArgumentException,
-    DuplicateImport,
-    InterfaceViolation,
-    NamespaceCollision,
-)
+from vyper.exceptions import CodegenPanic, DuplicateImport, InterfaceViolation, NamespaceCollision
 
 
 # TODO CMC 2024-10-13: this should probably be in tests/unit/compiler/
@@ -529,29 +524,29 @@ def test_fail2() -> Bytes[3]:
         c.test_fail2()
 
 
-# test data returned from external interface gets clamped
-def test_json_abi_bytes_clampers_1(
-    get_contract, tx_failed, assert_compile_failed, make_input_bundle
-):
+# TODO: unmark once INF backend exists
+@pytest.mark.xfail(raises=CodegenPanic)
+def test_json_abi_bytes_slice(get_contract, tx_failed, assert_compile_failed, make_input_bundle):
     external_contract = """
 @external
 def returns_Bytes3() -> Bytes[3]:
     return b"123"
     """
+    ext_c = get_contract(external_contract)
 
-    should_not_compile = """
-import BadJSONInterface
+    contract = """
+import JSONInterface
 @external
-def foo(x: BadJSONInterface) -> Bytes[2]:
+def foo(x: JSONInterface) -> Bytes[2]:
     return slice(extcall x.returns_Bytes3(), 0, 2)
     """
 
-    bad_json_interface = json.dumps(compile_code(external_contract, output_formats=["abi"])["abi"])
-    input_bundle = make_input_bundle({"BadJSONInterface.json": bad_json_interface})
+    input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(ext_c.abi)})
 
-    assert_compile_failed(
-        lambda: get_contract(should_not_compile, input_bundle=input_bundle), ArgumentException
-    )
+    c = get_contract(contract, input_bundle=input_bundle)
+
+    assert ext_c.returns_Bytes3() == b"123"
+    assert c.foo(ext_c.address) == b"12"  # slice takes first 2 elements
 
 
 # test data returned from external interface gets clamped
