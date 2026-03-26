@@ -6,7 +6,6 @@ from vyper.exceptions import CompilerPanic
 from vyper.venom.optimization_levels.pass_order import validate_pass_order
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.cfg_normalization import CFGNormalization
-from vyper.venom.passes.concretize_mem_loc import ConcretizeMemLocPass
 from vyper.venom.passes.dft import DFTPass
 from vyper.venom.passes.literals_codesize import ReduceLiteralsCodesize
 from vyper.venom.passes.make_ssa import MakeSSA
