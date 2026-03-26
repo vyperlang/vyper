@@ -7,7 +7,7 @@ from vyper.exceptions import (
     StructureException,
     UnexpectedNodeType,
 )
-from vyper.semantics.types import AddressT, BoolT, BytesT, DecimalT, StringT
+from vyper.semantics.types import INF, AddressT, BoolT, BytesT, DecimalT, StringT
 from vyper.semantics.types.shortcuts import BYTES32_T, INT128_T, UINT256_T
 from vyper.semantics.types.utils import type_from_annotation
 
@@ -24,6 +24,8 @@ TYPES = {
     UINT256_T: "uint256",
     BytesT(1): "Bytes[1]",
     StringT(1): "String[1]",
+    BytesT(INF): "Bytes[INF]",
+    StringT(INF): "String[INF]",
 }
 
 VALID_LITERALS = {
