@@ -307,6 +307,7 @@ def lower_raw_log(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         data_ptr = b.add(data, IRLiteral(32))
 
     # Emit log instruction
+    assert isinstance(data_ptr, IRVariable)
     b.log(n_topics, data_ptr, data_len, *topic_values)
 
     return IRLiteral(0)  # Statement builtin, no return

@@ -1529,7 +1529,7 @@ class Expr:
             temp_buf = self.ctx.new_temporary_value(elem_typ)
             assert isinstance(temp_buf.operand, IRVariable)
             self.ctx.store_vyper_value(arg_vv, temp_buf.operand, elem_typ)
-            elem_val = temp_buf.operand
+            elem_val: IROperand = temp_buf.operand
             elem_src_typ = elem_typ
         else:
             elem_val = arg_val
@@ -1828,9 +1828,9 @@ class Expr:
         b.append_block(fail_bb)
         b.set_block(fail_bb)
         rds = b.returndatasize()
-        dst = self.ctx.allocate_pinned_buffer(0, 0)
-        b.returndatacopy(dst._ptr, IRLiteral(0), rds)
-        b.revert(dst._ptr, rds)
+        dst_buf = self.ctx.allocate_pinned_buffer(0, 0)
+        b.returndatacopy(dst_buf._ptr, IRLiteral(0), rds)
+        b.revert(dst_buf._ptr, rds)
 
         # Continue block
         b.append_block(cont_bb)

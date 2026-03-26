@@ -144,7 +144,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             tmp = ctx.new_temporary_value(arg_types[0])
             assert isinstance(tmp.operand, IRVariable)
             b.mstore(tmp.operand, args[0])
-            encode_input = tmp.operand
+            encode_input: IROperand = tmp.operand
         else:
             encode_input = args[0]
         encode_type = arg_types[0]
