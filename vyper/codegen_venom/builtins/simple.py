@@ -75,8 +75,6 @@ def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand,
 def _zero_memory(ctx: VenomCodegenContext, ptr: IRVariable, size: int) -> None:
     """Zero out a memory region by writing zeros word by word."""
     for offset in range(0, size, 32):
-        if offset == 0:
-            dst = ptr
         dst = ctx.builder.add(ptr, IRLiteral(offset))
         ctx.builder.mstore(dst, IRLiteral(0))
 
