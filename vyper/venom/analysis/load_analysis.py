@@ -18,10 +18,8 @@ from .mem_alias import (
     mem_alias_type_factory,
 )
 
-import immutables
-
 # from position in the memory to the possible values
-Lattice = immutables.Map[IROperand | MemoryLocation, OrderedSet[IROperand]]
+Lattice = dict[IROperand | MemoryLocation, OrderedSet[IROperand]]
 
 
 class LoadAnalysis(IRAnalysis):
@@ -89,7 +87,7 @@ class LoadAnalysis(IRAnalysis):
     def _merge(self, bb: IRBasicBlock) -> Lattice:
         preds = list(self.cfg.cfg_in(bb))
         if len(preds) == 0:
-            return immutables.Map()
+            return dict()
         res = self.bb_to_lattice.get(preds[0], {})
 
         res = dict(res.items()) 
@@ -101,7 +99,7 @@ class LoadAnalysis(IRAnalysis):
             for key in common_keys:
                 res[key] = tmp[key] | other[key]
 
-        return immutables.Map(res)
+        return res
 
     def get_memloc(self, op: IROperand | MemoryLocation) -> MemoryLocation:
         if isinstance(op, MemoryLocation):
@@ -144,25 +142,22 @@ class LoadAnalysis(IRAnalysis):
 
         for inst in bb.instructions:
             if inst.opcode == load_opcode:
-                self.inst_to_lattice[inst] = lattice
-                with lattice.mutate() as mt:
-                    ptr = self.get_read(inst)
-                    mt[ptr] = OrderedSet([inst.output])
-                    loc = self.get_memloc(ptr)
-                    if loc not in memlocs_to_lattice:
-                        memlocs_to_lattice[loc] = set()
-                    memlocs_to_lattice[loc].add(ptr)
-                    lattice = mt.finish()
+                self.inst_to_lattice[inst] = lattice.copy()
+                ptr = self.get_read(inst)
+                lattice[ptr] = OrderedSet([inst.output])
+                loc = self.get_memloc(ptr)
+                if loc not in memlocs_to_lattice:
+                    memlocs_to_lattice[loc] = set()
+                memlocs_to_lattice[loc].add(ptr)
             elif inst.opcode == store_opcode:
-                self.inst_to_lattice[inst] = lattice
+                self.inst_to_lattice[inst] = lattice.copy()
                 val, _ = inst.operands
                 ptr = self.get_write(inst)
                 memloc = self.get_memloc(ptr)
 
-                with lattice.mutate() as mt:
-                    lattice = self.mutation(mt, memloc, lattice, memlocs_to_lattice, ptr, val)
+                lattice = self.mutation(memloc, lattice, memlocs_to_lattice, ptr, val)
             elif isinstance(eff, Effects) and eff in inst.get_write_effects():
-                lattice = immutables.Map()
+                lattice.clear()
                 memlocs_to_lattice.clear()
 
         if bb not in self.bb_to_lattice or self.bb_to_lattice[bb] != lattice:
@@ -170,28 +165,28 @@ class LoadAnalysis(IRAnalysis):
             return True
         return False
     
-    def mutation(self, mt: immutables.MapMutation, memloc: MemoryLocation, lattice: Lattice, memlocs_to_lattice, ptr, val):
+    def mutation(self, memloc: MemoryLocation, lattice: Lattice, memlocs_to_lattice, ptr, val):
         if self.space != addr_space.DATA:
             alias_set = self.mem_alias.get_alias_set(memloc)
             if alias_set is not None:
                 intersect = alias_set._data.keys() & memlocs_to_lattice.keys()
                 for mem_loc in intersect:
                     for existing_key in memlocs_to_lattice[mem_loc]:
-                        del mt[existing_key]
+                        del lattice[existing_key]
                     del memlocs_to_lattice[mem_loc]
-                mt[ptr] = OrderedSet([val])
+                lattice[ptr] = OrderedSet([val])
                 if memloc not in memlocs_to_lattice:
                     memlocs_to_lattice[memloc] = set()
                 memlocs_to_lattice[memloc].add(ptr)
-                return mt.finish()
+                return lattice
 
         for existing_key in lattice.keys():
             existing_loc = self.get_memloc(existing_key)
             if self.mem_alias.may_alias(existing_loc, memloc):
-                del mt[existing_key]
+                del lattice[existing_key]
 
-        mt[ptr] = OrderedSet([val])
+        lattice[ptr] = OrderedSet([val])
         if memloc not in memlocs_to_lattice:
             memlocs_to_lattice[memloc] = set()
         memlocs_to_lattice[memloc].add(ptr)
-        return mt.finish()
+        return lattice
