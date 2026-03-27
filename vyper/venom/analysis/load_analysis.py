@@ -88,9 +88,8 @@ class LoadAnalysis(IRAnalysis):
         preds = list(self.cfg.cfg_in(bb))
         if len(preds) == 0:
             return dict()
-        res = self.bb_to_lattice.get(preds[0], {})
+        res = self.bb_to_lattice.get(preds[0], {}).copy()
 
-        res = dict(res.items()) 
         for pred in preds[1:]:
             other = self.bb_to_lattice.get(pred, {})
             common_keys = other.keys() & res.keys()
@@ -155,7 +154,7 @@ class LoadAnalysis(IRAnalysis):
                 ptr = self.get_write(inst)
                 memloc = self.get_memloc(ptr)
 
-                lattice = self.mutation(memloc, lattice, memlocs_to_lattice, ptr, val)
+                lattice = self.remove_write_conflicts(memloc, lattice, memlocs_to_lattice, ptr, val)
             elif isinstance(eff, Effects) and eff in inst.get_write_effects():
                 lattice.clear()
                 memlocs_to_lattice.clear()
@@ -165,26 +164,17 @@ class LoadAnalysis(IRAnalysis):
             return True
         return False
     
-    def mutation(self, memloc: MemoryLocation, lattice: Lattice, memlocs_to_lattice, ptr, val):
-        if self.space != addr_space.DATA:
-            alias_set = self.mem_alias.get_alias_set(memloc)
-            if alias_set is not None:
-                intersect = alias_set._data.keys() & memlocs_to_lattice.keys()
-                for mem_loc in intersect:
-                    for existing_key in memlocs_to_lattice[mem_loc]:
-                        del lattice[existing_key]
-                    del memlocs_to_lattice[mem_loc]
-                lattice[ptr] = OrderedSet([val])
-                if memloc not in memlocs_to_lattice:
-                    memlocs_to_lattice[memloc] = set()
-                memlocs_to_lattice[memloc].add(ptr)
-                return lattice
+    def remove_write_conflicts(self, memloc: MemoryLocation, lattice: Lattice, memlocs_to_lattice, ptr, val):
+        assert self.space != addr_space.DATA
 
-        for existing_key in lattice.keys():
-            existing_loc = self.get_memloc(existing_key)
-            if self.mem_alias.may_alias(existing_loc, memloc):
+        alias_set = self.mem_alias.get_alias_set(memloc)
+        assert alias_set is not None
+
+        intersect = alias_set._data.keys() & memlocs_to_lattice.keys()
+        for mem_loc in intersect:
+            for existing_key in memlocs_to_lattice[mem_loc]:
                 del lattice[existing_key]
-
+            del memlocs_to_lattice[mem_loc]
         lattice[ptr] = OrderedSet([val])
         if memloc not in memlocs_to_lattice:
             memlocs_to_lattice[memloc] = set()
