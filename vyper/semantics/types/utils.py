@@ -171,6 +171,10 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         typ_ = typ_.module_t
 
     if not isinstance(typ_, VyperType):
+        from vyper.semantics.analysis.base import VarInfo
+
+        if isinstance(typ_, VarInfo):
+            raise InvalidType(err_msg, node)
         raise CompilerPanic(f"Not a type: {typ_}", node)
 
     return typ_
