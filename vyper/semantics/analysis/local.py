@@ -291,7 +291,7 @@ def check_module_uses(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
 
 
 def check_module_uses_for_abstract(
-    node: vy_ast.ExprNode, func_t: ContractFunctionT
+    node: vy_ast.Attribute, func_t: ContractFunctionT
 ) -> Optional[ModuleInfo]:
     """
     Validate module usage when calling an abstract method.
@@ -883,6 +883,10 @@ class ExprVisitor(VyperNodeVisitorBase):
                     self.function_analyzer._handle_module_access(node.func)
 
                 if func_type.is_abstract:
+                    # calls to abstract functions always have the form other_module.foo()
+                    # or module1.module2. ... .foo()
+                    assert isinstance(node.func, vy_ast.Attribute)
+
                     # calling an abstract function requires we `uses` its module
                     root_module_info = check_module_uses_for_abstract(node.func, func_type)
                     if root_module_info is not None:
