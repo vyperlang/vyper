@@ -1505,10 +1505,8 @@ def _emit_deploy_epilogue(
     if immutables_len > 0:
         immutables_dst = builder.add(dst_ptr, IRLiteral(runtime_codesize))
 
-        # Source is the immutables_alloca if available, otherwise offset 0
-        immutables_src: IROperand = (
-            immutables_alloca if immutables_alloca is not None else IRLiteral(0)
-        )
+        assert immutables_alloca is not None
+        immutables_src = immutables_alloca
 
         if version_check(begin="cancun"):
             # Cancun+: use mcopy
