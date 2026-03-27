@@ -685,3 +685,63 @@ def test_tuple_return_types(get_contract, source_code, args, expected):
     c = get_contract(source_code)
 
     assert c.foo(*args) == expected
+
+
+def test_internal_payable_from_nonpayable(get_contract, env):
+    # nonpayable can call payable internal
+    code = """
+@payable
+@internal
+def _foo() -> uint256:
+    return msg.value
+
+@external
+def foo() -> uint256:
+    return self._foo()
+    """
+    c = get_contract(code)
+    env.set_balance(env.deployer, 10**18)
+    assert c.foo(value=100) == 100
+    assert c.foo(value=0) == 0
+
+
+def test_internal_payable_from_payable(get_contract, env):
+    # payable can call payable internal with msg.value access
+    code = """
+@payable
+@internal
+def _foo() -> uint256:
+    return msg.value
+
+@payable
+@external
+def foo() -> uint256:
+    return self._foo()
+    """
+    c = get_contract(code)
+    env.set_balance(env.deployer, 10**18)
+    assert c.foo(value=100) == 100
+    assert c.foo(value=0) == 0
+
+
+def test_internal_payable_with_state_modification(get_contract, env):
+    # payable internal can modify state when called from payable external
+    code = """
+received: public(uint256)
+
+@payable
+@internal
+def _receive():
+    self.received += msg.value
+
+@payable
+@external
+def deposit():
+    self._receive()
+    """
+    c = get_contract(code)
+    env.set_balance(env.deployer, 10**18)
+    c.deposit(value=500)
+    assert c.received() == 500
+    c.deposit(value=300)
+    assert c.received() == 800
