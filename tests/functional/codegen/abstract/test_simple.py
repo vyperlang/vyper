@@ -2109,3 +2109,63 @@ def bar(x: uint256 = FOO) -> uint256:
         get_contract(override_contract, input_bundle=input_bundle)
 
     assert "Override parameter mismatch" in e.value.message
+
+
+def test_chained_abstract_method_call(get_contract, make_input_bundle):
+
+    b = """
+@abstract
+def foo() -> uint256: ...
+    """
+
+    a = """
+import b
+
+uses: b
+
+def makes_the_uses_valid():
+    b.foo()
+    """
+
+    override = """
+import b
+
+initializes: b
+
+@override(b)
+def foo() -> uint256:
+    return 42
+    """
+    
+    # used so that the contract doesn't even import b
+    initializer = """
+import a
+import b
+import override
+
+initializes: override
+initializes: a[b := b]
+    """
+
+    contract = """
+import a
+import initializer
+
+uses: a
+initializes: initializer
+
+@external
+def call_chained() -> uint256:
+    return a.b.foo()  # chained abstract method call through a's view of b
+    """
+
+    input_bundle = make_input_bundle({
+        "b.vy": b,
+        "a.vy": a,
+        "override.vy": override,
+        "initializer.vy": initializer,
+    })
+
+    c = get_contract(contract, input_bundle=input_bundle)
+
+    assert c.call_chained() == 42
