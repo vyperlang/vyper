@@ -30,7 +30,7 @@ from vyper.semantics.types import TupleT, VyperType
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.utils import OrderedSet, method_id_int
-from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRLabel, IRLiteral, IRVariable
 from vyper.venom.builder import VenomBuilder
 from vyper.venom.context import IRContext
 from vyper.venom.memory_location import Allocation

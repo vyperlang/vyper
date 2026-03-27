@@ -601,6 +601,7 @@ class VenomCodegenContext:
         # Pre-Cancun: use identity precompile for large copies
         if size >= self._IDENTITY_PRECOMPILE_THRESHOLD:
             b = self.builder
+            assert isinstance(src, IRVariable)
             success = b.staticcall(
                 b.gas(), IRLiteral(IDENTITY_PRECOMPILE), src, IRLiteral(size), dst, IRLiteral(size)
             )
@@ -629,6 +630,7 @@ class VenomCodegenContext:
 
         # Pre-Cancun: use identity precompile
         # staticcall(gas, IDENTITY_PRECOMPILE, src, length, dst, length)
+        assert isinstance(src, IRVariable)
         success = b.staticcall(b.gas(), IRLiteral(IDENTITY_PRECOMPILE), src, length, dst, length)
         b.assert_(success)
 

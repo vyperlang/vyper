@@ -232,6 +232,7 @@ class VenomBuilder:
         from vyper.semantics.data_locations import DataLocation
 
         if src_location == DataLocation.MEMORY:
+            assert isinstance(src, IRVariable)
             from vyper.evm.opcodes import version_check
 
             if version_check(begin="cancun"):
@@ -351,7 +352,7 @@ class VenomBuilder:
         self,
         gas: Operand,
         addr: Operand,
-        argsptr: Operand,
+        argsptr: IRVariable,
         argsz: Operand,
         retptr: IRVariable,
         retsz: Operand,
@@ -363,7 +364,7 @@ class VenomBuilder:
         self,
         gas: Operand,
         addr: Operand,
-        argsptr: Operand,
+        argsptr: IRVariable,
         argsz: Operand,
         retptr: IRVariable,
         retsz: Operand,
