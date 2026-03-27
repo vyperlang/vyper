@@ -21,7 +21,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import TYPE_T, VyperType, is_type_t
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 from vyper.semantics.types.primitives import AddressT
-from vyper.semantics.types.user import EventT, FlagT, StructT, _UserType
+from vyper.semantics.types.user import ErrorT, EventT, FlagT, StructT, _UserType
 from vyper.utils import OrderedSet
 
 if TYPE_CHECKING:
@@ -44,23 +44,27 @@ class InterfaceT(_UserType):
         decl_node: Optional[vy_ast.VyperNode],
         functions: dict,
         events: dict,
+        errors: dict,
         structs: dict,
         flags: dict,
     ) -> None:
         validate_unique_method_ids(list(functions.values()))
 
-        members = functions | events | structs | flags
+        members = functions | events | errors | structs | flags
 
         # sanity check: by construction, there should be no duplicates.
-        assert len(members) == len(functions) + len(events) + len(structs) + len(flags)
+        assert len(members) == len(functions) + len(events) + len(errors) + len(
+            structs
+        ) + len(flags)
 
         super().__init__(functions)
 
-        self._helper = VyperType(events | structs | flags)
+        self._helper = VyperType(events | errors | structs | flags)
         self._id = _id
         self._helper._id = _id
         self.functions = functions
         self.events = events
+        self.errors = errors
         self.structs = structs
         self.flags = flags
 
@@ -106,11 +110,15 @@ class InterfaceT(_UserType):
     def _ctor_kwarg_types(self, node):
         return {}
 
-    def _ctor_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
+    def _ctor_modifiability_for_call(
+        self, node: vy_ast.Call, modifiability: Modifiability
+    ) -> bool:
         return check_modifiability(node.args[0], modifiability)
 
     def validate_implements(
-        self, node: vy_ast.ImplementsDecl, functions: dict[ContractFunctionT, vy_ast.VyperNode]
+        self,
+        node: vy_ast.ImplementsDecl,
+        functions: dict[ContractFunctionT, vy_ast.VyperNode],
     ) -> None:
         # only external functions can implement interfaces
         fns_by_name = {fn_t.name: fn_t for fn_t in functions.keys()}
@@ -143,13 +151,16 @@ class InterfaceT(_UserType):
             # is off, etc).
             missing_str = ", ".join(sorted(unimplemented))
             raise InterfaceViolation(
-                f"Contract does not implement all interface functions: {missing_str}", node
+                f"Contract does not implement all interface functions: {missing_str}",
+                node,
             )
 
     def to_toplevel_abi_dict(self) -> list[dict]:
         abi = []
         for event in self.events.values():
             abi += event.to_toplevel_abi_dict()
+        for error in self.errors.values():
+            abi += error.to_toplevel_abi_dict()
         for func in self.functions.values():
             abi += func.to_toplevel_abi_dict()
         return abi
@@ -162,11 +173,13 @@ class InterfaceT(_UserType):
         decl_node: Optional[vy_ast.VyperNode],
         function_list: list[tuple[str, ContractFunctionT]],
         event_list: Optional[list[tuple[str, EventT]]] = None,
+        error_list: Optional[list[tuple[str, ErrorT]]] = None,
         struct_list: Optional[list[tuple[str, StructT]]] = None,
         flag_list: Optional[list[tuple[str, FlagT]]] = None,
     ) -> "InterfaceT":
         functions: dict[str, ContractFunctionT] = {}
         events: dict[str, EventT] = {}
+        errors: dict[str, ErrorT] = {}
         structs: dict[str, StructT] = {}
         flags: dict[str, FlagT] = {}
 
@@ -174,7 +187,7 @@ class InterfaceT(_UserType):
 
         def _mark_seen(name, item):
             if name in seen_items:
-                msg = f"multiple functions or events named '{name}'!"
+                msg = f"multiple functions, events, or errors named '{name}'!"
                 prev_decl = seen_items[name].decl_node
                 raise NamespaceCollision(msg, item.decl_node, prev_decl=prev_decl)
             seen_items[name] = item
@@ -189,10 +202,11 @@ class InterfaceT(_UserType):
 
         _process(functions, function_list)
         _process(events, event_list)
+        _process(errors, error_list)
         _process(structs, struct_list)
         _process(flags, flag_list)
 
-        return cls(interface_name, decl_node, functions, events, structs, flags)
+        return cls(interface_name, decl_node, functions, events, errors, structs, flags)
 
     @classmethod
     def from_json_abi(cls, name: str, abi: dict) -> "InterfaceT":
@@ -213,13 +227,16 @@ class InterfaceT(_UserType):
         """
         functions: list = []
         events: list = []
+        errors: list = []
 
         for item in [i for i in abi if i.get("type") == "function"]:
             functions.append((item["name"], ContractFunctionT.from_abi(item)))
         for item in [i for i in abi if i.get("type") == "event"]:
             events.append((item["name"], EventT.from_abi(item)))
+        for item in [i for i in abi if i.get("type") == "error"]:
+            errors.append((item["name"], ErrorT.from_abi(item)))
 
-        return cls._from_lists(name, None, functions, events)
+        return cls._from_lists(name, None, functions, events, errors)
 
     @classmethod
     def from_ModuleT(cls, module_t: "ModuleT") -> "InterfaceT":
@@ -245,12 +262,22 @@ class InterfaceT(_UserType):
         event_set.update(module_t.used_events)
         events = [(event_t.name, event_t) for event_t in event_set]
 
+        errors = [
+            (node.name, node._metadata["error_type"]) for node in module_t.error_defs
+        ]
+
         # these are accessible via import, but they do not show up
         # in the ABI json
-        structs = [(node.name, node._metadata["struct_type"]) for node in module_t.struct_defs]
-        flags = [(node.name, node._metadata["flag_type"]) for node in module_t.flag_defs]
+        structs = [
+            (node.name, node._metadata["struct_type"]) for node in module_t.struct_defs
+        ]
+        flags = [
+            (node.name, node._metadata["flag_type"]) for node in module_t.flag_defs
+        ]
 
-        return cls._from_lists(module_t._id, module_t.decl_node, funcs, events, structs, flags)
+        return cls._from_lists(
+            module_t._id, module_t.decl_node, funcs, events, errors, structs, flags
+        )
 
     @classmethod
     def from_InterfaceDef(cls, node: vy_ast.InterfaceDef) -> "InterfaceT":
@@ -265,7 +292,9 @@ class InterfaceT(_UserType):
                     "Function definition in interface cannot be decorated",
                     func_ast.decorator_list[0],
                 )
-            functions.append((func_ast.name, ContractFunctionT.from_InterfaceDef(func_ast)))
+            functions.append(
+                (func_ast.name, ContractFunctionT.from_InterfaceDef(func_ast))
+            )
 
         return cls._from_lists(node.name, node, functions)
 
@@ -325,6 +354,10 @@ class ModuleT(VyperType):
             # add the type of the event so it can be used in call position
             self.add_member(e.name, TYPE_T(e._metadata["event_type"]))  # type: ignore
 
+        for e in self.error_defs:
+            # add the type of the error so it can be used in call position
+            self.add_member(e.name, TYPE_T(e._metadata["error_type"]))  # type: ignore
+
         for f in self.flag_defs:
             self.add_member(f.name, TYPE_T(f._metadata["flag_type"]))
             self._helper.add_member(f.name, TYPE_T(f._metadata["flag_type"]))
@@ -348,7 +381,9 @@ class ModuleT(VyperType):
                     # get_expr_info uses ModuleInfo
                     self.add_member(import_info.alias, module_info)
                     # type_from_annotation uses TYPE_T
-                    self._helper.add_member(import_info.alias, TYPE_T(module_info.module_t))
+                    self._helper.add_member(
+                        import_info.alias, TYPE_T(module_info.module_t)
+                    )
                 else:  # interfaces
                     assert isinstance(import_info.typ, InterfaceT)
                     self.add_member(import_info.alias, TYPE_T(import_info.typ))
@@ -388,6 +423,10 @@ class ModuleT(VyperType):
     @cached_property
     def event_defs(self):
         return self._module.get_children(vy_ast.EventDef)
+
+    @cached_property
+    def error_defs(self):
+        return self._module.get_children(vy_ast.ErrorDef)
 
     @cached_property
     def flag_defs(self):
@@ -496,7 +535,12 @@ class ModuleT(VyperType):
             ret.extend(node._metadata["exports_info"].functions)
 
         ret.extend([f for f in self.functions.values() if f.is_external])
-        ret.extend([v.getter_ast._metadata["func_type"] for v in self.public_variables.values()])
+        ret.extend(
+            [
+                v.getter_ast._metadata["func_type"]
+                for v in self.public_variables.values()
+            ]
+        )
 
         # precondition: no duplicate exports
         assert len(set(ret)) == len(ret)

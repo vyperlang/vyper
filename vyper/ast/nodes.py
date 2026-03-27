@@ -731,6 +731,10 @@ class EventDef(TopLevel):
     __slots__ = ("name", "body")
 
 
+class ErrorDef(TopLevel):
+    __slots__ = ("name", "body")
+
+
 class InterfaceDef(TopLevel):
     __slots__ = ("name", "body")
 
