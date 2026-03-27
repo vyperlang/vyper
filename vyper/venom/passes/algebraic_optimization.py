@@ -162,8 +162,6 @@ class AlgebraicOptimizationPass(IRPass):
             self._rule_signextend(inst)
         elif opcode == "exp":
             self._rule_exp(inst)
-        elif opcode == "gep":
-            self._rule_gep(inst)
         elif opcode in ("add", "sub", "xor"):
             self._rule_additive(inst)
         elif opcode == "and":
@@ -223,10 +221,6 @@ class AlgebraicOptimizationPass(IRPass):
         # x ** 1 -> x
         elif lit_eq(ops[0], 1):
             self.updater.mk_assign(inst, ops[1])
-
-    def _rule_gep(self, inst: IRInstruction):
-        if lit_eq(inst.operands[1], 0):
-            self.updater.mk_assign(inst, inst.operands[0])
 
     def _rule_additive(self, inst: IRInstruction):
         ops = inst.operands

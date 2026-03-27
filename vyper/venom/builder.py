@@ -159,16 +159,9 @@ class VenomBuilder:
     def msize(self) -> IRVariable:
         return self._emit1_evm("msize")
 
-    def alloca(self, size: int, alloca_id: int) -> IRVariable:
+    def alloca(self, size: int) -> IRVariable:
         """Allocate abstract memory. Returns pointer. (IR-specific)"""
-        return self._emit1("alloca", size, alloca_id)
-
-    def gep(self, ptr: Operand, offset: Operand) -> IRVariable:
-        """Get element pointer into memory region. (IR-specific)
-
-        Used for accessing elements within abstract memory (e.g., immutables).
-        """
-        return self._emit1("gep", ptr, offset)
+        return self._emit1("alloca", size)
 
     # === Storage ===
     def sload(self, slot: Operand) -> IRVariable:

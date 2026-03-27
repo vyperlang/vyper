@@ -54,14 +54,14 @@ class FixMemLocationsPass(IRPass):
                     if in_free_var(MemoryPositions.FREE_VAR_SPACE, write_op.value):
                         offset = write_op.value - MemoryPositions.FREE_VAR_SPACE
                         ptr = self.updater.add_before(
-                            inst, "gep", [self.free_ptr1, IRLiteral(offset)]
+                            inst, "add", [self.free_ptr1, IRLiteral(offset)]
                         )
                         assert ptr is not None
                         update_write_location(inst, ptr)
                     elif in_free_var(MemoryPositions.FREE_VAR_SPACE2, write_op.value):
                         offset = write_op.value - MemoryPositions.FREE_VAR_SPACE2
                         ptr = self.updater.add_before(
-                            inst, "gep", [self.free_ptr2, IRLiteral(offset)]
+                            inst, "add", [self.free_ptr2, IRLiteral(offset)]
                         )
                         assert ptr is not None
                         update_write_location(inst, ptr)
@@ -72,12 +72,12 @@ class FixMemLocationsPass(IRPass):
 
                 if in_free_var(MemoryPositions.FREE_VAR_SPACE, read_op.value):
                     offset = read_op.value - MemoryPositions.FREE_VAR_SPACE
-                    ptr = self.updater.add_before(inst, "gep", [self.free_ptr1, IRLiteral(offset)])
+                    ptr = self.updater.add_before(inst, "add", [self.free_ptr1, IRLiteral(offset)])
                     assert ptr is not None
                     update_read_location(inst, ptr)
                 elif in_free_var(MemoryPositions.FREE_VAR_SPACE2, read_op.value):
                     offset = read_op.value - MemoryPositions.FREE_VAR_SPACE2
-                    ptr = self.updater.add_before(inst, "gep", [self.free_ptr2, IRLiteral(offset)])
+                    ptr = self.updater.add_before(inst, "add", [self.free_ptr2, IRLiteral(offset)])
                     assert ptr is not None
                     update_read_location(inst, ptr)
 

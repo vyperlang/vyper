@@ -167,9 +167,6 @@ class ReadonlyMemoryArgsGlobalAnalysis(IRGlobalAnalysis):
                 return root_param_indices_var(src)
             return frozenset()
 
-        if op == "gep":
-            return self._root_from_gep(inst, root_param_indices_var)
-
         if op == "add":
             return self._root_from_add(inst, root_param_indices_var)
 
@@ -201,15 +198,4 @@ class ReadonlyMemoryArgsGlobalAnalysis(IRGlobalAnalysis):
             roots.update(root_param_indices_var(a))
         if isinstance(b, IRVariable):
             roots.update(root_param_indices_var(b))
-        return frozenset(roots)
-
-    def _root_from_gep(self, inst: IRInstruction, root_param_indices_var) -> frozenset[int]:
-        if len(inst.operands) != 2:
-            return frozenset()
-        base, offset = inst.operands
-        roots: set[int] = set()
-        if isinstance(base, IRVariable):
-            roots.update(root_param_indices_var(base))
-        if isinstance(offset, IRVariable):
-            roots.update(root_param_indices_var(offset))
         return frozenset(roots)
