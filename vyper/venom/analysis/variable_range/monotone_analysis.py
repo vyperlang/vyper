@@ -140,6 +140,7 @@ class VariableRangeMonotoneAnalysis(MonotoneAnalysis[RangeLattice]):
         self, bb: IRBasicBlock, input_lattice: RangeLattice
     ) -> RangeLattice:
         self._normalize_state(input_lattice.data)
+        self._visit_count[bb] += 1
 
         state = input_lattice.data
 
