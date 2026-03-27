@@ -8,7 +8,7 @@ from vyper.exceptions import (
     UndeclaredDefinition,
 )
 from vyper.semantics.analysis import analyze_modules
-from vyper.utils import OrderedSet
+from vyper.semantics.analysis.imports import ImportAnalyzer
 
 
 @pytest.mark.parametrize("value", ["address", "Bytes[10]", "decimal", "bool"])
@@ -23,7 +23,7 @@ def foo(b: {value}):
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(TypeMismatch):
-        analyze_modules(OrderedSet([vyper_module]))
+        analyze_modules(ImportAnalyzer(vyper_module))
 
 
 @pytest.mark.parametrize("value", ["1.0", "0.0", "'foo'", "0x00", "b'\x01'", "False"])
@@ -38,7 +38,7 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(TypeMismatch):
-        analyze_modules(OrderedSet([vyper_module]))
+        analyze_modules(ImportAnalyzer(vyper_module))
 
 
 @pytest.mark.parametrize("value", [-1, 3, -(2**127), 2**127 - 1, 2**256 - 1])
@@ -53,7 +53,7 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ArrayIndexException):
-        analyze_modules(OrderedSet([vyper_module]))
+        analyze_modules(ImportAnalyzer(vyper_module))
 
 
 @pytest.mark.parametrize("value", ["b", "self.b"])
@@ -68,7 +68,7 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(UndeclaredDefinition):
-        analyze_modules(OrderedSet([vyper_module]))
+        analyze_modules(ImportAnalyzer(vyper_module))
 
 
 @pytest.mark.parametrize("value", ["a", "foo", "int128"])
@@ -83,4 +83,4 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(InvalidReference):
-        analyze_modules(OrderedSet([vyper_module]))
+        analyze_modules(ImportAnalyzer(vyper_module))

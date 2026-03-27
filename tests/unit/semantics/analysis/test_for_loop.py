@@ -3,7 +3,7 @@ import pytest
 from vyper.ast import parse_to_ast
 from vyper.exceptions import ArgumentException, ImmutableViolation, StructureException, TypeMismatch
 from vyper.semantics.analysis import analyze_modules
-from vyper.utils import OrderedSet
+from vyper.semantics.analysis.imports import ImportAnalyzer
 
 
 def test_modify_iterator_function_outside_loop():
@@ -22,7 +22,7 @@ def bar():
         pass
     """
     vyper_module = parse_to_ast(code)
-    analyze_modules(OrderedSet([vyper_module]))
+    analyze_modules(ImportAnalyzer(vyper_module))
 
 
 def test_pass_memory_var_to_other_function():
@@ -42,7 +42,7 @@ def bar():
         self.foo(a)
     """
     vyper_module = parse_to_ast(code)
-    analyze_modules(OrderedSet([vyper_module]))
+    analyze_modules(ImportAnalyzer(vyper_module))
 
 
 def test_modify_iterator():
@@ -57,7 +57,7 @@ def bar():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation):
-        analyze_modules(OrderedSet([vyper_module]))
+        analyze_modules(ImportAnalyzer(vyper_module))
 
 
 def test_bad_keywords():
@@ -71,7 +71,7 @@ def bar(n: uint256):
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ArgumentException):
-        analyze_modules(OrderedSet([vyper_module]))
+        analyze_modules(ImportAnalyzer(vyper_module))
 
 
 def test_bad_bound():
@@ -85,7 +85,7 @@ def bar(n: uint256):
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(StructureException):
-        analyze_modules(OrderedSet([vyper_module]))
+        analyze_modules(ImportAnalyzer(vyper_module))
 
 
 def test_modify_iterator_function_call():
@@ -104,7 +104,7 @@ def bar():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation):
-        analyze_modules(OrderedSet([vyper_module]))
+        analyze_modules(ImportAnalyzer(vyper_module))
 
 
 def test_modify_iterator_recursive_function_call():
@@ -127,7 +127,7 @@ def baz():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation):
-        analyze_modules(OrderedSet([vyper_module]))
+        analyze_modules(ImportAnalyzer(vyper_module))
 
 
 def test_modify_iterator_recursive_function_call_topsort():
@@ -150,7 +150,7 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation) as e:
-        analyze_modules(OrderedSet([vyper_module]))
+        analyze_modules(ImportAnalyzer(vyper_module))
 
     assert e.value._message == "Cannot modify loop variable `a`"
 
@@ -171,7 +171,7 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation) as e:
-        analyze_modules(OrderedSet([vyper_module]))
+        analyze_modules(ImportAnalyzer(vyper_module))
 
     assert e.value._message == "Cannot modify loop variable `a`"
 
@@ -190,7 +190,7 @@ def foo():
         self.b[self.a[1]] = i
     """
     vyper_module = parse_to_ast(code)
-    analyze_modules(OrderedSet([vyper_module]))
+    analyze_modules(ImportAnalyzer(vyper_module))
 
 
 def test_modify_iterator_siblings():
@@ -208,7 +208,7 @@ def foo():
         self.f.b += i
     """
     vyper_module = parse_to_ast(code)
-    analyze_modules(OrderedSet([vyper_module]))
+    analyze_modules(ImportAnalyzer(vyper_module))
 
 
 def test_modify_subscript_barrier():
@@ -230,7 +230,7 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation) as e:
-        analyze_modules(OrderedSet([vyper_module]))
+        analyze_modules(ImportAnalyzer(vyper_module))
 
     assert e.value._message == "Cannot modify loop variable `b`"
 
@@ -245,7 +245,7 @@ def boo(a: DynArray[uint256, 12] = []):
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation) as e:
-        analyze_modules(OrderedSet([vyper_module]))
+        analyze_modules(ImportAnalyzer(vyper_module))
 
     assert e.value._message == "Cannot modify loop variable `a`"
 
@@ -288,4 +288,4 @@ def foo():
 def test_iterator_type_inference_checker(code):
     vyper_module = parse_to_ast(code)
     with pytest.raises(TypeMismatch):
-        analyze_modules(OrderedSet([vyper_module]))
+        analyze_modules(ImportAnalyzer(vyper_module))

@@ -2,8 +2,8 @@ from vyper.ast import parse_to_ast
 from vyper.ast.nodes import Attribute
 from vyper.compiler.phases import CompilerData
 from vyper.semantics.analysis import analyze_modules
+from vyper.semantics.analysis.imports import ImportAnalyzer
 from vyper.semantics.analysis.utils import structurally_equivalent
-from vyper.utils import OrderedSet
 
 
 def test_self_foo_different_modules_not_equal():
@@ -29,7 +29,7 @@ def bar() -> uint256:
 
     def extract_self_foo(module_code):
         module = parse_to_ast(module1_code)
-        analyze_modules(OrderedSet([module]))
+        analyze_modules(ImportAnalyzer(module))
         (self_foo,) = module.get_descendants(Attribute, {"attr": "FOO"})
         return self_foo
 
