@@ -2112,7 +2112,6 @@ def bar(x: uint256 = FOO) -> uint256:
 
 
 def test_chained_abstract_method_call(get_contract, make_input_bundle):
-
     b = """
 @abstract
 def foo() -> uint256: ...
@@ -2136,7 +2135,7 @@ initializes: b
 def foo() -> uint256:
     return 42
     """
-    
+
     # used so that the contract doesn't even import b
     initializer = """
 import a
@@ -2159,12 +2158,9 @@ def call_chained() -> uint256:
     return a.b.foo()  # chained abstract method call through a's view of b
     """
 
-    input_bundle = make_input_bundle({
-        "b.vy": b,
-        "a.vy": a,
-        "override.vy": override,
-        "initializer.vy": initializer,
-    })
+    input_bundle = make_input_bundle(
+        {"b.vy": b, "a.vy": a, "override.vy": override, "initializer.vy": initializer}
+    )
 
     c = get_contract(contract, input_bundle=input_bundle)
 
