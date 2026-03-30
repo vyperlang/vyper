@@ -1,7 +1,12 @@
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import ArrayIndexException, InstantiationException, TypeMismatch
+from vyper.exceptions import (
+    ArrayIndexException,
+    InstantiationException,
+    InvalidType,
+    TypeMismatch,
+)
 
 
 @pytest.mark.parametrize(
@@ -262,6 +267,18 @@ def foo():
 )
 def test_clear_literals(contract, assert_compile_failed, get_contract):
     assert_compile_failed(lambda: get_contract(contract), Exception)
+
+
+def test_empty_constant_name_not_a_type_regression_4865():
+    code = """
+MAX_MESSAGES: constant(uint256) = 64
+
+@external
+def parse_blob(blob: Bytes[4096]):
+    starts: DynArray[uint16, MAX_MESSAGES] = empty(MAX_MESSAGES)
+"""
+    with pytest.raises(InvalidType, match="is not a type"):
+        compile_code(code)
 
 
 def test_empty_bytes(get_contract):

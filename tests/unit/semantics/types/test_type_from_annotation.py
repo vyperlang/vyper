@@ -2,6 +2,7 @@ import pytest
 
 from vyper.exceptions import (
     ArrayIndexException,
+    CompilerPanic,
     InvalidType,
     StructureException,
     UndeclaredDefinition,
@@ -104,3 +105,10 @@ def test_multidimensional_mapping(build_node, type_str, type_str2):
     v_t = types[type_str2]
 
     assert ann_t == HashMapT(k_t, HashMapT(k_t, v_t))
+
+
+def test_name_resolving_to_non_vyper_non_varinfo_raises_compiler_panic(build_node, namespace):
+    namespace["CoverageNotAType"] = object()
+    node = build_node("CoverageNotAType")
+    with pytest.raises(CompilerPanic, match="Not a type:"):
+        type_from_annotation(node)
