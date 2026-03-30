@@ -138,7 +138,6 @@ class LoadAnalysis(IRAnalysis):
         if self.space != addr_space.DATA:
             memlocs_to_lattice = dict((self.get_memloc(key), set([key])) for key in lattice)
 
-
         for inst in bb.instructions:
             if inst.opcode == load_opcode:
                 self.inst_to_lattice[inst] = lattice.copy()
@@ -163,8 +162,10 @@ class LoadAnalysis(IRAnalysis):
             self.bb_to_lattice[bb] = lattice
             return True
         return False
-    
-    def remove_write_conflicts(self, memloc: MemoryLocation, lattice: Lattice, memlocs_to_lattice, ptr, val):
+
+    def remove_write_conflicts(
+        self, memloc: MemoryLocation, lattice: Lattice, memlocs_to_lattice, ptr, val
+    ):
         assert self.space != addr_space.DATA
 
         alias_set = self.mem_alias.get_alias_set(memloc)

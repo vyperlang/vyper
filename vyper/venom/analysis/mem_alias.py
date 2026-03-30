@@ -5,7 +5,7 @@ from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis, IRAnalysis
 from vyper.venom.basicblock import IRInstruction
-from vyper.venom.memory_location import MemoryLocation, Allocation
+from vyper.venom.memory_location import Allocation, MemoryLocation
 
 
 class MemoryAliasAnalysisAbstract(IRAnalysis):
@@ -63,24 +63,23 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
             if MemoryLocation.may_overlap(loc, other_loc):
                 self.alias_sets[loc].add(other_loc)
                 self.alias_sets[other_loc].add(loc)
-    
+
     def insert_memloc(self, loc: MemoryLocation):
         assert loc.alloca is not None
         if loc.alloca not in self.abstract_locs:
             self.abstract_locs[loc.alloca] = []
-        
+
         def key(item: MemoryLocation) -> int:
             if item.size is None or item.offset is None:
                 return 2**256
             return item.size + item.offset
 
         alloca_list = self.abstract_locs[loc.alloca]
-        index  = bisect.bisect_left(alloca_list, key(loc), key=key)
+        index = bisect.bisect_left(alloca_list, key(loc), key=key)
         if len(alloca_list) <= index or alloca_list[index] != loc:
             alloca_list.insert(index, loc)
         offset = 0 if loc.offset is None else loc.offset
         return bisect.bisect_left(alloca_list, offset, key=key)
-        
 
     def _analyze_abstract_mem_location(self, loc: MemoryLocation):
         assert loc.alloca is not None
@@ -95,7 +94,6 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
             if MemoryLocation.may_overlap(loc, other_loc):
                 self.alias_sets[loc].add(other_loc)
                 self.alias_sets[other_loc].add(loc)
-
 
     def may_alias(self, loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
         """
