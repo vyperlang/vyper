@@ -2,7 +2,13 @@ from typing import Iterator
 
 from vyper.utils import OrderedSet
 from vyper.venom import effects
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, DominatorTreeAnalysis, IRAnalysesCache
+from vyper.venom.analysis import (
+    CFGAnalysis,
+    DFGAnalysis,
+    DominatorTreeAnalysis,
+    IRAnalysesCache,
+    LivenessAnalysis,
+)
 from vyper.venom.analysis.loop import Loop, LoopAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand
 from vyper.venom.function import IRFunction
@@ -35,8 +41,15 @@ class LICMPass(IRPass):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.loop_analysis = self.analyses_cache.request_analysis(LoopAnalysis)
 
+        self.changed = False
         for loop in self.loop_analysis.loops:
             self._process_loop(loop)
+
+        if self.changed:
+            self.analyses_cache.invalidate_analysis(CFGAnalysis)
+            self.analyses_cache.invalidate_analysis(DFGAnalysis)
+            self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+            self.analyses_cache.invalidate_analysis(LoopAnalysis)
 
     def _get_phi_instructions(self, bb: IRBasicBlock) -> Iterator[IRInstruction]:
         """Get all phi instructions in a basic block."""
@@ -199,6 +212,9 @@ class LICMPass(IRPass):
             for use in self.dfg.get_uses(inst.output):
                 if use.parent in loop.body:
                     worklist.append(use)
+
+        if len(self.invariant) > 0:
+            self.changed = True
 
         for inst in self.invariant:
             # Remove from original block

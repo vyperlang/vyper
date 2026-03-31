@@ -83,9 +83,25 @@ class LoopAnalysis(IRAnalysis):
         return [succ for bb in loop.body for succ in self.cfg.cfg_out(bb) - loop.body]
 
     def get_preheader(self, loop: Loop) -> IRBasicBlock | None:
-        """Single predecessor from outside the loop, if exists"""
+        """
+        Get the preheader of a loop if it exists.
+
+        A valid preheader must:
+        1. Be the single predecessor from outside the loop
+        2. Have the loop header as its only successor
+
+        Returns None if no valid preheader exists.
+        """
         outside_preds = [p for p in self.cfg.cfg_in(loop.header) if p not in loop.body]
-        return outside_preds[0] if len(outside_preds) == 1 else None
+        if len(outside_preds) != 1:
+            return None
+
+        preheader = outside_preds[0]
+        # Preheader must have loop header as only successor
+        if self.cfg.cfg_out(preheader) != OrderedSet([loop.header]):
+            return None
+
+        return preheader
 
     def is_variable_defined_in_loop(self, var: IRVariable, loop: Loop) -> bool:
         inst = self.dfg.get_producing_instruction(var)
