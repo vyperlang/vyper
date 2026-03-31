@@ -1,8 +1,9 @@
 from typing import Iterator
 
 from vyper.utils import OrderedSet
+from vyper.venom import effects
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, DominatorTreeAnalysis, IRAnalysesCache
-from vyper.venom.analysis.loop import LoopAnalysis
+from vyper.venom.analysis.loop import Loop, LoopAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
@@ -44,17 +45,26 @@ class LICMPass(IRPass):
                 break  # phis are always at the beginning
             yield inst
 
-    def _get_or_insert_preheader(self, loop) -> IRBasicBlock:
+    def _get_or_insert_preheader(self, loop: Loop) -> IRBasicBlock | None:
         """
         Get the loop preheader, or create one if it doesn't exist.
 
         A preheader is a single block that is the only predecessor of the
         loop header from outside the loop. If multiple outside predecessors
         exist, we create a new preheader and redirect them through it.
+
+        Returns None if the loop has no outside predecessors (e.g. infinite loop
+        from entry).
         """
         # Preheader already exists, no need to split edge.
         if (preheader := self.loop_analysis.get_preheader(loop)) is not None:
             return preheader
+
+        outside_preds = [p for p in self.cfg.cfg_in(loop.header) if p not in loop.body]
+
+        # No outside predecessors - can't create a preheader
+        if len(outside_preds) == 0:
+            return None
 
         fn = self.function
 
@@ -62,10 +72,8 @@ class LICMPass(IRPass):
         preheader_label = IRLabel(f"preheader_{loop.header.label.value}")
         preheader = IRBasicBlock(preheader_label, fn)
 
-        # Add jump to preheader
+        # Add jump to header
         preheader.append_instruction("jmp", loop.header.label)
-
-        outside_preds = [p for p in self.cfg.cfg_in(loop.header) if p not in loop.body]
 
         # Update terminators to go to preheader instead of our loop header
         for pred in outside_preds:
@@ -102,22 +110,29 @@ class LICMPass(IRPass):
         fn.append_basic_block(preheader)
         return preheader
 
-    def _is_hoistable(self, inst: IRInstruction, loop) -> bool:
+    def _is_hoistable(self, inst: IRInstruction, loop: Loop) -> bool:
         """
         Check if an instruction can be hoisted to the preheader.
 
         An instruction is hoistable if:
-        1. It has no side effects (not volatile)
-        2. It's not a phi instruction
-        3. It's loop-invariant (all operands defined outside or invariant)
-        4. Its block dominates all loop exits (unless allow_speculative)
+        1. It has no side effects (not volatile, no writes except MSIZE)
+        2. Its reads don't conflict with loop writes
+        3. It's not a phi instruction or terminator
+        4. It's loop-invariant (all operands defined outside or invariant)
+        5. Its block dominates all loop exits (unless allow_speculative)
         """
-        # Handles no side effects requirement
-        if inst.is_volatile:
+        if inst.is_volatile or inst.is_bb_terminator:
             return False
 
-        # Phi instructions almost always have side effects, so just skip them
         if inst.opcode == "phi":
+            return False
+
+        # Check write effects (allow MSIZE since it's observational)
+        if inst.get_write_effects() & ~effects.MSIZE:
+            return False
+
+        # Check if instruction reads something the loop writes
+        if inst.get_read_effects() & self.loop_write_effects:
             return False
 
         if not self._is_invariant(inst, loop):
@@ -150,9 +165,20 @@ class LICMPass(IRPass):
             return False
         return True
 
-    def _process_loop(self, loop):
-        preheader = self._get_or_insert_preheader(loop)
+    def _collect_loop_write_effects(self, loop: Loop) -> effects.Effects:
+        """Collect all write effects from instructions in the loop."""
+        result = effects.EMPTY
+        for bb in loop.body:
+            for inst in bb.instructions:
+                result |= inst.get_write_effects()
+        return result
 
+    def _process_loop(self, loop: Loop):
+        preheader = self._get_or_insert_preheader(loop)
+        if preheader is None:
+            return  # Can't hoist without a preheader
+
+        self.loop_write_effects = self._collect_loop_write_effects(loop)
         self.invariant: OrderedSet[IRInstruction] = OrderedSet()
         worklist = []
         for bb in loop.body:

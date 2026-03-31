@@ -43,8 +43,14 @@ class LoopAnalysis(IRAnalysis):
     def _find_back_edges(self):
         self.back_edges = []
 
+        # Only check reachable blocks to avoid dominance lookup errors
+        reachable = self.dom.cfg_post_order
         for bb in self.fn.get_basic_blocks():
+            if bb not in reachable:
+                continue
             for succ in self.cfg.cfg_out(bb):
+                if succ not in reachable:
+                    continue
                 if self.dom.dominates(succ, bb):
                     self.back_edges.append((bb, succ))
 
