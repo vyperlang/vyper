@@ -1,5 +1,3 @@
-from typing import Iterator
-
 from vyper.utils import OrderedSet
 from vyper.venom import effects
 from vyper.venom.analysis import (
@@ -10,7 +8,7 @@ from vyper.venom.analysis import (
     LivenessAnalysis,
 )
 from vyper.venom.analysis.loop import Loop, LoopAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
@@ -51,77 +49,15 @@ class LICMPass(IRPass):
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
             self.analyses_cache.invalidate_analysis(LoopAnalysis)
 
-    def _get_phi_instructions(self, bb: IRBasicBlock) -> Iterator[IRInstruction]:
-        """Get all phi instructions in a basic block."""
-        for inst in bb.instructions:
-            if inst.opcode != "phi":
-                break  # phis are always at the beginning
-            yield inst
-
-    def _get_or_insert_preheader(self, loop: Loop) -> IRBasicBlock | None:
+    def _get_preheader(self, loop: Loop) -> IRBasicBlock | None:
         """
-        Get the loop preheader, or create one if it doesn't exist.
+        Get the loop preheader if it exists.
 
-        A preheader is a single block that is the only predecessor of the
-        loop header from outside the loop. If multiple outside predecessors
-        exist, we create a new preheader and redirect them through it.
-
-        Returns None if the loop has no outside predecessors (e.g. infinite loop
-        from entry).
+        Returns None if no valid preheader exists. Unlike PR #4819's approach,
+        we don't create preheaders - we skip loops without them to avoid
+        CFG modification complexity.
         """
-        # Preheader already exists, no need to split edge.
-        if (preheader := self.loop_analysis.get_preheader(loop)) is not None:
-            return preheader
-
-        outside_preds = [p for p in self.cfg.cfg_in(loop.header) if p not in loop.body]
-
-        # No outside predecessors - can't create a preheader
-        if len(outside_preds) == 0:
-            return None
-
-        fn = self.function
-
-        # Create a new block
-        preheader_label = IRLabel(f"preheader_{loop.header.label.value}")
-        preheader = IRBasicBlock(preheader_label, fn)
-
-        # Add jump to header
-        preheader.append_instruction("jmp", loop.header.label)
-
-        # Update terminators to go to preheader instead of our loop header
-        for pred in outside_preds:
-            pred.instructions[-1].replace_label_operands({loop.header.label: preheader_label})
-
-        # Collect outside phi operands and strip them from header phis
-        outside_by_phi: dict[IRInstruction, list[tuple[IRLabel, IROperand]]] = {}
-        for phi in self._get_phi_instructions(loop.header):
-            inside = []
-            outside = []
-            for lbl, val in phi.phi_operands:
-                if self.function.get_basic_block(lbl.value) in loop.body:
-                    inside.extend([lbl, val])
-                else:
-                    outside.append((lbl, val))
-
-            if outside:
-                phi.operands = inside  # strip outside entries
-                outside_by_phi[phi] = outside
-
-        # Create preheader phis and add preheader entries to header phis
-        # TODO: if only one entry, skip phi and use value directly
-        for phi, entries in outside_by_phi.items():
-            new_var = self.function.get_next_variable()
-
-            # Create phi in preheader with all outside entries
-            args = [item for lbl, val in entries for item in (lbl, val)]
-            new_phi = IRInstruction("phi", args, [new_var])
-            preheader.insert_instruction(new_phi, 0)
-
-            # Add preheader entry to header phi
-            phi.operands.extend([preheader_label, new_var])
-
-        fn.append_basic_block(preheader)
-        return preheader
+        return self.loop_analysis.get_preheader(loop)
 
     def _is_hoistable(self, inst: IRInstruction, loop: Loop) -> bool:
         """
@@ -187,7 +123,7 @@ class LICMPass(IRPass):
         return result
 
     def _process_loop(self, loop: Loop):
-        preheader = self._get_or_insert_preheader(loop)
+        preheader = self._get_preheader(loop)
         if preheader is None:
             return  # Can't hoist without a preheader
 

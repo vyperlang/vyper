@@ -82,9 +82,10 @@ def test_licm_no_hoist_loop_dependent():
     assert body_opcodes.count("add") == 2
 
 
-def test_licm_needs_preheader():
+def test_licm_no_preheader_skips_loop():
     """
-    Loop with multiple entry points - needs preheader insertion.
+    Loop with multiple entry points has no valid preheader.
+    LICM should skip this loop (no hoisting).
     """
     pre = """
     _global:
@@ -113,19 +114,20 @@ def test_licm_needs_preheader():
     ac = IRAnalysesCache(fn)
     LICMPass(ac, fn).run_pass()
 
-    # A preheader should have been created
-    preheader = fn.get_basic_block("preheader_header")
-    assert preheader is not None
-
+    # No preheader exists (multiple outside preds), so loop is skipped
+    entry1 = fn.get_basic_block("entry1")
+    entry2 = fn.get_basic_block("entry2")
     body = fn.get_basic_block("body")
 
-    preheader_opcodes = [inst.opcode for inst in preheader.instructions]
+    entry1_opcodes = [inst.opcode for inst in entry1.instructions]
+    entry2_opcodes = [inst.opcode for inst in entry2.instructions]
     body_opcodes = [inst.opcode for inst in body.instructions]
 
-    # %inv = add 1, 2 should be hoisted to preheader
-    assert "add" in preheader_opcodes
-    # body should only have %i_next = add, plus lt and jnz
-    assert body_opcodes.count("add") == 1
+    # %inv should NOT be hoisted - stays in body
+    assert "add" not in entry1_opcodes
+    assert "add" not in entry2_opcodes
+    # body still has both adds (%inv and %i_next)
+    assert body_opcodes.count("add") == 2
 
 
 def test_licm_no_hoist_not_dominating_exit():
