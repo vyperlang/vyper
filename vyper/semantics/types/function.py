@@ -346,7 +346,9 @@ class ContractFunctionT(VyperType):
                 "Default functions cannot appear in interfaces", funcdef
             )
 
-        positional_args, keyword_args = _parse_args(funcdef, is_interface=True)
+        positional_args, keyword_args = _parse_args(
+            funcdef, FunctionVisibility.EXTERNAL, is_interface=True
+        )
 
         return_type = _parse_return_type(funcdef)
 
@@ -421,7 +423,9 @@ class ContractFunctionT(VyperType):
                 "Default functions cannot appear in interfaces", funcdef
             )
 
-        positional_args, keyword_args = _parse_args(funcdef, is_interface=True)
+        positional_args, keyword_args = _parse_args(
+            funcdef, FunctionVisibility.EXTERNAL, is_interface=True
+        )
 
         return_type = _parse_return_type(funcdef)
 
@@ -479,7 +483,7 @@ class ContractFunctionT(VyperType):
                     *decorators.override_nodes,
                 )
 
-        positional_args, keyword_args = _parse_args(funcdef, is_abstract=is_abstract)
+        positional_args, keyword_args = _parse_args(funcdef, function_visibility, is_abstract=is_abstract)
 
         return_type = _parse_return_type(funcdef)
 
@@ -1062,7 +1066,10 @@ def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
 
 
 def _parse_args(
-    funcdef: vy_ast.FunctionDef, is_interface: bool = False, is_abstract: bool = False
+    funcdef: vy_ast.FunctionDef,
+    visibility: FunctionVisibility,
+    is_interface: bool = False,
+    is_abstract: bool = False,
 ) -> tuple[list[PositionalArg], list[KeywordArg]]:
     argnames = set()  # for checking uniqueness
     n_total_args = len(funcdef.args.args)
@@ -1070,6 +1077,12 @@ def _parse_args(
 
     positional_args = []
     keyword_args = []
+
+    # internal function args live in memory, everything else comes from calldata
+    if visibility == FunctionVisibility.INTERNAL:
+        location = DataLocation.MEMORY
+    else:
+        location = DataLocation.CALLDATA
 
     for i, arg in enumerate(funcdef.args.args):
         argname = arg.arg
@@ -1083,7 +1096,7 @@ def _parse_args(
         if arg.annotation is None:
             raise ArgumentException(f"Function argument '{argname}' is missing a type", arg)
 
-        type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
+        type_ = type_from_annotation(arg.annotation, location)
 
         if i < n_positional_args:
             positional_args.append(PositionalArg(argname, type_, ast_source=arg))
