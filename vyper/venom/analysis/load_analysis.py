@@ -136,7 +136,11 @@ class LoadAnalysis(IRAnalysis):
         lattice = self._merge(bb)
         memlocs_to_lattice: dict[MemoryLocation, set[MemoryLocation | IROperand]] = dict()
         if self.space != addr_space.DATA:
-            memlocs_to_lattice = dict((self.get_memloc(key), set([key])) for key in lattice)
+            for key in lattice:
+                loc = self.get_memloc(key)
+                if loc not in memlocs_to_lattice:
+                    memlocs_to_lattice[loc] = set()
+                memlocs_to_lattice[loc].add(key)
 
         for inst in bb.instructions:
             if inst.opcode == load_opcode:
