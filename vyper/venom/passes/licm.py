@@ -142,12 +142,13 @@ class LICMPass(IRPass):
 
             self.invariant.add(inst)
 
-            if not inst.output:
+            if not inst.has_outputs:
                 continue
 
-            for use in self.dfg.get_uses(inst.output):
-                if use.parent in loop.body:
-                    worklist.append(use)
+            for out in inst.get_outputs():
+                for use in self.dfg.get_uses(out):
+                    if use.parent in loop.body:
+                        worklist.append(use)
 
         if len(self.invariant) > 0:
             self.changed = True
