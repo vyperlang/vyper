@@ -911,7 +911,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
 
 def _pretty_param(param: _FunctionArg) -> str:
-    return f"`{param.name}: {param.typ._id}`"
+    return f"`{param.name}: {param.typ}`"
 
 
 def _default_values_match(p_override: _FunctionArg, p_abstract: _FunctionArg) -> bool:
@@ -955,7 +955,7 @@ def _parameter_override_discrepancy(
         return FunctionDeclarationException(
             "Override parameter mismatch: "
             f"Got {_pretty_param(p_override)}, "
-            f"but expected {_pretty_param(p_abstract)} (or stricter)",
+            f"but expected {_pretty_param(p_abstract)} (or more general)",
             p_override.ast_source,
             p_abstract.ast_source,
         )
