@@ -152,7 +152,6 @@ class LoadAnalysis(IRAnalysis):
                 lattice[ptr] = OrderedSet([inst.output])
                 loc = self.get_memloc(ptr)
 
-
                 if loc not in memlocs_to_lattice:
                     memlocs_to_lattice[loc] = set()
                 memlocs_to_lattice[loc].add(ptr)
@@ -161,9 +160,10 @@ class LoadAnalysis(IRAnalysis):
                 val, _ = inst.operands
                 ptr = self.get_write(inst)
                 memloc = self.get_memloc(ptr)
-                
 
-                lattice = self.remove_write_conflicts(memloc, lattice.copy(), memlocs_to_lattice, ptr, val)
+                lattice = self.remove_write_conflicts(
+                    memloc, lattice.copy(), memlocs_to_lattice, ptr, val
+                )
             elif isinstance(eff, Effects) and eff in inst.get_write_effects():
                 lattice.clear()
                 memlocs_to_lattice.clear()
