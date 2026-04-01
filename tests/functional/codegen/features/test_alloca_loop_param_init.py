@@ -1,10 +1,6 @@
 """
-Regression test for alloca param initialization being incorrectly repeated in loops.
-
-When a stack-passed parameter is copied into an alloca inside a loop body, the
-initializer mstore was being left in the loop after FloatAllocas moved the
-alloca to the entry block. This re-initialized the parameter each iteration,
-breaking loop-carried dependencies and suppressing expected reverts.
+Regression test for alloca param initialization being incorrectly repeated
+in loops.
 """
 import copy
 
