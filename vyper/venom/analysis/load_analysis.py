@@ -102,12 +102,15 @@ class LoadAnalysis(IRAnalysis):
 
     def get_memloc(self, op: IROperand | MemoryLocation) -> MemoryLocation:
         if isinstance(op, MemoryLocation):
+            self.mem_alias.ensure_analyzed(op)
             return op
         if isinstance(op, IRVariable):
             op = self.dfg._traverse_assign_chain(op)
         assert isinstance(op, (IRVariable, IRLiteral))
         access_ops = InstAccessOps(ofst=op, size=IRLiteral(self.word_scale))
-        return self.base_ptrs.segment_from_ops(access_ops)
+        loc = self.base_ptrs.segment_from_ops(access_ops)
+        self.mem_alias.ensure_analyzed(loc)
+        return loc
 
     def _normalize_operand(self, op: IROperand) -> IROperand:
         if isinstance(op, IRVariable):
@@ -148,6 +151,8 @@ class LoadAnalysis(IRAnalysis):
                 ptr = self.get_read(inst)
                 lattice[ptr] = OrderedSet([inst.output])
                 loc = self.get_memloc(ptr)
+
+
                 if loc not in memlocs_to_lattice:
                     memlocs_to_lattice[loc] = set()
                 memlocs_to_lattice[loc].add(ptr)
@@ -156,8 +161,9 @@ class LoadAnalysis(IRAnalysis):
                 val, _ = inst.operands
                 ptr = self.get_write(inst)
                 memloc = self.get_memloc(ptr)
+                
 
-                lattice = self.remove_write_conflicts(memloc, lattice, memlocs_to_lattice, ptr, val)
+                lattice = self.remove_write_conflicts(memloc, lattice.copy(), memlocs_to_lattice, ptr, val)
             elif isinstance(eff, Effects) and eff in inst.get_write_effects():
                 lattice.clear()
                 memlocs_to_lattice.clear()

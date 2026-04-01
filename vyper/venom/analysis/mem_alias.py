@@ -85,15 +85,18 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
         assert loc.alloca is not None
         index = self.insert_memloc(loc)
 
+
         for concrete_loc in self.concrete_locs:
             if MemoryLocation.may_overlap(loc, concrete_loc):
                 self.alias_sets[loc].add(concrete_loc)
                 self.alias_sets[concrete_loc].add(loc)
 
+
         for other_loc in self.abstract_locs[loc.alloca][index:]:
             if MemoryLocation.may_overlap(loc, other_loc):
                 self.alias_sets[loc].add(other_loc)
                 self.alias_sets[other_loc].add(loc)
+        
 
     def may_alias(self, loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
         """
@@ -118,6 +121,10 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
         if loc not in self.alias_sets:
             self._analyze_mem_location(loc)
         return self.alias_sets.get(loc, None)
+
+    def ensure_analyzed(self, loc: MemoryLocation):
+        if loc not in self.alias_sets:
+            self._analyze_mem_location(loc)
 
     def mark_volatile(self, loc: MemoryLocation) -> MemoryLocation:
         volatile_loc = loc.mk_volatile()
