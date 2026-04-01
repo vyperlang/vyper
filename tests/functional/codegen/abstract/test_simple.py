@@ -1,9 +1,14 @@
+from collections import defaultdict
+from textwrap import dedent
+
 import pytest
 
+import vyper
 from vyper.exceptions import (
     ArgumentException,
     CallViolation,
     FunctionDeclarationException,
+    ImmutableViolation,
     VyperException,
 )
 
@@ -44,14 +49,22 @@ def test_stateful_override_with_initializes(get_contract, make_input_bundle):
     # Test that the same contract works when override_m is properly initialized
     contract = """
 import abstract_m
-import override_m
+import initializer
 
 uses: abstract_m
-initializes: override_m  # Now properly initialized
+initializes: initializer
 
 @external
 def my_method() -> uint256:
     return abstract_m.bar()
+    """
+
+    # makes it so override_m is not imported in the contract
+    # => would make compiler force contract to call override_m.bar instead
+    initializer = """
+import override_m
+
+initializes: override_m
     """
 
     abstract_m = """
@@ -70,7 +83,9 @@ def bar() -> uint256:
     self.counter += 1
     return 101
     """
-    input_bundle = make_input_bundle({"abstract_m.vy": abstract_m, "override_m.vy": override_m})
+    input_bundle = make_input_bundle(
+        {"initializer.vy": initializer, "abstract_m.vy": abstract_m, "override_m.vy": override_m}
+    )
 
     c = get_contract(contract, input_bundle=input_bundle)
 
@@ -1091,55 +1106,6 @@ def bar() -> uint256:  # Not abstract
     assert "method is not abstract" in e.value.message
 
 
-def test_three_level_override_chain(get_contract, make_input_bundle):
-    """Test chain of overrides: A.foo overrides B.foo which overrides C.foo"""
-
-    module_c = """
-@abstract
-def foo() -> uint256: ...
-    """
-
-    module_b = """
-import module_c
-
-initializes: module_c
-
-@abstract
-@override(module_c)
-def foo() -> uint256: ...
-    """
-
-    module_a = """
-import module_b
-
-initializes: module_b
-
-@override(module_b)
-def foo() -> uint256:
-    return 42
-    """
-
-    contract = """
-import module_a
-import module_c
-
-initializes: module_a
-uses: module_c
-
-@external
-def test_foo() -> uint256:
-    # Can call through module_c and get A's implementation
-    return module_c.foo()
-    """
-
-    input_bundle = make_input_bundle(
-        {"module_c.vy": module_c, "module_b.vy": module_b, "module_a.vy": module_a}
-    )
-
-    c = get_contract(contract, input_bundle=input_bundle)
-    assert c.test_foo() == 42
-
-
 def test_override_with_default_param_changes_signature(get_contract, make_input_bundle):
     """
     Test that we can't call a.foo(1) if in 'a' it's foo() but overridden by foo(x: uint256 = 0)
@@ -1249,14 +1215,20 @@ def common_method() -> uint256:
     return 100
     """
 
+    initializer = """
+import override_module
+
+initializes: override_module
+    """
+
     contract = """
 import abstract_module_a
 import abstract_module_b
-import override_module
+import initializer
 
 uses: abstract_module_a
 uses: abstract_module_b
-initializes: override_module
+initializes: initializer
 
 @external
 def test_a() -> uint256:
@@ -1269,6 +1241,7 @@ def test_b() -> uint256:
 
     input_bundle = make_input_bundle(
         {
+            "initializer.vy": initializer,
             "abstract_module_a.vy": abstract_module_a,
             "abstract_module_b.vy": abstract_module_b,
             "override_module.vy": override_module,
@@ -1281,7 +1254,7 @@ def test_b() -> uint256:
 
 
 def test_method_overrides_multiple_abstracts_signature_match(get_contract, make_input_bundle):
-    """Test that overriding multiple abstracts fails if signatures don't match"""
+    """Test that overriding multiple abstracts with different defaults works"""
 
     abstract_module_a = """
 @abstract
@@ -1306,14 +1279,20 @@ def common_method(x: uint256 = 100) -> uint256:
     return x
     """
 
+    initializer = """
+import override_module
+
+initializes: override_module
+    """
+
     contract = """
 import abstract_module_a
 import abstract_module_b
-import override_module
+import initializer
 
 uses: abstract_module_a
 uses: abstract_module_b
-initializes: override_module
+initializes: initializer
 
 @external
 def test1() -> uint256:
@@ -1326,6 +1305,7 @@ def test2(x: uint256) -> uint256:
 
     input_bundle = make_input_bundle(
         {
+            "initializer.vy": initializer,
             "abstract_module_a.vy": abstract_module_a,
             "abstract_module_b.vy": abstract_module_b,
             "override_module.vy": override_module,
@@ -1375,13 +1355,19 @@ def process() -> uint256:
     return stateful.get_counter()
     """
 
-    contract = """
+    initializer = """
 import stateful
 import a_module
+
+initializes: a_module[stateful := stateful]
+    """
+
+    contract = """
+import initializer
 import b_module
 
 uses: b_module
-initializes: a_module[stateful := stateful]
+initializes: initializer
 
 @external
 def test_multiple_calls() -> uint256:
@@ -1391,7 +1377,12 @@ def test_multiple_calls() -> uint256:
     """
 
     input_bundle = make_input_bundle(
-        {"stateful.vy": stateful, "b_module.vy": b_module, "a_module.vy": a_module}
+        {
+            "initializer.vy": initializer,
+            "stateful.vy": stateful,
+            "b_module.vy": b_module,
+            "a_module.vy": a_module,
+        }
     )
 
     c = get_contract(contract, input_bundle=input_bundle)
@@ -1431,13 +1422,18 @@ def process() -> uint256:
     return stateful.get_counter()
     """
 
-    contract = """
-import stateful
+    initializer = """
 import a_module
+
+initializes: a_module
+    """
+
+    contract = """
+import initializer
 import b_module
 
 uses: b_module
-initializes: a_module
+initializes: initializer
 
 @external
 def test_multiple_calls() -> uint256:
@@ -1447,7 +1443,12 @@ def test_multiple_calls() -> uint256:
     """
 
     input_bundle = make_input_bundle(
-        {"stateful.vy": stateful, "b_module.vy": b_module, "a_module.vy": a_module}
+        {
+            "initializer.vy": initializer,
+            "stateful.vy": stateful,
+            "b_module.vy": b_module,
+            "a_module.vy": a_module,
+        }
     )
 
     c = get_contract(contract, input_bundle=input_bundle)
@@ -1671,12 +1672,18 @@ def foo() -> uint256:
     return 42
     """
 
-    contract = """
-import abstract_module
+    initializer = """
 import override_module
 
-uses: abstract_module
 initializes: override_module
+    """
+
+    contract = """
+import abstract_module
+import initializer
+
+uses: abstract_module
+initializes: initializer
 
 @external
 def test() -> uint256:
@@ -1684,7 +1691,11 @@ def test() -> uint256:
     """
 
     input_bundle = make_input_bundle(
-        {"abstract_module.vy": abstract_module, "override_module.vy": override_module}
+        {
+            "initializer.vy": initializer,
+            "abstract_module.vy": abstract_module,
+            "override_module.vy": override_module,
+        }
     )
 
     # Should compile successfully
@@ -2165,3 +2176,212 @@ def call_chained() -> uint256:
     c = get_contract(contract, input_bundle=input_bundle)
 
     assert c.call_chained() == 42
+
+
+def _parse_relationships(chain_str) -> dict[str, list[(str, str)]]:
+    """
+    Parse relationship graph into a dict of source -> (relationship, target).
+
+    Example:
+        '''
+        self -initializes-> a -overrides-> b
+        self -imports-> b
+        ''' becomes
+        {
+            "self": [("initializes", a), ("imports", b)],
+            "a": [("overrides", b)],
+            "b": [],
+        }
+    """
+
+    result = defaultdict(list)
+
+    for line in chain_str.split("\n"):
+        if len(line.strip()) == 0:
+            continue
+
+        tokens = line.split()
+        modules = tokens[0::2]
+        arrows = tokens[1::2]
+
+        for i in range(len(arrows)):
+            arrow: str = arrows[i]
+            source = modules[i]
+            destination = modules[i + 1]
+
+            relationship = arrow.removeprefix("-").removesuffix("->")
+
+            assert relationship in ("imports", "uses", "initializes", "overrides")
+
+            result[source].append((relationship, destination))
+
+        # Make sure the last item in the chain is added
+        result[modules[-1]]
+
+    return result
+
+
+def _generate_modules(relationships: dict[str, list[(str, str)]]):
+    """
+    Generate module code based on the relationships.
+
+    Returns dict of {filename: code}.
+    """
+
+    abstract_modules = set()
+
+    modules: dict[str, str] = {}  # {filename: code}
+
+    for _, children in relationships.items():
+        for rel, child in children:
+            if rel == "overrides":
+                abstract_modules.add(child)
+
+    for current, children in relationships.items():
+        code = ""
+
+        for _, child in children:
+            code += f"import {child}\n"
+
+        code += "\n"
+
+        for rel, child in children:
+            if rel in ("initializes", "overrides"):
+                code += f"initializes: {child}\n"
+            elif rel in ("uses",):
+                code += f"uses: {child}\n"
+            elif rel in ("imports",):
+                pass
+            else:
+                raise AssertionError("unreachable")
+
+        for rel, child in children:
+            if rel in ("uses",):
+                code += dedent(
+                    f"""
+                    # Otherwise uses complains about not being required
+                    def _make_uses_{child}_valid():
+                        {child}.foo()
+                """
+                )
+
+            if rel in ("overrides",):
+                if current in abstract_modules:
+                    code += dedent(
+                        f"""
+                        @abstract
+                        @override({child})
+                        def foo() -> uint256:
+                            ...
+                    """
+                    )
+                else:
+                    code += dedent(
+                        f"""
+                        @override({child})
+                        def foo() -> uint256:
+                            return 42
+                    """
+                    )
+
+        if "def foo" not in code:
+            if current in abstract_modules:
+                code += dedent(
+                    """
+                    @abstract
+                    def foo() -> uint256:
+                        ...
+                """
+                )
+            else:
+                code += dedent(
+                    """
+                    def foo() -> uint256:
+                        return 42
+                """
+                )
+
+        modules[f"{current}.vy"] = code
+
+    return modules
+
+
+# Test parameters:
+# (chain_str, call_path, expected_hint)
+#
+# expected_hint: None = success case
+#                str  = error case (ImmutableViolation, hint contains this)
+CHAIN_CALL_TESTS = [
+    # === SUCCESS CASES ===
+    ("self -initializes-> a -initializes-> b", "a.b.foo()", None),
+    (  # Can call through c and get a's implementation
+        """
+        self -initializes-> initializer -initializes-> a -overrides-> b -overrides-> c
+        self -uses-> c
+        """,
+        "c.foo()",
+        None,
+    ),
+    # === ERROR CASES ===
+    ("self -overrides-> b", "b.foo()", "self.foo"),
+    ("self -overrides-> b -overrides-> c", "b.c.foo()", "self.foo"),
+    ("self -initializes-> a -overrides-> b", "a.b.foo()", "a.foo"),
+    ("self -initializes-> a -initializes-> b -overrides-> c", "a.b.c.foo()", "a.b.foo"),
+    ("self -initializes-> a -overrides-> b -overrides-> c", "a.b.c.foo()", "a.foo"),
+    (
+        """
+        self -initializes-> a -initializes-> b -overrides-> c
+        self -imports-> b
+        """,
+        "a.b.c.foo()",
+        "b.foo",
+    ),
+]
+
+
+@pytest.mark.parametrize("chain_str,call_path,expected_hint", CHAIN_CALL_TESTS)
+def test_abstract_method_chain_call(
+    get_contract, make_input_bundle, chain_str, call_path, expected_hint
+):
+    """
+    Parametrized test for abstract method chain calls.
+
+    Tests various module relationship chains and verifies correct behavior
+    for both success cases and error cases with proper hints.
+    """
+
+    relationships = _parse_relationships(chain_str)
+    modules = _generate_modules(relationships)
+
+    contract_code = modules["self.vy"] + dedent(
+        f"""
+        @external
+        def test() -> uint256:
+            return {call_path}
+    """
+    )
+
+    input_bundle = make_input_bundle(modules)
+
+    if expected_hint is None:
+        # Success case
+        c = get_contract(contract_code, input_bundle=input_bundle)
+        assert c.test() == 42
+    else:
+        # Error case
+        with pytest.raises(ImmutableViolation) as exc_info:
+            vyper.compile_code(contract_code, input_bundle=input_bundle)
+        assert f"reached by more direct path `{expected_hint}`" in str(exc_info.value)
+
+        # Check the hint actually works
+
+        hinted_at_contract_code = modules["self.vy"] + dedent(
+            f"""
+            @external
+            def test() -> uint256:
+                return {expected_hint}()
+        """
+        )
+
+        c = get_contract(hinted_at_contract_code, input_bundle=input_bundle)
+        assert c.test() == 42

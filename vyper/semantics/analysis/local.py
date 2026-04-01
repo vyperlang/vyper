@@ -290,6 +290,50 @@ def check_module_uses(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
     return root_module_info
 
 
+def best_call_path(
+    node: vy_ast.Attribute, func_t: ContractFunctionT, module_infos: list[ModuleInfo]
+) -> str:
+    """
+    Find the most concrete accessible module that provides an override.
+    Returns the access path string, or None if no better option exists.
+    """
+
+    namespace = node.module_node._metadata["namespace"]
+    imported_modules = {
+        m_info.module_t: m_info for m_info in namespace.values() if isinstance(m_info, ModuleInfo)
+    }
+
+    # Build override chain: [concrete, ..., abstract]
+    assert isinstance(func_t.ast_def, vy_ast.FunctionDef)
+    override_chain = [func_t.ast_def.module_node]
+    curr_t = func_t
+    while curr_t.is_abstract:
+        curr_t = curr_t.overridden_by
+        assert isinstance(curr_t.ast_def, vy_ast.FunctionDef)
+        override_chain.insert(0, curr_t.ast_def.module_node)
+
+    # Find first accessible module (most concrete first)
+    for module_node in override_chain:
+        module_t = module_node._metadata["type"]
+
+        # Check if self provides override
+        if module_node is node.module_node:
+            return "self"
+
+        # Check direct import
+        if module_t in imported_modules:
+            return imported_modules[module_t].alias
+
+        # Check call chain
+        path = []
+        for mi in module_infos:
+            path.append(mi.alias)
+            if mi.module_t is module_t:
+                return ".".join(path)
+
+    raise CompilerPanic("unreachable")
+
+
 def check_module_uses_for_abstract(
     node: vy_ast.Attribute, func_t: ContractFunctionT
 ) -> Optional[ModuleInfo]:
@@ -302,29 +346,24 @@ def check_module_uses_for_abstract(
     if len(module_infos) == 0:
         return None
 
+    # Find better accessible override
+    best_path = best_call_path(node, func_t, module_infos)
+    current_path = ".".join(mi.alias for mi in module_infos)
+
+    # Error if a better path exists
+    if best_path != current_path:
+        msg = f"Abstract method `{current_path}.{func_t.name}` (or one of its overrides) can be "
+        msg += f"reached by more direct path `{best_path}.{func_t.name}`, use that instead."
+        raise ImmutableViolation(msg)
+
     for module_info in module_infos:
-        if module_info.ownership == ModuleOwnership.USES:
-            # Correct ownership
-            continue
-        elif module_info.ownership == ModuleOwnership.INITIALIZES:
-            msg = f"Cannot call abstract method `{func_t.name}` "
-            msg += f"from overridden module `{module_info.alias}`"
-
-            hint = f"either call `self.{func_t.name}` directly, or if you do not "
-            hint += f"wish to override it, replace `initializes: {module_info.alias}` "
-            hint += f"by `uses: {module_info.alias}`"
-
-            raise ImmutableViolation(msg, hint=hint)
-        elif module_info.ownership == ModuleOwnership.NO_OWNERSHIP:
-            msg = f"Cannot call abstract method `{func_t.name}` "
-            msg += f"from module `{module_info.alias}` which is not `uses`-ed"
+        if module_info.ownership < ModuleOwnership.USES:
+            msg = f"Cannot access abstract methods of `{module_info.alias}`"
 
             hint = f"add `uses: {module_info.alias}` "
             hint += "as a top-level statement to your contract"
 
             raise ImmutableViolation(msg, hint=hint)
-        else:
-            raise CompilerPanic("unreachable")
 
     # the leftmost-referenced module
     root_module_info = module_infos[0]

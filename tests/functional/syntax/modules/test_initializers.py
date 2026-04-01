@@ -1454,14 +1454,19 @@ exports: lib1.bar
 def test_stateful_override_without_initializes(make_input_bundle):
     contract = """
 import abstract_m
-import override_m
+import initializer
 
 uses: abstract_m
-# initializes: override_m # should fail gracefully without this
+initializes: initializer
 
 @external
 def my_method() -> uint256:
     return abstract_m.bar()
+    """
+
+    initializer = """
+import override_m
+# initializes: override_m # should fail gracefully without this
     """
 
     abstract_m = """
@@ -1480,7 +1485,9 @@ def bar() -> uint256:
     self.counter += 1
     return 101
     """
-    input_bundle = make_input_bundle({"abstract_m.vy": abstract_m, "override_m.vy": override_m})
+    input_bundle = make_input_bundle(
+        {"initializer.vy": initializer, "abstract_m.vy": abstract_m, "override_m.vy": override_m}
+    )
 
     with pytest.raises(InitializerException) as e:
         compile_code(contract, input_bundle=input_bundle)
@@ -1496,14 +1503,20 @@ def test_call_to_abstract_without_uses(make_input_bundle):
     # Test that the same contract works when override_m is properly initialized
     contract = """
 import abstract_m
-import override_m
+import initializer
 
 # uses: abstract_m
-initializes: override_m
+initializes: initializer
 
 @external
 def my_method() -> uint256:
     return abstract_m.bar() # Call to abstract method from un-uses-ed module
+    """
+
+    initializer = """
+import override_m
+
+initializes: override_m
     """
 
     abstract_m = """
@@ -1522,14 +1535,14 @@ def bar() -> uint256:
     self.counter += 1
     return 101
     """
-    input_bundle = make_input_bundle({"abstract_m.vy": abstract_m, "override_m.vy": override_m})
+    input_bundle = make_input_bundle(
+        {"initializer.vy": initializer, "abstract_m.vy": abstract_m, "override_m.vy": override_m}
+    )
 
     with pytest.raises(ImmutableViolation) as e:
         compile_code(contract, input_bundle=input_bundle)
 
-    expected_msg = (
-        "Cannot call abstract method `bar` from module `abstract_m` which is not `uses`-ed"
-    )
+    expected_msg = "Cannot access abstract methods of `abstract_m`"
     assert expected_msg in e.value._message
     expected_hint = "add `uses: abstract_m` as a top-level statement to your contract"
     assert e.value._hint == expected_hint
@@ -1565,13 +1578,11 @@ def bar() -> uint256: ...
     with pytest.raises(ImmutableViolation) as e:
         compile_code(contract, input_bundle=input_bundle)
 
-    expected_msg = "Cannot call abstract method `bar` from overridden module `abstract_m`"
-    assert expected_msg in e.value._message
-    expected_hint = (
-        "either call `self.bar` directly, or if you do not wish to override it, "
-        "replace `initializes: abstract_m` by `uses: abstract_m`"
+    expected_msg = (
+        "Abstract method `abstract_m.bar` (or one of its overrides) "
+        "can be reached by more direct path `self.bar`, use that instead."
     )
-    assert e.value._hint == expected_hint
+    assert expected_msg in e.value._message
 
 
 def test_override_non_initialized_module_fails(make_input_bundle):
@@ -1677,12 +1688,18 @@ def foo() -> uint256:
     return 42
     """
 
-    contract = """
+    initializer = """
 import override_module
+
+# initializes: override_module # Without this, we have no way of knowing which override to pick
+    """
+
+    contract = """
+import initializer
 import abstract_module
 
+initializes: initializer
 uses: abstract_module
-# initializes: override_module # Without this, we have no way of knowing which override to pick
 
 @external
 def test_foo() -> uint256:
@@ -1690,7 +1707,11 @@ def test_foo() -> uint256:
     """
 
     input_bundle = make_input_bundle(
-        {"abstract_module.vy": abstract_module, "override_module.vy": override_module}
+        {
+            "initializer.vy": initializer,
+            "abstract_module.vy": abstract_module,
+            "override_module.vy": override_module,
+        }
     )
 
     with pytest.raises(InitializerException) as e:
