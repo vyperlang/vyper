@@ -330,7 +330,7 @@ class VyperNode:
         slot_fields = [x for i in cls.__mro__ for x in getattr(i, "__slots__", [])]
         return set(i for i in slot_fields if not i.startswith("_"))
 
-    # TODO: Profile
+    # TODO: perf profiling
     @classmethod
     def get_comparison_fields(cls) -> set:
         """
