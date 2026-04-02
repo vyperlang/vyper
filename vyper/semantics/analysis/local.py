@@ -133,37 +133,6 @@ def is_terminated(block: list[vy_ast.VyperNode]) -> bool:
 
 
 # helpers
-def _validate_address_code(node: vy_ast.Attribute, value_type: VyperType) -> None:
-    if isinstance(value_type, AddressT) and node.attr == "code":
-        # Validate `slice(<address>.code, start, length)` where `length` is constant
-        parent = node.get_ancestor()
-        if isinstance(parent, vy_ast.Call):
-            ok_func = isinstance(parent.func, vy_ast.Name) and parent.func.id == "slice"
-            ok_args = len(parent.args) == 3 and isinstance(parent.args[2].reduced(), vy_ast.Int)
-            if ok_func and ok_args:
-                return
-
-        raise StructureException(
-            "(address).code is only allowed inside of a slice function with a constant length", node
-        )
-
-
-def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
-    if isinstance(node.value, vy_ast.Name) and node.value.id == "msg" and node.attr == "data":
-        parent = node.get_ancestor()
-        allowed_builtins = ("slice", "len", "raw_call")
-        if not isinstance(parent, vy_ast.Call) or parent.get("func.id") not in allowed_builtins:
-            raise StructureException(
-                "msg.data is only allowed inside of the slice, len or raw_call functions", node
-            )
-        if parent.get("func.id") == "slice":
-            ok_args = len(parent.args) == 3 and isinstance(parent.args[2].reduced(), vy_ast.Int)
-            if not ok_args:
-                raise StructureException(
-                    "slice(msg.data) must use a compile-time constant for length argument", parent
-                )
-
-
 def _validate_msg_value_access(node: vy_ast.Attribute) -> None:
     if isinstance(node.value, vy_ast.Name) and node.attr == "value" and node.value.id == "msg":
         raise NonPayableViolation("msg.value is not allowed in non-payable functions", node)
@@ -839,8 +808,6 @@ class ExprVisitor(VyperNodeVisitorBase):
             self.visit(folded_node, typ)
 
     def visit_Attribute(self, node: vy_ast.Attribute, typ: VyperType) -> None:
-        _validate_msg_data_attribute(node)
-
         # CMC 2023-10-19 TODO generalize this to mutability check on every node.
         # something like,
         # if self.func.mutability < expr_info.mutability:
@@ -853,8 +820,6 @@ class ExprVisitor(VyperNodeVisitorBase):
             _validate_pure_access(node, typ)
 
         value_type = get_exact_type_from_node(node.value)
-
-        _validate_address_code(node, value_type)
 
         self.visit(node.value, value_type)
 

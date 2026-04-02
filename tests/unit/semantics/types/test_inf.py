@@ -1,11 +1,11 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import CompilerPanic
-from vyper.semantics.types import BytesT, INF, StringT
+from vyper.exceptions import TypeMismatch, UndeclaredDefinition
+from vyper.semantics.types import INF, BytesT, StringT
 from vyper.semantics.types.infinity import Inf
 from vyper.semantics.types.utils import type_from_annotation
-from vyper.exceptions import TypeMismatch, UndeclaredDefinition
+
 
 def test_inf_singleton():
     assert INF is Inf()

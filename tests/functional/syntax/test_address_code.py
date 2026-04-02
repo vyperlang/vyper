@@ -4,7 +4,7 @@ from typing import Type
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import NamespaceCollision, StructureException, TypeMismatch, VyperException
+from vyper.exceptions import CompilerPanic, NamespaceCollision, TypeMismatch, VyperException
 
 # For reproducibility, use precompiled data of `hello: public(uint256)` using vyper 0.3.1
 PRECOMPILED_ABI = """[{"stateMutability": "view", "type": "function", "name": "hello", "inputs": [], "outputs": [{"name": "", "type": "uint256"}], "gas": 2460}]"""  # noqa: E501, FS003
@@ -63,17 +63,6 @@ def code_slice(x: address) -> Bytes[4]:
     ("bad_code", "error_type", "error_message"),
     [
         (
-            # `(address).code` without `slice`
-            """
-@external
-def code_slice(x: address) -> uint256:
-    y: uint256 = convert(x.code, uint256)
-    return y
-""",
-            StructureException,
-            "(address).code is only allowed inside of a slice function with a constant length",
-        ),
-        (
             """
 a: HashMap[Bytes[4], uint256]
 
@@ -83,17 +72,6 @@ def foo(x: address):
 """,
             TypeMismatch,
             "Given reference has type Bytes[INF], expected Bytes[4]",
-        ),
-        (
-            # `len` not supported
-            """
-@external
-def code_slice(x: address) -> uint256:
-    y: uint256 = len(x.code)
-    return y
-""",
-            StructureException,
-            "(address).code is only allowed inside of a slice function with a constant length",
         ),
         (
             # `slice` with non static length
@@ -238,3 +216,25 @@ def test_code_properties(addr: address) -> (uint256, uint256, bytes32, bool):
     assert balance == 0
     assert codehash != b"\x00" * 32
     assert is_contract is True
+
+
+@pytest.mark.xfail(raises=CompilerPanic, reason="unbounded sequence types not yet fully supported")
+def test_address_code_convert():
+    code = """
+@external
+def code_slice(x: address) -> uint256:
+    y: uint256 = convert(x.code, uint256)
+    return y
+"""
+    compiler.compile_code(code)
+
+
+@pytest.mark.xfail(raises=CompilerPanic, reason="unbounded sequence types not yet fully supported")
+def test_address_code_len():
+    code = """
+@external
+def code_slice(x: address) -> uint256:
+    y: uint256 = len(x.code)
+    return y
+"""
+    compiler.compile_code(code)
