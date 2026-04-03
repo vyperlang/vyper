@@ -946,7 +946,7 @@ def _generate_external_function_body(
             builder.stop()
         else:
             # This shouldn't happen - function should have return stmt
-            raise CompilerPanic("External function missing return")
+            raise CompilerPanic("External function missing return") # pragma: nocover
 
 
 def _generate_entry_point_kwargs(
@@ -1025,7 +1025,7 @@ def _generate_common_function_body(
             builder.stop()
         else:
             # This shouldn't happen - function should have return stmt
-            raise CompilerPanic("External function missing return")
+            raise CompilerPanic("External function missing return") # pragma: nocover
 
 
 def _register_positional_args(ctx: VenomCodegenContext, func_t: ContractFunctionT) -> None:
@@ -1253,7 +1253,7 @@ def _generate_fallback_body(
         if func_t.return_type is None:
             builder.stop()
         else:
-            raise CompilerPanic("Fallback function with return type")
+            raise CompilerPanic("Fallback function with return type") # pragma: nocover
 
 
 def _generate_internal_function(
@@ -1349,7 +1349,7 @@ def _generate_internal_function(
         if func_t.return_type is None:
             builder.ret(codegen_ctx.return_pc)
         else:
-            raise CompilerPanic("Internal function missing return")
+            raise CompilerPanic("Internal function missing return") # pragma: nocover
 
 
 def _generate_constructor(
