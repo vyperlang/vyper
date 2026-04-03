@@ -46,7 +46,7 @@ def _get_element_ptr(
         if isinstance(key, IRLiteral):
             idx = key.value
         else:
-            raise CompilerPanic("Dynamic tuple indexing not supported in ABI encode")
+            raise CompilerPanic("Dynamic tuple indexing not supported in ABI encode") # pragma: nocover
 
         items = parent_typ.tuple_items()  # type: ignore[attr-defined]
         offset = 0
@@ -56,7 +56,7 @@ def _get_element_ptr(
                 break
             offset += t.memory_bytes_required
         else:
-            raise CompilerPanic(f"Tuple index {idx} out of range")
+            raise CompilerPanic(f"Tuple index {idx} out of range") # pragma: nocover
 
         elem_ptr: IROperand
         if offset == 0:
@@ -102,7 +102,7 @@ def _get_element_ptr(
         return darray_elem_ptr, elem_typ
 
     else:
-        raise CompilerPanic(f"Cannot get element ptr of type {parent_typ}")
+        raise CompilerPanic(f"Cannot get element ptr of type {parent_typ}") # pragma: nocover
 
 
 def _zero_pad(ctx: VenomCodegenContext, bytez_ptr: IROperand) -> None:
@@ -410,7 +410,7 @@ def _abi_encode_to_buf(
             return IRLiteral(abi_t.embedded_static_size())
 
     else:
-        raise CompilerPanic(f"Cannot ABI encode type: {src_typ}")
+        raise CompilerPanic(f"Cannot ABI encode type: {src_typ}") # pragma: nocover
 
 
 def abi_encode_to_buf(
