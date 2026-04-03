@@ -62,5 +62,5 @@ def lower_builtin(builtin_id: str, node, ctx) -> Union[IROperand, VyperValue]:
     """
     handler = BUILTIN_HANDLERS.get(builtin_id)
     if handler is None:
-        raise CompilerPanic(f"Built-in '{builtin_id}' not yet implemented in venom codegen")
+        raise CompilerPanic(f"Built-in '{builtin_id}' not yet implemented in venom codegen") # pragma: nocover
     return handler(node, ctx)
