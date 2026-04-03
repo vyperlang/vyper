@@ -42,7 +42,7 @@ class Stmt:
         fn_name = f"lower_{type(self.node).__name__}"
         method = getattr(self, fn_name, None)
         if method is None:
-            raise CompilerPanic(f"Unsupported stmt: {type(self.node)}")
+            raise CompilerPanic(f"Unsupported stmt: {type(self.node)}") # pragma: nocover
         return method()
 
     # === Assignment Statements ===
@@ -441,7 +441,7 @@ class Stmt:
             if varinfo is not None and varinfo.is_immutable and self.ctx.is_ctor_context:
                 return Ptr(IRLiteral(varinfo.position.position), DataLocation.IMMUTABLES)
 
-            raise CompilerPanic(f"Unknown variable: {varname}")
+            raise CompilerPanic(f"Unknown variable: {varname}") # pragma: nocover
 
         elif isinstance(target, vy_ast.Attribute):
             # self.x = ... (state variable assignment)
@@ -467,14 +467,14 @@ class Stmt:
                 # Use Expr to compute the field pointer
                 return Expr(target, self.ctx).lower().ptr()
 
-            raise CompilerPanic(f"Unsupported attribute target: {target.attr}")
+            raise CompilerPanic(f"Unsupported attribute target: {target.attr}") # pragma: nocover
 
         elif isinstance(target, vy_ast.Subscript):
             # x[i] = ... or self.arr[i] = ... or self.map[key] = ...
             # Use Expr to compute the element pointer/slot
             return Expr(target, self.ctx).lower().ptr()
 
-        raise CompilerPanic(f"Unsupported assignment target: {type(target)}")
+        raise CompilerPanic(f"Unsupported assignment target: {type(target)}") # pragma: nocover
 
     # === Control Flow Statements ===
 
@@ -596,7 +596,7 @@ class Stmt:
                     rounds_bound = rounds.value
                 else:
                     # Non-literal but no bound - semantic analysis should catch this
-                    raise CompilerPanic("range() with non-literal args requires bound=")
+                    raise CompilerPanic("range() with non-literal args requires bound=") # pragma: nocover
 
         # Allocate counter variable in memory for user access
         counter_local = self.ctx.new_variable(varname, target_type, mutable=False)
@@ -709,7 +709,7 @@ class Stmt:
             length = IRLiteral(array_typ.count)
             bound = array_typ.count
         else:
-            raise CompilerPanic(f"Cannot iterate over type: {array_typ}")
+            raise CompilerPanic(f"Cannot iterate over type: {array_typ}") # pragma: nocover
 
         # Element size (in slots for storage, bytes for memory)
         elem_size = array_typ.value_type.get_size_in(location)
@@ -814,13 +814,13 @@ class Stmt:
     def lower_Break(self) -> None:
         """Lower break statement - jump to loop exit."""
         if self.ctx.break_target is None:
-            raise CompilerPanic("break outside loop")
+            raise CompilerPanic("break outside loop") # pragma: nocover
         self.builder.jmp(self.ctx.break_target)
 
     def lower_Continue(self) -> None:
         """Lower continue statement - jump to loop increment."""
         if self.ctx.continue_target is None:
-            raise CompilerPanic("continue outside loop")
+            raise CompilerPanic("continue outside loop") # pragma: nocover
         self.builder.jmp(self.ctx.continue_target)
 
     def lower_Pass(self) -> None:
@@ -844,7 +844,7 @@ class Stmt:
         func_t = self.ctx.func_t
 
         if func_t is None:
-            raise CompilerPanic("Return outside function")
+            raise CompilerPanic("Return outside function") # pragma: nocover
 
         # Evaluate return value if present
         ret_val: Optional[IROperand] = None
@@ -909,7 +909,7 @@ class Stmt:
             self.builder.ret(return_pc)
 
         else:
-            raise CompilerPanic("Internal function missing return mechanism")
+            raise CompilerPanic("Internal function missing return mechanism") # pragma: nocover
 
     def _lower_external_return(
         self, ret_val: Optional[IROperand], func_t: ContractFunctionT, ret_src_typ=None
@@ -1093,7 +1093,7 @@ class Stmt:
             return self.builder.sha3(data_ptr, length)
 
         else:
-            raise CompilerPanic(f"Event indexes may only be value types, got {typ}")
+            raise CompilerPanic(f"Event indexes may only be value types, got {typ}") # pragma: nocover
 
     # === Error Handling (Assert/Raise) ===
 
