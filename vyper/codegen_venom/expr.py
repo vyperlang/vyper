@@ -91,7 +91,7 @@ class Expr:
         fn_name = f"lower_{type(self.node).__name__}"
         method = getattr(self, fn_name, None)
         if method is None:
-            raise CompilerPanic(f"Unsupported expr: {type(self.node)}")
+            raise CompilerPanic(f"Unsupported expr: {type(self.node)}") # pragma: nocover
         return method()
 
     def lower_value(self) -> IROperand:
@@ -141,7 +141,7 @@ class Expr:
             val = int(hexstr, 16) << 8 * (32 - n_bytes)
             return VyperValue.from_stack_op(IRLiteral(val), t)
 
-        raise CompilerPanic(f"Unsupported Hex literal type: {t}")
+        raise CompilerPanic(f"Unsupported Hex literal type: {t}") # pragma: nocover
 
     def lower_NameConstant(self) -> VyperValue:
         """Lower True/False constants."""
@@ -293,7 +293,7 @@ class Expr:
                 isinstance(typ, BytesM_T) and typ.m == 32
             )
             if not is_valid:
-                raise CompilerPanic("Shift operations require 256-bit types")
+                raise CompilerPanic("Shift operations require 256-bit types") # pragma: nocover
 
         # Extract pow literals for bounds checking
         base_literal = None
@@ -323,7 +323,7 @@ class Expr:
         if isinstance(op, vy_ast.Not):
             # Boolean NOT
             if not isinstance(typ, BoolT):
-                raise CompilerPanic("Not operator only valid for bool")
+                raise CompilerPanic("Not operator only valid for bool") # pragma: nocover
             return VyperValue.from_stack_op(self.builder.iszero(operand), result_typ)
 
         if isinstance(op, vy_ast.Invert):
@@ -347,9 +347,9 @@ class Expr:
         if isinstance(op, vy_ast.USub):
             # Unary minus (-x) - only for signed integers
             if not isinstance(typ, (IntegerT, DecimalT)):
-                raise CompilerPanic("USub only valid for numeric types")
+                raise CompilerPanic("USub only valid for numeric types") # pragma: nocover
             if not typ.is_signed:
-                raise CompilerPanic("USub only valid for signed types")
+                raise CompilerPanic("USub only valid for signed types") # pragma: nocover
 
             # Check operand > min_int to prevent negating MIN_INT
             min_int_val, _ = typ.int_bounds
@@ -358,7 +358,7 @@ class Expr:
 
             return VyperValue.from_stack_op(self.builder.sub(IRLiteral(0), operand), result_typ)
 
-        raise CompilerPanic(f"Unsupported UnaryOp: {type(op)}")
+        raise CompilerPanic(f"Unsupported UnaryOp: {type(op)}") # pragma: nocover
 
     # === Comparison Operations ===
 
@@ -382,7 +382,7 @@ class Expr:
         # Must handle before lower_value() since we need VyperValue with location
         if isinstance(left_typ, _BytestringT) and isinstance(right_typ, _BytestringT):
             if not isinstance(op, (vy_ast.Eq, vy_ast.NotEq)):
-                raise CompilerPanic(f"Unsupported comparison for bytestrings: {type(op)}")
+                raise CompilerPanic(f"Unsupported comparison for bytestrings: {type(op)}") # pragma: nocover
 
             # Get hash for each side - use compile-time hash for constants
             left_hash = self._get_bytestring_hash(node.left)
@@ -479,7 +479,7 @@ class Expr:
                 self.builder.iszero(self.builder.slt(left, right)), result_typ
             )
 
-        raise CompilerPanic(f"Unsupported comparison op: {type(op)}")
+        raise CompilerPanic(f"Unsupported comparison op: {type(op)}") # pragma: nocover
 
     # === Boolean Operations ===
 
@@ -561,7 +561,7 @@ class Expr:
             self.builder.jmp(exit_bb.label)
 
         else:
-            raise CompilerPanic(f"Unsupported BoolOp: {type(op)}")
+            raise CompilerPanic(f"Unsupported BoolOp: {type(op)}") # pragma: nocover
 
         # Continue from exit block
         self.builder.append_block(exit_bb)
@@ -610,7 +610,7 @@ class Expr:
             )
             return VyperValue.from_ptr(ptr, typ)
 
-        raise CompilerPanic(f"Unknown variable: {varname}")
+        raise CompilerPanic(f"Unknown variable: {varname}") # pragma: nocover
 
     def lower_Attribute(self) -> VyperValue:
         """Lower attribute access.
@@ -659,7 +659,7 @@ class Expr:
         # .code on address is an adhoc node handled by slice() - should not be lowered directly
         # But "code" can be a valid struct field name, so only check for address types
         if attr == "code" and isinstance(node.value._metadata.get("type"), AddressT):
-            raise CompilerPanic(".code requires slice() context")
+            raise CompilerPanic(".code requires slice() context") # pragma: nocover
 
         # Case 3: Environment variables (msg.*, block.*, tx.*, chain.*)
         if isinstance(node.value, vy_ast.Name) and node.value.id in ENVIRONMENT_VARIABLES:
@@ -693,7 +693,7 @@ class Expr:
         if isinstance(sub_typ, StructT) and attr in sub_typ.member_types:
             return self._lower_struct_field()
 
-        raise CompilerPanic(f"Unsupported attribute access: {node.attr}")
+        raise CompilerPanic(f"Unsupported attribute access: {node.attr}") # pragma: nocover
 
     def _lower_environment_attr(self) -> IROperand:
         """Lower environment variable attributes (msg.*, block.*, tx.*, chain.*)."""
@@ -712,7 +712,7 @@ class Expr:
             return self.builder.gas()
         if key == "msg.data":
             # Adhoc node - replaced in Slice/Len. Return calldatasize for now.
-            raise CompilerPanic("msg.data requires Slice/Len context")
+            raise CompilerPanic("msg.data requires Slice/Len context") # pragma: nocover
 
         # block.* attributes
         if key == "block.timestamp":
@@ -749,7 +749,7 @@ class Expr:
         if key == "chain.id":
             return self.builder.chainid()
 
-        raise CompilerPanic(f"Unknown environment variable: {key}")
+        raise CompilerPanic(f"Unknown environment variable: {key}") # pragma: nocover
 
     # === Ternary Expression ===
 
@@ -816,7 +816,7 @@ class Expr:
             # Tuple access on struct/tuple (struct[0], tuple[1], etc.)
             return self._lower_tuple_subscript()
         else:
-            raise CompilerPanic(f"Unsupported subscript on {base_typ}")
+            raise CompilerPanic(f"Unsupported subscript on {base_typ}") # pragma: nocover
 
     def _lower_array_subscript(self, bounds_check: bool = True) -> VyperValue:
         """Lower array[index] access.
@@ -1157,7 +1157,7 @@ class Expr:
             bound = haystack_typ.count
             offset_base = 0
         else:
-            raise CompilerPanic(f"Cannot check membership in type: {haystack_typ}")
+            raise CompilerPanic(f"Cannot check membership in type: {haystack_typ}") # pragma: nocover
 
         elem_size = haystack_typ.value_type.get_size_in(location)
 
@@ -1286,7 +1286,7 @@ class Expr:
         if isinstance(func_t, MemberFunctionT):
             return self._lower_member_function_call(func_t)
 
-        raise CompilerPanic(f"Unsupported call: {node.func}")
+        raise CompilerPanic(f"Unsupported call: {node.func}") # pragma: nocover
 
     def _lower_internal_call(self) -> VyperValue:
         """Lower internal function call (self.func(...)).
@@ -1479,7 +1479,7 @@ class Expr:
         elif attr == "pop":
             return self._lower_dynarray_pop()
         else:
-            raise CompilerPanic(f"Unknown member function: {attr}")
+            raise CompilerPanic(f"Unknown member function: {attr}") # pragma: nocover
 
     def _lower_dynarray_append(self) -> VyperValue:
         """Lower DynArray.append(val).
@@ -1572,7 +1572,7 @@ class Expr:
         elif data_loc == DataLocation.TRANSIENT:
             self.ctx.store_transient(elem_val, elem_ptr, elem_typ)
         else:
-            raise CompilerPanic(f"Unsupported location for append: {data_loc}")
+            raise CompilerPanic(f"Unsupported location for append: {data_loc}") # pragma: nocover
 
         # 5. Increment and store new length
         new_length = self.builder.add(length, IRLiteral(1))
@@ -1686,10 +1686,10 @@ class Expr:
             elif kw.arg == "skip_contract_check":
                 # Must be a literal True/False
                 if not isinstance(kw_val, IRLiteral):
-                    raise CompilerPanic(f"Expected IRLiteral for keyword, got {type(kw_val)}")
+                    raise CompilerPanic(f"Expected IRLiteral for keyword, got {type(kw_val)}") # pragma: nocover
                 skip_contract_check = bool(kw_val.value)
             else:
-                raise CompilerPanic(f"Unexpected keyword argument: {kw.arg}")
+                raise CompilerPanic(f"Unexpected keyword argument: {kw.arg}") # pragma: nocover
 
         return _CallKwargs(
             value=value,
