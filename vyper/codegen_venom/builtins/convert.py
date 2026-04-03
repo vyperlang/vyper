@@ -63,7 +63,7 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     elif isinstance(out_t, FlagT):
         return _to_flag(arg, in_t, out_t, ctx)
     else:
-        raise CompilerPanic(f"Unsupported conversion target: {out_t}")
+        raise CompilerPanic(f"Unsupported conversion target: {out_t}") # pragma: nocover
 
 
 def _get_folded_value(node: vy_ast.VyperNode):
