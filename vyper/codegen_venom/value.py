@@ -36,7 +36,7 @@ class VyperValue:
 
     def __post_init__(self):
         if (self._operand is None) == (self._ptr is None):
-            raise CompilerPanic("VyperValue: exactly one of _operand or _ptr must be set")
+            raise CompilerPanic("VyperValue: exactly one of _operand or _ptr must be set") # pragma: nocover
 
     @property
     def is_stack_value(self) -> bool:
@@ -44,12 +44,12 @@ class VyperValue:
 
     def ptr(self) -> Ptr:
         if self._ptr is None:
-            raise CompilerPanic("cannot get ptr from stack value")
+            raise CompilerPanic("cannot get ptr from stack value") # pragma: nocover
         return self._ptr
 
     def stack_value(self) -> IROperand:
         if self._ptr is not None:
-            raise CompilerPanic("cannot get stack_value from located value")
+            raise CompilerPanic("cannot get stack_value from located value") # pragma: nocover
         assert self._operand is not None
         return self._operand
 
