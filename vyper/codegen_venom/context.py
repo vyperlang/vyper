@@ -200,6 +200,7 @@ class VenomCodegenContext:
         ), f"bytestring_length expects MEMORY, STORAGE, or TRANSIENT, got {loc}"
         # None location treated as MEMORY
         if loc is None:
+            assert isinstance(vv.operand, IRVariable)
             return self.builder.mload(vv.operand)
         return self.builder.load(vv.operand, loc)
 
@@ -364,6 +365,7 @@ class VenomCodegenContext:
         since caller will work with the pointer.
         """
         if typ.memory_bytes_required <= 32:
+            assert isinstance(ptr, IRVariable)
             return self.builder.mload(ptr)
         else:
             # Complex types: return pointer (caller handles copy if needed)
@@ -393,6 +395,7 @@ class VenomCodegenContext:
             # Bytestring: copy length word + ceil32(actual data), not max size
             # Length is at val+0, data starts at val+32
             # Must copy complete 32-byte words to avoid leaving dirty data
+            assert isinstance(val, IRVariable)
             src_len = self.builder.mload(val)
             # ceil32(length) = (length + 31) & ~31
             padded_len = self.builder.and_(
@@ -416,6 +419,7 @@ class VenomCodegenContext:
         """Store memory value with potential source/destination type layout differences."""
         if dst_typ._is_prim_word:
             assert isinstance(dst, IRVariable)
+            assert isinstance(src, IRVariable)
             self.builder.mstore(dst, self.builder.mload(src))
             return
 
@@ -521,6 +525,7 @@ class VenomCodegenContext:
     ) -> None:
         """Copy DynArray in memory when source and destination element layouts may differ."""
         b = self.builder
+        assert isinstance(src, IRVariable)
         length = b.mload(src)
         # defensive: runtime length must not exceed destination capacity
         b.assert_(b.iszero(b.gt(length, IRLiteral(dst_typ.length))))
@@ -612,6 +617,7 @@ class VenomCodegenContext:
         for offset in range(0, size, 32):
             src_ptr = self._with_byte_offset(src, offset)
             dst_ptr = self._with_byte_offset(dst, offset)
+            assert isinstance(src_ptr, IRVariable)
             val = self.builder.mload(src_ptr)
             assert isinstance(dst_ptr, IRVariable)
             self.builder.mstore(dst_ptr, val)
@@ -709,6 +715,7 @@ class VenomCodegenContext:
             self.builder.sstore(slot, val)
         elif typ.storage_size_in_words == 1:
             # Single-word complex type: val is memory pointer, load and store
+            assert isinstance(val, IRVariable)
             self.builder.sstore(slot, self.builder.mload(val))
         else:
             # Multi-word: val is memory pointer, copy to storage
@@ -878,6 +885,7 @@ class VenomCodegenContext:
             self.builder.tstore(slot, val)
         elif typ.storage_size_in_words == 1:
             # Single-word complex type: val is memory pointer, load and store
+            assert isinstance(val, IRVariable)
             self.builder.tstore(slot, self.builder.mload(val))
         else:
             # Multi-word: val is memory pointer, copy to transient storage
@@ -928,6 +936,7 @@ class VenomCodegenContext:
             size = typ.memory_bytes_required
             for i in range(0, size, 32):
                 mem_ptr = self._with_byte_offset(val, i)
+                assert isinstance(mem_ptr, IRVariable)
                 word = self.builder.mload(mem_ptr)
                 imm_offset = self._with_byte_offset(offset, i)
                 self.store_word(imm_offset, word, DataLocation.IMMUTABLES)

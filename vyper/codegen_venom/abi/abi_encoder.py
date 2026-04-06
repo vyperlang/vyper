@@ -115,6 +115,7 @@ def _zero_pad(ctx: VenomCodegenContext, bytez_ptr: IROperand) -> None:
     b = ctx.builder
 
     # Get length
+    assert isinstance(bytez_ptr, IRVariable)
     length = b.mload(bytez_ptr)
 
     # dst = bytez_ptr + 32 + length (first byte after data)
@@ -213,6 +214,7 @@ def _encode_dyn_array(
     static_elem_size = child_abi_t.embedded_static_size()
 
     # Get runtime length
+    assert isinstance(src_ptr, IRVariable)
     length = b.mload(src_ptr)
 
     # Write length word to dst
@@ -298,6 +300,7 @@ def _encode_dyn_array(
     # Update parent dyn_ofst
     # Total size = 32 (length word) + final child_dyn_ofst (or length * static_size for static)
     # Note: need to reload length since we're in a new block
+    assert isinstance(src_ptr, IRVariable)
     length_exit = b.mload(src_ptr)
     if child_abi_t.is_dynamic():
         assert child_dyn_ofst_val is not None
@@ -341,6 +344,7 @@ def _abi_encode_to_buf(
     # Slow path: type-specific encoding
     if src_typ._is_prim_word:
         # Primitive word type: direct copy
+        assert isinstance(src, IRVariable)
         val = b.mload(src)
         b.mstore(dst, val)
         return IRLiteral(32)

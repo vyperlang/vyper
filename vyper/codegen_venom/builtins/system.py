@@ -120,6 +120,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
         # Get input data pointer and length
         # Bytes layout: [32-byte length][data...]
+        assert isinstance(data, IRVariable)
         data_len = b.mload(data)
         data_ptr = b.add(data, IRLiteral(32))
 
@@ -303,6 +304,7 @@ def lower_raw_log(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         # For Bytes[N]: data starts at ptr+32, length at ptr
         data_vv = Expr(data_node, ctx).lower()
         data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
+        assert isinstance(data, IRVariable)
         data_len = b.mload(data)
         data_ptr = b.add(data, IRLiteral(32))
 
@@ -327,6 +329,7 @@ def lower_raw_revert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
 
     # Get data pointer and length
+    assert isinstance(data, IRVariable)
     data_len = b.mload(data)
     data_ptr = b.add(data, IRLiteral(32))
 

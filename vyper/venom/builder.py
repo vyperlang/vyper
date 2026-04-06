@@ -159,8 +159,7 @@ class VenomBuilder:
         return self._emit1_evm("iszero", a)
 
     # === Memory ===
-    def mload(self, ptr: Operand) -> IRVariable:
-        assert isinstance(ptr, IRVariable)
+    def mload(self, ptr: IRVariable) -> IRVariable:
         return self._emit1_evm("mload", ptr)
 
     def mstore(self, ptr: IRVariable, val: Operand) -> None:
@@ -203,6 +202,7 @@ class VenomBuilder:
         elif location == DataLocation.TRANSIENT:
             return self.tload(ptr)
         elif location == DataLocation.MEMORY:
+            assert isinstance(ptr, IRVariable)
             return self.mload(ptr)
         elif location == DataLocation.CALLDATA:
             return self.calldataload(ptr)

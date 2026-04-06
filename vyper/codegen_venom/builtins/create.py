@@ -219,6 +219,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         # when evaluating value, salt, or ctor_args expressions
         # (cf. test_raw_create_memory_overlap - e.g. value=arr.pop())
         mem_buf = ctx.new_temporary_value(bytecode_typ)
+        assert isinstance(bytecode_vv.operand, IRVariable)
         bytecode_len_tmp = b.mload(bytecode_vv.operand)
         # Copy length word + data
         copy_size = b.add(bytecode_len_tmp, IRLiteral(32))
@@ -237,6 +238,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         value = IRLiteral(0)
 
     # Get bytecode length and data pointer
+    assert isinstance(bytecode, IRVariable)
     bytecode_len = b.mload(bytecode)
     bytecode_ptr = b.add(bytecode, IRLiteral(32))
 
@@ -518,6 +520,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
 
         raw_arg_vv = Expr(ctor_arg_nodes[0], ctx).lower()
         raw_arg = ctx.unwrap(raw_arg_vv)  # Copies storage/transient to memory
+        assert isinstance(raw_arg, IRVariable)
         args_len = b.mload(raw_arg)
         args_ptr = b.add(raw_arg, IRLiteral(32))
     elif len(ctor_arg_nodes) > 0:

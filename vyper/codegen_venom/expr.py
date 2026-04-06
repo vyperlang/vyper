@@ -1372,6 +1372,7 @@ class Expr:
                 # For struct/tuple types that fit in one word, arg_val is a memory
                 # pointer (from unwrap), so we need to load the actual value
                 if hasattr(arg_t.typ, "tuple_items"):
+                    assert isinstance(arg_op, IRVariable)
                     arg_op = self.builder.mload(arg_op)
                 invoke_args.append(arg_op)
             else:

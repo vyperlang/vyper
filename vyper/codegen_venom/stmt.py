@@ -186,6 +186,7 @@ class Stmt:
         elif loc == DataLocation.IMMUTABLES:
             # Immutables in constructor
             if typ.memory_bytes_required <= 32:
+                assert isinstance(src, IRVariable)
                 val = self.builder.mload(src)
                 self.ctx.ptr_store(dst_ptr, val)
             else:
@@ -335,6 +336,7 @@ class Stmt:
         b = self.builder
 
         # Load length from source (at offset 0)
+        assert isinstance(src, IRVariable)
         length = b.mload(src)
 
         elem_typ = typ.value_type
@@ -895,12 +897,7 @@ class Stmt:
                 # Tuple/struct return - load each element from memory pointer
                 # This handles both multi-element tuples AND single-element structs
                 for i, (_k, _elem_t) in enumerate(ret_typ.tuple_items()):
-                    if i == 0:
-                        src_ptr = ret_val
-                    elif isinstance(ret_val, IRLiteral):
-                        src_ptr = IRLiteral(ret_val.value + i * 32)
-                    else:
-                        src_ptr = self.builder.add(ret_val, IRLiteral(i * 32))
+                    src_ptr = self.builder.add(ret_val, IRLiteral(i * 32))
                     ret_vals.append(self.builder.mload(src_ptr))
             else:
                 # Primitive single value - just use directly
@@ -1097,6 +1094,7 @@ class Stmt:
             # bytes/string - must be keccak256 hashed per ABI spec
             # val is a pointer to [length][data]
             data_ptr = self.builder.add(val, IRLiteral(32))
+            assert isinstance(val, IRVariable)
             length = self.builder.mload(val)
             return self.builder.sha3(data_ptr, length)
 

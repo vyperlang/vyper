@@ -214,6 +214,7 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     # Get data pointer and length
     data_vv = Expr(data_node, ctx).lower()
     data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
+    assert isinstance(data, IRVariable)
     data_len = b.mload(data)  # Length word at start of Bytes
     data_ptr = b.add(data, IRLiteral(32))  # Data starts after length word
 
