@@ -114,7 +114,7 @@ class MemoryAllocator:
 
     def clone_alloca(self, orig: IRInstruction, clone: IRInstruction):
         """
-        Used to copy alloca instruction where it is 
+        Used to copy alloca instruction where it is
         necessary to copy pinned allocations.
         For example in inliner
         """
