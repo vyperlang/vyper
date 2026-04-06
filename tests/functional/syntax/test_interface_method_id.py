@@ -67,3 +67,14 @@ def foo() -> bytes4:
     return IFoo.take.method_id
     """
     assert compile_code(code, input_bundle=input_bundle) is not None
+
+
+def test_interface_function_not_valid_as_type():
+    code = """
+interface Foo:
+    def transfer(to: address, amount: uint256): nonpayable
+
+x: Foo.transfer
+    """
+    with pytest.raises(StructureException):
+        compile_code(code)

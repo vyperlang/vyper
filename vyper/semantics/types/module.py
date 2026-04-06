@@ -67,10 +67,15 @@ class InterfaceT(_UserType):
         self.decl_node = decl_node
 
     def get_type_member(self, attr, node):
-        # get a function, event, struct or flag from this interface
+        # get an event, struct or flag from this interface
+        return TYPE_T(self._helper.get_member(attr, node))
+
+    def get_member_in_expr(self, attr, node):
+        # get a function from this interface (expression context only,
+        # not valid in annotations since ContractFunctionT is not a type)
         if attr in self.functions:
             return TYPE_T(self.functions[attr])
-        return TYPE_T(self._helper.get_member(attr, node))
+        return self.get_type_member(attr, node)
 
     @property
     def getter_signature(self):
