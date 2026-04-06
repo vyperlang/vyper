@@ -1,4 +1,3 @@
-
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import InterfaceT
 from vyper.semantics.types.user import EventT
