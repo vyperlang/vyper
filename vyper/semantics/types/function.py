@@ -35,7 +35,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.bytestrings import BytesT
 from vyper.semantics.types.primitives import BoolT
-from vyper.semantics.types.shortcuts import UINT256_T
+from vyper.semantics.types.shortcuts import BYTES4_T, UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import OrderedSet, keccak256
@@ -661,6 +661,11 @@ class ContractFunctionT(VyperType):
         for i in range(self.n_positional_args, self.n_total_args + 1):
             method_ids.update(_generate_method_id(self.name, arg_types[:i]))
         return method_ids
+
+    def get_type_member(self, attr, node):
+        if attr == "method_id":
+            return BYTES4_T
+        raise StructureException(f"{self} has no type member '{attr}'", node)
 
     # add more information to type exceptions generated inside calls
     def _enhance_call_exception(self, e, ast_node=None):

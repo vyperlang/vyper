@@ -224,6 +224,17 @@ class Expr:
             value = 2**flag_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
             return IRnode.from_list(value, typ=typ)
 
+        # Interface.function.method_id, e.g. ERC20.transfer.method_id
+        if self.expr.attr == "method_id":
+            value_typ = self.expr.value._metadata["type"]
+            if is_type_t(value_typ, ContractFunctionT):
+                fn_t = value_typ.typedef
+                # use [-1] to get the full signature (all args, including defaults)
+                method_id = list(fn_t.method_ids.values())[-1]
+                # bytes4 is left-aligned in the 32-byte word
+                value = method_id << 224
+                return IRnode.from_list(value, typ=typ)
+
         # x.balance: balance of address x
         if self.expr.attr == "balance":
             addr = Expr.parse_value_expr(self.expr.value, self.context)

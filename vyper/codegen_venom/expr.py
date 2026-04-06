@@ -637,8 +637,19 @@ class Expr:
                 value = 2**flag_id  # 0 => 1, 1 => 2, 2 => 4, etc.
                 return VyperValue.from_stack_op(IRLiteral(value), typ)
 
-        # Case 2: Address properties
+        # Case 1b: Interface.function.method_id (e.g. ERC20.transfer.method_id)
         attr = node.attr
+        if attr == "method_id":
+            value_typ = node.value._metadata.get("type")
+            if is_type_t(value_typ, ContractFunctionT):
+                fn_t = value_typ.typedef
+                # use [-1] to get the full signature (all args, including defaults)
+                method_id = list(fn_t.method_ids.values())[-1]
+                # bytes4 is left-aligned in the 32-byte word
+                value = method_id << 224
+                return VyperValue.from_stack_op(IRLiteral(value), typ)
+
+        # Case 2: Address properties
         if attr == "balance":
             sub = Expr(node.value, self.ctx).lower_value()
             return VyperValue.from_stack_op(self.builder.balance(sub), UINT256_T)
