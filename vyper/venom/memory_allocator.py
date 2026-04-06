@@ -113,6 +113,11 @@ class MemoryAllocator:
             self.reserve(mem)
 
     def clone_alloca(self, orig: IRInstruction, clone: IRInstruction):
+        """
+        Used to copy alloca instruction where it is 
+        necessary to copy pinned allocations.
+        For example in inliner
+        """
         assert orig.opcode == "alloca"
         assert clone.opcode == "alloca"
 
