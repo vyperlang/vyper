@@ -245,7 +245,7 @@ class Stmt:
             iter_list = Expr(self.stmt.iter, self.context).ir_node
 
         target_type = self.stmt.target.target._metadata["type"]
-        assert target_type == iter_list.typ.value_type
+        assert target_type.compare_type(iter_list.typ.value_type)
 
         # user-supplied name for loop variable
         varname = self.stmt.target.target.id

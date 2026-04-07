@@ -33,7 +33,7 @@ def test_translate_map(output):
         "sources": {"foo.vy": ""},
         "settings": {"outputSelection": {"foo.vy": [output[0]]}},
     }
-    if output[0] in ["bb", "bb_runtime", "cfg", "cfg_runtime"]:
+    if output[0] in ["cfg", "cfg_runtime"]:
         with pytest.raises(JSONError, match="experimentalCodegen not selected!"):
             _ = get_output_formats(input_json)
     else:

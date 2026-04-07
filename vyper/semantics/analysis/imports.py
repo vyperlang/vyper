@@ -117,13 +117,12 @@ class ImportAnalyzer:
     def _calculate_integrity_sum_r(self, module_ast: vy_ast.Module):
         acc = [sha256sum(module_ast.full_source_code)]
         for s in module_ast.get_children((vy_ast.Import, vy_ast.ImportFrom)):
-            info = s._metadata["import_info"]
-
-            if info.compiler_input.path.suffix in (".vyi", ".json"):
-                # NOTE: this needs to be redone if interfaces can import other interfaces
-                acc.append(info.compiler_input.sha256sum)
-            else:
-                acc.append(self._calculate_integrity_sum_r(info.parsed))
+            for info in s._metadata["import_infos"]:
+                if info.compiler_input.path.suffix in (".vyi", ".json"):
+                    # NOTE: this needs to be redone if interfaces can import other interfaces
+                    acc.append(info.compiler_input.sha256sum)
+                else:
+                    acc.append(self._calculate_integrity_sum_r(info.parsed))
 
         return sha256sum("".join(acc))
 
@@ -141,61 +140,68 @@ class ImportAnalyzer:
         self.seen.add(module_ast)
 
     def _handle_Import(self, node: vy_ast.Import):
-        # import x.y[name] as y[alias]
+        # import x.y as y
 
-        alias = node.alias
-
-        if alias is None:
-            alias = node.name
-
-        # don't handle things like `import x.y`
-        if "." in alias:
-            msg = "import requires an accompanying `as` statement"
-            suggested_alias = node.name[node.name.rfind(".") :]
-            hint = f"try `import {node.name} as {suggested_alias}`"
-            raise StructureException(msg, node, hint=hint)
-
-        self._add_import(node, 0, node.name, alias)
+        self._add_imports(node, 0, "")
 
     def _handle_ImportFrom(self, node: vy_ast.ImportFrom):
-        # from m.n[module] import x[name] as y[alias]
+        # from m.n[module_prefix] import x as y
 
-        alias = node.alias
+        module_prefix = node.module or ""
+        if module_prefix:
+            module_prefix += "."
 
-        if alias is None:
-            alias = node.name
+        self._add_imports(node, node.level, module_prefix)
 
-        module = node.module or ""
-        if module:
-            module += "."
-
-        qualified_module_name = module + node.name
-        self._add_import(node, node.level, qualified_module_name, alias)
-
-    def _add_import(
-        self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
+    def _add_imports(
+        self, import_node: vy_ast.Import | vy_ast.ImportFrom, level: int, module_prefix: str
     ) -> None:
-        compiler_input, ast = self._load_import(node, level, qualified_module_name, alias)
-        self._compiler_inputs[compiler_input] = ast
-        node._metadata["import_info"] = ImportInfo(
-            alias, qualified_module_name, compiler_input, ast
-        )
+        for alias_node in import_node.names:
+            # x.y[name] as y[alias]
+            name = alias_node.name
+            alias = alias_node.asname
+            if alias is None:
+                alias = name
+
+            # don't handle things like `import x.y`
+            if "." in alias:
+                msg = "import requires an accompanying `as` statement"
+                suggested_alias = name[name.rfind(".") + 1 :]
+                hint = f"try `import {name} as {suggested_alias}`"
+                raise StructureException(msg, alias_node, hint=hint)
+
+            qualified_module_name = module_prefix + name
+
+            # Set on alias_node for more precise error messages
+            compiler_input, ast = self._load_import(level, qualified_module_name)
+            # check resolved path (catches different relative paths to same file)
+            self._check_duplicate_import(compiler_input, alias_node, alias)
+            self._compiler_inputs[compiler_input] = ast
+
+            if "import_infos" not in import_node._metadata:
+                import_node._metadata["import_infos"] = list()
+
+            import_node._metadata["import_infos"].append(
+                ImportInfo(alias, qualified_module_name, compiler_input, ast)
+            )
 
     # load an InterfaceT or ModuleInfo from an import.
     # raises FileNotFoundError
-    def _load_import(
-        self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
-    ) -> tuple[CompilerInput, Any]:
+    def _check_duplicate_import(self, file: CompilerInput, node: vy_ast.VyperNode, alias: str):
+        # use resolved_path to detect duplicates, not the relative import path,
+        # since different relative paths can resolve to the same file
+        # (e.g., `from . import x` and `from ..pkg import x`)
+        resolved = file.resolved_path
+        if resolved in self.graph.imported_modules:
+            previous_import_stmt = self.graph.imported_modules[resolved]
+            raise DuplicateImport(f"{alias} imported more than once!", previous_import_stmt, node)
+        self.graph.imported_modules[resolved] = node
+
+    def _load_import(self, level: int, module_str: str) -> tuple[CompilerInput, Any]:
         if _is_builtin(level, module_str):
             return _load_builtin_import(level, module_str)
 
         path = _import_to_path(level, module_str)
-
-        if path in self.graph.imported_modules:
-            previous_import_stmt = self.graph.imported_modules[path]
-            raise DuplicateImport(f"{alias} imported more than once!", previous_import_stmt, node)
-
-        self.graph.imported_modules[path] = node
 
         err = None
 
@@ -217,6 +223,7 @@ class ImportAnalyzer:
         try:
             file = self._load_file(path.with_suffix(".vyi"), level)
             assert isinstance(file, FileInput)  # mypy hint
+
             module_ast = self._ast_from_file(file)
             self._resolve_imports_r(module_ast)
 
@@ -230,6 +237,7 @@ class ImportAnalyzer:
             if isinstance(file, FileInput):
                 file = try_parse_abi(file)
             assert isinstance(file, JSONInput)  # mypy hint
+
             return file, file.data
         except FileNotFoundError:
             pass

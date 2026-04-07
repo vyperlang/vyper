@@ -1,28 +1,13 @@
 from __future__ import annotations
 
 import textwrap
-from collections import defaultdict
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
-from vyper.venom.memory_location import MemoryLocation
 
 if TYPE_CHECKING:
     from vyper.venom.context import IRContext
-
-
-@dataclass(frozen=True)
-class IRParameter:
-    name: str
-    index: int  # needed?
-    offset: int  # needed?
-    size: int  # needed?
-    id_: int
-    call_site_var: Optional[IRVariable]  # needed?
-    func_var: IRVariable
-    addr_var: Optional[IRVariable]  # needed?
 
 
 class IRFunction:
@@ -32,23 +17,28 @@ class IRFunction:
 
     name: IRLabel  # symbol name
     ctx: IRContext
-    args: list
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
-    _volatile_memory: list[MemoryLocation]
+
+    # Internal-call metadata (excluding return_pc):
+    # - number of invoke params
+    # - whether first invoke param is a memory return buffer
+    _invoke_param_count: Optional[int]
+    _has_memory_return_buffer_param: Optional[bool]
 
     # Used during code generation
     _ast_source_stack: list[IRnode]
-    _error_msg_stack: list[str]
+    _error_msg_stack: list[Optional[str]]
 
     def __init__(self, name: IRLabel, ctx: IRContext = None):
         self.ctx = ctx  # type: ignore
         self.name = name
-        self.args = []
         self._basic_block_dict = {}
-        self._volatile_memory = []
 
         self.last_variable = 0
+
+        self._invoke_param_count = None
+        self._has_memory_return_buffer_param = None
 
         self._ast_source_stack = []
         self._error_msg_stack = []
@@ -108,48 +98,25 @@ class IRFunction:
     def get_last_variable(self) -> str:
         return f"%{self.last_variable}"
 
-    def freshen_varnames(self) -> None:
-        """
-        Reset `self.last_variable`, and regenerate all variable names.
-        Helpful for debugging.
-        So fresh, so clean!
-        """
-        self.last_variable = 0
-        varmap: dict[IRVariable, IRVariable] = defaultdict(self.get_next_variable)
-        for bb in self.get_basic_blocks():
-            for inst in bb.instructions:
-                if inst.output:
-                    inst.output = varmap[inst.output]
-
-                for i, op in enumerate(inst.operands):
-                    if not isinstance(op, IRVariable):
-                        continue
-                    inst.operands[i] = varmap[op]
-
     def push_source(self, ir):
         if isinstance(ir, IRnode):
             self._ast_source_stack.append(ir.ast_source)
             self._error_msg_stack.append(ir.error_msg)
+
+    def push_error_msg(self, error_msg: Optional[str]):
+        """Push an error message without changing ast_source."""
+        self._error_msg_stack.append(error_msg)
+
+    def pop_error_msg(self):
+        """Pop an error message."""
+        assert len(self._error_msg_stack) > 0, "Empty error stack"
+        self._error_msg_stack.pop()
 
     def pop_source(self):
         assert len(self._ast_source_stack) > 0, "Empty source stack"
         self._ast_source_stack.pop()
         assert len(self._error_msg_stack) > 0, "Empty error stack"
         self._error_msg_stack.pop()
-
-    def get_param_by_id(self, id_: int) -> Optional[IRParameter]:
-        for param in self.args:
-            if param.id_ == id_:
-                return param
-        return None
-
-    def get_param_by_name(self, var: IRVariable | str) -> Optional[IRParameter]:
-        if isinstance(var, str):
-            var = IRVariable(var)
-        for param in self.args:
-            if f"%{param.name}" == var.name:
-                return param
-        return None
 
     @property
     def ast_source(self) -> Optional[IRnode]:
@@ -164,10 +131,6 @@ class IRFunction:
         for bb in self.get_basic_blocks():
             new_bb = bb.copy()
             new.append_basic_block(new_bb)
-
-        # Copy volatile memory locations
-        for mem in self._volatile_memory:
-            new.add_volatile_memory(mem.offset, mem.size)
 
         return new
 
@@ -216,18 +179,3 @@ class IRFunction:
         ret = ret.strip() + "\n}"
         ret += f"  ; close function {self.name}"
         return ret
-
-    def add_volatile_memory(self, offset: int, size: int) -> MemoryLocation:
-        """
-        Add a volatile memory location with the given offset and size.
-        Returns the created MemoryLocation object.
-        """
-        volatile_mem = MemoryLocation(offset=offset, size=size)
-        self._volatile_memory.append(volatile_mem)
-        return volatile_mem
-
-    def get_all_volatile_memory(self) -> list[MemoryLocation]:
-        """
-        Return all volatile memory locations.
-        """
-        return self._volatile_memory

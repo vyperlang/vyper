@@ -1,8 +1,10 @@
+import pytest
 from hexbytes import HexBytes
 
 from tests.utils import ZERO_ADDRESS
 from vyper import compile_code
 from vyper.builtins.functions import eip1167_bytecode
+from vyper.exceptions import ArgumentException, StateAccessViolation, TypeMismatch
 
 
 def test_max_outsize_exceeds_returndatasize(get_contract):
@@ -597,3 +599,100 @@ def bar(f: uint256) -> Bytes[100]:
         c.bar(15).hex() == "0423a132"
         "000000000000000000000000000000000000000000000000000000000000000f"
     )
+
+
+uncompilable_code = [
+    (
+        """
+@external
+@view
+def foo(_addr: address):
+    raw_call(_addr, method_id("foo()"))
+    """,
+        StateAccessViolation,
+    ),
+    (
+        """
+@external
+def foo(_addr: address):
+    raw_call(_addr, method_id("foo()"), is_delegate_call=True, is_static_call=True)
+    """,
+        ArgumentException,
+    ),
+    (
+        """
+@external
+def foo(_addr: address):
+    raw_call(_addr, method_id("foo()"), is_delegate_call=True, value=1)
+    """,
+        ArgumentException,
+    ),
+    (
+        """
+@external
+def foo(_addr: address):
+    raw_call(_addr, method_id("foo()"), is_static_call=True, value=1)
+    """,
+        ArgumentException,
+    ),
+    (
+        """
+@external
+@view
+def foo(_addr: address):
+    raw_call(_addr, 256)
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
+@pure
+@external
+def foo(a: address):
+    # test staticcall detection from pure function
+    x: Bytes[32] = raw_call(a, b'', max_outsize=32, is_static_call=True)
+    """,
+        StateAccessViolation,
+    ),
+    (
+        """
+@pure
+def foo(a: address):
+    # test staticcall detection from pure function with constant folding
+    x: Bytes[32] = raw_call(a, b'', max_outsize=32, is_static_call=True or False)
+    """,
+        StateAccessViolation,
+    ),
+]
+
+
+@pytest.mark.parametrize("source_code,exc", uncompilable_code)
+def test_invalid_type_exception(assert_compile_failed, get_contract, source_code, exc):
+    assert_compile_failed(lambda: get_contract(source_code), exc)
+
+
+def test_raw_call_storage_bytes_data(get_contract):
+    """raw_call correctly handles storage bytes being passed as data argument."""
+    # Test that storage bytes are properly copied to memory before call
+    # Uses identity precompile to echo back the data
+    code = """
+stored_data: Bytes[100]
+
+@external
+def set_data(data: Bytes[100]):
+    self.stored_data = data
+
+@external
+def call_with_storage_bytes() -> Bytes[100]:
+    # Pass storage bytes directly to raw_call
+    return raw_call(
+        0x0000000000000000000000000000000000000004,  # identity precompile
+        self.stored_data,
+        max_outsize=100
+    )
+    """
+
+    c = get_contract(code)
+    test_data = b"hello world"
+    c.set_data(test_data)
+    assert c.call_with_storage_bytes() == test_data

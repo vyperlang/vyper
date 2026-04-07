@@ -7,7 +7,7 @@ from tests.evm_backends.base_env import EvmError
 from tests.utils import check_precompile_asserts, decimal_to_int
 from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import ArrayIndexException, OverflowException, StackTooDeep, TypeMismatch
+from vyper.exceptions import ArrayIndexException, OverflowException, TypeMismatch
 
 
 def _map_nested(f, xs):
@@ -597,7 +597,6 @@ def bar(_baz: Foo[3]) -> String[96]:
     assert c.bar(c_input) == "Hello world!!!!"
 
 
-@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_list_of_nested_struct_arrays(get_contract):
     code = """
 struct Ded:
@@ -923,3 +922,21 @@ def foo(x: uint256[2500]) -> uint256:
         # depends on EVM version. pre-cancun, will revert due to checking
         # success flag from identity precompile.
         c.foo(array, gas=gas_used)
+
+
+def test_return_list_size_one(get_contract):
+    code = """
+@external
+@pure
+def gen_func_1() -> uint256[1]:
+    return self._f()
+
+@internal
+@pure
+def _f() -> uint256[1]:
+    return [42]
+    """
+
+    c = get_contract(code)
+    output = c.gen_func_1()
+    assert output == [42]

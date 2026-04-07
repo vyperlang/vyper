@@ -5,9 +5,8 @@ from hexbytes import HexBytes
 
 import vyper.ir.compile_ir as compile_ir
 from tests.utils import ZERO_ADDRESS
-from vyper.codegen.ir_node import IRnode
 from vyper.compiler import compile_code
-from vyper.compiler.settings import OptimizationLevel
+from vyper.ir.compile_ir import DATA_ITEM, PUSH, PUSHLABEL, DataHeader, Label
 from vyper.utils import EIP_170_LIMIT, ERC5202_PREFIX, checksum_encode, keccak256
 
 
@@ -295,10 +294,19 @@ def test(code_ofst: uint256) -> address:
     # deploy a blueprint contract whose contained initcode contains only
     # zeroes (so no matter which offset, create_from_blueprint will
     # return empty code)
-    ir = IRnode.from_list(["deploy", 0, ["seq"] + ["stop"] * initcode_len, 0])
-    bytecode, _ = compile_ir.assembly_to_evm(
-        compile_ir.compile_to_assembly(ir, optimize=OptimizationLevel.NONE)
-    )
+    asm = [
+        *PUSH(initcode_len),
+        PUSHLABEL(Label("end")),
+        *PUSH(0),
+        "CODECOPY",
+        *PUSH(initcode_len),
+        *PUSH(0),
+        "RETURN",
+        DataHeader(Label("end")),
+        DATA_ITEM(b"\x00" * initcode_len),
+    ]
+    bytecode, _ = compile_ir.assembly_to_evm(asm)
+
     # manually deploy the bytecode
     c = env.deploy(abi=[], bytecode=bytecode)
     blueprint_address = c.address
@@ -747,6 +755,41 @@ def test(target: address) -> address:
     c.test(c.address, value=2)
     test1 = c.address
     assert env.get_code(test1) == bytecode
+
+
+def test_create_copy_salt_eval_order_regression(get_contract, env):
+    """
+    Regression test for create2 salt evaluation order bug.
+    The salt expression that allocates memory (like keccak256 with abi_encode)
+    must be evaluated BEFORE msize() to prevent memory corruption of the
+    initcode buffer.
+    """
+    # Simple target contract to copy
+    target_code = """
+@external
+def foo() -> uint256:
+    return 42
+    """
+
+    target = get_contract(target_code)
+    target_bytecode = env.get_code(target.address)
+
+    # Deployer that uses dynamic salt computation
+    deployer_code = """
+@external
+def test_create_copy_with_dynamic_salt(target: address, nonce: uint256) -> address:
+    # Using keccak256 with abi_encode forces memory allocation
+    # during salt evaluation. If salt is evaluated after msize(),
+    # this allocation can overwrite the initcode buffer.
+    salt: bytes32 = keccak256(abi_encode(nonce, msg.sender, block.timestamp))
+    return create_copy_of(target, salt=salt)
+    """
+
+    deployer = get_contract(deployer_code)
+
+    # Deploy and verify the created contract has correct bytecode
+    created = deployer.test_create_copy_with_dynamic_salt(target.address, 123)
+    assert env.get_code(created) == target_bytecode
 
 
 def test_raw_create(get_contract, env):
