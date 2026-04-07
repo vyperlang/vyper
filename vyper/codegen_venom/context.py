@@ -50,18 +50,6 @@ class LocalVariable:
         if self.value.location != DataLocation.MEMORY:
             raise CompilerPanic("LocalVariable must be in MEMORY") # pragma: nocover
 
-    @property
-    def typ(self) -> VyperType:
-        return self.value.typ
-
-    @property
-    def buf(self) -> Buffer:
-        # Invariant: LocalVariable is always in MEMORY (enforced by __post_init__),
-        # and Ptr.buf is always set when location is MEMORY (enforced by Ptr.__post_init__)
-        buf = self.value.ptr().buf
-        assert buf is not None
-        return buf
-
 
 @dataclass
 class VenomCodegenContext:
