@@ -291,20 +291,6 @@ class VenomCodegenContext:
         finally:
             self.in_range_expr = prev_value
 
-    def child_for_function(
-        self, func_t: ContractFunctionT, builder: VenomBuilder, is_ctor: bool = False
-    ) -> "VenomCodegenContext":
-        """Create child context for compiling a function."""
-        return VenomCodegenContext(
-            module_ctx=self.module_ctx,
-            builder=builder,
-            func_t=func_t,
-            constancy=Constancy.Constant
-            if func_t.mutability in (StateMutability.VIEW, StateMutability.PURE)
-            else Constancy.Mutable,
-            is_ctor_context=is_ctor or self.is_ctor_context,
-        )
-
     # === Nonreentrant Lock Support ===
 
     def emit_nonreentrant_lock(self, func_t: ContractFunctionT) -> None:
