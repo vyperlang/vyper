@@ -117,7 +117,9 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
     def get_alias_set(self, loc: MemoryLocation) -> OrderedSet[MemoryLocation] | None:
         if loc not in self.alias_sets:
             self._analyze_mem_location(loc)
-        return self.alias_sets.get(loc, None)
+        res = self.alias_sets[loc]
+        res.add(loc)
+        return res
 
     def ensure_analyzed(self, loc: MemoryLocation):
         if loc not in self.alias_sets:
