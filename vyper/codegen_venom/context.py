@@ -676,13 +676,6 @@ class VenomCodegenContext:
         else:
             raise CompilerPanic(f"slot_to_memory: unexpected location {location}") # pragma: nocover
 
-    def memory_to_storage(self, buf: IROperand, slot: IROperand, word_count: int) -> None:
-        """Store memory buffer to multi-word storage.
-
-        Public wrapper for assignment contexts.
-        """
-        self._store_memory_to_storage(buf, slot, word_count)
-
     def copy_to_memory(
         self, dst: IROperand, src: IROperand, size: int, location: DataLocation
     ) -> None:
