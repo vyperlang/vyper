@@ -661,13 +661,6 @@ class VenomCodegenContext:
             # Multi-word: val is memory pointer, copy to storage
             self._store_memory_to_storage(val, slot, typ.storage_size_in_words)
 
-    def storage_to_memory(self, slot: IROperand, buf: IROperand, word_count: int) -> None:
-        """Load multi-word storage value to memory buffer.
-
-        Public wrapper for iteration loops and other contexts.
-        """
-        self._load_storage_to_memory(slot, buf, word_count)
-
     def slot_to_memory(
         self, slot: IROperand, buf: IROperand, word_count: int, location: DataLocation
     ) -> None:
