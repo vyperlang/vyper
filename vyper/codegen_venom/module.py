@@ -422,140 +422,104 @@ def _generate_selector_section_sparse(
 
         SZ_BUCKET_HEADER = 2  # 2 bytes for bucket location
 
-        if n_buckets > 1:
-            # Compute bucket_id = method_id % n_buckets
-            bucket_id = builder.mod(method_id, IRLiteral(n_buckets))
+        # Compute bucket_id = method_id % n_buckets
+        bucket_id = builder.mod(method_id, IRLiteral(n_buckets))
 
-            # Create data section with bucket headers
-            runtime_ctx.append_data_section(IRLabel("selector_buckets", is_symbol=True))
+        # Create data section with bucket headers
+        runtime_ctx.append_data_section(IRLabel("selector_buckets", is_symbol=True))
 
-            # Build jump targets list and add bucket header labels
-            jump_targets = []
-            for i in range(n_buckets):
-                if i in buckets:
-                    bucket_label = IRLabel(f"selector_bucket_{i}", is_symbol=True)
-                    jump_targets.append(bucket_label)
-                else:
-                    # Empty bucket -> fallback
-                    jump_targets.append(fallback_bb.label)
-                runtime_ctx.append_data_item(jump_targets[-1])
+        # Build jump targets list and add bucket header labels
+        jump_targets = []
+        for i in range(n_buckets):
+            if i in buckets:
+                bucket_label = IRLabel(f"selector_bucket_{i}", is_symbol=True)
+                jump_targets.append(bucket_label)
+            else:
+                # Empty bucket -> fallback
+                jump_targets.append(fallback_bb.label)
+            runtime_ctx.append_data_item(jump_targets[-1])
 
-            # Load bucket location from data header
-            # Location = selector_buckets + bucket_id * 2
-            bucket_hdr_offset = builder.mul(bucket_id, IRLiteral(SZ_BUCKET_HEADER))
-            # Use add with label - the label resolves to its code position at link time
-            selector_buckets_addr = builder.offset(
-                IRLiteral(0), IRLabel("selector_buckets", is_symbol=True)
-            )
-            bucket_hdr_location = builder.add(selector_buckets_addr, bucket_hdr_offset)
+        # Load bucket location from data header
+        # Location = selector_buckets + bucket_id * 2
+        bucket_hdr_offset = builder.mul(bucket_id, IRLiteral(SZ_BUCKET_HEADER))
+        # Use add with label - the label resolves to its code position at link time
+        selector_buckets_addr = builder.offset(
+            IRLiteral(0), IRLabel("selector_buckets", is_symbol=True)
+        )
+        bucket_hdr_location = builder.add(selector_buckets_addr, bucket_hdr_offset)
 
-            # Copy 2-byte header to memory at offset (32 - 2) = 30
-            # so mload(0) reads it right-aligned in a 32-byte word
-            dst = 32 - SZ_BUCKET_HEADER
-            builder.codecopy(IRLiteral(dst), bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
-            jumpdest = builder.mload(IRLiteral(0))
+        # Copy 2-byte header to memory at offset (32 - 2) = 30
+        # so mload(0) reads it right-aligned in a 32-byte word
+        dst = 32 - SZ_BUCKET_HEADER
+        builder.codecopy(IRLiteral(dst), bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
+        jumpdest = builder.mload(IRLiteral(0))
 
-            # Dynamic jump to bucket (must list all possible targets)
-            builder.djmp(jumpdest, *jump_targets)
+        # Dynamic jump to bucket (must list all possible targets)
+        builder.djmp(jumpdest, *jump_targets)
 
-            # Generate bucket blocks
-            for bucket_id_val, bucket_method_ids in buckets.items():
-                bucket_label = IRLabel(f"selector_bucket_{bucket_id_val}", is_symbol=True)
-                bucket_bb = builder.create_block(f"bucket_{bucket_id_val}")
-                # Override the label to match the data section reference
-                bucket_bb.label = bucket_label
-                builder.append_block(bucket_bb)
-                builder.set_block(bucket_bb)
+        # Generate bucket blocks
+        for bucket_id_val, bucket_method_ids in buckets.items():
+            bucket_label = IRLabel(f"selector_bucket_{bucket_id_val}", is_symbol=True)
+            bucket_bb = builder.create_block(f"bucket_{bucket_id_val}")
+            # Override the label to match the data section reference
+            bucket_bb.label = bucket_label
+            builder.append_block(bucket_bb)
+            builder.set_block(bucket_bb)
 
-                # Linear search through bucket's method_ids
-                for mid in bucket_method_ids:
-                    # Find the abi_sig for this method_id
-                    for abi_sig, (func_ast, entry_info) in all_entry_points.items():
-                        if method_id_int(abi_sig) == mid:
-                            func_t = entry_info.func_t
-                            has_kwargs = len(func_t.keyword_args) > 0
+            # Linear search through bucket's method_ids
+            for mid in bucket_method_ids:
+                # Find the abi_sig for this method_id
+                for abi_sig, (func_ast, entry_info) in all_entry_points.items():
+                    if method_id_int(abi_sig) == mid:
+                        func_t = entry_info.func_t
+                        has_kwargs = len(func_t.keyword_args) > 0
 
-                            # Create match block for this function
-                            match_bb = builder.create_block(f"match_{mid:08x}")
+                        # Create match block for this function
+                        match_bb = builder.create_block(f"match_{mid:08x}")
 
-                            # Check if method_id matches
-                            is_match = builder.eq(method_id, IRLiteral(mid))
+                        # Check if method_id matches
+                        is_match = builder.eq(method_id, IRLiteral(mid))
 
-                            # Handle trailing zeros in method_id
-                            # If method_id ends with \x00, we need calldatasize check
-                            # to distinguish from truncated calldata
-                            has_trailing_zeroes = mid.to_bytes(4, "big").endswith(b"\x00")
-                            if has_trailing_zeroes:
-                                has_enough_calldata = builder.iszero(
-                                    builder.lt(builder.calldatasize(), IRLiteral(4))
-                                )
-                                is_match = builder.and_(has_enough_calldata, is_match)
+                        # Handle trailing zeros in method_id
+                        # If method_id ends with \x00, we need calldatasize check
+                        # to distinguish from truncated calldata
+                        has_trailing_zeroes = mid.to_bytes(4, "big").endswith(b"\x00")
+                        if has_trailing_zeroes:
+                            has_enough_calldata = builder.iszero(
+                                builder.lt(builder.calldatasize(), IRLiteral(4))
+                            )
+                            is_match = builder.and_(has_enough_calldata, is_match)
 
-                            # Create next check block
-                            next_check_bb = builder.create_block("next_check")
+                        # Create next check block
+                        next_check_bb = builder.create_block("next_check")
 
-                            builder.jnz(is_match, match_bb.label, next_check_bb.label)
+                        builder.jnz(is_match, match_bb.label, next_check_bb.label)
 
-                            # Match block: payable/calldatasize checks, then kwargs or body
-                            builder.append_block(match_bb)
-                            builder.set_block(match_bb)
+                        # Match block: payable/calldatasize checks, then kwargs or body
+                        builder.append_block(match_bb)
+                        builder.set_block(match_bb)
 
-                            _emit_entry_checks(builder, func_t, entry_info.min_calldatasize)
+                        _emit_entry_checks(builder, func_t, entry_info.min_calldatasize)
 
-                            if has_kwargs:
-                                # Entry point: handle kwargs, jump to common body
-                                assert func_t._function_id is not None  # help mypy
-                                common_label = common_labels[func_t._function_id]
-                                _generate_entry_point_kwargs(
-                                    builder, module_t, func_t, entry_info, common_label
-                                )
-                            else:
-                                # No kwargs: generate body directly
-                                _generate_external_function_body(
-                                    builder, module_t, func_t, func_ast, entry_info
-                                )
+                        if has_kwargs:
+                            # Entry point: handle kwargs, jump to common body
+                            assert func_t._function_id is not None  # help mypy
+                            common_label = common_labels[func_t._function_id]
+                            _generate_entry_point_kwargs(
+                                builder, module_t, func_t, entry_info, common_label
+                            )
+                        else:
+                            # No kwargs: generate body directly
+                            _generate_external_function_body(
+                                builder, module_t, func_t, func_ast, entry_info
+                            )
 
-                            # Continue with next check
-                            builder.append_block(next_check_bb)
-                            builder.set_block(next_check_bb)
-                            break
+                        # Continue with next check
+                        builder.append_block(next_check_bb)
+                        builder.set_block(next_check_bb)
+                        break
 
-                # No match in this bucket - goto fallback
-                builder.jmp(fallback_bb.label)
-
-        else:
-            # Only one bucket - do linear search without jumptable overhead
-            for abi_sig, (func_ast, entry_info) in all_entry_points.items():
-                method_id_val = method_id_int(abi_sig)
-                func_t = entry_info.func_t
-                has_kwargs = len(func_t.keyword_args) > 0
-
-                match_bb = builder.create_block(f"match_{method_id_val:08x}")
-                is_match = builder.eq(method_id, IRLiteral(method_id_val))
-                next_check_bb = builder.create_block("next_check")
-
-                builder.jnz(is_match, match_bb.label, next_check_bb.label)
-
-                builder.append_block(match_bb)
-                builder.set_block(match_bb)
-
-                _emit_entry_checks(builder, func_t, entry_info.min_calldatasize)
-
-                if has_kwargs:
-                    assert func_t._function_id is not None  # help mypy
-                    common_label = common_labels[func_t._function_id]
-                    _generate_entry_point_kwargs(
-                        builder, module_t, func_t, entry_info, common_label
-                    )
-                else:
-                    _generate_external_function_body(
-                        builder, module_t, func_t, func_ast, entry_info
-                    )
-
-                builder.append_block(next_check_bb)
-                builder.set_block(next_check_bb)
-
-            # No match - goto fallback
+            # No match in this bucket - goto fallback
             builder.jmp(fallback_bb.label)
 
     # Generate deferred common bodies for functions with kwargs
