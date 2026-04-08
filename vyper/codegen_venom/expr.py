@@ -627,7 +627,7 @@ class Expr:
         assert isinstance(node, vy_ast.Attribute)
         typ = node._metadata["type"]
 
-        # Case 1: Flag constants (MyFlag.VALUE)
+        # Case 1a: Flag constants (MyFlag.VALUE)
         if isinstance(typ, FlagT):
             value_typ = node.value._metadata.get("type")
             # Check if this is a flag type access (e.g., MyFlag.VALUE)
