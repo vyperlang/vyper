@@ -562,7 +562,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         # through folded constants
         return _get_variable_access(iter_val)
 
+    # TODO: Implement a more standard "mutability of this expression" method and use it here
     def _check_for_loop_modifiability(self, iter_node: vy_ast.VyperNode):
+        "Checks the expression X in `for something in X` does not modify state"
+
         args = None
         if isinstance(iter_node, vy_ast.Call):
             args = iter_node.args
