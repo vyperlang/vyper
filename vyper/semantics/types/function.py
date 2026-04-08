@@ -662,6 +662,13 @@ class ContractFunctionT(VyperType):
             method_ids.update(_generate_method_id(self.name, arg_types[:i]))
         return method_ids
 
+    @property
+    def encoded_method_id(self) -> int:
+        """The 4-byte selector for the full signature, left-aligned in a 32-byte word."""
+        # use [-1] to get the full signature (all args, including defaults)
+        method_id = list(self.method_ids.values())[-1]
+        return method_id << 224
+
     def get_type_member(self, attr, node):
         if attr == "method_id":
             return BYTES4_T

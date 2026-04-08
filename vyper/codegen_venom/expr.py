@@ -643,11 +643,7 @@ class Expr:
             value_typ = node.value._metadata.get("type")
             if is_type_t(value_typ, ContractFunctionT):
                 fn_t = value_typ.typedef
-                # use [-1] to get the full signature (all args, including defaults)
-                method_id = list(fn_t.method_ids.values())[-1]
-                # bytes4 is left-aligned in the 32-byte word
-                value = method_id << 224
-                return VyperValue.from_stack_op(IRLiteral(value), typ)
+                return VyperValue.from_stack_op(IRLiteral(fn_t.encoded_method_id), typ)
 
         # Case 2: Address properties
         if attr == "balance":

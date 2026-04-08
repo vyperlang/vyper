@@ -229,11 +229,7 @@ class Expr:
             value_typ = self.expr.value._metadata["type"]
             if is_type_t(value_typ, ContractFunctionT):
                 fn_t = value_typ.typedef
-                # use [-1] to get the full signature (all args, including defaults)
-                method_id = list(fn_t.method_ids.values())[-1]
-                # bytes4 is left-aligned in the 32-byte word
-                value = method_id << 224
-                return IRnode.from_list(value, typ=typ)
+                return IRnode.from_list(fn_t.encoded_method_id, typ=typ)
 
         # x.balance: balance of address x
         if self.expr.attr == "balance":
