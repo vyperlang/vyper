@@ -1,8 +1,6 @@
 """
 Roundtrip tests: compile Vyper contracts to ABI JSON, then parse back
 via from_abi / from_json_abi to verify Vyper can consume its own output.
-
-Addresses reviewer request in vyperlang/vyper#4904.
 """
 
 from vyper.compiler.output import build_abi_output
@@ -11,19 +9,11 @@ from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import InterfaceT
 from vyper.semantics.types.user import EventT
 
-# ---------------------------------------------------------------------------
-# Helper
-# ---------------------------------------------------------------------------
-
 
 def _compile_abi(source: str) -> list[dict]:
     data = CompilerData(source)
     return build_abi_output(data)
 
-
-# ---------------------------------------------------------------------------
-# Contract sources
-# ---------------------------------------------------------------------------
 
 FALLBACK_ONLY = """
 @payable
@@ -102,20 +92,34 @@ def __init__(initial_owner: address):
     self.owner = initial_owner
 """
 
+MIXED_CONTRACT = """
+event Deposit:
+    sender: indexed(address)
+    amount: uint256
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
+deposited: public(uint256)
+
+@deploy
+def __init__():
+    self.deposited = 0
+
+@payable
+@external
+def __default__():
+    self.deposited += msg.value
+    log Deposit(sender=msg.sender, amount=msg.value)
+
+@external
+@view
+def getDeposited() -> uint256:
+    return self.deposited
+"""
 
 
 class TestFallbackRoundtrip:
     def test_fallback_compiles_without_inputs_outputs(self):
         abi = _compile_abi(FALLBACK_ONLY)
-        assert len(abi) == 1
-        entry = abi[0]
-        assert entry["type"] == "fallback"
-        assert "inputs" not in entry
-        assert "outputs" not in entry
+        assert abi == [{"stateMutability": "payable", "type": "fallback"}]
 
     def test_fallback_abi_from_json_abi(self):
         abi = _compile_abi(FALLBACK_ONLY)
@@ -127,20 +131,20 @@ class TestFallbackRoundtrip:
 class TestConstructorRoundtrip:
     def test_constructor_abi_structure(self):
         abi = _compile_abi(CONSTRUCTOR_ONLY)
-        assert len(abi) == 1
-        entry = abi[0]
-        assert entry["type"] == "constructor"
-        assert entry["inputs"] == []
-        assert entry["outputs"] == []
+        assert abi == [
+            {"inputs": [], "outputs": [], "stateMutability": "nonpayable", "type": "constructor"}
+        ]
 
     def test_constructor_with_args_abi_structure(self):
         abi = _compile_abi(CONSTRUCTOR_WITH_ARGS)
         constructors = [e for e in abi if e["type"] == "constructor"]
         assert len(constructors) == 1
-        entry = constructors[0]
-        assert len(entry["inputs"]) == 1
-        assert entry["inputs"][0]["name"] == "initial_owner"
-        assert entry["inputs"][0]["type"] == "address"
+        assert constructors[0] == {
+            "inputs": [{"name": "initial_owner", "type": "address"}],
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "constructor",
+        }
 
     def test_constructor_from_json_abi(self):
         abi = _compile_abi(CONSTRUCTOR_ONLY)
@@ -151,26 +155,39 @@ class TestConstructorRoundtrip:
 class TestSimpleFunctionRoundtrip:
     def test_compile_and_parse_back(self):
         abi = _compile_abi(SIMPLE_FUNCTION)
-        assert len(abi) == 1
-        entry = abi[0]
-        assert entry["type"] == "function"
-        assert entry["name"] == "add"
+        assert abi == [
+            {
+                "name": "add",
+                "inputs": [
+                    {"name": "a", "type": "uint256"},
+                    {"name": "b", "type": "uint256"},
+                ],
+                "outputs": [{"name": "", "type": "uint256"}],
+                "stateMutability": "view",
+                "type": "function",
+            }
+        ]
 
-        fn = ContractFunctionT.from_abi(entry)
+        fn = ContractFunctionT.from_abi(abi[0])
         assert fn.name == "add"
         assert len(fn.arguments) == 2
-        assert fn.arguments[0].name == "a"
-        assert fn.arguments[1].name == "b"
         assert fn.return_type is not None
 
 
 class TestNoArgsNoReturnRoundtrip:
     def test_compile_and_parse_back(self):
         abi = _compile_abi(NO_ARGS_NO_RETURN)
-        assert len(abi) == 1
-        entry = abi[0]
+        assert abi == [
+            {
+                "name": "ping",
+                "inputs": [],
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function",
+            }
+        ]
 
-        fn = ContractFunctionT.from_abi(entry)
+        fn = ContractFunctionT.from_abi(abi[0])
         assert fn.name == "ping"
         assert fn.arguments == []
         assert fn.return_type is None
@@ -181,11 +198,8 @@ class TestMultipleFunctionsAndEventsRoundtrip:
         abi = _compile_abi(MULTIPLE_FUNCTIONS_AND_EVENTS)
         interface = InterfaceT.from_json_abi("TokenLike", abi)
 
-        func_names = set(interface.functions.keys())
-        assert func_names == {"balanceOf", "transfer"}
-
-        event_names = set(interface.events.keys())
-        assert event_names == {"Transfer", "Approval"}
+        assert set(interface.functions.keys()) == {"balanceOf", "transfer"}
+        assert set(interface.events.keys()) == {"Transfer", "Approval"}
 
     def test_individual_function_roundtrip(self):
         abi = _compile_abi(MULTIPLE_FUNCTIONS_AND_EVENTS)
@@ -221,7 +235,7 @@ class TestDefaultArgsRoundtrip:
         abi = _compile_abi(DEFAULT_ARGS)
         # Default-arg expansion produces multiple entries with the same name.
         # from_json_abi rejects duplicate names, so we keep only the fullest
-        # overload (most inputs) — mirroring how external tools would
+        # overload (most inputs) -- mirroring how external tools would
         # deduplicate before feeding ABI JSON back into Vyper.
         seen = {}
         for entry in abi:
@@ -258,41 +272,23 @@ class TestPublicStateVarRoundtrip:
 class TestTupleReturnRoundtrip:
     def test_tuple_return_parse_back(self):
         abi = _compile_abi(TUPLE_RETURN)
-        assert len(abi) == 1
-        entry = abi[0]
-        assert len(entry["outputs"]) == 3
+        assert abi == [
+            {
+                "name": "getValues",
+                "inputs": [],
+                "outputs": [
+                    {"name": "", "type": "uint256"},
+                    {"name": "", "type": "address"},
+                    {"name": "", "type": "bool"},
+                ],
+                "stateMutability": "view",
+                "type": "function",
+            }
+        ]
 
-        fn = ContractFunctionT.from_abi(entry)
+        fn = ContractFunctionT.from_abi(abi[0])
         assert fn.name == "getValues"
         assert fn.return_type is not None
-
-
-# ---------------------------------------------------------------------------
-# Mixed contract: fallback + functions + events + constructor
-# ---------------------------------------------------------------------------
-
-MIXED_CONTRACT = """
-event Deposit:
-    sender: indexed(address)
-    amount: uint256
-
-deposited: public(uint256)
-
-@deploy
-def __init__():
-    self.deposited = 0
-
-@payable
-@external
-def __default__():
-    self.deposited += msg.value
-    log Deposit(sender=msg.sender, amount=msg.value)
-
-@external
-@view
-def getDeposited() -> uint256:
-    return self.deposited
-"""
 
 
 class TestMixedContractRoundtrip:
@@ -325,11 +321,8 @@ class TestMixedContractRoundtrip:
             event = EventT.from_abi(entry)
             assert event.name == entry["name"]
 
-    def test_fallback_entry_has_no_inputs_outputs(self):
+    def test_fallback_entry_structure(self):
         abi = _compile_abi(MIXED_CONTRACT)
         fallbacks = [e for e in abi if e.get("type") == "fallback"]
         assert len(fallbacks) == 1
-        fb = fallbacks[0]
-        assert "inputs" not in fb
-        assert "outputs" not in fb
-        assert fb["stateMutability"] == "payable"
+        assert fallbacks[0] == {"stateMutability": "payable", "type": "fallback"}
