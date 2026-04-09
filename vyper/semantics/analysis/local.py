@@ -931,8 +931,10 @@ class ExprVisitor(VyperNodeVisitorBase):
                     if root_module_info is not None:
                         self.func.mark_used_module(root_module_info)
 
-                    # Note: We don't check what the override touches, as this would severely hurt
-                    # usability. The module which hosts the override is responsible for its state.
+                    # Note:
+                    # We don't look at the override of abstract methods (who live in another module)
+                    # and use their body to add `uses` requirements to the abstract module
+                    # (We do validate the concrete methods in an abstract module as usual.)
 
                 if func_type.is_deploy and not self.func.is_deploy:
                     raise CallViolation(
