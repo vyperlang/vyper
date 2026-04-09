@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from functools import cached_property
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, NoReturn, Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -999,12 +999,12 @@ def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
     for decorator in funcdef.decorator_list:
         # order of precedence for error checking
 
-        def fail_unknown_decorator(name: str) -> FunctionDeclarationException:
+        def fail_unknown_decorator(name: str) -> NoReturn:
             raise FunctionDeclarationException(
                 f"Unknown decorator: {name}", decorator  # noqa: B023
             )
 
-        def fail_bad_decorator(decorator) -> StructureException:
+        def fail_bad_decorator(decorator) -> NoReturn:
             raise StructureException("Bad decorator syntax", decorator)
 
         # Decorators without argument clause: `@something`
