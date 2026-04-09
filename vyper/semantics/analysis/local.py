@@ -304,13 +304,15 @@ def best_call_path(
     }
 
     # Build override chain: [concrete, ..., abstract]
+    # Computed as [abstract, ..., concrete].reverse()
     assert isinstance(func_t.ast_def, vy_ast.FunctionDef)
     override_chain = [func_t.ast_def.module_node]
     curr_t = func_t
     while curr_t.is_abstract:
         curr_t = curr_t.overridden_by
         assert isinstance(curr_t.ast_def, vy_ast.FunctionDef)
-        override_chain.insert(0, curr_t.ast_def.module_node)
+        override_chain.append(curr_t.ast_def.module_node)
+    override_chain.reverse()
 
     # Find first accessible module (most concrete first)
     for module_node in override_chain:
