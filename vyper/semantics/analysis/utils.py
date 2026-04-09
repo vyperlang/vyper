@@ -746,7 +746,7 @@ def validate_kwargs(node: vy_ast.Call, members: dict[str, VyperType], typeclass:
         raise InstantiationException(msg, node)
 
 
-def _resolve(node: vy_ast.Name) -> ModuleT | VarInfo | VyperType:
+def resolve_name(node: vy_ast.Name) -> ModuleT | VarInfo | VyperType:
     """
     Resolve a Name node to its semantic entity.
     Module references (ModuleInfo and `self`) are normalized to ModuleT.
@@ -769,8 +769,8 @@ def _structurally_equivalent_any_r(v1: Any, v2: Any) -> bool:
     if isinstance(v1, vy_ast.VyperNode):
         if isinstance(v1, vy_ast.Name):
             assert isinstance(v2, vy_ast.Name)
-            info1 = _resolve(v1)
-            info2 = _resolve(v2)
+            info1 = resolve_name(v1)
+            info2 = resolve_name(v2)
 
             if type(info1) is not type(info2):
                 return False
