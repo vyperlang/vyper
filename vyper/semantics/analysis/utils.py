@@ -762,46 +762,40 @@ def _resolve(node: vy_ast.Name) -> ModuleT | VarInfo | VyperType:
     return info
 
 
-def _structurally_equivalent_node_r(node1: vy_ast.VyperNode, node2: vy_ast.VyperNode) -> bool:
-    assert type(node1) is type(node2)
-
-    if isinstance(node1, vy_ast.Name):
-        assert isinstance(node2, vy_ast.Name)
-        info1 = _resolve(node1)
-        info2 = _resolve(node2)
-
-        if type(info1) is not type(info2):
-            return False
-
-        if isinstance(info1, VarInfo):
-            # Both built-ins/env-vars
-            if info1.decl_node is None and info2.decl_node is None:
-                return node1.id == node2.id
-
-            # One built-in/env-var, one user-land
-            if info1.decl_node is None or info2.decl_node is None:
-                return False
-
-            # Both user-land
-            return info1.decl_node is info2.decl_node
-
-        return info1 is info2
-
-    else:
-        return all(
-            _structurally_equivalent_any_r(
-                getattr(node1, field_name, None), getattr(node2, field_name, None)
-            )
-            for field_name in node1.get_comparison_fields()
-        )
-
-
 def _structurally_equivalent_any_r(v1: Any, v2: Any) -> bool:
     if type(v1) is not type(v2):
         return False
 
     if isinstance(v1, vy_ast.VyperNode):
-        return _structurally_equivalent_node_r(v1, v2)
+        if isinstance(v1, vy_ast.Name):
+            assert isinstance(v2, vy_ast.Name)
+            info1 = _resolve(v1)
+            info2 = _resolve(v2)
+
+            if type(info1) is not type(info2):
+                return False
+
+            if isinstance(info1, VarInfo):
+                # Both built-ins/env-vars
+                if info1.decl_node is None and info2.decl_node is None:
+                    return v1.id == v2.id
+
+                # One built-in/env-var, one user-land
+                if info1.decl_node is None or info2.decl_node is None:
+                    return False
+
+                # Both user-land
+                return info1.decl_node is info2.decl_node
+
+            return info1 is info2
+
+        else:
+            return all(
+                _structurally_equivalent_any_r(
+                    getattr(v1, field_name, None), getattr(v2, field_name, None)
+                )
+                for field_name in v1.get_comparison_fields()
+            )
 
     if isinstance(v1, list):
         return len(v1) == len(v2) and all(
