@@ -423,7 +423,7 @@ def _validate_overrides(func_t: ContractFunctionT, node: vy_ast.FunctionDef):
         abstract_t.set_overridden_by(func_t)
 
 
-class ModuleAnalyzer(VyperNodeVisitorBase):
+class ModuleAnalyzer(VyperNodeVisitorBase[None]):
     scope_name = "module"
 
     def __init__(self, module_node: vy_ast.Module, namespace: Namespace) -> None:

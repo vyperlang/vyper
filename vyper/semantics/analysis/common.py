@@ -1,16 +1,14 @@
-from typing import Tuple
+from typing import Generic, TypeVar
 
 from vyper.exceptions import StructureException, tag_exceptions
 
+Result = TypeVar("Result")
 
-class VyperNodeVisitorBase:
-    ignored_types: Tuple = ()
+
+class VyperNodeVisitorBase(Generic[Result]):
     scope_name = ""
 
-    def visit(self, node, *args):
-        if isinstance(node, self.ignored_types):
-            return
-
+    def visit(self, node, *args) -> Result:
         # iterate over the MRO until we find a matching visitor function
         # this lets us use a single function to broadly target several
         # node types with a shared parent
