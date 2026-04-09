@@ -294,8 +294,43 @@ def best_call_path(
     node: vy_ast.Attribute, func_t: ContractFunctionT, module_infos: list[ModuleInfo]
 ) -> str:
     """
-    Find the most concrete accessible module that provides an override.
-    Returns the access path string, or None if no better option exists.
+    Finds the "best" way to call a function (the one pointed by `node`, with type `func_t`)
+    This is meant to be used for errors/warnings,
+    where we want the user to call the function in that better way
+
+    Where "best" is understood as (in this order of priority):
+    1. More concrete is better: `b.foo` is better than `b.c.foo` if it overrides it
+    2. Shorter path is better: `a.foo` is better than `b.c.foo`
+    
+    This is done by checking the overrides of the function, and comparing them with:
+    1. Imported modules
+    2. Modules in the call chain (`a.b.c.foo` -> `[a, a.b, a.b.c]`)
+
+    For example given the following situation:
+    
+    a.foo -overrides-> b.foo -overrides-> c.foo
+    a imports c
+    called function is a.c.foo
+
+    this function will return `a.foo`, as it is:
+    1. the most concrete override,
+    2. reachable with the shortest path
+
+    
+    Note that this function does *not* consider import's imports and so on.
+    For example, with this situation:
+
+    self imports a1 and a2
+    a1 -imports-> b1 -imports-> c1 -imports-> abstract_m
+    a2 -imports-> b2 -overrides-> abstract_m
+    call a1.b1.c1.abstract_m.foo
+
+    this function will return `a1.b1.c1.abstract_m.foo` even though `a2.b2.foo` is better
+
+    The reason for this restriction is that it would make the system:
+    1. too unpredictable (adding a single seemingly unrelated import could change many best paths)
+    2. more complicated
+    3. slower (we would need to check basically every module, and every way they are imported)
     """
 
     namespace = node.module_node._metadata["namespace"]
