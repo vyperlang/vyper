@@ -999,13 +999,13 @@ def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
     for decorator in funcdef.decorator_list:
         # order of precedence for error checking
 
-        def unknown_decorator(name: str) -> FunctionDeclarationException:
-            return FunctionDeclarationException(
+        def fail_unknown_decorator(name: str) -> FunctionDeclarationException:
+            raise FunctionDeclarationException(
                 f"Unknown decorator: {name}", decorator  # noqa: B023
             )
 
-        def bad_decorator_syntax(decorator) -> StructureException:
-            return StructureException("Bad decorator syntax", decorator)
+        def fail_bad_decorator(decorator) -> StructureException:
+            raise StructureException("Bad decorator syntax", decorator)
 
         # Decorators without argument clause: `@something`
         if isinstance(decorator, vy_ast.Name):
@@ -1025,7 +1025,7 @@ def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
             elif StateMutability.is_valid_value(decorator.id):
                 ret.set_state_mutability(decorator)
             else:
-                raise unknown_decorator(decorator.id)
+                fail_unknown_decorator(decorator.id)
 
         # Decorators with argument clause: `@something()`
         elif isinstance(decorator, vy_ast.Call):
@@ -1037,7 +1037,7 @@ def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
 
             # Things like @foo.bar()
             if not isinstance(decorator.func, vy_ast.Name):
-                raise bad_decorator_syntax(decorator)
+                fail_bad_decorator(decorator)
 
             if decorator.func.id == "override":
                 ret.add_override(decorator)
@@ -1051,10 +1051,10 @@ def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
                     hint += "arguments since vyper 0.4.0."
                 raise StructureException(msg, decorator, hint=hint)
             else:
-                raise unknown_decorator(decorator.func.id)
+                fail_unknown_decorator(decorator.func.id)
 
         else:
-            raise bad_decorator_syntax(decorator)
+            fail_bad_decorator(decorator)
 
     if ret.state_mutability == StateMutability.PURE and ret.nonreentrant_node is not None:
         raise StructureException(
