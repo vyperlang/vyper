@@ -221,12 +221,7 @@ class Convert(BuiltinFunctionT):
         # block conversions between same type
         if value_type.is_subtype_of(target_type):
             hint = "Remove the conversion, it is unnecessary"
-            if target_type.is_subtype_of(value_type):
-                raise InvalidType(f"Value and target type are both '{target_type}'", node, hint)
-            else:
-                raise InvalidType(
-                    f"Value is a subtype of target type '{value_type} <: {target_type}'", node, hint
-                )
+            raise InvalidType(f"Already a '{target_type}' !", node, hint=hint)
 
         return [value_type, TYPE_T(target_type)]
 
