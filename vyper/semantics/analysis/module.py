@@ -644,22 +644,22 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         # CMC 2024-04-13 TODO: reduce nesting in this function
 
-        for export_annotation in export_annotations:
+        for export_ann in export_annotations:
             # set is_callable=True to give better error messages for imported
             # types, e.g. exports: some_module.MyEvent
-            info = get_expr_info(export_annotation, is_callable=True)
+            info = get_expr_info(export_ann, is_callable=True)
 
             if info.var_info is not None:
                 decl = info.var_info.decl_node
                 if not info.var_info.is_public:
-                    raise StructureException("not a public variable!", decl, export_annotation)
+                    raise StructureException("not a public variable!", decl, export_ann)
                 funcs = [decl._expanded_getter._metadata["func_type"]]
             elif isinstance(info.typ, ContractFunctionT):
                 # e.g. lib1.__interface__(self._addr).foo
-                if not isinstance(get_expr_info(export_annotation.value).typ, (ModuleT, TYPE_T)):
+                if not isinstance(get_expr_info(export_ann.value).typ, (ModuleT, TYPE_T)):
                     raise StructureException(
                         "invalid export of a value",
-                        export_annotation.value,
+                        export_ann.value,
                         hint="exports should look like <module>.<function | interface>",
                     )
 
@@ -668,22 +668,22 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             elif is_type_t(info.typ, InterfaceT):
                 interface_t = info.typ.typedef
 
-                if not isinstance(export_annotation, vy_ast.Attribute):
+                if not isinstance(export_ann, vy_ast.Attribute):
                     raise StructureException(
                         "invalid export",
                         hint="exports should look like <module>.<function | interface>",
                     )
 
-                module_info = get_expr_info(export_annotation.value).module_info
+                module_info = get_expr_info(export_ann.value).module_info
                 if module_info is None:
-                    raise StructureException("not a valid module!", export_annotation.value)
+                    raise StructureException("not a valid module!", export_ann.value)
 
                 if interface_t not in module_info.typ.implemented_interfaces:
-                    iface_str = export_annotation.node_source_code
-                    module_str = export_annotation.value.node_source_code
+                    iface_str = export_ann.node_source_code
+                    module_str = export_ann.value.node_source_code
                     msg = f"requested `{iface_str}` but `{module_str}`"
                     msg += f" does not implement `{iface_str}`!"
-                    raise InterfaceViolation(msg, export_annotation)
+                    raise InterfaceViolation(msg, export_ann)
 
                 module_exposed_fns = {fn.name: fn for fn in module_info.typ.exposed_functions}
                 # find the specific implementation of the function in the module
@@ -696,26 +696,24 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 if len(funcs) == 0:
                     path = module_info.module_node.path
                     msg = f"{module_info.alias} (located at `{path}`) has no external functions!"
-                    raise StructureException(msg, export_annotation)
+                    raise StructureException(msg, export_ann)
 
             else:
                 raise StructureException(
-                    f"not a function or interface: `{info.typ}`",
-                    info.typ.decl_node,
-                    export_annotation,
+                    f"not a function or interface: `{info.typ}`", info.typ.decl_node, export_ann
                 )
 
             for func_t in funcs:
                 if not func_t.is_external:
                     raise StructureException(
-                        "can't export non-external functions!", func_t.decl_node, export_annotation
+                        "can't export non-external functions!", func_t.decl_node, export_ann
                     )
 
-                self._add_exposed_function(func_t, export_annotation, relax=False)
-                with tag_exceptions(export_annotation):  # tag exceptions with specific export
+                self._add_exposed_function(func_t, export_ann, relax=False)
+                with tag_exceptions(export_ann):  # tag exceptions with specific export
                     self._self_t.typ.add_member(func_t.name, func_t)
 
-                    exported_funcs[func_t] = export_annotation
+                    exported_funcs[func_t] = export_ann
 
         node._metadata["exports_info"] = ExportsInfo(functions=exported_funcs)
 
