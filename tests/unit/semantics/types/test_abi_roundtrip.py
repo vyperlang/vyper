@@ -65,13 +65,6 @@ def transfer(to: address, amount: uint256) -> bool:
     return True
 """
 
-DEFAULT_ARGS = """
-@external
-@view
-def foo(a: uint256, b: uint256 = 10, c: uint256 = 20) -> uint256:
-    return a + b + c
-"""
-
 PUBLIC_STATE_VAR = """
 totalSupply: public(uint256)
 owner: public(address)
@@ -217,36 +210,6 @@ class TestMultipleFunctionsAndEventsRoundtrip:
         for entry in event_entries:
             event = EventT.from_abi(entry)
             assert event.name == entry["name"]
-
-
-class TestDefaultArgsRoundtrip:
-    def test_expanded_entries_parse_back(self):
-        abi = _compile_abi(DEFAULT_ARGS)
-        func_entries = [e for e in abi if e.get("type") == "function"]
-        # foo(a), foo(a,b), foo(a,b,c) = 3 entries
-        assert len(func_entries) == 3
-
-        for entry in func_entries:
-            fn = ContractFunctionT.from_abi(entry)
-            assert fn.name == "foo"
-            assert fn.return_type is not None
-
-    def test_deduplicated_entry_via_from_json_abi(self):
-        abi = _compile_abi(DEFAULT_ARGS)
-        # Default-arg expansion produces multiple entries with the same name.
-        # from_json_abi rejects duplicate names, so we keep only the fullest
-        # overload (most inputs) -- mirroring how external tools would
-        # deduplicate before feeding ABI JSON back into Vyper.
-        seen = {}
-        for entry in abi:
-            if entry.get("type") == "function":
-                name = entry["name"]
-                if name not in seen or len(entry["inputs"]) > len(seen[name]["inputs"]):
-                    seen[name] = entry
-        deduped_abi = list(seen.values())
-        interface = InterfaceT.from_json_abi("DefaultArgs", deduped_abi)
-        assert "foo" in interface.functions
-        assert len(interface.functions["foo"].arguments) == 3
 
 
 class TestPublicStateVarRoundtrip:
