@@ -120,7 +120,7 @@ class _ExprAnalyser:
 
         return ExprInfo(t)
 
-    def get_exact_type_from_node(self, node, include_type_exprs=False):
+    def get_exact_type_from_node(self, node, include_type_exprs=True):
         """
         Find exactly one type for a given node.
 
@@ -142,7 +142,7 @@ class _ExprAnalyser:
 
         return types_list[0]
 
-    def get_possible_types_from_node(self, node, include_type_exprs=False) -> list[VyperType]:
+    def get_possible_types_from_node(self, node, include_type_exprs=True) -> list[VyperType]:
         """
         Find all possible types for a given node.
         If the node's metadata contains type information, then that type is returned.
@@ -197,7 +197,7 @@ class _ExprAnalyser:
         is_self_reference = node.get("value.id") == "self"
 
         # variable attribute, e.g. `foo.bar`
-        t = self.get_exact_type_from_node(node.value, include_type_exprs=True)
+        t = self.get_exact_type_from_node(node.value)
         name = node.attr
 
         def _raise_invalid_reference(name, node):
@@ -297,7 +297,7 @@ class _ExprAnalyser:
 
     def types_from_Call(self, node):
         # function calls, e.g. `foo()` or `MyStruct()`
-        var = self.get_exact_type_from_node(node.func, include_type_exprs=True)
+        var = self.get_exact_type_from_node(node.func)
         return_value = var.fetch_call_return(node)
         if return_value:
             if isinstance(return_value, list):
@@ -483,7 +483,7 @@ def get_possible_types_from_node(node):
     List
         List of one or more BaseType objects.
     """
-    return _ExprAnalyser().get_possible_types_from_node(node, include_type_exprs=True)
+    return _ExprAnalyser().get_possible_types_from_node(node)
 
 
 def get_exact_type_from_node(node):
@@ -502,7 +502,7 @@ def get_exact_type_from_node(node):
     BaseType
         Type object.
     """
-    return _ExprAnalyser().get_exact_type_from_node(node, include_type_exprs=True)
+    return _ExprAnalyser().get_exact_type_from_node(node)
 
 
 def get_expr_info(node: vy_ast.ExprNode, is_callable: bool = False) -> ExprInfo:
@@ -604,7 +604,7 @@ def validate_expected_type(node, expected_type):
             # fail block
             pass
 
-    given_types = _ExprAnalyser().get_possible_types_from_node(node)
+    given_types = _ExprAnalyser().get_possible_types_from_node(node, include_type_exprs=False)
 
     if isinstance(node, vy_ast.List):
         # special case - for literal arrays we individually validate each item
