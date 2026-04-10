@@ -349,9 +349,7 @@ def _generate_selector_section_linear(
         _generate_fallback_body(builder, module_t, func_t, default_function)
     else:
         # No fallback - revert
-        revert_buffer = codegen_ctx.allocate_buffer(
-            0, annotation="fallback revert buffer"
-        )
+        revert_buffer = codegen_ctx.allocate_buffer(0, annotation="fallback revert buffer")
         builder.revert(revert_buffer._ptr, IRLiteral(0))
 
 
@@ -594,9 +592,7 @@ def _generate_selector_section_sparse(
         _generate_fallback_body(builder, module_t, func_t, default_function)
     else:
         # No fallback - revert
-        revert_buffer = codegen_ctx.allocate_buffer(
-            0, annotation="fallback revert buffer"
-        )
+        revert_buffer = codegen_ctx.allocate_buffer(0, annotation="fallback revert buffer")
         builder.revert(revert_buffer._ptr, IRLiteral(0))
 
 
@@ -872,9 +868,7 @@ def _generate_selector_section_dense(
         _generate_fallback_body(builder, module_t, func_t, default_function)
     else:
         # No fallback - revert
-        revert_buffer = fallback_codegen_ctx.allocate_buffer(
-            0, annotation="fallback revert buffer"
-        )
+        revert_buffer = fallback_codegen_ctx.allocate_buffer(0, annotation="fallback revert buffer")
         builder.revert(revert_buffer._ptr, IRLiteral(0))
 
 

@@ -28,7 +28,6 @@ from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.semantics.types.user import StructT
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
-from vyper.venom.memory_location import Allocation
 
 
 class Constancy(Enum):
