@@ -85,7 +85,7 @@ def analyze_modules(imports: ImportAnalyzer) -> ModuleT:
         _build_call_graph_edges(module_ast)
 
     for module_ast in modules:
-        _compute_and_validate_reachable_sets(module_ast)
+        _analyze_call_graph(module_ast)
 
     for module_ast in modules:
         _analyze_module_bodies(module_ast)
@@ -302,14 +302,19 @@ def _build_call_graph_edges(module_ast: vy_ast.Module):
                     fn_t.called_functions.add(call_t.get_concrete_override())
 
 
-def _compute_and_validate_reachable_sets(module_ast: vy_ast.Module):
+def _analyze_call_graph(module_ast: vy_ast.Module):
+    """
+    1. compute reachable set tag in each fn_t's reachable_internal_functions
+    2. validate no call cycles
+    3. validate nonreentrant functions not reachable from nonreentrant functions
+    """
     function_defs = module_ast.get_children(vy_ast.FunctionDef)
 
     for func in function_defs:
         fn_t = func._metadata["func_type"]
 
         # compute reachable set and validate the call graph
-        _compute_and_validate_reachable_set(fn_t)
+        _compute_and_validate_reachable_r(fn_t)
 
         if fn_t.nonreentrant:
             for g in fn_t.reachable_internal_functions:
@@ -322,10 +327,10 @@ def _compute_and_validate_reachable_sets(module_ast: vy_ast.Module):
                     raise CallViolation(msg, func, g.ast_def)
 
 
-# compute reachable set and validate the call graph (detect cycles)
-def _compute_and_validate_reachable_set(
-    fn_t: ContractFunctionT, path: list[ContractFunctionT] = None
-) -> None:
+def _compute_and_validate_reachable_r(fn_t: ContractFunctionT, path: list[ContractFunctionT] = None) -> None:
+    """
+    compute reachable set and validate acyclicity for a given fn_t
+    """
     path = path or []
 
     path.append(fn_t)
@@ -340,7 +345,7 @@ def _compute_and_validate_reachable_set(
             message = " -> ".join([f.name for f in extended_path])
             raise CallViolation(f"Contract contains cyclic function call: {message}")
 
-        _compute_and_validate_reachable_set(g, path=path)
+        _compute_and_validate_reachable_r(g, path=path)
 
         g_reachable = g.reachable_internal_functions
         assert fn_t not in g_reachable  # sanity check
