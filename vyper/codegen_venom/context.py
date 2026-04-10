@@ -650,6 +650,18 @@ class VenomCodegenContext:
         ptr = self.builder.alloca(size)
         return Buffer(_ptr=ptr, size=size, annotation=annotation)
 
+    def allocate_dyn(self) -> "IRVariable":
+        """Get a pointer to scratch memory for runtime-sized data.
+
+        Returns an address past all static allocations and any prior memory
+        use. The caller may write arbitrary data at this address; the region
+        is untracked and must be consumed (e.g. by CALL/CREATE) before any
+        other code that could also call allocate_dyn().
+
+        Lowers to EVM MSIZE at assembly time.
+        """
+        return self.builder.alloca_top()
+
     # === Storage Operations ===
 
     # Storage is word-addressed (word_scale=1): slot N is at slot N, not byte N*32.
