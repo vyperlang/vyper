@@ -762,7 +762,7 @@ def resolve_name(node: vy_ast.Name) -> ModuleT | VarInfo | VyperType:
     return info
 
 
-def _structurally_equivalent_any_r(v1: Any, v2: Any) -> bool:
+def _structurally_equivalent_r(v1: Any, v2: Any) -> bool:
     if type(v1) is not type(v2):
         return False
 
@@ -790,16 +790,12 @@ def _structurally_equivalent_any_r(v1: Any, v2: Any) -> bool:
             return info1 is info2
 
         return all(
-            _structurally_equivalent_any_r(
-                getattr(v1, field_name, None), getattr(v2, field_name, None)
-            )
+            _structurally_equivalent_r(getattr(v1, field_name, None), getattr(v2, field_name, None))
             for field_name in v1.get_comparison_fields()
         )
 
     if isinstance(v1, list):
-        return len(v1) == len(v2) and all(
-            _structurally_equivalent_any_r(a, b) for a, b in zip(v1, v2)
-        )
+        return len(v1) == len(v2) and all(_structurally_equivalent_r(a, b) for a, b in zip(v1, v2))
 
     return v1 == v2
 
@@ -817,4 +813,4 @@ def structurally_equivalent(node1: vy_ast.VyperNode, node2: vy_ast.VyperNode) ->
     the same structure.
     """
 
-    return _structurally_equivalent_any_r(node1, node2)
+    return _structurally_equivalent_r(node1, node2)
