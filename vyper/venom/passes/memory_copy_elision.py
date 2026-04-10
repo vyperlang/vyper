@@ -433,7 +433,7 @@ class MemoryCopyElisionPass(IRPass):
         new_operand = new_base.inst.output
         if read_loc.offset != 0:
             tmp = self.updater.add_before(
-                inst, "gep", [new_base.inst.output, IRLiteral(read_loc.offset)]
+                inst, "add", [new_base.inst.output, IRLiteral(read_loc.offset)]
             )
             assert tmp is not None
             new_operand = tmp  # help mypy
@@ -464,7 +464,7 @@ class MemoryCopyElisionPass(IRPass):
         new_operand = new_base.inst.output
         if write_loc.offset != 0:
             tmp = self.updater.add_before(
-                inst, "gep", [new_base.inst.output, IRLiteral(write_loc.offset)]
+                inst, "add", [new_base.inst.output, IRLiteral(write_loc.offset)]
             )
             assert tmp is not None
             new_operand = tmp  # help mypy

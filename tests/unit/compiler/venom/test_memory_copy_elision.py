@@ -985,7 +985,7 @@ def test_different_allocas_not_redundant():
         %a1 = alloca 64
         %a2 = alloca 64
         nop
-        %2 = gep 0, %a1
+        %2 = add 0, %a1
         %1 = mload %2
         sink %1
     """
@@ -1901,10 +1901,10 @@ def test_mcopy_translation_non_rewriteble_tmp():
         %ret_buf = alloca 2, 64
         invoke @fn, %ret_buf
         mcopy %dst, %ret_buf, 64
-        %2 = gep 32, %dst
+        %2 = add 32, %dst
         mstore %2, 123
         %a = mload %dst
-        %3 = gep 32, %dst
+        %3 = add 32, %dst
         %b = mload %3
         %res = add %a, %b
         sink %res
@@ -1916,12 +1916,12 @@ def test_mcopy_translation_non_rewriteble_tmp():
         %ret_buf = alloca 2, 64
         invoke @fn, %ret_buf
         nop
-        %2 = gep 32, %dst
-        %4 = gep 32, %ret_buf
+        %2 = add 32, %dst
+        %4 = add 32, %ret_buf
         mstore %4, 123
         %a = mload %ret_buf
-        %3 = gep 32, %dst
-        %5 = gep 32, %ret_buf
+        %3 = add 32, %dst
+        %5 = add 32, %ret_buf
         %b = mload %5
         %res = add %a, %b
         sink %res
@@ -1940,12 +1940,12 @@ def test_mcopy_translation_non_rewriteble_multiple_bb():
         mcopy %dst, %ret_buf, 64
         jnz %cond, @then, @after
     then:
-        %2 = gep 32, %dst
+        %2 = add 32, %dst
         mstore %2, 123
         jmp @after
     after:
         %a = mload %dst
-        %3 = gep 32, %dst
+        %3 = add 32, %dst
         %b = mload %3
         %res = add %a, %b
         sink %res
@@ -1960,14 +1960,14 @@ def test_mcopy_translation_non_rewriteble_multiple_bb():
         nop
         jnz %cond, @then, @after
     then:
-        %2 = gep 32, %dst
-        %4 = gep 32, %ret_buf
+        %2 = add 32, %dst
+        %4 = add 32, %ret_buf
         mstore %4, 123
         jmp @after
     after:
         %a = mload %ret_buf
-        %3 = gep 32, %dst
-        %5 = gep 32, %ret_buf
+        %3 = add 32, %dst
+        %5 = add 32, %ret_buf
         %b = mload %5
         %res = add %a, %b
         sink %res
@@ -1985,11 +1985,11 @@ def test_memcopy_translate_multiple_copies():
         invoke @fn, %a
         mcopy %b, %a, 64
         mcopy %c, %b, 64
-        %pc = gep 32, %c
+        %pc = add 32, %c
         mstore %pc, 777
-        %pc2 = gep 32, %b
+        %pc2 = add 32, %b
         mstore %pc2, 666
-        %pb = gep 32, %b
+        %pb = add 32, %b
         %x = mload %pb
         sink %x
     """
@@ -2002,13 +2002,13 @@ def test_memcopy_translate_multiple_copies():
         invoke @fn, %a
         nop
         nop
-        %pc = gep 32, %c
+        %pc = add 32, %c
         nop
-        %pc2 = gep 32, %b
-        %1 = gep 32, %a
+        %pc2 = add 32, %b
+        %1 = add 32, %a
         mstore %1, 666
-        %pb = gep 32, %b
-        %2 = gep 32, %a
+        %pb = add 32, %b
+        %2 = add 32, %a
         %x = mload %2
         sink %x
     """
