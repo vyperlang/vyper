@@ -1093,6 +1093,7 @@ def _parse_args(
         else:
             value = funcdef.args.defaults[i - n_positional_args]
             if is_interface and not isinstance(value, vy_ast.Ellipsis):
+                # TODO: for 0.5.0 we should just raise
                 vyper_warn(
                     Deprecation(
                         "Please use `...` as default value. (Values "
