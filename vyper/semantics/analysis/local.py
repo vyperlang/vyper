@@ -295,8 +295,7 @@ def best_call_path(
 ) -> str:
     """
     Finds the "best" way to call a function (the one pointed by `node`, with type `func_t`)
-    This is meant to be used for errors/warnings,
-    where we want the user to call the function in that better way
+    This is meant to be compared with what the user used, and error/warn if they do not match
 
     Where "best" is understood as (in this order of priority):
     1. More concrete is better: `b.foo` is better than `b.c.foo` if it overrides it
