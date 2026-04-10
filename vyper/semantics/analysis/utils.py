@@ -161,17 +161,26 @@ class _ExprAnalyser:
         if "type" in node._metadata:
             return [node._metadata["type"]]
 
+        ret = self._get_possible_types_r(node)
+
+        if not include_type_exprs:
+            invalid = next((i for i in ret if isinstance(i, TYPE_T)), None)
+            if invalid is not None:
+                raise InvalidReference(f"not a variable or literal: '{invalid.typedef}'", node)
+
+        return ret
+
+    def _get_possible_types_r(self, node) -> list[VyperType]:
+        # Early termination if typedef is propagated in metadata
+        if "type" in node._metadata:
+            return [node._metadata["type"]]
+
         # this method is a perf hotspot, so we cache the result and
         # try to return it if found.
-        k = f"possible_types_from_node_{include_type_exprs}"
+        k = f"possible_types_from_node"
         if k not in node._metadata:
             fn = self._find_fn(node)
             ret = fn(node)
-
-            if not include_type_exprs:
-                invalid = next((i for i in ret if isinstance(i, TYPE_T)), None)
-                if invalid is not None:
-                    raise InvalidReference(f"not a variable or literal: '{invalid.typedef}'", node)
 
             if all(isinstance(i, IntegerT) for i in ret):
                 # for numeric types, sort according by number of bits descending
@@ -181,6 +190,7 @@ class _ExprAnalyser:
             node._metadata[k] = ret
 
         return node._metadata[k].copy()
+
 
     def _find_fn(self, node):
         # look for a type-check method for each class in the given class mro
@@ -233,7 +243,7 @@ class _ExprAnalyser:
         if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)):
             # ad-hoc handling for LShift and RShift, since operands
             # can be different types
-            types_list = get_possible_types_from_node(node.left)
+            types_list = self._get_possible_types_r(node.left)
             # check rhs is unsigned integer
             validate_expected_type(node.right, IntegerT.unsigneds())
         else:
@@ -262,8 +272,8 @@ class _ExprAnalyser:
 
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             # x in y
-            left = self.get_possible_types_from_node(node.left)
-            right = self.get_possible_types_from_node(node.right)
+            left = self._get_possible_types_r(node.left)
+            right = self._get_possible_types_r(node.right)
             if any(isinstance(t, FlagT) for t in left):
                 types_list = get_common_types(node.left, node.right)
                 _validate_op(node, types_list, "validate_comparator")
@@ -342,8 +352,8 @@ class _ExprAnalyser:
         types_list = get_common_types(node.body, node.orelse)
 
         if not types_list:
-            a = get_possible_types_from_node(node.body)[0]
-            b = get_possible_types_from_node(node.orelse)[0]
+            a = self._get_possible_types_r(node.body)[0]
+            b = self._get_possible_types_r(node.orelse)[0]
             raise TypeMismatch(f"Dislike types: {a} and {b}", node)
 
         return types_list
@@ -355,7 +365,7 @@ class _ExprAnalyser:
 
             if len(node.elements) > 0:
                 # empty nested list literals `[[], []]`
-                subtypes = self.get_possible_types_from_node(node.elements[0])
+                subtypes = self._get_possible_types_r(node.elements[0])
             else:
                 # empty list literal `[]`
                 # subtype can be anything
@@ -419,7 +429,7 @@ class _ExprAnalyser:
     def types_from_Subscript(self, node):
         # index access, e.g. `foo[1]`
         if isinstance(node.value, (vy_ast.List, vy_ast.Subscript)):
-            types_list = self.get_possible_types_from_node(node.value)
+            types_list = self._get_possible_types_r(node.value)
             ret = []
             for t in types_list:
                 t.validate_index_type(node.slice)
@@ -436,7 +446,7 @@ class _ExprAnalyser:
 
     def types_from_UnaryOp(self, node):
         # unary operation: `-foo`
-        types_list = self.get_possible_types_from_node(node.operand)
+        types_list = self._get_possible_types_r(node.operand)
         return _validate_op(node, types_list, "validate_numeric_op")
 
 
