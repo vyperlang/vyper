@@ -668,14 +668,6 @@ class VenomCodegenContext:
         ptr = self.builder.alloca(size)
         return Buffer(_ptr=ptr, size=size, annotation=annotation)
 
-    def allocate_pinned_buffer(
-        self, size: int, position: int, annotation: Optional[str] = None
-    ) -> Buffer:
-        res = self.allocate_buffer(size, annotation)
-        alloca_inst = self.builder.get_last_inst("alloca")
-        self.builder.ctx.mem_allocator.set_position(Allocation(alloca_inst), position)
-        return res
-
     # === Storage Operations ===
 
     # Storage is word-addressed (word_scale=1): slot N is at slot N, not byte N*32.
