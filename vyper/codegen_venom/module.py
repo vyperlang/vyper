@@ -457,7 +457,10 @@ def _generate_selector_section_sparse(
 
             # Copy 2-byte header to memory at offset (32 - 2) = 30
             # so mload(0) reads it right-aligned in a 32-byte word
-            buf = codegen_ctx.allocate_pinned_buffer(32, 0, annotation="selector scratch")
+            buf = codegen_ctx.allocate_buffer(32, annotation="selector scratch")
+            # this mstore is here to make sure that the value in the
+            # memory is zero out size we do not overwrite it fully
+            builder.mstore(buf._ptr, 0)
             dst = builder.add(buf._ptr, IRLiteral(32 - SZ_BUCKET_HEADER))
             builder.codecopy(dst, bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
             jumpdest = builder.mload(buf._ptr)
@@ -720,7 +723,10 @@ def _generate_selector_section_dense(
         # Copy 5-byte header to memory at offset (32 - 5) = 27
         # so mload(0) reads it right-aligned in a 32-byte word
         codegen_ctx = VenomCodegenContext(module_ctx=module_t, builder=builder)
-        header_buf = codegen_ctx.allocate_pinned_buffer(32, 0, annotation="header")
+        header_buf = codegen_ctx.allocate_buffer(32, annotation="header")
+        # this mstore is here to make sure that the value in the
+        # memory is zero out size we do not overwrite it fully
+        builder.mstore(header_buf._ptr, 0)
         dst_buf = builder.add(header_buf._ptr, IRLiteral(32 - SZ_BUCKET_HEADER))
         builder.codecopy(dst_buf, bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
         hdr_info = builder.mload(header_buf._ptr)
@@ -745,7 +751,10 @@ def _generate_selector_section_dense(
 
         # Copy function info to memory
         codegen_ctx = VenomCodegenContext(module_ctx=module_t, builder=builder)
-        header_buf = codegen_ctx.allocate_pinned_buffer(32, 0)
+        header_buf = codegen_ctx.allocate_buffer(32)
+        # this mstore is here to make sure that the value in the
+        # memory is zero out size we do not overwrite it fully
+        builder.mstore(header_buf._ptr, 0)
         dst_buf = builder.add(header_buf._ptr, IRLiteral(32 - func_info_size))
         assert func_info_size >= SZ_BUCKET_HEADER  # otherwise mload will have dirty bytes
         builder.codecopy(dst_buf, func_info_location, IRLiteral(func_info_size))
