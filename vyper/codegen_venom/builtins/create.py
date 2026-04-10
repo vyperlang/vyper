@@ -86,8 +86,8 @@ def _check_create_result(
         # Failure path: bubble up revert data
         b.set_block(fail_bb)
         revert_size = b.returndatasize()
-        revert_buffer = ctx.allocate_pinned_buffer(
-            0, 0, annotation="create revert on failure buffer"
+        revert_buffer = ctx.allocate_buffer(
+            0, annotation="create revert on failure buffer"
         )
         b.returndatacopy(revert_buffer._ptr, IRLiteral(0), revert_size)
         b.revert(revert_buffer._ptr, revert_size)

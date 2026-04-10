@@ -1829,7 +1829,7 @@ class Expr:
         b.append_block(fail_bb)
         b.set_block(fail_bb)
         rds = b.returndatasize()
-        dst_buf = self.ctx.allocate_pinned_buffer(0, 0)
+        dst_buf = self.ctx.allocate_buffer(0)
         b.returndatacopy(dst_buf._ptr, IRLiteral(0), rds)
         b.revert(dst_buf._ptr, rds)
 

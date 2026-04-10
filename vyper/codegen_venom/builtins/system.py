@@ -171,8 +171,8 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         b.append_block(fail_label)
         b.set_block(fail_label)
         ret_size = b.returndatasize()
-        revert_buffer = ctx.allocate_pinned_buffer(
-            0, 0, annotation="lower raw call revert on failure buffer"
+        revert_buffer = ctx.allocate_buffer(
+            0, annotation="lower raw call revert on failure buffer"
         )
         b.returndatacopy(revert_buffer._ptr, IRLiteral(0), ret_size)
         b.revert(revert_buffer._ptr, ret_size)
@@ -247,8 +247,8 @@ def lower_send(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     else:
         gas = Expr(gas_node, ctx).lower_value()
 
-    argsptr_buf = ctx.allocate_pinned_buffer(0, 0, annotation="lower send args buffer")
-    retptr_buf = ctx.allocate_pinned_buffer(0, 0, annotation="lower send retptr buffer")
+    argsptr_buf = ctx.allocate_buffer(0, annotation="lower send args buffer")
+    retptr_buf = ctx.allocate_buffer(0, annotation="lower send retptr buffer")
     # call(gas, to, value, 0, 0, 0, 0)
     success = b.call(
         gas,
