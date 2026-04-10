@@ -84,6 +84,7 @@ _reads = {
     "revert": MEMORY,
     "sha3": MEMORY,
     "return": MEMORY,
+    "alloca_top": MEMORY,  # lowers to MSIZE; depends on all prior memory writes
 }
 
 reads = _reads.copy()
