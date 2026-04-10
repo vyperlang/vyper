@@ -271,6 +271,7 @@ def test_clear_literals(contract, assert_compile_failed, get_contract):
 
 def test_empty_constant_name_not_a_type_regression_4865():
     code = """
+# pragma: nocover
 MAX_MESSAGES: constant(uint256) = 64
 
 @external
