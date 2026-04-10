@@ -37,7 +37,6 @@ from vyper.semantics.analysis.base import (
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.constant_folding import constant_fold
 from vyper.semantics.analysis.getters import generate_public_variable_getters
-from vyper.semantics.analysis.imports import ImportAnalyzer
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.local import ExprVisitor, analyze_functions, check_module_uses
 from vyper.semantics.analysis.utils import (
@@ -55,21 +54,20 @@ from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import OrderedSet
 
 
-def analyze_modules(imports: ImportAnalyzer) -> ModuleT:
+def analyze_modules(modules: OrderedSet[vy_ast.Module]) -> ModuleT:
     """
     Analyze Vyper module ASTs, add all module-level objects to the namespace,
     type-check/validate semantics and annotate with type and analysis info.
-    """
-    root_module_ast = imports.toplevel_module
 
-    modules = imports.seen
+    This function assumes `modules` comes from ImportAnalyzer.seen after import analysis.
+    In other words, it must:
+    1. be sorted in the post-order of the import tree:
+        each module must come after every one of its imports.
+    2. contain a single root:
+        each module must be imported by another one, except for a single module
     """
-    Comes from ImportAnalyzer, guarantees that:
-    1. they are sorted in the post-order of the import tree:
-        each module comes after every one of its imports.
-    2. there is only a single root:
-        each module is imported by another one, except for a single module
-    """
+    # Since dependencies are sorted, the root module is always the last element
+    root_module_ast = list(modules)[-1]
 
     # TODO: Instead of being recursive, use `modules`
     # Collect module members, partial validation
