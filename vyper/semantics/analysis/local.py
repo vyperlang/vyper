@@ -301,13 +301,13 @@ def best_call_path(
     Where "best" is understood as (in this order of priority):
     1. More concrete is better: `b.foo` is better than `b.c.foo` if it overrides it
     2. Shorter path is better: `a.foo` is better than `b.c.foo`
-    
+
     This is done by checking the overrides of the function, and comparing them with:
     1. Imported modules
     2. Modules in the call chain (`a.b.c.foo` -> `[a, a.b, a.b.c]`)
 
     For example given the following situation:
-    
+
     a.foo -overrides-> b.foo -overrides-> c.foo
     a imports c
     called function is a.c.foo
@@ -316,7 +316,7 @@ def best_call_path(
     1. the most concrete override,
     2. reachable with the shortest path
 
-    
+
     Note that this function does *not* consider import's imports and so on.
     For example, with this situation:
 
