@@ -56,6 +56,7 @@ class BasePtrAnalysis(IRAnalysis):
     """
 
     var_to_mem: dict[IRVariable, set[Ptr]]
+    vars_in_allocations: dict[Allocation, set[IRVariable]]
 
     def analyze(self):
         self.var_to_mem = dict()
@@ -73,6 +74,22 @@ class BasePtrAnalysis(IRAnalysis):
             if changed:
                 for succ in self.cfg.cfg_out(bb):
                     worklist.append(succ)
+
+        self.vars_in_allocations = dict()
+        for var, ptrs in self.var_to_mem.items():
+            for ptr in ptrs:
+                if ptr.base_alloca not in self.vars_in_allocations:
+                    self.vars_in_allocations[ptr.base_alloca] = set()
+                self.vars_in_allocations[ptr.base_alloca].add(var)
+
+    def new_gep(self, var: IRVariable, allocation: Allocation, offset: int):
+        self.new(var, Ptr(allocation, offset))
+
+    def new(self, var: IRVariable, ptr: Ptr):
+        self.var_to_mem[var] = {ptr}
+        if ptr.base_alloca not in self.vars_in_allocations:
+            self.vars_in_allocations[ptr.base_alloca] = set()
+        self.vars_in_allocations[ptr.base_alloca].add(var)
 
     def _handle_inst(self, inst: IRInstruction) -> bool:
         if inst.num_outputs != 1:

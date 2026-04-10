@@ -961,8 +961,8 @@ def test_mcopy_chain_with_allocas():
         %a2 = alloca 64
         %a3 = alloca 64
         nop
-        mcopy %a3, %a1, 64
-        %1 = mload %a3
+        nop
+        %1 = mload %a1
         sink %1
     """
     _check_pre_post(pre, post)
@@ -984,8 +984,9 @@ def test_different_allocas_not_redundant():
     _global:
         %a1 = alloca 64
         %a2 = alloca 64
-        mcopy %a2, %a1, 64
-        %1 = mload %a2
+        nop
+        %2 = add 0, %a1
+        %1 = mload %2
         sink %1
     """
     _check_no_change(pre)
@@ -1033,10 +1034,10 @@ def test_repeated_alloca_mcopy_with_intermediate_reads():
     _global:
         %a1 = alloca 64
         %a2 = alloca 64
-        mcopy %a2, %a1, 64
-        %1 = mload %a2
         nop
-        %2 = mload %a2
+        %1 = mload %a1
+        nop
+        %2 = mload %a1
         %3 = add %1, %2
         sink %3
     """
@@ -1061,12 +1062,26 @@ def test_no_repeated_alloca_mcopy_elision_when_source_modified():
         mcopy %a2, %a1, 64
         %1 = mload %a2
         mstore %a1, 999
-        mcopy %a2, %a1, 64
         %2 = mload %a2
         %3 = add %1, %2
-        sink %3
+        %4 = mload %a1
+        sink %3, %4
     """
-    _check_no_change(pre)
+
+    post = """
+    _global:
+        %a1 = alloca 64
+        %a2 = alloca 64
+        mcopy %a2, %a1, 64
+        %1 = mload %a1
+        mstore %a1, 999
+        %2 = mload %a2
+        %3 = add %1, %2
+        %4 = mload %a1
+        sink %3, %4
+    """
+
+    _check_pre_post(pre, post)
 
 
 def test_calldatacopy_mcopy_chain_with_alloca():
@@ -1853,3 +1868,185 @@ def test_cross_bb_copy_with_nested_add_different_inner_adds():
 
     # mcopy should NOT be optimized - different inner adds break equivalence
     _check_no_change(pre)
+
+
+def test_invoke_allocation_translation():
+    pre = """
+    main:
+        %dst = alloca 1, 64
+        %ret_buf = alloca 2, 64
+        invoke @fn, %ret_buf
+        mcopy %dst, %ret_buf, 64
+        %res = mload %dst
+        sink %res
+    """
+
+    post = """
+    main:
+        %dst = alloca 1, 64
+        %ret_buf = alloca 2, 64
+        invoke @fn, %ret_buf
+        nop
+        %res = mload %ret_buf
+        sink %res
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_mcopy_translation_non_rewriteble_tmp():
+    pre = """
+    main:
+        %dst = alloca 1, 64
+        %ret_buf = alloca 2, 64
+        invoke @fn, %ret_buf
+        mcopy %dst, %ret_buf, 64
+        %2 = add 32, %dst
+        mstore %2, 123
+        %a = mload %dst
+        %3 = add 32, %dst
+        %b = mload %3
+        %res = add %a, %b
+        sink %res
+    """
+
+    post = """
+    main:
+        %dst = alloca 1, 64
+        %ret_buf = alloca 2, 64
+        invoke @fn, %ret_buf
+        nop
+        %2 = add 32, %dst
+        %4 = add 32, %ret_buf
+        mstore %4, 123
+        %a = mload %ret_buf
+        %3 = add 32, %dst
+        %5 = add 32, %ret_buf
+        %b = mload %5
+        %res = add %a, %b
+        sink %res
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_mcopy_translation_non_rewriteble_multiple_bb():
+    pre = """
+    main:
+        %cond = source
+        %dst = alloca 1, 64
+        %ret_buf = alloca 2, 64
+        invoke @fn, %ret_buf
+        mcopy %dst, %ret_buf, 64
+        jnz %cond, @then, @after
+    then:
+        %2 = add 32, %dst
+        mstore %2, 123
+        jmp @after
+    after:
+        %a = mload %dst
+        %3 = add 32, %dst
+        %b = mload %3
+        %res = add %a, %b
+        sink %res
+    """
+
+    post = """
+    main:
+        %cond = source
+        %dst = alloca 1, 64
+        %ret_buf = alloca 2, 64
+        invoke @fn, %ret_buf
+        nop
+        jnz %cond, @then, @after
+    then:
+        %2 = add 32, %dst
+        %4 = add 32, %ret_buf
+        mstore %4, 123
+        jmp @after
+    after:
+        %a = mload %ret_buf
+        %3 = add 32, %dst
+        %5 = add 32, %ret_buf
+        %b = mload %5
+        %res = add %a, %b
+        sink %res
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_memcopy_translate_multiple_copies():
+    pre = """
+    main:
+        %a = alloca 1, 64
+        %b = alloca 2, 64
+        %c = alloca 3, 64
+        invoke @fn, %a
+        mcopy %b, %a, 64
+        mcopy %c, %b, 64
+        %pc = add 32, %c
+        mstore %pc, 777
+        %pc2 = add 32, %b
+        mstore %pc2, 666
+        %pb = add 32, %b
+        %x = mload %pb
+        sink %x
+    """
+
+    post = """
+    main:
+        %a = alloca 1, 64
+        %b = alloca 2, 64
+        %c = alloca 3, 64
+        invoke @fn, %a
+        nop
+        nop
+        %pc = add 32, %c
+        nop
+        %pc2 = add 32, %b
+        %1 = add 32, %a
+        mstore %1, 666
+        %pb = add 32, %b
+        %2 = add 32, %a
+        %x = mload %2
+        sink %x
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_memcopy_total_translate_with_more_writes():
+    pre = """
+    main:
+        %a = alloca 1, 64
+        %b = alloca 2, 64
+        %c = alloca 3, 128
+        %d = alloca 3, 128
+        invoke @fn, %a
+        mcopy %b, %a, 64
+        mcopy %c, %b, 64
+        mstore %c, 1
+        mcopy %d, %c, 64
+        %res1 = mload %d
+        %res2 = mload %c
+        sink %res1, %res2
+    """
+
+    post = """
+    main:
+        %a = alloca 1, 64
+        %b = alloca 2, 64
+        %c = alloca 3, 128
+        %d = alloca 3, 128
+        invoke @fn, %a
+        nop
+        mcopy %c, %a, 64
+        mstore %c, 1
+        mcopy %d, %c, 64
+        %res1 = mload %d
+        %res2 = mload %c
+        sink %res1, %res2
+    """
+
+    _check_pre_post(pre, post)
