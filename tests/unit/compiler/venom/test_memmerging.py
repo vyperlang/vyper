@@ -208,60 +208,6 @@ def test_memmerging_imposs_unkown_place():
     _check_no_change(pre)
 
 
-def test_memmerging_imposs_msize():
-    """
-    Test case of impossible merge
-    Impossible because of the msize barier
-    """
-    if not version_check(begin="cancun"):
-        return
-
-    pre = """
-    _global:
-        %1 = mload 0
-        %2 = msize  ; BARRIER
-        %3 = mload 32
-        %4 = mload 64
-        mstore 1000, %1
-        mstore 1032, %3
-        %5 = msize  ; BARRIER
-        mstore 1064, %4
-        return %2, %5
-    """
-    _check_no_change(pre)
-
-
-def test_memmerging_partial_msize():
-    """
-    Only partial merge possible
-    because of the msize barier
-    """
-    if not version_check(begin="cancun"):
-        return
-
-    pre = """
-    _global:
-        %1 = mload 0
-        %2 = mload 32
-        %3 = mload 64
-        mstore 1000, %1
-        mstore 1032, %2
-        %4 = msize  ; BARRIER
-        mstore 1064, %3
-        return %4
-    """
-
-    post = """
-    _global:
-        %3 = mload 64
-        mcopy 1000, 0, 64
-        %4 = msize
-        mstore 1064, %3
-        return %4
-    """
-    _check_pre_post(pre, post)
-
-
 def test_memmerging_partial_overlap():
     """
     Two different copies from overlapping

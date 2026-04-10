@@ -94,7 +94,6 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "sgt",
         "create",
         "create2",
-        "msize",
         "balance",
         "call",
         "staticcall",
@@ -578,7 +577,7 @@ class VenomCompiler:
         # Step 5: Emit the EVM instruction(s)
         if opcode in _ONE_TO_ONE_INSTRUCTIONS:
             assembly.append(opcode.upper())
-        elif opcode == "alloca":
+        elif opcode in ("alloca", "alloca_top"):
             pass
         elif opcode == "param":
             pass

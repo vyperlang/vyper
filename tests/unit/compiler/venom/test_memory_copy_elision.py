@@ -24,8 +24,7 @@ def _check_pre_post_with_unused_var_removal(pre, post, hevm: bool = True):
     """Like _check_pre_post but also runs RemoveUnusedVariablesPass.
 
     This is needed for tests involving load-store elision where the load
-    becomes unused after the store is nop'd. RemoveUnusedVariablesPass
-    has proper MSIZE fence handling to preserve loads that affect msize.
+    becomes unused after the store is nop'd.
     """
     pre_ctx, post_ctx = _checker.run_passes(pre, post)
     for fn in pre_ctx.functions.values():
@@ -71,7 +70,7 @@ def test_redundant_copy_elimination():
     """
 
     # After MemoryCopyElisionPass: store is nop'd, load remains
-    # After RemoveUnusedVariablesPass: load is also removed (no msize downstream), nops cleared
+    # After RemoveUnusedVariablesPass: load is also removed, nops cleared
     post = """
     _global:
         stop
@@ -788,36 +787,6 @@ def test_mem_elision_load_needed_not_precise():
     """
 
     _check_pre_post(pre, post)
-
-
-def test_mem_elision_msize():
-    """
-    Test that mload is preserved when msize is read downstream.
-
-    MemoryCopyElisionPass only nops the store. RemoveUnusedVariablesPass
-    would normally remove the unused load, but it correctly preserves it
-    because there's an msize instruction downstream (msize fence).
-    """
-    pre = """
-    main:
-        ; you cannot nop both of
-        ; them since you need correct
-        ; msize (currently it does that)
-        %1 = mload 100
-        mstore 100, %1
-        %2 = msize
-        sink %2
-    """
-
-    # After MemoryCopyElisionPass: store is nop'd
-    # After RemoveUnusedVariablesPass: load is KEPT (msize fence), nops cleared
-    post = """
-    main:
-        %1 = mload 100
-        %2 = msize
-        sink %2
-    """
-    _check_pre_post_with_unused_var_removal(pre, post)
 
 
 def test_remove_unused_writes():

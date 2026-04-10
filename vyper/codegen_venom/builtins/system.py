@@ -107,13 +107,12 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         )
 
     # Handle msg.data specially - it needs to copy calldata to memory
-    # This must be done before other memory allocations to use msize correctly
     data_node = node.args[1]
     if _is_msg_data(data_node):
-        # Get msize first - this is where we'll copy calldata
-        data_ptr = b.msize()
+        # Get scratch space past all static allocations
+        data_ptr = b.alloca_top()
         data_len = b.calldatasize()
-        # Copy entire calldata to memory at msize
+        # Copy entire calldata to scratch memory
         b.calldatacopy(data_ptr, IRLiteral(0), data_len)
     else:
         data_vv = Expr(data_node, ctx).lower()

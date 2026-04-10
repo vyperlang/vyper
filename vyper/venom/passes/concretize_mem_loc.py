@@ -1,6 +1,6 @@
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import BasePtrAnalysis, DFGAnalysis, MemLivenessAnalysis
-from vyper.venom.basicblock import IRBasicBlock
+from vyper.venom.basicblock import IRBasicBlock, IRLiteral
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
@@ -43,6 +43,9 @@ class ConcretizeMemLocPass(IRPass):
 
         self.allocator.reserve_all()
 
+        # Compute end-of-memory before the BB walk so alloca_top can use it.
+        self.fn_eom = self.allocator.compute_fn_eom()
+
         for bb in self.function.get_basic_blocks():
             self._handle_bb(bb)
 
@@ -62,3 +65,5 @@ class ConcretizeMemLocPass(IRPass):
                 ), f"alloca not allocated by livesets: {inst}"
                 concrete = self.allocator.get_concrete(base_ptr)
                 self.updater.replace(inst, "assign", [concrete])
+            elif inst.opcode == "alloca_top":
+                self.updater.replace(inst, "assign", [IRLiteral(self.fn_eom)])

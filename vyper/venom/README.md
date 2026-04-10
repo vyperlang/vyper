@@ -427,7 +427,6 @@ Instructions have the same effects.
 - `sgt`
 - `create`
 - `create2`
-- `msize`
 - `balance`
 - `call`
 - `staticcall`

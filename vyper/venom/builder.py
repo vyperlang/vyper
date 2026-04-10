@@ -156,12 +156,18 @@ class VenomBuilder:
         """Copy size bytes from memory[src] to memory[dst]."""
         self._emit_evm("mcopy", dst, src, size)
 
-    def msize(self) -> IRVariable:
-        return self._emit1_evm("msize")
-
     def alloca(self, size: int) -> IRVariable:
         """Allocate abstract memory. Returns pointer. (IR-specific)"""
         return self._emit1("alloca", size)
+
+    def alloca_top(self) -> IRVariable:
+        """Get address past all static memory allocations (scratch space start).
+
+        Resolved by ConcretizeMemLocPass to a literal equal to the function's
+        end-of-memory offset. Use for untracked scratch buffers above the
+        static frame (replaces the old msize-based pattern).
+        """
+        return self._emit1("alloca_top")
 
     # === Storage ===
     def sload(self, slot: Operand) -> IRVariable:
