@@ -161,11 +161,10 @@ class VenomBuilder:
         return self._emit1("alloca", size)
 
     def alloca_top(self) -> IRVariable:
-        """Get address past all static memory allocations (scratch space start).
+        """Get address past all memory (scratch space start).
 
-        Resolved by ConcretizeMemLocPass to a literal equal to the function's
-        end-of-memory offset. Use for untracked scratch buffers above the
-        static frame (replaces the old msize-based pattern).
+        Lowered to EVM MSIZE at assembly time. Use for untracked scratch
+        buffers above the static frame and any spill slots.
         """
         return self._emit1("alloca_top")
 
