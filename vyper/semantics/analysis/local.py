@@ -290,7 +290,7 @@ def check_module_uses(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
     return root_module_info
 
 
-def best_call_path(
+def _best_call_path(
     node: vy_ast.Attribute, func_t: ContractFunctionT, module_infos: list[ModuleInfo]
 ) -> str:
     """
@@ -378,7 +378,7 @@ def check_module_uses_for_abstract(
         return None
 
     # Find better accessible override
-    best_path = best_call_path(node, func_t, module_infos)
+    best_path = _best_call_path(node, func_t, module_infos)
     current_path = ".".join(mi.alias for mi in module_infos)
 
     # Error if a better path exists
