@@ -789,13 +789,12 @@ def _structurally_equivalent_any_r(v1: Any, v2: Any) -> bool:
 
             return info1 is info2
 
-        else:
-            return all(
-                _structurally_equivalent_any_r(
-                    getattr(v1, field_name, None), getattr(v2, field_name, None)
-                )
-                for field_name in v1.get_comparison_fields()
+        return all(
+            _structurally_equivalent_any_r(
+                getattr(v1, field_name, None), getattr(v2, field_name, None)
             )
+            for field_name in v1.get_comparison_fields()
+        )
 
     if isinstance(v1, list):
         return len(v1) == len(v2) and all(
