@@ -16,7 +16,6 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
 
-
 # TODO maybe this should be merged with .types/base.py
 
 
