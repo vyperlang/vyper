@@ -326,11 +326,6 @@ def best_call_path(
     call a1.b1.c1.abstract_m.foo
 
     this function will return `a1.b1.c1.abstract_m.foo` even though `a2.b2.foo` is better
-
-    The reason for this restriction is that it would make the system:
-    1. too unpredictable (adding a single seemingly unrelated import could change many best paths)
-    2. more complicated
-    3. slower (we would need to check basically every module, and every way they are imported)
     """
 
     namespace = node.module_node._metadata["namespace"]
