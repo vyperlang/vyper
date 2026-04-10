@@ -89,9 +89,9 @@ class ImportAnalyzer:
     _compiler_inputs: dict[CompilerInput, vy_ast.Module]
     toplevel_module: vy_ast.Module
 
-    def __init__(self, input_bundle: InputBundle, module_ast: vy_ast.Module):
+    def __init__(self, input_bundle: InputBundle, graph: _ImportGraph, module_ast: vy_ast.Module):
         self.input_bundle = input_bundle
-        self.graph = _ImportGraph()
+        self.graph = graph
         self.toplevel_module = module_ast
         self._ast_of: dict[int, vy_ast.Module] = {}
 
@@ -106,6 +106,7 @@ class ImportAnalyzer:
         # should be all system paths + topmost module path
         self.absolute_search_paths = input_bundle.search_paths.copy()
 
+    def resolve_imports(self):
         self._resolve_imports_r(self.toplevel_module)
         self._integrity_sum = self._calculate_integrity_sum_r(self.toplevel_module)
 
@@ -382,4 +383,8 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy
 
 
 def resolve_imports(module_ast: vy_ast.Module, input_bundle: InputBundle):
-    return ImportAnalyzer(input_bundle, module_ast)
+    graph = _ImportGraph()
+    analyzer = ImportAnalyzer(input_bundle, graph, module_ast)
+    analyzer.resolve_imports()
+
+    return analyzer
