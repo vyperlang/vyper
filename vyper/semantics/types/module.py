@@ -211,13 +211,40 @@ class InterfaceT(_UserType):
         InterfaceT
             primitive interface type
         """
-        functions: list = []
-        events: list = []
-
+        # Functions with default arguments are expanded by the Vyper compiler
+        # into multiple ABI entries sharing the same name but with different
+        # input counts (see #903). Deduplicate by keeping the overload with
+        # the most inputs, mirroring the AST-side handling in
+        # _get_module_functions (d1859cd8). Entries with the same name but
+        # incompatible input-type prefixes represent a genuine collision and
+        # are rejected. Types are compared on the parsed argument objects
+        # rather than the raw ABI "type" string, so e.g. `int168` and
+        # `decimal` (which share `"type": "int168"` but differ in
+        # `internalType`) are correctly treated as incompatible.
+        parsed_fns: dict = {}
         for item in [i for i in abi if i.get("type") == "function"]:
-            functions.append((item["name"], ContractFunctionT.from_abi(item)))
-        for item in [i for i in abi if i.get("type") == "event"]:
-            events.append((item["name"], EventT.from_abi(item)))
+            fn_name = item["name"]
+            curr_fn = ContractFunctionT.from_abi(item)
+            prev = parsed_fns.get(fn_name)
+            if prev is None:
+                parsed_fns[fn_name] = curr_fn
+                continue
+            prev_args = list(prev.arguments)
+            curr_args = list(curr_fn.arguments)
+            overlap = min(len(prev_args), len(curr_args))
+            for a, b in zip(prev_args[:overlap], curr_args[:overlap]):
+                if a.typ != b.typ:
+                    raise NamespaceCollision(
+                        f"ABI contains multiple functions named '{fn_name}' "
+                        f"with incompatible input types"
+                    )
+            if len(curr_args) > len(prev_args):
+                parsed_fns[fn_name] = curr_fn
+
+        functions: list = [(fn_name, fn) for fn_name, fn in parsed_fns.items()]
+        events: list = [
+            (item["name"], EventT.from_abi(item)) for item in abi if item.get("type") == "event"
+        ]
 
         return cls._from_lists(name, None, functions, events)
 
