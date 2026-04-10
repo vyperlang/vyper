@@ -78,9 +78,9 @@ def test_two_allocas_in_same_loop_body_no_overlap():
     ctx, _ = _concretize(pre)
 
     positions = _positions_by_var(ctx)
-    assert positions["%buf_a"] != positions["%buf_b"], (
-        f"two allocas in the same loop body must not share a slot: {positions}"
-    )
+    assert (
+        positions["%buf_a"] != positions["%buf_b"]
+    ), f"two allocas in the same loop body must not share a slot: {positions}"
 
 
 def test_alloca_defined_before_loop_used_in_loop():
@@ -112,9 +112,9 @@ def test_alloca_defined_before_loop_used_in_loop():
     positions = _positions_by_var(ctx)
     # %loop_buf is only used in the loop, %post_buf only after — their
     # live ranges should be disjoint, so they can share the same slot.
-    assert positions["%loop_buf"] == positions["%post_buf"], (
-        f"allocas with disjoint lifetimes should share a slot: {positions}"
-    )
+    assert (
+        positions["%loop_buf"] == positions["%post_buf"]
+    ), f"allocas with disjoint lifetimes should share a slot: {positions}"
 
 
 def test_allocas_in_disjoint_branches_within_loop():
@@ -151,9 +151,9 @@ def test_allocas_in_disjoint_branches_within_loop():
     ctx, _ = _concretize(pre)
 
     positions = _positions_by_var(ctx)
-    assert positions["%buf_t"] == positions["%buf_e"], (
-        f"allocas on disjoint branches within a loop should share: {positions}"
-    )
+    assert (
+        positions["%buf_t"] == positions["%buf_e"]
+    ), f"allocas on disjoint branches within a loop should share: {positions}"
 
 
 def test_alloca_in_nested_loops_no_overlap():
@@ -191,9 +191,9 @@ def test_alloca_in_nested_loops_no_overlap():
     ctx, _ = _concretize(pre)
 
     positions = _positions_by_var(ctx)
-    assert positions["%outer_buf"] != positions["%inner_buf"], (
-        f"nested-loop allocas whose live ranges overlap must not share: {positions}"
-    )
+    assert (
+        positions["%outer_buf"] != positions["%inner_buf"]
+    ), f"nested-loop allocas whose live ranges overlap must not share: {positions}"
 
 
 def test_trivial_self_loop_alloca_liveness():
@@ -228,15 +228,13 @@ def test_trivial_self_loop_alloca_liveness():
 
 def _count_opcodes(fn, opcode):
     return sum(
-        1 for bb in fn.get_basic_blocks() for inst in bb.instructions
-        if inst.opcode == opcode
+        1 for bb in fn.get_basic_blocks() for inst in bb.instructions if inst.opcode == opcode
     )
 
 
 def _find_insts(fn, opcode):
     return [
-        inst for bb in fn.get_basic_blocks() for inst in bb.instructions
-        if inst.opcode == opcode
+        inst for bb in fn.get_basic_blocks() for inst in bb.instructions if inst.opcode == opcode
     ]
 
 
@@ -277,12 +275,12 @@ def test_mem2var_promotes_alloca_with_loop_body_access():
 
     # After the sandwich, every mload and mstore on the promoted alloca
     # should be gone (the alloca has no remaining memory uses).
-    assert _count_opcodes(fn, "mload") == 0, (
-        "mem2var should have removed all mloads on the promoted alloca"
-    )
-    assert _count_opcodes(fn, "mstore") == 0, (
-        "mem2var should have removed all mstores on the promoted alloca"
-    )
+    assert (
+        _count_opcodes(fn, "mload") == 0
+    ), "mem2var should have removed all mloads on the promoted alloca"
+    assert (
+        _count_opcodes(fn, "mstore") == 0
+    ), "mem2var should have removed all mstores on the promoted alloca"
 
     # MakeSSA must insert a phi at the loop header for the loop-carried
     # value. There is exactly one loop in this CFG and one loop-carried
@@ -291,12 +289,10 @@ def test_mem2var_promotes_alloca_with_loop_body_access():
     assert len(phis) == 1, f"expected exactly one phi, got {len(phis)}: {phis}"
 
     # The phi must live in the @loop block (the loop header).
-    loop_bb = next(
-        bb for bb in fn.get_basic_blocks() if bb.label.value == "loop"
-    )
-    assert phis[0].parent is loop_bb, (
-        f"phi should be at the loop header, found in {phis[0].parent.label}"
-    )
+    loop_bb = next(bb for bb in fn.get_basic_blocks() if bb.label.value == "loop")
+    assert (
+        phis[0].parent is loop_bb
+    ), f"phi should be at the loop header, found in {phis[0].parent.label}"
 
 
 def test_mem2var_skips_alloca_with_non_memory_use():
