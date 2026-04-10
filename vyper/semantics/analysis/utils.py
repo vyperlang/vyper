@@ -76,7 +76,7 @@ class _ExprAnalyser:
         self.namespace = get_namespace()
 
     def get_expr_info(self, node: vy_ast.VyperNode, is_callable: bool = False) -> ExprInfo:
-        t = self.get_exact_type_from_node(node, include_type_exprs=is_callable)
+        t = get_exact_type_from_node(node, include_type_exprs=is_callable)
 
         # if it's a Name, we have varinfo for it
         if isinstance(node, vy_ast.Name):
@@ -120,56 +120,6 @@ class _ExprAnalyser:
 
         return ExprInfo(t)
 
-    def get_exact_type_from_node(self, node, include_type_exprs=True):
-        """
-        Find exactly one type for a given node.
-
-        Raises StructureException if a single type cannot be determined.
-
-        Arguments
-        ---------
-        node : VyperNode
-            The vyper AST node to find a type for.
-
-        Returns
-        -------
-        Type object
-        """
-        types_list = self.get_possible_types_from_node(node, include_type_exprs=include_type_exprs)
-
-        if len(types_list) > 1:
-            raise StructureException("Ambiguous type", node)
-
-        return types_list[0]
-
-    def get_possible_types_from_node(self, node, include_type_exprs=True) -> list[VyperType]:
-        """
-        Find all possible types for a given node.
-        If the node's metadata contains type information, then that type is returned.
-
-        Arguments
-        ---------
-        node : VyperNode
-            The vyper AST node to find a type for.
-
-        Returns
-        -------
-        List
-            A list of type objects
-        """
-        # Early termination if typedef is propagated in metadata
-        if "type" in node._metadata:
-            return [node._metadata["type"]]
-
-        ret = self._get_possible_types_r(node)
-
-        if not include_type_exprs:
-            invalid = next((i for i in ret if isinstance(i, TYPE_T)), None)
-            if invalid is not None:
-                raise InvalidReference(f"not a variable or literal: '{invalid.typedef}'", node)
-
-        return ret
-
     def _get_possible_types_r(self, node) -> list[VyperType]:
         # Early termination if typedef is propagated in metadata
         if "type" in node._metadata:
@@ -177,7 +127,7 @@ class _ExprAnalyser:
 
         # this method is a perf hotspot, so we cache the result and
         # try to return it if found.
-        k = f"possible_types_from_node"
+        k = "possible_types_from_node"
         if k not in node._metadata:
             fn = self._find_fn(node)
             ret = fn(node)
@@ -190,7 +140,6 @@ class _ExprAnalyser:
             node._metadata[k] = ret
 
         return node._metadata[k].copy()
-
 
     def _find_fn(self, node):
         # look for a type-check method for each class in the given class mro
@@ -207,7 +156,7 @@ class _ExprAnalyser:
         is_self_reference = node.get("value.id") == "self"
 
         # variable attribute, e.g. `foo.bar`
-        t = self.get_exact_type_from_node(node.value)
+        t = get_exact_type_from_node(node.value)
         name = node.attr
 
         def _raise_invalid_reference(name, node):
@@ -307,7 +256,7 @@ class _ExprAnalyser:
 
     def types_from_Call(self, node):
         # function calls, e.g. `foo()` or `MyStruct()`
-        var = self.get_exact_type_from_node(node.func)
+        var = get_exact_type_from_node(node.func)
         return_value = var.fetch_call_return(node)
         if return_value:
             if isinstance(return_value, list):
@@ -436,12 +385,12 @@ class _ExprAnalyser:
                 ret.append(t.get_subscripted_type(node.slice))
             return ret
 
-        t = self.get_exact_type_from_node(node.value)
+        t = get_exact_type_from_node(node.value)
         t.validate_index_type(node.slice)
         return [t.get_subscripted_type(node.slice)]
 
     def types_from_Tuple(self, node):
-        types_list = [self.get_exact_type_from_node(i) for i in node.elements]
+        types_list = [get_exact_type_from_node(i) for i in node.elements]
         return [TupleT(types_list)]
 
     def types_from_UnaryOp(self, node):
@@ -477,7 +426,7 @@ def _filter(type_, fn_name, node):
         return False
 
 
-def get_possible_types_from_node(node):
+def get_possible_types_from_node(node, include_type_exprs=True) -> list[VyperType]:
     """
     Return a list of possible types for the given node.
 
@@ -491,16 +440,27 @@ def get_possible_types_from_node(node):
     Returns
     -------
     List
-        List of one or more BaseType objects.
+        List of one or more VyperType objects.
     """
-    return _ExprAnalyser().get_possible_types_from_node(node)
+    # Early termination if typedef is propagated in metadata
+    if "type" in node._metadata:
+        return [node._metadata["type"]]
+
+    ret = _ExprAnalyser()._get_possible_types_r(node)
+
+    if not include_type_exprs:
+        invalid = next((i for i in ret if isinstance(i, TYPE_T)), None)
+        if invalid is not None:
+            raise InvalidReference(f"not a variable or literal: '{invalid.typedef}'", node)
+
+    return ret
 
 
-def get_exact_type_from_node(node):
+def get_exact_type_from_node(node: vy_ast.VyperNode, include_type_exprs=True) -> VyperType:
     """
-    Return exactly one type for a given node.
+    Return *the* type of a given node.
 
-    Raises if there is more than one possible type.
+    Raises StructureException if a single type cannot be determined.
 
     Arguments
     ---------
@@ -509,10 +469,15 @@ def get_exact_type_from_node(node):
 
     Returns
     -------
-    BaseType
-        Type object.
+    VyperType
+        The type of `node`
     """
-    return _ExprAnalyser().get_exact_type_from_node(node)
+    types_list = get_possible_types_from_node(node, include_type_exprs=include_type_exprs)
+
+    if len(types_list) > 1:
+        raise StructureException("Ambiguous type", node)
+
+    return types_list[0]
 
 
 def get_expr_info(node: vy_ast.ExprNode, is_callable: bool = False) -> ExprInfo:
@@ -538,10 +503,10 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
     list
         List of zero or more `BaseType` objects.
     """
-    common_types = _ExprAnalyser().get_possible_types_from_node(nodes[0])
+    common_types = get_possible_types_from_node(nodes[0])
 
     for item in nodes[1:]:
-        new_types = _ExprAnalyser().get_possible_types_from_node(item)
+        new_types = get_possible_types_from_node(item)
 
         tmp = []
         for c in common_types:
@@ -614,7 +579,7 @@ def validate_expected_type(node, expected_type):
             # fail block
             pass
 
-    given_types = _ExprAnalyser().get_possible_types_from_node(node, include_type_exprs=False)
+    given_types = get_possible_types_from_node(node, include_type_exprs=False)
 
     if isinstance(node, vy_ast.List):
         # special case - for literal arrays we individually validate each item

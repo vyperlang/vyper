@@ -1072,7 +1072,7 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
                 ltyp = get_common_types(node.left, *node.right.elements).pop()
 
                 rlen = len(node.right.elements)
-                rtyp = SArrayT(ltyp, rlen)
+                rtyp: VyperType = SArrayT(ltyp, rlen)
             else:
                 rtyp = get_exact_type_from_node(node.right)
                 if isinstance(rtyp, FlagT):
@@ -1132,10 +1132,11 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
                     assert isinstance(node.slice, vy_ast.Int)  # help mypy
                     value_type = possible_type.member_types[node.slice.value]
                 else:
+                    assert isinstance(possible_type, (SArrayT, DArrayT, HashMapT))
                     value_type = possible_type.value_type
 
                 if typ.compare_type(value_type):
-                    base_type = possible_type
+                    base_type: VyperType = possible_type
                     break
             else:
                 # this should have been caught in

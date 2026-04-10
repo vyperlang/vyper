@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import cached_property
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, TypeGuard, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABIType
@@ -543,5 +543,5 @@ class TYPE_T(VyperType):
         raise UnknownAttribute("Value is not attributable", node)
 
 
-def is_type_t(x: VyperType, t: type) -> bool:
+def is_type_t(x: VyperType, t: type) -> TypeGuard["TYPE_T"]:
     return isinstance(x, TYPE_T) and isinstance(x.typedef, t)
