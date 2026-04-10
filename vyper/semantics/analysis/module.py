@@ -327,7 +327,9 @@ def _analyze_call_graph(module_ast: vy_ast.Module):
                     raise CallViolation(msg, func, g.ast_def)
 
 
-def _compute_and_validate_reachable_r(fn_t: ContractFunctionT, path: list[ContractFunctionT] = None) -> None:
+def _compute_and_validate_reachable_r(
+    fn_t: ContractFunctionT, path: list[ContractFunctionT] = None
+) -> None:
     """
     compute reachable set and validate acyclicity for a given fn_t
     """

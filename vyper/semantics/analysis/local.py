@@ -362,7 +362,7 @@ def best_call_path(
             if mi.module_t is module_t:
                 return ".".join(path)
 
-    raise CompilerPanic("unreachable") # pragma: nocover
+    raise CompilerPanic("unreachable")  # pragma: nocover
 
 
 def check_module_uses_for_abstract(
