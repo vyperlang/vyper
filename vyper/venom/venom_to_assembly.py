@@ -579,7 +579,7 @@ class VenomCompiler:
             assembly.append(opcode.upper())
         elif opcode == "alloca":
             pass
-        elif opcode == "alloca_top":
+        elif opcode == "memtop":
             assembly.append("MSIZE")
         elif opcode == "param":
             pass

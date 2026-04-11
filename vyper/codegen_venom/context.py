@@ -660,7 +660,7 @@ class VenomCodegenContext:
 
         Lowers to EVM MSIZE at assembly time.
         """
-        return self.builder.alloca_top()
+        return self.builder.memtop()
 
     # === Storage Operations ===
 
