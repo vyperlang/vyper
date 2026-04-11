@@ -60,7 +60,7 @@ def test_redundant_copy_elimination():
     Test that copying to the same location is eliminated entirely.
 
     MemoryCopyElisionPass only nops the store. The load is removed by
-    RemoveUnusedVariablesPass (which has proper MSIZE fence handling).
+    RemoveUnusedVariablesPass.
     """
     pre = """
     _global:
