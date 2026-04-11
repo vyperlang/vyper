@@ -20,7 +20,6 @@ from vyper.venom.parser import parse_venom
 from vyper.venom.passes.common_subexpression_elimination import CSE
 from vyper.venom.venom_to_assembly import VenomCompiler
 
-
 # --------------------------------------------------------------------------
 # Lowering: memtop -> MSIZE
 # --------------------------------------------------------------------------
@@ -102,14 +101,10 @@ def test_cse_does_not_merge_memtop_across_memory_write():
     # The pass must NOT have collapsed %2 into an alias of %1.
     fn = next(iter(ctx.functions.values()))
     memtops = [
-        inst
-        for bb in fn.get_basic_blocks()
-        for inst in bb.instructions
-        if inst.opcode == "memtop"
+        inst for bb in fn.get_basic_blocks() for inst in bb.instructions if inst.opcode == "memtop"
     ]
     assert len(memtops) == 2, (
-        f"CSE must not merge memtops across a memory write, "
-        f"got {len(memtops)} memtop(s)"
+        f"CSE must not merge memtops across a memory write, " f"got {len(memtops)} memtop(s)"
     )
 
 
@@ -164,6 +159,5 @@ def test_memtop_emission_respects_memory_write_ordering():
     msize_idx = asm.index("MSIZE")
     first_mstore_idx = asm.index("MSTORE")
     assert first_mstore_idx < msize_idx, (
-        f"MSIZE must come after the prior MSTORE, "
-        f"got asm={asm}"
+        f"MSIZE must come after the prior MSTORE, " f"got asm={asm}"
     )
