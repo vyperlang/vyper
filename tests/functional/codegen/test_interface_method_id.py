@@ -112,23 +112,23 @@ import ifoo as IFoo
 
 @external
 def get_full() -> bytes4:
-    return method_id_of(IFoo.take, n_args=2)
+    return method_id_of(IFoo.take, n_optional_args=1)
 
 @external
 def get_minimal() -> bytes4:
-    return method_id_of(IFoo.take, n_args=1)
+    return method_id_of(IFoo.take)
 
 @external
 def get_default() -> bytes4:
-    return method_id_of(IFoo.take)
+    return method_id_of(IFoo.take, n_optional_args=0)
     """
     c = get_contract(code, input_bundle=input_bundle)
-    # full signature (all args)
+    # full signature (all args, 1 optional included)
     assert c.get_full() == method_id("take(uint256,uint256)")
-    # minimal signature (positional only)
+    # minimal signature (positional only, default n_optional_args=0)
     assert c.get_minimal() == method_id("take(uint256)")
-    # default: all args
-    assert c.get_default() == method_id("take(uint256,uint256)")
+    # explicit n_optional_args=0, same as default
+    assert c.get_default() == method_id("take(uint256)")
 
 
 def test_method_id_of_default_args_view(get_contract, make_input_bundle):
@@ -149,5 +149,6 @@ def get_method_id() -> bytes4:
     """
     c = get_contract(code, input_bundle=input_bundle)
     result = c.get_method_id()
-    expected = method_id("get_amount(address,address)")
+    # default n_optional_args=0, so only positional args
+    expected = method_id("get_amount(address)")
     assert result == expected

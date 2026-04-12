@@ -58,7 +58,7 @@ def foo() -> bytes4:
         compile_code(code)
 
 
-def test_method_id_of_n_args_out_of_range(make_input_bundle):
+def test_method_id_of_n_optional_args_out_of_range(make_input_bundle):
     iface_code = """
 @external
 def take(auction_id: uint256, max_take_amount: uint256 = ...) -> uint256:
@@ -71,10 +71,35 @@ import ifoo as IFoo
 
 @external
 def foo() -> bytes4:
-    return method_id_of(IFoo.take, n_args=5)
+    return method_id_of(IFoo.take, n_optional_args=5)
     """
     with pytest.raises(ArgumentException):
         compile_code(code, input_bundle=input_bundle)
+
+
+def test_method_id_of_n_optional_args_zero_no_defaults():
+    code = """
+interface Foo:
+    def transfer(to: address, amount: uint256): nonpayable
+
+@external
+def foo() -> bytes4:
+    return method_id_of(Foo.transfer, n_optional_args=0)
+    """
+    assert compile_code(code) is not None
+
+
+def test_method_id_of_n_optional_args_no_defaults():
+    code = """
+interface Foo:
+    def transfer(to: address, amount: uint256): nonpayable
+
+@external
+def foo() -> bytes4:
+    return method_id_of(Foo.transfer, n_optional_args=1)
+    """
+    with pytest.raises(ArgumentException):
+        compile_code(code)
 
 
 def test_method_id_of_default_args(make_input_bundle):

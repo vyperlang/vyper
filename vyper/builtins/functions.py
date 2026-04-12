@@ -752,12 +752,12 @@ class MethodID(FoldedFunctionT):
 class MethodIDOf(BuiltinFunctionT):
     _id = "method_id_of"
     _inputs = [("func_ref", TYPE_T.any())]
-    _kwargs = {"n_args": KwargSettings(UINT256_T, 0, require_literal=True)}
+    _kwargs = {"n_optional_args": KwargSettings(UINT256_T, 0, require_literal=True)}
     _return_type = BYTES4_T
     _modifiability = Modifiability.CONSTANT
 
     def fetch_call_return(self, node):
-        validate_call_args(node, 1, ["n_args"])
+        validate_call_args(node, 1, ["n_optional_args"])
         self._validate_func_ref(node)
         return BYTES4_T
 
@@ -779,35 +779,32 @@ class MethodIDOf(BuiltinFunctionT):
         return arg_type.typedef
 
     def _validate_func_ref(self, node):
-        from vyper.semantics.types.function import ContractFunctionT
-
         func_t = self._get_func_t(node)
 
-        n_args = self._get_n_args(node, func_t)
-        if not (func_t.n_positional_args <= n_args <= func_t.n_total_args):
+        n_optional = self._get_n_optional_args(node, func_t)
+        if not (0 <= n_optional <= func_t.n_keyword_args):
             raise ArgumentException(
-                f"n_args must be between {func_t.n_positional_args} and "
-                f"{func_t.n_total_args}, got {n_args}",
+                f"n_optional_args must be between 0 and "
+                f"{func_t.n_keyword_args}, got {n_optional}",
                 node,
             )
 
-    def _get_n_args(self, node, func_t):
+    def _get_n_optional_args(self, node, func_t):
         for kw in node.keywords:
-            if kw.arg == "n_args":
+            if kw.arg == "n_optional_args":
                 val = kw.value.get_folded_value()
                 if not isinstance(val, vy_ast.Int):
-                    raise InvalidType("n_args must be an integer literal", kw.value)
+                    raise InvalidType("n_optional_args must be an integer literal", kw.value)
                 return val.value
-        # default: all args (positional + keyword)
-        return func_t.n_total_args
+        # default: 0 optional args (positional only)
+        return 0
 
     def _compute_method_id(self, node):
-        from vyper.semantics.types.function import ContractFunctionT
-
         func_t = self._get_func_t(node)
-        n_args = self._get_n_args(node, func_t)
+        n_optional = self._get_n_optional_args(node, func_t)
+        n_total = func_t.n_positional_args + n_optional
 
-        arg_types = [i.canonical_abi_type for i in func_t.argument_types[:n_args]]
+        arg_types = [i.canonical_abi_type for i in func_t.argument_types[:n_total]]
         function_sig = f"{func_t.name}({','.join(arg_types)})"
         selector = method_id(function_sig)
         return selector
