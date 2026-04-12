@@ -627,7 +627,7 @@ class Expr:
         assert isinstance(node, vy_ast.Attribute)
         typ = node._metadata["type"]
 
-        # Case 1a: Flag constants (MyFlag.VALUE)
+        # Case 1: Flag constants (MyFlag.VALUE)
         if isinstance(typ, FlagT):
             value_typ = node.value._metadata.get("type")
             # Check if this is a flag type access (e.g., MyFlag.VALUE)
@@ -637,15 +637,8 @@ class Expr:
                 value = 2**flag_id  # 0 => 1, 1 => 2, 2 => 4, etc.
                 return VyperValue.from_stack_op(IRLiteral(value), typ)
 
-        # Case 1b: Interface.function.method_id (e.g. ERC20.transfer.method_id)
-        attr = node.attr
-        if attr == "method_id":
-            value_typ = node.value._metadata.get("type")
-            if is_type_t(value_typ, ContractFunctionT):
-                fn_t = value_typ.typedef
-                return VyperValue.from_stack_op(IRLiteral(fn_t.encoded_method_id), typ)
-
         # Case 2: Address properties
+        attr = node.attr
         if attr == "balance":
             sub = Expr(node.value, self.ctx).lower_value()
             return VyperValue.from_stack_op(self.builder.balance(sub), UINT256_T)

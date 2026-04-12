@@ -1,16 +1,14 @@
-import pytest
-
 from vyper.utils import method_id
 
 
-def test_interface_method_id_basic(get_contract):
+def test_method_id_of_basic(get_contract):
     code = """
 interface Foo:
     def transfer(to: address, amount: uint256): nonpayable
 
 @external
 def get_method_id() -> bytes4:
-    return Foo.transfer.method_id
+    return method_id_of(Foo.transfer)
     """
     c = get_contract(code)
     result = c.get_method_id()
@@ -18,14 +16,14 @@ def get_method_id() -> bytes4:
     assert result == expected
 
 
-def test_interface_method_id_view_function(get_contract):
+def test_method_id_of_view_function(get_contract):
     code = """
 interface Foo:
     def balanceOf(owner: address) -> uint256: view
 
 @external
 def get_method_id() -> bytes4:
-    return Foo.balanceOf.method_id
+    return method_id_of(Foo.balanceOf)
     """
     c = get_contract(code)
     result = c.get_method_id()
@@ -33,14 +31,14 @@ def get_method_id() -> bytes4:
     assert result == expected
 
 
-def test_interface_method_id_no_args(get_contract):
+def test_method_id_of_no_args(get_contract):
     code = """
 interface Foo:
     def totalSupply() -> uint256: view
 
 @external
 def get_method_id() -> bytes4:
-    return Foo.totalSupply.method_id
+    return method_id_of(Foo.totalSupply)
     """
     c = get_contract(code)
     result = c.get_method_id()
@@ -48,7 +46,7 @@ def get_method_id() -> bytes4:
     assert result == expected
 
 
-def test_interface_method_id_in_raw_call(get_contract, env):
+def test_method_id_of_in_raw_call(get_contract):
     called_code = """
 @external
 def double(x: uint256) -> uint256:
@@ -62,7 +60,7 @@ interface Doubler:
 def call_double(target: address, x: uint256) -> uint256:
     response: Bytes[32] = raw_call(
         target,
-        concat(Doubler.double.method_id, convert(x, bytes32)),
+        concat(method_id_of(Doubler.double), convert(x, bytes32)),
         max_outsize=32
     )
     return convert(convert(response, bytes32), uint256)
@@ -72,14 +70,14 @@ def call_double(target: address, x: uint256) -> uint256:
     assert caller.call_double(callee.address, 5) == 10
 
 
-def test_interface_method_id_assign_to_variable(get_contract):
+def test_method_id_of_assign_to_variable(get_contract):
     code = """
 interface Foo:
     def transfer(to: address, amount: uint256): nonpayable
 
 @external
 def get_method_id() -> bytes4:
-    m: bytes4 = Foo.transfer.method_id
+    m: bytes4 = method_id_of(Foo.transfer)
     return m
     """
     c = get_contract(code)
@@ -88,20 +86,20 @@ def get_method_id() -> bytes4:
     assert result == expected
 
 
-def test_interface_method_id_compare(get_contract):
+def test_method_id_of_compare(get_contract):
     code = """
 interface Foo:
     def transfer(to: address, amount: uint256): nonpayable
 
 @external
 def check() -> bool:
-    return Foo.transfer.method_id == method_id('transfer(address,uint256)', output_type=bytes4)
+    return method_id_of(Foo.transfer) == method_id('transfer(address,uint256)', output_type=bytes4)
     """
     c = get_contract(code)
     assert c.check() is True
 
 
-def test_interface_method_id_default_args(get_contract, make_input_bundle):
+def test_method_id_of_default_args(get_contract, make_input_bundle):
     iface_code = """
 @external
 def take(auction_id: uint256, max_take_amount: uint256 = ...) -> uint256:
@@ -113,17 +111,27 @@ def take(auction_id: uint256, max_take_amount: uint256 = ...) -> uint256:
 import ifoo as IFoo
 
 @external
-def get_method_id() -> bytes4:
-    return IFoo.take.method_id
+def get_full() -> bytes4:
+    return method_id_of(IFoo.take, n_args=2)
+
+@external
+def get_minimal() -> bytes4:
+    return method_id_of(IFoo.take, n_args=1)
+
+@external
+def get_default() -> bytes4:
+    return method_id_of(IFoo.take)
     """
     c = get_contract(code, input_bundle=input_bundle)
-    result = c.get_method_id()
-    # should return the full signature selector (all args)
-    expected = method_id("take(uint256,uint256)")
-    assert result == expected
+    # full signature (all args)
+    assert c.get_full() == method_id("take(uint256,uint256)")
+    # minimal signature (positional only)
+    assert c.get_minimal() == method_id("take(uint256)")
+    # default: all args
+    assert c.get_default() == method_id("take(uint256,uint256)")
 
 
-def test_interface_method_id_default_args_view(get_contract, make_input_bundle):
+def test_method_id_of_default_args_view(get_contract, make_input_bundle):
     iface_code = """
 @view
 @external
@@ -137,7 +145,7 @@ import ifoo as IFoo
 
 @external
 def get_method_id() -> bytes4:
-    return IFoo.get_amount.method_id
+    return method_id_of(IFoo.get_amount)
     """
     c = get_contract(code, input_bundle=input_bundle)
     result = c.get_method_id()
