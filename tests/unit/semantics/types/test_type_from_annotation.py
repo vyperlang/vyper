@@ -2,7 +2,6 @@ import pytest
 
 from vyper.exceptions import (
     ArrayIndexException,
-    CompilerPanic,
     InvalidType,
     StructureException,
     UndeclaredDefinition,
