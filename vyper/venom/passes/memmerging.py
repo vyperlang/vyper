@@ -457,4 +457,4 @@ class MemMergePass(IRPass):
 
 def _volatile_memory(inst):
     inst_effects = inst.get_read_effects() | inst.get_write_effects()
-    return Effects.MEMORY in inst_effects or Effects.MSIZE in inst_effects
+    return Effects.MEMORY in inst_effects

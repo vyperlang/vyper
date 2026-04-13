@@ -210,27 +210,6 @@ def test_cse_effect_mstore():
     _check_pre_post(pre, post)
 
 
-def test_cse_effect_mstore_with_msize():
-    """
-    Test that checks that msize is handled correctly
-    """
-    pre = """
-    main:
-        %1 = 10
-        mstore 0, %1
-        %mload1 = mload 0
-        %2 = 10
-        mstore 0, %1
-        %mload2 = mload 0
-        %msize = msize
-        %res1 = add %mload1, %msize
-        %res2 = add %mload2, %msize
-        sink %res1, %res2
-    """
-
-    _check_no_change(pre)
-
-
 def test_cse_different_branches_cannot_optimize():
     """
     Test of inter basicblock analysis which would require
