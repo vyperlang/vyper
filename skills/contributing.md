@@ -69,6 +69,8 @@ The body is the most important part. It should answer:
 Don't enumerate every file touched or mechanically list what each function does — that's the diff.
 Do explain the *reasoning* behind structural decisions, the bug mechanism, or the design rationale.
 
+Commit messages should not be tied to a particular issue tracker. Use `GH 1234` instead of `#1234` — the `#` syntax is GitHub-specific and creates links that are meaningless outside GitHub.
+
 ### Good Example (from recent history)
 
 ```
