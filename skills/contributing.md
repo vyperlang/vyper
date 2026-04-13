@@ -44,7 +44,7 @@ implementation paragraph here...
 EOF
 
 # 2. Format it (wraps at 72 chars, preserves lists/code blocks)
-python fmt_commit_msg.py   # reads and overwrites commitmsg.txt
+python fmt_commit_msg.py   # reads/overwrites commitmsg.txt, prints result to stdout
 
 # 3. Get the current PR body
 gh pr view <N> --json body -q .body > /tmp/pr_body.md
@@ -68,6 +68,8 @@ The body is the most important part. It should answer:
 
 Don't enumerate every file touched or mechanically list what each function does — that's the diff.
 Do explain the *reasoning* behind structural decisions, the bug mechanism, or the design rationale.
+
+Commit messages should not be tied to a particular issue tracker. Use `GH 1234` instead of `#1234` — the `#` syntax is GitHub-specific and creates links that are meaningless outside GitHub.
 
 ### Good Example (from recent history)
 
