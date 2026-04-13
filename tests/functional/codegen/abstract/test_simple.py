@@ -3,12 +3,11 @@ from textwrap import dedent
 
 import pytest
 
-import vyper
+from vyper.compiler import compile_code
 from vyper.exceptions import (
     ArgumentException,
     CallViolation,
     FunctionDeclarationException,
-    ImmutableViolation,
     VyperException,
 )
 
@@ -49,22 +48,14 @@ def test_stateful_override_with_initializes(get_contract, make_input_bundle):
     # Test that the same contract works when override_m is properly initialized
     contract = """
 import abstract_m
-import initializer
+import override_m
 
 uses: abstract_m
-initializes: initializer
+initializes: override_m  # Now properly initialized
 
 @external
 def my_method() -> uint256:
     return abstract_m.bar()
-    """
-
-    # makes it so override_m is not imported in the contract
-    # => would make compiler force contract to call override_m.bar instead
-    initializer = """
-import override_m
-
-initializes: override_m
     """
 
     abstract_m = """
@@ -83,9 +74,7 @@ def bar() -> uint256:
     self.counter += 1
     return 101
     """
-    input_bundle = make_input_bundle(
-        {"initializer.vy": initializer, "abstract_m.vy": abstract_m, "override_m.vy": override_m}
-    )
+    input_bundle = make_input_bundle({"abstract_m.vy": abstract_m, "override_m.vy": override_m})
 
     c = get_contract(contract, input_bundle=input_bundle)
 
@@ -1215,20 +1204,14 @@ def common_method() -> uint256:
     return 100
     """
 
-    initializer = """
-import override_module
-
-initializes: override_module
-    """
-
     contract = """
 import abstract_module_a
 import abstract_module_b
-import initializer
+import override_module
 
 uses: abstract_module_a
 uses: abstract_module_b
-initializes: initializer
+initializes: override_module
 
 @external
 def test_a() -> uint256:
@@ -1241,7 +1224,6 @@ def test_b() -> uint256:
 
     input_bundle = make_input_bundle(
         {
-            "initializer.vy": initializer,
             "abstract_module_a.vy": abstract_module_a,
             "abstract_module_b.vy": abstract_module_b,
             "override_module.vy": override_module,
@@ -1254,7 +1236,7 @@ def test_b() -> uint256:
 
 
 def test_method_overrides_multiple_abstracts_signature_match(get_contract, make_input_bundle):
-    """Test that overriding multiple abstracts with different defaults works"""
+    """Test that overriding multiple abstracts fails if signatures don't match"""
 
     abstract_module_a = """
 @abstract
@@ -1279,20 +1261,14 @@ def common_method(x: uint256 = 100) -> uint256:
     return x
     """
 
-    initializer = """
-import override_module
-
-initializes: override_module
-    """
-
     contract = """
 import abstract_module_a
 import abstract_module_b
-import initializer
+import override_module
 
 uses: abstract_module_a
 uses: abstract_module_b
-initializes: initializer
+initializes: override_module
 
 @external
 def test1() -> uint256:
@@ -1305,7 +1281,6 @@ def test2(x: uint256) -> uint256:
 
     input_bundle = make_input_bundle(
         {
-            "initializer.vy": initializer,
             "abstract_module_a.vy": abstract_module_a,
             "abstract_module_b.vy": abstract_module_b,
             "override_module.vy": override_module,
@@ -1355,19 +1330,13 @@ def process() -> uint256:
     return stateful.get_counter()
     """
 
-    initializer = """
+    contract = """
 import stateful
 import a_module
-
-initializes: a_module[stateful := stateful]
-    """
-
-    contract = """
-import initializer
 import b_module
 
 uses: b_module
-initializes: initializer
+initializes: a_module[stateful := stateful]
 
 @external
 def test_multiple_calls() -> uint256:
@@ -1377,12 +1346,7 @@ def test_multiple_calls() -> uint256:
     """
 
     input_bundle = make_input_bundle(
-        {
-            "initializer.vy": initializer,
-            "stateful.vy": stateful,
-            "b_module.vy": b_module,
-            "a_module.vy": a_module,
-        }
+        {"stateful.vy": stateful, "b_module.vy": b_module, "a_module.vy": a_module}
     )
 
     c = get_contract(contract, input_bundle=input_bundle)
@@ -1422,18 +1386,13 @@ def process() -> uint256:
     return stateful.get_counter()
     """
 
-    initializer = """
-import a_module
-
-initializes: a_module
-    """
-
     contract = """
-import initializer
+import stateful
+import a_module
 import b_module
 
 uses: b_module
-initializes: initializer
+initializes: a_module
 
 @external
 def test_multiple_calls() -> uint256:
@@ -1443,12 +1402,7 @@ def test_multiple_calls() -> uint256:
     """
 
     input_bundle = make_input_bundle(
-        {
-            "initializer.vy": initializer,
-            "stateful.vy": stateful,
-            "b_module.vy": b_module,
-            "a_module.vy": a_module,
-        }
+        {"stateful.vy": stateful, "b_module.vy": b_module, "a_module.vy": a_module}
     )
 
     c = get_contract(contract, input_bundle=input_bundle)
@@ -1672,18 +1626,12 @@ def foo() -> uint256:
     return 42
     """
 
-    initializer = """
-import override_module
-
-initializes: override_module
-    """
-
     contract = """
 import abstract_module
-import initializer
+import override_module
 
 uses: abstract_module
-initializes: initializer
+initializes: override_module
 
 @external
 def test() -> uint256:
@@ -1691,11 +1639,7 @@ def test() -> uint256:
     """
 
     input_bundle = make_input_bundle(
-        {
-            "initializer.vy": initializer,
-            "abstract_module.vy": abstract_module,
-            "override_module.vy": override_module,
-        }
+        {"abstract_module.vy": abstract_module, "override_module.vy": override_module}
     )
 
     # Should compile successfully
@@ -2310,31 +2254,31 @@ def _generate_modules(relationships: dict[str, list[(str, str)]]):
 # (chain_str, call_path, expected_hint)
 #
 # expected_hint: None = success case
-#                str  = error case (ImmutableViolation, hint contains this)
+#                str  = error case (CallViolation, hint contains this)
 CHAIN_CALL_TESTS = [
     # === SUCCESS CASES ===
-    ("self -initializes-> a -initializes-> b", "a.b.foo()", None),
+    ("self -initializes-> a -initializes-> b", "a.b.foo", None),
     (  # Can call through c and get a's implementation
         """
         self -initializes-> initializer -initializes-> a -overrides-> b -overrides-> c
         self -uses-> c
         """,
-        "c.foo()",
+        "c.foo",
         None,
     ),
     # === ERROR CASES ===
-    ("self -overrides-> b", "b.foo()", "self.foo"),
-    ("self -overrides-> b -overrides-> c", "b.c.foo()", "self.foo"),
-    ("self -initializes-> a -overrides-> b", "a.b.foo()", "a.foo"),
-    ("self -initializes-> a -initializes-> b -overrides-> c", "a.b.c.foo()", "a.b.foo"),
-    ("self -initializes-> a -overrides-> b -overrides-> c", "a.b.c.foo()", "a.foo"),
+    ("self -overrides-> b", "b.foo", "self.foo"),
+    ("self -overrides-> b -overrides-> c", "b.c.foo", "self.foo"),
+    ("self -initializes-> a -overrides-> b", "a.b.foo", "a.foo"),
+    ("self -initializes-> a -initializes-> b -overrides-> c", "a.b.c.foo", "a.b.foo"),
+    ("self -initializes-> a -overrides-> b -overrides-> c", "a.b.c.foo", "a.foo"),
     (
         """
         self -initializes-> a -initializes-> b -overrides-> c
         self -imports-> b
         """,
-        "a.b.c.foo()",
-        "b.foo",
+        "a.b.c.foo",
+        "a.b.foo",  # Even though b.foo is technically shorter
     ),
 ]
 
@@ -2357,7 +2301,7 @@ def test_abstract_method_chain_call(
         f"""
         @external
         def test() -> uint256:
-            return {call_path}
+            return {call_path}()
     """
     )
 
@@ -2369,9 +2313,11 @@ def test_abstract_method_chain_call(
         assert c.test() == 42
     else:
         # Error case
-        with pytest.raises(ImmutableViolation) as exc_info:
-            vyper.compile_code(contract_code, input_bundle=input_bundle)
-        assert f"reached by more direct path `{expected_hint}`" in str(exc_info.value)
+        with pytest.raises(CallViolation) as exc_info:
+            compile_code(contract_code, input_bundle=input_bundle)
+        expected_msg = f"Abstract method `{call_path}` is overridden by "
+        expected_msg += f"`{expected_hint}`, call that instead."
+        assert expected_msg in str(exc_info.value)
 
         # Check the hint actually works
 

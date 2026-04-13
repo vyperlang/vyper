@@ -290,47 +290,46 @@ def check_module_uses(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
     return root_module_info
 
 
-def _best_call_path(
+def _shorten_call_path(
     node: vy_ast.Attribute, func_t: ContractFunctionT, module_infos: list[ModuleInfo]
 ) -> str:
     """
-    Finds the "best" way to call a function (the one pointed by `node`, with type `func_t`)
-    This is meant to be compared with what the user used, and error/warn if they do not match
+    Shortens a call expression (`a.b.foo()`) in case it contains an override (`a.foo()`).
+    The call expression is represented by the `node` parameter,
+    which resolves to abstract function `func_t`.
 
-    Where "best" is understood as (in this order of priority):
-    1. More concrete is better: `b.foo` is better than `b.c.foo` if it overrides it
-    2. Shorter path is better: `a.foo` is better than `b.c.foo`
+    The shortened expression is returned as a `str`, given it should only be used in errors
+    to force users to call more concrete methods when they are available.
 
-    This is done by checking the overrides of the function, and comparing them with:
-    1. Imported modules
-    2. Modules in the call chain (`a.b.c.foo` -> `[a, a.b, a.b.c]`)
 
-    For example given the following situation:
+    Examples:
 
+    ```
+    self.foo -overrides-> abstract_m.foo
+    call to abstract_m.foo()
+    ```
+    shortened path is `"self.foo"`, since it is a shorter path leading to an override of
+    `abstract_m.foo`
+
+
+    ```
     a.foo -overrides-> b.foo -overrides-> c.foo
-    a imports c
-    called function is a.c.foo
+    a -imports-> c
+    call to a.c.foo()
+    ```
 
-    this function will return `a.foo`, as it is:
-    1. the most concrete override,
-    2. reachable with the shortest path
+    shortened path is `"a.foo"`, since it is a shorter path leading to an override of `a.c.foo`.
 
 
-    Note that this function does *not* consider import's imports and so on.
-    For example, with this situation:
+    ```
+    self -imports-> abstract_m
+    self -imports-> override_m -overrides> abstract_m
+    call to abstract_m.foo()
+    ```
 
-    self imports a1 and a2
-    a1 -imports-> b1 -imports-> c1 -imports-> abstract_m
-    a2 -imports-> b2 -overrides-> abstract_m
-    call a1.b1.c1.abstract_m.foo
-
-    this function will return `a1.b1.c1.abstract_m.foo` even though `a2.b2.foo` is better
+    shortened path is `"abstract_m.foo`, since it cannot be shortened.
+    Note that `override_m.foo` is more concrete, but is not part of the original path
     """
-
-    namespace = node.module_node._metadata["namespace"]
-    imported_modules = {
-        m_info.module_t: m_info for m_info in namespace.values() if isinstance(m_info, ModuleInfo)
-    }
 
     # Build override chain: [concrete, ..., abstract]
     # Computed as [abstract, ..., concrete].reverse()
@@ -350,10 +349,6 @@ def _best_call_path(
         # Check if self provides override
         if module_node is node.module_node:
             return "self"
-
-        # Check direct import
-        if module_t in imported_modules:
-            return imported_modules[module_t].alias
 
         # Check call chain
         path = []
@@ -378,14 +373,14 @@ def check_module_uses_for_abstract(
         return None
 
     # Find better accessible override
-    best_path = _best_call_path(node, func_t, module_infos)
+    best_path = _shorten_call_path(node, func_t, module_infos)
     current_path = ".".join(mi.alias for mi in module_infos)
 
     # Error if a better path exists
     if best_path != current_path:
-        msg = f"Abstract method `{current_path}.{func_t.name}` (or one of its overrides) can be "
-        msg += f"reached by more direct path `{best_path}.{func_t.name}`, use that instead."
-        raise ImmutableViolation(msg)
+        msg = f"Abstract method `{current_path}.{func_t.name}` is overridden by "
+        msg += f"`{best_path}.{func_t.name}`, call that instead."
+        raise CallViolation(msg, node)
 
     for module_info in module_infos:
         if module_info.ownership < ModuleOwnership.USES:
