@@ -55,7 +55,7 @@ EVM Version
 The EVM version can be set with the ``evm-version`` pragma, which is documented in :ref:`evm-version`.
 
 Experimental Code Generation
------------------
+----------------------------
 The new experimental code generation feature can be activated using the following directive:
 
 .. code-block:: vyper
@@ -231,7 +231,7 @@ Events provide an interface for the EVM's logging facilities. Events may be logg
 
 See the :ref:`Event <event-logging>` documentation for more information.
 
-.. _interfaces:
+.. _structure-interfaces:
 
 Interfaces
 ==========
