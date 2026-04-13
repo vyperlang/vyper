@@ -23,7 +23,13 @@ def foo(a: uint256, b: uint256 = 10) -> uint256:
 
     interface = InterfaceT.from_json_abi("T", abi)
     assert "foo" in interface.functions
-    assert len(interface.functions["foo"].arguments) == 2
+    fn = interface.functions["foo"]
+    args = list(fn.arguments)
+    assert len(args) == 2
+    assert args[0].name == "a"
+    assert str(args[0].typ) == "uint256"
+    assert args[1].name == "b"
+    assert str(args[1].typ) == "uint256"
 
 
 def test_default_args_3entries_roundtrip():
@@ -39,7 +45,64 @@ def foo(a: uint256, b: uint256 = 1, c: uint256 = 2) -> uint256:
 
     interface = InterfaceT.from_json_abi("T", abi)
     assert "foo" in interface.functions
-    assert len(interface.functions["foo"].arguments) == 3
+    fn = interface.functions["foo"]
+    args = list(fn.arguments)
+    assert len(args) == 3
+    assert args[0].name == "a"
+    assert str(args[0].typ) == "uint256"
+    assert args[1].name == "b"
+    assert str(args[1].typ) == "uint256"
+    assert args[2].name == "c"
+    assert str(args[2].typ) == "uint256"
+
+
+def test_default_args_mixed_types_roundtrip():
+    source = """
+@external
+@view
+def baz(a: address, b: bool = True) -> bool:
+    return b
+"""
+    abi = _compile_abi(source)
+    fn_entries = [e for e in abi if e.get("type") == "function"]
+    assert len(fn_entries) == 2
+
+    interface = InterfaceT.from_json_abi("T", abi)
+    fn = interface.functions["baz"]
+    args = list(fn.arguments)
+    assert len(args) == 2
+    assert args[0].name == "a"
+    assert str(args[0].typ) == "address"
+    assert args[1].name == "b"
+    assert str(args[1].typ) == "bool"
+
+
+def test_default_args_flag_type_roundtrip():
+    """Flag types serialize as uint256 in ABI; dedup should treat them
+    as compatible and keep the longest overload."""
+    source = """
+flag MyFlag:
+    A
+    B
+    C
+
+@external
+@view
+def bar(x: MyFlag, y: uint256 = 0) -> uint256:
+    return y
+"""
+    abi = _compile_abi(source)
+    fn_entries = [e for e in abi if e.get("type") == "function"]
+    assert len(fn_entries) == 2
+
+    interface = InterfaceT.from_json_abi("T", abi)
+    fn = interface.functions["bar"]
+    args = list(fn.arguments)
+    assert len(args) == 2
+    assert args[0].name == "x"
+    assert str(args[0].typ) == "uint256"
+    assert args[1].name == "y"
+    assert str(args[1].typ) == "uint256"
 
 
 def test_no_default_args_unchanged():
@@ -54,7 +117,11 @@ def test_no_default_args_unchanged():
     ]
     interface = InterfaceT.from_json_abi("T", abi)
     assert "bar" in interface.functions
-    assert len(interface.functions["bar"].arguments) == 1
+    fn = interface.functions["bar"]
+    args = list(fn.arguments)
+    assert len(args) == 1
+    assert args[0].name == "a"
+    assert str(args[0].typ) == "uint256"
 
 
 def test_manual_ordering_keeps_longest_overload():
@@ -79,7 +146,12 @@ def test_manual_ordering_keeps_longest_overload():
         },
     ]
     interface = InterfaceT.from_json_abi("T", abi)
-    assert len(interface.functions["foo"].arguments) == 3
+    fn = interface.functions["foo"]
+    args = list(fn.arguments)
+    assert len(args) == 3
+    assert args[0].name == "a"
+    assert args[1].name == "b"
+    assert args[2].name == "c"
 
 
 def test_incompatible_overload_raises():
