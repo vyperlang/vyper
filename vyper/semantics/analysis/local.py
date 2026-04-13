@@ -389,7 +389,7 @@ def check_module_uses_for_abstract(
             hint = f"add `uses: {module_info.alias}` "
             hint += "as a top-level statement to your contract"
 
-            raise ImmutableViolation(msg, hint=hint)
+            raise StructureException(msg, hint=hint)
 
     # the leftmost-referenced module
     root_module_info = module_infos[0]

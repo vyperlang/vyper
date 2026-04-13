@@ -1525,7 +1525,7 @@ def bar() -> uint256:
     """
     input_bundle = make_input_bundle({"abstract_m.vy": abstract_m, "override_m.vy": override_m})
 
-    with pytest.raises(ImmutableViolation) as e:
+    with pytest.raises(StructureException) as e:
         compile_code(contract, input_bundle=input_bundle)
 
     expected_msg = "Cannot access abstract methods of `abstract_m`"
