@@ -385,8 +385,6 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     else:
         value = IRLiteral(0)
 
-    # Evaluate salt BEFORE msize() to ensure any memory allocations
-    # (e.g., from keccak256(_abi_encode(x))) don't overwrite the initcode buffer
     salt: Optional[IROperand] = None
     if salt_node is not None:
         salt = Expr(salt_node, ctx).lower_value()
@@ -411,8 +409,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     shifted_codesize = b.shl(IRLiteral(shl_bits), codesize)
     preamble_with_size = b.or_(IRLiteral(preamble_base), shifted_codesize)
 
-    # Get current memory size as buffer start
-    mem_ofst = b.msize()
+    mem_ofst = ctx.allocate_dyn()
 
     # Store preamble at mem_ofst (will be stored as 32-byte word)
     b.mstore(mem_ofst, preamble_with_size)
@@ -473,8 +470,6 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     else:
         value = IRLiteral(0)
 
-    # Evaluate salt BEFORE msize() to ensure any memory allocations
-    # (e.g., from keccak256(_abi_encode(x))) don't overwrite the initcode
     salt: Optional[IROperand] = None
     if salt_node is not None:
         salt = Expr(salt_node, ctx).lower_value()
@@ -497,8 +492,6 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     b.assert_(has_code)
 
     # Handle constructor arguments
-    # NOTE: ALL memory allocations (including ABI encoding) MUST happen BEFORE
-    # calling msize(). This ensures msize() returns a value past all alloca buffers.
     args_len: IROperand
     args_ptr: IROperand
 
@@ -513,8 +506,6 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         args_len = b.mload(raw_arg)
         args_ptr = b.add(raw_arg, IRLiteral(32))
     elif len(ctor_arg_nodes) > 0:
-        # ABI-encode constructor arguments BEFORE calling msize()
-        # This ensures all alloca buffers are written to before msize() is evaluated
         ctor_arg_types = [arg._metadata["type"] for arg in ctor_arg_nodes]
         ctor_tuple_typ = TupleT(tuple(ctor_arg_types))
         ctor_abi_size = ctor_tuple_typ.abi_type.size_bound()
@@ -534,7 +525,6 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
             ctx.store_vyper_value(vv, dst, arg_t)
             offset += arg_t.memory_bytes_required
 
-        # ABI encode from ctor_args_src to args_buf (BEFORE msize!)
         args_len = abi_encode_to_buf(ctx, args_buf._ptr, ctor_args_src.operand, ctor_tuple_typ)
         args_ptr = args_buf._ptr
     else:
@@ -542,9 +532,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         args_len = IRLiteral(0)
         args_ptr = IRLiteral(0)
 
-    # Get current memory size as buffer start
-    # This is called AFTER all memory allocations to ensure msize() is past all alloca buffers
-    mem_ofst = b.msize()
+    mem_ofst = ctx.allocate_dyn()
 
     # Copy blueprint code (skipping preamble) to memory
     b.extcodecopy(target, mem_ofst, code_offset, codesize)

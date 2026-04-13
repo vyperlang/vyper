@@ -45,12 +45,15 @@ class Mem2Var(IRPass):
         assert len(alloca_inst.operands) == 1, (alloca_inst, alloca_inst.parent)
 
         size_lit = alloca_inst.operands[0]
+        if not isinstance(size_lit, IRLiteral):
+            # dynamic (runtime-sized) alloca
+            return
+
         uses = dfg.get_uses(alloca_inst.output)
 
         if not all2(inst.opcode in ["mstore", "mload", "return"] for inst in uses):
             return
 
-        assert isinstance(size_lit, IRLiteral)
         size = size_lit.value
         var = IRVariable(self._mk_varname(var.value))
 
