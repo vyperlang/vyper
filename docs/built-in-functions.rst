@@ -370,6 +370,43 @@ Cryptography
             )
         '0x9eE53ad38Bb67d745223a4257D7d48cE973FeB7A'
 
+.. py:function:: p256verify(hash: bytes32, r: uint256 | bytes32, s: uint256 | bytes32, qx: uint256 | bytes32, qy: uint256 | bytes32) -> bool
+
+    Verify a ``secp256r1`` ECDSA signture for the given public key ``(qx, qy)``.
+
+    * ``r``: the ECDSA signature r-value
+    * ``s``: the ECDSA signature s-value
+    * ``qx``: the public key x-coordinate
+    * ``qy``: the public key y-coordinate
+
+    Returns whether or not the signature is valid.
+
+    .. code-block:: vyper
+
+        @external
+        @view
+        def foo(hash: bytes32, r: bytes32, s: bytes32, qx: bytes32, qy: bytes32) -> bool:
+            return p256verify(hash, r, s, qx, qy)
+
+    Alternatively, ``r``, ``s``, ``qx``, and ``qy`` can be passed as ``uint256``:
+
+    .. code-block:: vyper
+
+        @external
+        @view
+        def bar(hash: bytes32, r: uint256, s: uint256, qx: uint256, qy: uint256) -> bool:
+            return p256verify(hash, r, s, qx, qy)
+
+    .. code-block:: vyper
+
+        >>> ExampleContract.bar('0x6c9c5e133b8aafb2ea74f524a5263495e7ae5701c7248805f7b511d973dc7055',
+             TODO(nlordell),
+             TODO,
+             TODO,
+             TODO
+            )
+        True
+
 .. py:function:: keccak256(_value) -> bytes32
 
     Return a ``keccak256`` hash of the given value.
@@ -694,7 +731,7 @@ Math
         10
 
 .. py:function:: uint256_addmod(a: uint256, b: uint256, c: uint256) -> uint256
-    
+
     Return the modulo of ``(a + b) % c``. Reverts if ``c == 0``. As this built-in function is intended to provides access to the underlying ``ADDMOD`` opcode, all intermediate calculations of this operation are not subject to the ``2 ** 256`` modulo according to the EVM specifications.
 
     .. code-block:: vyper

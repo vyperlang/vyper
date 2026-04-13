@@ -1,7 +1,7 @@
 """
 Miscellaneous built-in functions.
 
-- ecrecover, ecadd, ecmul: Elliptic curve precompiles
+- ecrecover, p256verify, ecadd, ecmul: Elliptic curve precompiles
 - blockhash, blobhash: Block info
 - floor, ceil: Decimal truncation
 - as_wei_value: Wei denomination conversion
@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 from vyper import ast as vy_ast
 from vyper.builtins.functions import AsWeiValue
 from vyper.codegen_venom.abi.abi_encoder import abi_encode_to_buf
-from vyper.codegen_venom.constants import BLOCKHASH_LOOKBACK_LIMIT, ECRECOVER_PRECOMPILE
+from vyper.codegen_venom.constants import BLOCKHASH_LOOKBACK_LIMIT, ECRECOVER_PRECOMPILE, P256VERIFY_PRECOMPILE
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import EvmVersionException
 from vyper.semantics.types import BytesT, DecimalT, StringT, TupleT
@@ -71,6 +71,50 @@ def lower_ecrecover(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         IRLiteral(ECRECOVER_PRECOMPILE),
         input_buf._ptr,
         IRLiteral(128),
+        output_buf._ptr,
+        IRLiteral(32),
+    )
+    b.assert_(success)
+
+    return b.mload(output_buf._ptr)
+
+
+def lower_p256verify(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+    """
+    p256verify(hash, r, s, qx, qy) -> bool
+
+    Verifies a secp256r1 ECDSA signature via precompile 0x100.
+    Input: 160 bytes (hash, r, s, qx, qy)
+    Output: 32 bytes (bool, right-padded)
+    """
+    from vyper.codegen_venom.expr import Expr
+
+    b = ctx.builder
+
+    hash_val = Expr(node.args[0], ctx).lower_value()
+    r = Expr(node.args[1], ctx).lower_value()
+    s = Expr(node.args[2], ctx).lower_value()
+    qx = Expr(node.args[3], ctx).lower_value()
+    qy = Expr(node.args[4], ctx).lower_value()
+
+    # Prepare input buffer (160 bytes)
+    input_buf = ctx.allocate_buffer(160)
+    b.mstore(input_buf._ptr, hash_val)
+    b.mstore(b.add(input_buf._ptr, IRLiteral(32)), r)
+    b.mstore(b.add(input_buf._ptr, IRLiteral(64)), s)
+    b.mstore(b.add(input_buf._ptr, IRLiteral(96)), qx)
+    b.mstore(b.add(input_buf._ptr, IRLiteral(127)), qy)
+
+    # Output buffer (32 bytes) - clear first since P256VERIFY may return empty bytes
+    output_buf = ctx.allocate_buffer(32)
+    b.mstore(output_buf._ptr, IRLiteral(0))
+
+    # Call P256VERIFY precompile
+    success = b.staticcall(
+        b.gas(),
+        IRLiteral(P256VERIFY_PRECOMPILE),
+        input_buf._ptr,
+        IRLiteral(160),
         output_buf._ptr,
         IRLiteral(32),
     )

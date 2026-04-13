@@ -784,6 +784,44 @@ class ECRecover(BuiltinFunctionT):
         )
 
 
+class P256Verify(BuiltinFunctionT):
+    _id = "p256verify"
+    _inputs = [
+        ("hash", BYTES32_T),
+        ("r", (UINT256_T, BYTES32_T)),
+        ("s", (UINT256_T, BYTES32_T)),
+        ("qx", (UINT256_T, BYTES32_T)),
+        ("qy", (UINT256_T, BYTES32_T)),
+    ]
+    _return_type = BoolT()
+
+    def infer_arg_types(self, node, expected_return_typ=None):
+        self._validate_arg_types(node)
+        r_t, s_t, qx_t, qy_t = [get_possible_types_from_node(arg).pop() for arg in node.args[1:]]
+        return [BYTES32_T, r_t, s_t, qx_t, qy_t]
+
+    @process_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        input_buf = context.new_internal_variable(get_type_for_exact_size(160))
+        output_buf = context.new_internal_variable(get_type_for_exact_size(32))
+        return IRnode.from_list(
+            [
+                "seq",
+                # clear output memory first, P256VERIFY returns empty bytes on
+                # invalid inputs
+                ["mstore", output_buf, 0],
+                ["mstore", input_buf, args[0]],
+                ["mstore", add_ofst(input_buf, 32), args[1]],
+                ["mstore", add_ofst(input_buf, 64), args[2]],
+                ["mstore", add_ofst(input_buf, 96), args[3]],
+                ["mstore", add_ofst(input_buf, 128), args[4]],
+                ["assert", ["staticcall", "gas", 0x100, input_buf, 160, output_buf, 32]],
+                ["mload", output_buf],
+            ],
+            typ=BoolT(),
+        )
+
+
 class _ECArith(BuiltinFunctionT):
     @process_inputs
     def build_IR(self, expr, _args, kwargs, context):
@@ -2546,6 +2584,7 @@ DISPATCH_TABLE = {
     "method_id": MethodID(),
     "keccak256": Keccak256(),
     "ecrecover": ECRecover(),
+    "p256verify": P256Verify(),
     "ecadd": ECAdd(),
     "ecmul": ECMul(),
     "extract32": Extract32(),
