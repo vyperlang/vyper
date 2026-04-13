@@ -167,7 +167,6 @@ class MemoryCopyElisionPass(IRPass):
                 if Effects.TRANSIENT in inst.get_write_effects():
                     self.loads[Effects.TRANSIENT].clear()
 
-
         # Check if state changed
         old_copies = self.bb_copies.get(bb, None)
         if old_copies is None or old_copies != self.copies:
@@ -277,4 +276,3 @@ class MemoryCopyElisionPass(IRPass):
         # users. Let RemoveUnusedVariablesPass decide if the load can be
         # removed.
         self.updater.nop(inst)
-
