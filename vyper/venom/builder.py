@@ -156,12 +156,17 @@ class VenomBuilder:
         """Copy size bytes from memory[src] to memory[dst]."""
         self._emit_evm("mcopy", dst, src, size)
 
-    def msize(self) -> IRVariable:
-        return self._emit1_evm("msize")
-
     def alloca(self, size: int) -> IRVariable:
         """Allocate abstract memory. Returns pointer. (IR-specific)"""
         return self._emit1("alloca", size)
+
+    def memtop(self) -> IRVariable:
+        """Get address past all memory (scratch space start).
+
+        Lowered to EVM MSIZE at assembly time. Use for untracked scratch
+        buffers above the static frame and any spill slots.
+        """
+        return self._emit1("memtop")
 
     # === Storage ===
     def sload(self, slot: Operand) -> IRVariable:
