@@ -207,8 +207,8 @@ class InterfaceT(_UserType):
         """
         # Functions with default arguments are expanded by the Vyper compiler
         # into multiple ABI entries sharing the same name but with different
-        # input counts (see #903). Deduplicate by keeping the overload with
-        # the most inputs, mirroring the AST-side handling in
+        # input counts (one entry per arity). Deduplicate by keeping the
+        # overload with the most inputs, mirroring the AST-side handling in
         # _get_module_functions (d1859cd8). Entries with the same name but
         # incompatible input-type prefixes represent a genuine collision and
         # are rejected. Types are compared on the parsed argument objects
