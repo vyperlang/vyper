@@ -156,19 +156,17 @@ class VenomBuilder:
         """Copy size bytes from memory[src] to memory[dst]."""
         self._emit_evm("mcopy", dst, src, size)
 
-    def msize(self) -> IRVariable:
-        return self._emit1_evm("msize")
-
-    def alloca(self, size: int, alloca_id: int) -> IRVariable:
+    def alloca(self, size: int) -> IRVariable:
         """Allocate abstract memory. Returns pointer. (IR-specific)"""
-        return self._emit1("alloca", size, alloca_id)
+        return self._emit1("alloca", size)
 
-    def gep(self, ptr: Operand, offset: Operand) -> IRVariable:
-        """Get element pointer into memory region. (IR-specific)
+    def memtop(self) -> IRVariable:
+        """Get address past all memory (scratch space start).
 
-        Used for accessing elements within abstract memory (e.g., immutables).
+        Lowered to EVM MSIZE at assembly time. Use for untracked scratch
+        buffers above the static frame and any spill slots.
         """
-        return self._emit1("gep", ptr, offset)
+        return self._emit1("memtop")
 
     # === Storage ===
     def sload(self, slot: Operand) -> IRVariable:
@@ -369,10 +367,6 @@ class VenomBuilder:
     # === Crypto ===
     def sha3(self, ptr: Operand, size: Operand) -> IRVariable:
         return self._emit1_evm("sha3", ptr, size)
-
-    def sha3_64(self, a: Operand, b: Operand) -> IRVariable:
-        """Hash two 32-byte values (optimized keccak). (IR-specific)"""
-        return self._emit1("sha3_64", a, b)
 
     # === Data Copy ===
     def calldatacopy(self, dst: Operand, src: Operand, size: Operand) -> None:

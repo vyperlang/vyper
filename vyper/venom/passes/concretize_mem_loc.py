@@ -62,5 +62,3 @@ class ConcretizeMemLocPass(IRPass):
                 ), f"alloca not allocated by livesets: {inst}"
                 concrete = self.allocator.get_concrete(base_ptr)
                 self.updater.replace(inst, "assign", [concrete])
-            if inst.opcode == "gep":
-                inst.opcode = "add"

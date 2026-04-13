@@ -44,7 +44,7 @@ implementation paragraph here...
 EOF
 
 # 2. Format it (wraps at 72 chars, preserves lists/code blocks)
-python fmt_commit_msg.py   # reads and overwrites commitmsg.txt
+python fmt_commit_msg.py   # reads/overwrites commitmsg.txt, prints result to stdout
 
 # 3. Get the current PR body
 gh pr view <N> --json body -q .body > /tmp/pr_body.md
@@ -69,14 +69,16 @@ The body is the most important part. It should answer:
 Don't enumerate every file touched or mechanically list what each function does — that's the diff.
 Do explain the *reasoning* behind structural decisions, the bug mechanism, or the design rationale.
 
+Commit messages should not be tied to a particular issue tracker. Use `GH 1234` instead of `#1234` — the `#` syntax is GitHub-specific and creates links that are meaningless outside GitHub.
+
 ### Good Example (from recent history)
 
 ```
 fix[venom]: fix allocation in ternary fall through (#4846)
 
-`Mem2Var._fix_adds` converts `add` instructions on alloca pointers into
-`gep` (get-element-pointer) so that `BasePtrAnalysis` can track pointer
-provenance through arithmetic. When a ternary expression merges two
+`Mem2Var._fix_adds` ensures `add` instructions on alloca pointers are
+recognized by `BasePtrAnalysis` so it can track pointer provenance
+through arithmetic. When a ternary expression merges two
 pointer paths via a `phi` node, the `add` sits downstream of the phi
 rather than as a direct use of the alloca — so `_fix_adds` never saw it.
 
