@@ -8,6 +8,7 @@ from typing import Any
 from vyper import ast as vy_ast
 from vyper.compiler.input_bundle import FilesystemInputBundle, JSONInput
 from vyper.compiler.phases import CompilerData
+from vyper.semantics.analysis import analyze_modules
 from vyper.semantics.analysis.constant_folding import constant_fold
 from vyper.semantics.analysis.imports import resolve_imports
 from vyper.utils import DECIMAL_EPSILON, round_towards_zero
@@ -31,13 +32,13 @@ def parse_and_fold(source_code):
     return ast
 
 
-def make_import_analyzer(module_ast):
+def analyze_module_single(module_ast):
     """
-    Build an `ImportAnalyzer` for a single self-contained module AST
-    (no file imports). Returns an analyzer ready to pass to
-    `vyper.semantics.analysis.analyze_modules`.
+    Resolve imports and analyze a single self-contained module AST
+    (no file imports).
     """
-    return resolve_imports(module_ast, FilesystemInputBundle([]))
+    imports = resolve_imports(module_ast, FilesystemInputBundle([]))
+    return analyze_modules(imports)
 
 
 def decimal_to_int(*args):

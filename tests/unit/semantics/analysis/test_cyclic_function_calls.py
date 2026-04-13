@@ -1,9 +1,8 @@
 import pytest
 
-from tests.utils import make_import_analyzer
+from tests.utils import analyze_module_single
 from vyper.ast import parse_to_ast
 from vyper.exceptions import CallViolation, StructureException
-from vyper.semantics.analysis import analyze_modules
 
 
 def test_self_function_call():
@@ -14,7 +13,7 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(CallViolation) as e:
-        analyze_modules(make_import_analyzer(vyper_module))
+        analyze_module_single(vyper_module)
 
     assert e.value.message == "Contract contains cyclic function call: foo -> foo"
 
@@ -31,7 +30,7 @@ def bar():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(CallViolation) as e:
-        analyze_modules(make_import_analyzer(vyper_module))
+        analyze_module_single(vyper_module)
 
     assert e.value.message == "Contract contains cyclic function call: foo -> bar -> bar"
 
@@ -48,7 +47,7 @@ def bar():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(CallViolation) as e:
-        analyze_modules(make_import_analyzer(vyper_module))
+        analyze_module_single(vyper_module)
 
     assert e.value.message == "Contract contains cyclic function call: foo -> bar -> foo"
 
@@ -73,7 +72,7 @@ def potato():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(CallViolation) as e:
-        analyze_modules(make_import_analyzer(vyper_module))
+        analyze_module_single(vyper_module)
 
     expected_message = "Contract contains cyclic function call: foo -> bar -> baz -> potato -> foo"
 
@@ -100,7 +99,7 @@ def potato():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(CallViolation) as e:
-        analyze_modules(make_import_analyzer(vyper_module))
+        analyze_module_single(vyper_module)
 
     expected_message = "Contract contains cyclic function call: foo -> bar -> baz -> potato -> bar"
 
@@ -117,5 +116,5 @@ def foo(to : address):
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(StructureException) as excinfo:
-        analyze_modules(make_import_analyzer(vyper_module))
+        analyze_module_single(vyper_module)
     assert excinfo.value.message == "HashMap[address, uint256] is not callable"

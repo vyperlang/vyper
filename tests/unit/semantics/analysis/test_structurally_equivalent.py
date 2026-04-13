@@ -1,8 +1,7 @@
-from tests.utils import make_import_analyzer
+from tests.utils import analyze_module_single
 from vyper.ast import parse_to_ast
 from vyper.ast.nodes import Attribute
 from vyper.compiler.phases import CompilerData
-from vyper.semantics.analysis import analyze_modules
 from vyper.semantics.analysis.utils import structurally_equivalent
 
 
@@ -29,7 +28,7 @@ def bar() -> uint256:
 
     def extract_self_foo(module_code):
         module = parse_to_ast(module1_code)
-        analyze_modules(make_import_analyzer(module))
+        analyze_module_single(module)
         (self_foo,) = module.get_descendants(Attribute, {"attr": "FOO"})
         return self_foo
 
