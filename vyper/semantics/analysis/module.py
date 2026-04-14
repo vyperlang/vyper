@@ -360,43 +360,54 @@ def _compute_and_validate_reachable_r(
 
 def _validate_overrides(func_t: ContractFunctionT, node: vy_ast.FunctionDef):
     """Validate @override decorators and set `overridden_by` on abstract methods."""
-    for name in func_t.override_nodes:
+    for override_name in func_t.override_nodes:
         try:
-            module_info = get_namespace()[name.id]
+            module_info = get_namespace()[override_name.id]
         except KeyError:
             # Module is not imported, error will be reported elsewhere
             continue
 
         if not isinstance(module_info, ModuleInfo):
-            raise FunctionDeclarationException(f"`{name.id}` is not a module", name)
+            raise FunctionDeclarationException(
+                f"`{override_name.id}` is not a module", override_name
+            )
 
         if module_info.ownership != ModuleOwnership.INITIALIZES:
-            msg = f"Cannot override method from `{module_info.alias}`"
-            msg += " - module is not initialized"
+            msg = f"Cannot override `{module_info.alias}.{node.name}`"
+            msg += " as it is not initialized"
             hint = f"add `initializes: {module_info.alias}` "
-            hint += "as a top-level statement to your contract"
+            hint += f"as a top-level statement in {node.module_node.path}"
             raise FunctionDeclarationException(msg, node, hint=hint)
 
         abstract_t = module_info.module_t.functions.get(node.name)
+
         if abstract_t is None:
-            msg = f"Cannot override `{node.name}` from `{module_info.alias}`"
-            msg += " - method does not exist"
+            msg = f"Tried to override `{module_info.alias}.{node.name}`,"
+            msg += " but it does not exist"
             lev_hint = get_levenshtein_error_suggestions(
                 node.name, module_info.module_t.functions, 0.3
             )
             raise FunctionDeclarationException(msg, node, hint=lev_hint)
 
+        abstract_fn = abstract_t.ast_def
+
         if not abstract_t.is_abstract:
-            msg = f"Cannot override `{node.name}` from `{module_info.alias}`"
-            msg += " - method is not abstract"
-            hint = "only abstract methods can be overridden"
-            raise FunctionDeclarationException(msg, node, hint=hint)
+            msg = f"Cannot override `{module_info.alias}.{node.name}`,"
+            msg += " it is not an abstract method!"
+            raise FunctionDeclarationException(msg, abstract_fn, node)
 
         if abstract_t._overridden_by is not None:
+            # this would also be caught by _validate_global_initializes_constraint,
+            # but we catch it here for well-formedness of set_overridden_by.
+            existing_override = abstract_t._overridden_by.ast_def
+            existing_override_path = existing_override.module_node.path
+            msg = f"`{module_info.alias}.{node.name}` was already overridden"
+            msg += f" in `{existing_override_path}`!"
+            hint = f"the likely root cause is that `{module_info.alias}` has"
+            hint += f" been initialized in both `{node.module_node.path}` and"
+            hint += f" `{existing_override_path}`, which is an error"
             raise FunctionDeclarationException(
-                f"Method `{node.name}` from `{module_info.alias}` is already overridden",
-                node,
-                hint="each abstract method can only be overridden once",
+                msg, abstract_fn, existing_override, override_name, hint=hint
             )
 
         abstract_t.set_overridden_by(func_t)

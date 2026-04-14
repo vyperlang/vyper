@@ -940,8 +940,7 @@ def bar() -> uint256:
     with pytest.raises(FunctionDeclarationException) as e:
         get_contract(contract, input_bundle=input_bundle)
 
-    assert e.value.message == "Cannot override `bar` from `foo` - method is not abstract"
-    assert e.value.hint == "only abstract methods can be overridden"
+    assert e.value.message == "Cannot override `foo.bar`, it is not an abstract method!"
 
 
 def test_override_nonexistent_method_fails(get_contract, make_input_bundle):
@@ -966,9 +965,7 @@ def different_method() -> uint256: ...
     with pytest.raises(FunctionDeclarationException) as e:
         get_contract(contract, input_bundle=input_bundle)
 
-    # Expected error message (to be implemented)
-    assert "Cannot override `bar` from `foo`" in e.value.message
-    assert "method does not exist" in e.value.message
+    assert e.value.message == "Tried to override `foo.bar`, but it does not exist"
 
 
 def test_override_nonexistent_method_with_hint(get_contract, make_input_bundle):
@@ -993,12 +990,11 @@ def long_method_name_a() -> uint256: ...
     with pytest.raises(FunctionDeclarationException) as e:
         get_contract(contract, input_bundle=input_bundle)
 
-    assert "method does not exist" in e.value.message
-    assert e.value.hint is not None
-    assert "long_method_name_a" in e.value.hint
+    assert e.value.message == "Tried to override `foo.long_method_name_z`, but it does not exist"
+    assert e.value.hint == "Did you mean 'long_method_name_a'?"
 
 
-def test_duplicate_override_fails(get_contract, make_input_bundle):
+def test_duplicate_override_fails(get_contract, make_input_bundle, tmp_path):
     """Test that overriding the same abstract method twice fails with proper error"""
     contract = """
 import foo
@@ -1040,8 +1036,14 @@ def some_method() -> uint256:
     with pytest.raises(FunctionDeclarationException) as e:
         get_contract(contract, input_bundle=input_bundle)
 
-    assert e.value.message == "Method `some_method` from `foo` is already overridden"
-    assert e.value.hint == "each abstract method can only be overridden once"
+    assert (
+        e.value.message
+        == f"`foo.some_method` was already overridden in `{tmp_path}/bar_override.vy`!"
+    )
+    expected_hint = "the likely root cause is that `foo` has been initialized"
+    expected_hint += f" in both `{tmp_path}/baz_override.vy` and"
+    expected_hint += f" `{tmp_path}/bar_override.vy`, which is an error"
+    assert e.value.hint == expected_hint
 
 
 def test_override_validation_order(get_contract, make_input_bundle):
@@ -1068,7 +1070,7 @@ def bar() -> uint256:  # Not abstract, but we should get non-initialized error f
         get_contract(contract1, input_bundle=input_bundle1)
 
     # Should fail on non-initialized module before checking if method is abstract
-    assert "module is not initialized" in e.value.message
+    assert e.value.message == "Cannot override `foo.bar` as it is not initialized"
 
     # Test 2: Non-abstract method error should come after initialization check passes
     contract2 = """
@@ -1092,7 +1094,7 @@ def bar() -> uint256:  # Not abstract
         get_contract(contract2, input_bundle=input_bundle2)
 
     # Should fail on non-abstract method
-    assert "method is not abstract" in e.value.message
+    assert e.value.message == "Cannot override `foo.bar`, it is not an abstract method!"
 
 
 def test_override_with_default_param_changes_signature(get_contract, make_input_bundle):
