@@ -174,7 +174,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     if not isinstance(typ_, VyperType):
         if isinstance(typ_, VarInfo):
             raise InvalidType(err_msg, node)
-raise CompilerPanic(f"Not a type: {typ_}", node)  # pragma: no cover
+        raise CompilerPanic(f"Not a type: {typ_}", node)  # pragma: no cover
 
     return typ_
 
