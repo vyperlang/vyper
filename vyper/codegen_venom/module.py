@@ -1421,11 +1421,6 @@ def _generate_constructor(
         # never reuses this region for temporary allocas.
         builder.ctx.mem_allocator.add_global(imm_alloc)
 
-        # Force msize to be past immutables region (like legacy's GH issue 3101 fix)
-        # This ensures builtins using msize() don't clobber immutables
-        # mload X touches bytes X to X+32, so touch the last word
-        touch_src = builder.add(alloca_inst.output, max(0, immutables_len - 32))
-        builder.mload(touch_src)
 
     # Register constructor args from DATA section (not calldata)
     # Constructor args are appended to the deploy code

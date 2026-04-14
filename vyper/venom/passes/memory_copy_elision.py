@@ -267,9 +267,9 @@ class MemoryCopyElisionPass(IRPass):
         uses = self.dfg.get_uses(load_inst.output)
         if len(uses) > 1:
             return
-        # Only nop the store here. The load may still be needed for MSIZE
-        # side effects. Let RemoveUnusedVariablesPass decide if the load
-        # can be removed (it has proper msize fence handling).
+        # Only nop the store here. The load may still be needed by other
+        # users. Let RemoveUnusedVariablesPass decide if the load can be
+        # removed.
         self.updater.nop(inst)
 
 

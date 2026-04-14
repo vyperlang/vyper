@@ -198,7 +198,15 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
   - Allocates an abstract memory region of a given `size`.
   - The output is a pointer to the allocated region (concretized to an offset by `ConcretizeMemLocPass`).
   - Because the SSA form does not allow changing values of registers, handling mutable variables can be tricky. The `alloca` instruction is meant to simplify that.
-  
+
+- `memtop`
+  - ```
+    %out = memtop
+    ```
+  - Returns a pointer past all currently used memory. Lowers to the EVM `MSIZE` opcode at assembly time.
+  - Reads `MEMORY` (so CSE will not merge two `memtop` instructions across a memory write, and DFT will not reorder it past one).
+  - Used by builtins (`raw_call(msg.data, ...)`, `create_copy_of`, `create_from_blueprint`) to obtain runtime-sized scratch above the static frame and any spill slots. The caller writes data starting at the returned address and immediately consumes it via `CALL`/`CREATE` — the region is untracked by the allocator.
+
 - `iload`
   - ```
     %out = iload offset
@@ -427,7 +435,6 @@ Instructions have the same effects.
 - `sgt`
 - `create`
 - `create2`
-- `msize`
 - `balance`
 - `call`
 - `staticcall`

@@ -106,19 +106,12 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
             node,
         )
 
-    # Handle msg.data specially - it needs to copy calldata to memory
-    # This must be done before other memory allocations to use msize correctly
+    # Evaluate data argument
     data_node = node.args[1]
-    if _is_msg_data(data_node):
-        # Get msize first - this is where we'll copy calldata
-        data_ptr = b.msize()
-        data_len = b.calldatasize()
-        # Copy entire calldata to memory at msize
-        b.calldatacopy(data_ptr, IRLiteral(0), data_len)
-    else:
+    use_msg_data = _is_msg_data(data_node)
+    if not use_msg_data:
         data_vv = Expr(data_node, ctx).lower()
         data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
-        # Get input data pointer and length
         # Bytes layout: [32-byte length][data...]
         assert isinstance(data, IRVariable)
         data_len = b.mload(data)
@@ -149,6 +142,13 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
     else:
         out_val = None
         out_ptr = ctx.allocate_buffer(0)._ptr
+
+    # Copy msg.data to scratch AFTER all kwarg evaluation, so nothing
+    # else overwrites the memtop scratch region before the call.
+    if use_msg_data:
+        data_ptr = ctx.allocate_dyn()
+        data_len = b.calldatasize()
+        b.calldatacopy(data_ptr, IRLiteral(0), data_len)
 
     # Build the call instruction
     if is_delegate:
