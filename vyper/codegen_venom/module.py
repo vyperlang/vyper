@@ -1421,7 +1421,6 @@ def _generate_constructor(
         # never reuses this region for temporary allocas.
         builder.ctx.mem_allocator.add_global(imm_alloc)
 
-
     # Register constructor args from DATA section (not calldata)
     # Constructor args are appended to the deploy code
     _register_constructor_args(codegen_ctx, func_t)
