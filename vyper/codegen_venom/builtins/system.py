@@ -15,7 +15,7 @@ from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import ArgumentException, StateAccessViolation
 from vyper.semantics.types import BytesT, TupleT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -113,6 +113,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         data_vv = Expr(data_node, ctx).lower()
         data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
         # Bytes layout: [32-byte length][data...]
+        assert isinstance(data, IRVariable)
         data_len = b.mload(data)
         data_ptr = b.add(data, IRLiteral(32))
 
@@ -140,7 +141,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         out_ptr = b.add(out_val.operand, IRLiteral(32))
     else:
         out_val = None
-        out_ptr = IRLiteral(0)
+        out_ptr = ctx.allocate_buffer(0)._ptr
 
     # Copy msg.data to scratch AFTER all kwarg evaluation, so nothing
     # else overwrites the memtop scratch region before the call.
@@ -170,8 +171,9 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         b.append_block(fail_label)
         b.set_block(fail_label)
         ret_size = b.returndatasize()
-        b.returndatacopy(IRLiteral(0), IRLiteral(0), ret_size)
-        b.revert(IRLiteral(0), ret_size)
+        revert_buffer = ctx.allocate_buffer(0, annotation="lower raw call revert on failure buffer")
+        b.returndatacopy(revert_buffer._ptr, IRLiteral(0), ret_size)
+        b.revert(revert_buffer._ptr, ret_size)
 
         b.append_block(ok_label)
         b.set_block(ok_label)
@@ -210,6 +212,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
             # Copy bytes (length + data) inline starting at offset 32
             # bytes_t.memory_bytes_required = 32 (length) + ceil32(max_outsize) (data)
             bytes_ptr = ctx.add_offset(tuple_local.ptr(), IRLiteral(32))
+            assert isinstance(bytes_ptr.operand, IRVariable)
             ctx.copy_memory(bytes_ptr.operand, out_val.operand, bytes_t.memory_bytes_required)
 
             return tuple_local
@@ -242,14 +245,16 @@ def lower_send(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     else:
         gas = Expr(gas_node, ctx).lower_value()
 
+    argsptr_buf = ctx.allocate_buffer(0, annotation="lower send args buffer")
+    retptr_buf = ctx.allocate_buffer(0, annotation="lower send retptr buffer")
     # call(gas, to, value, 0, 0, 0, 0)
     success = b.call(
         gas,
         to,
         value,
-        IRLiteral(0),  # No input data
+        argsptr_buf._ptr,  # No input data
         IRLiteral(0),
-        IRLiteral(0),  # No output
+        retptr_buf._ptr,  # No output
         IRLiteral(0),
     )
 
@@ -297,10 +302,12 @@ def lower_raw_log(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         # For Bytes[N]: data starts at ptr+32, length at ptr
         data_vv = Expr(data_node, ctx).lower()
         data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
+        assert isinstance(data, IRVariable)
         data_len = b.mload(data)
         data_ptr = b.add(data, IRLiteral(32))
 
     # Emit log instruction
+    assert isinstance(data_ptr, IRVariable)
     b.log(n_topics, data_ptr, data_len, *topic_values)
 
     return IRLiteral(0)  # Statement builtin, no return
@@ -320,6 +327,7 @@ def lower_raw_revert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
 
     # Get data pointer and length
+    assert isinstance(data, IRVariable)
     data_len = b.mload(data)
     data_ptr = b.add(data, IRLiteral(32))
 
