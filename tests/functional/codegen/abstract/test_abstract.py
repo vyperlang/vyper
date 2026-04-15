@@ -1096,7 +1096,7 @@ def _parse_relationships(chain_str) -> dict[str, list[(str, str)]]:
             result[source].append((relationship, destination))
 
         # Make sure the last item in the chain is added
-        result[modules[-1]]
+        _ = result[modules[-1]]  # side-effect: create an entry if none exists
 
     return result
 
