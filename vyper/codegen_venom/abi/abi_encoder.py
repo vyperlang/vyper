@@ -105,7 +105,9 @@ def _get_element_ptr(
         raise CompilerPanic(f"Cannot get element ptr of type {parent_typ}")
 
 
-def _zero_pad(ctx: VenomCodegenContext, bytez_ptr: IROperand, length: IROperand, padded_len: IROperand) -> None:
+def _zero_pad(
+    ctx: VenomCodegenContext, bytez_ptr: IROperand, length: IROperand, padded_len: IROperand
+) -> None:
     """
     Zero-pad a bytestring according to ABI spec.
 
@@ -117,7 +119,7 @@ def _zero_pad(ctx: VenomCodegenContext, bytez_ptr: IROperand, length: IROperand,
     # dst = bytez_ptr + 32 + length (first byte after data)
     dst = b.add(bytez_ptr, IRLiteral(32))
     dst = b.add(dst, length)
-    
+
     count = b.sub(padded_len, length)
     count = b.sub(count, 32)
     calldatasize = b.calldatasize()
