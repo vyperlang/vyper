@@ -105,7 +105,7 @@ def _get_element_ptr(
         raise CompilerPanic(f"Cannot get element ptr of type {parent_typ}")
 
 
-def _zero_pad(ctx: VenomCodegenContext, bytez_ptr: IROperand) -> None:
+def _zero_pad(ctx: VenomCodegenContext, bytez_ptr: IROperand, length: IROperand, padded_len: IROperand) -> None:
     """
     Zero-pad a bytestring according to ABI spec.
 
@@ -114,16 +114,14 @@ def _zero_pad(ctx: VenomCodegenContext, bytez_ptr: IROperand) -> None:
     """
     b = ctx.builder
 
-    # Get length
-    length = b.mload(bytez_ptr)
-
     # dst = bytez_ptr + 32 + length (first byte after data)
     dst = b.add(bytez_ptr, IRLiteral(32))
     dst = b.add(dst, length)
-
-    # For simplicity, write one full 32-byte zero word which handles all cases
-    # since we're allowed to write past the buffer (it will be within ABI bounds)
-    b.mstore(dst, IRLiteral(0))
+    
+    count = b.sub(padded_len, length)
+    count = b.sub(count, 32)
+    calldatasize = b.calldatasize()
+    b.calldatacopy(dst, calldatasize, count)
 
 
 def _encode_child(
@@ -348,12 +346,12 @@ def _abi_encode_to_buf(
         # Layout: [length][data]
         size = src_typ.memory_bytes_required
         ctx.copy_memory(dst, src, size)
-        _zero_pad(ctx, dst)
         # ABI length = ceil32(32 + actual_length)
         length = b.mload(dst)
         padded_len = b.add(IRLiteral(32), length)
         # ceil32: ((x + 31) // 32) * 32 = (x + 31) & ~31
         padded_len = b.and_(b.add(padded_len, IRLiteral(31)), IRLiteral(~31 & ((1 << 256) - 1)))
+        _zero_pad(ctx, dst, length, padded_len)
         return padded_len
 
     elif isinstance(src_typ, DArrayT):
