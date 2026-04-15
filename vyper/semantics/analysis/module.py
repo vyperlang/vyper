@@ -75,7 +75,8 @@ def analyze_modules(imports: ImportAnalyzer) -> ModuleT:
     # Collect module members, partial validation
     ret = _compute_module_type_r(root_module_ast)
 
-    _modules_check_overrides(modules)
+    for module_ast in modules:
+        _check_overrides(module_ast)
 
     # Remainder of validation: everything that requires module-level/cross-module information
     # Notably function bodies
@@ -397,8 +398,6 @@ def _validate_overrides(func_t: ContractFunctionT, node: vy_ast.FunctionDef):
             raise FunctionDeclarationException(msg, abstract_fn, node)
 
         if abstract_t._overridden_by is not None:
-            # this would also be caught by _validate_global_initializes_constraint,
-            # but we catch it here for well-formedness of set_overridden_by.
             existing_override = abstract_t._overridden_by.ast_def
             existing_override_path = existing_override.module_node.path
             msg = f"`{module_info.alias}.{node.name}` was already overridden"
@@ -948,18 +947,23 @@ def _default_values_match(p_override: _FunctionArg, p_abstract: _FunctionArg) ->
 
 
 def _parameter_override_discrepancy(
-    p_override: _FunctionArg, p_abstract: _FunctionArg | None
-) -> VyperException | None:
+    override_t: ContractFunctionT,
+    abstract_t: ContractFunctionT,
+    p_override: _FunctionArg,
+    p_abstract: Optional[_FunctionArg],
+) -> Optional[VyperException]:
     if p_abstract is None:
         if isinstance(p_override, KeywordArg):
+            # matches
             return None
-        else:
-            return FunctionDeclarationException(
-                f"Override has mandatory parameter {_pretty_param(p_override)} "
-                "not present in the abstract method.",
-                p_override.ast_source,
-                hint="Remove the extra parameter, or add a default value",
-            )
+
+        return FunctionDeclarationException(
+            f"{override_t.name} has mandatory parameter {_pretty_param(p_override)} "
+            "not present in the method it overrides",
+            abstract_t.ast_def,
+            p_override.ast_source,
+            hint="remove the extra parameter, or add a default value",
+        )
 
     if (
         p_override.name == p_abstract.name
@@ -967,16 +971,18 @@ def _parameter_override_discrepancy(
         and _default_values_match(p_override, p_abstract)
     ):
         return None
-    else:
-        return FunctionDeclarationException(
-            "Override parameter mismatch: "
-            f"Got {_pretty_param(p_override)}, "
-            f"but expected {_pretty_param(p_abstract)} (or more general)",
-            p_override.ast_source,
-            p_abstract.ast_source,
-        )
+
+    return FunctionDeclarationException(
+        "Override parameter mismatch: "
+        f"Got {_pretty_param(p_override)}, "
+        f"but expected {_pretty_param(p_abstract)} (or more general)",
+        p_override.ast_source,
+        p_abstract.ast_source,
+    )
 
 
+# note: substantial overlap with ContractFunctionT.implements and
+# ModuleT.validate_implements -- refactor to use common logic.
 def _compute_override_discrepancies(
     override_t: ContractFunctionT, abstract_t: ContractFunctionT
 ) -> ExceptionList:
@@ -985,51 +991,46 @@ def _compute_override_discrepancies(
     assert abstract_t.is_abstract
 
     parameters_override = override_t.arguments
-    return_type_override = override_t.return_type
+    return_o = override_t.return_type
 
     parameters_abstract = abstract_t.arguments
-    return_type_abstract = abstract_t.return_type
+    return_a = abstract_t.return_type
 
     discrepancies: ExceptionList = ExceptionList()
 
     # Parameter validation
 
     if len(parameters_override) < len(parameters_abstract):
+        msg = f"{override_t.name} has {len(parameters_override)} params,"
+        msg += f" but it should have at least {len(parameters_abstract)}"
         discrepancies.append(
-            FunctionDeclarationException(
-                "Override does not have the correct number of parameters. Has "
-                f"{len(parameters_override)}, should have {len(parameters_abstract)} (or more)",
-                override_t.ast_def,
-                abstract_t.ast_def,
-            )
+            FunctionDeclarationException(msg, override_t.ast_def, abstract_t.ast_def)
         )
     else:
         for p_override, p_abstract in zip_longest(parameters_override, parameters_abstract):
-            discrepancy = _parameter_override_discrepancy(p_override, p_abstract)
+            discrepancy = _parameter_override_discrepancy(
+                override_t, abstract_t, p_override, p_abstract
+            )
 
             if discrepancy is not None:
                 discrepancies.append(discrepancy)
 
     # Return type validation
 
+    neither_returns = return_a is None and return_o is None
+
     both_return_and_match = (
-        return_type_abstract
-        and return_type_override
-        and return_type_override.is_subtype_of(return_type_abstract)
+        return_a is not None and return_o is not None and return_o.is_subtype_of(return_a)
     )
-    neither_returns = not return_type_abstract and not return_type_override
 
     return_types_match = both_return_and_match or neither_returns
 
     if not return_types_match:
+        return_o_str = "does not return anything" if return_o is None else f"returns {return_o}"
+        return_a_str = "does not return anything" if return_a is None else f"returns {return_a}"
+        msg = f"{override_t.name} {return_o_str} but the method it overrides {return_a_str}"
         discrepancies.append(
-            FunctionDeclarationException(
-                "Override return type mismatch: "
-                f"Got {return_type_override or 'no return type'}, "
-                f"but expected {return_type_abstract or 'no return type'}",
-                override_t.ast_def,
-                abstract_t.ast_def,
-            )
+            FunctionDeclarationException(msg, abstract_t.ast_def, override_t.ast_def)
         )
 
     # Mutability validation
@@ -1037,14 +1038,13 @@ def _compute_override_discrepancies(
     if override_t.mutability > abstract_t.mutability:
         # There is nothing stricter than @pure
         or_stricter = " (or stricter)" if abstract_t.mutability != StateMutability.PURE else ""
+        msg = f"{override_t.name} is {override_t.mutability} but it overrides a"
+        msg += f" {abstract_t.mutability} method"
+
+        hint = f"change {override_t.name} to be {abstract_t.mutability}{or_stricter}"
 
         discrepancies.append(
-            FunctionDeclarationException(
-                "Override mutability mismatch: "
-                f"Got {override_t.mutability}, but expected {abstract_t.mutability}{or_stricter}",
-                override_t.ast_def,
-                abstract_t.ast_def,
-            )
+            FunctionDeclarationException(msg, abstract_t.ast_def, override_t.ast_def, hint=hint)
         )
 
     # Reentrancy validation
@@ -1053,24 +1053,20 @@ def _compute_override_discrepancies(
         reentrancy_o = "non-reentrant" if override_t.nonreentrant else "reentrant"
         reentrancy_a = "non-reentrant" if abstract_t.nonreentrant else "reentrant"
 
+        msg = f"{override_t.name} is {reentrancy_o} but it overrides a"
+        msg += f" {reentrancy_a} method"
         discrepancies.append(
-            FunctionDeclarationException(
-                f"Override reentrancy mismatch: a {reentrancy_o} method cannot override "
-                f"a {reentrancy_a} method.",
-                override_t.ast_def,
-                abstract_t.ast_def,
-            )
+            FunctionDeclarationException(msg, abstract_t.ast_def, override_t.ast_def)
         )
 
     return discrepancies
 
 
-def _modules_check_overrides(all_modules: OrderedSet[vy_ast.Module]):
-    for module_ast in all_modules:
-        for func in module_ast.get_children(vy_ast.FunctionDef):
-            func_t = func._metadata["func_type"]
-            if func_t.is_abstract:
-                override_t = func_t.overridden_by
+def _check_overrides(module_ast: vy_ast.Module):
+    for func in module_ast.get_children(vy_ast.FunctionDef):
+        func_t = func._metadata["func_type"]
+        if func_t.is_abstract:
+            override_t = func_t.overridden_by
 
-                err_list = _compute_override_discrepancies(override_t, func_t)
-                err_list.raise_if_not_empty()
+            err_list = _compute_override_discrepancies(override_t, func_t)
+            err_list.raise_if_not_empty()
