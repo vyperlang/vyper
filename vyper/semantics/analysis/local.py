@@ -539,6 +539,13 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
                 "Left-hand side of assignment cannot be a HashMap without a key"
             )
 
+        # Run this first so that "not a variable" errors have priority over
+        # "assigning to a constant" errors
+        var_access = _get_variable_access(target)
+        assert var_access is not None
+
+        info._writes.add(var_access)
+
         if (
             info.location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
             and func_t.mutability <= StateMutability.VIEW
@@ -569,11 +576,6 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
 
         if info.modifiability == Modifiability.CONSTANT:
             raise ImmutableViolation("Constant value cannot be written to.")
-
-        var_access = _get_variable_access(target)
-        assert var_access is not None
-
-        info._writes.add(var_access)
 
     def _handle_module_access(self, target: vy_ast.ExprNode):
         root_module_info = check_module_uses(target)

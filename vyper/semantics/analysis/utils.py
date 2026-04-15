@@ -89,7 +89,7 @@ class _ExprAnalyser:
                 return ExprInfo.from_moduleinfo(info)
 
             if isinstance(info, VyperType):
-                return ExprInfo(TYPE_T(info))
+                return ExprInfo(TYPE_T(info), modifiability=Modifiability.CONSTANT)
 
             raise CompilerPanic(f"unreachable! {info}", node)
 
