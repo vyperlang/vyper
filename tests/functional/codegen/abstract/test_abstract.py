@@ -329,250 +329,6 @@ SUCCESSFUL_OVERRIDES = [
     ),
 ]
 
-FAILING_OVERRIDES = [
-    # params, ret_t, ret_v,
-    # params, ret_t,
-    # except, message
-    # === PARAMETER COUNT ERRORS ===
-    # Too few parameters
-    (
-        "",
-        "uint256",
-        "0",
-        "x: uint256",
-        "uint256",
-        FunctionDeclarationException,
-        "Override does not have the correct number of parameters.",
-    ),
-    # Too many parameters
-    (
-        "x: uint256, y: uint256",
-        "uint256",
-        "x + y",
-        "x: uint256",
-        "uint256",
-        FunctionDeclarationException,
-        "Override has mandatory parameter `y: uint256` not present in the abstract method.",
-    ),
-    # === PARAMETER MISMATCH ERRORS ===
-    # Parameter name mismatch
-    (
-        "x: uint256",
-        "uint256",
-        "x",
-        "y: uint256",
-        "uint256",
-        FunctionDeclarationException,
-        "Override parameter mismatch",
-    ),
-    # Parameters swapped (same names and types but wrong positions)
-    # Uses VyperException because both parameters mismatch, resulting in multiple errors
-    (
-        "y: uint256, x: uint256",
-        "uint256",
-        "x + y",
-        "x: uint256, y: uint256",
-        "uint256",
-        VyperException,
-        "Override parameter mismatch",
-    ),
-    # Parameter type mismatch with different types
-    (
-        "x: int256",
-        "uint256",
-        "convert(x, uint256)",
-        "x: uint256",
-        "uint256",
-        FunctionDeclarationException,
-        "Override parameter mismatch",
-    ),
-    # Second parameter type mismatch
-    (
-        "x: uint256, y: uint256",
-        "uint256",
-        "x + y",
-        "x: uint256, y: int256",
-        "uint256",
-        FunctionDeclarationException,
-        "Override parameter mismatch",
-    ),
-    # First parameter type mismatch in multiple parameters
-    (
-        "a: uint256, b: address, c: bool",
-        "bool",
-        "c",
-        "a: int256, b: address, c: bool",
-        "bool",
-        FunctionDeclarationException,
-        "Override parameter mismatch",
-    ),
-    # Fixed array parameter size mismatch
-    (
-        "arr: uint256[10]",
-        "uint256",
-        "arr[0]",
-        "arr: uint256[5]",
-        "uint256",
-        FunctionDeclarationException,
-        "Override parameter mismatch",
-    ),
-    # === RETURN TYPE ERRORS ===
-    # Has return type when abstract has none
-    (
-        "x: uint256",
-        "uint256",
-        "x",
-        "x: uint256",
-        None,
-        FunctionDeclarationException,
-        "Override return type mismatch",
-    ),
-    # No return type when abstract has one
-    (
-        "x: uint256",
-        None,
-        "",
-        "x: uint256",
-        "uint256",
-        FunctionDeclarationException,
-        "Override return type mismatch",
-    ),
-    # Different return types
-    (
-        "x: uint256",
-        "int256",
-        "convert(x, int256)",
-        "x: uint256",
-        "uint256",
-        FunctionDeclarationException,
-        "Override return type mismatch",
-    ),
-    # Return type mismatch with bool and uint256
-    (
-        "x: uint256, y: uint256, z: address",
-        "bool",
-        "True",
-        "x: uint256, y: uint256, z: address",
-        "uint256",
-        FunctionDeclarationException,
-        "Override return type mismatch",
-    ),
-    # === INVALID SUBTYPING - PARAMETERS ===
-    # String parameter with invalid subtype
-    (
-        "s: String[50]",
-        "uint256",
-        "len(s)",
-        "s: String[100]",
-        "uint256",
-        FunctionDeclarationException,
-        "Override parameter mismatch",
-    ),
-    # DynArray parameter with invalid subtype
-    (
-        "arr: DynArray[uint256, 10]",
-        "uint256",
-        "len(arr)",
-        "arr: DynArray[uint256, 20]",
-        "uint256",
-        FunctionDeclarationException,
-        "Override parameter mismatch",
-    ),
-    # Bytes parameter with invalid subtype
-    (
-        "data: Bytes[32]",
-        "uint256",
-        "len(data)",
-        "data: Bytes[64]",
-        "uint256",
-        FunctionDeclarationException,
-        "Override parameter mismatch",
-    ),
-    # Middle parameter with invalid subtype
-    (
-        "a: address, s: String[50], c: bool",
-        "bool",
-        "c",
-        "a: address, s: String[100], c: bool",
-        "bool",
-        FunctionDeclarationException,
-        "Override parameter mismatch",
-    ),
-    # === INVALID SUBTYPING - RETURN TYPES ===
-    # String return with invalid supertype
-    (
-        "x: uint256",
-        "String[100]",
-        '"hello"',
-        "x: uint256",
-        "String[50]",
-        FunctionDeclarationException,
-        "Override return type mismatch",
-    ),
-    # DynArray return with invalid supertype
-    (
-        "x: uint256",
-        "DynArray[uint256, 20]",
-        "[x, x]",
-        "x: uint256",
-        "DynArray[uint256, 10]",
-        FunctionDeclarationException,
-        "Override return type mismatch",
-    ),
-    # Bytes return with invalid supertype
-    (
-        "x: uint256",
-        "Bytes[64]",
-        'b""',
-        "x: uint256",
-        "Bytes[32]",
-        FunctionDeclarationException,
-        "Override return type mismatch",
-    ),
-    # === ABSTRACT METHODS WITH OPTIONAL PARAMETERS ===
-    # Abstract method with mismatch in default parameter value
-    (
-        "x: uint256, y: uint256 = 20",
-        "uint256",
-        "x + y",
-        "x: uint256, y: uint256 = 10",
-        "uint256",
-        FunctionDeclarationException,
-        "Override parameter mismatch",
-    ),
-    # Optional parameter in abstract cannot be mandatory in override
-    (
-        "x: uint256, y: uint256",
-        "uint256",
-        "x + y",
-        "x: uint256, y: uint256 = ...",
-        "uint256",
-        FunctionDeclarationException,
-        "Override parameter mismatch",
-    ),
-    # === DIFFERENT DEFAULT VALUES ===
-    # Different environment variables (msg.sender vs tx.origin)
-    (
-        "x: uint256, a: address = tx.origin",
-        "address",
-        "a",
-        "x: uint256, a: address = msg.sender",
-        "address",
-        FunctionDeclarationException,
-        "Override parameter mismatch",
-    ),
-    # Different environment variables (block.number vs block.timestamp)
-    (
-        "x: uint256, b: uint256 = block.timestamp",
-        "uint256",
-        "b",
-        "x: uint256, b: uint256 = block.number",
-        "uint256",
-        FunctionDeclarationException,
-        "Override parameter mismatch",
-    ),
-]
-
 
 @pytest.mark.parametrize("successful_override", SUCCESSFUL_OVERRIDES)
 def test_successful_signature_override(get_contract, make_input_bundle, successful_override):
@@ -655,18 +411,16 @@ def bar({params_abstract}){with_arrow(return_type_abstract)}: ...
         assert c.value() == expected_output
 
 
-@pytest.mark.parametrize("failing_override", FAILING_OVERRIDES)
-def test_failing_signature_override(get_contract, make_input_bundle, failing_override):
-    (
-        params_override,
-        return_type_override,
-        return_expression_override,
-        params_abstract,
-        return_type_abstract,
-        raised_exception,
-        message,
-    ) = failing_override
-
+def _run_failing_signature_override(
+    make_input_bundle,
+    params_override,
+    return_type_override,
+    return_expression_override,
+    params_abstract,
+    return_type_abstract,
+    exc_type,
+    message,
+):
     def with_arrow(return_type: str | None) -> str:
         return f"-> {return_type}" if return_type is not None else ""
 
@@ -687,10 +441,340 @@ def bar({params_abstract}){with_arrow(return_type_abstract)}: ...
 
     input_bundle = make_input_bundle({"foo.vy": foo})
 
-    with pytest.raises(raised_exception) as e:
-        get_contract(contract, input_bundle=input_bundle)
+    with pytest.raises(exc_type) as e:
+        compile_code(contract, input_bundle=input_bundle)
 
     assert message in e.value.message
+
+
+def test_correct_param_count(make_input_bundle):
+    _run_failing_signature_override(
+        make_input_bundle,
+        "",
+        "uint256",
+        "0",
+        "x: uint256",
+        "uint256",
+        FunctionDeclarationException,
+        "bar has 0 params, but it should have at least 1",
+    )
+
+
+def test_too_many_mandatory_params(make_input_bundle):
+    _run_failing_signature_override(
+        make_input_bundle,
+        "x: uint256, y: uint256",
+        "uint256",
+        "x + y",
+        "x: uint256",
+        "uint256",
+        FunctionDeclarationException,
+        "bar has mandatory parameter `y: uint256` not present in the method it overrides",
+    )
+
+
+# === PARAMETER MISMATCH ERRORS ===
+
+
+def test_parameter_name_mismatch(make_input_bundle):
+    _run_failing_signature_override(
+        make_input_bundle,
+        "x: uint256",
+        "uint256",
+        "x",
+        "y: uint256",
+        "uint256",
+        FunctionDeclarationException,
+        "Override parameter mismatch",
+    )
+
+
+def test_invalid_params_swapped(make_input_bundle):
+    # Parameters swapped (same names and types but wrong positions)
+    # Uses VyperException because both parameters mismatch, resulting in multiple errors
+    _run_failing_signature_override(
+        make_input_bundle,
+        "y: uint256, x: uint256",
+        "uint256",
+        "x + y",
+        "x: uint256, y: uint256",
+        "uint256",
+        VyperException,
+        "Override parameter mismatch",
+    )
+
+
+def test_param_type_mismatch(make_input_bundle):
+    # Parameter type mismatch with different types
+    _run_failing_signature_override(
+        make_input_bundle,
+        "x: int256",
+        "uint256",
+        "convert(x, uint256)",
+        "x: uint256",
+        "uint256",
+        FunctionDeclarationException,
+        "Override parameter mismatch",
+    )
+
+
+def test_second_param_type_mismatch(make_input_bundle):
+    # Second parameter type mismatch
+    _run_failing_signature_override(
+        make_input_bundle,
+        "x: uint256, y: uint256",
+        "uint256",
+        "x + y",
+        "x: uint256, y: int256",
+        "uint256",
+        FunctionDeclarationException,
+        "Override parameter mismatch",
+    )
+
+
+def test_first_param_type_mismatch(make_input_bundle):
+    # First parameter type mismatch with multiple parameters
+    _run_failing_signature_override(
+        make_input_bundle,
+        "a: uint256, b: address, c: bool",
+        "bool",
+        "c",
+        "a: int256, b: address, c: bool",
+        "bool",
+        FunctionDeclarationException,
+        "Override parameter mismatch",
+    )
+
+
+def test_param_mismatch_array_size(make_input_bundle):
+    # Fixed array parameter size mismatch
+    _run_failing_signature_override(
+        make_input_bundle,
+        "arr: uint256[10]",
+        "uint256",
+        "arr[0]",
+        "arr: uint256[5]",
+        "uint256",
+        FunctionDeclarationException,
+        "Override parameter mismatch",
+    )
+
+
+# === RETURN TYPE ERRORS ===
+
+
+def test_override_return_mismatch1(make_input_bundle):
+    _run_failing_signature_override(
+        make_input_bundle,
+        # Has return type when abstract has none
+        "x: uint256",
+        "uint256",
+        "x",
+        "x: uint256",
+        None,
+        FunctionDeclarationException,
+        "bar returns uint256 but the method it overrides does not return anything",
+    )
+
+
+def test_override_return_mismatch2(make_input_bundle):
+    # No return type when abstract has one
+    _run_failing_signature_override(
+        make_input_bundle,
+        "x: uint256",
+        None,
+        "",
+        "x: uint256",
+        "uint256",
+        FunctionDeclarationException,
+        "bar does not return anything but the method it overrides returns uint256",
+    )
+
+
+def test_override_return_mismatch3(make_input_bundle):
+    # Different return types
+    _run_failing_signature_override(
+        make_input_bundle,
+        "x: uint256",
+        "int256",
+        "convert(x, int256)",
+        "x: uint256",
+        "uint256",
+        FunctionDeclarationException,
+        "bar returns int256 but the method it overrides returns uint256",
+    )
+
+
+def test_override_return_mismatch4(make_input_bundle):
+    # Return type mismatch with bool and uint256
+    _run_failing_signature_override(
+        make_input_bundle,
+        "x: uint256, y: uint256, z: address",
+        "bool",
+        "True",
+        "x: uint256, y: uint256, z: address",
+        "uint256",
+        FunctionDeclarationException,
+        "bar returns bool but the method it overrides returns uint256",
+    )
+
+
+# === INVALID SUBTYPING - PARAMETERS ===
+
+
+def test_string_param_invalid_subtype(make_input_bundle):
+    _run_failing_signature_override(
+        make_input_bundle,
+        "s: String[50]",
+        "uint256",
+        "len(s)",
+        "s: String[100]",
+        "uint256",
+        FunctionDeclarationException,
+        "Override parameter mismatch",
+    )
+
+
+def test_dynarray_param_invalid_subtype(make_input_bundle):
+    _run_failing_signature_override(
+        make_input_bundle,
+        "arr: DynArray[uint256, 10]",
+        "uint256",
+        "len(arr)",
+        "arr: DynArray[uint256, 20]",
+        "uint256",
+        FunctionDeclarationException,
+        "Override parameter mismatch",
+    )
+
+
+def test_bytes_param_invalid_subtype(make_input_bundle):
+    _run_failing_signature_override(
+        make_input_bundle,
+        "data: Bytes[32]",
+        "uint256",
+        "len(data)",
+        "data: Bytes[64]",
+        "uint256",
+        FunctionDeclarationException,
+        "Override parameter mismatch",
+    )
+
+
+def test_middle_param_invalid_subtype(make_input_bundle):
+    _run_failing_signature_override(
+        make_input_bundle,
+        "a: address, s: String[50], c: bool",
+        "bool",
+        "c",
+        "a: address, s: String[100], c: bool",
+        "bool",
+        FunctionDeclarationException,
+        "Override parameter mismatch",
+    )
+
+
+# === INVALID SUBTYPING - RETURN TYPES ===
+
+
+def test_string_return_invalid_supertype(make_input_bundle):
+    _run_failing_signature_override(
+        make_input_bundle,
+        "x: uint256",
+        "String[100]",
+        '"hello"',
+        "x: uint256",
+        "String[50]",
+        FunctionDeclarationException,
+        "bar returns String[100] but the method it overrides returns String[50]"
+    )
+
+
+def test_dynarray_return_invalid_supertype(make_input_bundle):
+    _run_failing_signature_override(
+        make_input_bundle,
+        "x: uint256",
+        "DynArray[uint256, 20]",
+        "[x, x]",
+        "x: uint256",
+        "DynArray[uint256, 10]",
+        FunctionDeclarationException,
+        "bar returns DynArray[uint256, 20] but the method it overrides returns DynArray[uint256, 10]"
+    )
+
+
+def test_bytes_return_invalid_supertype(make_input_bundle):
+    _run_failing_signature_override(
+        make_input_bundle,
+        "x: uint256",
+        "Bytes[64]",
+        'b""',
+        "x: uint256",
+        "Bytes[32]",
+        FunctionDeclarationException,
+        "bar returns Bytes[64] but the method it overrides returns Bytes[32]"
+    )
+
+
+# === ABSTRACT METHODS WITH OPTIONAL PARAMETERS ===
+
+
+def test_mismatch_default_param_value(make_input_bundle):
+    _run_failing_signature_override(
+        make_input_bundle,
+        "x: uint256, y: uint256 = 20",
+        "uint256",
+        "x + y",
+        "x: uint256, y: uint256 = 10",
+        "uint256",
+        FunctionDeclarationException,
+        "Override parameter mismatch",
+    )
+
+
+def test_invalid_mandatory_override(make_input_bundle):
+    # Optional parameter in abstract cannot be mandatory in override
+    _run_failing_signature_override(
+        make_input_bundle,
+        "x: uint256, y: uint256",
+        "uint256",
+        "x + y",
+        "x: uint256, y: uint256 = ...",
+        "uint256",
+        FunctionDeclarationException,
+        "Override parameter mismatch",
+    )
+
+
+# === DIFFERENT DEFAULT VALUES ===
+
+
+def test_different_default_values_env1(make_input_bundle):
+    # Different environment variables (msg.sender vs tx.origin)
+    _run_failing_signature_override(
+        make_input_bundle,
+        "x: uint256, a: address = tx.origin",
+        "address",
+        "a",
+        "x: uint256, a: address = msg.sender",
+        "address",
+        FunctionDeclarationException,
+        "Override parameter mismatch",
+    )
+
+
+def test_different_default_values_env2(make_input_bundle):
+    # Different environment variables (block.number vs block.timestamp)
+    _run_failing_signature_override(
+        make_input_bundle,
+        "x: uint256, b: uint256 = block.timestamp",
+        "uint256",
+        "b",
+        "x: uint256, b: uint256 = block.number",
+        "uint256",
+        FunctionDeclarationException,
+        "Override parameter mismatch",
+    )
 
 
 VALID_DECORATOR_OVERRIDES = [
@@ -725,9 +809,7 @@ VALID_DECORATOR_OVERRIDES = [
 
 
 @pytest.mark.parametrize("abstract_decorators,override_decorators", VALID_DECORATOR_OVERRIDES)
-def test_decorator_override_valid(
-    get_contract, make_input_bundle, abstract_decorators, override_decorators
-):
+def test_decorator_override_valid(make_input_bundle, abstract_decorators, override_decorators):
     """Test valid decorator overrides (including mutability and nonreentrant)"""
 
     contract = f"""
@@ -749,7 +831,7 @@ def bar() -> uint256: ...
 
     input_bundle = make_input_bundle({"foo.vy": foo})
     # Should compile without errors
-    get_contract(contract, input_bundle=input_bundle)
+    compile_code(contract, input_bundle=input_bundle)
 
 
 INVALID_DECORATOR_OVERRIDES = [
@@ -758,123 +840,128 @@ INVALID_DECORATOR_OVERRIDES = [
     (
         "@nonpayable",
         "@payable",
-        "Override mutability mismatch: Got payable, but expected nonpayable (or stricter)",
-        None,
+        "bar is payable but it overrides a nonpayable method",
+        "change bar to be nonpayable (or stricter)",
     ),
     (
         "",
         "@payable",
-        "Override mutability mismatch: Got payable, but expected nonpayable (or stricter)",
-        None,
+        "bar is payable but it overrides a nonpayable method",
+        "change bar to be nonpayable (or stricter)",
     ),
     (
         "@view",
         "@nonpayable",
-        "Override mutability mismatch: Got nonpayable, but expected view (or stricter)",
-        None,
+        "bar is nonpayable but it overrides a view method",
+        "change bar to be view (or stricter)",
     ),
     (
         "@view",
         "",
-        "Override mutability mismatch: Got nonpayable, but expected view (or stricter)",
-        None,
+        "bar is nonpayable but it overrides a view method",
+        "change bar to be view (or stricter)",
     ),
     (
         "@view",
         "@payable",
-        "Override mutability mismatch: Got payable, but expected view (or stricter)",
-        None,
+        "bar is payable but it overrides a view method",
+        "change bar to be view (or stricter)",
     ),
-    ("@pure", "@view", "Override mutability mismatch: Got view, but expected pure", None),
+    ("@pure", "@view", "bar is view but it overrides a pure method", "change bar to be pure"),
     (
         "@pure",
         "@nonpayable",
-        "Override mutability mismatch: Got nonpayable, but expected pure",
-        None,
+        "bar is nonpayable but it overrides a pure method",
+        "change bar to be pure",
     ),
-    ("@pure", "", "Override mutability mismatch: Got nonpayable, but expected pure", None),
-    ("@pure", "@payable", "Override mutability mismatch: Got payable, but expected pure", None),
+    ("@pure", "", "bar is nonpayable but it overrides a pure method", "change bar to be pure"),
+    (
+        "@pure",
+        "@payable",
+        "bar is payable but it overrides a pure method",
+        "change bar to be pure",
+    ),
     # Nonreentrant mismatch
     (
         "@nonreentrant",
         "",
-        "Override reentrancy mismatch: a reentrant method cannot override a non-reentrant method.",
+        "bar is reentrant but it overrides a non-reentrant method",
         None,
     ),
     (
         "@nonreentrant",
         "@nonpayable",
-        "Override reentrancy mismatch: a reentrant method cannot override a non-reentrant method.",
+        "bar is reentrant but it overrides a non-reentrant method",
         None,
     ),
     (
         "",
         "@nonreentrant",
-        "Override reentrancy mismatch: a non-reentrant method cannot override a reentrant method.",
+        "bar is non-reentrant but it overrides a reentrant method",
         None,
     ),
     (
         "@nonpayable",
         "@nonreentrant\n@nonpayable",
-        "Override reentrancy mismatch: a non-reentrant method cannot override a reentrant method.",
+        "bar is non-reentrant but it overrides a reentrant method",
         None,
     ),
     # Combined decorator mismatches - nonreentrant missing
     (
         "@nonreentrant\n@nonpayable",
         "@nonpayable",
-        "Override reentrancy mismatch: a reentrant method cannot override a non-reentrant method.",
+        "bar is reentrant but it overrides a non-reentrant method",
         None,
     ),
     (
         "@nonreentrant\n@view",
         "@view",
-        "Override reentrancy mismatch: a reentrant method cannot override a non-reentrant method.",
+        "bar is reentrant but it overrides a non-reentrant method",
         None,
     ),
     (
         "@nonreentrant\n@payable",
         "@payable",
-        "Override reentrancy mismatch: a reentrant method cannot override a non-reentrant method.",
+        "bar is reentrant but it overrides a non-reentrant method",
         None,
     ),
     # Combined decorator mismatches - nonreentrant added
     (
         "@view",
         "@nonreentrant\n@view",
-        "Override reentrancy mismatch: a non-reentrant method cannot override a reentrant method.",
+        "bar is non-reentrant but it overrides a reentrant method",
         None,
     ),
     (
         "@payable",
         "@nonreentrant\n@payable",
-        "Override reentrancy mismatch: a non-reentrant method cannot override a reentrant method.",
+        "bar is non-reentrant but it overrides a reentrant method",
         None,
     ),
     # Combined decorator mismatches - mutability less strict
     (
         "@nonreentrant",
         "@nonreentrant\n@payable",
-        "Override mutability mismatch: Got payable, but expected nonpayable (or stricter)",
-        None,
+        "bar is payable but it overrides a nonpayable method",
+        "change bar to be nonpayable (or stricter)",
     ),
     (
         "@nonreentrant\n@nonpayable",
         "@nonreentrant\n@payable",
-        "Override mutability mismatch: Got payable, but expected nonpayable (or stricter)",
-        None,
+        "bar is payable but it overrides a nonpayable method",
+        "change bar to be nonpayable (or stricter)",
     ),
     (
         "@nonreentrant\n@view",
         "@nonreentrant\n@nonpayable",
-        "Override mutability mismatch: Got nonpayable, but expected view (or stricter)",
-        None,
+        "bar is nonpayable but it overrides a view method",
+        "change bar to be view (or stricter)",
     ),
     (
         "@nonreentrant\n@view",
         "@nonreentrant\n@payable",
-        "Override mutability mismatch: Got payable, but expected view (or stricter)",
-        None,
+        "bar is payable but it overrides a view method",
+        "change bar to be view (or stricter)",
     ),
 ]
 
@@ -884,12 +971,7 @@ INVALID_DECORATOR_OVERRIDES = [
     INVALID_DECORATOR_OVERRIDES,
 )
 def test_decorator_override_invalid(
-    get_contract,
-    make_input_bundle,
-    abstract_decorators,
-    override_decorators,
-    expected_message,
-    expected_hint,
+    make_input_bundle, abstract_decorators, override_decorators, expected_message, expected_hint
 ):
     """Test invalid decorator overrides (including mutability and nonreentrant)"""
 
@@ -912,13 +994,13 @@ def bar() -> uint256: ...
 
     input_bundle = make_input_bundle({"foo.vy": foo})
     with pytest.raises(FunctionDeclarationException) as e:
-        get_contract(contract, input_bundle=input_bundle)
+        compile_code(contract, input_bundle=input_bundle)
 
     assert e.value.message == expected_message
     assert e.value.hint == expected_hint
 
 
-def test_override_non_abstract_method_fails(get_contract, make_input_bundle):
+def test_override_non_abstract_method_fails(make_input_bundle):
     """Test that overriding a non-abstract method fails with proper error"""
     contract = """
 import foo
@@ -938,12 +1020,12 @@ def bar() -> uint256:
     input_bundle = make_input_bundle({"foo.vy": foo})
 
     with pytest.raises(FunctionDeclarationException) as e:
-        get_contract(contract, input_bundle=input_bundle)
+        compile_code(contract, input_bundle=input_bundle)
 
     assert e.value.message == "Cannot override `foo.bar`, it is not an abstract method!"
 
 
-def test_override_nonexistent_method_fails(get_contract, make_input_bundle):
+def test_override_nonexistent_method_fails(make_input_bundle):
     """Test that overriding a method that doesn't exist in the module fails"""
     contract = """
 import foo
@@ -963,12 +1045,12 @@ def different_method() -> uint256: ...
     input_bundle = make_input_bundle({"foo.vy": foo})
 
     with pytest.raises(FunctionDeclarationException) as e:
-        get_contract(contract, input_bundle=input_bundle)
+        compile_code(contract, input_bundle=input_bundle)
 
     assert e.value.message == "Tried to override `foo.bar`, but it does not exist"
 
 
-def test_override_nonexistent_method_with_hint(get_contract, make_input_bundle):
+def test_override_nonexistent_method_with_hint(make_input_bundle):
     """Test that overriding a nonexistent method suggests similar names"""
     contract = """
 import foo
@@ -988,13 +1070,13 @@ def long_method_name_a() -> uint256: ...
     input_bundle = make_input_bundle({"foo.vy": foo})
 
     with pytest.raises(FunctionDeclarationException) as e:
-        get_contract(contract, input_bundle=input_bundle)
+        compile_code(contract, input_bundle=input_bundle)
 
     assert e.value.message == "Tried to override `foo.long_method_name_z`, but it does not exist"
     assert e.value.hint == "Did you mean 'long_method_name_a'?"
 
 
-def test_duplicate_override_fails(get_contract, make_input_bundle, tmp_path):
+def test_duplicate_override_fails(make_input_bundle, tmp_path):
     """Test that overriding the same abstract method twice fails with proper error"""
     contract = """
 import foo
@@ -1034,7 +1116,7 @@ def some_method() -> uint256:
     )
 
     with pytest.raises(FunctionDeclarationException) as e:
-        get_contract(contract, input_bundle=input_bundle)
+        compile_code(contract, input_bundle=input_bundle)
 
     assert (
         e.value.message
@@ -1046,7 +1128,7 @@ def some_method() -> uint256:
     assert e.value.hint == expected_hint
 
 
-def test_override_validation_order(get_contract, make_input_bundle):
+def test_override_validation_order(make_input_bundle):
     """Test that validation errors are reported in the correct order"""
 
     # Test 1: Non-initialized module error should come first
@@ -1067,7 +1149,7 @@ def bar() -> uint256:  # Not abstract, but we should get non-initialized error f
     input_bundle1 = make_input_bundle({"foo.vy": foo1})
 
     with pytest.raises(FunctionDeclarationException) as e:
-        get_contract(contract1, input_bundle=input_bundle1)
+        compile_code(contract1, input_bundle=input_bundle1)
 
     # Should fail on non-initialized module before checking if method is abstract
     assert e.value.message == "Cannot override `foo.bar` as it is not initialized"
@@ -1091,13 +1173,13 @@ def bar() -> uint256:  # Not abstract
     input_bundle2 = make_input_bundle({"foo.vy": foo2})
 
     with pytest.raises(FunctionDeclarationException) as e:
-        get_contract(contract2, input_bundle=input_bundle2)
+        compile_code(contract2, input_bundle=input_bundle2)
 
     # Should fail on non-abstract method
     assert e.value.message == "Cannot override `foo.bar`, it is not an abstract method!"
 
 
-def test_override_with_default_param_changes_signature(get_contract, make_input_bundle):
+def test_override_with_default_param_changes_signature(make_input_bundle):
     """
     Test that we can't call a.foo(1) if in 'a' it's foo() but overridden by foo(x: uint256 = 0)
     """
@@ -1134,12 +1216,12 @@ def test_foo() -> uint256:
     )
 
     with pytest.raises(ArgumentException) as e:
-        get_contract(contract, input_bundle=input_bundle)
+        compile_code(contract, input_bundle=input_bundle)
 
     assert "Invalid argument count for call to 'foo': expected 0, got 1" in str(e.value)
 
 
-def test_override_optional_param_still_mandatory_via_abstract(get_contract, make_input_bundle):
+def test_override_optional_param_still_mandatory_via_abstract(make_input_bundle):
     """Test that we can't omit a mandatory param when calling through abstract,
     even if the override makes it optional."""
 
@@ -1175,7 +1257,7 @@ def test_foo() -> uint256:
     )
 
     with pytest.raises(ArgumentException) as e:
-        get_contract(contract, input_bundle=input_bundle)
+        compile_code(contract, input_bundle=input_bundle)
 
     assert "Invalid argument count for call to 'foo': expected 2, got 1" in str(e.value)
 
@@ -1412,7 +1494,7 @@ def test_multiple_calls() -> uint256:
     assert c.test_multiple_calls() == 3
 
 
-def test_override_recursion_fails(get_contract, make_input_bundle):
+def test_override_recursion_fails(make_input_bundle):
     abstract_m = """
 
 def forwarder() -> uint256:
@@ -1435,7 +1517,7 @@ def foo() -> uint256:
     input_bundle = make_input_bundle({"abstract_m.vy": abstract_m})
 
     with pytest.raises(CallViolation) as e:
-        get_contract(contract, input_bundle=input_bundle)
+        compile_code(contract, input_bundle=input_bundle)
 
     # TODO: Maybe improve error message so it includes overrides ?
     # Something like a.foo -> b.forwarder -> b.foo -resolves_to-> a.foo
@@ -1504,7 +1586,7 @@ def bar({params_override}) -> uint256:
         assert c.call_bar(*call_bar_args) == expected
 
 
-def test_must_override_all_abstract_methods(get_contract, make_input_bundle):
+def test_must_override_all_abstract_methods(make_input_bundle):
     """Test that initializing an abstract module requires overriding ALL its abstract methods"""
 
     abstract_module = """
@@ -1530,13 +1612,13 @@ def foo() -> uint256:
     input_bundle = make_input_bundle({"abstract_module.vy": abstract_module})
 
     with pytest.raises(FunctionDeclarationException) as e:
-        get_contract(contract, input_bundle=input_bundle)
+        compile_code(contract, input_bundle=input_bundle)
 
     assert "Abstract function was not overridden" == e.value.message
     assert "bar" in e.value.annotations[0].node_source_code
 
 
-def test_contract_cannot_have_abstract_methods(get_contract):
+def test_contract_cannot_have_abstract_methods():
     """Test that a top-level contract cannot have abstract methods"""
 
     contract = """
@@ -1549,13 +1631,13 @@ def bar() -> uint256:
     """
 
     with pytest.raises(FunctionDeclarationException) as e:
-        get_contract(contract)
+        compile_code(contract)
 
     assert "Abstract function was not overridden" == e.value.message
     assert "foo" in e.value.annotations[0].node_source_code
 
 
-def test_cannot_call_overridden_method(get_contract, make_input_bundle):
+def test_cannot_call_overridden_method(make_input_bundle):
     """Test that you cannot call a method that you override"""
 
     abstract_module = """
@@ -1576,12 +1658,12 @@ def foo() -> uint256:
     input_bundle = make_input_bundle({"abstract_module.vy": abstract_module})
 
     with pytest.raises(CallViolation) as e:
-        get_contract(contract, input_bundle=input_bundle)
+        compile_code(contract, input_bundle=input_bundle)
 
     assert "foo" in e.value.message
 
 
-def test_abstract_method_body_must_be_ellipsis(get_contract, make_input_bundle):
+def test_abstract_method_body_must_be_ellipsis(make_input_bundle):
     """Test that abstract method body must be ... only (no actual code)"""
 
     abstract_module = """
@@ -1603,7 +1685,7 @@ def foo() -> uint256:
     input_bundle = make_input_bundle({"abstract_module.vy": abstract_module})
 
     with pytest.raises(FunctionDeclarationException) as e:
-        get_contract(contract, input_bundle=input_bundle)
+        compile_code(contract, input_bundle=input_bundle)
 
     assert "abstract" in e.value.message.lower()
 
@@ -1649,7 +1731,7 @@ def test() -> uint256:
     assert c.test() == 42
 
 
-def test_ellipsis_cannot_override_concrete_default_parameter(get_contract, make_input_bundle):
+def test_ellipsis_cannot_override_concrete_default_parameter(make_input_bundle):
     """Test that ellipsis cannot override a concrete default parameter value"""
 
     module_c = """
@@ -1694,12 +1776,12 @@ def test() -> uint256:
     )
 
     with pytest.raises(FunctionDeclarationException) as e:
-        get_contract(contract, input_bundle=input_bundle)
+        compile_code(contract, input_bundle=input_bundle)
 
     assert "Override parameter mismatch" in e.value.message
 
 
-def test_different_import_same_name_default_mismatch(get_contract, make_input_bundle):
+def test_different_import_same_name_default_mismatch(make_input_bundle):
     """
     Test that lib.BAR in abstract != lib.BAR in override when lib is a different import.
     Even though syntactically identical (both `lib.BAR`), they refer to different modules.
@@ -1757,7 +1839,7 @@ def test() -> uint256:
 
     # Should fail: both defaults are `lib.BAR` but `lib` refers to different modules
     with pytest.raises(FunctionDeclarationException) as e:
-        get_contract(main_contract, input_bundle=input_bundle)
+        compile_code(main_contract, input_bundle=input_bundle)
 
     assert "Override parameter mismatch" in e.value.message
 
@@ -2026,7 +2108,7 @@ def get_max(val: uint8 = max_value(uint8)) -> uint8:
     assert c.call_get_max() == 255
 
 
-def test_immutable_not_equal_across_modules(get_contract, make_input_bundle):
+def test_immutable_not_equal_across_modules(make_input_bundle):
     """
     Test that self.FOO (immutable) in two different modules is NOT semantically equal,
     even if they have the same name. Each module's immutable is distinct.
@@ -2063,7 +2145,7 @@ def bar(x: uint256 = FOO) -> uint256:
     input_bundle = make_input_bundle({"abstract_module.vy": abstract_module})
 
     with pytest.raises(FunctionDeclarationException) as e:
-        get_contract(override_contract, input_bundle=input_bundle)
+        compile_code(override_contract, input_bundle=input_bundle)
 
     assert "Override parameter mismatch" in e.value.message
 
