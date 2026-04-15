@@ -358,6 +358,71 @@ initializes: lib2[lib1 := lib1]
     assert e.value._hint == "add `initializes: lib1` to the top level of your main contract"
 
 
+def test_valid_initialized_twice(make_input_bundle):
+    # Initialized by both lib2 and lib3
+    lib1 = """
+counter: uint256
+    """
+
+    lib2 = """
+import lib1
+
+initializes: lib1
+    """
+
+    lib3 = """
+import lib1
+
+initializes: lib1
+    """
+
+    main = """
+import lib2
+import lib3
+
+initializes: lib2
+# lib3 not initialized, so lib1 is only initialized once
+    """
+
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
+
+    compile_code(main, input_bundle=input_bundle)
+
+
+def test_invalid_initialized_twice(make_input_bundle):
+    # Initialized by both lib2 and lib3
+    lib1 = """
+counter: uint256
+    """
+
+    lib2 = """
+import lib1
+
+initializes: lib1
+    """
+
+    lib3 = """
+import lib1
+
+initializes: lib1
+    """
+
+    main = """
+import lib2
+import lib3
+
+# both initialize lib1, invalid!
+initializes: lib2
+initializes: lib3
+    """
+
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
+
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value.message == "`lib1` initialized twice!"
+
+
 def test_initializer_no_references(make_input_bundle):
     lib1 = """
 counter: uint256
