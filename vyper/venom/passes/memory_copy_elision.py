@@ -158,9 +158,14 @@ class MemoryCopyElisionPass(IRPass):
                 if write_loc.is_fixed:
                     self.copies[write_loc] = inst
 
-            elif _volatile_memory(inst):
-                self.copies.clear()
-                self.loads[Effects.MEMORY].clear()
+            else:
+                if Effects.MEMORY in inst.get_write_effects():
+                    self.copies.clear()
+                    self.loads[Effects.MEMORY].clear()
+                if Effects.STORAGE in inst.get_write_effects():
+                    self.loads[Effects.STORAGE].clear()
+                if Effects.TRANSIENT in inst.get_write_effects():
+                    self.loads[Effects.TRANSIENT].clear()
 
         # Check if state changed
         old_copies = self.bb_copies.get(bb, None)
@@ -267,13 +272,7 @@ class MemoryCopyElisionPass(IRPass):
         uses = self.dfg.get_uses(load_inst.output)
         if len(uses) > 1:
             return
-        # Only nop the store here. The load may still be needed for MSIZE
-        # side effects. Let RemoveUnusedVariablesPass decide if the load
-        # can be removed (it has proper msize fence handling).
+        # Only nop the store here. The load may still be needed by other
+        # users. Let RemoveUnusedVariablesPass decide if the load can be
+        # removed.
         self.updater.nop(inst)
-
-
-def _volatile_memory(inst):
-    # Only clear copies when memory is written by an instruction not handled above.
-    # Reading memory (sha3, log, return, revert) doesn't invalidate tracked copies.
-    return Effects.MEMORY in inst.get_write_effects()

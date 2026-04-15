@@ -17,7 +17,7 @@ from vyper.codegen.core import is_tuple_like
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import DArrayT, SArrayT, VyperType, _BytestringT
 from vyper.semantics.types.shortcuts import UINT256_T
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -153,6 +153,7 @@ def _encode_child(
         static_loc = dst
     else:
         static_loc = b.add(dst, IRLiteral(static_ofst))
+    assert isinstance(static_loc, IRVariable)
 
     if not child_abi_t.is_dynamic():
         # Static type: encode directly at static location
@@ -180,6 +181,7 @@ def _encode_child(
         child_len = _abi_encode_to_buf(ctx, child_dst, child_ptr, child_typ)
 
         # 3. Write static section offset (safe now — child data is already encoded).
+        assert isinstance(static_loc, IRVariable)
         b.mstore(static_loc, dyn_ofst)
 
         # 4. Update dyn_ofst
@@ -189,7 +191,7 @@ def _encode_child(
 
 def _encode_dyn_array(
     ctx: VenomCodegenContext,
-    dst: IROperand,
+    dst: IRVariable,
     src_ptr: IROperand,
     src_typ: DArrayT,
     dyn_ofst_val: VyperValue,
@@ -209,6 +211,7 @@ def _encode_dyn_array(
     static_elem_size = child_abi_t.embedded_static_size()
 
     # Get runtime length
+    assert isinstance(src_ptr, IRVariable)
     length = b.mload(src_ptr)
 
     # Write length word to dst
@@ -294,6 +297,7 @@ def _encode_dyn_array(
     # Update parent dyn_ofst
     # Total size = 32 (length word) + final child_dyn_ofst (or length * static_size for static)
     # Note: need to reload length since we're in a new block
+    assert isinstance(src_ptr, IRVariable)
     length_exit = b.mload(src_ptr)
     if child_abi_t.is_dynamic():
         assert child_dyn_ofst_val is not None
@@ -309,7 +313,7 @@ def _encode_dyn_array(
 
 
 def _abi_encode_to_buf(
-    ctx: VenomCodegenContext, dst: IROperand, src: IROperand, src_typ: VyperType
+    ctx: VenomCodegenContext, dst: IRVariable, src: IROperand, src_typ: VyperType
 ) -> IROperand:
     """
     Encode src to ABI format at dst.
@@ -337,6 +341,7 @@ def _abi_encode_to_buf(
     # Slow path: type-specific encoding
     if src_typ._is_prim_word:
         # Primitive word type: direct copy
+        assert isinstance(src, IRVariable)
         val = b.mload(src)
         b.mstore(dst, val)
         return IRLiteral(32)
@@ -412,7 +417,7 @@ def _abi_encode_to_buf(
 
 
 def abi_encode_to_buf(
-    ctx: VenomCodegenContext, dst: IROperand, src: IROperand, src_typ: VyperType
+    ctx: VenomCodegenContext, dst: IRVariable, src: IROperand, src_typ: VyperType
 ) -> IROperand:
     """
     Public entry point for ABI encoding.
