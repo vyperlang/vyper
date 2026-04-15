@@ -297,7 +297,8 @@ def test_dynarray_return_invalid_supertype(make_input_bundle):
         "x: uint256",
         "DynArray[uint256, 10]",
         FunctionDeclarationException,
-        "bar returns DynArray[uint256, 20] but the method it overrides returns DynArray[uint256, 10]",
+        "bar returns DynArray[uint256, 20] but the method it overrides returns"
+        " DynArray[uint256, 10]",
     )
 
 
@@ -469,7 +470,9 @@ def bar() -> uint256: ...
 
 def test_mutability_nonpayable_to_payable(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "@nonpayable", "@payable",
+        make_input_bundle,
+        "@nonpayable",
+        "@payable",
         "bar is payable but it overrides a nonpayable method",
         hint="change bar to be nonpayable (or stricter)",
     )
@@ -477,7 +480,9 @@ def test_mutability_nonpayable_to_payable(make_input_bundle):
 
 def test_mutability_default_to_payable(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "", "@payable",
+        make_input_bundle,
+        "",
+        "@payable",
         "bar is payable but it overrides a nonpayable method",
         hint="change bar to be nonpayable (or stricter)",
     )
@@ -485,7 +490,9 @@ def test_mutability_default_to_payable(make_input_bundle):
 
 def test_mutability_view_to_nonpayable(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "@view", "@nonpayable",
+        make_input_bundle,
+        "@view",
+        "@nonpayable",
         "bar is nonpayable but it overrides a view method",
         hint="change bar to be view (or stricter)",
     )
@@ -493,7 +500,9 @@ def test_mutability_view_to_nonpayable(make_input_bundle):
 
 def test_mutability_view_to_default(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "@view", "",
+        make_input_bundle,
+        "@view",
+        "",
         "bar is nonpayable but it overrides a view method",
         hint="change bar to be view (or stricter)",
     )
@@ -501,7 +510,9 @@ def test_mutability_view_to_default(make_input_bundle):
 
 def test_mutability_view_to_payable(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "@view", "@payable",
+        make_input_bundle,
+        "@view",
+        "@payable",
         "bar is payable but it overrides a view method",
         hint="change bar to be view (or stricter)",
     )
@@ -509,7 +520,9 @@ def test_mutability_view_to_payable(make_input_bundle):
 
 def test_mutability_pure_to_view(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "@pure", "@view",
+        make_input_bundle,
+        "@pure",
+        "@view",
         "bar is view but it overrides a pure method",
         hint="change bar to be pure",
     )
@@ -517,7 +530,9 @@ def test_mutability_pure_to_view(make_input_bundle):
 
 def test_mutability_pure_to_nonpayable(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "@pure", "@nonpayable",
+        make_input_bundle,
+        "@pure",
+        "@nonpayable",
         "bar is nonpayable but it overrides a pure method",
         hint="change bar to be pure",
     )
@@ -525,7 +540,9 @@ def test_mutability_pure_to_nonpayable(make_input_bundle):
 
 def test_mutability_pure_to_default(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "@pure", "",
+        make_input_bundle,
+        "@pure",
+        "",
         "bar is nonpayable but it overrides a pure method",
         hint="change bar to be pure",
     )
@@ -533,7 +550,9 @@ def test_mutability_pure_to_default(make_input_bundle):
 
 def test_mutability_pure_to_payable(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "@pure", "@payable",
+        make_input_bundle,
+        "@pure",
+        "@payable",
         "bar is payable but it overrides a pure method",
         hint="change bar to be pure",
     )
@@ -544,28 +563,36 @@ def test_mutability_pure_to_payable(make_input_bundle):
 
 def test_nonreentrant_to_default(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "@nonreentrant", "",
+        make_input_bundle,
+        "@nonreentrant",
+        "",
         "bar is reentrant but it overrides a non-reentrant method",
     )
 
 
 def test_nonreentrant_to_nonpayable(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "@nonreentrant", "@nonpayable",
+        make_input_bundle,
+        "@nonreentrant",
+        "@nonpayable",
         "bar is reentrant but it overrides a non-reentrant method",
     )
 
 
 def test_default_to_nonreentrant(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "", "@nonreentrant",
+        make_input_bundle,
+        "",
+        "@nonreentrant",
         "bar is non-reentrant but it overrides a reentrant method",
     )
 
 
 def test_nonpayable_to_nonreentrant_nonpayable(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "@nonpayable", "@nonreentrant\n@nonpayable",
+        make_input_bundle,
+        "@nonpayable",
+        "@nonreentrant\n@nonpayable",
         "bar is non-reentrant but it overrides a reentrant method",
     )
 
@@ -575,21 +602,27 @@ def test_nonpayable_to_nonreentrant_nonpayable(make_input_bundle):
 
 def test_nonreentrant_nonpayable_to_nonpayable(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "@nonreentrant\n@nonpayable", "@nonpayable",
+        make_input_bundle,
+        "@nonreentrant\n@nonpayable",
+        "@nonpayable",
         "bar is reentrant but it overrides a non-reentrant method",
     )
 
 
 def test_nonreentrant_view_to_view(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "@nonreentrant\n@view", "@view",
+        make_input_bundle,
+        "@nonreentrant\n@view",
+        "@view",
         "bar is reentrant but it overrides a non-reentrant method",
     )
 
 
 def test_nonreentrant_payable_to_payable(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "@nonreentrant\n@payable", "@payable",
+        make_input_bundle,
+        "@nonreentrant\n@payable",
+        "@payable",
         "bar is reentrant but it overrides a non-reentrant method",
     )
 
@@ -599,14 +632,18 @@ def test_nonreentrant_payable_to_payable(make_input_bundle):
 
 def test_view_to_nonreentrant_view(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "@view", "@nonreentrant\n@view",
+        make_input_bundle,
+        "@view",
+        "@nonreentrant\n@view",
         "bar is non-reentrant but it overrides a reentrant method",
     )
 
 
 def test_payable_to_nonreentrant_payable(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "@payable", "@nonreentrant\n@payable",
+        make_input_bundle,
+        "@payable",
+        "@nonreentrant\n@payable",
         "bar is non-reentrant but it overrides a reentrant method",
     )
 
@@ -616,7 +653,9 @@ def test_payable_to_nonreentrant_payable(make_input_bundle):
 
 def test_nonreentrant_to_nonreentrant_payable(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "@nonreentrant", "@nonreentrant\n@payable",
+        make_input_bundle,
+        "@nonreentrant",
+        "@nonreentrant\n@payable",
         "bar is payable but it overrides a nonpayable method",
         hint="change bar to be nonpayable (or stricter)",
     )
@@ -624,7 +663,9 @@ def test_nonreentrant_to_nonreentrant_payable(make_input_bundle):
 
 def test_nonreentrant_nonpayable_to_nonreentrant_payable(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "@nonreentrant\n@nonpayable", "@nonreentrant\n@payable",
+        make_input_bundle,
+        "@nonreentrant\n@nonpayable",
+        "@nonreentrant\n@payable",
         "bar is payable but it overrides a nonpayable method",
         hint="change bar to be nonpayable (or stricter)",
     )
@@ -632,7 +673,9 @@ def test_nonreentrant_nonpayable_to_nonreentrant_payable(make_input_bundle):
 
 def test_nonreentrant_view_to_nonreentrant_nonpayable(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "@nonreentrant\n@view", "@nonreentrant\n@nonpayable",
+        make_input_bundle,
+        "@nonreentrant\n@view",
+        "@nonreentrant\n@nonpayable",
         "bar is nonpayable but it overrides a view method",
         hint="change bar to be view (or stricter)",
     )
@@ -640,7 +683,9 @@ def test_nonreentrant_view_to_nonreentrant_nonpayable(make_input_bundle):
 
 def test_nonreentrant_view_to_nonreentrant_payable(make_input_bundle):
     _run_failing_decorator_override(
-        make_input_bundle, "@nonreentrant\n@view", "@nonreentrant\n@payable",
+        make_input_bundle,
+        "@nonreentrant\n@view",
+        "@nonreentrant\n@payable",
         "bar is payable but it overrides a view method",
         hint="change bar to be view (or stricter)",
     )

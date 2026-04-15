@@ -1591,8 +1591,7 @@ def bar() -> uint256: ...
     with pytest.raises(FunctionDeclarationException) as e:
         compile_code(contract, input_bundle=input_bundle)
 
-    assert e.value._message == "Cannot override method from `foo` - module is not initialized"
-    assert e.value._hint == "add `initializes: foo` as a top-level statement to your contract"
+    assert e.value.message == "Cannot override `foo.bar` as it is not initialized"
 
 
 def test_uses_clause_does_not_allow_override(make_input_bundle):
