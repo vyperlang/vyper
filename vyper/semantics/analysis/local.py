@@ -607,7 +607,6 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
     def visit_Expr(self, node: vy_ast.Expr):
         if isinstance(node.value, vy_ast.Ellipsis):
-            func = node.get_ancestor(vy_ast.FunctionDef)
 
             raise StructureException(
                 "`...` is only allowed in abstract methods "
