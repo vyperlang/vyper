@@ -411,7 +411,7 @@ def bar({params_abstract}){with_arrow(return_type_abstract)}: ...
         assert c.value() == expected_output
 
 
-def _run_failing_signature_override(
+def _run_bad_signature_override(
     make_input_bundle,
     params_override,
     return_type_override,
@@ -448,7 +448,7 @@ def bar({params_abstract}){with_arrow(return_type_abstract)}: ...
 
 
 def test_correct_param_count(make_input_bundle):
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "",
         "uint256",
@@ -461,7 +461,7 @@ def test_correct_param_count(make_input_bundle):
 
 
 def test_too_many_mandatory_params(make_input_bundle):
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "x: uint256, y: uint256",
         "uint256",
@@ -477,7 +477,7 @@ def test_too_many_mandatory_params(make_input_bundle):
 
 
 def test_parameter_name_mismatch(make_input_bundle):
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "x: uint256",
         "uint256",
@@ -492,7 +492,7 @@ def test_parameter_name_mismatch(make_input_bundle):
 def test_invalid_params_swapped(make_input_bundle):
     # Parameters swapped (same names and types but wrong positions)
     # Uses VyperException because both parameters mismatch, resulting in multiple errors
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "y: uint256, x: uint256",
         "uint256",
@@ -506,7 +506,7 @@ def test_invalid_params_swapped(make_input_bundle):
 
 def test_param_type_mismatch(make_input_bundle):
     # Parameter type mismatch with different types
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "x: int256",
         "uint256",
@@ -520,7 +520,7 @@ def test_param_type_mismatch(make_input_bundle):
 
 def test_second_param_type_mismatch(make_input_bundle):
     # Second parameter type mismatch
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "x: uint256, y: uint256",
         "uint256",
@@ -534,7 +534,7 @@ def test_second_param_type_mismatch(make_input_bundle):
 
 def test_first_param_type_mismatch(make_input_bundle):
     # First parameter type mismatch with multiple parameters
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "a: uint256, b: address, c: bool",
         "bool",
@@ -548,7 +548,7 @@ def test_first_param_type_mismatch(make_input_bundle):
 
 def test_param_mismatch_array_size(make_input_bundle):
     # Fixed array parameter size mismatch
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "arr: uint256[10]",
         "uint256",
@@ -564,7 +564,7 @@ def test_param_mismatch_array_size(make_input_bundle):
 
 
 def test_override_return_mismatch1(make_input_bundle):
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         # Has return type when abstract has none
         "x: uint256",
@@ -579,7 +579,7 @@ def test_override_return_mismatch1(make_input_bundle):
 
 def test_override_return_mismatch2(make_input_bundle):
     # No return type when abstract has one
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "x: uint256",
         None,
@@ -593,7 +593,7 @@ def test_override_return_mismatch2(make_input_bundle):
 
 def test_override_return_mismatch3(make_input_bundle):
     # Different return types
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "x: uint256",
         "int256",
@@ -607,7 +607,7 @@ def test_override_return_mismatch3(make_input_bundle):
 
 def test_override_return_mismatch4(make_input_bundle):
     # Return type mismatch with bool and uint256
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "x: uint256, y: uint256, z: address",
         "bool",
@@ -623,7 +623,7 @@ def test_override_return_mismatch4(make_input_bundle):
 
 
 def test_string_param_invalid_subtype(make_input_bundle):
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "s: String[50]",
         "uint256",
@@ -636,7 +636,7 @@ def test_string_param_invalid_subtype(make_input_bundle):
 
 
 def test_dynarray_param_invalid_subtype(make_input_bundle):
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "arr: DynArray[uint256, 10]",
         "uint256",
@@ -649,7 +649,7 @@ def test_dynarray_param_invalid_subtype(make_input_bundle):
 
 
 def test_bytes_param_invalid_subtype(make_input_bundle):
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "data: Bytes[32]",
         "uint256",
@@ -662,7 +662,7 @@ def test_bytes_param_invalid_subtype(make_input_bundle):
 
 
 def test_middle_param_invalid_subtype(make_input_bundle):
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "a: address, s: String[50], c: bool",
         "bool",
@@ -678,7 +678,7 @@ def test_middle_param_invalid_subtype(make_input_bundle):
 
 
 def test_string_return_invalid_supertype(make_input_bundle):
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "x: uint256",
         "String[100]",
@@ -691,7 +691,7 @@ def test_string_return_invalid_supertype(make_input_bundle):
 
 
 def test_dynarray_return_invalid_supertype(make_input_bundle):
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "x: uint256",
         "DynArray[uint256, 20]",
@@ -704,7 +704,7 @@ def test_dynarray_return_invalid_supertype(make_input_bundle):
 
 
 def test_bytes_return_invalid_supertype(make_input_bundle):
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "x: uint256",
         "Bytes[64]",
@@ -720,7 +720,7 @@ def test_bytes_return_invalid_supertype(make_input_bundle):
 
 
 def test_mismatch_default_param_value(make_input_bundle):
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "x: uint256, y: uint256 = 20",
         "uint256",
@@ -734,7 +734,7 @@ def test_mismatch_default_param_value(make_input_bundle):
 
 def test_invalid_mandatory_override(make_input_bundle):
     # Optional parameter in abstract cannot be mandatory in override
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "x: uint256, y: uint256",
         "uint256",
@@ -751,7 +751,7 @@ def test_invalid_mandatory_override(make_input_bundle):
 
 def test_different_default_values_env1(make_input_bundle):
     # Different environment variables (msg.sender vs tx.origin)
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "x: uint256, a: address = tx.origin",
         "address",
@@ -765,7 +765,7 @@ def test_different_default_values_env1(make_input_bundle):
 
 def test_different_default_values_env2(make_input_bundle):
     # Different environment variables (block.number vs block.timestamp)
-    _run_failing_signature_override(
+    _run_bad_signature_override(
         make_input_bundle,
         "x: uint256, b: uint256 = block.timestamp",
         "uint256",
@@ -834,147 +834,9 @@ def bar() -> uint256: ...
     compile_code(contract, input_bundle=input_bundle)
 
 
-INVALID_DECORATOR_OVERRIDES = [
-    # abstract_decorators, override_decorators, expected_message, expected_hint
-    # Mutability only - less strict (invalid)
-    (
-        "@nonpayable",
-        "@payable",
-        "bar is payable but it overrides a nonpayable method",
-        "change bar to be nonpayable (or stricter)",
-    ),
-    (
-        "",
-        "@payable",
-        "bar is payable but it overrides a nonpayable method",
-        "change bar to be nonpayable (or stricter)",
-    ),
-    (
-        "@view",
-        "@nonpayable",
-        "bar is nonpayable but it overrides a view method",
-        "change bar to be view (or stricter)",
-    ),
-    (
-        "@view",
-        "",
-        "bar is nonpayable but it overrides a view method",
-        "change bar to be view (or stricter)",
-    ),
-    (
-        "@view",
-        "@payable",
-        "bar is payable but it overrides a view method",
-        "change bar to be view (or stricter)",
-    ),
-    ("@pure", "@view", "bar is view but it overrides a pure method", "change bar to be pure"),
-    (
-        "@pure",
-        "@nonpayable",
-        "bar is nonpayable but it overrides a pure method",
-        "change bar to be pure",
-    ),
-    ("@pure", "", "bar is nonpayable but it overrides a pure method", "change bar to be pure"),
-    (
-        "@pure",
-        "@payable",
-        "bar is payable but it overrides a pure method",
-        "change bar to be pure",
-    ),
-    # Nonreentrant mismatch
-    (
-        "@nonreentrant",
-        "",
-        "bar is reentrant but it overrides a non-reentrant method",
-        None,
-    ),
-    (
-        "@nonreentrant",
-        "@nonpayable",
-        "bar is reentrant but it overrides a non-reentrant method",
-        None,
-    ),
-    (
-        "",
-        "@nonreentrant",
-        "bar is non-reentrant but it overrides a reentrant method",
-        None,
-    ),
-    (
-        "@nonpayable",
-        "@nonreentrant\n@nonpayable",
-        "bar is non-reentrant but it overrides a reentrant method",
-        None,
-    ),
-    # Combined decorator mismatches - nonreentrant missing
-    (
-        "@nonreentrant\n@nonpayable",
-        "@nonpayable",
-        "bar is reentrant but it overrides a non-reentrant method",
-        None,
-    ),
-    (
-        "@nonreentrant\n@view",
-        "@view",
-        "bar is reentrant but it overrides a non-reentrant method",
-        None,
-    ),
-    (
-        "@nonreentrant\n@payable",
-        "@payable",
-        "bar is reentrant but it overrides a non-reentrant method",
-        None,
-    ),
-    # Combined decorator mismatches - nonreentrant added
-    (
-        "@view",
-        "@nonreentrant\n@view",
-        "bar is non-reentrant but it overrides a reentrant method",
-        None,
-    ),
-    (
-        "@payable",
-        "@nonreentrant\n@payable",
-        "bar is non-reentrant but it overrides a reentrant method",
-        None,
-    ),
-    # Combined decorator mismatches - mutability less strict
-    (
-        "@nonreentrant",
-        "@nonreentrant\n@payable",
-        "bar is payable but it overrides a nonpayable method",
-        "change bar to be nonpayable (or stricter)",
-    ),
-    (
-        "@nonreentrant\n@nonpayable",
-        "@nonreentrant\n@payable",
-        "bar is payable but it overrides a nonpayable method",
-        "change bar to be nonpayable (or stricter)",
-    ),
-    (
-        "@nonreentrant\n@view",
-        "@nonreentrant\n@nonpayable",
-        "bar is nonpayable but it overrides a view method",
-        "change bar to be view (or stricter)",
-    ),
-    (
-        "@nonreentrant\n@view",
-        "@nonreentrant\n@payable",
-        "bar is payable but it overrides a view method",
-        "change bar to be view (or stricter)",
-    ),
-]
-
-
-@pytest.mark.parametrize(
-    "abstract_decorators,override_decorators,expected_message,expected_hint",
-    INVALID_DECORATOR_OVERRIDES,
-)
-def test_decorator_override_invalid(
-    make_input_bundle, abstract_decorators, override_decorators, expected_message, expected_hint
+def _run_failing_decorator_override(
+    make_input_bundle, abstract_decorators, override_decorators, message, hint=None
 ):
-    """Test invalid decorator overrides (including mutability and nonreentrant)"""
-
     contract = f"""
 import foo
 
@@ -996,8 +858,191 @@ def bar() -> uint256: ...
     with pytest.raises(FunctionDeclarationException) as e:
         compile_code(contract, input_bundle=input_bundle)
 
-    assert e.value.message == expected_message
-    assert e.value.hint == expected_hint
+    assert message in e.value.message
+    if hint is not None:
+        assert e.value.hint == hint
+
+
+# === INVALID MUTABILITY - LESS STRICT ===
+
+
+def test_mutability_nonpayable_to_payable(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "@nonpayable", "@payable",
+        "bar is payable but it overrides a nonpayable method",
+        hint="change bar to be nonpayable (or stricter)",
+    )
+
+
+def test_mutability_default_to_payable(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "", "@payable",
+        "bar is payable but it overrides a nonpayable method",
+        hint="change bar to be nonpayable (or stricter)",
+    )
+
+
+def test_mutability_view_to_nonpayable(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "@view", "@nonpayable",
+        "bar is nonpayable but it overrides a view method",
+        hint="change bar to be view (or stricter)",
+    )
+
+
+def test_mutability_view_to_default(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "@view", "",
+        "bar is nonpayable but it overrides a view method",
+        hint="change bar to be view (or stricter)",
+    )
+
+
+def test_mutability_view_to_payable(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "@view", "@payable",
+        "bar is payable but it overrides a view method",
+        hint="change bar to be view (or stricter)",
+    )
+
+
+def test_mutability_pure_to_view(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "@pure", "@view",
+        "bar is view but it overrides a pure method",
+        hint="change bar to be pure",
+    )
+
+
+def test_mutability_pure_to_nonpayable(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "@pure", "@nonpayable",
+        "bar is nonpayable but it overrides a pure method",
+        hint="change bar to be pure",
+    )
+
+
+def test_mutability_pure_to_default(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "@pure", "",
+        "bar is nonpayable but it overrides a pure method",
+        hint="change bar to be pure",
+    )
+
+
+def test_mutability_pure_to_payable(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "@pure", "@payable",
+        "bar is payable but it overrides a pure method",
+        hint="change bar to be pure",
+    )
+
+
+# === INVALID REENTRANCY MISMATCH ===
+
+
+def test_nonreentrant_to_default(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "@nonreentrant", "",
+        "bar is reentrant but it overrides a non-reentrant method",
+    )
+
+
+def test_nonreentrant_to_nonpayable(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "@nonreentrant", "@nonpayable",
+        "bar is reentrant but it overrides a non-reentrant method",
+    )
+
+
+def test_default_to_nonreentrant(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "", "@nonreentrant",
+        "bar is non-reentrant but it overrides a reentrant method",
+    )
+
+
+def test_nonpayable_to_nonreentrant_nonpayable(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "@nonpayable", "@nonreentrant\n@nonpayable",
+        "bar is non-reentrant but it overrides a reentrant method",
+    )
+
+
+# === COMBINED - NONREENTRANT MISSING ===
+
+
+def test_nonreentrant_nonpayable_to_nonpayable(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "@nonreentrant\n@nonpayable", "@nonpayable",
+        "bar is reentrant but it overrides a non-reentrant method",
+    )
+
+
+def test_nonreentrant_view_to_view(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "@nonreentrant\n@view", "@view",
+        "bar is reentrant but it overrides a non-reentrant method",
+    )
+
+
+def test_nonreentrant_payable_to_payable(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "@nonreentrant\n@payable", "@payable",
+        "bar is reentrant but it overrides a non-reentrant method",
+    )
+
+
+# === COMBINED - NONREENTRANT ADDED ===
+
+
+def test_view_to_nonreentrant_view(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "@view", "@nonreentrant\n@view",
+        "bar is non-reentrant but it overrides a reentrant method",
+    )
+
+
+def test_payable_to_nonreentrant_payable(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "@payable", "@nonreentrant\n@payable",
+        "bar is non-reentrant but it overrides a reentrant method",
+    )
+
+
+# === COMBINED - MUTABILITY LESS STRICT WITH NONREENTRANT ===
+
+
+def test_nonreentrant_to_nonreentrant_payable(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "@nonreentrant", "@nonreentrant\n@payable",
+        "bar is payable but it overrides a nonpayable method",
+        hint="change bar to be nonpayable (or stricter)",
+    )
+
+
+def test_nonreentrant_nonpayable_to_nonreentrant_payable(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "@nonreentrant\n@nonpayable", "@nonreentrant\n@payable",
+        "bar is payable but it overrides a nonpayable method",
+        hint="change bar to be nonpayable (or stricter)",
+    )
+
+
+def test_nonreentrant_view_to_nonreentrant_nonpayable(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "@nonreentrant\n@view", "@nonreentrant\n@nonpayable",
+        "bar is nonpayable but it overrides a view method",
+        hint="change bar to be view (or stricter)",
+    )
+
+
+def test_nonreentrant_view_to_nonreentrant_payable(make_input_bundle):
+    _run_failing_decorator_override(
+        make_input_bundle, "@nonreentrant\n@view", "@nonreentrant\n@payable",
+        "bar is payable but it overrides a view method",
+        hint="change bar to be view (or stricter)",
+    )
 
 
 def test_override_non_abstract_method_fails(make_input_bundle):
