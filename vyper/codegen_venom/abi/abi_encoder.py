@@ -106,7 +106,7 @@ def _get_element_ptr(
 
 
 def _zero_pad(
-    ctx: VenomCodegenContext, bytez_ptr: IROperand, length: IROperand, padded_len: IROperand
+    ctx: VenomCodegenContext, bytez_ptr: IROperand, length: IROperand, count: IROperand
 ) -> None:
     """
     Zero-pad a bytestring according to ABI spec.
@@ -120,8 +120,6 @@ def _zero_pad(
     dst = b.add(bytez_ptr, IRLiteral(32))
     dst = b.add(dst, length)
 
-    count = b.sub(padded_len, length)
-    count = b.sub(count, 32)
     calldatasize = b.calldatasize()
     b.calldatacopy(dst, calldatasize, count)
 
@@ -355,10 +353,11 @@ def _abi_encode_to_buf(
         ctx.copy_memory(dst, src, size)
         # ABI length = ceil32(32 + actual_length)
         length = b.mload(dst)
-        padded_len = b.add(IRLiteral(32), length)
+        tmp = b.add(IRLiteral(32), length)
         # ceil32: ((x + 31) // 32) * 32 = (x + 31) & ~31
-        padded_len = b.and_(b.add(padded_len, IRLiteral(31)), IRLiteral(~31 & ((1 << 256) - 1)))
-        _zero_pad(ctx, dst, length, padded_len)
+        padded_len = b.and_(b.add(tmp, IRLiteral(31)), IRLiteral(~31 & ((1 << 256) - 1)))
+        count = b.sub(padded_len, tmp)
+        _zero_pad(ctx, dst, length, count)
         return padded_len
 
     elif isinstance(src_typ, DArrayT):
