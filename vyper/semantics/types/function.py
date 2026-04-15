@@ -918,18 +918,19 @@ class _ParsedDecorators:
     def add_override(self, decorator_node: vy_ast.Name | vy_ast.Call):
         # TODO: Add a smart hint that takes into account
         # which modules are initialized with a method of the same name
-        missing_parameter = StructureException(
-            "@override takes an argument (the module containing the method to override)",
-            decorator_node,
-        )
+        def raise_missing_parameter() -> NoReturn:
+            raise StructureException(
+                "@override takes an argument (the module containing the method to override)",
+                decorator_node,
+            )
 
         if isinstance(decorator_node, vy_ast.Name):
-            raise missing_parameter
+            raise_missing_parameter()
 
         num_args = len(decorator_node.args)
 
         if num_args == 0:
-            raise missing_parameter
+            raise_missing_parameter()
 
         if num_args > 1:
             # TODO: Add a smart hint that shows multiple consecutive decorators
