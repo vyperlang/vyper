@@ -35,7 +35,7 @@ from vyper.semantics.types import (
     _BytestringT,
 )
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -246,7 +246,7 @@ def _make_ptr_value(operand, location: DataLocation, typ) -> VyperValue:
 
 
 def _decode_primitive(
-    ctx: VenomCodegenContext, dst: IROperand, src: VyperValue, typ: VyperType
+    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, typ: VyperType
 ) -> None:
     """Decode a primitive (word-sized) type."""
     b = ctx.builder
@@ -282,7 +282,7 @@ def _decode_bytestring(
 
 
 def _decode_dyn_array(
-    ctx: VenomCodegenContext, dst: IROperand, src: VyperValue, typ: DArrayT, hi: IROperand = None
+    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, typ: DArrayT, hi: IROperand = None
 ) -> None:
     """
     Decode a dynamic array.
@@ -383,7 +383,7 @@ def _decode_dyn_array(
 
 
 def _decode_complex(
-    ctx: VenomCodegenContext, dst: IROperand, src: VyperValue, typ: VyperType, hi: IROperand = None
+    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, typ: VyperType, hi: IROperand = None
 ) -> None:
     """
     Decode a complex type (tuple/struct/static array).
@@ -428,7 +428,7 @@ def _decode_complex(
 
 
 def _abi_decode_to_buf(
-    ctx: VenomCodegenContext, dst: IROperand, src: VyperValue, hi: IROperand = None
+    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, hi: IROperand = None
 ) -> None:
     """
     Internal decoder dispatcher.
@@ -452,7 +452,7 @@ def _abi_decode_to_buf(
 
 
 def abi_decode_to_buf(
-    ctx: VenomCodegenContext, dst: IROperand, src: VyperValue, hi: IROperand = None
+    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, hi: IROperand = None
 ) -> None:
     """
     Decode ABI-encoded src to Vyper-encoded dst.

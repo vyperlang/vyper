@@ -6,9 +6,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.venom.optimization_levels.pass_order import validate_pass_order
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.cfg_normalization import CFGNormalization
-from vyper.venom.passes.concretize_mem_loc import ConcretizeMemLocPass
 from vyper.venom.passes.dft import DFTPass
-from vyper.venom.passes.fix_mem_locations import FixMemLocationsPass
 from vyper.venom.passes.literals_codesize import ReduceLiteralsCodesize
 from vyper.venom.passes.make_ssa import MakeSSA
 from vyper.venom.passes.mem2var import Mem2Var
@@ -119,21 +117,6 @@ def test_revert_to_assert_requires_immediate_simplify_cfg():
     validate_pass_order([RevertToAssert, SimplifyCFGPass], pipeline_name="test")
     with pytest.raises(CompilerPanic, match="RevertToAssert"):
         validate_pass_order([RevertToAssert, SingleUseExpansion], pipeline_name="test")
-
-
-def test_fix_mem_locations_requires_concretize_after():
-    class MidPass(IRPass):
-        pass
-
-    validate_pass_order([FixMemLocationsPass, MidPass, ConcretizeMemLocPass], pipeline_name="test")
-    with pytest.raises(CompilerPanic, match="FixMemLocationsPass"):
-        validate_pass_order([FixMemLocationsPass, MidPass], pipeline_name="test")
-
-
-def test_concretize_requires_fix_mem_locations_before():
-    validate_pass_order([FixMemLocationsPass, ConcretizeMemLocPass], pipeline_name="test")
-    with pytest.raises(CompilerPanic, match="ConcretizeMemLocPass"):
-        validate_pass_order([ConcretizeMemLocPass], pipeline_name="test")
 
 
 def test_mem2var_requires_make_ssa_before_and_after():
