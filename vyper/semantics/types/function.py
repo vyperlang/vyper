@@ -404,7 +404,7 @@ class ContractFunctionT(VyperType):
 
         if decorators.override_nodes:
             raise FunctionDeclarationException(
-                "`@override` decorator not allowed in interfaces", decorators.override_nodes[0]
+                "`@override` decorator not allowed in interfaces", *decorators.override_nodes
             )
 
         # it's redundant to specify visibility in vyi - always should be external
@@ -480,7 +480,7 @@ class ContractFunctionT(VyperType):
             if decorators.override_nodes:
                 raise FunctionDeclarationException(
                     f"@override decorator is not allowed on {function_visibility.value} functions",
-                    decorators.override_nodes[0],
+                    *decorators.override_nodes,
                 )
 
         positional_args, keyword_args = _parse_args(funcdef, is_abstract=is_abstract)
@@ -874,7 +874,7 @@ def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
 @dataclass
 class _ParsedDecorators:
     funcdef: vy_ast.FunctionDef
-    override_nodes: List[vy_ast.Name] = field(default_factory=lambda: [])
+    override_nodes: list[vy_ast.Name] = field(default_factory=list)
     visibility_node: Optional[vy_ast.Name] = None
     state_mutability_node: Optional[vy_ast.Name] = None
     nonreentrant_node: Optional[vy_ast.Name] = None
