@@ -1,5 +1,6 @@
+from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import COMPARATOR_INSTRUCTIONS, IRInstruction, IRLiteral
+from vyper.venom.basicblock import COMPARATOR_INSTRUCTIONS, IRInstruction, IRLiteral, IRBasicBlock
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
@@ -20,6 +21,12 @@ class BranchOptimizationPass(IRPass):
     """
 
     cfg: CFGAnalysis
+    # Snapshot of the liveness state at the start of the pass
+    # to be used in heuristic. Snapshot is created because the
+    # pass alter the state of the function which can invalidate
+    # the part of the state of the liveness analysis which would be
+    # needed for heuristic.
+    heuristic_liveness: dict[IRBasicBlock, OrderedSet]
     dfg: DFGAnalysis
 
     def _optimize_branches(self) -> None:
