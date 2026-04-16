@@ -21,6 +21,7 @@ from vyper.exceptions import (
     TypeMismatch,
     VariableDeclarationException,
     VyperException,
+    InvalidReference,
 )
 
 # TODO consolidate some of these imports
@@ -209,7 +210,9 @@ def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
 
         assert isinstance(node, (vy_ast.Subscript, vy_ast.Attribute))  # help mypy
         node = node.value
-        info = get_expr_info(node)
+        info = get_expr_info(node, allow_type_exprs=True)
+        if isinstance(info.typ, TYPE_T):
+            return None
 
     # ignore `self.` as it interferes with VarAccess comparison across modules
     if len(path) > 0 and path[-1] == "self":
@@ -226,7 +229,7 @@ def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
 # be refactored into data on ExprInfo.
 def _get_module_chain(node: vy_ast.ExprNode) -> list[ModuleInfo]:
     ret: list[ModuleInfo] = []
-    info = get_expr_info(node)
+    info = get_expr_info(node, allow_type_exprs=True)
 
     while True:
         if info.module_info is not None:
@@ -236,7 +239,7 @@ def _get_module_chain(node: vy_ast.ExprNode) -> list[ModuleInfo]:
             break
 
         node = node.value
-        info = get_expr_info(node)
+        info = get_expr_info(node, allow_type_exprs=True)
 
     ret.reverse()
     return ret
@@ -542,6 +545,9 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
         # Run this first so that "not a variable" errors have priority over
         # "assigning to a constant" errors
         var_access = _get_variable_access(target)
+        if var_access is None and isinstance(target, vy_ast.Attribute):
+            # raises for type expressions (e.g. Flag.MEMBER = x)
+            raise InvalidReference(f"not a variable or literal: '{target.value._expr_info.typ.typedef}'", target.value)
         assert var_access is not None
 
         info._writes.add(var_access)

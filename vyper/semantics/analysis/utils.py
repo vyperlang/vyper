@@ -75,51 +75,6 @@ class _ExprAnalyser:
     def __init__(self):
         self.namespace = get_namespace()
 
-    def get_expr_info(self, node: vy_ast.VyperNode, allow_type_exprs: bool = False) -> ExprInfo:
-        t = get_exact_type_from_node(node, allow_type_exprs=allow_type_exprs)
-
-        # if it's a Name, we have varinfo for it
-        if isinstance(node, vy_ast.Name):
-            info = self.namespace[node.id]
-
-            if isinstance(info, VarInfo):
-                return ExprInfo.from_varinfo(info)
-
-            if isinstance(info, ModuleInfo):
-                return ExprInfo.from_moduleinfo(info)
-
-            if isinstance(info, VyperType):
-                return ExprInfo(TYPE_T(info), modifiability=Modifiability.CONSTANT)
-
-            raise CompilerPanic(f"unreachable! {info}", node)
-
-        if isinstance(node, vy_ast.Attribute):
-            # if it's an Attr, we check the parent exprinfo and
-            # propagate the parent exprinfo members down into the new expr
-            # note: Attribute(expr value, identifier attr)
-
-            # allow the value node to be a type expr (e.g., MyFlag.A)
-            info = self.get_expr_info(node.value, allow_type_exprs=True)
-            attr = node.attr
-
-            t = info.typ.get_member(attr, node)
-
-            # it's a top-level variable
-            if isinstance(t, VarInfo):
-                return ExprInfo.from_varinfo(t, attr=attr)
-
-            if isinstance(t, ModuleInfo):
-                return ExprInfo.from_moduleinfo(t, attr=attr)
-
-            return info.copy_with_type(t, attr=attr)
-
-        # If it's a Subscript, propagate the subscriptable varinfo
-        if isinstance(node, vy_ast.Subscript):
-            info = self.get_expr_info(node.value)
-            return info.copy_with_type(t)
-
-        return ExprInfo(t)
-
     def _get_possible_types_r(self, node) -> list[VyperType]:
         # Early termination if typedef is propagated in metadata
         if "type" in node._metadata:
@@ -480,9 +435,58 @@ def get_exact_type_from_node(node: vy_ast.VyperNode, allow_type_exprs=True) -> V
     return types_list[0]
 
 
+def _get_expr_info_helper(node: vy_ast.ExprNode, allow_type_exprs: bool = False) -> ExprInfo:
+    t = get_exact_type_from_node(node, allow_type_exprs=allow_type_exprs)
+
+    # if it's a Name, we have varinfo for it
+    if isinstance(node, vy_ast.Name):
+        info = get_namespace()[node.id]
+
+        if isinstance(info, VarInfo):
+            return ExprInfo.from_varinfo(info)
+
+        if isinstance(info, ModuleInfo):
+            return ExprInfo.from_moduleinfo(info)
+
+        if isinstance(info, VyperType):
+            return ExprInfo(TYPE_T(info), modifiability=Modifiability.CONSTANT)
+
+        raise CompilerPanic(f"unreachable! {info}", node)
+
+    if isinstance(node, vy_ast.Attribute):
+        # if it's an Attr, we check the parent exprinfo and
+        # propagate the parent exprinfo members down into the new expr
+        # note: Attribute(expr value, identifier attr)
+
+        # allow the value node to be a type expr (e.g., MyFlag.A)
+        info = get_expr_info(node.value, allow_type_exprs=True)
+        attr = node.attr
+
+        t = info.typ.get_member(attr, node)
+
+        # it's a top-level variable
+        if isinstance(t, VarInfo):
+            return ExprInfo.from_varinfo(t, attr=attr)
+
+        if isinstance(t, ModuleInfo):
+            return ExprInfo.from_moduleinfo(t, attr=attr)
+
+        return info.copy_with_type(t, attr=attr)
+
+    # If it's a Subscript, propagate the subscriptable varinfo
+    if isinstance(node, vy_ast.Subscript):
+        info = get_expr_info(node.value)
+        return info.copy_with_type(t)
+
+    return ExprInfo(t)
+
 def get_expr_info(node: vy_ast.ExprNode, allow_type_exprs: bool = False) -> ExprInfo:
     if node._expr_info is None:
-        node._expr_info = _ExprAnalyser().get_expr_info(node, allow_type_exprs)
+        node._expr_info = _get_expr_info_helper(node, allow_type_exprs=allow_type_exprs)
+
+    if not allow_type_exprs and isinstance(node._expr_info.typ, TYPE_T):
+        raise InvalidReference(f"not a variable or literal: '{node._expr_info.typ.typedef}'", node)
+
     return node._expr_info
 
 
