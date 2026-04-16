@@ -22,6 +22,7 @@ class StackSpiller:
         self._spill_free_slots: list[int] = []
         self._next_spill_offset: Optional[int] = None
         self._current_function: Optional[IRFunction] = None
+        self.spilling_disabled = False
 
     def set_current_function(self, fn: Optional[IRFunction]) -> None:
         """Set the current function being processed."""
@@ -40,6 +41,10 @@ class StackSpiller:
         """Restore from snapshot."""
         self._spill_free_slots, self._next_spill_offset = snap
 
+    def _check_spill_allowed(self, dry_run: bool) -> None:
+        if not dry_run and self.spilling_disabled:
+            raise CompilerPanic("Stack spilling is disabled for functions that use dalloca")
+
     def spill_operand(
         self,
         assembly: list,
@@ -49,6 +54,7 @@ class StackSpiller:
         dry_run: bool = False,
     ) -> None:
         """Spill an operand from the stack to memory."""
+        self._check_spill_allowed(dry_run)
         operand = stack.peek(depth)
         assert isinstance(operand, IRVariable), operand
 
@@ -148,6 +154,7 @@ class StackSpiller:
         self, assembly: list, stack: StackModel, count: int, dry_run: bool
     ) -> tuple[list[IROperand], list[int], int]:
         """Spill a segment of the stack to memory."""
+        self._check_spill_allowed(dry_run)
         spill_ops: list[IROperand] = []
         offsets: list[int] = []
         cost = 0

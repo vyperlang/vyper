@@ -29,6 +29,7 @@ from vyper.venom.stack_model import StackModel
 from vyper.venom.stack_spiller import StackSpiller
 
 DEBUG_SHOW_COST = False
+SPILL_DISABLED_DRY_RUN_COST = 10**9
 if DEBUG_SHOW_COST:
     import sys
 
@@ -176,8 +177,12 @@ class VenomCompiler:
             self.spiller.set_current_function(fn)
             self.spiller.reset_spill_slots()
 
-            self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), {})
-            self.spiller.set_current_function(None)
+            self.spiller.spilling_disabled = self._function_has_dalloca(fn)
+            try:
+                self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), {})
+            finally:
+                self.spiller.spilling_disabled = False
+                self.spiller.set_current_function(None)
 
         asm.extend(_REVERT_POSTAMBLE)
         # Append data segment
@@ -199,6 +204,13 @@ class VenomCompiler:
             optimize_assembly(asm)
 
         return asm
+
+    def _function_has_dalloca(self, fn: IRFunction) -> bool:
+        return any(
+            inst.opcode == "dalloca"
+            for bb in fn.get_basic_blocks()
+            for inst in bb.instructions
+        )
 
     def _stack_reorder(
         self,
@@ -237,6 +249,9 @@ class VenomCompiler:
                     raise CompilerPanic(f"Variable {op} not in stack")
 
             if depth < -16:
+                if dry_run and self.spiller.spilling_disabled:
+                    self.spiller.restore(snap)
+                    return SPILL_DISABLED_DRY_RUN_COST
                 # Try to selectively spill items to bring target within SWAP16
                 # range. If this fails, swap() handles it via bulk spill/restore.
                 self._reduce_depth_via_spill(
@@ -254,6 +269,13 @@ class VenomCompiler:
                 stack.poke(depth, to_swap)
                 continue
 
+            if (
+                dry_run
+                and self.spiller.spilling_disabled
+                and final_stack_depth < -16
+            ):
+                self.spiller.restore(snap)
+                return SPILL_DISABLED_DRY_RUN_COST
             cost += self.spiller.swap(assembly, stack, depth, dry_run)
             cost += self.spiller.swap(assembly, stack, final_stack_depth, dry_run)
 
@@ -580,20 +602,7 @@ class VenomCompiler:
         elif opcode == "alloca":
             pass
         elif opcode == "dalloca":
-            # Bump allocator using MSIZE. Consumes `size` from stack,
-            # leaves `ptr` (old MSIZE) on stack.
-            #
-            # stack in:  [..., size]
-            # PUSH1 32:  [..., size, 32]
-            # MSIZE:     [..., size, 32, msize]
-            # DUP1:      [..., size, 32, msize, msize]
-            # SWAP3:     [..., msize, 32, msize, size]
-            # ADD:       [..., msize, 32, msize+size]
-            # SUB:       [..., msize, msize+size-32]
-            # MLOAD:     [..., msize, _]  (expands MSIZE to ceil32(msize+size))
-            # POP:       [..., msize]
-            # stack out: [..., ptr]
-            assembly.extend(["PUSH1", 0x20, "MSIZE", "DUP1", "SWAP3", "ADD", "SUB", "MLOAD", "POP"])
+            self._emit_dalloca(assembly, inst)
         elif opcode == "memtop":
             assembly.append("MSIZE")
         elif opcode == "param":
@@ -689,6 +698,57 @@ class VenomCompiler:
         self.spiller.release_dead_spills(spilled, next_liveness)
 
         return apply_line_numbers(inst, assembly)
+
+    def _emit_dalloca(self, assembly: list[AssemblyInstruction], inst: IRInstruction) -> None:
+        fn = inst.parent.parent
+        frame_eom = self.ctx.mem_allocator.fn_eom.get(fn, 0)
+
+        zero_size_label = self.mklabel("dalloca_zero_size")
+        touch_zero_label = self.mklabel("dalloca_touch_zero")
+        touch_done_label = self.mklabel("dalloca_touch_done")
+        done_label = self.mklabel("dalloca_done")
+
+        # Input stack: [..., size]
+        #
+        # Compute base = max(MSIZE, frame_eom), where frame_eom is the end of
+        # the static memory frame. Stack spill slots must live above dalloca
+        # regions; with the current fixed-offset spiller, dalloca + spills is
+        # rejected if actual lowering tries to spill.
+        assembly.append("MSIZE")  # [..., size, msize]
+        if frame_eom > 0:
+            use_frame_label = self.mklabel("dalloca_use_frame")
+            base_done_label = self.mklabel("dalloca_base_done")
+
+            assembly.extend(PUSH(frame_eom))  # [..., size, msize, frame_eom]
+            assembly.extend(
+                [
+                    "DUP2",
+                    "DUP2",
+                    "GT",  # frame_eom > msize
+                    PUSHLABEL(use_frame_label),
+                    "JUMPI",
+                    "POP",  # use msize
+                    PUSHLABEL(base_done_label),
+                    "JUMP",
+                    use_frame_label,
+                    "SWAP1",
+                    "POP",  # use frame_eom
+                    base_done_label,
+                ]
+            )
+
+        # Stack: [..., size, base]
+        #
+        # Zero-sized allocations do not expand memory. Non-zero allocations
+        # expand by touching max(0, base + size - 32), which is the first
+        # offset whose 32-byte MLOAD reaches base + size.
+        assembly.extend(["DUP2", "ISZERO", PUSHLABEL(zero_size_label), "JUMPI"])
+        assembly.extend(["DUP2", "DUP2", "ADD"])  # [..., size, base, end]
+        assembly.extend(["DUP1", *PUSH(32), "GT", PUSHLABEL(touch_zero_label), "JUMPI"])
+        assembly.extend([*PUSH(32), "SWAP1", "SUB", PUSHLABEL(touch_done_label), "JUMP"])
+        assembly.extend([touch_zero_label, "POP", *PUSH(0), touch_done_label])
+        assembly.extend(["MLOAD", "POP", "SWAP1", "POP", PUSHLABEL(done_label), "JUMP"])
+        assembly.extend([zero_size_label, "SWAP1", "POP", done_label])
 
     def _optimistic_swap(self, assembly, inst, next_liveness, stack):
         # heuristic: peek at next_liveness to find the next scheduled
