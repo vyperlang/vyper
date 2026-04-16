@@ -200,6 +200,9 @@ class BasePtrAnalysis(IRAnalysis):
         if inst.opcode == "memtop":
             return MemoryLocation.UNDEFINED
         if inst.opcode == "dalloca":
+            # dalloca uses MLOAD only to advance MSIZE; the loaded value is
+            # discarded. Ordering against other memory-size operations is
+            # handled by the MEMORY_SIZE effect.
             return MemoryLocation.EMPTY
 
         if inst.get_read_effects() & effects.MEMORY == effects.EMPTY:
