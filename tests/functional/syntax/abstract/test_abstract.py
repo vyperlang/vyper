@@ -815,10 +815,7 @@ def some_method() -> uint256:
     bar_path = (tmp_path / "bar_override.vy").as_posix()
     baz_path = (tmp_path / "baz_override.vy").as_posix()
 
-    assert (
-        e.value.message
-        == f"`foo.some_method` was already overridden in `{bar_path}`!"
-    )
+    assert e.value.message == f"`foo.some_method` was already overridden in `{bar_path}`!"
     expected_hint = "the likely root cause is that `foo` has been initialized"
     expected_hint += f" in both `{baz_path}` and"
     expected_hint += f" `{bar_path}`, which is an error"
