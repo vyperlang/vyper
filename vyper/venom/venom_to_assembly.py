@@ -207,9 +207,7 @@ class VenomCompiler:
 
     def _function_has_dalloca(self, fn: IRFunction) -> bool:
         return any(
-            inst.opcode == "dalloca"
-            for bb in fn.get_basic_blocks()
-            for inst in bb.instructions
+            inst.opcode == "dalloca" for bb in fn.get_basic_blocks() for inst in bb.instructions
         )
 
     def _prime_dalloca_msize(self, assembly: list[AssemblyInstruction], fn: IRFunction) -> None:
@@ -277,11 +275,7 @@ class VenomCompiler:
                 stack.poke(depth, to_swap)
                 continue
 
-            if (
-                dry_run
-                and self.spiller.spilling_disabled
-                and final_stack_depth < -16
-            ):
+            if dry_run and self.spiller.spilling_disabled and final_stack_depth < -16:
                 self.spiller.restore(snap)
                 return SPILL_DISABLED_DRY_RUN_COST
             cost += self.spiller.swap(assembly, stack, depth, dry_run)

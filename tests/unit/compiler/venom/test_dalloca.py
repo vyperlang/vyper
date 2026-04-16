@@ -1,13 +1,13 @@
 import pytest
-from pyrevm import AccountInfo, EVM
+from pyrevm import EVM, AccountInfo
 
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
-from vyper.evm.assembler.core import assembly_to_evm
 from vyper.evm.address_space import MEMORY
+from vyper.evm.assembler.core import assembly_to_evm
 from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.parser import parse_venom
 from vyper.venom.effects import Effects
+from vyper.venom.parser import parse_venom
 from vyper.venom.passes import ConcretizeMemLocPass
 from vyper.venom.passes.common_subexpression_elimination import CSE
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
@@ -107,13 +107,7 @@ def _run_probe(pre: str, calldata: bytes) -> tuple[int, int]:
 
 @pytest.mark.parametrize(
     ("calldata", "expected_ptr", "expected_msize"),
-    [
-        (b"", 32, 32),
-        (b"x", 32, 64),
-        (b"x" * 31, 32, 64),
-        (b"x" * 32, 32, 64),
-        (b"x" * 33, 32, 96),
-    ],
+    [(b"", 32, 32), (b"x", 32, 64), (b"x" * 31, 32, 64), (b"x" * 32, 32, 64), (b"x" * 33, 32, 96)],
 )
 def test_dalloca_handles_small_sizes(calldata, expected_ptr, expected_msize):
     ptr, msize = _run_probe(
@@ -135,13 +129,7 @@ def test_dalloca_handles_small_sizes(calldata, expected_ptr, expected_msize):
 
 @pytest.mark.parametrize(
     ("calldata", "expected_msize"),
-    [
-        (b"", 64),
-        (b"x", 96),
-        (b"x" * 31, 96),
-        (b"x" * 32, 96),
-        (b"x" * 33, 128),
-    ],
+    [(b"", 64), (b"x", 96), (b"x" * 31, 96), (b"x" * 32, 96), (b"x" * 33, 128)],
 )
 def test_dalloca_starts_above_static_frame(calldata, expected_msize):
     ptr, msize = _run_probe(
