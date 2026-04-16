@@ -20,7 +20,7 @@ from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.semantics.types.user import EventT, StructT
 from vyper.utils import method_id_int
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 from .buffer import Ptr
 from .calling_convention import returns_stack_count
@@ -142,6 +142,7 @@ class Stmt:
         # src/dst are provably non-overlapping (different allocas).
         if src_loc is DataLocation.MEMORY and dst_ptr.location is DataLocation.MEMORY:
             tmp_val = self.ctx.new_temporary_value(src_typ)
+            assert isinstance(tmp_val.operand, IRVariable)
             self.ctx.copy_memory(tmp_val.operand, src, src_typ.memory_bytes_required)
             src = tmp_val.operand
 
@@ -160,6 +161,7 @@ class Stmt:
             # Normalize source into destination layout before writing to
             # storage/transient/code locations that don't carry src_typ.
             normalized = self.ctx.new_temporary_value(typ)
+            assert isinstance(normalized.operand, IRVariable)
             self.ctx.store_memory(src, normalized.operand, typ, src_typ=src_typ)
             src = normalized.operand
             src_typ = typ
@@ -184,11 +186,13 @@ class Stmt:
         elif loc == DataLocation.IMMUTABLES:
             # Immutables in constructor
             if typ.memory_bytes_required <= 32:
+                assert isinstance(src, IRVariable)
                 val = self.builder.mload(src)
                 self.ctx.ptr_store(dst_ptr, val)
             else:
                 self.ctx.store_immutable(src, dst_ptr.operand, typ)
         else:
+            assert isinstance(dst_ptr.operand, IRVariable)
             # Memory destination: use layout-aware copy when types differ.
             self.ctx.store_memory(src, dst_ptr.operand, typ, src_typ=src_typ)
 
@@ -239,6 +243,7 @@ class Stmt:
             and any(not t._is_prim_word for t in src_member_types)
         ):
             staged_src = self.ctx.new_temporary_value(src_tuple_typ)
+            assert isinstance(staged_src.operand, IRVariable)
             self.ctx.copy_memory(staged_src.operand, src, src_tuple_typ.memory_bytes_required)
             src = staged_src.operand
 
@@ -331,6 +336,7 @@ class Stmt:
         b = self.builder
 
         # Load length from source (at offset 0)
+        assert isinstance(src, IRVariable)
         length = b.mload(src)
 
         elem_typ = typ.value_type
@@ -716,6 +722,7 @@ class Stmt:
 
         # Allocate loop variable (copy of element, not reference)
         item_local = self.ctx.new_variable(varname, target_type, mutable=False)
+        assert isinstance(item_local.value.operand, IRVariable)
         self.ctx.forvars[varname] = True
 
         # Create blocks
@@ -890,12 +897,7 @@ class Stmt:
                 # Tuple/struct return - load each element from memory pointer
                 # This handles both multi-element tuples AND single-element structs
                 for i, (_k, _elem_t) in enumerate(ret_typ.tuple_items()):
-                    if i == 0:
-                        src_ptr = ret_val
-                    elif isinstance(ret_val, IRLiteral):
-                        src_ptr = IRLiteral(ret_val.value + i * 32)
-                    else:
-                        src_ptr = self.builder.add(ret_val, IRLiteral(i * 32))
+                    src_ptr = self.builder.add(ret_val, IRLiteral(i * 32))
                     ret_vals.append(self.builder.mload(src_ptr))
             else:
                 # Primitive single value - just use directly
@@ -940,6 +942,7 @@ class Stmt:
             and ret_val is not None
         ):
             normalized = self.ctx.new_temporary_value(ret_typ)
+            assert isinstance(normalized.operand, IRVariable)
             self.ctx.store_memory(ret_val, normalized.operand, ret_typ, src_typ=ret_src_typ)
             ret_val = normalized.operand
             ret_src_typ = ret_typ
@@ -950,6 +953,7 @@ class Stmt:
             # ret_val is a pointer to [length (32 bytes)][data...]
             # Copy to a fresh buffer to ensure it's in memory
             buf_val = self.ctx.new_temporary_value(ret_typ)
+            assert isinstance(buf_val.operand, IRVariable)
             self.ctx.store_memory(ret_val, buf_val.operand, ret_typ, src_typ=ret_src_typ)
 
             # Get length from first 32 bytes
@@ -1062,7 +1066,8 @@ class Stmt:
             encoded_len = abi_encode_to_buf(self.ctx, abi_buf_ptr, data_buf._ptr, tuple_typ)
         else:
             # No data - use zero size
-            abi_buf_ptr = IRLiteral(0)
+            log_buf = self.ctx.allocate_buffer(0, annotation="log empty buffer")
+            abi_buf_ptr = log_buf._ptr
             encoded_len = IRLiteral(0)
 
         # Emit log instruction
@@ -1089,6 +1094,7 @@ class Stmt:
             # bytes/string - must be keccak256 hashed per ABI spec
             # val is a pointer to [length][data]
             data_ptr = self.builder.add(val, IRLiteral(32))
+            assert isinstance(val, IRVariable)
             length = self.builder.mload(val)
             return self.builder.sha3(data_ptr, length)
 
@@ -1124,7 +1130,8 @@ class Stmt:
             self.builder.append_block(fail_block)
             self.builder.set_block(fail_block)
             with self.builder.error_context("user assert"):
-                self.builder.revert(IRLiteral(0), IRLiteral(0))
+                revert_buffer = self.ctx.allocate_buffer(0, annotation="user assert revert buffer")
+                self.builder.revert(revert_buffer._ptr, IRLiteral(0))
 
             # Ok block: continue
             self.builder.append_block(ok_block)
@@ -1146,7 +1153,8 @@ class Stmt:
         if node.exc is None:
             # Bare raise: revert 0, 0
             with self.builder.error_context("user raise"):
-                self.builder.revert(IRLiteral(0), IRLiteral(0))
+                revert_buffer = self.ctx.allocate_buffer(0, annotation="user raise revert buffer")
+                self.builder.revert(revert_buffer._ptr, IRLiteral(0))
         elif isinstance(node.exc, vy_ast.Name) and node.exc.id == "UNREACHABLE":
             # UNREACHABLE: invalid opcode
             with self.builder.error_context("raise unreachable"):

@@ -151,7 +151,7 @@ class VenomCodegenContext:
         return self.load_word(vv.operand, vv.location)
 
     def store_vyper_value(
-        self, vv: VyperValue, ptr: IROperand, typ: VyperType
+        self, vv: VyperValue, ptr: IRVariable, typ: Optional[VyperType] = None
     ) -> None:
         """Store a VyperValue into memory, preserving its source layout."""
         self.store_memory(self.unwrap(vv), ptr, typ, src_typ=vv.typ)
@@ -185,6 +185,7 @@ class VenomCodegenContext:
         ), f"bytestring_length expects MEMORY, STORAGE, or TRANSIENT, got {loc}"
         # None location treated as MEMORY
         if loc is None:
+            assert isinstance(vv.operand, IRVariable)
             return self.builder.mload(vv.operand)
         return self.builder.load(vv.operand, loc)
 
@@ -196,6 +197,8 @@ class VenomCodegenContext:
         """
         if location == DataLocation.IMMUTABLES:
             if self.is_ctor_context:
+                assert self.immutables_alloca is not None
+                addr = self.builder.add(addr, self.immutables_alloca)
                 return self.builder.iload(addr)
             return self.builder.dload(addr)
         # NOTE: CODE falls through to builder.load (dload). If a future
@@ -333,13 +336,14 @@ class VenomCodegenContext:
         since caller will work with the pointer.
         """
         if typ.memory_bytes_required <= 32:
+            assert isinstance(ptr, IRVariable)
             return self.builder.mload(ptr)
         else:
             # Complex types: return pointer (caller handles copy if needed)
             return ptr
 
     def store_memory(
-        self, val: IROperand, ptr: IROperand, typ: VyperType, src_typ: Optional[VyperType] = None
+        self, val: IROperand, ptr: IRVariable, typ: VyperType, src_typ: Optional[VyperType] = None
     ) -> None:
         """Store value to memory pointer.
 
@@ -356,11 +360,13 @@ class VenomCodegenContext:
             src_typ = typ
 
         if typ._is_prim_word:
+            assert isinstance(ptr, IRVariable)
             self.builder.mstore(ptr, val)
         elif isinstance(typ, _BytestringT):
             # Bytestring: copy length word + ceil32(actual data), not max size
             # Length is at val+0, data starts at val+32
             # Must copy complete 32-byte words to avoid leaving dirty data
+            assert isinstance(val, IRVariable)
             src_len = self.builder.mload(val)
             # ceil32(length) = (length + 31) & ~31
             padded_len = self.builder.and_(
@@ -379,10 +385,12 @@ class VenomCodegenContext:
             self.copy_memory(ptr, val, typ.memory_bytes_required)
 
     def _store_memory_typed(
-        self, dst: IROperand, dst_typ: VyperType, src: IROperand, src_typ: VyperType
+        self, dst: IRVariable, dst_typ: VyperType, src: IROperand, src_typ: VyperType
     ) -> None:
         """Store memory value with potential source/destination type layout differences."""
         if dst_typ._is_prim_word:
+            assert isinstance(dst, IRVariable)
+            assert isinstance(src, IRVariable)
             self.builder.mstore(dst, self.builder.mload(src))
             return
 
@@ -406,6 +414,7 @@ class VenomCodegenContext:
             for dst_member_t, src_member_t in zip(dst_typ.member_types, src_typ.member_types):
                 dst_ptr = self._with_byte_offset(dst, dst_ofst)
                 src_ptr = self._with_byte_offset(src, src_ofst)
+                assert isinstance(dst_ptr, IRVariable)
                 self._store_memory_typed(dst_ptr, dst_member_t, src_ptr, src_member_t)
                 dst_ofst += dst_member_t.memory_bytes_required
                 src_ofst += src_member_t.memory_bytes_required
@@ -418,6 +427,7 @@ class VenomCodegenContext:
                 src_member_t = src_typ.member_types[name]
                 dst_ptr = self._with_byte_offset(dst, dst_ofst)
                 src_ptr = self._with_byte_offset(src, src_ofst)
+                assert isinstance(dst_ptr, IRVariable)
                 self._store_memory_typed(dst_ptr, dst_member_t, src_ptr, src_member_t)
                 dst_ofst += dst_member_t.memory_bytes_required
                 src_ofst += src_member_t.memory_bytes_required
@@ -426,7 +436,7 @@ class VenomCodegenContext:
         raise CompilerPanic(f"_store_memory_typed: unhandled types {src_typ} -> {dst_typ}") # pragma: nocover
 
     def _copy_sarray_memory_typed(
-        self, dst: IROperand, dst_typ: SArrayT, src: IROperand, src_typ: SArrayT
+        self, dst: IRVariable, dst_typ: SArrayT, src: IROperand, src_typ: SArrayT
     ) -> None:
         """Copy SArray in memory when source and destination element layouts
         may differ.
@@ -482,10 +492,11 @@ class VenomCodegenContext:
         b.set_block(exit_block)
 
     def _copy_dynarray_memory_typed(
-        self, dst: IROperand, dst_typ: DArrayT, src: IROperand, src_typ: DArrayT
+        self, dst: IRVariable, dst_typ: DArrayT, src: IROperand, src_typ: DArrayT
     ) -> None:
         """Copy DynArray in memory when source and destination element layouts may differ."""
         b = self.builder
+        assert isinstance(src, IRVariable)
         length = b.mload(src)
         # defensive: runtime length must not exceed destination capacity
         b.assert_(b.iszero(b.gt(length, IRLiteral(dst_typ.length))))
@@ -502,6 +513,7 @@ class VenomCodegenContext:
         # Fast path when element layouts match: copy exactly `length` elements.
         if src_elem_t == dst_elem_t and src_elem_size == dst_elem_size:
             data_size = b.mul(length, IRLiteral(dst_elem_size))
+            assert isinstance(dst_data, IRVariable)
             self.copy_memory_dynamic(dst_data, src_data, data_size)
             return
 
@@ -548,7 +560,7 @@ class VenomCodegenContext:
             return IRLiteral(base.value + byte_offset)
         return self.builder.add(base, IRLiteral(byte_offset))
 
-    def copy_memory(self, dst: IROperand, src: IROperand, size: int) -> None:
+    def copy_memory(self, dst: IRVariable, src: IROperand, size: int) -> None:
         """Copy memory region from src to dst (static size known at compile time).
 
         Uses mcopy for Cancun+. Pre-Cancun uses identity precompile for large
@@ -565,6 +577,7 @@ class VenomCodegenContext:
         # Pre-Cancun: use identity precompile for large copies
         if size >= self._IDENTITY_PRECOMPILE_THRESHOLD:
             b = self.builder
+            assert isinstance(src, IRVariable)
             success = b.staticcall(
                 b.gas(), IRLiteral(IDENTITY_PRECOMPILE), src, IRLiteral(size), dst, IRLiteral(size)
             )
@@ -575,10 +588,12 @@ class VenomCodegenContext:
         for offset in range(0, size, 32):
             src_ptr = self._with_byte_offset(src, offset)
             dst_ptr = self._with_byte_offset(dst, offset)
+            assert isinstance(src_ptr, IRVariable)
             val = self.builder.mload(src_ptr)
+            assert isinstance(dst_ptr, IRVariable)
             self.builder.mstore(dst_ptr, val)
 
-    def copy_memory_dynamic(self, dst: IROperand, src: IROperand, length: IROperand) -> None:
+    def copy_memory_dynamic(self, dst: IRVariable, src: IROperand, length: IROperand) -> None:
         """Copy memory region with dynamic length (known at runtime).
 
         Uses mcopy for Cancun+, otherwise identity precompile (address 4).
@@ -592,8 +607,26 @@ class VenomCodegenContext:
 
         # Pre-Cancun: use identity precompile
         # staticcall(gas, IDENTITY_PRECOMPILE, src, length, dst, length)
+        assert isinstance(src, IRVariable)
         success = b.staticcall(b.gas(), IRLiteral(IDENTITY_PRECOMPILE), src, length, dst, length)
         b.assert_(success)
+
+    def load_calldata(self, offset: IROperand, typ: VyperType) -> IROperand:
+        """Load from calldata.
+
+        For primitive types (<=32 bytes), returns calldataload value.
+        For complex types (>32 bytes), copies calldata to memory
+        and returns the memory pointer.
+        """
+        if typ.memory_bytes_required <= 32:
+            return self.builder.calldataload(offset)
+        else:
+            # Allocate buffer and copy calldata to it
+            size = typ.memory_bytes_required
+            val = self.new_temporary_value(typ)
+            assert isinstance(val.operand, IRVariable)
+            self.builder.calldatacopy(val.operand, offset, IRLiteral(size))
+            return val.operand
 
     _ALLOCATION_LIMIT: int = 2**64
 
@@ -605,6 +638,18 @@ class VenomCodegenContext:
             )
         ptr = self.builder.alloca(size)
         return Buffer(_ptr=ptr, size=size, annotation=annotation)
+
+    def allocate_dyn(self) -> "IRVariable":
+        """Get a pointer to scratch memory for runtime-sized data.
+
+        Returns an address past all static allocations and any prior memory
+        use. The caller may write arbitrary data at this address; the region
+        is untracked and must be consumed (e.g. by CALL/CREATE) before any
+        other code that could also call allocate_dyn().
+
+        Lowers to EVM MSIZE at assembly time.
+        """
+        return self.builder.memtop()
 
     # === Storage Operations ===
 
@@ -627,6 +672,7 @@ class VenomCodegenContext:
             if typ.storage_size_in_words == 1:
                 # Single-word complex type: sload and store to memory
                 loaded = self.builder.sload(slot)
+                assert isinstance(val.operand, IRVariable)
                 self.builder.mstore(val.operand, loaded)
             else:
                 # Multi-word: copy from storage to memory
@@ -644,6 +690,7 @@ class VenomCodegenContext:
             self.builder.sstore(slot, val)
         elif typ.storage_size_in_words == 1:
             # Single-word complex type: val is memory pointer, load and store
+            assert isinstance(val, IRVariable)
             self.builder.sstore(slot, self.builder.mload(val))
         else:
             # Multi-word: val is memory pointer, copy to storage
@@ -690,6 +737,7 @@ class VenomCodegenContext:
             src_ptr = self._with_byte_offset(src, i)
             dst_ptr = self._with_byte_offset(dst, i)
             word = self.load_word(src_ptr, location)
+            assert isinstance(dst_ptr, IRVariable)
             self.builder.mstore(dst_ptr, word)
 
     def _word_copy_loop(
@@ -780,6 +828,7 @@ class VenomCodegenContext:
             if typ.storage_size_in_words == 1:
                 # Single-word complex type: tload and store to memory
                 loaded = self.builder.tload(slot)
+                assert isinstance(val.operand, IRVariable)
                 self.builder.mstore(val.operand, loaded)
             else:
                 # Multi-word: copy from transient storage to memory
@@ -797,6 +846,7 @@ class VenomCodegenContext:
             self.builder.tstore(slot, val)
         elif typ.storage_size_in_words == 1:
             # Single-word complex type: val is memory pointer, load and store
+            assert isinstance(val, IRVariable)
             self.builder.tstore(slot, self.builder.mload(val))
         else:
             # Multi-word: val is memory pointer, copy to transient storage
@@ -847,6 +897,7 @@ class VenomCodegenContext:
             size = typ.memory_bytes_required
             for i in range(0, size, 32):
                 mem_ptr = self._with_byte_offset(val, i)
+                assert isinstance(mem_ptr, IRVariable)
                 word = self.builder.mload(mem_ptr)
                 imm_offset = self._with_byte_offset(offset, i)
                 self.store_word(imm_offset, word, DataLocation.IMMUTABLES)
@@ -871,8 +922,11 @@ class VenomCodegenContext:
     def store_word(self, addr: IROperand, val: IROperand, location: DataLocation) -> None:
         """Store a single word to addr at the given location."""
         if location == DataLocation.IMMUTABLES:
+            assert self.immutables_alloca is not None
+            addr = self.builder.add(self.immutables_alloca, addr)
             self.builder.istore(addr, val)
         elif location == DataLocation.MEMORY:
+            assert isinstance(addr, IRVariable)
             self.builder.mstore(addr, val)
         elif location == DataLocation.STORAGE:
             self.builder.sstore(addr, val)

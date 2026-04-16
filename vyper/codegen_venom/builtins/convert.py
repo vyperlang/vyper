@@ -20,7 +20,7 @@ from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, I
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import UINT160_T, UINT256_T
 from vyper.semantics.types.user import FlagT
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -117,6 +117,7 @@ def _to_bool(
     if isinstance(in_t, _BytestringT):
         # Check if any byte is nonzero (matches legacy behavior)
         # Load the actual data, not just length
+        assert isinstance(val, IRVariable)
         length = b.mload(val)
         data_ptr = b.add(val, IRLiteral(32))
         data = b.mload(data_ptr)
@@ -173,6 +174,7 @@ def _to_int(
     # From bytes/string: load data, shift right
     if isinstance(in_t, _BytestringT):
         # Length at val, data at val+32
+        assert isinstance(val, IRVariable)
         length = b.mload(val)
         data_ptr = b.add(val, IRLiteral(32))
         data = b.mload(data_ptr)
@@ -252,6 +254,7 @@ def _to_decimal(
 
     # From bytes/string
     if isinstance(in_t, _BytestringT):
+        assert isinstance(val, IRVariable)
         length = b.mload(val)
         data_ptr = b.add(val, IRLiteral(32))
         data = b.mload(data_ptr)
@@ -304,6 +307,7 @@ def _to_bytes_m(
 
     # From bytes/string: load data, mask/shift as needed
     if isinstance(in_t, _BytestringT):
+        assert isinstance(val, IRVariable)
         length = b.mload(val)
         data_ptr = b.add(val, IRLiteral(32))
         data = b.mload(data_ptr)
@@ -358,6 +362,7 @@ def _to_bytes(
     # Just check length bounds
     if out_t.maxlen < in_t.maxlen:
         # Downcast: check actual length <= max
+        assert isinstance(val, IRVariable)
         length = b.mload(val)
         oob = b.gt(length, IRLiteral(out_t.maxlen))
         b.assert_(b.iszero(oob))
@@ -393,6 +398,7 @@ def _to_string(
     # bytes->string and string->string are pointer casts
     if out_t.maxlen < in_t.maxlen:
         # Downcast: check actual length <= max
+        assert isinstance(val, IRVariable)
         length = b.mload(val)
         oob = b.gt(length, IRLiteral(out_t.maxlen))
         b.assert_(b.iszero(oob))

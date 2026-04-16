@@ -30,7 +30,7 @@ from vyper.semantics.types import TupleT, VyperType
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.utils import OrderedSet, method_id_int
-from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRLabel, IRLiteral, IRVariable
 from vyper.venom.builder import VenomBuilder
 from vyper.venom.context import IRContext
 from vyper.venom.memory_location import Allocation
@@ -247,6 +247,8 @@ def _generate_selector_section_linear(
     For functions with kwargs, generates ONE shared common body with
     separate entry points that handle kwargs and jump to the common body.
     """
+    codegen_ctx = VenomCodegenContext(module_t, builder)
+
     # Check calldatasize >= SELECTOR_BYTES (4 bytes)
     calldatasize = builder.calldatasize()
     has_selector = builder.iszero(builder.lt(calldatasize, IRLiteral(SELECTOR_BYTES)))
@@ -347,7 +349,8 @@ def _generate_selector_section_linear(
         _generate_fallback_body(builder, module_t, func_t, default_function)
     else:
         # No fallback - revert
-        builder.revert(IRLiteral(0), IRLiteral(0))
+        revert_buffer = codegen_ctx.allocate_buffer(0, annotation="fallback revert buffer")
+        builder.revert(revert_buffer._ptr, IRLiteral(0))
 
 
 def _generate_selector_section_sparse(
@@ -370,6 +373,7 @@ def _generate_selector_section_sparse(
     For functions with kwargs, generates ONE shared common body with
     separate entry points that handle kwargs and jump to the common body.
     """
+    codegen_ctx = VenomCodegenContext(module_t, builder)
     runtime_ctx = builder.ctx
 
     # Check calldatasize >= SELECTOR_BYTES (4 bytes)
@@ -548,7 +552,8 @@ def _generate_selector_section_sparse(
         _generate_fallback_body(builder, module_t, func_t, default_function)
     else:
         # No fallback - revert
-        builder.revert(IRLiteral(0), IRLiteral(0))
+        revert_buffer = codegen_ctx.allocate_buffer(0, annotation="fallback revert buffer")
+        builder.revert(revert_buffer._ptr, IRLiteral(0))
 
 
 def _generate_selector_section_dense(
@@ -578,6 +583,7 @@ def _generate_selector_section_dense(
     For functions with kwargs, generates ONE shared common body with
     separate entry points that handle kwargs and jump to the common body.
     """
+    fallback_codegen_ctx = VenomCodegenContext(module_t, builder)
     runtime_ctx = builder.ctx
 
     # Check calldatasize >= SELECTOR_BYTES (4 bytes)
@@ -672,9 +678,14 @@ def _generate_selector_section_dense(
 
         # Copy 5-byte header to memory at offset (32 - 5) = 27
         # so mload(0) reads it right-aligned in a 32-byte word
-        dst = 32 - SZ_BUCKET_HEADER
-        builder.codecopy(IRLiteral(dst), bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
-        hdr_info = builder.mload(IRLiteral(0))
+        codegen_ctx = VenomCodegenContext(module_ctx=module_t, builder=builder)
+        header_buf = codegen_ctx.allocate_buffer(32, annotation="header")
+        # this mstore is here to make sure that the value in the
+        # memory is zero out size we do not overwrite it fully
+        builder.mstore(header_buf._ptr, 0)
+        dst_buf = builder.add(header_buf._ptr, IRLiteral(32 - SZ_BUCKET_HEADER))
+        builder.codecopy(dst_buf, bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
+        hdr_info = builder.mload(header_buf._ptr)
 
         # Extract bucket header fields:
         # hdr_info layout (right-aligned in 32 bytes):
@@ -695,10 +706,15 @@ def _generate_selector_section_dense(
         func_info_location = builder.add(bucket_location, func_info_offset)
 
         # Copy function info to memory
-        dst = 32 - func_info_size
+        codegen_ctx = VenomCodegenContext(module_ctx=module_t, builder=builder)
+        header_buf = codegen_ctx.allocate_buffer(32)
+        # this mstore is here to make sure that the value in the
+        # memory is zero out size we do not overwrite it fully
+        builder.mstore(header_buf._ptr, 0)
+        dst_buf = builder.add(header_buf._ptr, IRLiteral(32 - func_info_size))
         assert func_info_size >= SZ_BUCKET_HEADER  # otherwise mload will have dirty bytes
-        builder.codecopy(IRLiteral(dst), func_info_location, IRLiteral(func_info_size))
-        func_info = builder.mload(IRLiteral(0))
+        builder.codecopy(dst_buf, func_info_location, IRLiteral(func_info_size))
+        func_info = builder.mload(header_buf._ptr)
 
         # Extract function info fields:
         # func_info layout (right-aligned):
@@ -812,7 +828,8 @@ def _generate_selector_section_dense(
         _generate_fallback_body(builder, module_t, func_t, default_function)
     else:
         # No fallback - revert
-        builder.revert(IRLiteral(0), IRLiteral(0))
+        revert_buffer = fallback_codegen_ctx.allocate_buffer(0, annotation="fallback revert buffer")
+        builder.revert(revert_buffer._ptr, IRLiteral(0))
 
 
 def _emit_entry_checks(
@@ -1017,6 +1034,7 @@ def _register_positional_args(ctx: VenomCodegenContext, func_t: ContractFunction
 
         # Allocate memory for the arg
         var = ctx.new_variable(arg.name, arg.typ, mutable=False)
+        assert isinstance(var.value.operand, IRVariable)
 
         # Get the element location in calldata (handles ABI offset indirection for dynamic types)
         elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
@@ -1063,6 +1081,7 @@ def _handle_kwargs(
 
     for i, arg in enumerate(func_t.keyword_args):
         var = ctx.new_variable(arg.name, arg.typ, mutable=False)
+        assert isinstance(var.value.operand, IRVariable)
 
         if i < kwargs_from_calldata:
             # Copy from calldata using ABI decoder
@@ -1362,12 +1381,6 @@ def _generate_constructor(
         # never reuses this region for temporary allocas.
         builder.ctx.mem_allocator.add_global(imm_alloc)
 
-        # Force msize to be past immutables region (like legacy's GH issue 3101 fix)
-        # This ensures builtins using msize() don't clobber immutables
-        # mload X touches bytes X to X+32, so touch the last word
-        touch_offset = max(0, immutables_len - 32)
-        builder.mload(IRLiteral(touch_offset))
-
     # Register constructor args from DATA section (not calldata)
     # Constructor args are appended to the deploy code
     _register_constructor_args(codegen_ctx, func_t)
@@ -1414,6 +1427,7 @@ def _register_constructor_args(ctx: VenomCodegenContext, func_t: ContractFunctio
 
         # Allocate memory for the arg
         var = ctx.new_variable(arg.name, arg.typ, mutable=False)
+        assert isinstance(var.value.operand, IRVariable)
 
         # Get element location in data section (handles ABI offset for dynamic types)
         elem_src = _getelemptr_abi(ctx, data_tuple, arg.typ, static_offset)
@@ -1448,10 +1462,8 @@ def _emit_deploy_epilogue(
     if immutables_len > 0:
         immutables_dst = builder.add(dst_ptr, IRLiteral(runtime_codesize))
 
-        # Source is the immutables_alloca if available, otherwise offset 0
-        immutables_src: IROperand = (
-            immutables_alloca if immutables_alloca is not None else IRLiteral(0)
-        )
+        assert immutables_alloca is not None
+        immutables_src = immutables_alloca
 
         if version_check(begin="cancun"):
             # Cancun+: use mcopy

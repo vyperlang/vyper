@@ -238,4 +238,7 @@ class FunctionInlinerPass(IRGlobalPass):
         clone.ast_source = inst.ast_source
         clone.error_msg = inst.error_msg
 
+        if inst.opcode == "alloca":
+            self.ctx.mem_allocator.clone_alloca(inst, clone)
+
         return clone
