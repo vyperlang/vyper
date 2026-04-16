@@ -108,11 +108,11 @@ def _run_probe(pre: str, calldata: bytes) -> tuple[int, int]:
 @pytest.mark.parametrize(
     ("calldata", "expected_ptr", "expected_msize"),
     [
-        (b"", 0, 0),
-        (b"x", 0, 32),
-        (b"x" * 31, 0, 32),
-        (b"x" * 32, 0, 32),
-        (b"x" * 33, 0, 64),
+        (b"", 32, 32),
+        (b"x", 32, 64),
+        (b"x" * 31, 32, 64),
+        (b"x" * 32, 32, 64),
+        (b"x" * 33, 32, 96),
     ],
 )
 def test_dalloca_handles_small_sizes(calldata, expected_ptr, expected_msize):
@@ -136,7 +136,7 @@ def test_dalloca_handles_small_sizes(calldata, expected_ptr, expected_msize):
 @pytest.mark.parametrize(
     ("calldata", "expected_msize"),
     [
-        (b"", 32),
+        (b"", 64),
         (b"x", 96),
         (b"x" * 31, 96),
         (b"x" * 32, 96),
@@ -161,6 +161,25 @@ def test_dalloca_starts_above_static_frame(calldata, expected_msize):
 
     assert ptr == 64
     assert msize == expected_msize
+
+
+def test_dalloca_static_frame_prime_is_word_aligned():
+    ptr, msize = _run_probe(
+        """
+        main:
+            %static = alloca 33
+            mstore %static, 0x1111
+            %dyn = dalloca 0
+            %after = memtop
+            mstore 0, %dyn
+            mstore 32, %after
+            return 0, 64
+        """,
+        b"",
+    )
+
+    assert ptr == 64
+    assert msize == 64
 
 
 def test_dalloca_rejects_fixed_stack_spills():

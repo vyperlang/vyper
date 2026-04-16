@@ -12,7 +12,7 @@ from vyper.ir.compile_ir import (
     TaggedInstruction,
     optimize_assembly,
 )
-from vyper.utils import OrderedSet, wrap256
+from vyper.utils import OrderedSet, ceil32, wrap256
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import (
     PSEUDO_INSTRUCTION,
@@ -211,6 +211,14 @@ class VenomCompiler:
             for bb in fn.get_basic_blocks()
             for inst in bb.instructions
         )
+
+    def _prime_dalloca_msize(self, assembly: list[AssemblyInstruction], fn: IRFunction) -> None:
+        if not self._function_has_dalloca(fn):
+            return
+
+        msize_floor = max(32, ceil32(self.ctx.mem_allocator.fn_eom.get(fn, 0)))
+        assembly.extend(PUSH(msize_floor - 32))
+        assembly.extend(["MLOAD", "POP"])
 
     def _stack_reorder(
         self,
@@ -441,6 +449,7 @@ class VenomCompiler:
         fn = basicblock.parent
         if basicblock == fn.entry:
             self._prepare_stack_for_function(asm, fn, stack)
+            self._prime_dalloca_msize(asm, fn)
 
         if len(self.cfg.cfg_in(basicblock)) == 1:
             self.clean_stack_from_cfg_in(asm, basicblock, stack)
@@ -700,55 +709,9 @@ class VenomCompiler:
         return apply_line_numbers(inst, assembly)
 
     def _emit_dalloca(self, assembly: list[AssemblyInstruction], inst: IRInstruction) -> None:
-        fn = inst.parent.parent
-        frame_eom = self.ctx.mem_allocator.fn_eom.get(fn, 0)
-
-        zero_size_label = self.mklabel("dalloca_zero_size")
-        touch_zero_label = self.mklabel("dalloca_touch_zero")
-        touch_done_label = self.mklabel("dalloca_touch_done")
-        done_label = self.mklabel("dalloca_done")
-
-        # Input stack: [..., size]
-        #
-        # Compute base = max(MSIZE, frame_eom), where frame_eom is the end of
-        # the static memory frame. Stack spill slots must live above dalloca
-        # regions; with the current fixed-offset spiller, dalloca + spills is
-        # rejected if actual lowering tries to spill.
-        assembly.append("MSIZE")  # [..., size, msize]
-        if frame_eom > 0:
-            use_frame_label = self.mklabel("dalloca_use_frame")
-            base_done_label = self.mklabel("dalloca_base_done")
-
-            assembly.extend(PUSH(frame_eom))  # [..., size, msize, frame_eom]
-            assembly.extend(
-                [
-                    "DUP2",
-                    "DUP2",
-                    "GT",  # frame_eom > msize
-                    PUSHLABEL(use_frame_label),
-                    "JUMPI",
-                    "POP",  # use msize
-                    PUSHLABEL(base_done_label),
-                    "JUMP",
-                    use_frame_label,
-                    "SWAP1",
-                    "POP",  # use frame_eom
-                    base_done_label,
-                ]
-            )
-
-        # Stack: [..., size, base]
-        #
-        # Zero-sized allocations do not expand memory. Non-zero allocations
-        # expand by touching max(0, base + size - 32), which is the first
-        # offset whose 32-byte MLOAD reaches base + size.
-        assembly.extend(["DUP2", "ISZERO", PUSHLABEL(zero_size_label), "JUMPI"])
-        assembly.extend(["DUP2", "DUP2", "ADD"])  # [..., size, base, end]
-        assembly.extend(["DUP1", *PUSH(32), "GT", PUSHLABEL(touch_zero_label), "JUMPI"])
-        assembly.extend([*PUSH(32), "SWAP1", "SUB", PUSHLABEL(touch_done_label), "JUMP"])
-        assembly.extend([touch_zero_label, "POP", *PUSH(0), touch_done_label])
-        assembly.extend(["MLOAD", "POP", "SWAP1", "POP", PUSHLABEL(done_label), "JUMP"])
-        assembly.extend([zero_size_label, "SWAP1", "POP", done_label])
+        # The function entry primes MSIZE to at least 32, so
+        # `msize + size - 32` cannot underflow.
+        assembly.extend(["PUSH1", 0x20, "MSIZE", "DUP1", "SWAP3", "ADD", "SUB", "MLOAD", "POP"])
 
     def _optimistic_swap(self, assembly, inst, next_liveness, stack):
         # heuristic: peek at next_liveness to find the next scheduled

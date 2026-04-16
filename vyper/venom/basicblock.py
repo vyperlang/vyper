@@ -430,7 +430,7 @@ class IRInstruction:
         if self.opcode == "memtop":
             return 1  # lowers to single MSIZE byte
         if self.opcode == "dalloca":
-            return 32  # dynamic MSIZE bump with frame and zero-size guards
+            return 9  # compact bump; dalloca functions prime MSIZE at entry
         return 2
 
     def get_ast_source(self) -> Optional[IRnode]:
