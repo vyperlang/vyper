@@ -667,13 +667,13 @@ class VenomCodegenContext:
         ptr = self.builder.alloca(size)
         return Buffer(_ptr=ptr, size=size, annotation=annotation)
 
-    def allocate_dyn(self) -> "IRVariable":
-        """Get a pointer to scratch memory for runtime-sized data.
+    def allocate_scratch_unreserved(self) -> "IRVariable":
+        """Get an unreserved scratch pointer for runtime-sized data.
 
         Returns an address past all static allocations and any prior memory
         use. The caller may write arbitrary data at this address; the region
         is untracked and must be consumed (e.g. by CALL/CREATE) before any
-        other code that could also call allocate_dyn().
+        other code that could also borrow unreserved scratch memory.
 
         Lowers to EVM MSIZE at assembly time.
         """

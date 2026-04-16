@@ -417,7 +417,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     shifted_codesize = b.shl(IRLiteral(shl_bits), codesize)
     preamble_with_size = b.or_(IRLiteral(preamble_base), shifted_codesize)
 
-    mem_ofst = ctx.allocate_dyn()
+    mem_ofst = ctx.allocate_scratch_unreserved()
 
     # Store preamble at mem_ofst (will be stored as 32-byte word)
     b.mstore(mem_ofst, preamble_with_size)
@@ -543,7 +543,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         args_len = IRLiteral(0)
         args_ptr = IRLiteral(0)
 
-    mem_ofst = ctx.allocate_dyn()
+    mem_ofst = ctx.allocate_scratch_unreserved()
 
     # Copy blueprint code (skipping preamble) to memory
     b.extcodecopy(target, mem_ofst, code_offset, codesize)

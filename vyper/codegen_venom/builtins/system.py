@@ -143,10 +143,10 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         out_val = None
         out_ptr = ctx.allocate_buffer(0)._ptr
 
-    # Copy msg.data to scratch AFTER all kwarg evaluation, so nothing
-    # else overwrites the memtop scratch region before the call.
+    # Copy msg.data to unreserved scratch AFTER all kwarg evaluation, so nothing
+    # else overwrites the borrowed scratch region before the call.
     if use_msg_data:
-        data_ptr = ctx.allocate_dyn()
+        data_ptr = ctx.allocate_scratch_unreserved()
         data_len = b.calldatasize()
         b.calldatacopy(data_ptr, IRLiteral(0), data_len)
 
