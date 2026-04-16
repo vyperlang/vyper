@@ -20,7 +20,6 @@ class BranchOptimizationPass(IRPass):
     """
 
     cfg: CFGAnalysis
-    liveness: LivenessAnalysis
     dfg: DFGAnalysis
 
     def _optimize_branches(self) -> None:
@@ -32,8 +31,8 @@ class BranchOptimizationPass(IRPass):
 
             fst, snd = self.cfg.cfg_out(bb)
 
-            fst_liveness = self.liveness.live_vars_at(fst.instructions[0])
-            snd_liveness = self.liveness.live_vars_at(snd.instructions[0])
+            fst_liveness = self.heuristic_liveness[fst]
+            snd_liveness = self.heuristic_liveness[snd]
 
             # heuristic(!) to decide if we should flip the labels or not
             cost_a, cost_b = len(fst_liveness), len(snd_liveness)
@@ -52,15 +51,18 @@ class BranchOptimizationPass(IRPass):
             elif cost_a > cost_b or (cost_a >= cost_b and prefer_iszero(prev_inst)):
                 tmp = self.updater.add_before(term_inst, "iszero", [term_inst.operands[0]])
                 assert tmp is not None  # help mypy
-                tmp_inst = self.dfg.get_producing_instruction(tmp)
-                assert tmp_inst is not None
-                self.liveness.shadow_inst_liveness(term_inst, tmp_inst)
                 new_cond = tmp
                 new_operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
                 self.updater.update(term_inst, term_inst.opcode, new_operands)
 
     def run_pass(self):
-        self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
+        liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
+        
+        self.heuristic_liveness = dict()
+        for bb in self.function.get_basic_blocks():
+            live_state = liveness.live_vars_at(bb.instructions[0])
+            self.heuristic_liveness[bb] = live_state
+
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(self.dfg)
