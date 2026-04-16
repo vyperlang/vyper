@@ -57,7 +57,7 @@ class BranchOptimizationPass(IRPass):
 
     def run_pass(self):
         liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
-        
+
         self.heuristic_liveness = dict()
         for bb in self.function.get_basic_blocks():
             live_state = liveness.live_vars_at(bb.instructions[0])
