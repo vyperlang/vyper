@@ -8,6 +8,7 @@ class Effects(Flag):
     STORAGE = auto()
     TRANSIENT = auto()
     MEMORY = auto()
+    MEMORY_SIZE = auto()
     IMMUTABLES = auto()
     RETURNDATA = auto()
     LOG = auto()
@@ -30,12 +31,13 @@ ALL = ~EMPTY
 STORAGE = Effects.STORAGE
 TRANSIENT = Effects.TRANSIENT
 MEMORY = Effects.MEMORY
+MEMORY_SIZE = Effects.MEMORY_SIZE
 IMMUTABLES = Effects.IMMUTABLES
 RETURNDATA = Effects.RETURNDATA
 LOG = Effects.LOG
 BALANCE = Effects.BALANCE
 EXTCODE = Effects.EXTCODE
-NON_MEMORY_EFFECTS = ~Effects.MEMORY
+NON_MEMORY_EFFECTS = ~(Effects.MEMORY | Effects.MEMORY_SIZE)
 NON_STORAGE_EFFECTS = ~Effects.STORAGE
 NON_TRANSIENT_EFFECTS = ~Effects.TRANSIENT
 
@@ -58,7 +60,7 @@ _writes = {
     "codecopy": MEMORY,
     "extcodecopy": MEMORY,
     "mcopy": MEMORY,
-    "dalloca": MEMORY,  # expands memory (touches bytes above MSIZE)
+    "dalloca": MEMORY_SIZE,  # expands the observable MSIZE high-water mark
 }
 
 _reads = {
@@ -85,8 +87,8 @@ _reads = {
     "revert": MEMORY,
     "sha3": MEMORY,
     "return": MEMORY,
-    "memtop": MEMORY,  # lowers to MSIZE; depends on all prior memory writes
-    "dalloca": MEMORY,  # reads MSIZE; depends on all prior memory writes
+    "memtop": MEMORY | MEMORY_SIZE,  # lowers to MSIZE; depends on memory growth
+    "dalloca": MEMORY | MEMORY_SIZE,  # reads MSIZE, then advances the high-water mark
 }
 
 reads = _reads.copy()

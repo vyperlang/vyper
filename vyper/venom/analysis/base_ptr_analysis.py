@@ -197,7 +197,7 @@ class BasePtrAnalysis(IRAnalysis):
             return MemoryLocation.UNDEFINED
         if inst.opcode == "ret":
             return MemoryLocation.UNDEFINED
-        if inst.opcode == "memtop":
+        if inst.opcode in ("memtop", "dalloca"):
             return MemoryLocation.UNDEFINED
 
         if inst.get_read_effects() & effects.MEMORY == effects.EMPTY:
