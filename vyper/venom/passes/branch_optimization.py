@@ -1,6 +1,6 @@
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import COMPARATOR_INSTRUCTIONS, IRInstruction, IRLiteral, IRBasicBlock
+from vyper.venom.basicblock import COMPARATOR_INSTRUCTIONS, IRBasicBlock, IRInstruction, IRLiteral
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
