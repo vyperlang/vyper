@@ -579,6 +579,21 @@ class VenomCompiler:
             assembly.append(opcode.upper())
         elif opcode == "alloca":
             pass
+        elif opcode == "dalloca":
+            # Bump allocator using MSIZE. Consumes `size` from stack,
+            # leaves `ptr` (old MSIZE) on stack.
+            #
+            # stack in:  [..., size]
+            # PUSH1 32:  [..., size, 32]
+            # MSIZE:     [..., size, 32, msize]
+            # DUP1:      [..., size, 32, msize, msize]
+            # SWAP3:     [..., msize, 32, msize, size]
+            # ADD:       [..., msize, 32, msize+size]
+            # SUB:       [..., msize, msize+size-32]
+            # MLOAD:     [..., msize, _]  (expands MSIZE to ceil32(msize+size))
+            # POP:       [..., msize]
+            # stack out: [..., ptr]
+            assembly.extend(["PUSH1", 0x20, "MSIZE", "DUP1", "SWAP3", "ADD", "SUB", "MLOAD", "POP"])
         elif opcode == "memtop":
             assembly.append("MSIZE")
         elif opcode == "param":

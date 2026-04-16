@@ -174,6 +174,16 @@ class VenomBuilder:
         """Allocate abstract memory. Returns pointer. (IR-specific)"""
         return self._emit1("alloca", size)
 
+    def dalloca(self, size: Operand) -> IRVariable:
+        """Allocate dynamic (runtime-sized) memory via MSIZE bump.
+
+        Returns pointer to allocated region. Size can be a runtime value.
+        Allocated region starts at the current MSIZE boundary and expands
+        memory by ceil32(size) bytes. Lives above all static allocations
+        and spill slots.
+        """
+        return self._emit1("dalloca", size)
+
     def memtop(self) -> IRVariable:
         """Get address past all memory (scratch space start).
 

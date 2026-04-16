@@ -53,6 +53,7 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "assert",
         "assert_unreachable",
         "stop",
+        "dalloca",
     ]
 )
 
@@ -428,6 +429,8 @@ class IRInstruction:
             return 1
         if self.opcode == "memtop":
             return 1  # lowers to single MSIZE byte
+        if self.opcode == "dalloca":
+            return 9  # PUSH1 MSIZE DUP1 SWAP3 ADD SUB MLOAD POP
         return 2
 
     def get_ast_source(self) -> Optional[IRnode]:

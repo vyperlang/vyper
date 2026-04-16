@@ -58,6 +58,7 @@ _writes = {
     "codecopy": MEMORY,
     "extcodecopy": MEMORY,
     "mcopy": MEMORY,
+    "dalloca": MEMORY,  # expands memory (touches bytes above MSIZE)
 }
 
 _reads = {
@@ -85,6 +86,7 @@ _reads = {
     "sha3": MEMORY,
     "return": MEMORY,
     "memtop": MEMORY,  # lowers to MSIZE; depends on all prior memory writes
+    "dalloca": MEMORY,  # reads MSIZE; depends on all prior memory writes
 }
 
 reads = _reads.copy()
