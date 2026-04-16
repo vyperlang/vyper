@@ -92,6 +92,13 @@ class LivenessAnalysis(IRAnalysis):
         """
         return self.inst_to_liveness[inst]
 
+    def shadow_inst_liveness(self, src: IRInstruction, dst: IRInstruction):
+        """
+        Shadows the liveness of instruction, used when the pass depends on
+        liveness creates new instruction (branch optimization)
+        """
+        self.inst_to_liveness[dst] = self.inst_to_liveness[src]
+
     # calculate the input variables into self from source
     def input_vars_from(self, source: IRBasicBlock, target: IRBasicBlock) -> OrderedSet[IRVariable]:
         liveness = self.inst_to_liveness[target.instructions[0]].copy()

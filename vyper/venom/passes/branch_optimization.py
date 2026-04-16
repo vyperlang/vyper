@@ -52,6 +52,9 @@ class BranchOptimizationPass(IRPass):
             elif cost_a > cost_b or (cost_a >= cost_b and prefer_iszero(prev_inst)):
                 tmp = self.updater.add_before(term_inst, "iszero", [term_inst.operands[0]])
                 assert tmp is not None  # help mypy
+                tmp_inst = self.dfg.get_producing_instruction(tmp)
+                assert tmp_inst is not None
+                self.liveness.shadow_inst_liveness(term_inst, tmp_inst)
                 new_cond = tmp
                 new_operands = [new_cond, term_inst.operands[2], term_inst.operands[1]]
                 self.updater.update(term_inst, term_inst.opcode, new_operands)
