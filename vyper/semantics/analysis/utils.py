@@ -75,8 +75,8 @@ class _ExprAnalyser:
     def __init__(self):
         self.namespace = get_namespace()
 
-    def get_expr_info(self, node: vy_ast.VyperNode, is_callable: bool = False) -> ExprInfo:
-        t = get_exact_type_from_node(node, include_type_exprs=is_callable)
+    def get_expr_info(self, node: vy_ast.VyperNode, allow_type_exprs: bool = False) -> ExprInfo:
+        t = get_exact_type_from_node(node, allow_type_exprs=allow_type_exprs)
 
         # if it's a Name, we have varinfo for it
         if isinstance(node, vy_ast.Name):
@@ -99,7 +99,7 @@ class _ExprAnalyser:
             # note: Attribute(expr value, identifier attr)
 
             # allow the value node to be a type expr (e.g., MyFlag.A)
-            info = self.get_expr_info(node.value, is_callable=True)
+            info = self.get_expr_info(node.value, allow_type_exprs=True)
             attr = node.attr
 
             t = info.typ.get_member(attr, node)
@@ -426,7 +426,7 @@ def _filter(type_, fn_name, node):
         return False
 
 
-def get_possible_types_from_node(node, include_type_exprs=True) -> list[VyperType]:
+def get_possible_types_from_node(node, allow_type_exprs=True) -> list[VyperType]:
     """
     Return a list of possible types for the given node.
 
@@ -448,7 +448,7 @@ def get_possible_types_from_node(node, include_type_exprs=True) -> list[VyperTyp
 
     ret = _ExprAnalyser()._get_possible_types_r(node)
 
-    if not include_type_exprs:
+    if not allow_type_exprs:
         invalid = next((i for i in ret if isinstance(i, TYPE_T)), None)
         if invalid is not None:
             raise InvalidReference(f"not a variable or literal: '{invalid.typedef}'", node)
@@ -456,7 +456,7 @@ def get_possible_types_from_node(node, include_type_exprs=True) -> list[VyperTyp
     return ret
 
 
-def get_exact_type_from_node(node: vy_ast.VyperNode, include_type_exprs=True) -> VyperType:
+def get_exact_type_from_node(node: vy_ast.VyperNode, allow_type_exprs=True) -> VyperType:
     """
     Return *the* type of a given node.
 
@@ -472,7 +472,7 @@ def get_exact_type_from_node(node: vy_ast.VyperNode, include_type_exprs=True) ->
     VyperType
         The type of `node`
     """
-    types_list = get_possible_types_from_node(node, include_type_exprs=include_type_exprs)
+    types_list = get_possible_types_from_node(node, allow_type_exprs=allow_type_exprs)
 
     if len(types_list) > 1:
         raise StructureException("Ambiguous type", node)
@@ -480,9 +480,9 @@ def get_exact_type_from_node(node: vy_ast.VyperNode, include_type_exprs=True) ->
     return types_list[0]
 
 
-def get_expr_info(node: vy_ast.ExprNode, is_callable: bool = False) -> ExprInfo:
+def get_expr_info(node: vy_ast.ExprNode, allow_type_exprs: bool = False) -> ExprInfo:
     if node._expr_info is None:
-        node._expr_info = _ExprAnalyser().get_expr_info(node, is_callable)
+        node._expr_info = _ExprAnalyser().get_expr_info(node, allow_type_exprs)
     return node._expr_info
 
 
@@ -579,7 +579,7 @@ def validate_expected_type(node, expected_type):
             # fail block
             pass
 
-    given_types = get_possible_types_from_node(node, include_type_exprs=False)
+    given_types = get_possible_types_from_node(node, allow_type_exprs=False)
 
     if isinstance(node, vy_ast.List):
         # special case - for literal arrays we individually validate each item

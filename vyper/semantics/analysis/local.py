@@ -168,7 +168,7 @@ def _validate_pure_access(node: vy_ast.Attribute | vy_ast.Name, typ: VyperType) 
                 "not allowed to query environment variables in pure functions"
             )
         # allow type exprs in the value node, e.g. MyFlag.A
-        parent_info = get_expr_info(node.value, is_callable=True)
+        parent_info = get_expr_info(node.value, allow_type_exprs=True)
         if isinstance(parent_info.typ, AddressT) and node.attr in AddressT._type_members:
             raise StateAccessViolation("not allowed to query address members in pure functions")
 
@@ -923,7 +923,7 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
         return self.visit(node.value, typ)
 
     def visit_Call(self, node: vy_ast.Call, typ: VyperType) -> None:
-        func_info = get_expr_info(node.func, is_callable=True)
+        func_info = get_expr_info(node.func, allow_type_exprs=True)
         func_type = func_info.typ
 
         # TODO: unify the APIs for different callable types so that
