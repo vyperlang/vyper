@@ -105,25 +105,32 @@ def _get_element_ptr(
         raise CompilerPanic(f"Cannot get element ptr of type {parent_typ}")
 
 
-def _pre_zero_pad(ctx: VenomCodegenContext, bytes_ptr: IROperand, length: IROperand) -> None:
+def _pre_zero_pad(ctx: VenomCodegenContext, dst: IROperand, length: IROperand) -> None:
     """
-    Zero-pad a bytestring according to ABI spec.
+    Pre-zero-pad: write 0 to the last word of the encoding, then the
+    subsequent copy overwrites real data bytes, leaving padding zeros.
 
-    The bytestring at bytez_ptr has layout: [length_word][data...]
-    We need to zero-pad the data to a multiple of 32 bytes. We do this
-    by writing a 0 to the "tail" word
+    The encoding layout is:
+    [length(32 bytes)][data(length bytes)][zero-pad to 32-byte boundary]
+    Total size = 32 + ceil32(length).
+
+    We write 0 at offset ceil32(length) = (length + 31) & ~31.
+    The bit trick rounds up: adding 31 and clearing the low 5 bits aligns
+    to the next 32-byte boundary. This is safe because:
+      ceil32(length) <= length + 31 < length + 32
+    so the copy (which writes [0, 32+length)) always covers this word.
+    When length % 32 == 0, the zero is at offset length and fully within
+    the copy range — it gets overwritten harmlessly. When length % 32 != 0,
+    the zero covers the padding bytes beyond the data, and the copy only
+    overwrites the data portion of that word, leaving the tail zeros intact.
     """
     b = ctx.builder
 
-    # dst = bytez_ptr + 32 + length (first byte after data)
-    dst = b.add(bytes_ptr, IRLiteral(32))
-
-    inv_5 = ~5 & (2**256 - 1)
-    length_floor32 = b.and_(length, inv_5)
-
-    dst = b.add(dst, length_floor32)
-
-    b.mstore(dst, 0)
+    # Write 0 to the last word of the encoding, at offset ceil32(length)
+    inv_31 = ~31 & (2**256 - 1)
+    last_word_offset = b.and_(b.add(length, IRLiteral(31)), IRLiteral(inv_31))
+    last_word_ptr = b.add(dst, last_word_offset)
+    b.mstore(last_word_ptr, 0)
 
 
 def _encode_child(
@@ -349,8 +356,8 @@ def _abi_encode_to_buf(
         return IRLiteral(32)
 
     elif isinstance(src_typ, _BytestringT):
-        # Bytes/String: copy and zero-pad
-        # Layout: [length][data]
+        # Bytes/String: pre-zero-pad then copy
+        # Layout: [length(32)][data(length bytes)][zero-padding]
         size = src_typ.memory_bytes_required
         assert size > 0
 
@@ -358,11 +365,13 @@ def _abi_encode_to_buf(
         length = b.mload(src)
         _pre_zero_pad(ctx, dst, length)
 
-        ctx.copy_memory_dynamic(dst, src, length)
-        # ABI length = ceil32(32 + actual_length)
-        # ceil32: ((x + 31) // 32) * 32 = (x + 31) & ~31
+        # Copy length word + data (32 + length bytes)
+        copy_len = b.add(IRLiteral(32), length)
+        ctx.copy_memory_dynamic(dst, src, copy_len)
+
+        # Return total encoded size = ceil32(32 + length) = 32 + ceil32(length)
         inv_31 = (~31) & (2**256 - 1)
-        padded_len = b.and_(b.add(length, IRLiteral(31)), IRLiteral(inv_31))
+        padded_len = b.add(IRLiteral(32), b.and_(b.add(length, IRLiteral(31)), IRLiteral(inv_31)))
         return padded_len
 
     elif isinstance(src_typ, DArrayT):
