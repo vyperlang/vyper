@@ -454,9 +454,13 @@ def _generate_selector_section_sparse(
 
         # Copy 2-byte header to memory at offset (32 - 2) = 30
         # so mload(0) reads it right-aligned in a 32-byte word
-        dst = 32 - SZ_BUCKET_HEADER
-        builder.codecopy(IRLiteral(dst), bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
-        jumpdest = builder.mload(IRLiteral(0))
+        buf = codegen_ctx.allocate_buffer(32, annotation="selector scratch")
+        # this mstore is here to make sure that the value in the
+        # memory is zero out size we do not overwrite it fully
+        builder.mstore(buf._ptr, 0)
+        dst = builder.add(buf._ptr, IRLiteral(32 - SZ_BUCKET_HEADER))
+        builder.codecopy(dst, bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
+        jumpdest = builder.mload(buf._ptr)
 
         # Dynamic jump to bucket (must list all possible targets)
         builder.djmp(jumpdest, *jump_targets)
