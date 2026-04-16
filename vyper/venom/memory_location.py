@@ -12,19 +12,26 @@ from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand
 class Allocation:
     """
     a memory region which hasn't been allocated (assigned a concrete position) yet.
-    (can be thought of thin wrapper around alloca)
+    wraps either an `alloca` (static, known size, lives in the static frame)
+    or a `dalloca` (dynamic, runtime size, lives above the static frame via
+    MSIZE bump). each instruction produces a distinct Allocation identity.
     """
 
     # note this class is NOT robust to mutations to the alloca instruction!
 
-    inst: IRInstruction  # the alloca instruction
+    inst: IRInstruction  # the alloca or dalloca instruction
 
     def __post_init__(self):
         # sanity check
-        assert self.inst.opcode == "alloca", self.inst
+        assert self.inst.opcode in ("alloca", "dalloca"), self.inst
+
+    @property
+    def is_dynamic(self) -> bool:
+        return self.inst.opcode == "dalloca"
 
     @property
     def alloca_size(self) -> int:
+        # only valid for static allocas; dynamic allocas have runtime size.
         assert self.inst.opcode == "alloca", self.inst
         size = self.inst.operands[0]
         assert isinstance(size, IRLiteral)

@@ -81,7 +81,7 @@ class BasePtrAnalysis(IRAnalysis):
         original = self.var_to_mem.get(inst.output, set())
 
         opcode = inst.opcode
-        if opcode == "alloca":
+        if opcode in ("alloca", "dalloca"):
             self.var_to_mem[inst.output] = set([Ptr.from_alloca(inst)])
 
         elif opcode in ("add", "sub"):
@@ -197,8 +197,10 @@ class BasePtrAnalysis(IRAnalysis):
             return MemoryLocation.UNDEFINED
         if inst.opcode == "ret":
             return MemoryLocation.UNDEFINED
-        if inst.opcode in ("memtop", "dalloca"):
+        if inst.opcode == "memtop":
             return MemoryLocation.UNDEFINED
+        if inst.opcode == "dalloca":
+            return MemoryLocation.EMPTY
 
         if inst.get_read_effects() & effects.MEMORY == effects.EMPTY:
             return MemoryLocation.EMPTY

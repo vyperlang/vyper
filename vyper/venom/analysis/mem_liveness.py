@@ -126,7 +126,9 @@ class MemLivenessAnalysis(IRAnalysis):
     def _find_base_ptrs(self, op: Optional[IROperand]) -> set[Ptr]:
         if op is None or not isinstance(op, IRVariable):
             return set()
-        return self.base_ptrs.get_possible_ptrs(op)
+        # only static allocas need concretization; dalloca regions live
+        # above the static frame and are not tracked by the allocator.
+        return {p for p in self.base_ptrs.get_possible_ptrs(op) if not p.base_alloca.is_dynamic}
 
     def _mark_store_locations_live(self):
         # DSE may preserve stores whose liveness it can't disprove (e.g.,
