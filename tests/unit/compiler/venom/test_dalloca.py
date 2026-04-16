@@ -266,3 +266,30 @@ def test_dalloca_does_not_invalidate_memory_content_loads():
     LoadElimination(IRAnalysesCache(fn), fn).run_pass()
 
     assert_ctx_eq(ctx, parse_from_basic_block(post))
+
+
+def test_dalloca_allocations_do_not_alias_each_other():
+    pre = """
+    main:
+        %a = dalloca 32
+        mstore %a, 1
+        %b = dalloca 32
+        mstore %b, 2
+        %x = mload %a
+        sink %x, %a, %b
+    """
+    post = """
+    main:
+        %a = dalloca 32
+        mstore %a, 1
+        %b = dalloca 32
+        mstore %b, 2
+        %x = 1
+        sink %x, %a, %b
+    """
+
+    ctx = parse_from_basic_block(pre)
+    fn = next(iter(ctx.functions.values()))
+    LoadElimination(IRAnalysesCache(fn), fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_from_basic_block(post))
