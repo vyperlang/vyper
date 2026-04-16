@@ -626,182 +626,179 @@ def _generate_selector_section_dense(
         for abi_sig, entry_info in entry_points.items():
             all_entry_points[abi_sig] = (func_ast, entry_info)
 
-    if not all_entry_points:
-        # No external functions - jump to fallback
-        builder.jmp(fallback_bb.label)
-    else:
-        # Generate dense jumptable info
-        n_buckets, jumptable_info = jumptable_utils.generate_dense_jumptable_info(
-            all_entry_points.keys()
-        )
+    assert len(all_entry_points) > 1
+    # Generate dense jumptable info
+    n_buckets, jumptable_info = jumptable_utils.generate_dense_jumptable_info(
+        all_entry_points.keys()
+    )
 
-        # Sanity check bucket IDs
-        assert n_buckets == len(jumptable_info)
-        for i, (bucket_id, _) in enumerate(sorted(jumptable_info.items())):
-            assert i == bucket_id
+    # Sanity check bucket IDs
+    assert n_buckets == len(jumptable_info)
+    for i, (bucket_id, _) in enumerate(sorted(jumptable_info.items())):
+        assert i == bucket_id
 
-        # Bucket header: magic <2 bytes> | location <2 bytes> | size <1 byte>
-        SZ_BUCKET_HEADER = 5
+    # Bucket header: magic <2 bytes> | location <2 bytes> | size <1 byte>
+    SZ_BUCKET_HEADER = 5
 
-        # Figure out the minimum number of bytes to encode min_calldatasize in function info
-        largest_mincalldatasize = max(
-            entry_info.min_calldatasize for _, entry_info in all_entry_points.values()
-        )
-        FN_METADATA_BYTES = (largest_mincalldatasize.bit_length() + 7) // 8
+    # Figure out the minimum number of bytes to encode min_calldatasize in function info
+    largest_mincalldatasize = max(
+        entry_info.min_calldatasize for _, entry_info in all_entry_points.values()
+    )
+    FN_METADATA_BYTES = (largest_mincalldatasize.bit_length() + 7) // 8
 
-        # Function info size: method_id <4 bytes> | label <2 bytes> | metadata <1-3 bytes>
-        func_info_size = 4 + 2 + FN_METADATA_BYTES
+    # Function info size: method_id <4 bytes> | label <2 bytes> | metadata <1-3 bytes>
+    func_info_size = 4 + 2 + FN_METADATA_BYTES
 
-        # Create labels for each entry point (for djmp targets)
-        entry_point_labels: dict[str, IRLabel] = {}
-        for abi_sig, (_func_ast, _entry_info) in all_entry_points.items():
-            method_id_val = method_id_int(abi_sig)
-            label = IRLabel(f"entry_{method_id_val:08x}", is_symbol=True)
-            entry_point_labels[abi_sig] = label
+    # Create labels for each entry point (for djmp targets)
+    entry_point_labels: dict[str, IRLabel] = {}
+    for abi_sig, (_func_ast, _entry_info) in all_entry_points.items():
+        method_id_val = method_id_int(abi_sig)
+        label = IRLabel(f"entry_{method_id_val:08x}", is_symbol=True)
+        entry_point_labels[abi_sig] = label
 
-        # Compute bucket_id = method_id % n_buckets
-        bucket_id_var = builder.mod(method_id, IRLiteral(n_buckets))
+    # Compute bucket_id = method_id % n_buckets
+    bucket_id_var = builder.mod(method_id, IRLiteral(n_buckets))
 
-        # Create data section for bucket headers
-        runtime_ctx.append_data_section(IRLabel("BUCKET_HEADERS", is_symbol=True))
-        for bucket_id_val, bucket in sorted(jumptable_info.items()):
-            runtime_ctx.append_data_item(bucket.magic.to_bytes(2, "big"))
-            runtime_ctx.append_data_item(IRLabel(f"bucket_{bucket_id_val}", is_symbol=True))
-            runtime_ctx.append_data_item(bucket.bucket_size.to_bytes(1, "big"))
+    # Create data section for bucket headers
+    runtime_ctx.append_data_section(IRLabel("BUCKET_HEADERS", is_symbol=True))
+    for bucket_id_val, bucket in sorted(jumptable_info.items()):
+        runtime_ctx.append_data_item(bucket.magic.to_bytes(2, "big"))
+        runtime_ctx.append_data_item(IRLabel(f"bucket_{bucket_id_val}", is_symbol=True))
+        runtime_ctx.append_data_item(bucket.bucket_size.to_bytes(1, "big"))
 
-        # Load bucket header from data section
-        # Location = BUCKET_HEADERS + bucket_id * 5
-        bucket_hdr_offset = builder.mul(bucket_id_var, IRLiteral(SZ_BUCKET_HEADER))
-        bucket_headers_addr = builder.offset(
-            IRLiteral(0), IRLabel("BUCKET_HEADERS", is_symbol=True)
-        )
-        bucket_hdr_location = builder.add(bucket_headers_addr, bucket_hdr_offset)
+    # Load bucket header from data section
+    # Location = BUCKET_HEADERS + bucket_id * 5
+    bucket_hdr_offset = builder.mul(bucket_id_var, IRLiteral(SZ_BUCKET_HEADER))
+    bucket_headers_addr = builder.offset(
+        IRLiteral(0), IRLabel("BUCKET_HEADERS", is_symbol=True)
+    )
+    bucket_hdr_location = builder.add(bucket_headers_addr, bucket_hdr_offset)
 
-        # Copy 5-byte header to memory at offset (32 - 5) = 27
-        # so mload(0) reads it right-aligned in a 32-byte word
-        codegen_ctx = VenomCodegenContext(module_ctx=module_t, builder=builder)
-        header_buf = codegen_ctx.allocate_buffer(32, annotation="header")
-        # this mstore is here to make sure that the value in the
-        # memory is zero out size we do not overwrite it fully
-        builder.mstore(header_buf._ptr, 0)
-        dst_buf = builder.add(header_buf._ptr, IRLiteral(32 - SZ_BUCKET_HEADER))
-        builder.codecopy(dst_buf, bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
-        hdr_info = builder.mload(header_buf._ptr)
+    # Copy 5-byte header to memory at offset (32 - 5) = 27
+    # so mload(0) reads it right-aligned in a 32-byte word
+    codegen_ctx = VenomCodegenContext(module_ctx=module_t, builder=builder)
+    header_buf = codegen_ctx.allocate_buffer(32, annotation="header")
+    # this mstore is here to make sure that the value in the
+    # memory is zero out size we do not overwrite it fully
+    builder.mstore(header_buf._ptr, 0)
+    dst_buf = builder.add(header_buf._ptr, IRLiteral(32 - SZ_BUCKET_HEADER))
+    builder.codecopy(dst_buf, bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
+    hdr_info = builder.mload(header_buf._ptr)
 
-        # Extract bucket header fields:
-        # hdr_info layout (right-aligned in 32 bytes):
-        #   [unused...] [magic:2] [location:2] [size:1]
-        # After mload(0), the 5 bytes are in the low 40 bits
-        bucket_location = builder.and_(IRLiteral(0xFFFF), builder.shr(IRLiteral(8), hdr_info))
-        bucket_magic = builder.shr(IRLiteral(24), hdr_info)
-        bucket_size = builder.and_(IRLiteral(0xFF), hdr_info)
+    # Extract bucket header fields:
+    # hdr_info layout (right-aligned in 32 bytes):
+    #   [unused...] [magic:2] [location:2] [size:1]
+    # After mload(0), the 5 bytes are in the low 40 bits
+    bucket_location = builder.and_(IRLiteral(0xFFFF), builder.shr(IRLiteral(8), hdr_info))
+    bucket_magic = builder.shr(IRLiteral(24), hdr_info)
+    bucket_size = builder.and_(IRLiteral(0xFF), hdr_info)
 
-        # Compute func_id = ((method_id * bucket_magic) >> BITS_MAGIC) % bucket_size
-        magic_product = builder.mul(bucket_magic, method_id)
-        shifted = builder.shr(IRLiteral(jumptable_utils.BITS_MAGIC), magic_product)
-        func_id = builder.mod(shifted, bucket_size)
+    # Compute func_id = ((method_id * bucket_magic) >> BITS_MAGIC) % bucket_size
+    magic_product = builder.mul(bucket_magic, method_id)
+    shifted = builder.shr(IRLiteral(jumptable_utils.BITS_MAGIC), magic_product)
+    func_id = builder.mod(shifted, bucket_size)
 
-        # Load function info from bucket
-        # Location = bucket_location + func_id * func_info_size
-        func_info_offset = builder.mul(func_id, IRLiteral(func_info_size))
-        func_info_location = builder.add(bucket_location, func_info_offset)
+    # Load function info from bucket
+    # Location = bucket_location + func_id * func_info_size
+    func_info_offset = builder.mul(func_id, IRLiteral(func_info_size))
+    func_info_location = builder.add(bucket_location, func_info_offset)
 
-        # Copy function info to memory
-        codegen_ctx = VenomCodegenContext(module_ctx=module_t, builder=builder)
-        header_buf = codegen_ctx.allocate_buffer(32)
-        # this mstore is here to make sure that the value in the
-        # memory is zero out size we do not overwrite it fully
-        builder.mstore(header_buf._ptr, 0)
-        dst_buf = builder.add(header_buf._ptr, IRLiteral(32 - func_info_size))
-        assert func_info_size >= SZ_BUCKET_HEADER  # otherwise mload will have dirty bytes
-        builder.codecopy(dst_buf, func_info_location, IRLiteral(func_info_size))
-        func_info = builder.mload(header_buf._ptr)
+    # Copy function info to memory
+    codegen_ctx = VenomCodegenContext(module_ctx=module_t, builder=builder)
+    header_buf = codegen_ctx.allocate_buffer(32)
+    # this mstore is here to make sure that the value in the
+    # memory is zero out size we do not overwrite it fully
+    builder.mstore(header_buf._ptr, 0)
+    dst_buf = builder.add(header_buf._ptr, IRLiteral(32 - func_info_size))
+    assert func_info_size >= SZ_BUCKET_HEADER  # otherwise mload will have dirty bytes
+    builder.codecopy(dst_buf, func_info_location, IRLiteral(func_info_size))
+    func_info = builder.mload(header_buf._ptr)
 
-        # Extract function info fields:
-        # func_info layout (right-aligned):
-        #   [method_id:4] [label:2] [metadata:FN_METADATA_BYTES]
-        fn_metadata_mask = 2 ** (FN_METADATA_BYTES * 8) - 1
-        calldatasize_mask = fn_metadata_mask - 1  # ex. 0xFFFE (low bit is nonpayable flag)
+    # Extract function info fields:
+    # func_info layout (right-aligned):
+    #   [method_id:4] [label:2] [metadata:FN_METADATA_BYTES]
+    fn_metadata_mask = 2 ** (FN_METADATA_BYTES * 8) - 1
+    calldatasize_mask = fn_metadata_mask - 1  # ex. 0xFFFE (low bit is nonpayable flag)
 
-        is_nonpayable = builder.and_(IRLiteral(1), func_info)
-        expected_calldatasize = builder.and_(IRLiteral(calldatasize_mask), func_info)
+    is_nonpayable = builder.and_(IRLiteral(1), func_info)
+    expected_calldatasize = builder.and_(IRLiteral(calldatasize_mask), func_info)
 
-        label_bits_ofst = FN_METADATA_BYTES * 8
-        function_label = builder.and_(
-            IRLiteral(0xFFFF), builder.shr(IRLiteral(label_bits_ofst), func_info)
-        )
-        method_id_bits_ofst = (FN_METADATA_BYTES + 2) * 8
-        function_method_id = builder.shr(IRLiteral(method_id_bits_ofst), func_info)
+    label_bits_ofst = FN_METADATA_BYTES * 8
+    function_label = builder.and_(
+        IRLiteral(0xFFFF), builder.shr(IRLiteral(label_bits_ofst), func_info)
+    )
+    method_id_bits_ofst = (FN_METADATA_BYTES + 2) * 8
+    function_method_id = builder.shr(IRLiteral(method_id_bits_ofst), func_info)
 
-        # Check method_id is correct (handles trailing zeros case)
-        calldatasize_valid = builder.gt(builder.calldatasize(), IRLiteral(3))
-        method_id_correct = builder.eq(function_method_id, method_id)
-        should_continue = builder.and_(calldatasize_valid, method_id_correct)
-        should_fallback = builder.iszero(should_continue)
+    # Check method_id is correct (handles trailing zeros case)
+    calldatasize_valid = builder.gt(builder.calldatasize(), IRLiteral(3))
+    method_id_correct = builder.eq(function_method_id, method_id)
+    should_continue = builder.and_(calldatasize_valid, method_id_correct)
+    should_fallback = builder.iszero(should_continue)
 
-        # If method_id doesn't match, goto fallback
-        check_passed_bb = builder.create_block("check_passed")
-        builder.jnz(should_fallback, fallback_bb.label, check_passed_bb.label)
+    # If method_id doesn't match, goto fallback
+    check_passed_bb = builder.create_block("check_passed")
+    builder.jnz(should_fallback, fallback_bb.label, check_passed_bb.label)
 
-        builder.append_block(check_passed_bb)
-        builder.set_block(check_passed_bb)
+    builder.append_block(check_passed_bb)
+    builder.set_block(check_passed_bb)
 
-        # Assert callvalue == 0 if nonpayable
-        bad_callvalue = builder.mul(is_nonpayable, builder.callvalue())
-        # Assert calldatasize >= expected
-        bad_calldatasize = builder.lt(builder.calldatasize(), expected_calldatasize)
-        failed_entry_conditions = builder.or_(bad_callvalue, bad_calldatasize)
-        builder.assert_(builder.iszero(failed_entry_conditions))
+    # Assert callvalue == 0 if nonpayable
+    bad_callvalue = builder.mul(is_nonpayable, builder.callvalue())
+    # Assert calldatasize >= expected
+    bad_calldatasize = builder.lt(builder.calldatasize(), expected_calldatasize)
+    failed_entry_conditions = builder.or_(bad_callvalue, bad_calldatasize)
+    builder.assert_(builder.iszero(failed_entry_conditions))
 
-        # Dynamic jump to function label
-        jump_targets = list(entry_point_labels.values())
-        builder.djmp(function_label, *jump_targets)
+    # Dynamic jump to function label
+    jump_targets = list(entry_point_labels.values())
+    builder.djmp(function_label, *jump_targets)
 
-        # Create data sections for each bucket's function info
-        for bucket_id_val, bucket in jumptable_info.items():
-            runtime_ctx.append_data_section(IRLabel(f"bucket_{bucket_id_val}", is_symbol=True))
+    # Create data sections for each bucket's function info
+    for bucket_id_val, bucket in jumptable_info.items():
+        runtime_ctx.append_data_section(IRLabel(f"bucket_{bucket_id_val}", is_symbol=True))
 
-            # Sort function infos by their image (hash position)
-            for mid in bucket.method_ids_image_order:
-                # Find the matching_sig for this method_id
-                matching_sig: Optional[str] = None
-                for sig in all_entry_points.keys():
-                    if method_id_int(sig) == mid:
-                        matching_sig = sig
-                        break
-                assert matching_sig is not None
+        # Sort function infos by their image (hash position)
+        for mid in bucket.method_ids_image_order:
+            # Find the matching_sig for this method_id
+            matching_sig: Optional[str] = None
+            for sig in all_entry_points.keys():
+                if method_id_int(sig) == mid:
+                    matching_sig = sig
+                    break
+            assert matching_sig is not None
 
-                _, entry_info = all_entry_points[matching_sig]
+            _, entry_info = all_entry_points[matching_sig]
 
-                # method_id <4 bytes>
-                runtime_ctx.append_data_item(mid.to_bytes(4, "big"))
-                # label <2 bytes> (symbol reference)
-                runtime_ctx.append_data_item(entry_point_labels[matching_sig])
-                # metadata: min_calldatasize | is_nonpayable (packed)
-                func_metadata_int = entry_info.min_calldatasize | int(
-                    not entry_info.func_t.is_payable
-                )
-                runtime_ctx.append_data_item(func_metadata_int.to_bytes(FN_METADATA_BYTES, "big"))
+            # method_id <4 bytes>
+            runtime_ctx.append_data_item(mid.to_bytes(4, "big"))
+            # label <2 bytes> (symbol reference)
+            runtime_ctx.append_data_item(entry_point_labels[matching_sig])
+            # metadata: min_calldatasize | is_nonpayable (packed)
+            func_metadata_int = entry_info.min_calldatasize | int(
+                not entry_info.func_t.is_payable
+            )
+            runtime_ctx.append_data_item(func_metadata_int.to_bytes(FN_METADATA_BYTES, "big"))
 
-        # Generate entry point blocks for each function
-        for abi_sig, (func_ast, entry_info) in all_entry_points.items():
-            label = entry_point_labels[abi_sig]
-            func_t = entry_info.func_t
-            has_kwargs = len(func_t.keyword_args) > 0
+    # Generate entry point blocks for each function
+    for abi_sig, (func_ast, entry_info) in all_entry_points.items():
+        label = entry_point_labels[abi_sig]
+        func_t = entry_info.func_t
+        has_kwargs = len(func_t.keyword_args) > 0
 
-            entry_bb = builder.create_block(f"entry_{method_id_int(abi_sig):08x}")
-            entry_bb.label = label
-            builder.append_block(entry_bb)
-            builder.set_block(entry_bb)
+        entry_bb = builder.create_block(f"entry_{method_id_int(abi_sig):08x}")
+        entry_bb.label = label
+        builder.append_block(entry_bb)
+        builder.set_block(entry_bb)
 
-            if has_kwargs:
-                # Entry point: handle kwargs, jump to common body
-                assert func_t._function_id is not None  # help mypy
-                common_label = common_labels[func_t._function_id]
-                _generate_entry_point_kwargs(builder, module_t, func_t, entry_info, common_label)
-            else:
-                # No kwargs: generate body directly (entry checks already done in dispatcher)
-                _generate_external_function_body(builder, module_t, func_t, func_ast, entry_info)
+        if has_kwargs:
+            # Entry point: handle kwargs, jump to common body
+            assert func_t._function_id is not None  # help mypy
+            common_label = common_labels[func_t._function_id]
+            _generate_entry_point_kwargs(builder, module_t, func_t, entry_info, common_label)
+        else:
+            # No kwargs: generate body directly (entry checks already done in dispatcher)
+            _generate_external_function_body(builder, module_t, func_t, func_ast, entry_info)
 
     # Generate deferred common bodies for functions with kwargs
     for func_ast, func_t, common_label in deferred_common_bodies:
