@@ -8,6 +8,8 @@ class DallocaPromotion(IRPass):
     folded to a compile-time literal (e.g. by SCCP).
     """
 
+    required_successors = ("ConcretizeMemLocPass",)
+
     def run_pass(self):
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
