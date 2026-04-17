@@ -1,6 +1,8 @@
 import pytest
 
+from vyper.builtins.functions import BUILTIN_FUNCTIONS
 from vyper.exceptions import InvalidType, UnknownType
+from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS
 
 fail_list = [
     """
@@ -65,18 +67,10 @@ v: uint256
 def foo():
     x: self.v = 0
     """,
-    # environment variables
-    "x: block",
-    "x: chain",
-    "x: tx",
-    "x: msg",
-    "x: self",
-    # builtin functions
-    "x: len",
-    "x: max",
-    "x: min",
-    "x: concat",
-    "x: sha256",
+    # environment variables and builtin functions used as types should be invalid
+    *[f"x: {name}" for name in CONSTANT_ENVIRONMENT_VARS],
+    *[f"x: {name}" for name in MUTABLE_ENVIRONMENT_VARS],
+    *[f"x: {name}" for name in BUILTIN_FUNCTIONS],
 ]
 
 
