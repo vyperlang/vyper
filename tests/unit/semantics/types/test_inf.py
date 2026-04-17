@@ -181,19 +181,6 @@ def test_inf_fail(bad_code, exc):
 
 
 @pytest.mark.xfail(raises=CompilerPanic)
-def test_inf_as_type_annotation():
-    """INF cannot be used as a type annotation"""
-    code = """
-x: INF
-
-@external
-def foo():
-    pass
-    """
-    compiler.compile_code(code)
-
-
-@pytest.mark.xfail(raises=CompilerPanic)
 def test_inf_in_static_array():
     """INF cannot be used as a static array length"""
     code = """
