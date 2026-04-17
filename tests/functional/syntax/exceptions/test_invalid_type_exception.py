@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import InvalidType, UnknownType
+from vyper.exceptions import CompilerPanic, InvalidType, UnknownType
 
 fail_list = [
     """
@@ -13,12 +13,17 @@ x: HashMap[int, int128]
 struct A:
     b: B
     """,
+    """
+v: uint256
+x: v # unknown type because to refer to `v` it would be `self.v`
+    """,
 ]
 
 
 @pytest.mark.parametrize("bad_code", fail_list)
-def test_unknown_type_exception(bad_code, get_contract, assert_compile_failed):
-    assert_compile_failed(lambda: get_contract(bad_code), UnknownType)
+def test_unknown_type_exception(bad_code, get_contract):
+    with pytest.raises(UnknownType):
+        get_contract(bad_code)
 
 
 invalid_list = [
@@ -50,9 +55,45 @@ x: Bytes <= wei
     """
 x: 5
     """,
+    """
+v: uint256
+
+def foo():
+    x: self.v = 0
+    """,
 ]
 
 
 @pytest.mark.parametrize("bad_code", invalid_list)
-def test_invalid_type_exception(bad_code, get_contract, assert_compile_failed):
-    assert_compile_failed(lambda: get_contract(bad_code), InvalidType)
+def test_invalid_type_exception(bad_code, get_contract):
+    with pytest.raises(InvalidType):
+        get_contract(bad_code)
+
+
+# TODO: Once not xfail, merge with invalid_list
+invalid_list_xfail = [
+    # environment variables
+    "x: block",
+    "x: chain",
+    "x: tx",
+    "x: msg",
+    "x: self",
+    # builtin functions
+    "x: len",
+    "x: max",
+    "x: min",
+    "x: concat",
+    "x: sha256",
+    # variable
+    """
+v: constant(uint256) = 0
+x: v
+    """,
+]
+
+
+@pytest.mark.xfail(raises=CompilerPanic)
+@pytest.mark.parametrize("bad_code", invalid_list_xfail)
+def test_non_type_as_annotation(bad_code, get_contract):
+    with pytest.raises(InvalidType):
+        get_contract(bad_code)
