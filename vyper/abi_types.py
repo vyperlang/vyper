@@ -186,7 +186,7 @@ class ABI_String(ABI_Bytes):
 
 class ABI_DynamicArray(ABIType):
     def __init__(self, subtyp, elems_bound):
-        if not elems_bound >= 0:
+        if elems_bound is not INF and not elems_bound >= 0:
             raise InvalidABIType("Negative bound provided to DynamicArray")
 
         self.subtyp = subtyp

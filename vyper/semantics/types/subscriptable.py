@@ -2,7 +2,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
-from vyper.exceptions import ArrayIndexException, InvalidType, StructureException
+from vyper.exceptions import ArrayIndexException, CompilerPanic, InvalidType, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.infinity import INF, Inf
@@ -109,12 +109,13 @@ class _SequenceT(_SubscriptableT):
 
     _is_array_type: bool = True
 
-    def __init__(self, value_type: VyperType, length: int):
-        if not 0 < length < 2**256:
-            raise InvalidType("Array length is invalid")
+    def __init__(self, value_type: VyperType, length: int | Inf):
+        if length is not INF:
+            if not 0 < length < 2**256:
+                raise InvalidType("Array length is invalid")
 
-        if length >= 2**64:
-            vyper_warn(VyperWarning("Use of large arrays can be unsafe!"))
+            if length >= 2**64:
+                vyper_warn(VyperWarning("Use of large arrays can be unsafe!"))
 
         super().__init__(UINT256_T, value_type)
         self.length = length
@@ -239,7 +240,7 @@ class DArrayT(_SequenceT):
 
     _id = "DynArray"  # CMC 2024-03-03 maybe this would be better as repr(self)
 
-    def __init__(self, value_type: VyperType, length: int) -> None:
+    def __init__(self, value_type: VyperType, length: int | Inf) -> None:
         super().__init__(value_type, length)
 
         from vyper.semantics.types.function import MemberFunctionT
@@ -277,6 +278,8 @@ class DArrayT(_SequenceT):
     # TODO rename me to memory_bytes_required
     @property
     def size_in_bytes(self):
+        if self.length is INF:
+            raise CompilerPanic("DynArray[..., INF] don't have a size!")
         # one length word + size of the array items
         return 32 + self.value_type.size_in_bytes * self.length
 
@@ -285,8 +288,19 @@ class DArrayT(_SequenceT):
         # if not isinstance(other, (DArrayT, SArrayT)):
         if not isinstance(self, type(other)):
             return False
+
+        if self.length is INF:
+            # INF >= INF
+            # INF >= n
+            return True
+
+        if other.length is INF:
+            # n < INF
+            return False
+
         if self.length < other.length:
             return False
+
         return self.value_type.compare_type(other.value_type)
 
     @classmethod
@@ -300,12 +314,7 @@ class DArrayT(_SequenceT):
         if not isinstance(node.slice, vy_ast.Tuple) or len(node.slice.elements) != 2:
             raise StructureException(err_msg, node.slice)
 
-        length_node = node.slice.elements[1].reduced()
-
-        if not isinstance(length_node, vy_ast.Int):
-            raise StructureException(err_msg, length_node)
-
-        length = length_node.value
+        length = get_index_value(node.slice.elements[1])
 
         value_node = node.slice.elements[0]
         value_type = type_from_annotation(value_node)

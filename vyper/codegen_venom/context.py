@@ -18,11 +18,17 @@ from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.constants import IDENTITY_PRECOMPILE
 from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import CompilerPanic, MemoryAllocationException, StateAccessViolation
+from vyper.exceptions import (
+    CodegenPanic,
+    CompilerPanic,
+    MemoryAllocationException,
+    StateAccessViolation,
+)
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import TupleT, VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
+from vyper.semantics.types.infinity import INF
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.semantics.types.user import StructT
@@ -495,6 +501,8 @@ class VenomCodegenContext:
         self, dst: IRVariable, dst_typ: DArrayT, src: IROperand, src_typ: DArrayT
     ) -> None:
         """Copy DynArray in memory when source and destination element layouts may differ."""
+        if dst_typ.length is INF:
+            raise CodegenPanic("Not yet implemented for Unbounded Sequence Types")
         b = self.builder
         assert isinstance(src, IRVariable)
         length = b.mload(src)
