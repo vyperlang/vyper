@@ -605,7 +605,7 @@ class VenomCompiler:
         elif opcode == "alloca":
             pass
         elif opcode == "dalloca":
-            self._emit_dalloca(assembly, inst)
+            self._emit_dalloca(assembly)
         elif opcode == "memtop":
             assembly.append("MSIZE")
         elif opcode == "param":
@@ -702,7 +702,7 @@ class VenomCompiler:
 
         return apply_line_numbers(inst, assembly)
 
-    def _emit_dalloca(self, assembly: list[AssemblyInstruction], inst: IRInstruction) -> None:
+    def _emit_dalloca(self, assembly: list[AssemblyInstruction]) -> None:
         # The function entry primes MSIZE to at least 32, so
         # `msize + size - 32` cannot underflow.
         assembly.extend(["PUSH1", 0x20, "MSIZE", "DUP1", "SWAP3", "ADD", "SUB", "MLOAD", "POP"])
