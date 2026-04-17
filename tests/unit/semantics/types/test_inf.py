@@ -79,6 +79,15 @@ def foo(x: Bytes[inf]):
     """,
         UndeclaredDefinition,
     ),
+    # lowercase inf in DynArray
+    (
+        """
+@external
+def foo(x: DynArray[uint256, inf]):
+    pass
+    """,
+        UndeclaredDefinition,
+    ),
     # INF in arithmetic (invalid) - TypeMismatch for arithmetic operations
     (
         """
@@ -97,6 +106,71 @@ def foo(x: Bytes[INF - 1]):
     """,
         TypeMismatch,
     ),
+    # DynArray INF addition (invalid)
+    (
+        """
+@external
+def foo(x: DynArray[uint256, INF + 1]):
+    pass
+    """,
+        TypeMismatch,
+    ),
+    # DynArray INF subtraction (invalid)
+    (
+        """
+@external
+def foo(x: DynArray[uint256, INF - 1]):
+    pass
+    """,
+        TypeMismatch,
+    ),
+    # INF as a value expression
+    (
+        """
+@external
+def foo():
+    x: uint256 = INF
+    """,
+        TypeMismatch,
+    ),
+    # INF in a return statement
+    (
+        """
+@external
+def foo() -> uint256:
+    return INF
+    """,
+        TypeMismatch,
+    ),
+    # INF as a constant value
+    (
+        """
+X: constant(uint256) = INF
+    """,
+        TypeMismatch,
+    ),
+    # INF as a function argument
+    (
+        """
+@internal
+def bar(x: uint256):
+    pass
+
+@external
+def foo():
+    self.bar(INF)
+    """,
+        TypeMismatch,
+    ),
+    # INF as a default parameter value
+    (
+        """
+@external
+def foo(x: uint256 = INF):
+    pass
+    """,
+        TypeMismatch,
+    ),
 ]
 
 
@@ -104,6 +178,30 @@ def foo(x: Bytes[INF - 1]):
 def test_inf_fail(bad_code, exc):
     with pytest.raises(exc):
         compiler.compile_code(bad_code)
+
+
+@pytest.mark.xfail(raises=CompilerPanic)
+def test_inf_as_type_annotation():
+    """INF cannot be used as a type annotation"""
+    code = """
+x: INF
+
+@external
+def foo():
+    pass
+    """
+    compiler.compile_code(code)
+
+
+@pytest.mark.xfail(raises=CompilerPanic)
+def test_inf_in_static_array():
+    """INF cannot be used as a static array length"""
+    code = """
+@external
+def foo(x: uint256[INF]):
+    pass
+    """
+    compiler.compile_code(code)
 
 
 @pytest.mark.xfail(raises=CompilerPanic)
