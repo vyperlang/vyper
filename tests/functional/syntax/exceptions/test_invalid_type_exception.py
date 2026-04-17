@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import CompilerPanic, InvalidType, UnknownType
+from vyper.exceptions import InvalidType, UnknownType
 
 fail_list = [
     """
@@ -56,22 +56,15 @@ x: Bytes <= wei
 x: 5
     """,
     """
+v: constant(uint256) = 0
+x: v
+    """,
+    """
 v: uint256
 
 def foo():
     x: self.v = 0
     """,
-]
-
-
-@pytest.mark.parametrize("bad_code", invalid_list)
-def test_invalid_type_exception(bad_code, get_contract):
-    with pytest.raises(InvalidType):
-        get_contract(bad_code)
-
-
-# TODO: Once not xfail, merge with invalid_list
-invalid_list_xfail = [
     # environment variables
     "x: block",
     "x: chain",
@@ -84,16 +77,10 @@ invalid_list_xfail = [
     "x: min",
     "x: concat",
     "x: sha256",
-    # variable
-    """
-v: constant(uint256) = 0
-x: v
-    """,
 ]
 
 
-@pytest.mark.xfail(raises=CompilerPanic)
-@pytest.mark.parametrize("bad_code", invalid_list_xfail)
-def test_non_type_as_annotation(bad_code, get_contract):
+@pytest.mark.parametrize("bad_code", invalid_list)
+def test_invalid_type_exception(bad_code, get_contract):
     with pytest.raises(InvalidType):
         get_contract(bad_code)

@@ -2,7 +2,6 @@ from vyper import ast as vy_ast
 from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import (
     ArrayIndexException,
-    CompilerPanic,
     FeatureException,
     InstantiationException,
     InvalidType,
@@ -172,7 +171,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         typ_ = typ_.module_t
 
     if not isinstance(typ_, VyperType):
-        raise CompilerPanic(f"Not a type: {typ_}", node)
+        raise InvalidType(err_msg, node)
 
     return typ_
 
