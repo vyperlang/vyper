@@ -1,15 +1,16 @@
-class Inf:
+import enum
+
+
+class Inf(enum.Enum):
     """Singleton representing unbounded length."""
 
-    _instance = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+    INF = "INF"
 
     def __repr__(self):
         return "INF"
 
+    def __str__(self):
+        return "INF"
 
-INF = Inf()
+
+INF = Inf.INF

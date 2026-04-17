@@ -8,7 +8,7 @@ from vyper.semantics.types.utils import type_from_annotation
 
 
 def test_inf_singleton():
-    assert INF is Inf()
+    assert INF is Inf.INF
 
 
 def test_inf_repr():
