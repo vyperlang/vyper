@@ -269,14 +269,42 @@ def test_clear_literals(contract, assert_compile_failed, get_contract):
     assert_compile_failed(lambda: get_contract(contract), Exception)
 
 
-def test_empty_constant_name_not_a_type_regression_4865():
+def test_empty_constant_name_not_a_type():
     code = """
 MAX_MESSAGES: constant(uint256) = 64
 
 @external
-def parse_blob(blob: Bytes[4096]):
-    starts: DynArray[uint16, MAX_MESSAGES] = empty(MAX_MESSAGES)
-"""
+def foo():
+    bar: DynArray[uint16, MAX_MESSAGES] = empty(MAX_MESSAGES)
+    """
+    with pytest.raises(InvalidType, match="is not a type"):
+        compile_code(code)
+
+
+def test_empty_constant_name_not_a_type_in_assignment():
+    code = """
+MESSAGE: constant(String[10]) = "Hello"
+
+@external
+def foo():
+    bar: String[10] = empty(MESSAGE)
+    """
+    with pytest.raises(InvalidType, match="is not a type"):
+        compile_code(code)
+
+
+def test_empty_immutable_name_not_a_type():
+    code = """
+FOO: immutable(uint256)
+
+@deploy
+def __init__():
+    FOO = 1
+
+@external
+def foo():
+    bar: uint256 = empty(FOO)
+    """
     with pytest.raises(InvalidType, match="is not a type"):
         compile_code(code)
 
