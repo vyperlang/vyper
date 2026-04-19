@@ -15,6 +15,7 @@ from vyper.evm.address_space import (
     AddrSpace,
 )
 from vyper.exceptions import CompilerPanic
+from vyper.utils import MemoryPositions
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
@@ -181,6 +182,8 @@ class BasePtrAnalysis(IRAnalysis):
             return MemoryLocation(offset=0, size=32)
         if inst.opcode == "invoke":
             return MemoryLocation.UNDEFINED
+        if inst.opcode == "dalloca":
+            return MemoryLocation(offset=MemoryPositions.FREE_MEM_PTR, size=32)
 
         if inst.get_write_effects() & effects.MEMORY == effects.EMPTY:
             return MemoryLocation.EMPTY
@@ -200,10 +203,7 @@ class BasePtrAnalysis(IRAnalysis):
         if inst.opcode == "memtop":
             return MemoryLocation.UNDEFINED
         if inst.opcode == "dalloca":
-            # dalloca uses MLOAD only to advance MSIZE; the loaded value is
-            # discarded. Ordering against other memory-size operations is
-            # handled by the MEMORY_SIZE effect.
-            return MemoryLocation.EMPTY
+            return MemoryLocation(offset=MemoryPositions.FREE_MEM_PTR, size=32)
 
         if inst.get_read_effects() & effects.MEMORY == effects.EMPTY:
             return MemoryLocation.EMPTY

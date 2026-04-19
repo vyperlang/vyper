@@ -8,7 +8,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.effects import Effects
 from vyper.venom.parser import parse_venom
-from vyper.venom.passes import ConcretizeMemLocPass
+from vyper.venom.passes import ConcretizeMemLocPass, DallocaSaveRestore
 from vyper.venom.passes.common_subexpression_elimination import CSE
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.passes.load_elimination import LoadElimination
@@ -22,7 +22,7 @@ def _run_cse(pre: str):
     return ctx
 
 
-def test_dalloca_effects_track_memory_size_without_content_write():
+def test_dalloca_effects_are_memory_only():
     ctx = parse_from_basic_block(
         """
         main:
@@ -34,12 +34,15 @@ def test_dalloca_effects_track_memory_size_without_content_write():
     inst = fn.entry.instructions[0]
 
     assert Effects.MEMORY in inst.get_read_effects()
-    assert Effects.MEMORY_SIZE in inst.get_read_effects()
-    assert Effects.MEMORY not in inst.get_write_effects()
-    assert Effects.MEMORY_SIZE in inst.get_write_effects()
+    assert Effects.MEMORY_SIZE not in inst.get_read_effects()
+    assert Effects.MEMORY in inst.get_write_effects()
+    assert Effects.MEMORY_SIZE not in inst.get_write_effects()
 
 
 def test_cse_does_not_merge_memtop_across_dalloca():
+    # dalloca writes MEMORY (the FMP slot); memtop reads MEMORY. The
+    # coarse effect-based alias model conservatively prevents CSE'ing
+    # the two memtops across the dalloca.
     ctx = _run_cse(
         """
         main:
@@ -106,68 +109,81 @@ def _run_probe(pre: str, calldata: bytes) -> tuple[int, int]:
 
 
 @pytest.mark.parametrize(
-    ("calldata", "expected_ptr", "expected_msize"),
-    [(b"", 32, 32), (b"x", 32, 64), (b"x" * 31, 32, 64), (b"x" * 32, 32, 64), (b"x" * 33, 32, 96)],
+    ("calldata", "expected_ptr1", "expected_ptr2"),
+    [
+        (b"", 96, 96),
+        (b"x", 96, 128),
+        (b"x" * 31, 96, 128),
+        (b"x" * 32, 96, 128),
+        (b"x" * 33, 96, 160),
+    ],
 )
-def test_dalloca_handles_small_sizes(calldata, expected_ptr, expected_msize):
-    ptr, msize = _run_probe(
+def test_dalloca_handles_small_sizes(calldata, expected_ptr1, expected_ptr2):
+    # Run two back-to-back dallocas and assert the second pointer equals
+    # the first plus ceil32(size). This verifies the FMP advance math.
+    ptr1, ptr2 = _run_probe(
         """
         main:
             %size = calldatasize
-            %dyn = dalloca %size
-            %after = memtop
-            mstore 0, %dyn
-            mstore 32, %after
+            %a = dalloca %size
+            %b = dalloca 32
+            mstore 0, %a
+            mstore 32, %b
             return 0, 64
         """,
         calldata,
     )
 
-    assert ptr == expected_ptr
-    assert msize == expected_msize
+    assert ptr1 == expected_ptr1
+    assert ptr2 == expected_ptr2
 
 
 @pytest.mark.parametrize(
-    ("calldata", "expected_msize"),
-    [(b"", 64), (b"x", 96), (b"x" * 31, 96), (b"x" * 32, 96), (b"x" * 33, 128)],
+    ("calldata", "expected_ptr2"),
+    [(b"", 96), (b"x", 128), (b"x" * 31, 128), (b"x" * 32, 128), (b"x" * 33, 160)],
 )
-def test_dalloca_starts_above_static_frame(calldata, expected_msize):
-    ptr, msize = _run_probe(
+def test_dalloca_starts_above_static_frame(calldata, expected_ptr2):
+    # The static alloca occupies positions 0..64. fn_eom includes the FMP
+    # slot at 64..96, so the first dalloca starts at 96 regardless of the
+    # static alloca size (as long as it fits below the FMP slot).
+    ptr1, ptr2 = _run_probe(
         """
         main:
             %static = alloca 64
             mstore %static, 0x1111
             %size = calldatasize
-            %dyn = dalloca %size
-            %after = memtop
-            mstore 0, %dyn
-            mstore 32, %after
+            %a = dalloca %size
+            %b = dalloca 32
+            mstore 0, %a
+            mstore 32, %b
             return 0, 64
         """,
         calldata,
     )
 
-    assert ptr == 64
-    assert msize == expected_msize
+    assert ptr1 == 96
+    assert ptr2 == expected_ptr2
 
 
 def test_dalloca_static_frame_prime_is_word_aligned():
-    ptr, msize = _run_probe(
+    # A static alloca of 33 bytes forces fn_eom to be word-aligned above
+    # 33; combined with the FMP slot, initial FMP is at least 96.
+    ptr1, ptr2 = _run_probe(
         """
         main:
             %static = alloca 33
             mstore %static, 0x1111
-            %dyn = dalloca 0
-            %after = memtop
-            mstore 0, %dyn
-            mstore 32, %after
+            %a = dalloca 0
+            %b = dalloca 32
+            mstore 0, %a
+            mstore 32, %b
             return 0, 64
         """,
         b"",
     )
 
-    assert ptr == 64
-    assert msize == 64
+    assert ptr1 == 96
+    assert ptr2 == 96
 
 
 def test_dalloca_rejects_fixed_stack_spills():
@@ -229,7 +245,10 @@ def test_dalloca_rejects_fixed_stack_spills():
         VenomCompiler(ctx).generate_evm_assembly()
 
 
-def test_dalloca_does_not_invalidate_memory_content_loads():
+def test_dalloca_pessimizes_load_elimination():
+    # dalloca writes MEMORY (the FMP slot) which LoadElimination treats
+    # as "writes anywhere". Mloads across dalloca are conservatively not
+    # forwarded. This is a pessimization but correctness-preserving.
     pre = """
     main:
         %ptr = alloca 32
@@ -245,7 +264,7 @@ def test_dalloca_does_not_invalidate_memory_content_loads():
         mstore %ptr, 7
         %a = 7
         %dyn = dalloca 32
-        %b = %a
+        %b = mload %ptr
         sink %a, %b, %dyn
     """
 
@@ -257,6 +276,9 @@ def test_dalloca_does_not_invalidate_memory_content_loads():
 
 
 def test_dalloca_allocations_do_not_alias_each_other():
+    # dalloca's MEMORY write effect conservatively clears the mload
+    # lattice, so LoadElimination does not forward %x. The test here
+    # documents that the IR is left unchanged in this pessimistic case.
     pre = """
     main:
         %a = dalloca 32
@@ -266,18 +288,97 @@ def test_dalloca_allocations_do_not_alias_each_other():
         %x = mload %a
         sink %x, %a, %b
     """
-    post = """
-    main:
-        %a = dalloca 32
-        mstore %a, 1
-        %b = dalloca 32
-        mstore %b, 2
-        %x = 1
-        sink %x, %a, %b
-    """
 
     ctx = parse_from_basic_block(pre)
     fn = next(iter(ctx.functions.values()))
     LoadElimination(IRAnalysesCache(fn), fn).run_pass()
 
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    assert_ctx_eq(ctx, parse_from_basic_block(pre))
+
+
+def _run_program(pre: str, calldata: bytes) -> bytes:
+    ctx = parse_venom(pre)
+    # ConcretizeMemLocPass requires that callees be processed before
+    # callers (MemLivenessAnalysis reads the callee's mems_used).
+    # Iterate in reverse declaration order, which matches the order in
+    # these fixtures (main first, callee second).
+    fns = list(ctx.functions.values())
+    for fn in reversed(fns):
+        ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+        DallocaSaveRestore(IRAnalysesCache(fn), fn).run_pass()
+    asm = VenomCompiler(ctx).generate_evm_assembly()
+    bytecode, _ = assembly_to_evm(asm)
+
+    caller = "0x" + "10" * 20
+    addr = "0x" + "20" * 20
+    evm = EVM()
+    evm.set_balance(caller, 1)
+    evm.insert_account_info(addr, AccountInfo(code=bytecode))
+    return evm.message_call(caller=caller, to=addr, calldata=calldata, gas=1_000_000)
+
+
+def test_dalloca_memory_reclaimed_across_call():
+    # A calls B; B dallocas and returns. After B returns, A dallocas at
+    # the same address B just used -- proving FMP was restored.
+    out = _run_program(
+        """
+        function main {
+            main:
+                invoke @callee
+                %p = dalloca 32
+                mstore 0, %p
+                return 0, 32
+        }
+
+        function callee {
+            callee:
+                %retpc = param
+                %b = dalloca 32
+                ret %retpc
+        }
+        """,
+        b"",
+    )
+    ptr_after = int.from_bytes(out[:32], "big")
+    # After the invoke returns, FMP should be restored. The first dalloca
+    # in main should land at the same address the callee's dalloca used.
+    assert ptr_after == 96
+
+
+def test_dalloca_fmp_restored_across_nested_calls():
+    # main dallocas, calls f (which dallocas and calls g which also
+    # dallocas). After the nested invokes unwind, main dallocas again
+    # and that pointer should sit directly above the first dalloca
+    # (proving the nested frames were reclaimed).
+    out = _run_program(
+        """
+        function main {
+            main:
+                %p0 = dalloca 32
+                invoke @f
+                %p1 = dalloca 32
+                mstore 0, %p0
+                mstore 32, %p1
+                return 0, 64
+        }
+
+        function f {
+            f:
+                %retpc = param
+                %a = dalloca 64
+                invoke @g
+                ret %retpc
+        }
+
+        function g {
+            g:
+                %retpc = param
+                %b = dalloca 128
+                ret %retpc
+        }
+        """,
+        b"",
+    )
+    p0 = int.from_bytes(out[:32], "big")
+    p1 = int.from_bytes(out[32:64], "big")
+    assert p1 == p0 + 32

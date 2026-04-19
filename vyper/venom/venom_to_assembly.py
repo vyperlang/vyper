@@ -12,7 +12,7 @@ from vyper.ir.compile_ir import (
     TaggedInstruction,
     optimize_assembly,
 )
-from vyper.utils import OrderedSet, ceil32, wrap256
+from vyper.utils import MemoryPositions, OrderedSet, ceil32, wrap256
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import (
     PSEUDO_INSTRUCTION,
@@ -165,7 +165,10 @@ class VenomCompiler:
 
         asm: list[AssemblyInstruction] = []
 
-        for fn in self.ctx.functions.values():
+        fns = list(self.ctx.functions.values())
+        self._entry_fn = fns[0] if fns else None
+
+        for fn in fns:
             ac = IRAnalysesCache(fn)
 
             self.liveness = ac.request_analysis(LivenessAnalysis)
@@ -210,13 +213,20 @@ class VenomCompiler:
             inst.opcode == "dalloca" for bb in fn.get_basic_blocks() for inst in bb.instructions
         )
 
-    def _prime_dalloca_msize(self, assembly: list[AssemblyInstruction], fn: IRFunction) -> None:
-        if not self._function_has_dalloca(fn):
-            return
+    def _context_has_dalloca(self) -> bool:
+        return any(self._function_has_dalloca(fn) for fn in self.ctx.functions.values())
 
-        msize_floor = max(32, ceil32(self.ctx.mem_allocator.fn_eom.get(fn, 0)))
-        assembly.extend(PUSH(msize_floor - 32))
-        assembly.extend(["MLOAD", "POP"])
+    def _global_max_fn_eom(self) -> int:
+        eoms = [self.ctx.mem_allocator.fn_eom.get(fn, 0) for fn in self.ctx.functions.values()]
+        max_eom = max(eoms, default=0)
+        return ceil32(max_eom)
+
+    def _emit_fmp_init(self, assembly: list[AssemblyInstruction]) -> None:
+        if not self._context_has_dalloca():
+            return
+        assembly.extend(PUSH(self._global_max_fn_eom()))
+        assembly.extend(PUSH(MemoryPositions.FREE_MEM_PTR))
+        assembly.append("MSTORE")
 
     def _stack_reorder(
         self,
@@ -442,8 +452,9 @@ class VenomCompiler:
 
         fn = basicblock.parent
         if basicblock == fn.entry:
+            if fn is self._entry_fn:
+                self._emit_fmp_init(asm)
             self._prepare_stack_for_function(asm, fn, stack)
-            self._prime_dalloca_msize(asm, fn)
 
         if len(self.cfg.cfg_in(basicblock)) == 1:
             self.clean_stack_from_cfg_in(asm, basicblock, stack)
@@ -703,9 +714,21 @@ class VenomCompiler:
         return apply_line_numbers(inst, assembly)
 
     def _emit_dalloca(self, assembly: list[AssemblyInstruction]) -> None:
-        # The function entry primes MSIZE to at least 32, so
-        # `msize + size - 32` cannot underflow.
-        assembly.extend(["PUSH1", 0x20, "MSIZE", "DUP1", "SWAP3", "ADD", "SUB", "MLOAD", "POP"])
+        # Input stack: [..., size]
+        # Output stack: [..., ptr]
+        # ptr = current_fmp; new_fmp = ptr + ceil32(size); write new_fmp back.
+        assembly.extend(PUSH(31))
+        assembly.append("ADD")
+        assembly.extend(PUSH(31))
+        assembly.append("NOT")
+        assembly.append("AND")
+        assembly.extend(PUSH(MemoryPositions.FREE_MEM_PTR))
+        assembly.append("MLOAD")
+        assembly.append("DUP1")
+        assembly.append("SWAP2")
+        assembly.append("ADD")
+        assembly.extend(PUSH(MemoryPositions.FREE_MEM_PTR))
+        assembly.append("MSTORE")
 
     def _optimistic_swap(self, assembly, inst, next_liveness, stack):
         # heuristic: peek at next_liveness to find the next scheduled

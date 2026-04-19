@@ -1,6 +1,6 @@
 from typing import ClassVar
 
-from vyper.utils import OrderedSet
+from vyper.utils import MemoryPositions, OrderedSet
 from vyper.venom.analysis.base_ptr_analysis import Ptr
 from vyper.venom.basicblock import IRInstruction, IRLiteral
 from vyper.venom.function import IRFunction
@@ -32,7 +32,7 @@ class MemoryAllocator:
     def __init__(self):
         self.reserved = set()
 
-        self.global_allocation = set()
+        self.global_allocation = {(MemoryPositions.FREE_MEM_PTR, 32)}
         self.allocated = dict()
         self.mems_used = dict()
         self.fn_eom = dict()

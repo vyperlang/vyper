@@ -429,7 +429,8 @@ class MemoryPositions:
     # RESERVED_SPACE1, RESERVED_SPACE2, and FREE_MEMORY.
     FREE_VAR_SPACE = 0
     FREE_VAR_SPACE2 = 32
-    RESERVED_MEMORY = 64
+    FREE_MEM_PTR = 64
+    RESERVED_MEMORY = 96
 
 
 # Sizes of different data types. Used to clamp types.
