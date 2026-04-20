@@ -23,6 +23,10 @@ class StackSpiller:
         self._next_spill_offset: Optional[int] = None
         self._current_function: Optional[IRFunction] = None
         self.spilling_disabled = False
+        self.peak_spill_end = 0
+
+    def reset_peak_spill_end(self) -> None:
+        self.peak_spill_end = 0
 
     def set_current_function(self, fn: Optional[IRFunction]) -> None:
         """Set the current function being processed."""
@@ -211,4 +215,6 @@ class StackSpiller:
         offset = self._next_spill_offset
         if not dry_run:
             self._next_spill_offset += 32
+            if self._next_spill_offset > self.peak_spill_end:
+                self.peak_spill_end = self._next_spill_offset
         return offset

@@ -162,6 +162,7 @@ class VenomCompiler:
     def generate_evm_assembly(self, no_optimize: bool = False) -> list[AssemblyInstruction]:
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
+        self.spiller.reset_peak_spill_end()
 
         asm: list[AssemblyInstruction] = []
 
@@ -184,6 +185,14 @@ class VenomCompiler:
                 self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), {})
             finally:
                 self.spiller.set_current_function(None)
+
+        # Prepend the FMP init PUSH after all codegen so that the
+        # initial FMP can account for the actual spill usage observed
+        # during codegen (peak_spill_end). Without this, a function
+        # with small fn_eom and many spills could have its spill
+        # slots collide with the dynamic allocation region.
+        if self._entry_fn is not None and self._function_needs_fmp(self._entry_fn):
+            asm = list(PUSH(self._initial_fmp_value())) + asm
 
         asm.extend(_REVERT_POSTAMBLE)
         # Append data segment
@@ -209,24 +218,18 @@ class VenomCompiler:
     def _function_needs_fmp(self, fn: IRFunction) -> bool:
         return getattr(fn, "_needs_fmp", False)
 
-    def _global_max_fn_eom(self) -> int:
-        # Initial FMP must live above all reserved memory and all static
-        # per-function allocations (including spill slots allocated from
-        # fn_eom upward). ceil32 is a defensive no-op — fn_eom is
-        # already word-aligned.
+    def _initial_fmp_value(self) -> int:
+        # Initial FMP must live above every function's static frame
+        # AND above every function's spill region. Spill slots start
+        # at fn_eom[fn] and grow upward; `peak_spill_end` tracks the
+        # maximum `fn_eom + N*32` reached across all functions during
+        # codegen. Placing the initial FMP at or above that value
+        # guarantees that the dynamic allocation region (bumped from
+        # FMP by each `bump` instruction) never aliases with any
+        # function's spill area.
         eoms = [self.ctx.mem_allocator.fn_eom.get(fn, 0) for fn in self.ctx.functions.values()]
         max_eom = max(eoms, default=0)
-        return ceil32(max(max_eom, MemoryPositions.RESERVED_MEMORY))
-
-    def _emit_fmp_init(self, assembly: list[AssemblyInstruction]) -> None:
-        # If the entry function (and therefore at least one function
-        # reachable from it) needs the threaded FMP, push the initial
-        # free-memory pointer onto the stack. The entry function's
-        # leading `param` will consume it.
-        assert self._entry_fn is not None
-        if not self._function_needs_fmp(self._entry_fn):
-            return
-        assembly.extend(PUSH(self._global_max_fn_eom()))
+        return ceil32(max(max_eom, self.spiller.peak_spill_end, MemoryPositions.RESERVED_MEMORY))
 
     def _stack_reorder(
         self,
@@ -452,8 +455,11 @@ class VenomCompiler:
 
         fn = basicblock.parent
         if basicblock == fn.entry:
-            if fn is self._entry_fn:
-                self._emit_fmp_init(asm)
+            # Note: the FMP-init PUSH is prepended to the assembly
+            # AFTER all codegen completes, in generate_evm_assembly.
+            # It must be emitted late because the initial FMP value
+            # depends on the spiller's peak spill offset, which is
+            # only known once every function has been laid out.
             self._prepare_stack_for_function(asm, fn, stack)
 
         if len(self.cfg.cfg_in(basicblock)) == 1:
