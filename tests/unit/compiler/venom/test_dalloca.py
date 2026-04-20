@@ -517,6 +517,102 @@ def test_dalloca_spiller_with_dalloca():
     assert int.from_bytes(out[:32], "big") == 64
 
 
+def test_dalloca_spill_does_not_corrupt_dynamic_allocation():
+    # The spiller writes spill slots starting from fn_eom[fn], while
+    # dalloca-allocated regions start at global_max_fn_eom (baked into
+    # the initial FMP at contract entry). Because global_max_fn_eom
+    # does not account for spill usage, a function with small fn_eom
+    # and heavy stack pressure can have spill slots aliasing with the
+    # dalloca region.
+    #
+    # This test writes a distinctive sentinel to the dalloca-allocated
+    # memory, then forces many simultaneously-live variables (enough
+    # to push the spiller above fn_eom), then reads back from the
+    # dalloca region. If spills corrupt it, the readback won't match
+    # the sentinel.
+    sentinel = 0xDEADBEEFCAFEBABEFEEDFACE1234567800112233AABBCCDD9988776655443322
+    # Force real spilling by passing 20 values into an invoke. Each arg
+    # must sit on the EVM stack simultaneously when the invoke JUMPs;
+    # exceeding the 16-slot reachable-stack window forces the spiller to
+    # write to memory at offsets starting at fn_eom[fn] (= RESERVED_MEMORY
+    # = 64 for functions with no static allocas).
+    #
+    # The initial FMP baked in at contract entry equals global_max_fn_eom
+    # (also 64 here), so dalloca's returned pointer equals the first spill
+    # address. Writing a sentinel to the dalloca region then forcing
+    # spills across it should corrupt the sentinel if (and only if) the
+    # spiller does not coordinate with the initial FMP.
+    out = _run_program(
+        f"""
+        function main {{
+            main:
+                %sz = calldatasize
+                %dyn = dalloca %sz
+                mstore %dyn, {hex(sentinel)}
+                %v0 = mload 1024
+                %v1 = mload 1056
+                %v2 = mload 1088
+                %v3 = mload 1120
+                %v4 = mload 1152
+                %v5 = mload 1184
+                %v6 = mload 1216
+                %v7 = mload 1248
+                %v8 = mload 1280
+                %v9 = mload 1312
+                %v10 = mload 1344
+                %v11 = mload 1376
+                %v12 = mload 1408
+                %v13 = mload 1440
+                %v14 = mload 1472
+                %v15 = mload 1504
+                %v16 = mload 1536
+                %v17 = mload 1568
+                %v18 = mload 1600
+                %v19 = mload 1632
+                %r = invoke @consume, %v0, %v1, %v2, %v3, %v4, %v5, %v6, %v7, %v8, %v9, %v10, %v11, %v12, %v13, %v14, %v15, %v16, %v17, %v18, %v19
+                %readback = mload %dyn
+                %final = add %r, %readback
+                mstore 0, %final
+                return 0, 32
+        }}
+
+        function consume {{
+            consume:
+                %a0 = param
+                %a1 = param
+                %a2 = param
+                %a3 = param
+                %a4 = param
+                %a5 = param
+                %a6 = param
+                %a7 = param
+                %a8 = param
+                %a9 = param
+                %a10 = param
+                %a11 = param
+                %a12 = param
+                %a13 = param
+                %a14 = param
+                %a15 = param
+                %a16 = param
+                %a17 = param
+                %a18 = param
+                %a19 = param
+                %retpc = param
+                %s = add %a0, %a1
+                ret %retpc, %s
+        }}
+        """,
+        b"",
+    )
+    # All mloads above address 1024 return 0. consume sums %a0 + %a1 = 0.
+    # If the dalloca region is uncorrupted: readback == sentinel, so
+    # final == 0 + sentinel. If a spill clobbered address 64, readback
+    # is some spilled variable value, and the assertion fails.
+    expected = sentinel % (2**256)
+    assert int.from_bytes(out[:32], "big") == expected
+
+
 def test_dalloca_across_branch():
     # dalloca in both branches of a conditional. The merge block uses
     # the advanced FMP via a phi introduced by MakeSSA.
