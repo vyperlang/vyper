@@ -1,4 +1,7 @@
-from typing import Any, Optional
+from __future__ import annotations
+
+from itertools import zip_longest
+from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.evm.opcodes import version_check
@@ -8,6 +11,7 @@ from vyper.exceptions import (
     CompilerPanic,
     EvmVersionException,
     ExceptionList,
+    FunctionDeclarationException,
     ImmutableViolation,
     InitializerException,
     InterfaceViolation,
@@ -26,37 +30,78 @@ from vyper.semantics.analysis.base import (
     Modifiability,
     ModuleInfo,
     ModuleOwnership,
+    StateMutability,
     UsesInfo,
     VarInfo,
 )
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.constant_folding import constant_fold
 from vyper.semantics.analysis.getters import generate_public_variable_getters
+from vyper.semantics.analysis.imports import ImportAnalyzer
+from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.local import ExprVisitor, analyze_functions, check_module_uses
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
     get_expr_info,
+    structurally_equivalent,
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
 from vyper.semantics.types import TYPE_T, EventT, FlagT, InterfaceT, StructT, VyperType, is_type_t
-from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types.function import ContractFunctionT, KeywordArg, _FunctionArg
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import OrderedSet
 
 
-def analyze_module(module_ast: vy_ast.Module) -> ModuleT:
+def analyze_modules(imports: ImportAnalyzer) -> ModuleT:
     """
-    Analyze a Vyper module AST node, recursively analyze all its imports,
-    add all module-level objects to the namespace, type-check/validate
-    semantics and annotate with type and analysis info
+    Analyze Vyper module ASTs, add all module-level objects to the namespace,
+    type-check/validate semantics and annotate with type and analysis info.
     """
-    return _analyze_module_r(module_ast, module_ast.is_interface)
+    root_module_ast = imports.toplevel_module
+
+    modules = imports.seen
+    """
+    Comes from ImportAnalyzer, guarantees that:
+    1. they are sorted in the post-order of the import tree:
+        each module comes after every one of its imports.
+    2. there is only a single root:
+        each module is imported by another one, except for a single module
+    """
+
+    # TODO: Instead of being recursive, use `modules`
+    # Collect module members, partial validation
+    ret = _compute_module_type_r(root_module_ast)
+
+    for module_ast in modules:
+        _check_overrides(module_ast)
+
+    # Remainder of validation: everything that requires module-level/cross-module information
+    # Notably function bodies
+
+    # These must be two different loops, because of cross-module calls and abstract resolution
+    for module_ast in modules:
+        _build_call_graph_edges(module_ast)
+
+    for module_ast in modules:
+        _analyze_call_graph(module_ast)
+
+    for module_ast in modules:
+        _analyze_module_bodies(module_ast)
+
+    # check for event name collisions between defined and used events
+    # (needs to be after reachable set with overrides computation since used_events depends on it)
+    for module_ast in modules:
+        module_ast._metadata["type"].validate_used_events()
+
+    return ret
 
 
-def _analyze_module_r(module_ast: vy_ast.Module, is_interface: bool = False):
+def _compute_module_type_r(module_ast: vy_ast.Module) -> ModuleT:
+    """validate semantics and annotate AST with type/semantics information"""
+
     if "type" in module_ast._metadata:
         # we don't need to analyse again, skip out
         assert isinstance(module_ast._metadata["type"], ModuleT)
@@ -66,56 +111,211 @@ def _analyze_module_r(module_ast: vy_ast.Module, is_interface: bool = False):
     namespace = get_namespace()
 
     with namespace.enter_scope():
-        analyzer = ModuleAnalyzer(module_ast, namespace, is_interface)
+        analyzer = ModuleAnalyzer(module_ast, namespace)
         analyzer.analyze_module_body()
 
-        _analyze_call_graph(module_ast)
         generate_public_variable_getters(module_ast)
 
         ret = ModuleT(module_ast)
         module_ast._metadata["type"] = ret
 
-        # if this is an interface, the function is already validated
-        # in `ContractFunction.from_vyi()`
-        if not is_interface:
-            analyze_functions(module_ast)
-            analyzer.validate_initialized_modules()
-            analyzer.validate_used_modules()
-
     return ret
 
 
-def _analyze_call_graph(module_ast: vy_ast.Module):
-    # get list of internal function calls made by each function
-    # CMC 2024-02-03 note: this could be cleaner in analysis/local.py
-    function_defs = module_ast.get_children(vy_ast.FunctionDef)
+def _analyze_module_bodies(module_ast: vy_ast.Module) -> None:
+    """
+    Use module types to validate function bodies
+    Also sets type metadata for nodes therein
+    """
+    # interfaces don't have function bodies to validate
+    if module_ast.is_interface:
+        return
 
-    for func in function_defs:
-        fn_t = func._metadata["func_type"]
-        assert len(fn_t.called_functions) == 0
-        fn_t.called_functions = OrderedSet()
+    module_t = module_ast._metadata["type"]
+    namespace = module_ast._metadata["namespace"]
 
-        function_calls = func.get_descendants(vy_ast.Call)
+    with override_global_namespace(namespace):
+        analyze_functions(module_ast)
+        _validate_exports_uses(module_ast, module_t)
+        _validate_initialized_modules(module_ast, module_t)
+        _validate_used_modules(module_ast, module_t)
 
-        for call in function_calls:
-            try:
-                call_t = get_exact_type_from_node(call.func)
-            except VyperException:
-                # there is a problem getting the call type. this might be
-                # an issue, but it will be handled properly later. right now
-                # we just want to be able to construct the call graph.
+
+def _validate_used_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
+    """Check all `uses:` modules are actually used."""
+    should_use = {}
+
+    uses_decls = module_t.uses_decls
+    for decl in uses_decls:
+        info = decl._metadata["uses_info"]
+        for m in info.used_modules:
+            should_use[m.module_t] = (m, info)
+
+    initialized_modules = {t.module_info.module_t: t for t in module_t.initialized_modules}
+
+    all_used_modules: OrderedSet[ModuleT] = OrderedSet()
+
+    for f in module_t.functions.values():
+        for u in f.get_used_modules():
+            all_used_modules.add(u.module_t)
+
+    for decl in module_t.exports_decls:
+        info = decl._metadata["exports_info"]
+        all_used_modules.update([u.module_t for u in info.used_modules])
+
+    for used_module in all_used_modules:
+        if used_module in initialized_modules:
+            continue
+
+        if used_module in should_use:
+            del should_use[used_module]
+
+    if len(should_use) > 0:
+        err_list = ExceptionList()
+        for used_module_info, uses_info in should_use.values():
+            msg = f"`{used_module_info.alias}` is declared as used, but "
+            msg += f"its state is not actually used in {module_t}!"
+            hint = f"delete `uses: {used_module_info.alias}`"
+            err_list.append(BorrowException(msg, uses_info.node, hint=hint))
+
+        err_list.raise_if_not_empty()
+
+
+def _validate_initialized_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
+    """Check all `initializes:` modules have `__init__()` called exactly once."""
+    # only call `__init__()` for modules which have an
+    # `__init__()` function
+    should_initialize = {
+        t.module_info.module_t: t
+        for t in module_t.initialized_modules
+        if t.module_info.module_t.init_function is not None
+    }
+
+    constructor = module_t.init_function
+
+    # Methods called by the constructor
+    init_calls: list[vy_ast.Call] = []
+    if constructor is not None:
+        init_calls = constructor.ast_def.get_descendants(vy_ast.Call)  # type: ignore
+
+    seen_initializers: dict[ModuleT, vy_ast.VyperNode] = {}
+    for call_node in init_calls:
+        expr_info = call_node.func._expr_info
+        if expr_info is None:
+            # this can happen for range() calls; CMC 2024-02-05 try to
+            # refactor so that range() is properly tagged.
+            continue
+
+        call_t = expr_info.typ
+
+        if not isinstance(call_t, ContractFunctionT):
+            continue
+
+        if not call_t.is_constructor:
+            continue
+
+        # XXX: check this works as expected for nested attributes
+        initialized_module = call_node.func.value._expr_info.module_info  # type: ignore
+
+        if initialized_module.module_t in seen_initializers:
+            seen_location = seen_initializers[initialized_module.module_t]
+            msg = f"tried to initialize `{initialized_module.alias}`, "
+            msg += "but its __init__() function was already called!"
+            raise InitializerException(msg, call_node.func, seen_location)
+
+        if initialized_module.module_t not in should_initialize:
+            msg = f"tried to initialize `{initialized_module.alias}`, "
+            msg += "but it is not in initializer list!"
+            hint = f"add `initializes: {initialized_module.alias}` "
+            hint += "as a top-level statement to your contract"
+            raise InitializerException(msg, call_node.func, hint=hint)
+
+        del should_initialize[initialized_module.module_t]
+        seen_initializers[initialized_module.module_t] = call_node.func
+
+    if len(should_initialize) > 0:
+        err_list = ExceptionList()
+        for s in should_initialize.values():
+            msg = "not initialized!"
+            hint = f"add `{s.module_info.alias}.__init__()` to "
+            hint += "your `__init__()` function"
+
+            # grab the init function AST node for error message
+            # (it could be None, it's ok since it's just for diagnostics)
+            init_func_node = None
+            if constructor is not None:
+                init_func_node = constructor.decl_node
+            err_list.append(InitializerException(msg, init_func_node, s.node, hint=hint))
+
+        err_list.raise_if_not_empty()
+
+
+def _validate_exports_uses(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
+    """
+    Check that exported functions that use state have proper `uses:` declarations.
+
+    This is deferred from visit_ExportsDecl because uses_state() requires
+    reachable_internal_functions which is populated during body analysis.
+    """
+    for decl in module_t.exports_decls:
+        info = decl._metadata["exports_info"]
+        for func_t in info.functions:
+            export_node = info.functions.get(func_t)
+            if export_node is None:
                 continue
 
-            if isinstance(call_t, ContractFunctionT) and (
-                call_t.is_internal or call_t.is_constructor
-            ):
-                fn_t.called_functions.add(call_t)
+            with tag_exceptions(export_node):
+                if func_t.uses_state():
+                    module_info = check_module_uses(export_node)
+
+                    # guaranteed by earlier checks in visit_ExportsDecl:
+                    assert module_info is not None
+
+                    info.used_modules.add(module_info)
+
+
+def _build_call_graph_edges(module_ast: vy_ast.Module):
+    # get list of internal function calls made by each function
+    # CMC 2024-02-03 note: this could be cleaner in analysis/local.py
+    with override_global_namespace(module_ast._metadata["namespace"]):
+        function_defs = module_ast.get_children(vy_ast.FunctionDef)
+
+        for func in function_defs:
+            fn_t = func._metadata["func_type"]
+            assert len(fn_t.called_functions) == 0
+            fn_t.called_functions = OrderedSet()
+
+            function_calls = func.get_descendants(vy_ast.Call)
+
+            for call in function_calls:
+                try:
+                    call_t = get_exact_type_from_node(call.func)
+                except VyperException:
+                    # there is a problem getting the call type. this might be
+                    # an issue, but it will be handled properly later. right now
+                    # we just want to be able to construct the call graph.
+                    continue
+
+                if isinstance(call_t, ContractFunctionT) and (
+                    call_t.is_internal or call_t.is_constructor
+                ):
+                    # Call graph is defined in terms of concrete functions (i.e. non-abstract)
+                    fn_t.called_functions.add(call_t.get_concrete_override())
+
+
+def _analyze_call_graph(module_ast: vy_ast.Module):
+    """
+    1. compute reachable set tag in each fn_t's reachable_internal_functions
+    2. validate no call cycles
+    3. validate nonreentrant functions not reachable from nonreentrant functions
+    """
+    function_defs = module_ast.get_children(vy_ast.FunctionDef)
 
     for func in function_defs:
         fn_t = func._metadata["func_type"]
 
         # compute reachable set and validate the call graph
-        _compute_reachable_set(fn_t)
+        _compute_and_validate_reachable_r(fn_t)
 
         if fn_t.nonreentrant:
             for g in fn_t.reachable_internal_functions:
@@ -128,8 +328,12 @@ def _analyze_call_graph(module_ast: vy_ast.Module):
                     raise CallViolation(msg, func, g.ast_def)
 
 
-# compute reachable set and validate the call graph (detect cycles)
-def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT] = None) -> None:
+def _compute_and_validate_reachable_r(
+    fn_t: ContractFunctionT, path: list[ContractFunctionT] = None
+) -> None:
+    """
+    compute reachable set and validate acyclicity for a given fn_t
+    """
     path = path or []
 
     path.append(fn_t)
@@ -144,7 +348,7 @@ def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT
             message = " -> ".join([f.name for f in extended_path])
             raise CallViolation(f"Contract contains cyclic function call: {message}")
 
-        _compute_reachable_set(g, path=path)
+        _compute_and_validate_reachable_r(g, path=path)
 
         g_reachable = g.reachable_internal_functions
         assert fn_t not in g_reachable  # sanity check
@@ -155,15 +359,65 @@ def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT
     path.pop()
 
 
+def _validate_overrides(func_t: ContractFunctionT, node: vy_ast.FunctionDef):
+    """Validate @override decorators and set `overridden_by` on abstract methods."""
+    for override_name in func_t.override_nodes:
+        try:
+            module_info = get_namespace()[override_name.id]
+        except KeyError:
+            # Module is not imported, error will be reported elsewhere
+            continue
+
+        if not isinstance(module_info, ModuleInfo):
+            raise FunctionDeclarationException(
+                f"`{override_name.id}` is not a module", override_name
+            )
+
+        if module_info.ownership != ModuleOwnership.INITIALIZES:
+            msg = f"Cannot override `{module_info.alias}.{node.name}`"
+            msg += " as it is not initialized"
+            hint = f"add `initializes: {module_info.alias}` "
+            hint += f"as a top-level statement in {node.module_node.path}"
+            raise FunctionDeclarationException(msg, node, hint=hint)
+
+        abstract_t = module_info.module_t.functions.get(node.name)
+
+        if abstract_t is None:
+            msg = f"Tried to override `{module_info.alias}.{node.name}`,"
+            msg += " but it does not exist"
+            lev_hint = get_levenshtein_error_suggestions(
+                node.name, module_info.module_t.functions, 0.3
+            )
+            raise FunctionDeclarationException(msg, node, hint=lev_hint)
+
+        abstract_fn = abstract_t.ast_def
+
+        if not abstract_t.is_abstract:
+            msg = f"Cannot override `{module_info.alias}.{node.name}`,"
+            msg += " it is not an abstract method!"
+            raise FunctionDeclarationException(msg, abstract_fn, node)
+
+        if abstract_t._overridden_by is not None:
+            existing_override = abstract_t._overridden_by.ast_def
+            existing_override_path = existing_override.module_node.path
+            msg = f"`{module_info.alias}.{node.name}` was already overridden"
+            msg += f" in `{existing_override_path}`!"
+            hint = f"the likely root cause is that `{module_info.alias}` has"
+            hint += f" been initialized in both `{node.module_node.path}` and"
+            hint += f" `{existing_override_path}`, which is an error"
+            raise FunctionDeclarationException(
+                msg, abstract_fn, existing_override, override_name, hint=hint
+            )
+
+        abstract_t.set_overridden_by(func_t)
+
+
 class ModuleAnalyzer(VyperNodeVisitorBase):
     scope_name = "module"
 
-    def __init__(
-        self, module_node: vy_ast.Module, namespace: Namespace, is_interface: bool = False
-    ) -> None:
+    def __init__(self, module_node: vy_ast.Module, namespace: Namespace) -> None:
         self.ast = module_node
         self.namespace = namespace
-        self.is_interface = is_interface
 
         # keep track of exported functions to prevent duplicate exports
         self._all_functions: dict[ContractFunctionT, vy_ast.VyperNode] = {}
@@ -183,7 +437,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         self._to_visit = self.ast.body.copy()
 
-        # handle imports; mutates `self._imported_modules`
+        # handle imports
         self._visit_nodes_linear((vy_ast.Import, vy_ast.ImportFrom))
 
         # we can resolve constants as soon as imports are handled.
@@ -217,6 +471,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # note that we don't just copy the namespace because
         # there are constructor issues.
         _ns.update({k: self.namespace[k] for k in self.namespace._scopes[-1]})  # type: ignore
+        _ns._scopes = self.namespace._scopes.copy()
         self.ast._metadata["namespace"] = _ns
 
     def _visit_nodes_linear(self, node_type):
@@ -255,116 +510,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             # elements.
             if count == len(nodes):
                 err_list.raise_if_not_empty()
-
-    def validate_used_modules(self):
-        # check all `uses:` modules are actually used
-        should_use = {}
-
-        module_t = self.ast._metadata["type"]
-        uses_decls = module_t.uses_decls
-        for decl in uses_decls:
-            info = decl._metadata["uses_info"]
-            for m in info.used_modules:
-                should_use[m.module_t] = (m, info)
-
-        initialized_modules = {t.module_info.module_t: t for t in module_t.initialized_modules}
-
-        all_used_modules = OrderedSet()
-
-        for f in module_t.functions.values():
-            for u in f.get_used_modules():
-                all_used_modules.add(u.module_t)
-
-        for decl in module_t.exports_decls:
-            info = decl._metadata["exports_info"]
-            all_used_modules.update([u.module_t for u in info.used_modules])
-
-        for used_module in all_used_modules:
-            if used_module in initialized_modules:
-                continue
-
-            if used_module in should_use:
-                del should_use[used_module]
-
-        if len(should_use) > 0:
-            err_list = ExceptionList()
-            for used_module_info, uses_info in should_use.values():
-                msg = f"`{used_module_info.alias}` is declared as used, but "
-                msg += f"its state is not actually used in {module_t}!"
-                hint = f"delete `uses: {used_module_info.alias}`"
-                err_list.append(BorrowException(msg, uses_info.node, hint=hint))
-
-            err_list.raise_if_not_empty()
-
-    def validate_initialized_modules(self):
-        # check all `initializes:` modules have `__init__()` called exactly once
-        module_t = self.ast._metadata["type"]
-        should_initialize = {t.module_info.module_t: t for t in module_t.initialized_modules}
-        # don't call `__init__()` for modules which don't have
-        # `__init__()` function
-        for m in should_initialize.copy():
-            for f in m.functions.values():
-                if f.is_constructor:
-                    break
-            else:
-                del should_initialize[m]
-
-        init_calls = []
-        for f in self.ast.get_children(vy_ast.FunctionDef):
-            if f._metadata["func_type"].is_constructor:
-                init_calls = f.get_descendants(vy_ast.Call)
-                break
-
-        seen_initializers = {}
-        for call_node in init_calls:
-            expr_info = call_node.func._expr_info
-            if expr_info is None:
-                # this can happen for range() calls; CMC 2024-02-05 try to
-                # refactor so that range() is properly tagged.
-                continue
-
-            call_t = call_node.func._expr_info.typ
-
-            if not isinstance(call_t, ContractFunctionT):
-                continue
-
-            if not call_t.is_constructor:
-                continue
-
-            # XXX: check this works as expected for nested attributes
-            initialized_module = call_node.func.value._expr_info.module_info
-
-            if initialized_module.module_t in seen_initializers:
-                seen_location = seen_initializers[initialized_module.module_t]
-                msg = f"tried to initialize `{initialized_module.alias}`, "
-                msg += "but its __init__() function was already called!"
-                raise InitializerException(msg, call_node.func, seen_location)
-
-            if initialized_module.module_t not in should_initialize:
-                msg = f"tried to initialize `{initialized_module.alias}`, "
-                msg += "but it is not in initializer list!"
-                hint = f"add `initializes: {initialized_module.alias}` "
-                hint += "as a top-level statement to your contract"
-                raise InitializerException(msg, call_node.func, hint=hint)
-
-            del should_initialize[initialized_module.module_t]
-            seen_initializers[initialized_module.module_t] = call_node.func
-
-        if len(should_initialize) > 0:
-            err_list = ExceptionList()
-            for s in should_initialize.values():
-                msg = "not initialized!"
-                hint = f"add `{s.module_info.alias}.__init__()` to "
-                hint += "your `__init__()` function"
-
-                # grab the init function AST node for error message
-                # (it could be None, it's ok since it's just for diagnostics)
-                init_func_node = None
-                if module_t.init_function:
-                    init_func_node = module_t.init_function.decl_node
-                err_list.append(InitializerException(msg, init_func_node, s.node, hint=hint))
-
-            err_list.raise_if_not_empty()
 
     def visit_ImplementsDecl(self, node):
         interface_types = list()
@@ -506,28 +651,27 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         node._metadata["initializes_info"] = InitializesInfo(module_info, dependencies, node)
 
     def visit_ExportsDecl(self, node):
-        items = vy_ast.as_tuple(node.annotation)
-        exported_funcs = []
-        used_modules = OrderedSet()
+        export_annotations = vy_ast.as_tuple(node.annotation)
+        exported_funcs: dict[ContractFunctionT, vy_ast.VyperNode] = {}
 
         # CMC 2024-04-13 TODO: reduce nesting in this function
 
-        for item in items:
+        for export_ann in export_annotations:
             # set is_callable=True to give better error messages for imported
             # types, e.g. exports: some_module.MyEvent
-            info = get_expr_info(item, is_callable=True)
+            info = get_expr_info(export_ann, is_callable=True)
 
             if info.var_info is not None:
                 decl = info.var_info.decl_node
                 if not info.var_info.is_public:
-                    raise StructureException("not a public variable!", decl, item)
+                    raise StructureException("not a public variable!", decl, export_ann)
                 funcs = [decl._expanded_getter._metadata["func_type"]]
             elif isinstance(info.typ, ContractFunctionT):
                 # e.g. lib1.__interface__(self._addr).foo
-                if not isinstance(get_expr_info(item.value).typ, (ModuleT, TYPE_T)):
+                if not isinstance(get_expr_info(export_ann.value).typ, (ModuleT, TYPE_T)):
                     raise StructureException(
                         "invalid export of a value",
-                        item.value,
+                        export_ann.value,
                         hint="exports should look like <module>.<function | interface>",
                     )
 
@@ -536,22 +680,22 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             elif is_type_t(info.typ, InterfaceT):
                 interface_t = info.typ.typedef
 
-                if not isinstance(item, vy_ast.Attribute):
+                if not isinstance(export_ann, vy_ast.Attribute):
                     raise StructureException(
                         "invalid export",
                         hint="exports should look like <module>.<function | interface>",
                     )
 
-                module_info = get_expr_info(item.value).module_info
+                module_info = get_expr_info(export_ann.value).module_info
                 if module_info is None:
-                    raise StructureException("not a valid module!", item.value)
+                    raise StructureException("not a valid module!", export_ann.value)
 
                 if interface_t not in module_info.typ.implemented_interfaces:
-                    iface_str = item.node_source_code
-                    module_str = item.value.node_source_code
+                    iface_str = export_ann.node_source_code
+                    module_str = export_ann.value.node_source_code
                     msg = f"requested `{iface_str}` but `{module_str}`"
                     msg += f" does not implement `{iface_str}`!"
-                    raise InterfaceViolation(msg, item)
+                    raise InterfaceViolation(msg, export_ann)
 
                 module_exposed_fns = {fn.name: fn for fn in module_info.typ.exposed_functions}
                 # find the specific implementation of the function in the module
@@ -564,35 +708,26 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 if len(funcs) == 0:
                     path = module_info.module_node.path
                     msg = f"{module_info.alias} (located at `{path}`) has no external functions!"
-                    raise StructureException(msg, item)
+                    raise StructureException(msg, export_ann)
 
             else:
                 raise StructureException(
-                    f"not a function or interface: `{info.typ}`", info.typ.decl_node, item
+                    f"not a function or interface: `{info.typ}`", info.typ.decl_node, export_ann
                 )
 
             for func_t in funcs:
                 if not func_t.is_external:
                     raise StructureException(
-                        "can't export non-external functions!", func_t.decl_node, item
+                        "can't export non-external functions!", func_t.decl_node, export_ann
                     )
 
-                self._add_exposed_function(func_t, item, relax=False)
-                with tag_exceptions(item):  # tag exceptions with specific item
+                self._add_exposed_function(func_t, export_ann, relax=False)
+                with tag_exceptions(export_ann):  # tag exceptions with specific export
                     self._self_t.typ.add_member(func_t.name, func_t)
 
-                    exported_funcs.append(func_t)
+                    exported_funcs[func_t] = export_ann
 
-                    # check module uses
-                    if func_t.uses_state():
-                        module_info = check_module_uses(item)
-
-                        # guaranteed by above checks:
-                        assert module_info is not None
-
-                        used_modules.add(module_info)
-
-        node._metadata["exports_info"] = ExportsInfo(exported_funcs, used_modules)
+        node._metadata["exports_info"] = ExportsInfo(functions=exported_funcs)
 
     @property
     def _self_t(self):
@@ -724,7 +859,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._events.append(obj)
 
     def visit_FunctionDef(self, node):
-        if self.is_interface:
+        if self.ast.is_interface:
             func_t = ContractFunctionT.from_vyi(node)
             if not func_t.is_external:
                 # TODO test me!
@@ -733,6 +868,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 )
         else:
             func_t = ContractFunctionT.from_FunctionDef(node)
+            _validate_overrides(func_t, node)
 
         self._self_t.typ.add_member(func_t.name, func_t)
         node._metadata["func_type"] = func_t
@@ -744,7 +880,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def visit_ImportFrom(self, node):
         self._add_import(node)
 
-    def _add_import(self, node: vy_ast.VyperNode) -> None:
+    def _add_import(self, node: vy_ast.Import | vy_ast.ImportFrom) -> None:
         for import_info in node._metadata["import_infos"]:
             # similar structure to import analyzer
             module_info = self._load_import(import_info)
@@ -753,18 +889,18 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             self.namespace[import_info.alias] = module_info
 
-    def _load_import(self, import_info: ImportInfo) -> Any:
+    def _load_import(self, import_info: ImportInfo) -> ModuleInfo | InterfaceT:
         path = import_info.compiler_input.path
         if path.suffix == ".vy":
             module_ast = import_info.parsed
             with override_global_namespace(Namespace()):
-                module_t = _analyze_module_r(module_ast, is_interface=False)
+                module_t = _compute_module_type_r(module_ast)
                 return ModuleInfo(module_t, import_info.alias)
 
         if path.suffix == ".vyi":
             module_ast = import_info.parsed
             with override_global_namespace(Namespace()):
-                module_t = _analyze_module_r(module_ast, is_interface=True)
+                module_t = _compute_module_type_r(module_ast)
 
                 # NOTE: might be cleaner to return the whole module, so we
                 # have a ModuleInfo, that way we don't need to have different
@@ -787,3 +923,150 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         struct_t = StructT.from_StructDef(node)
         node._metadata["struct_type"] = struct_t
         self.namespace[node.name] = struct_t
+
+
+def _pretty_param(param: _FunctionArg) -> str:
+    return f"`{param.name}: {param.typ}`"
+
+
+def _default_values_match(p_override: _FunctionArg, p_abstract: _FunctionArg) -> bool:
+    if isinstance(p_abstract, KeywordArg):
+        if not isinstance(p_override, KeywordArg):
+            # Default cannot be overridden by non-default
+            return False
+
+        if isinstance(p_abstract.default_value, vy_ast.Ellipsis):
+            # `...` default can be overridden by any default
+            return True
+
+        # other defaults must match exactly, 1 + 1 cannot be overridden by 2
+        return structurally_equivalent(p_abstract.default_value, p_override.default_value)
+    else:
+        # Non-default can be overridden by both default and non-default
+        return True
+
+
+def _parameter_override_discrepancy(
+    override_t: ContractFunctionT,
+    abstract_t: ContractFunctionT,
+    p_override: _FunctionArg,
+    p_abstract: Optional[_FunctionArg],
+) -> Optional[VyperException]:
+    if p_abstract is None:
+        if isinstance(p_override, KeywordArg):
+            # matches
+            return None
+
+        return FunctionDeclarationException(
+            f"{override_t.name} has mandatory parameter {_pretty_param(p_override)} "
+            "not present in the method it overrides",
+            abstract_t.ast_def,
+            p_override.ast_source,
+            hint="remove the extra parameter, or add a default value",
+        )
+
+    if (
+        p_override.name == p_abstract.name
+        and p_override.typ.is_supertype_of(p_abstract.typ)
+        and _default_values_match(p_override, p_abstract)
+    ):
+        return None
+
+    return FunctionDeclarationException(
+        "Override parameter mismatch: "
+        f"Got {_pretty_param(p_override)}, "
+        f"but expected {_pretty_param(p_abstract)} (or more general)",
+        p_override.ast_source,
+        p_abstract.ast_source,
+    )
+
+
+# note: substantial overlap with ContractFunctionT.implements and
+# ModuleT.validate_implements -- refactor to use common logic.
+def _compute_override_discrepancies(
+    override_t: ContractFunctionT, abstract_t: ContractFunctionT
+) -> ExceptionList:
+    assert override_t.is_internal
+    assert abstract_t.is_internal
+    assert abstract_t.is_abstract
+
+    parameters_override = override_t.arguments
+    return_o = override_t.return_type
+
+    parameters_abstract = abstract_t.arguments
+    return_a = abstract_t.return_type
+
+    discrepancies: ExceptionList = ExceptionList()
+
+    # Parameter validation
+
+    if len(parameters_override) < len(parameters_abstract):
+        msg = f"{override_t.name} has {len(parameters_override)} params,"
+        msg += f" but it should have at least {len(parameters_abstract)}"
+        discrepancies.append(
+            FunctionDeclarationException(msg, override_t.ast_def, abstract_t.ast_def)
+        )
+    else:
+        for p_override, p_abstract in zip_longest(parameters_override, parameters_abstract):
+            discrepancy = _parameter_override_discrepancy(
+                override_t, abstract_t, p_override, p_abstract
+            )
+
+            if discrepancy is not None:
+                discrepancies.append(discrepancy)
+
+    # Return type validation
+
+    neither_returns = return_a is None and return_o is None
+
+    both_return_and_match = (
+        return_a is not None and return_o is not None and return_o.is_subtype_of(return_a)
+    )
+
+    return_types_match = both_return_and_match or neither_returns
+
+    if not return_types_match:
+        return_o_str = "does not return anything" if return_o is None else f"returns {return_o}"
+        return_a_str = "does not return anything" if return_a is None else f"returns {return_a}"
+        msg = f"{override_t.name} {return_o_str} but the method it overrides {return_a_str}"
+        discrepancies.append(
+            FunctionDeclarationException(msg, abstract_t.ast_def, override_t.ast_def)
+        )
+
+    # Mutability validation
+
+    if override_t.mutability > abstract_t.mutability:
+        # There is nothing stricter than @pure
+        or_stricter = " (or stricter)" if abstract_t.mutability != StateMutability.PURE else ""
+        msg = f"{override_t.name} is {override_t.mutability} but it overrides a"
+        msg += f" {abstract_t.mutability} method"
+
+        hint = f"change {override_t.name} to be {abstract_t.mutability}{or_stricter}"
+
+        discrepancies.append(
+            FunctionDeclarationException(msg, abstract_t.ast_def, override_t.ast_def, hint=hint)
+        )
+
+    # Reentrancy validation
+
+    if override_t.nonreentrant != abstract_t.nonreentrant:
+        reentrancy_o = "non-reentrant" if override_t.nonreentrant else "reentrant"
+        reentrancy_a = "non-reentrant" if abstract_t.nonreentrant else "reentrant"
+
+        msg = f"{override_t.name} is {reentrancy_o} but it overrides a"
+        msg += f" {reentrancy_a} method"
+        discrepancies.append(
+            FunctionDeclarationException(msg, abstract_t.ast_def, override_t.ast_def)
+        )
+
+    return discrepancies
+
+
+def _check_overrides(module_ast: vy_ast.Module):
+    for func in module_ast.get_children(vy_ast.FunctionDef):
+        func_t = func._metadata["func_type"]
+        if func_t.is_abstract:
+            override_t = func_t.overridden_by
+
+            err_list = _compute_override_discrepancies(override_t, func_t)
+            err_list.raise_if_not_empty()

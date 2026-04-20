@@ -15,8 +15,9 @@ from vyper.evm.assembler.symbols import resolve_symbols
 from vyper.exceptions import VyperException
 from vyper.ir import compile_ir
 from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
+from vyper.semantics.types.user import EventT
 from vyper.typing import StorageLayout
-from vyper.utils import safe_relpath
+from vyper.utils import OrderedSet, safe_relpath
 from vyper.warnings import ContractSizeLimit, vyper_warn
 
 
@@ -124,7 +125,8 @@ def build_external_interface_output(compiler_data: CompilerData) -> str:
 
 
 def build_interface_output(compiler_data: CompilerData) -> str:
-    interface = compiler_data.annotated_vyper_module._metadata["type"].interface
+    module_t = compiler_data.annotated_vyper_module._metadata["type"]
+    interface = module_t.interface
     out = ""
 
     if len(interface.structs) > 0:
@@ -143,9 +145,13 @@ def build_interface_output(compiler_data: CompilerData) -> str:
                 out += f"    {flag_value}\n"
             out += "\n\n"
 
-    if len(interface.events) > 0:
+    # include events that are transitively reachable from exposed functions
+    events: OrderedSet[EventT] = OrderedSet(interface.events.values())
+    events.update(module_t.used_events)
+
+    if len(events) > 0:
         out += "# Events\n\n"
-        for event in interface.events.values():
+        for event in events:
             encoded_args = "\n    ".join(f"{name}: {typ}" for name, typ in event.arguments.items())
             out += f"event {event.name}:\n    {encoded_args if event.arguments else 'pass'}\n\n\n"
 
@@ -226,22 +232,13 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         fn_id = fn_t._function_id
         return f"{fn_t.name} ({fn_id})"
 
-    exposed_fns = module_t.exposed_functions.copy()
-    if module_t.init_function is not None:
-        exposed_fns.append(module_t.init_function)
-
-    for fn_t in exposed_fns:
+    for fn_t in module_t.reachable_functions:
         assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
-        for rif_t in fn_t.reachable_internal_functions:
-            k = _fn_identifier(rif_t)
-            if k in sigs:
-                # sanity check that keys are injective with functions
-                assert sigs[k] == rif_t, (k, sigs[k], rif_t)
-            sigs[k] = rif_t
-
-        fn_id = _fn_identifier(fn_t)
-        assert fn_id not in sigs
-        sigs[fn_id] = fn_t
+        k = _fn_identifier(fn_t)
+        if k in sigs:
+            # sanity check that keys are injective with functions
+            assert sigs[k] == fn_t, (k, sigs[k], fn_t)
+        sigs[k] = fn_t
 
     def _to_dict(func_t):
         ret = vars(func_t).copy()
@@ -310,7 +307,7 @@ def build_abi_output(compiler_data: CompilerData) -> list:
     if not compiler_data.annotated_vyper_module.is_interface:
         _ = compiler_data.ir_runtime  # ensure _ir_info is generated
 
-    abi = module_t.interface.to_toplevel_abi_dict()
+    abi = module_t.to_toplevel_abi_dict()
     if module_t.init_function:
         abi += module_t.init_function.to_toplevel_abi_dict()
 
