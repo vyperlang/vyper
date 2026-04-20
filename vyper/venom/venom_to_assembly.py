@@ -617,7 +617,7 @@ class VenomCompiler:
             pass
         elif opcode == "bump":
             self._emit_bump(assembly)
-        elif opcode == "dalloca":  # pragma: no cover
+        elif opcode == "dalloca":
             # DallocaLoweringPass is expected to eliminate every `dalloca`
             # before we reach codegen. If we see one here, the pipeline is
             # misconfigured.

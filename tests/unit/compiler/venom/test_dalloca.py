@@ -4,6 +4,7 @@ from pyrevm import EVM, AccountInfo
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.evm.address_space import MEMORY
 from vyper.evm.assembler.core import assembly_to_evm
+from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.effects import Effects
 from vyper.venom.parser import parse_venom
@@ -349,6 +350,24 @@ def test_dalloca_is_fully_lowered():
     assert "dalloca" not in opcodes
     # Expect bumps in their place (one per dalloca).
     assert opcodes.count("bump") == 2
+
+
+def test_dalloca_reaching_codegen_panics():
+    # Codegen guards against a misconfigured pipeline: if DallocaLoweringPass
+    # did not run, any surviving `dalloca` must panic rather than silently
+    # produce wrong bytecode.
+    ctx = parse_venom(
+        """
+        function main {
+            main:
+                %p = dalloca 32
+                mstore 0, %p
+                return 0, 32
+        }
+        """
+    )
+    with pytest.raises(CompilerPanic, match="dalloca reached codegen"):
+        VenomCompiler(ctx).generate_evm_assembly()
 
 
 def _run_program(pre: str, calldata: bytes) -> bytes:
