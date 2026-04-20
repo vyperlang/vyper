@@ -8,7 +8,6 @@ from vyper.compiler.input_bundle import CompilerInput
 from vyper.exceptions import CompilerPanic, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.primitives import SelfT
 from vyper.utils import OrderedSet, StringEnum
 
 if TYPE_CHECKING:
@@ -207,6 +206,9 @@ class VarInfo:
 
     # TODO: convert to property
     def is_state_variable(self):
+        # Import here to avoid circular import: primitives -> bytestrings -> utils -> base
+        from vyper.semantics.types.primitives import SelfT
+
         non_state_locations = (DataLocation.UNSET, DataLocation.MEMORY, DataLocation.CALLDATA)
         # `self` gets a VarInfo, but it is not considered a state
         # variable (it is magic), so we ignore it here.

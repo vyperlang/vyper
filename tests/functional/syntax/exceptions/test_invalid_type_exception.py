@@ -106,9 +106,21 @@ def foo():
 
 
 def test_constant_name_not_a_type_static_array():
-    code = """
-N: constant(uint256) = 1
+    code = f"""
+N: constant(uint8[3]) = [1, 2, 3]
 x: N
+    """
+    with pytest.raises(InvalidType, match="is not a type"):
+        compile_code(code)
+
+
+def test_constant_name_not_a_type_dynamic_array():
+    code = f"""
+bar: DynArray[uint8, 3]
+
+@external
+def foo():
+    x: DynArray[uint8, 3] = empty(self.bar)
     """
     with pytest.raises(InvalidType, match="is not a type"):
         compile_code(code)
