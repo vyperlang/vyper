@@ -125,6 +125,7 @@ Note: first paragraph is pure *why* (the bug mechanism). Second paragraph is a c
 - Write tests for new features; place them under `tests/`
 - Larger changes: discuss in Discord `#compiler-dev` first
 - PRs are squash-merged — the PR title becomes the commit subject. Keep PR title and commit message title in sync.
+- **The PR template's "Commit message" section should contain ONLY the body**, not the `type[scope]: description` subject line. The subject comes from the PR title automatically on squash-merge.
 - Work from your individual fork. PRs target `vyperlang/vyper` upstream:
   ```bash
   gh pr create --repo vyperlang/vyper --base master --head <fork-owner>:<branch>
