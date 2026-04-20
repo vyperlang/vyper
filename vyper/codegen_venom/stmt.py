@@ -1051,10 +1051,7 @@ class Stmt:
             # Store each data value into the tuple buffer
             offset = 0
             for (val, src_typ), typ in zip(data_vals, data_typs):
-                if offset == 0:
-                    dst = data_buf._ptr
-                else:
-                    dst = self.builder.add(data_buf._ptr, IRLiteral(offset))
+                dst = self.builder.add(data_buf._ptr, IRLiteral(offset))
                 self.ctx.store_memory(val, dst, typ, src_typ=src_typ)
                 offset += typ.memory_bytes_required
 

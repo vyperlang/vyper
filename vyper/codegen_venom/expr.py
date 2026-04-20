@@ -195,10 +195,7 @@ class Expr:
             elem_typ = typ.member_types[i]
             elem_vv = Expr(elem_node, self.ctx).lower()
 
-            if offset == 0:
-                dst = val.operand
-            else:
-                dst = self.builder.add(val.operand, IRLiteral(offset))
+            dst = self.builder.add(val.operand, IRLiteral(offset))
 
             self.ctx.store_vyper_value(elem_vv, dst, elem_typ)
             offset += elem_typ.memory_bytes_required
@@ -238,10 +235,7 @@ class Expr:
         for elem_node in node.elements:
             elem_vv = Expr(elem_node, self.ctx).lower()
 
-            if data_offset == 0:
-                dst = val.operand
-            else:
-                dst = self.builder.add(val.operand, IRLiteral(data_offset))
+            dst = self.builder.add(val.operand, IRLiteral(data_offset))
 
             self.ctx.store_vyper_value(elem_vv, dst, elem_typ)
             data_offset += elem_size
@@ -1013,10 +1007,7 @@ class Expr:
             t = base_typ.member_types[attrs[i]]
             offset += t.get_size_in(data_loc)
 
-        if offset == 0:
-            elem_ptr = base
-        else:
-            elem_ptr = self.builder.add(base, IRLiteral(offset))
+        elem_ptr = self.builder.add(base, IRLiteral(offset))
 
         return self._make_ptr_value(elem_ptr, data_loc, elem_typ)
 
@@ -1048,10 +1039,7 @@ class Expr:
             t = base_typ.member_types[attrs[i]]
             offset += t.get_size_in(data_loc)
 
-        if offset == 0:
-            field_ptr = base
-        else:
-            field_ptr = self.builder.add(base, IRLiteral(offset))
+        field_ptr = self.builder.add(base, IRLiteral(offset))
 
         return self._make_ptr_value(field_ptr, data_loc, field_typ)
 
@@ -1390,10 +1378,7 @@ class Expr:
             assert return_buf is not None
             assert isinstance(return_buf, IRVariable)
             for i, outv in enumerate(outs):
-                if i == 0:
-                    dst = return_buf
-                else:
-                    dst = self.builder.add(return_buf, IRLiteral(i * 32))
+                dst = self.builder.add(return_buf, IRLiteral(i * 32))
                 self.builder.mstore(dst, outv)
         else:
             self.builder.invoke(IRLabel(target_label), invoke_args, returns=0)
@@ -1445,10 +1430,7 @@ class Expr:
             field_typ = struct_t.member_types[field_name]
             field_vv = Expr(member_vals[field_name], self.ctx).lower()
 
-            if offset == 0:
-                dst = val.operand
-            else:
-                dst = self.builder.add(val.operand, IRLiteral(offset))
+            dst = self.builder.add(val.operand, IRLiteral(offset))
 
             self.ctx.store_vyper_value(field_vv, dst, field_typ)
             offset += field_typ.memory_bytes_required
@@ -1774,10 +1756,7 @@ class Expr:
             offset = 0
             for i, arg_vv in enumerate(arg_vals):
                 arg_typ = fn_type.arguments[i].typ
-                if offset == 0:
-                    dst = args_val.operand
-                else:
-                    dst = b.add(args_val.operand, IRLiteral(offset))
+                dst = b.add(args_val.operand, IRLiteral(offset))
                 self.ctx.store_vyper_value(arg_vv, dst, arg_typ)
                 offset += arg_typ.memory_bytes_required
 

@@ -59,10 +59,7 @@ def _get_element_ptr(
             raise CompilerPanic(f"Tuple index {idx} out of range") # pragma: nocover
 
         elem_ptr: IROperand
-        if offset == 0:
-            elem_ptr = parent_ptr
-        else:
-            elem_ptr = b.add(parent_ptr, IRLiteral(offset))
+        elem_ptr = b.add(parent_ptr, IRLiteral(offset))
         return elem_ptr, elem_typ
 
     elif isinstance(parent_typ, SArrayT):

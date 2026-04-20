@@ -217,10 +217,7 @@ def _getelemptr_abi(
     assert loc is not None, "parent must have a location for ABI element access"
 
     # Calculate static location
-    if static_offset == 0:
-        static_loc = parent.operand
-    else:
-        static_loc = b.add(parent.operand, IRLiteral(static_offset))
+    static_loc = b.add(parent.operand, IRLiteral(static_offset))
 
     if member_typ.abi_type.is_dynamic():
         # Double dereference: read offset, add to parent base
@@ -414,10 +411,7 @@ def _decode_complex(
         elem_src = _getelemptr_abi(ctx, src, elem_typ, abi_offset)
 
         # Get destination pointer (Vyper layout)
-        if vyper_offset == 0:
-            elem_dst = dst
-        else:
-            elem_dst = b.add(dst, IRLiteral(vyper_offset))
+        elem_dst = b.add(dst, IRLiteral(vyper_offset))
 
         # Recursively decode element
         _abi_decode_to_buf(ctx, elem_dst, elem_src, hi)
