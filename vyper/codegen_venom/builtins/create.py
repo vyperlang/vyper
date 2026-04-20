@@ -548,10 +548,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         ctx.copy_memory_dynamic(args_dest, args_ptr, args_len)
 
     # Total length = codesize + args_len
-    if isinstance(args_len, IRLiteral) and args_len.value == 0:
-        total_len = codesize
-    else:
-        total_len = b.add(codesize, args_len)
+    total_len = b.add(codesize, args_len)
 
     # Create contract
     if salt is not None:

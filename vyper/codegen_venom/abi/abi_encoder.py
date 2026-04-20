@@ -69,10 +69,7 @@ def _get_element_ptr(
 
         if isinstance(key, IRLiteral):
             offset_val = key.value * elem_size
-            if offset_val == 0:
-                sarray_elem_ptr: IROperand = parent_ptr
-            else:
-                sarray_elem_ptr = b.add(parent_ptr, IRLiteral(offset_val))
+            sarray_elem_ptr = b.add(parent_ptr, IRLiteral(offset_val))
         else:
             # Dynamic index
             offset_ir = b.mul(key, IRLiteral(elem_size))
@@ -89,10 +86,7 @@ def _get_element_ptr(
 
         if isinstance(key, IRLiteral):
             offset_val = key.value * elem_size
-            if offset_val == 0:
-                darray_elem_ptr: IROperand = data_ptr
-            else:
-                darray_elem_ptr = b.add(data_ptr, IRLiteral(offset_val))
+            darray_elem_ptr = b.add(data_ptr, IRLiteral(offset_val))
         else:
             offset_ir = b.mul(key, IRLiteral(elem_size))
             darray_elem_ptr = b.add(data_ptr, offset_ir)
@@ -146,10 +140,7 @@ def _encode_child(
     child_abi_t = child_typ.abi_type
 
     # Calculate static location
-    if static_ofst == 0:
-        static_loc = dst
-    else:
-        static_loc = b.add(dst, IRLiteral(static_ofst))
+    static_loc = b.add(dst, IRLiteral(static_ofst))
     assert isinstance(static_loc, IRVariable)
 
     if not child_abi_t.is_dynamic():
@@ -396,10 +387,7 @@ def _abi_encode_to_buf(
                 _encode_child(ctx, dst, elem_ptr, elem_typ, static_ofst, dyn_ofst_val)
             else:
                 # All static, encode directly
-                if static_ofst == 0:
-                    child_dst = dst
-                else:
-                    child_dst = b.add(dst, IRLiteral(static_ofst))
+                child_dst = b.add(dst, IRLiteral(static_ofst))
                 _abi_encode_to_buf(ctx, child_dst, elem_ptr, elem_typ)
 
             static_ofst += elem_typ.abi_type.embedded_static_size()
