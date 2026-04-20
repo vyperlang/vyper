@@ -29,7 +29,6 @@ from vyper.venom.stack_model import StackModel
 from vyper.venom.stack_spiller import StackSpiller
 
 DEBUG_SHOW_COST = False
-SPILL_DISABLED_DRY_RUN_COST = 10**9
 if DEBUG_SHOW_COST:
     import sys
 
@@ -268,9 +267,6 @@ class VenomCompiler:
                     raise CompilerPanic(f"Variable {op} not in stack")
 
             if depth < -16:
-                if dry_run and self.spiller.spilling_disabled:
-                    self.spiller.restore(snap)
-                    return SPILL_DISABLED_DRY_RUN_COST
                 # Try to selectively spill items to bring target within SWAP16
                 # range. If this fails, swap() handles it via bulk spill/restore.
                 self._reduce_depth_via_spill(
@@ -288,9 +284,6 @@ class VenomCompiler:
                 stack.poke(depth, to_swap)
                 continue
 
-            if dry_run and self.spiller.spilling_disabled and final_stack_depth < -16:
-                self.spiller.restore(snap)
-                return SPILL_DISABLED_DRY_RUN_COST
             cost += self.spiller.swap(assembly, stack, depth, dry_run)
             cost += self.spiller.swap(assembly, stack, final_stack_depth, dry_run)
 

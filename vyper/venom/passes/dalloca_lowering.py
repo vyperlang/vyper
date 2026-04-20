@@ -36,10 +36,14 @@ class DallocaLoweringPass(IRPass):
     reclaims the callee's dynamically allocated memory when the
     callee returns.
 
-    Invariant used for scheduling: this pass runs per-function in
-    callee-first order, so by the time we process a caller, every
-    callee's `_needs_fmp` flag is set. See `_run_fn_passes_r` in
-    `vyper/venom/__init__.py` for the scheduling order.
+    `_needs_fmp` is computed per-function in callee-first order: a function
+    needs fmp if it contains a `dalloca` OR it invokes a callee that already
+    has `_needs_fmp` set. This is sound because Vyper's frontend rejects all
+    cyclic function calls at semantic analysis time (see
+    `vyper/semantics/analysis/module.py::_compute_reachable_set`, which raises
+    CallViolation on any recursion — self, direct, or indirect). The call
+    graph reaching this pass is therefore a DAG, and callee-first traversal
+    in `_run_fn_passes_r` populates flags in topological order.
     """
 
     required_predecessors = ("DallocaPromotion",)
@@ -47,8 +51,6 @@ class DallocaLoweringPass(IRPass):
     def run_pass(self):
         fn = self.function
 
-        # determine needs_fmp: function has a dalloca, or invokes a
-        # needs_fmp callee.
         has_dalloca = any(
             inst.opcode == "dalloca" for bb in fn.get_basic_blocks() for inst in bb.instructions
         )
