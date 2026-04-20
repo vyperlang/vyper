@@ -248,12 +248,7 @@ class Stmt:
             src = staged_src.operand
 
         for src_elem_typ, dst_elem_typ in zip(src_member_types, dst_member_types):
-            if src_offset == 0:
-                elem_ptr = src
-            elif isinstance(src, IRLiteral):
-                elem_ptr = IRLiteral(src.value + src_offset)
-            else:
-                elem_ptr = self.builder.add(src, IRLiteral(src_offset))
+            elem_ptr = self.builder.add(src, IRLiteral(src_offset))
 
             # Load the value
             val = self.ctx.load_memory(elem_ptr, src_elem_typ)
