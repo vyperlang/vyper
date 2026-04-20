@@ -75,13 +75,27 @@ class BasePtrAnalysis(IRAnalysis):
                     worklist.append(succ)
 
     def _handle_inst(self, inst: IRInstruction) -> bool:
+        opcode = inst.opcode
+
+        # `bump` is dual-output (a_out, sum). Semantically a_out == a
+        # (its first input), but we treat a_out as a *fresh* base pointer
+        # marker for the allocated region so that successive bumps in the
+        # FMP chain (each marking a distinct allocation) do not appear to
+        # alias each other through the shared FMP dataflow. The second
+        # output (advanced fmp) is a fresh SSA var used only to sequence
+        # subsequent bumps/invokes and does not alias any known region.
+        if opcode == "bump":
+            ptr_out = inst.get_outputs()[0]
+            original = self.var_to_mem.get(ptr_out, set())
+            self.var_to_mem[ptr_out] = set([Ptr.from_alloca(inst)])
+            return original != self.var_to_mem.get(ptr_out, set())
+
         if inst.num_outputs != 1:
             return False
 
         original = self.var_to_mem.get(inst.output, set())
 
-        opcode = inst.opcode
-        if opcode in ("alloca", "dalloca"):
+        if opcode == "alloca":
             self.var_to_mem[inst.output] = set([Ptr.from_alloca(inst)])
 
         elif opcode in ("add", "sub"):
@@ -199,11 +213,6 @@ class BasePtrAnalysis(IRAnalysis):
             return MemoryLocation.UNDEFINED
         if inst.opcode == "memtop":
             return MemoryLocation.UNDEFINED
-        if inst.opcode == "dalloca":
-            # dalloca uses MLOAD only to advance MSIZE; the loaded value is
-            # discarded. Ordering against other memory-size operations is
-            # handled by the MEMORY_SIZE effect.
-            return MemoryLocation.EMPTY
 
         if inst.get_read_effects() & effects.MEMORY == effects.EMPTY:
             return MemoryLocation.EMPTY

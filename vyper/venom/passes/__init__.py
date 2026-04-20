@@ -7,6 +7,7 @@ from .branch_optimization import BranchOptimizationPass
 from .cfg_normalization import CFGNormalization
 from .common_subexpression_elimination import CSE
 from .concretize_mem_loc import ConcretizeMemLocPass
+from .dalloca_lowering import DallocaLoweringPass
 from .dalloca_promotion import DallocaPromotion
 from .dead_store_elimination import DeadStoreElimination
 from .dft import DFTPass

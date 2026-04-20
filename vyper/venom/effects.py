@@ -60,7 +60,6 @@ _writes = {
     "codecopy": MEMORY,
     "extcodecopy": MEMORY,
     "mcopy": MEMORY,
-    "dalloca": MEMORY_SIZE,  # expands the observable MSIZE high-water mark
 }
 
 _reads = {
@@ -88,7 +87,6 @@ _reads = {
     "sha3": MEMORY,
     "return": MEMORY,
     "memtop": MEMORY | MEMORY_SIZE,  # lowers to MSIZE; depends on memory growth
-    "dalloca": MEMORY | MEMORY_SIZE,  # reads MSIZE, then advances the high-water mark
 }
 
 reads = _reads.copy()

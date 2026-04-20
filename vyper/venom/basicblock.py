@@ -430,7 +430,12 @@ class IRInstruction:
         if self.opcode == "memtop":
             return 1  # lowers to single MSIZE byte
         if self.opcode == "dalloca":
-            return 9  # compact bump; dalloca functions prime MSIZE at entry
+            # `dalloca` is high-level sugar and is eliminated by DallocaLoweringPass
+            # before assembly emission. The lowered form is `add + and + bump` (add/and
+            # = 2 bytes each, bump = DUP2+ADD = 2 bytes), totalling 6 bytes.
+            return 6
+        if self.opcode == "bump":
+            return 2  # DUP2 ADD
         return 2
 
     def get_ast_source(self) -> Optional[IRnode]:

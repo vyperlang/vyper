@@ -12,7 +12,7 @@ from vyper.ir.compile_ir import (
     TaggedInstruction,
     optimize_assembly,
 )
-from vyper.utils import OrderedSet, ceil32, wrap256
+from vyper.utils import MemoryPositions, OrderedSet, ceil32, wrap256
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import (
     PSEUDO_INSTRUCTION,
@@ -29,7 +29,6 @@ from vyper.venom.stack_model import StackModel
 from vyper.venom.stack_spiller import StackSpiller
 
 DEBUG_SHOW_COST = False
-SPILL_DISABLED_DRY_RUN_COST = 10**9
 if DEBUG_SHOW_COST:
     import sys
 
@@ -162,10 +161,14 @@ class VenomCompiler:
     def generate_evm_assembly(self, no_optimize: bool = False) -> list[AssemblyInstruction]:
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
+        self.spiller.reset_peak_spill_end()
 
         asm: list[AssemblyInstruction] = []
 
-        for fn in self.ctx.functions.values():
+        fns = list(self.ctx.functions.values())
+        self._entry_fn = fns[0] if fns else None
+
+        for fn in fns:
             ac = IRAnalysesCache(fn)
 
             self.liveness = ac.request_analysis(LivenessAnalysis)
@@ -177,12 +180,18 @@ class VenomCompiler:
             self.spiller.set_current_function(fn)
             self.spiller.reset_spill_slots()
 
-            self.spiller.spilling_disabled = self._function_has_dalloca(fn)
             try:
                 self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), {})
             finally:
-                self.spiller.spilling_disabled = False
                 self.spiller.set_current_function(None)
+
+        # Prepend the FMP init PUSH after all codegen so that the
+        # initial FMP can account for the actual spill usage observed
+        # during codegen (peak_spill_end). Without this, a function
+        # with small fn_eom and many spills could have its spill
+        # slots collide with the dynamic allocation region.
+        if self._entry_fn is not None and self._function_needs_fmp(self._entry_fn):
+            asm = list(PUSH(self._initial_fmp_value())) + asm
 
         asm.extend(_REVERT_POSTAMBLE)
         # Append data segment
@@ -205,18 +214,21 @@ class VenomCompiler:
 
         return asm
 
-    def _function_has_dalloca(self, fn: IRFunction) -> bool:
-        return any(
-            inst.opcode == "dalloca" for bb in fn.get_basic_blocks() for inst in bb.instructions
-        )
+    def _function_needs_fmp(self, fn: IRFunction) -> bool:
+        return getattr(fn, "_needs_fmp", False)
 
-    def _prime_dalloca_msize(self, assembly: list[AssemblyInstruction], fn: IRFunction) -> None:
-        if not self._function_has_dalloca(fn):
-            return
-
-        msize_floor = max(32, ceil32(self.ctx.mem_allocator.fn_eom.get(fn, 0)))
-        assembly.extend(PUSH(msize_floor - 32))
-        assembly.extend(["MLOAD", "POP"])
+    def _initial_fmp_value(self) -> int:
+        # Initial FMP must live above every function's static frame
+        # AND above every function's spill region. Spill slots start
+        # at fn_eom[fn] and grow upward; `peak_spill_end` tracks the
+        # maximum `fn_eom + N*32` reached across all functions during
+        # codegen. Placing the initial FMP at or above that value
+        # guarantees that the dynamic allocation region (bumped from
+        # FMP by each `bump` instruction) never aliases with any
+        # function's spill area.
+        eoms = [self.ctx.mem_allocator.fn_eom.get(fn, 0) for fn in self.ctx.functions.values()]
+        max_eom = max(eoms, default=0)
+        return ceil32(max(max_eom, self.spiller.peak_spill_end, MemoryPositions.RESERVED_MEMORY))
 
     def _stack_reorder(
         self,
@@ -255,9 +267,6 @@ class VenomCompiler:
                     raise CompilerPanic(f"Variable {op} not in stack")
 
             if depth < -16:
-                if dry_run and self.spiller.spilling_disabled:
-                    self.spiller.restore(snap)
-                    return SPILL_DISABLED_DRY_RUN_COST
                 # Try to selectively spill items to bring target within SWAP16
                 # range. If this fails, swap() handles it via bulk spill/restore.
                 self._reduce_depth_via_spill(
@@ -275,9 +284,6 @@ class VenomCompiler:
                 stack.poke(depth, to_swap)
                 continue
 
-            if dry_run and self.spiller.spilling_disabled and final_stack_depth < -16:
-                self.spiller.restore(snap)
-                return SPILL_DISABLED_DRY_RUN_COST
             cost += self.spiller.swap(assembly, stack, depth, dry_run)
             cost += self.spiller.swap(assembly, stack, final_stack_depth, dry_run)
 
@@ -442,8 +448,12 @@ class VenomCompiler:
 
         fn = basicblock.parent
         if basicblock == fn.entry:
+            # Note: the FMP-init PUSH is prepended to the assembly
+            # AFTER all codegen completes, in generate_evm_assembly.
+            # It must be emitted late because the initial FMP value
+            # depends on the spiller's peak spill offset, which is
+            # only known once every function has been laid out.
             self._prepare_stack_for_function(asm, fn, stack)
-            self._prime_dalloca_msize(asm, fn)
 
         if len(self.cfg.cfg_in(basicblock)) == 1:
             self.clean_stack_from_cfg_in(asm, basicblock, stack)
@@ -604,8 +614,13 @@ class VenomCompiler:
             assembly.append(opcode.upper())
         elif opcode == "alloca":
             pass
+        elif opcode == "bump":
+            self._emit_bump(assembly)
         elif opcode == "dalloca":
-            self._emit_dalloca(assembly)
+            # DallocaLoweringPass is expected to eliminate every `dalloca`
+            # before we reach codegen. If we see one here, the pipeline is
+            # misconfigured.
+            raise CompilerPanic("dalloca reached codegen; DallocaLoweringPass missing?")
         elif opcode == "memtop":
             assembly.append("MSIZE")
         elif opcode == "param":
@@ -685,7 +700,12 @@ class VenomCompiler:
             return apply_line_numbers(inst, assembly)
 
         # Skip popping dead outputs if we're in a halting block (return/revert/stop)
-        if not skip_pops:
+        # and the instruction has a single output (popping a dead single output
+        # is safe to elide because the halting terminator discards the entire
+        # stack). For multi-output instructions the elision can leave a dead
+        # value sandwiched between operands needed by later instructions,
+        # breaking the spiller's reorder assumptions.
+        if not skip_pops or len(outputs) > 1:
             dead_outputs = [out for out in outputs if out not in next_liveness]
             self.popmany(assembly, dead_outputs, stack)
 
@@ -702,10 +722,18 @@ class VenomCompiler:
 
         return apply_line_numbers(inst, assembly)
 
-    def _emit_dalloca(self, assembly: list[AssemblyInstruction]) -> None:
-        # The function entry primes MSIZE to at least 32, so
-        # `msize + size - 32` cannot underflow.
-        assembly.extend(["PUSH1", 0x20, "MSIZE", "DUP1", "SWAP3", "ADD", "SUB", "MLOAD", "POP"])
+    def _emit_bump(self, assembly: list[AssemblyInstruction]) -> None:
+        # `bump a, b` is pure arithmetic: output (a, a + b).
+        # Input stack:  [..., a, b]           (b on TOS)
+        # Output stack: [..., a_out, sum]     (sum on TOS, a_out below)
+        #
+        # where a_out == a and sum == a + b. Order matches Venom's
+        # multi-output convention: outputs[0] lands deepest, outputs[-1]
+        # on TOS.
+        assembly.append("DUP2")
+        # stack: [..., a, b, a]
+        assembly.append("ADD")
+        # stack: [..., a, a+b]  == [..., a_out, sum]
 
     def _optimistic_swap(self, assembly, inst, next_liveness, stack):
         # heuristic: peek at next_liveness to find the next scheduled
