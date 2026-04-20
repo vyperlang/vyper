@@ -15,7 +15,6 @@ from vyper.evm.address_space import (
     AddrSpace,
 )
 from vyper.exceptions import CompilerPanic
-from vyper.utils import MemoryPositions
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
@@ -76,13 +75,24 @@ class BasePtrAnalysis(IRAnalysis):
                     worklist.append(succ)
 
     def _handle_inst(self, inst: IRInstruction) -> bool:
+        opcode = inst.opcode
+
+        # dalloca is dual-output (ptr, new_fmp); first output is the base ptr
+        # for the allocated region. the second output (threaded fmp) is a
+        # fresh SSA var used only to sequence subsequent dallocas/invokes and
+        # does not alias any known memory region.
+        if opcode == "dalloca":
+            ptr_out = inst.get_outputs()[0]
+            original = self.var_to_mem.get(ptr_out, set())
+            self.var_to_mem[ptr_out] = set([Ptr.from_alloca(inst)])
+            return original != self.var_to_mem.get(ptr_out, set())
+
         if inst.num_outputs != 1:
             return False
 
         original = self.var_to_mem.get(inst.output, set())
 
-        opcode = inst.opcode
-        if opcode in ("alloca", "dalloca"):
+        if opcode == "alloca":
             self.var_to_mem[inst.output] = set([Ptr.from_alloca(inst)])
 
         elif opcode in ("add", "sub"):
@@ -182,8 +192,6 @@ class BasePtrAnalysis(IRAnalysis):
             return MemoryLocation(offset=0, size=32)
         if inst.opcode == "invoke":
             return MemoryLocation.UNDEFINED
-        if inst.opcode == "dalloca":
-            return MemoryLocation(offset=MemoryPositions.FREE_MEM_PTR, size=32)
 
         if inst.get_write_effects() & effects.MEMORY == effects.EMPTY:
             return MemoryLocation.EMPTY
@@ -202,8 +210,6 @@ class BasePtrAnalysis(IRAnalysis):
             return MemoryLocation.UNDEFINED
         if inst.opcode == "memtop":
             return MemoryLocation.UNDEFINED
-        if inst.opcode == "dalloca":
-            return MemoryLocation(offset=MemoryPositions.FREE_MEM_PTR, size=32)
 
         if inst.get_read_effects() & effects.MEMORY == effects.EMPTY:
             return MemoryLocation.EMPTY

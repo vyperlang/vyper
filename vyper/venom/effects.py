@@ -60,7 +60,6 @@ _writes = {
     "codecopy": MEMORY,
     "extcodecopy": MEMORY,
     "mcopy": MEMORY,
-    "dalloca": MEMORY,  # bumps the free memory pointer at the FMP slot
 }
 
 _reads = {
@@ -88,7 +87,6 @@ _reads = {
     "sha3": MEMORY,
     "return": MEMORY,
     "memtop": MEMORY | MEMORY_SIZE,  # lowers to MSIZE; depends on memory growth
-    "dalloca": MEMORY,  # reads the FMP slot to return the current pointer
 }
 
 reads = _reads.copy()

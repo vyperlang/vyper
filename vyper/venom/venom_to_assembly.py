@@ -180,11 +180,9 @@ class VenomCompiler:
             self.spiller.set_current_function(fn)
             self.spiller.reset_spill_slots()
 
-            self.spiller.spilling_disabled = self._function_has_dalloca(fn)
             try:
                 self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), {})
             finally:
-                self.spiller.spilling_disabled = False
                 self.spiller.set_current_function(None)
 
         asm.extend(_REVERT_POSTAMBLE)
@@ -208,25 +206,27 @@ class VenomCompiler:
 
         return asm
 
-    def _function_has_dalloca(self, fn: IRFunction) -> bool:
-        return any(
-            inst.opcode == "dalloca" for bb in fn.get_basic_blocks() for inst in bb.instructions
-        )
-
-    def _context_has_dalloca(self) -> bool:
-        return any(self._function_has_dalloca(fn) for fn in self.ctx.functions.values())
+    def _function_needs_fmp(self, fn: IRFunction) -> bool:
+        return getattr(fn, "_needs_fmp", False)
 
     def _global_max_fn_eom(self) -> int:
+        # Initial FMP must live above all reserved memory and all static
+        # per-function allocations (including spill slots allocated from
+        # fn_eom upward). ceil32 is a defensive no-op — fn_eom is
+        # already word-aligned.
         eoms = [self.ctx.mem_allocator.fn_eom.get(fn, 0) for fn in self.ctx.functions.values()]
         max_eom = max(eoms, default=0)
-        return ceil32(max_eom)
+        return ceil32(max(max_eom, MemoryPositions.RESERVED_MEMORY))
 
     def _emit_fmp_init(self, assembly: list[AssemblyInstruction]) -> None:
-        if not self._context_has_dalloca():
+        # If the entry function (and therefore at least one function
+        # reachable from it) needs the threaded FMP, push the initial
+        # free-memory pointer onto the stack. The entry function's
+        # leading `param` will consume it.
+        assert self._entry_fn is not None
+        if not self._function_needs_fmp(self._entry_fn):
             return
         assembly.extend(PUSH(self._global_max_fn_eom()))
-        assembly.extend(PUSH(MemoryPositions.FREE_MEM_PTR))
-        assembly.append("MSTORE")
 
     def _stack_reorder(
         self,
@@ -696,7 +696,12 @@ class VenomCompiler:
             return apply_line_numbers(inst, assembly)
 
         # Skip popping dead outputs if we're in a halting block (return/revert/stop)
-        if not skip_pops:
+        # and the instruction has a single output (popping a dead single output
+        # is safe to elide because the halting terminator discards the entire
+        # stack). For multi-output instructions the elision can leave a dead
+        # value sandwiched between operands needed by later instructions,
+        # breaking the spiller's reorder assumptions.
+        if not skip_pops or len(outputs) > 1:
             dead_outputs = [out for out in outputs if out not in next_liveness]
             self.popmany(assembly, dead_outputs, stack)
 
@@ -714,21 +719,23 @@ class VenomCompiler:
         return apply_line_numbers(inst, assembly)
 
     def _emit_dalloca(self, assembly: list[AssemblyInstruction]) -> None:
-        # Input stack: [..., size]
-        # Output stack: [..., ptr]
-        # ptr = current_fmp; new_fmp = ptr + ceil32(size); write new_fmp back.
+        # Dual-output arithmetic-only dalloca.
+        # Input stack:  [..., fmp, size]     (size on TOS)
+        # Output stack: [..., ptr, new_fmp]  (new_fmp on TOS, ptr below)
+        #
+        # where ptr == current fmp and new_fmp == ceil32(size) + fmp.
+        # Order matches Venom's multi-output convention: outputs[0]
+        # lands deepest, outputs[-1] on TOS.
         assembly.extend(PUSH(31))
         assembly.append("ADD")
         assembly.extend(PUSH(31))
         assembly.append("NOT")
         assembly.append("AND")
-        assembly.extend(PUSH(MemoryPositions.FREE_MEM_PTR))
-        assembly.append("MLOAD")
-        assembly.append("DUP1")
-        assembly.append("SWAP2")
+        # stack: [..., fmp, ceil32(size)]
+        assembly.append("DUP2")
+        # stack: [..., fmp, ceil32(size), fmp]  (ptr-to-be on TOS, duplicate of fmp)
         assembly.append("ADD")
-        assembly.extend(PUSH(MemoryPositions.FREE_MEM_PTR))
-        assembly.append("MSTORE")
+        # stack: [..., fmp, fmp+ceil32(size)]  == [..., ptr, new_fmp]
 
     def _optimistic_swap(self, assembly, inst, next_liveness, stack):
         # heuristic: peek at next_liveness to find the next scheduled

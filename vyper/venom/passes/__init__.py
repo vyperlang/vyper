@@ -8,7 +8,7 @@ from .cfg_normalization import CFGNormalization
 from .common_subexpression_elimination import CSE
 from .concretize_mem_loc import ConcretizeMemLocPass
 from .dalloca_promotion import DallocaPromotion
-from .dalloca_save_restore import DallocaSaveRestore
+from .dalloca_stack_threading import DallocaStackThreading
 from .dead_store_elimination import DeadStoreElimination
 from .dft import DFTPass
 from .function_inliner import FunctionInlinerPass
