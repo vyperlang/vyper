@@ -36,7 +36,9 @@ Wrap body at 72 chars. Use `fmt_commit_msg.py` to format — it defaults to `com
 **Workflow for writing/updating the commit message in a PR:**
 
 ```bash
-# 1. Write the raw commit message (body) to commitmsg.txt
+# 1. Write the commit message BODY to commitmsg.txt
+#    Do NOT include the subject line (type[scope]: description) —
+#    that comes from the PR title on squash-merge.
 cat > commitmsg.txt << 'EOF'
 motivation paragraph here... (see "Body" section below)
 
