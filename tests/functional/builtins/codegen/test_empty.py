@@ -309,6 +309,28 @@ def foo():
         compile_code(code)
 
 
+def test_empty_state_variable_name_not_a_type():
+    code = """
+n: uint256
+
+@external
+def foo():
+    bar: uint256 = empty(self.n)
+    """
+    with pytest.raises(InvalidType, match="is not a type"):
+        compile_code(code)
+
+
+def test_empty_function_parameter_name_not_a_type():
+    code = """
+@external
+def foo(x: uint256):
+    bar: uint256 = empty(x)
+    """
+    with pytest.raises(InvalidType, match="is not a type"):
+        compile_code(code)
+
+
 def test_empty_bytes(get_contract):
     code = """
 foobar: Bytes[5]
