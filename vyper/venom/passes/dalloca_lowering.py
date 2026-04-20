@@ -1,3 +1,4 @@
+from vyper.utils import evm_not
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.passes.base_pass import IRPass
@@ -42,9 +43,6 @@ class DallocaLoweringPass(IRPass):
     """
 
     required_predecessors = ("DallocaPromotion",)
-
-    # 256-bit 2's complement of 32: the mask for `x & ~31` (ceil32 lower bits).
-    _CEIL32_MASK = (1 << 256) - 32
 
     def run_pass(self):
         fn = self.function
@@ -127,7 +125,7 @@ class DallocaLoweringPass(IRPass):
 
         # venom operand convention: rightmost operand is TOS.
         add_inst = IRInstruction("add", [IRLiteral(31), size], [a_var])
-        and_inst = IRInstruction("and", [IRLiteral(self._CEIL32_MASK), a_var], [aligned_var])
+        and_inst = IRInstruction("and", [IRLiteral(evm_not(31)), a_var], [aligned_var])
         # `bump a, b` -> outputs (a, a+b). operands=[fmp, aligned] means
         # fmp is deepest (operands[0]) and aligned is TOS (operands[-1]),
         # matching Venom's stack convention.
