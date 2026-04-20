@@ -77,11 +77,14 @@ class BasePtrAnalysis(IRAnalysis):
     def _handle_inst(self, inst: IRInstruction) -> bool:
         opcode = inst.opcode
 
-        # dalloca is dual-output (ptr, new_fmp); first output is the base ptr
-        # for the allocated region. the second output (threaded fmp) is a
-        # fresh SSA var used only to sequence subsequent dallocas/invokes and
-        # does not alias any known memory region.
-        if opcode == "dalloca":
+        # `bump` is dual-output (a_out, sum). Semantically a_out == a
+        # (its first input), but we treat a_out as a *fresh* base pointer
+        # marker for the allocated region so that successive bumps in the
+        # FMP chain (each marking a distinct allocation) do not appear to
+        # alias each other through the shared FMP dataflow. The second
+        # output (advanced fmp) is a fresh SSA var used only to sequence
+        # subsequent bumps/invokes and does not alias any known region.
+        if opcode == "bump":
             ptr_out = inst.get_outputs()[0]
             original = self.var_to_mem.get(ptr_out, set())
             self.var_to_mem[ptr_out] = set([Ptr.from_alloca(inst)])

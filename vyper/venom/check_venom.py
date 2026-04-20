@@ -146,10 +146,10 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
     for caller in context.functions.values():
         for bb in caller.get_basic_blocks():
             for inst in bb.instructions:
-                # Disallow multi-output except on invoke and dalloca
-                # (dalloca is dual-output: ptr + threaded fmp).
+                # Disallow multi-output except on invoke and bump
+                # (bump is dual-output: first-input passthrough + sum).
                 got_num = inst.num_outputs
-                if got_num > 1 and inst.opcode not in ("invoke", "dalloca"):
+                if got_num > 1 and inst.opcode not in ("invoke", "bump"):
                     errors.append(MultiOutputNonInvoke(caller, inst))
                     continue
                 if inst.opcode != "invoke":

@@ -29,9 +29,10 @@ for opcode, eff in effects.writes.items():
 # staticcall doesn't have external effects, but it is not idempotent since
 # it can depend on gas
 _nonidempotent_insts.append("staticcall")
-# dalloca advances the global free-memory pointer; two calls produce
-# different pointers and must not be merged by CSE.
-_nonidempotent_insts.append("dalloca")
+# `bump` sits in the FMP threading chain; although it is pure arithmetic,
+# two `bump`s with distinct SSA operands represent distinct allocations
+# and must not be merged by CSE.
+_nonidempotent_insts.append("bump")
 
 NONIDEMPOTENT_INSTRUCTIONS = frozenset(_nonidempotent_insts)
 

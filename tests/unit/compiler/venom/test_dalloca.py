@@ -9,7 +9,7 @@ from vyper.venom.effects import Effects
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes import (
     ConcretizeMemLocPass,
-    DallocaStackThreading,
+    DallocaLoweringPass,
     MakeSSA,
     PhiEliminationPass,
 )
@@ -27,8 +27,8 @@ def _run_cse(pre: str):
 
 
 def test_dalloca_has_no_memory_effects():
-    # In the stack-threaded design, dalloca is pure arithmetic over
-    # explicit SSA fmp values -- no memory reads or writes.
+    # `dalloca` is high-level sugar; it has no memory effects and is
+    # lowered away before any effect-sensitive pass runs.
     ctx = parse_from_basic_block(
         """
         main:
@@ -45,24 +45,53 @@ def test_dalloca_has_no_memory_effects():
     assert Effects.MEMORY_SIZE not in inst.get_write_effects()
 
 
-def test_cse_does_not_merge_repeated_dalloca():
-    ctx = _run_cse(
+def test_bump_has_no_memory_effects():
+    # `bump` is pure arithmetic — no memory effects.
+    # Textual convention: textual leftmost is TOS. For output (a, a+b)
+    # with stack `[a, b]` (b TOS), the textual form is `bump b, a`.
+    ctx = parse_from_basic_block(
         """
         main:
-            %a = dalloca 32
-            %b = dalloca 32
-            sink %a, %b
+            %fmp = calldatasize
+            %p, %new_fmp = bump 32, %fmp
+            sink %p, %new_fmp
         """
     )
     fn = next(iter(ctx.functions.values()))
-    dallocas = [
-        inst for bb in fn.get_basic_blocks() for inst in bb.instructions if inst.opcode == "dalloca"
+    inst = fn.entry.instructions[1]
+
+    assert Effects.MEMORY not in inst.get_read_effects()
+    assert Effects.MEMORY not in inst.get_write_effects()
+    assert Effects.MEMORY_SIZE not in inst.get_read_effects()
+    assert Effects.MEMORY_SIZE not in inst.get_write_effects()
+
+
+def test_cse_does_not_merge_repeated_bump():
+    # Two `bump`s with identical operands are allocation-distinct at
+    # runtime (the FMP dataflow chain makes the operands differ in
+    # practice, but even if they matched textually, they must not be
+    # merged). CSE excludes multi-output instructions; the non-idempotent
+    # flag is the additional belt-and-suspenders guard.
+    ctx = _run_cse(
+        """
+        main:
+            %fmp = calldatasize
+            %a, %f1 = bump 32, %fmp
+            %b, %f2 = bump 32, %fmp
+            sink %a, %b, %f1, %f2
+        """
+    )
+    fn = next(iter(ctx.functions.values()))
+    bumps = [
+        inst for bb in fn.get_basic_blocks() for inst in bb.instructions if inst.opcode == "bump"
     ]
 
-    assert len(dallocas) == 2
+    assert len(bumps) == 2
 
 
 def test_dalloca_does_not_crash_memory_dse():
+    # Pre-lowering: DSE sees `dalloca` with no effects and must not
+    # crash on it (even though the shape is meaningless).
     ctx = parse_from_basic_block(
         """
         main:
@@ -80,7 +109,7 @@ def _run_probe(pre: str, calldata: bytes) -> tuple[int, int]:
     ctx = parse_from_basic_block(pre)
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
-    DallocaStackThreading(IRAnalysesCache(fn), fn).run_pass()
+    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
     # MakeSSA renames fmp reassignments into distinct SSA versions and
     # inserts phis at merge points; required for correct codegen.
     ac = IRAnalysesCache(fn)
@@ -228,7 +257,7 @@ def test_dalloca_allows_stack_spills():
     )
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
-    DallocaStackThreading(IRAnalysesCache(fn), fn).run_pass()
+    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
     ac = IRAnalysesCache(fn)
     MakeSSA(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
@@ -237,26 +266,28 @@ def test_dalloca_allows_stack_spills():
     VenomCompiler(ctx).generate_evm_assembly()
 
 
-def test_dalloca_does_not_pessimize_load_elimination():
-    # dalloca has no memory effects now, so LoadElimination can forward
-    # mloads across it.
+def test_bump_does_not_pessimize_load_elimination():
+    # `bump` has no memory effects, so LoadElimination can forward
+    # mloads across it. Textual `bump b, a` -> outputs (a, a+b).
     pre = """
     main:
         %ptr = alloca 32
         mstore %ptr, 7
         %a = mload %ptr
-        %dyn = dalloca 32
+        %fmp = calldatasize
+        %dyn, %new_fmp = bump 32, %fmp
         %b = mload %ptr
-        sink %a, %b, %dyn
+        sink %a, %b, %dyn, %new_fmp
     """
     post = """
     main:
         %ptr = alloca 32
         mstore %ptr, 7
         %a = 7
-        %dyn = dalloca 32
+        %fmp = calldatasize
+        %dyn, %new_fmp = bump 32, %fmp
         %b = %a
-        sink %a, %b, %dyn
+        sink %a, %b, %dyn, %new_fmp
     """
 
     ctx = parse_from_basic_block(pre)
@@ -266,24 +297,26 @@ def test_dalloca_does_not_pessimize_load_elimination():
     assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
-def test_dalloca_allocations_do_not_alias_each_other():
-    # Each dalloca produces a fresh base pointer distinct from every
-    # other base. Since dalloca has no memory effects, LoadElimination
+def test_bump_allocations_do_not_alias_each_other():
+    # Each `bump` produces a fresh base pointer distinct from every
+    # other base. Since `bump` has no memory effects, LoadElimination
     # can forward %x through both mstores.
     pre = """
     main:
-        %a = dalloca 32
+        %fmp0 = calldatasize
+        %a, %fmp1 = bump 32, %fmp0
         mstore %a, 1
-        %b = dalloca 32
+        %b, %fmp2 = bump 32, %fmp1
         mstore %b, 2
         %x = mload %a
         sink %x, %a, %b
     """
     post = """
     main:
-        %a = dalloca 32
+        %fmp0 = calldatasize
+        %a, %fmp1 = bump 32, %fmp0
         mstore %a, 1
-        %b = dalloca 32
+        %b, %fmp2 = bump 32, %fmp1
         mstore %b, 2
         %x = 1
         sink %x, %a, %b
@@ -296,16 +329,38 @@ def test_dalloca_allocations_do_not_alias_each_other():
     assert_ctx_eq(ctx, parse_from_basic_block(post))
 
 
+def test_dalloca_is_fully_lowered():
+    # After DallocaLoweringPass runs, no `dalloca` instruction should
+    # remain anywhere in the function.
+    ctx = parse_from_basic_block(
+        """
+        main:
+            %size = calldatasize
+            %a = dalloca %size
+            %b = dalloca 32
+            sink %a, %b
+        """
+    )
+    fn = next(iter(ctx.functions.values()))
+    ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    opcodes = [inst.opcode for bb in fn.get_basic_blocks() for inst in bb.instructions]
+    assert "dalloca" not in opcodes
+    # Expect bumps in their place (one per dalloca).
+    assert opcodes.count("bump") == 2
+
+
 def _run_program(pre: str, calldata: bytes) -> bytes:
     ctx = parse_venom(pre)
     # ConcretizeMemLocPass requires that callees be processed before
     # callers (MemLivenessAnalysis reads the callee's mems_used).
-    # DallocaStackThreading also requires callee-first order so that
+    # DallocaLoweringPass also requires callee-first order so that
     # `_needs_fmp` is propagated transitively from callees to callers.
     fns = list(ctx.functions.values())
     for fn in reversed(fns):
         ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
-        DallocaStackThreading(IRAnalysesCache(fn), fn).run_pass()
+        DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
         # MakeSSA renames fmp reassignments into distinct SSA versions
         # and inserts phis at merge points; required for correct
         # codegen.
@@ -469,3 +524,41 @@ def test_dalloca_across_branch():
     # then branch: %a=64, fmp->128; after: %c=128
     ptr = int.from_bytes(out[:32], "big")
     assert ptr == 128
+
+
+def test_bump_direct_emission():
+    # End-to-end: user hand-writes `bump` in Venom (no dalloca sugar),
+    # runs MakeSSA (not strictly needed since this is already SSA), and
+    # compiles to bytecode. Verifies that the `bump` primitive works
+    # standalone. Textual `bump b, a` -> outputs (a, a+b).
+    ctx = parse_venom(
+        """
+        function main {
+            main:
+                %fmp_init = calldatasize
+                %p1, %fmp1 = bump 32, %fmp_init
+                %p2, %fmp2 = bump 64, %fmp1
+                mstore 0, %p1
+                mstore 32, %p2
+                return 0, 64
+        }
+        """
+    )
+    fn = next(iter(ctx.functions.values()))
+    ac = IRAnalysesCache(fn)
+    MakeSSA(ac, fn).run_pass()
+    PhiEliminationPass(ac, fn).run_pass()
+    asm = VenomCompiler(ctx).generate_evm_assembly()
+    bytecode, _ = assembly_to_evm(asm)
+
+    caller = "0x" + "10" * 20
+    addr = "0x" + "20" * 20
+    evm = EVM()
+    evm.set_balance(caller, 1)
+    evm.insert_account_info(addr, AccountInfo(code=bytecode))
+    # Empty calldata => calldatasize == 0, so %fmp_init = 0.
+    out = evm.message_call(caller=caller, to=addr, calldata=b"", gas=1_000_000)
+    p1 = int.from_bytes(out[:32], "big")
+    p2 = int.from_bytes(out[32:], "big")
+    assert p1 == 0
+    assert p2 == 32

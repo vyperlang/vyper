@@ -13,21 +13,22 @@ class Allocation:
     """
     a memory region which hasn't been allocated (assigned a concrete position) yet.
     wraps either an `alloca` (static, known size, lives in the static frame)
-    or a `dalloca` (dynamic, runtime size, lives above the static frame via
-    MSIZE bump). each instruction produces a distinct Allocation identity.
+    or a `bump` (dynamic, runtime size, lives above the static frame via
+    the threaded free-memory pointer). each instruction produces a distinct
+    Allocation identity.
     """
 
     # note this class is NOT robust to mutations to the alloca instruction!
 
-    inst: IRInstruction  # the alloca or dalloca instruction
+    inst: IRInstruction  # the alloca or bump instruction
 
     def __post_init__(self):
         # sanity check
-        assert self.inst.opcode in ("alloca", "dalloca"), self.inst
+        assert self.inst.opcode in ("alloca", "bump"), self.inst
 
     @property
     def is_dynamic(self) -> bool:
-        return self.inst.opcode == "dalloca"
+        return self.inst.opcode == "bump"
 
     @property
     def alloca_size(self) -> int:

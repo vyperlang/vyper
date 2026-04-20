@@ -615,8 +615,13 @@ class VenomCompiler:
             assembly.append(opcode.upper())
         elif opcode == "alloca":
             pass
-        elif opcode == "dalloca":
-            self._emit_dalloca(assembly)
+        elif opcode == "bump":
+            self._emit_bump(assembly)
+        elif opcode == "dalloca":  # pragma: no cover
+            # DallocaLoweringPass is expected to eliminate every `dalloca`
+            # before we reach codegen. If we see one here, the pipeline is
+            # misconfigured.
+            raise CompilerPanic("dalloca reached codegen; DallocaLoweringPass missing?")
         elif opcode == "memtop":
             assembly.append("MSIZE")
         elif opcode == "param":
@@ -718,24 +723,18 @@ class VenomCompiler:
 
         return apply_line_numbers(inst, assembly)
 
-    def _emit_dalloca(self, assembly: list[AssemblyInstruction]) -> None:
-        # Dual-output arithmetic-only dalloca.
-        # Input stack:  [..., fmp, size]     (size on TOS)
-        # Output stack: [..., ptr, new_fmp]  (new_fmp on TOS, ptr below)
+    def _emit_bump(self, assembly: list[AssemblyInstruction]) -> None:
+        # `bump a, b` is pure arithmetic: output (a, a + b).
+        # Input stack:  [..., a, b]           (b on TOS)
+        # Output stack: [..., a_out, sum]     (sum on TOS, a_out below)
         #
-        # where ptr == current fmp and new_fmp == ceil32(size) + fmp.
-        # Order matches Venom's multi-output convention: outputs[0]
-        # lands deepest, outputs[-1] on TOS.
-        assembly.extend(PUSH(31))
-        assembly.append("ADD")
-        assembly.extend(PUSH(31))
-        assembly.append("NOT")
-        assembly.append("AND")
-        # stack: [..., fmp, ceil32(size)]
+        # where a_out == a and sum == a + b. Order matches Venom's
+        # multi-output convention: outputs[0] lands deepest, outputs[-1]
+        # on TOS.
         assembly.append("DUP2")
-        # stack: [..., fmp, ceil32(size), fmp]  (ptr-to-be on TOS, duplicate of fmp)
+        # stack: [..., a, b, a]
         assembly.append("ADD")
-        # stack: [..., fmp, fmp+ceil32(size)]  == [..., ptr, new_fmp]
+        # stack: [..., a, a+b]  == [..., a_out, sum]
 
     def _optimistic_swap(self, assembly, inst, next_liveness, stack):
         # heuristic: peek at next_liveness to find the next scheduled
