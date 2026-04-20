@@ -9,9 +9,11 @@ from vyper.utils import SizeLimits
 @pytest.fixture(scope="module")
 def isqrt_contract(get_contract):
     code = """
+import math
+
 @external
 def test(a: uint256) -> uint256:
-    return isqrt(a)
+    return math.isqrt(a)
     """
     c = get_contract(code)
     return c
@@ -20,9 +22,11 @@ def test(a: uint256) -> uint256:
 def test_isqrt_literal(get_contract):
     val = 2
     code = f"""
+import math
+
 @external
 def test() -> uint256:
-    return isqrt({val})
+    return math.isqrt({val})
     """
     c = get_contract(code)
     assert c.test() == math.isqrt(val)
@@ -30,9 +34,11 @@ def test() -> uint256:
 
 def test_isqrt_variable(get_contract):
     code = """
+import math
+
 @external
 def test(a: uint256) -> uint256:
-    return isqrt(a)
+    return math.isqrt(a)
     """
 
     c = get_contract(code)
@@ -48,10 +54,12 @@ def test(a: uint256) -> uint256:
 def test_isqrt_internal_variable(get_contract):
     val = 44001
     code = f"""
+import math
+
 @external
 def test2() -> uint256:
     a: uint256 = {val}
-    return isqrt(a)
+    return math.isqrt(a)
     """
     c = get_contract(code)
     assert c.test2() == math.isqrt(val)
@@ -59,12 +67,14 @@ def test2() -> uint256:
 
 def test_isqrt_storage(get_contract):
     code = """
+import math
+
 s_var: uint256
 
 @external
 def test(a: uint256) -> uint256:
     self.s_var = a + 1
-    return isqrt(self.s_var)
+    return math.isqrt(self.s_var)
     """
 
     c = get_contract(code)
@@ -77,12 +87,14 @@ def test(a: uint256) -> uint256:
 def test_isqrt_storage_internal_variable(get_contract):
     val = 44444
     code = f"""
+import math
+
 s_var: uint256
 
 @external
 def test2() -> uint256:
     self.s_var = {val}
-    return isqrt(self.s_var)
+    return math.isqrt(self.s_var)
     """
     c = get_contract(code)
     assert c.test2() == math.isqrt(val)
@@ -90,12 +102,14 @@ def test2() -> uint256:
 
 def test_isqrt_inline_memory_correct(get_contract):
     code = """
+import math
+
 @external
 def test(a: uint256) -> (uint256, uint256, uint256, uint256, uint256, String[100]):
     x: uint256 = 1
     y: uint256 = 2
     z: uint256 = 3
-    e: uint256 = isqrt(a)
+    e: uint256 = math.isqrt(a)
     f: String[100] = 'hello world'
     return a, x, y, z, e, f
     """

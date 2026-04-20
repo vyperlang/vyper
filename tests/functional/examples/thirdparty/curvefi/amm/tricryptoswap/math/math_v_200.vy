@@ -1,4 +1,5 @@
 # pragma version >=0.4.2
+import math
 
 # (c) Curve.Fi, 2020-2024
 # AMM Math for 3-coin Curve Cryptoswap Pools
@@ -180,7 +181,7 @@ def get_y(
 
     sqrt_val: int256 = 0
     if sqrt_arg > 0:
-        sqrt_val = convert(isqrt(convert(sqrt_arg, uint256)), int256)
+        sqrt_val = convert(math.isqrt(convert(sqrt_arg, uint256)), int256)
     else:
         return [self._newton_y(_ANN, _gamma, x, _D, i), 0]
 
