@@ -11,11 +11,15 @@ The commit message must explain **why**.
 
 ### Format
 
-[Conventional Commits](https://www.conventionalcommits.org/):
+[Conventional Commits](https://www.conventionalcommits.org/). On squash-merge, the PR title becomes the commit subject line. The PR template's "Commit message" section becomes the body.
 
+**PR title** (becomes subject line):
 ```
 <type>[scope]: <description>
+```
 
+**PR "Commit message" section** (becomes body):
+```
 <body>
 ```
 
@@ -23,7 +27,7 @@ Types: `feat`, `fix`, `refactor`, `perf`, `chore`, `release`.
 Scope is **required**. Validated by CI — see [pull-request.yaml](../.github/workflows/pull-request.yaml) for the canonical list.
 Current scopes: `venom`, `lang`, `codegen`, `parser`, `stdlib`, `ux`, `ir`, `test`, `docs`, `ci`, `build`, `tool`.
 
-### Subject Line
+### Subject Line (PR title)
 
 - Imperative, present tense ("add X" not "added X")
 - ~50 chars, lowercase, no period
@@ -128,8 +132,7 @@ Note: first paragraph is pure *why* (the bug mechanism). Second paragraph is a c
 - Fork from `master`
 - Write tests for new features; place them under `tests/`
 - Larger changes: discuss in Discord `#compiler-dev` first
-- PRs are squash-merged — the PR title becomes the commit subject. Keep PR title and commit message title in sync.
-- **The PR template's "Commit message" section should contain ONLY the body**, not the `type[scope]: description` subject line. The subject comes from the PR title automatically on squash-merge.
+- PRs are squash-merged. See [Format](#format) for how the PR title and "Commit message" section map onto the final commit.
 - Work from your individual fork. PRs target `vyperlang/vyper` upstream:
   ```bash
   gh pr create --repo vyperlang/vyper --base master --head <fork-owner>:<branch>
