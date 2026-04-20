@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import CompilerPanic, TypeMismatch, UndeclaredDefinition
+from vyper.exceptions import CompilerPanic, InvalidType, TypeMismatch, UndeclaredDefinition
 from vyper.semantics.types import INF, BytesT, DArrayT, StringT
 from vyper.semantics.types.infinity import Inf
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -171,6 +171,15 @@ def foo(x: uint256 = INF):
     """,
         TypeMismatch,
     ),
+    # INF cannot be used as a static array length
+    (
+        """
+@external
+def foo(x: uint256[INF]):
+    pass
+    """,
+        InvalidType,
+    ),
 ]
 
 
@@ -178,17 +187,6 @@ def foo(x: uint256 = INF):
 def test_inf_fail(bad_code, exc):
     with pytest.raises(exc):
         compiler.compile_code(bad_code)
-
-
-@pytest.mark.xfail(raises=CompilerPanic)
-def test_inf_in_static_array():
-    """INF cannot be used as a static array length"""
-    code = """
-@external
-def foo(x: uint256[INF]):
-    pass
-    """
-    compiler.compile_code(code)
 
 
 @pytest.mark.xfail(raises=CompilerPanic)

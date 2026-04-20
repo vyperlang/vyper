@@ -220,10 +220,8 @@ class SArrayT(_SequenceT):
         # note: validates index
         length = get_index_value(node.slice)
 
-        # TODO: Add proper error message, either here or somewhere else
-        assert length is not INF
-        # Make mypy happy
-        assert not isinstance(length, Inf)
+        if length is INF:
+            raise InvalidType("Static arrays cannot have INF length", node.slice)
 
         return cls(value_type, length)
 
