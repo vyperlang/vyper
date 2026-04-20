@@ -75,9 +75,10 @@ Commit messages should not be tied to a particular issue tracker. Use `GH 1234` 
 
 ### Good Example (from recent history)
 
-```
-fix[venom]: fix allocation in ternary fall through (#4846)
+PR title: `fix[venom]: fix allocation in ternary fall through`
 
+Commit message body:
+```
 `Mem2Var._fix_adds` ensures `add` instructions on alloca pointers are
 recognized by `BasePtrAnalysis` so it can track pointer provenance
 through arithmetic. When a ternary expression merges two
@@ -98,9 +99,10 @@ Note: explains the *mechanism* of the bug (why it happened), not just "fixed a c
 
 ### Another Good Example
 
-```
-fix[venom]: treat immutables as global allocations (#4839)
+PR title: `fix[venom]: treat immutables as global allocations`
 
+Commit message body:
+```
 the immutables region (allocated at position 0 during deploy) was not
 reserved across function boundaries. when `ConcretizeMemLocPass` ran for
 internal functions, it started with an empty reserved set, allowing
