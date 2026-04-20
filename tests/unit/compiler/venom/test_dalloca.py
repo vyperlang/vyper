@@ -552,6 +552,9 @@ def test_dalloca_spill_does_not_corrupt_dynamic_allocation():
     # address. Writing a sentinel to the dalloca region then forcing
     # spills across it should corrupt the sentinel if (and only if) the
     # spiller does not coordinate with the initial FMP.
+    N = 20
+    mloads = "\n".join(f"                %v{i} = mload {1024 + i*32}" for i in range(N))
+    invoke_args = ", ".join(f"%v{i}" for i in range(N))
     out = _run_program(
         f"""
         function main {{
@@ -559,27 +562,8 @@ def test_dalloca_spill_does_not_corrupt_dynamic_allocation():
                 %sz = calldatasize
                 %dyn = dalloca %sz
                 mstore %dyn, {hex(sentinel)}
-                %v0 = mload 1024
-                %v1 = mload 1056
-                %v2 = mload 1088
-                %v3 = mload 1120
-                %v4 = mload 1152
-                %v5 = mload 1184
-                %v6 = mload 1216
-                %v7 = mload 1248
-                %v8 = mload 1280
-                %v9 = mload 1312
-                %v10 = mload 1344
-                %v11 = mload 1376
-                %v12 = mload 1408
-                %v13 = mload 1440
-                %v14 = mload 1472
-                %v15 = mload 1504
-                %v16 = mload 1536
-                %v17 = mload 1568
-                %v18 = mload 1600
-                %v19 = mload 1632
-                %r = invoke @consume, %v0, %v1, %v2, %v3, %v4, %v5, %v6, %v7, %v8, %v9, %v10, %v11, %v12, %v13, %v14, %v15, %v16, %v17, %v18, %v19
+{mloads}
+                %r = invoke @consume, {invoke_args}
                 %readback = mload %dyn
                 %final = add %r, %readback
                 mstore 0, %final
