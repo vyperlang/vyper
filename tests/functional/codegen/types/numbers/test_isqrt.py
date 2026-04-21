@@ -3,6 +3,8 @@ import math
 import hypothesis
 import pytest
 
+from vyper.compiler import compile_code
+from vyper.exceptions import UnimplementedException
 from vyper.utils import SizeLimits
 
 
@@ -142,3 +144,17 @@ def test_isqrt_valid_range(isqrt_contract, value):
     next = vyper_isqrt + 1
     assert vyper_isqrt * vyper_isqrt <= value
     assert next * next > value
+
+
+def test_use_old_isqrt_builtin(get_contract):
+    code = """
+import math
+
+@external
+def foo() -> uint256:
+    return isqrt(4)
+    """
+    with pytest.raises(UnimplementedException) as e:
+        compile_code(code)
+    expected = "The `isqrt` builtin was removed. Instead import module `math` and use `math.isqrt()`"
+    assert e.value.message == expected
