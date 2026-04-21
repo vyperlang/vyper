@@ -219,7 +219,7 @@ class Context:
         n = var.typ.memory_bytes_required
         assert n == var.size
 
-        if self.settings.experimental_codegen:
+        if not self.settings.legacy_codegen:
             # do not deallocate at this stage because this will break
             # analysis in venom; venom will do its own alloc/dealloc/analysis.
             pass
@@ -243,7 +243,7 @@ class Context:
 
         pos = ofst
         alloca = None
-        if self.settings.experimental_codegen:
+        if not self.settings.legacy_codegen:
             # convert it into an abstract pointer
             if internal_function:
                 pos = f"$palloca_{ofst}_{size}"

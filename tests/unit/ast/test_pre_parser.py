@@ -206,8 +206,8 @@ def test_parse_pragmas(code, pre_parse_settings, compiler_data_settings, mock_ve
         # None is sentinel here meaning that nothing changed
         compiler_data_settings = pre_parse_settings
 
-    # experimental_codegen is False by default
-    compiler_data_settings.experimental_codegen = False
+    # legacy_codegen is False by default (venom is default)
+    compiler_data_settings.legacy_codegen = False
 
     assert compiler_data.settings == compiler_data_settings
 
@@ -226,10 +226,10 @@ pragma_venom = [
 def test_parse_venom_pragma(code):
     pre_parser = PreParser(is_interface=False)
     pre_parser.parse(code)
-    assert pre_parser.settings.experimental_codegen is True
+    assert pre_parser.settings.legacy_codegen is False  # venom = not legacy
 
     compiler_data = CompilerData(code)
-    assert compiler_data.settings.experimental_codegen is True
+    assert compiler_data.settings.legacy_codegen is False
 
 
 invalid_pragmas = [

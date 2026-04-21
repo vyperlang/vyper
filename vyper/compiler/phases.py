@@ -144,8 +144,8 @@ class CompilerData:
         if settings.optimize is None:
             settings.optimize = OptimizationLevel.default()
 
-        if settings.experimental_codegen is None:
-            settings.experimental_codegen = True
+        if settings.legacy_codegen is None:
+            settings.legacy_codegen = False
 
         return settings
 
@@ -255,14 +255,14 @@ class CompilerData:
 
     @cached_property
     def venom_runtime(self):
-        assert self.settings.experimental_codegen
+        assert not self.settings.legacy_codegen
         from vyper.codegen_venom import generate_venom_runtime
 
         return generate_venom_runtime(self.global_ctx, self.settings)
 
     @cached_property
     def venom_deploytime(self):
-        assert self.settings.experimental_codegen
+        assert not self.settings.legacy_codegen
         from vyper.codegen_venom import generate_venom_deploy
 
         return generate_venom_deploy(
@@ -275,7 +275,7 @@ class CompilerData:
         if not self.no_bytecode_metadata:
             metadata = bytes.fromhex(self.integrity_sum)
 
-        if self.settings.experimental_codegen:
+        if not self.settings.legacy_codegen:
             assert self.settings.optimize is not None  # mypy hint
             return generate_assembly_experimental(
                 self.venom_deploytime, optimize=self.settings.optimize
@@ -303,7 +303,7 @@ class CompilerData:
 
     @cached_property
     def assembly_runtime(self) -> list:
-        if self.settings.experimental_codegen:
+        if not self.settings.legacy_codegen:
             assert self.settings.optimize is not None  # mypy hint
             return generate_assembly_experimental(
                 self.venom_runtime, optimize=self.settings.optimize

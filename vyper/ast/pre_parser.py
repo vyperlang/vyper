@@ -80,19 +80,19 @@ def _parse_pragma(comment_contents, settings, is_interface, code, start):
         return
 
     if pragma in ("experimental-codegen", "venom-experimental"):
-        if settings.experimental_codegen is not None:
+        if settings.legacy_codegen is not None:
             raise PragmaException(
                 "pragma experimental-codegen/venom-experimental specified twice!", *location
             )
-        settings.experimental_codegen = True
+        settings.legacy_codegen = False  # venom = not legacy
         return
 
     if pragma == "legacy":
-        if settings.experimental_codegen is not None:
+        if settings.legacy_codegen is not None:
             raise PragmaException(
                 "pragma legacy specified twice!", *location
             )
-        settings.experimental_codegen = False
+        settings.legacy_codegen = True
         return
 
     if pragma == "enable-decimals":

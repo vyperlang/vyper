@@ -71,7 +71,7 @@ def ir_for_self_call(stmt_expr: vy_ast.Call, context):
 
     # note: dst_tuple_t != args_tuple_t
     dst_tuple_t = TupleT(tuple(func_t.argument_types))
-    if context.settings.experimental_codegen:
+    if not context.settings.legacy_codegen:
         arg_items = ["multi"]
         frame_info = func_t._ir_info.frame_info
 

@@ -213,15 +213,15 @@ def _parse_args(argv):
     parser.add_argument(
         "--legacy",
         help="Use the legacy (IRnode-based) codegen instead of Venom.",
-        action="store_false",
-        dest="experimental_codegen",
+        action="store_true",
+        dest="legacy_codegen",
     )
     parser.add_argument(
         "--experimental-codegen",
         "--venom-experimental",
         help=argparse.SUPPRESS,  # deprecated: venom is now the default
         action="store_true",
-        dest="experimental_codegen_deprecated",
+        dest="legacy_codegen_negated",
     )
     parser.add_argument("--enable-decimals", help="Enable decimals", action="store_true")
 
@@ -286,10 +286,11 @@ def _parse_args(argv):
     if args.evm_version:
         settings.evm_version = args.evm_version
 
-    if args.experimental_codegen is not None:
-        settings.experimental_codegen = args.experimental_codegen
-    elif getattr(args, "experimental_codegen_deprecated", False):
-        settings.experimental_codegen = True
+    if getattr(args, "legacy_codegen", False):
+        settings.legacy_codegen = True
+    elif getattr(args, "legacy_codegen_negated", False):
+        # --experimental-codegen (deprecated): venom = not legacy
+        settings.legacy_codegen = False
 
     if args.debug:
         settings.debug = args.debug

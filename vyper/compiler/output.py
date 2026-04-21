@@ -173,19 +173,19 @@ def build_interface_output(compiler_data: CompilerData) -> str:
 
 
 def build_cfg_output(compiler_data: CompilerData) -> str:
-    if not compiler_data.settings.experimental_codegen:
-        raise ValueError("cfg output requires --experimental-codegen")
+    if compiler_data.settings.legacy_codegen:
+        raise ValueError("cfg output requires venom codegen (remove --legacy)")
     return compiler_data.venom_deploytime.as_graph()
 
 
 def build_cfg_runtime_output(compiler_data: CompilerData) -> str:
-    if not compiler_data.settings.experimental_codegen:
-        raise ValueError("cfg_runtime output requires --experimental-codegen")
+    if compiler_data.settings.legacy_codegen:
+        raise ValueError("cfg_runtime output requires venom codegen (remove --legacy)")
     return compiler_data.venom_runtime.as_graph()
 
 
 def build_ir_output(compiler_data: CompilerData):
-    if compiler_data.settings.experimental_codegen:
+    if not compiler_data.settings.legacy_codegen:
         return compiler_data.venom_deploytime
     if compiler_data.show_gas_estimates:
         IRnode.repr_show_gas = True
@@ -193,7 +193,7 @@ def build_ir_output(compiler_data: CompilerData):
 
 
 def build_ir_runtime_output(compiler_data: CompilerData):
-    if compiler_data.settings.experimental_codegen:
+    if not compiler_data.settings.legacy_codegen:
         return compiler_data.venom_runtime
     if compiler_data.show_gas_estimates:
         IRnode.repr_show_gas = True
@@ -264,7 +264,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         ret["source_id"] = func_t.decl_node.module_node.source_id
         ret["function_id"] = func_t._function_id
 
-        if func_t.is_internal and compiler_data.settings.experimental_codegen:
+        if func_t.is_internal and not compiler_data.settings.legacy_codegen:
             pass_via_stack_dict = pass_via_stack(func_t)
             pass_via_stack_list = [
                 arg for (arg, is_stack_arg) in pass_via_stack_dict.items() if is_stack_arg
