@@ -2,7 +2,6 @@ import vyper.codegen_legacy.context as ctx
 from vyper.codegen_legacy.ir_node import Encoding, IRnode
 from vyper.codegen_shared.abi_utils import (
     DYNAMIC_ARRAY_OVERHEAD,
-    abi_encoding_matches_vyper,
     calculate_type_for_external_return,
     is_tuple_like,
     needs_external_call_wrap,
@@ -41,7 +40,6 @@ from vyper.semantics.types.user import FlagT
 from vyper.utils import GAS_COPY_WORD, GAS_IDENTITY, GAS_IDENTITYWORD, ceil32
 
 
-
 def is_bytes_m_type(typ):
     return isinstance(typ, BytesM_T)
 
@@ -60,7 +58,6 @@ def is_decimal_type(typ):
 
 def is_flag_type(typ):
     return isinstance(typ, FlagT)
-
 
 
 def is_array_like(typ):

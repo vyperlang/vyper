@@ -6,7 +6,7 @@ If codegen_legacy is removed, consider refactoring — some fields
 and can be removed at that point.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, Optional
 

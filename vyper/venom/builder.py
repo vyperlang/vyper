@@ -338,7 +338,10 @@ class VenomBuilder:
         """Call internal function. Returns list of output variables."""
         all_args = [target] + list(args)
         return self._current_bb.append_invoke_instruction(
-            all_args, returns=returns, ast_source=self._current_ast_source(), error_msg=self._current_error_msg()
+            all_args,
+            returns=returns,
+            ast_source=self._current_ast_source(),
+            error_msg=self._current_error_msg(),
         )
 
     def param(self) -> IRVariable:
@@ -522,7 +525,11 @@ class VenomBuilder:
     def assign_to(self, val: Operand, target: IRVariable) -> None:
         """Assign value to existing variable (for loop counters etc)."""
         self._current_bb.append_instruction(
-            "assign", val, ret=target, ast_source=self._current_ast_source(), error_msg=self._current_error_msg()
+            "assign",
+            val,
+            ret=target,
+            ast_source=self._current_ast_source(),
+            error_msg=self._current_error_msg(),
         )
 
     def literal(self, val: int) -> IRLiteral:
@@ -587,23 +594,35 @@ class VenomBuilder:
     def _emit(self, opcode: str, *args: Operand) -> None:
         """Emit instruction with no output. Args passed directly to IR."""
         self._current_bb.append_instruction(
-            opcode, *args, ast_source=self._current_ast_source(), error_msg=self._current_error_msg()
+            opcode,
+            *args,
+            ast_source=self._current_ast_source(),
+            error_msg=self._current_error_msg(),
         )
 
     def _emit1(self, opcode: str, *args: Operand) -> IRVariable:
         """Emit instruction with output. Args passed directly to IR."""
         return self._current_bb.append_instruction1(
-            opcode, *args, ast_source=self._current_ast_source(), error_msg=self._current_error_msg()
+            opcode,
+            *args,
+            ast_source=self._current_ast_source(),
+            error_msg=self._current_error_msg(),
         )
 
     def _emit_evm(self, opcode: str, *args: Operand) -> None:
         """Emit EVM instruction. Args in semantic order, reversed for IR stack order."""
         self._current_bb.append_instruction(
-            opcode, *reversed(args), ast_source=self._current_ast_source(), error_msg=self._current_error_msg()
+            opcode,
+            *reversed(args),
+            ast_source=self._current_ast_source(),
+            error_msg=self._current_error_msg(),
         )
 
     def _emit1_evm(self, opcode: str, *args: Operand) -> IRVariable:
         """Emit EVM instruction with output. Args in semantic order, reversed for IR."""
         return self._current_bb.append_instruction1(
-            opcode, *reversed(args), ast_source=self._current_ast_source(), error_msg=self._current_error_msg()
+            opcode,
+            *reversed(args),
+            ast_source=self._current_ast_source(),
+            error_msg=self._current_error_msg(),
         )

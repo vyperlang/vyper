@@ -118,8 +118,6 @@ def _encode_dyn_array_helper(dst, ir_node, context):
         return b.resolve(ret)
 
 
-
-
 # assume dst is a pointer to a buffer located in memory which has at
 # least static_size + dynamic_size_bound allocated.
 # The basic strategy is this:

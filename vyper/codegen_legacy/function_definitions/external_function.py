@@ -1,4 +1,3 @@
-from vyper.codegen_shared.abi_utils import abi_encoding_matches_vyper
 from vyper.codegen_legacy.context import Context, VariableRecord
 from vyper.codegen_legacy.core import get_element_ptr, make_setter, needs_clamp
 from vyper.codegen_legacy.expr import Expr
@@ -11,6 +10,7 @@ from vyper.codegen_legacy.function_definitions.common import (
 )
 from vyper.codegen_legacy.ir_node import Encoding, IRnode
 from vyper.codegen_legacy.stmt import parse_body
+from vyper.codegen_shared.abi_utils import abi_encoding_matches_vyper
 from vyper.evm.address_space import CALLDATA, DATA
 from vyper.semantics.types import TupleT
 from vyper.semantics.types.function import ContractFunctionT

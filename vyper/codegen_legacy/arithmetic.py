@@ -1,7 +1,3 @@
-import decimal
-import math
-from typing import Tuple
-
 from vyper.codegen_legacy.core import (
     clamp,
     clamp_basetype,
@@ -10,11 +6,8 @@ from vyper.codegen_legacy.core import (
     is_numeric_type,
 )
 from vyper.codegen_legacy.ir_node import IRnode
-from vyper.codegen_shared.arithmetic import (
-    calculate_largest_base,
-    calculate_largest_power,
-)
-from vyper.exceptions import CompilerPanic, TypeCheckFailure, UnimplementedException
+from vyper.codegen_shared.arithmetic import calculate_largest_base, calculate_largest_power
+from vyper.exceptions import TypeCheckFailure, UnimplementedException
 
 
 # def safe_add(x: IRnode, y: IRnode) -> IRnode:

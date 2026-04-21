@@ -6,7 +6,6 @@ from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, Iterator, Optional, Sequence, Union
 
 import vyper.venom.effects as effects
-
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 
