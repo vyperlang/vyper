@@ -1,70 +1,80 @@
 from bisect import bisect_left
 from dataclasses import dataclass
 
+from vyper.evm.address_space import AddrSpace, CALLDATA, MEMORY, DATA
 from vyper.evm.opcodes import version_check
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
+from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, BasePtrAnalysis, MemoryAliasAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.effects import Effects
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
-
-
-@dataclass
-class _Interval:
-    start: int
-    length: int
-
-    @property
-    def end(self):
-        return self.start + self.length
-
-    def overlaps(self, other):
-        a = max(self.start, other.start)
-        b = min(self.end, other.end)
-        return a < b
+from vyper.venom.memory_location import MemoryLocation
 
 
 @dataclass
 class _Copy:
     # abstract "copy" operation which contains a list of copy instructions
     # and can fuse them into a single copy operation.
-    dst: int
-    src: int
-    length: int
+    dst_loc: MemoryLocation
+    src_loc: MemoryLocation
     insts: list[IRInstruction]
 
     @classmethod
-    def memzero(cls, dst, length, insts):
+    def memzero(cls, dst, insts):
         # factory method to simplify creation of memory zeroing operations
         # (which are similar to Copy operations but src is always
         # `calldatasize`). choose src=dst, so that can_merge returns True
         # for overlapping memzeros.
-        return cls(dst, dst, length, insts)
+        return cls(dst, dst, insts)
+
+    @property
+    def src(self) -> int:
+        assert self.src_loc.offset is not None
+        return self.src_loc.offset
+    
+    @property
+    def dst(self) -> int:
+        assert self.dst_loc.offset is not None
+        return self.dst_loc.offset
 
     @property
     def src_end(self) -> int:
-        return self.src + self.length
+        assert self.src_loc.offset is not None
+        return self.src_loc.offset + self.length
+    
+    @property
+    def length(self) -> int:
+        assert self.is_valid
+        assert self.src_loc.size is not None
+        assert self.src_loc.size == self.dst_loc.size
+        return self.src_loc.size
 
     @property
     def dst_end(self) -> int:
-        return self.dst + self.length
-
-    def src_interval(self) -> _Interval:
-        return _Interval(self.src, self.length)
-
-    def dst_interval(self) -> _Interval:
-        return _Interval(self.dst, self.length)
+        assert self.dst_loc.offset is not None
+        return self.dst_loc.offset + self.length
 
     def overwrites_self_src(self) -> bool:
         # return true if dst overlaps src. this is important for blocking
         # mcopy batching in certain cases.
-        return self.overwrites(self.src_interval())
+        return self.overwrites(self.src_loc)
 
-    def overwrites(self, interval: _Interval) -> bool:
+    def overwrites(self, interval: MemoryLocation) -> bool:
         # return true if dst of self overwrites the interval
-        return _Interval(self.dst, self.length).overlaps(interval)
+        return MemoryLocation.may_overlap(self.dst_loc, interval)
+    
+    def is_compatible(self, other: "_Copy") -> bool:
+        assert self.is_valid
+        assert other.is_valid
+
+        return self.src_loc.alloca == other.src_loc.alloca and self.dst_loc.alloca == other.dst_loc.alloca
+
+    def is_valid(self) -> bool:
+        return self.dst_loc.is_fixed and self.src_loc.is_fixed
 
     def can_merge(self, other: "_Copy"):
+        assert self.is_compatible(other)
+
         # both source and destination have to be offset by same amount,
         # otherwise they do not represent the same copy. e.g.
         # Copy(0, 64, 16)
@@ -86,11 +96,12 @@ class _Copy:
         assert self.can_merge(other)
 
         new_length = max(self.dst_end, other.dst_end) - self.dst
-        self.length = new_length
+        self.src_loc = MemoryLocation(self.src, new_length, self.src_loc.alloca, self.src_loc._is_volatile)
+        self.dst_loc = MemoryLocation(self.dst, new_length, self.dst_loc.alloca, self.dst_loc._is_volatile)
         self.insts.extend(other.insts)
 
     def __repr__(self) -> str:
-        return f"_Copy({self.dst}, {self.src}, {self.length})"
+        return f"_Copy({self.dst_loc}, {self.src_loc}, {self.length})"
 
 
 class MemMergePass(IRPass):
@@ -99,21 +110,23 @@ class MemMergePass(IRPass):
 
     # %1 = mload 5 => {%1: 5}
     # this represents the available loads, which have not been invalidated.
-    _loads: dict[IRVariable, int]
+    _loads: dict[IRVariable, MemoryLocation]
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
+        self.mem_alias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
         self.updater = InstUpdater(self.dfg)
 
         for bb in self.function.get_basic_blocks():
             self._merge_mstore_dload(bb)
             self._handle_bb_memzero(bb)
-            self._handle_bb(bb, "calldataload", "calldatacopy", allow_dst_overlaps_src=True)
-            self._handle_bb(bb, "dload", "dloadbytes", allow_dst_overlaps_src=True)
+            self._handle_bb(bb, "calldataload", "calldatacopy", CALLDATA, allow_dst_overlaps_src=True)
+            self._handle_bb(bb, "dload", "dloadbytes", DATA, allow_dst_overlaps_src=True)
 
             if version_check(begin="cancun"):
                 # mcopy is available
-                self._handle_bb(bb, "mload", "mcopy")
+                self._handle_bb(bb, "mload", "mcopy", MEMORY)
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
@@ -169,9 +182,9 @@ class MemMergePass(IRPass):
         for c in copies.copy():
             self._copies.remove(c)
 
-    def _invalidate_loads(self, interval: _Interval):
+    def _invalidate_loads(self, loc: MemoryLocation):
         for var, ptr in self._loads.copy().items():
-            if _Interval(ptr, 32).overlaps(interval):
+            if self.mem_alias.may_alias(ptr, loc):
                 del self._loads[var]
 
     def _write_after_write_hazards(self, new_copy: _Copy) -> list[_Copy]:
@@ -190,7 +203,7 @@ class MemMergePass(IRPass):
             # note, these are the same:
             # - new_copy.overwrites(copy.dst_interval())
             # - copy.overwrites(new_copy.dst_interval())
-            if new_copy.overwrites(copy.dst_interval()):
+            if new_copy.overwrites(copy.dst_loc):
                 res.append(copy)
 
         return res
@@ -200,7 +213,7 @@ class MemMergePass(IRPass):
         check if any copies in self._copies overwrite the read interval
         of new_copy
         """
-        return self._copies_that_overwrite(new_copy.src_interval())
+        return self._copies_that_overwrite(new_copy.src_loc)
 
     def _write_after_read_hazards(self, new_copy: _Copy) -> list[_Copy]:
         """
@@ -209,7 +222,7 @@ class MemMergePass(IRPass):
         """
         res = []
         for copy in self._copies:
-            if new_copy.overwrites(copy.src_interval()):
+            if new_copy.overwrites(copy.src_loc):
                 res.append(copy)
 
         return res
@@ -229,7 +242,7 @@ class MemMergePass(IRPass):
             else:
                 i += 1
 
-    def _copies_that_overwrite(self, read_interval: _Interval) -> list[_Copy]:
+    def _copies_that_overwrite(self, read_interval: MemoryLocation) -> list[_Copy]:
         # check if any of self._copies tramples the interval
         return [c for c in self._copies if c.overwrites(read_interval)]
 
@@ -238,6 +251,7 @@ class MemMergePass(IRPass):
         bb: IRBasicBlock,
         load_opcode: str,
         copy_opcode: str,
+        addr_space: AddrSpace,
         allow_dst_overlaps_src: bool = False,
     ):
         self._loads = {}
@@ -256,25 +270,24 @@ class MemMergePass(IRPass):
         # of insertion in optimizations
         for inst in bb.instructions.copy():
             if inst.opcode == load_opcode:
-                src_op = inst.operands[0]
-                if not isinstance(src_op, IRLiteral):
+                src_loc = self.base_ptr.get_read_location(inst, addr_space)
+                if not src_loc.is_fixed:
                     _hard_barrier()
                     continue
 
-                read_interval = _Interval(src_op.value, 32)
-
                 # flush any existing copies that trample read_interval
                 if not allow_dst_overlaps_src:
-                    copies = self._copies_that_overwrite(read_interval)
+                    copies = self._copies_that_overwrite(src_loc)
                     if len(copies) > 0:
                         _barrier_for(copies)
 
-                self._loads[inst.output] = src_op.value
+                self._loads[inst.output] = src_loc
 
             elif inst.opcode == "mstore":
-                var, dst = inst.operands
+                var, _ = inst.operands
+                dst_loc = self.base_ptr.get_write_location(inst, MEMORY)
 
-                if not isinstance(var, IRVariable) or not isinstance(dst, IRLiteral):
+                if not isinstance(var, IRVariable) or not dst_loc.is_fixed:
                     _hard_barrier()
                     continue
 
@@ -283,14 +296,14 @@ class MemMergePass(IRPass):
                     _hard_barrier()
                     continue
 
-                src_ptr = self._loads[var]
+                src_loc = self._loads[var]
 
                 if not allow_dst_overlaps_src:
-                    self._invalidate_loads(_Interval(dst.value, 32))
+                    self._invalidate_loads(dst_loc)
 
                 load_inst = self.dfg.get_producing_instruction(var)
                 assert load_inst is not None  # help mypy
-                n_copy = _Copy(dst.value, src_ptr, 32, [inst, load_inst])
+                n_copy = _Copy(dst_loc, src_loc, [inst, load_inst])
 
                 write_hazards = self._write_after_write_hazards(n_copy)
                 if len(write_hazards) > 0:
@@ -312,14 +325,15 @@ class MemMergePass(IRPass):
                 self._add_copy(n_copy)
 
             elif inst.opcode == copy_opcode:
-                if not all(isinstance(op, IRLiteral) for op in inst.operands):
+                src_loc = self.base_ptr.get_read_location(inst, addr_space)
+                dst_loc = self.base_ptr.get_write_location(inst, MEMORY)
+                if not dst_loc.is_fixed or not src_loc.is_fixed:
                     _hard_barrier()
                     continue
 
-                length, src, dst = inst.operands
-                n_copy = _Copy(dst.value, src.value, length.value, [inst])
+                n_copy = _Copy(dst_loc, src_loc, [inst])
                 if not allow_dst_overlaps_src:
-                    self._invalidate_loads(_Interval(dst.value, length.value))
+                    self._invalidate_loads(dst_loc)
 
                 write_hazards = self._write_after_write_hazards(n_copy)
                 if len(write_hazards) > 0:
@@ -377,7 +391,7 @@ class MemMergePass(IRPass):
                 if not (isinstance(dst, IRLiteral) and is_zero_literal):
                     _barrier()
                     continue
-                n_copy = _Copy.memzero(dst.value, 32, [inst])
+                n_copy = _Copy.memzero(dst.value, [inst])
                 assert len(self._write_after_write_hazards(n_copy)) == 0
                 self._add_copy(n_copy)
             elif inst.opcode == "calldatacopy":
