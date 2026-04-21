@@ -138,8 +138,8 @@ def clamp_basetype(ctx: VenomCodegenContext, val: IROperand, typ: VyperType) -> 
 
     elif typ == BoolT():
         return int_clamp(ctx, val, 1, signed=False)
-    else:
-        raise CompilerPanic(f"Unknown type for clamping: {typ}") # pragma: nocover
+    else: # pragma: nocover
+        raise CompilerPanic(f"Unknown type for clamping: {typ}")
 
 
 def clamp_bytestring(
@@ -399,8 +399,8 @@ def _decode_complex(
         items = list(typ.tuple_items())  # type: ignore[attr-defined]
     elif isinstance(typ, SArrayT):
         items = [(i, typ.value_type) for i in range(typ.count)]
-    else:
-        raise CompilerPanic(f"Cannot decode complex type: {typ}") # pragma: nocover
+    else: # pragma: nocover
+        raise CompilerPanic(f"Cannot decode complex type: {typ}")
 
     # Track ABI and Vyper offsets separately
     abi_offset = 0
@@ -441,8 +441,8 @@ def _abi_decode_to_buf(
         _decode_dyn_array(ctx, dst, src, src_typ, hi)
     elif is_tuple_like(src_typ) or isinstance(src_typ, SArrayT):
         _decode_complex(ctx, dst, src, src_typ, hi)
-    else:
-        raise CompilerPanic(f"Cannot ABI decode type: {src_typ}") # pragma: nocover
+    else: # pragma: nocover
+        raise CompilerPanic(f"Cannot ABI decode type: {src_typ}")
 
 
 def abi_decode_to_buf(
