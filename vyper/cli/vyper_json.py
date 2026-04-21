@@ -313,6 +313,12 @@ def get_settings(input_dict: dict) -> Settings:
     elif input_dict["settings"].get("venomExperimental") is not None:
         raise JSONError("both experimentalCodegen and venomExperimental cannot be set")
 
+    legacy = input_dict["settings"].get("legacy")
+    if legacy is not None and experimental_codegen is not None:
+        raise JSONError("both legacy and experimentalCodegen cannot be set")
+    if legacy:
+        experimental_codegen = False
+
     if opt_level is not None:
         optimize = OptimizationLevel.from_string(opt_level)
     elif isinstance(optimize, bool):
