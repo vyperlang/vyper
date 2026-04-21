@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Callable, Dict, Optional
 
-import vyper.codegen.core as codegen
+import vyper.codegen_legacy.core as codegen
 import vyper.compiler.output as output
 from vyper.compiler.input_bundle import FileInput, InputBundle, JSONInput, PathLike
 from vyper.compiler.phases import CompilerData

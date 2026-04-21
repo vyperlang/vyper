@@ -2,8 +2,8 @@ import copy
 import dataclasses
 
 from vyper import ast as vy_ast
-from vyper.codegen.core import _freshname, eval_once_check, make_setter
-from vyper.codegen.ir_node import IRnode
+from vyper.codegen_legacy.core import _freshname, eval_once_check, make_setter
+from vyper.codegen_legacy.ir_node import IRnode
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import StateAccessViolation
 from vyper.semantics.types.subscriptable import TupleT
@@ -25,7 +25,7 @@ def _align_kwargs(func_t, args_ir):
 
 
 def ir_for_self_call(stmt_expr: vy_ast.Call, context):
-    from vyper.codegen.expr import Expr  # TODO rethink this circular import
+    from vyper.codegen_legacy.expr import Expr  # TODO rethink this circular import
 
     # ** Internal Call **
     # Steps:

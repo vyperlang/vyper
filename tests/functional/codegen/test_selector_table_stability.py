@@ -1,4 +1,4 @@
-from vyper.codegen.jumptable_utils import generate_sparse_jumptable_buckets
+from vyper.codegen_legacy.jumptable_utils import generate_sparse_jumptable_buckets
 from vyper.compiler import compile_code
 from vyper.compiler.settings import OptimizationLevel, Settings
 

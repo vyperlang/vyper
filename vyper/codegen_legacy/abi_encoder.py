@@ -1,13 +1,13 @@
-from vyper.codegen.core import (
+from vyper.codegen_legacy.core import (
     STORE,
     add_ofst,
     get_dyn_array_count,
     get_element_ptr,
-    is_tuple_like,
     make_setter,
     zero_pad,
 )
-from vyper.codegen.ir_node import IRnode
+from vyper.codegen_legacy.ir_node import IRnode
+from vyper.codegen_shared.abi_utils import abi_encoding_matches_vyper, is_tuple_like
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import DArrayT, SArrayT, _BytestringT
@@ -118,12 +118,6 @@ def _encode_dyn_array_helper(dst, ir_node, context):
         return b.resolve(ret)
 
 
-def abi_encoding_matches_vyper(typ):
-    """
-    returns True if the ABI encoding matches vyper's memory encoding of
-    a type, otherwise False
-    """
-    return not typ.abi_type.is_dynamic()
 
 
 # assume dst is a pointer to a buffer located in memory which has at

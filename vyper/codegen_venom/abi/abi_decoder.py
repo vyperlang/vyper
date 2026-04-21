@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from vyper.codegen.core import is_tuple_like
+from vyper.codegen_shared.abi_utils import is_tuple_like
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic

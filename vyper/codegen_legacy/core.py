@@ -1,5 +1,12 @@
-import vyper.codegen.context as ctx
-from vyper.codegen.ir_node import Encoding, IRnode
+import vyper.codegen_legacy.context as ctx
+from vyper.codegen_legacy.ir_node import Encoding, IRnode
+from vyper.codegen_shared.abi_utils import (
+    DYNAMIC_ARRAY_OVERHEAD,
+    abi_encoding_matches_vyper,
+    calculate_type_for_external_return,
+    is_tuple_like,
+    needs_external_call_wrap,
+)
 from vyper.compiler.settings import _opt_codesize, _opt_gas, _opt_none
 from vyper.evm.address_space import (
     CALLDATA,
@@ -33,7 +40,6 @@ from vyper.semantics.types.subscriptable import SArrayT
 from vyper.semantics.types.user import FlagT
 from vyper.utils import GAS_COPY_WORD, GAS_IDENTITY, GAS_IDENTITYWORD, ceil32
 
-DYNAMIC_ARRAY_OVERHEAD = 1
 
 
 def is_bytes_m_type(typ):
@@ -55,13 +61,6 @@ def is_decimal_type(typ):
 def is_flag_type(typ):
     return isinstance(typ, FlagT)
 
-
-def is_tuple_like(typ):
-    # A lot of code paths treat tuples and structs similarly
-    # so we have a convenience function to detect it
-    ret = isinstance(typ, (TupleT, StructT))
-    assert ret == hasattr(typ, "tuple_items")
-    return ret
 
 
 def is_array_like(typ):
@@ -784,32 +783,6 @@ def unwrap_location(orig):
 def ir_tuple_from_args(args):
     typ = TupleT([x.typ for x in args])
     return IRnode.from_list(["multi"] + [x for x in args], typ=typ)
-
-
-def needs_external_call_wrap(typ):
-    # for calls to ABI conforming contracts.
-    # according to the ABI spec, return types are ALWAYS tuples even
-    # if only one element is being returned.
-    # https://solidity.readthedocs.io/en/latest/abi-spec.html#function-selector-and-argument-encoding
-    # "and the return values v_1, ..., v_k of f are encoded as
-    #
-    #    enc((v_1, ..., v_k))
-    #    i.e. the values are combined into a tuple and encoded.
-    # "
-    # therefore, wrap it in a tuple if it's not already a tuple.
-    # for example, `bytes` is returned as abi-encoded (bytes,)
-    # and `(bytes,)` is returned as abi-encoded ((bytes,),)
-    # In general `-> X` gets returned as (X,)
-    # including structs. MyStruct is returned as abi-encoded (MyStruct,).
-    # (Sorry this is so confusing. I didn't make these rules.)
-
-    return not (isinstance(typ, TupleT) and typ.length > 1)
-
-
-def calculate_type_for_external_return(typ):
-    if needs_external_call_wrap(typ):
-        return TupleT([typ])
-    return typ
 
 
 def wrap_value_for_external_return(ir_val):

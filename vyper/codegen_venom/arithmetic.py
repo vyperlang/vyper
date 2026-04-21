@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Optional, Union
 
 from vyper import ast as vy_ast
-from vyper.codegen.arithmetic import calculate_largest_base, calculate_largest_power
+from vyper.codegen_shared.arithmetic import calculate_largest_base, calculate_largest_power
 from vyper.exceptions import CompilerPanic, TypeCheckFailure
 from vyper.semantics.types import DecimalT, IntegerT
 from vyper.venom.basicblock import IRLiteral, IROperand

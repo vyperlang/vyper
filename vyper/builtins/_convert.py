@@ -3,7 +3,7 @@ import functools
 import math
 
 from vyper import ast as vy_ast
-from vyper.codegen.core import (
+from vyper.codegen_legacy.core import (
     LOAD,
     IRnode,
     bytes_clamp,
@@ -22,7 +22,7 @@ from vyper.codegen.core import (
     shr,
     unwrap_location,
 )
-from vyper.codegen.expr import Expr
+from vyper.codegen_legacy.expr import Expr
 from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteral,

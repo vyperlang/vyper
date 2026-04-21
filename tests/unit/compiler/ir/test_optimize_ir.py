@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.codegen.ir_node import IRnode
+from vyper.codegen_legacy.ir_node import IRnode
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import StaticAssertionException
 from vyper.ir import optimizer

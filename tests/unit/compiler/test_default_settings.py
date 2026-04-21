@@ -1,4 +1,4 @@
-from vyper.codegen import core
+from vyper.codegen_legacy import core
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, _is_debug_mode
 

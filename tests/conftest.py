@@ -18,7 +18,7 @@ from tests.evm_backends.revm_env import RevmEnv
 from tests.exports import TestExporter
 from tests.utils import working_directory
 from vyper import compiler
-from vyper.codegen.ir_node import IRnode
+from vyper.codegen_legacy.ir_node import IRnode
 from vyper.compiler import compile_code
 from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, set_global_settings

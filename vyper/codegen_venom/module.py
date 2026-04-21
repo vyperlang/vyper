@@ -16,8 +16,8 @@ from __future__ import annotations
 from typing import Optional
 
 import vyper.ast as vy_ast
-from vyper.codegen import jumptable_utils
-from vyper.codegen.function_definitions.common import EntryPointInfo, _FuncIRInfo
+from vyper.codegen_shared import jumptable_utils
+from vyper.codegen_shared.function_info import EntryPointInfo, _FuncIRInfo
 from vyper.codegen_venom.abi.abi_decoder import _getelemptr_abi, abi_decode_to_buf
 from vyper.codegen_venom.buffer import Ptr
 from vyper.codegen_venom.constants import SELECTOR_BYTES, SELECTOR_SHIFT_BITS

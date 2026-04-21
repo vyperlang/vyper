@@ -1,8 +1,9 @@
 from typing import Any, Optional
 
-from vyper.codegen.abi_encoder import abi_encode, abi_encoding_matches_vyper
-from vyper.codegen.context import Context
-from vyper.codegen.core import (
+from vyper.codegen_legacy.abi_encoder import abi_encode
+from vyper.codegen_shared.abi_utils import abi_encoding_matches_vyper
+from vyper.codegen_legacy.context import Context
+from vyper.codegen_legacy.core import (
     bytes_data_ptr,
     calculate_type_for_external_return,
     check_assign,
@@ -13,7 +14,7 @@ from vyper.codegen.core import (
     needs_clamp,
     wrap_value_for_external_return,
 )
-from vyper.codegen.ir_node import IRnode
+from vyper.codegen_legacy.ir_node import IRnode
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import TypeCheckFailure
 
