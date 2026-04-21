@@ -10,25 +10,28 @@ def isqrt(x: uint256) -> uint256:
     y: uint256 = x
     z: uint256 = 181
 
-    if y >= 2 ** 136:
+    if y >= 2 ** (128 + 8):
         y = y >> 128
         z = z << 64
-    if y >= 2 ** 72:
+    if y >= 2 ** (64 + 8):
         y = y >> 64
         z = z << 32
-    if y >= 2 ** 40:
+    if y >= 2 ** (32 + 8):
         y = y >> 32
         z = z << 16
-    if y >= 2 ** 24:
+    if y >= 2 ** (16 + 8):
         y = y >> 16
         z = z << 8
 
-    z = z * (y + 65536) // 4 ** 9
+    z = z * (y + 65536) // (4 ** 9)
 
     for i: uint256 in range(7):
-        z = (x // z + z) // 2
+        z = ((x // z) + z) // 2
 
     t: uint256 = x // z
+    # note: If ``x+1`` is a perfect square, then the Babylonian
+    # algorithm oscillates between floor(sqrt(x)) and ceil(sqrt(x)) in
+    # consecutive iterations. return the floor value always.
     return min(z, t)
 
 
