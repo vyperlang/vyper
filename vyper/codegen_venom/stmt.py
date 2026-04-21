@@ -595,9 +595,8 @@ class Stmt:
                 if isinstance(start, IRLiteral) and isinstance(end_expr, IRLiteral):
                     rounds = IRLiteral(end_expr.value - start.value)
                     rounds_bound = rounds.value
-                else:
-                    # Non-literal but no bound - semantic analysis should catch this
-                    raise CompilerPanic("range() with non-literal args requires bound=") # pragma: nocover
+                else: # pragma: nocover
+                    raise CompilerPanic("range() with non-literal args requires bound=")
 
         # Allocate counter variable in memory for user access
         counter_local = self.ctx.new_variable(varname, target_type, mutable=False)
@@ -709,8 +708,8 @@ class Stmt:
             # Static array: length is compile-time constant
             length = IRLiteral(array_typ.count)
             bound = array_typ.count
-        else:
-            raise CompilerPanic(f"Cannot iterate over type: {array_typ}") # pragma: nocover
+        else: # pragma: nocover
+            raise CompilerPanic(f"Cannot iterate over type: {array_typ}")
 
         # Element size (in slots for storage, bytes for memory)
         elem_size = array_typ.value_type.get_size_in(location)
@@ -905,8 +904,8 @@ class Stmt:
             self.ctx.store_memory(ret_val, self.ctx.return_buffer, ret_typ, src_typ=ret_src_typ)
             self.builder.ret(return_pc)
 
-        else:
-            raise CompilerPanic("Internal function missing return mechanism") # pragma: nocover
+        else: # pragma: nocover
+            raise CompilerPanic("Internal function missing return mechanism")
 
     def _lower_external_return(
         self, ret_val: Optional[IROperand], func_t: ContractFunctionT, ret_src_typ=None
@@ -1090,8 +1089,8 @@ class Stmt:
             length = self.builder.mload(val)
             return self.builder.sha3(data_ptr, length)
 
-        else:
-            raise CompilerPanic(f"Event indexes may only be value types, got {typ}") # pragma: nocover
+        else: # pragma: nocover
+            raise CompilerPanic(f"Event indexes may only be value types, got {typ}")
 
     # === Error Handling (Assert/Raise) ===
 
