@@ -138,8 +138,8 @@ def clamp_basetype(ctx: VenomCodegenContext, val: IROperand, typ: VyperType) -> 
 
     elif typ == BoolT():
         return int_clamp(ctx, val, 1, signed=False)
-
-    raise CompilerPanic(f"Unknown type for clamping: {typ}") # pragma: nocover
+    else:
+        raise CompilerPanic(f"Unknown type for clamping: {typ}") # pragma: nocover
 
 
 def clamp_bytestring(
