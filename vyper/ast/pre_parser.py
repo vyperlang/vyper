@@ -87,6 +87,14 @@ def _parse_pragma(comment_contents, settings, is_interface, code, start):
         settings.experimental_codegen = True
         return
 
+    if pragma == "legacy":
+        if settings.experimental_codegen is not None:
+            raise PragmaException(
+                "pragma legacy specified twice!", *location
+            )
+        settings.experimental_codegen = False
+        return
+
     if pragma == "enable-decimals":
         if settings.enable_decimals is not None:
             raise PragmaException("pragma enable_decimals specified twice!", *location)

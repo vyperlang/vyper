@@ -114,7 +114,7 @@ jobs:
       py${{ matrix.python-version[1] || '311' }}\
       -opt-${{ matrix.opt-mode || 'gas' }}\
       ${{ matrix.debug && '-debug' || '' }}\
-      ${{ matrix.experimental-codegen && '-experimental' || '' }}\
+      ${{ matrix.legacy && '-legacy' || '' }}\
       -${{ matrix.evm-version || 'prague' }}\
       -${{ matrix.evm-backend || 'revm' }}"
     strategy:
@@ -125,7 +125,7 @@ jobs:
         opt-mode: [gas, none, codesize, O1, O2, O3]
         debug: [true, false]
         evm-version: [prague]  # note: when upgrading, check the "include" section below for conflicting jobs
-        experimental-codegen: [false]
+        legacy: [false]
         evm-backend: [revm]
 
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
@@ -152,18 +152,18 @@ jobs:
           - evm-backend: py-evm
             evm-version: prague
 
-          # test experimental pipeline
-          - experimental-codegen: true
+          # test legacy pipeline
+          - legacy: true
             opt-mode: gas
-          - experimental-codegen: true
+          - legacy: true
             opt-mode: none
-          - experimental-codegen: true
+          - legacy: true
             opt-mode: codesize
-          - experimental-codegen: true
+          - legacy: true
             opt-mode: O1
-          - experimental-codegen: true
+          - legacy: true
             opt-mode: O2
-          - experimental-codegen: true
+          - legacy: true
             opt-mode: O3
 
           # run across other python versions. we don't really need to run all
@@ -202,7 +202,7 @@ jobs:
         --evm-version ${{ matrix.evm-version || 'prague' }}
         --evm-backend ${{ matrix.evm-backend || 'revm' }}
         ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
-        ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }}
+        ${{ matrix.legacy && '--legacy' || '' }}
         --cov-config=setup.cfg
         --cov=vyper
         tests/

@@ -145,7 +145,7 @@ class CompilerData:
             settings.optimize = OptimizationLevel.default()
 
         if settings.experimental_codegen is None:
-            settings.experimental_codegen = False
+            settings.experimental_codegen = True
 
         return settings
 

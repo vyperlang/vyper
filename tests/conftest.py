@@ -44,7 +44,8 @@ def pytest_addoption(parser):
         help="change optimization mode",
     )
     parser.addoption("--enable-compiler-debug-mode", action="store_true")
-    parser.addoption("--experimental-codegen", action="store_true")
+    parser.addoption("--experimental-codegen", action="store_true", default=True)
+    parser.addoption("--legacy", action="store_true", default=False)
     parser.addoption("--tracing", action="store_true")
     parser.addoption("--hevm", action="store_true")
 
@@ -88,6 +89,10 @@ def debug(pytestconfig):
 
 @pytest.fixture(scope="session")
 def experimental_codegen(pytestconfig):
+    legacy = pytestconfig.getoption("legacy")
+    if legacy:
+        return False
+    # --experimental-codegen flag (default True)
     ret = pytestconfig.getoption("experimental_codegen")
     assert isinstance(ret, bool)
     return ret
