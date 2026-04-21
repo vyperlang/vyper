@@ -9,7 +9,9 @@ def test_dense_jumptable_stability():
     code = "\n".join(f"@external\ndef {name}():\n  pass" for name in function_names)
 
     output = compile_code(
-        code, output_formats=["asm_runtime"], settings=Settings(optimize=OptimizationLevel.CODESIZE)
+        code,
+        output_formats=["asm_runtime"],
+        settings=Settings(optimize=OptimizationLevel.CODESIZE, legacy_codegen=True),
     )
 
     # test that the selector table data is stable across different runs

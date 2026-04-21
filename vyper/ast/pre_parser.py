@@ -89,9 +89,7 @@ def _parse_pragma(comment_contents, settings, is_interface, code, start):
 
     if pragma == "legacy":
         if settings.legacy_codegen is not None:
-            raise PragmaException(
-                "pragma legacy specified twice!", *location
-            )
+            raise PragmaException("pragma legacy specified twice!", *location)
         settings.legacy_codegen = True
         return
 
