@@ -48,7 +48,7 @@ class Ptr:
     buf: Optional[Buffer] = None  # Provenance (MEMORY only)
 
     def __post_init__(self):
-        if self.buf is not None and self.location != DataLocation.MEMORY:
-            raise CompilerPanic("Ptr: buf only valid for MEMORY location") # pragma: nocover
-        if self.buf is None and self.location == DataLocation.MEMORY:
-            raise CompilerPanic("Ptr: MEMORY location requires buf") # pragma: nocover
+        if self.buf is not None and self.location != DataLocation.MEMORY: # pragma: nocover
+            raise CompilerPanic("Ptr: buf only valid for MEMORY location")
+        if self.buf is None and self.location == DataLocation.MEMORY: # pragma: nocover
+            raise CompilerPanic("Ptr: MEMORY location requires buf")

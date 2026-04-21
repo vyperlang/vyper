@@ -41,8 +41,8 @@ class Stmt:
         """Dispatch to type-specific lowering method."""
         fn_name = f"lower_{type(self.node).__name__}"
         method = getattr(self, fn_name, None)
-        if method is None:
-            raise CompilerPanic(f"Unsupported stmt: {type(self.node)}") # pragma: nocover
+        if method is None: # pragma: nocover
+            raise CompilerPanic(f"Unsupported stmt: {type(self.node)}")
         return method()
 
     # === Assignment Statements ===
@@ -815,14 +815,14 @@ class Stmt:
 
     def lower_Break(self) -> None:
         """Lower break statement - jump to loop exit."""
-        if self.ctx.break_target is None:
-            raise CompilerPanic("break outside loop") # pragma: nocover
+        if self.ctx.break_target is None: # pragma: nocover
+            raise CompilerPanic("break outside loop")
         self.builder.jmp(self.ctx.break_target)
 
     def lower_Continue(self) -> None:
         """Lower continue statement - jump to loop increment."""
-        if self.ctx.continue_target is None:
-            raise CompilerPanic("continue outside loop") # pragma: nocover
+        if self.ctx.continue_target is None: # pragma: nocover
+            raise CompilerPanic("continue outside loop")
         self.builder.jmp(self.ctx.continue_target)
 
     def lower_Pass(self) -> None:
@@ -845,8 +845,8 @@ class Stmt:
         assert isinstance(node, vy_ast.Return)
         func_t = self.ctx.func_t
 
-        if func_t is None:
-            raise CompilerPanic("Return outside function") # pragma: nocover
+        if func_t is None: # pragma: nocover
+            raise CompilerPanic("Return outside function")
 
         # Evaluate return value if present
         ret_val: Optional[IROperand] = None

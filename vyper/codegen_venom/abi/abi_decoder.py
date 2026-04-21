@@ -59,7 +59,7 @@ def needs_clamp(typ: VyperType) -> bool:
     if typ._is_prim_word:
         return typ not in (INT256_T, UINT256_T, BYTES32_T)
 
-    raise CompilerPanic(f"needs_clamp: unhandled type {typ}") #pragma: nocover
+    raise CompilerPanic(f"needs_clamp: unhandled type {typ}") # pragma: nocover
 
 
 def int_clamp(ctx: VenomCodegenContext, val: IROperand, bits: int, signed: bool) -> IROperand:
@@ -71,8 +71,8 @@ def int_clamp(ctx: VenomCodegenContext, val: IROperand, bits: int, signed: bool)
     For signed integers, we check that signextend(val) == val.
     For unsigned integers, we check that the high bits are zero.
     """
-    if bits >= 256:
-        raise CompilerPanic(f"invalid clamp: {bits} >= 256") # pragma: nocover
+    if bits >= 256: # pragma: nocover
+        raise CompilerPanic(f"invalid clamp: {bits} >= 256")
 
     b = ctx.builder
 
@@ -99,8 +99,8 @@ def bytes_clamp(ctx: VenomCodegenContext, val: IROperand, m: int) -> IROperand:
     BytesM is left-aligned, so the low (32-m)*8 bits must be zero.
     We check: assert iszero(val << (m * 8))
     """
-    if not (0 < m <= 32):
-        raise CompilerPanic(f"bad type: bytes{m}") # pragma: nocover
+    if not (0 < m <= 32): # pragma: nocover
+        raise CompilerPanic(f"bad type: bytes{m}")
 
     b = ctx.builder
     # Left-aligned: low (32-m)*8 bits must be zero
@@ -116,8 +116,8 @@ def clamp_basetype(ctx: VenomCodegenContext, val: IROperand, typ: VyperType) -> 
     Port of clamp_basetype() from vyper/codegen/core.py.
     Dispatches to the appropriate clamping function based on type.
     """
-    if not typ._is_prim_word:
-        raise CompilerPanic(f"{typ} passed to clamp_basetype") # pragma: nocover
+    if not typ._is_prim_word: # pragma: nocover
+        raise CompilerPanic(f"{typ} passed to clamp_basetype")
 
     if isinstance(typ, FlagT):
         bits = len(typ._flag_members)

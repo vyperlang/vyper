@@ -45,10 +45,10 @@ class LocalVariable:
     scopes: set = field(default_factory=set)
 
     def __post_init__(self):
-        if self.value.is_stack_value:
-            raise CompilerPanic("LocalVariable.value must be located") # pragma: nocover
-        if self.value.location != DataLocation.MEMORY:
-            raise CompilerPanic("LocalVariable must be in MEMORY") # pragma: nocover
+        if self.value.is_stack_value: # pragma: nocover
+            raise CompilerPanic("LocalVariable.value must be located")
+        if self.value.location != DataLocation.MEMORY: # pragma: nocover
+            raise CompilerPanic("LocalVariable must be in MEMORY")
 
 
 @dataclass

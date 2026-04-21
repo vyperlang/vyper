@@ -90,8 +90,8 @@ class Expr:
         """
         fn_name = f"lower_{type(self.node).__name__}"
         method = getattr(self, fn_name, None)
-        if method is None:
-            raise CompilerPanic(f"Unsupported expr: {type(self.node)}") # pragma: nocover
+        if method is None: # pragma: nocover
+            raise CompilerPanic(f"Unsupported expr: {type(self.node)}")
         return method()
 
     def lower_value(self) -> IROperand:
@@ -288,8 +288,8 @@ class Expr:
             is_valid = (isinstance(typ, IntegerT) and typ.bits == 256) or (
                 isinstance(typ, BytesM_T) and typ.m == 32
             )
-            if not is_valid:
-                raise CompilerPanic("Shift operations require 256-bit types") # pragma: nocover
+            if not is_valid: # pragma: nocover
+                raise CompilerPanic("Shift operations require 256-bit types")
 
         # Extract pow literals for bounds checking
         base_literal = None
@@ -318,8 +318,8 @@ class Expr:
 
         if isinstance(op, vy_ast.Not):
             # Boolean NOT
-            if not isinstance(typ, BoolT):
-                raise CompilerPanic("Not operator only valid for bool") # pragma: nocover
+            if not isinstance(typ, BoolT): # pragma: nocover
+                raise CompilerPanic("Not operator only valid for bool")
             return VyperValue.from_stack_op(self.builder.iszero(operand), result_typ)
 
         if isinstance(op, vy_ast.Invert):
@@ -342,10 +342,10 @@ class Expr:
 
         if isinstance(op, vy_ast.USub):
             # Unary minus (-x) - only for signed integers
-            if not isinstance(typ, (IntegerT, DecimalT)):
-                raise CompilerPanic("USub only valid for numeric types") # pragma: nocover
-            if not typ.is_signed:
-                raise CompilerPanic("USub only valid for signed types") # pragma: nocover
+            if not isinstance(typ, (IntegerT, DecimalT)): # pragma: nocover
+                raise CompilerPanic("USub only valid for numeric types")
+            if not typ.is_signed: # pragma: nocover
+                raise CompilerPanic("USub only valid for signed types")
 
             # Check operand > min_int to prevent negating MIN_INT
             min_int_val, _ = typ.int_bounds
@@ -377,8 +377,8 @@ class Expr:
         # Bytestring comparison: compare keccak256 hashes
         # Must handle before lower_value() since we need VyperValue with location
         if isinstance(left_typ, _BytestringT) and isinstance(right_typ, _BytestringT):
-            if not isinstance(op, (vy_ast.Eq, vy_ast.NotEq)):
-                raise CompilerPanic(f"Unsupported comparison for bytestrings: {type(op)}") # pragma: nocover
+            if not isinstance(op, (vy_ast.Eq, vy_ast.NotEq)): # pragma: nocover
+                raise CompilerPanic(f"Unsupported comparison for bytestrings: {type(op)}")
 
             # Get hash for each side - use compile-time hash for constants
             left_hash = self._get_bytestring_hash(node.left)
@@ -654,8 +654,8 @@ class Expr:
 
         # .code on address is an adhoc node handled by slice() - should not be lowered directly
         # But "code" can be a valid struct field name, so only check for address types
-        if attr == "code" and isinstance(node.value._metadata.get("type"), AddressT):
-            raise CompilerPanic(".code requires slice() context") # pragma: nocover
+        if attr == "code" and isinstance(node.value._metadata.get("type"), AddressT): # pragma: nocover
+            raise CompilerPanic(".code requires slice() context")
 
         # Case 3: Environment variables (msg.*, block.*, tx.*, chain.*)
         if isinstance(node.value, vy_ast.Name) and node.value.id in ENVIRONMENT_VARIABLES:
@@ -1675,8 +1675,8 @@ class Expr:
                 gas = kw_val
             elif kw.arg == "skip_contract_check":
                 # Must be a literal True/False
-                if not isinstance(kw_val, IRLiteral):
-                    raise CompilerPanic(f"Expected IRLiteral for keyword, got {type(kw_val)}") # pragma: nocover
+                if not isinstance(kw_val, IRLiteral): # pragma: nocover
+                    raise CompilerPanic(f"Expected IRLiteral for keyword, got {type(kw_val)}")
                 skip_contract_check = bool(kw_val.value)
             else:
                 raise CompilerPanic(f"Unexpected keyword argument: {kw.arg}") # pragma: nocover
