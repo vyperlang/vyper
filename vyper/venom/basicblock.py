@@ -6,11 +6,12 @@ from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, Iterator, Optional, Sequence, Union
 
 import vyper.venom.effects as effects
-from vyper.codegen.ir_node import IRnode
+
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 
 if TYPE_CHECKING:
+    from vyper.ast.nodes import VyperNode
     from vyper.venom.function import IRFunction
 
 # instructions which can terminate a basic block
@@ -240,7 +241,7 @@ class IRInstruction:
     _outputs: list[IRVariable]
     parent: IRBasicBlock
     annotation: Optional[str]
-    ast_source: Optional[IRnode]
+    ast_source: Optional[VyperNode]
     error_msg: Optional[str]
 
     def __init__(
@@ -430,14 +431,14 @@ class IRInstruction:
             return 1  # lowers to single MSIZE byte
         return 2
 
-    def get_ast_source(self) -> Optional[IRnode]:
+    def get_ast_source(self) -> Optional[VyperNode]:
         if self.ast_source:
             return self.ast_source
         idx = self.parent.instructions.index(self)
         for inst in reversed(self.parent.instructions[:idx]):
             if inst.ast_source:
                 return inst.ast_source
-        return self.parent.parent.ast_source
+        return None
 
     def copy(self) -> IRInstruction:
         ret = IRInstruction(self.opcode, self.operands.copy(), self.get_outputs())
@@ -543,7 +544,9 @@ class IRBasicBlock:
         /,
         *args: Union[IROperand, int],
         ret: Optional[IRVariable] = None,
-        annotation: str = None,
+        annotation: Optional[str] = None,
+        ast_source: Optional[VyperNode] = None,
+        error_msg: Optional[str] = None,
     ) -> Optional[IRVariable]:
         """
         Append an instruction to the basic block
@@ -564,8 +567,8 @@ class IRBasicBlock:
 
         inst = IRInstruction(opcode, inst_args, outputs)
         inst.parent = self
-        inst.ast_source = self.parent.ast_source
-        inst.error_msg = self.parent.error_msg
+        inst.ast_source = ast_source
+        inst.error_msg = error_msg
         inst.annotation = annotation
         self.instructions.append(inst)
         return ret
@@ -586,7 +589,11 @@ class IRBasicBlock:
         return ret
 
     def append_invoke_instruction(
-        self, args: Sequence[IROperand | int], returns: int = 0
+        self,
+        args: Sequence[Union[IROperand, int]],
+        returns: int = 0,
+        ast_source: Optional[VyperNode] = None,
+        error_msg: Optional[str] = None,
     ) -> list[IRVariable]:
         """
         Append an invoke to the basic block. Always returns a list of output variables.
@@ -603,23 +610,28 @@ class IRBasicBlock:
 
         inst = IRInstruction("invoke", inst_args, outputs)
         inst.parent = self
-        inst.ast_source = self.parent.ast_source
-        inst.error_msg = self.parent.error_msg
+        inst.ast_source = ast_source
+        inst.error_msg = error_msg
         self.instructions.append(inst)
         return outputs
 
-    def insert_instruction(self, instruction: IRInstruction, index: Optional[int] = None) -> None:
+    def insert_instruction(
+        self,
+        instruction: IRInstruction,
+        index: Optional[int] = None,
+        ast_source: Optional[VyperNode] = None,
+        error_msg: Optional[str] = None,
+    ) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
 
         if index is None:
             assert not self.is_terminated, (self, instruction)
             index = len(self.instructions)
         instruction.parent = self
-        fn = self.parent
-        if fn.ast_source is not None:
-            instruction.ast_source = fn.ast_source
-        if fn.error_msg is not None:
-            instruction.error_msg = fn.error_msg
+        if ast_source is not None:
+            instruction.ast_source = ast_source
+        if error_msg is not None:
+            instruction.error_msg = error_msg
         self.instructions.insert(index, instruction)
 
     def clear_nops(self) -> None:
