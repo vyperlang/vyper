@@ -156,5 +156,7 @@ def foo() -> uint256:
     """
     with pytest.raises(UnimplementedException) as e:
         compile_code(code)
-    expected = "The `isqrt` builtin was removed. Instead import module `math` and use `math.isqrt()`"
+    expected = (
+        "The `isqrt` builtin was removed. Instead import module `math` and use `math.isqrt()`"
+    )
     assert e.value.message == expected
