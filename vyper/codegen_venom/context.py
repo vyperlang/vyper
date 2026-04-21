@@ -708,8 +708,8 @@ class VenomCodegenContext:
             self._load_storage_to_memory(slot, buf, word_count)
         elif location == DataLocation.TRANSIENT:
             self._load_transient_to_memory(slot, buf, word_count)
-        else:
-            raise CompilerPanic(f"slot_to_memory: unexpected location {location}") # pragma: nocover
+        else: # pragma: nocover
+            raise CompilerPanic(f"slot_to_memory: unexpected location {location}")
 
     def copy_to_memory(
         self, dst: IROperand, src: IROperand, size: int, location: DataLocation
