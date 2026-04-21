@@ -1,5 +1,4 @@
 # adapted from https://github.com/curvefi/tricrypto-ng/blob/584591e6613cb6cdb46e4659488a8cccdfff69ad/contracts/main/CurveCryptoMathOptimized3.vy
-import math
 
 """
 @title CurveTricryptoMathOptimized
@@ -7,6 +6,8 @@ import math
 @license Copyright (c) Curve.Fi, 2020-2023 - all rights reserved
 @notice Curve AMM Math for 3 unpegged assets (e.g. ETH, BTC, USD).
 """
+
+import math
 
 N_COINS: constant(uint256) = 3
 A_MULTIPLIER: constant(uint256) = 10000

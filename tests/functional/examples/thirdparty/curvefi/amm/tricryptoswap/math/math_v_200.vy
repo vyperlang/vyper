@@ -1,5 +1,4 @@
 # pragma version >=0.4.2
-import math
 
 # (c) Curve.Fi, 2020-2024
 # AMM Math for 3-coin Curve Cryptoswap Pools
@@ -14,6 +13,8 @@ import math
 @license Copyright (c) Curve.Fi, 2020-2024 - all rights reserved
 @notice Curve AMM Math for 3 unpegged assets (e.g. ETH, BTC, USD).
 """
+
+import math
 
 # ------------------------------- Version ------------------------------------
 
