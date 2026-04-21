@@ -556,8 +556,8 @@ class Expr:
             self.builder.assign_to(last_val, result)
             self.builder.jmp(exit_bb.label)
 
-        else:
-            raise CompilerPanic(f"Unsupported BoolOp: {type(op)}") # pragma: nocover
+        else: # pragma: nocover
+            raise CompilerPanic(f"Unsupported BoolOp: {type(op)}")
 
         # Continue from exit block
         self.builder.append_block(exit_bb)
@@ -811,8 +811,8 @@ class Expr:
         elif isinstance(base_typ, (StructT, TupleT)):
             # Tuple access on struct/tuple (struct[0], tuple[1], etc.)
             return self._lower_tuple_subscript()
-        else:
-            raise CompilerPanic(f"Unsupported subscript on {base_typ}") # pragma: nocover
+        else: # pragma: nocover
+            raise CompilerPanic(f"Unsupported subscript on {base_typ}")
 
     def _lower_array_subscript(self, bounds_check: bool = True) -> VyperValue:
         """Lower array[index] access.
@@ -1146,8 +1146,8 @@ class Expr:
             length = IRLiteral(haystack_typ.count)
             bound = haystack_typ.count
             offset_base = 0
-        else:
-            raise CompilerPanic(f"Cannot check membership in type: {haystack_typ}") # pragma: nocover
+        else: # pragma: nocover
+            raise CompilerPanic(f"Cannot check membership in type: {haystack_typ}")
 
         elem_size = haystack_typ.value_type.get_size_in(location)
 
@@ -1466,8 +1466,8 @@ class Expr:
             return self._lower_dynarray_append()
         elif attr == "pop":
             return self._lower_dynarray_pop()
-        else:
-            raise CompilerPanic(f"Unknown member function: {attr}") # pragma: nocover
+        else: # pragma: nocover
+            raise CompilerPanic(f"Unknown member function: {attr}")
 
     def _lower_dynarray_append(self) -> VyperValue:
         """Lower DynArray.append(val).
@@ -1561,8 +1561,8 @@ class Expr:
             self.ctx.store_storage(elem_val, elem_ptr, elem_typ)
         elif data_loc == DataLocation.TRANSIENT:
             self.ctx.store_transient(elem_val, elem_ptr, elem_typ)
-        else:
-            raise CompilerPanic(f"Unsupported location for append: {data_loc}") # pragma: nocover
+        else: # pragma: nocover
+            raise CompilerPanic(f"Unsupported location for append: {data_loc}")
 
         # 5. Increment and store new length
         new_length = self.builder.add(length, IRLiteral(1))
@@ -1678,8 +1678,8 @@ class Expr:
                 if not isinstance(kw_val, IRLiteral): # pragma: nocover
                     raise CompilerPanic(f"Expected IRLiteral for keyword, got {type(kw_val)}")
                 skip_contract_check = bool(kw_val.value)
-            else:
-                raise CompilerPanic(f"Unexpected keyword argument: {kw.arg}") # pragma: nocover
+            else: # pragma: nocover
+                raise CompilerPanic(f"Unexpected keyword argument: {kw.arg}")
 
         return _CallKwargs(
             value=value,
