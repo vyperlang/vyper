@@ -932,7 +932,7 @@ class VenomCodegenContext:
             self.builder.sstore(addr, val)
         elif location == DataLocation.TRANSIENT:
             self.builder.tstore(addr, val)
-        elif location == DataLocation.CODE:
-            raise CompilerPanic("cannot store to CODE") # pragma: nocover
-        else:
-            raise CompilerPanic(f"cannot store to: {location}") # pragma: nocover
+        elif location == DataLocation.CODE: # pragma: nocover
+            raise CompilerPanic("cannot store to CODE")
+        else: # pragma: nocover
+            raise CompilerPanic(f"cannot store to: {location}")
