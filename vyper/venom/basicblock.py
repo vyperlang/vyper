@@ -431,9 +431,9 @@ class IRInstruction:
             return 1  # lowers to single MSIZE byte
         if self.opcode == "dalloca":
             # `dalloca` is high-level sugar and is eliminated by DallocaLoweringPass
-            # before assembly emission. The lowered form is `add + and + bump` (add/and
-            # = 2 bytes each, bump = DUP2+ADD = 2 bytes), totalling 6 bytes.
-            return 6
+            # before assembly emission. The later the optimized generic form is:
+            #   PUSH1 31 + ADD, PUSH1 31 + NOT + AND, DUP2 + ADD
+            return 9
         if self.opcode == "bump":
             return 2  # DUP2 ADD
         return 2
