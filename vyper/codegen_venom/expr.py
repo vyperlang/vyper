@@ -706,9 +706,9 @@ class Expr:
             return self.builder.callvalue()
         if key in ("msg.gas", "msg.mana"):
             return self.builder.gas()
-        if key == "msg.data":
+        if key == "msg.data": # pragma: nocover
             # Adhoc node - replaced in Slice/Len. Return calldatasize for now.
-            raise CompilerPanic("msg.data requires Slice/Len context") # pragma: nocover
+            raise CompilerPanic("msg.data requires Slice/Len context")
 
         # block.* attributes
         if key == "block.timestamp":
