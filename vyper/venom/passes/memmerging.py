@@ -20,7 +20,7 @@ class _Copy:
     insts: list[IRInstruction]
 
     @classmethod
-    def memzero(cls, dst, insts):
+    def memzero(cls, dst: MemoryLocation, insts):
         # factory method to simplify creation of memory zeroing operations
         # (which are similar to Copy operations but src is always
         # `calldatasize`). choose src=dst, so that can_merge returns True
@@ -444,7 +444,7 @@ class MemMergePass(IRPass):
 
     def _handle_bb_memzero(self, bb: IRBasicBlock):
         self._loads = {}
-        self._copies = _Copies(False)
+        self._copies = _Copies(self.memory_abstract)
 
         def _barrier():
             self._optimize_memzero(bb)
@@ -454,20 +454,21 @@ class MemMergePass(IRPass):
         for inst in bb.instructions.copy():
             if inst.opcode == "mstore":
                 val = inst.operands[0]
-                dst = inst.operands[1]
+                dst_loc = self.base_ptr.get_write_location(inst, MEMORY)
                 is_zero_literal = isinstance(val, IRLiteral) and val.value == 0
-                if not (isinstance(dst, IRLiteral) and is_zero_literal):
+                if not (dst_loc.is_fixed and is_zero_literal):
                     _barrier()
                     continue
-                n_copy = _Copy.memzero(dst.value, [inst])
+                n_copy = _Copy.memzero(dst_loc, [inst])
                 assert len(self._write_after_write_hazards(n_copy)) == 0
                 self._add_copy(n_copy)
             elif inst.opcode == "calldatacopy":
-                length, var, dst = inst.operands
+                length, var, _ = inst.operands
                 if not isinstance(var, IRVariable):
                     _barrier()
                     continue
-                if not isinstance(dst, IRLiteral) or not isinstance(length, IRLiteral):
+                dst_loc = self.base_ptr.get_write_location(inst, MEMORY)
+                if not dst_loc.is_fixed or not isinstance(length, IRLiteral):
                     _barrier()
                     continue
                 src_inst = self.dfg.get_producing_instruction(var)
@@ -475,7 +476,7 @@ class MemMergePass(IRPass):
                 if src_inst.opcode != "calldatasize":
                     _barrier()
                     continue
-                n_copy = _Copy.memzero(dst.value, length.value, [inst])
+                n_copy = _Copy.memzero(dst_loc, [inst])
                 assert len(self._write_after_write_hazards(n_copy)) == 0
                 self._add_copy(n_copy)
             elif _volatile_memory(inst):
