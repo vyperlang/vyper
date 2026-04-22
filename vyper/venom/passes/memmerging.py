@@ -8,7 +8,7 @@ from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, BasePtrAnalysis,
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.effects import Effects
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
-from vyper.venom.memory_location import MemoryLocation
+from vyper.venom.memory_location import Allocation, MemoryLocation
 
 
 @dataclass
@@ -104,19 +104,91 @@ class _Copy:
         return f"_Copy({self.dst_loc}, {self.src_loc}, {self.length})"
 
 
+class _Copies:
+    # src allocations -> dst allocations -> list
+    copies: dict[Allocation | None, dict[Allocation | None, list[_Copy]]]
+    just_abstract: bool
+
+    def __init__(self, just_abstract: bool):
+        self.copies = dict()
+        self.just_abstract = just_abstract
+    
+    def _check_state(self, source: Allocation | None) -> bool:
+        if self.just_abstract:
+            is_abstract = source is not None
+            return self.just_abstract == is_abstract
+        return True
+
+    def get_compatible(self, copy: _Copy) -> list[_Copy]:
+        return self.get_copies(copy.src_loc.alloca, copy.dst_loc.alloca)
+
+    def get_copies(self, src_allocation: Allocation | None, dst_allocation: Allocation | None) -> list[_Copy]: 
+        assert not self.just_abstract or (src_allocation is None) == (dst_allocation is None), (src_allocation, dst_allocation)
+        assert self._check_state(src_allocation)
+
+        if src_allocation not in self.copies:
+            self.copies[src_allocation] = dict()
+        if dst_allocation not in self.copies[src_allocation]:
+            self.copies[src_allocation][dst_allocation] = []
+        return self.copies[src_allocation][dst_allocation]
+
+    def insert(self, new_copy: _Copy):
+        copies = self.get_compatible(new_copy)
+        index = bisect_left(copies, new_copy.dst, key=lambda c: c.dst)
+        
+        if new_copy.src_loc.alloca not in self.copies:
+            self.copies[new_copy.src_loc.alloca] = dict()
+        if new_copy.dst_loc.alloca not in self.copies[new_copy.src_loc.alloca]:
+            self.copies[new_copy.src_loc.alloca][new_copy.dst_loc.alloca] = []
+
+        copies = self.copies[new_copy.src_loc.alloca][new_copy.dst_loc.alloca]
+
+        i = max(index - 1, 0)
+        while i < min(index + 1, len(copies) - 1):
+            if copies[i].can_merge(copies[i + 1]):
+                copies[i].merge(copies[i + 1])
+                del copies[i + 1]
+            else:
+                i += 1
+
+    def remove(self, copy: _Copy):
+        assert self.just_abstract == (not copy.src_loc.is_concrete)
+        
+        self.copies[copy.src_loc.alloca][copy.dst_loc.alloca].remove(copy)
+
+    def get_reads_from(self, src_allocation: Allocation | None):
+        assert self._check_state(src_allocation)
+
+        if src_allocation in self.copies:
+            for copies in self.copies[src_allocation].values():
+                for copy in copies:
+                    yield copy
+
+    def get_writes_to(self, dst_allocation: Allocation | None):
+        for srcs in self.copies.values():
+            for copy in srcs[dst_allocation]:
+                yield copy
+
+    def get_all_lists(self):
+        for srcs in self.copies.values():
+            for copies in srcs.values():
+                yield copies
+
+
 class MemMergePass(IRPass):
     dfg: DFGAnalysis
-    _copies: list[_Copy]
+    _copies: _Copies
 
     # %1 = mload 5 => {%1: 5}
     # this represents the available loads, which have not been invalidated.
     _loads: dict[IRVariable, MemoryLocation]
 
-    def run_pass(self):
+    def run_pass(self, /, memory_abstract: bool):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.mem_alias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
         self.updater = InstUpdater(self.dfg)
+        self.memory_abstract = memory_abstract
 
         for bb in self.function.get_basic_blocks():
             self._merge_mstore_dload(bb)
@@ -195,7 +267,7 @@ class MemMergePass(IRPass):
         both writes (unless they can be fused into a single copy).
         """
         res = []
-        for copy in self._copies:
+        for copy in self._copies.get_writes_to(new_copy.dst_loc.alloca):
             if copy.can_merge(new_copy) or new_copy.can_merge(copy):
                 # safe
                 continue
@@ -221,30 +293,22 @@ class MemMergePass(IRPass):
         self._copies
         """
         res = []
-        for copy in self._copies:
+        for copy in self._copies.get_reads_from(new_copy.dst_loc.alloca):
             if new_copy.overwrites(copy.src_loc):
                 res.append(copy)
 
         return res
 
-    def _find_insertion_point(self, new_copy: _Copy):
-        return bisect_left(self._copies, new_copy.dst, key=lambda c: c.dst)
-
     def _add_copy(self, new_copy: _Copy):
-        index = self._find_insertion_point(new_copy)
-        self._copies.insert(index, new_copy)
-
-        i = max(index - 1, 0)
-        while i < min(index + 1, len(self._copies) - 1):
-            if self._copies[i].can_merge(self._copies[i + 1]):
-                self._copies[i].merge(self._copies[i + 1])
-                del self._copies[i + 1]
-            else:
-                i += 1
+        self._copies.insert(new_copy)
 
     def _copies_that_overwrite(self, read_interval: MemoryLocation) -> list[_Copy]:
         # check if any of self._copies tramples the interval
-        return [c for c in self._copies if c.overwrites(read_interval)]
+        res = []
+        for copy in self._copies.get_writes_to(read_interval.alloca):
+            if copy.overwrites(read_interval):
+                res.append(copy)
+        return res
 
     def _handle_bb(
         self,
@@ -255,12 +319,13 @@ class MemMergePass(IRPass):
         allow_dst_overlaps_src: bool = False,
     ):
         self._loads = {}
-        self._copies = []
+        self._copies = _Copies(self.memory_abstract if addr_space == MEMORY else False)
 
         def _hard_barrier():
             # hard barrier. flush everything
-            _barrier_for(self._copies)
-            assert len(self._copies) == 0
+            for copies in self._copies.get_all_lists():
+                _barrier_for(copies)
+                assert len(copies) == 0
             self._loads.clear()
 
         def _barrier_for(copies: list[_Copy]):
@@ -321,7 +386,7 @@ class MemMergePass(IRPass):
                     read_hazards = self._write_after_read_hazards(n_copy)
                     if len(read_hazards) > 0:
                         _barrier_for(read_hazards)
-
+                
                 self._add_copy(n_copy)
 
             elif inst.opcode == copy_opcode:
