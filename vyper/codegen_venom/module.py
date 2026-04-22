@@ -417,9 +417,7 @@ def _generate_selector_section_sparse(
 
     assert len(all_entry_points) > 0
     # Generate buckets
-    n_buckets, buckets = jumptable_utils.generate_sparse_jumptable_buckets(
-        all_entry_points.keys()
-    )
+    n_buckets, buckets = jumptable_utils.generate_sparse_jumptable_buckets(all_entry_points.keys())
 
     SZ_BUCKET_HEADER = 2  # 2 bytes for bucket location
 
@@ -669,9 +667,7 @@ def _generate_selector_section_dense(
     # Load bucket header from data section
     # Location = BUCKET_HEADERS + bucket_id * 5
     bucket_hdr_offset = builder.mul(bucket_id_var, IRLiteral(SZ_BUCKET_HEADER))
-    bucket_headers_addr = builder.offset(
-        IRLiteral(0), IRLabel("BUCKET_HEADERS", is_symbol=True)
-    )
+    bucket_headers_addr = builder.offset(IRLiteral(0), IRLabel("BUCKET_HEADERS", is_symbol=True))
     bucket_hdr_location = builder.add(bucket_headers_addr, bucket_hdr_offset)
 
     # Copy 5-byte header to memory at offset (32 - 5) = 27
@@ -775,9 +771,7 @@ def _generate_selector_section_dense(
             # label <2 bytes> (symbol reference)
             runtime_ctx.append_data_item(entry_point_labels[matching_sig])
             # metadata: min_calldatasize | is_nonpayable (packed)
-            func_metadata_int = entry_info.min_calldatasize | int(
-                not entry_info.func_t.is_payable
-            )
+            func_metadata_int = entry_info.min_calldatasize | int(not entry_info.func_t.is_payable)
             runtime_ctx.append_data_item(func_metadata_int.to_bytes(FN_METADATA_BYTES, "big"))
 
     # Generate entry point blocks for each function
@@ -923,7 +917,7 @@ def _generate_external_function_body(
         codegen_ctx.emit_nonreentrant_unlock(func_t)
         if func_t.return_type is None:
             builder.stop()
-        else: # pragma: nocover
+        else:  # pragma: nocover
             raise CompilerPanic("External function missing return")
 
 
@@ -1001,7 +995,7 @@ def _generate_common_function_body(
         codegen_ctx.emit_nonreentrant_unlock(func_t)
         if func_t.return_type is None:
             builder.stop()
-        else: # pragma: nocover
+        else:  # pragma: nocover
             raise CompilerPanic("External function missing return")
 
 
@@ -1231,7 +1225,7 @@ def _generate_fallback_body(
         codegen_ctx.emit_nonreentrant_unlock(func_t)
         if func_t.return_type is None:
             builder.stop()
-        else: # pragma: nocover
+        else:  # pragma: nocover
             raise CompilerPanic("Fallback function with return type")
 
 
@@ -1327,7 +1321,7 @@ def _generate_internal_function(
         codegen_ctx.emit_nonreentrant_unlock(func_t)
         if func_t.return_type is None:
             builder.ret(codegen_ctx.return_pc)
-        else: # pragma: nocover
+        else:  # pragma: nocover
             raise CompilerPanic("Internal function missing return")
 
 

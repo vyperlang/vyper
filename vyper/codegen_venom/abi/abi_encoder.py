@@ -45,7 +45,7 @@ def _get_element_ptr(
         # Calculate offset: sum of preceding element sizes
         if isinstance(key, IRLiteral):
             idx = key.value
-        else: # pragma: nocover
+        else:  # pragma: nocover
             raise CompilerPanic("Dynamic tuple indexing not supported in ABI encode")
 
         items = parent_typ.tuple_items()  # type: ignore[attr-defined]
@@ -55,7 +55,7 @@ def _get_element_ptr(
                 elem_typ = t
                 break
             offset += t.memory_bytes_required
-        else: # pragma: nocover
+        else:  # pragma: nocover
             raise CompilerPanic(f"Tuple index {idx} out of range")
 
         elem_ptr: IROperand
@@ -92,7 +92,7 @@ def _get_element_ptr(
             darray_elem_ptr = b.add(data_ptr, offset_ir)
         return darray_elem_ptr, elem_typ
 
-    else: # pragma: nocover
+    else:  # pragma: nocover
         raise CompilerPanic(f"Cannot get element ptr of type {parent_typ}")
 
 
@@ -398,7 +398,7 @@ def _abi_encode_to_buf(
         else:
             return IRLiteral(abi_t.embedded_static_size())
 
-    else: # pragma: nocover
+    else:  # pragma: nocover
         raise CompilerPanic(f"Cannot ABI encode type: {src_typ}")
 
 

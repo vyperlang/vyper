@@ -45,9 +45,9 @@ class LocalVariable:
     scopes: set = field(default_factory=set)
 
     def __post_init__(self):
-        if self.value.is_stack_value: # pragma: nocover
+        if self.value.is_stack_value:  # pragma: nocover
             raise CompilerPanic("LocalVariable.value must be located")
-        if self.value.location != DataLocation.MEMORY: # pragma: nocover
+        if self.value.location != DataLocation.MEMORY:  # pragma: nocover
             raise CompilerPanic("LocalVariable must be in MEMORY")
 
 
@@ -433,7 +433,9 @@ class VenomCodegenContext:
                 src_ofst += src_member_t.memory_bytes_required
             return
 
-        raise CompilerPanic(f"_store_memory_typed: unhandled types {src_typ} -> {dst_typ}") # pragma: nocover
+        raise CompilerPanic(
+            f"_store_memory_typed: unhandled types {src_typ} -> {dst_typ}"
+        )  # pragma: nocover
 
     def _copy_sarray_memory_typed(
         self, dst: IRVariable, dst_typ: SArrayT, src: IROperand, src_typ: SArrayT
@@ -708,7 +710,7 @@ class VenomCodegenContext:
             self._load_storage_to_memory(slot, buf, word_count)
         elif location == DataLocation.TRANSIENT:
             self._load_transient_to_memory(slot, buf, word_count)
-        else: # pragma: nocover
+        else:  # pragma: nocover
             raise CompilerPanic(f"slot_to_memory: unexpected location {location}")
 
     def copy_to_memory(
@@ -932,7 +934,7 @@ class VenomCodegenContext:
             self.builder.sstore(addr, val)
         elif location == DataLocation.TRANSIENT:
             self.builder.tstore(addr, val)
-        elif location == DataLocation.CODE: # pragma: nocover
+        elif location == DataLocation.CODE:  # pragma: nocover
             raise CompilerPanic("cannot store to CODE")
-        else: # pragma: nocover
+        else:  # pragma: nocover
             raise CompilerPanic(f"cannot store to: {location}")

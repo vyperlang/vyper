@@ -41,7 +41,7 @@ class Stmt:
         """Dispatch to type-specific lowering method."""
         fn_name = f"lower_{type(self.node).__name__}"
         method = getattr(self, fn_name, None)
-        if method is None: # pragma: nocover
+        if method is None:  # pragma: nocover
             raise CompilerPanic(f"Unsupported stmt: {type(self.node)}")
         return method()
 
@@ -442,7 +442,7 @@ class Stmt:
             if varinfo is not None and varinfo.is_immutable and self.ctx.is_ctor_context:
                 return Ptr(IRLiteral(varinfo.position.position), DataLocation.IMMUTABLES)
 
-            raise CompilerPanic(f"Unknown variable: {varname}") # pragma: nocover
+            raise CompilerPanic(f"Unknown variable: {varname}")  # pragma: nocover
 
         elif isinstance(target, vy_ast.Attribute):
             # self.x = ... (state variable assignment)
@@ -468,14 +468,14 @@ class Stmt:
                 # Use Expr to compute the field pointer
                 return Expr(target, self.ctx).lower().ptr()
 
-            raise CompilerPanic(f"Unsupported attribute target: {target.attr}") # pragma: nocover
+            raise CompilerPanic(f"Unsupported attribute target: {target.attr}")  # pragma: nocover
 
         elif isinstance(target, vy_ast.Subscript):
             # x[i] = ... or self.arr[i] = ... or self.map[key] = ...
             # Use Expr to compute the element pointer/slot
             return Expr(target, self.ctx).lower().ptr()
 
-        raise CompilerPanic(f"Unsupported assignment target: {type(target)}") # pragma: nocover
+        raise CompilerPanic(f"Unsupported assignment target: {type(target)}")  # pragma: nocover
 
     # === Control Flow Statements ===
 
@@ -595,7 +595,7 @@ class Stmt:
                 if isinstance(start, IRLiteral) and isinstance(end_expr, IRLiteral):
                     rounds = IRLiteral(end_expr.value - start.value)
                     rounds_bound = rounds.value
-                else: # pragma: nocover
+                else:  # pragma: nocover
                     raise CompilerPanic("range() with non-literal args requires bound=")
 
         # Allocate counter variable in memory for user access
@@ -708,7 +708,7 @@ class Stmt:
             # Static array: length is compile-time constant
             length = IRLiteral(array_typ.count)
             bound = array_typ.count
-        else: # pragma: nocover
+        else:  # pragma: nocover
             raise CompilerPanic(f"Cannot iterate over type: {array_typ}")
 
         # Element size (in slots for storage, bytes for memory)
@@ -814,13 +814,13 @@ class Stmt:
 
     def lower_Break(self) -> None:
         """Lower break statement - jump to loop exit."""
-        if self.ctx.break_target is None: # pragma: nocover
+        if self.ctx.break_target is None:  # pragma: nocover
             raise CompilerPanic("break outside loop")
         self.builder.jmp(self.ctx.break_target)
 
     def lower_Continue(self) -> None:
         """Lower continue statement - jump to loop increment."""
-        if self.ctx.continue_target is None: # pragma: nocover
+        if self.ctx.continue_target is None:  # pragma: nocover
             raise CompilerPanic("continue outside loop")
         self.builder.jmp(self.ctx.continue_target)
 
@@ -844,7 +844,7 @@ class Stmt:
         assert isinstance(node, vy_ast.Return)
         func_t = self.ctx.func_t
 
-        if func_t is None: # pragma: nocover
+        if func_t is None:  # pragma: nocover
             raise CompilerPanic("Return outside function")
 
         # Evaluate return value if present
@@ -904,7 +904,7 @@ class Stmt:
             self.ctx.store_memory(ret_val, self.ctx.return_buffer, ret_typ, src_typ=ret_src_typ)
             self.builder.ret(return_pc)
 
-        else: # pragma: nocover
+        else:  # pragma: nocover
             raise CompilerPanic("Internal function missing return mechanism")
 
     def _lower_external_return(
@@ -1089,7 +1089,7 @@ class Stmt:
             length = self.builder.mload(val)
             return self.builder.sha3(data_ptr, length)
 
-        else: # pragma: nocover
+        else:  # pragma: nocover
             raise CompilerPanic(f"Event indexes may only be value types, got {typ}")
 
     # === Error Handling (Assert/Raise) ===

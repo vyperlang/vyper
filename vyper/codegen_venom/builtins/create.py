@@ -502,7 +502,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
 
     if raw_args:
         # raw_args=True: single bytes argument contains raw constructor args
-        if len(ctor_arg_nodes) != 1: # pragma: nocover
+        if len(ctor_arg_nodes) != 1:  # pragma: nocover
             # This should be caught by type checker, but be defensive
             raise CompilerPanic("raw_args requires exactly 1 bytes argument")
 

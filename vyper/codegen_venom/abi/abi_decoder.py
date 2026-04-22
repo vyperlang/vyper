@@ -59,7 +59,7 @@ def needs_clamp(typ: VyperType) -> bool:
     if typ._is_prim_word:
         return typ not in (INT256_T, UINT256_T, BYTES32_T)
 
-    raise CompilerPanic(f"needs_clamp: unhandled type {typ}") # pragma: nocover
+    raise CompilerPanic(f"needs_clamp: unhandled type {typ}")  # pragma: nocover
 
 
 def int_clamp(ctx: VenomCodegenContext, val: IROperand, bits: int, signed: bool) -> IROperand:
@@ -71,7 +71,7 @@ def int_clamp(ctx: VenomCodegenContext, val: IROperand, bits: int, signed: bool)
     For signed integers, we check that signextend(val) == val.
     For unsigned integers, we check that the high bits are zero.
     """
-    if bits >= 256: # pragma: nocover
+    if bits >= 256:  # pragma: nocover
         raise CompilerPanic(f"invalid clamp: {bits} >= 256")
 
     b = ctx.builder
@@ -99,7 +99,7 @@ def bytes_clamp(ctx: VenomCodegenContext, val: IROperand, m: int) -> IROperand:
     BytesM is left-aligned, so the low (32-m)*8 bits must be zero.
     We check: assert iszero(val << (m * 8))
     """
-    if not (0 < m <= 32): # pragma: nocover
+    if not (0 < m <= 32):  # pragma: nocover
         raise CompilerPanic(f"bad type: bytes{m}")
 
     b = ctx.builder
@@ -116,7 +116,7 @@ def clamp_basetype(ctx: VenomCodegenContext, val: IROperand, typ: VyperType) -> 
     Port of clamp_basetype() from vyper/codegen/core.py.
     Dispatches to the appropriate clamping function based on type.
     """
-    if not typ._is_prim_word: # pragma: nocover
+    if not typ._is_prim_word:  # pragma: nocover
         raise CompilerPanic(f"{typ} passed to clamp_basetype")
 
     if isinstance(typ, FlagT):
@@ -138,7 +138,7 @@ def clamp_basetype(ctx: VenomCodegenContext, val: IROperand, typ: VyperType) -> 
 
     elif typ == BoolT():
         return int_clamp(ctx, val, 1, signed=False)
-    else: # pragma: nocover
+    else:  # pragma: nocover
         raise CompilerPanic(f"Unknown type for clamping: {typ}")
 
 
@@ -399,7 +399,7 @@ def _decode_complex(
         items = list(typ.tuple_items())  # type: ignore[attr-defined]
     elif isinstance(typ, SArrayT):
         items = [(i, typ.value_type) for i in range(typ.count)]
-    else: # pragma: nocover
+    else:  # pragma: nocover
         raise CompilerPanic(f"Cannot decode complex type: {typ}")
 
     # Track ABI and Vyper offsets separately
@@ -441,7 +441,7 @@ def _abi_decode_to_buf(
         _decode_dyn_array(ctx, dst, src, src_typ, hi)
     elif is_tuple_like(src_typ) or isinstance(src_typ, SArrayT):
         _decode_complex(ctx, dst, src, src_typ, hi)
-    else: # pragma: nocover
+    else:  # pragma: nocover
         raise CompilerPanic(f"Cannot ABI decode type: {src_typ}")
 
 
