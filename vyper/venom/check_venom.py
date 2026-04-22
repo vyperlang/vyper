@@ -80,6 +80,22 @@ class MultiOutputNonInvoke(VenomError):
         return f"multi-output on non-invoke in {self.caller.name}:\n" f"  {self.inst}\n\n{bb}"
 
 
+class BumpArityError(VenomError):
+    message: str = "bump must have exactly 2 operands and 2 outputs"
+
+    def __init__(self, caller: IRFunction, inst: IRInstruction):
+        self.caller = caller
+        self.inst = inst
+
+    def __str__(self):
+        bb = self.inst.parent
+        return (
+            f"bump arity error in {self.caller.name}: "
+            f"got {len(self.inst.operands)} operand(s), {self.inst.num_outputs} output(s)\n"
+            f"  {self.inst}\n\n{bb}"
+        )
+
+
 def _handle_var_definition(
     fn: IRFunction, bb: IRBasicBlock, var_def: VarDefinition
 ) -> list[VenomError]:
@@ -151,6 +167,12 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
                 got_num = inst.num_outputs
                 if got_num > 1 and inst.opcode not in ("invoke", "bump"):
                     errors.append(MultiOutputNonInvoke(caller, inst))
+                    continue
+                if inst.opcode == "bump":
+                    # bump has a fixed stack shape (DUP2; ADD) with two inputs
+                    # and two outputs; any other shape is malformed.
+                    if len(inst.operands) != 2 or got_num != 2:
+                        errors.append(BumpArityError(caller, inst))
                     continue
                 if inst.opcode != "invoke":
                     continue

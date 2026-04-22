@@ -2,6 +2,7 @@ import pytest
 
 from tests.venom_utils import parse_venom
 from vyper.venom.check_venom import (
+    BumpArityError,
     InconsistentReturnArity,
     InvokeArityMismatch,
     MultiOutputNonInvoke,
@@ -161,3 +162,62 @@ def test_multi_lhs_non_invoke_rejected():
     with pytest.raises(ExceptionGroup) as excinfo:
         check_calling_convention(ctx)
     _assert_raises(excinfo.value, MultiOutputNonInvoke)
+
+
+def test_bump_arity_single_output_rejected():
+    src = """
+    function main {
+    main:
+        %fmp = calldatasize
+        %a = bump 32, %fmp
+        sink %a
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, BumpArityError)
+
+
+def test_bump_arity_three_outputs_rejected():
+    src = """
+    function main {
+    main:
+        %fmp = calldatasize
+        %a, %b, %c = bump 32, %fmp
+        sink %a, %b, %c
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, BumpArityError)
+
+
+def test_bump_arity_wrong_operand_count_rejected():
+    src = """
+    function main {
+    main:
+        %fmp = calldatasize
+        %a, %b = bump %fmp
+        sink %a, %b
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, BumpArityError)
+
+
+def test_bump_arity_correct_accepted():
+    src = """
+    function main {
+    main:
+        %fmp = calldatasize
+        %a, %b = bump 32, %fmp
+        sink %a, %b
+    }
+    """
+    ctx = parse_venom(src)
+    # Should not raise: bump has 2 operands and 2 outputs.
+    check_calling_convention(ctx)
