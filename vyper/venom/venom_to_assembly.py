@@ -190,7 +190,7 @@ class VenomCompiler:
         # during codegen (peak_spill_end). Without this, a function
         # with small fn_eom and many spills could have its spill
         # slots collide with the dynamic allocation region.
-        if self._entry_fn is not None and self._function_needs_fmp(self._entry_fn):
+        if self._entry_fn is not None and self._entry_fn._needs_fmp:
             asm = list(PUSH(self._initial_fmp_value())) + asm
 
         asm.extend(_REVERT_POSTAMBLE)
@@ -213,9 +213,6 @@ class VenomCompiler:
             optimize_assembly(asm)
 
         return asm
-
-    def _function_needs_fmp(self, fn: IRFunction) -> bool:
-        return getattr(fn, "_needs_fmp", False)
 
     def _initial_fmp_value(self) -> int:
         # Initial FMP must live above every function's static frame

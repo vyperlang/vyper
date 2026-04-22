@@ -26,6 +26,11 @@ class IRFunction:
     _invoke_param_count: Optional[int]
     _has_memory_return_buffer_param: Optional[bool]
 
+    # Set by DallocaLoweringPass: True if this function threads the
+    # free-memory pointer (i.e. contains a dalloca or invokes a callee
+    # that does).
+    _needs_fmp: bool
+
     # Used during code generation
     _ast_source_stack: list[IRnode]
     _error_msg_stack: list[Optional[str]]
@@ -39,6 +44,7 @@ class IRFunction:
 
         self._invoke_param_count = None
         self._has_memory_return_buffer_param = None
+        self._needs_fmp = False
 
         self._ast_source_stack = []
         self._error_msg_stack = []

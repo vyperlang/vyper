@@ -64,16 +64,15 @@ class DallocaLoweringPass(IRPass):
                 target = inst.operands[0]
                 assert isinstance(target, IRLabel)
                 callee = fn.ctx.get_function(target)
-                if getattr(callee, "_needs_fmp", False):
+                if callee._needs_fmp:
                     calls_needs_fmp = True
                     break
             if calls_needs_fmp:
                 break
 
-        needs_fmp = has_dalloca or calls_needs_fmp
-        fn._needs_fmp = needs_fmp  # type: ignore[attr-defined]
+        fn._needs_fmp = has_dalloca or calls_needs_fmp
 
-        if not needs_fmp:
+        if not fn._needs_fmp:
             return
 
         # single variable representing the threaded FMP across the
@@ -103,7 +102,7 @@ class DallocaLoweringPass(IRPass):
                 target = inst.operands[0]
                 assert isinstance(target, IRLabel)
                 callee = fn.ctx.get_function(target)
-                if getattr(callee, "_needs_fmp", False):
+                if callee._needs_fmp:
                     self._augment_invoke(inst, fmp_var)
             new_instructions.append(inst)
         bb.instructions = new_instructions
