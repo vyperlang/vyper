@@ -9,12 +9,13 @@ above the static frame and any spill slots.
 Semantics:
 1. Lowers to a single `MSIZE` byte at assembly time.
 2. Has a `MEMORY` read effect — depends on all prior memory writes.
-3. CSE may merge two `memtop` instructions only when no memory write
-   separates them.
+3. Treated as non-idempotent for CSE purposes — memtops are never merged,
+   because any memory-touching op (including pure reads like mload) can
+   advance MSIZE.
 4. DFT must not reorder `memtop` past a memory write.
 """
 
-from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
+from tests.venom_utils import parse_from_basic_block
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes.common_subexpression_elimination import CSE
@@ -108,11 +109,14 @@ def test_cse_does_not_merge_memtop_across_memory_write():
     )
 
 
-def test_cse_merges_memtop_without_memory_write():
+def test_cse_does_not_merge_consecutive_memtop():
     """
-    Two consecutive `memtop` instructions with no intervening memory
-    write are equivalent and CSE may merge them. (At runtime MSIZE
-    has not advanced, so both return the same value.)
+    `memtop` is treated as non-idempotent: even two back-to-back memtops
+    must not be merged. MSIZE observes the memory high-water mark, which
+    any memory-touching op (including pure reads like mload/sha3) can
+    advance. Rather than modeling every such op as writing MEMORY_SIZE
+    (which creates spurious reordering constraints in DFT), we mark
+    memtop itself as non-CSE-able.
     """
     pre = """
     main:
@@ -120,14 +124,53 @@ def test_cse_merges_memtop_without_memory_write():
         %2 = memtop
         sink %1, %2
     """
-    post = """
+    ctx = _run_cse(pre)
+    fn = next(iter(ctx.functions.values()))
+    memtops = [
+        inst for bb in fn.get_basic_blocks() for inst in bb.instructions if inst.opcode == "memtop"
+    ]
+    assert len(memtops) == 2
+
+
+def test_cse_does_not_merge_memtop_across_mload():
+    """
+    Regression for the unsound effect-modeling concern: an `mload` between
+    two memtops can grow MSIZE even though it does not write MEMORY. With
+    memtop marked non-idempotent, CSE must not merge the two memtops.
+    """
+    pre = """
     main:
         %1 = memtop
-        %2 = %1
-        sink %1, %2
+        %v = mload 1024
+        %2 = memtop
+        sink %1, %2, %v
     """
-    ctx_pre = _run_cse(pre)
-    assert_ctx_eq(ctx_pre, parse_from_basic_block(post))
+    ctx = _run_cse(pre)
+    fn = next(iter(ctx.functions.values()))
+    memtops = [
+        inst for bb in fn.get_basic_blocks() for inst in bb.instructions if inst.opcode == "memtop"
+    ]
+    assert len(memtops) == 2
+
+
+def test_cse_does_not_merge_memtop_across_sha3():
+    """
+    `sha3` reads memory and can grow MSIZE. CSE must not merge memtops
+    separated by a sha3.
+    """
+    pre = """
+    main:
+        %1 = memtop
+        %h = sha3 0, 1024
+        %2 = memtop
+        sink %1, %2, %h
+    """
+    ctx = _run_cse(pre)
+    fn = next(iter(ctx.functions.values()))
+    memtops = [
+        inst for bb in fn.get_basic_blocks() for inst in bb.instructions if inst.opcode == "memtop"
+    ]
+    assert len(memtops) == 2
 
 
 # --------------------------------------------------------------------------

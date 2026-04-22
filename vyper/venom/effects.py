@@ -52,7 +52,7 @@ _writes = {
     "create": ALL ^ (MEMORY | IMMUTABLES),
     "create2": ALL ^ (MEMORY | IMMUTABLES),
     "invoke": ALL,  # could be smarter, look up the effects of the invoked function
-    "log": LOG,
+    "log": LOG | MEMORY_SIZE,  # log reads a memory range, which can grow MSIZE
     "dloadbytes": MEMORY,
     "dload": MEMORY,
     "returndatacopy": MEMORY,

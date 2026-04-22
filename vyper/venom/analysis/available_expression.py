@@ -33,6 +33,12 @@ _nonidempotent_insts.append("staticcall")
 # two `bump`s with distinct SSA operands represent distinct allocations
 # and must not be merged by CSE.
 _nonidempotent_insts.append("bump")
+# `memtop` lowers to MSIZE, which observes the runtime memory high-water
+# mark. Any memory-touching op (including pure reads like `mload` that
+# do not write MEMORY) can bump MSIZE. Since the effect system cannot
+# distinguish MSIZE-growing reads without adding spurious ordering
+# constraints elsewhere (DFT, etc.), treat memtop itself as not-CSE-able.
+_nonidempotent_insts.append("memtop")
 
 NONIDEMPOTENT_INSTRUCTIONS = frozenset(_nonidempotent_insts)
 
