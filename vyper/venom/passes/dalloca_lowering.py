@@ -63,8 +63,8 @@ class DallocaLoweringPass(IRPass):
                     continue
                 target = inst.operands[0]
                 assert isinstance(target, IRLabel)
-                callee = fn.ctx.functions.get(target)
-                if callee is not None and getattr(callee, "_needs_fmp", False):
+                callee = fn.ctx.get_function(target)
+                if getattr(callee, "_needs_fmp", False):
                     calls_needs_fmp = True
                     break
             if calls_needs_fmp:
@@ -83,10 +83,8 @@ class DallocaLoweringPass(IRPass):
         fmp_var = fn.get_next_variable()
 
         # add leading `param` at entry, before any other instructions.
-        entry = fn.entry
         param_inst = IRInstruction("param", [], [fmp_var])
-        param_inst.parent = entry
-        entry.instructions.insert(0, param_inst)
+        fn.entry.insert_instruction(param_inst, index=0)
 
         # rewrite dallocas and invokes in program order per basic block.
         for bb in fn.get_basic_blocks():
@@ -104,8 +102,8 @@ class DallocaLoweringPass(IRPass):
             if inst.opcode == "invoke":
                 target = inst.operands[0]
                 assert isinstance(target, IRLabel)
-                callee = fn.ctx.functions.get(target)
-                if callee is not None and getattr(callee, "_needs_fmp", False):
+                callee = fn.ctx.get_function(target)
+                if getattr(callee, "_needs_fmp", False):
                     self._augment_invoke(inst, fmp_var)
             new_instructions.append(inst)
         bb.instructions = new_instructions
