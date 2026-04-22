@@ -343,17 +343,17 @@ def _to_bytes(
     From string: just reinterpret (check length)
     """
     # Only bytestring types can be converted to Bytes
-    if not isinstance(in_t, _BytestringT):
+    if not isinstance(in_t, _BytestringT):  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     # Ban converting same type (e.g. Bytes[20] to Bytes[21] upcast is not a real conversion)
-    if isinstance(in_t, BytesT) and in_t.maxlen <= out_t.maxlen:
+    if isinstance(in_t, BytesT) and in_t.maxlen <= out_t.maxlen:  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     # Can't downcast literals with known length (e.g. b"abc" to Bytes[2])
     # Use reduced() to handle constant variables like `BAR: constant(Bytes[5])`
     reduced = arg_node.reduced() if arg_node.has_folded_value else arg_node
-    if isinstance(reduced, vy_ast.Constant) and in_t.maxlen > out_t.maxlen:
+    if isinstance(reduced, vy_ast.Constant) and in_t.maxlen > out_t.maxlen:  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     b = ctx.builder
@@ -380,17 +380,17 @@ def _to_string(
     From bytes: just reinterpret (check length)
     """
     # Only bytestring types can be converted to String
-    if not isinstance(in_t, _BytestringT):
+    if not isinstance(in_t, _BytestringT):  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     # Ban converting same type (e.g. String[20] to String[21] upcast is not a real conversion)
-    if isinstance(in_t, StringT) and in_t.maxlen <= out_t.maxlen:
+    if isinstance(in_t, StringT) and in_t.maxlen <= out_t.maxlen:  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     # Can't downcast literals with known length (e.g. "abc" to String[2])
     # Use reduced() to handle constant variables like `BAR: constant(String[5])`
     reduced = arg_node.reduced() if arg_node.has_folded_value else arg_node
-    if isinstance(reduced, vy_ast.Constant) and in_t.maxlen > out_t.maxlen:
+    if isinstance(reduced, vy_ast.Constant) and in_t.maxlen > out_t.maxlen:  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     b = ctx.builder
@@ -433,9 +433,8 @@ def _check_bytes(in_t, out_t, max_bytes_allowed: int, source_expr: vy_ast.VyperN
 
     Raises TypeMismatch if in_t is a bytestring with maxlen > max_bytes_allowed.
     """
-    if isinstance(in_t, _BytestringT):
-        if in_t.maxlen > max_bytes_allowed:
-            raise TypeMismatch(f"Can't convert {in_t} to {out_t}", source_expr)
+    if isinstance(in_t, _BytestringT) and in_t.maxlen > max_bytes_allowed:  # pragma: nocover
+        raise TypeMismatch(f"Can't convert {in_t} to {out_t}", source_expr)
 
 
 def _int_clamp(val: IROperand, out_t: IntegerT, ctx: VenomCodegenContext) -> IROperand:
