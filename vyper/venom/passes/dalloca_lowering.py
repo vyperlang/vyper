@@ -46,7 +46,7 @@ class DallocaLoweringPass(IRPass):
     in `_run_fn_passes_r` populates flags in topological order.
     """
 
-    required_predecessors = ("DallocaPromotion",)
+    required_predecessors = ("ConcretizeMemLocPass",)
     required_successors = ("MakeSSA",)
 
     def run_pass(self):
