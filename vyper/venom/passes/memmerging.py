@@ -424,26 +424,27 @@ class MemMergePass(IRPass):
 
     # optimize memzeroing operations
     def _optimize_memzero(self, bb: IRBasicBlock):
-        for copy in self._copies:
-            inst = copy.insts[-1]
-            if copy.length == 32:
-                new_ops: list[IROperand] = [IRLiteral(0), IRLiteral(copy.dst)]
-                self.updater.update(inst, "mstore", new_ops)
-            else:
-                calldatasize = self.updater.add_before(inst, "calldatasize", [])
-                assert calldatasize is not None  # help mypy
-                new_ops = [IRLiteral(copy.length), calldatasize, IRLiteral(copy.dst)]
-                self.updater.update(inst, "calldatacopy", new_ops)
+        for copies in self._copies.get_all_lists():
+            for copy in copies:
+                inst = copy.insts[-1]
+                if copy.length == 32:
+                    new_ops: list[IROperand] = [IRLiteral(0), IRLiteral(copy.dst)]
+                    self.updater.update(inst, "mstore", new_ops)
+                else:
+                    calldatasize = self.updater.add_before(inst, "calldatasize", [])
+                    assert calldatasize is not None  # help mypy
+                    new_ops = [IRLiteral(copy.length), calldatasize, IRLiteral(copy.dst)]
+                    self.updater.update(inst, "calldatacopy", new_ops)
 
-            for inst in copy.insts[:-1]:
-                self.updater.nop(inst)
+                for inst in copy.insts[:-1]:
+                    self.updater.nop(inst)
 
-        self._copies.clear()
+        self._copies = _Copies(False)
         self._loads.clear()
 
     def _handle_bb_memzero(self, bb: IRBasicBlock):
         self._loads = {}
-        self._copies = []
+        self._copies = _Copies(False)
 
         def _barrier():
             self._optimize_memzero(bb)
