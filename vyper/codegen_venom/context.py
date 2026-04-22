@@ -151,7 +151,7 @@ class VenomCodegenContext:
         return self.load_word(vv.operand, vv.location)
 
     def store_vyper_value(
-        self, vv: VyperValue, ptr: IRVariable, typ: Optional[VyperType] = None
+        self, vv: VyperValue, ptr: IRVariable, typ: VyperType
     ) -> None:
         """Store a VyperValue into memory, preserving its source layout."""
         self.store_memory(self.unwrap(vv), ptr, typ, src_typ=vv.typ)
