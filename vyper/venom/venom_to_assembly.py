@@ -166,7 +166,7 @@ class VenomCompiler:
         asm: list[AssemblyInstruction] = []
 
         fns = list(self.ctx.functions.values())
-        self._entry_fn = fns[0] if fns else None
+        self._entry_fn = self.ctx.entry_function
 
         for fn in fns:
             ac = IRAnalysesCache(fn)
