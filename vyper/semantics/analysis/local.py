@@ -1,4 +1,5 @@
 # CMC 2024-02-03 TODO: rename me to function.py
+from __future__ import annotations
 
 import contextlib
 from typing import Optional
@@ -7,6 +8,7 @@ from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     CallViolation,
+    CompilerPanic,
     ExceptionList,
     FunctionDeclarationException,
     ImmutableViolation,
@@ -40,7 +42,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS
-from vyper.semantics.namespace import get_namespace
+from vyper.semantics.namespace import override_global_namespace
 from vyper.semantics.types import (
     TYPE_T,
     VOID_TYPE,
@@ -61,7 +63,12 @@ from vyper.semantics.types import (
     is_type_t,
     map_void,
 )
-from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
+from vyper.semantics.types.function import (
+    ContractFunctionT,
+    MemberFunctionT,
+    StateMutability,
+    is_ellipsis_body,
+)
 from vyper.semantics.types.utils import type_from_annotation
 
 
@@ -70,63 +77,59 @@ def analyze_functions(vy_module: vy_ast.Module) -> None:
     err_list = ExceptionList()
 
     for node in vy_module.get_children(vy_ast.FunctionDef):
-        _analyze_function_r(vy_module, node, err_list)
+        _analyze_function_r(node, err_list)
 
     for node in vy_module.get_children(vy_ast.VariableDecl):
         if not node.is_public:
             continue
-        _analyze_function_r(vy_module, node._expanded_getter, err_list)
+        _analyze_function_r(node._expanded_getter, err_list)
 
     err_list.raise_if_not_empty()
 
 
-def _analyze_function_r(
-    vy_module: vy_ast.Module, node: vy_ast.FunctionDef, err_list: ExceptionList
-):
+def _analyze_function_r(node: vy_ast.FunctionDef, err_list: ExceptionList):
     func_t = node._metadata["func_type"]
 
     for call_t in func_t.called_functions:
         if isinstance(call_t, ContractFunctionT):
             assert isinstance(call_t.ast_def, vy_ast.FunctionDef)  # help mypy
-            _analyze_function_r(vy_module, call_t.ast_def, err_list)
+            _analyze_function_r(call_t.ast_def, err_list)
 
-    namespace = get_namespace()
+    namespace = node.module_node._metadata["namespace"]
 
     try:
-        with namespace.enter_scope():
-            analyzer = FunctionAnalyzer(vy_module, node, namespace)
-            analyzer.analyze()
+        with override_global_namespace(namespace):
+            with namespace.enter_scope():
+                analyzer = FunctionAnalyzer(node, namespace)
+                analyzer.analyze()
     except VyperException as e:
         err_list.append(e)
 
 
-# finds the terminus node for a list of nodes.
+# checks all code paths are terminated.
 # raises an exception if any nodes are unreachable
-def find_terminating_node(node_list: list) -> Optional[vy_ast.VyperNode]:
-    ret = None
+def is_terminated(block: list[vy_ast.VyperNode]) -> bool:
+    terminated = False
 
-    for node in node_list:
-        if ret is not None:
+    for node in block:
+        if terminated:
             raise StructureException("Unreachable code!", node)
 
         if node.is_terminus:
-            ret = node
+            terminated = True
 
         if isinstance(node, vy_ast.If):
-            body_terminates = find_terminating_node(node.body)
-
-            else_terminates = None
             if node.orelse is not None:
-                else_terminates = find_terminating_node(node.orelse)
-
-            if body_terminates is not None and else_terminates is not None:
-                ret = else_terminates
+                terminated = is_terminated(node.body) and is_terminated(node.orelse)
+            else:
+                # call is_terminated for its side effects
+                is_terminated(node.body)
 
         if isinstance(node, vy_ast.For):
-            # call find_terminating_node for its side effects
-            find_terminating_node(node.body)
+            # call is_terminated for its side effects
+            is_terminated(node.body)
 
-    return ret
+    return terminated
 
 
 # helpers
@@ -287,20 +290,123 @@ def check_module_uses(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
     return root_module_info
 
 
+def _shorten_call_path(
+    node: vy_ast.Attribute, func_t: ContractFunctionT, module_infos: list[ModuleInfo]
+) -> str:
+    """
+    Shortens a call expression (`a.b.foo()`) in case it contains an override (`a.foo()`).
+    The call expression is represented by the `node` parameter,
+    which resolves to abstract function `func_t`.
+
+    The shortened expression is returned as a `str`, given it should only be used in errors
+    to force users to call more concrete methods when they are available.
+
+
+    Examples:
+
+    ```
+    self.foo -overrides-> abstract_m.foo
+    call to abstract_m.foo()
+    ```
+    shortened path is `"self.foo"`, since it is a shorter path leading to an override of
+    `abstract_m.foo`
+
+
+    ```
+    a.foo -overrides-> b.foo -overrides-> c.foo
+    a -imports-> c
+    call to a.c.foo()
+    ```
+
+    shortened path is `"a.foo"`, since it is a shorter path leading to an override of `a.c.foo`.
+
+
+    ```
+    self -imports-> abstract_m
+    self -imports-> override_m -overrides> abstract_m
+    call to abstract_m.foo()
+    ```
+
+    shortened path is `"abstract_m.foo`, since it cannot be shortened.
+    Note that `override_m.foo` is more concrete, but is not part of the original path
+    """
+
+    # Build override chain: [concrete, ..., abstract]
+    # Computed as [abstract, ..., concrete].reverse()
+    assert isinstance(func_t.ast_def, vy_ast.FunctionDef)
+    override_chain = [func_t.ast_def.module_node]
+    curr_t = func_t
+    while curr_t.is_abstract:
+        curr_t = curr_t.overridden_by
+        assert isinstance(curr_t.ast_def, vy_ast.FunctionDef)
+        override_chain.append(curr_t.ast_def.module_node)
+    override_chain.reverse()
+
+    # Find first accessible module (most concrete first)
+    for module_node in override_chain:
+        module_t = module_node._metadata["type"]
+
+        # Check if self provides override
+        if module_node is node.module_node:
+            return "self"
+
+        # Check call chain
+        path = []
+        for mi in module_infos:
+            path.append(mi.alias)
+            if mi.module_t is module_t:
+                return ".".join(path)
+
+    raise CompilerPanic("unreachable")  # pragma: nocover
+
+
+def check_module_uses_for_abstract(
+    node: vy_ast.Attribute, func_t: ContractFunctionT
+) -> Optional[ModuleInfo]:
+    """
+    Validate module usage when calling an abstract method.
+    Abstract methods require their module being `uses`-ed.
+    """
+    module_infos = _get_module_chain(node)
+
+    if len(module_infos) == 0:
+        return None
+
+    # Find better accessible override
+    best_path = _shorten_call_path(node, func_t, module_infos)
+    current_path = ".".join(mi.alias for mi in module_infos)
+
+    # Error if a better path exists
+    if best_path != current_path:
+        msg = f"Abstract method `{current_path}.{func_t.name}` is overridden by "
+        msg += f"`{best_path}.{func_t.name}`, call that instead."
+        raise CallViolation(msg, node)
+
+    for module_info in module_infos:
+        if module_info.ownership < ModuleOwnership.USES:
+            msg = f"Cannot access abstract methods of `{module_info.alias}`"
+
+            hint = f"add `uses: {module_info.alias}` "
+            hint += "as a top-level statement to your contract"
+
+            raise StructureException(msg, hint=hint)
+
+    # the leftmost-referenced module
+    root_module_info = module_infos[0]
+    return root_module_info
+
+
 class FunctionAnalyzer(VyperNodeVisitorBase):
     ignored_types = (vy_ast.Pass,)
     scope_name = "function"
 
-    def __init__(
-        self, vyper_module: vy_ast.Module, fn_node: vy_ast.FunctionDef, namespace: dict
-    ) -> None:
-        self.vyper_module = vyper_module
+    def __init__(self, fn_node: vy_ast.FunctionDef, namespace: dict) -> None:
         self.fn_node = fn_node
         self.namespace = namespace
-        self.func = fn_node._metadata["func_type"]
+        self.func: ContractFunctionT = fn_node._metadata["func_type"]
         self.expr_visitor = ExprVisitor(self)
 
-        self.loop_variables: list[Optional[VarAccess]] = []
+        self.loop_variables: list[VarAccess] = []
 
     def analyze(self):
         if self.func.analysed:
@@ -321,33 +427,55 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                 arg.typ, location=location, modifiability=modifiability, decl_node=arg.ast_source
             )
 
-        for node in self.fn_node.body:
-            self.visit(node)
+        if self.func.is_abstract:
+            if not is_ellipsis_body(self.fn_node.body):
+                func_name = self.func.name
 
-        if self.func.return_type:
-            if not find_terminating_node(self.fn_node.body):
+                msg = "Abstract function must have `...` as body"
+                msg += " (can be preceded by a doc comment)"
+
+                hint = "To provide a default implementation, define a regular function "
+                hint += f"(for example named {func_name}_default) "
+                hint += "that override implementations can call."
+                raise FunctionDeclarationException(msg, self.fn_node, hint=hint)
+
+        else:
+            # Concrete method
+
+            for node in self.fn_node.body:
+                self.visit(node)
+
+            # also called for side effect (checking unreachable code)
+            _is_terminated = is_terminated(self.fn_node.body)
+
+            if self.func.return_type and not _is_terminated:
                 raise FunctionDeclarationException(
                     f"Missing return statement in function '{self.fn_node.name}'", self.fn_node
                 )
-        else:
-            # call find_terminator for its unreachable code detection side effect
-            find_terminating_node(self.fn_node.body)
 
         # visit default args
         assert self.func.n_keyword_args == len(self.fn_node.args.defaults)
         for kwarg in self.func.keyword_args:
-            self.expr_visitor.visit(kwarg.default_value, kwarg.typ)
+            # Abstract methods are allowed to have `...` as default
+            # (Interface methods as well, but they do not get analyzed)
+            skip_validation = self.func.is_abstract and isinstance(
+                kwarg.default_value, vy_ast.Ellipsis
+            )
+
+            if not skip_validation:
+                self.expr_visitor.visit(kwarg.default_value, kwarg.typ)
 
     @contextlib.contextmanager
     def enter_for_loop(self, varaccess: Optional[VarAccess]):
+        if varaccess is None:
+            yield
+            return
+
         self.loop_variables.append(varaccess)
         try:
             yield
         finally:
             self.loop_variables.pop()
-
-    def visit(self, node):
-        super().visit(node)
 
     def visit_AnnAssign(self, node):
         name = node.get("target.id")
@@ -477,11 +605,13 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if for_node is None:
             raise StructureException("`continue` must be enclosed in a `for` loop", node)
 
-    def visit_Expr(self, node):
+    def visit_Expr(self, node: vy_ast.Expr):
         if isinstance(node.value, vy_ast.Ellipsis):
             raise StructureException(
-                "`...` is not allowed in `.vy` files! "
-                "Did you mean to import me as a `.vyi` file?",
+                "`...` is only allowed in abstract methods "
+                "and methods inside interface files (`.vyi`). "
+                "Did you mean to mark this function `@abstract` "
+                "or to import this module as a `.vyi` file?",
                 node,
             )
 
@@ -553,7 +683,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if not isinstance(iter_type, (DArrayT, SArrayT)):
             raise InvalidType("Not an iterable type", iter_node)
 
-        if not target_type.compare_type(iter_type.value_type):
+        if not iter_type.value_type.is_subtype_of(target_type):
+            # Isn't the expected type the target type ?
             raise TypeMismatch(f"Expected type of {iter_type.value_type}", target_node)
 
         self.expr_visitor.visit(iter_node, iter_type)
@@ -641,6 +772,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         # CMC 2024-02-05 annotate the event type for codegen usage
         # TODO: refactor this
         node._metadata["type"] = f.typedef
+        self.func.mark_emitted_event(f.typedef)
         self.expr_visitor.visit(node.value, t)
 
     def visit_Raise(self, node):
@@ -708,9 +840,6 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             if self.function_analyzer:
                 for s in self.function_analyzer.loop_variables:
-                    if s is None:
-                        continue
-
                     for v in info._writes:
                         if not v.contains(s):
                             continue
@@ -836,6 +965,21 @@ class ExprVisitor(VyperNodeVisitorBase):
 
                 if func_type.uses_state():
                     self.function_analyzer._handle_module_access(node.func)
+
+                if func_type.is_abstract:
+                    # calls to abstract functions always have the form other_module.foo()
+                    # or module1.module2. ... .foo()
+                    assert isinstance(node.func, vy_ast.Attribute)
+
+                    # calling an abstract function requires we `uses` its module
+                    root_module_info = check_module_uses_for_abstract(node.func, func_type)
+                    if root_module_info is not None:
+                        self.func.mark_used_module(root_module_info)
+
+                    # Note:
+                    # We don't look at the override of abstract methods (who live in another module)
+                    # and use their body to add `uses` requirements to the abstract module
+                    # (We do validate the concrete methods in an abstract module as usual.)
 
                 if func_type.is_deploy and not self.func.is_deploy:
                     raise CallViolation(

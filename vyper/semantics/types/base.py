@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from functools import cached_property
 from typing import Any, Dict, Optional, Tuple, Union
 
@@ -24,6 +26,15 @@ class _GenericTypeAcceptor:
 
     def __init__(self, type_):
         self.type_ = type_
+
+    def is_subtype_of(self, other):
+        return other.compare_type(self)
+
+    def is_supertype_of(self, other):
+        return self.compare_type(other)
+
+    def is_equivalent_to(self, other):
+        return self.compare_type(other) and other.compare_type(self)
 
     def compare_type(self, other):
         if isinstance(other, self.type_):
@@ -297,6 +308,78 @@ class VyperType:
     def validate_index_type(self, node: vy_ast.Subscript) -> None:
         raise StructureException(f"Not an indexable type: '{self}'", node)
 
+    def is_supertype_of(self, other: VyperType) -> bool:
+        """
+        Compare this type object against another type object.
+
+        Failed comparisons must return `False`, not raise an exception.
+
+        This method does *not* test for type equality, it is a type
+        checker function, it should have the meaning: "an expr of type
+        <other> can be assigned to an expr of type <self>."
+
+        DO NOT override this in subclasses, instead override compare_type
+
+        Arguments
+        ---------
+        other: VyperType
+            Another type object to be compared against this one.
+
+        Returns
+        -------
+        bool
+            Indicates if self is a supertype of other
+        """
+        return self.compare_type(other)
+
+    def is_subtype_of(self, other: VyperType) -> bool:
+        """
+        Compare this type object against another type object.
+
+        Failed comparisons must return `False`, not raise an exception.
+
+        This method does *not* test for type equality, it is a type
+        checker function, it should have the meaning: "an expr of type
+        <self> can be assigned to an expr of type <other>."
+
+        DO NOT override this in subclasses, instead override compare_type
+
+        Arguments
+        ---------
+        other: VyperType
+            Another type object to be compared against this one.
+
+        Returns
+        -------
+        bool
+            Indicates if self is a subtype of other.
+        """
+        return other.is_supertype_of(self)
+
+    def is_equivalent_to(self, other: VyperType) -> bool:
+        """
+        Compare this type object against another type object.
+
+        Failed comparisons must return `False`, not raise an exception.
+
+        This method does test for type equality, it is a type checker function, it should have
+        the meaning: "<self> and <other> can be used interchangeably"
+
+        DO NOT override this in subclasses, instead override compare_type
+
+        Arguments
+        ---------
+        other: VyperType
+            Another type object to be compared against this one.
+
+        Returns
+        -------
+        bool
+            Indicates if self is a subtype of other.
+        """
+        return self.is_subtype_of(other) and self.is_supertype_of(other)
+
+    # TODO: Deprecate in favor of one of the clearer above methods
     def compare_type(self, other: "VyperType") -> bool:
         """
         Compare this type object against another type object.

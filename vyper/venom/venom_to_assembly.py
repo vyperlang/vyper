@@ -94,7 +94,6 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "sgt",
         "create",
         "create2",
-        "msize",
         "balance",
         "call",
         "staticcall",
@@ -580,6 +579,8 @@ class VenomCompiler:
             assembly.append(opcode.upper())
         elif opcode == "alloca":
             pass
+        elif opcode == "memtop":
+            assembly.append("MSIZE")
         elif opcode == "param":
             pass
         elif opcode == "assign":

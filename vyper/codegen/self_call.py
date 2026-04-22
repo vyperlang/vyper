@@ -24,7 +24,7 @@ def _align_kwargs(func_t, args_ir):
     return [i.default_value for i in unprovided_kwargs]
 
 
-def ir_for_self_call(stmt_expr, context):
+def ir_for_self_call(stmt_expr: vy_ast.Call, context):
     from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
     # ** Internal Call **
@@ -36,7 +36,7 @@ def ir_for_self_call(stmt_expr, context):
     # - (private function will fill return buffer and jump back)
     assert isinstance(stmt_expr.func, vy_ast.Attribute)
     method_name = stmt_expr.func.attr
-    func_t = stmt_expr.func._metadata["type"]
+    func_t = stmt_expr.func._metadata["type"].get_concrete_override()
 
     pos_args_ir = [Expr(x, context).ir_node for x in stmt_expr.args]
 
