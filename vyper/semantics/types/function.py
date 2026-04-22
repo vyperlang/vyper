@@ -628,7 +628,7 @@ class ContractFunctionT(VyperType):
         return self.name == "__init__"
 
     @property
-    def is_mutable(self) -> bool:
+    def is_modifying(self) -> bool:
         return self.mutability > StateMutability.VIEW
 
     @property

@@ -135,7 +135,7 @@ def initialize_context(
         vars_=None,
         module_ctx=module_ctx,
         memory_allocator=memory_allocator,
-        constancy=Constancy.Mutable if func_t.is_mutable else Constancy.Constant,
+        constancy=Constancy.Mutable if func_t.is_modifying else Constancy.Constant,
         func_t=func_t,
         is_ctor_context=is_ctor_context,
     )

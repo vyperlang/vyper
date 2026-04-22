@@ -1309,7 +1309,7 @@ class Expr:
         assert func_t is not None
 
         # Check constancy: can't call mutable internal functions from view/pure contexts
-        if self.ctx.is_constant() and func_t.is_mutable:
+        if self.ctx.is_constant() and func_t.is_modifying:
             raise StateAccessViolation(
                 f"May not call state modifying function "
                 f"'{func_name}' within {self.ctx.pp_constancy()}.",

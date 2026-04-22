@@ -91,6 +91,10 @@ class BuiltinFunctionT(VyperType):
     _is_terminus = False
     mutability: StateMutability = StateMutability.PURE
 
+    @property
+    def is_modifying(self) -> bool:
+        return self.mutability > StateMutability.VIEW
+
     # helper function to deal with TYPE_Ts
     def _validate_single(self, arg: vy_ast.VyperNode, expected_type: VyperType) -> None:
         if TYPE_T.any().compare_type(expected_type):

@@ -413,6 +413,11 @@ class TYPE_T(VyperType):
 
         self.typedef = typedef
 
+    @property
+    def is_modifying(self) -> bool:
+        # Constructor calls cannot mutate state
+        return False
+
     def to_dict(self):
         return {"type_t": self.typedef.to_dict()}
 

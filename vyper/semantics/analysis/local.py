@@ -7,7 +7,6 @@ from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     CallViolation,
-    CompilerPanic,
     ExceptionList,
     FunctionDeclarationException,
     ImmutableViolation,
@@ -580,21 +579,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         for arg in args:
             call_nodes = arg.get_descendants(vy_ast.Call, include_self=True)
             for c in call_nodes:
-                from vyper.builtins._signatures import BuiltinFunctionT
-
                 func_type = c.func._metadata["type"]
-
-                if isinstance(func_type, ContractFunctionT):
-                    mutating = func_type.is_mutable
-                elif isinstance(func_type, MemberFunctionT):
-                    mutating = func_type.is_modifying
-                elif isinstance(func_type, BuiltinFunctionT):
-                    mutating = func_type.mutability > StateMutability.VIEW
-                elif isinstance(func_type, TYPE_T):
-                    # Constructors do not modify state
-                    mutating = False
-                else:
-                    raise CompilerPanic("unreachable")
+                mutating = func_type.is_modifying
 
                 if mutating:
                     msg = "May not call state modifying function within a range expression "

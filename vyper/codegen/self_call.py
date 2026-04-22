@@ -50,7 +50,7 @@ def ir_for_self_call(stmt_expr, context):
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args_ir], typ=args_tuple_t)
 
     # CMC 2023-05-17 this seems like it is already caught in typechecker
-    if context.is_constant() and func_t.is_mutable:
+    if context.is_constant() and func_t.is_modifying:
         raise StateAccessViolation(
             f"May not call state modifying function "
             f"'{method_name}' within {context.pp_constancy()}.",
