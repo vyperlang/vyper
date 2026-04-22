@@ -13,7 +13,7 @@ from vyper import ast as vy_ast
 from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.types import AddressT, BytesM_T, BytesT, IntegerT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -76,6 +76,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             # Variable-length bytes/string: copy data, advance by actual length
             # lower_value() handles storage -> memory copy if needed
             arg_ptr = Expr(arg_node, ctx).lower_value()
+            assert isinstance(arg_ptr, IRVariable)
             arg_len = b.mload(arg_ptr)
             arg_data = b.add(arg_ptr, IRLiteral(32))
             offset = ctx.ptr_load(offset_local.ptr())
@@ -129,6 +130,7 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     if isinstance(src_t, _BytestringT):
         # lower_value() handles storage -> memory copy if needed
         src_ptr = Expr(src_node, ctx).lower_value()
+        assert isinstance(src_ptr, IRVariable)
         src_len = b.mload(src_ptr)
         src_data = b.add(src_ptr, IRLiteral(32))
     elif isinstance(src_t, BytesM_T):
@@ -159,6 +161,7 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     # Copy bytes from src_data + start to out_data
     copy_src = b.add(src_data, start)
+    assert isinstance(out_data.operand, IRVariable)
     ctx.copy_memory_dynamic(out_data.operand, copy_src, length)
 
     # Store length
@@ -205,6 +208,7 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
     out_t = node._metadata["type"]
     out_val = ctx.new_temporary_value(out_t)
     out_data = ctx.add_offset(out_val.ptr(), IRLiteral(32))
+    assert isinstance(out_data.operand, IRVariable)
 
     # Determine which opcode to use
     if isinstance(src_node.value, vy_ast.Name):
@@ -258,6 +262,7 @@ def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     if isinstance(src_t, _BytestringT):
         # lower_value() handles storage -> memory copy if needed
         src_ptr = Expr(src_node, ctx).lower_value()
+        assert isinstance(src_ptr, IRVariable)
         src_len = b.mload(src_ptr)
         src_data = b.add(src_ptr, IRLiteral(32))
     else:

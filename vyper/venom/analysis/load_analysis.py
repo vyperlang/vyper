@@ -1,4 +1,5 @@
 from collections import deque
+from typing import Callable, Optional
 
 import vyper.evm.address_space as addr_space
 from vyper.exceptions import CompilerPanic
@@ -18,8 +19,76 @@ from .mem_alias import (
     mem_alias_type_factory,
 )
 
-# from position in the memory to the possible values
-Lattice = dict[IROperand | MemoryLocation, OrderedSet[IROperand]]
+_LatticeKey = IROperand | MemoryLocation
+_GetMemloc = Callable[[_LatticeKey], MemoryLocation]
+
+
+class Lattice:
+    """
+    Maps memory positions to possible values, with an optional reverse
+    index from MemoryLocation to lattice keys for fast alias invalidation.
+    """
+
+    def __init__(self, get_memloc: Optional[_GetMemloc] = None):
+        self._entries: dict[_LatticeKey, OrderedSet[IROperand]] = {}
+        self._by_memloc: dict[MemoryLocation, set[_LatticeKey]] = {}
+        self._get_memloc = get_memloc
+
+    def _track_memloc(self, key: _LatticeKey):
+        if self._get_memloc is not None:
+            loc = self._get_memloc(key)
+            if loc not in self._by_memloc:
+                self._by_memloc[loc] = set()
+            self._by_memloc[loc].add(key)
+
+    def __setitem__(self, key: _LatticeKey, value: OrderedSet[IROperand]):
+        self._entries[key] = value
+        self._track_memloc(key)
+
+    def __getitem__(self, key: _LatticeKey) -> OrderedSet[IROperand]:
+        return self._entries[key]
+
+    def __contains__(self, key: _LatticeKey) -> bool:
+        return key in self._entries
+
+    def __iter__(self):
+        return iter(self._entries)
+
+    def __len__(self):
+        return len(self._entries)
+
+    def __eq__(self, other):
+        if isinstance(other, Lattice):
+            return self._entries == other._entries
+        return NotImplemented
+
+    def keys(self):
+        return self._entries.keys()
+
+    def get(self, key, default=None):
+        return self._entries.get(key, default)
+
+    def copy(self) -> "Lattice":
+        new = Lattice(self._get_memloc)
+        new._entries = self._entries.copy()
+        new._by_memloc = {k: v.copy() for k, v in self._by_memloc.items()}
+        return new
+
+    def clear(self):
+        self._entries.clear()
+        self._by_memloc.clear()
+
+    def _remove_memloc(self, loc: MemoryLocation):
+        keys = self._by_memloc.pop(loc, None)
+        if keys is not None:
+            for key in keys:
+                self._entries.pop(key, None)
+
+    def remove_aliases(self, memloc: MemoryLocation, alias_set):
+        """Remove all lattice entries for memloc and its aliases."""
+        self._remove_memloc(memloc)
+        for loc in alias_set:
+            self._remove_memloc(loc)
 
 
 class LoadAnalysis(IRAnalysis):
@@ -68,6 +137,10 @@ class LoadAnalysis(IRAnalysis):
         if store_opcode is not None:
             mem_alias_type = mem_alias_type_factory(self.space)
             self.mem_alias = self.analyses_cache.request_analysis(mem_alias_type)
+            self._memloc_fn: Optional[_GetMemloc] = self._get_memloc_with_ensure
+        else:
+            self._memloc_fn = None
+
         self.inst_to_lattice: LoadAnalysis.InstToLattice = {}
         self.bb_to_lattice: dict[IRBasicBlock, Lattice] = {}
 
@@ -84,17 +157,24 @@ class LoadAnalysis(IRAnalysis):
         self.lattice[eff] = self.inst_to_lattice
         self.eff_bb_lattice[eff] = self.bb_to_lattice
 
+    def _make_lattice(self) -> Lattice:
+        return Lattice(self._memloc_fn)
+
     def _merge(self, bb: IRBasicBlock) -> Lattice:
         preds = list(self.cfg.cfg_in(bb))
         if len(preds) == 0:
-            return {}
-        res = self.bb_to_lattice.get(preds[0], {}).copy()
+            return self._make_lattice()
+
+        first = self.bb_to_lattice.get(preds[0])
+        res = first.copy() if first is not None else self._make_lattice()
 
         for pred in preds[1:]:
-            other = self.bb_to_lattice.get(pred, {})
+            other = self.bb_to_lattice.get(pred)
+            if other is None:
+                return self._make_lattice()
             common_keys = other.keys() & res.keys()
-            tmp = res.copy()
-            res = {}
+            tmp = res
+            res = self._make_lattice()
             for key in common_keys:
                 res[key] = tmp[key] | other[key]
 
@@ -109,6 +189,11 @@ class LoadAnalysis(IRAnalysis):
         access_ops = InstAccessOps(ofst=op, size=IRLiteral(self.word_scale))
         return self.base_ptrs.segment_from_ops(access_ops)
 
+    def _get_memloc_with_ensure(self, op: IROperand | MemoryLocation) -> MemoryLocation:
+        loc = self.get_memloc(op)
+        self.mem_alias.ensure_analyzed(loc)
+        return loc
+
     def _normalize_operand(self, op: IROperand) -> IROperand:
         if isinstance(op, IRVariable):
             return self.dfg._traverse_assign_chain(op)
@@ -116,12 +201,7 @@ class LoadAnalysis(IRAnalysis):
 
     def get_read(self, inst: IRInstruction) -> IROperand | MemoryLocation:
         assert inst.opcode == self.space.load_op
-        if self.space in (
-            addr_space.MEMORY,
-            addr_space.TRANSIENT,
-            addr_space.STORAGE,
-            addr_space.CALLDATA,
-        ):
+        if self.space != addr_space.DATA:
             memloc = self.base_ptrs.get_read_location(inst, self.space)
             if memloc.is_fixed:
                 return memloc
@@ -150,17 +230,15 @@ class LoadAnalysis(IRAnalysis):
                 val, _ = inst.operands
                 ptr = self.get_write(inst)
                 memloc = self.get_memloc(ptr)
-
-                for existing_key in lattice.copy().keys():
-                    existing_loc = self.get_memloc(existing_key)
-                    if self.mem_alias.may_alias(existing_loc, memloc):
-                        del lattice[existing_key]
-
+                self.mem_alias.ensure_analyzed(memloc)
+                alias_set = self.mem_alias.get_alias_set(memloc)
+                assert alias_set is not None
+                lattice.remove_aliases(memloc, alias_set)
                 lattice[ptr] = OrderedSet([val])
             elif isinstance(eff, Effects) and eff in inst.get_write_effects():
                 lattice.clear()
 
         if bb not in self.bb_to_lattice or self.bb_to_lattice[bb] != lattice:
-            self.bb_to_lattice[bb] = lattice.copy()
+            self.bb_to_lattice[bb] = lattice
             return True
         return False
