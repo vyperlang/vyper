@@ -613,23 +613,6 @@ class VenomCodegenContext:
         success = b.staticcall(b.gas(), IRLiteral(IDENTITY_PRECOMPILE), src, length, dst, length)
         b.assert_(success)
 
-    def load_calldata(self, offset: IROperand, typ: VyperType) -> IROperand:
-        """Load from calldata.
-
-        For primitive types (<=32 bytes), returns calldataload value.
-        For complex types (>32 bytes), copies calldata to memory
-        and returns the memory pointer.
-        """
-        if typ.memory_bytes_required <= 32:
-            return self.builder.calldataload(offset)
-        else:
-            # Allocate buffer and copy calldata to it
-            size = typ.memory_bytes_required
-            val = self.new_temporary_value(typ)
-            assert isinstance(val.operand, IRVariable)
-            self.builder.calldatacopy(val.operand, offset, IRLiteral(size))
-            return val.operand
-
     _ALLOCATION_LIMIT: int = 2**64
 
     def allocate_buffer(self, size: int, annotation: Optional[str] = None) -> Buffer:
