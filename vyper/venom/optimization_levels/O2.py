@@ -77,6 +77,8 @@ PASSES_O2: List[PassConfig] = [
     DallocaPromotion,
     ConcretizeMemLocPass,
     DallocaLoweringPass,
+    MakeSSA,
+    PhiEliminationPass,
     SCCP,
     SimplifyCFGPass,
     MemMergePass,

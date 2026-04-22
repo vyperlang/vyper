@@ -83,6 +83,8 @@ PASSES_O3: List[PassConfig] = [
     DallocaPromotion,
     ConcretizeMemLocPass,
     DallocaLoweringPass,
+    MakeSSA,
+    PhiEliminationPass,
     SCCP,
     SimplifyCFGPass,
     MemMergePass,

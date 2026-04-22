@@ -47,6 +47,7 @@ class DallocaLoweringPass(IRPass):
     """
 
     required_predecessors = ("DallocaPromotion",)
+    required_successors = ("MakeSSA",)
 
     def run_pass(self):
         fn = self.function
