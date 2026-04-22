@@ -285,7 +285,7 @@ class Stmt:
         right_node = node.value
 
         # AugAssign only works on primitive word types
-        if not target_typ._is_prim_word:
+        if not target_typ._is_prim_word:  # pragma: nocover
             raise TypeCheckFailure("AugAssign only valid for primitive types")
 
         # Get target pointer (with location info)
@@ -301,7 +301,7 @@ class Stmt:
         exp_literal = None
         if isinstance(op, vy_ast.Pow):
             right_reduced = right_node.reduced()
-            if not isinstance(right_reduced, vy_ast.Int):
+            if not isinstance(right_reduced, vy_ast.Int):  # pragma: nocover
                 raise TypeCheckFailure("AugAssign pow requires literal exponent")
             exp_literal = right_reduced.value
 
@@ -457,9 +457,9 @@ class Stmt:
                 if varinfo.is_immutable and self.ctx.is_ctor_context:
                     return Ptr(IRLiteral(varinfo.position.position), DataLocation.IMMUTABLES)
 
-                if varinfo.is_constant:
+                if varinfo.is_constant:  # pragma: nocover
                     raise TypeCheckFailure("Cannot assign to constant")
-                if varinfo.is_immutable:
+                if varinfo.is_immutable:  # pragma: nocover
                     raise TypeCheckFailure("Cannot assign to immutable outside constructor")
 
             # Struct field access (point.x = ...)
