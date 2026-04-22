@@ -166,6 +166,8 @@ class _Copies:
 
     def get_writes_to(self, dst_allocation: Allocation | None):
         for srcs in self.copies.values():
+            if dst_allocation not in srcs:
+                continue
             for copy in srcs[dst_allocation]:
                 yield copy
 
