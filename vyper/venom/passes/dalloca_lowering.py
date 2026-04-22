@@ -1,5 +1,10 @@
 from vyper.utils import evm_not
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
+from vyper.venom.analysis import (
+    BasePtrAnalysis,
+    DFGAnalysis,
+    LivenessAnalysis,
+    MemLivenessAnalysis,
+)
 from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
@@ -91,6 +96,8 @@ class DallocaLoweringPass(IRPass):
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
+        self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
+        self.analyses_cache.invalidate_analysis(MemLivenessAnalysis)
 
     def _rewrite_bb(self, bb, fn, fmp_var: IRVariable) -> None:
         new_instructions: list[IRInstruction] = []
