@@ -1079,7 +1079,7 @@ class Expr:
         # Block non-primitive element types (mirrors legacy codegen)
         # See issue #2637 for context
         elem_typ = list_node._metadata["type"].value_type
-        if not elem_typ._is_prim_word:
+        if not elem_typ._is_prim_word:  # pragma: nocover
             raise TypeMismatch(
                 "`in` not allowed for arrays of non-base types, tracked in issue #2637", self.node
             )
@@ -1125,7 +1125,7 @@ class Expr:
         # Block non-primitive element types (mirrors legacy codegen)
         # See issue #2637 for context
         elem_typ = haystack_typ.value_type
-        if not elem_typ._is_prim_word:
+        if not elem_typ._is_prim_word:  # pragma: nocover
             raise TypeMismatch(
                 "`in` not allowed for arrays of non-base types, tracked in issue #2637", self.node
             )
