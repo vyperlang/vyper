@@ -1,10 +1,5 @@
 from vyper.utils import evm_not
-from vyper.venom.analysis import (
-    BasePtrAnalysis,
-    DFGAnalysis,
-    LivenessAnalysis,
-    MemLivenessAnalysis,
-)
+from vyper.venom.analysis import BasePtrAnalysis, DFGAnalysis, LivenessAnalysis, MemLivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
