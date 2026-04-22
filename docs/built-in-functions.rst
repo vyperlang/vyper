@@ -667,7 +667,7 @@ Math
 
     .. note::
 
-        ``sqrt`` has been moved to the ``math`` stdlib module. See :ref:`stdlib-math`. Import it with ``import math`` and call ``math.sqrt(d)``.
+        ``sqrt`` has been moved to the ``math`` stdlib module as part of the ``0.4.2`` release (see `PR #4520 <https://github.com/vyperlang/vyper/pull/4520>`_). See :ref:`stdlib-math`. Import it with ``import math`` and call ``math.sqrt(d)``.
 
     .. code-block:: vyper
 
@@ -689,7 +689,7 @@ Math
 
     .. note::
 
-        ``isqrt`` has been moved to the ``math`` stdlib module. See :ref:`stdlib-math`. Import it with ``import math`` and call ``math.isqrt(x)``.
+        ``isqrt`` has been moved to the ``math`` stdlib module as part of the ``0.5.0`` release (see `PR #4923 <https://github.com/vyperlang/vyper/pull/4923>`_). See :ref:`stdlib-math`. Import it with ``import math`` and call ``math.isqrt(x)``.
 
     .. code-block:: vyper
 
