@@ -589,10 +589,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                 elif isinstance(func_type, MemberFunctionT):
                     mutating = func_type.is_modifying
                 elif isinstance(func_type, BuiltinFunctionT):
-                    mutating = (
-                        func_type.mutability > StateMutability.VIEW
-                        or func_type.modifiability != Modifiability.MODIFIABLE
-                    )
+                    mutating = func_type.mutability > StateMutability.VIEW
                 elif isinstance(func_type, TYPE_T):
                     # Constructors do not modify state
                     mutating = False

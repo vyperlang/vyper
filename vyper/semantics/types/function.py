@@ -198,10 +198,6 @@ class ContractFunctionT(VyperType):
     def mark_variable_reads(self, var_infos):
         self._variable_reads.update(var_infos)
 
-    @property
-    def modifiability(self):
-        return Modifiability.from_state_mutability(self.mutability)
-
     @cached_property
     def call_site_kwargs(self):
         # special kwargs that are allowed in call site
@@ -994,10 +990,6 @@ class MemberFunctionT(VyperType):
         self.arg_types = arg_types
         self.return_type = return_type
         self.is_modifying = is_modifying
-
-    @property
-    def modifiability(self):
-        return Modifiability.MODIFIABLE if self.is_modifying else Modifiability.RUNTIME_CONSTANT
 
     @property
     def _id(self):
