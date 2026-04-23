@@ -440,12 +440,12 @@ class MemMergePass(IRPass):
             for copy in copies:
                 inst = copy.insts[-1]
                 if copy.length == 32:
-                    new_ops: list[IROperand] = [IRLiteral(0), IRLiteral(copy.dst)]
+                    new_ops: list[IROperand] = [IRLiteral(0), self._create_offset(inst, copy.dst_loc)]
                     self.updater.update(inst, "mstore", new_ops)
                 else:
                     calldatasize = self.updater.add_before(inst, "calldatasize", [])
                     assert calldatasize is not None  # help mypy
-                    new_ops = [IRLiteral(copy.length), calldatasize, IRLiteral(copy.dst)]
+                    new_ops = [IRLiteral(copy.length), calldatasize, self._create_offset(inst, copy.dst_loc)]
                     self.updater.update(inst, "calldatacopy", new_ops)
 
                 for inst in copy.insts[:-1]:
