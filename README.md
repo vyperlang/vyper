@@ -94,7 +94,7 @@ Make sure you have `pip`, `setuptools`, and `pytest` installed
 
 To run a python performance profile (to find compiler perf hotspots):
 ```bash
-uv run python -m cProfile -s tottime vyper/cli/vyper_compile.py path/to/file.vy
+python -m cProfile -s tottime vyper/cli/vyper_compile.py path/to/file.vy
 ```
 
 The utility timer functions `timeit`, `profileit` and `cumtimeit` are available in `vyper/utils.py`.
@@ -105,4 +105,4 @@ To get a call graph from a python profile, install `gprof2dot` and `xdot`, and r
 
 #### Testing with hevm
 
-Install hevm by downloading it from the releases page (https://github.com/ethereum/hevm/releases/latest) and making sure it is in your PATH. hevm tests can be enabled with `--hevm` flag, and hevm tests can be selected with the `-m hevm` marker. For instance, `uv run pytest -m "hevm" --hevm`.
+Install hevm by downloading it from the releases page (https://github.com/ethereum/hevm/releases/latest) and making sure it is in your PATH. hevm tests can be enabled with `--hevm` flag, and hevm tests can be selected with the `-m hevm` marker. For instance, `pytest -m "hevm" --hevm`.
