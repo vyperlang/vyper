@@ -55,8 +55,6 @@ def test_dalloca_has_no_memory_effects():
 
     assert Effects.MEMORY not in inst.get_read_effects()
     assert Effects.MEMORY not in inst.get_write_effects()
-    assert Effects.MEMORY_SIZE not in inst.get_read_effects()
-    assert Effects.MEMORY_SIZE not in inst.get_write_effects()
 
 
 def test_bump_has_no_memory_effects():
@@ -76,8 +74,6 @@ def test_bump_has_no_memory_effects():
 
     assert Effects.MEMORY not in inst.get_read_effects()
     assert Effects.MEMORY not in inst.get_write_effects()
-    assert Effects.MEMORY_SIZE not in inst.get_read_effects()
-    assert Effects.MEMORY_SIZE not in inst.get_write_effects()
 
 
 def test_cse_does_not_merge_repeated_bump():
@@ -728,11 +724,11 @@ def test_dalloca_asymmetric_branch():
 # --------------------------------------------------------------------------
 
 
-def test_dfree_memtop_fast_path():
+def test_dfree_initial_fmp_fast_path():
     # Leaf function with a paired dalloca/dfree and no needs_fmp invokes
-    # takes the memtop fast path: dalloca -> memtop, dfree -> dropped,
-    # no FMP threading. Preserves bytecode parity with the pre-dalloca
-    # `memtop` pattern.
+    # takes the initial_fmp fast path: dalloca -> initial_fmp, dfree
+    # dropped, no FMP threading. The compile-time constant resolves to
+    # the initial FMP value at assembly time via CONST/CONSTREF.
     ctx = parse_from_basic_block(
         """
         main:
@@ -751,7 +747,7 @@ def test_dfree_memtop_fast_path():
     assert "dfree" not in opcodes
     assert "bump" not in opcodes
     assert "sub" not in opcodes
-    assert opcodes.count("memtop") == 1
+    assert opcodes.count("initial_fmp") == 1
     assert fn._needs_fmp is False
 
 
@@ -831,10 +827,12 @@ def test_dfree_lifo_violation_panics():
         DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
 
 
-def test_dfree_nested_all_pair_memtop_lowers():
-    # Properly nested dalloca/dfree pairs with no needs_fmp invokes: both
-    # pairs take the memtop fast path. Each dalloca becomes a memtop and
-    # each dfree is dropped. No FMP threading, no bump, no sub.
+def test_dfree_nested_falls_back_to_fmp_threading():
+    # Nested dalloca/dfree pairs cannot share a base address (both are
+    # live at the same time), so the initial_fmp fast path is rejected.
+    # The pass falls back to FMP threading: inner rewires, outer has to
+    # emit a `sub` because inner's rewire planted an fmp_var reference
+    # between the outer bump and its dfree.
     ctx = parse_from_basic_block(
         """
         main:
@@ -854,18 +852,18 @@ def test_dfree_nested_all_pair_memtop_lowers():
     opcodes = [inst.opcode for bb in fn.get_basic_blocks() for inst in bb.instructions]
     assert "dalloca" not in opcodes
     assert "dfree" not in opcodes
-    assert "bump" not in opcodes
-    assert "sub" not in opcodes
-    assert opcodes.count("memtop") == 2
-    assert fn._needs_fmp is False
+    assert "initial_fmp" not in opcodes
+    # Outer bump and outer sub remain; inner bump is gone via rewire.
+    assert opcodes.count("bump") == 1
+    assert opcodes.count("sub") == 1
+    assert fn._needs_fmp is True
 
 
-def test_dfree_memtop_fast_path_runs():
-    # End-to-end: leaf function with multiple dalloca+dfree pairs takes
-    # the memtop fast path. Memory reclamation is NOT guaranteed on the
-    # fast path — each dalloca gets a fresh region at the current MSIZE.
-    # We only verify the program compiles and runs without error, and
-    # the returned pointer is a plausible scratch address.
+def test_dfree_initial_fmp_fast_path_runs():
+    # End-to-end: leaf function with non-overlapping dalloca+dfree pairs
+    # takes the initial_fmp fast path. Both scratches share the same
+    # base address (the initial FMP constant); the second write clobbers
+    # the first, which is correct because the first was freed.
     out = _run_program(
         """
         function main {
@@ -881,14 +879,14 @@ def test_dfree_memtop_fast_path_runs():
         b"",
     )
     ptr = int.from_bytes(out[:32], "big")
-    # Fast path uses MSIZE; after the mstore at %p, MSIZE has grown by
-    # at least 32 bytes, so %q is at least RESERVED_MEMORY + 32.
-    assert ptr >= MemoryPositions.RESERVED_MEMORY
+    # Both %p and %q resolve to the initial FMP constant (= RESERVED_MEMORY
+    # for this small program with no spills).
+    assert ptr == MemoryPositions.RESERVED_MEMORY
 
 
 def test_dfree_fmp_thread_path_reclaims_memory():
     # Exercise the FMP-threading path by having main invoke a needs_fmp
-    # callee (so calls_needs_fmp=True and the memtop fast path is
+    # callee (so calls_needs_fmp=True and the initial_fmp fast path is
     # disabled). In this path the dfree actually reverts FMP, so the
     # next dalloca reuses the freed region.
     out = _run_program(

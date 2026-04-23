@@ -8,7 +8,6 @@ class Effects(Flag):
     STORAGE = auto()
     TRANSIENT = auto()
     MEMORY = auto()
-    MEMORY_SIZE = auto()
     IMMUTABLES = auto()
     RETURNDATA = auto()
     LOG = auto()
@@ -31,13 +30,12 @@ ALL = ~EMPTY
 STORAGE = Effects.STORAGE
 TRANSIENT = Effects.TRANSIENT
 MEMORY = Effects.MEMORY
-MEMORY_SIZE = Effects.MEMORY_SIZE
 IMMUTABLES = Effects.IMMUTABLES
 RETURNDATA = Effects.RETURNDATA
 LOG = Effects.LOG
 BALANCE = Effects.BALANCE
 EXTCODE = Effects.EXTCODE
-NON_MEMORY_EFFECTS = ~(Effects.MEMORY | Effects.MEMORY_SIZE)
+NON_MEMORY_EFFECTS = ~Effects.MEMORY
 NON_STORAGE_EFFECTS = ~Effects.STORAGE
 NON_TRANSIENT_EFFECTS = ~Effects.TRANSIENT
 
@@ -52,7 +50,7 @@ _writes = {
     "create": ALL ^ (MEMORY | IMMUTABLES),
     "create2": ALL ^ (MEMORY | IMMUTABLES),
     "invoke": ALL,  # could be smarter, look up the effects of the invoked function
-    "log": LOG | MEMORY_SIZE,  # log reads a memory range, which can grow MSIZE
+    "log": LOG,
     "dloadbytes": MEMORY,
     "dload": MEMORY,
     "returndatacopy": MEMORY,
@@ -86,7 +84,6 @@ _reads = {
     "revert": MEMORY,
     "sha3": MEMORY,
     "return": MEMORY,
-    "memtop": MEMORY | MEMORY_SIZE,  # lowers to MSIZE; depends on memory growth
 }
 
 reads = _reads.copy()

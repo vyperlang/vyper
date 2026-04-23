@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from vyper.evm.assembler.instructions import DATA_ITEM, PUSH, DataHeader
+from vyper.evm.assembler.instructions import (
+    CONST,
+    CONSTREF,
+    DATA_ITEM,
+    PUSH,
+    PUSH_OFST,
+    DataHeader,
+)
 from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import (
     PUSH_OFST,
@@ -110,6 +117,11 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
 
 _REVERT_POSTAMBLE = [Label("revert"), *PUSH(0), "DUP1", "REVERT"]
 
+# Name of the assembler-level CONST used by the `initial_fmp` Venom opcode and
+# the entry-function FMP prelude. The CONST is declared at the end of assembly
+# generation (after spill analysis completes) and resolved at assembly time.
+_INITIAL_FMP_CONST = "__initial_fmp__"
+
 
 def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
     ret = []
@@ -153,6 +165,7 @@ class VenomCompiler:
         self.label_counter = 0
         self.visited_basicblocks = OrderedSet()
         self.spiller = StackSpiller(ctx)
+        self._uses_initial_fmp_const = False
 
     def mklabel(self, name: str) -> Label:
         self.label_counter += 1
@@ -190,8 +203,16 @@ class VenomCompiler:
         # during codegen (peak_spill_end). Without this, a function
         # with small fn_eom and many spills could have its spill
         # slots collide with the dynamic allocation region.
-        if self._entry_fn is not None and self._entry_fn._needs_fmp:
-            asm = list(PUSH(self._initial_fmp_value())) + asm
+        entry_needs_fmp = self._entry_fn is not None and self._entry_fn._needs_fmp
+        if entry_needs_fmp:
+            asm = [PUSH_OFST(CONSTREF(_INITIAL_FMP_CONST), 0)] + asm
+
+        # Declare the initial-FMP CONST if anything referenced it. The
+        # declaration must sit in the assembly stream before
+        # resolve_symbols runs; its value is known now that all
+        # per-function codegen (and spill analysis) has completed.
+        if entry_needs_fmp or self._uses_initial_fmp_const:
+            asm = [CONST(_INITIAL_FMP_CONST, self._initial_fmp_value())] + asm
 
         asm.extend(_REVERT_POSTAMBLE)
         # Append data segment
@@ -624,8 +645,12 @@ class VenomCompiler:
             # a pipeline misconfiguration or a malformed input (e.g. dfree
             # without a matching dalloca).
             raise CompilerPanic("dfree reached codegen; DallocaLoweringPass missing?")
-        elif opcode == "memtop":
-            assembly.append("MSIZE")
+        elif opcode == "initial_fmp":
+            # Lowers to a deferred PUSH of the initial FMP value. We emit a
+            # CONSTREF here and declare the CONST with the final value once
+            # all per-function codegen (and spill analysis) has completed.
+            assembly.append(PUSH_OFST(CONSTREF(_INITIAL_FMP_CONST), 0))
+            self._uses_initial_fmp_const = True
         elif opcode == "param":
             pass
         elif opcode == "assign":

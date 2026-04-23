@@ -429,8 +429,10 @@ class IRInstruction:
             return 0
         if self.opcode in ("assign", "alloca"):
             return 1
-        if self.opcode == "memtop":
-            return 1  # lowers to single MSIZE byte
+        if self.opcode == "initial_fmp":
+            # lowers to PUSH {initial_fmp_value}; typical values fit in PUSH1
+            # (2 bytes) but may grow to PUSH2 for large static frames.
+            return 2
         if self.opcode == "dalloca":
             # `dalloca` is high-level sugar and is eliminated by DallocaLoweringPass
             # before assembly emission. The later the optimized generic form is:

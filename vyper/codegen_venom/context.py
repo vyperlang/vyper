@@ -676,9 +676,10 @@ class VenomCodegenContext:
         (CALL/CREATE/etc.) in the same basic block, in LIFO order.
 
         Lowers via `dalloca`. The paired `dfree` is eliminated at lowering
-        time: leaf functions fold the pair into a single `memtop` (zero
-        extra bytecode), and FMP-threaded functions either rewire SSA or
-        emit one `SUB` byte to revert the FMP.
+        time: leaf functions with strictly sequential scratch pairs fold
+        each to a single `initial_fmp` constant load (resolved at assembly
+        time), and FMP-threaded functions either rewire SSA or emit one
+        `SUB` byte to revert the FMP.
         """
         return self.builder.dalloca(size)
 

@@ -56,12 +56,15 @@ class DallocaLoweringPass(IRPass):
         fmp), keep the original `bump` and emit `sub aligned, fmp -> fmp` at
         the dfree point to revert the FMP. One SUB byte.
 
-    After rewriting, if a function has no residual `bump` (every dalloca
-    rewired away) AND it does not invoke any `_needs_fmp` callee, the
-    function doesn't actually need to thread FMP. The pass then clears
-    `_needs_fmp`, removes the leading `param` it inserted, and skips any
-    further FMP-threading bookkeeping. This keeps the common single-use
-    scratch pattern bytecode-parity with the old `memtop` approach.
+    Fast path: if a function has dallocas but does NOT invoke a
+    `_needs_fmp` callee, AND every dalloca/dfree pair in the function is
+    strictly sequential (no two live at the same time), we lower each
+    `dalloca` to `initial_fmp` (a compile-time constant pseudo-op that
+    resolves to `max(global_max_fn_eom, peak_spill_end, RESERVED_MEMORY)`
+    at assembly time) and drop each `dfree`. Since the allocations don't
+    overlap in time, they can safely share the same base address. This
+    avoids FMP threading entirely and keeps bytecode tight for the common
+    single-use scratch pattern (raw_call, create_copy_of, etc.).
     """
 
     required_predecessors = ("ConcretizeMemLocPass",)
@@ -94,12 +97,13 @@ class DallocaLoweringPass(IRPass):
 
         # Fast path: if this function has dallocas but doesn't invoke any
         # needs-fmp callee, AND every dalloca has a paired dfree in the
-        # same basic block, we can skip FMP threading entirely and lower
-        # each `dalloca`/`dfree` to a `memtop` / nop pair. This preserves
-        # bytecode parity with the pre-dalloca `memtop`-based pattern for
-        # common single-use scratch allocations (raw_call, create_*).
-        if has_dalloca and not calls_needs_fmp and self._can_memtop_lower(fn):
-            self._memtop_lower(fn)
+        # same basic block with no overlapping (nested) allocations live
+        # at any point, we can skip FMP threading entirely and lower each
+        # `dalloca` to `initial_fmp` and drop each `dfree`. Two scratch
+        # allocations that don't overlap in time can safely alias the
+        # same base address, so a single compile-time constant suffices.
+        if has_dalloca and not calls_needs_fmp and self._can_initial_fmp_lower(fn):
+            self._initial_fmp_lower(fn)
             fn._needs_fmp = False
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
             self.analyses_cache.invalidate_analysis(DFGAnalysis)
@@ -128,14 +132,19 @@ class DallocaLoweringPass(IRPass):
         self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
         self.analyses_cache.invalidate_analysis(MemLivenessAnalysis)
 
-    def _can_memtop_lower(self, fn) -> bool:
-        """True if every `dalloca` in every BB has a matching `dfree` in
-        the same BB (LIFO). In that case we can substitute each pair with
-        a single `memtop` + nop, no FMP threading needed."""
+    def _can_initial_fmp_lower(self, fn) -> bool:
+        """True if every `dalloca`/`dfree` pair in every BB is strictly
+        sequential (no overlapping/nested allocations). In that case,
+        every scratch allocation can share the same base address (the
+        initial FMP), because at most one is live at any time."""
         for bb in fn.get_basic_blocks():
             open_ptrs: list[IRVariable] = []
             for inst in bb.instructions:
                 if inst.opcode == "dalloca":
+                    # Reject nesting: a dalloca while another is still open
+                    # means two live allocations at the same base would alias.
+                    if open_ptrs:
+                        return False
                     open_ptrs.append(inst.output)
                 elif inst.opcode == "dfree":
                     if len(inst.operands) != 1:
@@ -147,24 +156,27 @@ class DallocaLoweringPass(IRPass):
                 return False
         return True
 
-    def _memtop_lower(self, fn) -> None:
-        """Replace every `dalloca %size` with `%p = memtop` and drop every
-        `dfree`. The `size` operand is dropped: `memtop` returns the
-        current MSIZE, and subsequent writes grow memory naturally."""
+    def _initial_fmp_lower(self, fn) -> None:
+        """Replace every `dalloca %size` with `%p = initial_fmp` and drop
+        every `dfree`. `initial_fmp` is a pure compile-time constant (the
+        initial FMP value); since this path requires non-overlapping
+        allocations, all scratches safely share the same base address.
+        Emitting a fresh `initial_fmp` at each use (rather than hoisting to
+        the function entry) avoids forcing the scheduler to keep the value
+        live across the whole function, which would cause spills in
+        stack-pressured functions.
+
+        Both rewrites are in-place: `dalloca` and `initial_fmp` have the
+        same output arity so we just swap the opcode and drop operands;
+        `dfree` becomes a nop.
+        """
         for bb in fn.get_basic_blocks():
-            new_instructions: list[IRInstruction] = []
             for inst in bb.instructions:
                 if inst.opcode == "dalloca":
-                    memtop_inst = IRInstruction("memtop", [], [inst.output])
-                    memtop_inst.parent = bb
-                    memtop_inst.ast_source = inst.ast_source
-                    memtop_inst.error_msg = inst.error_msg
-                    new_instructions.append(memtop_inst)
-                    continue
-                if inst.opcode == "dfree":
-                    continue
-                new_instructions.append(inst)
-            bb.instructions = new_instructions
+                    inst.opcode = "initial_fmp"
+                    inst.operands = []
+                elif inst.opcode == "dfree":
+                    inst.make_nop()
 
     def _rewrite_bb(self, bb, fn, fmp_var: IRVariable) -> None:
         new_instructions: list[IRInstruction] = []
