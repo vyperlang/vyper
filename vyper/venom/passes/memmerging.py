@@ -142,6 +142,7 @@ class _Copies:
             self.copies[new_copy.src_loc.alloca][new_copy.dst_loc.alloca] = []
 
         copies = self.copies[new_copy.src_loc.alloca][new_copy.dst_loc.alloca]
+        copies.insert(index, new_copy)
 
         i = max(index - 1, 0)
         while i < min(index + 1, len(copies) - 1):
