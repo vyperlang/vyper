@@ -326,14 +326,6 @@ def _abi_encode_to_buf(
         ctx.copy_memory(dst, src, size)
         return IRLiteral(abi_t.embedded_static_size())
 
-    # Slow path: type-specific encoding
-    if src_typ._is_prim_word:
-        # Primitive word type: direct copy
-        assert isinstance(src, IRVariable)
-        val = b.mload(src)
-        b.mstore(dst, val)
-        return IRLiteral(32)
-
     elif isinstance(src_typ, _BytestringT):
         # Bytes/String: copy and zero-pad
         # Layout: [length][data]
