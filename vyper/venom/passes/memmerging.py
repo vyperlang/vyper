@@ -204,6 +204,8 @@ class MemMergePass(IRPass):
                 self._handle_bb(bb, "mload", "mcopy", MEMORY)
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+        self.analyses_cache.invalidate_analysis(MemoryAliasAnalysis)
+        self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
 
     def _create_offset(self, inst: IRInstruction, loc: MemoryLocation) -> IROperand:
         assert loc.offset is not None
