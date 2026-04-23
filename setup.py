@@ -11,6 +11,7 @@ from setuptools import setup
 def _local_version(version):
     return ""
 
+
 def _global_version(version):
     from setuptools_scm.version import guess_next_dev_version
 
