@@ -728,10 +728,11 @@ def test_dalloca_asymmetric_branch():
 # --------------------------------------------------------------------------
 
 
-def test_dfree_rewires_common_case():
-    # dalloca + dfree with no intervening fmp read: the bump chain is
-    # dropped entirely and uses of %p are substituted with the pre-bump
-    # FMP. No `bump` or `sub` remains.
+def test_dfree_memtop_fast_path():
+    # Leaf function with a paired dalloca/dfree and no needs_fmp invokes
+    # takes the memtop fast path: dalloca -> memtop, dfree -> dropped,
+    # no FMP threading. Preserves bytecode parity with the pre-dalloca
+    # `memtop` pattern.
     ctx = parse_from_basic_block(
         """
         main:
@@ -750,6 +751,8 @@ def test_dfree_rewires_common_case():
     assert "dfree" not in opcodes
     assert "bump" not in opcodes
     assert "sub" not in opcodes
+    assert opcodes.count("memtop") == 1
+    assert fn._needs_fmp is False
 
 
 def test_dfree_falls_back_to_sub_on_intervening_fmp_read():
@@ -828,12 +831,10 @@ def test_dfree_lifo_violation_panics():
         DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
 
 
-def test_dfree_nested_inner_rewires_outer_falls_back():
-    # Properly nested dalloca/dfree. The inner pair rewires cleanly.
-    # The outer must fall back to `sub`, because inner's rewire
-    # substituted %b with fmp_var — so the region after the outer bump
-    # now has an explicit fmp_var read (the substituted mstore), and
-    # dropping the outer bump would change that read's meaning.
+def test_dfree_nested_all_pair_memtop_lowers():
+    # Properly nested dalloca/dfree pairs with no needs_fmp invokes: both
+    # pairs take the memtop fast path. Each dalloca becomes a memtop and
+    # each dfree is dropped. No FMP threading, no bump, no sub.
     ctx = parse_from_basic_block(
         """
         main:
@@ -853,13 +854,18 @@ def test_dfree_nested_inner_rewires_outer_falls_back():
     opcodes = [inst.opcode for bb in fn.get_basic_blocks() for inst in bb.instructions]
     assert "dalloca" not in opcodes
     assert "dfree" not in opcodes
-    # Outer bump and outer sub remain; inner bump is gone.
-    assert opcodes.count("bump") == 1
-    assert opcodes.count("sub") == 1
+    assert "bump" not in opcodes
+    assert "sub" not in opcodes
+    assert opcodes.count("memtop") == 2
+    assert fn._needs_fmp is False
 
 
-def test_dfree_runtime_frees_memory_for_reuse():
-    # End-to-end: after dfree, the next dalloca reuses the freed region.
+def test_dfree_memtop_fast_path_runs():
+    # End-to-end: leaf function with multiple dalloca+dfree pairs takes
+    # the memtop fast path. Memory reclamation is NOT guaranteed on the
+    # fast path — each dalloca gets a fresh region at the current MSIZE.
+    # We only verify the program compiles and runs without error, and
+    # the returned pointer is a plausible scratch address.
     out = _run_program(
         """
         function main {
@@ -874,39 +880,40 @@ def test_dfree_runtime_frees_memory_for_reuse():
         """,
         b"",
     )
-    # %q should land at RESERVED_MEMORY (same base as %p was) since %p
-    # was freed before %q was allocated.
-    assert int.from_bytes(out[:32], "big") == MemoryPositions.RESERVED_MEMORY
+    ptr = int.from_bytes(out[:32], "big")
+    # Fast path uses MSIZE; after the mstore at %p, MSIZE has grown by
+    # at least 32 bytes, so %q is at least RESERVED_MEMORY + 32.
+    assert ptr >= MemoryPositions.RESERVED_MEMORY
 
 
-def test_dfree_sub_fallback_runtime_frees_memory():
-    # With an invoke between dalloca and dfree, the sub-fallback path
-    # reverts FMP at runtime. After dfree, subsequent dalloca must still
-    # land at the original base address.
+def test_dfree_fmp_thread_path_reclaims_memory():
+    # Exercise the FMP-threading path by having main invoke a needs_fmp
+    # callee (so calls_needs_fmp=True and the memtop fast path is
+    # disabled). In this path the dfree actually reverts FMP, so the
+    # next dalloca reuses the freed region.
     out = _run_program(
         """
         function main {
             main:
                 %p = dalloca 32
                 mstore %p, 1
-                invoke @noop
+                invoke @needs_fmp_helper
                 dfree %p
                 %q = dalloca 64
                 mstore 0, %q
                 return 0, 32
         }
 
-        function noop {
-            noop:
+        function needs_fmp_helper {
+            needs_fmp_helper:
                 %retpc = param
+                %scratch = dalloca 16
                 ret %retpc
         }
         """,
         b"",
     )
-    # After `dfree`, FMP reverts; next dalloca reuses %p's region.
-    # (noop is not needs_fmp so its invoke wouldn't augment — but any
-    # Venom invoke with a needs_fmp caller reads fmp_var. Here main
-    # has no dalloca before the invoke either -- wait actually it does.)
-    # We expect %q at RESERVED_MEMORY regardless.
+    # needs_fmp_helper has a dalloca -> _needs_fmp=True.
+    # main invokes it -> main's calls_needs_fmp=True, FMP threading used.
+    # dfree reverts FMP via sub fallback; %q lands at the freed base.
     assert int.from_bytes(out[:32], "big") == MemoryPositions.RESERVED_MEMORY

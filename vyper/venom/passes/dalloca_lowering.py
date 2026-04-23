@@ -55,6 +55,13 @@ class DallocaLoweringPass(IRPass):
         (e.g. a `bump` for a nested dalloca, or an `invoke` augmented with
         fmp), keep the original `bump` and emit `sub aligned, fmp -> fmp` at
         the dfree point to revert the FMP. One SUB byte.
+
+    After rewriting, if a function has no residual `bump` (every dalloca
+    rewired away) AND it does not invoke any `_needs_fmp` callee, the
+    function doesn't actually need to thread FMP. The pass then clears
+    `_needs_fmp`, removes the leading `param` it inserted, and skips any
+    further FMP-threading bookkeeping. This keeps the common single-use
+    scratch pattern bytecode-parity with the old `memtop` approach.
     """
 
     required_predecessors = ("ConcretizeMemLocPass",)
@@ -81,9 +88,23 @@ class DallocaLoweringPass(IRPass):
             if calls_needs_fmp:
                 break
 
-        fn._needs_fmp = has_dalloca or calls_needs_fmp
+        if not has_dalloca and not calls_needs_fmp:
+            fn._needs_fmp = False
+            return
 
-        if not fn._needs_fmp:
+        # Fast path: if this function has dallocas but doesn't invoke any
+        # needs-fmp callee, AND every dalloca has a paired dfree in the
+        # same basic block, we can skip FMP threading entirely and lower
+        # each `dalloca`/`dfree` to a `memtop` / nop pair. This preserves
+        # bytecode parity with the pre-dalloca `memtop`-based pattern for
+        # common single-use scratch allocations (raw_call, create_*).
+        if has_dalloca and not calls_needs_fmp and self._can_memtop_lower(fn):
+            self._memtop_lower(fn)
+            fn._needs_fmp = False
+            self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+            self.analyses_cache.invalidate_analysis(DFGAnalysis)
+            self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
+            self.analyses_cache.invalidate_analysis(MemLivenessAnalysis)
             return
 
         # single variable representing the threaded FMP across the
@@ -100,10 +121,50 @@ class DallocaLoweringPass(IRPass):
         for bb in fn.get_basic_blocks():
             self._rewrite_bb(bb, fn, fmp_var)
 
+        fn._needs_fmp = True
+
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
         self.analyses_cache.invalidate_analysis(MemLivenessAnalysis)
+
+    def _can_memtop_lower(self, fn) -> bool:
+        """True if every `dalloca` in every BB has a matching `dfree` in
+        the same BB (LIFO). In that case we can substitute each pair with
+        a single `memtop` + nop, no FMP threading needed."""
+        for bb in fn.get_basic_blocks():
+            open_ptrs: list[IRVariable] = []
+            for inst in bb.instructions:
+                if inst.opcode == "dalloca":
+                    open_ptrs.append(inst.output)
+                elif inst.opcode == "dfree":
+                    if len(inst.operands) != 1:
+                        return False
+                    if not open_ptrs or open_ptrs[-1] != inst.operands[0]:
+                        return False
+                    open_ptrs.pop()
+            if open_ptrs:
+                return False
+        return True
+
+    def _memtop_lower(self, fn) -> None:
+        """Replace every `dalloca %size` with `%p = memtop` and drop every
+        `dfree`. The `size` operand is dropped: `memtop` returns the
+        current MSIZE, and subsequent writes grow memory naturally."""
+        for bb in fn.get_basic_blocks():
+            new_instructions: list[IRInstruction] = []
+            for inst in bb.instructions:
+                if inst.opcode == "dalloca":
+                    memtop_inst = IRInstruction("memtop", [], [inst.output])
+                    memtop_inst.parent = bb
+                    memtop_inst.ast_source = inst.ast_source
+                    memtop_inst.error_msg = inst.error_msg
+                    new_instructions.append(memtop_inst)
+                    continue
+                if inst.opcode == "dfree":
+                    continue
+                new_instructions.append(inst)
+            bb.instructions = new_instructions
 
     def _rewrite_bb(self, bb, fn, fmp_var: IRVariable) -> None:
         new_instructions: list[IRInstruction] = []

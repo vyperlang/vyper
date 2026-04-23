@@ -667,22 +667,23 @@ class VenomCodegenContext:
         ptr = self.builder.alloca(size)
         return Buffer(_ptr=ptr, size=size, annotation=annotation)
 
-    def allocate_scratch_unreserved(self, size: "IROperand") -> "IRVariable":
-        """Allocate scratch memory for a runtime-sized buffer.
+    def allocate_scratch(self, size: "IROperand") -> "IRVariable":
+        """Allocate a scoped, runtime-sized scratch buffer.
 
         Returns a pointer to `ceil32(size)` bytes of scratch space above all
         static allocations and spill slots. The caller MUST pair this with a
-        matching `free_scratch_unreserved(ptr)` after the single consumer
+        matching `free_scratch(ptr)` after the single consumer
         (CALL/CREATE/etc.) in the same basic block, in LIFO order.
 
         Lowers via `dalloca`. The paired `dfree` is eliminated at lowering
-        time when nothing between the pair observes the FMP (common case),
-        or emits one SUB byte otherwise.
+        time: leaf functions fold the pair into a single `memtop` (zero
+        extra bytecode), and FMP-threaded functions either rewire SSA or
+        emit one `SUB` byte to revert the FMP.
         """
         return self.builder.dalloca(size)
 
-    def free_scratch_unreserved(self, ptr: "IRVariable") -> None:
-        """Free a prior `allocate_scratch_unreserved` allocation.
+    def free_scratch(self, ptr: "IRVariable") -> None:
+        """Free a prior `allocate_scratch` allocation.
 
         Must be in the same basic block as the allocation and pair in LIFO
         order with any other open scratch allocations.
