@@ -90,7 +90,6 @@ omit = ["vyper/version.py"]
 # (mainly important for consolidating coverage reports in the CI).
 relative_files = true
 
-# TODO: Remove once fully transitioned to uv
 [project.optional-dependencies]
 test = [
     "pytest>=8.0,<9.0",
