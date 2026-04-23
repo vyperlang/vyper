@@ -94,7 +94,7 @@ Make sure you have `pip`, `setuptools`, and `pytest` installed
 
 To run a python performance profile (to find compiler perf hotspots):
 ```bash
-python -m cProfile -s tottime vyper/cli/vyper_compile.py path/to/file.vy
+PYTHONPATH=. python -m cProfile -s tottime vyper/cli/vyper_compile.py "$@"
 ```
 
 The utility timer functions `timeit`, `profileit` and `cumtimeit` are available in `vyper/utils.py`.
