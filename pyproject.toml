@@ -82,7 +82,7 @@ line_length = 100
 skip = ["vyper/version.py"]
 
 [tool.pytest.ini_options]
-addopts = "-n auto --dist worksteal --strict-markers"
+addopts = """-n auto --dist worksteal --strict-markers -m "not fuzzing" """
 python_files = "test_*.py"
 testpaths = ["tests"]
 xfail_strict = true

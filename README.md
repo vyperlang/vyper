@@ -80,7 +80,7 @@ Make sure you have `pip`, `setuptools`, and `pytest` installed
 ### Commands
 
 * `vyper path/to/file.vy` to run your local copy of the compiler
-* `pytest -m "not fuzzing"` to test your changes (if you forget the `-m "not fuzzing"` it will take very long)
+* `pytest` to test your changes
     Useful pytest flags:
         * `-x`: Fail test run on first test failure
         * `--instafail`: Show reason for test failure directly, instead of at the end of a test run
@@ -106,3 +106,8 @@ To get a call graph from a python profile, install `gprof2dot` and `xdot`, and r
 #### Testing with hevm
 
 Install hevm by downloading it from the releases page (https://github.com/ethereum/hevm/releases/latest) and making sure it is in your PATH. hevm tests can be enabled with `--hevm` flag, and hevm tests can be selected with the `-m hevm` marker. For instance, `pytest -m "hevm" --hevm`.
+
+#### Fuzzing tests
+
+Fuzzing test are very slow, so they are not run by default.
+To run them, use `pytest -m "fuzzing"`.
