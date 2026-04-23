@@ -193,8 +193,6 @@ class MemMergePass(IRPass):
         self.updater = InstUpdater(self.dfg)
         self.memory_abstract = memory_abstract
 
-        print(self.function)
-
         for bb in self.function.get_basic_blocks():
             self._merge_mstore_dload(bb)
             self._handle_bb_memzero(bb)
@@ -204,7 +202,6 @@ class MemMergePass(IRPass):
             if version_check(begin="cancun"):
                 # mcopy is available
                 self._handle_bb(bb, "mload", "mcopy", MEMORY)
-        print(self.function)
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
