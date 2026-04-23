@@ -790,6 +790,8 @@ def test_dfree_falls_back_to_sub_on_intervening_fmp_read():
 
 
 def test_dfree_without_matching_dalloca_panics():
+    # `DallocaLoweringPass` validates dalloca/dfree pairing up-front and
+    # panics on malformed IR (before any lowering or codegen).
     ctx = parse_from_basic_block(
         """
         main:
@@ -800,14 +802,8 @@ def test_dfree_without_matching_dalloca_panics():
     )
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
-    # No dalloca means needs_fmp stays False and the pass returns early;
-    # the dfree survives and codegen should panic.
-    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
-    ac = IRAnalysesCache(fn)
-    MakeSSA(ac, fn).run_pass()
-    PhiEliminationPass(ac, fn).run_pass()
-    with pytest.raises(CompilerPanic, match="dfree reached codegen"):
-        VenomCompiler(ctx).generate_evm_assembly()
+    with pytest.raises(CompilerPanic, match="dfree without matching dalloca"):
+        DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
 
 
 def test_dfree_lifo_violation_panics():
@@ -825,6 +821,62 @@ def test_dfree_lifo_violation_panics():
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
     with pytest.raises(CompilerPanic, match="dfree LIFO violation"):
         DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+
+def test_dfree_use_after_free_panics():
+    # Using a dfree'd pointer is a hard error: with the initial_fmp fast
+    # path, the address would alias any subsequent dalloca and silently
+    # return corrupted data.
+    ctx = parse_from_basic_block(
+        """
+        main:
+            %p = dalloca 32
+            mstore %p, 1
+            dfree %p
+            %v = mload %p
+            sink %v
+        """
+    )
+    fn = next(iter(ctx.functions.values()))
+    ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+    with pytest.raises(CompilerPanic, match="use of dfree'd pointer"):
+        DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+
+def test_initial_fmp_fast_path_rejects_invoke_during_live_dalloca():
+    # The fast path is UNSAFE if a callee could itself be fast-path-lowered
+    # (using the same initial_fmp constant) while the caller has a live
+    # allocation at that address. Detect and fall back to FMP threading.
+    ctx = parse_venom(
+        """
+        function main {
+            main:
+                %p = dalloca 32
+                mstore %p, 111
+                invoke @helper
+                dfree %p
+                stop
+        }
+
+        function helper {
+            helper:
+                %retpc = param
+                ret %retpc
+        }
+        """
+    )
+    fns = list(ctx.functions.values())
+    for fn in reversed(fns):
+        ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+        DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    main_fn = ctx.get_function(next(iter(ctx.functions)))
+    opcodes = [inst.opcode for bb in main_fn.get_basic_blocks() for inst in bb.instructions]
+    # With a live dalloca across the invoke, the fast path is refused;
+    # we fall through to FMP threading (bump stays, dfree becomes sub).
+    assert "initial_fmp" not in opcodes
+    assert "bump" in opcodes
+    assert main_fn._needs_fmp is True
 
 
 def test_dfree_nested_falls_back_to_fmp_threading():

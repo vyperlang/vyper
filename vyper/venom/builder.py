@@ -175,12 +175,15 @@ class VenomBuilder:
         return self._emit1("alloca", size)
 
     def dalloca(self, size: Operand) -> IRVariable:
-        """Allocate dynamic (runtime-sized) memory via MSIZE bump.
+        """Allocate dynamic (runtime-sized) scratch memory.
 
-        Returns pointer to allocated region. Size can be a runtime value.
-        Allocated region starts at the current MSIZE boundary and expands
-        memory by ceil32(size) bytes. Lives above all static allocations
-        and spill slots.
+        Returns pointer to a scratch region of `ceil32(size)` bytes. Size
+        can be a runtime value. The region lives above all static
+        allocations and spill slots. High-level sugar: lowered by
+        `DallocaLoweringPass` to either a single `initial_fmp` constant
+        load (leaf-scratch fast path, when paired with a `dfree`) or an
+        FMP-threaded `bump`. Pair with a matching `dfree` to release the
+        region before the function returns.
         """
         return self._emit1("dalloca", size)
 

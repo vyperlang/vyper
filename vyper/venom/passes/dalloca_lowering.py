@@ -73,6 +73,13 @@ class DallocaLoweringPass(IRPass):
     def run_pass(self):
         fn = self.function
 
+        # Up-front validation: every `dfree` must pair with a `dalloca` in
+        # the same BB (LIFO), and no use of a ptr is allowed after its
+        # `dfree`. Catching this here keeps malformed IR from reaching
+        # either the fast path or the FMP-threading path (both rely on
+        # well-formed pairing).
+        self._validate_dalloca_dfree(fn)
+
         has_dalloca = any(
             inst.opcode == "dalloca" for bb in fn.get_basic_blocks() for inst in bb.instructions
         )
@@ -132,28 +139,101 @@ class DallocaLoweringPass(IRPass):
         self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
         self.analyses_cache.invalidate_analysis(MemLivenessAnalysis)
 
-    def _can_initial_fmp_lower(self, fn) -> bool:
-        """True if every `dalloca`/`dfree` pair in every BB is strictly
-        sequential (no overlapping/nested allocations). In that case,
-        every scratch allocation can share the same base address (the
-        initial FMP), because at most one is live at any time."""
+    def _validate_dalloca_dfree(self, fn) -> None:
+        """Panic on malformed dalloca/dfree patterns.
+
+        Rules:
+          - Every `dfree` must pair with a preceding `dalloca` in the same
+            BB, in LIFO order.
+          - A ptr cannot be used after its matching `dfree` (use-after-free).
+          - `dalloca` can only have 1 output; `dfree` must have exactly 1
+            operand.
+
+        These invariants are required by both the initial_fmp fast path
+        and the FMP-threading path. Catching them here produces good
+        error messages and keeps the lowering logic simple.
+        """
         for bb in fn.get_basic_blocks():
             open_ptrs: list[IRVariable] = []
+            freed_ptrs: set[IRVariable] = set()
             for inst in bb.instructions:
                 if inst.opcode == "dalloca":
-                    # Reject nesting: a dalloca while another is still open
-                    # means two live allocations at the same base would alias.
-                    if open_ptrs:
-                        return False
+                    if inst.num_outputs != 1 or len(inst.operands) != 1:
+                        raise CompilerPanic(
+                            f"dalloca must have 1 operand and 1 output: {inst}"
+                        )
                     open_ptrs.append(inst.output)
                 elif inst.opcode == "dfree":
                     if len(inst.operands) != 1:
-                        return False
-                    if not open_ptrs or open_ptrs[-1] != inst.operands[0]:
-                        return False
-                    open_ptrs.pop()
+                        raise CompilerPanic(f"dfree must have exactly 1 operand: {inst}")
+                    if not open_ptrs:
+                        raise CompilerPanic(
+                            f"dfree without matching dalloca in same basic block: {inst}"
+                        )
+                    if open_ptrs[-1] != inst.operands[0]:
+                        raise CompilerPanic(
+                            f"dfree LIFO violation: expected {open_ptrs[-1]}, "
+                            f"got {inst.operands[0]}: {inst}"
+                        )
+                    freed_ptrs.add(open_ptrs.pop())
+                else:
+                    # Any other instruction using a freed ptr as an operand
+                    # is a use-after-free (reading or passing a ptr whose
+                    # lifetime has ended). We skip `invoke`'s first operand
+                    # (which is a label, not a value).
+                    start = 1 if inst.opcode == "invoke" else 0
+                    for op in inst.operands[start:]:
+                        if op in freed_ptrs:
+                            raise CompilerPanic(
+                                f"use of dfree'd pointer {op}: {inst}"
+                            )
             if open_ptrs:
-                return False
+                # Unclosed dalloca at end of BB. Allowed for the
+                # FMP-threading path (the allocation lives until function
+                # return). Not a malformed pattern; just skip the check.
+                pass
+
+    def _can_initial_fmp_lower(self, fn) -> bool:
+        """True if the initial_fmp fast path is safe for this function.
+
+        The fast path replaces `dalloca` with a constant load of the
+        contract-wide initial FMP. Multiple functions all resolving to
+        the same constant is safe ONLY if their uses of that address
+        never overlap in time. Call-graph reasoning for this is complex;
+        we use a strict conservative rule instead:
+
+          - The function must have no `invoke` instructions.
+
+        Rationale: if F has any invoke I, then during I the callee may
+        itself take this fast path and write to the same `initial_fmp`
+        address that F wrote to. Even if F's own dallocas are all freed
+        before I, any data F stored at fmp-based addresses (from rewire
+        or entry-function bumps) could be clobbered by the callee. The
+        FMP-threaded path does not have this issue because each frame
+        threads a distinct, advanced fmp value.
+
+        Additional per-BB requirements (for lowering correctness):
+          - Every `dalloca` has a paired `dfree` in the same BB. Un-paired
+            dallocas that escape the BB need the FMP-threaded path.
+          - No two dallocas are live at the same time (no nesting).
+            Overlapping lifetimes would alias the same base address.
+
+        Assumes `_validate_dalloca_dfree` already enforced LIFO pairing
+        and no-use-after-free.
+        """
+        for bb in fn.get_basic_blocks():
+            live_count = 0
+            for inst in bb.instructions:
+                if inst.opcode == "dalloca":
+                    if live_count > 0:
+                        return False  # nesting
+                    live_count += 1
+                elif inst.opcode == "dfree":
+                    live_count -= 1
+                elif inst.opcode == "invoke":
+                    return False  # interprocedural safety
+            if live_count > 0:
+                return False  # un-paired dalloca at end of BB
         return True
 
     def _initial_fmp_lower(self, fn) -> None:
@@ -232,11 +312,16 @@ class DallocaLoweringPass(IRPass):
         bump_inst = entry["bump_insts"][-1]
         bump_idx = new_instructions.index(bump_inst)
 
-        # Safe to rewire iff nothing after the bump reads fmp_var. Intervening
-        # reads come from nested `bump`s (which haven't been rewired away), or
-        # from augmented `invoke`s that take fmp as an arg.
+        # Safe to rewire iff nothing after the bump:
+        #   (a) reads fmp_var — dropping the bump would change its meaning; or
+        #   (b) is an `invoke` — rewiring leaves the ptr at fmp_var, which
+        #       may equal `initial_fmp` (entry function) or overlap a
+        #       fast-path callee's allocation, causing cross-frame aliasing.
+        #       Keeping the bump makes the ptr sit at a strictly-below-fmp
+        #       address that callees starting from a larger fmp cannot reach.
         tainted = any(
             fmp_var in new_instructions[i].operands
+            or new_instructions[i].opcode == "invoke"
             for i in range(bump_idx + 1, len(new_instructions))
         )
 
