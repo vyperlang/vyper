@@ -193,6 +193,8 @@ class MemMergePass(IRPass):
         self.updater = InstUpdater(self.dfg)
         self.memory_abstract = memory_abstract
 
+        print(self.function)
+
         for bb in self.function.get_basic_blocks():
             self._merge_mstore_dload(bb)
             self._handle_bb_memzero(bb)
@@ -202,8 +204,20 @@ class MemMergePass(IRPass):
             if version_check(begin="cancun"):
                 # mcopy is available
                 self._handle_bb(bb, "mload", "mcopy", MEMORY)
+        print(self.function)
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+
+    def _create_offset(self, inst: IRInstruction, loc: MemoryLocation) -> IROperand:
+        assert loc.offset is not None
+        if loc.is_concrete:
+            return IRLiteral(loc.offset)
+
+        assert loc.alloca is not None
+        res = self.updater.add_before(inst, "add", [loc.alloca.inst.output, IRLiteral(loc.offset)])
+        assert res is not None
+        return res
+        
 
     def _flush_copies(
         self, bb: IRBasicBlock, copies: list[_Copy], copy_opcode: str, load_opcode: str
@@ -216,8 +230,8 @@ class MemMergePass(IRPass):
             if copy.length != 32 or load_opcode == "dload":
                 ops: list[IROperand] = [
                     IRLiteral(copy.length),
-                    IRLiteral(copy.src),
-                    IRLiteral(copy.dst),
+                    self._create_offset(inst, copy.src_loc),
+                    self._create_offset(inst, copy.dst_loc),
                 ]
                 self.updater.update(inst, copy_opcode, ops)
             elif inst.opcode == "mstore":
@@ -231,9 +245,9 @@ class MemMergePass(IRPass):
             else:
                 # we are converting an mcopy into an mload+mstore (mload+mstore
                 # is 1 byte smaller than mcopy).
-                val = self.updater.add_before(inst, load_opcode, [IRLiteral(copy.src)])
+                val = self.updater.add_before(inst, load_opcode, [self._create_offset(inst, copy.src_loc)])
                 assert val is not None  # help mypy
-                self.updater.update(inst, "mstore", [val, IRLiteral(copy.dst)])
+                self.updater.update(inst, "mstore", [val, self._create_offset(inst, copy.dst_loc)])
 
             to_nop: list[IRInstruction] = []
 
@@ -271,7 +285,7 @@ class MemMergePass(IRPass):
         """
         res = []
         for copy in self._copies.get_writes_to(new_copy.dst_loc.alloca):
-            if copy.can_merge(new_copy) or new_copy.can_merge(copy):
+            if copy.is_compatible(new_copy) and (copy.can_merge(new_copy) or new_copy.can_merge(copy)):
                 # safe
                 continue
 
