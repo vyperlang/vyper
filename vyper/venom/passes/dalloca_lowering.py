@@ -142,22 +142,18 @@ class DallocaLoweringPass(IRPass):
     def _validate_dalloca_dfree(self, fn) -> None:
         """Panic on malformed dalloca/dfree patterns.
 
-        Strict pairing rules (same BB, LIFO):
-          - Every `dalloca` must have a matching `dfree` in the same BB.
+        Checks (per BB):
+          - `dalloca` must have 1 operand and 1 output.
+          - `dfree` must have exactly 1 operand.
           - Every `dfree` must pair with a preceding `dalloca` in the same
-            BB, in LIFO order.
-          - A ptr cannot be used after its matching `dfree` (use-after-free).
-          - `dalloca` must have 1 output and 1 operand; `dfree` must have
-            exactly 1 operand.
+            BB (LIFO).
+          - A ptr cannot be used after its matching `dfree`
+            (use-after-free).
 
-        Strict pairing is enforced because it keeps every lowered BB
-        "FMP-neutral": after lowering, `fmp_var` at the end of each BB
-        equals its value at the start. This is load-bearing for the
-        function inliner: inlining a callee's body into a caller's BB
-        cannot disturb the caller's FMP state, because the callee's
-        bumps are all cancelled by their matching subs/rewires before
-        control flows out. It also rules out the historical "implicit
-        reclaim on ret" pattern, which was error-prone across inlining.
+        Unpaired dallocas at BB boundaries are allowed: they survive to
+        function return, where the FMP-threading mechanism reclaims them
+        implicitly via SSA liveness (the caller's fmp_var SSA variable is
+        untouched by the invoke).
         """
         for bb in fn.get_basic_blocks():
             open_ptrs: list[IRVariable] = []
@@ -184,20 +180,12 @@ class DallocaLoweringPass(IRPass):
                     freed_ptrs.add(open_ptrs.pop())
                 else:
                     # Any other instruction using a freed ptr as an operand
-                    # is a use-after-free (reading or passing a ptr whose
-                    # lifetime has ended). We skip `invoke`'s first operand
-                    # (which is a label, not a value).
+                    # is a use-after-free. Skip `invoke`'s first operand
+                    # (a label, not a value).
                     start = 1 if inst.opcode == "invoke" else 0
                     for op in inst.operands[start:]:
                         if op in freed_ptrs:
-                            raise CompilerPanic(
-                                f"use of dfree'd pointer {op}: {inst}"
-                            )
-            if open_ptrs:
-                raise CompilerPanic(
-                    f"dalloca without matching dfree in same basic block: "
-                    f"{[str(p) for p in open_ptrs]} unclosed in {bb.label}"
-                )
+                            raise CompilerPanic(f"use of dfree'd pointer {op}: {inst}")
 
     def _can_initial_fmp_lower(self, fn) -> bool:
         """True if the initial_fmp fast path is safe for this function.

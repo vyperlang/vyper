@@ -418,10 +418,9 @@ def _run_program(pre: str, calldata: bytes) -> bytes:
 
 
 def test_dalloca_memory_reclaimed_across_call():
-    # Caller invokes callee (which allocates and frees its own scratch).
-    # After callee returns, caller's next dalloca sees a fresh FMP —
-    # strict pairing guarantees each function is FMP-neutral across its
-    # own body.
+    # A calls B; B dallocas without dfree (reclaimed implicitly at ret
+    # via SSA liveness). After B returns, A dallocas at the same address
+    # B used -- caller's FMP was preserved across the invoke.
     out = _run_program(
         """
         function main {
@@ -429,7 +428,6 @@ def test_dalloca_memory_reclaimed_across_call():
                 invoke @callee
                 %p = dalloca 32
                 mstore 0, %p
-                dfree %p
                 return 0, 32
         }
 
@@ -437,7 +435,6 @@ def test_dalloca_memory_reclaimed_across_call():
             callee:
                 %retpc = param
                 %b = dalloca 32
-                dfree %b
                 ret %retpc
         }
         """,
@@ -448,10 +445,10 @@ def test_dalloca_memory_reclaimed_across_call():
 
 
 def test_dalloca_fmp_preserved_across_nested_calls():
-    # main allocates %p0, invokes f (which allocates/frees and invokes g
-    # which also allocates/frees). After the invokes return, main stores
-    # %p0 and %p1 pointers and frees in LIFO order. With strict pairing
-    # every BB is FMP-neutral, so %p1 reuses %p0's region.
+    # main dallocas, calls f (which dallocas and calls g which also
+    # dallocas). After the nested invokes unwind, main dallocas again
+    # and that pointer should sit directly above the first dalloca
+    # (proving the nested frames were reclaimed).
     out = _run_program(
         """
         function main {
@@ -461,8 +458,6 @@ def test_dalloca_fmp_preserved_across_nested_calls():
                 %p1 = dalloca 32
                 mstore 0, %p0
                 mstore 32, %p1
-                dfree %p1
-                dfree %p0
                 return 0, 64
         }
 
@@ -471,7 +466,6 @@ def test_dalloca_fmp_preserved_across_nested_calls():
                 %retpc = param
                 %a = dalloca 64
                 invoke @g
-                dfree %a
                 ret %retpc
         }
 
@@ -479,7 +473,6 @@ def test_dalloca_fmp_preserved_across_nested_calls():
             g:
                 %retpc = param
                 %b = dalloca 128
-                dfree %b
                 ret %retpc
         }
         """,
@@ -487,10 +480,7 @@ def test_dalloca_fmp_preserved_across_nested_calls():
     )
     p0 = int.from_bytes(out[:32], "big")
     p1 = int.from_bytes(out[32:64], "big")
-    # %p0 is at initial FMP; %p1 is nested above %p0 (both live at the
-    # mstores). p1 = p0 + ceil32(32) = p0 + 32.
-    assert p0 == MemoryPositions.RESERVED_MEMORY
-    assert p1 == MemoryPositions.RESERVED_MEMORY + 32
+    assert p1 == p0 + 32
 
 
 def test_dalloca_spiller_with_dalloca():
@@ -628,10 +618,8 @@ def test_dalloca_spill_does_not_corrupt_dynamic_allocation():
 
 
 def test_dalloca_across_branch():
-    # dalloca+dfree in both branches of a conditional. With strict
-    # same-BB pairing, each branch is FMP-neutral at its `jmp`, so the
-    # merge block sees the original FMP regardless of which branch was
-    # taken. %c in the merge block always lands at the initial FMP.
+    # dalloca in both branches of a conditional. The merge block uses
+    # the advanced FMP via a phi introduced by MakeSSA.
     out = _run_program(
         """
         function main {
@@ -640,23 +628,21 @@ def test_dalloca_across_branch():
                 jnz %cond, @then, @else
             then:
                 %a = dalloca 64
-                dfree %a
                 jmp @after
             else:
                 %b = dalloca 32
-                dfree %b
                 jmp @after
             after:
                 %c = dalloca 32
                 mstore 0, %c
-                dfree %c
                 return 0, 32
         }
         """,
         b"x",
     )
+    # then branch: %a=64, fmp->128; after: %c = initial_fmp + 64.
     ptr = int.from_bytes(out[:32], "big")
-    assert ptr == MemoryPositions.RESERVED_MEMORY
+    assert ptr == MemoryPositions.RESERVED_MEMORY + 64
 
 
 def test_bump_direct_emission():
@@ -698,31 +684,53 @@ def test_bump_direct_emission():
 
 
 def test_dalloca_asymmetric_branch():
-    # Only the `then` branch dallocas/frees; `else` is empty. With strict
-    # same-BB pairing, the then-branch is FMP-neutral at its `jmp`, so the
-    # merge block sees the initial FMP on both paths. %b always lands at
-    # the initial FMP.
-    src = """
-    function main {
-        main:
-            %cond = calldatasize
-            jnz %cond, @then, @else
-        then:
-            %a = dalloca 64
-            dfree %a
-            jmp @after
-        else:
-            jmp @after
-        after:
-            %b = dalloca 32
-            mstore 0, %b
-            dfree %b
-            return 0, 32
-    }
-    """
-    for calldata in (b"x", b""):
-        out = _run_program(src, calldata)
-        assert int.from_bytes(out[:32], "big") == MemoryPositions.RESERVED_MEMORY
+    # Only the `then` branch dallocas; the `else` branch doesn't. At the
+    # merge point, the FMP phi must correctly select the advanced fmp
+    # from the then branch or the unchanged fmp from the else branch.
+    # After merge, a second dalloca must land above both possibilities.
+    out = _run_program(
+        """
+        function main {
+            main:
+                %cond = calldatasize
+                jnz %cond, @then, @else
+            then:
+                %a = dalloca 64
+                jmp @after
+            else:
+                jmp @after
+            after:
+                %b = dalloca 32
+                mstore 0, %b
+                return 0, 32
+        }
+        """,
+        b"x",  # non-empty: then branch
+    )
+    # then branch: fmp advances by 64, so %b = initial + 64
+    assert int.from_bytes(out[:32], "big") == MemoryPositions.RESERVED_MEMORY + 64
+
+    out = _run_program(
+        """
+        function main {
+            main:
+                %cond = calldatasize
+                jnz %cond, @then, @else
+            then:
+                %a = dalloca 64
+                jmp @after
+            else:
+                jmp @after
+            after:
+                %b = dalloca 32
+                mstore 0, %b
+                return 0, 32
+        }
+        """,
+        b"",  # empty: else branch
+    )
+    # else branch: fmp didn't advance, so %b = initial
+    assert int.from_bytes(out[:32], "big") == MemoryPositions.RESERVED_MEMORY
 
 
 # --------------------------------------------------------------------------
