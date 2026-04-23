@@ -184,6 +184,16 @@ class VenomBuilder:
         """
         return self._emit1("dalloca", size)
 
+    def dfree(self, ptr: Operand) -> None:
+        """Free a prior `dalloca`-allocated region, reverting the FMP.
+
+        Must match the most recent unfreed `dalloca` (LIFO) in the same basic
+        block. `DallocaLoweringPass` either rewires the FMP chain to skip the
+        allocation (no runtime cost) or emits a `sub` to revert the FMP when
+        intervening code observed the advanced FMP.
+        """
+        self._emit("dfree", ptr)
+
     def memtop(self) -> IRVariable:
         """Get address past all memory (scratch space start).
 

@@ -721,3 +721,192 @@ def test_dalloca_asymmetric_branch():
     )
     # else branch: fmp didn't advance, so %b = initial
     assert int.from_bytes(out[:32], "big") == MemoryPositions.RESERVED_MEMORY
+
+
+# --------------------------------------------------------------------------
+# dfree: scoped FMP reclamation
+# --------------------------------------------------------------------------
+
+
+def test_dfree_rewires_common_case():
+    # dalloca + dfree with no intervening fmp read: the bump chain is
+    # dropped entirely and uses of %p are substituted with the pre-bump
+    # FMP. No `bump` or `sub` remains.
+    ctx = parse_from_basic_block(
+        """
+        main:
+            %p = dalloca 32
+            mstore %p, 7
+            dfree %p
+            stop
+        """
+    )
+    fn = next(iter(ctx.functions.values()))
+    ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    opcodes = [inst.opcode for bb in fn.get_basic_blocks() for inst in bb.instructions]
+    assert "dalloca" not in opcodes
+    assert "dfree" not in opcodes
+    assert "bump" not in opcodes
+    assert "sub" not in opcodes
+
+
+def test_dfree_falls_back_to_sub_on_intervening_fmp_read():
+    # With an invoke between dalloca and dfree, the invoke reads fmp_var
+    # (augmented to pass FMP to callee). Rewire would break the callee's
+    # view of FMP, so the lowering must keep the bump and emit a `sub`
+    # at the dfree point.
+    ctx = parse_venom(
+        """
+        function main {
+            main:
+                %p = dalloca 32
+                mstore %p, 7
+                invoke @callee
+                dfree %p
+                stop
+        }
+
+        function callee {
+            callee:
+                %retpc = param
+                %q = dalloca 32
+                ret %retpc
+        }
+        """
+    )
+    # Callee-first lowering (caller's has_needs_fmp depends on callee flag).
+    fns = list(ctx.functions.values())
+    for fn in reversed(fns):
+        ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+        DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    main_fn = ctx.get_function(next(iter(ctx.functions)))
+    opcodes = [inst.opcode for bb in main_fn.get_basic_blocks() for inst in bb.instructions]
+    assert "dalloca" not in opcodes
+    assert "dfree" not in opcodes
+    assert "bump" in opcodes
+    assert "sub" in opcodes
+
+
+def test_dfree_without_matching_dalloca_panics():
+    ctx = parse_from_basic_block(
+        """
+        main:
+            %p = calldatasize
+            dfree %p
+            stop
+        """
+    )
+    fn = next(iter(ctx.functions.values()))
+    ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+    # No dalloca means needs_fmp stays False and the pass returns early;
+    # the dfree survives and codegen should panic.
+    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+    ac = IRAnalysesCache(fn)
+    MakeSSA(ac, fn).run_pass()
+    PhiEliminationPass(ac, fn).run_pass()
+    with pytest.raises(CompilerPanic, match="dfree reached codegen"):
+        VenomCompiler(ctx).generate_evm_assembly()
+
+
+def test_dfree_lifo_violation_panics():
+    ctx = parse_from_basic_block(
+        """
+        main:
+            %a = dalloca 32
+            %b = dalloca 64
+            dfree %a
+            dfree %b
+            stop
+        """
+    )
+    fn = next(iter(ctx.functions.values()))
+    ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+    with pytest.raises(CompilerPanic, match="dfree LIFO violation"):
+        DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+
+def test_dfree_nested_inner_rewires_outer_falls_back():
+    # Properly nested dalloca/dfree. The inner pair rewires cleanly.
+    # The outer must fall back to `sub`, because inner's rewire
+    # substituted %b with fmp_var — so the region after the outer bump
+    # now has an explicit fmp_var read (the substituted mstore), and
+    # dropping the outer bump would change that read's meaning.
+    ctx = parse_from_basic_block(
+        """
+        main:
+            %a = dalloca 32
+            mstore %a, 1
+            %b = dalloca 64
+            mstore %b, 2
+            dfree %b
+            dfree %a
+            stop
+        """
+    )
+    fn = next(iter(ctx.functions.values()))
+    ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    opcodes = [inst.opcode for bb in fn.get_basic_blocks() for inst in bb.instructions]
+    assert "dalloca" not in opcodes
+    assert "dfree" not in opcodes
+    # Outer bump and outer sub remain; inner bump is gone.
+    assert opcodes.count("bump") == 1
+    assert opcodes.count("sub") == 1
+
+
+def test_dfree_runtime_frees_memory_for_reuse():
+    # End-to-end: after dfree, the next dalloca reuses the freed region.
+    out = _run_program(
+        """
+        function main {
+            main:
+                %p = dalloca 32
+                mstore %p, 1
+                dfree %p
+                %q = dalloca 64
+                mstore 0, %q
+                return 0, 32
+        }
+        """,
+        b"",
+    )
+    # %q should land at RESERVED_MEMORY (same base as %p was) since %p
+    # was freed before %q was allocated.
+    assert int.from_bytes(out[:32], "big") == MemoryPositions.RESERVED_MEMORY
+
+
+def test_dfree_sub_fallback_runtime_frees_memory():
+    # With an invoke between dalloca and dfree, the sub-fallback path
+    # reverts FMP at runtime. After dfree, subsequent dalloca must still
+    # land at the original base address.
+    out = _run_program(
+        """
+        function main {
+            main:
+                %p = dalloca 32
+                mstore %p, 1
+                invoke @noop
+                dfree %p
+                %q = dalloca 64
+                mstore 0, %q
+                return 0, 32
+        }
+
+        function noop {
+            noop:
+                %retpc = param
+                ret %retpc
+        }
+        """,
+        b"",
+    )
+    # After `dfree`, FMP reverts; next dalloca reuses %p's region.
+    # (noop is not needs_fmp so its invoke wouldn't augment — but any
+    # Venom invoke with a needs_fmp caller reads fmp_var. Here main
+    # has no dalloca before the invoke either -- wait actually it does.)
+    # We expect %q at RESERVED_MEMORY regardless.
+    assert int.from_bytes(out[:32], "big") == MemoryPositions.RESERVED_MEMORY

@@ -618,6 +618,12 @@ class VenomCompiler:
             # before we reach codegen. If we see one here, the pipeline is
             # misconfigured.
             raise CompilerPanic("dalloca reached codegen; DallocaLoweringPass missing?")
+        elif opcode == "dfree":
+            # DallocaLoweringPass eliminates every `dfree` (either by FMP
+            # rewiring or by emitting a `sub`). Surviving dfrees indicate
+            # a pipeline misconfiguration or a malformed input (e.g. dfree
+            # without a matching dalloca).
+            raise CompilerPanic("dfree reached codegen; DallocaLoweringPass missing?")
         elif opcode == "memtop":
             assembly.append("MSIZE")
         elif opcode == "param":

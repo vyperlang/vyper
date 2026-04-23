@@ -1,3 +1,4 @@
+from vyper.exceptions import CompilerPanic
 from vyper.utils import evm_not
 from vyper.venom.analysis import BasePtrAnalysis, DFGAnalysis, LivenessAnalysis, MemLivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IRVariable
@@ -44,6 +45,16 @@ class DallocaLoweringPass(IRPass):
     CallViolation on any recursion — self, direct, or indirect). The call
     graph reaching this pass is therefore a DAG, and callee-first traversal
     in `_run_fn_passes_r` populates flags in topological order.
+
+    `dfree %ptr` is high-level sugar that frees a prior `dalloca`. Within a
+    basic block, dfrees pair with dallocas in LIFO order. Two lowerings:
+      - **Rewire** (preferred): if nothing between the paired `bump` and the
+        `dfree` observes `fmp_var`, drop the whole `bump` chain and substitute
+        uses of `%ptr` with the pre-bump FMP. No runtime cost.
+      - **Sub fallback**: if an intervening instruction reads `fmp_var`
+        (e.g. a `bump` for a nested dalloca, or an `invoke` augmented with
+        fmp), keep the original `bump` and emit `sub aligned, fmp -> fmp` at
+        the dfree point to revert the FMP. One SUB byte.
     """
 
     required_predecessors = ("ConcretizeMemLocPass",)
@@ -96,10 +107,27 @@ class DallocaLoweringPass(IRPass):
 
     def _rewrite_bb(self, bb, fn, fmp_var: IRVariable) -> None:
         new_instructions: list[IRInstruction] = []
+        # LIFO stack of open `dalloca`s awaiting their paired `dfree`.
+        # Each entry: {ptr, bump_insts: (add, and, bump), aligned_var}.
+        bump_stack: list[dict] = []
+
         for inst in bb.instructions:
             if inst.opcode == "dalloca":
-                new_instructions.extend(self._lower_dalloca(inst, fn, fmp_var, bb))
+                lowered = self._lower_dalloca(inst, fn, fmp_var, bb)
+                bump_stack.append(
+                    {
+                        "ptr": inst.output,
+                        "bump_insts": tuple(lowered),
+                        "aligned_var": lowered[1].output,
+                    }
+                )
+                new_instructions.extend(lowered)
                 continue
+
+            if inst.opcode == "dfree":
+                self._lower_dfree(inst, fmp_var, bb, bump_stack, new_instructions)
+                continue
+
             if inst.opcode == "invoke":
                 target = inst.operands[0]
                 assert isinstance(target, IRLabel)
@@ -107,7 +135,56 @@ class DallocaLoweringPass(IRPass):
                 if callee._needs_fmp:
                     self._augment_invoke(inst, fmp_var)
             new_instructions.append(inst)
+
         bb.instructions = new_instructions
+
+    def _lower_dfree(
+        self,
+        inst: IRInstruction,
+        fmp_var: IRVariable,
+        bb,
+        bump_stack: list[dict],
+        new_instructions: list[IRInstruction],
+    ) -> None:
+        if len(inst.operands) != 1:
+            raise CompilerPanic(f"dfree must have exactly 1 operand: {inst}")
+        if not bump_stack:
+            raise CompilerPanic(f"dfree without matching dalloca in same basic block: {inst}")
+        entry = bump_stack.pop()
+        if inst.operands[0] != entry["ptr"]:
+            raise CompilerPanic(
+                f"dfree LIFO violation: expected {entry['ptr']}, got {inst.operands[0]}: {inst}"
+            )
+
+        bump_inst = entry["bump_insts"][-1]
+        bump_idx = new_instructions.index(bump_inst)
+
+        # Safe to rewire iff nothing after the bump reads fmp_var. Intervening
+        # reads come from nested `bump`s (which haven't been rewired away), or
+        # from augmented `invoke`s that take fmp as an arg.
+        tainted = any(
+            fmp_var in new_instructions[i].operands
+            for i in range(bump_idx + 1, len(new_instructions))
+        )
+
+        if not tainted:
+            # Rewire: drop the (add, and, bump) chain and substitute uses of
+            # the ptr with the pre-bump fmp_var.
+            for to_remove in entry["bump_insts"]:
+                new_instructions.remove(to_remove)
+            ptr_name = entry["ptr"]
+            for other in new_instructions:
+                other.operands = [fmp_var if op == ptr_name else op for op in other.operands]
+            return
+
+        # Fallback: emit `sub aligned, fmp -> fmp` to revert the FMP. Venom
+        # operand convention: rightmost is TOS. EVM SUB computes TOS - next,
+        # so `sub aligned, fmp` yields `fmp - aligned = pre_bump_fmp`.
+        sub_inst = IRInstruction("sub", [entry["aligned_var"], fmp_var], [fmp_var])
+        sub_inst.parent = bb
+        sub_inst.ast_source = inst.ast_source
+        sub_inst.error_msg = inst.error_msg
+        new_instructions.append(sub_inst)
 
     def _lower_dalloca(
         self, inst: IRInstruction, fn, fmp_var: IRVariable, bb
