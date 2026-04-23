@@ -7,9 +7,8 @@ from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
 class ConcretizeMemLocPass(IRPass):
     allocated_in_bb: dict[IRBasicBlock, int]
-    # FixMemLocationsPass seeds pinned allocas whose abstract locations are concretized here.
     # LowerDloadPass inserts allocas
-    required_predecessors = ("FixMemLocationsPass", "LowerDloadPass")
+    required_predecessors = ("LowerDloadPass",)
 
     def run_pass(self):
         self.allocator = self.function.ctx.mem_allocator
@@ -62,5 +61,3 @@ class ConcretizeMemLocPass(IRPass):
                 ), f"alloca not allocated by livesets: {inst}"
                 concrete = self.allocator.get_concrete(base_ptr)
                 self.updater.replace(inst, "assign", [concrete])
-            if inst.opcode == "gep":
-                inst.opcode = "add"

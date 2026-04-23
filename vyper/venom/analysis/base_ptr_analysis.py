@@ -30,7 +30,7 @@ from vyper.venom.memory_location import (
 @dataclass(frozen=True)
 class Ptr:
     """
-    class representing an offset (gep) into an Allocation
+    class representing an offset into an Allocation
     """
 
     base_alloca: Allocation
@@ -52,7 +52,7 @@ class BasePtrAnalysis(IRAnalysis):
     """
     Analysis to get every possible base pointer for variables.
     The alloca is the source of base pointer and other instructions
-    (gep/assign) are used to manipulate these base pointers
+    (add/assign) are used to manipulate these base pointers
     """
 
     var_to_mem: dict[IRVariable, set[Ptr]]
@@ -83,14 +83,6 @@ class BasePtrAnalysis(IRAnalysis):
         opcode = inst.opcode
         if opcode == "alloca":
             self.var_to_mem[inst.output] = set([Ptr.from_alloca(inst)])
-
-        elif opcode == "gep":
-            assert isinstance(inst.operands[0], IRVariable), inst.parent
-            offset = None
-            if isinstance(inst.operands[1], IRLiteral):
-                offset = inst.operands[1].value
-            ptrs = self.get_possible_ptrs(inst.operands[0])
-            self.var_to_mem[inst.output] = set(ptr.offset_by(offset) for ptr in ptrs)
 
         elif opcode in ("add", "sub"):
             rhs, lhs = inst.operands
@@ -204,6 +196,8 @@ class BasePtrAnalysis(IRAnalysis):
         if inst.opcode == "invoke":
             return MemoryLocation.UNDEFINED
         if inst.opcode == "ret":
+            return MemoryLocation.UNDEFINED
+        if inst.opcode == "memtop":
             return MemoryLocation.UNDEFINED
 
         if inst.get_read_effects() & effects.MEMORY == effects.EMPTY:

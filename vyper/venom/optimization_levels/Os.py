@@ -9,6 +9,7 @@ from vyper.venom.optimization_levels.types import PassConfig
 from vyper.venom.passes import (
     CSE,
     SCCP,
+    AffineFoldingPass,
     AlgebraicOptimizationPass,
     AssertCombinerPass,
     AssignElimination,
@@ -17,8 +18,6 @@ from vyper.venom.passes import (
     ConcretizeMemLocPass,
     DeadStoreElimination,
     DFTPass,
-    FixMemLocationsPass,
-    FloatAllocas,
     InternalReturnCopyForwardingPass,
     LoadElimination,
     LowerDloadPass,
@@ -37,11 +36,10 @@ from vyper.venom.passes import (
 
 # Optimize for size
 PASSES_Os: List[PassConfig] = [
-    FixMemLocationsPass,
-    FloatAllocas,
     SimplifyCFGPass,
     MakeSSA,
     PhiEliminationPass,
+    AffineFoldingPass,
     AlgebraicOptimizationPass,
     SCCP,
     SimplifyCFGPass,
@@ -52,6 +50,7 @@ PASSES_Os: List[PassConfig] = [
     SCCP,
     SimplifyCFGPass,
     AssignElimination,
+    AffineFoldingPass,
     AlgebraicOptimizationPass,
     LoadElimination,
     PhiEliminationPass,
@@ -81,6 +80,7 @@ PASSES_Os: List[PassConfig] = [
     LoadElimination,
     RemoveUnusedVariablesPass,
     BranchOptimizationPass,
+    AffineFoldingPass,
     AlgebraicOptimizationPass,
     AssertCombinerPass,
     # This improves the performance of cse

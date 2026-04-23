@@ -135,6 +135,7 @@ lint = [
     "mypy==1.19",
 ]
 docs = [
+    "Pygments==2.18.0",
     "shibuya==2024.1.17",
     "sphinx==7.2.6",
     "sphinx-copybutton==0.5.2",
@@ -174,6 +175,7 @@ lint = [
     "mypy==1.19",
 ]
 docs = [
+    "Pygments==2.18.0",
     "shibuya==2024.1.17",
     "sphinx==7.2.6",
     "sphinx-copybutton==0.5.2",

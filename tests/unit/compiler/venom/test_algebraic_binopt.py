@@ -505,17 +505,17 @@ def test_comparison_almost_always():
         %par = source
         %5 = iszero %par
         %1 = iszero %5
-        %9 = not %par  ; (eq -1 x) => (iszero (not x))
-        %6 = iszero %9
-        %2 = iszero %6
+        %6 = not %par
+        %7 = iszero %6
+        %2 = iszero %7
         assert %2
-        %10 = xor %par, {max_int256}
-        %7 = iszero %10
-        %3 = iszero %7
+        %8 = xor %par, {max_int256}
+        %9 = iszero %8
+        %3 = iszero %9
         assert %3
-        %11 = xor %par, {min_int256}
-        %8 = iszero %11
-        %4 = iszero %8
+        %10 = xor %par, {min_int256}
+        %11 = iszero %10
+        %4 = iszero %11
         assert %4
         sink %1
     """

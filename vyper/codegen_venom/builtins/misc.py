@@ -22,7 +22,7 @@ from vyper.evm.opcodes import version_check
 from vyper.exceptions import EvmVersionException
 from vyper.semantics.types import BytesT, DecimalT, StringT, TupleT
 from vyper.utils import DECIMAL_DIVISOR, method_id_int
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -476,6 +476,7 @@ def _create_tuple_in_memory(
     b = ctx.builder
     tuple_t = TupleT(tuple(types))
     val = ctx.new_temporary_value(tuple_t)
+    assert isinstance(val.operand, IRVariable)
 
     offset = 0
     for arg, typ in zip(args, types):
@@ -608,6 +609,7 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
 
         # Create tuple in memory with pointers to schema and payload buffers
         outer_val = ctx.new_temporary_value(outer_tuple_t)
+        assert isinstance(outer_val.operand, IRVariable)
         ctx.copy_memory(outer_val.operand, schema_buf._ptr, schema_t.memory_bytes_required)
         dst_payload = b.add(outer_val.operand, IRLiteral(schema_t.memory_bytes_required))
         ctx.copy_memory(dst_payload, payload_buf._ptr, payload_t.memory_bytes_required)
@@ -629,8 +631,9 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         call_len = b.add(IRLiteral(4), encoded_len)
 
     # Make the staticcall to console.log
+    retptr = ctx.allocate_buffer(0)
     b.staticcall(
-        b.gas(), IRLiteral(CONSOLE_ADDRESS), call_start, call_len, IRLiteral(0), IRLiteral(0)
+        b.gas(), IRLiteral(CONSOLE_ADDRESS), call_start, call_len, retptr._ptr, IRLiteral(0)
     )
 
     return IRLiteral(0)

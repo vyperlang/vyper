@@ -140,8 +140,8 @@ def test_surviving_store_no_overlap_large():
 def test_venom_allocation_branches():
     pre = """
     main:
-        %ptr1 = alloca 0, 256
-        %ptr2 = alloca 1, 128
+        %ptr1 = alloca 256
+        %ptr2 = alloca 128
         %cond = source
         jnz %cond, @then, @else
     then:

@@ -426,6 +426,8 @@ class IRInstruction:
             return 0
         if self.opcode in ("assign", "alloca"):
             return 1
+        if self.opcode == "memtop":
+            return 1  # lowers to single MSIZE byte
         return 2
 
     def get_ast_source(self) -> Optional[IRnode]:
