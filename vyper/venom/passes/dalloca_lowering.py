@@ -142,16 +142,22 @@ class DallocaLoweringPass(IRPass):
     def _validate_dalloca_dfree(self, fn) -> None:
         """Panic on malformed dalloca/dfree patterns.
 
-        Rules:
+        Strict pairing rules (same BB, LIFO):
+          - Every `dalloca` must have a matching `dfree` in the same BB.
           - Every `dfree` must pair with a preceding `dalloca` in the same
             BB, in LIFO order.
           - A ptr cannot be used after its matching `dfree` (use-after-free).
-          - `dalloca` can only have 1 output; `dfree` must have exactly 1
-            operand.
+          - `dalloca` must have 1 output and 1 operand; `dfree` must have
+            exactly 1 operand.
 
-        These invariants are required by both the initial_fmp fast path
-        and the FMP-threading path. Catching them here produces good
-        error messages and keeps the lowering logic simple.
+        Strict pairing is enforced because it keeps every lowered BB
+        "FMP-neutral": after lowering, `fmp_var` at the end of each BB
+        equals its value at the start. This is load-bearing for the
+        function inliner: inlining a callee's body into a caller's BB
+        cannot disturb the caller's FMP state, because the callee's
+        bumps are all cancelled by their matching subs/rewires before
+        control flows out. It also rules out the historical "implicit
+        reclaim on ret" pattern, which was error-prone across inlining.
         """
         for bb in fn.get_basic_blocks():
             open_ptrs: list[IRVariable] = []
@@ -188,10 +194,10 @@ class DallocaLoweringPass(IRPass):
                                 f"use of dfree'd pointer {op}: {inst}"
                             )
             if open_ptrs:
-                # Unclosed dalloca at end of BB. Allowed for the
-                # FMP-threading path (the allocation lives until function
-                # return). Not a malformed pattern; just skip the check.
-                pass
+                raise CompilerPanic(
+                    f"dalloca without matching dfree in same basic block: "
+                    f"{[str(p) for p in open_ptrs]} unclosed in {bb.label}"
+                )
 
     def _can_initial_fmp_lower(self, fn) -> bool:
         """True if the initial_fmp fast path is safe for this function.
