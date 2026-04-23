@@ -7,13 +7,6 @@ build:
   tools:
     python: "3.11"
 
-python:
-  install:
-    - method: pip
-      path: .
-      extra_requirements:
-        - docs
-
 sphinx:
   configuration: docs/conf.py
 
@@ -21,3 +14,10 @@ sphinx:
 formats:
   - epub
   - pdf
+
+python:
+  install:
+    - method: pip
+      path: .
+      extra_requirements:
+        - docs
