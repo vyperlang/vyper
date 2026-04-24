@@ -174,6 +174,8 @@ Functions marked with ``@pure`` cannot call non-``pure`` functions.
 Nonreentrancy Locks
 -------------------
 
+.. _reentrancy:
+
 The ``@nonreentrant`` decorator places a global nonreentrancy lock on a function. An attempt by an external contract to call back into any other ``@nonreentrant`` function causes the transaction to revert.
 
 .. code-block:: vyper

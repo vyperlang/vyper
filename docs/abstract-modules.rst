@@ -93,36 +93,75 @@ Requirements:
 Signature rules
 ---------------
 
-The override's signature must be compatible with the abstract method's. Specifically:
-
-- Each parameter of the abstract method must appear in the override at the same position, with the same name.
-- The override **may add extra parameters** to the right, as long as they have default values.
-- The override **may add a default value** to a parameter that was mandatory in the abstract method (making the override more permissive).
-- Each parameter type in the override must be a **supertype** of the corresponding abstract parameter type (contravariance).
-- The return type of the override must be a **subtype** of the abstract method's return type (covariance).
-- The override's state mutability must be **at least as strict** as the abstract's. From least to most strict: ``payable``, ``nonpayable`` (the default), ``view``, ``pure``.
-- ``@nonreentrant`` must match exactly — an override cannot add or remove it.
-- All other decorators (besides ``@abstract``, ``@override``, and mutability) must be identical.
+The override must be callable in all the same ways the abstract method is:
 
 .. code-block:: vyper
 
     # abstract_m.vy
-
+    @pure
     @abstract
     def compute(x: uint256) -> uint256: ...
 
 .. code-block:: vyper
 
-    # override_module.vy
-
     import abstract_m
-
     initializes: abstract_m
 
-    # Valid: adds an extra parameter with a default
+    # Valid: signature matches exactly
+    @pure
     @override(abstract_m)
-    def compute(x: uint256, y: uint256 = 0) -> uint256:
-        return x + y
+    def compute(x: uint256) -> uint256:
+        return x + 1
+
+.. code-block:: vyper
+
+    import abstract_m
+    initializes: abstract_m
+
+    # Invalid: parameter and return type don't match the ones in abstract_m.compute
+    @pure
+    @override(abstract_m)
+    def compute(y: uint8) -> uint8:
+        return y + 1
+
+.. code-block:: vyper
+
+    import abstract_m
+    initializes: abstract_m
+
+    # Invalid: parameter name doesn't match
+    @pure
+    @override(abstract_m)
+    def compute(y: uint256) -> uint256:
+        return y + 1
+
+.. code-block:: vyper
+
+    import abstract_m
+    initializes: abstract_m
+
+    # Invalid: Has looser mutability: nonpayable vs the original which is view
+    @nonpayable
+    @override(abstract_m)
+    def compute(y: uint256) -> uint256:
+        return y + 1
+
+A good heuristic is the following:
+- The override must have the same parameters as the abstract method: same name, same type, and same default value.
+- The override must have the same return type as the abstract method.
+- The override must have the same decorators as the abstract method, except ``@override`` and ``@abstract``.
+
+Following the rules above will always result in a valid override.
+However these might prove too restrictive in your use-case, for this reason the actual rules are more flexible:
+
+- Each parameter of the abstract method must appear in the override at the same position, with the same name.
+- If the abstract method defines a default argument for a parameter, the value of the default argument must match in the override. Any value matches an ellipsis (``...``).
+- The override may add extra parameter to the right, as long as they have default values.
+- The override may add a default value to a parameter that was mandatory in the abstract method (making the override more permissive).
+- Each parameter type in the override must be the same (or more general) than the corresponding parameter type in the abstract method.
+- The return type of the override must be the same (or more precise) than the abstract method's return type.
+- The override's :ref:`mutability <function-mutability>` must the same (or stricter) than the abstract's.
+- The override's :ref:`reentrancy <reentrancy>` must match exactly the one of the abstract method.
 
 Overriding multiple abstract methods
 -------------------------------------
