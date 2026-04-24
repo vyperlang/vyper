@@ -189,6 +189,92 @@ Sometimes, you may encounter a module which itself ``uses`` other modules. Vyper
 .. warning::
     In normal usage, you should make sure that ``__init__()`` functions are called in dependency order. In the above example, you can get unexpected behavior if ``ownable_2step.__init__()`` is called before ``ownable.__init__()``! The compiler may enforce this behavior in the future.
 
+.. _abstract-methods:
+
+Abstract methods and overrides
+==============================
+
+A module can declare an **internal** function whose body another module must supply. The declaration uses the ``@abstract`` decorator and leaves the body as ``...``. A concrete function in the module that initializes the abstract's module supplies the body, marked with ``@override``. Every call to an abstract function is resolved to its concrete override at compile time; there is no runtime dispatch table.
+
+The following module declares a transfer hook and calls it from its own code:
+
+.. code-block:: vyper
+
+    # hook.vy
+
+    event Transfer:
+        sender: indexed(address)
+        recipient: indexed(address)
+        amount: uint256
+
+    @external
+    def transfer(to: address, amount: uint256):
+        # ... transfer logic
+        self._on_transfer(to, amount)
+
+    @abstract
+    def _on_transfer(to: address, amount: uint256): ...
+
+A module that initializes ``hook`` must provide ``_on_transfer``:
+
+.. code-block:: vyper
+
+    # token.vy
+
+    import hook
+
+    initializes: hook
+
+    exports: hook.transfer
+
+    @override(hook)
+    def _on_transfer(to: address, amount: uint256):
+        log hook.Transfer(sender=msg.sender, recipient=to, amount=amount)
+
+The call to ``self._on_transfer`` inside ``hook.transfer`` resolves at compile time to the concrete body in ``token``. Compiling ``token.vy`` produces a contract whose ``transfer`` entry runs the override's body.
+
+Rules
+-----
+
+* ``@abstract`` and ``@override`` apply only to internal functions. They are rejected on ``@external``, on ``@deploy``, and in ``.vyi`` interface files.
+* An ``@abstract`` function's body must be ``...``. A leading docstring is allowed.
+* A module that declares ``@override(M)`` must also declare ``initializes: M``.
+* A module that initializes another module which contains abstract functions must provide exactly one override for each of them. Zero overrides raise ``Abstract function was not overridden``. A duplicate override raises ``... was already overridden in ...``.
+* A single function may carry several ``@override(...)`` decorators to override abstracts from multiple modules, as long as the containing module initializes each one. The overriding function's name must match the abstract's name in every listed module; a mismatch is reported as ``Tried to override M.name, but it does not exist``.
+* Abstract functions can only live in imported modules. A top-level contract that declares ``@abstract`` has no module above it to supply the override, so it fails the override-coverage rule with ``Abstract function was not overridden`` pointing at the abstract's own line.
+
+Signature compatibility
+-----------------------
+
+The compiler checks each override's signature against the abstract's:
+
+* Parameter names must match, in order.
+* For parameters whose type takes a size (``String[N]``, ``Bytes[N]``, ``DynArray[_, N]``), the override's ``N`` must be greater than or equal to the abstract's. For other parameter types the two must be the same.
+* The return type must match, or for sized types the override's ``N`` must be less than or equal to the abstract's.
+* Mutability on the override may be the same or stricter, in the order ``payable > nonpayable > view > pure``.
+* ``@nonreentrant`` must be present on both or on neither.
+* Default values: if the abstract writes ``...`` as the default, the override may supply any concrete default; if the abstract writes a concrete default, the override's must be the same expression. The override may add a default where the abstract had none. The override may not remove a default the abstract declared.
+
+When a signature fails these rules, the compiler reports ``Override parameter mismatch: Got X, but expected Y (or more general)``.
+
+Dispatch and call paths
+-----------------------
+
+Calls to an abstract function resolve at compile time to the concrete override. There is no virtual dispatch.
+
+To call an abstract function from a module other than the one that declared it, add ``uses:`` for that module at the top of the calling file. Omitting this raises ``Cannot access abstract methods of 'X'`` with the hint ``add 'uses: X' as a top-level statement to your contract``. If a shorter path to the override is already reachable from the caller (through ``self``, or through a module the caller has initialized), the compiler requires that shorter path instead and reports ``Abstract method `X` is overridden by `Y`, call that instead.``
+
+Call sites see the **abstract's** signature, not the override's. An abstract declared without ``@view`` cannot be called from a ``@view`` caller, even when the concrete override happens to be ``@view``. Mark the abstract with the mutability its call sites require.
+
+The compiler tracks an override's side effects. Events declared in a module that contains abstract functions and emitted only inside an override still appear in the compiled contract's ABI. Reads and writes performed by an override count as accesses on the initializing module.
+
+An overriding function may itself be marked ``@abstract``, stacking ``@abstract`` with ``@override(parent)``. The concrete body then lives in a further module down the import tree. This is a niche pattern; typical code provides a concrete override directly.
+
+Abstract methods versus ``.vyi`` interfaces
+-------------------------------------------
+
+A ``.vyi`` file describes an external ABI for calls between deployed contracts. ``@abstract`` describes a function another module in the same compilation target must define. Use ``.vyi`` for external call surfaces. Use ``@abstract`` for internal hooks inside a module tree.
+
 .. _exporting-functions:
 
 Exporting functions
