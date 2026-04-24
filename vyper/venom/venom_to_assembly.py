@@ -224,7 +224,7 @@ class VenomCompiler:
         cost = 0
         
         # restore spilled ops
-        for op in reversed(stack_ops):
+        for op in stack_ops:
             if op in spilled:
                 assert isinstance(op, IRVariable)
                 self.spiller.restore_spilled_operand(
