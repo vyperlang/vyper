@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.ir.compile_ir import Label
-from vyper.venom.basicblock import IRLiteral, IRVariable, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.parser import parse_venom
 from vyper.venom.stack_model import StackModel
@@ -256,6 +256,7 @@ def test_stack_reorder_operand_not_in_stack_but_spilled() -> None:
     # Assembly should contain PUSH and MLOAD to restore
     assert "MLOAD" in assembly
 
+
 def test_stack_spill_stack_invalidation_error():
     dummy_function = """
     function spill_demo {
@@ -273,7 +274,7 @@ def test_stack_spill_stack_invalidation_error():
     stack = StackModel()
     a = IRVariable("%a")
     b = IRVariable("%b")
-    
+
     expected_stack: list[IROperand] = [a, b]
 
     stack.push(b)
@@ -287,4 +288,3 @@ def test_stack_spill_stack_invalidation_error():
 
     # Try to reorder with spilled_var as target (should restore it from memory)
     compiler._stack_reorder(assembly, stack, expected_stack, spilled, dry_run=False)
-

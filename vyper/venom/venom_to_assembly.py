@@ -222,15 +222,13 @@ class VenomCompiler:
         ), f"duplicated stack {stack_ops}"  # precondition
 
         cost = 0
-        
+
         # restore spilled ops
         for op in stack_ops:
             if op in spilled:
                 assert isinstance(op, IRVariable)
-                self.spiller.restore_spilled_operand(
-                    assembly, stack, spilled, op, dry_run=dry_run
-                )
-        
+                self.spiller.restore_spilled_operand(assembly, stack, spilled, op, dry_run=dry_run)
+
         depth_order = stack_ops.copy()
         depth_order.sort(key=lambda x: stack.get_depth(x))
 
@@ -242,7 +240,6 @@ class VenomCompiler:
                 self._reduce_depth_via_spill(
                     assembly, stack, spilled, stack_ops, op, depth, dry_run
                 )
-
 
         for i, op in enumerate(stack_ops):
             final_stack_depth = -(len(stack_ops) - i - 1)
