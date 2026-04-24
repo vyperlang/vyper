@@ -28,7 +28,7 @@ class IRFunction:
 
     # Set by DallocaLoweringPass: True if this function threads the
     # free-memory pointer (i.e. contains a dalloca or invokes a callee
-    # that does).
+    # that does). Functions on the `initial_fmp` fast path keep this False.
     _needs_fmp: bool
 
     # Used during code generation

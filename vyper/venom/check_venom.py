@@ -96,6 +96,38 @@ class BumpArityError(VenomError):
         )
 
 
+class DallocaArityError(VenomError):
+    message: str = "dalloca must have exactly 1 operand and 2 outputs"
+
+    def __init__(self, caller: IRFunction, inst: IRInstruction):
+        self.caller = caller
+        self.inst = inst
+
+    def __str__(self):
+        bb = self.inst.parent
+        return (
+            f"dalloca arity error in {self.caller.name}: "
+            f"got {len(self.inst.operands)} operand(s), {self.inst.num_outputs} output(s)\n"
+            f"  {self.inst}\n\n{bb}"
+        )
+
+
+class DfreeArityError(VenomError):
+    message: str = "dfree must have exactly 1 operand and 0 outputs"
+
+    def __init__(self, caller: IRFunction, inst: IRInstruction):
+        self.caller = caller
+        self.inst = inst
+
+    def __str__(self):
+        bb = self.inst.parent
+        return (
+            f"dfree arity error in {self.caller.name}: "
+            f"got {len(self.inst.operands)} operand(s), {self.inst.num_outputs} output(s)\n"
+            f"  {self.inst}\n\n{bb}"
+        )
+
+
 def _handle_var_definition(
     fn: IRFunction, bb: IRBasicBlock, var_def: VarDefinition
 ) -> list[VenomError]:
@@ -162,10 +194,9 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
     for caller in context.functions.values():
         for bb in caller.get_basic_blocks():
             for inst in bb.instructions:
-                # Disallow multi-output except on invoke and bump
-                # (bump is dual-output: first-input passthrough + sum).
+                # Disallow multi-output except on invoke, bump, and dalloca.
                 got_num = inst.num_outputs
-                if got_num > 1 and inst.opcode not in ("invoke", "bump"):
+                if got_num > 1 and inst.opcode not in ("invoke", "bump", "dalloca"):
                     errors.append(MultiOutputNonInvoke(caller, inst))
                     continue
                 if inst.opcode == "bump":
@@ -173,6 +204,14 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
                     # and two outputs; any other shape is malformed.
                     if len(inst.operands) != 2 or got_num != 2:
                         errors.append(BumpArityError(caller, inst))
+                    continue
+                if inst.opcode == "dalloca":
+                    if len(inst.operands) != 1 or got_num != 2:
+                        errors.append(DallocaArityError(caller, inst))
+                    continue
+                if inst.opcode == "dfree":
+                    if len(inst.operands) != 1 or got_num != 0:
+                        errors.append(DfreeArityError(caller, inst))
                     continue
                 if inst.opcode != "invoke":
                     continue

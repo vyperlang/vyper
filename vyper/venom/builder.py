@@ -174,28 +174,28 @@ class VenomBuilder:
         """Allocate abstract memory. Returns pointer. (IR-specific)"""
         return self._emit1("alloca", size)
 
-    def dalloca(self, size: Operand) -> IRVariable:
-        """Allocate dynamic (runtime-sized) scratch memory.
+    def dalloca(self, size: Operand) -> tuple[IRVariable, IRVariable]:
+        """Allocate dynamic (runtime-sized) memory and return `(ptr, mark)`.
 
-        Returns pointer to a scratch region of `ceil32(size)` bytes. Size
-        can be a runtime value. The region lives above all static
-        allocations and spill slots. High-level sugar: lowered by
-        `DallocaLoweringPass` to either a single `initial_fmp` constant
-        load (leaf-scratch fast path, when paired with a `dfree`) or an
-        FMP-threaded `bump`. Pair with a matching `dfree` to release the
-        region before the function returns.
+        `ptr` is the base of the newly allocated `ceil32(size)`-byte region.
+        `mark` is the pre-bump FMP restore token for this allocation. The two
+        values are numerically equal, but they carry different roles in the IR:
+        `ptr` is used for addressing, while `mark` is passed to `dfree(mark)`
+        to restore the FMP.
         """
-        return self._emit1("dalloca", size)
+        ptr = self.fn.get_next_variable()
+        mark = self.fn.get_next_variable()
+        outputs = self._current_bb.append_instruction_multi("dalloca", size, outputs=[ptr, mark])
+        return outputs[0], outputs[1]
 
-    def dfree(self, ptr: Operand) -> None:
-        """Free a prior `dalloca`-allocated region, reverting the FMP.
+    def dfree(self, mark: Operand) -> None:
+        """Restore the FMP to a prior `dalloca` mark.
 
-        Must match the most recent unfreed `dalloca` (LIFO) in the same basic
-        block. `DallocaLoweringPass` either rewires the FMP chain to skip the
-        allocation (no runtime cost) or emits a `sub` to revert the FMP when
-        intervening code observed the advanced FMP.
+        `dfree` models a cursor rewind, not a malloc/free heap operation.
+        Frontends should pass the `mark` returned by `dalloca`; hand-written IR
+        may use any operand, with the obvious low-level consequences.
         """
-        self._emit("dfree", ptr)
+        self._emit("dfree", mark)
 
 
     # === Storage ===

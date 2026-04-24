@@ -435,14 +435,14 @@ class IRInstruction:
             return 2
         if self.opcode == "dalloca":
             # `dalloca` is high-level sugar and is eliminated by DallocaLoweringPass
-            # before assembly emission. The later the optimized generic form is:
-            #   PUSH1 31 + ADD, PUSH1 31 + NOT + AND, DUP2 + ADD
-            return 9
+            # before assembly emission. The lowered generic form is:
+            #   PUSH1 31 + ADD, PUSH1 31 + NOT + AND, DUP2 + ADD, assign ptr -> mark
+            return 10
         if self.opcode == "bump":
             return 2  # DUP2 ADD
         if self.opcode == "dfree":
-            # high-level free marker; eliminated or lowered to SUB (1 byte)
-            # by DallocaLoweringPass
+            # high-level FMP restore marker; eliminated or lowered to
+            # `assign mark -> fmp` by DallocaLoweringPass.
             return 1
         return 2
 
@@ -600,6 +600,28 @@ class IRBasicBlock:
         ret = self.append_instruction(opcode, *args, ret=ret, **kwargs)
         assert ret is not None  # help mypy
         return ret
+
+    def append_instruction_multi(
+        self,
+        opcode: str,
+        /,
+        *args: Union[IROperand, int],
+        outputs: Sequence[IRVariable],
+        annotation: str = None,
+    ) -> list[IRVariable]:
+        """
+        Append an instruction with an explicit multi-output shape.
+        """
+        assert not self.is_terminated, self
+
+        inst_args = [_ir_operand_from_value(arg) for arg in args]
+        inst = IRInstruction(opcode, inst_args, list(outputs))
+        inst.parent = self
+        inst.ast_source = self.parent.ast_source
+        inst.error_msg = self.parent.error_msg
+        inst.annotation = annotation
+        self.instructions.append(inst)
+        return inst.get_outputs()
 
     def append_invoke_instruction(
         self, args: Sequence[IROperand | int], returns: int = 0

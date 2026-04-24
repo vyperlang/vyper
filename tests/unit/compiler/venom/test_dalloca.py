@@ -7,6 +7,7 @@ from vyper.evm.assembler.core import assembly_to_evm
 from vyper.exceptions import CompilerPanic
 from vyper.utils import MemoryPositions
 from vyper.venom.analysis import IRAnalysesCache
+from vyper.venom.basicblock import IRLabel
 from vyper.venom.effects import Effects
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes import (
@@ -46,7 +47,7 @@ def test_dalloca_has_no_memory_effects():
     ctx = parse_from_basic_block(
         """
         main:
-            %p = dalloca 32
+            %p, %p_mark = dalloca 32
             sink %p
         """
     )
@@ -105,7 +106,7 @@ def test_dalloca_does_not_crash_memory_dse():
     ctx = parse_from_basic_block(
         """
         main:
-            %p = dalloca 32
+            %p, %p_mark = dalloca 32
             mstore %p, 1
             stop
         """
@@ -150,12 +151,12 @@ def test_dalloca_handles_small_sizes(calldata, expected_ptr1, expected_ptr2):
         """
         main:
             %size = calldatasize
-            %a = dalloca %size
-            %b = dalloca 32
+            %a, %a_mark = dalloca %size
+            %b, %b_mark = dalloca 32
             mstore 0, %a
             mstore 32, %b
-            dfree %b
-            dfree %a
+            dfree %b_mark
+            dfree %a_mark
             return 0, 64
         """,
         calldata,
@@ -184,12 +185,12 @@ def test_dalloca_starts_above_static_frame(calldata, expected_ptr2):
             %static = alloca 64
             mstore %static, 0x1111
             %size = calldatasize
-            %a = dalloca %size
-            %b = dalloca 32
+            %a, %a_mark = dalloca %size
+            %b, %b_mark = dalloca 32
             mstore 0, %a
             mstore 32, %b
-            dfree %b
-            dfree %a
+            dfree %b_mark
+            dfree %a_mark
             return 0, 64
         """,
         calldata,
@@ -212,12 +213,12 @@ def test_dalloca_static_frame_prime_is_word_aligned():
         main:
             %static = alloca 33
             mstore %static, 0x1111
-            %a = dalloca 0
-            %b = dalloca 32
+            %a, %a_mark = dalloca 0
+            %b, %b_mark = dalloca 32
             mstore 0, %a
             mstore 32, %b
-            dfree %b
-            dfree %a
+            dfree %b_mark
+            dfree %a_mark
             return 0, 64
         """,
         b"",
@@ -257,7 +258,7 @@ def test_dalloca_allows_stack_spills():
                 %v13 = mload 416
                 %v14 = mload 448
                 %size = calldatasize
-                %dyn = dalloca %size
+                %dyn, %dyn_mark = dalloca %size
                 %acc0 = add %dyn, %v0
                 %acc1 = add %acc0, %v1
                 %acc2 = add %acc1, %v2
@@ -274,7 +275,7 @@ def test_dalloca_allows_stack_spills():
                 %acc13 = add %acc12, %v13
                 %acc14 = add %acc13, %v14
                 mstore 0, %acc14
-                dfree %dyn
+                dfree %dyn_mark
                 return 0, 32
         }
         """
@@ -356,17 +357,18 @@ def test_bump_allocations_do_not_alias_each_other():
 def test_dalloca_is_fully_lowered():
     # After DallocaLoweringPass runs, no `dalloca` or `dfree` remains.
     # Nested-but-paired dallocas go through the FMP-threaded path; the
-    # inner pair rewires (inner bump eliminated), the outer falls back
-    # to sub. Result: one bump, one sub.
+    # inner pair rewires to the current threaded FMP and the outer
+    # restore becomes `assign mark -> fmp`. Result: one bump and no raw
+    # dalloca/dfree left in the IR.
     ctx = parse_from_basic_block(
         """
         main:
             %size = calldatasize
-            %a = dalloca %size
-            %b = dalloca 32
+            %a, %a_mark = dalloca %size
+            %b, %b_mark = dalloca 32
             mstore %a, %b
-            dfree %b
-            dfree %a
+            dfree %b_mark
+            dfree %a_mark
             stop
         """
     )
@@ -378,7 +380,7 @@ def test_dalloca_is_fully_lowered():
     assert "dalloca" not in opcodes
     assert "dfree" not in opcodes
     assert opcodes.count("bump") == 1
-    assert opcodes.count("sub") == 1
+    assert opcodes.count("assign") >= 1
 
 
 def test_dalloca_reaching_codegen_panics():
@@ -389,7 +391,7 @@ def test_dalloca_reaching_codegen_panics():
         """
         function main {
             main:
-                %p = dalloca 32
+                %p, %p_mark = dalloca 32
                 mstore 0, %p
                 return 0, 32
         }
@@ -426,7 +428,7 @@ def test_dalloca_memory_reclaimed_across_call():
         function main {
             main:
                 invoke @callee
-                %p = dalloca 32
+                %p, %p_mark = dalloca 32
                 mstore 0, %p
                 return 0, 32
         }
@@ -434,7 +436,7 @@ def test_dalloca_memory_reclaimed_across_call():
         function callee {
             callee:
                 %retpc = param
-                %b = dalloca 32
+                %b, %b_mark = dalloca 32
                 ret %retpc
         }
         """,
@@ -453,9 +455,9 @@ def test_dalloca_fmp_preserved_across_nested_calls():
         """
         function main {
             main:
-                %p0 = dalloca 32
+                %p0, %p0_mark = dalloca 32
                 invoke @f
-                %p1 = dalloca 32
+                %p1, %p1_mark = dalloca 32
                 mstore 0, %p0
                 mstore 32, %p1
                 return 0, 64
@@ -464,7 +466,7 @@ def test_dalloca_fmp_preserved_across_nested_calls():
         function f {
             f:
                 %retpc = param
-                %a = dalloca 64
+                %a, %a_mark = dalloca 64
                 invoke @g
                 ret %retpc
         }
@@ -472,7 +474,7 @@ def test_dalloca_fmp_preserved_across_nested_calls():
         function g {
             g:
                 %retpc = param
-                %b = dalloca 128
+                %b, %b_mark = dalloca 128
                 ret %retpc
         }
         """,
@@ -507,7 +509,7 @@ def test_dalloca_spiller_with_dalloca():
                 %v13 = mload 416
                 %v14 = mload 448
                 %size = calldatasize
-                %dyn = dalloca %size
+                %dyn, %dyn_mark = dalloca %size
                 %acc0 = add %dyn, %v0
                 %acc1 = add %acc0, %v1
                 %acc2 = add %acc1, %v2
@@ -524,7 +526,7 @@ def test_dalloca_spiller_with_dalloca():
                 %acc13 = add %acc12, %v13
                 %acc14 = add %acc13, %v14
                 mstore 0, %acc14
-                dfree %dyn
+                dfree %dyn_mark
                 return 0, 32
         }
         """,
@@ -569,14 +571,14 @@ def test_dalloca_spill_does_not_corrupt_dynamic_allocation():
         function main {{
             main:
                 %sz = calldatasize
-                %dyn = dalloca %sz
+                %dyn, %dyn_mark = dalloca %sz
                 mstore %dyn, {hex(sentinel)}
 {mloads}
                 %r = invoke @consume, {invoke_args}
                 %readback = mload %dyn
                 %final = add %r, %readback
                 mstore 0, %final
-                dfree %dyn
+                dfree %dyn_mark
                 return 0, 32
         }}
 
@@ -627,13 +629,13 @@ def test_dalloca_across_branch():
                 %cond = calldatasize
                 jnz %cond, @then, @else
             then:
-                %a = dalloca 64
+                %a, %a_mark = dalloca 64
                 jmp @after
             else:
-                %b = dalloca 32
+                %b, %b_mark = dalloca 32
                 jmp @after
             after:
-                %c = dalloca 32
+                %c, %c_mark = dalloca 32
                 mstore 0, %c
                 return 0, 32
         }
@@ -695,12 +697,12 @@ def test_dalloca_asymmetric_branch():
                 %cond = calldatasize
                 jnz %cond, @then, @else
             then:
-                %a = dalloca 64
+                %a, %a_mark = dalloca 64
                 jmp @after
             else:
                 jmp @after
             after:
-                %b = dalloca 32
+                %b, %b_mark = dalloca 32
                 mstore 0, %b
                 return 0, 32
         }
@@ -717,12 +719,12 @@ def test_dalloca_asymmetric_branch():
                 %cond = calldatasize
                 jnz %cond, @then, @else
             then:
-                %a = dalloca 64
+                %a, %a_mark = dalloca 64
                 jmp @after
             else:
                 jmp @after
             after:
-                %b = dalloca 32
+                %b, %b_mark = dalloca 32
                 mstore 0, %b
                 return 0, 32
         }
@@ -739,16 +741,15 @@ def test_dalloca_asymmetric_branch():
 
 
 def test_dfree_initial_fmp_fast_path():
-    # Leaf function with a paired dalloca/dfree and no needs_fmp invokes
-    # takes the initial_fmp fast path: dalloca -> initial_fmp, dfree
-    # dropped, no FMP threading. The compile-time constant resolves to
-    # the initial FMP value at assembly time via CONST/CONSTREF.
+    # Entry leaf function with a paired dalloca/dfree and no invokes takes
+    # the initial_fmp fast path. The dalloca mark is materialized as an
+    # assign from the pointer, and dfree is dropped.
     ctx = parse_from_basic_block(
         """
         main:
-            %p = dalloca 32
+            %p, %mark = dalloca 32
             mstore %p, 7
-            dfree %p
+            dfree %mark
             stop
         """
     )
@@ -762,31 +763,31 @@ def test_dfree_initial_fmp_fast_path():
     assert "bump" not in opcodes
     assert "sub" not in opcodes
     assert opcodes.count("initial_fmp") == 1
+    assert opcodes.count("assign") == 1
     assert fn._needs_fmp is False
 
 
-def test_dfree_falls_back_to_sub_on_intervening_invoke():
+def test_dfree_restores_from_mark_on_intervening_invoke():
     # With an invoke between dalloca and dfree, rewiring would leave the
     # caller's data at an address that a fast-path callee could clobber.
-    # The lowering must keep the bump and emit a `sub` at the dfree point,
-    # ensuring the caller's data sits strictly above the FMP at invoke
-    # time (and out of reach of callees starting from `initial_fmp`).
+    # The lowering must keep the bump and restore the threaded FMP from
+    # the dalloca mark at the dfree point.
     ctx = parse_venom(
         """
         function main {
             main:
-                %p = dalloca 32
+                %p, %mark = dalloca 32
                 mstore %p, 7
                 invoke @callee
-                dfree %p
+                dfree %mark
                 stop
         }
 
         function callee {
             callee:
                 %retpc = param
-                %q = dalloca 32
-                dfree %q
+                %q, %qmark = dalloca 32
+                dfree %qmark
                 ret %retpc
         }
         """
@@ -802,75 +803,80 @@ def test_dfree_falls_back_to_sub_on_intervening_invoke():
     assert "dalloca" not in opcodes
     assert "dfree" not in opcodes
     assert "bump" in opcodes
-    assert "sub" in opcodes
+    assert opcodes.count("assign") >= 2
 
 
-def test_dfree_without_matching_dalloca_panics():
-    # `DallocaLoweringPass` validates dalloca/dfree pairing up-front and
-    # panics on malformed IR (before any lowering or codegen).
+def test_dfree_without_matching_dalloca_is_low_level_restore():
+    # `dfree` is a low-level FMP restore primitive. A standalone dfree is
+    # allowed and simply lowers to `assign mark -> fmp`.
     ctx = parse_from_basic_block(
         """
         main:
-            %p = calldatasize
-            dfree %p
+            %mark = calldatasize
+            dfree %mark
             stop
         """
     )
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
-    with pytest.raises(CompilerPanic, match="dfree without matching dalloca"):
-        DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    opcodes = [inst.opcode for bb in fn.get_basic_blocks() for inst in bb.instructions]
+    assert "dfree" not in opcodes
+    assert fn._needs_fmp is True
+    assert opcodes.count("assign") == 1
 
 
-def test_dfree_lifo_violation_panics():
+def test_dfree_non_lifo_marks_lower_without_validation():
     ctx = parse_from_basic_block(
         """
         main:
-            %a = dalloca 32
-            %b = dalloca 64
-            dfree %a
-            dfree %b
+            %a, %amark = dalloca 32
+            %b, %bmark = dalloca 64
+            dfree %amark
+            dfree %bmark
             stop
         """
     )
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
-    with pytest.raises(CompilerPanic, match="dfree LIFO violation"):
-        DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    opcodes = [inst.opcode for bb in fn.get_basic_blocks() for inst in bb.instructions]
+    assert "dfree" not in opcodes
+    assert opcodes.count("bump") == 2
+    assert opcodes.count("assign") >= 3
 
 
-def test_dfree_use_after_free_panics():
-    # Using a dfree'd pointer is a hard error: with the initial_fmp fast
-    # path, the address would alias any subsequent dalloca and silently
-    # return corrupted data.
+def test_dfree_does_not_do_pointer_lifetime_validation():
+    # Pointer lifetime validation is not part of this low-level IR
+    # contract; dfree restores the FMP but does not prove pointer safety.
     ctx = parse_from_basic_block(
         """
         main:
-            %p = dalloca 32
+            %p, %mark = dalloca 32
             mstore %p, 1
-            dfree %p
+            dfree %mark
             %v = mload %p
             sink %v
         """
     )
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
-    with pytest.raises(CompilerPanic, match="use of dfree'd pointer"):
-        DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
 
 
 def test_initial_fmp_fast_path_rejects_invoke_during_live_dalloca():
-    # The fast path is UNSAFE if a callee could itself be fast-path-lowered
-    # (using the same initial_fmp constant) while the caller has a live
-    # allocation at that address. Detect and fall back to FMP threading.
+    # Entry-function initial_fmp lowering is disabled in the presence of an
+    # invoke; the function falls back to FMP threading.
     ctx = parse_venom(
         """
         function main {
             main:
-                %p = dalloca 32
+                %p, %mark = dalloca 32
                 mstore %p, 111
                 invoke @helper
-                dfree %p
+                dfree %mark
                 stop
         }
 
@@ -888,8 +894,6 @@ def test_initial_fmp_fast_path_rejects_invoke_during_live_dalloca():
 
     main_fn = ctx.get_function(next(iter(ctx.functions)))
     opcodes = [inst.opcode for bb in main_fn.get_basic_blocks() for inst in bb.instructions]
-    # With a live dalloca across the invoke, the fast path is refused;
-    # we fall through to FMP threading (bump stays, dfree becomes sub).
     assert "initial_fmp" not in opcodes
     assert "bump" in opcodes
     assert main_fn._needs_fmp is True
@@ -898,18 +902,17 @@ def test_initial_fmp_fast_path_rejects_invoke_during_live_dalloca():
 def test_dfree_nested_falls_back_to_fmp_threading():
     # Nested dalloca/dfree pairs cannot share a base address (both are
     # live at the same time), so the initial_fmp fast path is rejected.
-    # The pass falls back to FMP threading: inner rewires, outer has to
-    # emit a `sub` because inner's rewire planted an fmp_var reference
-    # between the outer bump and its dfree.
+    # The pass falls back to FMP threading: inner rewires to the current
+    # threaded FMP and outer restore becomes `assign mark -> fmp`.
     ctx = parse_from_basic_block(
         """
         main:
-            %a = dalloca 32
+            %a, %amark = dalloca 32
             mstore %a, 1
-            %b = dalloca 64
+            %b, %bmark = dalloca 64
             mstore %b, 2
-            dfree %b
-            dfree %a
+            dfree %bmark
+            dfree %amark
             stop
         """
     )
@@ -921,9 +924,9 @@ def test_dfree_nested_falls_back_to_fmp_threading():
     assert "dalloca" not in opcodes
     assert "dfree" not in opcodes
     assert "initial_fmp" not in opcodes
-    # Outer bump and outer sub remain; inner bump is gone via rewire.
+    # Outer bump remains; inner bump is gone via rewire.
     assert opcodes.count("bump") == 1
-    assert opcodes.count("sub") == 1
+    assert opcodes.count("assign") >= 3
     assert fn._needs_fmp is True
 
 
@@ -936,12 +939,12 @@ def test_dfree_initial_fmp_fast_path_runs():
         """
         function main {
             main:
-                %p = dalloca 32
+                %p, %pmark = dalloca 32
                 mstore %p, 1
-                dfree %p
-                %q = dalloca 64
+                dfree %pmark
+                %q, %qmark = dalloca 64
                 mstore 0, %q
-                dfree %q
+                dfree %qmark
                 return 0, 32
         }
         """,
@@ -956,30 +959,63 @@ def test_dfree_initial_fmp_fast_path_runs():
 def test_dfree_fmp_thread_path_reclaims_memory():
     # Exercise the FMP-threading path by having main invoke a needs_fmp
     # helper that itself dallocas and frees. The invoke forces main off
-    # the fast path (interprocedural safety). Main's dfree reverts FMP
-    # via sub fallback; %q lands at the freed base of %p.
+    # the entry-only initial_fmp path. Main's dfree restores the threaded
+    # FMP from its mark; %q lands at the freed base of %p.
     out = _run_program(
         """
         function main {
             main:
-                %p = dalloca 32
+                %p, %pmark = dalloca 32
                 mstore %p, 1
                 invoke @needs_fmp_helper
-                dfree %p
-                %q = dalloca 64
+                dfree %pmark
+                %q, %qmark = dalloca 64
                 mstore 0, %q
-                dfree %q
+                dfree %qmark
                 return 0, 32
         }
 
         function needs_fmp_helper {
             needs_fmp_helper:
                 %retpc = param
-                %scratch = dalloca 16
-                dfree %scratch
+                %scratch, %scratch_mark = dalloca 16
+                dfree %scratch_mark
                 ret %retpc
         }
         """,
         b"",
     )
     assert int.from_bytes(out[:32], "big") == MemoryPositions.RESERVED_MEMORY
+
+
+def test_non_entry_dalloca_uses_threaded_marks_not_initial_fmp():
+    ctx = parse_venom(
+        """
+        function main {
+            main:
+                %p, %mark = dalloca 32
+                mstore %p, 111
+                invoke @helper
+                dfree %mark
+                stop
+        }
+
+        function helper {
+            helper:
+                %retpc = param
+                %q, %qmark = dalloca 32
+                mstore %q, 39
+                dfree %qmark
+                ret %retpc
+        }
+        """
+    )
+    fns = list(ctx.functions.values())
+    for fn in reversed(fns):
+        ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+        DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    helper = ctx.get_function(IRLabel("helper", True))
+    helper_opcodes = [inst.opcode for bb in helper.get_basic_blocks() for inst in bb.instructions]
+    assert "initial_fmp" not in helper_opcodes
+    assert helper._needs_fmp is True

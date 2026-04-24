@@ -640,10 +640,10 @@ class VenomCompiler:
             # misconfigured.
             raise CompilerPanic("dalloca reached codegen; DallocaLoweringPass missing?")
         elif opcode == "dfree":
-            # DallocaLoweringPass eliminates every `dfree` (either by FMP
-            # rewiring or by emitting a `sub`). Surviving dfrees indicate
-            # a pipeline misconfiguration or a malformed input (e.g. dfree
-            # without a matching dalloca).
+            # DallocaLoweringPass eliminates every `dfree` (either by
+            # rewriting the allocation away or by restoring the threaded FMP
+            # from a mark). Surviving dfrees indicate a pipeline
+            # misconfiguration.
             raise CompilerPanic("dfree reached codegen; DallocaLoweringPass missing?")
         elif opcode == "initial_fmp":
             # Lowers to a deferred PUSH of the initial FMP value. We emit a
