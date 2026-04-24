@@ -23,6 +23,7 @@ from vyper.venom.passes import (
     AlgebraicOptimizationPass,
     AssertEliminationPass,
     BranchOptimizationPass,
+    DallocaLoweringPass,
     DeadStoreElimination,
     FunctionInlinerPass,
     InternalReturnCopyForwardingPass,
@@ -129,8 +130,34 @@ def _run_global_passes(
     for fn in ctx.get_functions():
         InternalReturnCopyForwardingPass(ir_analyses[fn], fn).run_pass()
         ReadonlyInvokeArgCopyForwardingPass(ir_analyses[fn], fn).run_pass()
+
+    assert ctx.entry_function is not None
+    fcg = ctx.global_analyses_cache.force_analysis(FCGGlobalAnalysis)
+    _run_pre_inline_dalloca_lowering(ctx.entry_function, fcg, ir_analyses)
+    ctx.global_analyses_cache.invalidate_analysis(ReadonlyMemoryArgsGlobalAnalysis)
+
     if not flags.disable_inlining:
         FunctionInlinerPass(ir_analyses, ctx, flags).run_pass()
+
+
+def _run_pre_inline_dalloca_lowering(
+    entry: IRFunction,
+    fcg: FCGGlobalAnalysis,
+    ir_analyses: dict[IRFunction, IRAnalysesCache],
+) -> None:
+    visited: set[IRFunction] = set()
+
+    def walk(fn: IRFunction) -> None:
+        if fn in visited:
+            return
+        visited.add(fn)
+
+        for callee in fcg.get_callees(fn):
+            walk(callee)
+
+        DallocaLoweringPass(ir_analyses[fn], fn).run_pass()
+
+    walk(entry)
 
 
 def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags, disable_mem_checks=False) -> None:

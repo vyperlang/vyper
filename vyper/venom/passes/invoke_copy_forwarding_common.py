@@ -64,7 +64,7 @@ class InvokeCopyForwardingBase(IRPass):
         if callee._invoke_param_count is None or callee._has_memory_return_buffer_param is None:
             return False
 
-        invoke_arg_count = len(invoke_inst.operands) - 1
+        invoke_arg_count = len(invoke_inst.operands) - 1 - int(callee._has_fmp_param)
         if invoke_arg_count != callee._invoke_param_count:
             return False
 

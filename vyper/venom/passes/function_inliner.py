@@ -6,7 +6,7 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache
 from vyper.venom.analysis.fcg import FCGGlobalAnalysis
 from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRGlobalPass
@@ -68,9 +68,6 @@ class FunctionInlinerPass(IRGlobalPass):
             if call_count == 0:
                 continue
 
-            if not self._is_inline_safe_for_dynamic_alloc(func):
-                continue
-
             # Always inline if there is only one call site.
             if call_count == 1:
                 return func
@@ -80,26 +77,6 @@ class FunctionInlinerPass(IRGlobalPass):
                 return func
 
         return None
-
-    def _is_inline_safe_for_dynamic_alloc(self, func: IRFunction) -> bool:
-        """
-        Generic `dalloca` can rely on invoke/ret boundaries to reclaim an open
-        frame. Inlining such a function would erase that boundary and change
-        semantics. We therefore inline only dynamic-allocation functions whose
-        dallocas are fully paired within their originating basic blocks.
-        """
-        for bb in func.get_basic_blocks():
-            open_tokens: list[IROperand] = []
-            for inst in bb.instructions:
-                if inst.opcode == "dalloca":
-                    open_tokens.append(inst.get_outputs()[-1])
-                elif inst.opcode == "dfree":
-                    if not open_tokens or inst.operands[0] != open_tokens[-1]:
-                        return False
-                    open_tokens.pop()
-            if open_tokens:
-                return False
-        return True
 
     def _inline_function(self, func: IRFunction, call_sites: List[IRInstruction]) -> None:
         """

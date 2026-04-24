@@ -53,6 +53,9 @@ class ReadonlyMemoryArgsGlobalAnalysis(IRGlobalAnalysis):
         if len(params) == 0:
             return _FnParamInfo(tuple(), {})
 
+        if fn._has_fmp_param:
+            params = params[1:]
+
         if fn._invoke_param_count is not None:
             invoke_count = min(fn._invoke_param_count, len(params))
             invoke_params = tuple(params[:invoke_count])
@@ -139,13 +142,14 @@ class ReadonlyMemoryArgsGlobalAnalysis(IRGlobalAnalysis):
             return
 
         callee = self.ctx.functions.get(target, None)
+        arg_start = 2 if callee is not None and callee._has_fmp_param else 1
 
-        for op_idx, op in enumerate(inst.operands[1:], start=1):
+        for op_idx, op in enumerate(inst.operands[arg_start:], start=arg_start):
             caller_idxs = root_param_indices(op)
             if len(caller_idxs) == 0:
                 continue
 
-            callee_arg_idx = op_idx - 1
+            callee_arg_idx = op_idx - arg_start
             if callee is None:
                 for caller_idx in caller_idxs:
                     mutable[caller_idx] = True

@@ -53,6 +53,9 @@ class DallocaLoweringPass(IRPass):
         )
         has_dfree = any(inst.opcode == "dfree" for bb in fn.get_basic_blocks() for inst in bb.instructions)
 
+        if fn._has_fmp_param and not has_dalloca and not has_dfree:
+            return
+
         calls_needs_fmp = False
         for bb in fn.get_basic_blocks():
             for inst in bb.instructions:
@@ -69,11 +72,13 @@ class DallocaLoweringPass(IRPass):
 
         if not has_dalloca and not has_dfree and not calls_needs_fmp:
             fn._needs_fmp = False
+            fn._has_fmp_param = False
             return
 
         if has_dalloca and self._can_initial_fmp_lower(fn):
             self._initial_fmp_lower(fn)
             fn._needs_fmp = False
+            fn._has_fmp_param = False
             self._invalidate_analyses()
             return
 
@@ -87,6 +92,7 @@ class DallocaLoweringPass(IRPass):
             self._rewrite_bb(bb, fn, fmp_var)
 
         fn._needs_fmp = True
+        fn._has_fmp_param = True
         self._invalidate_analyses()
 
     def _invalidate_analyses(self) -> None:

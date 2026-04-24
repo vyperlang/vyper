@@ -2,10 +2,12 @@ import pytest
 from pyrevm import EVM, AccountInfo
 
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
+from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.evm.address_space import MEMORY
 from vyper.evm.assembler.core import assembly_to_evm
 from vyper.exceptions import CompilerPanic
 from vyper.utils import MemoryPositions
+from vyper.venom import run_passes_on
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLabel
 from vyper.venom.effects import Effects
@@ -419,6 +421,25 @@ def _run_program(pre: str, calldata: bytes) -> bytes:
     return evm.message_call(caller=caller, to=addr, calldata=calldata, gas=1_000_000)
 
 
+def _run_program_full_pipeline(pre: str, calldata: bytes, *, disable_inlining: bool) -> tuple[bytes, object]:
+    ctx = parse_venom(pre)
+    flags = VenomOptimizationFlags(
+        level=OptimizationLevel.O2, disable_inlining=disable_inlining
+    )
+    run_passes_on(ctx, flags, disable_mem_checks=True)
+
+    asm = VenomCompiler(ctx).generate_evm_assembly()
+    bytecode, _ = assembly_to_evm(asm)
+
+    caller = "0x" + "10" * 20
+    addr = "0x" + "20" * 20
+    evm = EVM()
+    evm.set_balance(caller, 1)
+    evm.insert_account_info(addr, AccountInfo(code=bytecode))
+    out = evm.message_call(caller=caller, to=addr, calldata=calldata, gas=1_000_000)
+    return out, ctx
+
+
 def test_dalloca_memory_reclaimed_across_call():
     # A calls B; B dallocas without dfree (reclaimed implicitly at ret
     # via SSA liveness). After B returns, A dallocas at the same address
@@ -444,6 +465,32 @@ def test_dalloca_memory_reclaimed_across_call():
     )
     ptr_after = int.from_bytes(out[:32], "big")
     assert ptr_after == MemoryPositions.RESERVED_MEMORY
+
+
+def test_dalloca_memory_reclaimed_across_call_after_inlining():
+    src = """
+    function main {
+        main:
+            invoke @callee
+            %p, %p_mark = dalloca 32
+            mstore 0, %p
+            return 0, 32
+    }
+
+    function callee {
+        callee:
+            %retpc = param
+            %b, %b_mark = dalloca 32
+            ret %retpc
+    }
+    """
+
+    out_inlined, ctx_inlined = _run_program_full_pipeline(src, b"", disable_inlining=False)
+    out_no_inline, _ = _run_program_full_pipeline(src, b"", disable_inlining=True)
+
+    assert int.from_bytes(out_inlined[:32], "big") == MemoryPositions.RESERVED_MEMORY
+    assert out_inlined == out_no_inline
+    assert IRLabel("callee") not in ctx_inlined.functions
 
 
 def test_dalloca_fmp_preserved_across_nested_calls():
