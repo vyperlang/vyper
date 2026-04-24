@@ -245,7 +245,7 @@ class VenomCompiler:
             final_stack_depth = -(len(stack_ops) - i - 1)
 
             depth = stack.get_depth(op)
-            assert depth_order != StackModel.NOT_IN_STACK
+            assert depth != StackModel.NOT_IN_STACK
             if depth == final_stack_depth:
                 continue
             assert depth >= -16, depth
