@@ -67,7 +67,7 @@ Make sure you have `uv` installed
 
 #### pip
 
-Make sure you have `pip`, `setuptools`, and `pytest` installed
+Make sure you have `pip` (version 25.1 or above), `setuptools`, and `pytest` installed
 
 1. Clone this repo and `cd` into it
 2. Run `git fetch --tags git@github.com:vyperlang/vyper.git` to get the tags necessary for version inference

@@ -29,7 +29,7 @@ jobs:
         cache: "pip"
 
     - name: Install Dependencies
-      run: pip install .[lint]
+      run: pip install . --group lint
 
     - name: Debug dependencies
       run: pip freeze
@@ -59,7 +59,7 @@ jobs:
           cache: "pip"
 
       - name: Install deps
-        run: pip install .[docs]
+        run: pip install . --group docs
 
       - name: Run docs
         run: sphinx-build -E -b html docs dist/docs -n -q --color
@@ -79,7 +79,7 @@ jobs:
         cache: "pip"
 
     - name: Install dependencies
-      run: pip install .[test]
+      run: pip install . --group test
 
     - name: Install hevm
       run: |
@@ -188,7 +188,7 @@ jobs:
         cache: "pip"
 
     - name: Install dependencies
-      run: pip install .[test]
+      run: pip install . --group test
 
     - name: Debug dependencies
       run: pip freeze
@@ -248,7 +248,7 @@ jobs:
         cache: "pip"
 
     - name: Install dependencies
-      run: pip install .[test]
+      run: pip install . --group test
 
     # fetch test durations
     # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
