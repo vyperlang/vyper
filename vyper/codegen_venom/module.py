@@ -448,9 +448,7 @@ def _generate_selector_section_sparse(
             # Location = selector_buckets + bucket_id * 2
             bucket_hdr_offset = builder.mul(bucket_id, IRLiteral(SZ_BUCKET_HEADER))
             # Use add with label - the label resolves to its code position at link time
-            selector_buckets_addr = builder.offset(
-                IRLiteral(0), runtime_ctx.named_label("selector_buckets")
-            )
+            selector_buckets_addr = builder.offset(IRLiteral(0), "selector_buckets")
             bucket_hdr_location = builder.add(selector_buckets_addr, bucket_hdr_offset)
 
             # Copy 2-byte header to memory at offset (32 - 2) = 30
@@ -705,15 +703,13 @@ def _generate_selector_section_dense(
         runtime_ctx.append_data_section("BUCKET_HEADERS")
         for bucket_id_val, bucket in sorted(jumptable_info.items()):
             runtime_ctx.append_data_item(bucket.magic.to_bytes(2, "big"))
-            runtime_ctx.append_data_item(runtime_ctx.named_label(f"bucket_{bucket_id_val}"))
+            runtime_ctx.append_data_item(f"bucket_{bucket_id_val}")
             runtime_ctx.append_data_item(bucket.bucket_size.to_bytes(1, "big"))
 
         # Load bucket header from data section
         # Location = BUCKET_HEADERS + bucket_id * 5
         bucket_hdr_offset = builder.mul(bucket_id_var, IRLiteral(SZ_BUCKET_HEADER))
-        bucket_headers_addr = builder.offset(
-            IRLiteral(0), runtime_ctx.named_label("BUCKET_HEADERS")
-        )
+        bucket_headers_addr = builder.offset(IRLiteral(0), "BUCKET_HEADERS")
         bucket_hdr_location = builder.add(bucket_headers_addr, bucket_hdr_offset)
 
         # Copy 5-byte header to memory at offset (32 - 5) = 27
@@ -1523,7 +1519,7 @@ def _emit_deploy_epilogue(
             builder.assert_(copy_success)
 
     # Copy runtime bytecode from data section to memory
-    builder.codecopy(dst_ptr, builder.ctx.named_label("runtime_begin"), IRLiteral(runtime_codesize))
+    builder.codecopy(dst_ptr, "runtime_begin", IRLiteral(runtime_codesize))
 
     # Return runtime + immutables
     builder.return_(dst_ptr, IRLiteral(total_size))

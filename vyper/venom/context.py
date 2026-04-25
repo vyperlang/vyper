@@ -149,10 +149,12 @@ class IRContext:
             src.entry_function = None
         return self
 
-    def append_data_item(self, data: IRLabel | bytes) -> None:
+    def append_data_item(self, data: IRLabel | bytes | str) -> None:
         """
         Append data to current data section
         """
+        if isinstance(data, str):
+            data = self.named_label(data)
         assert len(self.data_segment) > 0
         data_section = self.data_segment[-1]
         data_section.data_items.append(DataItem(data))
