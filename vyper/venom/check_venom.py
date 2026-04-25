@@ -128,6 +128,19 @@ class DfreeArityError(VenomError):
         )
 
 
+class UnsupportedInstruction(VenomError):
+    message: str = "unsupported instruction"
+
+    def __init__(self, caller: IRFunction, inst: IRInstruction, detail: str):
+        self.caller = caller
+        self.inst = inst
+        self.detail = detail
+
+    def __str__(self):
+        bb = self.inst.parent
+        return f"unsupported instruction in {self.caller.name}: {self.detail}\n  {self.inst}\n\n{bb}"
+
+
 def _handle_var_definition(
     fn: IRFunction, bb: IRBasicBlock, var_def: VarDefinition
 ) -> list[VenomError]:
@@ -212,6 +225,13 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
                 if inst.opcode == "dfree":
                     if len(inst.operands) != 1 or got_num != 0:
                         errors.append(DfreeArityError(caller, inst))
+                    continue
+                if inst.opcode == "memtop":
+                    errors.append(
+                        UnsupportedInstruction(
+                            caller, inst, "`memtop` has been removed; use `dalloca` instead"
+                        )
+                    )
                     continue
                 if inst.opcode != "invoke":
                     continue
