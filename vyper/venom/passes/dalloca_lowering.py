@@ -149,21 +149,44 @@ class DallocaLoweringPass(IRPass):
             return False
 
         for bb in fn.get_basic_blocks():
-            open_tokens: list[IRVariable] = []
+            open_allocs: list[tuple[IRVariable, IRVariable]] = []
+            ptr_aliases: set[IRVariable] = set()
+            closed_ptrs: set[IRVariable] = set()
             for inst in bb.instructions:
                 if inst.opcode == "dalloca":
-                    if open_tokens:
+                    if any(op in closed_ptrs for op in inst.operands):
                         return False
-                    open_tokens.append(self._restore_token(inst))
-                elif inst.opcode == "dfree":
-                    if not open_tokens or inst.operands[0] != open_tokens[-1]:
+                    if open_allocs:
                         return False
-                    open_tokens.pop()
-                elif inst.opcode == "invoke" and open_tokens:
+                    ptr_out = inst.get_outputs()[0]
+                    ptr_aliases.add(ptr_out)
+                    open_allocs.append((ptr_out, self._restore_token(inst)))
+                    continue
+
+                if inst.opcode == "dfree":
+                    if not open_allocs or inst.operands[0] != open_allocs[-1][1]:
+                        return False
+                    open_allocs.pop()
+                    closed_ptrs.update(ptr_aliases)
+                    continue
+
+                if any(op in closed_ptrs for op in inst.operands):
                     return False
-            if open_tokens:
+
+                if inst.opcode == "invoke" and open_allocs:
+                    return False
+
+                if inst.opcode == "assign" and len(inst.operands) == 1:
+                    outputs = inst.get_outputs()
+                    if len(outputs) == 1 and inst.operands[0] in ptr_aliases:
+                        ptr_aliases.add(outputs[0])
+
+            if open_allocs:
                 return False
         return True
+
+    def _inst_taints_fmp(self, inst: IRInstruction, fmp_var: IRVariable) -> bool:
+        return inst.opcode == "invoke" or fmp_var in inst.operands or fmp_var in inst.get_outputs()
 
     def _initial_fmp_lower(self, fn) -> None:
         for bb in fn.get_basic_blocks():
@@ -249,7 +272,7 @@ class DallocaLoweringPass(IRPass):
         first_idx = new_instructions.index(entry["introduced"][0])
 
         tainted = any(
-            fmp_var in new_instructions[i].operands or new_instructions[i].opcode == "invoke"
+            self._inst_taints_fmp(new_instructions[i], fmp_var)
             for i in range(first_idx + len(entry["introduced"]), len(new_instructions))
         )
 
@@ -361,6 +384,10 @@ class DallocaLoweringPass(IRPass):
 
     def _deaugment_stale_invoke_fmp_args(self, fn) -> bool:
         changed = False
+        caller_layout = FunctionCallLayout(fn)
+        hidden_fmp_param = caller_layout.hidden_fmp_param
+        if hidden_fmp_param is None:
+            return False
 
         for bb in fn.get_basic_blocks():
             for inst in bb.instructions:
@@ -377,6 +404,10 @@ class DallocaLoweringPass(IRPass):
                 expected_arg_count = FunctionCallLayout(callee).expected_user_arg_count
                 current_arg_count = layout.actual_operand_count_after_target
                 if current_arg_count != expected_arg_count + 1:
+                    continue
+
+                trailing_operand = inst.operands[-1]
+                if caller_layout.param_for_alias(trailing_operand) != hidden_fmp_param:
                     continue
 
                 layout.remove_trailing_operand()

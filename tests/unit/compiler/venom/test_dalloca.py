@@ -16,7 +16,7 @@ from vyper.venom.analysis import (
     VarDefinition,
     VariableRangeAnalysis,
 )
-from vyper.venom.basicblock import IRLabel, IRLiteral, IRVariable
+from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.effects import Effects
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes import (
@@ -610,6 +610,73 @@ def test_dead_hidden_fmp_pruning_deduplicates_join_users():
     assert fn._needs_fmp is False
 
 
+def test_stale_fmp_arg_cleanup_removes_only_hidden_fmp_alias():
+    ctx = parse_venom(
+        """
+        function main {
+            main:
+                %fmp = param
+                invoke @callee, %fmp
+                stop
+        }
+
+        function callee {
+            callee:
+                %retpc = param
+                ret %retpc
+        }
+        """
+    )
+    main = ctx.get_function(IRLabel("main"))
+    main._has_fmp_param = True
+    main._needs_fmp = True
+
+    DallocaLoweringPass(IRAnalysesCache(main), main).run_pass()
+
+    invoke = next(
+        inst
+        for bb in main.get_basic_blocks()
+        for inst in bb.instructions
+        if inst.opcode == "invoke"
+    )
+    assert len(invoke.operands) == 1
+    assert main._has_fmp_param is False
+    assert main._needs_fmp is False
+
+
+def test_stale_fmp_arg_cleanup_keeps_non_fmp_extra_operand():
+    ctx = parse_venom(
+        """
+        function main {
+            main:
+                %fmp = param
+                %arg = source
+                invoke @callee, %arg
+                stop
+        }
+
+        function callee {
+            callee:
+                %retpc = param
+                ret %retpc
+        }
+        """
+    )
+    main = ctx.get_function(IRLabel("main"))
+    main._has_fmp_param = True
+    main._needs_fmp = True
+
+    DallocaLoweringPass(IRAnalysesCache(main), main).run_pass()
+
+    invoke = next(
+        inst
+        for bb in main.get_basic_blocks()
+        for inst in bb.instructions
+        if inst.opcode == "invoke"
+    )
+    assert invoke.operands[1:] == [IRVariable("%arg")]
+
+
 def test_dalloca_threads_hidden_fmp_at_tail_of_call_layout():
     ctx = parse_venom(
         """
@@ -1051,6 +1118,36 @@ def test_dfree_non_lifo_marks_lower_without_validation():
     assert opcodes.count("assign") >= 3
 
 
+def test_dfree_rewrite_keeps_bump_when_fmp_redefined_output_only():
+    ctx = parse_from_basic_block(
+        """
+        main:
+            stop
+        """
+    )
+    fn = next(iter(ctx.functions.values()))
+    bb = fn.entry
+    fmp_var = IRVariable("%fmp")
+    ptr = IRVariable("%p")
+    mark = IRVariable("%mark")
+    origin = IRInstruction("dalloca", [IRLiteral(32)], [ptr, mark])
+    origin.parent = bb
+
+    pass_ = DallocaLoweringPass(IRAnalysesCache(fn), fn)
+    lowered, entry = pass_._lower_dalloca(origin, fn, fmp_var, bb)
+    fmp_redefinition = IRInstruction("source", [], [fmp_var])
+    fmp_redefinition.parent = bb
+    new_instructions = [*lowered, fmp_redefinition]
+
+    dfree = IRInstruction("dfree", [mark], [])
+    dfree.parent = bb
+    pass_._lower_dfree(dfree, fmp_var, bb, [entry], new_instructions)
+
+    assert entry["bump_inst"] in new_instructions
+    assert new_instructions[-1].opcode == "assign"
+    assert new_instructions[-1].output == fmp_var
+
+
 def test_dfree_does_not_do_pointer_lifetime_validation():
     # Pointer lifetime validation is not part of this low-level IR
     # contract; dfree restores the FMP but does not prove pointer safety.
@@ -1067,6 +1164,30 @@ def test_dfree_does_not_do_pointer_lifetime_validation():
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
     DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    opcodes = [inst.opcode for bb in fn.get_basic_blocks() for inst in bb.instructions]
+    assert "initial_fmp" not in opcodes
+    assert fn._needs_fmp is True
+
+
+def test_initial_fmp_fast_path_rejects_aliased_use_after_dfree():
+    ctx = parse_from_basic_block(
+        """
+        main:
+            %p, %mark = dalloca 32
+            %alias = assign %p
+            dfree %mark
+            %v = mload %alias
+            sink %v
+        """
+    )
+    fn = next(iter(ctx.functions.values()))
+    ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    opcodes = [inst.opcode for bb in fn.get_basic_blocks() for inst in bb.instructions]
+    assert "initial_fmp" not in opcodes
+    assert fn._needs_fmp is True
 
 
 def test_initial_fmp_fast_path_rejects_invoke_during_live_dalloca():
@@ -1271,6 +1392,59 @@ def test_dfree_fmp_thread_path_reclaims_memory():
         b"",
     )
     assert int.from_bytes(out[:32], "big") == 0
+
+
+def test_cross_bb_dfree_reclaims_threaded_fmp():
+    out = _run_program(
+        """
+        function main {
+            main:
+                %p, %pmark = dalloca 32
+                %cond = calldatasize
+                jnz %cond, @left, @right
+
+            left:
+                jmp @free
+
+            right:
+                jmp @free
+
+            free:
+                dfree %pmark
+                %q, %qmark = dalloca 32
+                mstore 0, %q
+                dfree %qmark
+                return 0, 32
+        }
+        """,
+        b"",
+    )
+    assert int.from_bytes(out[:32], "big") == 0
+
+
+def test_loop_carried_dalloca_threads_fmp():
+    out, _ = _run_program_full_pipeline(
+        """
+        function main {
+            main:
+                %i = 0
+                jmp @loop
+
+            loop:
+                %p, %pmark = dalloca 32
+                %i = add %i, 1
+                %done = eq %i, 2
+                jnz %done, @exit, @loop
+
+            exit:
+                mstore 0, %p
+                return 0, 32
+        }
+        """,
+        b"",
+        disable_inlining=True,
+    )
+    assert int.from_bytes(out[:32], "big") == 32
 
 
 def test_non_entry_dalloca_uses_threaded_marks_not_initial_fmp():
