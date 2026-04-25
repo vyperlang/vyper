@@ -1,6 +1,11 @@
 from vyper.utils import evm_not
 from vyper.venom.analysis import BasePtrAnalysis, DFGAnalysis, LivenessAnalysis, MemLivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
+from vyper.venom.call_layout import (
+    get_hidden_fmp_param_insert_index,
+    get_hidden_fmp_param_inst,
+    get_user_param_instructions,
+)
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -97,7 +102,7 @@ class DallocaLoweringPass(IRPass):
         # whole function. MakeSSA will version this and place phis as needed.
         fmp_var = fn.get_next_variable()
         param_inst = IRInstruction("param", [], [fmp_var])
-        fn.entry.insert_instruction(param_inst, index=0)
+        fn.entry.insert_instruction(param_inst, index=get_hidden_fmp_param_insert_index(fn))
 
         for bb in fn.get_basic_blocks():
             self._rewrite_bb(bb, fn, fmp_var)
@@ -286,32 +291,20 @@ class DallocaLoweringPass(IRPass):
     def _augment_invoke(self, inst: IRInstruction, fmp_var: IRVariable) -> None:
         # Invoke's internal operand layout (after parser reversal):
         #   operands[0] = target label
-        #   operands[1] = arg-pushed-first = deepest below return_label
-        #   operands[-1] = arg-pushed-last = TOS below return_label
-        # The callee's params pop in textual order, so the first `param`
-        # instruction takes the *deepest* caller arg. To make fmp the
-        # deepest arg (matching the leading `param` we inject in the
-        # callee), fmp must be at operands[1], immediately after the
-        # target label.
+        #   operands[1:] = user args in callee-param order
+        #   operands[-1] = hidden FMP when present
+        # The callee's params bind in internal operand order, so appending
+        # the hidden FMP keeps every user-arg position stable and makes the
+        # FMP param the last param before return_pc.
         #
         # We intentionally do not thread a new FMP value back out of the
         # callee. The caller's current FMP SSA value survives the invoke
         # via liveness, so any callee allocation left unreleased is
         # reclaimed when control returns to the caller.
-        inst.operands = [inst.operands[0], fmp_var] + inst.operands[1:]
-
-    def _get_hidden_fmp_param_inst(self, fn) -> IRInstruction | None:
-        if not fn._has_fmp_param:
-            return None
-
-        params = list(fn.entry.param_instructions)
-        if len(params) == 0:
-            return None
-
-        return params[0]
+        inst.operands = [*inst.operands, fmp_var]
 
     def _prune_dead_hidden_fmp_param(self, fn) -> bool:
-        param_inst = self._get_hidden_fmp_param_inst(fn)
+        param_inst = get_hidden_fmp_param_inst(fn)
         if param_inst is None:
             return False
 
@@ -347,12 +340,6 @@ class DallocaLoweringPass(IRPass):
 
         return dead_insts
 
-    def _callee_invoke_arg_count(self, callee) -> int:
-        param_count = len(list(callee.entry.param_instructions))
-        if any(inst.opcode == "ret" for bb in callee.get_basic_blocks() for inst in bb.instructions):
-            param_count -= 1
-        return max(param_count, 0)
-
     def _deaugment_stale_invoke_fmp_args(self, fn) -> bool:
         changed = False
 
@@ -367,12 +354,12 @@ class DallocaLoweringPass(IRPass):
                 if callee._has_fmp_param:
                     continue
 
-                expected_arg_count = self._callee_invoke_arg_count(callee)
+                expected_arg_count = len(get_user_param_instructions(callee))
                 current_arg_count = len(inst.operands) - 1
                 if current_arg_count != expected_arg_count + 1:
                     continue
 
-                inst.operands = [inst.operands[0], *inst.operands[2:]]
+                inst.operands.pop()
                 changed = True
 
         return changed

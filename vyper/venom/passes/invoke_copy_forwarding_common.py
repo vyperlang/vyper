@@ -12,7 +12,13 @@ from vyper.venom.analysis import (
     MemoryAliasAnalysis,
 )
 from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
-from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
+from vyper.venom.call_layout import (
+    get_invoke_callee,
+    get_invoke_return_buffer_operand_pos,
+    get_invoke_user_arg_count,
+    get_invoke_user_arg_index,
+)
 from vyper.venom.effects import EMPTY, Effects
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
@@ -64,31 +70,19 @@ class InvokeCopyForwardingBase(IRPass):
         if callee._invoke_param_count is None or callee._has_memory_return_buffer_param is None:
             return False
 
-        invoke_arg_count = len(invoke_inst.operands) - 1 - int(callee._has_fmp_param)
+        invoke_arg_count = get_invoke_user_arg_count(invoke_inst, callee)
         if invoke_arg_count != callee._invoke_param_count:
             return False
 
         return callee._has_memory_return_buffer_param
 
-    def _invoke_arg_start(self, invoke_inst: IRInstruction) -> int:
-        callee = self._get_invoke_callee(invoke_inst)
-        return 1 + int(callee is not None and callee._has_fmp_param)
-
     def _invoke_user_arg_index(self, invoke_inst: IRInstruction, operand_idx: int) -> int | None:
-        if operand_idx == 0:
-            return None
-
-        arg_start = self._invoke_arg_start(invoke_inst)
-        if operand_idx < arg_start:
-            return None
-
-        return operand_idx - arg_start
+        callee = self._get_invoke_callee(invoke_inst)
+        return get_invoke_user_arg_index(invoke_inst, operand_idx, callee)
 
     def _invoke_return_buffer_operand_pos(self, invoke_inst: IRInstruction) -> int | None:
-        if not self._invoke_has_return_buffer(invoke_inst):
-            return None
-
-        return self._invoke_arg_start(invoke_inst)
+        callee = self._get_invoke_callee(invoke_inst)
+        return get_invoke_return_buffer_operand_pos(invoke_inst, callee)
 
     def _is_alloca_like(self, inst: IRInstruction | None) -> bool:
         return inst is not None and inst.opcode == "alloca"
@@ -110,10 +104,7 @@ class InvokeCopyForwardingBase(IRPass):
         return arg_idx in readonly_idxs
 
     def _get_invoke_callee(self, invoke_inst: IRInstruction):
-        target = invoke_inst.operands[0]
-        if not isinstance(target, IRLabel):
-            return None
-        return self.function.ctx.functions.get(target)
+        return get_invoke_callee(self.function.ctx, invoke_inst)
 
     def _has_src_clobber_between(
         self, copy_inst: IRInstruction, rewrite_sites: set[tuple[IRInstruction, int]]

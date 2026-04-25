@@ -192,8 +192,8 @@ def test_readonly_forwarding_ignores_hidden_fmp_arg():
     insts = [inst for bb in caller.get_basic_blocks() for inst in bb.instructions]
 
     invoke = next(inst for inst in insts if inst.opcode == "invoke")
-    assert invoke.operands[2] == IRVariable("%other")
-    assert invoke.operands[3] == IRVariable("%src")
+    assert invoke.operands[1] == IRVariable("%other")
+    assert invoke.operands[2] == IRVariable("%src")
     assert all(inst.opcode != "mcopy" for inst in insts)
 
 

@@ -9,7 +9,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import MemoryPositions
 from vyper.venom import run_passes_on
 from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRLabel
+from vyper.venom.basicblock import IRLabel, IRVariable
 from vyper.venom.effects import Effects
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes import (
@@ -521,6 +521,43 @@ def test_inlining_cleanup_removes_dead_entry_fmp_plumbing():
 
     asm = VenomCompiler(ctx).generate_evm_assembly()
     assert all("__initial_fmp__" not in str(item) for item in asm)
+
+
+def test_dalloca_threads_hidden_fmp_at_tail_of_call_layout():
+    ctx = parse_venom(
+        """
+        function main {
+            main:
+                %arg = alloca 32
+                invoke @callee, %arg
+                stop
+        }
+
+        function callee {
+            callee:
+                %arg = param
+                %retpc = param
+                %p, %mark = dalloca 32
+                dfree %mark
+                ret %retpc
+        }
+        """
+    )
+    fns = list(ctx.functions.values())
+    for fn in reversed(fns):
+        DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    main = ctx.get_function(IRLabel("main"))
+    callee = ctx.get_function(IRLabel("callee"))
+
+    invoke = next(inst for bb in main.get_basic_blocks() for inst in bb.instructions if inst.opcode == "invoke")
+    assert invoke.operands[1] == IRVariable("%arg")
+    assert invoke.operands[-1] == next(inst.output for inst in main.entry.param_instructions)
+
+    callee_params = [inst.output for inst in callee.entry.param_instructions]
+    assert callee_params[0] == IRVariable("%arg")
+    assert callee_params[1] != IRVariable("%retpc")
+    assert callee_params[-1] == IRVariable("%retpc")
 
 
 def test_dalloca_fmp_preserved_across_nested_calls():

@@ -28,7 +28,9 @@ class IRFunction:
 
     # Set by DallocaLoweringPass: True if this function threads the
     # free-memory pointer (i.e. contains a dalloca or invokes a callee
-    # that does). Functions on the `initial_fmp` fast path keep this False.
+    # that does). When present, the hidden FMP param is placed at the
+    # tail of the param list, immediately before return_pc (if any).
+    # Functions on the `initial_fmp` fast path keep this False.
     _needs_fmp: bool
     _has_fmp_param: bool
 

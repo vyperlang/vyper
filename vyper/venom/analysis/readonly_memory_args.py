@@ -3,6 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from vyper.venom.basicblock import IRInstruction, IRLabel, IROperand, IRVariable
+from vyper.venom.call_layout import (
+    get_invoke_callee,
+    get_invoke_user_operands,
+    get_user_param_instructions,
+)
 from vyper.venom.function import IRFunction
 from vyper.venom.memory_location import memory_write_ops
 
@@ -49,30 +54,16 @@ class ReadonlyMemoryArgsGlobalAnalysis(IRGlobalAnalysis):
         return self.readonly_idxs_by_fn.get(fn, ())
 
     def _collect_param_info(self, fn: IRFunction) -> _FnParamInfo:
-        params = [inst.output for inst in fn.entry.param_instructions]
+        params = [inst.output for inst in get_user_param_instructions(fn)]
         if len(params) == 0:
             return _FnParamInfo(tuple(), {})
 
-        if fn._has_fmp_param:
-            params = params[1:]
-
         if fn._invoke_param_count is not None:
-            invoke_count = min(fn._invoke_param_count, len(params))
-            invoke_params = tuple(params[:invoke_count])
-        elif self._has_ret_instruction(fn):
-            invoke_params = tuple(params[:-1])
-        else:
-            invoke_params = tuple(params)
+            params = params[: min(fn._invoke_param_count, len(params))]
 
+        invoke_params = tuple(params)
         invoke_param_index = {var: i for i, var in enumerate(invoke_params)}
         return _FnParamInfo(invoke_params, invoke_param_index)
-
-    def _has_ret_instruction(self, fn: IRFunction) -> bool:
-        for bb in fn.get_basic_blocks():
-            for inst in bb.instructions:
-                if inst.opcode == "ret":
-                    return True
-        return False
 
     def _analyze_fn(
         self, fn: IRFunction, info: _FnParamInfo, readonly_by_fn: dict[IRFunction, tuple[bool, ...]]
@@ -136,20 +127,18 @@ class ReadonlyMemoryArgsGlobalAnalysis(IRGlobalAnalysis):
     ) -> None:
         target = inst.operands[0]
         if not isinstance(target, IRLabel):
-            for op in inst.operands[1:]:
+            for op in get_invoke_user_operands(inst, None):
                 for idx in root_param_indices(op):
                     mutable[idx] = True
             return
 
-        callee = self.ctx.functions.get(target, None)
-        arg_start = 2 if callee is not None and callee._has_fmp_param else 1
+        callee = get_invoke_callee(self.ctx, inst)
 
-        for op_idx, op in enumerate(inst.operands[arg_start:], start=arg_start):
+        for callee_arg_idx, op in enumerate(get_invoke_user_operands(inst, callee)):
             caller_idxs = root_param_indices(op)
             if len(caller_idxs) == 0:
                 continue
 
-            callee_arg_idx = op_idx - arg_start
             if callee is None:
                 for caller_idx in caller_idxs:
                     mutable[caller_idx] = True
