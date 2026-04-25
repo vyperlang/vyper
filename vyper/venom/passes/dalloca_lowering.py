@@ -1,4 +1,3 @@
-from vyper.utils import evm_not
 from vyper.venom.analysis import BasePtrAnalysis, DFGAnalysis, LivenessAnalysis, MemLivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.call_layout import (
@@ -28,7 +27,8 @@ class DallocaLoweringPass(IRPass):
          that already needs FMP threading.
       2. Rewrite each `dalloca` into:
              %a       = add %size, 31
-             %aligned = and %a, 0xff..e0
+             %mask    = not 31
+             %aligned = and %a, %mask
              %ptr, %fmp = bump %fmp, %aligned
          and, for the 2-output form, materialize `%mark = assign %ptr`.
       3. Rewrite `dfree %mark` into `assign %mark -> %fmp`.
@@ -256,13 +256,15 @@ class DallocaLoweringPass(IRPass):
         mark_out = inst.get_outputs()[1]
 
         a_var = fn.get_next_variable()
+        mask_var = fn.get_next_variable()
         aligned_var = fn.get_next_variable()
 
         add_inst = IRInstruction("add", [IRLiteral(31), size], [a_var])
-        and_inst = IRInstruction("and", [IRLiteral(evm_not(31)), a_var], [aligned_var])
+        mask_inst = IRInstruction("not", [IRLiteral(31)], [mask_var])
+        and_inst = IRInstruction("and", [mask_var, a_var], [aligned_var])
         bump_inst = IRInstruction("bump", [fmp_var, aligned_var], [ptr_out, fmp_var])
 
-        lowered = [add_inst, and_inst, bump_inst]
+        lowered = [add_inst, mask_inst, and_inst, bump_inst]
         for new_inst in lowered:
             self._copy_metadata(inst, new_inst, bb)
 

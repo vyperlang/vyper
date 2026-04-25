@@ -436,7 +436,7 @@ class IRInstruction:
         if self.opcode == "dalloca":
             # `dalloca` is high-level sugar and is eliminated by DallocaLoweringPass
             # before assembly emission. The lowered generic form is:
-            #   PUSH1 31 + ADD, PUSH1 31 + NOT + AND, DUP2 + ADD, assign ptr -> mark
+            #   PUSH1 31 + ADD, PUSH1 31 + NOT, AND, DUP2 + ADD, assign ptr -> mark
             return 10
         if self.opcode == "bump":
             return 2  # DUP2 ADD

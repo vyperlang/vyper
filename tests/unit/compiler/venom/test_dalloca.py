@@ -9,7 +9,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import MemoryPositions
 from vyper.venom import run_passes_on
 from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRLabel, IRVariable
+from vyper.venom.basicblock import IRLabel, IRLiteral, IRVariable
 from vyper.venom.effects import Effects
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes import (
@@ -385,6 +385,28 @@ def test_dalloca_is_fully_lowered():
     assert opcodes.count("assign") >= 1
 
 
+def test_dalloca_alignment_mask_uses_small_literal():
+    ctx = parse_from_basic_block(
+        """
+        main:
+            %size = calldatasize
+            %p, %mark = dalloca %size
+            mstore %p, 1
+            stop
+        """
+    )
+    fn = next(iter(ctx.functions.values()))
+    ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    insts = [inst for bb in fn.get_basic_blocks() for inst in bb.instructions]
+    assert any(inst.opcode == "not" and inst.operands == [IRLiteral(31)] for inst in insts)
+    assert not any(
+        inst.opcode == "and" and any(isinstance(op, IRLiteral) for op in inst.operands)
+        for inst in insts
+    )
+
+
 def test_dalloca_reaching_codegen_panics():
     # Codegen guards against a misconfigured pipeline: if DallocaLoweringPass
     # did not run, any surviving `dalloca` must panic rather than silently
@@ -421,11 +443,11 @@ def _run_program(pre: str, calldata: bytes) -> bytes:
     return evm.message_call(caller=caller, to=addr, calldata=calldata, gas=1_000_000)
 
 
-def _run_program_full_pipeline(pre: str, calldata: bytes, *, disable_inlining: bool) -> tuple[bytes, object]:
+def _run_program_full_pipeline(
+    pre: str, calldata: bytes, *, disable_inlining: bool
+) -> tuple[bytes, object]:
     ctx = parse_venom(pre)
-    flags = VenomOptimizationFlags(
-        level=OptimizationLevel.O2, disable_inlining=disable_inlining
-    )
+    flags = VenomOptimizationFlags(level=OptimizationLevel.O2, disable_inlining=disable_inlining)
     run_passes_on(ctx, flags, disable_mem_checks=True)
 
     asm = VenomCompiler(ctx).generate_evm_assembly()
@@ -550,7 +572,12 @@ def test_dalloca_threads_hidden_fmp_at_tail_of_call_layout():
     main = ctx.get_function(IRLabel("main"))
     callee = ctx.get_function(IRLabel("callee"))
 
-    invoke = next(inst for bb in main.get_basic_blocks() for inst in bb.instructions if inst.opcode == "invoke")
+    invoke = next(
+        inst
+        for bb in main.get_basic_blocks()
+        for inst in bb.instructions
+        if inst.opcode == "invoke"
+    )
     assert invoke.operands[1] == IRVariable("%arg")
     assert invoke.operands[-1] == next(inst.output for inst in main.entry.param_instructions)
 
