@@ -42,7 +42,6 @@ class DallocaLoweringPass(IRPass):
     invoke boundary preserving the caller's threaded FMP.
     """
 
-    required_predecessors = ("ConcretizeMemLocPass",)
     required_successors = ("MakeSSA",)
 
     def run_pass(self):
@@ -52,9 +51,6 @@ class DallocaLoweringPass(IRPass):
             inst.opcode == "dalloca" for bb in fn.get_basic_blocks() for inst in bb.instructions
         )
         has_dfree = any(inst.opcode == "dfree" for bb in fn.get_basic_blocks() for inst in bb.instructions)
-
-        if fn._has_fmp_param and not has_dalloca and not has_dfree:
-            return
 
         calls_needs_fmp = False
         for bb in fn.get_basic_blocks():
@@ -69,6 +65,21 @@ class DallocaLoweringPass(IRPass):
                     break
             if calls_needs_fmp:
                 break
+
+        if fn._has_fmp_param and not has_dalloca and not has_dfree:
+            changed = self._deaugment_stale_invoke_fmp_args(fn)
+            if changed:
+                self._invalidate_analyses()
+
+            if self._prune_dead_hidden_fmp_param(fn):
+                fn._needs_fmp = False
+                fn._has_fmp_param = False
+                self._invalidate_analyses()
+                return
+
+            fn._needs_fmp = True
+            fn._has_fmp_param = True
+            return
 
         if not has_dalloca and not has_dfree and not calls_needs_fmp:
             fn._needs_fmp = False
@@ -288,3 +299,80 @@ class DallocaLoweringPass(IRPass):
         # via liveness, so any callee allocation left unreleased is
         # reclaimed when control returns to the caller.
         inst.operands = [inst.operands[0], fmp_var] + inst.operands[1:]
+
+    def _get_hidden_fmp_param_inst(self, fn) -> IRInstruction | None:
+        if not fn._has_fmp_param:
+            return None
+
+        params = list(fn.entry.param_instructions)
+        if len(params) == 0:
+            return None
+
+        return params[0]
+
+    def _prune_dead_hidden_fmp_param(self, fn) -> bool:
+        param_inst = self._get_hidden_fmp_param_inst(fn)
+        if param_inst is None:
+            return False
+
+        dead_chain = self._collect_dead_fmp_chain(param_inst.output)
+        if dead_chain is None:
+            return False
+
+        for inst in dead_chain:
+            inst.parent.remove_instruction(inst)
+        fn.entry.remove_instruction(param_inst)
+        return True
+
+    def _collect_dead_fmp_chain(self, root: IRVariable) -> list[IRInstruction] | None:
+        dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        dead_insts: list[IRInstruction] = []
+        seen_vars: set[IRVariable] = set()
+        worklist = [root]
+
+        while len(worklist) > 0:
+            var = worklist.pop()
+            if var in seen_vars:
+                continue
+            seen_vars.add(var)
+
+            for use in dfg.get_uses(var):
+                if use.opcode not in ("assign", "phi"):
+                    return None
+
+                dead_insts.append(use)
+                outputs = use.get_outputs()
+                assert len(outputs) == 1, use
+                worklist.append(outputs[0])
+
+        return dead_insts
+
+    def _callee_invoke_arg_count(self, callee) -> int:
+        param_count = len(list(callee.entry.param_instructions))
+        if any(inst.opcode == "ret" for bb in callee.get_basic_blocks() for inst in bb.instructions):
+            param_count -= 1
+        return max(param_count, 0)
+
+    def _deaugment_stale_invoke_fmp_args(self, fn) -> bool:
+        changed = False
+
+        for bb in fn.get_basic_blocks():
+            for inst in bb.instructions:
+                if inst.opcode != "invoke":
+                    continue
+
+                target = inst.operands[0]
+                assert isinstance(target, IRLabel)
+                callee = fn.ctx.get_function(target)
+                if callee._has_fmp_param:
+                    continue
+
+                expected_arg_count = self._callee_invoke_arg_count(callee)
+                current_arg_count = len(inst.operands) - 1
+                if current_arg_count != expected_arg_count + 1:
+                    continue
+
+                inst.operands = [inst.operands[0], *inst.operands[2:]]
+                changed = True
+
+        return changed

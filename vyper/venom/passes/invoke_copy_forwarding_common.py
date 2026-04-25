@@ -70,6 +70,26 @@ class InvokeCopyForwardingBase(IRPass):
 
         return callee._has_memory_return_buffer_param
 
+    def _invoke_arg_start(self, invoke_inst: IRInstruction) -> int:
+        callee = self._get_invoke_callee(invoke_inst)
+        return 1 + int(callee is not None and callee._has_fmp_param)
+
+    def _invoke_user_arg_index(self, invoke_inst: IRInstruction, operand_idx: int) -> int | None:
+        if operand_idx == 0:
+            return None
+
+        arg_start = self._invoke_arg_start(invoke_inst)
+        if operand_idx < arg_start:
+            return None
+
+        return operand_idx - arg_start
+
+    def _invoke_return_buffer_operand_pos(self, invoke_inst: IRInstruction) -> int | None:
+        if not self._invoke_has_return_buffer(invoke_inst):
+            return None
+
+        return self._invoke_arg_start(invoke_inst)
+
     def _is_alloca_like(self, inst: IRInstruction | None) -> bool:
         return inst is not None and inst.opcode == "alloca"
 
@@ -78,15 +98,16 @@ class InvokeCopyForwardingBase(IRPass):
         return isinstance(size, IRLiteral) and size.value == expected_size
 
     def _is_readonly_invoke_operand(self, invoke_inst: IRInstruction, operand_idx: int) -> bool:
-        if operand_idx == 0:
-            return False
-
         callee = self._get_invoke_callee(invoke_inst)
         if callee is None:
             return False
 
+        arg_idx = self._invoke_user_arg_index(invoke_inst, operand_idx)
+        if arg_idx is None:
+            return False
+
         readonly_idxs = self.readonly_memory_args.get_readonly_invoke_arg_idxs(callee)
-        return (operand_idx - 1) in readonly_idxs
+        return arg_idx in readonly_idxs
 
     def _get_invoke_callee(self, invoke_inst: IRInstruction):
         target = invoke_inst.operands[0]

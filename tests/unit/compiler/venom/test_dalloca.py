@@ -493,6 +493,36 @@ def test_dalloca_memory_reclaimed_across_call_after_inlining():
     assert IRLabel("callee") not in ctx_inlined.functions
 
 
+def test_inlining_cleanup_removes_dead_entry_fmp_plumbing():
+    src = """
+    function main {
+        main:
+            invoke @callee
+            stop
+    }
+
+    function callee {
+        callee:
+            %retpc = param
+            %p, %mark = dalloca 32
+            dfree %mark
+            ret %retpc
+    }
+    """
+
+    ctx = parse_venom(src)
+    flags = VenomOptimizationFlags(level=OptimizationLevel.O2)
+    run_passes_on(ctx, flags, disable_mem_checks=True)
+
+    main = ctx.get_function(IRLabel("main"))
+    assert IRLabel("callee") not in ctx.functions
+    assert main._needs_fmp is False
+    assert all(inst.opcode != "param" for inst in main.entry.instructions)
+
+    asm = VenomCompiler(ctx).generate_evm_assembly()
+    assert all("__initial_fmp__" not in str(item) for item in asm)
+
+
 def test_dalloca_fmp_preserved_across_nested_calls():
     # main dallocas, calls f (which dallocas and calls g which also
     # dallocas). After the nested invokes unwind, main dallocas again

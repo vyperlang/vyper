@@ -1,7 +1,11 @@
 from tests.venom_utils import parse_venom
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLabel, IRVariable
-from vyper.venom.passes import InternalReturnCopyForwardingPass, ReadonlyInvokeArgCopyForwardingPass
+from vyper.venom.passes import (
+    DallocaLoweringPass,
+    InternalReturnCopyForwardingPass,
+    ReadonlyInvokeArgCopyForwardingPass,
+)
 
 
 def _run_copy_forwarding(src: str, setup=None):
@@ -13,6 +17,11 @@ def _run_copy_forwarding(src: str, setup=None):
         InternalReturnCopyForwardingPass(analyses[fn], fn).run_pass()
         ReadonlyInvokeArgCopyForwardingPass(analyses[fn], fn).run_pass()
     return ctx
+
+
+def _lower_dalloca(ctx):
+    for fn in reversed(list(ctx.functions.values())):
+        DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
 
 
 def test_readonly_forwarding_rejects_src_clobber_before_invoke():
@@ -147,6 +156,47 @@ def test_readonly_forwarding_allows_same_source_readonly_sibling_arg():
     assert all(inst.opcode != "mcopy" for inst in insts)
 
 
+def test_readonly_forwarding_ignores_hidden_fmp_arg():
+    src = """
+    function caller {
+    caller:
+        %src = alloca 32
+        %tmp = alloca 32
+        %other = alloca 32
+        mcopy %tmp, %src, 32
+        invoke @callee, %tmp, %other
+        stop
+    }
+
+    function callee {
+    callee:
+        %arg_rw = param
+        %arg_ro = param
+        %retpc = param
+        %scratch, %scratch_mark = dalloca 32
+        mstore %arg_rw, 1
+        %v = mload %arg_ro
+        mstore 0, %v
+        ret %retpc
+    }
+    """
+
+    ctx = parse_venom(src)
+    _lower_dalloca(ctx)
+    analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
+    for fn in ctx.functions.values():
+        InternalReturnCopyForwardingPass(analyses[fn], fn).run_pass()
+        ReadonlyInvokeArgCopyForwardingPass(analyses[fn], fn).run_pass()
+
+    caller = ctx.get_function(IRLabel("caller"))
+    insts = [inst for bb in caller.get_basic_blocks() for inst in bb.instructions]
+
+    invoke = next(inst for inst in insts if inst.opcode == "invoke")
+    assert invoke.operands[2] == IRVariable("%other")
+    assert invoke.operands[3] == IRVariable("%src")
+    assert all(inst.opcode != "mcopy" for inst in insts)
+
+
 def test_internal_return_forwarding_still_applies_without_src_clobber():
     src = """
     function caller {
@@ -225,6 +275,47 @@ def test_internal_return_forwarding_allows_disjoint_intervening_invoke_write():
     insts = [inst for bb in caller.get_basic_blocks() for inst in bb.instructions]
 
     # Intervening invoke writes to a disjoint buffer, so copy can be forwarded.
+    assert all(inst.opcode != "mcopy" for inst in insts)
+    mload = next(inst for inst in insts if inst.opcode == "mload")
+    assert mload.operands[0] == IRVariable("%src")
+
+
+def test_internal_return_forwarding_ignores_hidden_fmp_arg():
+    src = """
+    function caller {
+    caller:
+        %src = alloca 32
+        %dst = alloca 32
+        invoke @callee, %src
+        mcopy %dst, %src, 32
+        %v = mload %dst
+        sink %v
+    }
+
+    function callee {
+    callee:
+        %retbuf = param
+        %retpc = param
+        %scratch, %scratch_mark = dalloca 32
+        mstore %retbuf, 7
+        ret %retpc
+    }
+    """
+
+    ctx = parse_venom(src)
+    callee = ctx.get_function(IRLabel("callee"))
+    callee._invoke_param_count = 1
+    callee._has_memory_return_buffer_param = True
+
+    _lower_dalloca(ctx)
+    analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
+    for fn in ctx.functions.values():
+        InternalReturnCopyForwardingPass(analyses[fn], fn).run_pass()
+        ReadonlyInvokeArgCopyForwardingPass(analyses[fn], fn).run_pass()
+
+    caller = ctx.get_function(IRLabel("caller"))
+    insts = [inst for bb in caller.get_basic_blocks() for inst in bb.instructions]
+
     assert all(inst.opcode != "mcopy" for inst in insts)
     mload = next(inst for inst in insts if inst.opcode == "mload")
     assert mload.operands[0] == IRVariable("%src")
