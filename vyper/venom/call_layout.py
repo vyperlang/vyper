@@ -55,8 +55,15 @@ class FunctionCallLayout:
                         if len(source_params) > 0 and len(set(source_params)) == 1:
                             source_param = source_params[0]
 
-                    if source_param is None or aliases.get(outputs[0]) == source_param:
+                    existing_param = aliases.get(outputs[0])
+                    if source_param is None or existing_param == source_param:
                         continue
+                    assert existing_param is None, (
+                        self.fn.name,
+                        outputs[0],
+                        existing_param,
+                        source_param,
+                    )
                     aliases[outputs[0]] = source_param
                     changed = True
 
