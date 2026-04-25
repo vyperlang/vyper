@@ -8,6 +8,7 @@ from vyper.venom.check_venom import (
     DfreeArityError,
     FunctionCallLayoutError,
     InconsistentReturnArity,
+    InitialFmpArityError,
     InvokeArgumentCountMismatch,
     InvokeArityMismatch,
     MultiOutputNonInvoke,
@@ -226,6 +227,48 @@ def test_bump_arity_correct_accepted():
     ctx = parse_venom(src)
     # Should not raise: bump has 2 operands and 2 outputs.
     check_calling_convention(ctx)
+
+
+def test_initial_fmp_arity_operand_rejected():
+    src = """
+    function main {
+    main:
+        %p = initial_fmp 1
+        sink %p
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, InitialFmpArityError)
+
+
+def test_initial_fmp_arity_missing_output_rejected():
+    src = """
+    function main {
+    main:
+        initial_fmp
+        stop
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, InitialFmpArityError)
+
+
+def test_initial_fmp_arity_multi_output_rejected():
+    src = """
+    function main {
+    main:
+        %p, %q = initial_fmp
+        sink %p, %q
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, InitialFmpArityError)
 
 
 def test_dalloca_arity_single_output_rejected():

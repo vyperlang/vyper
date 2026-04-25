@@ -183,6 +183,22 @@ class DfreeArityError(VenomError):
         )
 
 
+class InitialFmpArityError(VenomError):
+    message: str = "initial_fmp must have exactly 0 operands and 1 output"
+
+    def __init__(self, caller: IRFunction, inst: IRInstruction):
+        self.caller = caller
+        self.inst = inst
+
+    def __str__(self):
+        bb = self.inst.parent
+        return (
+            f"initial_fmp arity error in {self.caller.name}: "
+            f"got {len(self.inst.operands)} operand(s), {self.inst.num_outputs} output(s)\n"
+            f"  {self.inst}\n\n{bb}"
+        )
+
+
 class UnsupportedInstruction(VenomError):
     message: str = "unsupported instruction"
 
@@ -322,8 +338,13 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
     for caller in context.functions.values():
         for bb in caller.get_basic_blocks():
             for inst in bb.instructions:
-                # Disallow multi-output except on invoke, bump, and dalloca.
                 got_num = inst.num_outputs
+                if inst.opcode == "initial_fmp":
+                    if len(inst.operands) != 0 or got_num != 1:
+                        errors.append(InitialFmpArityError(caller, inst))
+                    continue
+
+                # Disallow multi-output except on invoke, bump, and dalloca.
                 if got_num > 1 and inst.opcode not in ("invoke", "bump", "dalloca"):
                     errors.append(MultiOutputNonInvoke(caller, inst))
                     continue
