@@ -32,6 +32,8 @@ class StackSpiller:
         self._current_function = fn
         if fn is not None and fn in self.ctx.mem_allocator.fn_eom:
             self._next_spill_offset = self.ctx.mem_allocator.fn_eom[fn]
+        else:
+            self._next_spill_offset = None
 
     def reset_spill_slots(self) -> None:
         self._spill_free_slots = []

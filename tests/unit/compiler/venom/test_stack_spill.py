@@ -28,6 +28,35 @@ def _dummy_dfg():
     return _DummyDFG()
 
 
+def test_set_current_function_clears_missing_fn_eom() -> None:
+    ctx = parse_venom(
+        """
+        function first {
+            main:
+                stop
+        }
+
+        function second {
+            main:
+                stop
+        }
+        """
+    )
+    compiler = VenomCompiler(ctx)
+    first, second = list(ctx.functions.values())
+
+    ctx.mem_allocator.fn_eom[first] = 64
+    compiler.spiller.set_current_function(first)
+    assert compiler.spiller._next_spill_offset == 64
+
+    compiler.spiller.set_current_function(second)
+    assert compiler.spiller._next_spill_offset is None
+
+    compiler.spiller._next_spill_offset = 96
+    compiler.spiller.set_current_function(None)
+    assert compiler.spiller._next_spill_offset is None
+
+
 def test_swap_spills_deep_stack() -> None:
     compiler = VenomCompiler(IRContext())
     compiler.spiller._next_spill_offset = 0x10000  # Set up for unit test
@@ -175,7 +204,8 @@ def test_branch_spill_integration() -> None:
 
     ctx = parse_venom(venom_src)
     compiler = VenomCompiler(ctx)
-    compiler.spiller._next_spill_offset = 0x10000
+    fn = next(iter(ctx.functions.values()))
+    ctx.mem_allocator.fn_eom[fn] = 0x10000
     asm = compiler.generate_evm_assembly()
     opcodes = [op for op in asm if isinstance(op, str)]
 
