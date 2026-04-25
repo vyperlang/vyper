@@ -3,10 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from vyper.venom.basicblock import IRInstruction, IRLabel, IROperand, IRVariable
-from vyper.venom.call_layout import (
-    FunctionCallLayout,
-    InvokeLayout,
-)
+from vyper.venom.call_layout import FunctionCallLayout, InvokeLayout
 from vyper.venom.function import IRFunction
 from vyper.venom.memory_location import memory_write_ops
 

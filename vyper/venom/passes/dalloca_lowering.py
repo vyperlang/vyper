@@ -4,17 +4,14 @@ from vyper.venom.analysis import (
     LivenessAnalysis,
     LoadAnalysis,
     MemLivenessAnalysis,
-    MemSSA,
     MemoryAliasAnalysis,
+    MemSSA,
     ReadonlyMemoryArgsGlobalAnalysis,
     VarDefinition,
     VariableRangeAnalysis,
 )
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
-from vyper.venom.call_layout import (
-    FunctionCallLayout,
-    InvokeLayout,
-)
+from vyper.venom.call_layout import FunctionCallLayout, InvokeLayout
 from vyper.venom.passes.base_pass import IRPass
 
 

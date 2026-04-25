@@ -141,9 +141,7 @@ def _run_global_passes(
 
 
 def _run_pre_inline_dalloca_lowering(
-    entry: IRFunction,
-    fcg: FCGGlobalAnalysis,
-    ir_analyses: dict[IRFunction, IRAnalysesCache],
+    entry: IRFunction, fcg: FCGGlobalAnalysis, ir_analyses: dict[IRFunction, IRAnalysesCache]
 ) -> None:
     visited: set[IRFunction] = set()
 

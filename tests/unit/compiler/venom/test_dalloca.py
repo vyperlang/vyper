@@ -11,8 +11,8 @@ from vyper.venom import run_passes_on
 from vyper.venom.analysis import (
     IRAnalysesCache,
     LoadAnalysis,
-    MemSSA,
     MemoryAliasAnalysis,
+    MemSSA,
     ReadonlyMemoryArgsGlobalAnalysis,
     VarDefinition,
     VariableRangeAnalysis,

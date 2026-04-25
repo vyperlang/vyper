@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from vyper.venom.basicblock import IRInstruction, IRLabel, IROperand
+from vyper.venom.basicblock import IRInstruction, IRLabel, IROperand, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
-
 
 # Internal-call layout conventions:
 # - invoke operands are `[target, user args..., hidden_fmp?]`
@@ -23,7 +22,12 @@ class FunctionCallLayout:
         return tuple(inst for inst in self.fn.entry.instructions if inst.opcode == "param")
 
     def param_for_alias(self, operand: IROperand) -> IRInstruction | None:
-        aliases = {inst.output: inst for inst in self.params}
+        aliases: dict[IRVariable, IRInstruction] = {inst.output: inst for inst in self.params}
+
+        def lookup_alias(op: IROperand) -> IRInstruction | None:
+            if not isinstance(op, IRVariable):
+                return None
+            return aliases.get(op)
 
         changed = True
         while changed:
@@ -36,11 +40,11 @@ class FunctionCallLayout:
 
                     source_param = None
                     if inst.opcode == "assign" and len(inst.operands) == 1:
-                        source_param = aliases.get(inst.operands[0])
+                        source_param = lookup_alias(inst.operands[0])
                     elif inst.opcode == "phi":
                         source_params: list[IRInstruction] = []
                         for _, op in inst.phi_operands:
-                            param = aliases.get(op)
+                            param = lookup_alias(op)
                             if param is None:
                                 source_params = []
                                 break
@@ -53,7 +57,7 @@ class FunctionCallLayout:
                     aliases[outputs[0]] = source_param
                     changed = True
 
-        return aliases.get(operand)
+        return lookup_alias(operand)
 
     @property
     def has_return_pc_param(self) -> bool:

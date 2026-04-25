@@ -2,17 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from vyper.evm.assembler.instructions import (
-    CONST,
-    CONSTREF,
-    DATA_ITEM,
-    PUSH,
-    PUSH_OFST,
-    DataHeader,
-)
+from vyper.evm.assembler.instructions import CONST, CONSTREF, DATA_ITEM, PUSH, PUSH_OFST, DataHeader
 from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import (
-    PUSH_OFST,
     PUSHLABEL,
     AssemblyInstruction,
     Label,
