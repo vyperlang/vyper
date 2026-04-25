@@ -98,7 +98,7 @@ class DallocaLoweringPass(IRPass):
             fn._has_fmp_param = False
             return
 
-        if has_dalloca and self._can_initial_fmp_lower(fn):
+        if has_dalloca and not calls_needs_fmp and self._can_initial_fmp_lower(fn):
             self._initial_fmp_lower(fn)
             fn._needs_fmp = False
             fn._has_fmp_param = False
@@ -159,7 +159,7 @@ class DallocaLoweringPass(IRPass):
                     if not open_tokens or inst.operands[0] != open_tokens[-1]:
                         return False
                     open_tokens.pop()
-                elif inst.opcode == "invoke":
+                elif inst.opcode == "invoke" and open_tokens:
                     return False
             if open_tokens:
                 return False

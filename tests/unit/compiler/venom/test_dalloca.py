@@ -1086,8 +1086,9 @@ def test_dfree_does_not_do_pointer_lifetime_validation():
 
 
 def test_initial_fmp_fast_path_rejects_invoke_during_live_dalloca():
-    # Entry-function initial_fmp lowering is disabled in the presence of an
-    # invoke; the function falls back to FMP threading.
+    # Entry-function initial_fmp lowering is disabled when an invoke occurs
+    # while a dalloca allocation is live; the function falls back to FMP
+    # threading so the callee cannot alias the caller's open scratch.
     ctx = parse_venom(
         """
         function main {
@@ -1116,6 +1117,87 @@ def test_initial_fmp_fast_path_rejects_invoke_during_live_dalloca():
     assert "initial_fmp" not in opcodes
     assert "bump" in opcodes
     assert main_fn._needs_fmp is True
+
+
+def test_initial_fmp_fast_path_allows_invoke_between_closed_scratch_pairs():
+    ctx = parse_venom(
+        """
+        function main {
+            main:
+                %p, %pmark = dalloca 32
+                mstore %p, 111
+                dfree %pmark
+                invoke @helper
+                %q, %qmark = dalloca 64
+                mstore 0, %q
+                dfree %qmark
+                return 0, 32
+        }
+
+        function helper {
+            helper:
+                %retpc = param
+                ret %retpc
+        }
+        """
+    )
+    fns = list(ctx.functions.values())
+    for fn in reversed(fns):
+        ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+        DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    main_fn = ctx.get_function(next(iter(ctx.functions)))
+    opcodes = [inst.opcode for bb in main_fn.get_basic_blocks() for inst in bb.instructions]
+    assert "dalloca" not in opcodes
+    assert "dfree" not in opcodes
+    assert "bump" not in opcodes
+    assert opcodes.count("initial_fmp") == 2
+    assert main_fn._needs_fmp is False
+    assert main_fn._has_fmp_param is False
+
+
+def test_initial_fmp_fast_path_rejects_closed_scratch_around_needs_fmp_callee():
+    ctx = parse_venom(
+        """
+        function main {
+            main:
+                %p, %pmark = dalloca 32
+                mstore %p, 111
+                dfree %pmark
+                invoke @helper
+                stop
+        }
+
+        function helper {
+            helper:
+                %retpc = param
+                %q, %qmark = dalloca 32
+                mstore %q, 222
+                dfree %qmark
+                ret %retpc
+        }
+        """
+    )
+    fns = list(ctx.functions.values())
+    for fn in reversed(fns):
+        ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+        DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    main_fn = ctx.get_function(next(iter(ctx.functions)))
+    helper_fn = ctx.get_function(IRLabel("helper", True))
+    invoke = next(
+        inst
+        for bb in main_fn.get_basic_blocks()
+        for inst in bb.instructions
+        if inst.opcode == "invoke"
+    )
+
+    assert "initial_fmp" not in [
+        inst.opcode for bb in main_fn.get_basic_blocks() for inst in bb.instructions
+    ]
+    assert main_fn._needs_fmp is True
+    assert helper_fn._needs_fmp is True
+    assert len(invoke.operands) == 2
 
 
 def test_dfree_nested_falls_back_to_fmp_threading():
