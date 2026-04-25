@@ -1,4 +1,15 @@
-from vyper.venom.analysis import BasePtrAnalysis, DFGAnalysis, LivenessAnalysis, MemLivenessAnalysis
+from vyper.venom.analysis import (
+    BasePtrAnalysis,
+    DFGAnalysis,
+    LivenessAnalysis,
+    LoadAnalysis,
+    MemLivenessAnalysis,
+    MemSSA,
+    MemoryAliasAnalysis,
+    ReadonlyMemoryArgsGlobalAnalysis,
+    VarDefinition,
+    VariableRangeAnalysis,
+)
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.call_layout import (
     FunctionCallLayout,
@@ -113,10 +124,16 @@ class DallocaLoweringPass(IRPass):
         self._invalidate_analyses()
 
     def _invalidate_analyses(self) -> None:
+        self.analyses_cache.invalidate_analysis(LoadAnalysis)
+        self.analyses_cache.invalidate_analysis(MemSSA)
+        self.analyses_cache.invalidate_analysis(MemoryAliasAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
         self.analyses_cache.invalidate_analysis(MemLivenessAnalysis)
+        self.analyses_cache.invalidate_analysis(VarDefinition)
+        self.analyses_cache.invalidate_analysis(VariableRangeAnalysis)
+        self.analyses_cache.invalidate_analysis(ReadonlyMemoryArgsGlobalAnalysis)
 
     def _restore_token(self, inst: IRInstruction) -> IRVariable:
         outs = inst.get_outputs()
@@ -321,6 +338,7 @@ class DallocaLoweringPass(IRPass):
     def _collect_dead_fmp_chain(self, root: IRVariable) -> list[IRInstruction] | None:
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         dead_insts: list[IRInstruction] = []
+        seen_insts: set[IRInstruction] = set()
         seen_vars: set[IRVariable] = set()
         worklist = [root]
 
@@ -334,6 +352,9 @@ class DallocaLoweringPass(IRPass):
                 if use.opcode not in ("assign", "phi"):
                     return None
 
+                if use in seen_insts:
+                    continue
+                seen_insts.add(use)
                 dead_insts.append(use)
                 outputs = use.get_outputs()
                 assert len(outputs) == 1, use

@@ -8,7 +8,15 @@ from vyper.evm.assembler.core import assembly_to_evm
 from vyper.exceptions import CompilerPanic
 from vyper.utils import MemoryPositions
 from vyper.venom import run_passes_on
-from vyper.venom.analysis import IRAnalysesCache
+from vyper.venom.analysis import (
+    IRAnalysesCache,
+    LoadAnalysis,
+    MemSSA,
+    MemoryAliasAnalysis,
+    ReadonlyMemoryArgsGlobalAnalysis,
+    VarDefinition,
+    VariableRangeAnalysis,
+)
 from vyper.venom.basicblock import IRLabel, IRLiteral, IRVariable
 from vyper.venom.effects import Effects
 from vyper.venom.parser import parse_venom
@@ -407,6 +415,36 @@ def test_dalloca_alignment_mask_uses_small_literal():
     )
 
 
+def test_dalloca_lowering_invalidates_stale_analyses():
+    ctx = parse_from_basic_block(
+        """
+        main:
+            %size = calldatasize
+            %p, %mark = dalloca %size
+            mstore %p, 1
+            stop
+        """
+    )
+    fn = next(iter(ctx.functions.values()))
+    ac = IRAnalysesCache(fn)
+
+    ac.request_analysis(LoadAnalysis)
+    ac.request_analysis(MemSSA)
+    ac.request_analysis(MemoryAliasAnalysis)
+    ac.request_analysis(VarDefinition)
+    ac.request_analysis(VariableRangeAnalysis)
+    ac.request_analysis(ReadonlyMemoryArgsGlobalAnalysis)
+
+    DallocaLoweringPass(ac, fn).run_pass()
+
+    assert LoadAnalysis not in ac.analyses_cache
+    assert MemSSA not in ac.analyses_cache
+    assert MemoryAliasAnalysis not in ac.analyses_cache
+    assert VarDefinition not in ac.analyses_cache
+    assert VariableRangeAnalysis not in ac.analyses_cache
+    assert ReadonlyMemoryArgsGlobalAnalysis not in ctx.global_analyses_cache.analyses_cache
+
+
 def test_dalloca_reaching_codegen_panics():
     # Codegen guards against a misconfigured pipeline: if DallocaLoweringPass
     # did not run, any surviving `dalloca` must panic rather than silently
@@ -543,6 +581,46 @@ def test_inlining_cleanup_removes_dead_entry_fmp_plumbing():
 
     asm = VenomCompiler(ctx).generate_evm_assembly()
     assert all("__initial_fmp__" not in str(item) for item in asm)
+
+
+def test_dead_hidden_fmp_pruning_deduplicates_join_users():
+    ctx = parse_venom(
+        """
+        function main {
+            main:
+                %fmp = param
+                %retpc = param
+                %cond = calldatasize
+                jnz %cond, @left, @right
+
+            left:
+                %left_fmp = assign %fmp
+                jmp @join
+
+            right:
+                %right_fmp = assign %fmp
+                jmp @join
+
+            join:
+                %merged_fmp = phi @left, %left_fmp, @right, %right_fmp
+                ret %retpc
+        }
+        """
+    )
+    fn = ctx.get_function(IRLabel("main"))
+    fn._has_fmp_param = True
+    fn._needs_fmp = True
+
+    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    opcodes = [inst.opcode for bb in fn.get_basic_blocks() for inst in bb.instructions]
+    assert "phi" not in opcodes
+    assert "assign" not in opcodes
+    params = list(fn.entry.param_instructions)
+    assert len(params) == 1
+    assert params[0].output == IRVariable("%retpc")
+    assert fn._has_fmp_param is False
+    assert fn._needs_fmp is False
 
 
 def test_dalloca_threads_hidden_fmp_at_tail_of_call_layout():
