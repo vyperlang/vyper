@@ -20,7 +20,40 @@ class FunctionCallLayout:
 
     @property
     def params(self) -> tuple[IRInstruction, ...]:
-        return tuple(self.fn.entry.param_instructions)
+        return tuple(inst for inst in self.fn.entry.instructions if inst.opcode == "param")
+
+    def param_for_alias(self, operand: IROperand) -> IRInstruction | None:
+        aliases = {inst.output: inst for inst in self.params}
+
+        changed = True
+        while changed:
+            changed = False
+            for bb in self.fn.get_basic_blocks():
+                for inst in bb.instructions:
+                    outputs = inst.get_outputs()
+                    if len(outputs) != 1:
+                        continue
+
+                    source_param = None
+                    if inst.opcode == "assign" and len(inst.operands) == 1:
+                        source_param = aliases.get(inst.operands[0])
+                    elif inst.opcode == "phi":
+                        source_params: list[IRInstruction] = []
+                        for _, op in inst.phi_operands:
+                            param = aliases.get(op)
+                            if param is None:
+                                source_params = []
+                                break
+                            source_params.append(param)
+                        if len(source_params) > 0 and len(set(source_params)) == 1:
+                            source_param = source_params[0]
+
+                    if source_param is None or aliases.get(outputs[0]) == source_param:
+                        continue
+                    aliases[outputs[0]] = source_param
+                    changed = True
+
+        return aliases.get(operand)
 
     @property
     def has_return_pc_param(self) -> bool:
@@ -29,15 +62,13 @@ class FunctionCallLayout:
             if len(self.params) > non_return_pc_params:
                 return True
 
-        param_outputs = {inst.output for inst in self.params}
-
         for bb in self.fn.get_basic_blocks():
             for inst in bb.instructions:
                 if inst.opcode != "ret" or len(inst.operands) == 0:
                     continue
 
                 ret_pc = inst.operands[-1]
-                if ret_pc in param_outputs:
+                if self.param_for_alias(ret_pc) is not None:
                     return True
 
         return False
@@ -75,7 +106,14 @@ class FunctionCallLayout:
 
     @property
     def hidden_fmp_param_insert_index(self) -> int:
-        return len(self.params) - int(self.has_return_pc_param)
+        return_pc = self.return_pc_param
+        if return_pc is not None:
+            return self.fn.entry.instructions.index(return_pc)
+
+        params = self.params
+        if len(params) == 0:
+            return 0
+        return self.fn.entry.instructions.index(params[-1]) + 1
 
     @property
     def user_params(self) -> tuple[IRInstruction, ...]:

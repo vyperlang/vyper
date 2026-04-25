@@ -8,7 +8,7 @@ from vyper.ir.compile_ir import AssemblyInstruction
 from vyper.venom.analysis import IRGlobalAnalysesCache, ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.fcg import FCGGlobalAnalysis
-from vyper.venom.check_venom import check_mem_ops, check_venom_ctx
+from vyper.venom.check_venom import check_calling_convention, check_mem_ops
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.optimization_levels.O2 import PASSES_O2
@@ -162,8 +162,9 @@ def _run_pre_inline_dalloca_lowering(
 
 def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags, disable_mem_checks=False) -> None:
     ir_analyses: dict[IRFunction, IRAnalysesCache] = {}
-    # Validate IR structure and calling convention invariants before running passes.
-    check_venom_ctx(ctx)
+    # Pre-SSA frontend IR can contain loop-carried values which are repaired by
+    # MakeSSA. Only validate invariants that must already hold before passes.
+    check_calling_convention(ctx)
     if not disable_mem_checks:
         check_mem_ops(ctx)
     for fn in ctx.functions.values():

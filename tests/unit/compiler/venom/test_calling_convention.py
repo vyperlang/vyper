@@ -317,6 +317,52 @@ def test_invoke_argument_count_accepts_hidden_fmp_tail():
     check_calling_convention(ctx)
 
 
+def test_function_layout_counts_non_contiguous_params():
+    src = """
+    function main {
+    main:
+        %a = source
+        %b = source
+        %ret = invoke @f, %a, %b
+        sink %ret
+    }
+
+    function f {
+    main:
+        %a = param
+        %tmp = alloca 32
+        mstore %tmp, %a
+        %b = param
+        %retpc = param
+        ret %retpc, %b
+    }
+    """
+    ctx = parse_venom(src)
+    ctx.get_function(IRLabel("f"))._invoke_param_count = 2
+    check_calling_convention(ctx)
+
+
+def test_function_layout_infers_copied_return_pc_param():
+    src = """
+    function main {
+    main:
+        %arg = source
+        %ret = invoke @f, %arg
+        sink %ret
+    }
+
+    function f {
+    main:
+        %arg = param
+        %retpc = param
+        %retpc_copy = %retpc
+        ret %retpc_copy, %arg
+    }
+    """
+    ctx = parse_venom(src)
+    check_calling_convention(ctx)
+
+
 def test_invoke_argument_count_rejects_missing_hidden_fmp_tail():
     src = """
     function main {

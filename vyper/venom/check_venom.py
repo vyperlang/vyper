@@ -267,7 +267,12 @@ def _find_function_call_layout_errors(fn: IRFunction) -> list[VenomError]:
                     if inst.opcode != "ret" or len(inst.operands) == 0:
                         continue
                     ret_pc = inst.operands[-1]
-                    if ret_pc in param_outputs and ret_pc != return_pc_var:
+                    ret_pc_param = layout.param_for_alias(ret_pc)
+                    if (
+                        ret_pc_param is not None
+                        and ret_pc_param.output in param_outputs
+                        and ret_pc_param.output != return_pc_var
+                    ):
                         errors.append(
                             FunctionCallLayoutError(
                                 fn, "return-PC param must be the final function param"
