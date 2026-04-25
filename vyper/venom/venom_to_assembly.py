@@ -11,7 +11,7 @@ from vyper.ir.compile_ir import (
     TaggedInstruction,
     optimize_assembly,
 )
-from vyper.utils import MemoryPositions, OrderedSet, ceil32, wrap256
+from vyper.utils import OrderedSet, ceil32, wrap256
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import (
     PSEUDO_INSTRUCTION,
@@ -238,7 +238,7 @@ class VenomCompiler:
         # function's spill area.
         eoms = [self.ctx.mem_allocator.fn_eom.get(fn, 0) for fn in self.ctx.functions.values()]
         max_eom = max(eoms, default=0)
-        return ceil32(max(max_eom, self.spiller.peak_spill_end, MemoryPositions.RESERVED_MEMORY))
+        return ceil32(max(max_eom, self.spiller.peak_spill_end))
 
     def _stack_reorder(
         self,

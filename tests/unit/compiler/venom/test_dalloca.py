@@ -6,7 +6,6 @@ from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.evm.address_space import MEMORY
 from vyper.evm.assembler.core import assembly_to_evm
 from vyper.exceptions import CompilerPanic
-from vyper.utils import MemoryPositions
 from vyper.venom import run_passes_on
 from vyper.venom.analysis import (
     IRAnalysesCache,
@@ -145,13 +144,7 @@ def _run_probe(pre: str, calldata: bytes) -> tuple[int, int]:
 
 @pytest.mark.parametrize(
     ("calldata", "expected_ptr1", "expected_ptr2"),
-    [
-        (b"", MemoryPositions.RESERVED_MEMORY, MemoryPositions.RESERVED_MEMORY),
-        (b"x", MemoryPositions.RESERVED_MEMORY, MemoryPositions.RESERVED_MEMORY + 32),
-        (b"x" * 31, MemoryPositions.RESERVED_MEMORY, MemoryPositions.RESERVED_MEMORY + 32),
-        (b"x" * 32, MemoryPositions.RESERVED_MEMORY, MemoryPositions.RESERVED_MEMORY + 32),
-        (b"x" * 33, MemoryPositions.RESERVED_MEMORY, MemoryPositions.RESERVED_MEMORY + 64),
-    ],
+    [(b"", 0, 0), (b"x", 0, 32), (b"x" * 31, 0, 32), (b"x" * 32, 0, 32), (b"x" * 33, 0, 64)],
 )
 def test_dalloca_handles_small_sizes(calldata, expected_ptr1, expected_ptr2):
     # Run two nested dallocas and assert the second pointer equals the
@@ -178,17 +171,11 @@ def test_dalloca_handles_small_sizes(calldata, expected_ptr1, expected_ptr2):
 
 @pytest.mark.parametrize(
     ("calldata", "expected_ptr2"),
-    [
-        (b"", MemoryPositions.RESERVED_MEMORY),
-        (b"x", MemoryPositions.RESERVED_MEMORY + 32),
-        (b"x" * 31, MemoryPositions.RESERVED_MEMORY + 32),
-        (b"x" * 32, MemoryPositions.RESERVED_MEMORY + 32),
-        (b"x" * 33, MemoryPositions.RESERVED_MEMORY + 64),
-    ],
+    [(b"", 64), (b"x", 96), (b"x" * 31, 96), (b"x" * 32, 96), (b"x" * 33, 128)],
 )
 def test_dalloca_starts_above_static_frame(calldata, expected_ptr2):
     # A static alloca of 64 bytes occupies [0, 64); fn_eom = 64.
-    # Initial FMP = max(fn_eom, RESERVED_MEMORY) = 64.
+    # Initial FMP = fn_eom = 64.
     ptr1, ptr2 = _run_probe(
         """
         main:
@@ -211,13 +198,13 @@ def test_dalloca_starts_above_static_frame(calldata, expected_ptr2):
     # Allocation of %static collides with them, but after the mstores
     # at the end, the returned values at offsets 0/32 are the pointers
     # we care about.
-    assert ptr1 == MemoryPositions.RESERVED_MEMORY
+    assert ptr1 == 64
     assert ptr2 == expected_ptr2
 
 
 def test_dalloca_static_frame_prime_is_word_aligned():
     # A static alloca of 33 bytes forces fn_eom to 33+0 = 33; the
-    # initial FMP is ceil32(max(33, RESERVED_MEMORY=64)) = 64.
+    # initial FMP is ceil32(33) = 64.
     ptr1, ptr2 = _run_probe(
         """
         main:
@@ -234,8 +221,8 @@ def test_dalloca_static_frame_prime_is_word_aligned():
         b"",
     )
 
-    assert ptr1 == MemoryPositions.RESERVED_MEMORY
-    assert ptr2 == MemoryPositions.RESERVED_MEMORY
+    assert ptr1 == 64
+    assert ptr2 == 64
 
 
 def test_dalloca_allows_stack_spills():
@@ -524,7 +511,7 @@ def test_dalloca_memory_reclaimed_across_call():
         b"",
     )
     ptr_after = int.from_bytes(out[:32], "big")
-    assert ptr_after == MemoryPositions.RESERVED_MEMORY
+    assert ptr_after == 0
 
 
 def test_dalloca_memory_reclaimed_across_call_after_inlining():
@@ -548,7 +535,7 @@ def test_dalloca_memory_reclaimed_across_call_after_inlining():
     out_inlined, ctx_inlined = _run_program_full_pipeline(src, b"", disable_inlining=False)
     out_no_inline, _ = _run_program_full_pipeline(src, b"", disable_inlining=True)
 
-    assert int.from_bytes(out_inlined[:32], "big") == MemoryPositions.RESERVED_MEMORY
+    assert int.from_bytes(out_inlined[:32], "big") == 0
     assert out_inlined == out_no_inline
     assert IRLabel("callee") not in ctx_inlined.functions
 
@@ -752,18 +739,17 @@ def test_dalloca_spiller_with_dalloca():
         b"",
     )
     # sum of mloads at offsets 0..448 -- all zero for empty calldata --
-    # plus dyn pointer. dyn is the initial FMP (RESERVED_MEMORY) since
-    # calldatasize is 0.
-    assert int.from_bytes(out[:32], "big") == MemoryPositions.RESERVED_MEMORY
+    # plus dyn pointer. dyn is the initial FMP, which is 0 without static
+    # allocations or spills.
+    assert int.from_bytes(out[:32], "big") == 0
 
 
 def test_dalloca_spill_does_not_corrupt_dynamic_allocation():
-    # The spiller writes spill slots starting from fn_eom[fn], while
-    # dalloca-allocated regions start at global_max_fn_eom (baked into
-    # the initial FMP at contract entry). Because global_max_fn_eom
-    # does not account for spill usage, a function with small fn_eom
-    # and heavy stack pressure can have spill slots aliasing with the
-    # dalloca region.
+    # The spiller writes spill slots starting from fn_eom[fn]. The initial
+    # FMP baked in at contract entry must account for peak spill usage, not
+    # just static frame size; otherwise a function with small fn_eom and
+    # heavy stack pressure can have spill slots aliasing with the dalloca
+    # region.
     #
     # This test writes a distinctive sentinel to the dalloca-allocated
     # memory, then forces many simultaneously-live variables (enough
@@ -774,14 +760,12 @@ def test_dalloca_spill_does_not_corrupt_dynamic_allocation():
     # Force real spilling by passing 20 values into an invoke. Each arg
     # must sit on the EVM stack simultaneously when the invoke JUMPs;
     # exceeding the 16-slot reachable-stack window forces the spiller to
-    # write to memory at offsets starting at fn_eom[fn] (= RESERVED_MEMORY
-    # = 64 for functions with no static allocas).
+    # write to memory at offsets starting at fn_eom[fn] (= 0 for functions
+    # with no static allocas).
     #
-    # The initial FMP baked in at contract entry equals global_max_fn_eom
-    # (also 64 here), so dalloca's returned pointer equals the first spill
-    # address. Writing a sentinel to the dalloca region then forcing
-    # spills across it should corrupt the sentinel if (and only if) the
-    # spiller does not coordinate with the initial FMP.
+    # The initial FMP baked in at contract entry must account for actual
+    # peak spill usage, so dalloca's returned pointer stays above spill
+    # slots even though the static frame is empty.
     N = 20
     mloads = "\n".join(f"                %v{i} = mload {1024 + i*32}" for i in range(N))
     invoke_args = ", ".join(f"%v{i}" for i in range(N))
@@ -832,8 +816,8 @@ def test_dalloca_spill_does_not_corrupt_dynamic_allocation():
     )
     # All mloads above address 1024 return 0. consume sums %a0 + %a1 = 0.
     # If the dalloca region is uncorrupted: readback == sentinel, so
-    # final == 0 + sentinel. If a spill clobbered address 64, readback
-    # is some spilled variable value, and the assertion fails.
+    # final == 0 + sentinel. If a spill clobbered the dalloca region,
+    # readback is some spilled variable value, and the assertion fails.
     expected = sentinel % (2**256)
     assert int.from_bytes(out[:32], "big") == expected
 
@@ -861,9 +845,9 @@ def test_dalloca_across_branch():
         """,
         b"x",
     )
-    # then branch: %a=64, fmp->128; after: %c = initial_fmp + 64.
+    # then branch: %a=0, fmp->64; after: %c = initial_fmp + 64.
     ptr = int.from_bytes(out[:32], "big")
-    assert ptr == MemoryPositions.RESERVED_MEMORY + 64
+    assert ptr == 64
 
 
 def test_bump_direct_emission():
@@ -929,7 +913,7 @@ def test_dalloca_asymmetric_branch():
         b"x",  # non-empty: then branch
     )
     # then branch: fmp advances by 64, so %b = initial + 64
-    assert int.from_bytes(out[:32], "big") == MemoryPositions.RESERVED_MEMORY + 64
+    assert int.from_bytes(out[:32], "big") == 64
 
     out = _run_program(
         """
@@ -951,7 +935,7 @@ def test_dalloca_asymmetric_branch():
         b"",  # empty: else branch
     )
     # else branch: fmp didn't advance, so %b = initial
-    assert int.from_bytes(out[:32], "big") == MemoryPositions.RESERVED_MEMORY
+    assert int.from_bytes(out[:32], "big") == 0
 
 
 # --------------------------------------------------------------------------
@@ -1252,9 +1236,9 @@ def test_dfree_initial_fmp_fast_path_runs():
         b"",
     )
     ptr = int.from_bytes(out[:32], "big")
-    # Both %p and %q resolve to the initial FMP constant (= RESERVED_MEMORY
-    # for this small program with no spills).
-    assert ptr == MemoryPositions.RESERVED_MEMORY
+    # Both %p and %q resolve to the initial FMP constant (= 0 for this
+    # small program with no static frame or spills).
+    assert ptr == 0
 
 
 def test_dfree_fmp_thread_path_reclaims_memory():
@@ -1286,7 +1270,7 @@ def test_dfree_fmp_thread_path_reclaims_memory():
         """,
         b"",
     )
-    assert int.from_bytes(out[:32], "big") == MemoryPositions.RESERVED_MEMORY
+    assert int.from_bytes(out[:32], "big") == 0
 
 
 def test_non_entry_dalloca_uses_threaded_marks_not_initial_fmp():
