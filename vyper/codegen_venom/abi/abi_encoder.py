@@ -30,7 +30,7 @@ def _is_complex_type(typ: VyperType) -> bool:
 
 
 def _get_element_ptr(
-    ctx: VenomCodegenContext, parent_ptr: IROperand, key: IROperand, parent_typ: VyperType
+    ctx: VenomCodegenContext, parent_ptr: IROperand, key: IRLiteral, parent_typ: VyperType
 ) -> tuple[IROperand, VyperType]:
     """
     Get pointer to element and its type.
@@ -43,10 +43,7 @@ def _get_element_ptr(
     if is_tuple_like(parent_typ):
         # key is an integer index into tuple/struct
         # Calculate offset: sum of preceding element sizes
-        if isinstance(key, IRLiteral):
-            idx = key.value
-        else:  # pragma: nocover
-            raise CompilerPanic("Dynamic tuple indexing not supported in ABI encode")
+        idx = key.value
 
         items = parent_typ.tuple_items()  # type: ignore[attr-defined]
         offset = 0
@@ -67,13 +64,8 @@ def _get_element_ptr(
         elem_typ = parent_typ.value_type
         elem_size = elem_typ.memory_bytes_required
 
-        if isinstance(key, IRLiteral):
-            offset_val = key.value * elem_size
-            sarray_elem_ptr = b.add(parent_ptr, IRLiteral(offset_val))
-        else:
-            # Dynamic index
-            offset_ir = b.mul(key, IRLiteral(elem_size))
-            sarray_elem_ptr = b.add(parent_ptr, offset_ir)
+        offset_val = key.value * elem_size
+        sarray_elem_ptr = b.add(parent_ptr, IRLiteral(offset_val))
         return sarray_elem_ptr, elem_typ
 
     elif isinstance(parent_typ, DArrayT):
@@ -84,12 +76,8 @@ def _get_element_ptr(
         # Skip length word (32 bytes)
         data_ptr = b.add(parent_ptr, IRLiteral(32))
 
-        if isinstance(key, IRLiteral):
-            offset_val = key.value * elem_size
-            darray_elem_ptr = b.add(data_ptr, IRLiteral(offset_val))
-        else:
-            offset_ir = b.mul(key, IRLiteral(elem_size))
-            darray_elem_ptr = b.add(data_ptr, offset_ir)
+        offset_val = key.value * elem_size
+        darray_elem_ptr = b.add(data_ptr, IRLiteral(offset_val))
         return darray_elem_ptr, elem_typ
 
     else:  # pragma: nocover
