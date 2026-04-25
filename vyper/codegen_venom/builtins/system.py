@@ -145,6 +145,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
 
     # Copy msg.data to unreserved scratch AFTER all kwarg evaluation, so nothing
     # else overwrites the borrowed scratch region before the call.
+    data_mark: Optional[IRVariable] = None
     if use_msg_data:
         data_len = b.calldatasize()
         data_ptr, data_mark = ctx.allocate_scratch(data_len)
@@ -163,7 +164,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
 
     # Free the scratch buffer (must be in the same BB as the dalloca, before
     # any control-flow branching from `revert_on_failure` below).
-    if use_msg_data:
+    if data_mark is not None:
         ctx.free_scratch(data_mark)
 
     # Handle return based on revert_on_failure and max_outsize
