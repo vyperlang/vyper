@@ -122,6 +122,7 @@ class IRContext:
         """
         function_labels = set(self.functions)
         data_labels = {section.label for section in self.data_segment}
+        bb_labels = {bb.label for bb in self.get_basic_blocks()}
 
         for src in sources:
             for fn in src.functions.values():
@@ -131,6 +132,14 @@ class IRContext:
                         "two sources share a prefix or collide with the target"
                     )
                 function_labels.add(fn.name)
+
+                for bb in fn.get_basic_blocks():
+                    if bb.label in bb_labels:
+                        raise ValueError(
+                            f"merge: duplicate basic block label {bb.label}; "
+                            "two sources share a prefix or collide with the target"
+                        )
+                    bb_labels.add(bb.label)
 
             for section in src.data_segment:
                 if section.label in data_labels:

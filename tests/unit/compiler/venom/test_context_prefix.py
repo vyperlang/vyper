@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.venom.basicblock import IRLabel
+from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.context import IRContext
 
 def _fn_labels(ctx: IRContext) -> list[str]:
@@ -92,6 +92,20 @@ def test_merge_raises_on_duplicate_function_labels(
             src2 = IRContext(prefix=src2_prefix)
             src2.create_function("foo")
             target.merge(src1, src2)
+
+
+def test_merge_raises_on_duplicate_basic_block_labels():
+    # Distinct function names but a shared prefix → bb labels from get_next_label collide.
+    a = IRContext(prefix="m")
+    fn_a = a.create_function("foo")
+    fn_a.append_basic_block(IRBasicBlock(a.get_next_label(), fn_a))
+
+    b = IRContext(prefix="m")
+    fn_b = b.create_function("bar")
+    fn_b.append_basic_block(IRBasicBlock(b.get_next_label(), fn_b))
+
+    with pytest.raises(ValueError, match="duplicate basic block label"):
+        IRContext().merge(a, b)
 
 
 def test_merge_raises_on_duplicate_data_section_label():
