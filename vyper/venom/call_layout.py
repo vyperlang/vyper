@@ -29,6 +29,9 @@ class FunctionCallLayout:
                 return None
             return aliases.get(op)
 
+        # This fixed-point walk is quadratic in the worst case. That is fine
+        # for call-layout validation: functions have a small param frontier,
+        # and this only needs enough precision to follow return-PC aliases.
         changed = True
         while changed:
             changed = False
@@ -92,7 +95,13 @@ class FunctionCallLayout:
         if not self.fn._has_fmp_param:
             return None
 
-        pos = len(self.params) - int(self.has_return_pc_param) - 1
+        return_pc_offset = int(self.has_return_pc_param)
+        pos = len(self.params) - return_pc_offset - 1
+        if self.fn._invoke_param_count is not None:
+            # Metadata gives the authoritative hidden-FMP slot: after all
+            # user invoke params and before return_pc, if any.
+            assert pos == self.fn._invoke_param_count, (self.fn.name, pos)
+
         if pos < 0:
             return None
         return pos

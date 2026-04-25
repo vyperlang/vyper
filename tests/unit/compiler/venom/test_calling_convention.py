@@ -4,6 +4,8 @@ from tests.venom_utils import parse_venom
 from vyper.venom.basicblock import IRLabel, IRVariable
 from vyper.venom.check_venom import (
     BumpArityError,
+    DallocaArityError,
+    DfreeArityError,
     FunctionCallLayoutError,
     InconsistentReturnArity,
     InvokeArgumentCountMismatch,
@@ -224,6 +226,63 @@ def test_bump_arity_correct_accepted():
     ctx = parse_venom(src)
     # Should not raise: bump has 2 operands and 2 outputs.
     check_calling_convention(ctx)
+
+
+def test_dalloca_arity_single_output_rejected():
+    src = """
+    function main {
+    main:
+        %p = dalloca 32
+        sink %p
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, DallocaArityError)
+
+
+def test_dalloca_arity_wrong_operand_count_rejected():
+    src = """
+    function main {
+    main:
+        %p, %mark = dalloca
+        sink %p, %mark
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, DallocaArityError)
+
+
+def test_dfree_arity_with_output_rejected():
+    src = """
+    function main {
+    main:
+        %mark = source
+        %x = dfree %mark
+        sink %x
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, DfreeArityError)
+
+
+def test_dfree_arity_wrong_operand_count_rejected():
+    src = """
+    function main {
+    main:
+        dfree
+        stop
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, DfreeArityError)
 
 
 def test_invoke_argument_count_mismatch_too_few_inputs():

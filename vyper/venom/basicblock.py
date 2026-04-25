@@ -430,8 +430,9 @@ class IRInstruction:
         if self.opcode in ("assign", "alloca"):
             return 1
         if self.opcode == "initial_fmp":
-            # lowers to PUSH {initial_fmp_value}; typical values fit in PUSH1
-            # (2 bytes) but may grow to PUSH2 for large static frames.
+            # Pure value: repeated initial_fmp instructions intentionally may
+            # CSE together. Lowers to PUSH {initial_fmp_value}; typical values
+            # fit in PUSH1 (2 bytes) but may grow for large static frames.
             return 2
         if self.opcode == "dalloca":
             # `dalloca` is high-level sugar and is eliminated by DallocaLoweringPass
