@@ -4,9 +4,8 @@ from dataclasses import dataclass
 
 from vyper.venom.basicblock import IRInstruction, IRLabel, IROperand, IRVariable
 from vyper.venom.call_layout import (
-    get_invoke_callee,
-    get_invoke_user_operands,
-    get_user_param_instructions,
+    FunctionCallLayout,
+    InvokeLayout,
 )
 from vyper.venom.function import IRFunction
 from vyper.venom.memory_location import memory_write_ops
@@ -54,12 +53,9 @@ class ReadonlyMemoryArgsGlobalAnalysis(IRGlobalAnalysis):
         return self.readonly_idxs_by_fn.get(fn, ())
 
     def _collect_param_info(self, fn: IRFunction) -> _FnParamInfo:
-        params = [inst.output for inst in get_user_param_instructions(fn)]
+        params = [inst.output for inst in FunctionCallLayout(fn).user_params]
         if len(params) == 0:
             return _FnParamInfo(tuple(), {})
-
-        if fn._invoke_param_count is not None:
-            params = params[: min(fn._invoke_param_count, len(params))]
 
         invoke_params = tuple(params)
         invoke_param_index = {var: i for i, var in enumerate(invoke_params)}
@@ -125,16 +121,17 @@ class ReadonlyMemoryArgsGlobalAnalysis(IRGlobalAnalysis):
         root_param_indices,
         readonly_by_fn: dict[IRFunction, tuple[bool, ...]],
     ) -> None:
-        target = inst.operands[0]
+        layout = InvokeLayout(self.ctx, inst)
+        target = layout.target
         if not isinstance(target, IRLabel):
-            for op in get_invoke_user_operands(inst, None):
+            for op in layout.user_operands:
                 for idx in root_param_indices(op):
                     mutable[idx] = True
             return
 
-        callee = get_invoke_callee(self.ctx, inst)
+        callee = layout.callee
 
-        for callee_arg_idx, op in enumerate(get_invoke_user_operands(inst, callee)):
+        for callee_arg_idx, op in enumerate(layout.user_operands):
             caller_idxs = root_param_indices(op)
             if len(caller_idxs) == 0:
                 continue

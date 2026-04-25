@@ -13,12 +13,7 @@ from vyper.venom.analysis import (
 )
 from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
-from vyper.venom.call_layout import (
-    get_invoke_callee,
-    get_invoke_return_buffer_operand_pos,
-    get_invoke_user_arg_count,
-    get_invoke_user_arg_index,
-)
+from vyper.venom.call_layout import InvokeLayout
 from vyper.venom.effects import EMPTY, Effects
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
@@ -63,26 +58,13 @@ class InvokeCopyForwardingBase(IRPass):
         return self.domtree.dominates(copy_bb, use_bb)
 
     def _invoke_has_return_buffer(self, invoke_inst: IRInstruction) -> bool:
-        callee = self._get_invoke_callee(invoke_inst)
-        if callee is None:
-            return False
-
-        if callee._invoke_param_count is None or callee._has_memory_return_buffer_param is None:
-            return False
-
-        invoke_arg_count = get_invoke_user_arg_count(invoke_inst, callee)
-        if invoke_arg_count != callee._invoke_param_count:
-            return False
-
-        return callee._has_memory_return_buffer_param
+        return self._invoke_layout(invoke_inst).return_buffer_operand_pos is not None
 
     def _invoke_user_arg_index(self, invoke_inst: IRInstruction, operand_idx: int) -> int | None:
-        callee = self._get_invoke_callee(invoke_inst)
-        return get_invoke_user_arg_index(invoke_inst, operand_idx, callee)
+        return self._invoke_layout(invoke_inst).user_arg_index(operand_idx)
 
     def _invoke_return_buffer_operand_pos(self, invoke_inst: IRInstruction) -> int | None:
-        callee = self._get_invoke_callee(invoke_inst)
-        return get_invoke_return_buffer_operand_pos(invoke_inst, callee)
+        return self._invoke_layout(invoke_inst).return_buffer_operand_pos
 
     def _is_alloca_like(self, inst: IRInstruction | None) -> bool:
         return inst is not None and inst.opcode == "alloca"
@@ -104,7 +86,10 @@ class InvokeCopyForwardingBase(IRPass):
         return arg_idx in readonly_idxs
 
     def _get_invoke_callee(self, invoke_inst: IRInstruction):
-        return get_invoke_callee(self.function.ctx, invoke_inst)
+        return self._invoke_layout(invoke_inst).callee
+
+    def _invoke_layout(self, invoke_inst: IRInstruction) -> InvokeLayout:
+        return InvokeLayout(self.function.ctx, invoke_inst)
 
     def _has_src_clobber_between(
         self, copy_inst: IRInstruction, rewrite_sites: set[tuple[IRInstruction, int]]

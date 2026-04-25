@@ -7,7 +7,7 @@ from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache
 from vyper.venom.analysis.fcg import FCGGlobalAnalysis
 from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRVariable
-from vyper.venom.call_layout import get_invoke_bound_params
+from vyper.venom.call_layout import InvokeLayout
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRGlobalPass
@@ -117,7 +117,7 @@ class FunctionInlinerPass(IRGlobalPass):
         call_site_func.append_basic_block(call_site_return)
 
         func_copy = self._clone_function(func, prefix)
-        binding_ops = get_invoke_bound_params(call_site, func)
+        binding_ops = InvokeLayout(self.ctx, call_site).bound_params
 
         for bb in func_copy.get_basic_blocks():
             bb.parent = call_site_func

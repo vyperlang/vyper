@@ -1,10 +1,9 @@
 from vyper.utils import evm_not
 from vyper.venom.analysis import BasePtrAnalysis, DFGAnalysis, LivenessAnalysis, MemLivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.call_layout import (
-    get_hidden_fmp_param_insert_index,
-    get_hidden_fmp_param_inst,
-    get_user_param_instructions,
+    FunctionCallLayout,
+    InvokeLayout,
 )
 from vyper.venom.passes.base_pass import IRPass
 
@@ -55,17 +54,17 @@ class DallocaLoweringPass(IRPass):
         has_dalloca = any(
             inst.opcode == "dalloca" for bb in fn.get_basic_blocks() for inst in bb.instructions
         )
-        has_dfree = any(inst.opcode == "dfree" for bb in fn.get_basic_blocks() for inst in bb.instructions)
+        has_dfree = any(
+            inst.opcode == "dfree" for bb in fn.get_basic_blocks() for inst in bb.instructions
+        )
 
         calls_needs_fmp = False
         for bb in fn.get_basic_blocks():
             for inst in bb.instructions:
                 if inst.opcode != "invoke":
                     continue
-                target = inst.operands[0]
-                assert isinstance(target, IRLabel)
-                callee = fn.ctx.get_function(target)
-                if callee._needs_fmp:
+                callee = InvokeLayout(fn.ctx, inst).callee
+                if callee is not None and callee._needs_fmp:
                     calls_needs_fmp = True
                     break
             if calls_needs_fmp:
@@ -102,7 +101,9 @@ class DallocaLoweringPass(IRPass):
         # whole function. MakeSSA will version this and place phis as needed.
         fmp_var = fn.get_next_variable()
         param_inst = IRInstruction("param", [], [fmp_var])
-        fn.entry.insert_instruction(param_inst, index=get_hidden_fmp_param_insert_index(fn))
+        fn.entry.insert_instruction(
+            param_inst, index=FunctionCallLayout(fn).hidden_fmp_param_insert_index
+        )
 
         for bb in fn.get_basic_blocks():
             self._rewrite_bb(bb, fn, fmp_var)
@@ -190,10 +191,8 @@ class DallocaLoweringPass(IRPass):
                 continue
 
             if inst.opcode == "invoke":
-                target = inst.operands[0]
-                assert isinstance(target, IRLabel)
-                callee = fn.ctx.get_function(target)
-                if callee._needs_fmp:
+                callee = InvokeLayout(fn.ctx, inst).callee
+                if callee is not None and callee._needs_fmp:
                     self._augment_invoke(inst, fmp_var)
             new_instructions.append(inst)
 
@@ -301,10 +300,10 @@ class DallocaLoweringPass(IRPass):
         # callee. The caller's current FMP SSA value survives the invoke
         # via liveness, so any callee allocation left unreleased is
         # reclaimed when control returns to the caller.
-        inst.operands = [*inst.operands, fmp_var]
+        InvokeLayout(self.function.ctx, inst).append_hidden_fmp_operand(fmp_var)
 
     def _prune_dead_hidden_fmp_param(self, fn) -> bool:
-        param_inst = get_hidden_fmp_param_inst(fn)
+        param_inst = FunctionCallLayout(fn).hidden_fmp_param
         if param_inst is None:
             return False
 
@@ -348,18 +347,19 @@ class DallocaLoweringPass(IRPass):
                 if inst.opcode != "invoke":
                     continue
 
-                target = inst.operands[0]
-                assert isinstance(target, IRLabel)
-                callee = fn.ctx.get_function(target)
+                layout = InvokeLayout(fn.ctx, inst)
+                callee = layout.callee
+                if callee is None:
+                    continue
                 if callee._has_fmp_param:
                     continue
 
-                expected_arg_count = len(get_user_param_instructions(callee))
-                current_arg_count = len(inst.operands) - 1
+                expected_arg_count = FunctionCallLayout(callee).expected_user_arg_count
+                current_arg_count = layout.actual_operand_count_after_target
                 if current_arg_count != expected_arg_count + 1:
                     continue
 
-                inst.operands.pop()
+                layout.remove_trailing_operand()
                 changed = True
 
         return changed
