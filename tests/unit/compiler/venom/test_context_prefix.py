@@ -1,0 +1,128 @@
+import pytest
+
+from vyper.venom.basicblock import IRLabel
+from vyper.venom.context import IRContext
+
+def _fn_labels(ctx: IRContext) -> list[str]:
+    return sorted(label.value for label in ctx.functions)
+
+
+def _section_labels(ctx: IRContext) -> list[str]:
+    return [section.label.value for section in ctx.data_segment]
+
+
+@pytest.mark.parametrize(
+    "prefix, expected_fn, expected_section, expected_label",
+    [
+        ("", "foo", "tbl", "1"),
+        ("m1", "m1.foo", "m1.tbl", "m1.1"),
+    ],
+)
+def test_prefix_applies_to_generated_names(prefix, expected_fn, expected_section, expected_label):
+    ctx = IRContext(prefix=prefix)
+    fn = ctx.create_function("foo")
+    ctx.append_data_section("tbl")
+    label = ctx.get_next_label()
+
+    assert fn.name.value == expected_fn
+    assert _section_labels(ctx) == [expected_section]
+    assert label.value == expected_label
+
+
+def test_prefix_applies_to_labeled_helpers():
+    assert IRContext(prefix="m1").named_label("foo").value == "m1.foo"
+    assert IRContext().named_label("foo").value == "foo"
+
+
+def test_explicit_irlabel_passes_through():
+    # IRLabel arg is used as-is; only str input to append_data_section is auto-prefixed.
+    ctx = IRContext(prefix="m1")
+    ctx.append_data_section(IRLabel("user_built", is_symbol=True))
+    assert _section_labels(ctx) == ["user_built"]
+
+
+def test_prefix_applies_to_suffixed_labels():
+    ctx = IRContext(prefix="m1")
+    assert ctx.get_next_label("loop").value == "m1.1_loop"
+
+
+def test_merge_moves_state_and_clears_sources():
+    a = IRContext(prefix="a")
+    a.entry_function = a.create_function("foo")
+    a.append_data_section("v")
+
+    b = IRContext(prefix="b")
+    b.create_function("bar")
+    b.append_data_section("w")
+
+    target = IRContext()
+    assert target.merge(a, b) is target
+
+    assert _fn_labels(target) == ["a.foo", "b.bar"]
+    assert _section_labels(target) == ["a.v", "b.w"]
+
+    assert a.functions == {}
+    assert a.data_segment == []
+    assert a.entry_function is None
+    assert b.functions == {}
+    assert b.data_segment == []
+
+
+@pytest.mark.parametrize(
+    "target_prefix, src1_prefix, src2_prefix, expected_message",
+    [
+        ("", "dup", "dup", "duplicate function"),
+        ("t", "t", None, "duplicate function"),
+    ],
+)
+def test_merge_raises_on_duplicate_function_labels(
+    target_prefix, src1_prefix, src2_prefix, expected_message
+):
+    target = IRContext(prefix=target_prefix)
+    if target_prefix:
+        target.create_function("foo")
+
+    src1 = IRContext(prefix=src1_prefix)
+    src1.create_function("foo")
+
+    with pytest.raises(ValueError, match=expected_message):
+        if src2_prefix is None:
+            target.merge(src1)
+        else:
+            src2 = IRContext(prefix=src2_prefix)
+            src2.create_function("foo")
+            target.merge(src1, src2)
+
+
+def test_merge_raises_on_duplicate_data_section_label():
+    a = IRContext(prefix="dup")
+    b = IRContext(prefix="dup")
+    a.append_data_section("tbl")
+    b.append_data_section("tbl")
+
+    with pytest.raises(ValueError, match="duplicate data section"):
+        IRContext().merge(a, b)
+
+
+def test_merge_is_atomic_on_validation_failure():
+    target = IRContext(prefix="t")
+    target.create_function("target")
+    target.append_data_section("target_tbl")
+
+    src_ok = IRContext(prefix="good")
+    src_ok.create_function("foo")
+    src_ok.append_data_section("tbl")
+
+    src_bad = IRContext(prefix="good")
+    src_bad.create_function("foo")
+    src_bad.append_data_section("tbl")
+
+    with pytest.raises(ValueError, match="duplicate function"):
+        target.merge(src_ok, src_bad)
+
+    assert _fn_labels(target) == ["t.target"]
+    assert _section_labels(target) == ["t.target_tbl"]
+    assert _fn_labels(src_ok) == ["good.foo"]
+    assert _section_labels(src_ok) == ["good.tbl"]
+    assert _fn_labels(src_bad) == ["good.foo"]
+    assert _section_labels(src_bad) == ["good.tbl"]
