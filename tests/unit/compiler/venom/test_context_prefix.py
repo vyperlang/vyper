@@ -15,7 +15,7 @@ def _section_labels(ctx: IRContext) -> list[str]:
     "prefix, expected_fn, expected_section, expected_label",
     [
         ("", "foo", "tbl", "1"),
-        ("m1", "m1.foo", "m1.tbl", "m1.1"),
+        ("m1", "m1_foo", "m1_tbl", "m1_1"),
     ],
 )
 def test_prefix_applies_to_generated_names(prefix, expected_fn, expected_section, expected_label):
@@ -30,7 +30,7 @@ def test_prefix_applies_to_generated_names(prefix, expected_fn, expected_section
 
 
 def test_prefix_applies_to_labeled_helpers():
-    assert IRContext(prefix="m1").named_label("foo").value == "m1.foo"
+    assert IRContext(prefix="m1").named_label("foo").value == "m1_foo"
     assert IRContext().named_label("foo").value == "foo"
 
 
@@ -43,7 +43,7 @@ def test_explicit_irlabel_passes_through():
 
 def test_prefix_applies_to_suffixed_labels():
     ctx = IRContext(prefix="m1")
-    assert ctx.get_next_label("loop").value == "m1.1_loop"
+    assert ctx.get_next_label("loop").value == "m1_1_loop"
 
 
 def test_merge_moves_state_and_clears_sources():
@@ -58,8 +58,8 @@ def test_merge_moves_state_and_clears_sources():
     target = IRContext()
     assert target.merge(a, b) is target
 
-    assert _fn_labels(target) == ["a.foo", "b.bar"]
-    assert _section_labels(target) == ["a.v", "b.w"]
+    assert _fn_labels(target) == ["a_foo", "b_bar"]
+    assert _section_labels(target) == ["a_v", "b_w"]
 
     assert a.functions == {}
     assert a.data_segment == []
@@ -134,9 +134,22 @@ def test_merge_is_atomic_on_validation_failure():
     with pytest.raises(ValueError, match="duplicate function"):
         target.merge(src_ok, src_bad)
 
-    assert _fn_labels(target) == ["t.target"]
-    assert _section_labels(target) == ["t.target_tbl"]
-    assert _fn_labels(src_ok) == ["good.foo"]
-    assert _section_labels(src_ok) == ["good.tbl"]
-    assert _fn_labels(src_bad) == ["good.foo"]
-    assert _section_labels(src_bad) == ["good.tbl"]
+    assert _fn_labels(target) == ["t_target"]
+    assert _section_labels(target) == ["t_target_tbl"]
+    assert _fn_labels(src_ok) == ["good_foo"]
+    assert _section_labels(src_ok) == ["good_tbl"]
+    assert _fn_labels(src_bad) == ["good_foo"]
+    assert _section_labels(src_bad) == ["good_tbl"]
+
+
+def test_prefixed_labels_roundtrip_through_parser():
+    from vyper.venom.parser import parse_venom
+
+    ctx = IRContext(prefix="m1")
+    fn = ctx.create_function("foo")
+    extra = IRBasicBlock(ctx.get_next_label("loop"), fn)
+    fn.append_basic_block(extra)
+    fn.entry.append_instruction("jmp", extra.label)
+    extra.append_instruction("stop")
+
+    parse_venom(str(ctx))

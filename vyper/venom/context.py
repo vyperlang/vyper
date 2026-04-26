@@ -68,7 +68,7 @@ class IRContext:
                 yield bb
 
     def _namespaced_value(self, value: str) -> str:
-        return f"{self.prefix}.{value}" if self.prefix else value
+        return f"{self.prefix}_{value}" if self.prefix else value
 
     def add_function(self, fn: IRFunction) -> None:
         assert fn.name not in self.functions, f"duplicate function {fn.name}"
@@ -79,7 +79,7 @@ class IRContext:
         del self.functions[fn.name]
 
     def named_label(self, name: str, is_symbol: bool = True) -> IRLabel:
-        """Return ``IRLabel(f"{prefix}.{name}")`` (or ``IRLabel(name)`` if
+        """Return ``IRLabel(f"{prefix}_{name}")`` (or ``IRLabel(name)`` if
         prefix is empty).  Use for labels that must survive a :meth:`merge`.
         """
         return IRLabel(self._namespaced_value(name), is_symbol=is_symbol)
