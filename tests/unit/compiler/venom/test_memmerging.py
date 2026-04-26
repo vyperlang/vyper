@@ -6,6 +6,7 @@ from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import SCCP, MemMergePass, RemoveUnusedVariablesPass
 
 _check_pre_post = PrePostChecker([(MemMergePass, {"memory_abstract": False}), RemoveUnusedVariablesPass], default_hevm=False)
+_check_pre_post_abs_mem = PrePostChecker([(MemMergePass, {"memory_abstract": True}), RemoveUnusedVariablesPass], default_hevm=False)
 
 
 def _check_no_change(pre):
@@ -42,6 +43,45 @@ def test_memmerging_tmp():
         stop
     """
     _check_pre_post(pre, post)
+
+def test_memmerging_tmp_alloca():
+    """
+    Basic memory merge test
+    All mloads and mstores can be
+    transformed into mcopy
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %base_read = alloca 96
+        %base_write = alloca 96
+        %ptr1 = add %base_read, 0
+        %1 = mload %ptr1
+        %ptr2 = add %base_read, 32
+        %2 = mload %ptr2
+        %ptr3 = add %base_read, 64
+        %3 = mload %ptr3
+        %ptr4 = add %base_write, 0
+        mstore %ptr4, %1
+        %ptr5 = add %base_write, 32
+        mstore %ptr5, %2
+        %ptr6 = add %base_write, 64
+        mstore %ptr6, %3
+        stop
+    """
+
+    post = """
+    _global:
+        %base_read = alloca 96
+        %base_write = alloca 96
+        %4 = add 0, %base_read
+        %5 = add 0, %base_write
+        mcopy %5, %4, 96
+        stop
+    """
+    _check_pre_post_abs_mem(pre, post)
 
 
 def test_memmerging_out_of_order():
