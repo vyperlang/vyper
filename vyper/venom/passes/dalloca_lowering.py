@@ -148,6 +148,7 @@ class DallocaLoweringPass(IRPass):
         if fn is not fn.ctx.entry_function:
             return False
 
+        liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
         for bb in fn.get_basic_blocks():
             open_allocs: list[tuple[IRVariable, IRVariable]] = []
             ptr_aliases: set[IRVariable] = set()
@@ -182,6 +183,8 @@ class DallocaLoweringPass(IRPass):
                         ptr_aliases.add(outputs[0])
 
             if open_allocs:
+                return False
+            if any(ptr in liveness.out_vars(bb) for ptr in closed_ptrs):
                 return False
         return True
 

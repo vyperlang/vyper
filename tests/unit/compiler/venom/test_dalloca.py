@@ -1190,6 +1190,37 @@ def test_initial_fmp_fast_path_rejects_aliased_use_after_dfree():
     assert fn._needs_fmp is True
 
 
+def test_initial_fmp_fast_path_rejects_closed_ptr_live_out_to_phi():
+    ctx = parse_from_basic_block(
+        """
+        main:
+            %p, %mark = dalloca 32
+            dfree %mark
+            %cond = calldatasize
+            jnz %cond, @left, @right
+
+        left:
+            jmp @join
+
+        right:
+            %q = 64
+            jmp @join
+
+        join:
+            %x = phi @left, %p, @right, %q
+            %v = mload %x
+            sink %v
+        """
+    )
+    fn = next(iter(ctx.functions.values()))
+    ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    opcodes = [inst.opcode for bb in fn.get_basic_blocks() for inst in bb.instructions]
+    assert "initial_fmp" not in opcodes
+    assert fn._needs_fmp is True
+
+
 def test_initial_fmp_fast_path_rejects_invoke_during_live_dalloca():
     # Entry-function initial_fmp lowering is disabled when an invoke occurs
     # while a dalloca allocation is live; the function falls back to FMP
