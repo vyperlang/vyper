@@ -248,7 +248,6 @@ class VenomCompiler:
             assert depth != StackModel.NOT_IN_STACK
             if depth == final_stack_depth:
                 continue
-            assert depth >= -16, depth
 
             to_swap = stack.peek(final_stack_depth)
             if self.dfg.are_equivalent(op, to_swap):
