@@ -205,6 +205,39 @@ def test_memmerging_alloca_out_of_order():
     _check_pre_post_abs_mem(pre, post)
 
 
+def test_memmerging_alloca_single_buffer():
+    """
+    Test that mload/mstore from same allocation pair can be
+    merged into one mcopy
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %buf = alloca 128
+        %ptr1 = add %buf, 0
+        %1 = mload %ptr1
+        %ptr2 = add %buf, 32
+        %2 = mload %ptr2
+        %ptr3 = add %buf, 64
+        mstore %ptr3, %1
+        %ptr4 = add %buf, 96
+        mstore %ptr4, %2
+        stop
+    """
+
+    post = """
+    _global:
+        %buf = alloca 128
+        %3 = add 0, %buf
+        %4 = add 64, %buf
+        mcopy %4, %3, 64
+        stop
+    """
+    _check_pre_post_abs_mem(pre, post)
+
+
 def test_memmerging_alloca_out_of_order_reversed():
     """
     Test out-of-order mload/mstore with allocas where we write a larger
