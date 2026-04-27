@@ -649,6 +649,20 @@ def lower_breakpoint(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     return IRLiteral(0)
 
 
+def lower_method_id_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+    """
+    method_id_of(IFoo.bar) -> bytes4
+
+    Returns the 4-byte function selector, evaluated at compile time.
+    """
+    from vyper.builtins.functions import MethodIDOf
+
+    builtin = MethodIDOf()
+    selector = builtin._compute_method_id(node)
+    value = int.from_bytes(selector, "big") << 224
+    return IRLiteral(value)
+
+
 # Export handlers
 HANDLERS = {
     "ecrecover": lower_ecrecover,
@@ -665,4 +679,5 @@ HANDLERS = {
     "isqrt": lower_isqrt,
     "breakpoint": lower_breakpoint,
     "print": lower_print,
+    "method_id_of": lower_method_id_of,
 }

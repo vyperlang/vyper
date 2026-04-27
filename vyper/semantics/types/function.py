@@ -744,6 +744,7 @@ class ContractFunctionT(VyperType):
             method_ids.update(_generate_method_id(self.name, arg_types[:i]))
         return method_ids
 
+
     # add more information to type exceptions generated inside calls
     def _enhance_call_exception(self, e, ast_node=None):
         if ast_node is not None:
