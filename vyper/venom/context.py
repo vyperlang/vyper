@@ -153,6 +153,8 @@ class IRContext:
             for fn in list(src.functions.values()):
                 self.add_function(fn)
             self.data_segment.extend(src.data_segment)
+            self.last_label = max(self.last_label, src.last_label)
+            self.last_variable = max(self.last_variable, src.last_variable)
             src.functions.clear()
             src.data_segment.clear()
             src.entry_function = None

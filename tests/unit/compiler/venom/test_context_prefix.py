@@ -153,3 +153,16 @@ def test_prefixed_labels_roundtrip_through_parser():
     extra.append_instruction("stop")
 
     parse_venom(str(ctx))
+
+
+def test_merge_advances_counters_past_sources():
+    src = IRContext(prefix="m")
+    fn = src.create_function("foo")
+    fn.append_basic_block(IRBasicBlock(src.get_next_label(), fn))  # "m_1"
+    fn.append_basic_block(IRBasicBlock(src.get_next_label(), fn))  # "m_2"
+    src.get_next_variable()  # "%1"
+    src.get_next_variable()  # "%2"
+    target = IRContext(prefix="m")
+    target.merge(src)
+    assert target.get_next_label().value == "m_3"
+    assert target.get_next_variable().value == "%3"
