@@ -1,0 +1,71 @@
+import pytest
+
+from vyper.utils import erc7201_storage_slot
+
+
+def test_erc7201_slot_calculation():
+    """Test basic ERC-7201 slot calculation."""
+    namespace = "test.namespace"
+    slot = erc7201_storage_slot(namespace)
+
+    # Verify the result is aligned to 256 (last byte is 0)
+    assert slot & 0xFF == 0, "ERC-7201 slots should be 256-aligned"
+
+    # Verify reproducibility
+    assert erc7201_storage_slot(namespace) == slot
+
+
+def test_erc7201_different_namespaces():
+    """Test that different namespaces produce different slots."""
+    slot1 = erc7201_storage_slot("namespace.one")
+    slot2 = erc7201_storage_slot("namespace.two")
+    slot3 = erc7201_storage_slot("completely.different")
+
+    assert slot1 != slot2
+    assert slot1 != slot3
+    assert slot2 != slot3
+
+
+def test_erc7201_hex_namespace():
+    """Test that hex namespaces are treated as raw slot values."""
+    # Simple hex value
+    assert erc7201_storage_slot("0x100") == 256
+    assert erc7201_storage_slot("0x1000") == 4096
+    assert erc7201_storage_slot("0x0") == 0
+
+    # Large hex value
+    large_hex = "0x" + "ff" * 32
+    expected = int("0x" + "ff" * 32, 16)
+    assert erc7201_storage_slot(large_hex) == expected
+
+
+@pytest.mark.parametrize(
+    "namespace,expected",
+    [
+        # see: https://eips.ethereum.org/EIPS/eip-7201#reference-implementation
+        ("example.main", 0x183A6125C38840424C4A85FA12BAB2AB606C4B6D0E7CC73C0C06BA5300EAB500)
+    ],
+)
+def test_erc7201_reference(namespace, expected):
+    assert erc7201_storage_slot(namespace) == expected
+
+
+def test_erc7201_alignment():
+    """Test that all ERC-7201 slots are 256-aligned."""
+    namespaces = [
+        "a",
+        "abc",
+        "test.namespace.v1",
+        "org.project.storage",
+        "very.long.namespace.with.many.segments.for.testing",
+    ]
+
+    for ns in namespaces:
+        slot = erc7201_storage_slot(ns)
+        assert slot % 256 == 0, f"Namespace '{ns}' produced non-aligned slot {slot}"
+
+
+def test_erc7201_empty_namespace():
+    """Test that empty string namespace still works (edge case)."""
+    slot = erc7201_storage_slot("")
+    assert slot & 0xFF == 0  # Should still be aligned

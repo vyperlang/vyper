@@ -139,6 +139,7 @@ class Settings:
     enable_decimals: Optional[bool] = None
     nonreentrancy_by_default: Optional[bool] = None
     venom_flags: Optional[VenomOptimizationFlags] = None
+    storage_namespace: Optional[str] = None
 
     def __post_init__(self):
         # sanity check inputs
@@ -155,6 +156,9 @@ class Settings:
 
         if self.venom_flags is not None:
             assert isinstance(self.venom_flags, VenomOptimizationFlags)
+
+        if self.storage_namespace is not None:
+            assert isinstance(self.storage_namespace, str)
 
     # CMC 2024-04-10 consider hiding the `enable_decimals` member altogether
     def get_enable_decimals(self) -> bool:

@@ -226,6 +226,52 @@ def keccak256(x):
     return keccak.new(digest_bits=256, data=x).digest()
 
 
+def erc7201_storage_slot(namespace_id: str) -> int:
+    """
+    Calculate the starting storage slot for a namespace using the ERC-7201 formula.
+
+    The formula is: keccak256(keccak256(id) - 1) & ~0xff
+
+    This ensures:
+    - Namespaces are disjoint from standard Solidity storage
+    - Namespace locations are aligned to 256 slots
+
+    If the namespace_id starts with "0x", it is treated as a raw hexadecimal slot value.
+    Otherwise, the ERC-7201 hash is computed.
+
+    Arguments
+    ---------
+    namespace_id : str
+        The namespace identifier string.
+
+    Returns
+    -------
+    int
+        The starting storage slot for the namespace.
+    """
+    if namespace_id.startswith("0x"):
+        # Treat as raw hex value - this is the direct slot
+        return int(namespace_id, 16)
+
+    # ERC-7201 formula: keccak256(keccak256(id) - 1) & ~0xff
+    # Step 1: Hash the namespace id
+    first_hash = keccak256(namespace_id.encode("utf-8"))
+
+    # Step 2: Convert to int and subtract 1
+    first_hash_int = int.from_bytes(first_hash, "big")
+    decremented = first_hash_int - 1
+
+    # Step 3: Hash the decremented value (as 32 bytes, big-endian)
+    decremented_bytes = decremented.to_bytes(32, "big")
+    second_hash = keccak256(decremented_bytes)
+
+    # Step 4: Convert to int and clear the last byte (align to 256)
+    result = int.from_bytes(second_hash, "big")
+    result &= ~0xFF  # Clear last byte for 256-slot alignment
+
+    return result
+
+
 @functools.lru_cache(maxsize=512)
 def sha256sum(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).digest().hex()
