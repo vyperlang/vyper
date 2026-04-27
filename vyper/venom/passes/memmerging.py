@@ -1,14 +1,14 @@
 from bisect import bisect_left
 from dataclasses import dataclass
 
-from vyper.evm.address_space import AddrSpace, CALLDATA, MEMORY, DATA
+from vyper.evm.address_space import CALLDATA, DATA, MEMORY, AddrSpace
 from vyper.evm.opcodes import version_check
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, BasePtrAnalysis, MemoryAliasAnalysis
+from vyper.venom.analysis import BasePtrAnalysis, DFGAnalysis, LivenessAnalysis, MemoryAliasAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.effects import Effects
-from vyper.venom.passes.base_pass import InstUpdater, IRPass
 from vyper.venom.memory_location import Allocation, MemoryLocation
+from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
 @dataclass
@@ -31,7 +31,7 @@ class _Copy:
     def src(self) -> int:
         assert self.src_loc.offset is not None
         return self.src_loc.offset
-    
+
     @property
     def dst(self) -> int:
         assert self.dst_loc.offset is not None
@@ -41,7 +41,7 @@ class _Copy:
     def src_end(self) -> int:
         assert self.src_loc.offset is not None
         return self.src_loc.offset + self.length
-    
+
     @property
     def length(self) -> int:
         assert self.is_valid
@@ -62,12 +62,15 @@ class _Copy:
     def overwrites(self, interval: MemoryLocation) -> bool:
         # return true if dst of self overwrites the interval
         return MemoryLocation.may_overlap(self.dst_loc, interval)
-    
+
     def is_compatible(self, other: "_Copy") -> bool:
         assert self.is_valid
         assert other.is_valid
 
-        return self.src_loc.alloca == other.src_loc.alloca and self.dst_loc.alloca == other.dst_loc.alloca
+        return (
+            self.src_loc.alloca == other.src_loc.alloca
+            and self.dst_loc.alloca == other.dst_loc.alloca
+        )
 
     def is_valid(self) -> bool:
         return self.dst_loc.is_fixed and self.src_loc.is_fixed
@@ -96,17 +99,23 @@ class _Copy:
         assert self.can_merge(other)
 
         new_length = max(self.dst_end, other.dst_end) - self.dst
-        self.src_loc = MemoryLocation(self.src, new_length, self.src_loc.alloca, self.src_loc._is_volatile)
-        self.dst_loc = MemoryLocation(self.dst, new_length, self.dst_loc.alloca, self.dst_loc._is_volatile)
+        self.src_loc = MemoryLocation(
+            self.src, new_length, self.src_loc.alloca, self.src_loc._is_volatile
+        )
+        self.dst_loc = MemoryLocation(
+            self.dst, new_length, self.dst_loc.alloca, self.dst_loc._is_volatile
+        )
         self.insts.extend(other.insts)
 
     def __repr__(self) -> str:
         return f"_Copy({self.dst_loc}, {self.src_loc}, {self.length})"
 
+
 # To help with venom repr test which will contain
 # concrete values by definition
 if "_CHECK" not in globals():
     _CHECK = True
+
 
 class _Copies:
     # src allocations -> dst allocations -> list
@@ -116,7 +125,7 @@ class _Copies:
     def __init__(self, just_abstract: bool):
         self.copies = dict()
         self.just_abstract = just_abstract
-    
+
     def _check_state(self, source: Allocation | None) -> bool:
         if _CHECK and self.just_abstract:
             is_abstract = source is not None
@@ -126,8 +135,13 @@ class _Copies:
     def get_compatible(self, copy: _Copy) -> list[_Copy]:
         return self.get_copies(copy.src_loc.alloca, copy.dst_loc.alloca)
 
-    def get_copies(self, src_allocation: Allocation | None, dst_allocation: Allocation | None) -> list[_Copy]: 
-        assert not self.just_abstract or (src_allocation is None) == (dst_allocation is None), (src_allocation, dst_allocation)
+    def get_copies(
+        self, src_allocation: Allocation | None, dst_allocation: Allocation | None
+    ) -> list[_Copy]:
+        assert not self.just_abstract or (src_allocation is None) == (dst_allocation is None), (
+            src_allocation,
+            dst_allocation,
+        )
         assert self._check_state(src_allocation)
 
         if src_allocation not in self.copies:
@@ -139,7 +153,7 @@ class _Copies:
     def insert(self, new_copy: _Copy):
         copies = self.get_compatible(new_copy)
         index = bisect_left(copies, new_copy.dst, key=lambda c: c.dst)
-        
+
         if new_copy.src_loc.alloca not in self.copies:
             self.copies[new_copy.src_loc.alloca] = dict()
         if new_copy.dst_loc.alloca not in self.copies[new_copy.src_loc.alloca]:
@@ -159,7 +173,7 @@ class _Copies:
     def remove(self, copy: _Copy):
         if _CHECK:
             assert self.just_abstract == (not copy.src_loc.is_concrete)
-        
+
         self.copies[copy.src_loc.alloca][copy.dst_loc.alloca].remove(copy)
 
     def get_reads_from(self, src_allocation: Allocation | None):
@@ -201,7 +215,9 @@ class MemMergePass(IRPass):
         for bb in self.function.get_basic_blocks():
             self._merge_mstore_dload(bb)
             self._handle_bb_memzero(bb)
-            self._handle_bb(bb, "calldataload", "calldatacopy", CALLDATA, allow_dst_overlaps_src=True)
+            self._handle_bb(
+                bb, "calldataload", "calldatacopy", CALLDATA, allow_dst_overlaps_src=True
+            )
             self._handle_bb(bb, "dload", "dloadbytes", DATA, allow_dst_overlaps_src=True)
 
             if version_check(begin="cancun"):
@@ -221,7 +237,6 @@ class MemMergePass(IRPass):
         res = self.updater.add_before(inst, "add", [loc.alloca.inst.output, IRLiteral(loc.offset)])
         assert res is not None
         return res
-        
 
     def _flush_copies(
         self, bb: IRBasicBlock, copies: list[_Copy], copy_opcode: str, load_opcode: str
@@ -249,7 +264,9 @@ class MemMergePass(IRPass):
             else:
                 # we are converting an mcopy into an mload+mstore (mload+mstore
                 # is 1 byte smaller than mcopy).
-                val = self.updater.add_before(inst, load_opcode, [self._create_offset(inst, copy.src_loc)])
+                val = self.updater.add_before(
+                    inst, load_opcode, [self._create_offset(inst, copy.src_loc)]
+                )
                 assert val is not None  # help mypy
                 self.updater.update(inst, "mstore", [val, self._create_offset(inst, copy.dst_loc)])
 
@@ -289,7 +306,9 @@ class MemMergePass(IRPass):
         """
         res = []
         for copy in self._copies.get_writes_to(new_copy.dst_loc.alloca):
-            if copy.is_compatible(new_copy) and (copy.can_merge(new_copy) or new_copy.can_merge(copy)):
+            if copy.is_compatible(new_copy) and (
+                copy.can_merge(new_copy) or new_copy.can_merge(copy)
+            ):
                 # safe
                 continue
 
@@ -407,7 +426,7 @@ class MemMergePass(IRPass):
                     read_hazards = self._write_after_read_hazards(n_copy)
                     if len(read_hazards) > 0:
                         _barrier_for(read_hazards)
-                
+
                 self._add_copy(n_copy)
 
             elif inst.opcode == copy_opcode:
@@ -447,12 +466,19 @@ class MemMergePass(IRPass):
             for copy in copies:
                 inst = copy.insts[-1]
                 if copy.length == 32:
-                    new_ops: list[IROperand] = [IRLiteral(0), self._create_offset(inst, copy.dst_loc)]
+                    new_ops: list[IROperand] = [
+                        IRLiteral(0),
+                        self._create_offset(inst, copy.dst_loc),
+                    ]
                     self.updater.update(inst, "mstore", new_ops)
                 else:
                     calldatasize = self.updater.add_before(inst, "calldatasize", [])
                     assert calldatasize is not None  # help mypy
-                    new_ops = [IRLiteral(copy.length), calldatasize, self._create_offset(inst, copy.dst_loc)]
+                    new_ops = [
+                        IRLiteral(copy.length),
+                        calldatasize,
+                        self._create_offset(inst, copy.dst_loc),
+                    ]
                     self.updater.update(inst, "calldatacopy", new_ops)
 
                 for inst in copy.insts[:-1]:

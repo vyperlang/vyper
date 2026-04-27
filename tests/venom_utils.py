@@ -2,9 +2,9 @@ from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
+from vyper.venom.optimization_levels.types import PassConfig
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes.base_pass import IRPass
-from vyper.venom.optimization_levels.types import PassConfig
 
 
 def parse_from_basic_block(source: str, funcname="_global"):
@@ -55,7 +55,9 @@ def assert_ctx_eq(ctx1: IRContext, ctx2: IRContext):
     assert next(iter(ctx1.functions.keys())) == next(iter(ctx2.functions.keys()))
     assert ctx1.data_segment == ctx2.data_segment, ctx2.data_segment
 
+
 NormalizedPassConfig = tuple[type, dict]
+
 
 def normalize_passes(passes: list[PassConfig]) -> list[NormalizedPassConfig]:
     res = []
@@ -73,7 +75,9 @@ class PrePostChecker:
     pass_objects: list[IRPass]
     default_hevm: bool
 
-    def __init__(self, passes: list[PassConfig], post: list[PassConfig] = None, default_hevm: bool = True):
+    def __init__(
+        self, passes: list[PassConfig], post: list[PassConfig] = None, default_hevm: bool = True
+    ):
         self.passes = normalize_passes(passes)
         self.post_passes = []
         if post is not None:

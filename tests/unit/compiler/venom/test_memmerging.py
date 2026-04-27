@@ -5,8 +5,12 @@ from vyper.evm.opcodes import version_check
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import SCCP, MemMergePass, RemoveUnusedVariablesPass
 
-_check_pre_post = PrePostChecker([(MemMergePass, {"memory_abstract": False}), RemoveUnusedVariablesPass], default_hevm=False)
-_check_pre_post_abs_mem = PrePostChecker([(MemMergePass, {"memory_abstract": True}), RemoveUnusedVariablesPass], default_hevm=False)
+_check_pre_post = PrePostChecker(
+    [(MemMergePass, {"memory_abstract": False}), RemoveUnusedVariablesPass], default_hevm=False
+)
+_check_pre_post_abs_mem = PrePostChecker(
+    [(MemMergePass, {"memory_abstract": True}), RemoveUnusedVariablesPass], default_hevm=False
+)
 
 
 def _check_no_change(pre):
@@ -43,6 +47,7 @@ def test_memmerging_tmp():
         stop
     """
     _check_pre_post(pre, post)
+
 
 def test_memmerging_tmp_alloca():
     """
