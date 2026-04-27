@@ -67,7 +67,7 @@ class IRContext:
             for bb in fn.get_basic_blocks():
                 yield bb
 
-    def _namespaced_value(self, value: str) -> str:
+    def _prefixed_value(self, value: str) -> str:
         return f"{self.prefix}_{value}" if self.prefix else value
 
     def add_function(self, fn: IRFunction) -> None:
@@ -82,7 +82,7 @@ class IRContext:
         """Return ``IRLabel(f"{prefix}_{name}")`` (or ``IRLabel(name)`` if
         prefix is empty).  Use for labels that must survive a :meth:`merge`.
         """
-        return IRLabel(self._namespaced_value(name), is_symbol=is_symbol)
+        return IRLabel(self._prefixed_value(name), is_symbol=is_symbol)
 
     def create_function(self, name: str) -> IRFunction:
         label = self.prefixed_label(name, is_symbol=True)
@@ -101,7 +101,7 @@ class IRContext:
     def get_next_label(self, suffix: str = "") -> IRLabel:
         suffix = f"_{suffix}" if suffix else ""
         self.last_label += 1
-        return IRLabel(self._namespaced_value(f"{self.last_label}{suffix}"))
+        return IRLabel(self._prefixed_value(f"{self.last_label}{suffix}"))
 
     def get_next_variable(self) -> IRVariable:
         self.last_variable += 1
