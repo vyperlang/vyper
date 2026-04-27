@@ -3,6 +3,7 @@ import pytest
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.context import IRContext
 
+
 def _fn_labels(ctx: IRContext) -> list[str]:
     return sorted(label.value for label in ctx.functions)
 
@@ -13,10 +14,7 @@ def _section_labels(ctx: IRContext) -> list[str]:
 
 @pytest.mark.parametrize(
     "prefix, expected_fn, expected_section, expected_label",
-    [
-        ("", "foo", "tbl", "1"),
-        ("m1", "m1_foo", "m1_tbl", "m1_1"),
-    ],
+    [("", "foo", "tbl", "1"), ("m1", "m1_foo", "m1_tbl", "m1_1")],
 )
 def test_prefix_applies_to_generated_names(prefix, expected_fn, expected_section, expected_label):
     ctx = IRContext(prefix=prefix)
@@ -70,10 +68,7 @@ def test_merge_moves_state_and_clears_sources():
 
 @pytest.mark.parametrize(
     "target_prefix, src1_prefix, src2_prefix, expected_message",
-    [
-        ("", "dup", "dup", "duplicate function"),
-        ("t", "t", None, "duplicate function"),
-    ],
+    [("", "dup", "dup", "duplicate function"), ("t", "t", None, "duplicate function")],
 )
 def test_merge_raises_on_duplicate_function_labels(
     target_prefix, src1_prefix, src2_prefix, expected_message
