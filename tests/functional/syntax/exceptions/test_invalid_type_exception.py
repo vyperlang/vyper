@@ -1,6 +1,7 @@
 import pytest
 
 from vyper.exceptions import InvalidType, UnknownType
+from vyper.compiler import compile_code
 
 fail_list = [
     """
@@ -56,3 +57,70 @@ x: 5
 @pytest.mark.parametrize("bad_code", invalid_list)
 def test_invalid_type_exception(bad_code, get_contract, assert_compile_failed):
     assert_compile_failed(lambda: get_contract(bad_code), InvalidType)
+
+
+def test_constant_name_not_a_type_function_param():
+    code = """
+N: constant(uint256) = 1
+
+@external
+def foo(x: N):
+    pass
+    """
+    with pytest.raises(InvalidType, match="is not a type"):
+        compile_code(code)
+
+
+def test_constant_name_not_a_type_return_type():
+    code = """
+N: constant(uint256) = 1
+
+@external
+def foo() -> N:
+    pass
+    """
+    with pytest.raises(InvalidType, match="is not a type"):
+        compile_code(code)
+
+
+def test_constant_name_not_a_type_state_variable():
+    code = """
+N: constant(uint256) = 1
+x: N
+    """
+    with pytest.raises(InvalidType, match="is not a type"):
+        compile_code(code)
+
+
+def test_constant_name_not_a_type_convert():
+    code = """
+N: constant(uint256) = 1
+
+@external
+def foo():
+    y: uint8 = 1
+    x: uint256 = convert(y, N)
+    """
+    with pytest.raises(InvalidType, match="is not a type"):
+        compile_code(code)
+
+
+def test_constant_name_not_a_type_static_array():
+    code = f"""
+N: constant(uint8[3]) = [1, 2, 3]
+x: N
+    """
+    with pytest.raises(InvalidType, match="is not a type"):
+        compile_code(code)
+
+
+def test_constant_name_not_a_type_dynamic_array():
+    code = f"""
+bar: DynArray[uint8, 3]
+
+@external
+def foo():
+    x: DynArray[uint8, 3] = empty(self.bar)
+    """
+    with pytest.raises(InvalidType, match="is not a type"):
+        compile_code(code)
