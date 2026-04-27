@@ -134,7 +134,7 @@ class Settings:
     compiler_version: Optional[str] = None
     optimize: Optional[OptimizationLevel] = None
     evm_version: Optional[str] = None
-    experimental_codegen: Optional[bool] = None
+    legacy_codegen: Optional[bool] = None
     debug: Optional[bool] = None
     enable_decimals: Optional[bool] = None
     nonreentrancy_by_default: Optional[bool] = None
@@ -144,8 +144,8 @@ class Settings:
         # sanity check inputs
         if self.optimize is not None:
             assert isinstance(self.optimize, OptimizationLevel)
-        if self.experimental_codegen is not None:
-            assert isinstance(self.experimental_codegen, bool)
+        if self.legacy_codegen is not None:
+            assert isinstance(self.legacy_codegen, bool)
         if self.debug is not None:
             assert isinstance(self.debug, bool)
         if self.enable_decimals is not None:
@@ -172,8 +172,8 @@ class Settings:
         ret = []
         if self.optimize is not None:
             ret.append(" --optimize " + str(self.optimize))
-        if self.experimental_codegen is True:
-            ret.append(" --venom-experimental")
+        if self.legacy_codegen is True:
+            ret.append(" --legacy")
         if self.evm_version is not None:
             ret.append(" --evm-version " + self.evm_version)
         if self.debug is True:
@@ -214,7 +214,8 @@ class Settings:
 def should_run_legacy_optimizer(settings: Settings):
     if settings.optimize == OptimizationLevel.NONE:
         return False
-    if settings.experimental_codegen and not VENOM_ENABLE_LEGACY_OPTIMIZER:
+    # skip legacy optimizer when using venom codegen
+    if not settings.legacy_codegen and not VENOM_ENABLE_LEGACY_OPTIMIZER:
         return False
 
     return True

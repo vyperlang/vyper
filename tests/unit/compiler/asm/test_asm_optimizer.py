@@ -80,7 +80,7 @@ def __init__():
 # need to test this using asm anymore.
 @pytest.mark.parametrize("code", codes)
 def test_dead_code_eliminator(code):
-    c = CompilerData(code, settings=Settings(optimize=OptimizationLevel.NONE))
+    c = CompilerData(code, settings=Settings(optimize=OptimizationLevel.NONE, legacy_codegen=True))
 
     # get the labels
     initcode_labels = [i for i in c.assembly if isinstance(i, Label)]

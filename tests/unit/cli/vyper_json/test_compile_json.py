@@ -393,7 +393,7 @@ def test_compile_json_with_experimental_codegen():
     expected = compiled[0][PurePath("foo.vy")]
 
     settings = get_settings(code)
-    assert settings.experimental_codegen is True
+    assert settings.legacy_codegen is False  # venom = not legacy
     output_json = compile_json(code)
     assert "venom" in output_json["contracts"]["foo.vy"]["foo"]
     venom = output_json["contracts"]["foo.vy"]["foo"]["venom"]
@@ -455,7 +455,7 @@ def test_compile_json_without_experimental_codegen():
     }
 
     settings = get_settings(code)
-    assert settings.experimental_codegen is False
+    assert settings.legacy_codegen is True  # legacy
     output_json = compile_json(code)
     assert "venom" not in output_json["contracts"]["foo.vy"]["foo"]
 

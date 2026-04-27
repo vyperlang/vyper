@@ -449,7 +449,7 @@ class IRnode:
 
     @property  # probably could be cached_property but be paranoid
     def _optimized(self):
-        if get_global_settings().experimental_codegen:
+        if not get_global_settings().legacy_codegen:
             # in venom pipeline, we don't need to inline constants.
             return self
 

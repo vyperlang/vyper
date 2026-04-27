@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import vyper
-import vyper.codegen.ir_node as ir_node
+import vyper.codegen_legacy.ir_node as ir_node
 import vyper.evm.opcodes as evm
 from vyper.cli import vyper_json
 from vyper.cli.compile_archive import NotZipInput, compile_from_zip
@@ -48,10 +48,10 @@ interface          - Vyper interface of a contract
 external_interface - External interface of a contract, used for outside contract calls
 opcodes            - List of opcodes as a string
 opcodes_runtime    - List of runtime opcodes as a string
-ir                 - Intermediate representation in list format (Venom IR if --experimental-codegen)
+ir                 - Intermediate representation in list format (Venom IR by default)
 ir_json            - Intermediate representation in JSON format
 ir_runtime         - Intermediate representation of runtime bytecode
-                      (Venom IR if --experimental-codegen)
+                      (Venom IR by default)
 asm                - Output the EVM assembly of the deployable bytecode
 integrity          - Output the integrity hash of the source code
 archive            - Output the build as an archive file
@@ -211,11 +211,17 @@ def _parse_args(argv):
 
     parser.add_argument("-o", help="Set the output path", dest="output_path")
     parser.add_argument(
+        "--legacy",
+        help="Use the legacy (IRnode-based) codegen instead of Venom.",
+        action="store_true",
+        dest="legacy_codegen",
+    )
+    parser.add_argument(
         "--experimental-codegen",
         "--venom-experimental",
-        help="The compiler uses the new IR codegen. This is an experimental feature.",
+        help=argparse.SUPPRESS,  # deprecated: venom is now the default
         action="store_true",
-        dest="experimental_codegen",
+        dest="legacy_codegen_negated",
     )
     parser.add_argument("--enable-decimals", help="Enable decimals", action="store_true")
 
@@ -280,8 +286,11 @@ def _parse_args(argv):
     if args.evm_version:
         settings.evm_version = args.evm_version
 
-    if args.experimental_codegen:
-        settings.experimental_codegen = args.experimental_codegen
+    if getattr(args, "legacy_codegen", False):
+        settings.legacy_codegen = True
+    elif getattr(args, "legacy_codegen_negated", False):
+        # --experimental-codegen (deprecated): venom = not legacy
+        settings.legacy_codegen = False
 
     if args.debug:
         settings.debug = args.debug

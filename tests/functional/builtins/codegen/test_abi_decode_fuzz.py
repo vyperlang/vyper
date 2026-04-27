@@ -6,7 +6,7 @@ import pytest
 from eth.codecs import abi
 
 from tests.evm_backends.base_env import EvmError
-from vyper.codegen.core import calculate_type_for_external_return, needs_external_call_wrap
+from vyper.codegen_legacy.core import calculate_type_for_external_return, needs_external_call_wrap
 from vyper.semantics.types import (
     AddressT,
     BoolT,

@@ -32,12 +32,19 @@ def test_valid_evm(evm_version_str):
     assert evm_version_str == get_evm_version({"settings": {"evmVersion": evm_version_str}})
 
 
-def test_experimental_codegen_settings():
+def test_codegen_settings():
     input_json = {"settings": {}}
-    assert get_settings(input_json).experimental_codegen is None
+    assert get_settings(input_json).legacy_codegen is None
 
+    input_json = {"settings": {"legacyCodegen": True}}
+    assert get_settings(input_json).legacy_codegen is True
+
+    input_json = {"settings": {"legacyCodegen": False}}
+    assert get_settings(input_json).legacy_codegen is False
+
+    # deprecated: experimentalCodegen (inverted)
     input_json = {"settings": {"experimentalCodegen": True}}
-    assert get_settings(input_json).experimental_codegen is True
+    assert get_settings(input_json).legacy_codegen is False  # venom = not legacy
 
     input_json = {"settings": {"experimentalCodegen": False}}
-    assert get_settings(input_json).experimental_codegen is False
+    assert get_settings(input_json).legacy_codegen is True  # legacy
