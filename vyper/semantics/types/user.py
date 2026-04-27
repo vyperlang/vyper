@@ -232,8 +232,9 @@ class EventT(_UserType):
         Event object.
         """
         members: dict = {}
-        indexed: list = [i["indexed"] for i in abi["inputs"]]
-        for item in abi["inputs"]:
+        inputs = abi.get("inputs", [])
+        indexed: list = [i["indexed"] for i in inputs]
+        for item in inputs:
             members[item["name"]] = type_from_abi(item)
         return cls(abi["name"], members, indexed)
 
