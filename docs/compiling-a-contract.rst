@@ -346,6 +346,7 @@ The following example describes the expected input format of ``vyper-json``. (Co
             //    evm.deployedBytecode.opcodes - Deployed opcodes list
             //    evm.deployedBytecode.sourceMap - Deployed source mapping (useful for debugging)
             //    evm.methodIdentifiers - The list of function hashes
+            //    layout - Storage layout of the contract
             //
             // Using `evm`, `evm.bytecode`, etc. will select every target part of that output.
             // Additionally, `*` can be used as a wildcard to request everything.
@@ -422,6 +423,16 @@ The following example describes the output format of ``vyper-json``. Comments ar
                     "ir": "",
                     // Natspec developer documentation
                     "userdoc": {},
+                    // Storage layout of the contract
+                    "layout": {
+                        "storage_layout": {
+                            "variableName": {
+                                "type": "uint256",
+                                "slot": 0,
+                                "n_slots": 1
+                            }
+                        }
+                    },
                     // EVM-related outputs
                     "evm": {
                         "bytecode": {
