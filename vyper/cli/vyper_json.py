@@ -171,13 +171,13 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
                 raise JSONError(
                     f"Calculated keccak of '{path}' does not match keccak given in input JSON"
                 )
-        if path.stem in seen:
+        if path in seen:
             raise JSONError(f"Contract namespace collision: {path}")
 
         # value looks like {"content": <source code>}
         # this will be interpreted by JSONInputBundle later
         ret[path] = value
-        seen[path.stem] = True
+        seen[path] = True
 
     for path, value in input_dict.get("interfaces", {}).items():
         path = PurePath(path)
