@@ -414,7 +414,7 @@ The following example describes the output format of ``vyper-json``. Comments ar
                 // The contract name will always be the file name without a suffix
                 "source_file": {
                     // The Ethereum Contract ABI.
-                    // See https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI
+                    // See https://docs.soliditylang.org/en/latest/abi-spec.html
                     "abi": [],
                     // Natspec developer documentation
                     "devdoc": {},
