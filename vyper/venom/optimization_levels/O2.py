@@ -75,7 +75,7 @@ PASSES_O2: List[PassConfig] = [
     ConcretizeMemLocPass,
     SCCP,
     SimplifyCFGPass,
-    (MemMergePass, {"memory_abstract": True}),
+    (MemMergePass, {"memory_abstract": False}),
     LoadElimination,
     RemoveUnusedVariablesPass,
     BranchOptimizationPass,
