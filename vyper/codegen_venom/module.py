@@ -437,7 +437,7 @@ def _generate_selector_section_sparse(
             jump_targets = []
             for i in range(n_buckets):
                 if i in buckets:
-                    bucket_label = runtime_ctx.named_label(f"selector_bucket_{i}")
+                    bucket_label = runtime_ctx.prefixed_label(f"selector_bucket_{i}")
                     jump_targets.append(bucket_label)
                 else:
                     # Empty bucket -> fallback
@@ -466,7 +466,7 @@ def _generate_selector_section_sparse(
 
             # Generate bucket blocks
             for bucket_id_val, bucket_method_ids in buckets.items():
-                bucket_label = runtime_ctx.named_label(f"selector_bucket_{bucket_id_val}")
+                bucket_label = runtime_ctx.prefixed_label(f"selector_bucket_{bucket_id_val}")
                 bucket_bb = builder.create_block(f"bucket_{bucket_id_val}")
                 # Override the label to match the data section reference
                 bucket_bb.label = bucket_label
@@ -693,7 +693,7 @@ def _generate_selector_section_dense(
         entry_point_labels: dict[str, IRLabel] = {}
         for abi_sig, (_func_ast, _entry_info) in all_entry_points.items():
             method_id_val = method_id_int(abi_sig)
-            label = runtime_ctx.named_label(f"entry_{method_id_val:08x}")
+            label = runtime_ctx.prefixed_label(f"entry_{method_id_val:08x}")
             entry_point_labels[abi_sig] = label
 
         # Compute bucket_id = method_id % n_buckets

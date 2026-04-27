@@ -30,8 +30,8 @@ def test_prefix_applies_to_generated_names(prefix, expected_fn, expected_section
 
 
 def test_prefix_applies_to_labeled_helpers():
-    assert IRContext(prefix="m1").named_label("foo").value == "m1_foo"
-    assert IRContext().named_label("foo").value == "foo"
+    assert IRContext(prefix="m1").prefixed_label("foo").value == "m1_foo"
+    assert IRContext().prefixed_label("foo").value == "foo"
 
 
 def test_explicit_irlabel_passes_through():

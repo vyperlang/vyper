@@ -78,14 +78,14 @@ class IRContext:
     def remove_function(self, fn: IRFunction) -> None:
         del self.functions[fn.name]
 
-    def named_label(self, name: str, is_symbol: bool = True) -> IRLabel:
+    def prefixed_label(self, name: str, is_symbol: bool = True) -> IRLabel:
         """Return ``IRLabel(f"{prefix}_{name}")`` (or ``IRLabel(name)`` if
         prefix is empty).  Use for labels that must survive a :meth:`merge`.
         """
         return IRLabel(self._namespaced_value(name), is_symbol=is_symbol)
 
     def create_function(self, name: str) -> IRFunction:
-        label = self.named_label(name, is_symbol=True)
+        label = self.prefixed_label(name, is_symbol=True)
         fn = IRFunction(label, self)
         self.add_function(fn)
         return fn
@@ -111,9 +111,9 @@ class IRContext:
         return f"%{self.last_variable}"
 
     def append_data_section(self, name: IRLabel | str) -> None:
-        """``str`` → auto-namespaced via :meth:`named_label`; ``IRLabel`` → used as-is."""
+        """``str`` → auto-namespaced via :meth:`prefixed_label`; ``IRLabel`` → used as-is."""
         if isinstance(name, str):
-            name = self.named_label(name)
+            name = self.prefixed_label(name)
         self.data_segment.append(DataSection(name))
 
     def merge(self, *sources: "IRContext") -> "IRContext":
@@ -163,7 +163,7 @@ class IRContext:
         Append data to current data section
         """
         if isinstance(data, str):
-            data = self.named_label(data)
+            data = self.prefixed_label(data)
         assert len(self.data_segment) > 0
         data_section = self.data_segment[-1]
         data_section.data_items.append(DataItem(data))

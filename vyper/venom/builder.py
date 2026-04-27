@@ -283,7 +283,7 @@ class VenomBuilder:
         Computes label + operand. Args order matches Venom IR: offset operand, @label
         """
         if isinstance(label, str):
-            label = self.ctx.named_label(label)
+            label = self.ctx.prefixed_label(label)
         return self._emit1("offset", operand, label)
 
     # === Control Flow (IR-specific) ===
@@ -399,7 +399,7 @@ class VenomBuilder:
     def codecopy(self, dst: IRVariable, src: Operand | str, size: Operand) -> None:
         """Copy size bytes from code[src] to memory[dst]."""
         if isinstance(src, str):
-            src = self.ctx.named_label(src)
+            src = self.ctx.prefixed_label(src)
         self._emit_evm("codecopy", dst, src, size)
 
     def extcodecopy(self, addr: Operand, dst: IRVariable, src: Operand, size: Operand) -> None:
