@@ -205,6 +205,45 @@ def test_memmerging_alloca_out_of_order():
     _check_pre_post_abs_mem(pre, post)
 
 
+def test_memmerging_alloca_out_of_order_reversed():
+    """
+    Test out-of-order mload/mstore with allocas where we write a larger
+    offset before a smaller one
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %base_read = alloca 192
+        %base_write = alloca 192
+        %ptr1 = add %base_read, 96
+        %1 = mload %ptr1
+        %ptr2 = add %base_read, 64
+        %2 = mload %ptr2
+        %ptr3 = add %base_read, 128
+        %3 = mload %ptr3
+        %ptr4 = add %base_write, 64
+        mstore %ptr4, %2
+        %ptr5 = add %base_write, 96
+        mstore %ptr5, %1
+        %ptr6 = add %base_write, 128
+        mstore %ptr6, %3
+        stop
+    """
+
+    post = """
+    _global:
+        %base_read = alloca 192
+        %base_write = alloca 192
+        %4 = add 64, %base_read
+        %5 = add 64, %base_write
+        mcopy %5, %4, 96
+        stop
+    """
+    _check_pre_post_abs_mem(pre, post)
+
+
 def test_memmerging_out_of_order():
     """
     interleaved mloads/mstores which can be transformed into mcopy
