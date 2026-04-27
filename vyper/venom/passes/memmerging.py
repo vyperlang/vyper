@@ -72,6 +72,7 @@ class _Copy:
             and self.dst_loc.alloca == other.dst_loc.alloca
         )
 
+    @property
     def is_valid(self) -> bool:
         return self.dst_loc.is_fixed and self.src_loc.is_fixed
 
