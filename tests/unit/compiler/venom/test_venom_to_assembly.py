@@ -133,6 +133,30 @@ def test_popmany_falls_back_for_non_contiguous():
     assert keep_top in stack._stack
 
 
+def test_popmany_ignores_values_not_on_current_stack():
+    compiler = VenomCompiler(IRContext())
+
+    keep = IRVariable("%keep")
+    dead = IRVariable("%dead")
+    missing = IRVariable("%missing")
+
+    stack = StackModel()
+    stack.push(keep)
+    stack.push(dead)
+
+    assembly: list = []
+
+    compiler.popmany(assembly, [missing, dead], stack)
+
+    assert assembly == ["POP"]
+    assert stack._stack == [keep]
+
+    compiler.popmany(assembly, [missing], stack)
+
+    assert assembly == ["POP"]
+    assert stack._stack == [keep]
+
+
 def test_popmany_uses_swap16_for_contiguous_suffix():
     compiler = VenomCompiler(IRContext())
     stack = StackModel()
