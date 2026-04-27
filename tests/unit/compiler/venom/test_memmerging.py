@@ -171,6 +171,40 @@ def test_memmerging_tmp_alloca_partial_barrier():
     _check_pre_post_abs_mem(pre, post)
 
 
+def test_memmerging_alloca_out_of_order():
+    """
+    Test out-of-order mload/mstore with allocas
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %base_read = alloca 128
+        %base_write = alloca 128
+        %ptr1 = add %base_read, 32
+        %1 = mload %ptr1
+        %ptr2 = add %base_read, 0
+        %2 = mload %ptr2
+        %ptr3 = add %base_write, 0
+        mstore %ptr3, %2
+        %ptr4 = add %base_write, 32
+        mstore %ptr4, %1
+        stop
+    """
+
+    post = """
+    _global:
+        %base_read = alloca 128
+        %base_write = alloca 128
+        %3 = add 0, %base_read
+        %4 = add 0, %base_write
+        mcopy %4, %3, 64
+        stop
+    """
+    _check_pre_post_abs_mem(pre, post)
+
+
 def test_memmerging_out_of_order():
     """
     interleaved mloads/mstores which can be transformed into mcopy
