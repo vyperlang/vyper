@@ -84,6 +84,93 @@ def test_memmerging_tmp_alloca():
     _check_pre_post_abs_mem(pre, post)
 
 
+def test_memmerging_tmp_alloca_multiple_regions():
+    """
+    Test merging with multiple independent alloca regions
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %base_read1 = alloca 64
+        %base_write1 = alloca 64
+        %base_read2 = alloca 64
+        %base_write2 = alloca 64
+        %ptr1 = add %base_read1, 0
+        %1 = mload %ptr1
+        %ptr2 = add %base_read1, 32
+        %2 = mload %ptr2
+        %ptr3 = add %base_write1, 0
+        mstore %ptr3, %1
+        %ptr4 = add %base_write1, 32
+        mstore %ptr4, %2
+        %ptr5 = add %base_read2, 0
+        %3 = mload %ptr5
+        %ptr6 = add %base_read2, 32
+        %4 = mload %ptr6
+        %ptr7 = add %base_write2, 0
+        mstore %ptr7, %3
+        %ptr8 = add %base_write2, 32
+        mstore %ptr8, %4
+        stop
+    """
+
+    post = """
+    _global:
+        %base_read1 = alloca 64
+        %base_write1 = alloca 64
+        %base_read2 = alloca 64
+        %base_write2 = alloca 64
+        %5 = add 0, %base_read1
+        %6 = add 0, %base_write1
+        mcopy %6, %5, 64
+        %7 = add 0, %base_read2
+        %8 = add 0, %base_write2
+        mcopy %8, %7, 64
+        stop
+    """
+    _check_pre_post_abs_mem(pre, post)
+
+
+def test_memmerging_tmp_alloca_partial_barrier():
+    """
+    Test that a barrier (read from dst region) prevents merging with allocas
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %base_read = alloca 128
+        %base_write = alloca 128
+        %ptr1 = add %base_read, 0
+        %1 = mload %ptr1
+        %ptr2 = add %base_read, 32
+        %2 = mload %ptr2
+        %ptr3 = add %base_write, 0
+        mstore %ptr3, %1
+        %ptr4 = add %base_write, 32
+        %3 = mload %ptr4
+        %ptr5 = add %base_write, 32
+        mstore %ptr5, %2
+        sink %3
+    """
+
+    post = """
+    _global:
+        %base_read = alloca 128
+        %base_write = alloca 128
+        %ptr4 = add %base_write, 32
+        %3 = mload %ptr4
+        %4 = add 0, %base_read
+        %5 = add 0, %base_write
+        mcopy %5, %4, 64
+        sink %3
+    """
+    _check_pre_post_abs_mem(pre, post)
+
+
 def test_memmerging_out_of_order():
     """
     interleaved mloads/mstores which can be transformed into mcopy
