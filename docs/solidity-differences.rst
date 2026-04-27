@@ -98,6 +98,8 @@ Three declarations manage module relationships: ``initializes`` (this contract m
 
 A contract can be understood by reading one file and its direct imports; dependencies and what is exposed in the external function table are explicit.
 
+Solidity's ``abstract contract`` and ``virtual`` / ``override`` keywords belong to its inheritance model. Vyper's ``@abstract`` and ``@override`` decorators apply only to internal module functions and are resolved at compile time against a single initializing module, so there is no virtual dispatch and no method-resolution order. See :ref:`abstract-methods` for details.
+
 No Inline Assembly
 ==================
 

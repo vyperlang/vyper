@@ -309,6 +309,8 @@ Decorator                       Description
 ``@payable``                    Function is able to receive Ether
 ``@nonreentrant``               Function cannot be called back into during an external call
 ``@raw_return``                 Function returns raw bytes without ABI-encoding (``@external`` functions only)
+``@abstract``                   Function body must be ``...``; an ``@override`` must provide the implementation (see :ref:`abstract-methods`)
+``@override(module)``           Function provides the implementation for an ``@abstract`` function in ``module`` (see :ref:`abstract-methods`)
 =============================== ===========================================================
 
 Raw Return
