@@ -262,28 +262,30 @@ class VenomCompiler:
         ), f"duplicated stack {stack_ops}"  # precondition
 
         cost = 0
-        for i, op in enumerate(stack_ops):
-            final_stack_depth = -(len(stack_ops) - i - 1)
 
+        # restore spilled ops
+        for op in stack_ops:
+            if op in spilled:
+                assert isinstance(op, IRVariable)
+                self.spiller.restore_spilled_operand(assembly, stack, spilled, op, dry_run=dry_run)
+
+        depth_order = stack_ops.copy()
+        depth_order.sort(key=lambda x: stack.get_depth(x))
+
+        for op in depth_order:
             depth = stack.get_depth(op)
-
-            if depth == StackModel.NOT_IN_STACK:
-                if isinstance(op, IRVariable) and op in spilled:
-                    self.spiller.restore_spilled_operand(
-                        assembly, stack, spilled, op, dry_run=dry_run
-                    )
-                    depth = stack.get_depth(op)
-                else:  # pragma: nocover
-                    raise CompilerPanic(f"Variable {op} not in stack")
-
             if depth < -16:
                 # Try to selectively spill items to bring target within SWAP16
                 # range. If this fails, swap() handles it via bulk spill/restore.
                 self._reduce_depth_via_spill(
                     assembly, stack, spilled, stack_ops, op, depth, dry_run
                 )
-                depth = stack.get_depth(op)
 
+        for i, op in enumerate(stack_ops):
+            final_stack_depth = -(len(stack_ops) - i - 1)
+
+            depth = stack.get_depth(op)
+            assert depth != StackModel.NOT_IN_STACK
             if depth == final_stack_depth:
                 continue
 
@@ -607,6 +609,7 @@ class VenomCompiler:
 
         # final step to get the inputs to this instruction ordered
         # correctly on the stack
+
         self._stack_reorder(assembly, stack, operands, spilled)
 
         # some instructions (i.e. invoke) need to do stack manipulations
