@@ -96,17 +96,6 @@ For module M1 to override module M2:
 1. M1 must initialize M2 TODO: add ref to initializes
 2. M1 must override each abstract method of M2 TODO: add ref to initializes
 
-TODO: Example here ?
-
-Note in particular that abstract modules can override other abstract modules:
-
-TODO: Example here
-
-Overriding abstract methods
-===========================
-
-An override is declared with the ``@override(module_name)`` decorator, where ``module_name`` is the module containing the abstract method to override:
-
 .. code-block:: vyper
 
     import base_token
@@ -117,16 +106,26 @@ An override is declared with the ``@override(module_name)`` decorator, where ``m
     def _before_transfer(sender: address, recipient: address, amount: uint256):
         assert not self.paused, "transfers are paused"
 
-Requirements:
+Note in particular that abstract modules can override other abstract modules:
 
-- The overriding module must ``initializes`` the abstract module. A ``uses`` clause is not sufficient for overriding.
-- The override must have the **same name** as the abstract method.
-- Every abstract method in an initialized abstract module must be overridden.
+TODO: Example here
+
+Overriding abstract methods
+===========================
+
+To override abstract method ``_before_transfer`` of module ``base_token``, the overriding module must define an internal method ``_before_transfer`` with an ``@override(my_abstract_module)`` decorator:
+
+.. code-block:: vyper
+
+    @override(base_token)
+    def _before_transfer(sender: address, recipient: address, amount: uint256):
+        assert not self.paused, "transfers are paused"
+
+Since any call to ``base_token._before_transfer`` will be replaced at compile-time to a call to the overriding ``_before_transfer``, it is necessary that any call to the former is a valid call to the latter:
+
 
 Signature rules
 ---------------
-
-The override must be callable in all the same ways the abstract method is:
 
 .. code-block:: vyper
 
@@ -189,15 +188,15 @@ However these might prove too restrictive in your use-case, for this reason the 
 
 - Each parameter of the abstract method must appear in the override at the same position, with the same name.
 - If the abstract method defines a default argument for a parameter, the value of the default argument must match in the override. Any value matches an ellipsis (``...``).
-- The override may add extra parameter to the right, as long as they have default values.
-- The override may add a default value to a parameter that was mandatory in the abstract method (making the override more permissive).
-- Each parameter type in the override must be the same (or more general) than the corresponding parameter type in the abstract method.
-- The return type of the override must be the same (or more precise) than the abstract method's return type.
+- The override may add extra parameters to the right, as long as they have default values.
+- The override may add a default value to a parameter that was mandatory in the abstract method.
+- Each parameter type in the override must be a super-type of the corresponding parameter type in the abstract method.
+- The return type of the override must be a sub-type of the abstract method's return type.
 - The override's :ref:`mutability <function-mutability>` must the same (or stricter) than the abstract's.
 - The override's :ref:`reentrancy <reentrancy>` must match exactly the one of the abstract method.
 
 Overriding multiple abstract methods
--------------------------------------
+------------------------------------
 
 A single function can override abstract methods from multiple modules by stacking ``@override`` decorators. The function's signature must be compatible with every abstract method it overrides.
 
