@@ -58,7 +58,7 @@ Furthermore, that is the only difference, everything that can be done in a concr
 Abstract methods
 ================
 
-An abstract method is an :ref:internal method decorated with ``@abstract``.
+An abstract method is an :ref:`internal method <structure-functions-internal>` decorated with ``@abstract``.
 Its body must consist of an Ellipsis literal (``...``) potentially preceded by a docstring and comments.
 
 .. code-block:: vyper
@@ -93,8 +93,9 @@ Overriding an abstract module
 As abstract modules are by essence incomplete, it is necessary for another module to complete them, by providing implementations for its abstract methods.
 
 For module M1 to override module M2:
-1. M1 must initialize M2 TODO: add ref to initializes
-2. M1 must override each abstract method of M2 TODO: add ref to initializes
+
+1. M1 must :ref:`initialize <initializing-module>` M2
+2. M1 must override each abstract method of M2, see :ref:`Overriding abstract methods <overriding-abstract-methods>`
 
 .. code-block:: vyper
 
@@ -109,6 +110,9 @@ For module M1 to override module M2:
 Note in particular that abstract modules can override other abstract modules:
 
 TODO: Example here
+
+
+.. _overriding-abstract-methods:
 
 Overriding abstract methods
 ===========================
@@ -237,7 +241,7 @@ In this section we will explain consequences of the above specification which mi
 Overriding multiple modules
 ---------------------------
 
-TODO: explain it's possible to have one module override multiple.
+TODO: explain it's possible to have one module override multiple. With an example of course.
 
 Overriding multiple abstract methods
 ------------------------------------
@@ -263,6 +267,7 @@ A single function can override abstract methods from multiple modules by having 
     @override(module_b)
     def common_method() -> uint256:
         return 100
+
 
 Abstract overrides (chaining)
 -----------------------------

@@ -77,6 +77,8 @@ A module can be used as an interface with the ``__at__`` syntax.
         self.an_ownable = ownable.__at__(addr)
         self.an_ownable.transfer_ownership(...)
 
+.. _initializing-module:
+
 Initializing a module
 =====================
 
@@ -108,6 +110,8 @@ A module's state can be directly accessed just by prefixing the name of a variab
     def get_owner() -> address:
         return ownable.owner
 
+
+.. _uses-statement:
 
 The ``uses`` statement
 ======================
