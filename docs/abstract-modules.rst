@@ -195,10 +195,61 @@ However these might prove too restrictive in your use-case, for this reason the 
 - The override's :ref:`mutability <function-mutability>` must the same (or stricter) than the abstract's.
 - The override's :ref:`reentrancy <reentrancy>` must match exactly the one of the abstract method.
 
+
+Calling abstract methods
+========================
+
+**Within the abstract module itself**, abstract methods are called with ``self``, just like any other internal function:
+
+.. code-block:: vyper
+
+    # abstract_m.vy
+
+    @abstract
+    def _hook() -> uint256: ...
+
+    def use_hook() -> uint256:
+        return self._hook()
+
+**From another module**, abstract methods are called through the module name. The calling module must declare ``uses`` for the abstract module:
+
+.. code-block:: vyper
+
+    import abstract_m
+
+    uses: abstract_m
+
+    def call_it() -> uint256:
+        return abstract_m._hook()
+
+All calls to abstract methods are resolved at compile time to the concrete override — there is no runtime dispatch.
+
+.. note::
+
+    A module that ``initializes`` an abstract module must override its methods, and should call the override directly. The compiler will error if you try to call the abstract method when a more concrete path exists, directing you to call the override instead.
+
+
+Advanced Uses
+=============
+
+In this section we will explain consequences of the above specification which might not jump to mind, and are only useful in advanced contexts.
+
+Overriding multiple modules
+---------------------------
+
+TODO: explain it's possible to have one module override multiple.
+
 Overriding multiple abstract methods
 ------------------------------------
 
-A single function can override abstract methods from multiple modules by stacking ``@override`` decorators. The function's signature must be compatible with every abstract method it overrides.
+TODO: Rewrite this once the above is rewritten
+
+Nothing forbids multiple ``@override`` decorators to co-exist on the same method, this allows
+
+
+The rules for overriding (TODO link) 
+
+A single function can override abstract methods from multiple modules by having multiple ``@override`` decorators. The function's signature must be compatible with every abstract method it overrides.
 
 .. code-block:: vyper
 
@@ -247,38 +298,6 @@ An overriding method can itself be marked ``@abstract``, deferring the final imp
         return 42
 
 The call chain is resolved at compile time: any call to ``base.hook()`` ultimately dispatches to the concrete implementation in ``top.vy``.
-
-Calling abstract methods
-========================
-
-**Within the abstract module itself**, abstract methods are called with ``self``, just like any other internal function:
-
-.. code-block:: vyper
-
-    # abstract_m.vy
-
-    @abstract
-    def _hook() -> uint256: ...
-
-    def use_hook() -> uint256:
-        return self._hook()
-
-**From another module**, abstract methods are called through the module name. The calling module must declare ``uses`` for the abstract module:
-
-.. code-block:: vyper
-
-    import abstract_m
-
-    uses: abstract_m
-
-    def call_it() -> uint256:
-        return abstract_m._hook()
-
-All calls to abstract methods are resolved at compile time to the concrete override — there is no runtime dispatch.
-
-.. note::
-
-    A module that ``initializes`` an abstract module must override its methods, and should call the override directly. The compiler will error if you try to call the abstract method when a more concrete path exists, directing you to call the override instead.
 
 Interaction with ``uses`` and ``initializes``
 =============================================
