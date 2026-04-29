@@ -87,6 +87,21 @@ There are no other restrictions on abstract methods, they can have any signature
         _name: String[10] = self.name()
         complex_expression: String[15] = self.foo([]).pop()
 
+Overriding an abstract module
+=============================
+
+As abstract modules are by essence incomplete, it is necessary for another module to complete them, by providing implementations for its abstract methods.
+
+For module M1 to override module M2:
+1. M1 must initialize M2 TODO: add ref to initializes
+2. M1 must override each abstract method of M2 TODO: add ref to initializes
+
+TODO: Example here ?
+
+Note in particular that abstract modules can override other abstract modules:
+
+TODO: Example here
+
 Overriding abstract methods
 ===========================
 
