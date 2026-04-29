@@ -2091,49 +2091,10 @@ class ISqrt(BuiltinFunctionT):
     _inputs = [("d", UINT256_T)]
     _return_type = UINT256_T
 
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        # calculate isqrt using the babylonian method
-
-        y, z = "y", "z"
-        arg = args[0]
-        with arg.cache_when_complex("x") as (b1, x):
-            ret = [
-                "seq",
-                [
-                    "if",
-                    ["ge", y, 2 ** (128 + 8)],
-                    ["seq", ["set", y, shr(128, y)], ["set", z, shl(64, z)]],
-                ],
-                [
-                    "if",
-                    ["ge", y, 2 ** (64 + 8)],
-                    ["seq", ["set", y, shr(64, y)], ["set", z, shl(32, z)]],
-                ],
-                [
-                    "if",
-                    ["ge", y, 2 ** (32 + 8)],
-                    ["seq", ["set", y, shr(32, y)], ["set", z, shl(16, z)]],
-                ],
-                [
-                    "if",
-                    ["ge", y, 2 ** (16 + 8)],
-                    ["seq", ["set", y, shr(16, y)], ["set", z, shl(8, z)]],
-                ],
-            ]
-            ret.append(["set", z, ["div", ["mul", z, ["add", y, 2**16]], 2**18]])
-
-            for _ in range(7):
-                ret.append(["set", z, ["div", ["add", ["div", x, z], z], 2]])
-
-            # note: If ``x+1`` is a perfect square, then the Babylonian
-            # algorithm oscillates between floor(sqrt(x)) and ceil(sqrt(x)) in
-            # consecutive iterations. return the floor value always.
-
-            ret.append(["with", "t", ["div", x, z], ["select", ["lt", z, "t"], z, "t"]])
-
-            ret = ["with", y, x, ["with", z, 181, ret]]
-            return b1.resolve(IRnode.from_list(ret, typ=UINT256_T))
+    def fetch_call_return(self, node):
+        message = "The `isqrt` builtin was removed. Instead import module "
+        message += "`math` and use `math.isqrt()`"
+        raise UnimplementedException(message, node)
 
 
 class Empty(TypenameFoldedFunctionT):
