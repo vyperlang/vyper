@@ -38,11 +38,6 @@ class _Copy:
         return self.dst_loc.offset
 
     @property
-    def src_end(self) -> int:
-        assert self.src_loc.offset is not None
-        return self.src_loc.offset + self.length
-
-    @property
     def length(self) -> int:
         assert self.is_valid
         assert self.src_loc.size is not None
@@ -53,11 +48,6 @@ class _Copy:
     def dst_end(self) -> int:
         assert self.dst_loc.offset is not None
         return self.dst_loc.offset + self.length
-
-    def overwrites_self_src(self) -> bool:
-        # return true if dst overlaps src. this is important for blocking
-        # mcopy batching in certain cases.
-        return self.overwrites(self.src_loc)
 
     def overwrites(self, interval: MemoryLocation) -> bool:
         # return true if dst of self overwrites the interval
