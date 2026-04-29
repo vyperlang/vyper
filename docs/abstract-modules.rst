@@ -4,7 +4,7 @@ Abstract Modules
 ################
 
 An abstract module is a special kind of :ref:`module <modules>` which offers points at which its logic can be customized.
-This takes the form of methods decorated with ``@abstract``, and which do not have a body.
+This takes the form of **abstract methods**, methods decorated with ``@abstract``.
 These methods can then be overridden to supply the custom logic.
 Here is an example:
 
@@ -52,22 +52,40 @@ To supply an implementation, a module imports and ``initializes`` the abstract m
 
 Now every call to ``base_token._transfer()`` will check the pause flag before moving tokens. The override is resolved at compile time — there is no runtime dispatch or inheritance involved.
 
-Rules for ``@abstract``
-=======================
+As you can see in the example above, what makes a module "abstract" is only the presence of abstract methods.
+Furthermore, that is the only difference, everything that can be done in a concrete (i.e. non-abstract) module can also be done in an abstract module.
 
-- ``@abstract`` can only be applied to **internal** functions. It cannot be used on ``@external`` or ``@deploy`` functions.
-- The body of an abstract method must be ``...`` (the Ellipsis literal). A docstring may precede the ``...``:
+Abstract methods
+================
 
-  .. code-block:: vyper
+An abstract method is an :ref:internal method decorated with ``@abstract``.
+Its body must consist of an Ellipsis literal (``...``) potentially preceded by a docstring and comments.
 
-      @abstract
-      def _hook(x: uint256) -> uint256:
-          """Called before every transfer."""
-          ...
+.. code-block:: vyper
 
-- ``@abstract`` can be combined with mutability decorators (``@view``, ``@pure``, ``@payable``, ``@nonpayable``) and ``@nonreentrant``.
-- An abstract module can freely call its own abstract methods. Those calls are resolved to the concrete override at compile time.
-- The top-level compilation target (i.e., the contract) cannot be an abstract module. All abstract methods reachable from it must have been overridden.
+    @abstract
+    def an_abstract_method(x: uint256) -> uint256:
+        """This is a docstring"""
+        ...
+
+There are no other restrictions on abstract methods, they can have any signature, can take any decorator, and be called like concrete methods:
+
+.. code-block:: vyper
+
+    @pure
+    @abstract
+    def name() -> String[10]:
+        ...
+
+    @payable
+    @nonreentrant
+    @abstract
+    def foo(bar: DynArray[Bytes[20], 10]) -> DynArray[String[15], 38]:
+        ...
+
+    def concrete_calls():
+        _name: String[10] = self.name()
+        complex_expression: String[15] = self.foo([]).pop()
 
 Overriding abstract methods
 ===========================
