@@ -248,31 +248,6 @@ An overriding method can itself be marked ``@abstract``, deferring the final imp
 
 The call chain is resolved at compile time: any call to ``base.hook()`` ultimately dispatches to the concrete implementation in ``top.vy``.
 
-Default parameter values
-========================
-
-Abstract methods can use ``...`` as a default value for a parameter. This means "any default is acceptable in the override":
-
-.. code-block:: vyper
-
-    # abstract_m.vy
-
-    @abstract
-    def foo(x: uint256, y: uint256 = ...): ...
-
-.. code-block:: vyper
-
-    import abstract_m
-
-    initializes: abstract_m
-
-    # Valid: any default for y is accepted
-    @override(abstract_m)
-    def foo(x: uint256, y: uint256 = 10):
-        pass
-
-If the abstract method uses a concrete default value (e.g., ``y: uint256 = 10``), the override must use a **structurally equivalent** expression. For example, ``10`` must be overridden by ``10`` — not by ``5 + 5``.
-
 Calling abstract methods
 ========================
 
