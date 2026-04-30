@@ -107,8 +107,11 @@ For module M1 to override module M2:
     def before_transfer(sender: address, recipient: address, amount: uint256):
         assert not self.paused, "transfers are paused"
 
-Note in particular that an overriding module can itself be abstract.
-In other words, ``@abstract`` and ``@override`` can co-exist in the same module:
+.. note::
+    So there is no choice to be made about which override to choose, abstract modules can only be overridden once. This is guaranteed by the initialization system.
+
+An overriding module can itself be abstract.
+In other words, ``@abstract`` and ``@override`` can co-exist in the same module (and even :ref:`on the same method <abstract-overrides-chaining>`):
 
 .. code-block:: vyper
 
@@ -151,8 +154,6 @@ Here ``checked_token`` provides a concrete ``_before_transfer`` for ``base_token
     @override(checked_token)
     def check_address(addr: address) -> bool:
         return addr != empty(address)
-
-See also :ref:`Abstract overrides (chaining) <abstract-overrides-chaining>`.
 
 .. _overriding-abstract-methods:
 
@@ -439,7 +440,3 @@ Interaction with ``uses`` and ``initializes``
     def foo() -> uint256:
         return 42
 
-Re-overriding is not allowed
-=============================
-
-Each abstract method can be overridden **exactly once** in the compilation tree. If two modules in the same compilation target both try to override the same abstract method, the compiler will raise an error. This prevents ambiguity about which implementation should be used.
