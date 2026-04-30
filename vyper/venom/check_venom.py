@@ -296,7 +296,7 @@ def _find_function_call_layout_errors(fn: IRFunction) -> list[VenomError]:
                         )
                         return errors
 
-    if fn._has_fmp_param and layout.hidden_fmp_param is None:
+    if fn._needs_fmp and layout.hidden_fmp_param is None:
         errors.append(FunctionCallLayoutError(fn, "hidden FMP param is missing"))
 
     if fn._invoke_param_count is not None:

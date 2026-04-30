@@ -27,12 +27,11 @@ class IRFunction:
     _has_memory_return_buffer_param: Optional[bool]
 
     # Set by DallocaLoweringPass: True if this function threads the
-    # free-memory pointer (i.e. contains a dalloca or invokes a callee
-    # that does). When present, the hidden FMP param is placed at the
-    # tail of the param list, immediately before return_pc (if any).
-    # Functions on the `initial_fmp` fast path keep this False.
+    # free-memory pointer through a hidden FMP param (i.e. contains a
+    # dalloca or invokes a callee that does). The hidden FMP param is
+    # placed at the tail of the param list, immediately before return_pc
+    # (if any). Functions on the `initial_fmp` fast path keep this False.
     _needs_fmp: bool
-    _has_fmp_param: bool
 
     # Used during code generation
     _ast_source_stack: list[IRnode]
@@ -48,7 +47,6 @@ class IRFunction:
         self._invoke_param_count = None
         self._has_memory_return_buffer_param = None
         self._needs_fmp = False
-        self._has_fmp_param = False
 
         self._ast_source_stack = []
         self._error_msg_stack = []

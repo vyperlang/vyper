@@ -78,30 +78,26 @@ class DallocaLoweringPass(IRPass):
             if calls_needs_fmp:
                 break
 
-        if fn._has_fmp_param and not has_dalloca and not has_dfree:
+        if fn._needs_fmp and not has_dalloca and not has_dfree:
             changed = self._deaugment_stale_invoke_fmp_args(fn)
             if changed:
                 self._invalidate_analyses()
 
             if self._prune_dead_hidden_fmp_param(fn):
                 fn._needs_fmp = False
-                fn._has_fmp_param = False
                 self._invalidate_analyses()
                 return
 
             fn._needs_fmp = True
-            fn._has_fmp_param = True
             return
 
         if not has_dalloca and not has_dfree and not calls_needs_fmp:
             fn._needs_fmp = False
-            fn._has_fmp_param = False
             return
 
         if has_dalloca and not calls_needs_fmp and self._can_initial_fmp_lower(fn):
             self._initial_fmp_lower(fn)
             fn._needs_fmp = False
-            fn._has_fmp_param = False
             self._invalidate_analyses()
             return
 
@@ -117,7 +113,6 @@ class DallocaLoweringPass(IRPass):
             self._rewrite_bb(bb, fn, fmp_var)
 
         fn._needs_fmp = True
-        fn._has_fmp_param = True
         self._invalidate_analyses()
 
     def _invalidate_analyses(self) -> None:
@@ -401,7 +396,7 @@ class DallocaLoweringPass(IRPass):
                 callee = layout.callee
                 if callee is None:
                     continue
-                if callee._has_fmp_param:
+                if callee._needs_fmp:
                     continue
 
                 expected_arg_count = FunctionCallLayout(callee).expected_user_arg_count

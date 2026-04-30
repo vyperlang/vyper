@@ -595,7 +595,6 @@ def test_dead_hidden_fmp_pruning_deduplicates_join_users():
         """
     )
     fn = ctx.get_function(IRLabel("main"))
-    fn._has_fmp_param = True
     fn._needs_fmp = True
 
     DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
@@ -606,7 +605,6 @@ def test_dead_hidden_fmp_pruning_deduplicates_join_users():
     params = list(fn.entry.param_instructions)
     assert len(params) == 1
     assert params[0].output == IRVariable("%retpc")
-    assert fn._has_fmp_param is False
     assert fn._needs_fmp is False
 
 
@@ -628,7 +626,6 @@ def test_stale_fmp_arg_cleanup_removes_only_hidden_fmp_alias():
         """
     )
     main = ctx.get_function(IRLabel("main"))
-    main._has_fmp_param = True
     main._needs_fmp = True
 
     DallocaLoweringPass(IRAnalysesCache(main), main).run_pass()
@@ -640,7 +637,6 @@ def test_stale_fmp_arg_cleanup_removes_only_hidden_fmp_alias():
         if inst.opcode == "invoke"
     )
     assert len(invoke.operands) == 1
-    assert main._has_fmp_param is False
     assert main._needs_fmp is False
 
 
@@ -663,7 +659,6 @@ def test_stale_fmp_arg_cleanup_keeps_non_fmp_extra_operand():
         """
     )
     main = ctx.get_function(IRLabel("main"))
-    main._has_fmp_param = True
     main._needs_fmp = True
 
     DallocaLoweringPass(IRAnalysesCache(main), main).run_pass()
@@ -1289,7 +1284,6 @@ def test_initial_fmp_fast_path_allows_invoke_between_closed_scratch_pairs():
     assert "bump" not in opcodes
     assert opcodes.count("initial_fmp") == 2
     assert main_fn._needs_fmp is False
-    assert main_fn._has_fmp_param is False
 
 
 def test_initial_fmp_fast_path_rejects_closed_scratch_around_needs_fmp_callee():

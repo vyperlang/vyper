@@ -415,7 +415,7 @@ def test_invoke_argument_count_accepts_hidden_fmp_tail():
     invoke.operands = [IRLabel("f"), IRVariable("%arg"), IRVariable("%fmp")]
 
     callee = ctx.get_function(IRLabel("f"))
-    callee._has_fmp_param = True
+    callee._needs_fmp = True
     check_calling_convention(ctx)
 
 
@@ -483,7 +483,7 @@ def test_invoke_argument_count_rejects_missing_hidden_fmp_tail():
     """
     ctx = parse_venom(src)
     callee = ctx.get_function(IRLabel("f"))
-    callee._has_fmp_param = True
+    callee._needs_fmp = True
 
     with pytest.raises(ExceptionGroup) as excinfo:
         check_calling_convention(ctx)

@@ -72,7 +72,7 @@ class FunctionCallLayout:
     @property
     def has_return_pc_param(self) -> bool:
         if self.fn._invoke_param_count is not None:
-            non_return_pc_params = self.fn._invoke_param_count + int(self.fn._has_fmp_param)
+            non_return_pc_params = self.fn._invoke_param_count + int(self.fn._needs_fmp)
             if len(self.params) > non_return_pc_params:
                 return True
 
@@ -99,7 +99,7 @@ class FunctionCallLayout:
 
     @property
     def hidden_fmp_param_pos(self) -> int | None:
-        if not self.fn._has_fmp_param:
+        if not self.fn._needs_fmp:
             return None
 
         return_pc_offset = int(self.has_return_pc_param)
@@ -139,7 +139,7 @@ class FunctionCallLayout:
     def user_params(self) -> tuple[IRInstruction, ...]:
         count = len(self.params)
         count -= int(self.has_return_pc_param)
-        count -= int(self.fn._has_fmp_param)
+        count -= int(self.fn._needs_fmp)
         return self.params[: max(count, 0)]
 
     @property
@@ -185,7 +185,7 @@ class InvokeLayout:
     @property
     def expects_hidden_fmp(self) -> bool:
         callee = self.callee
-        return callee is not None and callee._has_fmp_param
+        return callee is not None and callee._needs_fmp
 
     @property
     def expected_operand_count(self) -> int | None:
