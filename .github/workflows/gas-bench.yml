@@ -1,0 +1,140 @@
+name: Gas Benchmark Report
+
+on:
+  pull_request:
+    branches: [master]
+  pull_request_target:
+    branches: [master]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  gas-bench:
+    # pull_request: untrusted contributors only (step summary, no comment)
+    # pull_request_target: trusted contributors only (step summary + comment)
+    if: |
+      (github.event_name == 'pull_request' && !contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)) ||
+      (github.event_name == 'pull_request_target' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invalidate existing comment
+        if: github.event_name == 'pull_request_target'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- gas-bench-report -->';
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number
+            });
+            const existing = comments.find(c => c.body.includes(marker));
+            if (!existing) return;
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existing.id,
+              body: marker + '\n\n⏳ **Recalculating gas benchmark...**'
+            });
+
+      - name: Checkout merge commit
+        uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          path: head
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Checkout base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+          path: base
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Copy scripts to base
+        run: cp -r head/.github/scripts base/.github/
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Checkout snekmate
+        uses: actions/checkout@v4
+        with:
+          repository: pcaversaccio/snekmate
+          ref: 37e1513dcb993dcc7e58f8c56aaeaaa14f8d8be8
+          submodules: recursive
+          path: snekmate
+
+      - name: Install vyper (base)
+        working-directory: base
+        run: pip install .
+
+      - name: Measure base gas
+        working-directory: base
+        run: python .github/scripts/measure_gas.py --snekmate-dir ../snekmate > ../base-gas.json
+
+      - name: Install vyper (merge)
+        working-directory: head
+        run: pip install .
+
+      - name: Measure merge gas
+        working-directory: head
+        run: python .github/scripts/measure_gas.py --snekmate-dir ../snekmate > ../head-gas.json
+
+      - name: Generate report
+        id: report
+        run: |
+          python3 head/.github/scripts/compare_gas.py base-gas.json head-gas.json > report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo 'REPORT<<EOF'
+            cat report.md
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Post or update PR comment
+        if: github.event_name == 'pull_request_target'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- gas-bench-report -->';
+            const body = marker + '\n\n' + process.env.REPORT;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number
+            });
+            const existing = comments.find(c => c.body.includes(marker));
+            if (existing) {
+              return github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: body
+              });
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: body
+            });
+        env:
+          REPORT: ${{ steps.report.outputs.REPORT }}
+
+      - name: Upload gas data
+        uses: actions/upload-artifact@v4
+        with:
+          name: gas-results
+          path: |
+            base-gas.json
+            head-gas.json
