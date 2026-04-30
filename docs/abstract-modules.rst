@@ -420,6 +420,12 @@ In some cases a module might not want to override every method of another, if su
 
 Any call to ``base.method_b`` resolves to a call to the concrete implementation, ``top.method_b``.
 
+Default Implementation
+----------------------
+
+TODO: explain you can give default implementation by adding a normal method alongside, with the same signature.
+
+
 Interaction with ``uses`` and ``initializes``
 =============================================
 
