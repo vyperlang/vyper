@@ -246,8 +246,10 @@ However these might prove too restrictive in your use-case, for this reason the 
 Calling abstract methods
 ========================
 
-**Within the abstract module itself**, abstract methods are called with ``self``, just like any other internal function:
+Abstract methods are called in the same way concrete methods are.
+Additionally, calling the abstract methods of another module requires :ref:`using <TODO>` it.
 
+TODO make this example more concrete, like the other, if possible use a running example
 .. code-block:: vyper
 
     # abstract_m.vy
@@ -256,30 +258,32 @@ Calling abstract methods
     def _hook() -> uint256: ...
 
     def use_hook() -> uint256:
+        # call to abstract method in same module
         return self._hook()
-
-**From another module**, abstract methods are called through the module name. The calling module must declare ``uses`` for the abstract module:
 
 .. code-block:: vyper
 
     import abstract_m
 
+    # required by the call below
     uses: abstract_m
 
     def call_it() -> uint256:
+        # call to abstract method in different module
         return abstract_m._hook()
 
 All calls to abstract methods are resolved at compile time to the concrete override — there is no runtime dispatch.
 
-.. note::
+TODO: Make this sentense clearer, should explicitly include the fact self.foo is forced when overriding foo
+To make programs easier to reason about, it is forbidden to call an abstract method through a path which include its override:
 
-    A module that ``initializes`` an abstract module must override its methods, and should call the override directly. The compiler will error if you try to call the abstract method when a more concrete path exists, directing you to call the override instead.
+TODO: add example
 
 
 Advanced Uses
 =============
 
-In this section we will explain consequences of the above specification which might not jump to mind, and are only useful in advanced contexts.
+In this section we will explain consequences of the above specification which might not jump to mind, and are useful in advanced contexts.
 
 Overriding multiple modules
 ---------------------------
