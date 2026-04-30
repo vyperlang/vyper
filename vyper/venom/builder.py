@@ -277,11 +277,13 @@ class VenomBuilder:
         """Store val to immutable memory region at offset (deploy-time only). (IR-specific)"""
         self._emit("istore", offset, val)
 
-    def offset(self, operand: Operand, label: IRLabel) -> IRVariable:
+    def offset(self, operand: Operand, label: IRLabel | str) -> IRVariable:
         """Compute static offset from label. Used for code position calculations. (IR-specific)
 
         Computes label + operand. Args order matches Venom IR: offset operand, @label
         """
+        if isinstance(label, str):
+            label = self.ctx.prefixed_label(label)
         return self._emit1("offset", operand, label)
 
     # === Control Flow (IR-specific) ===
@@ -394,8 +396,10 @@ class VenomBuilder:
         """Copy size bytes from calldata[src] to memory[dst]."""
         self._emit_evm("calldatacopy", dst, src, size)
 
-    def codecopy(self, dst: IRVariable, src: Operand, size: Operand) -> None:
+    def codecopy(self, dst: IRVariable, src: Operand | str, size: Operand) -> None:
         """Copy size bytes from code[src] to memory[dst]."""
+        if isinstance(src, str):
+            src = self.ctx.prefixed_label(src)
         self._emit_evm("codecopy", dst, src, size)
 
     def extcodecopy(self, addr: Operand, dst: IRVariable, src: Operand, size: Operand) -> None:

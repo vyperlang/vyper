@@ -182,12 +182,12 @@ def generate_deploy_venom(
     deploy_ctx = IRContext()
 
     # Add runtime bytecode as data section
-    deploy_ctx.append_data_section(IRLabel("runtime_begin"))
+    deploy_ctx.append_data_section("runtime_begin")
     deploy_ctx.append_data_item(runtime_bytecode)
 
     # Add CBOR metadata if provided
     if cbor_metadata is not None:
-        deploy_ctx.append_data_section(IRLabel("cbor_metadata"))
+        deploy_ctx.append_data_section("cbor_metadata")
         deploy_ctx.append_data_item(cbor_metadata)
 
     deploy_fn = deploy_ctx.create_function("deploy")
@@ -431,13 +431,13 @@ def _generate_selector_section_sparse(
             bucket_id = builder.mod(method_id, IRLiteral(n_buckets))
 
             # Create data section with bucket headers
-            runtime_ctx.append_data_section(IRLabel("selector_buckets", is_symbol=True))
+            runtime_ctx.append_data_section("selector_buckets")
 
             # Build jump targets list and add bucket header labels
             jump_targets = []
             for i in range(n_buckets):
                 if i in buckets:
-                    bucket_label = IRLabel(f"selector_bucket_{i}", is_symbol=True)
+                    bucket_label = runtime_ctx.prefixed_label(f"selector_bucket_{i}")
                     jump_targets.append(bucket_label)
                 else:
                     # Empty bucket -> fallback
@@ -448,9 +448,7 @@ def _generate_selector_section_sparse(
             # Location = selector_buckets + bucket_id * 2
             bucket_hdr_offset = builder.mul(bucket_id, IRLiteral(SZ_BUCKET_HEADER))
             # Use add with label - the label resolves to its code position at link time
-            selector_buckets_addr = builder.offset(
-                IRLiteral(0), IRLabel("selector_buckets", is_symbol=True)
-            )
+            selector_buckets_addr = builder.offset(IRLiteral(0), "selector_buckets")
             bucket_hdr_location = builder.add(selector_buckets_addr, bucket_hdr_offset)
 
             # Copy 2-byte header to memory at offset (32 - 2) = 30
@@ -468,7 +466,7 @@ def _generate_selector_section_sparse(
 
             # Generate bucket blocks
             for bucket_id_val, bucket_method_ids in buckets.items():
-                bucket_label = IRLabel(f"selector_bucket_{bucket_id_val}", is_symbol=True)
+                bucket_label = runtime_ctx.prefixed_label(f"selector_bucket_{bucket_id_val}")
                 bucket_bb = builder.create_block(f"bucket_{bucket_id_val}")
                 # Override the label to match the data section reference
                 bucket_bb.label = bucket_label
@@ -695,25 +693,23 @@ def _generate_selector_section_dense(
         entry_point_labels: dict[str, IRLabel] = {}
         for abi_sig, (_func_ast, _entry_info) in all_entry_points.items():
             method_id_val = method_id_int(abi_sig)
-            label = IRLabel(f"entry_{method_id_val:08x}", is_symbol=True)
+            label = runtime_ctx.prefixed_label(f"entry_{method_id_val:08x}")
             entry_point_labels[abi_sig] = label
 
         # Compute bucket_id = method_id % n_buckets
         bucket_id_var = builder.mod(method_id, IRLiteral(n_buckets))
 
         # Create data section for bucket headers
-        runtime_ctx.append_data_section(IRLabel("BUCKET_HEADERS", is_symbol=True))
+        runtime_ctx.append_data_section("BUCKET_HEADERS")
         for bucket_id_val, bucket in sorted(jumptable_info.items()):
             runtime_ctx.append_data_item(bucket.magic.to_bytes(2, "big"))
-            runtime_ctx.append_data_item(IRLabel(f"bucket_{bucket_id_val}", is_symbol=True))
+            runtime_ctx.append_data_item(f"bucket_{bucket_id_val}")
             runtime_ctx.append_data_item(bucket.bucket_size.to_bytes(1, "big"))
 
         # Load bucket header from data section
         # Location = BUCKET_HEADERS + bucket_id * 5
         bucket_hdr_offset = builder.mul(bucket_id_var, IRLiteral(SZ_BUCKET_HEADER))
-        bucket_headers_addr = builder.offset(
-            IRLiteral(0), IRLabel("BUCKET_HEADERS", is_symbol=True)
-        )
+        bucket_headers_addr = builder.offset(IRLiteral(0), "BUCKET_HEADERS")
         bucket_hdr_location = builder.add(bucket_headers_addr, bucket_hdr_offset)
 
         # Copy 5-byte header to memory at offset (32 - 5) = 27
@@ -798,7 +794,7 @@ def _generate_selector_section_dense(
 
         # Create data sections for each bucket's function info
         for bucket_id_val, bucket in jumptable_info.items():
-            runtime_ctx.append_data_section(IRLabel(f"bucket_{bucket_id_val}", is_symbol=True))
+            runtime_ctx.append_data_section(f"bucket_{bucket_id_val}")
 
             # Sort function infos by their image (hash position)
             for mid in bucket.method_ids_image_order:
@@ -1523,7 +1519,7 @@ def _emit_deploy_epilogue(
             builder.assert_(copy_success)
 
     # Copy runtime bytecode from data section to memory
-    builder.codecopy(dst_ptr, IRLabel("runtime_begin"), IRLiteral(runtime_codesize))
+    builder.codecopy(dst_ptr, "runtime_begin", IRLiteral(runtime_codesize))
 
     # Return runtime + immutables
     builder.return_(dst_ptr, IRLiteral(total_size))
