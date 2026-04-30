@@ -19,15 +19,12 @@ Here is an example:
     @abstract
     def _before_transfer(sender: address, recipient: address, amount: uint256): ...
 
-    def _transfer(sender: address, recipient: address, amount: uint256):
-        # and used here
-        self._before_transfer(sender, recipient, amount)
-        self.balances[sender] -= amount
-        self.balances[recipient] += amount
-
     @external
     def transfer(recipient: address, amount: uint256):
-        self._transfer(msg.sender, recipient, amount)
+        # and used here
+        self._before_transfer(msg.sender, recipient, amount)
+        self.balances[msg.sender] -= amount
+        self.balances[recipient] += amount
 
 The ``base_token`` module defines a transfer hook, ``_before_transfer()``, as an abstract method. It is called during every transfer, but has no implementation — that is left to whoever initializes this module. This lets library authors define *where* custom logic runs, while users decide *what* it does.
 
@@ -50,7 +47,7 @@ To supply an implementation, a module imports and ``initializes`` the abstract m
         assert not self.paused, "transfers are paused"
 
 
-Now every call to ``base_token._transfer()`` will check the pause flag before moving tokens. The override is resolved at compile time — there is no runtime dispatch or inheritance involved.
+Now every call to ``base_token.transfer()`` will check the pause flag before moving tokens. The override is resolved at compile time — there is no runtime dispatch or inheritance involved.
 
 As you can see in the example above, what makes a module "abstract" is only the presence of abstract methods.
 Furthermore, that is the only difference, everything that can be done in a concrete (i.e. non-abstract) module can also be done in an abstract module.
@@ -256,10 +253,11 @@ Additionally, calling the abstract methods of another module requires :ref:`usin
     @abstract
     def _before_transfer(sender: address, recipient: address, amount: uint256): ...
 
-    def _transfer(sender: address, recipient: address, amount: uint256):
+    @external
+    def transfer(recipient: address, amount: uint256):
         # call to abstract method in same module
-        self._before_transfer(sender, recipient, amount)
-        self.balances[sender] -= amount
+        self._before_transfer(msg.sender, recipient, amount)
+        self.balances[msg.sender] -= amount
         self.balances[recipient] += amount
 
 .. code-block:: vyper
