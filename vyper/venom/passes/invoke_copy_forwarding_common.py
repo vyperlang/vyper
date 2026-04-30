@@ -15,6 +15,7 @@ from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAn
 from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.effects import EMPTY, Effects
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.copy_forwarding import CopyForwardingPolicy
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
 
@@ -29,6 +30,7 @@ class InvokeCopyForwardingBase(IRPass):
     mem_alias: MemoryAliasAnalysis
     updater: InstUpdater
     readonly_memory_args: ReadonlyMemoryArgsGlobalAnalysis
+    copy_forwarding: CopyForwardingPolicy
 
     def _prepare(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -36,7 +38,12 @@ class InvokeCopyForwardingBase(IRPass):
         self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.mem_alias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
         self.updater = InstUpdater(self.dfg)
-        self.readonly_memory_args = self.analyses_cache.request_analysis(
+        self.copy_forwarding = CopyForwardingPolicy(
+            self.function, self.dfg, self.base_ptr, self.mem_alias
+        )
+        # force (not request): recompute after prior optimizations may have
+        # eliminated writes, allowing more parameters to be classified readonly
+        self.readonly_memory_args = self.analyses_cache.force_analysis(
             ReadonlyMemoryArgsGlobalAnalysis
         )
 
