@@ -12,7 +12,8 @@ from vyper.venom.analysis import (
     MemoryAliasAnalysis,
 )
 from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
-from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
+from vyper.venom.call_layout import InvokeLayout
 from vyper.venom.effects import EMPTY, Effects
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
@@ -57,18 +58,13 @@ class InvokeCopyForwardingBase(IRPass):
         return self.domtree.dominates(copy_bb, use_bb)
 
     def _invoke_has_return_buffer(self, invoke_inst: IRInstruction) -> bool:
-        callee = self._get_invoke_callee(invoke_inst)
-        if callee is None:
-            return False
+        return self._invoke_layout(invoke_inst).return_buffer_operand_pos is not None
 
-        if callee._invoke_param_count is None or callee._has_memory_return_buffer_param is None:
-            return False
+    def _invoke_user_arg_index(self, invoke_inst: IRInstruction, operand_idx: int) -> int | None:
+        return self._invoke_layout(invoke_inst).user_arg_index(operand_idx)
 
-        invoke_arg_count = len(invoke_inst.operands) - 1
-        if invoke_arg_count != callee._invoke_param_count:
-            return False
-
-        return callee._has_memory_return_buffer_param
+    def _invoke_return_buffer_operand_pos(self, invoke_inst: IRInstruction) -> int | None:
+        return self._invoke_layout(invoke_inst).return_buffer_operand_pos
 
     def _is_alloca_like(self, inst: IRInstruction | None) -> bool:
         return inst is not None and inst.opcode == "alloca"
@@ -78,21 +74,22 @@ class InvokeCopyForwardingBase(IRPass):
         return isinstance(size, IRLiteral) and size.value == expected_size
 
     def _is_readonly_invoke_operand(self, invoke_inst: IRInstruction, operand_idx: int) -> bool:
-        if operand_idx == 0:
-            return False
-
         callee = self._get_invoke_callee(invoke_inst)
         if callee is None:
             return False
 
+        arg_idx = self._invoke_user_arg_index(invoke_inst, operand_idx)
+        if arg_idx is None:
+            return False
+
         readonly_idxs = self.readonly_memory_args.get_readonly_invoke_arg_idxs(callee)
-        return (operand_idx - 1) in readonly_idxs
+        return arg_idx in readonly_idxs
 
     def _get_invoke_callee(self, invoke_inst: IRInstruction):
-        target = invoke_inst.operands[0]
-        if not isinstance(target, IRLabel):
-            return None
-        return self.function.ctx.functions.get(target)
+        return self._invoke_layout(invoke_inst).callee
+
+    def _invoke_layout(self, invoke_inst: IRInstruction) -> InvokeLayout:
+        return InvokeLayout(self.function.ctx, invoke_inst)
 
     def _has_src_clobber_between(
         self, copy_inst: IRInstruction, rewrite_sites: set[tuple[IRInstruction, int]]

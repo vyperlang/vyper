@@ -53,6 +53,8 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "assert",
         "assert_unreachable",
         "stop",
+        "dalloca",
+        "dfree",
     ]
 )
 
@@ -82,6 +84,7 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "jnz",
         "log",
         "nop",
+        "dfree",
     ]
 )
 
@@ -426,8 +429,22 @@ class IRInstruction:
             return 0
         if self.opcode in ("assign", "alloca"):
             return 1
-        if self.opcode == "memtop":
-            return 1  # lowers to single MSIZE byte
+        if self.opcode == "initial_fmp":
+            # Pure value: repeated initial_fmp instructions intentionally may
+            # CSE together. Lowers to PUSH {initial_fmp_value}; typical values
+            # fit in PUSH1 (2 bytes) but may grow for large static frames.
+            return 2
+        if self.opcode == "dalloca":
+            # `dalloca` is high-level sugar and is eliminated by DallocaLoweringPass
+            # before assembly emission. The lowered generic form is:
+            #   PUSH1 31 + ADD, PUSH1 31 + NOT, AND, DUP2 + ADD, assign ptr -> mark
+            return 10
+        if self.opcode == "bump":
+            return 2  # DUP2 ADD
+        if self.opcode == "dfree":
+            # high-level FMP restore marker; eliminated or lowered to
+            # `assign mark -> fmp` by DallocaLoweringPass.
+            return 1
         return 2
 
     def get_ast_source(self) -> Optional[IRnode]:
@@ -584,6 +601,28 @@ class IRBasicBlock:
         ret = self.append_instruction(opcode, *args, ret=ret, **kwargs)
         assert ret is not None  # help mypy
         return ret
+
+    def append_instruction_multi(
+        self,
+        opcode: str,
+        /,
+        *args: Union[IROperand, int],
+        outputs: Sequence[IRVariable],
+        annotation: str = None,
+    ) -> list[IRVariable]:
+        """
+        Append an instruction with an explicit multi-output shape.
+        """
+        assert not self.is_terminated, self
+
+        inst_args = [_ir_operand_from_value(arg) for arg in args]
+        inst = IRInstruction(opcode, inst_args, list(outputs))
+        inst.parent = self
+        inst.ast_source = self.parent.ast_source
+        inst.error_msg = self.parent.error_msg
+        inst.annotation = annotation
+        self.instructions.append(inst)
+        return inst.get_outputs()
 
     def append_invoke_instruction(
         self, args: Sequence[IROperand | int], returns: int = 0

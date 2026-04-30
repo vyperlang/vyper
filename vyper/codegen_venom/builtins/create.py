@@ -417,7 +417,9 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     shifted_codesize = b.shl(IRLiteral(shl_bits), codesize)
     preamble_with_size = b.or_(IRLiteral(preamble_base), shifted_codesize)
 
-    mem_ofst = ctx.allocate_dyn()
+    # Scratch region holds: [32-byte preamble word] [codesize bytes of target code].
+    scratch_size = b.add(codesize, IRLiteral(32))
+    mem_ofst, mem_mark = ctx.allocate_scratch(scratch_size)
 
     # Store preamble at mem_ofst (will be stored as 32-byte word)
     b.mstore(mem_ofst, preamble_with_size)
@@ -439,6 +441,10 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
         addr = b.create2(value, buf, buf_len, salt)
     else:
         addr = b.create(value, buf, buf_len)
+
+    # Free scratch (must be in the same BB as the dalloca, before any
+    # control-flow branching introduced by `_check_create_result`).
+    ctx.free_scratch(mem_mark)
 
     return _check_create_result(ctx, b, addr, revert_on_failure)
 
@@ -543,7 +549,12 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         args_len = IRLiteral(0)
         args_ptr = IRLiteral(0)
 
-    mem_ofst = ctx.allocate_dyn()
+    # Total length = codesize + args_len (if any).
+    if isinstance(args_len, IRLiteral) and args_len.value == 0:
+        total_len = codesize
+    else:
+        total_len = b.add(codesize, args_len)
+    mem_ofst, mem_mark = ctx.allocate_scratch(total_len)
 
     # Copy blueprint code (skipping preamble) to memory
     b.extcodecopy(target, mem_ofst, code_offset, codesize)
@@ -553,17 +564,15 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         args_dest = b.add(mem_ofst, codesize)
         ctx.copy_memory_dynamic(args_dest, args_ptr, args_len)
 
-    # Total length = codesize + args_len
-    if isinstance(args_len, IRLiteral) and args_len.value == 0:
-        total_len = codesize
-    else:
-        total_len = b.add(codesize, args_len)
-
     # Create contract
     if salt is not None:
         addr = b.create2(value, mem_ofst, total_len, salt)
     else:
         addr = b.create(value, mem_ofst, total_len)
+
+    # Free scratch (must be in the same BB as the dalloca, before any
+    # control-flow branching introduced by `_check_create_result`).
+    ctx.free_scratch(mem_mark)
 
     return _check_create_result(ctx, b, addr, revert_on_failure)
 
