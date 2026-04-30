@@ -360,15 +360,10 @@ class DallocaLoweringPass(IRPass):
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         dead_insts: list[IRInstruction] = []
         seen_insts: set[IRInstruction] = set()
-        seen_vars: set[IRVariable] = set()
         worklist = [root]
 
         while len(worklist) > 0:
             var = worklist.pop()
-            if var in seen_vars:
-                continue
-            seen_vars.add(var)
-
             for use in dfg.get_uses(var):
                 if use.opcode not in ("assign", "phi"):
                     return None

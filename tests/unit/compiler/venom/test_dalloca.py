@@ -608,6 +608,40 @@ def test_dead_hidden_fmp_pruning_deduplicates_join_users():
     assert fn._needs_fmp is False
 
 
+def test_dead_hidden_fmp_pruning_handles_loop_carried_chain():
+    ctx = parse_venom(
+        """
+        function main {
+            main:
+                %fmp = param
+                %retpc = param
+                jmp @loop
+
+            loop:
+                %loop_fmp = phi @main, %fmp, @loop, %next_fmp
+                %next_fmp = assign %loop_fmp
+                %cond = calldatasize
+                jnz %cond, @loop, @exit
+
+            exit:
+                ret %retpc
+        }
+        """
+    )
+    fn = ctx.get_function(IRLabel("main"))
+    fn._needs_fmp = True
+
+    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    opcodes = [inst.opcode for bb in fn.get_basic_blocks() for inst in bb.instructions]
+    assert "phi" not in opcodes
+    assert "assign" not in opcodes
+    params = list(fn.entry.param_instructions)
+    assert len(params) == 1
+    assert params[0].output == IRVariable("%retpc")
+    assert fn._needs_fmp is False
+
+
 def test_stale_fmp_arg_cleanup_removes_only_hidden_fmp_alias():
     ctx = parse_venom(
         """
