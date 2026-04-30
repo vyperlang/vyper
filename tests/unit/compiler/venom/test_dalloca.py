@@ -1185,6 +1185,29 @@ def test_initial_fmp_fast_path_rejects_aliased_use_after_dfree():
     assert fn._needs_fmp is True
 
 
+def test_initial_fmp_fast_path_allows_closed_ptr_as_dalloca_size():
+    ctx = parse_from_basic_block(
+        """
+        main:
+            %p, %mark = dalloca 32
+            dfree %mark
+            %q, %qmark = dalloca %p
+            dfree %qmark
+            stop
+        """
+    )
+    fn = next(iter(ctx.functions.values()))
+    ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    opcodes = [inst.opcode for bb in fn.get_basic_blocks() for inst in bb.instructions]
+    assert "dalloca" not in opcodes
+    assert "dfree" not in opcodes
+    assert "bump" not in opcodes
+    assert opcodes.count("initial_fmp") == 2
+    assert fn._needs_fmp is False
+
+
 def test_initial_fmp_fast_path_rejects_closed_ptr_live_out_to_phi():
     ctx = parse_from_basic_block(
         """

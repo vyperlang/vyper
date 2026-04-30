@@ -150,8 +150,6 @@ class DallocaLoweringPass(IRPass):
             closed_ptrs: set[IRVariable] = set()
             for inst in bb.instructions:
                 if inst.opcode == "dalloca":
-                    if any(op in closed_ptrs for op in inst.operands):
-                        return False
                     if open_allocs:
                         return False
                     ptr_out = inst.get_outputs()[0]
