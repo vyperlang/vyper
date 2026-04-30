@@ -13,7 +13,11 @@ def fmt_row(test, base_entry, head_entry):
     base_status = base_entry.get("status") if base_entry else None
     head_status = head_entry.get("status") if head_entry else None
 
+    # a brand-new test that fails on head must surface as a failure, not a benign add,
+    # otherwise the "Newly failing" summary count under-reports regressions
     if base_entry is None and head_entry is not None:
+        if head_status != "Success":
+            return f"| {test} | - | 💥 | new failing ({head_status}) |", 0, "broke"
         return f"| {test} | - | ➕ **{head_gas}** | new |", 0, "new"
     if base_entry is not None and head_entry is None:
         return f"| {test} | **{base_gas}** | - | 🗑️ |", 0, "deleted"

@@ -37,8 +37,15 @@ def run_forge(snekmate_dir):
     # gas across runs, otherwise the diff drowns in fuzzer-input noise
     env["FOUNDRY_FUZZ_SEED"] = "0x1"
     env["FOUNDRY_INVARIANT_SEED"] = "0x1"
+    # --force clears cache/out: forge keys its build cache on source hash, not
+    # on the vyper version, so back-to-back runs against different vyper installs
+    # would otherwise reuse the first run's bytecode for unchanged .vy sources
     proc = subprocess.run(
-        ["forge", "test", "--json"], cwd=snekmate_dir, env=env, capture_output=True, text=True
+        ["forge", "test", "--force", "--json"],
+        cwd=snekmate_dir,
+        env=env,
+        capture_output=True,
+        text=True,
     )
     return proc
 
