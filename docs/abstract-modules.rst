@@ -247,37 +247,54 @@ Calling abstract methods
 ========================
 
 Abstract methods are called in the same way concrete methods are.
-Additionally, calling the abstract methods of another module requires :ref:`using <TODO>` it.
+Additionally, calling the abstract methods of another module requires :ref:`using <uses-statement>` it.
 
-TODO make this example more concrete, like the other, if possible use a running example
 .. code-block:: vyper
 
-    # abstract_m.vy
+    # base_token.vy
 
     @abstract
-    def _hook() -> uint256: ...
+    def _before_transfer(sender: address, recipient: address, amount: uint256): ...
 
-    def use_hook() -> uint256:
+    def _transfer(sender: address, recipient: address, amount: uint256):
         # call to abstract method in same module
-        return self._hook()
+        self._before_transfer(sender, recipient, amount)
+        self.balances[sender] -= amount
+        self.balances[recipient] += amount
 
 .. code-block:: vyper
 
-    import abstract_m
+    import base_token
 
     # required by the call below
-    uses: abstract_m
+    uses: base_token
 
-    def call_it() -> uint256:
+    def simulate_transfer(sender: address, recipient: address, amount: uint256):
         # call to abstract method in different module
-        return abstract_m._hook()
+        base_token._before_transfer(sender, recipient, amount)
 
 All calls to abstract methods are resolved at compile time to the concrete override — there is no runtime dispatch.
 
-TODO: Make this sentense clearer, should explicitly include the fact self.foo is forced when overriding foo
-To make programs easier to reason about, it is forbidden to call an abstract method through a path which include its override:
+When a module overrides an abstract method, the compiler requires callers to use the most concrete path available.
+In particular, if ``self._before_transfer`` overrides ``base_token._before_transfer``, any call within that module must go through ``self``, not through ``base_token``:
 
-TODO: add example
+.. code-block:: vyper
+
+    import base_token
+
+    initializes: base_token
+
+    @override(base_token)
+    def _before_transfer(sender: address, recipient: address, amount: uint256):
+        assert not self.paused, "transfers are paused"
+
+    def foo():
+        # Valid: uses the override directly
+        self._before_transfer(msg.sender, msg.sender, 0)
+
+        # Invalid: base_token._before_transfer is overridden by
+        # self._before_transfer, call that instead.
+        base_token._before_transfer(msg.sender, msg.sender, 0)
 
 
 Advanced Uses
