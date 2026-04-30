@@ -259,7 +259,12 @@ class DallocaLoweringPass(IRPass):
 
         if top is None or mark != top["mark"]:
             # Unstructured restore. This is still valid low-level IR; it just
-            # does not qualify for the local scratch rewrite.
+            # does not qualify for the local scratch rewrite. Restoring to an
+            # older mark invalidates any allocations above it, so hand-written
+            # IR can create use-after-free by using those pointers later. That
+            # is already the source semantics of `dfree`; keep the explicit
+            # restore and discard local stack state so later rewrites do not
+            # assume the open allocations are still valid.
             bump_stack.clear()
             new_instructions.append(self._restore_fmp_inst(mark, fmp_var, bb, inst))
             return

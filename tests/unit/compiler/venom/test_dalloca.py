@@ -1093,6 +1093,9 @@ def test_dfree_without_matching_dalloca_is_low_level_restore():
 
 
 def test_dfree_non_lifo_marks_lower_without_validation():
+    # Non-LIFO dfree is a low-level cursor restore. It can invalidate
+    # allocations above the restored mark; the lowering preserves that
+    # explicit restore instead of doing pointer lifetime validation.
     ctx = parse_from_basic_block(
         """
         main:
