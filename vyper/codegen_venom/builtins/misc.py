@@ -6,7 +6,6 @@ Miscellaneous built-in functions.
 - floor, ceil: Decimal truncation
 - as_wei_value: Wei denomination conversion
 - min_value, max_value, epsilon: Compile-time constants
-- isqrt: Integer square root
 - breakpoint: Debug interrupt
 - print: Debug logging to console.log address
 """
@@ -372,79 +371,6 @@ def lower_epsilon(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
 
 # =============================================================================
-# Integer Square Root
-# =============================================================================
-
-
-def lower_isqrt(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
-    """
-    isqrt(x) -> uint256
-
-    Integer square root using Babylonian method.
-    Returns floor(sqrt(x)).
-
-    Port of legacy IRnode implementation line-by-line.
-    """
-    from vyper.codegen_venom.expr import Expr
-
-    b = ctx.builder
-
-    x = Expr(node.args[0], ctx).lower_value()
-
-    # Create mutable variables y and z
-    # Legacy: ["with", y, x, ["with", z, 181, ...]]
-    y = b.new_variable()
-    z = b.new_variable()
-    b.assign_to(x, y)
-    b.assign_to(IRLiteral(181), z)
-
-    # Scale based on magnitude - series of conditional adjustments
-    # These use "ge" comparisons and conditionally update y and z
-
-    # if y >= 2^136: y >>= 128, z <<= 64
-    cond1 = b.iszero(b.lt(y, IRLiteral(2 ** (128 + 8))))  # ge = not lt
-    new_y1 = b.shr(IRLiteral(128), y)
-    new_z1 = b.shl(IRLiteral(64), z)
-    b.assign_to(b.select(cond1, new_y1, y), y)
-    b.assign_to(b.select(cond1, new_z1, z), z)
-
-    # if y >= 2^72: y >>= 64, z <<= 32
-    cond2 = b.iszero(b.lt(y, IRLiteral(2 ** (64 + 8))))
-    new_y2 = b.shr(IRLiteral(64), y)
-    new_z2 = b.shl(IRLiteral(32), z)
-    b.assign_to(b.select(cond2, new_y2, y), y)
-    b.assign_to(b.select(cond2, new_z2, z), z)
-
-    # if y >= 2^40: y >>= 32, z <<= 16
-    cond3 = b.iszero(b.lt(y, IRLiteral(2 ** (32 + 8))))
-    new_y3 = b.shr(IRLiteral(32), y)
-    new_z3 = b.shl(IRLiteral(16), z)
-    b.assign_to(b.select(cond3, new_y3, y), y)
-    b.assign_to(b.select(cond3, new_z3, z), z)
-
-    # if y >= 2^24: y >>= 16, z <<= 8
-    cond4 = b.iszero(b.lt(y, IRLiteral(2 ** (16 + 8))))
-    new_y4 = b.shr(IRLiteral(16), y)
-    new_z4 = b.shl(IRLiteral(8), z)
-    b.assign_to(b.select(cond4, new_y4, y), y)
-    b.assign_to(b.select(cond4, new_z4, z), z)
-
-    # z = z * (y + 2^16) / 2^18
-    scaled_z = b.div(b.mul(z, b.add(y, IRLiteral(2**16))), IRLiteral(2**18))
-    b.assign_to(scaled_z, z)
-
-    # 7 iterations of Babylonian refinement: z = (z + x/z) / 2
-    for _ in range(7):
-        next_z = b.div(b.add(b.div(x, z), z), IRLiteral(2))
-        b.assign_to(next_z, z)
-
-    # Final check: if x/z < z, return x/z (handles oscillation at perfect squares)
-    # Legacy: ["with", "t", ["div", x, z], ["select", ["lt", z, "t"], z, "t"]]
-    t = b.div(x, z)
-    return b.select(b.lt(z, t), z, t)
-
-
-# =============================================================================
 # Debug
 # =============================================================================
 
@@ -656,7 +582,6 @@ HANDLERS = {
     "min_value": lower_min_value,
     "max_value": lower_max_value,
     "epsilon": lower_epsilon,
-    "isqrt": lower_isqrt,
     "breakpoint": lower_breakpoint,
     "print": lower_print,
 }
