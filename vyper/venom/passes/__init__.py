@@ -11,6 +11,7 @@ from .dead_store_elimination import DeadStoreElimination
 from .dft import DFTPass
 from .function_inliner import FunctionInlinerPass
 from .internal_return_copy_forwarding import InternalReturnCopyForwardingPass
+from .licm import LICMPass
 from .literals_codesize import ReduceLiteralsCodesize
 from .load_elimination import LoadElimination
 from .lower_dload import LowerDloadPass

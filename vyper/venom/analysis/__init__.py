@@ -6,6 +6,7 @@ from .dominators import DominatorTreeAnalysis
 from .fcg import FCGGlobalAnalysis
 from .liveness import LivenessAnalysis
 from .load_analysis import LoadAnalysis
+from .loop import LoopAnalysis
 from .mem_alias import MemoryAliasAnalysis
 from .mem_liveness import MemLivenessAnalysis
 from .mem_ssa import MemSSA
