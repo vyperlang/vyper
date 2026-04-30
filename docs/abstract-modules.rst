@@ -104,13 +104,55 @@ For module M1 to override module M2:
     initializes: base_token
 
     @override(base_token)
-    def _before_transfer(sender: address, recipient: address, amount: uint256):
+    def before_transfer(sender: address, recipient: address, amount: uint256):
         assert not self.paused, "transfers are paused"
 
-Note in particular that abstract modules can override other abstract modules:
+Note in particular that an overriding module can itself be abstract.
+In other words, ``@abstract`` and ``@override`` can co-exist in the same module:
 
-TODO: Example here
+.. code-block:: vyper
 
+    # checked_token.vy
+
+    import base_token
+
+    initializes: base_token
+
+    @override(base_token)
+    def before_transfer(sender: address, recipient: address, amount: uint256):
+        assert self.check_address(sender), "Invalid sender"
+        assert self.check_address(recipient), "Invalid recipient"
+        assert self.check_cap(amount), "Invalid amount"
+
+    @abstract
+    def check_cap(amount: uint256) -> bool:
+        ...
+
+    @abstract
+    def check_address(addr: address) -> bool:
+        ...
+
+Here ``checked_token`` provides a concrete ``_before_transfer`` for ``base_token``, but it is itself an abstract module because it introduces ``check_cap`` and ``check_address``. A final module completes the chain by overriding those:
+
+.. code-block:: vyper
+
+    # my_token.vy
+    import checked_token
+
+    initializes: checked_token
+
+    MAX_AMOUNT: constant(uint256) = 10**24
+    total_supply: uint256
+
+    @override(checked_token)
+    def check_cap(amount: uint256) -> bool:
+        return 0 < amount <= MAX_AMOUNT
+
+    @override(checked_token)
+    def check_address(addr: address) -> bool:
+        return addr != empty(address)
+
+See also :ref:`Abstract overrides (chaining) <abstract-overrides-chaining>`.
 
 .. _overriding-abstract-methods:
 
@@ -241,33 +283,96 @@ In this section we will explain consequences of the above specification which mi
 Overriding multiple modules
 ---------------------------
 
-TODO: explain it's possible to have one module override multiple. With an example of course.
+A single module can initialize more than one abstract module, providing overrides for each independently.
+This is how you compose unrelated concerns — for instance, combining transfer validation from one module with fee configuration from another.
+
+Using ``base_token`` from the :ref:`earlier example <abstract-modules>`, consider a second abstract module that manages access control:
+
+.. code-block:: vyper
+
+    # access_control.vy
+
+    @abstract
+    def _is_allowed(user: address) -> bool: ...
+
+    def check_allowed(user: address):
+        assert self._is_allowed(user), "access denied"
+
+A contract can initialize both modules and override each abstract method:
+
+.. code-block:: vyper
+
+    # my_token.vy
+
+    import base_token
+    import access_control
+
+    initializes: base_token
+    initializes: access_control
+
+    exports: base_token.transfer
+
+    allowed: HashMap[address, bool]
+
+    @override(access_control)
+    def _is_allowed(user: address) -> bool:
+        return self.allowed[user]
+
+    @override(base_token)
+    def _before_transfer(sender: address, recipient: address, amount: uint256):
+        access_control.check_allowed(sender)
+
+The overriding module weaves both concerns together: ``_before_transfer`` delegates to the access control module to gate who can send tokens.
 
 Overriding multiple abstract methods
 ------------------------------------
 
-TODO: Rewrite this once the above is rewritten
-
-Nothing forbids multiple ``@override`` decorators to co-exist on the same method, this allows
-
-
-The rules for overriding (TODO link) 
-
-A single function can override abstract methods from multiple modules by having multiple ``@override`` decorators. The function's signature must be compatible with every abstract method it overrides.
+When a module overrides multiple others, it might happen that the abstract modules share a method name.
+To handle this case, it is possible for a single method to override multiple, by adding multiple ``@override`` decorators.
+Note however that the method must be a :ref:`valid override <overriding-abstract-methods>` for every abstract method:
 
 .. code-block:: vyper
 
-    import module_a
-    import module_b
+    # minter.vy
 
-    initializes: module_a
-    initializes: module_b
+    import my_roles
 
-    @override(module_a)
-    @override(module_b)
-    def common_method() -> uint256:
-        return 100
+    @abstract
+    def get_role(user: address) -> my_roles.ROLE: ...
 
+.. code-block:: vyper
+
+    # authentication_provider.vy
+
+    import my_roles
+
+    @abstract
+    def get_role(user: address, default: my_roles.ROLE) -> my_roles.ROLE: ...
+
+.. code-block:: vyper
+
+    import minter
+    import authentication_provider
+
+    initializes: minter
+    initializes: authentication_provider
+
+    roles: HashMap[address, my_roles.ROLE]
+
+    # By having `default` as an optional parameter, it's a valid override of both
+    # `minter.get_role` which does not have that parameter
+    # `authentication_provider.get_role` which has it as a mandatory parameter
+
+    @override(minter)
+    @override(authentication_provider)
+    def get_role(user: address, default: my_roles.ROLE = empty(my_roles.ROLE)) -> my_roles.ROLE:
+        role: my_roles.ROLE = self.roles[user]
+        if role == empty(my_roles.ROLE):
+            return default
+        return role
+
+
+.. _abstract-overrides-chaining:
 
 Abstract overrides (chaining)
 -----------------------------
