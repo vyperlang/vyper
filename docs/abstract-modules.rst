@@ -111,7 +111,7 @@ For module M1 to override module M2:
     So there is no choice to be made about which override to choose, abstract modules can only be overridden once. This is guaranteed by the initialization system.
 
 An overriding module can itself be abstract.
-In other words, ``@abstract`` and ``@override`` can co-exist in the same module (and even :ref:`on the same method <abstract-overrides-chaining>`):
+In other words, ``@abstract`` and ``@override`` can co-exist in the same module (and even :ref:`on the same method <deferring_overriding>`):
 
 .. code-block:: vyper
 
@@ -373,18 +373,22 @@ Note however that the method must be a :ref:`valid override <overriding-abstract
         return role
 
 
-.. _abstract-overrides-chaining:
+.. _deferring_overriding:
 
-Abstract overrides (chaining)
------------------------------
+Deferring overriding
+--------------------
 
-An overriding method can itself be marked ``@abstract``, deferring the final implementation to a module further down the initialization chain:
+In some cases a module might not want to override every method of another, if such is the case, ``@abstract`` and ``@override`` can be combined to defer providing an implementation:
 
 .. code-block:: vyper
 
     # base.vy
+
     @abstract
-    def hook() -> uint256: ...
+    def method_a() -> uint256: ...
+
+    @abstract
+    def method_b() -> uint256: ...
 
 .. code-block:: vyper
 
@@ -392,10 +396,16 @@ An overriding method can itself be marked ``@abstract``, deferring the final imp
     import base
 
     initializes: base
+    
+    # Concrete override
+    @override(base)
+    def method_a() -> uint256:
+        return 0
 
+    # Delegates
     @abstract
     @override(base)
-    def hook() -> uint256: ...
+    def method_b() -> uint256: ...
 
 .. code-block:: vyper
 
@@ -405,10 +415,10 @@ An overriding method can itself be marked ``@abstract``, deferring the final imp
     initializes: middle
 
     @override(middle)
-    def hook() -> uint256:
+    def method_b() -> uint256:
         return 42
 
-The call chain is resolved at compile time: any call to ``base.hook()`` ultimately dispatches to the concrete implementation in ``top.vy``.
+Any call to ``base.method_b`` resolves to a call to the concrete implementation, ``top.method_b``.
 
 Interaction with ``uses`` and ``initializes``
 =============================================
