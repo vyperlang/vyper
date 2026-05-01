@@ -486,7 +486,7 @@ And even allows using the default implementation while adding extra logic:
 
         # Use default check
         base_token._before_transfer_default(sender, recipient, amount)
-        
+
         # Add custom logic
         assert not self.paused, "transfers are paused"
 
@@ -494,35 +494,3 @@ Recommendations:
 
 1. The default implementation should have the same name as the abstract method followed by ``_default``.
 2. The default implementation should not be called anywhere (except in the override), as this defeats the purpose of making the method abstract in the first place.
-
-
-Interaction with ``uses`` and ``initializes``
-=============================================
-
-- ``initializes`` is **required** to override abstract methods. It declares the module's storage location and creates the obligation to override all its abstract methods.
-- ``uses`` allows a module to **call** an abstract module's methods (the calls resolve to the concrete override at compile time), but does **not** allow overriding.
-- A module with only a ``uses`` clause cannot provide overrides for the abstract module.
-
-.. code-block:: vyper
-
-    # library.vy — uses the abstract module, does not override
-    import abstract_m
-
-    uses: abstract_m
-
-    def helper() -> uint256:
-        return abstract_m.foo()
-
-.. code-block:: vyper
-
-    # contract.vy — initializes and overrides
-    import abstract_m
-    import library
-
-    initializes: abstract_m
-    initializes: library[abstract_m := abstract_m]
-
-    @override(abstract_m)
-    def foo() -> uint256:
-        return 42
-
