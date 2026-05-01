@@ -87,12 +87,7 @@ There are no other restrictions on abstract methods, they can have any signature
 Overriding an abstract module
 =============================
 
-As abstract modules are by essence incomplete, it is necessary for another module to complete them, by providing implementations for its abstract methods.
-
-For module M1 to override module M2:
-
-1. M1 must :ref:`initialize <initializing-module>` M2
-2. M1 must override each abstract method of M2, see :ref:`Overriding abstract methods <overriding-abstract-methods>`
+As abstract modules are by essence incomplete, it is necessary for another module to complete them, by providing implementations for its abstract methods:
 
 .. code-block:: vyper
 
@@ -104,53 +99,13 @@ For module M1 to override module M2:
     def before_transfer(sender: address, recipient: address, amount: uint256):
         assert not self.paused, "transfers are paused"
 
+For module M1 to override module M2:
+
+1. M1 must :ref:`initialize <initializing-module>` M2
+2. M1 must override each abstract method of M2, see :ref:`Overriding abstract methods <overriding-abstract-methods>`
+
 .. note::
     So there is no choice to be made about which override to choose, abstract modules can only be overridden once. This is guaranteed by the initialization system.
-
-An overriding module can itself be abstract.
-In other words, ``@abstract`` and ``@override`` can co-exist in the same module (and even :ref:`on the same method <deferring_overriding>`):
-
-.. code-block:: vyper
-
-    # checked_token.vy
-
-    import base_token
-
-    initializes: base_token
-
-    @override(base_token)
-    def before_transfer(sender: address, recipient: address, amount: uint256):
-        assert self.check_address(sender), "Invalid sender"
-        assert self.check_address(recipient), "Invalid recipient"
-        assert self.check_cap(amount), "Invalid amount"
-
-    @abstract
-    def check_cap(amount: uint256) -> bool:
-        ...
-
-    @abstract
-    def check_address(addr: address) -> bool:
-        ...
-
-Here ``checked_token`` provides a concrete ``_before_transfer`` for ``base_token``, but it is itself an abstract module because it introduces ``check_cap`` and ``check_address``. A final module completes the chain by overriding those:
-
-.. code-block:: vyper
-
-    # my_token.vy
-    import checked_token
-
-    initializes: checked_token
-
-    MAX_AMOUNT: constant(uint256) = 10**24
-    total_supply: uint256
-
-    @override(checked_token)
-    def check_cap(amount: uint256) -> bool:
-        return 0 < amount <= MAX_AMOUNT
-
-    @override(checked_token)
-    def check_address(addr: address) -> bool:
-        return addr != empty(address)
 
 .. _overriding-abstract-methods:
 
@@ -166,10 +121,6 @@ To override abstract method ``_before_transfer`` of module ``base_token``, the o
         assert not self.paused, "transfers are paused"
 
 Since any call to ``base_token._before_transfer`` will be replaced at compile-time to a call to the overriding ``_before_transfer``, it is necessary that any call to the former is a valid call to the latter:
-
-
-Signature rules
----------------
 
 .. code-block:: vyper
 
@@ -197,8 +148,8 @@ Signature rules
     # Invalid: parameter and return type don't match the ones in abstract_m.compute
     @pure
     @override(abstract_m)
-    def compute(y: uint8) -> uint8:
-        return y + 1
+    def compute(x: uint8) -> uint8:
+        return x + 1
 
 .. code-block:: vyper
 
@@ -222,10 +173,10 @@ Signature rules
     def compute(y: uint256) -> uint256:
         return y + 1
 
-A good heuristic is the following:
-- The override must have the same parameters as the abstract method: same name, same type, and same default value.
-- The override must have the same return type as the abstract method.
-- The override must have the same decorators as the abstract method, except ``@override`` and ``@abstract``.
+A good heuristic is the following; the override must have:
+- The same parameters as the abstract method: same name, same type, and same default value.
+- The same return type as the abstract method.
+- The same decorators as the abstract method, except ``@override`` and ``@abstract``.
 
 Following the rules above will always result in a valid override.
 However these might prove too restrictive in your use-case, for this reason the actual rules are more flexible:
@@ -299,6 +250,54 @@ Advanced Uses
 =============
 
 In this section we will explain consequences of the above specification which might not jump to mind, and are useful in advanced contexts.
+
+Abstract overriding modules
+---------------------------
+
+An overriding module can itself be abstract.
+In other words, ``@abstract`` and ``@override`` can co-exist in the same module (and even :ref:`on the same method <deferring_overriding>`):
+
+.. code-block:: vyper
+
+    # checked_token.vy
+
+    import base_token
+
+    initializes: base_token
+
+    @override(base_token)
+    def before_transfer(sender: address, recipient: address, amount: uint256):
+        assert self.check_address(sender), "Invalid sender"
+        assert self.check_address(recipient), "Invalid recipient"
+        assert self.check_cap(amount), "Invalid amount"
+
+    @abstract
+    def check_cap(amount: uint256) -> bool:
+        ...
+
+    @abstract
+    def check_address(addr: address) -> bool:
+        ...
+
+Here ``checked_token`` provides a concrete ``_before_transfer`` for ``base_token``, but it is itself an abstract module because it introduces ``check_cap`` and ``check_address``. A final module completes the chain by overriding those:
+
+.. code-block:: vyper
+
+    # my_token.vy
+    import checked_token
+
+    initializes: checked_token
+
+    MAX_AMOUNT: constant(uint256) = 10**24
+    total_supply: uint256
+
+    @override(checked_token)
+    def check_cap(amount: uint256) -> bool:
+        return 0 < amount <= MAX_AMOUNT
+
+    @override(checked_token)
+    def check_address(addr: address) -> bool:
+        return addr != empty(address)
 
 Overriding multiple modules
 ---------------------------
