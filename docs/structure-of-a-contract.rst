@@ -208,7 +208,7 @@ Modules can be added to contracts by importing them from a ``.vy`` file. Any ``.
     def foo() -> uint256:
         return my_module.perform_some_computation()
 
-Modules are opt-in by design. That is, any operations involving state or exposing external functions must be explicitly opted into using the ``exports``, ``uses`` or ``initializes`` keywords. A module can also declare internal functions whose bodies another module must supply, using the :ref:`@abstract and @override decorators <abstract-modules>`. See the :ref:`Modules <modules>` documentation for more information.
+Modules are opt-in by design. That is, any operations involving state or exposing external functions must be explicitly opted into using the ``exports``, ``uses`` or ``initializes`` keywords. See the :ref:`Modules <modules>` documentation for more information.
 
 Events
 ======
