@@ -26,7 +26,7 @@ Here is an example:
         self.balances[msg.sender] -= amount
         self.balances[recipient] += amount
 
-The ``base_token`` module defines a transfer hook, ``_before_transfer()``, as an abstract method. It is called during every transfer, but has no implementation — that is left to whoever initializes this module. This lets library authors define *where* custom logic runs, while users decide *what* it does.
+The ``base_token`` module defines a transfer hook, ``_before_transfer()``, as an abstract method. It is called during every transfer, but has no implementation — that is left to whoever initializes this module. This lets this module focus on *where* custom logic runs, while the overriding module decide *what* it does.
 
 To supply an implementation, a module imports and ``initializes`` the abstract module, then provides an ``@override`` for each abstract method:
 
