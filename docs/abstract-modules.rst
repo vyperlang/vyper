@@ -442,7 +442,58 @@ Any call to ``base.method_b`` resolves to a call to the concrete implementation,
 Default Implementation
 ----------------------
 
-TODO: explain you can give default implementation by adding a normal method alongside, with the same signature.
+It's sometimes desirable to provide a default implementation for an abstract method, this can be done by defining a separate method which holds this logic:
+
+.. code-block:: vyper
+
+    # base_token.vy
+
+    @abstract
+    def _before_transfer(sender: address, recipient: address, amount: uint256): ...
+
+    def _before_transfer_default(sender: address, recipient: address, amount: uint256):
+        assert sender != empty(address), "transfer from zero address"
+        assert recipient != empty(address), "transfer to zero address"
+
+This allows accepting the default implementation downstream as:
+
+.. code-block:: vyper
+
+    # simple_token.vy
+
+    import base_token
+
+    initializes: base_token
+
+    @override(base_token)
+    def _before_transfer(sender: address, recipient: address, amount: uint256):
+        base_token._before_transfer_default(sender, recipient, amount)
+
+And even allows using the default implementation while adding extra logic:
+
+.. code-block:: vyper
+
+    # pausable_token.vy
+
+    import base_token
+
+    initializes: base_token
+
+    paused: bool
+
+    @override(base_token)
+    def _before_transfer(sender: address, recipient: address, amount: uint256):
+
+        # Use default check
+        base_token._before_transfer_default(sender, recipient, amount)
+        
+        # Add custom logic
+        assert not self.paused, "transfers are paused"
+
+Recommendations:
+
+1. The default implementation should have the same name as the abstract method followed by ``_default``.
+2. The default implementation should not be called anywhere (except in the override), as this defeats the purpose of making the method abstract in the first place.
 
 
 Interaction with ``uses`` and ``initializes``
