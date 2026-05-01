@@ -19,8 +19,8 @@ Quick Reference
      - Inline checks
      - Control flow is explicit in the function body
    * - ``class inheritance``
-     - ``import`` + ``exports``
-     - Explicit dependencies
+     - ``import`` + ``exports`` + ``@abstract`` / ``@override``
+     - Explicit dependencies, compile-time resolution
    * - ``assembly { }``
      - Not supported
      - No direct EVM opcode access; use specific builtins (``raw_call``, ``create_minimal_proxy_to``, etc.)
@@ -76,10 +76,13 @@ In Vyper, checks are written inline:
 
 Inline checks keep the control flow visible from top to bottom.
 
-No Class Inheritance
-====================
+.. Preserve old anchor for external links
+.. _no-class-inheritance:
 
-Solidity supports multiple inheritance, which introduces the diamond problem and C3 linearization complexity. Vyper excludes inheritance entirely.
+Modules Instead of Inheritance
+==============================
+
+Solidity supports multiple inheritance, which introduces the diamond problem and C3 linearization complexity. Vyper replaces inheritance with a module system that achieves the same goals of code reuse and behavioral customization through different, more explicit mechanisms.
 
 In Vyper 0.4.0, a module system was introduced for powerful code reuse:
 
@@ -96,9 +99,9 @@ In Vyper 0.4.0, a module system was introduced for powerful code reuse:
 
 Three declarations manage module relationships: ``initializes`` (this contract manages the module's storage), ``uses`` (this contract reads module state without initializing), and ``exports`` (expose module functions in the ABI). See :doc:`using-modules` for details.
 
-A contract can be understood by reading one file and its direct imports; dependencies and what is exposed in the external function table are explicit.
+Where Solidity uses ``abstract contract`` with ``virtual`` / ``override`` for polymorphism, Vyper uses ``@abstract`` and ``@override`` decorators on internal module functions. An abstract module declares methods with no implementation; the module that ``initializes`` it supplies the concrete ``@override``. Each abstract module has exactly one initializer, so there is no ambiguity about which override is chosen. All overrides are resolved at compile time — there is no virtual dispatch and no method-resolution order. See :ref:`abstract-modules` for details.
 
-Solidity's ``abstract contract`` and ``virtual`` / ``override`` keywords belong to its inheritance model. Vyper's ``@abstract`` and ``@override`` decorators apply only to internal module functions and are resolved at compile time against a single initializing module, so there is no virtual dispatch and no method-resolution order. See :ref:`abstract-modules` for details.
+A contract can be understood by reading one file and its direct imports; dependencies and what is exposed in the external function table are explicit.
 
 No Inline Assembly
 ==================
