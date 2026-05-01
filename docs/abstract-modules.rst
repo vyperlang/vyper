@@ -174,6 +174,7 @@ Since any call to ``base_token._before_transfer`` will be replaced at compile-ti
         return y + 1
 
 A good heuristic is the following; the override must have:
+
 - The same parameters as the abstract method: same name, same type, and same default value.
 - The same return type as the abstract method.
 - The same decorators as the abstract method, except ``@override`` and ``@abstract``.
@@ -222,7 +223,7 @@ Additionally, calling the abstract methods of another module requires :ref:`usin
         # call to abstract method in different module
         base_token._before_transfer(sender, recipient, amount)
 
-All calls to abstract methods are resolved at compile time to the concrete override — there is no runtime dispatch.
+All calls to abstract methods are resolved at compile time to the concrete override: there is no runtime dispatch.
 
 When a module overrides an abstract method, the compiler requires callers to use the most concrete path available.
 In particular, if ``self._before_transfer`` overrides ``base_token._before_transfer``, any call within that module must go through ``self``, not through ``base_token``:
@@ -303,7 +304,7 @@ Overriding multiple modules
 ---------------------------
 
 A single module can initialize more than one abstract module, providing overrides for each independently.
-This is how you compose unrelated concerns — for instance, combining transfer validation from one module with fee configuration from another.
+This is how you compose unrelated concerns, for instance combining transfer validation from one module with fee configuration from another.
 
 Using ``base_token`` from the :ref:`earlier example <abstract-modules>`, consider a second abstract module that manages access control:
 
@@ -379,7 +380,7 @@ Note however that the method must be a :ref:`valid override <overriding-abstract
     roles: HashMap[address, my_roles.ROLE]
 
     # By having `default` as an optional parameter, it's a valid override of both
-    # `minter.get_role` which does not have that parameter
+    # `minter.get_role` which does not have that parameter, and
     # `authentication_provider.get_role` which has it as a mandatory parameter
 
     @override(minter)
@@ -436,7 +437,7 @@ In some cases a module might not want to override every method of another, if su
     def method_b() -> uint256:
         return 42
 
-Any call to ``base.method_b`` resolves to a call to the concrete implementation, ``top.method_b``.
+Any call to ``base.method_b`` resolves to a call to the concrete implementation: ``top.method_b``.
 
 Default Implementation
 ----------------------
