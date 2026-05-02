@@ -80,7 +80,7 @@ class CopyForwardingPolicy:
 
         return self.dfg.are_equivalent(src_op1, src_op2) and self.dfg.are_equivalent(size1, size2)
 
-    def forwarding_to_invokes_is_unprofitable(
+    def should_block_forwarding(
         self,
         copy_inst: IRInstruction,
         rewrite_sites: set[tuple[IRInstruction, int]],

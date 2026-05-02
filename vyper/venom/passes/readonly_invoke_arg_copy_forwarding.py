@@ -65,9 +65,7 @@ class ReadonlyInvokeArgCopyForwardingPass(InvokeCopyForwardingBase):
         if len(rewrite_sites) == 0:
             return False
 
-        if self.copy_forwarding.forwarding_to_invokes_is_unprofitable(
-            copy_inst, rewrite_sites, dst_alloca
-        ):
+        if self.copy_forwarding.should_block_forwarding(copy_inst, rewrite_sites, dst_alloca):
             return False
 
         # Keep this local and conservative: only forward when all uses are
