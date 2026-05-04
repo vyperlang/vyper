@@ -11,6 +11,7 @@ from vyper.exceptions import (
     UnknownType,
 )
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
@@ -171,7 +172,9 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         typ_ = typ_.module_t
 
     if not isinstance(typ_, VyperType):
-        raise CompilerPanic(f"Not a type: {typ_}", node)
+        if isinstance(typ_, VarInfo):
+            raise InvalidType(err_msg, node)
+        raise CompilerPanic(f"Not a type: {typ_}", node)  # pragma: no cover
 
     return typ_
 
