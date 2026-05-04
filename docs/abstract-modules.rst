@@ -4,7 +4,7 @@ Abstract Modules
 ################
 
 An abstract module is a special kind of :ref:`module <modules>` which offers points at which its logic can be customized.
-This takes the form of **abstract methods**, methods decorated with ``@abstract``.
+This takes the form of **abstract methods**, :ref:`internal <structure-functions-internal>` methods decorated with ``@abstract``.
 These methods can then be overridden to supply the custom logic.
 Here is an example:
 
@@ -13,7 +13,7 @@ Here is an example:
     # base_token.vy
     # This is the abstract module
 
-    balances: HashMap[address, uint256]
+    balances: public(HashMap[address, uint256])
 
     # Abstract method is declared here
     @abstract
@@ -40,7 +40,7 @@ To supply an implementation, a module imports and ``initializes`` the abstract m
 
     exports: base_token.transfer
 
-    paused: bool
+    paused: public(bool)
 
     @override(base_token)
     def _before_transfer(sender: address, recipient: address, amount: uint256):
@@ -280,7 +280,7 @@ In other words, ``@abstract`` and ``@override`` can co-exist in the same module 
     def check_address(addr: address) -> bool:
         ...
 
-Here ``checked_token`` provides a concrete ``_before_transfer`` for ``base_token``, but it is itself an abstract module because it introduces ``check_cap`` and ``check_address``. A final module completes the chain by overriding those:
+Here ``checked_token.vy`` provides a concrete ``_before_transfer`` for ``base_token``, but it is itself an abstract module because it introduces ``check_cap`` and ``check_address``. A final module completes the chain by overriding those:
 
 .. code-block:: vyper
 
@@ -313,7 +313,8 @@ Using ``base_token`` from the :ref:`earlier example <abstract-modules>`, conside
     # access_control.vy
 
     @abstract
-    def _is_allowed(user: address) -> bool: ...
+    def _is_allowed(user: address) -> bool:
+        ...
 
     def check_allowed(user: address):
         assert self._is_allowed(user), "access denied"
@@ -404,10 +405,12 @@ In some cases a module might not want to override every method of another, if su
     # base.vy
 
     @abstract
-    def method_a() -> uint256: ...
+    def method_a() -> uint256:
+        ...
 
     @abstract
-    def method_b() -> uint256: ...
+    def method_b() -> uint256:
+        ...
 
 .. code-block:: vyper
 
@@ -424,7 +427,8 @@ In some cases a module might not want to override every method of another, if su
     # Delegates
     @abstract
     @override(base)
-    def method_b() -> uint256: ...
+    def method_b() -> uint256:
+        ...
 
 .. code-block:: vyper
 
@@ -479,7 +483,7 @@ And even allows using the default implementation while adding extra logic:
 
     initializes: base_token
 
-    paused: bool
+    paused: public(bool)
 
     @override(base_token)
     def _before_transfer(sender: address, recipient: address, amount: uint256):
