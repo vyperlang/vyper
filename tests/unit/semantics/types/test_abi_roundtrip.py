@@ -1,7 +1,17 @@
 """
-Roundtrip tests: compile Vyper contracts to ABI JSON, then parse back
-via from_abi / from_json_abi and re-serialize to verify Vyper can
-consume and reproduce its own ABI output.
+Tests for ABI <-> Vyper type round-tripping.
+
+Most tests in this file verify true round-trips: compile a Vyper contract to
+ABI JSON, parse the entries back via ``ContractFunctionT.from_abi`` /
+``EventT.from_abi`` / ``InterfaceT.from_json_abi``, re-serialize them with
+``to_toplevel_abi_dict``, and assert the result equals the original ABI.
+
+The ``TestFallbackABIHandling`` and ``TestConstructorABIHandling`` classes are
+not round-trip tests: ``from_json_abi`` intentionally skips ``fallback`` and
+``constructor`` entries, so they cannot be reconstructed back into Vyper
+types. Those tests instead verify that such entries are emitted with the
+correct shape (no ``inputs`` / ``outputs`` for fallback) and are skipped
+without error by ``from_json_abi`` -- which is the behavior this PR fixes.
 """
 
 import json
@@ -117,7 +127,10 @@ def getDeposited() -> uint256:
 """
 
 
-class TestFallbackRoundtrip:
+class TestFallbackABIHandling:
+    # Not a round-trip: fallback entries are skipped by from_json_abi.
+    # These tests verify ABI shape and that from_json_abi handles them
+    # without error (the behavior this PR fixes).
     def test_fallback_has_no_inputs_outputs(self):
         abi = _compile_abi(FALLBACK_ONLY)
         fallbacks = [e for e in abi if e.get("type") == "fallback"]
@@ -131,7 +144,8 @@ class TestFallbackRoundtrip:
         assert len(interface.functions) == 0
 
 
-class TestConstructorRoundtrip:
+class TestConstructorABIHandling:
+    # Not a round-trip: constructor entries are skipped by from_json_abi.
     def test_constructor_skipped_by_from_json_abi(self):
         abi = _compile_abi(CONSTRUCTOR_ONLY)
         constructors = [e for e in abi if e["type"] == "constructor"]
