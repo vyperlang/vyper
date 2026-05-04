@@ -12,7 +12,7 @@ from typing import Optional
 import vyper.utils as util
 from vyper import ast as vy_ast
 from vyper.builtins._signatures import BuiltinFunctionT
-from vyper.codegen.core import (
+from vyper.codegen_shared.abi_utils import (
     DYNAMIC_ARRAY_OVERHEAD,
     calculate_type_for_external_return,
     needs_external_call_wrap,

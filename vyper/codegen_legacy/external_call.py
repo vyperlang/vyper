@@ -2,8 +2,8 @@ import copy
 from dataclasses import dataclass
 
 import vyper.utils as util
-from vyper.codegen.abi_encoder import abi_encode
-from vyper.codegen.core import (
+from vyper.codegen_legacy.abi_encoder import abi_encode
+from vyper.codegen_legacy.core import (
     _freshname,
     add_ofst,
     calculate_type_for_external_return,
@@ -17,7 +17,7 @@ from vyper.codegen.core import (
     unwrap_location,
     wrap_value_for_external_return,
 )
-from vyper.codegen.ir_node import Encoding, IRnode
+from vyper.codegen_legacy.ir_node import Encoding, IRnode
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import TypeCheckFailure
 from vyper.semantics.types import InterfaceT, TupleT
@@ -162,7 +162,7 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
 
 
 def _parse_kwargs(call_expr, context):
-    from vyper.codegen.expr import Expr  # TODO rethink this circular import
+    from vyper.codegen_legacy.expr import Expr  # TODO rethink this circular import
 
     def _bool(x):
         assert x.value in (0, 1), "type checker missed this"
@@ -240,7 +240,7 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
 
 
 def ir_for_external_call(call_expr, context):
-    from vyper.codegen.expr import Expr  # TODO rethink this circular import
+    from vyper.codegen_legacy.expr import Expr  # TODO rethink this circular import
 
     contract_address = Expr.parse_value_expr(call_expr.func.value, context)
     assert isinstance(contract_address.typ, InterfaceT)

@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 
 from vyper import ast as vy_ast
-from vyper.codegen.core import calculate_type_for_external_return
+from vyper.codegen_shared.abi_utils import calculate_type_for_external_return
 from vyper.codegen_venom.abi import abi_decode_to_buf, abi_encode_to_buf
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.value import VyperValue

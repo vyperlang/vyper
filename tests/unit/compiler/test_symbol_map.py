@@ -18,7 +18,7 @@ def baz(a: uint256) -> uint256:
 
 def test_simple_map():
     code = TEST_CODE
-    settings = Settings(experimental_codegen=True, optimize=OptimizationLevel.GAS)
+    settings = Settings(legacy_codegen=False, optimize=OptimizationLevel.GAS)
     settings.venom_flags = VenomOptimizationFlags(disable_inlining=True)
     output = compile_code(
         code, output_formats=["symbol_map_runtime", "metadata"], settings=settings

@@ -139,7 +139,7 @@ It is based on `Settings.as_dict()`, except `enable_decimals` is always included
 {
   "optimize": <string>,
   "evm_version": <string>,
-  "experimental_codegen": <bool>,
+  "legacy_codegen": <bool>,
   "debug": <bool>,
   "enable_decimals": <bool>,
   "nonreentrancy_by_default": <bool>,
@@ -164,7 +164,7 @@ It is based on `Settings.as_dict()`, except `enable_decimals` is always included
 |-------|------|-------------|
 | `optimize` | `string` | Optimization level: `"none"`, `"gas"`, `"codesize"` |
 | `evm_version` | `string` | Target EVM version: `"cancun"`, `"shanghai"`, `"prague"`, etc. |
-| `experimental_codegen` | `bool` | Whether Venom (experimental codegen) is enabled |
+| `legacy_codegen` | `bool` | Whether legacy IRnode codegen is used (default: False = Venom) |
 | `debug` | `bool` | Whether debug mode is enabled |
 | `enable_decimals` | `bool` | Whether decimal type is enabled |
 | `nonreentrancy_by_default` | `bool` | Whether functions are non-reentrant by default |

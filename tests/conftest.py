@@ -18,7 +18,7 @@ from tests.evm_backends.revm_env import RevmEnv
 from tests.exports import TestExporter
 from tests.utils import working_directory
 from vyper import compiler
-from vyper.codegen.ir_node import IRnode
+from vyper.codegen_legacy.ir_node import IRnode
 from vyper.compiler import compile_code
 from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, set_global_settings
@@ -44,7 +44,8 @@ def pytest_addoption(parser):
         help="change optimization mode",
     )
     parser.addoption("--enable-compiler-debug-mode", action="store_true")
-    parser.addoption("--experimental-codegen", action="store_true")
+    parser.addoption("--experimental-codegen", action="store_true", default=True)
+    parser.addoption("--legacy", action="store_true", default=False)
     parser.addoption("--tracing", action="store_true")
     parser.addoption("--hevm", action="store_true")
 
@@ -88,9 +89,13 @@ def debug(pytestconfig):
 
 @pytest.fixture(scope="session")
 def experimental_codegen(pytestconfig):
-    ret = pytestconfig.getoption("experimental_codegen")
-    assert isinstance(ret, bool)
-    return ret
+    """Returns True for venom codegen, False for legacy.
+    Kept as 'experimental_codegen' for backward compat in test markers."""
+    legacy = pytestconfig.getoption("legacy")
+    if legacy:
+        return False
+    # Venom is now the default
+    return True
 
 
 @pytest.fixture(scope="session")
@@ -242,7 +247,7 @@ def compiler_settings(optimize, experimental_codegen, evm_version, debug):
     settings = Settings(
         optimize=optimize,
         evm_version=evm_version,
-        experimental_codegen=experimental_codegen,
+        legacy_codegen=not experimental_codegen,
         debug=debug,
     )
     set_global_settings(settings)
@@ -272,10 +277,10 @@ def get_contract(env, optimize, output_formats, compiler_settings, hevm, request
         global _HEVM_MARKER
         if hevm and _HEVM_MARKER is not None:
             settings1 = copy.copy(compiler_settings)
-            settings1.experimental_codegen = False
+            settings1.legacy_codegen = True  # legacy
             settings1.optimize = OptimizationLevel.NONE
             settings2 = copy.copy(compiler_settings)
-            settings2.experimental_codegen = True
+            settings2.legacy_codegen = False  # venom
             settings2.optimize = OptimizationLevel.NONE
 
             bytecode1 = compile_code(

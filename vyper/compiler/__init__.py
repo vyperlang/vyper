@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Callable, Dict, Optional
 
-import vyper.codegen.core as codegen
+import vyper.codegen_legacy.core as codegen
 import vyper.compiler.output as output
 from vyper.compiler.input_bundle import FileInput, InputBundle, JSONInput, PathLike
 from vyper.compiler.phases import CompilerData
@@ -98,8 +98,8 @@ def compile_from_file_input(
         two arguments - the name of the contract, and the exception that was raised
     no_bytecode_metadata: bool, optional
         Do not add metadata to bytecode. Defaults to False
-    experimental_codegen: bool
-        Use experimental codegen. Defaults to False
+    legacy_codegen: bool
+        Use legacy (IRnode-based) codegen. Defaults to False (Venom)
 
     Returns
     -------

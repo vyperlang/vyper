@@ -12,8 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
-from vyper.codegen.core import is_tuple_like
+from vyper.codegen_shared.abi_utils import abi_encoding_matches_vyper, is_tuple_like
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import DArrayT, SArrayT, VyperType, _BytestringT
 from vyper.semantics.types.shortcuts import UINT256_T

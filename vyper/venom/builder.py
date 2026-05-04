@@ -32,11 +32,15 @@ class VenomBuilder:
     ctx: IRContext
     fn: IRFunction
     _current_bb: IRBasicBlock
+    _ast_source_stack: list  # stack of VyperNode for source tracking
+    _error_msg_stack: list  # stack of Optional[str] for source tracking
 
     def __init__(self, ctx: IRContext, fn: IRFunction):
         self.ctx = ctx
         self.fn = fn
         self._current_bb = fn.entry
+        self._ast_source_stack = []
+        self._error_msg_stack = []
 
     # === Block Management ===
     @property
@@ -333,7 +337,12 @@ class VenomBuilder:
     ) -> list[IRVariable]:
         """Call internal function. Returns list of output variables."""
         all_args = [target] + list(args)
-        return self._current_bb.append_invoke_instruction(all_args, returns=returns)
+        return self._current_bb.append_invoke_instruction(
+            all_args,
+            returns=returns,
+            ast_source=self._current_ast_source(),
+            error_msg=self._current_error_msg(),
+        )
 
     def param(self) -> IRVariable:
         """Declare function parameter (must be at block start)."""
@@ -515,7 +524,13 @@ class VenomBuilder:
 
     def assign_to(self, val: Operand, target: IRVariable) -> None:
         """Assign value to existing variable (for loop counters etc)."""
-        self._current_bb.append_instruction("assign", val, ret=target)
+        self._current_bb.append_instruction(
+            "assign",
+            val,
+            ret=target,
+            ast_source=self._current_ast_source(),
+            error_msg=self._current_error_msg(),
+        )
 
     def literal(self, val: int) -> IRLiteral:
         """Create literal operand (convenience, can also just pass int)."""
@@ -547,11 +562,13 @@ class VenomBuilder:
             with b.source_context(node):
                 b.add(x, y)  # Instructions get source info
         """
-        self.fn.push_source(ast_node)
+        self._ast_source_stack.append(ast_node)
+        self._error_msg_stack.append(None)
         try:
             yield
         finally:
-            self.fn.pop_source()
+            self._ast_source_stack.pop()
+            self._error_msg_stack.pop()
 
     @contextmanager
     def error_context(self, error_msg: str):
@@ -561,25 +578,51 @@ class VenomBuilder:
             with b.error_context("safeadd"):
                 b.assert_(ok)  # Instruction gets error_msg
         """
-        self.fn.push_error_msg(error_msg)
+        self._error_msg_stack.append(error_msg)
         try:
             yield
         finally:
-            self.fn.pop_error_msg()
+            self._error_msg_stack.pop()
+
+    def _current_ast_source(self):
+        return self._ast_source_stack[-1] if self._ast_source_stack else None
+
+    def _current_error_msg(self):
+        return self._error_msg_stack[-1] if self._error_msg_stack else None
 
     # === Internal Implementation ===
     def _emit(self, opcode: str, *args: Operand) -> None:
         """Emit instruction with no output. Args passed directly to IR."""
-        self._current_bb.append_instruction(opcode, *args)
+        self._current_bb.append_instruction(
+            opcode,
+            *args,
+            ast_source=self._current_ast_source(),
+            error_msg=self._current_error_msg(),
+        )
 
     def _emit1(self, opcode: str, *args: Operand) -> IRVariable:
         """Emit instruction with output. Args passed directly to IR."""
-        return self._current_bb.append_instruction1(opcode, *args)
+        return self._current_bb.append_instruction1(
+            opcode,
+            *args,
+            ast_source=self._current_ast_source(),
+            error_msg=self._current_error_msg(),
+        )
 
     def _emit_evm(self, opcode: str, *args: Operand) -> None:
         """Emit EVM instruction. Args in semantic order, reversed for IR stack order."""
-        self._current_bb.append_instruction(opcode, *reversed(args))
+        self._current_bb.append_instruction(
+            opcode,
+            *reversed(args),
+            ast_source=self._current_ast_source(),
+            error_msg=self._current_error_msg(),
+        )
 
     def _emit1_evm(self, opcode: str, *args: Operand) -> IRVariable:
         """Emit EVM instruction with output. Args in semantic order, reversed for IR."""
-        return self._current_bb.append_instruction1(opcode, *reversed(args))
+        return self._current_bb.append_instruction1(
+            opcode,
+            *reversed(args),
+            ast_source=self._current_ast_source(),
+            error_msg=self._current_error_msg(),
+        )

@@ -3,7 +3,7 @@ import pytest
 from hypothesis import given, settings
 
 import vyper.utils as utils
-from vyper.codegen.jumptable_utils import (
+from vyper.codegen_legacy.jumptable_utils import (
     generate_dense_jumptable_info,
     generate_sparse_jumptable_buckets,
 )

@@ -1,7 +1,7 @@
 import operator
 from typing import List, Optional, Tuple, Union
 
-from vyper.codegen.ir_node import IRnode
+from vyper.codegen_legacy.ir_node import IRnode
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import (

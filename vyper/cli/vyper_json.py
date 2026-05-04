@@ -307,11 +307,24 @@ def get_settings(input_dict: dict) -> Settings:
     if optimize is not None and opt_level is not None:
         raise JSONError("both 'optimize' and 'optLevel' cannot be set")
 
+    # legacy_codegen: True = use legacy IRnode codegen, False (default) = use Venom
+    # support deprecated keys for backwards compatibility
+    legacy_codegen = input_dict["settings"].get("legacyCodegen")
+    if legacy_codegen is None:
+        legacy_codegen = input_dict["settings"].get("legacy")
+
+    # deprecated: experimentalCodegen/venomExperimental (inverted semantics)
     experimental_codegen = input_dict["settings"].get("experimentalCodegen")
     if experimental_codegen is None:
         experimental_codegen = input_dict["settings"].get("venomExperimental")
     elif input_dict["settings"].get("venomExperimental") is not None:
         raise JSONError("both experimentalCodegen and venomExperimental cannot be set")
+
+    if legacy_codegen is not None and experimental_codegen is not None:
+        raise JSONError("both legacy/legacyCodegen and experimentalCodegen cannot be set")
+    if experimental_codegen is not None:
+        if legacy_codegen is None:
+            legacy_codegen = not experimental_codegen  # invert semantics
 
     if opt_level is not None:
         optimize = OptimizationLevel.from_string(opt_level)
@@ -369,7 +382,7 @@ def get_settings(input_dict: dict) -> Settings:
     return Settings(
         evm_version=evm_version,
         optimize=optimize,
-        experimental_codegen=experimental_codegen,
+        legacy_codegen=legacy_codegen,
         debug=debug,
         enable_decimals=enable_decimals,
         venom_flags=venom_flags,

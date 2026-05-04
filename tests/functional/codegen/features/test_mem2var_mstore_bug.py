@@ -16,7 +16,7 @@ from vyper.compiler.settings import VenomOptimizationFlags
 def no_inline_settings(compiler_settings):
     """Create settings with function inlining disabled (venom only)."""
     settings = copy.copy(compiler_settings)
-    if settings.experimental_codegen:
+    if not settings.legacy_codegen:
         settings.venom_flags = VenomOptimizationFlags(disable_inlining=True)
     return settings
 

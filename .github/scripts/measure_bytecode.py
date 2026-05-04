@@ -29,10 +29,10 @@ def get_example_vy_filenames(limit: int | None = None):
     return files[:limit] if limit else files
 
 
-def compile_one(source_code: str, opt_level: OptimizationLevel, experimental: bool) -> tuple[int | None, str | None]:
+def compile_one(source_code: str, opt_level: OptimizationLevel, legacy: bool) -> tuple[int | None, str | None]:
     """Compile with given settings. Returns (size, error)."""
     try:
-        settings = Settings(experimental_codegen=experimental, optimize=opt_level)
+        settings = Settings(legacy_codegen=legacy, optimize=opt_level)
         result = compiler.compile_code(source_code, settings=settings, output_formats=["bytecode"])
         bytecode = result.get("bytecode", "")
         size = (len(bytecode) - 2) // 2 if bytecode.startswith("0x") else len(bytecode) // 2
@@ -55,11 +55,11 @@ def measure_contract(filename: str) -> tuple[str, dict]:
 
     results = {
         "legacy": {
-            name: dict(zip(["size", "error"], compile_one(source_code, opt, False)))
+            name: dict(zip(["size", "error"], compile_one(source_code, opt, True)))
             for name, opt in LEGACY_OPT_LEVELS.items()
         },
         "venom": {
-            name: dict(zip(["size", "error"], compile_one(source_code, opt, True)))
+            name: dict(zip(["size", "error"], compile_one(source_code, opt, False)))
             for name, opt in VENOM_OPT_LEVELS.items()
         },
     }

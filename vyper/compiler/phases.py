@@ -3,11 +3,11 @@ from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Any, Optional
 
-import vyper.codegen.core as codegen
+import vyper.codegen_legacy.core as codegen
 from vyper import ast as vy_ast
 from vyper.ast import natspec
-from vyper.codegen import module
-from vyper.codegen.ir_node import IRnode
+from vyper.codegen_legacy import module
+from vyper.codegen_legacy.ir_node import IRnode
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle, JSONInput
 from vyper.compiler.settings import (
     OptimizationLevel,
@@ -144,8 +144,8 @@ class CompilerData:
         if settings.optimize is None:
             settings.optimize = OptimizationLevel.default()
 
-        if settings.experimental_codegen is None:
-            settings.experimental_codegen = False
+        if settings.legacy_codegen is None:
+            settings.legacy_codegen = False
 
         return settings
 
@@ -255,14 +255,14 @@ class CompilerData:
 
     @cached_property
     def venom_runtime(self):
-        assert self.settings.experimental_codegen
+        assert not self.settings.legacy_codegen
         from vyper.codegen_venom import generate_venom_runtime
 
         return generate_venom_runtime(self.global_ctx, self.settings)
 
     @cached_property
     def venom_deploytime(self):
-        assert self.settings.experimental_codegen
+        assert not self.settings.legacy_codegen
         from vyper.codegen_venom import generate_venom_deploy
 
         return generate_venom_deploy(
@@ -275,7 +275,7 @@ class CompilerData:
         if not self.no_bytecode_metadata:
             metadata = bytes.fromhex(self.integrity_sum)
 
-        if self.settings.experimental_codegen:
+        if not self.settings.legacy_codegen:
             assert self.settings.optimize is not None  # mypy hint
             return generate_assembly_experimental(
                 self.venom_deploytime, optimize=self.settings.optimize
@@ -303,7 +303,7 @@ class CompilerData:
 
     @cached_property
     def assembly_runtime(self) -> list:
-        if self.settings.experimental_codegen:
+        if not self.settings.legacy_codegen:
             assert self.settings.optimize is not None  # mypy hint
             return generate_assembly_experimental(
                 self.venom_runtime, optimize=self.settings.optimize
