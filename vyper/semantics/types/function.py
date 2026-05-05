@@ -36,7 +36,7 @@ from vyper.semantics.analysis.utils import (
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.bytestrings import BytesT
-from vyper.semantics.types.primitives import BoolT
+from vyper.semantics.types.primitives import BoolT, DecimalT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.user import EventT
@@ -851,6 +851,41 @@ class ContractFunctionT(VyperType):
     def abi_signature_for_kwargs(self, kwargs: list[KeywordArg]) -> str:
         args = self.positional_args + kwargs  # type: ignore
         return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
+
+    def uses_decimal(self) -> bool:
+        # param types
+        for param_t in self.argument_types:
+            if _contains_decimal(param_t):
+                return True
+
+        # return type
+        if self.return_type is not None and _contains_decimal(self.return_type):
+            return True
+
+        # body type annotations
+        if self.ast_def is not None and isinstance(self.ast_def, vy_ast.FunctionDef):
+            for node in self.ast_def.get_descendants(vy_ast.AnnAssign):
+                typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
+                if _contains_decimal(typ):
+                    return True
+
+        return False
+
+
+def _contains_decimal(typ: VyperType) -> bool:
+    if isinstance(typ, DecimalT):
+        return True
+    if hasattr(typ, "value_type"):
+        if _contains_decimal(typ.value_type):
+            return True
+    if hasattr(typ, "member_types"):
+        member_types = typ.member_types
+        if isinstance(member_types, dict):
+            member_types = member_types.values()
+        for member_t in member_types:
+            if _contains_decimal(member_t):
+                return True
+    return False
 
 
 def is_ellipsis_body(body: list[vy_ast.VyperNode]) -> bool:

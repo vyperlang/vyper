@@ -338,3 +338,39 @@ def foo(x: decimal):
         assert e.value._message == "decimals are not allowed unless `--enable-decimals` is set"
     finally:
         compiler_settings.DEFAULT_ENABLE_DECIMALS = True
+
+def test_unused_math_allowed_with_decimals_disabled():
+    code = """
+import math
+    """
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        compile_code(code)
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True
+
+
+def test_unused_imported_decimal_function_allowed_with_decimals_disabled(make_input_bundle):
+    lib = """
+@internal
+def f() -> decimal:
+    return 1.0
+    """
+    code = """
+import lib
+
+@external
+def foo() -> uint256:
+    return 1
+    """
+    input_bundle = make_input_bundle({"lib.vy": lib})
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        compile_code(
+            code,
+            input_bundle=input_bundle,
+        )
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True

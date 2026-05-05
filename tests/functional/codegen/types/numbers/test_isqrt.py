@@ -3,6 +3,7 @@ import math
 import hypothesis
 import pytest
 
+import vyper.compiler.settings as compiler_settings
 from vyper.compiler import compile_code
 from vyper.exceptions import UnimplementedException
 from vyper.utils import SizeLimits
@@ -51,6 +52,22 @@ def test(a: uint256) -> uint256:
     val = 10**17
     assert c.test(val) == math.isqrt(val)
     assert c.test(0) == 0
+
+def test_isqrt_compiles_with_decimals_disabled():
+    code = """
+import math
+
+@external
+def test(a: uint256) -> uint256:
+    return math.isqrt(a)
+    """
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        compile_code(code)
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True
+
 
 
 def test_isqrt_internal_variable(get_contract):

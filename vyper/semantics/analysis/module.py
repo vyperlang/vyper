@@ -5,12 +5,14 @@ from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.evm.opcodes import version_check
+from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import (
     BorrowException,
     CallViolation,
     CompilerPanic,
     EvmVersionException,
     ExceptionList,
+    FeatureException,
     FunctionDeclarationException,
     ImmutableViolation,
     InitializerException,
@@ -95,6 +97,14 @@ def analyze_modules(imports: ImportAnalyzer) -> ModuleT:
     # (needs to be after reachable set with overrides computation since used_events depends on it)
     for module_ast in modules:
         module_ast._metadata["type"].validate_used_events()
+
+    root_module_t = root_module_ast._metadata["type"]
+
+    # Errors out if decimals are used, but not enabled
+    settings = get_global_settings()
+    if settings and not settings.get_enable_decimals():
+        if any(func_t.uses_decimal() for func_t in root_module_t.reachable_functions):
+            raise FeatureException("decimals are not allowed unless `--enable-decimals` is set")
 
     return ret
 
