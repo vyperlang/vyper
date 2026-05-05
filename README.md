@@ -45,40 +45,69 @@ the language and compile to ``bytecode`` and/or ``IR``.
 **Note: While the vyper version of the online compiler is updated on a regular basis it might
 be a bit behind the latest version found in the master branch of this repository.**
 
-## Testing (using pytest)
+# Contributing
+* See Issues tab, and feel free to submit your own issues
+* Add PRs if you discover a solution to an existing issue
+* For further discussions and questions, post in [Discussions](https://github.com/vyperlang/vyper/discussions) or talk to us on [Discord](https://discord.gg/6tw7PTM7C2)
+* For more information, see [Contributing](http://docs.vyperlang.org/en/latest/contributing.html)
 
-(Complete [installation steps](https://docs.vyperlang.org/en/latest/installing-vyper.html) first.)
+## Contributing Code
 
-```bash
-make dev-init
-./quicktest.sh -m "not fuzzing"
-```
+### Setup
 
-## Testing (with hevm)
+#### uv (recommended)
 
-Install hevm by downloading it from the releases page (https://github.com/ethereum/hevm/releases/latest) and making sure it is in your PATH. hevm tests can be enabled with `--hevm` flag, and hevm tests can be selected with the `-m hevm` marker. For instance, `./quicktest.sh -m "hevm" --hevm`.
+Make sure you have `uv` installed
 
-## Developing (working on the compiler)
+1. Clone this repo and `cd` into it
+2. Run `git fetch --tags git@github.com:vyperlang/vyper.git` to get the tags necessary for version inference
+3. Run `uv sync`
+4. Run `source .venv/bin/activate` to activate the virtual environment
+5. Run `vyper --version` to verify the setup
 
-A useful script to have in your PATH is something like the following:
-```bash
-$ cat ~/.local/bin/vyc
-#!/usr/bin/env bash
-PYTHONPATH=. python vyper/cli/vyper_compile.py "$@"
-```
+#### pip
+
+Make sure you have `pip` (version 25.1 or above), `setuptools`, and `pytest` installed
+
+1. Clone this repo and `cd` into it
+2. Run `git fetch --tags git@github.com:vyperlang/vyper.git` to get the tags necessary for version inference
+3. Run `python -m venv .venv` to create a virtual environment
+4. Run `source .venv/bin/activate` to activate it
+5. Run `make init` to install the main dependencies
+6. Run `make dev-init` to install the dev dependencies
+7. Run `vyper --version` to verify the setup
+
+### Commands
+
+* `vyper path/to/file.vy` to run your local copy of the compiler
+* `pytest` to test your changes
+    Useful pytest flags:
+        * `-x`: Fail test run on first test failure
+        * `--instafail`: Show reason for test failure directly, instead of at the end of a test run
+        * `--disable-warnings`: Hide warnings which occurred during tests
+* `make mypy` to type check your changes
+* `make lint` to check your files are correctly formatted (also runs mypy)
+
+### Other Tips
+
+#### Checking performance
 
 To run a python performance profile (to find compiler perf hotspots):
 ```bash
 PYTHONPATH=. python -m cProfile -s tottime vyper/cli/vyper_compile.py "$@"
 ```
 
-To get a call graph from a python profile, pip install `gprof2dot` and `xdot`, and run it like `gprof2dot -f pstats stats | xdot -`. (See https://stackoverflow.com/a/23164271/).
-
 The utility timer functions `timeit`, `profileit` and `cumtimeit` are available in `vyper/utils.py`.
 
+#### Getting call graph
 
-# Contributing
-* See Issues tab, and feel free to submit your own issues
-* Add PRs if you discover a solution to an existing issue
-* For further discussions and questions, post in [Discussions](https://github.com/vyperlang/vyper/discussions) or talk to us on [Discord](https://discord.gg/6tw7PTM7C2)
-* For more information, see [Contributing](http://docs.vyperlang.org/en/latest/contributing.html)
+To get a call graph from a python profile, install `gprof2dot` and `xdot`, and run it like `gprof2dot -f pstats stats | xdot -`. (See https://stackoverflow.com/a/23164271/).
+
+#### Testing with hevm
+
+Install hevm by downloading it from the releases page (https://github.com/ethereum/hevm/releases/latest) and making sure it is in your PATH. hevm tests can be enabled with `--hevm` flag, and hevm tests can be selected with the `-m hevm` marker. For instance, `pytest -m "hevm" --hevm`.
+
+#### Fuzzing tests
+
+Fuzzing test are very slow, so they are not run by default.
+To run them, use `pytest -m "fuzzing"`.
