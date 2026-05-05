@@ -869,6 +869,12 @@ class ContractFunctionT(VyperType):
                 if _contains_decimal(typ):
                     return True
 
+        # emitted events
+        for event_t in self._emitted_events:
+            for member_t in event_t.arguments.values():
+                if _contains_decimal(member_t):
+                    return True
+
         return False
 
 

@@ -339,6 +339,44 @@ def foo(x: decimal):
     finally:
         compiler_settings.DEFAULT_ENABLE_DECIMALS = True
 
+def test_decimals_blocked_in_struct():
+    code = """
+struct MyStruct:
+    x: decimal
+
+@external
+def foo(s: MyStruct):
+    pass
+    """
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        with pytest.raises(FeatureException) as e:
+            compile_code(code)
+        assert e.value._message == "decimals are not allowed unless `--enable-decimals` is set"
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True
+
+
+def test_decimals_blocked_in_event():
+    code = """
+event MyEvent:
+    x: decimal
+
+@external
+def foo():
+    log MyEvent(1.0)
+    """
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        with pytest.raises(FeatureException) as e:
+            compile_code(code)
+        assert e.value._message == "decimals are not allowed unless `--enable-decimals` is set"
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True
+
+
 def test_unused_math_allowed_with_decimals_disabled():
     code = """
 import math
