@@ -65,6 +65,7 @@ from vyper.semantics.analysis.utils import (
 from vyper.semantics.types import (
     INF,
     TYPE_T,
+    WILDCARD,
     AddressT,
     BoolT,
     BytesM_T,
@@ -315,7 +316,7 @@ class Slice(BuiltinFunctionT):
             if length_literal < 1:
                 raise ArgumentException("Length cannot be less than 1", length_expr)
 
-        if not is_adhoc_slice and arg_type.length is not INF:
+        if not is_adhoc_slice and arg_type.length is not INF and arg_type.length is not WILDCARD:
             # arg_type.length is only valid when `not is_adhoc_slice`.
             # and if type is Bytes[INF] or String[INF], no length is out of bounds
 
@@ -497,7 +498,7 @@ class Concat(BuiltinFunctionT):
         for arg_t in arg_types:
             arg_length = arg_t.length
 
-            if arg_length is INF:
+            if arg_length is INF or arg_length is WILDCARD:
                 length = INF
                 break
 

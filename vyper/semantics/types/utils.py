@@ -13,7 +13,7 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
-from vyper.semantics.types.infinity import INF, Inf
+from vyper.semantics.types.infinity import INF, WILDCARD, Inf, Wildcard
 
 # TODO maybe this should be merged with .types/base.py
 
@@ -63,7 +63,7 @@ def type_from_abi(abi_type: dict) -> VyperType:
             if type_string in ("Bytes", "String"):
                 # special handling for bytes, string, since
                 # the type ctor is in the namespace instead of a concrete type.
-                return t(INF)
+                return t(WILDCARD)
             return t
         except KeyError:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
@@ -176,7 +176,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     return typ_
 
 
-def get_index_value(node: vy_ast.VyperNode) -> int | Inf:
+def get_index_value(node: vy_ast.VyperNode) -> int | Inf | Wildcard:
     """
     Return the literal value for a `Subscript` index.
 
@@ -194,6 +194,11 @@ def get_index_value(node: vy_ast.VyperNode) -> int | Inf:
     # this is imported to improve error messages
     # TODO: revisit this!
     from vyper.semantics.analysis.utils import get_possible_types_from_node
+
+    if isinstance(node, vy_ast.Ellipsis):
+        if not node.module_node.is_interface:
+            raise InvalidType("Wildcard length is only allowed in interfaces", node)
+        return WILDCARD
 
     node = node.reduced()
 

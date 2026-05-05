@@ -570,16 +570,13 @@ def __init__(addr: JSONInterface):
 @external
 def test_fail1() -> Bytes[2]:
     # should compile, but reverts
-    return convert(extcall self.foo.returns_Bytes3(), Bytes[2])
+    return extcall self.foo.returns_Bytes3()
 
 @external
 def test_fail2() -> Bytes[2]:
-
-    # should compile and not revert
-    x: Bytes[INF] = extcall self.foo.returns_Bytes3()
-
     # should compile, but reverts
-    return convert(x, Bytes[2])
+    x: Bytes[2] = extcall self.foo.returns_Bytes3()
+    return x
 
 @external
 def test_succeed1() -> Bytes[INF]:
@@ -589,7 +586,7 @@ def test_succeed1() -> Bytes[INF]:
 @external
 def test_succeed2() -> Bytes[3]:
     # should compile and not revert
-    return convert(extcall self.foo.returns_Bytes3(), Bytes[3])
+    return extcall self.foo.returns_Bytes3()
     """
 
     ext_c = get_contract(external_contract)
@@ -760,17 +757,6 @@ def convert_v1_abi(abi):
 
 @pytest.mark.parametrize("type_str", [i[0] for i in type_str_params])
 def test_json_interface_implements(type_str, make_input_bundle, make_file):
-    # TODO: Remove this when we add support for Bytes[INF] parameters and returns
-    if type_str.startswith("Bytes[") or type_str.startswith("String["):
-        pytest.xfail(
-            "function parameter type information is lost when converting to abi: "
-            "Bytes[n] -> Bytes[INF]\n"
-            "This test can therefore not succeed as "
-            "test_json(a: Bytes[n]) does not implement test_json(a: Bytes[INF])\n"
-            "The correct override would therefore take test_json(a: Bytes[INF]) as input and"
-            " `convert`. But this is currently impossible, as we don't have a way "
-        )
-
     code = interface_test_code.format(type_str)
 
     abi = compile_code(code, output_formats=["abi"])["abi"]
@@ -803,10 +789,6 @@ def test_json_interface_calls(get_contract, type_str, value, make_input_bundle):
     c1 = get_contract(interface_code)
 
     return_expr = "staticcall jsonabi(a).test_json(b)"
-
-    # Going through the abi removes the length information, so we have to check explicitly
-    if type_str.startswith("Bytes") or type_str.startswith("String"):
-        return_expr = f"convert({return_expr}, {type_str})"
 
     code = f"""
 import jsonabi as jsonabi

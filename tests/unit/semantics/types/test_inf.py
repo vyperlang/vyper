@@ -3,7 +3,7 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import CompilerPanic, InvalidType, TypeMismatch, UndeclaredDefinition
 from vyper.semantics.types import INF, BytesT, DArrayT, StringT
-from vyper.semantics.types.infinity import Inf
+from vyper.semantics.types.infinity import WILDCARD, Inf, Wildcard
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.utils import type_from_annotation
 
@@ -67,6 +67,77 @@ def test_dynarray_from_annotation_inf(build_node):
     assert t.length is INF
     assert isinstance(t, DArrayT)
     assert t.value_type == UINT256_T
+
+
+def test_wildcard_singleton():
+    assert WILDCARD is Wildcard.WILDCARD
+
+
+def test_wildcard_repr():
+    assert repr(WILDCARD) == "..."
+    assert repr(BytesT(WILDCARD)) == "Bytes[...]"
+    assert repr(StringT(WILDCARD)) == "String[...]"
+    assert repr(DArrayT(UINT256_T, WILDCARD)) == "DynArray[uint256, ...]"
+
+
+def test_wildcard_from_annotation(build_node):
+    node = build_node("Bytes[...]", is_interface=True)
+    t = type_from_annotation(node)
+    assert t.length is WILDCARD
+    assert isinstance(t, BytesT)
+
+    node = build_node("String[...]", is_interface=True)
+    t = type_from_annotation(node)
+    assert t.length is WILDCARD
+    assert isinstance(t, StringT)
+
+
+def test_dynarray_wildcard_from_annotation(build_node):
+    node = build_node("DynArray[uint256, ...]", is_interface=True)
+    t = type_from_annotation(node)
+    assert t.length is WILDCARD
+    assert isinstance(t, DArrayT)
+    assert t.value_type == UINT256_T
+
+
+def test_wildcard_rejected_outside_interface(build_node):
+    with pytest.raises(InvalidType) as e:
+        type_from_annotation(build_node("Bytes[...]"))
+    assert e.value.message == "Wildcard length is only allowed in interfaces"
+
+    with pytest.raises(InvalidType) as e:
+        type_from_annotation(build_node("String[...]"))
+    assert e.value.message == "Wildcard length is only allowed in interfaces"
+
+    with pytest.raises(InvalidType) as e:
+        type_from_annotation(build_node("DynArray[uint256, ...]"))
+    assert e.value.message == "Wildcard length is only allowed in interfaces"
+
+
+def test_wildcard_subtyping():
+    # Wildcard matches anything bidirectionally
+    assert BytesT(WILDCARD).compare_type(BytesT(10))
+    assert BytesT(10).compare_type(BytesT(WILDCARD))
+    assert BytesT(WILDCARD).compare_type(BytesT(INF))
+    assert BytesT(INF).compare_type(BytesT(WILDCARD))
+    assert BytesT(WILDCARD).compare_type(BytesT(WILDCARD))
+
+    assert StringT(WILDCARD).compare_type(StringT(10))
+    assert StringT(10).compare_type(StringT(WILDCARD))
+
+
+def test_dynarray_wildcard_subtyping():
+    assert DArrayT(UINT256_T, WILDCARD).compare_type(DArrayT(UINT256_T, 10))
+    assert DArrayT(UINT256_T, 10).compare_type(DArrayT(UINT256_T, WILDCARD))
+    assert DArrayT(UINT256_T, WILDCARD).compare_type(DArrayT(UINT256_T, INF))
+    assert DArrayT(UINT256_T, INF).compare_type(DArrayT(UINT256_T, WILDCARD))
+
+
+def test_wildcard_not_equal_to_inf():
+    # WILDCARD and INF are distinct
+    assert BytesT(WILDCARD) != BytesT(INF)
+    assert StringT(WILDCARD) != StringT(INF)
+    assert DArrayT(UINT256_T, WILDCARD) != DArrayT(UINT256_T, INF)
 
 
 fail_list = [
@@ -177,6 +248,40 @@ def foo(x: uint256 = INF):
 @external
 def foo(x: uint256[INF]):
     pass
+    """,
+        InvalidType,
+    ),
+    # Ellipsis cannot be used as a static array length
+    (
+        """
+@external
+def foo(x: uint256[...]):
+    pass
+    """,
+        InvalidType,
+    ),
+    # Ellipsis is only allowed in interfaces, not in regular functions
+    (
+        """
+@external
+def foo(x: Bytes[...]):
+    pass
+    """,
+        InvalidType,
+    ),
+    # Ellipsis return type not allowed outside interfaces
+    (
+        """
+@external
+def foo() -> Bytes[...]:
+    return b""
+    """,
+        InvalidType,
+    ),
+    # Ellipsis in state variable not allowed
+    (
+        """
+x: Bytes[...]
     """,
         InvalidType,
     ),

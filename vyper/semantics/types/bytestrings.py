@@ -2,7 +2,7 @@ from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Bytes, ABI_String, ABIType
 from vyper.exceptions import CompilerPanic, StructureException, UnexpectedNodeType, UnexpectedValue
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.infinity import INF, Inf
+from vyper.semantics.types.infinity import INF, WILDCARD, Inf, Wildcard
 from vyper.semantics.types.utils import get_index_value
 from vyper.utils import ceil32
 
@@ -25,7 +25,7 @@ class _BytestringT(VyperType):
     _equality_attrs = ("_length",)
     _is_bytestring: bool = True
 
-    def __init__(self, length: int | Inf) -> None:
+    def __init__(self, length: int | Inf | Wildcard) -> None:
         super().__init__()
 
         self._length = length
@@ -37,7 +37,7 @@ class _BytestringT(VyperType):
         return {"length": self.length}
 
     @property
-    def length(self) -> int | Inf:
+    def length(self) -> int | Inf | Wildcard:
         """
         Property method used to check the length of a type.
         """
@@ -70,6 +70,10 @@ class _BytestringT(VyperType):
     def compare_type(self, other):
         if not super().compare_type(other):
             return False
+
+        # Wildcard matches any length (bidirectional)
+        if self.length is WILDCARD or other.length is WILDCARD:
+            return True
 
         if self.length is INF:
             # INF >= INF
