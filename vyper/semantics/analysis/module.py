@@ -61,6 +61,7 @@ def analyze_modules(imports: ImportAnalyzer) -> ModuleT:
     type-check/validate semantics and annotate with type and analysis info.
     """
     root_module_ast = imports.toplevel_module
+    root_module_ast._metadata["is_compilation_target"] = True
 
     modules = imports.seen
     """
@@ -129,6 +130,8 @@ def _analyze_module_bodies(module_ast: vy_ast.Module) -> None:
     """
     # interfaces don't have function bodies to validate
     if module_ast.is_interface:
+        return
+    if not module_ast._metadata.get("is_compilation_target"):
         return
 
     module_t = module_ast._metadata["type"]

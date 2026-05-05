@@ -95,9 +95,12 @@ def type_from_annotation(
     from vyper.semantics.types.primitives import DecimalT
 
     if isinstance(typ, DecimalT):
-        # is there a better place to put this check?
         settings = get_global_settings()
-        if settings and not settings.get_enable_decimals():
+        if (
+            settings
+            and not settings.get_enable_decimals()
+            and node.module_node._metadata.get("is_compilation_target")
+        ):
             raise FeatureException("decimals are not allowed unless `--enable-decimals` is set")
 
     return typ

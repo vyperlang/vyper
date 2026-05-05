@@ -4,8 +4,10 @@ import itertools
 from typing import TYPE_CHECKING, Any, Callable, Iterable, List
 
 from vyper import ast as vy_ast
+from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import (
     CompilerPanic,
+    FeatureException,
     InstantiationException,
     InvalidAttribute,
     InvalidLiteral,
@@ -29,7 +31,7 @@ from vyper.semantics.types.bytestrings import BytesT, StringT
 
 if TYPE_CHECKING:
     from vyper.semantics.types.module import ModuleT
-from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
+from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, DecimalT, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.utils import OrderedSet, checksum_encode, int_to_fourbytes
 
@@ -604,6 +606,15 @@ def validate_expected_type(node, expected_type):
     else:
         for given, expected in itertools.product(given_types, expected_type):
             if given.is_subtype_of(expected):
+                settings = get_global_settings()
+                if (
+                    settings
+                    and not settings.get_enable_decimals()
+                    and isinstance(expected, DecimalT)
+                ):
+                    raise FeatureException(
+                        "decimals are not allowed unless `--enable-decimals` is set", node
+                    )
                 return
 
     # validation failed, prepare a meaningful error message

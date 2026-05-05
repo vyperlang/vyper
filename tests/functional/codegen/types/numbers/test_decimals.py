@@ -1,11 +1,13 @@
 import warnings
 from decimal import getcontext
+from pathlib import PurePath
 
 import pytest
 
 import vyper.compiler.settings as compiler_settings
 from tests.utils import decimal_to_int
 from vyper import compile_code
+from vyper.compiler.input_bundle import JSONInputBundle
 from vyper.exceptions import (
     DecimalOverrideException,
     FeatureException,
@@ -336,5 +338,32 @@ def foo(x: decimal):
         with pytest.raises(FeatureException) as e:
             compile_code(code)
         assert e.value._message == "decimals are not allowed unless `--enable-decimals` is set"
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True
+
+
+def test_unused_imported_decimal_function_allowed_with_decimals_disabled():
+    lib = """
+@internal
+def f() -> decimal:
+    return 1.0
+    """
+    code = """
+import lib
+
+@external
+def foo() -> uint256:
+    return 1
+    """
+    input_bundle = JSONInputBundle({PurePath("lib.vy"): {"content": lib}}, [PurePath(".")])
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        compile_code(
+            code,
+            contract_path=PurePath("main.vy"),
+            resolved_path=PurePath("main.vy"),
+            input_bundle=input_bundle,
+        )
     finally:
         compiler_settings.DEFAULT_ENABLE_DECIMALS = True

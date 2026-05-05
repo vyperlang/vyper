@@ -75,14 +75,25 @@ from vyper.semantics.types.utils import type_from_annotation
 def analyze_functions(vy_module: vy_ast.Module) -> None:
     """Analyzes a vyper ast and validates the function bodies"""
     err_list = ExceptionList()
+    module_t = vy_module._metadata["type"]
 
-    for node in vy_module.get_children(vy_ast.FunctionDef):
-        _analyze_function_r(node, err_list)
+    function_defs = vy_module.get_children(vy_ast.FunctionDef)
 
     for node in vy_module.get_children(vy_ast.VariableDecl):
         if not node.is_public:
             continue
-        _analyze_function_r(node._expanded_getter, err_list)
+        function_defs.append(node._expanded_getter)
+
+    for fn_t in module_t.exposed_functions:
+        if isinstance(fn_t.ast_def, vy_ast.FunctionDef):
+            function_defs.append(fn_t.ast_def)
+
+    seen = set()
+    for node in function_defs:
+        if id(node) in seen:
+            continue
+        seen.add(id(node))
+        _analyze_function_r(node, err_list)
 
     err_list.raise_if_not_empty()
 
