@@ -90,7 +90,7 @@ class Expr:
         """
         fn_name = f"lower_{type(self.node).__name__}"
         method = getattr(self, fn_name, None)
-        if method is None:
+        if method is None:  # pragma: nocover
             raise CompilerPanic(f"Unsupported expr: {type(self.node)}")
         return method()
 
@@ -141,7 +141,7 @@ class Expr:
             val = int(hexstr, 16) << 8 * (32 - n_bytes)
             return VyperValue.from_stack_op(IRLiteral(val), t)
 
-        raise CompilerPanic(f"Unsupported Hex literal type: {t}")
+        raise CompilerPanic(f"Unsupported Hex literal type: {t}")  # pragma: nocover
 
     def lower_NameConstant(self) -> VyperValue:
         """Lower True/False constants."""
@@ -195,10 +195,7 @@ class Expr:
             elem_typ = typ.member_types[i]
             elem_vv = Expr(elem_node, self.ctx).lower()
 
-            if offset == 0:
-                dst = val.operand
-            else:
-                dst = self.builder.add(val.operand, IRLiteral(offset))
+            dst = self.builder.add(val.operand, IRLiteral(offset))
 
             self.ctx.store_vyper_value(elem_vv, dst, elem_typ)
             offset += elem_typ.memory_bytes_required
@@ -238,10 +235,7 @@ class Expr:
         for elem_node in node.elements:
             elem_vv = Expr(elem_node, self.ctx).lower()
 
-            if data_offset == 0:
-                dst = val.operand
-            else:
-                dst = self.builder.add(val.operand, IRLiteral(data_offset))
+            dst = self.builder.add(val.operand, IRLiteral(data_offset))
 
             self.ctx.store_vyper_value(elem_vv, dst, elem_typ)
             data_offset += elem_size
@@ -294,7 +288,7 @@ class Expr:
             is_valid = (isinstance(typ, IntegerT) and typ.bits == 256) or (
                 isinstance(typ, BytesM_T) and typ.m == 32
             )
-            if not is_valid:
+            if not is_valid:  # pragma: nocover
                 raise CompilerPanic("Shift operations require 256-bit types")
 
         # Extract pow literals for bounds checking
@@ -324,7 +318,7 @@ class Expr:
 
         if isinstance(op, vy_ast.Not):
             # Boolean NOT
-            if not isinstance(typ, BoolT):
+            if not isinstance(typ, BoolT):  # pragma: nocover
                 raise CompilerPanic("Not operator only valid for bool")
             return VyperValue.from_stack_op(self.builder.iszero(operand), result_typ)
 
@@ -348,9 +342,9 @@ class Expr:
 
         if isinstance(op, vy_ast.USub):
             # Unary minus (-x) - only for signed integers
-            if not isinstance(typ, (IntegerT, DecimalT)):
+            if not isinstance(typ, (IntegerT, DecimalT)):  # pragma: nocover
                 raise CompilerPanic("USub only valid for numeric types")
-            if not typ.is_signed:
+            if not typ.is_signed:  # pragma: nocover
                 raise CompilerPanic("USub only valid for signed types")
 
             # Check operand > min_int to prevent negating MIN_INT
@@ -360,7 +354,7 @@ class Expr:
 
             return VyperValue.from_stack_op(self.builder.sub(IRLiteral(0), operand), result_typ)
 
-        raise CompilerPanic(f"Unsupported UnaryOp: {type(op)}")
+        raise CompilerPanic(f"Unsupported UnaryOp: {type(op)}")  # pragma: nocover
 
     # === Comparison Operations ===
 
@@ -383,7 +377,7 @@ class Expr:
         # Bytestring comparison: compare keccak256 hashes
         # Must handle before lower_value() since we need VyperValue with location
         if isinstance(left_typ, _BytestringT) and isinstance(right_typ, _BytestringT):
-            if not isinstance(op, (vy_ast.Eq, vy_ast.NotEq)):
+            if not isinstance(op, (vy_ast.Eq, vy_ast.NotEq)):  # pragma: nocover
                 raise CompilerPanic(f"Unsupported comparison for bytestrings: {type(op)}")
 
             # Get hash for each side - use compile-time hash for constants
@@ -481,7 +475,7 @@ class Expr:
                 self.builder.iszero(self.builder.slt(left, right)), result_typ
             )
 
-        raise CompilerPanic(f"Unsupported comparison op: {type(op)}")
+        raise CompilerPanic(f"Unsupported comparison op: {type(op)}")  # pragma: nocover
 
     # === Boolean Operations ===
 
@@ -562,7 +556,7 @@ class Expr:
             self.builder.assign_to(last_val, result)
             self.builder.jmp(exit_bb.label)
 
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"Unsupported BoolOp: {type(op)}")
 
         # Continue from exit block
@@ -612,7 +606,7 @@ class Expr:
             )
             return VyperValue.from_ptr(ptr, typ)
 
-        raise CompilerPanic(f"Unknown variable: {varname}")
+        raise CompilerPanic(f"Unknown variable: {varname}")  # pragma: nocover
 
     def lower_Attribute(self) -> VyperValue:
         """Lower attribute access.
@@ -660,7 +654,9 @@ class Expr:
 
         # .code on address is an adhoc node handled by slice() - should not be lowered directly
         # But "code" can be a valid struct field name, so only check for address types
-        if attr == "code" and isinstance(node.value._metadata.get("type"), AddressT):
+        if attr == "code" and isinstance(
+            node.value._metadata.get("type"), AddressT
+        ):  # pragma: nocover
             raise CompilerPanic(".code requires slice() context")
 
         # Case 3: Environment variables (msg.*, block.*, tx.*, chain.*)
@@ -695,7 +691,7 @@ class Expr:
         if isinstance(sub_typ, StructT) and attr in sub_typ.member_types:
             return self._lower_struct_field()
 
-        raise CompilerPanic(f"Unsupported attribute access: {node.attr}")
+        raise CompilerPanic(f"Unsupported attribute access: {node.attr}")  # pragma: nocover
 
     def _lower_environment_attr(self) -> IROperand:
         """Lower environment variable attributes (msg.*, block.*, tx.*, chain.*)."""
@@ -712,7 +708,7 @@ class Expr:
             return self.builder.callvalue()
         if key in ("msg.gas", "msg.mana"):
             return self.builder.gas()
-        if key == "msg.data":
+        if key == "msg.data":  # pragma: nocover
             # Adhoc node - replaced in Slice/Len. Return calldatasize for now.
             raise CompilerPanic("msg.data requires Slice/Len context")
 
@@ -751,7 +747,7 @@ class Expr:
         if key == "chain.id":
             return self.builder.chainid()
 
-        raise CompilerPanic(f"Unknown environment variable: {key}")
+        raise CompilerPanic(f"Unknown environment variable: {key}")  # pragma: nocover
 
     # === Ternary Expression ===
 
@@ -817,7 +813,7 @@ class Expr:
         elif isinstance(base_typ, (StructT, TupleT)):
             # Tuple access on struct/tuple (struct[0], tuple[1], etc.)
             return self._lower_tuple_subscript()
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"Unsupported subscript on {base_typ}")
 
     def _lower_array_subscript(self, bounds_check: bool = True) -> VyperValue:
@@ -1013,10 +1009,7 @@ class Expr:
             t = base_typ.member_types[attrs[i]]
             offset += t.get_size_in(data_loc)
 
-        if offset == 0:
-            elem_ptr = base
-        else:
-            elem_ptr = self.builder.add(base, IRLiteral(offset))
+        elem_ptr = self.builder.add(base, IRLiteral(offset))
 
         return self._make_ptr_value(elem_ptr, data_loc, elem_typ)
 
@@ -1048,10 +1041,7 @@ class Expr:
             t = base_typ.member_types[attrs[i]]
             offset += t.get_size_in(data_loc)
 
-        if offset == 0:
-            field_ptr = base
-        else:
-            field_ptr = self.builder.add(base, IRLiteral(offset))
+        field_ptr = self.builder.add(base, IRLiteral(offset))
 
         return self._make_ptr_value(field_ptr, data_loc, field_typ)
 
@@ -1089,7 +1079,7 @@ class Expr:
         # Block non-primitive element types (mirrors legacy codegen)
         # See issue #2637 for context
         elem_typ = list_node._metadata["type"].value_type
-        if not elem_typ._is_prim_word:
+        if not elem_typ._is_prim_word:  # pragma: nocover
             raise TypeMismatch(
                 "`in` not allowed for arrays of non-base types, tracked in issue #2637", self.node
             )
@@ -1135,7 +1125,7 @@ class Expr:
         # Block non-primitive element types (mirrors legacy codegen)
         # See issue #2637 for context
         elem_typ = haystack_typ.value_type
-        if not elem_typ._is_prim_word:
+        if not elem_typ._is_prim_word:  # pragma: nocover
             raise TypeMismatch(
                 "`in` not allowed for arrays of non-base types, tracked in issue #2637", self.node
             )
@@ -1158,7 +1148,7 @@ class Expr:
             length = IRLiteral(haystack_typ.count)
             bound = haystack_typ.count
             offset_base = 0
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"Cannot check membership in type: {haystack_typ}")
 
         elem_size = haystack_typ.value_type.get_size_in(location)
@@ -1288,7 +1278,7 @@ class Expr:
         if isinstance(func_t, MemberFunctionT):
             return self._lower_member_function_call(func_t)
 
-        raise CompilerPanic(f"Unsupported call: {node.func}")
+        raise CompilerPanic(f"Unsupported call: {node.func}")  # pragma: nocover
 
     def _lower_internal_call(self) -> VyperValue:
         """Lower internal function call (self.func(...)).
@@ -1390,10 +1380,7 @@ class Expr:
             assert return_buf is not None
             assert isinstance(return_buf, IRVariable)
             for i, outv in enumerate(outs):
-                if i == 0:
-                    dst = return_buf
-                else:
-                    dst = self.builder.add(return_buf, IRLiteral(i * 32))
+                dst = self.builder.add(return_buf, IRLiteral(i * 32))
                 self.builder.mstore(dst, outv)
         else:
             self.builder.invoke(IRLabel(target_label), invoke_args, returns=0)
@@ -1445,10 +1432,7 @@ class Expr:
             field_typ = struct_t.member_types[field_name]
             field_vv = Expr(member_vals[field_name], self.ctx).lower()
 
-            if offset == 0:
-                dst = val.operand
-            else:
-                dst = self.builder.add(val.operand, IRLiteral(offset))
+            dst = self.builder.add(val.operand, IRLiteral(offset))
 
             self.ctx.store_vyper_value(field_vv, dst, field_typ)
             offset += field_typ.memory_bytes_required
@@ -1484,7 +1468,7 @@ class Expr:
             return self._lower_dynarray_append()
         elif attr == "pop":
             return self._lower_dynarray_pop()
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"Unknown member function: {attr}")
 
     def _lower_dynarray_append(self) -> VyperValue:
@@ -1579,7 +1563,7 @@ class Expr:
             self.ctx.store_storage(elem_val, elem_ptr, elem_typ)
         elif data_loc == DataLocation.TRANSIENT:
             self.ctx.store_transient(elem_val, elem_ptr, elem_typ)
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"Unsupported location for append: {data_loc}")
 
         # 5. Increment and store new length
@@ -1693,10 +1677,10 @@ class Expr:
                 gas = kw_val
             elif kw.arg == "skip_contract_check":
                 # Must be a literal True/False
-                if not isinstance(kw_val, IRLiteral):
+                if not isinstance(kw_val, IRLiteral):  # pragma: nocover
                     raise CompilerPanic(f"Expected IRLiteral for keyword, got {type(kw_val)}")
                 skip_contract_check = bool(kw_val.value)
-            else:
+            else:  # pragma: nocover
                 raise CompilerPanic(f"Unexpected keyword argument: {kw.arg}")
 
         return _CallKwargs(
@@ -1774,10 +1758,7 @@ class Expr:
             offset = 0
             for i, arg_vv in enumerate(arg_vals):
                 arg_typ = fn_type.arguments[i].typ
-                if offset == 0:
-                    dst = args_val.operand
-                else:
-                    dst = b.add(args_val.operand, IRLiteral(offset))
+                dst = b.add(args_val.operand, IRLiteral(offset))
                 self.ctx.store_vyper_value(arg_vv, dst, arg_typ)
                 offset += arg_typ.memory_bytes_required
 
