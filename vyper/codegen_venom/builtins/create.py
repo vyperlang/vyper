@@ -268,10 +268,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     ctor_args_val = ctx.new_temporary_value(ctor_tuple_typ)
     offset = 0
     for vv, arg_t in zip(ctor_arg_vvs, ctor_arg_types):
-        if offset == 0:
-            dst = ctor_args_val.operand
-        else:
-            dst = b.add(ctor_args_val.operand, IRLiteral(offset))
+        dst = b.add(ctor_args_val.operand, IRLiteral(offset))
         assert isinstance(dst, IRVariable)
         ctx.store_vyper_value(vv, dst, arg_t)
         offset += arg_t.memory_bytes_required
@@ -511,7 +508,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
 
     if raw_args:
         # raw_args=True: single bytes argument contains raw constructor args
-        if len(ctor_arg_nodes) != 1:
+        if len(ctor_arg_nodes) != 1:  # pragma: nocover
             # This should be caught by type checker, but be defensive
             raise CompilerPanic("raw_args requires exactly 1 bytes argument")
 
@@ -533,10 +530,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         ctor_args_src = ctx.new_temporary_value(ctor_tuple_typ)
         offset = 0
         for vv, arg_t in zip(ctor_arg_vvs, ctor_arg_types):
-            if offset == 0:
-                dst = ctor_args_src.operand
-            else:
-                dst = b.add(ctor_args_src.operand, IRLiteral(offset))
+            dst = b.add(ctor_args_src.operand, IRLiteral(offset))
 
             assert isinstance(dst, IRVariable)
             ctx.store_vyper_value(vv, dst, arg_t)
