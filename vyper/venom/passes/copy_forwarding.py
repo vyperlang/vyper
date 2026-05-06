@@ -55,15 +55,6 @@ class CopyForwardingPolicy:
             return self.dfg._traverse_assign_chain(src)
         return src
 
-    def copy_destination_alloca(self, copy_inst: IRInstruction) -> Allocation | None:
-        dst = copy_inst.operands[2]
-        if not isinstance(dst, IRVariable):
-            return None
-        ptr = self.base_ptr.ptr_from_op(dst)
-        if ptr is None:
-            return None
-        return ptr.base_alloca
-
     def copies_equivalent(self, inst1: IRInstruction, inst2: IRInstruction) -> bool:
         write_loc1 = self.base_ptr.get_write_location(inst1, addr_space.MEMORY)
         write_loc2 = self.base_ptr.get_write_location(inst2, addr_space.MEMORY)
