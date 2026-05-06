@@ -110,7 +110,6 @@ def _helper1(vyper_source, optimize, input_bundle=None):
     # note: compiling any later stage than ir_runtime like `asm` or
     # `bytecode` modifies the ir_runtime data structure in place and results
     # in normalization of the venom cfg (which breaks again make_ssa)
-    memmerging._CHECK = False
     out = compile_code(
         vyper_source, input_bundle=input_bundle, settings=settings, output_formats=["ir_runtime"]
     )
