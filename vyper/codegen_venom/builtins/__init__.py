@@ -61,6 +61,6 @@ def lower_builtin(builtin_id: str, node, ctx) -> Union[IROperand, VyperValue]:
         IROperand for stack values, or VyperValue for memory-located results
     """
     handler = BUILTIN_HANDLERS.get(builtin_id)
-    if handler is None:
+    if handler is None:  # pragma: nocover
         raise CompilerPanic(f"Built-in '{builtin_id}' not yet implemented in venom codegen")
     return handler(node, ctx)
