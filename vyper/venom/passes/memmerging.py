@@ -102,11 +102,6 @@ class _Copy:
         return f"_Copy({self.dst_loc}, {self.src_loc}, {self.length})"
 
 
-# To help with venom repr test which will contain
-# concrete values by definition
-if "_CHECK" not in globals():
-    _CHECK = True
-
 
 class _Copies:
     # src allocations -> dst allocations -> list
@@ -118,7 +113,7 @@ class _Copies:
         self.just_abstract = just_abstract
 
     def _check_state(self, source: Allocation | None) -> bool:
-        if _CHECK and self.just_abstract:
+        if self.just_abstract:
             is_abstract = source is not None
             return self.just_abstract == is_abstract
         return True
@@ -162,8 +157,7 @@ class _Copies:
                 i += 1
 
     def remove(self, copy: _Copy):
-        if _CHECK:
-            assert self.just_abstract == (not copy.src_loc.is_concrete)
+        assert self.just_abstract == (not copy.src_loc.is_concrete)
 
         self.copies[copy.src_loc.alloca][copy.dst_loc.alloca].remove(copy)
 
