@@ -887,6 +887,9 @@ class ContractFunctionT(VyperType):
 def _contains_decimal(typ: VyperType) -> bool:
     if isinstance(typ, DecimalT):
         return True
+    if hasattr(typ, "key_type"):
+        if _contains_decimal(typ.key_type):
+            return True
     if hasattr(typ, "value_type"):
         if _contains_decimal(typ.value_type):
             return True

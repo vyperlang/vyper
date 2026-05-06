@@ -497,6 +497,60 @@ import math
         compiler_settings.DEFAULT_ENABLE_DECIMALS = True
 
 
+def test_decimals_blocked_in_hashmap_value():
+    code = """
+x: HashMap[address, decimal]
+
+@external
+def foo() -> decimal:
+    return self.x[msg.sender]
+    """
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        with pytest.raises(FeatureException) as e:
+            compile_code(code)
+        assert e.value._message == "decimals are not allowed unless `--enable-decimals` is set"
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True
+
+
+def test_decimals_blocked_in_hashmap_key():
+    code = """
+x: HashMap[decimal, uint256]
+
+@external
+def foo() -> uint256:
+    return self.x[1.0]
+    """
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        with pytest.raises(FeatureException) as e:
+            compile_code(code)
+        assert e.value._message == "decimals are not allowed unless `--enable-decimals` is set"
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True
+
+
+def test_decimals_blocked_in_nested_hashmap():
+    code = """
+x: HashMap[address, HashMap[address, decimal]]
+
+@external
+def foo() -> decimal:
+    return self.x[msg.sender][msg.sender]
+    """
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        with pytest.raises(FeatureException) as e:
+            compile_code(code)
+        assert e.value._message == "decimals are not allowed unless `--enable-decimals` is set"
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True
+
+
 def test_unused_imported_decimal_function_allowed_with_decimals_disabled(make_input_bundle):
     lib = """
 @internal
