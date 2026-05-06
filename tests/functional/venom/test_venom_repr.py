@@ -11,7 +11,6 @@ from vyper.compiler.phases import generate_bytecode
 from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.venom import generate_assembly_experimental, run_passes_on
 from vyper.venom.context import IRContext
-from vyper.venom.passes import memmerging
 
 """
 Check that venom text format round-trips through parser

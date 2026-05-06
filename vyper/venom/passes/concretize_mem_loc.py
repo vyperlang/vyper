@@ -66,7 +66,7 @@ class ConcretizeMemLocPass(IRPass):
                 #   %3 = add 16, %1
                 #   %cond = gt %2, %3
                 #   assert %cond
-                # this can happends when other uses removed but the 
+                # this can happends when other uses removed but the
                 # bounds check remain
                 if not self.allocator.is_allocated(base_ptr.base_alloca):
                     self.allocator.allocate(base_ptr.base_alloca)

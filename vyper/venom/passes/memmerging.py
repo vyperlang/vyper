@@ -513,7 +513,7 @@ class MemMergePass(IRPass):
                 if not (dst_loc.is_fixed and is_zero_literal):
                     _barrier()
                     continue
-        
+
                 if expect_abstract != (not dst_loc.is_concrete):
                     _barrier()
                     continue
