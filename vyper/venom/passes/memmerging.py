@@ -102,7 +102,6 @@ class _Copy:
         return f"_Copy({self.dst_loc}, {self.src_loc}, {self.length})"
 
 
-
 class _Copies:
     # src allocations -> dst allocations -> list
     copies: dict[Allocation | None, dict[Allocation | None, list[_Copy]]]
