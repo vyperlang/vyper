@@ -377,6 +377,114 @@ def foo():
         compiler_settings.DEFAULT_ENABLE_DECIMALS = True
 
 
+def test_decimals_blocked_in_state_variable():
+    code = """
+x: decimal
+
+@external
+def foo() -> decimal:
+    return self.x
+    """
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        with pytest.raises(FeatureException) as e:
+            compile_code(code)
+        assert e.value._message == "decimals are not allowed unless `--enable-decimals` is set"
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True
+
+
+def test_decimals_blocked_in_constant():
+    code = """
+X: constant(decimal) = 1.0
+
+@external
+def foo() -> decimal:
+    return X
+    """
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        with pytest.raises(FeatureException) as e:
+            compile_code(code)
+        assert e.value._message == "decimals are not allowed unless `--enable-decimals` is set"
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True
+
+
+def test_decimals_blocked_in_immutable():
+    code = """
+X: immutable(decimal)
+
+@deploy
+def __init__():
+    X = 1.0
+
+@external
+def foo() -> decimal:
+    return X
+    """
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        with pytest.raises(FeatureException) as e:
+            compile_code(code)
+        assert e.value._message == "decimals are not allowed unless `--enable-decimals` is set"
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True
+
+
+def test_decimals_blocked_in_state_variable_nested():
+    code = """
+x: DynArray[decimal, 10]
+
+@external
+def foo() -> DynArray[decimal, 10]:
+    return self.x
+    """
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        with pytest.raises(FeatureException) as e:
+            compile_code(code)
+        assert e.value._message == "decimals are not allowed unless `--enable-decimals` is set"
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True
+
+
+def test_unused_decimal_state_variable_allowed():
+    code = """
+x: decimal
+
+@external
+def foo() -> uint256:
+    return 1
+    """
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        compile_code(code)
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True
+
+
+def test_unused_decimal_constant_allowed():
+    code = """
+X: constant(decimal) = 1.0
+
+@external
+def foo() -> uint256:
+    return 1
+    """
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        compile_code(code)
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True
+
+
 def test_unused_math_allowed_with_decimals_disabled():
     code = """
 import math
