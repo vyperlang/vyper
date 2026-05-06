@@ -53,6 +53,7 @@ def test(a: uint256) -> uint256:
     assert c.test(val) == math.isqrt(val)
     assert c.test(0) == 0
 
+
 def test_isqrt_compiles_with_decimals_disabled():
     code = """
 import math
@@ -67,7 +68,6 @@ def test(a: uint256) -> uint256:
         compile_code(code)
     finally:
         compiler_settings.DEFAULT_ENABLE_DECIMALS = True
-
 
 
 def test_isqrt_internal_variable(get_contract):

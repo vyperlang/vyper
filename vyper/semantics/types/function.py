@@ -874,7 +874,6 @@ class ContractFunctionT(VyperType):
             if _contains_decimal(var_access.variable.typ):
                 return True
 
-
         # emitted events
         for event_t in self._emitted_events:
             for member_t in event_t.arguments.values():

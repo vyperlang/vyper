@@ -1,9 +1,7 @@
 from vyper import ast as vy_ast
-from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import (
     ArrayIndexException,
     CompilerPanic,
-    FeatureException,
     InstantiationException,
     InvalidType,
     StructureException,

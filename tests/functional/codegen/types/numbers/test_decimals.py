@@ -339,6 +339,7 @@ def foo(x: decimal):
     finally:
         compiler_settings.DEFAULT_ENABLE_DECIMALS = True
 
+
 def test_decimals_blocked_in_struct():
     code = """
 struct MyStruct:
@@ -568,9 +569,6 @@ def foo() -> uint256:
     try:
         assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
         compiler_settings.DEFAULT_ENABLE_DECIMALS = False
-        compile_code(
-            code,
-            input_bundle=input_bundle,
-        )
+        compile_code(code, input_bundle=input_bundle)
     finally:
         compiler_settings.DEFAULT_ENABLE_DECIMALS = True
