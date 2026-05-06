@@ -350,7 +350,8 @@ class MemMergePass(IRPass):
         allow_dst_overlaps_src: bool = False,
     ):
         self._loads = {}
-        self._copies = _Copies(self.memory_abstract if addr_space == MEMORY else False)
+        expect_abstract = self.memory_abstract if addr_space == MEMORY else False
+        self._copies = _Copies(expect_abstract)
 
         def _hard_barrier():
             # hard barrier. flush everything
@@ -368,6 +369,10 @@ class MemMergePass(IRPass):
             if inst.opcode == load_opcode:
                 src_loc = self.base_ptr.get_read_location(inst, addr_space)
                 if not src_loc.is_fixed:
+                    _hard_barrier()
+                    continue
+
+                if expect_abstract != (not src_loc.is_concrete):
                     _hard_barrier()
                     continue
 
@@ -389,6 +394,10 @@ class MemMergePass(IRPass):
 
                 # unknown memory (not writing the result of an available load)
                 if var not in self._loads:
+                    _hard_barrier()
+                    continue
+
+                if expect_abstract != (not dst_loc.is_concrete):
                     _hard_barrier()
                     continue
 
@@ -424,6 +433,14 @@ class MemMergePass(IRPass):
                 src_loc = self.base_ptr.get_read_location(inst, addr_space)
                 dst_loc = self.base_ptr.get_write_location(inst, MEMORY)
                 if not dst_loc.is_fixed or not src_loc.is_fixed:
+                    _hard_barrier()
+                    continue
+
+                if expect_abstract != (not dst_loc.is_concrete):
+                    _hard_barrier()
+                    continue
+
+                if expect_abstract != (not src_loc.is_concrete):
                     _hard_barrier()
                     continue
 
@@ -480,6 +497,7 @@ class MemMergePass(IRPass):
 
     def _handle_bb_memzero(self, bb: IRBasicBlock):
         self._loads = {}
+        expect_abstract = self.memory_abstract
         self._copies = _Copies(self.memory_abstract)
 
         def _barrier():
@@ -495,6 +513,11 @@ class MemMergePass(IRPass):
                 if not (dst_loc.is_fixed and is_zero_literal):
                     _barrier()
                     continue
+        
+                if expect_abstract != (not dst_loc.is_concrete):
+                    _barrier()
+                    continue
+
                 n_copy = _Copy.memzero(dst_loc, [inst])
                 assert len(self._write_after_write_hazards(n_copy)) == 0
                 self._add_copy(n_copy)
@@ -507,6 +530,11 @@ class MemMergePass(IRPass):
                 if not dst_loc.is_fixed or not isinstance(length, IRLiteral):
                     _barrier()
                     continue
+
+                if expect_abstract != (not dst_loc.is_concrete):
+                    _barrier()
+                    continue
+
                 src_inst = self.dfg.get_producing_instruction(var)
                 assert src_inst is not None, f"bad variable {var}"
                 if src_inst.opcode != "calldatasize":
