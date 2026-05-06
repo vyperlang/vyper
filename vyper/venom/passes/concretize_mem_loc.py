@@ -56,6 +56,20 @@ class ConcretizeMemLocPass(IRPass):
             if inst.opcode == "alloca":
                 base_ptr = self.base_ptrs.ptr_from_op(inst.output)
                 assert base_ptr is not None, f"alloca without base ptr: {inst}"
+
+                # there can be the case where the allocation is only used
+                # in assert which may be can be removed but for now
+                # lets just allocate it
+                # example:
+                #   %1 = alloca 64
+                #   %2 = add 32, %1
+                #   %3 = add 16, %1
+                #   %cond = gt %2, %3
+                #   assert %cond
+                # this can happends when other uses removed but the
+                # bounds check remain
+                if not self.allocator.is_allocated(base_ptr.base_alloca):
+                    self.allocator.allocate(base_ptr.base_alloca)
                 assert self.allocator.is_allocated(
                     base_ptr.base_alloca
                 ), f"alloca not allocated by livesets: {inst}"
