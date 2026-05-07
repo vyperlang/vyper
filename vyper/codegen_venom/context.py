@@ -45,22 +45,10 @@ class LocalVariable:
     scopes: set = field(default_factory=set)
 
     def __post_init__(self):
-        if self.value.is_stack_value:
+        if self.value.is_stack_value:  # pragma: nocover
             raise CompilerPanic("LocalVariable.value must be located")
-        if self.value.location != DataLocation.MEMORY:
+        if self.value.location != DataLocation.MEMORY:  # pragma: nocover
             raise CompilerPanic("LocalVariable must be in MEMORY")
-
-    @property
-    def typ(self) -> VyperType:
-        return self.value.typ
-
-    @property
-    def buf(self) -> Buffer:
-        # Invariant: LocalVariable is always in MEMORY (enforced by __post_init__),
-        # and Ptr.buf is always set when location is MEMORY (enforced by Ptr.__post_init__)
-        buf = self.value.ptr().buf
-        assert buf is not None
-        return buf
 
 
 @dataclass
@@ -162,12 +150,8 @@ class VenomCodegenContext:
         # Primitive word type: emit load based on location
         return self.load_word(vv.operand, vv.location)
 
-    def store_vyper_value(
-        self, vv: VyperValue, ptr: IRVariable, typ: Optional[VyperType] = None
-    ) -> None:
+    def store_vyper_value(self, vv: VyperValue, ptr: IRVariable, typ: VyperType) -> None:
         """Store a VyperValue into memory, preserving its source layout."""
-        if typ is None:
-            typ = vv.typ
         self.store_memory(self.unwrap(vv), ptr, typ, src_typ=vv.typ)
 
     def bytes_data_ptr(self, vv: VyperValue) -> IROperand:
@@ -295,20 +279,6 @@ class VenomCodegenContext:
             yield
         finally:
             self.in_range_expr = prev_value
-
-    def child_for_function(
-        self, func_t: ContractFunctionT, builder: VenomBuilder, is_ctor: bool = False
-    ) -> "VenomCodegenContext":
-        """Create child context for compiling a function."""
-        return VenomCodegenContext(
-            module_ctx=self.module_ctx,
-            builder=builder,
-            func_t=func_t,
-            constancy=Constancy.Constant
-            if func_t.mutability in (StateMutability.VIEW, StateMutability.PURE)
-            else Constancy.Mutable,
-            is_ctor_context=is_ctor or self.is_ctor_context,
-        )
 
     # === Nonreentrant Lock Support ===
 
@@ -461,7 +431,9 @@ class VenomCodegenContext:
                 src_ofst += src_member_t.memory_bytes_required
             return
 
-        raise CompilerPanic(f"_store_memory_typed: unhandled types {src_typ} -> {dst_typ}")
+        raise CompilerPanic(
+            f"_store_memory_typed: unhandled types {src_typ} -> {dst_typ}"
+        )  # pragma: nocover
 
     def _copy_sarray_memory_typed(
         self, dst: IRVariable, dst_typ: SArrayT, src: IROperand, src_typ: SArrayT
@@ -639,23 +611,6 @@ class VenomCodegenContext:
         success = b.staticcall(b.gas(), IRLiteral(IDENTITY_PRECOMPILE), src, length, dst, length)
         b.assert_(success)
 
-    def load_calldata(self, offset: IROperand, typ: VyperType) -> IROperand:
-        """Load from calldata.
-
-        For primitive types (<=32 bytes), returns calldataload value.
-        For complex types (>32 bytes), copies calldata to memory
-        and returns the memory pointer.
-        """
-        if typ.memory_bytes_required <= 32:
-            return self.builder.calldataload(offset)
-        else:
-            # Allocate buffer and copy calldata to it
-            size = typ.memory_bytes_required
-            val = self.new_temporary_value(typ)
-            assert isinstance(val.operand, IRVariable)
-            self.builder.calldatacopy(val.operand, offset, IRLiteral(size))
-            return val.operand
-
     _ALLOCATION_LIMIT: int = 2**64
 
     def allocate_buffer(self, size: int, annotation: Optional[str] = None) -> Buffer:
@@ -724,13 +679,6 @@ class VenomCodegenContext:
             # Multi-word: val is memory pointer, copy to storage
             self._store_memory_to_storage(val, slot, typ.storage_size_in_words)
 
-    def storage_to_memory(self, slot: IROperand, buf: IROperand, word_count: int) -> None:
-        """Load multi-word storage value to memory buffer.
-
-        Public wrapper for iteration loops and other contexts.
-        """
-        self._load_storage_to_memory(slot, buf, word_count)
-
     def slot_to_memory(
         self, slot: IROperand, buf: IROperand, word_count: int, location: DataLocation
     ) -> None:
@@ -743,15 +691,8 @@ class VenomCodegenContext:
             self._load_storage_to_memory(slot, buf, word_count)
         elif location == DataLocation.TRANSIENT:
             self._load_transient_to_memory(slot, buf, word_count)
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"slot_to_memory: unexpected location {location}")
-
-    def memory_to_storage(self, buf: IROperand, slot: IROperand, word_count: int) -> None:
-        """Store memory buffer to multi-word storage.
-
-        Public wrapper for assignment contexts.
-        """
-        self._store_memory_to_storage(buf, slot, word_count)
 
     def copy_to_memory(
         self, dst: IROperand, src: IROperand, size: int, location: DataLocation
@@ -974,7 +915,7 @@ class VenomCodegenContext:
             self.builder.sstore(addr, val)
         elif location == DataLocation.TRANSIENT:
             self.builder.tstore(addr, val)
-        elif location == DataLocation.CODE:
+        elif location == DataLocation.CODE:  # pragma: nocover
             raise CompilerPanic("cannot store to CODE")
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"cannot store to: {location}")

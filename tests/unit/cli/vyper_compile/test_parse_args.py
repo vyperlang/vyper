@@ -3,6 +3,7 @@ import warnings
 
 import pytest
 
+import vyper
 from vyper.cli.vyper_compile import _parse_args
 from vyper.warnings import VyperWarning
 
@@ -59,3 +60,12 @@ x: public(uint256[2**64])
     assert len(w) == 0
 
     warnings.resetwarnings()
+
+
+def test_version(capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        _parse_args(["--version"])
+
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert vyper.__long_version__ in captured.out
