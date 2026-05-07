@@ -774,19 +774,17 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         location = (
             DataLocation.CODE
             if node.is_immutable
-            else DataLocation.UNSET
-            if node.is_constant
-            else DataLocation.TRANSIENT
-            if node.is_transient
-            else DataLocation.STORAGE
+            else (
+                DataLocation.UNSET
+                if node.is_constant
+                else DataLocation.TRANSIENT if node.is_transient else DataLocation.STORAGE
+            )
         )
 
         modifiability = (
             Modifiability.RUNTIME_CONSTANT
             if node.is_immutable
-            else Modifiability.CONSTANT
-            if node.is_constant
-            else Modifiability.MODIFIABLE
+            else Modifiability.CONSTANT if node.is_constant else Modifiability.MODIFIABLE
         )
 
         type_ = type_from_annotation(node.annotation, location)

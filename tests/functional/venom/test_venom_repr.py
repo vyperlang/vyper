@@ -59,16 +59,14 @@ def test_round_trip_examples(path: Path, debug, optimize, compiler_settings, req
 
 
 # pure vyper sources
-vyper_sources = [
-    """
+vyper_sources = ["""
     @external
     def _loop() -> uint256:
         res: uint256 = 9
         for i: uint256 in range(res, bound=10):
             res = res + i
         return res
-        """
-]
+        """]
 
 
 @pytest.mark.parametrize("vyper_source", vyper_sources)

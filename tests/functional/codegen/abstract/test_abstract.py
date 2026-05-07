@@ -1137,49 +1137,39 @@ def _generate_modules(relationships: dict[str, list[(str, str)]]):
 
         for rel, child in children:
             if rel in ("uses",):
-                code += dedent(
-                    f"""
+                code += dedent(f"""
                     # Otherwise uses complains about not being required
                     def _make_uses_{child}_valid():
                         {child}.foo()
-                """
-                )
+                """)
 
             if rel in ("overrides",):
                 if current in abstract_modules:
-                    code += dedent(
-                        f"""
+                    code += dedent(f"""
                         @abstract
                         @override({child})
                         def foo() -> uint256:
                             ...
-                    """
-                    )
+                    """)
                 else:
-                    code += dedent(
-                        f"""
+                    code += dedent(f"""
                         @override({child})
                         def foo() -> uint256:
                             return 42
-                    """
-                    )
+                    """)
 
         if "def foo" not in code:
             if current in abstract_modules:
-                code += dedent(
-                    """
+                code += dedent("""
                     @abstract
                     def foo() -> uint256:
                         ...
-                """
-                )
+                """)
             else:
-                code += dedent(
-                    """
+                code += dedent("""
                     def foo() -> uint256:
                         return 42
-                """
-                )
+                """)
 
         modules[f"{current}.vy"] = code
 
@@ -1233,13 +1223,11 @@ def test_abstract_method_chain_call(
     relationships = _parse_relationships(chain_str)
     modules = _generate_modules(relationships)
 
-    contract_code = modules["self.vy"] + dedent(
-        f"""
+    contract_code = modules["self.vy"] + dedent(f"""
         @external
         def test() -> uint256:
             return {call_path}()
-    """
-    )
+    """)
 
     input_bundle = make_input_bundle(modules)
 
@@ -1257,13 +1245,11 @@ def test_abstract_method_chain_call(
 
         # Check the hint actually works
 
-        hinted_at_contract_code = modules["self.vy"] + dedent(
-            f"""
+        hinted_at_contract_code = modules["self.vy"] + dedent(f"""
             @external
             def test() -> uint256:
                 return {expected_hint}()
-        """
-        )
+        """)
 
         c = get_contract(hinted_at_contract_code, input_bundle=input_bundle)
         assert c.test() == 42

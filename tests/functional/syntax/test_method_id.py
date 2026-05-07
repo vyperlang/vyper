@@ -33,16 +33,14 @@ def test_method_id_fail(bad_code, exc):
         compile_code(bad_code)
 
 
-valid_list = [
-    """
+valid_list = ["""
 FOO: constant(String[5]) = "foo()"
 BAR: constant(Bytes[4]) = method_id(FOO)
 
 @external
 def foo(a: Bytes[4] = BAR):
     pass
-    """
-]
+    """]
 
 
 @pytest.mark.parametrize("code", valid_list)

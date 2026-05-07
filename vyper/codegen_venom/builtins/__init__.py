@@ -8,6 +8,7 @@ Builtins that return memory-located data (abi_decode, concat, slice, etc.)
 should return VyperValue.from_ptr() to preserve location info. Builtins that return
 stack values can return IROperand directly.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Union

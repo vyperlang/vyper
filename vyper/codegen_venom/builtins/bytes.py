@@ -5,6 +5,7 @@ Byte manipulation built-in functions.
 - slice(b, start, length) - extract substring
 - extract32(b, start) - extract bytes32 from bytearray
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

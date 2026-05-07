@@ -5,6 +5,7 @@ ABI encoding/decoding built-in functions.
 - abi_decode(data, output_type, unwrap_tuple=True) -> output_type
 - _abi_encode, _abi_decode: deprecated aliases
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional

@@ -8,6 +8,7 @@ The ABI encoding follows the Ethereum ABI spec:
 - Dynamic types (bytes, string, arrays) store an offset in the static section
   and the actual data in a dynamic tail section
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

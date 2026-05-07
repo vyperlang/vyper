@@ -3,14 +3,12 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import StructureException
 
-fail_list = [
-    """
+fail_list = ["""
 @external
 def foo() -> int128:
     x: int128 = 45
     return x.codesize
-    """
-]
+    """]
 
 
 @pytest.mark.parametrize("bad_code", fail_list)

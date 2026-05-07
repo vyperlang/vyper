@@ -6,6 +6,7 @@ System-level built-in functions for raw operations.
 - raw_log(topics, data) - low-level event emission
 - raw_revert(data) - revert with custom data
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional, Union

@@ -4,6 +4,7 @@ Hashing built-in functions.
 - keccak256(data) - native EVM SHA3 opcode
 - sha256(data) - SHA256 via precompile at address 0x2
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
