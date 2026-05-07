@@ -40,7 +40,7 @@ jobs:
             });
 
       - name: Checkout merge commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
           path: head
@@ -48,7 +48,7 @@ jobs:
           fetch-tags: true
 
       - name: Checkout base
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.base_ref }}
           path: base
@@ -59,7 +59,7 @@ jobs:
         run: cp -r head/.github/scripts base/.github/
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 

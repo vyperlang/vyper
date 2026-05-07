@@ -27,7 +27,7 @@ jobs:
         echo "ERA_VYPER_HASH=$( curl -u "u:${{ github.token }}" https://api.github.com/repos/matter-labs/era-compiler-vyper/git/ref/heads/main | jq .object.sha | tr -d '"' )" >> $GITHUB_ENV
 
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Rust setup
       uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -35,7 +35,7 @@ jobs:
         toolchain: nightly-2022-11-03
 
     - name: Set up Python ${{ matrix.python-version[0] }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version[0] }}
         cache: "pip"
