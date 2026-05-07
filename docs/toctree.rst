@@ -29,6 +29,7 @@ Vyper
     built-in-functions.rst
     stdlib-math.rst
     using-modules.rst
+    abstract-modules.rst
     interfaces.rst
     event-logging.rst
     natspec.rst

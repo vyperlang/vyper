@@ -77,6 +77,8 @@ A module can be used as an interface with the ``__at__`` syntax.
         self.an_ownable = ownable.__at__(addr)
         self.an_ownable.transfer_ownership(...)
 
+.. _initializing-module:
+
 Initializing a module
 =====================
 
@@ -108,6 +110,9 @@ A module's state can be directly accessed just by prefixing the name of a variab
     def get_owner() -> address:
         return ownable.owner
 
+The ``initializes`` statement is also required when overriding the abstract methods of an :ref:`abstract module <abstract-modules>`.
+
+.. _uses-statement:
 
 The ``uses`` statement
 ======================
@@ -145,6 +150,8 @@ This is best illustrated with an example:
         self.pending_owner = empty(address)
 
 Here, the ``ownable_2step`` module does not want to seal off access to calling the ``ownable`` module's ``__init__()`` function. So, it utilizes the ``uses: ownable`` statement to get access to the ``ownable`` module's state, without the requirement to initialize it. Note that this is a valid module, but it is not a valid contract (that is, it cannot produce bytecode) because it does not initialize the ``ownable`` module. To make a valid contract, the user of the ``ownable_2step`` module would be responsible for initializing the ``ownable`` module themselves (as in the next section: :ref:`initializing dependencies <init-dependencies>`).
+
+The ``uses`` statement is also required when calling abstract methods of another module. See :ref:`Calling abstract methods <abstract-modules>` for details.
 
 Whether to ``use`` or ``initialize`` a module is a choice which is left up to the library designer.
 
@@ -188,6 +195,7 @@ Sometimes, you may encounter a module which itself ``uses`` other modules. Vyper
 
 .. warning::
     In normal usage, you should make sure that ``__init__()`` functions are called in dependency order. In the above example, you can get unexpected behavior if ``ownable_2step.__init__()`` is called before ``ownable.__init__()``! The compiler may enforce this behavior in the future.
+
 
 .. _exporting-functions:
 
