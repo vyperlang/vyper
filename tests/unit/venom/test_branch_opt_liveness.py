@@ -4,7 +4,7 @@ def test_branch_optimization_liveness_mutation(get_contract):
     """
 
     code = """
-#pragma version ^0.4.0
+#pragma version ^0.5.0a1
 
 @external
 def f(a: bool) -> bool:
