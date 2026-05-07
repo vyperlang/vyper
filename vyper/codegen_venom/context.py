@@ -622,17 +622,30 @@ class VenomCodegenContext:
         ptr = self.builder.alloca(size)
         return Buffer(_ptr=ptr, size=size, annotation=annotation)
 
-    def allocate_dyn(self) -> "IRVariable":
-        """Get a pointer to scratch memory for runtime-sized data.
+    def allocate_scratch(self, size: "IROperand") -> tuple["IRVariable", "IRVariable"]:
+        """Allocate a scoped, runtime-sized scratch buffer.
 
-        Returns an address past all static allocations and any prior memory
-        use. The caller may write arbitrary data at this address; the region
-        is untracked and must be consumed (e.g. by CALL/CREATE) before any
-        other code that could also call allocate_dyn().
+        Returns a pointer to `ceil32(size)` bytes of scratch space above all
+        static allocations and spill slots, along with a restore mark. The
+        caller MUST pair this with a matching `free_scratch(mark)` after the
+        single consumer (CALL/CREATE/etc.) in the same basic block, in LIFO
+        order.
 
-        Lowers to EVM MSIZE at assembly time.
+        Lowers via `dalloca -> (ptr, mark)`. The paired `dfree(mark)` is
+        eliminated at lowering time: leaf functions with strictly sequential
+        scratch pairs fold each to a single `initial_fmp` constant load
+        (resolved at assembly time), and FMP-threaded functions either rewire
+        the allocation away or restore the threaded FMP from the mark.
         """
-        return self.builder.memtop()
+        return self.builder.dalloca(size)
+
+    def free_scratch(self, mark: "IRVariable") -> None:
+        """Free a prior `allocate_scratch` allocation.
+
+        Must be in the same basic block as the allocation and pair in LIFO
+        order with any other open scratch allocations.
+        """
+        self.builder.dfree(mark)
 
     # === Storage Operations ===
 

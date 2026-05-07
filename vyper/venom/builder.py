@@ -174,13 +174,28 @@ class VenomBuilder:
         """Allocate abstract memory. Returns pointer. (IR-specific)"""
         return self._emit1("alloca", size)
 
-    def memtop(self) -> IRVariable:
-        """Get address past all memory (scratch space start).
+    def dalloca(self, size: Operand) -> tuple[IRVariable, IRVariable]:
+        """Allocate dynamic (runtime-sized) memory and return `(ptr, mark)`.
 
-        Lowered to EVM MSIZE at assembly time. Use for untracked scratch
-        buffers above the static frame and any spill slots.
+        `ptr` is the base of the newly allocated `ceil32(size)`-byte region.
+        `mark` is the pre-bump FMP restore token for this allocation. The two
+        values are numerically equal, but they carry different roles in the IR:
+        `ptr` is used for addressing, while `mark` is passed to `dfree(mark)`
+        to restore the FMP.
         """
-        return self._emit1("memtop")
+        ptr = self.fn.get_next_variable()
+        mark = self.fn.get_next_variable()
+        outputs = self._current_bb.append_instruction_multi("dalloca", size, outputs=[ptr, mark])
+        return outputs[0], outputs[1]
+
+    def dfree(self, mark: Operand) -> None:
+        """Restore the FMP to a prior `dalloca` mark.
+
+        `dfree` models a cursor rewind, not a malloc/free heap operation.
+        Frontends should pass the `mark` returned by `dalloca`; hand-written IR
+        may use any operand, with the obvious low-level consequences.
+        """
+        self._emit("dfree", mark)
 
     # === Storage ===
     def sload(self, slot: Operand) -> IRVariable:

@@ -123,7 +123,7 @@ class InternalReturnCopyForwardingPass(InvokeCopyForwardingBase):
                 copy_seen = True
                 continue
 
-            if use.opcode == "invoke" and pos == 1:
+            if use.opcode == "invoke" and pos == self._invoke_return_buffer_operand_pos(use):
                 if use.parent is not copy_bb:
                     return False
                 if bb_insts.index(use) >= copy_idx:
@@ -158,6 +158,9 @@ class InternalReturnCopyForwardingPass(InvokeCopyForwardingBase):
         return False
 
     def _invoke_operand_may_write(self, invoke_inst: IRInstruction, operand_pos: int) -> bool:
-        if operand_pos == 1 and self._invoke_has_return_buffer(invoke_inst):
+        retbuf_pos = self._invoke_return_buffer_operand_pos(invoke_inst)
+        if operand_pos == retbuf_pos:
             return True
+        if self._invoke_user_arg_index(invoke_inst, operand_pos) is None:
+            return False
         return not self._is_readonly_invoke_operand(invoke_inst, operand_pos)
