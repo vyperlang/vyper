@@ -32,7 +32,7 @@ def get_example_vy_filenames(limit: int | None = None):
 def compile_one(source_code: str, opt_level: OptimizationLevel, experimental: bool) -> tuple[int | None, str | None]:
     """Compile with given settings. Returns (size, error)."""
     try:
-        settings = Settings(experimental_codegen=experimental, optimize=opt_level)
+        settings = Settings(experimental_codegen=experimental, optimize=opt_level, enable_decimals=True)
         result = compiler.compile_code(source_code, settings=settings, output_formats=["bytecode"])
         bytecode = result.get("bytecode", "")
         size = (len(bytecode) - 2) // 2 if bytecode.startswith("0x") else len(bytecode) // 2
