@@ -526,6 +526,10 @@ class TYPE_T(VyperType):
     # dispatch into get_type_member if it's dereferenced, ex.
     # MyFlag.FOO
     def get_member(self, key, node):
+        # get_member_in_expr exposes members valid only in expression
+        # context (e.g. interface functions for .method_id access)
+        if hasattr(self.typedef, "get_member_in_expr"):
+            return self.typedef.get_member_in_expr(key, node)
         if hasattr(self.typedef, "get_type_member"):
             return self.typedef.get_type_member(key, node)
         raise UnknownAttribute("Value is not attributable", node)
