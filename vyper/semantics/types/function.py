@@ -288,13 +288,14 @@ class ContractFunctionT(VyperType):
         ContractFunctionT object.
         """
         positional_args = []
-        for item in abi["inputs"]:
+        for item in abi.get("inputs", []):
             positional_args.append(PositionalArg(item["name"], type_from_abi(item)))
         return_type = None
-        if len(abi["outputs"]) == 1:
-            return_type = type_from_abi(abi["outputs"][0])
-        elif len(abi["outputs"]) > 1:
-            return_type = TupleT(tuple(type_from_abi(i) for i in abi["outputs"]))
+        outputs = abi.get("outputs", [])
+        if len(outputs) == 1:
+            return_type = type_from_abi(outputs[0])
+        elif len(outputs) > 1:
+            return_type = TupleT(tuple(type_from_abi(i) for i in outputs))
         return cls(
             abi["name"],
             positional_args,
