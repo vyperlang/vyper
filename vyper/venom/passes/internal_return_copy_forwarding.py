@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import vyper.evm.address_space as addr_space
-from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRInstruction, IROperand, IRVariable
 from vyper.venom.effects import EMPTY, Effects
 from vyper.venom.memory_location import MemoryLocation
 from vyper.venom.passes.invoke_copy_forwarding_common import InvokeCopyForwardingBase
@@ -33,10 +33,10 @@ class InternalReturnCopyForwardingPass(InvokeCopyForwardingBase):
     def _try_forward_internal_return_copy(self, copy_inst: IRInstruction) -> bool:
         dst = copy_inst.operands[2]
         src = copy_inst.operands[1]
-        size = copy_inst.operands[0]
         if not isinstance(dst, IRVariable) or not isinstance(src, IRVariable):
             return False
-        if not isinstance(size, IRLiteral):
+        size = self.copy_forwarding.copy_size(copy_inst)
+        if size is None:
             return False
 
         dst_root = self._assign_root_var(dst)
@@ -50,9 +50,9 @@ class InternalReturnCopyForwardingPass(InvokeCopyForwardingBase):
         if not self._is_alloca_like(dst_root_inst) or not self._is_alloca_like(src_root_inst):
             return False
         assert dst_root_inst is not None and src_root_inst is not None  # ensured above
-        if not self._matches_alloca_size(dst_root_inst, size.value):
+        if not self._matches_alloca_size(dst_root_inst, size):
             return False
-        if not self._matches_alloca_size(src_root_inst, size.value):
+        if not self._matches_alloca_size(src_root_inst, size):
             return False
 
         if not self._is_internal_return_buffer_source(src_root, copy_inst):
