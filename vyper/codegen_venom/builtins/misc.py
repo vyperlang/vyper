@@ -9,6 +9,7 @@ Miscellaneous built-in functions.
 - breakpoint: Debug interrupt
 - print: Debug logging to console.log address
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
