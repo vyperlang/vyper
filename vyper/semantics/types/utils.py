@@ -1,9 +1,7 @@
 from vyper import ast as vy_ast
-from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import (
     ArrayIndexException,
     CompilerPanic,
-    FeatureException,
     InstantiationException,
     InvalidType,
     StructureException,
@@ -90,15 +88,6 @@ def type_from_annotation(
     if location in typ._invalid_locations:
         location_str = "" if location is DataLocation.UNSET else f"in {location.name.lower()}"
         raise InstantiationException(f"{typ} is not instantiable {location_str}", node)
-
-    # TODO: cursed import cycle!
-    from vyper.semantics.types.primitives import DecimalT
-
-    if isinstance(typ, DecimalT):
-        # is there a better place to put this check?
-        settings = get_global_settings()
-        if settings and not settings.get_enable_decimals():
-            raise FeatureException("decimals are not allowed unless `--enable-decimals` is set")
 
     return typ
 
