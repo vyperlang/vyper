@@ -8,7 +8,7 @@ A module is a set of function definitions and variable declarations which enable
 Declaring and using modules
 ===========================
 
-The simplest way to define a module is to write a contract. In Vyper, any contract is a valid module! For example, the following contract is also a valid module.
+Any ``.vy`` file is a module. When a module is the entry point of compilation, it becomes a contract upon deployment. For example, the following module can be both deployed directly and imported by other modules.
 
 .. code-block:: vyper
 
@@ -33,7 +33,7 @@ The simplest way to define a module is to write a contract. In Vyper, any contra
 
         self.owner = new_owner
 
-This contract basically has two bits of functionality which can be reused upon import, the ``_check_owner()`` function and the ``update_owner()`` function. The ``_check_owner()`` is an internal function which can be used as a helper to check ownership in importing modules, while the ``update_owner()`` is an external function which an importing module can itself :ref:`export <exporting-functions>` as an externally facing piece of functionality.
+This module basically has two bits of functionality which can be reused upon import, the ``_check_owner()`` function and the ``update_owner()`` function. The ``_check_owner()`` is an internal function which can be used as a helper to check ownership in importing modules, while the ``update_owner()`` is an external function which an importing module can itself :ref:`export <exporting-functions>` as an externally facing piece of functionality.
 
 You can use this module's functionality simply by importing it, however any functionality that you do not use from a module will not be included in the final compilation target. For example, if you don't use the ``initializes`` statement to declare a module's location in the storage layout, you cannot use its state. Similarly, if you don't explicitly ``export`` an external function from a module, it will not appear in the runtime code.
 
@@ -49,7 +49,7 @@ A module can be imported using ``import`` or ``from ... import`` statements. The
     from . import ownable        # accessible as `ownable`
     from . import ownable as ow  # accessible as `ow`
 
-When importing using the ``as`` keyword, the module will be referred to by its alias in the rest of the contract.
+When importing using the ``as`` keyword, the module will be referred to by its alias in the rest of the importing module.
 
 The ``_times_two()`` helper function in the above module can be immediately used without any further work since it is "pure" and doesn't depend on initialized state.
 
@@ -112,7 +112,7 @@ A module's state can be directly accessed just by prefixing the name of a variab
 The ``uses`` statement
 ======================
 
-Another way of using a contract's state without directly initializing it is to use the ``uses`` keyword. This is a more advanced usage which is expected to be mostly utilized by library designers. The ``uses`` statement allows a module to use another module's state but defer its initialization to another module in the compilation tree (most likely a user of the library in question).
+Another way of using a module's state without directly initializing it is to use the ``uses`` keyword. This is a more advanced usage which is expected to be mostly utilized by library designers. The ``uses`` statement allows a module to use another module's state but defer its initialization to another module in the compilation tree (most likely a user of the library in question).
 
 This is best illustrated with an example:
 
