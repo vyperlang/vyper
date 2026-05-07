@@ -210,8 +210,7 @@ def test_safeTransferFrom_to_contract(c, env, tx_failed, get_logs, get_contract)
         c.safeTransferFrom(someone, c.address, SOMEONE_TOKEN_IDS[0], sender=someone)
 
     # Only to an address that implements that function
-    receiver = get_contract(
-        """
+    receiver = get_contract("""
 @external
 def onERC721Received(
         _operator: address,
@@ -220,8 +219,7 @@ def onERC721Received(
         _data: Bytes[1024]
     ) -> bytes4:
     return method_id("onERC721Received(address,address,uint256,bytes)", output_type=bytes4)
-    """
-    )
+    """)
     c.safeTransferFrom(someone, receiver.address, SOMEONE_TOKEN_IDS[0], sender=someone)
 
     (log,) = get_logs(c, "Transfer")

@@ -4,6 +4,7 @@ Safe arithmetic operations with overflow/underflow checking.
 Extracted from expr.py and stmt.py to eliminate duplication.
 Used for binary operations and augmented assignment.
 """
+
 from __future__ import annotations
 
 from typing import Optional, Union

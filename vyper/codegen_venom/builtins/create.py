@@ -7,6 +7,7 @@ Contract creation built-in functions for Venom IR.
 - create_from_blueprint(target, *ctor_args, value=0, salt=None, raw_args=False,
                         code_offset=3, revert_on_failure=True)
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional

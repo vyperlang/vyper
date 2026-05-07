@@ -31,13 +31,11 @@ def test_abi_decode_fail(bad_code, exc):
         compiler.compile_code(bad_code)
 
 
-valid_list = [
-    """
+valid_list = ["""
 @external
 def foo(x: Bytes[32]) -> uint256:
     return _abi_decode(x, uint256)
-    """
-]
+    """]
 
 
 @pytest.mark.parametrize("good_code", valid_list)

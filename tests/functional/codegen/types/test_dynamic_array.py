@@ -1441,7 +1441,7 @@ def foo(x: DynArray[DynArray[DynArray[Bar, 2], 2], 2]) -> uint256:
     return x[0][0][0].a + x[1][1][1].b
     """
     c = get_contract(code)
-    c_input = [([([i, i * 2], [i * 3, i * 4]) for i in range(1, 3)])] * 2
+    c_input = [[([i, i * 2], [i * 3, i * 4]) for i in range(1, 3)]] * 2
     assert c.foo(c_input) == 9
 
 

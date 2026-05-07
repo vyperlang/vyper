@@ -6,6 +6,7 @@ internal functions: via the EVM stack or via memory pointers.
 
 This module is the single source of truth for these decisions.
 """
+
 from __future__ import annotations
 
 from vyper.codegen.core import is_tuple_like

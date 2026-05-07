@@ -362,10 +362,11 @@ class Slice(BuiltinFunctionT):
         elif potential_overlap(src, start) or potential_overlap(src, length):
             src = create_memory_copy(src, context)
 
-        with src.cache_when_complex("src") as (b1, src), start.cache_when_complex("start") as (
-            b2,
-            start,
-        ), length.cache_when_complex("length") as (b3, length):
+        with (
+            src.cache_when_complex("src") as (b1, src),
+            start.cache_when_complex("start") as (b2, start),
+            length.cache_when_complex("length") as (b3, length),
+        ):
             if is_bytes32:
                 src_maxlen = 32
             else:
@@ -890,10 +891,10 @@ class Extract32(BuiltinFunctionT):
                 # byte offset within the slot
                 byte_ofst = IRnode.from_list(["mod", index, 32])
 
-                with byte_ofst.cache_when_complex("byte_ofst") as (
-                    b3,
-                    byte_ofst,
-                ), slot.cache_when_complex("slot") as (b4, slot):
+                with (
+                    byte_ofst.cache_when_complex("byte_ofst") as (b3, byte_ofst),
+                    slot.cache_when_complex("slot") as (b4, slot),
+                ):
                     # perform two loads and merge
                     w1 = LOAD(add_ofst(bytes_data_ptr(bytez), slot))
                     w2 = LOAD(add_ofst(bytes_data_ptr(bytez), ["add", slot, 1]))
@@ -1353,9 +1354,10 @@ class Shift(BuiltinFunctionT):
         argty = args[0].typ
         GSHR = sar if argty.is_signed else shr
 
-        with args[0].cache_when_complex("to_shift") as (b1, arg), args[1].cache_when_complex(
-            "bits"
-        ) as (b2, bits):
+        with (
+            args[0].cache_when_complex("to_shift") as (b1, arg),
+            args[1].cache_when_complex("bits") as (b2, bits),
+        ):
             neg_bits = ["sub", 0, bits]
             ret = ["if", ["slt", bits, 0], GSHR(neg_bits, arg), shl(bits, arg)]
             return b1.resolve(b2.resolve(IRnode.from_list(ret, typ=argty)))
@@ -1877,7 +1879,7 @@ class _UnsafeMath(BuiltinFunctionT):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        (a, b) = args
+        a, b = args
         op = self.op
 
         assert a.typ == b.typ, "unreachable"
@@ -1967,9 +1969,9 @@ class _MinMax(BuiltinFunctionT):
     def build_IR(self, expr, args, kwargs, context):
         op = self._opcode
 
-        with args[0].cache_when_complex("_l") as (b1, left), args[1].cache_when_complex("_r") as (
-            b2,
-            right,
+        with (
+            args[0].cache_when_complex("_l") as (b1, left),
+            args[1].cache_when_complex("_r") as (b2, right),
         ):
             if left.typ == right.typ:
                 if left.typ != UINT256_T:

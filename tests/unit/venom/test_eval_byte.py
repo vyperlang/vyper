@@ -420,8 +420,7 @@ class TestByteIntegration:
 
     def test_byte_basic_range(self) -> None:
         """Test basic byte extraction through analysis."""
-        analysis, fn = self._analyze(
-            """
+        analysis, fn = self._analyze("""
             function test {
             entry:
                 %x = calldataload 0
@@ -431,8 +430,7 @@ class TestByteIntegration:
             exit:
                 stop
             }
-            """
-        )
+            """)
 
         entry = fn.get_basic_block("entry")
         byte_inst = entry.instructions[1]
@@ -443,8 +441,7 @@ class TestByteIntegration:
 
     def test_byte_out_of_range_index_integration(self) -> None:
         """Test byte with index >= 32 through analysis."""
-        analysis, fn = self._analyze(
-            """
+        analysis, fn = self._analyze("""
             function test {
             entry:
                 %x = calldataload 0
@@ -454,8 +451,7 @@ class TestByteIntegration:
             exit:
                 stop
             }
-            """
-        )
+            """)
 
         entry = fn.get_basic_block("entry")
         byte_inst = entry.instructions[1]
@@ -465,8 +461,7 @@ class TestByteIntegration:
 
     def test_byte_with_bounded_value(self) -> None:
         """Test byte extraction from bounded value."""
-        analysis, fn = self._analyze(
-            """
+        analysis, fn = self._analyze("""
             function test {
             entry:
                 %raw = calldataload 0
@@ -477,8 +472,7 @@ class TestByteIntegration:
             exit:
                 stop
             }
-            """
-        )
+            """)
 
         entry = fn.get_basic_block("entry")
         byte_inst = next(inst for inst in entry.instructions if inst.opcode == "byte")
@@ -490,8 +484,7 @@ class TestByteIntegration:
 
     def test_byte_constant_value(self) -> None:
         """Test byte extraction from constant value."""
-        analysis, fn = self._analyze(
-            """
+        analysis, fn = self._analyze("""
             function test {
             entry:
                 %x = 0x1234
@@ -501,8 +494,7 @@ class TestByteIntegration:
             exit:
                 stop
             }
-            """
-        )
+            """)
 
         entry = fn.get_basic_block("entry")
         byte_inst = entry.instructions[1]
@@ -513,8 +505,7 @@ class TestByteIntegration:
 
     def test_byte_value_below_byte_position(self) -> None:
         """Test byte returns 0 when value is below byte position."""
-        analysis, fn = self._analyze(
-            """
+        analysis, fn = self._analyze("""
             function test {
             entry:
                 %raw = calldataload 0
@@ -525,8 +516,7 @@ class TestByteIntegration:
             exit:
                 stop
             }
-            """
-        )
+            """)
 
         entry = fn.get_basic_block("entry")
         byte_inst = next(inst for inst in entry.instructions if inst.opcode == "byte")
@@ -541,8 +531,7 @@ class TestByteIntegration:
         Original reviewer example: when %x < 10 in the then branch,
         byte 31 (LSB) should be [0, 9], not [0, 255].
         """
-        analysis, fn = self._analyze(
-            """
+        analysis, fn = self._analyze("""
             function test {
             main:
                 %x = calldataload 0
@@ -556,8 +545,7 @@ class TestByteIntegration:
             else:
                 sink %x
             }
-            """
-        )
+            """)
 
         then_block = fn.get_basic_block("then")
         byte_inst = next(inst for inst in then_block.instructions if inst.opcode == "byte")
@@ -571,8 +559,7 @@ class TestByteIntegration:
 
         When %x < 10, byte 0 (MSB) should be 0 since 9 < 2^248.
         """
-        analysis, fn = self._analyze(
-            """
+        analysis, fn = self._analyze("""
             function test {
             main:
                 %x = calldataload 0
@@ -586,8 +573,7 @@ class TestByteIntegration:
             else:
                 sink %x
             }
-            """
-        )
+            """)
 
         then_block = fn.get_basic_block("then")
         byte_inst = next(inst for inst in then_block.instructions if inst.opcode == "byte")

@@ -10,6 +10,7 @@ convert(value, type) handles all type conversions in Vyper:
 - to_bytes/to_string: Bytestring casts
 - to_flag: Integer -> Flag type
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

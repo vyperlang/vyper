@@ -36,8 +36,7 @@ def test_payable_call_compiles(source, get_contract):
 
 @pytest.mark.parametrize(
     "source",
-    [
-        """
+    ["""
 interface PiggyBank:
     def deposit(): nonpayable
 
@@ -47,8 +46,7 @@ piggy: PiggyBank
 def foo():
     # sends value to nonpayable function
     extcall self.piggy.deposit(value=self.balance)
-    """
-    ],
+    """],
 )
 def test_payable_compile_fail(source, get_contract, assert_compile_failed):
     with pytest.raises(CallViolation):

@@ -4,6 +4,7 @@ VyperValue: Location-aware wrapper for IR operands.
 Solves the pointer/value confusion in codegen by carrying location info
 alongside the operand. Use ctx.unwrap(vv) to load the value.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

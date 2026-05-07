@@ -4,6 +4,7 @@ Buffer and Ptr abstractions for Venom codegen memory management.
 Buffer: An allocated memory region (from alloca instruction).
 Ptr: A pointer to a location (memory, storage, calldata, transient).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

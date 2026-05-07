@@ -1,6 +1,7 @@
 """
 Constants used throughout codegen_venom.
 """
+
 from __future__ import annotations
 
 # ABI encoding

@@ -23,16 +23,14 @@ def test_abs_fail(bad_code, exc):
         compile_code(bad_code)
 
 
-valid_list = [
-    """
+valid_list = ["""
 FOO: constant(int256) = -3
 BAR: constant(int256) = abs(FOO)
 
 @external
 def foo():
     a: int256 = BAR
-    """
-]
+    """]
 
 
 @pytest.mark.parametrize("code", valid_list)

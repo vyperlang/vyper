@@ -1,0 +1,5 @@
+# Commits that `git blame` should ignore
+# `git blame` only respects this file if it has been configured to do so, for example by running:
+# `git config blame.ignoreRevsFile .git-blame-ignore-revs`
+
+e99ef11880a1654fb0d01372d85b7d999dfedfe3
