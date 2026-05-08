@@ -63,7 +63,7 @@ PASSES_O2: List[PassConfig] = [
     InternalReturnCopyForwardingPass,
     ReadonlyInvokeArgCopyForwardingPass,
     # run memmerge before LowerDload
-    MemMergePass,
+    (MemMergePass, {"memory_abstract": True}),
     MemoryCopyElisionPass,
     LoadElimination,
     LowerDloadPass,
@@ -79,7 +79,7 @@ PASSES_O2: List[PassConfig] = [
     PhiEliminationPass,
     SCCP,
     SimplifyCFGPass,
-    MemMergePass,
+    (MemMergePass, {"memory_abstract": False}),
     LoadElimination,
     RemoveUnusedVariablesPass,
     BranchOptimizationPass,
