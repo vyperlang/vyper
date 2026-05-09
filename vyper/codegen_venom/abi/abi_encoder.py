@@ -30,7 +30,7 @@ def _is_complex_type(typ: VyperType) -> bool:
 
 
 def _get_element_ptr(
-    ctx: VenomCodegenContext, parent_ptr: IROperand, key: IROperand, parent_typ: VyperType
+    ctx: VenomCodegenContext, parent_ptr: IROperand, key: IRLiteral, parent_typ: VyperType
 ) -> tuple[IROperand, VyperType]:
     """
     Get pointer to element and its type.
@@ -43,10 +43,7 @@ def _get_element_ptr(
     if is_tuple_like(parent_typ):
         # key is an integer index into tuple/struct
         # Calculate offset: sum of preceding element sizes
-        if isinstance(key, IRLiteral):
-            idx = key.value
-        else:
-            raise CompilerPanic("Dynamic tuple indexing not supported in ABI encode")
+        idx = key.value
 
         items = parent_typ.tuple_items()  # type: ignore[attr-defined]
         offset = 0
@@ -55,14 +52,11 @@ def _get_element_ptr(
                 elem_typ = t
                 break
             offset += t.memory_bytes_required
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"Tuple index {idx} out of range")
 
         elem_ptr: IROperand
-        if offset == 0:
-            elem_ptr = parent_ptr
-        else:
-            elem_ptr = b.add(parent_ptr, IRLiteral(offset))
+        elem_ptr = b.add(parent_ptr, IRLiteral(offset))
         return elem_ptr, elem_typ
 
     elif isinstance(parent_typ, SArrayT):
@@ -70,16 +64,8 @@ def _get_element_ptr(
         elem_typ = parent_typ.value_type
         elem_size = elem_typ.memory_bytes_required
 
-        if isinstance(key, IRLiteral):
-            offset_val = key.value * elem_size
-            if offset_val == 0:
-                sarray_elem_ptr: IROperand = parent_ptr
-            else:
-                sarray_elem_ptr = b.add(parent_ptr, IRLiteral(offset_val))
-        else:
-            # Dynamic index
-            offset_ir = b.mul(key, IRLiteral(elem_size))
-            sarray_elem_ptr = b.add(parent_ptr, offset_ir)
+        offset_val = key.value * elem_size
+        sarray_elem_ptr = b.add(parent_ptr, IRLiteral(offset_val))
         return sarray_elem_ptr, elem_typ
 
     elif isinstance(parent_typ, DArrayT):
@@ -90,18 +76,11 @@ def _get_element_ptr(
         # Skip length word (32 bytes)
         data_ptr = b.add(parent_ptr, IRLiteral(32))
 
-        if isinstance(key, IRLiteral):
-            offset_val = key.value * elem_size
-            if offset_val == 0:
-                darray_elem_ptr: IROperand = data_ptr
-            else:
-                darray_elem_ptr = b.add(data_ptr, IRLiteral(offset_val))
-        else:
-            offset_ir = b.mul(key, IRLiteral(elem_size))
-            darray_elem_ptr = b.add(data_ptr, offset_ir)
+        offset_val = key.value * elem_size
+        darray_elem_ptr = b.add(data_ptr, IRLiteral(offset_val))
         return darray_elem_ptr, elem_typ
 
-    else:
+    else:  # pragma: nocover
         raise CompilerPanic(f"Cannot get element ptr of type {parent_typ}")
 
 
@@ -149,10 +128,7 @@ def _encode_child(
     child_abi_t = child_typ.abi_type
 
     # Calculate static location
-    if static_ofst == 0:
-        static_loc = dst
-    else:
-        static_loc = b.add(dst, IRLiteral(static_ofst))
+    static_loc = b.add(dst, IRLiteral(static_ofst))
     assert isinstance(static_loc, IRVariable)
 
     if not child_abi_t.is_dynamic():
@@ -338,14 +314,6 @@ def _abi_encode_to_buf(
         ctx.copy_memory(dst, src, size)
         return IRLiteral(abi_t.embedded_static_size())
 
-    # Slow path: type-specific encoding
-    if src_typ._is_prim_word:
-        # Primitive word type: direct copy
-        assert isinstance(src, IRVariable)
-        val = b.mload(src)
-        b.mstore(dst, val)
-        return IRLiteral(32)
-
     elif isinstance(src_typ, _BytestringT):
         # Bytes/String: copy and zero-pad
         # Layout: [length][data]
@@ -399,10 +367,7 @@ def _abi_encode_to_buf(
                 _encode_child(ctx, dst, elem_ptr, elem_typ, static_ofst, dyn_ofst_val)
             else:
                 # All static, encode directly
-                if static_ofst == 0:
-                    child_dst = dst
-                else:
-                    child_dst = b.add(dst, IRLiteral(static_ofst))
+                child_dst = b.add(dst, IRLiteral(static_ofst))
                 _abi_encode_to_buf(ctx, child_dst, elem_ptr, elem_typ)
 
             static_ofst += elem_typ.abi_type.embedded_static_size()
@@ -413,7 +378,7 @@ def _abi_encode_to_buf(
         else:
             return IRLiteral(abi_t.embedded_static_size())
 
-    else:
+    else:  # pragma: nocover
         raise CompilerPanic(f"Cannot ABI encode type: {src_typ}")
 
 

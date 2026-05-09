@@ -91,10 +91,7 @@ def _create_tuple_in_memory(
 
     offset = 0
     for arg, typ in zip(args, types):
-        if offset == 0:
-            dst = val.operand
-        else:
-            dst = b.add(val.operand, IRLiteral(offset))
+        dst = b.add(val.operand, IRLiteral(offset))
 
         if typ._is_prim_word:
             b.mstore(dst, arg)

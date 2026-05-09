@@ -108,7 +108,7 @@ def safe_mul(
 
 def safe_div(b: VenomBuilder, x: IROperand, y: IROperand, typ: DecimalT) -> IROperand:
     """Decimal division with overflow checking."""
-    if not isinstance(typ, DecimalT):
+    if not isinstance(typ, DecimalT):  # pragma: nocover
         raise CompilerPanic("/ operator only valid for decimals")
 
     # Multiply numerator by divisor first
@@ -128,7 +128,7 @@ def safe_div(b: VenomBuilder, x: IROperand, y: IROperand, typ: DecimalT) -> IROp
 
 def safe_floordiv(b: VenomBuilder, x: IROperand, y: IROperand, typ: IntegerT) -> IROperand:
     """Integer floor division with overflow checking."""
-    if not isinstance(typ, IntegerT):
+    if not isinstance(typ, IntegerT):  # pragma: nocover
         raise CompilerPanic("// operator only valid for integers")
 
     is_signed = typ.is_signed
@@ -161,7 +161,7 @@ def safe_mod(
     b: VenomBuilder, x: IROperand, y: IROperand, typ: Union[IntegerT, DecimalT]
 ) -> IROperand:
     """Modulo with divisor check."""
-    if not isinstance(typ, (IntegerT, DecimalT)):
+    if not isinstance(typ, (IntegerT, DecimalT)):  # pragma: nocover
         raise CompilerPanic("% operator only valid for integers and decimals")
 
     is_signed = typ.is_signed
@@ -187,7 +187,7 @@ def safe_pow(
     Requires at least one operand to be a literal for bounds computation.
     Pass base_literal or exp_literal if known at compile time.
     """
-    if not isinstance(typ, IntegerT):
+    if not isinstance(typ, IntegerT):  # pragma: nocover
         raise TypeCheckFailure("pow only valid for integers")
 
     is_signed = typ.is_signed
@@ -227,7 +227,7 @@ def safe_pow(
         with b.error_context("safepow"):
             b.assert_(ok)
 
-    else:
+    else:  # pragma: nocover
         # Neither operand is literal - not currently supported
         raise TypeCheckFailure("pow requires at least one literal operand")
 
@@ -301,4 +301,4 @@ def apply_binop(
     if isinstance(op, vy_ast.Pow):
         return safe_pow(b, left, right, typ, base_literal=base_literal, exp_literal=exp_literal)
 
-    raise CompilerPanic(f"Unsupported binary operation: {type(op)}")
+    raise CompilerPanic(f"Unsupported binary operation: {type(op)}")  # pragma: nocover

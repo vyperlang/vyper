@@ -406,10 +406,7 @@ def _create_tuple_in_memory(
 
     offset = 0
     for arg, typ in zip(args, types):
-        if offset == 0:
-            dst = val.operand
-        else:
-            dst = b.add(val.operand, IRLiteral(offset))
+        dst = b.add(val.operand, IRLiteral(offset))
 
         if typ._is_prim_word:
             b.mstore(dst, arg)
@@ -523,10 +520,7 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
             # Pad chunk to 32 bytes (left-aligned in word)
             chunk_padded = chunk.ljust(32, b"\x00")
             chunk_int = int.from_bytes(chunk_padded, "big")
-            if i == 0:
-                b.mstore(schema_data_ptr, IRLiteral(chunk_int))
-            else:
-                b.mstore(b.add(schema_data_ptr, IRLiteral(i)), IRLiteral(chunk_int))
+            b.mstore(b.add(schema_data_ptr, IRLiteral(i)), IRLiteral(chunk_int))
 
         # Now encode (schema_string, payload_bytes) as a tuple
         schema_t = StringT(schema_len)

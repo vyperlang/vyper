@@ -59,7 +59,7 @@ def needs_clamp(typ: VyperType) -> bool:
     if typ._is_prim_word:
         return typ not in (INT256_T, UINT256_T, BYTES32_T)
 
-    raise CompilerPanic(f"needs_clamp: unhandled type {typ}")
+    raise CompilerPanic(f"needs_clamp: unhandled type {typ}")  # pragma: nocover
 
 
 def int_clamp(ctx: VenomCodegenContext, val: IROperand, bits: int, signed: bool) -> IROperand:
@@ -71,7 +71,7 @@ def int_clamp(ctx: VenomCodegenContext, val: IROperand, bits: int, signed: bool)
     For signed integers, we check that signextend(val) == val.
     For unsigned integers, we check that the high bits are zero.
     """
-    if bits >= 256:
+    if bits >= 256:  # pragma: nocover
         raise CompilerPanic(f"invalid clamp: {bits} >= 256")
 
     b = ctx.builder
@@ -99,7 +99,7 @@ def bytes_clamp(ctx: VenomCodegenContext, val: IROperand, m: int) -> IROperand:
     BytesM is left-aligned, so the low (32-m)*8 bits must be zero.
     We check: assert iszero(val << (m * 8))
     """
-    if not (0 < m <= 32):
+    if not (0 < m <= 32):  # pragma: nocover
         raise CompilerPanic(f"bad type: bytes{m}")
 
     b = ctx.builder
@@ -116,7 +116,7 @@ def clamp_basetype(ctx: VenomCodegenContext, val: IROperand, typ: VyperType) -> 
     Port of clamp_basetype() from vyper/codegen/core.py.
     Dispatches to the appropriate clamping function based on type.
     """
-    if not typ._is_prim_word:
+    if not typ._is_prim_word:  # pragma: nocover
         raise CompilerPanic(f"{typ} passed to clamp_basetype")
 
     if isinstance(typ, FlagT):
@@ -138,8 +138,8 @@ def clamp_basetype(ctx: VenomCodegenContext, val: IROperand, typ: VyperType) -> 
 
     elif typ == BoolT():
         return int_clamp(ctx, val, 1, signed=False)
-
-    raise CompilerPanic(f"Unknown type for clamping: {typ}")
+    else:  # pragma: nocover
+        raise CompilerPanic(f"Unknown type for clamping: {typ}")
 
 
 def clamp_bytestring(
@@ -217,10 +217,7 @@ def _getelemptr_abi(
     assert loc is not None, "parent must have a location for ABI element access"
 
     # Calculate static location
-    if static_offset == 0:
-        static_loc = parent.operand
-    else:
-        static_loc = b.add(parent.operand, IRLiteral(static_offset))
+    static_loc = b.add(parent.operand, IRLiteral(static_offset))
 
     if member_typ.abi_type.is_dynamic():
         # Double dereference: read offset, add to parent base
@@ -402,7 +399,7 @@ def _decode_complex(
         items = list(typ.tuple_items())  # type: ignore[attr-defined]
     elif isinstance(typ, SArrayT):
         items = [(i, typ.value_type) for i in range(typ.count)]
-    else:
+    else:  # pragma: nocover
         raise CompilerPanic(f"Cannot decode complex type: {typ}")
 
     # Track ABI and Vyper offsets separately
@@ -414,10 +411,7 @@ def _decode_complex(
         elem_src = _getelemptr_abi(ctx, src, elem_typ, abi_offset)
 
         # Get destination pointer (Vyper layout)
-        if vyper_offset == 0:
-            elem_dst = dst
-        else:
-            elem_dst = b.add(dst, IRLiteral(vyper_offset))
+        elem_dst = b.add(dst, IRLiteral(vyper_offset))
 
         # Recursively decode element
         _abi_decode_to_buf(ctx, elem_dst, elem_src, hi)
@@ -447,7 +441,7 @@ def _abi_decode_to_buf(
         _decode_dyn_array(ctx, dst, src, src_typ, hi)
     elif is_tuple_like(src_typ) or isinstance(src_typ, SArrayT):
         _decode_complex(ctx, dst, src, src_typ, hi)
-    else:
+    else:  # pragma: nocover
         raise CompilerPanic(f"Cannot ABI decode type: {src_typ}")
 
 
