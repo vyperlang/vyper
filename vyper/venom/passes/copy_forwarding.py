@@ -89,6 +89,8 @@ class CopyForwardingPolicy:
             size = dst_alloca.alloca_size
 
         for invoke_inst, _ in rewrite_sites:
+            if self._alloca_has_read_after(src_alloca, invoke_inst):
+                continue
             high_addr = self._lowest_position_across_callee_frame(invoke_inst, size)
             if high_addr is None:
                 continue
@@ -123,7 +125,57 @@ class CopyForwardingPolicy:
                 if write_loc.alloca == alloca and self._access_can_skip_copy(inst, copy_inst):
                     return True
 
+                if self._invoke_accesses_alloca(inst, alloca) and self._access_can_skip_copy(
+                    inst, copy_inst
+                ):
+                    return True
+
         return False
+
+    def _invoke_accesses_alloca(self, inst: IRInstruction, alloca: Allocation) -> bool:
+        if inst.opcode != "invoke":
+            return False
+
+        for op in inst.operands[1:]:
+            if not isinstance(op, IRVariable):
+                continue
+            for ptr in self.base_ptr.get_possible_ptrs(op):
+                if ptr.base_alloca == alloca:
+                    return True
+
+        return False
+
+    def _alloca_has_read_after(self, alloca: Allocation, anchor_inst: IRInstruction) -> bool:
+        anchor_bb = anchor_inst.parent
+        anchor_idx = anchor_bb.instructions.index(anchor_inst)
+
+        for inst in anchor_bb.instructions[anchor_idx + 1 :]:
+            if self._inst_reads_alloca(inst, alloca):
+                return True
+
+        worklist = list(self._successors(anchor_bb))
+        visited: set[IRBasicBlock] = set()
+
+        while len(worklist) > 0:
+            bb = worklist.pop()
+            if bb in visited:
+                continue
+            visited.add(bb)
+
+            for inst in bb.instructions:
+                if self._inst_reads_alloca(inst, alloca):
+                    return True
+
+            worklist.extend(self._successors(bb))
+
+        return False
+
+    def _inst_reads_alloca(self, inst: IRInstruction, alloca: Allocation) -> bool:
+        read_loc = self.base_ptr.get_read_location(inst, addr_space.MEMORY)
+        if read_loc.alloca == alloca:
+            return True
+
+        return self._invoke_accesses_alloca(inst, alloca)
 
     def _access_can_skip_copy(self, access_inst: IRInstruction, copy_inst: IRInstruction) -> bool:
         access_bb = access_inst.parent
@@ -134,10 +186,12 @@ class CopyForwardingPolicy:
 
         successors = list(self._successors(access_bb))
         if len(successors) == 0:
-            return True
+            return False
 
         worklist = successors
         visited: set[IRBasicBlock] = set()
+        can_reach_copy = False
+        can_skip_copy = False
 
         while len(worklist) > 0:
             bb = worklist.pop()
@@ -146,15 +200,17 @@ class CopyForwardingPolicy:
             visited.add(bb)
 
             if bb is copy_bb:
+                can_reach_copy = True
                 continue
 
             successors = list(self._successors(bb))
             if len(successors) == 0:
-                return True
+                can_skip_copy = True
+                continue
 
             worklist.extend(successors)
 
-        return False
+        return can_reach_copy and can_skip_copy
 
     def _successors(self, bb: IRBasicBlock) -> list[IRBasicBlock]:
         if not bb.is_terminated:
