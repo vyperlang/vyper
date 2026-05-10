@@ -81,21 +81,34 @@ class CopyForwardingPolicy:
         if src_alloca is None:
             return False
 
-        if not self._alloca_has_memory_accesses_that_can_skip_copy(src_alloca, copy_inst):
+        has_read_access, has_write_access = self._alloca_has_accesses_that_can_skip_copy(
+            src_alloca, copy_inst
+        )
+        if not has_read_access and not has_write_access:
             return False
 
-        size = self.copy_size(copy_inst)
-        if size is None:
-            size = dst_alloca.alloca_size
+        copy_size = self.copy_size(copy_inst)
+        if copy_size is None:
+            copy_size = dst_alloca.alloca_size
 
         for invoke_inst, _ in rewrite_sites:
             if self._alloca_has_read_after(src_alloca, invoke_inst):
                 continue
-            high_addr = self._lowest_position_across_callee_frame(invoke_inst, size)
-            if high_addr is None:
+
+            penalty = self._memory_expansion_penalty_across_callee(
+                invoke_inst, src_alloca.alloca_size
+            )
+            if penalty is None:
                 continue
-            penalty = self._memory_cost(high_addr + size) - self._memory_cost(size)
-            if penalty > self._minimum_forwarding_savings(size):
+
+            # Source writes often come from setup/decoder work on paths that can
+            # skip the invoke. Keep those conservative so early exits do not
+            # inherit the callee-frame expansion from forwarded args.
+            include_dst_expansion = not has_write_access
+            retained_cost = self._retained_copy_cost(
+                invoke_inst, dst_alloca, copy_size, include_dst_expansion
+            )
+            if penalty > retained_cost:
                 return True
 
         return False
@@ -109,9 +122,12 @@ class CopyForwardingPolicy:
             return None
         return ptr.base_alloca
 
-    def _alloca_has_memory_accesses_that_can_skip_copy(
+    def _alloca_has_accesses_that_can_skip_copy(
         self, alloca: Allocation, copy_inst: IRInstruction
-    ) -> bool:
+    ) -> tuple[bool, bool]:
+        has_read_access = False
+        has_write_access = False
+
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 if inst is copy_inst:
@@ -119,18 +135,18 @@ class CopyForwardingPolicy:
 
                 read_loc = self.base_ptr.get_read_location(inst, addr_space.MEMORY)
                 if read_loc.alloca == alloca and self._access_can_skip_copy(inst, copy_inst):
-                    return True
+                    has_read_access = True
 
                 write_loc = self.base_ptr.get_write_location(inst, addr_space.MEMORY)
                 if write_loc.alloca == alloca and self._access_can_skip_copy(inst, copy_inst):
-                    return True
+                    has_write_access = True
 
                 if self._invoke_accesses_alloca(inst, alloca) and self._access_can_skip_copy(
                     inst, copy_inst
                 ):
-                    return True
+                    has_read_access = True
 
-        return False
+        return has_read_access, has_write_access
 
     def _invoke_accesses_alloca(self, inst: IRInstruction, alloca: Allocation) -> bool:
         if inst.opcode != "invoke":
@@ -235,6 +251,30 @@ class CopyForwardingPolicy:
             ptr = resv_end
 
         return ptr
+
+    def _memory_expansion_penalty_across_callee(
+        self, invoke_inst: IRInstruction, size: int
+    ) -> int | None:
+        high_addr = self._lowest_position_across_callee_frame(invoke_inst, size)
+        if high_addr is None:
+            return None
+        return self._memory_cost(high_addr + size) - self._memory_cost(size)
+
+    def _retained_copy_cost(
+        self,
+        invoke_inst: IRInstruction,
+        dst_alloca: Allocation,
+        copy_size: int,
+        include_dst_expansion: bool,
+    ) -> int:
+        cost = self._minimum_forwarding_savings(copy_size)
+        if include_dst_expansion:
+            penalty = self._memory_expansion_penalty_across_callee(
+                invoke_inst, dst_alloca.alloca_size
+            )
+            if penalty is not None:
+                cost += penalty
+        return cost
 
     def _callee_reserved_intervals(self, callee: IRFunction) -> list[tuple[int, int]]:
         allocator = self.function.ctx.mem_allocator
