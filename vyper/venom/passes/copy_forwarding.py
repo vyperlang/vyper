@@ -213,16 +213,13 @@ class CopyForwardingPolicy:
         return can_reach_copy and can_skip_copy
 
     def _successors(self, bb: IRBasicBlock) -> list[IRBasicBlock]:
-        if not bb.is_terminated:
-            return []
+        assert bb.is_terminated
         return bb.out_bbs
 
     def _lowest_position_across_callee_frame(
         self, invoke_inst: IRInstruction, size: int
     ) -> int | None:
         callee = self._get_invoke_callee(invoke_inst)
-        if callee is None:
-            return None
 
         reserved = self._callee_reserved_intervals(callee)
         if len(reserved) == 0:
@@ -255,18 +252,18 @@ class CopyForwardingPolicy:
                 if inst.opcode != "alloca":
                     continue
                 size = inst.operands[0]
-                if not isinstance(size, IRLiteral):
-                    continue
+                assert isinstance(size, IRLiteral)
                 intervals.append((ptr, size.value))
                 ptr += size.value
 
         return intervals
 
-    def _get_invoke_callee(self, invoke_inst: IRInstruction) -> IRFunction | None:
+    def _get_invoke_callee(self, invoke_inst: IRInstruction) -> IRFunction:
         target = invoke_inst.operands[0]
-        if not isinstance(target, IRLabel):
-            return None
-        return self.function.ctx.functions.get(target)
+        assert isinstance(target, IRLabel)
+        callee = self.function.ctx.functions.get(target)
+        assert callee is not None
+        return callee
 
     def _memory_cost(self, size: int) -> int:
         words = (size + 31) // 32
