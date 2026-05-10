@@ -543,11 +543,9 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         args_len = IRLiteral(0)
         args_ptr = IRLiteral(0)
 
-    # Total length = codesize + args_len (if any).
-    if isinstance(args_len, IRLiteral) and args_len.value == 0:
-        total_len = codesize
-    else:
-        total_len = b.add(codesize, args_len)
+    # Total length = codesize + args_len. When args_len is literal 0,
+    # algebraic optimization folds `add(codesize, 0) -> codesize`.
+    total_len = b.add(codesize, args_len)
     mem_ofst, mem_mark = ctx.allocate_scratch(total_len)
 
     # Copy blueprint code (skipping preamble) to memory
