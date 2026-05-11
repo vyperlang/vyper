@@ -10,8 +10,8 @@ from vyper.exceptions import (
     UndeclaredDefinition,
     UnknownType,
 )
-from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.base import VarInfo
+from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType

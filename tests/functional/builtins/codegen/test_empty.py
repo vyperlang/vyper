@@ -1,12 +1,7 @@
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import (
-    ArrayIndexException,
-    InstantiationException,
-    InvalidType,
-    TypeMismatch,
-)
+from vyper.exceptions import ArrayIndexException, InstantiationException, InvalidType, TypeMismatch
 
 
 @pytest.mark.parametrize(

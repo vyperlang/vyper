@@ -1,7 +1,7 @@
 import pytest
 
-from vyper.exceptions import InvalidType, UnknownType
 from vyper.compiler import compile_code
+from vyper.exceptions import InvalidType, UnknownType
 
 fail_list = [
     """
@@ -106,7 +106,7 @@ def foo():
 
 
 def test_constant_name_not_a_type_static_array():
-    code = f"""
+    code = """
 N: constant(uint8[3]) = [1, 2, 3]
 x: N
     """
@@ -115,7 +115,7 @@ x: N
 
 
 def test_constant_name_not_a_type_dynamic_array():
-    code = f"""
+    code = """
 bar: DynArray[uint8, 3]
 
 @external
