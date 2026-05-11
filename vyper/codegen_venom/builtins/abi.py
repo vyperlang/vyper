@@ -5,6 +5,7 @@ ABI encoding/decoding built-in functions.
 - abi_decode(data, output_type, unwrap_tuple=True) -> output_type
 - _abi_encode, _abi_decode: deprecated aliases
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
@@ -91,10 +92,7 @@ def _create_tuple_in_memory(
 
     offset = 0
     for arg, typ in zip(args, types):
-        if offset == 0:
-            dst = val.operand
-        else:
-            dst = b.add(val.operand, IRLiteral(offset))
+        dst = b.add(val.operand, IRLiteral(offset))
 
         if typ._is_prim_word:
             b.mstore(dst, arg)

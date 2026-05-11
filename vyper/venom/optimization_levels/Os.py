@@ -63,7 +63,7 @@ PASSES_Os: List[PassConfig] = [
     InternalReturnCopyForwardingPass,
     ReadonlyInvokeArgCopyForwardingPass,
     # run memmerge before LowerDload
-    MemMergePass,
+    (MemMergePass, {"memory_abstract": True}),
     MemoryCopyElisionPass,
     LoadElimination,
     LowerDloadPass,
@@ -76,7 +76,7 @@ PASSES_Os: List[PassConfig] = [
     ConcretizeMemLocPass,
     SCCP,
     SimplifyCFGPass,
-    MemMergePass,
+    (MemMergePass, {"memory_abstract": False}),
     LoadElimination,
     RemoveUnusedVariablesPass,
     BranchOptimizationPass,
