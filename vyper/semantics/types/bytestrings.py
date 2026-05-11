@@ -53,7 +53,7 @@ class _BytestringT(VyperType):
 
     def validate_literal(self, node: vy_ast.Constant) -> None:
         super().validate_literal(node)
-        
+
         # incorrect length
         assert len(node.value) == self.length
 
