@@ -1,10 +1,17 @@
 import json
+import re
 from typing import Type
 
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import CompilerPanic, NamespaceCollision, TypeMismatch, VyperException
+from vyper.exceptions import (
+    CompilerPanic,
+    NamespaceCollision,
+    StructureException,
+    TypeMismatch,
+    VyperException,
+)
 
 # For reproducibility, use precompiled data of `hello: public(uint256)` using vyper 0.3.1
 PRECOMPILED_ABI = """[{"stateMutability": "view", "type": "function", "name": "hello", "inputs": [], "outputs": [{"name": "", "type": "uint256"}], "gas": 2460}]"""  # noqa: E501, FS003
@@ -229,12 +236,46 @@ def code_slice(x: address) -> uint256:
     compiler.compile_code(code)
 
 
-@pytest.mark.xfail(raises=CompilerPanic, reason="unbounded sequence types not yet fully supported")
-def test_address_code_len():
-    code = """
+@pytest.mark.parametrize(
+    ("code", "error_message"),
+    [
+        # plain address variable
+        (
+            """
 @external
-def code_slice(x: address) -> uint256:
+def foo(x: address) -> uint256:
     y: uint256 = len(x.code)
     return y
-"""
-    compiler.compile_code(code)
+""",
+            "`len(x.code)` is inefficient: use `x.codesize` instead",
+        ),
+        # self address
+        (
+            """
+@external
+def foo() -> uint256:
+    y: uint256 = len(self.code)
+    return y
+""",
+            "`len(self.code)` is inefficient: use `self.codesize` instead",
+        ),
+        # environment variable
+        (
+            """
+@external
+def foo() -> uint256:
+    y: uint256 = len(msg.sender.code)
+    return y
+""",
+            "`len(msg.sender.code)` is inefficient: use `msg.sender.codesize` instead",
+        ),
+    ],
+)
+def test_address_code_len(code, error_message):
+    with pytest.raises(StructureException) as excinfo:
+        compiler.compile_code(code)
+    assert excinfo.value.message == error_message
+
+    # verify the recommendation compiles
+    fixed = re.sub(r"len\((\S+)\.code\)", r"\1.codesize", code)
+    compiler.compile_code(fixed)

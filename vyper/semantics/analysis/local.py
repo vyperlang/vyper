@@ -133,6 +133,21 @@ def is_terminated(block: list[vy_ast.VyperNode]) -> bool:
 
 
 # helpers
+def _validate_address_code(node: vy_ast.Attribute, value_type: VyperType) -> None:
+    # Error on `len(<address>.code)`
+    if isinstance(value_type, AddressT) and node.attr == "code":
+        parent = node.get_ancestor()
+        if (
+            isinstance(parent, vy_ast.Call)
+            and isinstance(parent.func, vy_ast.Name)
+            and parent.func.id == "len"
+        ):
+            base = node.value.node_source_code
+            raise StructureException(
+                f"`len({base}.code)` is inefficient: use `{base}.codesize` instead", node
+            )
+
+
 def _validate_msg_value_access(node: vy_ast.Attribute) -> None:
     if isinstance(node.value, vy_ast.Name) and node.attr == "value" and node.value.id == "msg":
         raise NonPayableViolation("msg.value is not allowed in non-payable functions", node)
@@ -820,6 +835,8 @@ class ExprVisitor(VyperNodeVisitorBase):
             _validate_pure_access(node, typ)
 
         value_type = get_exact_type_from_node(node.value)
+
+        _validate_address_code(node, value_type)
 
         self.visit(node.value, value_type)
 
