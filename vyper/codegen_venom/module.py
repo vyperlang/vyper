@@ -11,6 +11,7 @@ Two-phase compilation:
 1. generate_runtime_venom() - generates runtime code (deployed bytecode)
 2. generate_deploy_venom() - generates deploy code with runtime bytecode embedded
 """
+
 from __future__ import annotations
 
 from typing import Optional

@@ -390,9 +390,11 @@ def copy_bytes(dst, src, length, length_bound):
     dst = IRnode.from_list(dst)
     length = IRnode.from_list(length)
 
-    with src.cache_when_complex("src") as (b1, src), length.cache_when_complex(
-        "copy_bytes_count"
-    ) as (b2, length), dst.cache_when_complex("dst") as (b3, dst):
+    with (
+        src.cache_when_complex("src") as (b1, src),
+        length.cache_when_complex("copy_bytes_count") as (b2, length),
+        dst.cache_when_complex("dst") as (b3, dst),
+    ):
         assert isinstance(length_bound, int) and length_bound >= 0
 
         # correctness: do not clobber dst
