@@ -196,7 +196,9 @@ def get_index_value(node: vy_ast.VyperNode) -> int | Inf | Wildcard:
     from vyper.semantics.analysis.utils import get_possible_types_from_node
 
     if isinstance(node, vy_ast.Ellipsis):
-        if not node.module_node.is_interface:
+        # module_node gives the module for the file, we need to check for inline interfaces as well
+        in_interface = node.module_node.is_interface or node.get_ancestor(vy_ast.InterfaceDef)
+        if not in_interface:
             raise InvalidType("Wildcard length is only allowed in interfaces", node)
         return WILDCARD
 

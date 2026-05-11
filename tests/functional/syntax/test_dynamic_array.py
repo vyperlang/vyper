@@ -108,6 +108,10 @@ def foo():
 interface IFoo:
     def bar() -> DynArray[uint256, INF]: nonpayable
     """,  # DynArray with INF in interface return type
+    """
+interface IFoo:
+    def bar() -> DynArray[uint256, ...]: nonpayable
+    """,  # DynArray with wildcard in interface return type
 ]
 
 
