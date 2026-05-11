@@ -655,13 +655,14 @@ class ContractFunctionT(VyperType):
         arguments, return_type = self._iface_sig
         other_arguments, other_return_type = other._iface_sig
 
+        # Contravariant
         if len(arguments) != len(other_arguments):
             return False
         for atyp, btyp in zip(arguments, other_arguments):
             if not btyp.is_subtype_of(atyp):
                 return False
 
-        # Fixed to be co-variant
+        # Covariant
         if return_type and not return_type.is_subtype_of(other_return_type):  # type: ignore
             return False
 

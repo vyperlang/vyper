@@ -1,10 +1,10 @@
 
 @view
-def name() -> String[INF]:
+def name() -> String[...]:
     ...
 
 @view
-def symbol() -> String[INF]:
+def symbol() -> String[...]:
     ...
 
 @view

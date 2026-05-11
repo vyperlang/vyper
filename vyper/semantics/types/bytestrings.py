@@ -14,8 +14,9 @@ class _BytestringT(VyperType):
 
     Attributes
     ----------
-    _length : int | Inf
-        The maximum allowable length of the data within the type, where INF represents infinity.
+    _length : int | Inf | Wildcard
+        The maximum allowable length of the data within the type, where INF represents infinity
+        and WILDCARD provides a loophole for interfaces.
     """
 
     # this is a carveout because currently we allow dynamic arrays of
@@ -52,8 +53,9 @@ class _BytestringT(VyperType):
 
     def validate_literal(self, node: vy_ast.Constant) -> None:
         super().validate_literal(node)
-
-        assert len(node.value) == self.length, "literal must be constructed with correct length"
+        
+        # incorrect length
+        assert len(node.value) == self.length
 
     @property
     def size_in_bytes(self):

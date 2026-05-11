@@ -107,7 +107,7 @@ def foo():
     """
 interface IFoo:
     def bar() -> DynArray[uint256, INF]: nonpayable
-    """,  # DynArray with INF in interface return type (no codegen)
+    """,  # DynArray with INF in interface return type
 ]
 
 
