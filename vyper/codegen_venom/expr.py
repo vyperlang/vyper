@@ -4,6 +4,7 @@ Lower Vyper AST expressions to Venom IR.
 This module handles the first stage of expression codegen: converting
 Vyper AST literal and expression nodes into Venom IR operands.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -12,6 +12,7 @@ Security: When decoding untrusted data from memory, we need bounds checks
 to prevent buffer overruns. The `hi` parameter provides the upper bound
 of valid buffer data and must be passed through all recursive calls.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
