@@ -71,8 +71,12 @@ class Lattice:
     def copy(self) -> "Lattice":
         new = Lattice(self._get_memloc)
         new._entries = self._entries.copy()
+
+        # this is ok since this is done only for faster removal
+        # and so it is not needed after basic block is handled
+        # so it is ok that old values are modified and the super
+        # set is safe value
         new._by_memloc = self._by_memloc
-        #new._by_memloc = {k: v.copy() for k, v in self._by_memloc.items()}
         return new
     
     def deep_copy(self) -> "Lattice":
