@@ -9,8 +9,6 @@ from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.effects import NON_MEMORY_EFFECTS, NON_STORAGE_EFFECTS, NON_TRANSIENT_EFFECTS
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
-from vyper.utils import cumtimeit, timeit
-
 if TYPE_CHECKING:
     from vyper.venom.memory_location import MemoryLocation
 
