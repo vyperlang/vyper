@@ -281,15 +281,11 @@ class DArrayT(_SequenceT):
         # one length word + size of the array items
         return 32 + self.value_type.size_in_bytes * self.length
 
-    def compare_type(self, other):
-        # TODO allow static array to be assigned to dyn array?
-        # if not isinstance(other, (DArrayT, SArrayT)):
-        if not isinstance(self, type(other)):
-            return False
+    def _compare_length(self, other):
 
         # Wildcard matches any length (bidirectional)
         if self.length is WILDCARD or other.length is WILDCARD:
-            return self.value_type.compare_type(other.value_type)
+            return True
 
         if self.length is INF:
             # INF >= INF
@@ -300,10 +296,15 @@ class DArrayT(_SequenceT):
             # n < INF
             return False
 
-        if self.length < other.length:
+        return self.length >= other.length
+
+    def compare_type(self, other):
+        # TODO allow static array to be assigned to dyn array?
+        # if not isinstance(other, (DArrayT, SArrayT)):
+        if not isinstance(self, type(other)):
             return False
 
-        return self.value_type.compare_type(other.value_type)
+        return self._compare_length(other) and self.value_type.compare_type(other.value_type)
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Subscript) -> "DArrayT":
