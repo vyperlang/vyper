@@ -76,8 +76,8 @@ class LICMPass(IRPass):
         if inst.opcode == "phi":
             return False
 
-        # Check write effects (allow MSIZE since it's observational)
-        if inst.get_write_effects() & ~effects.MSIZE:
+        # Check write effects
+        if inst.get_write_effects():
             return False
 
         # Check if instruction reads something the loop writes
