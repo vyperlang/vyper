@@ -344,6 +344,9 @@ def parse_stmt(stmt, context):
 # it ends with an if/else and both branches are terminated.
 # (if not, we need to insert a terminator so that the IR is well-formed)
 def _is_terminated(code):
+    if not code:
+        return False
+
     last_stmt = code[-1]
 
     if last_stmt.is_terminus:
