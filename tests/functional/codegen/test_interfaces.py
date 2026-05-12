@@ -773,16 +773,7 @@ def test_json_interface_implements(type_str, make_input_bundle, make_file):
     compile_code(code, input_bundle=input_bundle)
 
 
-# TODO: delete once INF backend exists
-def map_xfail(pair):
-    type_str, value = pair
-    if type_str.startswith("Bytes") or type_str.startswith("String"):
-        return pytest.param(type_str, value, marks=pytest.mark.xfail(raises=CodegenPanic))
-    else:
-        return pair
-
-
-@pytest.mark.parametrize("type_str,value", map(map_xfail, type_str_params))
+@pytest.mark.parametrize("type_str,value", type_str_params)
 def test_json_interface_calls(get_contract, type_str, value, make_input_bundle):
     interface_code = interface_test_code.format(type_str)
 

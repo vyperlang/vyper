@@ -1717,6 +1717,9 @@ class Expr:
         assert isinstance(call_node.func, vy_ast.Attribute)
         fn_type: ContractFunctionT = call_node.func._metadata["type"]
 
+        # get un-wildcard-ed return type
+        return_t = call_node._metadata["call_return_type"]
+
         # Evaluate contract address (the interface value)
         contract_address = Expr(call_node.func.value, self.ctx).lower_value()
 
@@ -1728,13 +1731,15 @@ class Expr:
         # Parse kwargs
         call_kwargs = self._parse_external_call_kwargs(call_node)
 
-        # Calculate buffer size needed
-        args_tuple_t = TupleT(tuple(fn_type.arguments[i].typ for i in range(len(arg_vals))))
+        # Calculate buffer size needed.
+        # Use concrete types from the lowered argument values, not the interface's
+        # declared parameter types (which may be WILDCARD for JSON ABI interfaces).
+        args_tuple_t = TupleT(tuple(v.typ for v in arg_vals))
         args_abi_t = args_tuple_t.abi_type
         args_abi_size = args_abi_t.size_bound()
 
-        if fn_type.return_type is not None:
-            return_abi_t = calculate_type_for_external_return(fn_type.return_type).abi_type
+        if return_t is not None:
+            return_abi_t = calculate_type_for_external_return(return_t).abi_type
             return_abi_size = return_abi_t.size_bound()
         else:
             return_abi_size = 0
@@ -1761,7 +1766,7 @@ class Expr:
             # Store each arg at its position in args_buf
             offset = 0
             for i, arg_vv in enumerate(arg_vals):
-                arg_typ = fn_type.arguments[i].typ
+                arg_typ = arg_vv.typ
                 dst = b.add(args_val.operand, IRLiteral(offset))
                 self.ctx.store_vyper_value(arg_vv, dst, arg_typ)
                 offset += arg_typ.memory_bytes_required
@@ -1777,7 +1782,7 @@ class Expr:
         # === Contract Existence Check ===
         # If function returns nothing and skip_contract_check is False,
         # check extcodesize before call (can't rely on returndatasize check)
-        if fn_type.return_type is None and not call_kwargs.skip_contract_check:
+        if return_t is None and not call_kwargs.skip_contract_check:
             codesize = b.extcodesize(contract_address)
             b.assert_(codesize)
 
@@ -1823,10 +1828,9 @@ class Expr:
         b.set_block(cont_bb)
 
         # === Unpack Return Value ===
-        if fn_type.return_type is None:
+        if return_t is None:
             return VyperValue.from_stack_op(IRLiteral(0), VOID_TYPE)
 
-        return_t = fn_type.return_type
         wrapped_return_t = calculate_type_for_external_return(return_t)
         min_return_size = wrapped_return_t.abi_type.static_size()
 

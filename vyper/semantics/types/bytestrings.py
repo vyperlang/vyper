@@ -69,6 +69,15 @@ class _BytestringT(VyperType):
 
         return 32 + ceil32(self.length)
 
+    @property
+    def has_wildcard(self):
+        return self.length is WILDCARD
+
+    def resolve_wildcard(self):
+        if self.length is WILDCARD:
+            return type(self)(INF)
+        return self
+
     def compare_type(self, other):
         if not super().compare_type(other):
             return False

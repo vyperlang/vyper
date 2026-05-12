@@ -970,12 +970,26 @@ class ExprVisitor(VyperNodeVisitorBase):
                         node,
                     )
 
-            for arg, typ in zip(node.args, func_type.argument_types):
-                self.visit(arg, typ)
+            for arg, arg_typ in zip(node.args, func_type.argument_types):
+                self.visit(arg, arg_typ)
             for kwarg in node.keywords:
                 # We should only see special kwargs
-                typ = func_type.call_site_kwargs[kwarg.arg].typ
-                self.visit(kwarg.value, typ)
+                kwarg_typ = func_type.call_site_kwargs[kwarg.arg].typ
+                self.visit(kwarg.value, kwarg_typ)
+            
+            if func_type.is_external:
+                return_t = func_type.return_type
+                if return_t is not None and return_t.has_wildcard:
+                    if not typ.has_wildcard and typ is not VOID_TYPE:
+                        # Replace wildcard-containing type by the concrete expected type
+                        return_t = typ
+                    else:
+                        # Replace wildcards in the type by INF, since there is no expected type
+                        return_t = return_t.resolve_wildcard()
+                    # Sanity check
+                    assert return_t.is_subtype_of(func_type.return_type)
+                # TODO: Instead overwrite the normal type metadata ?
+                node._metadata["call_return_type"] = return_t
 
         elif is_type_t(func_type, EventT):
             # event ctors

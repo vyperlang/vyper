@@ -198,6 +198,16 @@ class SArrayT(_SequenceT):
     def get_subscripted_type(self, node):
         return self.value_type
 
+    @property
+    def has_wildcard(self):
+        return self.value_type.has_wildcard
+
+    def resolve_wildcard(self):
+        resolved_value = self.value_type.resolve_wildcard()
+        if resolved_value is not self.value_type:
+            return SArrayT(resolved_value, self.length)
+        return self
+
     def compare_type(self, other):
         if not isinstance(self, type(other)):
             return False
@@ -280,6 +290,17 @@ class DArrayT(_SequenceT):
             raise CompilerPanic("DynArray[..., INF] don't have a size!")
         # one length word + size of the array items
         return 32 + self.value_type.size_in_bytes * self.length
+
+    @property
+    def has_wildcard(self):
+        return self.length is WILDCARD or self.value_type.has_wildcard
+
+    def resolve_wildcard(self):
+        resolved_value = self.value_type.resolve_wildcard()
+        resolved_length = INF if self.length is WILDCARD else self.length
+        if resolved_value is not self.value_type or resolved_length is not self.length:
+            return DArrayT(resolved_value, resolved_length)
+        return self
 
     def _compare_length(self, other):
 
@@ -393,6 +414,16 @@ class TupleT(VyperType):
     def to_abi_arg(self, name: str = "") -> dict:
         components = [t.to_abi_arg() for t in self.member_types]
         return {"name": name, "type": "tuple", "components": components}
+
+    @property
+    def has_wildcard(self):
+        return any(m.has_wildcard for m in self.member_types)
+
+    def resolve_wildcard(self):
+        resolved = tuple(m.resolve_wildcard() for m in self.member_types)
+        if resolved != self.member_types:
+            return TupleT(resolved)
+        return self
 
     @property
     def size_in_bytes(self):
