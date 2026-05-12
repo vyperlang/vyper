@@ -7,6 +7,7 @@ VenomCodegenContext tracks:
 - Memory allocation (free pointer, allocations)
 - VenomBuilder instance for IR emission
 """
+
 from __future__ import annotations
 
 from contextlib import contextmanager
