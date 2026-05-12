@@ -27,6 +27,8 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
         self.concrete_locs: set[MemoryLocation] = set()
         self.abstract_locs: dict[Allocation, list[MemoryLocation]] = dict()
 
+        self.mem_loc_insts: dict[MemoryLocation, set[IRInstruction]] = dict()
+
         # Analyze all memory operations
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
@@ -37,11 +39,17 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
         loc: Optional[MemoryLocation] = None
 
         loc = self.base_ptr.get_read_location(inst, self.addr_space)
-        if not loc.is_empty:
+        if not loc.is_empty():
+            if loc not in self.mem_loc_insts:
+                self.mem_loc_insts[loc] = set()
+            self.mem_loc_insts[loc].add(inst)
             self._analyze_mem_location(loc)
 
         loc = self.base_ptr.get_write_location(inst, self.addr_space)
-        if not loc.is_empty:
+        if not loc.is_empty():
+            if loc not in self.mem_loc_insts:
+                self.mem_loc_insts[loc] = set()
+            self.mem_loc_insts[loc].add(inst)
             self._analyze_mem_location(loc)
 
     def _analyze_mem_location(self, loc: MemoryLocation):
