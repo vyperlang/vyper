@@ -2,11 +2,14 @@ from typing import TYPE_CHECKING
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
+from vyper.venom import effects
 from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis
 from vyper.venom.analysis.mem_ssa import MemoryDef, mem_ssa_type_factory
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.effects import NON_MEMORY_EFFECTS, NON_STORAGE_EFFECTS, NON_TRANSIENT_EFFECTS
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
+
+from vyper.utils import cumtimeit, timeit
 
 if TYPE_CHECKING:
     from vyper.venom.memory_location import MemoryLocation
@@ -19,6 +22,7 @@ class DeadStoreElimination(IRPass):
 
     def run_pass(self, /, addr_space: AddrSpace):
         mem_ssa_type = mem_ssa_type_factory(addr_space)
+        self.addr_space = addr_space
         if addr_space == MEMORY:
             self.NON_RELATED_EFFECTS = NON_MEMORY_EFFECTS
         elif addr_space == STORAGE:
@@ -76,6 +80,24 @@ class DeadStoreElimination(IRPass):
         # (bb is reachable from itself), we want to be able to visit it again
         # starting from instruction 0.
         worklist.add(query_def.inst.parent)
+        
+        if query_loc.is_empty():
+            return False
+
+        alias_set = self.mem_ssa.memalias.get_alias_set(query_loc)
+        assert alias_set is not None
+        insts = self.mem_ssa.memalias.get_all_insts(query_loc)
+        if len(alias_set) == 1 and len(insts) == 1:
+            return False
+
+        for inst in insts:
+            if inst is query_def.inst:
+                continue
+            other_loc = self.mem_ssa.memalias.base_ptr.get_write_location(inst, addr_space=self.addr_space)
+            if other_loc in alias_set:
+                break
+        else:
+            return True
 
         while len(worklist) > 0:
             bb = worklist.pop()
