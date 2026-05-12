@@ -775,7 +775,7 @@ def test_json_interface_implements(type_str, make_input_bundle, make_file):
 
 # TODO: delete once INF backend exists
 def map_xfail(pair):
-    (type_str, value) = pair
+    type_str, value = pair
     if type_str.startswith("Bytes") or type_str.startswith("String"):
         return pytest.param(type_str, value, marks=pytest.mark.xfail(raises=CodegenPanic))
     else:
