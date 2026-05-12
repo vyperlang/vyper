@@ -17,7 +17,8 @@ Here is an example:
 
     # Abstract method is declared here
     @abstract
-    def _before_transfer(sender: address, recipient: address, amount: uint256): ...
+    def _before_transfer(sender: address, recipient: address, amount: uint256):
+        ...
 
     @external
     def transfer(recipient: address, amount: uint256):
@@ -65,7 +66,7 @@ Its body must consist of an Ellipsis literal (``...``) potentially preceded by a
         """This is a docstring"""
         ...
 
-There are no other restrictions on abstract methods, they can have any signature, can take any decorator, and be called like concrete methods:
+There are no other restrictions on abstract methods, they can have any signature, can take any decorator (provided they are valid on internal methods), and be called like concrete methods:
 
 .. code-block:: vyper
 
@@ -127,7 +128,8 @@ Since any call to ``base_token._before_transfer`` will be replaced at compile-ti
     # abstract_m.vy
     @pure
     @abstract
-    def compute(x: uint256) -> uint256: ...
+    def compute(x: uint256) -> uint256:
+        ...
 
 .. code-block:: vyper
 
@@ -203,7 +205,8 @@ Additionally, calling the abstract methods of another module requires :ref:`usin
     # base_token.vy
 
     @abstract
-    def _before_transfer(sender: address, recipient: address, amount: uint256): ...
+    def _before_transfer(sender: address, recipient: address, amount: uint256):
+        ...
 
     @external
     def transfer(recipient: address, amount: uint256):
@@ -359,7 +362,8 @@ Note however that the method must be a :ref:`valid override <overriding-abstract
     import my_roles
 
     @abstract
-    def get_role(user: address) -> my_roles.ROLE: ...
+    def get_role(user: address) -> my_roles.ROLE:
+        ...
 
 .. code-block:: vyper
 
@@ -368,7 +372,8 @@ Note however that the method must be a :ref:`valid override <overriding-abstract
     import my_roles
 
     @abstract
-    def get_role(user: address, default: my_roles.ROLE) -> my_roles.ROLE: ...
+    def get_role(user: address, default: my_roles.ROLE) -> my_roles.ROLE:
+        ...
 
 .. code-block:: vyper
 
@@ -453,7 +458,8 @@ It's sometimes desirable to provide a default implementation for an abstract met
     # base_token.vy
 
     @abstract
-    def _before_transfer(sender: address, recipient: address, amount: uint256): ...
+    def _before_transfer(sender: address, recipient: address, amount: uint256):
+        ...
 
     def _before_transfer_default(sender: address, recipient: address, amount: uint256):
         assert sender != empty(address), "transfer from zero address"
