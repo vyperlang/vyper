@@ -20,10 +20,12 @@ from vyper.codegen.core import (
 )
 from vyper.codegen_venom.arithmetic import apply_binop
 from vyper.exceptions import (
+    CodegenPanic,
     CompilerPanic,
     StateAccessViolation,
     TypeMismatch,
     UnimplementedException,
+    tag_exceptions,
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
@@ -90,10 +92,11 @@ class Expr:
         Use lower_value() when you need the loaded value.
         """
         fn_name = f"lower_{type(self.node).__name__}"
-        method = getattr(self, fn_name, None)
-        if method is None:  # pragma: nocover
-            raise CompilerPanic(f"Unsupported expr: {type(self.node)}")
-        return method()
+        with tag_exceptions(self.node, fallback_exception_type=CodegenPanic, note=fn_name):
+            method = getattr(self, fn_name, None)
+            if method is None:  # pragma: nocover
+                raise CompilerPanic(f"Unsupported expr: {type(self.node)}")
+            return method()
 
     def lower_value(self) -> IROperand:
         """Lower and unwrap to get the value.
