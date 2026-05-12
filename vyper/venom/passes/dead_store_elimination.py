@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis
+from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis, ReachableAnalysis
 from vyper.venom.analysis.mem_ssa import MemoryDef, mem_ssa_type_factory
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.effects import NON_MEMORY_EFFECTS, NON_STORAGE_EFFECTS, NON_TRANSIENT_EFFECTS
@@ -26,6 +26,8 @@ class DeadStoreElimination(IRPass):
             self.NON_RELATED_EFFECTS = NON_STORAGE_EFFECTS
         elif addr_space == TRANSIENT:
             self.NON_RELATED_EFFECTS = NON_TRANSIENT_EFFECTS
+
+        self.reachable = self.analyses_cache.request_analysis(ReachableAnalysis)
 
         volatiles: list[MemoryLocation] = []
         while True:
@@ -87,14 +89,18 @@ class DeadStoreElimination(IRPass):
         if len(alias_set) == 1 and len(insts) == 1:
             return False
 
+        some_reachable = False
         for inst in insts:
             if inst is query_def.inst:
                 continue
             other_loc = self.mem_ssa.memalias.base_ptr.get_write_location(inst, addr_space=self.addr_space)
             if other_loc in alias_set:
                 break
+
+            # the loc is from the read
+            some_reachable |= self._is_reachable_from(inst, query_def.inst)
         else:
-            return True
+            return some_reachable
 
         while len(worklist) > 0:
             bb = worklist.pop()
@@ -166,3 +172,12 @@ class DeadStoreElimination(IRPass):
         # If the memory definition is clobbered by another memory access,
         # it is a dead store.
         return not self._is_memory_def_live(mem_def)
+    
+    def _is_reachable_from(self, inst: IRInstruction, start_inst: IRInstruction) -> bool:
+        if inst.parent == start_inst.parent:
+            bb = inst.parent
+            start_index = bb.instructions.index(start_inst)
+            index = bb.instructions.index(inst)
+            return start_index < index or bb in self.reachable.reachable[bb]
+
+        return inst.parent in self.reachable.reachable[start_inst.parent]
