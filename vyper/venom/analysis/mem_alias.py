@@ -128,7 +128,7 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
         res = self.alias_sets[loc]
         res.add(loc)
         return res
-    
+
     def get_all_insts(self, loc: MemoryLocation) -> set[IRInstruction]:
         alias_set = self.get_alias_set(loc)
         assert alias_set is not None

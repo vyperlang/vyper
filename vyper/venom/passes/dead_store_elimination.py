@@ -79,7 +79,7 @@ class DeadStoreElimination(IRPass):
         # (bb is reachable from itself), we want to be able to visit it again
         # starting from instruction 0.
         worklist.add(query_def.inst.parent)
-        
+
         if query_loc.is_empty():
             return False
 
@@ -93,7 +93,9 @@ class DeadStoreElimination(IRPass):
         for inst in insts:
             if inst is query_def.inst:
                 continue
-            other_loc = self.mem_ssa.memalias.base_ptr.get_write_location(inst, addr_space=self.addr_space)
+            other_loc = self.mem_ssa.memalias.base_ptr.get_write_location(
+                inst, addr_space=self.addr_space
+            )
             if other_loc in alias_set:
                 break
 
@@ -172,7 +174,7 @@ class DeadStoreElimination(IRPass):
         # If the memory definition is clobbered by another memory access,
         # it is a dead store.
         return not self._is_memory_def_live(mem_def)
-    
+
     def _is_reachable_from(self, inst: IRInstruction, start_inst: IRInstruction) -> bool:
         if inst.parent == start_inst.parent:
             bb = inst.parent

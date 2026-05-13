@@ -78,7 +78,7 @@ class Lattice:
         # set is safe value
         new._by_memloc = self._by_memloc
         return new
-    
+
     def deep_copy(self) -> "Lattice":
         new = Lattice(self._get_memloc)
         new._entries = self._entries.copy()
