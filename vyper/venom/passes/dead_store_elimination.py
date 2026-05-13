@@ -80,15 +80,26 @@ class DeadStoreElimination(IRPass):
         # starting from instruction 0.
         worklist.add(query_def.inst.parent)
 
+
+        # short circuit since the empty
+        # write is noop
         if query_loc.is_empty():
             return False
 
+        # short circuit for a case where only one instruction
+        # uses all of the mem location in alias set
+        # from that we know the write cannot be read
+        # and therefore is dead
         alias_set = self.mem_ssa.memalias.get_alias_set(query_loc)
         assert alias_set is not None
         insts = self.mem_ssa.memalias.get_all_insts(query_loc)
         if len(alias_set) == 1 and len(insts) == 1:
             return False
 
+        # if the all the instrcution with location 
+        # that may alias the query loc are reads we
+        # can just check if the reads are reachable
+        # from query def
         some_reachable = False
         for inst in insts:
             if inst is query_def.inst:
@@ -97,13 +108,19 @@ class DeadStoreElimination(IRPass):
                 inst, addr_space=self.addr_space
             )
             if other_loc in alias_set:
+                # there is some write so we need to handle clobers
+                # so we need to go to the slow path
                 break
 
             # the loc is from the read
             some_reachable |= self._is_reachable_from(inst, query_def.inst)
         else:
+            # there were only reads so just return if some of them where reachable
             return some_reachable
 
+        # original slow path that handles the clobers
+        # by other writes into location that may alias
+        # query location
         while len(worklist) > 0:
             bb = worklist.pop()
 
