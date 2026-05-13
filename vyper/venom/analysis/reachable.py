@@ -19,6 +19,19 @@ class ReachableAnalysis(IRAnalysis):
 
         self._compute_reachable_r(self.function.entry)
 
+        while True:
+            change = False
+            for bb in self.reachable:
+                orig_reachable = self.reachable[bb].copy()
+                for reachable_bb in orig_reachable:
+                    self.reachable[bb].update(self.reachable[reachable_bb])
+
+                if orig_reachable != self.reachable[bb]:
+                    change = True
+
+            if not change:
+                break
+
     def _compute_reachable_r(self, bb):
         if bb in self.reachable:
             return
