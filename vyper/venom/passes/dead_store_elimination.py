@@ -111,7 +111,7 @@ class DeadStoreElimination(IRPass):
                 # so we need to go to the slow path
                 break
 
-            # the loc is from the read
+            # the loc use is reachable from the query def
             some_reachable |= self._is_reachable_from(inst, query_def.inst)
         else:
             # there were only reads so just return if some of them where reachable
