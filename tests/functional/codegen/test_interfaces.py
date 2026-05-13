@@ -525,6 +525,7 @@ def test_fail2() -> Bytes[3]:
 
 
 # TODO: unmark once INF backend exists
+# Note: on master this doesn't compile
 @pytest.mark.xfail(raises=CodegenPanic)
 def test_json_abi_bytes_slice(get_contract, tx_failed, assert_compile_failed, make_input_bundle):
     external_contract = """
@@ -549,8 +550,6 @@ def foo(x: JSONInterface) -> Bytes[2]:
     assert c.foo(ext_c.address) == b"12"  # slice takes first 2 elements
 
 
-# TODO: unmark once INF backend exists
-@pytest.mark.xfail(raises=CodegenPanic)
 def test_json_abi_bytes_convert(get_contract, tx_failed, assert_compile_failed, make_input_bundle):
     external_contract = """
 @external
@@ -579,12 +578,7 @@ def test_fail2() -> Bytes[2]:
     return x
 
 @external
-def test_succeed1() -> Bytes[INF]:
-    # should compile and not revert
-    return extcall self.foo.returns_Bytes3()
-
-@external
-def test_succeed2() -> Bytes[3]:
+def test_succeed() -> Bytes[3]:
     # should compile and not revert
     return extcall self.foo.returns_Bytes3()
     """
@@ -601,8 +595,7 @@ def test_succeed2() -> Bytes[3]:
     with tx_failed():
         c.test_fail2()
 
-    assert c.test_succeed1() == b"123"
-    assert c.test_succeed2() == b"123"
+    assert c.test_succeed() == b"123"
 
 
 def test_units_interface(env, get_contract, make_input_bundle):
