@@ -80,7 +80,6 @@ class DeadStoreElimination(IRPass):
         # starting from instruction 0.
         worklist.add(query_def.inst.parent)
 
-
         # short circuit since the empty
         # write is noop
         if query_loc.is_empty():
@@ -96,7 +95,7 @@ class DeadStoreElimination(IRPass):
         if len(alias_set) == 1 and len(insts) == 1:
             return False
 
-        # if the all the instrcution with location 
+        # if the all the instrcution with location
         # that may alias the query loc are reads we
         # can just check if the reads are reachable
         # from query def
