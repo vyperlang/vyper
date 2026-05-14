@@ -665,12 +665,18 @@ Math
 
     Return the square root of the provided decimal number, using the Babylonian square root algorithm. The rounding mode is to round down to the nearest epsilon. For instance, ``sqrt(0.9999999998) == 0.9999999998``.
 
+    .. note::
+
+        ``sqrt`` has been moved to the ``math`` stdlib module as part of the ``0.4.2`` release (see `PR #4520 <https://github.com/vyperlang/vyper/pull/4520>`_). See :ref:`stdlib-math`. Import it with ``import math`` and call ``math.sqrt(d)``.
+
     .. code-block:: vyper
+
+        import math
 
         @external
         @view
         def foo(d: decimal) -> decimal:
-            return sqrt(d)
+            return math.sqrt(d)
 
     .. code-block:: vyper
 
@@ -681,12 +687,18 @@ Math
 
     Return the (integer) square root of the provided integer number, using the Babylonian square root algorithm. The rounding mode is to round down to the nearest integer. For instance, ``isqrt(101) == 10``.
 
+    .. note::
+
+        ``isqrt`` has been moved to the ``math`` stdlib module as part of the ``0.5.0`` release (see `PR #4923 <https://github.com/vyperlang/vyper/pull/4923>`_). See :ref:`stdlib-math`. Import it with ``import math`` and call ``math.isqrt(x)``.
+
     .. code-block:: vyper
+
+        import math
 
         @external
         @view
         def foo(x: uint256) -> uint256:
-            return isqrt(x)
+            return math.isqrt(x)
 
     .. code-block:: vyper
 

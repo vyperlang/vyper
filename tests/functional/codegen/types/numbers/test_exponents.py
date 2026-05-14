@@ -175,13 +175,11 @@ def foo(b: int128) -> int128:
         c.foo(max_power + 1)
 
 
-valid_list = [
-    """
+valid_list = ["""
 @external
 def foo() -> uint256:
     return (10**18)**2
-    """
-]
+    """]
 
 
 @pytest.mark.parametrize("good_code", valid_list)

@@ -2,6 +2,7 @@
 Tests that the tokenizer / parser are passing correct source location
 info to the AST
 """
+
 import pytest
 
 from vyper.ast.parse import parse_to_ast

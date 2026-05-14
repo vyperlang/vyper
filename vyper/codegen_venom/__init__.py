@@ -9,6 +9,7 @@ Public API:
 
 Enable via: vyper --experimental-codegen
 """
+
 from __future__ import annotations
 
 from typing import Optional
@@ -65,5 +66,7 @@ def generate_venom_deploy(
     """
     immutables_len = module_t.immutable_section_bytes
     with anchor_settings(settings):
-        ctx = generate_deploy_venom(module_t, settings, runtime_bytecode, immutables_len, cbor_metadata)
+        ctx = generate_deploy_venom(
+            module_t, settings, runtime_bytecode, immutables_len, cbor_metadata
+        )
     return _finalize_venom_ctx(ctx, settings)
