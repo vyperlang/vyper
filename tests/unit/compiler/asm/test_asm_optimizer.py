@@ -2,7 +2,7 @@ import pytest
 
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
-from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
 from vyper.evm.assembler.instructions import PUSHLABEL, Label
 from vyper.evm.assembler.optimizer import _merge_jumpdests
 
@@ -78,9 +78,21 @@ def __init__():
 # CMC 2024-02-05 this is not really the asm eliminator anymore,
 # it happens during function code generation in module.py. so we don't
 # need to test this using asm anymore.
+def _dead_code_eliminator_settings(legacy_codegen):
+    settings = Settings(optimize=OptimizationLevel.NONE, legacy_codegen=legacy_codegen)
+    if not legacy_codegen:
+        # Venom normally inlines these tiny internal functions. Disable inlining so
+        # the final assembly still exposes function labels for this reachability check.
+        settings.venom_flags = VenomOptimizationFlags(
+            level=OptimizationLevel.NONE, disable_inlining=True
+        )
+    return settings
+
+
+@pytest.mark.parametrize("legacy_codegen", (True, False))
 @pytest.mark.parametrize("code", codes)
-def test_dead_code_eliminator(code):
-    c = CompilerData(code, settings=Settings(optimize=OptimizationLevel.NONE, legacy_codegen=True))
+def test_dead_code_eliminator(code, legacy_codegen):
+    c = CompilerData(code, settings=_dead_code_eliminator_settings(legacy_codegen))
 
     # get the labels
     initcode_labels = [i for i in c.assembly if isinstance(i, Label)]
