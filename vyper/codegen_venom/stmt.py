@@ -5,6 +5,7 @@ This module handles statement codegen: assignments, augmented assignments,
 and other statement types. Complex multi-word assignments (structs, arrays)
 are deferred to later tasks.
 """
+
 from __future__ import annotations
 
 from typing import Optional
