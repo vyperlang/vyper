@@ -844,7 +844,7 @@ def foo() -> {return_type}:
     assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
-def test_array_copy_oog(env, get_contract, tx_failed, optimize, experimental_codegen, request):
+def test_array_copy_oog(env, get_contract, tx_failed, optimize, legacy_codegen, request):
     # GHSA-vgf2-gvx8-xwc3
     code = """
 @internal
@@ -859,7 +859,7 @@ def foo(x: uint256[3000]) -> uint256:
     """
     check_precompile_asserts(code)
 
-    if optimize == OptimizationLevel.NONE and not experimental_codegen:
+    if optimize == OptimizationLevel.NONE and legacy_codegen:
         # fails in bytecode generation due to jumpdests too large
         with pytest.raises(AssertionError):
             get_contract(code)
@@ -881,7 +881,7 @@ def foo(x: uint256[3000]) -> uint256:
         c.foo(array, gas=gas_used)
 
 
-def test_array_copy_oog2(env, get_contract, tx_failed, optimize, experimental_codegen, request):
+def test_array_copy_oog2(env, get_contract, tx_failed, optimize, legacy_codegen, request):
     # GHSA-vgf2-gvx8-xwc3
     code = """
 @external
@@ -892,7 +892,7 @@ def foo(x: uint256[2500]) -> uint256:
     """
     check_precompile_asserts(code)
 
-    if optimize == OptimizationLevel.NONE and not experimental_codegen:
+    if optimize == OptimizationLevel.NONE and legacy_codegen:
         # fails in creating contract due to code too large
         with tx_failed(EvmError):
             get_contract(code)

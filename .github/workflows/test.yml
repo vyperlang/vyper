@@ -201,7 +201,7 @@ jobs:
         --evm-version ${{ matrix.evm-version || 'prague' }}
         --evm-backend ${{ matrix.evm-backend || 'revm' }}
         ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
-        ${{ matrix.legacy && '--legacy' || '' }}
+        ${{ matrix.legacy && '--legacy-codegen' || '' }}
         --cov-config=pyproject.toml
         --cov=vyper
         tests/

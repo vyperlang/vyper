@@ -44,8 +44,7 @@ def pytest_addoption(parser):
         help="change optimization mode",
     )
     parser.addoption("--enable-compiler-debug-mode", action="store_true")
-    parser.addoption("--experimental-codegen", action="store_true", default=True)
-    parser.addoption("--legacy", action="store_true", default=False)
+    parser.addoption("--legacy-codegen", action="store_true", default=False)
     parser.addoption("--tracing", action="store_true")
     parser.addoption("--hevm", action="store_true")
 
@@ -88,14 +87,8 @@ def debug(pytestconfig):
 
 
 @pytest.fixture(scope="session")
-def experimental_codegen(pytestconfig):
-    """Returns True for venom codegen, False for legacy.
-    Kept as 'experimental_codegen' for backward compat in test markers."""
-    legacy = pytestconfig.getoption("legacy")
-    if legacy:
-        return False
-    # Venom is now the default
-    return True
+def legacy_codegen(pytestconfig):
+    return pytestconfig.getoption("legacy_codegen")
 
 
 @pytest.fixture(scope="session")
@@ -242,13 +235,10 @@ def get_contract_from_ir(env, optimize):
 
 
 @pytest.fixture(scope="module", autouse=True)
-def compiler_settings(optimize, experimental_codegen, evm_version, debug):
+def compiler_settings(optimize, legacy_codegen, evm_version, debug):
     compiler.settings.DEFAULT_ENABLE_DECIMALS = True
     settings = Settings(
-        optimize=optimize,
-        evm_version=evm_version,
-        legacy_codegen=not experimental_codegen,
-        debug=debug,
+        optimize=optimize, evm_version=evm_version, legacy_codegen=legacy_codegen, debug=debug
     )
     set_global_settings(settings)
     return settings

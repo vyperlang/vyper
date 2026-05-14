@@ -110,7 +110,7 @@ def test_dead_code_eliminator(code, compiler_settings):
     assert all(ctor_only not in label.label for label in runtime_labels)
 
 
-def test_library_code_eliminator(make_input_bundle, experimental_codegen):
+def test_library_code_eliminator(make_input_bundle, legacy_codegen):
     library = """
 @internal
 def unused1():
@@ -135,7 +135,7 @@ def foo():
     res = compile_code(code, input_bundle=input_bundle, output_formats=["asm_runtime"])
     asm = res["asm_runtime"]
 
-    if not experimental_codegen:
+    if legacy_codegen:
         assert "some_function()" in asm  # Venom function inliner will remove this
 
     assert "unused1()" not in asm

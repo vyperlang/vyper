@@ -90,7 +90,7 @@ BAR_ABI = [
 
 
 @pytest.fixture(scope="function")
-def input_json(optimize, evm_version, experimental_codegen, debug):
+def input_json(optimize, evm_version, legacy_codegen, debug):
     return {
         "language": "Vyper",
         "sources": {
@@ -103,7 +103,7 @@ def input_json(optimize, evm_version, experimental_codegen, debug):
             "outputSelection": {"*": ["*"]},
             "optimize": str(optimize),
             "evmVersion": evm_version,
-            "experimentalCodegen": experimental_codegen,
+            "legacyCodegen": legacy_codegen,
             "debug": debug,
         },
         "storage_layout_overrides": {
@@ -146,12 +146,11 @@ def json_input(json_data, path):
     )
 
 
-def test_compile_json(input_json, input_bundle, experimental_codegen):
+def test_compile_json(input_json, input_bundle, legacy_codegen):
     foo_input = input_bundle.load_file("contracts/foo.vy")
-    # remove venom related from output formats
-    # because they require venom (experimental)
+    # remove venom-related output formats for the legacy pipeline
     output_formats = OUTPUT_FORMATS.copy()
-    if not experimental_codegen:
+    if legacy_codegen:
         output_formats.pop("cfg", None)
         output_formats.pop("cfg_runtime", None)
     foo = compile_from_file_input(
@@ -222,7 +221,7 @@ def test_compile_json(input_json, input_bundle, experimental_codegen):
                 "methodIdentifiers": data["method_identifiers"],
             },
         }
-        if experimental_codegen:
+        if not legacy_codegen:
             expected["venom"] = {"cfg": data["cfg"], "cfg_runtime": data["cfg_runtime"]}
         assert output_json["contracts"][path][contract_name] == expected
 
@@ -242,7 +241,7 @@ def test_compilation_targets(input_json):
     assert list(output_json["contracts"].keys()) == ["contracts/foo.vy", "contracts/bar.vy"]
 
 
-def test_different_outputs(input_bundle, input_json, experimental_codegen):
+def test_different_outputs(input_bundle, input_json, legacy_codegen):
     input_json["settings"]["outputSelection"] = {
         "contracts/bar.vy": "*",
         "contracts/foo.vy": ["evm.methodIdentifiers"],
@@ -258,7 +257,7 @@ def test_different_outputs(input_bundle, input_json, experimental_codegen):
     foo = contracts["contracts/foo.vy"]["foo"]
     bar = contracts["contracts/bar.vy"]["bar"]
     expected_keys = ["abi", "devdoc", "evm", "interface", "ir", "layout", "metadata", "userdoc"]
-    if experimental_codegen:
+    if not legacy_codegen:
         expected_keys.append("venom")
         expected_keys.sort()
     assert sorted(bar.keys()) == expected_keys
@@ -430,7 +429,7 @@ def call_foo(amount: uint256, account: address) -> uint256:
         "settings": {
             "evmVersion": "cancun",
             "optimize": "gas",
-            "venomExperimental": True,
+            "legacyCodegen": False,
             "search_paths": ["."],
             "outputSelection": {"*": ["cfg_runtime"]},
         },

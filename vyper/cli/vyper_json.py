@@ -255,10 +255,17 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
             outputs.remove(key)
             outputs.update([i for i in TRANSLATE_MAP if i.startswith(key)])
 
-        should_output_venom = any(
-            input_dict["settings"].get(alias, False)
-            for alias in ("venomExperimental", "experimentalCodegen")
-        )
+        legacy_codegen = input_dict["settings"].get("legacyCodegen")
+        if legacy_codegen is None:
+            legacy_codegen = input_dict["settings"].get("legacy")
+
+        if legacy_codegen is None:
+            should_output_venom = any(
+                input_dict["settings"].get(alias, False)
+                for alias in ("venomExperimental", "experimentalCodegen")
+            )
+        else:
+            should_output_venom = not legacy_codegen
 
         if "*" in outputs:
             outputs = TRANSLATE_MAP.values()
