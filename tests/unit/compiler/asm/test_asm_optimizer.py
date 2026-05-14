@@ -78,9 +78,11 @@ def __init__():
 # CMC 2024-02-05 this is not really the asm eliminator anymore,
 # it happens during function code generation in module.py. so we don't
 # need to test this using asm anymore.
-def _dead_code_eliminator_settings(legacy_codegen):
-    settings = Settings(optimize=OptimizationLevel.NONE, legacy_codegen=legacy_codegen)
-    if not legacy_codegen:
+def _dead_code_eliminator_settings(compiler_settings):
+    settings = Settings(
+        optimize=OptimizationLevel.NONE, legacy_codegen=compiler_settings.legacy_codegen
+    )
+    if not settings.legacy_codegen:
         # Venom normally inlines these tiny internal functions. Disable inlining so
         # the final assembly still exposes function labels for this reachability check.
         settings.venom_flags = VenomOptimizationFlags(
@@ -89,10 +91,9 @@ def _dead_code_eliminator_settings(legacy_codegen):
     return settings
 
 
-@pytest.mark.parametrize("legacy_codegen", (True, False))
 @pytest.mark.parametrize("code", codes)
-def test_dead_code_eliminator(code, legacy_codegen):
-    c = CompilerData(code, settings=_dead_code_eliminator_settings(legacy_codegen))
+def test_dead_code_eliminator(code, compiler_settings):
+    c = CompilerData(code, settings=_dead_code_eliminator_settings(compiler_settings))
 
     # get the labels
     initcode_labels = [i for i in c.assembly if isinstance(i, Label)]
