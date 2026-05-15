@@ -24,7 +24,9 @@ def get_blobbasefee() -> uint256:
     ] * 6
 
     env.message_call(
-        "0xb45BEc6eeCA2a09f4689Dd308F550Ad7855051B5", gas=21000, gas_price=10**10  # random address
+        "0xb45BEc6eeCA2a09f4689Dd308F550Ad7855051B5",
+        gas=21000,
+        gas_price=10**10,  # random address
     )
 
     # TODO maybe add assert c.get_blobbasefee() != MIN_BLOB_BASE_FEE

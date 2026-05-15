@@ -113,24 +113,24 @@ class LivenessAnalysis(IRAnalysis):
         operand_to_phi_idx: dict[IROperand, int] = {}
         phi_matching: dict[int, IRVariable] = {}
         for i, phi in enumerate(phis):
-            for label, var in phi.phi_operands:
-                operand_to_phi_idx[var] = i
+            for label, phi_var in phi.phi_operands:
+                assert isinstance(phi_var, IRVariable)
+                operand_to_phi_idx[phi_var] = i
                 if label == source.label:
-                    assert isinstance(var, IRVariable)
-                    phi_matching[i] = var
+                    phi_matching[i] = phi_var
 
         result: OrderedSet[IRVariable] = OrderedSet()
         placed: set[int] = set()
 
-        for var in liveness:
-            phi_idx = operand_to_phi_idx.get(var)
+        for live_var in liveness:
+            phi_idx = operand_to_phi_idx.get(live_var)
             if phi_idx is not None:
                 if phi_idx not in placed:
                     placed.add(phi_idx)
                     result.add(phi_matching[phi_idx])
                 # else: skip subsequent operands of same phi
             else:
-                result.add(var)
+                result.add(live_var)
 
         return result
 

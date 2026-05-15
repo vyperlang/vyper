@@ -80,7 +80,8 @@ def test_multi_bb_single_fn():
 
 
 def test_data_section():
-    parsed_ctx = parse_venom("""
+    parsed_ctx = parse_venom(
+        """
     function entry {
         entry:
             stop
@@ -96,7 +97,8 @@ def test_data_section():
             db @selector_bucket_5
             db @selector_bucket_6
     }
-    """)
+    """
+    )
 
     expected_ctx = IRContext()
     expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
@@ -121,7 +123,8 @@ def test_data_section():
 
 
 def test_multi_function():
-    parsed_ctx = parse_venom("""
+    parsed_ctx = parse_venom(
+        """
     function entry {
         entry:
             invoke @check_cv
@@ -141,7 +144,8 @@ def test_multi_function():
         has_value:
             revert 0, 0
     }
-    """)
+    """
+    )
 
     expected_ctx = IRContext()
     expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
@@ -172,7 +176,8 @@ def test_multi_function():
 
 
 def test_multi_function_and_data():
-    parsed_ctx = parse_venom("""
+    parsed_ctx = parse_venom(
+        """
     function entry {
         entry:
             invoke @check_cv
@@ -201,7 +206,8 @@ def test_multi_function_and_data():
             db @selector_bucket_3
             db @selector_bucket_6
     }
-    """)
+    """
+    )
 
     expected_ctx = IRContext()
     expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))

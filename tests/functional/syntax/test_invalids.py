@@ -29,27 +29,35 @@ def must_succeed(code):
 # TEST CASES
 
 
-must_succeed("""
+must_succeed(
+    """
 x: int128[3]
-""")
+"""
+)
 
-must_succeed("""
+must_succeed(
+    """
 @external
 def foo(x: int128): pass
-""")
+"""
+)
 
-must_succeed("""
+must_succeed(
+    """
 @external
 def foo():
     x: int128 = 0
     x = 5
-""")
+"""
+)
 
-must_succeed("""
+must_succeed(
+    """
 @external
 def foo():
     x: int128  = 5
-""")
+"""
+)
 
 must_fail(
     """
@@ -71,19 +79,23 @@ def foo():
     TypeMismatch,
 )
 
-must_succeed("""
+must_succeed(
+    """
 @external
 def foo():
     x: int128 = 5
     x = 3
-""")
+"""
+)
 
-must_succeed("""
+must_succeed(
+    """
 b: int128
 @external
 def foo():
     self.b = 7
-""")
+"""
+)
 
 must_fail(
     """
@@ -95,19 +107,23 @@ def foo():
     TypeMismatch,
 )
 
-must_succeed("""
+must_succeed(
+    """
 b: decimal
 @external
 def foo():
     self.b = 7.5
-""")
+"""
+)
 
-must_succeed("""
+must_succeed(
+    """
 b: decimal
 @external
 def foo():
     self.b = 7.0
-""")
+"""
+)
 
 must_fail(
     """
@@ -119,12 +135,14 @@ def foo():
     TypeMismatch,
 )
 
-must_succeed("""
+must_succeed(
+    """
 b: HashMap[int128, int128]
 @external
 def foo():
     x: int128 = self.b[5]
-""")
+"""
+)
 
 must_fail(
     """
@@ -146,12 +164,14 @@ def foo():
     TypeMismatch,
 )
 
-must_succeed("""
+must_succeed(
+    """
 b: HashMap[decimal, int128]
 @external
 def foo():
     x: int128 = self.b[5.0]
-""")
+"""
+)
 
 must_fail(
     """
@@ -163,40 +183,50 @@ def foo():
     TypeMismatch,
 )
 
-must_succeed("""
+must_succeed(
+    """
 b: HashMap[int128, int128]
 @external
 def foo():
     self.b[3] = -5
-""")
+"""
+)
 
-must_succeed("""
+must_succeed(
+    """
 b: HashMap[int128, int128]
 @external
 def foo():
     self.b[-3] = 5
-""")
+"""
+)
 
-must_succeed("""
+must_succeed(
+    """
 @external
 def foo():
     x: int128[5] = [0, 0, 0, 0, 0]
     z: int128 = x[2]
-""")
+"""
+)
 
-must_succeed("""
+must_succeed(
+    """
 x: int128
 @external
 def foo():
     self.x = 5
-""")
+"""
+)
 
-must_succeed("""
+must_succeed(
+    """
 x: int128
 @internal
 def foo():
     self.x = 5
-""")
+"""
+)
 
 must_fail(
     """
@@ -208,12 +238,14 @@ def foo():
     TypeMismatch,
 )
 
-must_succeed("""
+must_succeed(
+    """
 bar: int128[3]
 @external
 def foo():
     self.bar[0] = 5
-""")
+"""
+)
 
 must_fail(
     """
@@ -233,13 +265,16 @@ def baa() -> decimal:
     TypeMismatch,
 )
 
-must_succeed("""
+must_succeed(
+    """
 @external
 def foo():
     raise "fail"
-""")
+"""
+)
 
-must_succeed("""
+must_succeed(
+    """
 @internal
 def foo():
     pass
@@ -247,13 +282,16 @@ def foo():
 @external
 def goo():
     self.foo()
-""")
+"""
+)
 
-must_succeed("""
+must_succeed(
+    """
 @external
 def foo():
     MOOSE: int128 = 45
-""")
+"""
+)
 
 must_fail(
     """
@@ -291,14 +329,16 @@ def foo():
     UndeclaredDefinition,
 )
 
-must_succeed('''
+must_succeed(
+    '''
 @external
 def sum(a: int128, b: int128) -> int128:
     """
     Sum two signed integers.
     """
     return a + b
-''')
+'''
+)
 
 must_fail(
     """

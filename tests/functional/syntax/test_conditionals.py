@@ -2,7 +2,8 @@ import pytest
 
 from vyper import compiler
 
-valid_list = ["""
+valid_list = [
+    """
 @internal
 def mkint() -> int128:
     return 1
@@ -18,7 +19,8 @@ def test_valency_mismatch():
         self.mkint()
     else:
         pass
-    """]
+    """
+]
 
 
 @pytest.mark.parametrize("good_code", valid_list)
