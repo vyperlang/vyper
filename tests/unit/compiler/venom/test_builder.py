@@ -301,11 +301,5 @@ def test_builder_crypto_ops():
     size = b.calldataload(32)
     hash_result = b.sha3(ptr, size)
 
-    a = b.calldataload(64)
-    b_val = b.calldataload(96)
-    hash_64 = b.sha3_64(a, b_val)
-    b.stop()
-
     instrs = fn.entry.instructions
     assert instrs[2].opcode == "sha3"
-    assert instrs[5].opcode == "sha3_64"

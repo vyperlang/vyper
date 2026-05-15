@@ -1,24 +1,22 @@
 from vyper.utils import OrderedSet
-from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
+from vyper.venom.analysis.analysis import IRGlobalAnalysesCache, IRGlobalAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLabel
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 
 
-class FCGAnalysis(IRAnalysis):
+class FCGGlobalAnalysis(IRGlobalAnalysis):
     """
     Compute the function call graph for the context.
     Only analyzes functions reachable from entry.
     """
 
-    ctx: IRContext
     call_sites: dict[IRFunction, OrderedSet[IRInstruction]]
     callees: dict[IRFunction, OrderedSet[IRFunction]]
     _reachable: OrderedSet[IRFunction]
 
-    def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
-        super().__init__(analyses_cache, function)
-        self.ctx = function.ctx
+    def __init__(self, analyses_cache: IRGlobalAnalysesCache, ctx: IRContext):
+        super().__init__(analyses_cache, ctx)
         self.call_sites = dict()
         self.callees = dict()
         self._reachable = OrderedSet()

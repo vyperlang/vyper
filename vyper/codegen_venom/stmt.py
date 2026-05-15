@@ -5,6 +5,7 @@ This module handles statement codegen: assignments, augmented assignments,
 and other statement types. Complex multi-word assignments (structs, arrays)
 are deferred to later tasks.
 """
+
 from __future__ import annotations
 
 from typing import Optional
@@ -20,7 +21,7 @@ from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.semantics.types.user import EventT, StructT
 from vyper.utils import method_id_int
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 from .buffer import Ptr
 from .calling_convention import returns_stack_count
@@ -41,7 +42,7 @@ class Stmt:
         """Dispatch to type-specific lowering method."""
         fn_name = f"lower_{type(self.node).__name__}"
         method = getattr(self, fn_name, None)
-        if method is None:
+        if method is None:  # pragma: nocover
             raise CompilerPanic(f"Unsupported stmt: {type(self.node)}")
         return method()
 
@@ -142,6 +143,7 @@ class Stmt:
         # src/dst are provably non-overlapping (different allocas).
         if src_loc is DataLocation.MEMORY and dst_ptr.location is DataLocation.MEMORY:
             tmp_val = self.ctx.new_temporary_value(src_typ)
+            assert isinstance(tmp_val.operand, IRVariable)
             self.ctx.copy_memory(tmp_val.operand, src, src_typ.memory_bytes_required)
             src = tmp_val.operand
 
@@ -160,6 +162,7 @@ class Stmt:
             # Normalize source into destination layout before writing to
             # storage/transient/code locations that don't carry src_typ.
             normalized = self.ctx.new_temporary_value(typ)
+            assert isinstance(normalized.operand, IRVariable)
             self.ctx.store_memory(src, normalized.operand, typ, src_typ=src_typ)
             src = normalized.operand
             src_typ = typ
@@ -184,11 +187,13 @@ class Stmt:
         elif loc == DataLocation.IMMUTABLES:
             # Immutables in constructor
             if typ.memory_bytes_required <= 32:
+                assert isinstance(src, IRVariable)
                 val = self.builder.mload(src)
                 self.ctx.ptr_store(dst_ptr, val)
             else:
                 self.ctx.store_immutable(src, dst_ptr.operand, typ)
         else:
+            assert isinstance(dst_ptr.operand, IRVariable)
             # Memory destination: use layout-aware copy when types differ.
             self.ctx.store_memory(src, dst_ptr.operand, typ, src_typ=src_typ)
 
@@ -239,16 +244,12 @@ class Stmt:
             and any(not t._is_prim_word for t in src_member_types)
         ):
             staged_src = self.ctx.new_temporary_value(src_tuple_typ)
+            assert isinstance(staged_src.operand, IRVariable)
             self.ctx.copy_memory(staged_src.operand, src, src_tuple_typ.memory_bytes_required)
             src = staged_src.operand
 
         for src_elem_typ, dst_elem_typ in zip(src_member_types, dst_member_types):
-            if src_offset == 0:
-                elem_ptr = src
-            elif isinstance(src, IRLiteral):
-                elem_ptr = IRLiteral(src.value + src_offset)
-            else:
-                elem_ptr = self.builder.add(src, IRLiteral(src_offset))
+            elem_ptr = self.builder.add(src, IRLiteral(src_offset))
 
             # Load the value
             val = self.ctx.load_memory(elem_ptr, src_elem_typ)
@@ -285,7 +286,7 @@ class Stmt:
         right_node = node.value
 
         # AugAssign only works on primitive word types
-        if not target_typ._is_prim_word:
+        if not target_typ._is_prim_word:  # pragma: nocover
             raise TypeCheckFailure("AugAssign only valid for primitive types")
 
         # Get target pointer (with location info)
@@ -301,7 +302,7 @@ class Stmt:
         exp_literal = None
         if isinstance(op, vy_ast.Pow):
             right_reduced = right_node.reduced()
-            if not isinstance(right_reduced, vy_ast.Int):
+            if not isinstance(right_reduced, vy_ast.Int):  # pragma: nocover
                 raise TypeCheckFailure("AugAssign pow requires literal exponent")
             exp_literal = right_reduced.value
 
@@ -331,6 +332,7 @@ class Stmt:
         b = self.builder
 
         # Load length from source (at offset 0)
+        assert isinstance(src, IRVariable)
         length = b.mload(src)
 
         elem_typ = typ.value_type
@@ -441,7 +443,7 @@ class Stmt:
             if varinfo is not None and varinfo.is_immutable and self.ctx.is_ctor_context:
                 return Ptr(IRLiteral(varinfo.position.position), DataLocation.IMMUTABLES)
 
-            raise CompilerPanic(f"Unknown variable: {varname}")
+            raise CompilerPanic(f"Unknown variable: {varname}")  # pragma: nocover
 
         elif isinstance(target, vy_ast.Attribute):
             # self.x = ... (state variable assignment)
@@ -456,9 +458,9 @@ class Stmt:
                 if varinfo.is_immutable and self.ctx.is_ctor_context:
                     return Ptr(IRLiteral(varinfo.position.position), DataLocation.IMMUTABLES)
 
-                if varinfo.is_constant:
+                if varinfo.is_constant:  # pragma: nocover
                     raise TypeCheckFailure("Cannot assign to constant")
-                if varinfo.is_immutable:
+                if varinfo.is_immutable:  # pragma: nocover
                     raise TypeCheckFailure("Cannot assign to immutable outside constructor")
 
             # Struct field access (point.x = ...)
@@ -467,14 +469,14 @@ class Stmt:
                 # Use Expr to compute the field pointer
                 return Expr(target, self.ctx).lower().ptr()
 
-            raise CompilerPanic(f"Unsupported attribute target: {target.attr}")
+            raise CompilerPanic(f"Unsupported attribute target: {target.attr}")  # pragma: nocover
 
         elif isinstance(target, vy_ast.Subscript):
             # x[i] = ... or self.arr[i] = ... or self.map[key] = ...
             # Use Expr to compute the element pointer/slot
             return Expr(target, self.ctx).lower().ptr()
 
-        raise CompilerPanic(f"Unsupported assignment target: {type(target)}")
+        raise CompilerPanic(f"Unsupported assignment target: {type(target)}")  # pragma: nocover
 
     # === Control Flow Statements ===
 
@@ -594,8 +596,7 @@ class Stmt:
                 if isinstance(start, IRLiteral) and isinstance(end_expr, IRLiteral):
                     rounds = IRLiteral(end_expr.value - start.value)
                     rounds_bound = rounds.value
-                else:
-                    # Non-literal but no bound - semantic analysis should catch this
+                else:  # pragma: nocover
                     raise CompilerPanic("range() with non-literal args requires bound=")
 
         # Allocate counter variable in memory for user access
@@ -708,7 +709,7 @@ class Stmt:
             # Static array: length is compile-time constant
             length = IRLiteral(array_typ.count)
             bound = array_typ.count
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"Cannot iterate over type: {array_typ}")
 
         # Element size (in slots for storage, bytes for memory)
@@ -716,6 +717,7 @@ class Stmt:
 
         # Allocate loop variable (copy of element, not reference)
         item_local = self.ctx.new_variable(varname, target_type, mutable=False)
+        assert isinstance(item_local.value.operand, IRVariable)
         self.ctx.forvars[varname] = True
 
         # Create blocks
@@ -813,13 +815,13 @@ class Stmt:
 
     def lower_Break(self) -> None:
         """Lower break statement - jump to loop exit."""
-        if self.ctx.break_target is None:
+        if self.ctx.break_target is None:  # pragma: nocover
             raise CompilerPanic("break outside loop")
         self.builder.jmp(self.ctx.break_target)
 
     def lower_Continue(self) -> None:
         """Lower continue statement - jump to loop increment."""
-        if self.ctx.continue_target is None:
+        if self.ctx.continue_target is None:  # pragma: nocover
             raise CompilerPanic("continue outside loop")
         self.builder.jmp(self.ctx.continue_target)
 
@@ -843,7 +845,7 @@ class Stmt:
         assert isinstance(node, vy_ast.Return)
         func_t = self.ctx.func_t
 
-        if func_t is None:
+        if func_t is None:  # pragma: nocover
             raise CompilerPanic("Return outside function")
 
         # Evaluate return value if present
@@ -890,12 +892,7 @@ class Stmt:
                 # Tuple/struct return - load each element from memory pointer
                 # This handles both multi-element tuples AND single-element structs
                 for i, (_k, _elem_t) in enumerate(ret_typ.tuple_items()):
-                    if i == 0:
-                        src_ptr = ret_val
-                    elif isinstance(ret_val, IRLiteral):
-                        src_ptr = IRLiteral(ret_val.value + i * 32)
-                    else:
-                        src_ptr = self.builder.add(ret_val, IRLiteral(i * 32))
+                    src_ptr = self.builder.add(ret_val, IRLiteral(i * 32))
                     ret_vals.append(self.builder.mload(src_ptr))
             else:
                 # Primitive single value - just use directly
@@ -908,7 +905,7 @@ class Stmt:
             self.ctx.store_memory(ret_val, self.ctx.return_buffer, ret_typ, src_typ=ret_src_typ)
             self.builder.ret(return_pc)
 
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic("Internal function missing return mechanism")
 
     def _lower_external_return(
@@ -940,6 +937,7 @@ class Stmt:
             and ret_val is not None
         ):
             normalized = self.ctx.new_temporary_value(ret_typ)
+            assert isinstance(normalized.operand, IRVariable)
             self.ctx.store_memory(ret_val, normalized.operand, ret_typ, src_typ=ret_src_typ)
             ret_val = normalized.operand
             ret_src_typ = ret_typ
@@ -950,6 +948,7 @@ class Stmt:
             # ret_val is a pointer to [length (32 bytes)][data...]
             # Copy to a fresh buffer to ensure it's in memory
             buf_val = self.ctx.new_temporary_value(ret_typ)
+            assert isinstance(buf_val.operand, IRVariable)
             self.ctx.store_memory(ret_val, buf_val.operand, ret_typ, src_typ=ret_src_typ)
 
             # Get length from first 32 bytes
@@ -1047,10 +1046,7 @@ class Stmt:
             # Store each data value into the tuple buffer
             offset = 0
             for (val, src_typ), typ in zip(data_vals, data_typs):
-                if offset == 0:
-                    dst = data_buf._ptr
-                else:
-                    dst = self.builder.add(data_buf._ptr, IRLiteral(offset))
+                dst = self.builder.add(data_buf._ptr, IRLiteral(offset))
                 self.ctx.store_memory(val, dst, typ, src_typ=src_typ)
                 offset += typ.memory_bytes_required
 
@@ -1062,7 +1058,8 @@ class Stmt:
             encoded_len = abi_encode_to_buf(self.ctx, abi_buf_ptr, data_buf._ptr, tuple_typ)
         else:
             # No data - use zero size
-            abi_buf_ptr = IRLiteral(0)
+            log_buf = self.ctx.allocate_buffer(0, annotation="log empty buffer")
+            abi_buf_ptr = log_buf._ptr
             encoded_len = IRLiteral(0)
 
         # Emit log instruction
@@ -1089,10 +1086,11 @@ class Stmt:
             # bytes/string - must be keccak256 hashed per ABI spec
             # val is a pointer to [length][data]
             data_ptr = self.builder.add(val, IRLiteral(32))
+            assert isinstance(val, IRVariable)
             length = self.builder.mload(val)
             return self.builder.sha3(data_ptr, length)
 
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"Event indexes may only be value types, got {typ}")
 
     # === Error Handling (Assert/Raise) ===
@@ -1124,7 +1122,8 @@ class Stmt:
             self.builder.append_block(fail_block)
             self.builder.set_block(fail_block)
             with self.builder.error_context("user assert"):
-                self.builder.revert(IRLiteral(0), IRLiteral(0))
+                revert_buffer = self.ctx.allocate_buffer(0, annotation="user assert revert buffer")
+                self.builder.revert(revert_buffer._ptr, IRLiteral(0))
 
             # Ok block: continue
             self.builder.append_block(ok_block)
@@ -1146,7 +1145,8 @@ class Stmt:
         if node.exc is None:
             # Bare raise: revert 0, 0
             with self.builder.error_context("user raise"):
-                self.builder.revert(IRLiteral(0), IRLiteral(0))
+                revert_buffer = self.ctx.allocate_buffer(0, annotation="user raise revert buffer")
+                self.builder.revert(revert_buffer._ptr, IRLiteral(0))
         elif isinstance(node.exc, vy_ast.Name) and node.exc.id == "UNREACHABLE":
             # UNREACHABLE: invalid opcode
             with self.builder.error_context("raise unreachable"):

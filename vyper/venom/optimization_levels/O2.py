@@ -9,6 +9,7 @@ from vyper.venom.optimization_levels.types import PassConfig
 from vyper.venom.passes import (
     CSE,
     SCCP,
+    AffineFoldingPass,
     AlgebraicOptimizationPass,
     AssertCombinerPass,
     AssignElimination,
@@ -17,8 +18,6 @@ from vyper.venom.passes import (
     ConcretizeMemLocPass,
     DeadStoreElimination,
     DFTPass,
-    FixMemLocationsPass,
-    FloatAllocas,
     InternalReturnCopyForwardingPass,
     LoadElimination,
     LowerDloadPass,
@@ -36,11 +35,10 @@ from vyper.venom.passes import (
 
 # Standard optimizations (default)
 PASSES_O2: List[PassConfig] = [
-    FixMemLocationsPass,
-    FloatAllocas,
     SimplifyCFGPass,
     MakeSSA,
     PhiEliminationPass,
+    AffineFoldingPass,
     AlgebraicOptimizationPass,
     SCCP,
     SimplifyCFGPass,
@@ -51,6 +49,7 @@ PASSES_O2: List[PassConfig] = [
     SCCP,
     SimplifyCFGPass,
     AssignElimination,
+    AffineFoldingPass,
     AlgebraicOptimizationPass,
     LoadElimination,
     PhiEliminationPass,
@@ -63,7 +62,7 @@ PASSES_O2: List[PassConfig] = [
     InternalReturnCopyForwardingPass,
     ReadonlyInvokeArgCopyForwardingPass,
     # run memmerge before LowerDload
-    MemMergePass,
+    (MemMergePass, {"memory_abstract": True}),
     MemoryCopyElisionPass,
     LoadElimination,
     LowerDloadPass,
@@ -76,10 +75,11 @@ PASSES_O2: List[PassConfig] = [
     ConcretizeMemLocPass,
     SCCP,
     SimplifyCFGPass,
-    MemMergePass,
+    (MemMergePass, {"memory_abstract": False}),
     LoadElimination,
     RemoveUnusedVariablesPass,
     BranchOptimizationPass,
+    AffineFoldingPass,
     AlgebraicOptimizationPass,
     AssertCombinerPass,
     # This improves the performance of cse

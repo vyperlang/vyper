@@ -1,6 +1,8 @@
 from tests.venom_utils import parse_venom
 from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis.fcg import FCGGlobalAnalysis
+from vyper.venom.basicblock import IRLabel
 from vyper.venom.check_venom import check_venom_ctx
 from vyper.venom.passes import FunctionInlinerPass, SimplifyCFGPass
 
@@ -109,3 +111,26 @@ def test_inliner_phi_invalidation_inner():
         SimplifyCFGPass(ac, fn).run_pass()
 
     check_venom_ctx(ctx)
+
+
+def test_fcg_analysis_remains_requestable_from_function_cache():
+    src = """
+    function main {
+    main:
+        invoke @callee
+        stop
+    }
+
+    function callee {
+    callee:
+        %retpc = param
+        ret %retpc
+    }
+    """
+
+    ctx = parse_venom(src)
+    assert ctx.entry_function is not None
+
+    fcg = IRAnalysesCache(ctx.entry_function).force_analysis(FCGGlobalAnalysis)
+
+    assert fcg.get_callees(ctx.entry_function).first() == ctx.get_function(IRLabel("callee"))

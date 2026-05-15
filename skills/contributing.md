@@ -11,11 +11,15 @@ The commit message must explain **why**.
 
 ### Format
 
-[Conventional Commits](https://www.conventionalcommits.org/):
+[Conventional Commits](https://www.conventionalcommits.org/). On squash-merge, the PR title becomes the commit subject line. The PR template's "Commit message" section becomes the body.
 
+**PR title** (becomes subject line):
 ```
 <type>[scope]: <description>
+```
 
+**PR "Commit message" section** (becomes body):
+```
 <body>
 ```
 
@@ -23,7 +27,7 @@ Types: `feat`, `fix`, `refactor`, `perf`, `chore`, `release`.
 Scope is **required**. Validated by CI — see [pull-request.yaml](../.github/workflows/pull-request.yaml) for the canonical list.
 Current scopes: `venom`, `lang`, `codegen`, `parser`, `stdlib`, `ux`, `ir`, `test`, `docs`, `ci`, `build`, `tool`.
 
-### Subject Line
+### Subject Line (PR title)
 
 - Imperative, present tense ("add X" not "added X")
 - ~50 chars, lowercase, no period
@@ -36,7 +40,9 @@ Wrap body at 72 chars. Use `fmt_commit_msg.py` to format — it defaults to `com
 **Workflow for writing/updating the commit message in a PR:**
 
 ```bash
-# 1. Write the raw commit message (body) to commitmsg.txt
+# 1. Write the commit message BODY to commitmsg.txt
+#    Do NOT include the subject line (type[scope]: description) —
+#    that comes from the PR title on squash-merge.
 cat > commitmsg.txt << 'EOF'
 motivation paragraph here... (see "Body" section below)
 
@@ -44,7 +50,7 @@ implementation paragraph here...
 EOF
 
 # 2. Format it (wraps at 72 chars, preserves lists/code blocks)
-python fmt_commit_msg.py   # reads and overwrites commitmsg.txt
+python fmt_commit_msg.py   # reads/overwrites commitmsg.txt, prints result to stdout
 
 # 3. Get the current PR body
 gh pr view <N> --json body -q .body > /tmp/pr_body.md
@@ -69,14 +75,17 @@ The body is the most important part. It should answer:
 Don't enumerate every file touched or mechanically list what each function does — that's the diff.
 Do explain the *reasoning* behind structural decisions, the bug mechanism, or the design rationale.
 
+Commit messages should not be tied to a particular issue tracker. Use `GH 1234` instead of `#1234` — the `#` syntax is GitHub-specific and creates links that are meaningless outside GitHub.
+
 ### Good Example (from recent history)
 
-```
-fix[venom]: fix allocation in ternary fall through (#4846)
+PR title: `fix[venom]: fix allocation in ternary fall through`
 
-`Mem2Var._fix_adds` converts `add` instructions on alloca pointers into
-`gep` (get-element-pointer) so that `BasePtrAnalysis` can track pointer
-provenance through arithmetic. When a ternary expression merges two
+Commit message body:
+```
+`Mem2Var._fix_adds` ensures `add` instructions on alloca pointers are
+recognized by `BasePtrAnalysis` so it can track pointer provenance
+through arithmetic. When a ternary expression merges two
 pointer paths via a `phi` node, the `add` sits downstream of the phi
 rather than as a direct use of the alloca — so `_fix_adds` never saw it.
 
@@ -94,9 +103,10 @@ Note: explains the *mechanism* of the bug (why it happened), not just "fixed a c
 
 ### Another Good Example
 
-```
-fix[venom]: treat immutables as global allocations (#4839)
+PR title: `fix[venom]: treat immutables as global allocations`
 
+Commit message body:
+```
 the immutables region (allocated at position 0 during deploy) was not
 reserved across function boundaries. when `ConcretizeMemLocPass` ran for
 internal functions, it started with an empty reserved set, allowing
@@ -122,7 +132,7 @@ Note: first paragraph is pure *why* (the bug mechanism). Second paragraph is a c
 - Fork from `master`
 - Write tests for new features; place them under `tests/`
 - Larger changes: discuss in Discord `#compiler-dev` first
-- PRs are squash-merged — the PR title becomes the commit subject. Keep PR title and commit message title in sync.
+- PRs are squash-merged. See [Format](#format) for how the PR title and "Commit message" section map onto the final commit.
 - Work from your individual fork. PRs target `vyperlang/vyper` upstream:
   ```bash
   gh pr create --repo vyperlang/vyper --base master --head <fork-owner>:<branch>

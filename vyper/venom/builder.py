@@ -4,7 +4,14 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Sequence, Union
 
 from vyper.exceptions import CompilerPanic
-from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import (
+    IRBasicBlock,
+    IRInstruction,
+    IRLabel,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+)
 from vyper.venom.function import IRFunction
 
 if TYPE_CHECKING:
@@ -36,6 +43,13 @@ class VenomBuilder:
     def current_block(self) -> IRBasicBlock:
         """Get current emission target block."""
         return self._current_bb
+
+    def get_last_inst(self, expected: str | None = None) -> IRInstruction:
+        if expected is None:
+            return self._current_bb.instructions[-1]
+        else:
+            assert self._current_bb.instructions[-1].opcode == expected
+            return self._current_bb.instructions[-1]
 
     def create_block(self, suffix: str = "") -> IRBasicBlock:
         """Create new block with auto-generated label. Does NOT switch to it or append it."""
@@ -145,30 +159,28 @@ class VenomBuilder:
         return self._emit1_evm("iszero", a)
 
     # === Memory ===
-    def mload(self, ptr: Operand) -> IRVariable:
+    def mload(self, ptr: IRVariable) -> IRVariable:
         return self._emit1_evm("mload", ptr)
 
-    def mstore(self, ptr: Operand, val: Operand) -> None:
+    def mstore(self, ptr: IRVariable, val: Operand) -> None:
         """Store val at memory[ptr]."""
         self._emit_evm("mstore", ptr, val)
 
-    def mcopy(self, dst: Operand, src: Operand, size: Operand) -> None:
+    def mcopy(self, dst: IRVariable, src: Operand, size: Operand) -> None:
         """Copy size bytes from memory[src] to memory[dst]."""
         self._emit_evm("mcopy", dst, src, size)
 
-    def msize(self) -> IRVariable:
-        return self._emit1_evm("msize")
-
-    def alloca(self, size: int, alloca_id: int) -> IRVariable:
+    def alloca(self, size: int) -> IRVariable:
         """Allocate abstract memory. Returns pointer. (IR-specific)"""
-        return self._emit1("alloca", size, alloca_id)
+        return self._emit1("alloca", size)
 
-    def gep(self, ptr: Operand, offset: Operand) -> IRVariable:
-        """Get element pointer into memory region. (IR-specific)
+    def memtop(self) -> IRVariable:
+        """Get address past all memory (scratch space start).
 
-        Used for accessing elements within abstract memory (e.g., immutables).
+        Lowered to EVM MSIZE at assembly time. Use for untracked scratch
+        buffers above the static frame and any spill slots.
         """
-        return self._emit1("gep", ptr, offset)
+        return self._emit1("memtop")
 
     # === Storage ===
     def sload(self, slot: Operand) -> IRVariable:
@@ -195,6 +207,7 @@ class VenomBuilder:
         elif location == DataLocation.TRANSIENT:
             return self.tload(ptr)
         elif location == DataLocation.MEMORY:
+            assert isinstance(ptr, IRVariable)
             return self.mload(ptr)
         elif location == DataLocation.CALLDATA:
             return self.calldataload(ptr)
@@ -212,6 +225,7 @@ class VenomBuilder:
         elif location == DataLocation.TRANSIENT:
             self.tstore(ptr, val)
         elif location == DataLocation.MEMORY:
+            assert isinstance(ptr, IRVariable)
             self.mstore(ptr, val)
         else:
             raise CompilerPanic(f"Cannot store to location: {location}")
@@ -223,18 +237,23 @@ class VenomBuilder:
         from vyper.semantics.data_locations import DataLocation
 
         if src_location == DataLocation.MEMORY:
+            assert isinstance(src, IRVariable)
             from vyper.evm.opcodes import version_check
 
             if version_check(begin="cancun"):
+                assert isinstance(dst, IRVariable)
                 self.mcopy(dst, src, size)
             else:
                 # Pre-Cancun: use identity precompile (address 4)
                 gas = self.gas()
+                assert isinstance(dst, IRVariable)
                 success = self.staticcall(gas, IRLiteral(4), src, size, dst, size)
                 self.assert_(success)
         elif src_location == DataLocation.CALLDATA:
+            assert isinstance(dst, IRVariable)
             self.calldatacopy(dst, src, size)
         elif src_location == DataLocation.CODE:
+            assert isinstance(dst, IRVariable)
             self.dloadbytes(dst, src, size)
         else:
             raise CompilerPanic(f"Cannot copy from location: {src_location}")
@@ -244,7 +263,7 @@ class VenomBuilder:
         """Load 32 bytes from data section. (IR-specific)"""
         return self._emit1("dload", offset)
 
-    def dloadbytes(self, dst: Operand, src: Operand, size: Operand) -> None:
+    def dloadbytes(self, dst: IRVariable, src: Operand, size: Operand) -> None:
         """Copy size bytes from data section (src) to memory (dst). (IR-specific)"""
         # Use _emit_evm for consistent operand order with codecopy
         # Stored as [size, src, dst] (reversed from semantic order)
@@ -254,7 +273,7 @@ class VenomBuilder:
         """Load from immutable memory region. (IR-specific)"""
         return self._emit1("iload", offset)
 
-    def istore(self, offset: Operand, val: Operand) -> None:
+    def istore(self, offset: IRVariable, val: Operand) -> None:
         """Store val to immutable memory region at offset (deploy-time only). (IR-specific)"""
         self._emit("istore", offset, val)
 
@@ -326,9 +345,9 @@ class VenomBuilder:
         gas: Operand,
         addr: Operand,
         val: Operand,
-        argsptr: Operand,
+        argsptr: IRVariable,
         argsz: Operand,
-        retptr: Operand,
+        retptr: IRVariable,
         retsz: Operand,
     ) -> IRVariable:
         """EVM CALL: call(gas, addr, value, argsOffset, argsSize, retOffset, retSize)."""
@@ -338,9 +357,9 @@ class VenomBuilder:
         self,
         gas: Operand,
         addr: Operand,
-        argsptr: Operand,
+        argsptr: IRVariable,
         argsz: Operand,
-        retptr: Operand,
+        retptr: IRVariable,
         retsz: Operand,
     ) -> IRVariable:
         """EVM STATICCALL: staticcall(gas, addr, argsOffset, argsSize, retOffset, retSize)."""
@@ -350,19 +369,19 @@ class VenomBuilder:
         self,
         gas: Operand,
         addr: Operand,
-        argsptr: Operand,
+        argsptr: IRVariable,
         argsz: Operand,
-        retptr: Operand,
+        retptr: IRVariable,
         retsz: Operand,
     ) -> IRVariable:
         """EVM DELEGATECALL: delegatecall(gas, addr, argsOffset, argsSize, retOffset, retSize)."""
         return self._emit1_evm("delegatecall", gas, addr, argsptr, argsz, retptr, retsz)
 
-    def create(self, val: Operand, offset: Operand, size: Operand) -> IRVariable:
+    def create(self, val: Operand, offset: IRVariable, size: Operand) -> IRVariable:
         """EVM CREATE: create(value, offset, size)."""
         return self._emit1_evm("create", val, offset, size)
 
-    def create2(self, val: Operand, offset: Operand, size: Operand, salt: Operand) -> IRVariable:
+    def create2(self, val: Operand, offset: IRVariable, size: Operand, salt: Operand) -> IRVariable:
         """EVM CREATE2: create2(value, offset, size, salt)."""
         return self._emit1_evm("create2", val, offset, size, salt)
 
@@ -370,24 +389,20 @@ class VenomBuilder:
     def sha3(self, ptr: Operand, size: Operand) -> IRVariable:
         return self._emit1_evm("sha3", ptr, size)
 
-    def sha3_64(self, a: Operand, b: Operand) -> IRVariable:
-        """Hash two 32-byte values (optimized keccak). (IR-specific)"""
-        return self._emit1("sha3_64", a, b)
-
     # === Data Copy ===
-    def calldatacopy(self, dst: Operand, src: Operand, size: Operand) -> None:
+    def calldatacopy(self, dst: IRVariable, src: Operand, size: Operand) -> None:
         """Copy size bytes from calldata[src] to memory[dst]."""
         self._emit_evm("calldatacopy", dst, src, size)
 
-    def codecopy(self, dst: Operand, src: Operand, size: Operand) -> None:
+    def codecopy(self, dst: IRVariable, src: Operand, size: Operand) -> None:
         """Copy size bytes from code[src] to memory[dst]."""
         self._emit_evm("codecopy", dst, src, size)
 
-    def extcodecopy(self, addr: Operand, dst: Operand, src: Operand, size: Operand) -> None:
+    def extcodecopy(self, addr: Operand, dst: IRVariable, src: Operand, size: Operand) -> None:
         """Copy size bytes from addr's code[src] to memory[dst]."""
         self._emit_evm("extcodecopy", addr, dst, src, size)
 
-    def returndatacopy(self, dst: Operand, src: Operand, size: Operand) -> None:
+    def returndatacopy(self, dst: IRVariable, src: Operand, size: Operand) -> None:
         """Copy size bytes from returndata[src] to memory[dst]."""
         self._emit_evm("returndatacopy", dst, src, size)
 
@@ -470,7 +485,7 @@ class VenomBuilder:
         return self._emit1_evm("blobbasefee")
 
     # === Logging ===
-    def log(self, topic_count: int, offset: Operand, size: Operand, *topics: Operand) -> None:
+    def log(self, topic_count: int, offset: IRVariable, size: Operand, *topics: Operand) -> None:
         """Emit log with N topics.
 
         Args:

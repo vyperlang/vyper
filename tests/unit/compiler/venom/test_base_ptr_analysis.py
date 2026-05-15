@@ -9,11 +9,11 @@ from vyper.venom.memory_location import MemoryLocation
 def test_base_ptr_basic():
     code = """
     main:
-        %alloca1 = alloca 1, 256
-        %2 = gep 32, %alloca1
+        %alloca1 = alloca 256
+        %2 = add 32, %alloca1
         %random = mload 123
-        %3 = gep %random, %alloca1
-        %4 = gep 32, %2
+        %3 = add %random, %alloca1
+        %4 = add 32, %2
         stop
     """
 

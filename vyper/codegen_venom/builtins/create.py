@@ -7,6 +7,7 @@ Contract creation built-in functions for Venom IR.
 - create_from_blueprint(target, *ctor_args, value=0, salt=None, raw_args=False,
                         code_offset=3, revert_on_failure=True)
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
@@ -18,7 +19,7 @@ from vyper.ir.compile_ir import assembly_to_evm
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import TupleT
 from vyper.utils import bytes_to_int
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -64,7 +65,9 @@ def _has_kwarg(node: vy_ast.Call, kwarg_name: str) -> bool:
     return any(kw.arg == kwarg_name for kw in node.keywords)
 
 
-def _check_create_result(b, addr: IROperand, revert_on_failure: bool) -> IROperand:
+def _check_create_result(
+    ctx: VenomCodegenContext, b, addr: IROperand, revert_on_failure: bool
+) -> IROperand:
     """Optionally check CREATE/CREATE2 result and revert on failure.
 
     CREATE/CREATE2 return 0 on failure (out of gas or constructor reverts).
@@ -84,8 +87,9 @@ def _check_create_result(b, addr: IROperand, revert_on_failure: bool) -> IROpera
         # Failure path: bubble up revert data
         b.set_block(fail_bb)
         revert_size = b.returndatasize()
-        b.returndatacopy(IRLiteral(0), IRLiteral(0), revert_size)
-        b.revert(IRLiteral(0), revert_size)
+        revert_buffer = ctx.allocate_buffer(0, annotation="create revert on failure buffer")
+        b.returndatacopy(revert_buffer._ptr, IRLiteral(0), revert_size)
+        b.revert(revert_buffer._ptr, revert_size)
 
         # Success path
         b.set_block(exit_bb)
@@ -199,6 +203,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     # This is critical when ctor args might modify the storage location that holds
     # the bytecode (cf. test_raw_create_change_initcode_size).
     if bytecode_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
+        assert bytecode_vv.location is not None
         # Allocate memory buffer and copy from storage/transient
         mem_buf = ctx.new_temporary_value(bytecode_typ)
         ctx.slot_to_memory(
@@ -213,9 +218,11 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         # when evaluating value, salt, or ctor_args expressions
         # (cf. test_raw_create_memory_overlap - e.g. value=arr.pop())
         mem_buf = ctx.new_temporary_value(bytecode_typ)
+        assert isinstance(bytecode_vv.operand, IRVariable)
         bytecode_len_tmp = b.mload(bytecode_vv.operand)
         # Copy length word + data
         copy_size = b.add(bytecode_len_tmp, IRLiteral(32))
+        assert isinstance(mem_buf.operand, IRVariable)
         ctx.copy_memory_dynamic(mem_buf.operand, bytecode_vv.operand, copy_size)
         bytecode = mem_buf.operand
 
@@ -230,6 +237,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         value = IRLiteral(0)
 
     # Get bytecode length and data pointer
+    assert isinstance(bytecode, IRVariable)
     bytecode_len = b.mload(bytecode)
     bytecode_ptr = b.add(bytecode, IRLiteral(32))
 
@@ -240,7 +248,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
             addr = b.create2(value, bytecode_ptr, bytecode_len, salt)
         else:
             addr = b.create(value, bytecode_ptr, bytecode_len)
-        return _check_create_result(b, addr, revert_on_failure)
+        return _check_create_result(ctx, b, addr, revert_on_failure)
 
     # With ctor args: need to ABI-encode and append to bytecode
     # Create tuple type for encoding
@@ -261,10 +269,8 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     ctor_args_val = ctx.new_temporary_value(ctor_tuple_typ)
     offset = 0
     for vv, arg_t in zip(ctor_arg_vvs, ctor_arg_types):
-        if offset == 0:
-            dst = ctor_args_val.operand
-        else:
-            dst = b.add(ctor_args_val.operand, IRLiteral(offset))
+        dst = b.add(ctor_args_val.operand, IRLiteral(offset))
+        assert isinstance(dst, IRVariable)
         ctx.store_vyper_value(vv, dst, arg_t)
         offset += arg_t.memory_bytes_required
 
@@ -282,7 +288,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     else:
         addr = b.create(value, buf._ptr, total_len)
 
-    return _check_create_result(b, addr, revert_on_failure)
+    return _check_create_result(ctx, b, addr, revert_on_failure)
 
 
 def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
@@ -354,7 +360,7 @@ def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -
     else:
         addr = b.create(value, buf._ptr, IRLiteral(buf_len))
 
-    return _check_create_result(b, addr, revert_on_failure)
+    return _check_create_result(ctx, b, addr, revert_on_failure)
 
 
 def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
@@ -385,8 +391,6 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     else:
         value = IRLiteral(0)
 
-    # Evaluate salt BEFORE msize() to ensure any memory allocations
-    # (e.g., from keccak256(_abi_encode(x))) don't overwrite the initcode buffer
     salt: Optional[IROperand] = None
     if salt_node is not None:
         salt = Expr(salt_node, ctx).lower_value()
@@ -411,8 +415,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     shifted_codesize = b.shl(IRLiteral(shl_bits), codesize)
     preamble_with_size = b.or_(IRLiteral(preamble_base), shifted_codesize)
 
-    # Get current memory size as buffer start
-    mem_ofst = b.msize()
+    mem_ofst = ctx.allocate_dyn()
 
     # Store preamble at mem_ofst (will be stored as 32-byte word)
     b.mstore(mem_ofst, preamble_with_size)
@@ -435,7 +438,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     else:
         addr = b.create(value, buf, buf_len)
 
-    return _check_create_result(b, addr, revert_on_failure)
+    return _check_create_result(ctx, b, addr, revert_on_failure)
 
 
 def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
@@ -473,8 +476,6 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     else:
         value = IRLiteral(0)
 
-    # Evaluate salt BEFORE msize() to ensure any memory allocations
-    # (e.g., from keccak256(_abi_encode(x))) don't overwrite the initcode
     salt: Optional[IROperand] = None
     if salt_node is not None:
         salt = Expr(salt_node, ctx).lower_value()
@@ -497,24 +498,21 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     b.assert_(has_code)
 
     # Handle constructor arguments
-    # NOTE: ALL memory allocations (including ABI encoding) MUST happen BEFORE
-    # calling msize(). This ensures msize() returns a value past all alloca buffers.
     args_len: IROperand
     args_ptr: IROperand
 
     if raw_args:
         # raw_args=True: single bytes argument contains raw constructor args
-        if len(ctor_arg_nodes) != 1:
+        if len(ctor_arg_nodes) != 1:  # pragma: nocover
             # This should be caught by type checker, but be defensive
             raise CompilerPanic("raw_args requires exactly 1 bytes argument")
 
         raw_arg_vv = Expr(ctor_arg_nodes[0], ctx).lower()
         raw_arg = ctx.unwrap(raw_arg_vv)  # Copies storage/transient to memory
+        assert isinstance(raw_arg, IRVariable)
         args_len = b.mload(raw_arg)
         args_ptr = b.add(raw_arg, IRLiteral(32))
     elif len(ctor_arg_nodes) > 0:
-        # ABI-encode constructor arguments BEFORE calling msize()
-        # This ensures all alloca buffers are written to before msize() is evaluated
         ctor_arg_types = [arg._metadata["type"] for arg in ctor_arg_nodes]
         ctor_tuple_typ = TupleT(tuple(ctor_arg_types))
         ctor_abi_size = ctor_tuple_typ.abi_type.size_bound()
@@ -527,14 +525,12 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         ctor_args_src = ctx.new_temporary_value(ctor_tuple_typ)
         offset = 0
         for vv, arg_t in zip(ctor_arg_vvs, ctor_arg_types):
-            if offset == 0:
-                dst = ctor_args_src.operand
-            else:
-                dst = b.add(ctor_args_src.operand, IRLiteral(offset))
+            dst = b.add(ctor_args_src.operand, IRLiteral(offset))
+
+            assert isinstance(dst, IRVariable)
             ctx.store_vyper_value(vv, dst, arg_t)
             offset += arg_t.memory_bytes_required
 
-        # ABI encode from ctor_args_src to args_buf (BEFORE msize!)
         args_len = abi_encode_to_buf(ctx, args_buf._ptr, ctor_args_src.operand, ctor_tuple_typ)
         args_ptr = args_buf._ptr
     else:
@@ -542,9 +538,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         args_len = IRLiteral(0)
         args_ptr = IRLiteral(0)
 
-    # Get current memory size as buffer start
-    # This is called AFTER all memory allocations to ensure msize() is past all alloca buffers
-    mem_ofst = b.msize()
+    mem_ofst = ctx.allocate_dyn()
 
     # Copy blueprint code (skipping preamble) to memory
     b.extcodecopy(target, mem_ofst, code_offset, codesize)
@@ -555,10 +549,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         ctx.copy_memory_dynamic(args_dest, args_ptr, args_len)
 
     # Total length = codesize + args_len
-    if isinstance(args_len, IRLiteral) and args_len.value == 0:
-        total_len = codesize
-    else:
-        total_len = b.add(codesize, args_len)
+    total_len = b.add(codesize, args_len)
 
     # Create contract
     if salt is not None:
@@ -566,7 +557,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     else:
         addr = b.create(value, mem_ofst, total_len)
 
-    return _check_create_result(b, addr, revert_on_failure)
+    return _check_create_result(ctx, b, addr, revert_on_failure)
 
 
 HANDLERS = {

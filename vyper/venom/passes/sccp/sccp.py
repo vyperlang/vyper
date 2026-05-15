@@ -186,10 +186,6 @@ class SCCP(IRPass):
             out = self._eval_from_lattice(inst.operands[0])
             self._set_lattice(inst.output, out)
             self._add_ssa_work_items(inst)
-        elif opcode == "gep":
-            out = LatticeEnum.BOTTOM
-            self._set_lattice(inst.output, out)
-            self._add_ssa_work_items(inst)
         elif opcode == "jmp":
             target = self.fn.get_basic_block(inst.operands[0].value)
             self.work_list.append(FlowWorkItem(inst.parent, target))
