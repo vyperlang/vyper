@@ -64,10 +64,11 @@ Make sure you have `uv` installed
 3. Run `uv sync`
 4. Run `source .venv/bin/activate` to activate the virtual environment
 5. Run `vyper --version` to verify the setup
+6. (optional) Run `git config blame.ignoreRevsFile .git-blame-ignore-revs` to improve `git blame`
 
 #### pip
 
-Make sure you have `pip`, `setuptools`, and `pytest` installed
+Make sure you have `pip` (version 25.1 or above), `setuptools`, and `pytest` installed
 
 1. Clone this repo and `cd` into it
 2. Run `git fetch --tags git@github.com:vyperlang/vyper.git` to get the tags necessary for version inference
@@ -76,6 +77,7 @@ Make sure you have `pip`, `setuptools`, and `pytest` installed
 5. Run `make init` to install the main dependencies
 6. Run `make dev-init` to install the dev dependencies
 7. Run `vyper --version` to verify the setup
+6. (optional) Run `git config blame.ignoreRevsFile .git-blame-ignore-revs` to improve `git blame`
 
 ### Commands
 

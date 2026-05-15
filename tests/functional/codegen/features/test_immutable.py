@@ -500,7 +500,7 @@ def __init__(os: OuterStruct, single_dyn: DynArray[uint256, 1]):
         self.val_single_dyn = single_dyn[0]
     """
     struct_val = (123, "0x1234567890123456789012345678901234567890")
-    dyn_array_val = [b"\xAA" * 32, b"\xBB" * 32]
+    dyn_array_val = [b"\xaa" * 32, b"\xbb" * 32]
     outer_struct_val = (struct_val, dyn_array_val)
     single_dyn_val = [777]
 
@@ -509,8 +509,8 @@ def __init__(os: OuterStruct, single_dyn: DynArray[uint256, 1]):
     assert c.val_s_a() == 123
     assert c.val_s_b() == "0x1234567890123456789012345678901234567890"
     assert c.val_d_len() == 2
-    assert c.val_d_0() == b"\xAA" * 32
-    assert c.val_d_1() == b"\xBB" * 32
+    assert c.val_d_0() == b"\xaa" * 32
+    assert c.val_d_1() == b"\xbb" * 32
     assert c.val_single_dyn() == 777
 
     outer_struct_val_empty_dyn = (struct_val, [])

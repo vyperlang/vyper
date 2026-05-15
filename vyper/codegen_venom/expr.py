@@ -4,6 +4,7 @@ Lower Vyper AST expressions to Venom IR.
 This module handles the first stage of expression codegen: converting
 Vyper AST literal and expression nodes into Venom IR operands.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -1301,7 +1302,7 @@ class Expr:
         assert func_name == func_t.name
 
         # Check constancy: can't call mutable internal functions from view/pure contexts
-        if self.ctx.is_constant() and func_t.is_mutable:
+        if self.ctx.is_constant() and func_t.is_modifying:
             raise StateAccessViolation(
                 f"May not call state modifying function "
                 f"'{func_name}' within {self.ctx.pp_constancy()}.",
