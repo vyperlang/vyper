@@ -902,6 +902,7 @@ def test_ellipsis_default_param_outside_interface(decorator):
 def foo(a: uint256 = ...):
     pass
     """
+    expected = "`...` is only allowed as a default value in interfaces and for abstract methods."
 
-    with pytest.raises(InvalidLiteral, match=r"not allowed.*outside of interfaces"):
+    with pytest.raises(InvalidLiteral, match=expected):
         compiler.compile_code(code)

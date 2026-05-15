@@ -19,7 +19,6 @@ from vyper.venom.passes import (
     ConcretizeMemLocPass,
     DeadStoreElimination,
     DFTPass,
-    FixMemLocationsPass,
     InternalReturnCopyForwardingPass,
     LoadElimination,
     LowerDloadPass,
@@ -40,7 +39,6 @@ from vyper.venom.passes import (
 
 # Aggressive optimizations (O3)
 PASSES_O3: List[PassConfig] = [
-    FixMemLocationsPass,
     SimplifyCFGPass,
     MakeSSA,
     PhiEliminationPass,
@@ -70,7 +68,7 @@ PASSES_O3: List[PassConfig] = [
     InternalReturnCopyForwardingPass,
     ReadonlyInvokeArgCopyForwardingPass,
     # run memmerge before LowerDload
-    MemMergePass,
+    (MemMergePass, {"memory_abstract": True}),
     MemoryCopyElisionPass,
     LoadElimination,
     LowerDloadPass,
@@ -83,7 +81,7 @@ PASSES_O3: List[PassConfig] = [
     ConcretizeMemLocPass,
     SCCP,
     SimplifyCFGPass,
-    MemMergePass,
+    (MemMergePass, {"memory_abstract": False}),
     LoadElimination,
     MemoryCopyElisionPass,
     RemoveUnusedVariablesPass,

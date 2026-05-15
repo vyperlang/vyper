@@ -9,7 +9,6 @@ from .common_subexpression_elimination import CSE
 from .concretize_mem_loc import ConcretizeMemLocPass
 from .dead_store_elimination import DeadStoreElimination
 from .dft import DFTPass
-from .fix_mem_locations import FixMemLocationsPass
 from .function_inliner import FunctionInlinerPass
 from .internal_return_copy_forwarding import InternalReturnCopyForwardingPass
 from .literals_codesize import ReduceLiteralsCodesize

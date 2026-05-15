@@ -212,6 +212,7 @@ import math
 def foo() -> decimal:
     return sqrt(2.0)
     """
-    pattern = "The `sqrt` builtin was removed. Instead import module `math` and use `math.sqrt()"
-    with pytest.raises(UnimplementedException, match=pattern):
+    with pytest.raises(UnimplementedException) as e:
         compile_code(code)
+    expected = "The `sqrt` builtin was removed. Instead import module `math` and use `math.sqrt()`"
+    assert e.value.message == expected

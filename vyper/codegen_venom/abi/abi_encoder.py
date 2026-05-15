@@ -8,6 +8,7 @@ The ABI encoding follows the Ethereum ABI spec:
 - Dynamic types (bytes, string, arrays) store an offset in the static section
   and the actual data in a dynamic tail section
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -17,7 +18,7 @@ from vyper.codegen.core import is_tuple_like
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import DArrayT, SArrayT, VyperType, _BytestringT
 from vyper.semantics.types.shortcuts import UINT256_T
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -30,7 +31,7 @@ def _is_complex_type(typ: VyperType) -> bool:
 
 
 def _get_element_ptr(
-    ctx: VenomCodegenContext, parent_ptr: IROperand, key: IROperand, parent_typ: VyperType
+    ctx: VenomCodegenContext, parent_ptr: IROperand, key: IRLiteral, parent_typ: VyperType
 ) -> tuple[IROperand, VyperType]:
     """
     Get pointer to element and its type.
@@ -43,10 +44,7 @@ def _get_element_ptr(
     if is_tuple_like(parent_typ):
         # key is an integer index into tuple/struct
         # Calculate offset: sum of preceding element sizes
-        if isinstance(key, IRLiteral):
-            idx = key.value
-        else:
-            raise CompilerPanic("Dynamic tuple indexing not supported in ABI encode")
+        idx = key.value
 
         items = parent_typ.tuple_items()  # type: ignore[attr-defined]
         offset = 0
@@ -55,14 +53,11 @@ def _get_element_ptr(
                 elem_typ = t
                 break
             offset += t.memory_bytes_required
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"Tuple index {idx} out of range")
 
         elem_ptr: IROperand
-        if offset == 0:
-            elem_ptr = parent_ptr
-        else:
-            elem_ptr = b.add(parent_ptr, IRLiteral(offset))
+        elem_ptr = b.add(parent_ptr, IRLiteral(offset))
         return elem_ptr, elem_typ
 
     elif isinstance(parent_typ, SArrayT):
@@ -70,16 +65,8 @@ def _get_element_ptr(
         elem_typ = parent_typ.value_type
         elem_size = elem_typ.memory_bytes_required
 
-        if isinstance(key, IRLiteral):
-            offset_val = key.value * elem_size
-            if offset_val == 0:
-                sarray_elem_ptr: IROperand = parent_ptr
-            else:
-                sarray_elem_ptr = b.add(parent_ptr, IRLiteral(offset_val))
-        else:
-            # Dynamic index
-            offset_ir = b.mul(key, IRLiteral(elem_size))
-            sarray_elem_ptr = b.add(parent_ptr, offset_ir)
+        offset_val = key.value * elem_size
+        sarray_elem_ptr = b.add(parent_ptr, IRLiteral(offset_val))
         return sarray_elem_ptr, elem_typ
 
     elif isinstance(parent_typ, DArrayT):
@@ -90,22 +77,17 @@ def _get_element_ptr(
         # Skip length word (32 bytes)
         data_ptr = b.add(parent_ptr, IRLiteral(32))
 
-        if isinstance(key, IRLiteral):
-            offset_val = key.value * elem_size
-            if offset_val == 0:
-                darray_elem_ptr: IROperand = data_ptr
-            else:
-                darray_elem_ptr = b.add(data_ptr, IRLiteral(offset_val))
-        else:
-            offset_ir = b.mul(key, IRLiteral(elem_size))
-            darray_elem_ptr = b.add(data_ptr, offset_ir)
+        offset_val = key.value * elem_size
+        darray_elem_ptr = b.add(data_ptr, IRLiteral(offset_val))
         return darray_elem_ptr, elem_typ
 
-    else:
+    else:  # pragma: nocover
         raise CompilerPanic(f"Cannot get element ptr of type {parent_typ}")
 
 
-def _zero_pad(ctx: VenomCodegenContext, bytez_ptr: IROperand) -> None:
+def _zero_pad(
+    ctx: VenomCodegenContext, bytez_ptr: IROperand, length: IROperand, count: IROperand
+) -> None:
     """
     Zero-pad a bytestring according to ABI spec.
 
@@ -114,16 +96,12 @@ def _zero_pad(ctx: VenomCodegenContext, bytez_ptr: IROperand) -> None:
     """
     b = ctx.builder
 
-    # Get length
-    length = b.mload(bytez_ptr)
-
     # dst = bytez_ptr + 32 + length (first byte after data)
     dst = b.add(bytez_ptr, IRLiteral(32))
     dst = b.add(dst, length)
 
-    # For simplicity, write one full 32-byte zero word which handles all cases
-    # since we're allowed to write past the buffer (it will be within ABI bounds)
-    b.mstore(dst, IRLiteral(0))
+    calldatasize = b.calldatasize()
+    b.calldatacopy(dst, calldatasize, count)
 
 
 def _encode_child(
@@ -151,10 +129,8 @@ def _encode_child(
     child_abi_t = child_typ.abi_type
 
     # Calculate static location
-    if static_ofst == 0:
-        static_loc = dst
-    else:
-        static_loc = b.add(dst, IRLiteral(static_ofst))
+    static_loc = b.add(dst, IRLiteral(static_ofst))
+    assert isinstance(static_loc, IRVariable)
 
     if not child_abi_t.is_dynamic():
         # Static type: encode directly at static location
@@ -182,6 +158,7 @@ def _encode_child(
         child_len = _abi_encode_to_buf(ctx, child_dst, child_ptr, child_typ)
 
         # 3. Write static section offset (safe now — child data is already encoded).
+        assert isinstance(static_loc, IRVariable)
         b.mstore(static_loc, dyn_ofst)
 
         # 4. Update dyn_ofst
@@ -191,7 +168,7 @@ def _encode_child(
 
 def _encode_dyn_array(
     ctx: VenomCodegenContext,
-    dst: IROperand,
+    dst: IRVariable,
     src_ptr: IROperand,
     src_typ: DArrayT,
     dyn_ofst_val: VyperValue,
@@ -211,6 +188,7 @@ def _encode_dyn_array(
     static_elem_size = child_abi_t.embedded_static_size()
 
     # Get runtime length
+    assert isinstance(src_ptr, IRVariable)
     length = b.mload(src_ptr)
 
     # Write length word to dst
@@ -296,6 +274,7 @@ def _encode_dyn_array(
     # Update parent dyn_ofst
     # Total size = 32 (length word) + final child_dyn_ofst (or length * static_size for static)
     # Note: need to reload length since we're in a new block
+    assert isinstance(src_ptr, IRVariable)
     length_exit = b.mload(src_ptr)
     if child_abi_t.is_dynamic():
         assert child_dyn_ofst_val is not None
@@ -311,7 +290,7 @@ def _encode_dyn_array(
 
 
 def _abi_encode_to_buf(
-    ctx: VenomCodegenContext, dst: IROperand, src: IROperand, src_typ: VyperType
+    ctx: VenomCodegenContext, dst: IRVariable, src: IROperand, src_typ: VyperType
 ) -> IROperand:
     """
     Encode src to ABI format at dst.
@@ -336,24 +315,18 @@ def _abi_encode_to_buf(
         ctx.copy_memory(dst, src, size)
         return IRLiteral(abi_t.embedded_static_size())
 
-    # Slow path: type-specific encoding
-    if src_typ._is_prim_word:
-        # Primitive word type: direct copy
-        val = b.mload(src)
-        b.mstore(dst, val)
-        return IRLiteral(32)
-
     elif isinstance(src_typ, _BytestringT):
         # Bytes/String: copy and zero-pad
         # Layout: [length][data]
         size = src_typ.memory_bytes_required
         ctx.copy_memory(dst, src, size)
-        _zero_pad(ctx, dst)
         # ABI length = ceil32(32 + actual_length)
         length = b.mload(dst)
-        padded_len = b.add(IRLiteral(32), length)
+        tmp = b.add(IRLiteral(32), length)
         # ceil32: ((x + 31) // 32) * 32 = (x + 31) & ~31
-        padded_len = b.and_(b.add(padded_len, IRLiteral(31)), IRLiteral(~31 & ((1 << 256) - 1)))
+        padded_len = b.and_(b.add(tmp, IRLiteral(31)), IRLiteral(~31 & ((1 << 256) - 1)))
+        count = b.sub(padded_len, tmp)
+        _zero_pad(ctx, dst, length, count)
         return padded_len
 
     elif isinstance(src_typ, DArrayT):
@@ -395,10 +368,7 @@ def _abi_encode_to_buf(
                 _encode_child(ctx, dst, elem_ptr, elem_typ, static_ofst, dyn_ofst_val)
             else:
                 # All static, encode directly
-                if static_ofst == 0:
-                    child_dst = dst
-                else:
-                    child_dst = b.add(dst, IRLiteral(static_ofst))
+                child_dst = b.add(dst, IRLiteral(static_ofst))
                 _abi_encode_to_buf(ctx, child_dst, elem_ptr, elem_typ)
 
             static_ofst += elem_typ.abi_type.embedded_static_size()
@@ -409,12 +379,12 @@ def _abi_encode_to_buf(
         else:
             return IRLiteral(abi_t.embedded_static_size())
 
-    else:
+    else:  # pragma: nocover
         raise CompilerPanic(f"Cannot ABI encode type: {src_typ}")
 
 
 def abi_encode_to_buf(
-    ctx: VenomCodegenContext, dst: IROperand, src: IROperand, src_typ: VyperType
+    ctx: VenomCodegenContext, dst: IRVariable, src: IROperand, src_typ: VyperType
 ) -> IROperand:
     """
     Public entry point for ABI encoding.

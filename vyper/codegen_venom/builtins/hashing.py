@@ -4,6 +4,7 @@ Hashing built-in functions.
 - keccak256(data) - native EVM SHA3 opcode
 - sha256(data) - SHA256 via precompile at address 0x2
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -11,7 +12,7 @@ from typing import TYPE_CHECKING
 from vyper import ast as vy_ast
 from vyper.semantics.types import BytesM_T
 from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -60,6 +61,7 @@ def lower_sha256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     b = ctx.builder
     data_ptr, length = _prepare_hash_input(node, ctx)
+    assert isinstance(data_ptr, IRVariable)
 
     # Allocate output buffer (32 bytes for hash result)
     out_buf = ctx.allocate_buffer(32)
