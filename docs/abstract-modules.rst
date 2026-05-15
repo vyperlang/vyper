@@ -27,7 +27,7 @@ Here is an example:
         self.balances[msg.sender] -= amount
         self.balances[recipient] += amount
 
-The ``base_token`` module defines a transfer hook, ``_before_transfer()``, as an abstract method. It is called during every transfer, but has no implementation — that is left to whoever initializes this module. This lets this module focus on *where* custom logic runs, while the overriding module decide *what* it does.
+The ``base_token`` module defines a transfer hook, ``_before_transfer()``, as an abstract method. It is called during every transfer, but has no implementation — that is left to whoever initializes this module. This lets this module focus on *where* custom logic runs, while the overriding module decides *what* it does.
 
 To supply an implementation, a module imports and ``initializes`` the abstract module, then provides an ``@override`` for each abstract method:
 
@@ -97,7 +97,7 @@ As abstract modules are by essence incomplete, it is necessary for another modul
     initializes: base_token
 
     @override(base_token)
-    def before_transfer(sender: address, recipient: address, amount: uint256):
+    def _before_transfer(sender: address, recipient: address, amount: uint256):
         assert not self.paused, "transfers are paused"
 
 For module M1 to override module M2:
@@ -169,7 +169,7 @@ Since any call to ``base_token._before_transfer`` will be replaced at compile-ti
     import abstract_m
     initializes: abstract_m
 
-    # Invalid: Has looser mutability: nonpayable vs the original which is view
+    # Invalid: Has looser mutability: nonpayable vs the original which is pure
     @nonpayable
     @override(abstract_m)
     def compute(y: uint256) -> uint256:
@@ -190,7 +190,7 @@ However these might prove too restrictive in your use-case, for this reason the 
 - The override may add a default value to a parameter that was mandatory in the abstract method.
 - Each parameter type in the override must be a super-type of the corresponding parameter type in the abstract method.
 - The return type of the override must be a sub-type of the abstract method's return type.
-- The override's :ref:`mutability <function-mutability>` must the same (or stricter) than the abstract's.
+- The override's :ref:`mutability <function-mutability>` must be the same (or stricter) than the abstract's.
 - The override's :ref:`reentrancy <reentrancy>` must match exactly the one of the abstract method.
 
 
@@ -270,7 +270,7 @@ In other words, ``@abstract`` and ``@override`` can co-exist in the same module 
     initializes: base_token
 
     @override(base_token)
-    def before_transfer(sender: address, recipient: address, amount: uint256):
+    def _before_transfer(sender: address, recipient: address, amount: uint256):
         assert self.check_address(sender), "Invalid sender"
         assert self.check_address(recipient), "Invalid recipient"
         assert self.check_cap(amount), "Invalid amount"
@@ -297,7 +297,7 @@ Here ``checked_token.vy`` provides a concrete ``_before_transfer`` for ``base_to
 
     @override(checked_token)
     def check_cap(amount: uint256) -> bool:
-        return 0 < amount <= MAX_AMOUNT
+        return 0 < amount and amount <= MAX_AMOUNT
 
     @override(checked_token)
     def check_address(addr: address) -> bool:
@@ -372,29 +372,29 @@ Note however that the method must be a :ref:`valid override <overriding-abstract
     import my_roles
 
     @abstract
-    def get_role(user: address, default: my_roles.ROLE) -> my_roles.ROLE:
+    def get_role(user: address, default_role: my_roles.ROLE) -> my_roles.ROLE:
         ...
 
 .. code-block:: vyper
 
     import minter
     import authentication_provider
-
+    import my_roles
     initializes: minter
     initializes: authentication_provider
 
     roles: HashMap[address, my_roles.ROLE]
 
-    # By having `default` as an optional parameter, it's a valid override of both
+    # By having `default_role` as an optional parameter, it's a valid override of both
     # `minter.get_role` which does not have that parameter, and
     # `authentication_provider.get_role` which has it as a mandatory parameter
 
     @override(minter)
     @override(authentication_provider)
-    def get_role(user: address, default: my_roles.ROLE = empty(my_roles.ROLE)) -> my_roles.ROLE:
+    def get_role(user: address, default_role: my_roles.ROLE = empty(my_roles.ROLE)) -> my_roles.ROLE:
         role: my_roles.ROLE = self.roles[user]
         if role == empty(my_roles.ROLE):
-            return default
+            return default_role
         return role
 
 
