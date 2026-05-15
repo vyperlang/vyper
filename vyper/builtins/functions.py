@@ -302,11 +302,6 @@ class Slice(BuiltinFunctionT):
         start_expr = node.args[1]
         length_expr = node.args[2].reduced()
 
-        # CMC 2022-03-22 NOTE slight code duplication with semantics/analysis/local
-        is_adhoc_slice = arg.get("attr") == "code" or (
-            arg.get("value.id") == "msg" and arg.get("attr") == "data"
-        )
-
         start_literal = start_expr.value if isinstance(start_expr, vy_ast.Int) else None
         length_literal = length_expr.value if isinstance(length_expr, vy_ast.Int) else None
 
@@ -316,9 +311,7 @@ class Slice(BuiltinFunctionT):
             if length_literal < 1:
                 raise ArgumentException("Length cannot be less than 1", length_expr)
 
-        if not is_adhoc_slice and arg_type.length is not INF and arg_type.length is not WILDCARD:
-            # arg_type.length is only valid when `not is_adhoc_slice`.
-            # and if type is Bytes[INF] or String[INF], no length is out of bounds
+        if arg_type.length is not INF and arg_type.length is not WILDCARD:
 
             if length_literal is not None and length_literal > arg_type.length:
                 raise ArgumentException(f"slice out of bounds for {arg_type}", length_expr)
