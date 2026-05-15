@@ -1,4 +1,5 @@
 import enum
+from typing import TypeAlias, TypeGuard
 
 
 class Inf(enum.Enum):
@@ -29,3 +30,10 @@ class Wildcard(enum.Enum):
 
 
 WILDCARD = Wildcard.WILDCARD
+
+LengthUpperBound: TypeAlias = int | Inf | Wildcard
+
+
+def is_bounded(val: LengthUpperBound) -> TypeGuard[int]:
+    """Return True if val is a concrete int (not INF or WILDCARD)."""
+    return val is not INF and val is not WILDCARD

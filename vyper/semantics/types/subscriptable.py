@@ -5,7 +5,7 @@ from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABITyp
 from vyper.exceptions import ArrayIndexException, CompilerPanic, InvalidType, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.infinity import INF, WILDCARD, Inf, Wildcard
+from vyper.semantics.types.infinity import INF, WILDCARD, LengthUpperBound, is_bounded
 from vyper.semantics.types.primitives import IntegerT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.utils import get_index_value, type_from_annotation
@@ -109,8 +109,8 @@ class _SequenceT(_SubscriptableT):
 
     _is_array_type: bool = True
 
-    def __init__(self, value_type: VyperType, length: int | Inf | Wildcard):
-        if length is not INF and length is not WILDCARD:
+    def __init__(self, value_type: VyperType, length: LengthUpperBound):
+        if is_bounded(length):
             if not 0 < length < 2**256:
                 raise InvalidType("Array length is invalid")
 
@@ -230,7 +230,7 @@ class SArrayT(_SequenceT):
         # note: validates index
         length = get_index_value(node.slice)
 
-        if length is INF or length is WILDCARD:
+        if not is_bounded(length):
             raise InvalidType("Static arrays cannot have unbounded length", node.slice)
 
         return cls(value_type, length)
@@ -248,7 +248,7 @@ class DArrayT(_SequenceT):
 
     _id = "DynArray"  # CMC 2024-03-03 maybe this would be better as repr(self)
 
-    def __init__(self, value_type: VyperType, length: int | Inf | Wildcard) -> None:
+    def __init__(self, value_type: VyperType, length: LengthUpperBound) -> None:
         super().__init__(value_type, length)
 
         from vyper.semantics.types.function import MemberFunctionT

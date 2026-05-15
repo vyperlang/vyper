@@ -13,7 +13,7 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
-from vyper.semantics.types.infinity import INF, WILDCARD, Inf, Wildcard
+from vyper.semantics.types.infinity import INF, WILDCARD, LengthUpperBound
 
 # TODO maybe this should be merged with .types/base.py
 
@@ -176,7 +176,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     return typ_
 
 
-def get_index_value(node: vy_ast.VyperNode) -> int | Inf | Wildcard:
+def get_index_value(node: vy_ast.VyperNode) -> LengthUpperBound:
     """
     Return the literal value for a `Subscript` index.
 

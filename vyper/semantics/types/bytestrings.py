@@ -2,7 +2,7 @@ from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Bytes, ABI_String, ABIType
 from vyper.exceptions import CompilerPanic, StructureException, UnexpectedNodeType, UnexpectedValue
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.infinity import INF, WILDCARD, Inf, Wildcard
+from vyper.semantics.types.infinity import INF, WILDCARD, LengthUpperBound
 from vyper.semantics.types.utils import get_index_value
 from vyper.utils import ceil32
 
@@ -14,7 +14,7 @@ class _BytestringT(VyperType):
 
     Attributes
     ----------
-    _length : int | Inf | Wildcard
+    _length : LengthUpperBound
         The maximum allowable length of the data within the type, where INF represents infinity
         and WILDCARD provides a loophole for interfaces.
     """
@@ -26,7 +26,7 @@ class _BytestringT(VyperType):
     _equality_attrs = ("_length",)
     _is_bytestring: bool = True
 
-    def __init__(self, length: int | Inf | Wildcard) -> None:
+    def __init__(self, length: LengthUpperBound) -> None:
         super().__init__()
 
         self._length = length
@@ -38,7 +38,7 @@ class _BytestringT(VyperType):
         return {"length": self.length}
 
     @property
-    def length(self) -> int | Inf | Wildcard:
+    def length(self) -> LengthUpperBound:
         """
         Property method used to check the length of a type.
         """

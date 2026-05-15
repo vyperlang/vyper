@@ -1,5 +1,5 @@
 from vyper.exceptions import InvalidABIType
-from vyper.semantics.types.infinity import INF, WILDCARD
+from vyper.semantics.types.infinity import is_bounded
 from vyper.utils import ceil32
 
 
@@ -155,7 +155,7 @@ class ABI_StaticArray(ABIType):
 
 class ABI_Bytes(ABIType):
     def __init__(self, bytes_bound):
-        if bytes_bound is not INF and bytes_bound is not WILDCARD and not bytes_bound >= 0:
+        if is_bounded(bytes_bound) and not bytes_bound >= 0:
             raise InvalidABIType("Negative bytes_bound provided to ABI_Bytes")
 
         self.bytes_bound = bytes_bound
@@ -186,7 +186,7 @@ class ABI_String(ABI_Bytes):
 
 class ABI_DynamicArray(ABIType):
     def __init__(self, subtyp, elems_bound):
-        if elems_bound is not INF and elems_bound is not WILDCARD and not elems_bound >= 0:
+        if is_bounded(elems_bound) and not elems_bound >= 0:
             raise InvalidABIType("Negative bound provided to DynamicArray")
 
         self.subtyp = subtyp
