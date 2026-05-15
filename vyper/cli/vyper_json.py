@@ -282,7 +282,7 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
         if not should_output_venom and any(k in outputs for k in VENOM_KEYS):
             selected_venom_keys = [k for k in outputs if k in VENOM_KEYS]
             raise JSONError(
-                f"requested {selected_venom_keys} but experimentalCodegen not selected!"
+                f"requested Venom outputs {selected_venom_keys} but legacyCodegen is enabled"
             )
 
         if path == "*":
@@ -323,10 +323,12 @@ def get_settings(input_dict: dict) -> Settings:
     if experimental_codegen is None:
         experimental_codegen = input_dict["settings"].get("venomExperimental")
     elif input_dict["settings"].get("venomExperimental") is not None:
-        raise JSONError("both experimentalCodegen and venomExperimental cannot be set")
+        raise JSONError(
+            "both deprecated Venom aliases experimentalCodegen and venomExperimental cannot be set"
+        )
 
     if legacy_codegen is not None and experimental_codegen is not None:
-        raise JSONError("both legacy/legacyCodegen and experimentalCodegen cannot be set")
+        raise JSONError("both legacyCodegen and deprecated Venom codegen flags cannot be set")
     if experimental_codegen is not None:
         if legacy_codegen is None:
             legacy_codegen = not experimental_codegen  # invert semantics

@@ -34,7 +34,7 @@ def test_translate_map(output):
         "settings": {"outputSelection": {"foo.vy": [output[0]]}},
     }
     if output[0] in ["cfg", "cfg_runtime"]:
-        with pytest.raises(JSONError, match="experimentalCodegen not selected!"):
+        with pytest.raises(JSONError, match="Venom outputs .* legacyCodegen is enabled"):
             _ = get_output_formats(input_json)
     else:
         assert get_output_formats(input_json) == {PurePath("foo.vy"): [output[1]]}
