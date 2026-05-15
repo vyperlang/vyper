@@ -1765,7 +1765,7 @@ class Expr:
 
             # Store each arg at its position in args_buf
             offset = 0
-            for i, arg_vv in enumerate(arg_vals):
+            for arg_vv in arg_vals:
                 arg_typ = arg_vv.typ
                 dst = b.add(args_val.operand, IRLiteral(offset))
                 self.ctx.store_vyper_value(arg_vv, dst, arg_typ)

@@ -298,7 +298,6 @@ class Slice(BuiltinFunctionT):
 
         # validate start and length are in bounds
 
-        arg = node.args[0]
         start_expr = node.args[1]
         length_expr = node.args[2].reduced()
 

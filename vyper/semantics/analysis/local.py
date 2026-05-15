@@ -976,7 +976,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                 # We should only see special kwargs
                 kwarg_typ = func_type.call_site_kwargs[kwarg.arg].typ
                 self.visit(kwarg.value, kwarg_typ)
-            
+
             if func_type.is_external:
                 return_t = func_type.return_type
                 if return_t is not None and return_t.has_wildcard:
@@ -987,6 +987,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                         # Replace wildcards in the type by INF, since there is no expected type
                         return_t = return_t.resolve_wildcard()
                     # Sanity check
+                    assert func_type.return_type is not None
                     assert return_t.is_subtype_of(func_type.return_type)
                 # TODO: Instead overwrite the normal type metadata ?
                 node._metadata["call_return_type"] = return_t
