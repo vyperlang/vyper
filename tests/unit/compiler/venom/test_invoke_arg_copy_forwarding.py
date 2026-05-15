@@ -1,11 +1,7 @@
 from tests.venom_utils import parse_venom
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLabel, IRVariable
-from vyper.venom.passes import (
-    InternalReturnCopyForwardingPass,
-    ReadonlyInvokeArgCopyForwardingPass,
-    ReadonlyMemoryArgsAnalysisPass,
-)
+from vyper.venom.passes import InternalReturnCopyForwardingPass, ReadonlyInvokeArgCopyForwardingPass
 
 
 def _run_copy_forwarding(src: str, setup=None):
@@ -13,7 +9,6 @@ def _run_copy_forwarding(src: str, setup=None):
     if setup is not None:
         setup(ctx)
     analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
-    ReadonlyMemoryArgsAnalysisPass(analyses, ctx).run_pass()
     for fn in ctx.functions.values():
         InternalReturnCopyForwardingPass(analyses[fn], fn).run_pass()
         ReadonlyInvokeArgCopyForwardingPass(analyses[fn], fn).run_pass()
@@ -79,6 +74,269 @@ def test_readonly_forwarding_still_applies_without_src_clobber():
     invoke = next(inst for inst in insts if inst.opcode == "invoke")
     assert invoke.operands[1] == IRVariable("%src")
     assert all(inst.opcode != "mcopy" for inst in insts)
+
+
+def test_readonly_forwarding_allows_large_staged_arg_without_expensive_callee_frame():
+    src = """
+    function caller {
+    caller:
+        %src = alloca 1056
+        %tmp = alloca 1056
+        mcopy %tmp, %src, 1056
+        invoke @callee, %tmp
+        stop
+    }
+
+    function callee {
+    callee:
+        %arg = param
+        %retpc = param
+        mload %arg
+        ret %retpc
+    }
+    """
+
+    ctx = _run_copy_forwarding(src)
+    caller = ctx.get_function(IRLabel("caller"))
+    insts = [inst for bb in caller.get_basic_blocks() for inst in bb.instructions]
+
+    invoke = next(inst for inst in insts if inst.opcode == "invoke")
+
+    assert invoke.operands[1] == IRVariable("%src")
+    assert all(inst.opcode != "mcopy" for inst in insts)
+
+
+def test_readonly_forwarding_allows_profitable_liveness_extension():
+    src = """
+    function caller {
+    caller:
+        %src = alloca 1088
+        %tmp = alloca 1088
+        %v = mload %src
+        mstore 0, %v
+        mcopy %tmp, %src, 1088
+        invoke @callee, %tmp
+        stop
+    }
+
+    function callee {
+    callee:
+        %arg = param
+        %retpc = param
+        %frame = alloca 1024
+        mload %arg
+        ret %retpc
+    }
+    """
+
+    ctx = _run_copy_forwarding(src)
+    caller = ctx.get_function(IRLabel("caller"))
+    insts = [inst for bb in caller.get_basic_blocks() for inst in bb.instructions]
+
+    invoke = next(inst for inst in insts if inst.opcode == "invoke")
+
+    assert invoke.operands[1] == IRVariable("%src")
+    assert all(inst.opcode != "mcopy" for inst in insts)
+
+
+def test_readonly_forwarding_allows_when_retained_copy_is_not_cheaper():
+    src = """
+    function caller {
+    caller:
+        %cond = param
+        %src = alloca 1056
+        %tmp = alloca 1056
+        %v = mload %src
+        mstore 0, %v
+        jnz %cond, @call, @exit
+    call:
+        mcopy %tmp, %src, 1056
+        invoke @callee, %tmp
+        stop
+    exit:
+        stop
+    }
+
+    function callee {
+    callee:
+        %arg = param
+        %retpc = param
+        %frame = alloca 4096
+        mload %arg
+        ret %retpc
+    }
+    """
+
+    ctx = _run_copy_forwarding(src)
+    caller = ctx.get_function(IRLabel("caller"))
+    insts = [inst for bb in caller.get_basic_blocks() for inst in bb.instructions]
+
+    invoke = next(inst for inst in insts if inst.opcode == "invoke")
+
+    assert invoke.operands[1] == IRVariable("%src")
+    assert all(inst.opcode != "mcopy" for inst in insts)
+
+
+def test_readonly_forwarding_allows_retained_copy_comparison_from_invoke_arg():
+    src = """
+    function caller {
+    caller:
+        %cond = param
+        %src = alloca 1056
+        %tmp = alloca 1056
+        invoke @reader, %src
+        jnz %cond, @call, @exit
+    call:
+        mcopy %tmp, %src, 1056
+        invoke @callee, %tmp
+        stop
+    exit:
+        stop
+    }
+
+    function reader {
+    reader:
+        %arg = param
+        %retpc = param
+        mload %arg
+        ret %retpc
+    }
+
+    function callee {
+    callee:
+        %arg = param
+        %retpc = param
+        %frame = alloca 4096
+        mload %arg
+        ret %retpc
+    }
+    """
+
+    ctx = _run_copy_forwarding(src)
+    caller = ctx.get_function(IRLabel("caller"))
+    insts = [inst for bb in caller.get_basic_blocks() for inst in bb.instructions]
+
+    invoke = next(
+        inst for inst in insts if inst.opcode == "invoke" and inst.operands[0] == IRLabel("callee")
+    )
+
+    assert invoke.operands[1] == IRVariable("%src")
+    assert all(inst.opcode != "mcopy" for inst in insts)
+
+
+def test_readonly_forwarding_rejects_larger_source_liveness_extension():
+    src = """
+    function caller {
+    caller:
+        %cond = param
+        %src = alloca 65536
+        %tmp = alloca 1056
+        %v = mload %src
+        mstore 0, %v
+        jnz %cond, @call, @exit
+    call:
+        mcopy %tmp, %src, 1056
+        invoke @callee, %tmp
+        stop
+    exit:
+        stop
+    }
+
+    function callee {
+    callee:
+        %arg = param
+        %retpc = param
+        %frame = alloca 4096
+        mload %arg
+        ret %retpc
+    }
+    """
+
+    ctx = _run_copy_forwarding(src)
+    caller = ctx.get_function(IRLabel("caller"))
+    insts = [inst for bb in caller.get_basic_blocks() for inst in bb.instructions]
+
+    mcopy = next(inst for inst in insts if inst.opcode == "mcopy")
+    invoke = next(inst for inst in insts if inst.opcode == "invoke")
+
+    assert invoke.operands[1] == mcopy.operands[2]
+
+
+def test_readonly_forwarding_allows_source_liveness_after_invoke():
+    src = """
+    function caller {
+    caller:
+        %cond = param
+        %src = alloca 1056
+        %tmp = alloca 1056
+        %pre = mload %src
+        mstore 0, %pre
+        jnz %cond, @call, @exit
+    call:
+        mcopy %tmp, %src, 1056
+        invoke @callee, %tmp
+        %post = mload %src
+        mstore 0, %post
+        stop
+    exit:
+        stop
+    }
+
+    function callee {
+    callee:
+        %arg = param
+        %retpc = param
+        %frame = alloca 4096
+        mload %arg
+        ret %retpc
+    }
+    """
+
+    ctx = _run_copy_forwarding(src)
+    caller = ctx.get_function(IRLabel("caller"))
+    insts = [inst for bb in caller.get_basic_blocks() for inst in bb.instructions]
+
+    invoke = next(inst for inst in insts if inst.opcode == "invoke")
+
+    assert invoke.operands[1] == IRVariable("%src")
+    assert all(inst.opcode != "mcopy" for inst in insts)
+
+
+def test_readonly_forwarding_rejects_unprofitable_liveness_extension_from_source_write():
+    src = """
+    function caller {
+    caller:
+        %cond = param
+        %src = alloca 1056
+        %tmp = alloca 1056
+        mstore %src, 1
+        jnz %cond, @call, @exit
+    call:
+        mcopy %tmp, %src, 1056
+        invoke @callee, %tmp
+        stop
+    exit:
+        stop
+    }
+
+    function callee {
+    callee:
+        %arg = param
+        %retpc = param
+        %frame = alloca 4096
+        mload %arg
+        ret %retpc
+    }
+    """
+
+    ctx = _run_copy_forwarding(src)
+    caller = ctx.get_function(IRLabel("caller"))
+    insts = [inst for bb in caller.get_basic_blocks() for inst in bb.instructions]
+
+    mcopy = next(inst for inst in insts if inst.opcode == "mcopy")
+    invoke = next(inst for inst in insts if inst.opcode == "invoke")
+
+    assert invoke.operands[1] == mcopy.operands[2]
 
 
 def test_readonly_forwarding_rejects_same_source_mutable_sibling_arg():

@@ -1,17 +1,17 @@
 """
 Simple built-in functions: len, empty, min, max, abs
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Union
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.value import VyperValue
-from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import DArrayT
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -35,9 +35,8 @@ def lower_len(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # For bytes/string/DynArray: length is stored at pointer
     arg_vv = Expr(arg_node, ctx).lower()
-    # Use the location from the VyperValue
-    location = arg_vv.location or DataLocation.MEMORY
-    return ctx.builder.load(arg_vv.operand, location)
+    assert arg_vv.location is not None
+    return ctx.load_word(arg_vv.operand, arg_vv.location)
 
 
 def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand, VyperValue]:
@@ -60,6 +59,7 @@ def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand,
     else:
         # Allocate memory buffer
         val = ctx.new_temporary_value(typ)
+        assert isinstance(val.operand, IRVariable)
 
         # Explicitly zero the memory buffer
         # For bytestrings/dynarrays, just zero the length word (first 32 bytes)
@@ -73,15 +73,10 @@ def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand,
         return val
 
 
-def _zero_memory(ctx: VenomCodegenContext, ptr: IROperand, size: int) -> None:
+def _zero_memory(ctx: VenomCodegenContext, ptr: IRVariable, size: int) -> None:
     """Zero out a memory region by writing zeros word by word."""
     for offset in range(0, size, 32):
-        if offset == 0:
-            dst = ptr
-        elif isinstance(ptr, IRLiteral):
-            dst = IRLiteral(ptr.value + offset)
-        else:
-            dst = ctx.builder.add(ptr, IRLiteral(offset))
+        dst = ctx.builder.add(ptr, IRLiteral(offset))
         ctx.builder.mstore(dst, IRLiteral(0))
 
 

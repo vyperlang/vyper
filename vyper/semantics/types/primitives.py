@@ -440,4 +440,5 @@ class SelfT(AddressT):
 
     def compare_type(self, other):
         # compares true to AddressT
+        # This checks if either is a subtype of the other, which doesn't seem correct
         return isinstance(other, type(self)) or isinstance(self, type(other))

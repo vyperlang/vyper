@@ -424,8 +424,10 @@ class IRInstruction:
     def code_size_cost(self) -> int:
         if self.opcode in ("ret", "param"):
             return 0
-        if self.opcode in ("assign", "palloca", "alloca", "calloca"):
+        if self.opcode in ("assign", "alloca"):
             return 1
+        if self.opcode == "memtop":
+            return 1  # lowers to single MSIZE byte
         return 2
 
     def get_ast_source(self) -> Optional[IRnode]:

@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import itertools
-from typing import Any, Callable, Iterable, List
+from typing import TYPE_CHECKING, Any, Callable, Iterable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
@@ -24,6 +26,9 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
+
+if TYPE_CHECKING:
+    from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.utils import OrderedSet, checksum_encode, int_to_fourbytes
@@ -437,7 +442,7 @@ def _is_empty_list(node):
 
 def _is_type_in_list(obj, types_list):
     # check if a type object is in a list of types
-    return any(i.compare_type(obj) for i in types_list)
+    return any(i.is_equivalent_to(obj) for i in types_list)
 
 
 # NOTE: dead fn
@@ -519,6 +524,8 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
         tmp = []
         for c in common_types:
             for t in new_types:
+                # TODO: This can add either the supertype or the subtype to tmp depending on
+                # the order
                 if t.compare_type(c) or c.compare_type(t):
                     tmp.append(c)
                     break
@@ -596,7 +603,7 @@ def validate_expected_type(node, expected_type):
                 return
     else:
         for given, expected in itertools.product(given_types, expected_type):
-            if expected.compare_type(given):
+            if given.is_subtype_of(expected):
                 return
 
     # validation failed, prepare a meaningful error message
@@ -737,3 +744,73 @@ def validate_kwargs(node: vy_ast.Call, members: dict[str, VyperType], typeclass:
         msg = f"{typeclass} instantiation missing fields:"
         msg += f" {', '.join(list(missing))}"
         raise InstantiationException(msg, node)
+
+
+def resolve_name(node: vy_ast.Name) -> ModuleT | VarInfo | VyperType:
+    """
+    Resolve a Name node to its semantic entity.
+    Module references (ModuleInfo and `self`) are normalized to ModuleT.
+    """
+    info = node.module_node._metadata["namespace"][node.id]
+    if isinstance(info, ModuleInfo):
+        return info.module_t
+
+    # `self` refers to its containing module
+    if isinstance(info, VarInfo) and info.decl_node is None and node.id == "self":
+        return node.module_node._metadata["type"]
+
+    return info
+
+
+def _structurally_equivalent_r(v1: Any, v2: Any) -> bool:
+    if type(v1) is not type(v2):
+        return False
+
+    if isinstance(v1, vy_ast.VyperNode):
+        if isinstance(v1, vy_ast.Name):
+            assert isinstance(v2, vy_ast.Name)
+            info1 = resolve_name(v1)
+            info2 = resolve_name(v2)
+
+            if type(info1) is not type(info2):
+                return False
+
+            if isinstance(info1, VarInfo):
+                # Both built-ins/env-vars
+                if info1.decl_node is None and info2.decl_node is None:
+                    return v1.id == v2.id
+
+                # One built-in/env-var, one user-land
+                if info1.decl_node is None or info2.decl_node is None:
+                    return False
+
+                # Both user-land
+                return info1.decl_node is info2.decl_node
+
+            return info1 is info2
+
+        return all(
+            _structurally_equivalent_r(getattr(v1, field_name, None), getattr(v2, field_name, None))
+            for field_name in v1.get_comparison_fields()
+        )
+
+    if isinstance(v1, list):
+        return len(v1) == len(v2) and all(_structurally_equivalent_r(a, b) for a, b in zip(v1, v2))
+
+    return v1 == v2
+
+
+def structurally_equivalent(node1: vy_ast.VyperNode, node2: vy_ast.VyperNode) -> bool:
+    """
+    Two nodes are structurally equivalent if they have the same structure and
+    their identifiers point to the same things.
+
+    For example "self.foo" can be structurally equivalent to "other_module.foo"
+    if the latter comes from a module which imports the former's module as
+    other_module.
+
+    However, "1 + 1" is not structurally equivalent to "2", as they do not have
+    the same structure.
+    """
+
+    return _structurally_equivalent_r(node1, node2)

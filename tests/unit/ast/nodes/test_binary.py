@@ -6,18 +6,14 @@ from vyper.exceptions import SyntaxException
 
 
 def test_binary_becomes_bytes():
-    expected = vy_ast.parse_to_ast(
-        """
+    expected = vy_ast.parse_to_ast("""
 def x():
     foo: Bytes[1] = b'\x01'
-    """
-    )
-    mutated = vy_ast.parse_to_ast(
-        """
+    """)
+    mutated = vy_ast.parse_to_ast("""
 def x():
     foo: Bytes[1] = 0b00000001
-    """
-    )
+    """)
 
     assert deepequals(expected, mutated)
 

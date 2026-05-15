@@ -39,29 +39,23 @@ for opcode in ("call", "create", "staticcall", "delegatecall", "create2"):
 
 # flag bitwise operations are somehow a perf bottleneck, cache them
 @lru_cache
-def _get_read_effects(opcode, ignore_msize):
-    ret = effects.reads.get(opcode, effects.EMPTY)
-    if ignore_msize:
-        ret &= ~Effects.MSIZE
-    return ret
+def _get_read_effects(opcode):
+    return effects.reads.get(opcode, effects.EMPTY)
 
 
 @lru_cache
-def _get_write_effects(opcode, ignore_msize):
-    ret = effects.writes.get(opcode, effects.EMPTY)
-    if ignore_msize:
-        ret &= ~Effects.MSIZE
-    return ret
+def _get_write_effects(opcode):
+    return effects.writes.get(opcode, effects.EMPTY)
 
 
 @lru_cache
-def _get_overlap_effects(opcode, ignore_msize):
-    return _get_read_effects(opcode, ignore_msize) & _get_write_effects(opcode, ignore_msize)
+def _get_overlap_effects(opcode):
+    return _get_read_effects(opcode) & _get_write_effects(opcode)
 
 
 @lru_cache
-def _get_effects(opcode, ignore_msize):
-    return _get_read_effects(opcode, ignore_msize) | _get_write_effects(opcode, ignore_msize)
+def _get_effects(opcode):
+    return _get_read_effects(opcode) | _get_write_effects(opcode)
 
 
 @dataclass
@@ -173,12 +167,12 @@ class _AvailableExpressions:
             mt[expr].append(src_inst)
             self.exprs = mt.finish()
 
-    def remove_effect(self, effect: Effects, ignore_msize):
+    def remove_effect(self, effect: Effects):
         if effect == effects.EMPTY:
             return
         to_remove = set()
         for expr in self.exprs.keys():
-            op_effect = _get_effects(expr.opcode, ignore_msize)
+            op_effect = _get_effects(expr.opcode)
             if op_effect & effect != effects.EMPTY:
                 to_remove.add(expr)
 
@@ -240,8 +234,6 @@ class AvailableExpressionAnalysis(IRAnalysis):
     bb_ins: dict[IRBasicBlock, _AvailableExpressions]
     bb_outs: dict[IRBasicBlock, _AvailableExpressions]
 
-    ignore_msize: bool
-
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
@@ -252,8 +244,6 @@ class AvailableExpressionAnalysis(IRAnalysis):
         self.bb_ins = dict()
         self.bb_outs = dict()
 
-        self.ignore_msize = not self._contains_msize()
-
     def analyze(self):
         worklist = deque()
         worklist.append(self.function.entry)
@@ -261,17 +251,6 @@ class AvailableExpressionAnalysis(IRAnalysis):
             bb: IRBasicBlock = worklist.popleft()
             if self._handle_bb(bb):
                 worklist.extend(self.cfg.cfg_out(bb))
-
-    # msize effect should be only necessery
-    # to be handled when there is a possibility
-    # of msize read otherwise it should not make difference
-    # for this analysis
-    def _contains_msize(self) -> bool:
-        for bb in self.function.get_basic_blocks():
-            for inst in bb.instructions:
-                if inst.opcode == "msize":
-                    return True
-        return False
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
         preds = self.cfg.cfg_in(bb)
@@ -304,8 +283,8 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
             self._update_expr(inst, expr)
 
-            write_effects = _get_write_effects(expr.opcode, self.ignore_msize)
-            available_exprs.remove_effect(write_effects, self.ignore_msize)
+            write_effects = _get_write_effects(expr.opcode)
+            available_exprs.remove_effect(write_effects)
 
             # nonidempotent instructions affect other instructions,
             # but since it cannot be substituted it should not be
@@ -313,7 +292,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
             if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
                 continue
 
-            expr_effects = _get_overlap_effects(expr.opcode, self.ignore_msize)
+            expr_effects = _get_overlap_effects(expr.opcode)
             if expr_effects == effects.EMPTY:
                 available_exprs.add(expr, inst)
 

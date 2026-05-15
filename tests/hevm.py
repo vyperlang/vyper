@@ -5,8 +5,8 @@ import pytest
 
 from tests.venom_utils import parse_from_basic_block
 from vyper.ir.compile_ir import assembly_to_evm
-from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.analysis.fcg import FCGAnalysis
+from vyper.venom.analysis import IRAnalysesCache, IRGlobalAnalysesCache
+from vyper.venom.analysis.fcg import FCGGlobalAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLiteral
 from vyper.venom.passes import (
     CFGNormalization,
@@ -41,21 +41,26 @@ class _FunctionVisitor:
 
 def _prep_hevm_venom_ctx(ctx, verbose=False):
     visitor = _FunctionVisitor()
-    _prep_hevm_venom_fn(ctx.entry_function, visitor)
+
+    ir_analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
+    ctx.global_analyses_cache = IRGlobalAnalysesCache(ctx, ir_analyses)
+    fcg = ctx.global_analyses_cache.force_analysis(FCGGlobalAnalysis)
+
+    _prep_hevm_venom_fn(fn=ctx.entry_function, fcg=fcg, ir_analyses=ir_analyses, visitor=visitor)
 
     compiler = VenomCompiler(ctx)
     asm = compiler.generate_evm_assembly(no_optimize=False)
     return assembly_to_evm(asm)[0].hex()
 
 
-def _prep_hevm_venom_fn(fn, visitor):
-    ac = IRAnalysesCache(fn)
-    fcg = ac.force_analysis(FCGAnalysis)
+def _prep_hevm_venom_fn(fn, fcg, ir_analyses, visitor):
     if fn in visitor.visited:
         return
     visitor.visited.add(fn)
     for next_fn in fcg.get_callees(fn):
-        _prep_hevm_venom_fn(next_fn, visitor)
+        _prep_hevm_venom_fn(next_fn, fcg, ir_analyses, visitor)
+
+    ac = ir_analyses[fn]
 
     for bb in fn.get_basic_blocks():
         for inst in bb.instructions:

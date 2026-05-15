@@ -44,7 +44,7 @@ class VolatilePrePostChecker(PrePostChecker):
                 volatile_loc = MemoryLocation(offset=address, size=size, _is_volatile=True)
                 mem_ssa.mark_location_volatile(volatile_loc)
 
-            for p in self.passes:
+            for p, _ in self.passes:
                 obj = p(ac, fn)
                 self.pass_objects.append(obj)
                 obj.run_pass(self.addr_space)
@@ -253,7 +253,7 @@ def test_dead_store_memory_copy():
 def test_codecopy_not_dead_when_read_via_iload_and_different_alloca():
     pre = """
         _global:
-            %a = alloca 1, 32
+            %a = alloca 32
             %b = alloca 32
             codecopy %a, 0, 32
             %v = iload %b

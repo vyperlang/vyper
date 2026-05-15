@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from vyper.venom.basicblock import IRInstruction, IRVariable
+from vyper.venom.memory_location import Allocation
 from vyper.venom.passes.invoke_copy_forwarding_common import InvokeCopyForwardingBase
 
 
@@ -8,7 +9,7 @@ class ReadonlyInvokeArgCopyForwardingPass(InvokeCopyForwardingBase):
     """
     Forward staged memory args into readonly invoke parameters:
 
-      %tmp = alloca/calloca ...
+      %tmp = alloca ...
       mcopy %tmp, %src, ...
       invoke @callee, ..., %tmp, ...
 
@@ -42,8 +43,9 @@ class ReadonlyInvokeArgCopyForwardingPass(InvokeCopyForwardingBase):
 
         root = self._assign_root_var(dst)
         root_inst = self.dfg.get_producing_instruction(root)
-        if root_inst is None or root_inst.opcode not in ("alloca", "calloca"):
+        if root_inst is None or root_inst.opcode != "alloca":
             return False
+        dst_alloca = Allocation(root_inst)
 
         aliases = self._collect_assign_aliases(root)
         rewrite_sites: set[tuple[IRInstruction, int]] = set()
@@ -61,6 +63,9 @@ class ReadonlyInvokeArgCopyForwardingPass(InvokeCopyForwardingBase):
             return False
 
         if len(rewrite_sites) == 0:
+            return False
+
+        if self.copy_forwarding.should_block_forwarding(copy_inst, rewrite_sites, dst_alloca):
             return False
 
         # Keep this local and conservative: only forward when all uses are

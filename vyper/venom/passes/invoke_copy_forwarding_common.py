@@ -11,9 +11,11 @@ from vyper.venom.analysis import (
     LivenessAnalysis,
     MemoryAliasAnalysis,
 )
+from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.effects import EMPTY, Effects
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.copy_forwarding import CopyForwardingPolicy
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
 
@@ -27,6 +29,8 @@ class InvokeCopyForwardingBase(IRPass):
     base_ptr: BasePtrAnalysis
     mem_alias: MemoryAliasAnalysis
     updater: InstUpdater
+    readonly_memory_args: ReadonlyMemoryArgsGlobalAnalysis
+    copy_forwarding: CopyForwardingPolicy
 
     def _prepare(self) -> None:
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -34,6 +38,14 @@ class InvokeCopyForwardingBase(IRPass):
         self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.mem_alias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
         self.updater = InstUpdater(self.dfg)
+        self.copy_forwarding = CopyForwardingPolicy(
+            self.function, self.dfg, self.base_ptr, self.mem_alias
+        )
+        # force (not request): recompute after prior optimizations may have
+        # eliminated writes, allowing more parameters to be classified readonly
+        self.readonly_memory_args = self.analyses_cache.force_analysis(
+            ReadonlyMemoryArgsGlobalAnalysis
+        )
 
     def _finish(self, changed: bool) -> None:
         if changed:
@@ -64,7 +76,7 @@ class InvokeCopyForwardingBase(IRPass):
         return callee._has_memory_return_buffer_param
 
     def _is_alloca_like(self, inst: IRInstruction | None) -> bool:
-        return inst is not None and inst.opcode in ("alloca", "calloca")
+        return inst is not None and inst.opcode == "alloca"
 
     def _matches_alloca_size(self, inst: IRInstruction, expected_size: int) -> bool:
         size = inst.operands[0]
@@ -78,7 +90,7 @@ class InvokeCopyForwardingBase(IRPass):
         if callee is None:
             return False
 
-        readonly_idxs = callee._readonly_memory_invoke_arg_idxs
+        readonly_idxs = self.readonly_memory_args.get_readonly_invoke_arg_idxs(callee)
         return (operand_idx - 1) in readonly_idxs
 
     def _get_invoke_callee(self, invoke_inst: IRInstruction):

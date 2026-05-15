@@ -518,6 +518,18 @@ def do_slice():
     assert slice(s, 1, 2) == "22"
     """,
     """
+@external
+def do_slice():
+    x: uint256 = max_value(uint256)
+    # y == 0x3232323232323232323232323232323232323232323232323232323232323232
+    y: uint256 = 22704331223003175573249212746801550559464702875615796870481879217237868556850
+    z: uint96 = 1
+    if True:
+        placeholder : uint256[16] = [y, y, y, y, y, y, y, y, y, y, y, y, y, y, y, y]
+    s: String[32] = slice(uint2str(z), 0, x)
+    assert slice(s, 1, 2) == "22"
+    """,
+    """
 x: public(Bytes[64])
 secret: uint256
 
