@@ -25,6 +25,12 @@ class CopyForwardingPolicy:
     # the one-byte MCOPY opcode from deployed bytecode.
     CODE_DEPOSIT_GAS_PER_BYTE: int = 200
     MIN_ELIDED_MCOPY_BYTES: int = 1
+    # When the copy source can't be resolved to an alloca, only block
+    # forwarding for catastrophic memory-expansion penalties (millions of
+    # gas, e.g. ABI-encode buffers of dynamic-array args). Moderate
+    # penalties (a few KB of frame growth) can still be outweighed by the
+    # forwarding win across many invocations.
+    UNRESOLVED_SOURCE_PENALTY_THRESHOLD: int = 1_000_000
 
     function: IRFunction
     dfg: DFGAnalysis
@@ -78,7 +84,28 @@ class CopyForwardingPolicy:
         dst_alloca: Allocation,
     ) -> bool:
         src_alloca = self._copy_source_alloca(copy_inst)
+
+        copy_size = self.copy_size(copy_inst)
+        if copy_size is None:
+            copy_size = dst_alloca.alloca_size
+
         if src_alloca is None:
+            # Source can't be resolved to an alloca — typically a function
+            # `param`. After inlining the param will resolve to a caller
+            # alloca whose write history is invisible here. If forwarding
+            # would extend that future liveness across a callee whose
+            # transitive frame would force the source to a catastrophic
+            # high address, the quadratic memory-expansion gas can dwarf
+            # any forwarding win. Use a high absolute penalty threshold
+            # so small-frame forwardings still win (~hundreds of gas) but
+            # ABI-encode-buffer-scale frames (megabytes → millions of gas)
+            # are caught.
+            for invoke_inst, _ in rewrite_sites:
+                penalty = self._memory_expansion_penalty_across_callee(invoke_inst, copy_size)
+                if penalty is None:
+                    continue
+                if penalty > self.UNRESOLVED_SOURCE_PENALTY_THRESHOLD:
+                    return True
             return False
 
         has_read_access, has_write_access = self._alloca_has_accesses_that_can_skip_copy(
@@ -86,10 +113,6 @@ class CopyForwardingPolicy:
         )
         if not has_read_access and not has_write_access:
             return False
-
-        copy_size = self.copy_size(copy_inst)
-        if copy_size is None:
-            copy_size = dst_alloca.alloca_size
 
         for invoke_inst, _ in rewrite_sites:
             if self._alloca_has_read_after(src_alloca, invoke_inst):
@@ -285,18 +308,45 @@ class CopyForwardingPolicy:
                 if alloca in allocator.allocated
             ]
 
+        # Allocator hasn't run yet (first, pre-inline forwarding pass).
+        # Walk transitive callees to estimate the frame footprint —
+        # local-only would miss deep ABI-encode buffers and the cost
+        # check would let through forwardings that become quadratic
+        # memory-expansion bombs after inlining.
         intervals: list[tuple[int, int]] = []
         ptr = 0
-        for bb in callee.get_basic_blocks():
-            for inst in bb.instructions:
-                if inst.opcode != "alloca":
-                    continue
-                size = inst.operands[0]
-                assert isinstance(size, IRLiteral)
-                intervals.append((ptr, size.value))
-                ptr += size.value
+        for alloca_size in self._collect_transitive_alloca_sizes(callee):
+            intervals.append((ptr, alloca_size))
+            ptr += alloca_size
 
         return intervals
+
+    def _collect_transitive_alloca_sizes(self, callee: IRFunction) -> list[int]:
+        sizes: list[int] = []
+        visited: set[IRFunction] = set()
+        stack: list[IRFunction] = [callee]
+        while len(stack) > 0:
+            fn = stack.pop()
+            if fn in visited:
+                continue
+            visited.add(fn)
+            for bb in fn.get_basic_blocks():
+                for inst in bb.instructions:
+                    if inst.opcode == "alloca":
+                        size_op = inst.operands[0]
+                        assert isinstance(size_op, IRLiteral)
+                        sizes.append(size_op.value)
+                        continue
+                    if inst.opcode != "invoke":
+                        continue
+                    target = inst.operands[0]
+                    if not isinstance(target, IRLabel):
+                        continue
+                    sub_callee = self.function.ctx.functions.get(target)
+                    if sub_callee is None:
+                        continue
+                    stack.append(sub_callee)
+        return sizes
 
     def _get_invoke_callee(self, invoke_inst: IRInstruction) -> IRFunction:
         target = invoke_inst.operands[0]
