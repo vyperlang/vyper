@@ -233,6 +233,77 @@ def test_readonly_forwarding_allows_retained_copy_comparison_from_invoke_arg():
     assert all(inst.opcode != "mcopy" for inst in insts)
 
 
+def test_readonly_forwarding_rejects_param_source_with_huge_callee_frame():
+    # Source is a function param (unresolved alloca). The callee transitively
+    # holds two ABI-encode-scale buffers (totaling >8MB) — after inlining the
+    # param could resolve to a small caller alloca that gets forced to a high
+    # address by the conflict graph, producing a quadratic memory-expansion
+    # gas bomb. Forwarding must bail out.
+    src = """
+    function caller {
+    caller:
+        %arg = param
+        %retpc = param
+        %tmp = alloca 4128
+        mcopy %tmp, %arg, 4128
+        invoke @callee, %tmp
+        ret %retpc
+    }
+
+    function callee {
+    callee:
+        %a = param
+        %retpc = param
+        %buf1 = alloca 4195552
+        %buf2 = alloca 4195424
+        mload %a
+        ret %retpc
+    }
+    """
+
+    ctx = _run_copy_forwarding(src)
+    caller = ctx.get_function(IRLabel("caller"))
+    insts = [inst for bb in caller.get_basic_blocks() for inst in bb.instructions]
+
+    mcopy = next(inst for inst in insts if inst.opcode == "mcopy")
+    invoke = next(inst for inst in insts if inst.opcode == "invoke")
+
+    assert invoke.operands[1] == mcopy.operands[2]
+
+
+def test_readonly_forwarding_allows_param_source_with_small_callee_frame():
+    # Source is a function param but the callee's transitive frame is tiny —
+    # any post-inlining placement is cheap, so forwarding wins.
+    src = """
+    function caller {
+    caller:
+        %arg = param
+        %retpc = param
+        %tmp = alloca 1056
+        mcopy %tmp, %arg, 1056
+        invoke @callee, %tmp
+        ret %retpc
+    }
+
+    function callee {
+    callee:
+        %a = param
+        %retpc = param
+        %frame = alloca 64
+        mload %a
+        ret %retpc
+    }
+    """
+
+    ctx = _run_copy_forwarding(src)
+    caller = ctx.get_function(IRLabel("caller"))
+    insts = [inst for bb in caller.get_basic_blocks() for inst in bb.instructions]
+
+    invoke = next(inst for inst in insts if inst.opcode == "invoke")
+    assert invoke.operands[1] == IRVariable("%arg")
+    assert all(inst.opcode != "mcopy" for inst in insts)
+
+
 def test_readonly_forwarding_rejects_larger_source_liveness_extension():
     src = """
     function caller {
