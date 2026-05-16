@@ -53,13 +53,11 @@ def _run_cse(pre: str):
 def test_dalloca_has_no_memory_effects():
     # `dalloca` is high-level sugar; it has no memory effects and is
     # lowered away before any effect-sensitive pass runs.
-    ctx = parse_from_basic_block(
-        """
+    ctx = parse_from_basic_block("""
         main:
             %p, %p_mark = dalloca 32
             sink %p
-        """
-    )
+        """)
     fn = next(iter(ctx.functions.values()))
     inst = fn.entry.instructions[0]
 
@@ -71,14 +69,12 @@ def test_bump_has_no_memory_effects():
     # `bump` is pure arithmetic — no memory effects.
     # Textual convention: textual leftmost is TOS. For output (a, a+b)
     # with stack `[a, b]` (b TOS), the textual form is `bump b, a`.
-    ctx = parse_from_basic_block(
-        """
+    ctx = parse_from_basic_block("""
         main:
             %fmp = calldatasize
             %p, %new_fmp = bump 32, %fmp
             sink %p, %new_fmp
-        """
-    )
+        """)
     fn = next(iter(ctx.functions.values()))
     inst = fn.entry.instructions[1]
 
@@ -92,15 +88,13 @@ def test_cse_does_not_merge_repeated_bump():
     # practice, but even if they matched textually, they must not be
     # merged). CSE excludes multi-output instructions; the non-idempotent
     # flag is the additional belt-and-suspenders guard.
-    ctx = _run_cse(
-        """
+    ctx = _run_cse("""
         main:
             %fmp = calldatasize
             %a, %f1 = bump 32, %fmp
             %b, %f2 = bump 32, %fmp
             sink %a, %b, %f1, %f2
-        """
-    )
+        """)
     fn = next(iter(ctx.functions.values()))
     bumps = [
         inst for bb in fn.get_basic_blocks() for inst in bb.instructions if inst.opcode == "bump"
@@ -112,14 +106,12 @@ def test_cse_does_not_merge_repeated_bump():
 def test_dalloca_does_not_crash_memory_dse():
     # Pre-lowering: DSE sees `dalloca` with no effects and must not
     # crash on it (even though the shape is meaningless).
-    ctx = parse_from_basic_block(
-        """
+    ctx = parse_from_basic_block("""
         main:
             %p, %p_mark = dalloca 32
             mstore %p, 1
             stop
-        """
-    )
+        """)
     fn = next(iter(ctx.functions.values()))
 
     DeadStoreElimination(IRAnalysesCache(fn), fn).run_pass(addr_space=MEMORY)
@@ -235,8 +227,7 @@ def test_dalloca_allows_stack_spills():
     # This test exercises a function with many live vars across a
     # dalloca to force the spiller to kick in. In the previous design
     # this would raise `CompilerPanic("Stack spilling is disabled ...")`.
-    ctx = parse_venom(
-        """
+    ctx = parse_venom("""
         function spill_demo {
             main:
                 %v0 = mload 0
@@ -275,8 +266,7 @@ def test_dalloca_allows_stack_spills():
                 dfree %dyn_mark
                 return 0, 32
         }
-        """
-    )
+        """)
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
     DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
@@ -357,8 +347,7 @@ def test_dalloca_is_fully_lowered():
     # inner pair rewires to the current threaded FMP and the outer
     # restore becomes `assign mark -> fmp`. Result: one bump and no raw
     # dalloca/dfree left in the IR.
-    ctx = parse_from_basic_block(
-        """
+    ctx = parse_from_basic_block("""
         main:
             %size = calldatasize
             %a, %a_mark = dalloca %size
@@ -367,8 +356,7 @@ def test_dalloca_is_fully_lowered():
             dfree %b_mark
             dfree %a_mark
             stop
-        """
-    )
+        """)
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
     DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
@@ -381,15 +369,13 @@ def test_dalloca_is_fully_lowered():
 
 
 def test_dalloca_alignment_mask_uses_small_literal():
-    ctx = parse_from_basic_block(
-        """
+    ctx = parse_from_basic_block("""
         main:
             %size = calldatasize
             %p, %mark = dalloca %size
             mstore %p, 1
             stop
-        """
-    )
+        """)
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
     DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
@@ -403,15 +389,13 @@ def test_dalloca_alignment_mask_uses_small_literal():
 
 
 def test_dalloca_lowering_invalidates_stale_analyses():
-    ctx = parse_from_basic_block(
-        """
+    ctx = parse_from_basic_block("""
         main:
             %size = calldatasize
             %p, %mark = dalloca %size
             mstore %p, 1
             stop
-        """
-    )
+        """)
     fn = next(iter(ctx.functions.values()))
     ac = IRAnalysesCache(fn)
 
@@ -436,16 +420,14 @@ def test_dalloca_reaching_codegen_panics():
     # Codegen guards against a misconfigured pipeline: if DallocaLoweringPass
     # did not run, any surviving `dalloca` must panic rather than silently
     # produce wrong bytecode.
-    ctx = parse_venom(
-        """
+    ctx = parse_venom("""
         function main {
             main:
                 %p, %p_mark = dalloca 32
                 mstore 0, %p
                 return 0, 32
         }
-        """
-    )
+        """)
     with pytest.raises(CompilerPanic, match="dalloca reached codegen"):
         VenomCompiler(ctx).generate_evm_assembly()
 
@@ -571,8 +553,7 @@ def test_inlining_cleanup_removes_dead_entry_fmp_plumbing():
 
 
 def test_dead_hidden_fmp_pruning_deduplicates_join_users():
-    ctx = parse_venom(
-        """
+    ctx = parse_venom("""
         function main {
             main:
                 %fmp = param
@@ -592,8 +573,7 @@ def test_dead_hidden_fmp_pruning_deduplicates_join_users():
                 %merged_fmp = phi @left, %left_fmp, @right, %right_fmp
                 ret %retpc
         }
-        """
-    )
+        """)
     fn = ctx.get_function(IRLabel("main"))
     fn._needs_fmp = True
 
@@ -609,8 +589,7 @@ def test_dead_hidden_fmp_pruning_deduplicates_join_users():
 
 
 def test_dead_hidden_fmp_pruning_handles_loop_carried_chain():
-    ctx = parse_venom(
-        """
+    ctx = parse_venom("""
         function main {
             main:
                 %fmp = param
@@ -626,8 +605,7 @@ def test_dead_hidden_fmp_pruning_handles_loop_carried_chain():
             exit:
                 ret %retpc
         }
-        """
-    )
+        """)
     fn = ctx.get_function(IRLabel("main"))
     fn._needs_fmp = True
 
@@ -643,8 +621,7 @@ def test_dead_hidden_fmp_pruning_handles_loop_carried_chain():
 
 
 def test_stale_fmp_arg_cleanup_removes_only_hidden_fmp_alias():
-    ctx = parse_venom(
-        """
+    ctx = parse_venom("""
         function main {
             main:
                 %fmp = param
@@ -657,8 +634,7 @@ def test_stale_fmp_arg_cleanup_removes_only_hidden_fmp_alias():
                 %retpc = param
                 ret %retpc
         }
-        """
-    )
+        """)
     main = ctx.get_function(IRLabel("main"))
     main._needs_fmp = True
 
@@ -675,8 +651,7 @@ def test_stale_fmp_arg_cleanup_removes_only_hidden_fmp_alias():
 
 
 def test_stale_fmp_arg_cleanup_keeps_non_fmp_extra_operand():
-    ctx = parse_venom(
-        """
+    ctx = parse_venom("""
         function main {
             main:
                 %fmp = param
@@ -690,8 +665,7 @@ def test_stale_fmp_arg_cleanup_keeps_non_fmp_extra_operand():
                 %retpc = param
                 ret %retpc
         }
-        """
-    )
+        """)
     main = ctx.get_function(IRLabel("main"))
     main._needs_fmp = True
 
@@ -707,8 +681,7 @@ def test_stale_fmp_arg_cleanup_keeps_non_fmp_extra_operand():
 
 
 def test_dalloca_threads_hidden_fmp_at_tail_of_call_layout():
-    ctx = parse_venom(
-        """
+    ctx = parse_venom("""
         function main {
             main:
                 %arg = alloca 32
@@ -724,8 +697,7 @@ def test_dalloca_threads_hidden_fmp_at_tail_of_call_layout():
                 dfree %mark
                 ret %retpc
         }
-        """
-    )
+        """)
     fns = list(ctx.functions.values())
     for fn in reversed(fns):
         DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
@@ -951,8 +923,7 @@ def test_bump_direct_emission():
     # runs MakeSSA (not strictly needed since this is already SSA), and
     # compiles to bytecode. Verifies that the `bump` primitive works
     # standalone. Textual `bump b, a` -> outputs (a, a+b).
-    ctx = parse_venom(
-        """
+    ctx = parse_venom("""
         function main {
             main:
                 %fmp_init = calldatasize
@@ -962,8 +933,7 @@ def test_bump_direct_emission():
                 mstore 32, %p2
                 return 0, 64
         }
-        """
-    )
+        """)
     fn = next(iter(ctx.functions.values()))
     ac = IRAnalysesCache(fn)
     MakeSSA(ac, fn).run_pass()
@@ -1043,15 +1013,13 @@ def test_dfree_initial_fmp_fast_path():
     # Entry leaf function with a paired dalloca/dfree and no invokes takes
     # the initial_fmp fast path. The dalloca mark is materialized as an
     # assign from the pointer, and dfree is dropped.
-    ctx = parse_from_basic_block(
-        """
+    ctx = parse_from_basic_block("""
         main:
             %p, %mark = dalloca 32
             mstore %p, 7
             dfree %mark
             stop
-        """
-    )
+        """)
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
     DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
@@ -1071,8 +1039,7 @@ def test_dfree_restores_from_mark_on_intervening_invoke():
     # caller's data at an address that a fast-path callee could clobber.
     # The lowering must keep the bump and restore the threaded FMP from
     # the dalloca mark at the dfree point.
-    ctx = parse_venom(
-        """
+    ctx = parse_venom("""
         function main {
             main:
                 %p, %mark = dalloca 32
@@ -1089,8 +1056,7 @@ def test_dfree_restores_from_mark_on_intervening_invoke():
                 dfree %qmark
                 ret %retpc
         }
-        """
-    )
+        """)
     # Callee-first lowering.
     fns = list(ctx.functions.values())
     for fn in reversed(fns):
@@ -1108,14 +1074,12 @@ def test_dfree_restores_from_mark_on_intervening_invoke():
 def test_dfree_without_matching_dalloca_is_low_level_restore():
     # `dfree` is a low-level FMP restore primitive. A standalone dfree is
     # allowed and simply lowers to `assign mark -> fmp`.
-    ctx = parse_from_basic_block(
-        """
+    ctx = parse_from_basic_block("""
         main:
             %mark = calldatasize
             dfree %mark
             stop
-        """
-    )
+        """)
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
     DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
@@ -1130,16 +1094,14 @@ def test_dfree_non_lifo_marks_lower_without_validation():
     # Non-LIFO dfree is a low-level cursor restore. It can invalidate
     # allocations above the restored mark; the lowering preserves that
     # explicit restore instead of doing pointer lifetime validation.
-    ctx = parse_from_basic_block(
-        """
+    ctx = parse_from_basic_block("""
         main:
             %a, %amark = dalloca 32
             %b, %bmark = dalloca 64
             dfree %amark
             dfree %bmark
             stop
-        """
-    )
+        """)
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
     DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
@@ -1151,12 +1113,10 @@ def test_dfree_non_lifo_marks_lower_without_validation():
 
 
 def test_dfree_rewrite_keeps_bump_when_fmp_redefined_output_only():
-    ctx = parse_from_basic_block(
-        """
+    ctx = parse_from_basic_block("""
         main:
             stop
-        """
-    )
+        """)
     fn = next(iter(ctx.functions.values()))
     bb = fn.entry
     fmp_var = IRVariable("%fmp")
@@ -1183,16 +1143,14 @@ def test_dfree_rewrite_keeps_bump_when_fmp_redefined_output_only():
 def test_dfree_does_not_do_pointer_lifetime_validation():
     # Pointer lifetime validation is not part of this low-level IR
     # contract; dfree restores the FMP but does not prove pointer safety.
-    ctx = parse_from_basic_block(
-        """
+    ctx = parse_from_basic_block("""
         main:
             %p, %mark = dalloca 32
             mstore %p, 1
             dfree %mark
             %v = mload %p
             sink %v
-        """
-    )
+        """)
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
     DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
@@ -1203,16 +1161,14 @@ def test_dfree_does_not_do_pointer_lifetime_validation():
 
 
 def test_initial_fmp_fast_path_rejects_aliased_use_after_dfree():
-    ctx = parse_from_basic_block(
-        """
+    ctx = parse_from_basic_block("""
         main:
             %p, %mark = dalloca 32
             %alias = assign %p
             dfree %mark
             %v = mload %alias
             sink %v
-        """
-    )
+        """)
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
     DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
@@ -1223,16 +1179,14 @@ def test_initial_fmp_fast_path_rejects_aliased_use_after_dfree():
 
 
 def test_initial_fmp_fast_path_allows_closed_ptr_as_dalloca_size():
-    ctx = parse_from_basic_block(
-        """
+    ctx = parse_from_basic_block("""
         main:
             %p, %mark = dalloca 32
             dfree %mark
             %q, %qmark = dalloca %p
             dfree %qmark
             stop
-        """
-    )
+        """)
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
     DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
@@ -1246,8 +1200,7 @@ def test_initial_fmp_fast_path_allows_closed_ptr_as_dalloca_size():
 
 
 def test_initial_fmp_fast_path_rejects_closed_ptr_live_out_to_phi():
-    ctx = parse_from_basic_block(
-        """
+    ctx = parse_from_basic_block("""
         main:
             %p, %mark = dalloca 32
             dfree %mark
@@ -1265,8 +1218,7 @@ def test_initial_fmp_fast_path_rejects_closed_ptr_live_out_to_phi():
             %x = phi @left, %p, @right, %q
             %v = mload %x
             sink %v
-        """
-    )
+        """)
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
     DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
@@ -1280,8 +1232,7 @@ def test_initial_fmp_fast_path_rejects_invoke_during_live_dalloca():
     # Entry-function initial_fmp lowering is disabled when an invoke occurs
     # while a dalloca allocation is live; the function falls back to FMP
     # threading so the callee cannot alias the caller's open scratch.
-    ctx = parse_venom(
-        """
+    ctx = parse_venom("""
         function main {
             main:
                 %p, %mark = dalloca 32
@@ -1296,8 +1247,7 @@ def test_initial_fmp_fast_path_rejects_invoke_during_live_dalloca():
                 %retpc = param
                 ret %retpc
         }
-        """
-    )
+        """)
     fns = list(ctx.functions.values())
     for fn in reversed(fns):
         ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
@@ -1311,8 +1261,7 @@ def test_initial_fmp_fast_path_rejects_invoke_during_live_dalloca():
 
 
 def test_initial_fmp_fast_path_allows_invoke_between_closed_scratch_pairs():
-    ctx = parse_venom(
-        """
+    ctx = parse_venom("""
         function main {
             main:
                 %p, %pmark = dalloca 32
@@ -1330,8 +1279,7 @@ def test_initial_fmp_fast_path_allows_invoke_between_closed_scratch_pairs():
                 %retpc = param
                 ret %retpc
         }
-        """
-    )
+        """)
     fns = list(ctx.functions.values())
     for fn in reversed(fns):
         ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
@@ -1347,8 +1295,7 @@ def test_initial_fmp_fast_path_allows_invoke_between_closed_scratch_pairs():
 
 
 def test_initial_fmp_fast_path_rejects_closed_scratch_around_needs_fmp_callee():
-    ctx = parse_venom(
-        """
+    ctx = parse_venom("""
         function main {
             main:
                 %p, %pmark = dalloca 32
@@ -1366,8 +1313,7 @@ def test_initial_fmp_fast_path_rejects_closed_scratch_around_needs_fmp_callee():
                 dfree %qmark
                 ret %retpc
         }
-        """
-    )
+        """)
     fns = list(ctx.functions.values())
     for fn in reversed(fns):
         ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
@@ -1395,8 +1341,7 @@ def test_dfree_nested_falls_back_to_fmp_threading():
     # live at the same time), so the initial_fmp fast path is rejected.
     # The pass falls back to FMP threading: inner rewires to the current
     # threaded FMP and outer restore becomes `assign mark -> fmp`.
-    ctx = parse_from_basic_block(
-        """
+    ctx = parse_from_basic_block("""
         main:
             %a, %amark = dalloca 32
             mstore %a, 1
@@ -1405,8 +1350,7 @@ def test_dfree_nested_falls_back_to_fmp_threading():
             dfree %bmark
             dfree %amark
             stop
-        """
-    )
+        """)
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
     DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
@@ -1533,8 +1477,7 @@ def test_loop_carried_dalloca_threads_fmp():
 
 
 def test_non_entry_dalloca_uses_threaded_marks_not_initial_fmp():
-    ctx = parse_venom(
-        """
+    ctx = parse_venom("""
         function main {
             main:
                 %p, %mark = dalloca 32
@@ -1552,8 +1495,7 @@ def test_non_entry_dalloca_uses_threaded_marks_not_initial_fmp():
                 dfree %qmark
                 ret %retpc
         }
-        """
-    )
+        """)
     fns = list(ctx.functions.values())
     for fn in reversed(fns):
         ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()

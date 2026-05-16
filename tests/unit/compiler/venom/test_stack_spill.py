@@ -29,8 +29,7 @@ def _dummy_dfg():
 
 
 def test_set_current_function_clears_missing_fn_eom() -> None:
-    ctx = parse_venom(
-        """
+    ctx = parse_venom("""
         function first {
             main:
                 stop
@@ -40,8 +39,7 @@ def test_set_current_function_clears_missing_fn_eom() -> None:
             main:
                 stop
         }
-        """
-    )
+        """)
     compiler = VenomCompiler(ctx)
     first, second = list(ctx.functions.values())
 
