@@ -1,11 +1,12 @@
 import contextlib
+import dataclasses
 import itertools
 from typing import Any, Callable
 
 import pytest
 
 from tests.utils import check_precompile_asserts, decimal_to_int
-from vyper.compiler import compile_code
+from vyper.compiler import compile_code, settings
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
@@ -14,7 +15,6 @@ from vyper.exceptions import (
     ImmutableViolation,
     OverflowException,
     StateAccessViolation,
-    StaticAssertionException,
     TypeMismatch,
 )
 
@@ -1864,16 +1864,12 @@ def should_revert() -> DynArray[String[65], 2]:
 @pytest.mark.parametrize("code", dynarray_length_no_clobber_cases)
 def test_dynarray_length_no_clobber(get_contract, tx_failed, code):
     # check that length is not clobbered before dynarray data copy happens
-    try:
-        c = get_contract(code)
-        with tx_failed():
-            c.should_revert()
-    except StaticAssertionException:
-        # this test should create
-        # assert error so if it is
-        # detected in compile time
-        # we can continue
-        pass
+    compiler_settings = settings.get_global_settings()
+    assert compiler_settings is not None
+    compiler_settings = dataclasses.replace(compiler_settings, disable_static_exceptions=True)
+    c = get_contract(code, compiler_settings=compiler_settings)
+    with tx_failed():
+        c.should_revert()
 
 
 def test_dynarray_make_setter_overlap(get_contract):
