@@ -1,3 +1,4 @@
+import dataclasses
 import enum
 import itertools
 import math
@@ -9,6 +10,7 @@ import pytest
 
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
+from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.shortcuts import BYTES20_T, BYTES32_T, UINT, UINT160_T, UINT256_T
@@ -669,6 +671,11 @@ def test_conversion_failures(get_contract, assert_compile_failed, tx_failed, i_t
     Test multiple contracts and check for a specific exception.
     If no exception is provided, a runtime revert is expected (e.g. clamping).
     """
+    
+    compiler_settings = get_global_settings()
+    assert compiler_settings is not None
+    compiler_settings = dataclasses.replace(compiler_settings, disable_static_exceptions=True)
+
     contract_1 = f"""
 @external
 def foo() -> {o_typ}:
@@ -695,7 +702,7 @@ def foo() -> {o_typ}:
     #    skip_c1 = True
 
     if not skip_c1:
-        assert_compile_failed(lambda: get_contract(contract_1), c1_exception)
+        assert_compile_failed(lambda: get_contract(contract_1, compiler_settings=compiler_settings), c1_exception)
 
     contract_2 = f"""
 @external
@@ -704,7 +711,7 @@ def foo():
     foobar: {o_typ} = convert(bar, {o_typ})
     """
 
-    c2 = get_contract(contract_2)
+    c2 = get_contract(contract_2, compiler_settings=compiler_settings)
     with tx_failed():
         c2.foo()
 
@@ -714,7 +721,7 @@ def foo(bar: {i_typ}) -> {o_typ}:
     return convert(bar, {o_typ})
     """
 
-    c3 = get_contract(contract_3)
+    c3 = get_contract(contract_3, compiler_settings=compiler_settings)
     input_val = val
     if isinstance(i_typ, DecimalT):
         input_val = decimal_to_int(input_val)
