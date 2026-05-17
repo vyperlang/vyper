@@ -30,4 +30,4 @@ repos:
           - --implicit-optional
 
 default_language_version:
-    python: python3.10
+    python: python3.11

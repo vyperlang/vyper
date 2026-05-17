@@ -10,85 +10,6 @@ Vyper provides a collection of built-in functions available in the global namesp
 Bitwise Operations
 ==================
 
-.. py:function:: bitwise_and(x: uint256, y: uint256) -> uint256
-
-    Perform a "bitwise and" operation. Each bit of the output is 1 if the corresponding bit of ``x`` AND of ``y`` is 1, otherwise it is 0.
-
-    .. code-block:: vyper
-
-        @external
-        @view
-        def foo(x: uint256, y: uint256) -> uint256:
-            return bitwise_and(x, y)
-
-    .. code-block:: vyper
-
-        >>> ExampleContract.foo(31337, 8008135)
-        12353
-
-.. note::
-
-  This function has been deprecated from version 0.3.4 onwards. Please use the ``&`` operator instead.
-
-.. py:function:: bitwise_not(x: uint256) -> uint256
-
-    Return the bitwise complement of ``x`` - the number you get by switching each 1 for a 0 and each 0 for a 1.
-
-    .. code-block:: vyper
-
-        @external
-        @view
-        def foo(x: uint256) -> uint256:
-            return bitwise_not(x)
-
-    .. code-block:: vyper
-
-        >>> ExampleContract.foo(0)
-        115792089237316195423570985008687907853269984665640564039457584007913129639935
-
-.. note::
-
-  This function has been deprecated from version 0.3.4 onwards. Please use the ``~`` operator instead.
-
-.. py:function:: bitwise_or(x: uint256, y: uint256) -> uint256
-
-    Perform a "bitwise or" operation. Each bit of the output is 0 if the corresponding bit of ``x`` AND of ``y`` is 0, otherwise it is 1.
-
-    .. code-block:: vyper
-
-        @external
-        @view
-        def foo(x: uint256, y: uint256) -> uint256:
-            return bitwise_or(x, y)
-
-    .. code-block:: vyper
-
-        >>> ExampleContract.foo(31337, 8008135)
-        8027119
-
-.. note::
-
-  This function has been deprecated from version 0.3.4 onwards. Please use the ``|`` operator instead.
-
-.. py:function:: bitwise_xor(x: uint256, y: uint256) -> uint256
-
-    Perform a "bitwise exclusive or" operation. Each bit of the output is the same as the corresponding bit in ``x`` if that bit in ``y`` is 0, and it is the complement of the bit in ``x`` if that bit in ``y`` is 1.
-
-    .. code-block:: vyper
-
-        @external
-        @view
-        def foo(x: uint256, y: uint256) -> uint256:
-            return bitwise_xor(x, y)
-
-    .. code-block:: vyper
-
-        >>> ExampleContract.foo(31337, 8008135)
-        8014766
-
-.. note::
-
-  This function has been deprecated from version 0.3.4 onwards. Please use the ``^`` operator instead.
 
 .. py:function:: shift(x: int256 | uint256, _shift: integer) -> uint256
 
@@ -110,12 +31,16 @@ Bitwise Operations
 
   This function has been deprecated from version 0.3.8 onwards. Please use the ``<<`` and ``>>`` operators instead.
 
+.. note::
+
+    The functions ``bitwise_and``, ``bitwise_or``, ``bitwise_xor`` and ``bitwise_not`` have been deprecated from version 0.3.4., and removed in version 0.4.2. Please use their operator versions instead: ``&``, ``|``, ``^``, ``~``.
+
 
 Chain Interaction
 =================
 
 
-Vyper has three built-ins for contract creation; all three contract creation built-ins rely on the code to deploy already being stored on-chain, but differ in call vs deploy overhead, and whether or not they invoke the constructor of the contract to be deployed. The following list provides a short summary of the differences between them.
+Vyper has four built-ins for contract creation; the first three contract creation built-ins rely on the code to deploy already being stored on-chain, but differ in call vs deploy overhead, and whether or not they invoke the constructor of the contract to be deployed. The following list provides a short summary of the differences between them.
 
 * ``create_minimal_proxy_to(target: address, ...)``
     * Creates an immutable proxy to ``target``
@@ -132,6 +57,8 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     * Cheap to call (no ``DELEGATECALL`` overhead), expensive to create (200 gas per deployed byte)
     * Invokes constructor, requires a special "blueprint" contract to be deployed
     * Performs an ``EXTCODESIZE`` check to check there is code at ``target``
+* ``raw_create(initcode: Bytes[...], ...)``
+    * Low-level create. Takes the given initcode, along with the arguments to be abi-encoded, and deploys the initcode after concatenating the abi-encoded arguments.
 
 .. py:function:: create_minimal_proxy_to(target: address, value: uint256 = 0, revert_on_failure: bool = True[, salt: bytes32]) -> address
 
@@ -227,6 +154,27 @@ Vyper has three built-ins for contract creation; all three contract creation bui
             # `blueprint` is a blueprint contract with some known preamble b"abcd..."
             return create_from_blueprint(blueprint, code_offset=<preamble length>)
 
+
+.. py:function:: raw_create(initcode: Bytes[...], *args, value: uint256 = 0, revert_on_failure: bool = True[, salt: bytes32]) -> address
+
+    Create a contract using the given ``initcode``. Provides low-level access to the ``CREATE`` and ``CREATE2`` opcodes.
+
+    * ``initcode``: Initcode bytes
+    * ``value``: The wei value to send to the new contract address (Optional, default 0)
+    * ``*args``: Constructor arguments to forward to the initcode.
+    * ``revert_on_failure``: If ``False``, instead of reverting when the create operation fails, return the zero address (Optional, default ``True``)
+    * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
+
+    Returns the address of the created contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert.
+
+    .. code-block:: vyper
+
+        @external
+        def foo() -> address:
+            # create the bytes of an empty vyper contract
+            return raw_create(x"0x61000361000f6000396100036000f35f5ffd855820cd372fb85148700fa88095e3492d3f9f5beb43e555e5ff26d95f5a6adc36f8e6038000a1657679706572830004020033")
+
+
 .. py:function:: raw_call(to: address, data: Bytes, max_outsize: uint256 = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False, revert_on_failure: bool = True) -> Bytes[max_outsize]
 
     Call to the specified Ethereum address.
@@ -309,7 +257,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
     .. warning::
 
-        This method deletes the contract from the blockchain. All non-ether assets associated with this contract are "burned" and the contract is no longer accessible.
+        As of the Cancun hardfork (EIP-6780), this opcode no longer deletes contract code unless called in the same transaction as contract creation. It only transfers the contract's ETH balance to the specified address.
 
     .. note::
 
@@ -401,17 +349,21 @@ Cryptography
 
         @external
         @view
-        def foo(hash: bytes32, v: uint8, r:bytes32, s:bytes32) -> address:
+        def foo(hash: bytes32, v: uint8, r: bytes32, s: bytes32) -> address:
             return ecrecover(hash, v, r, s)
 
+    Alternatively, ``v``, ``r``, and ``s`` can be passed as ``uint256``:
+
+    .. code-block:: vyper
 
         @external
         @view
-        def foo(hash: bytes32, v: uint256, r:uint256, s:uint256) -> address:
+        def bar(hash: bytes32, v: uint256, r: uint256, s: uint256) -> address:
             return ecrecover(hash, v, r, s)
+
     .. code-block:: vyper
 
-        >>> ExampleContract.foo('0x6c9c5e133b8aafb2ea74f524a5263495e7ae5701c7248805f7b511d973dc7055',
+        >>> ExampleContract.bar('0x6c9c5e133b8aafb2ea74f524a5263495e7ae5701c7248805f7b511d973dc7055',
              28,
              78616903610408968922803823221221116251138855211764625814919875002740131251724,
              37668412420813231458864536126575229553064045345107737433087067088194345044408
@@ -428,7 +380,7 @@ Cryptography
 
         @external
         @view
-        def foo(_value: Bytes[100]) -> bytes32
+        def foo(_value: Bytes[100]) -> bytes32:
             return keccak256(_value)
 
     .. code-block:: vyper
@@ -446,7 +398,7 @@ Cryptography
 
         @external
         @view
-        def foo(_value: Bytes[100]) -> bytes32
+        def foo(_value: Bytes[100]) -> bytes32:
             return sha256(_value)
 
     .. code-block:: vyper
@@ -711,14 +663,20 @@ Math
 
 .. py:function:: sqrt(d: decimal) -> decimal
 
-    Return the square root of the provided decimal number, using the Babylonian square root algorithm.
+    Return the square root of the provided decimal number, using the Babylonian square root algorithm. The rounding mode is to round down to the nearest epsilon. For instance, ``sqrt(0.9999999998) == 0.9999999998``.
+
+    .. note::
+
+        ``sqrt`` has been moved to the ``math`` stdlib module as part of the ``0.4.2`` release (see `PR #4520 <https://github.com/vyperlang/vyper/pull/4520>`_). See :ref:`stdlib-math`. Import it with ``import math`` and call ``math.sqrt(d)``.
 
     .. code-block:: vyper
+
+        import math
 
         @external
         @view
         def foo(d: decimal) -> decimal:
-            return sqrt(d)
+            return math.sqrt(d)
 
     .. code-block:: vyper
 
@@ -729,12 +687,18 @@ Math
 
     Return the (integer) square root of the provided integer number, using the Babylonian square root algorithm. The rounding mode is to round down to the nearest integer. For instance, ``isqrt(101) == 10``.
 
+    .. note::
+
+        ``isqrt`` has been moved to the ``math`` stdlib module as part of the ``0.5.0`` release (see `PR #4923 <https://github.com/vyperlang/vyper/pull/4923>`_). See :ref:`stdlib-math`. Import it with ``import math`` and call ``math.isqrt(x)``.
+
     .. code-block:: vyper
+
+        import math
 
         @external
         @view
         def foo(x: uint256) -> uint256:
-            return isqrt(x)
+            return math.isqrt(x)
 
     .. code-block:: vyper
 
@@ -914,7 +878,7 @@ Utilities
 
     Take an amount of ether currency specified by a number and a unit and return the integer quantity of wei equivalent to that amount.
 
-    * ``_value``: Value for the ether unit. Any numeric type may be used, however the value cannot be negative.
+    * ``_value``: Value for the ether unit. Any numeric type may be used, however, the value cannot be negative.
     * ``unit``: Ether unit name (e.g. ``"wei"``, ``"ether"``, ``"gwei"``, etc.) indicating the denomination of ``_value``. Must be given as a literal string.
 
     .. code-block:: vyper
@@ -928,6 +892,10 @@ Utilities
 
         >>> ExampleContract.foo(1)
         1337000000000000000
+
+.. note::
+    When ``as_wei_value`` is given some ``decimal``, the result might be rounded down to the nearest integer, for example, the following is true: ``as_wei_value(12.2, "wei") == 12``.
+
 
 .. py:function:: blockhash(block_num: uint256) -> bytes32
 

@@ -1,19 +1,25 @@
+import copy
 from contextlib import contextmanager
+from pathlib import Path
 from random import Random
 from typing import Generator
 
 import hypothesis
 import pytest
+from _pytest.fixtures import FixtureRequest
 from eth_keys.datatypes import PrivateKey
 from hexbytes import HexBytes
 
+import tests.hevm
 import vyper.evm.opcodes as evm_opcodes
-from tests.evm_backends.base_env import BaseEnv, ExecutionReverted
+from tests.evm_backends.base_env import BaseEnv, DeploymentOrigin, ExecutionReverted
 from tests.evm_backends.pyevm_env import PyEvmEnv
 from tests.evm_backends.revm_env import RevmEnv
+from tests.exports import TestExporter
 from tests.utils import working_directory
 from vyper import compiler
 from vyper.codegen.ir_node import IRnode
+from vyper.compiler import compile_code
 from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, set_global_settings
 from vyper.exceptions import EvmVersionException
@@ -33,18 +39,19 @@ hypothesis.settings.load_profile("ci")
 def pytest_addoption(parser):
     parser.addoption(
         "--optimize",
-        choices=["codesize", "gas", "none"],
+        choices=["codesize", "gas", "none", "O1", "O2", "O3", "Os"],
         default="gas",
         help="change optimization mode",
     )
     parser.addoption("--enable-compiler-debug-mode", action="store_true")
     parser.addoption("--experimental-codegen", action="store_true")
     parser.addoption("--tracing", action="store_true")
+    parser.addoption("--hevm", action="store_true")
 
     parser.addoption(
         "--evm-version",
         choices=list(evm_opcodes.EVM_VERSIONS.keys()),
-        default="cancun",
+        default="prague",
         help="set evm version",
     )
 
@@ -52,12 +59,14 @@ def pytest_addoption(parser):
         "--evm-backend", choices=["py-evm", "revm"], default="revm", help="set evm backend"
     )
 
+    parser.addoption("--export", help="enable test data exporting to specified directory")
+
 
 @pytest.fixture(scope="module")
 def output_formats():
     output_formats = compiler.OUTPUT_FORMATS.copy()
 
-    to_drop = ("bb", "bb_runtime", "cfg", "cfg_runtime", "archive", "archive_b64", "solc_json")
+    to_drop = ("cfg", "cfg_runtime", "archive", "archive_b64", "solc_json")
     for s in to_drop:
         del output_formats[s]
 
@@ -84,34 +93,28 @@ def experimental_codegen(pytestconfig):
     return ret
 
 
-@pytest.fixture(autouse=True)
-def check_venom_xfail(request, experimental_codegen):
-    if not experimental_codegen:
-        return
-
-    marker = request.node.get_closest_marker("venom_xfail")
-    if marker is None:
-        return
-
-    # https://github.com/okken/pytest-runtime-xfail?tab=readme-ov-file#alternatives
-    request.node.add_marker(pytest.mark.xfail(strict=True, **marker.kwargs))
-
-
-@pytest.fixture
-def venom_xfail(request, experimental_codegen):
-    def _xfail(*args, **kwargs):
-        if not experimental_codegen:
-            return
-        request.node.add_marker(pytest.mark.xfail(*args, strict=True, **kwargs))
-
-    return _xfail
-
-
 @pytest.fixture(scope="session")
 def evm_version(pytestconfig):
     # note: configure the evm version that we emit code for.
     # The env will read this fixture and apply the evm version there.
     return pytestconfig.getoption("evm_version")
+
+
+# This is a separate flag from just setting `-m hevm`, since it turns out
+# that marker detection is somewhat cumbersome in pytest. To run hevm tests,
+# run `./quicktest.sh -m hevm --hevm`, combining the CLI arguments.
+@pytest.fixture(scope="session", autouse=True)
+def set_hevm(pytestconfig):
+    flag_value = pytestconfig.getoption("hevm")
+    assert isinstance(flag_value, bool)
+    # set a global, this way helper functions can be defined without
+    # reference to pytest fixtures.
+    tests.hevm.HAS_HEVM = flag_value
+
+
+@pytest.fixture(scope="session")
+def hevm(pytestconfig, set_hevm):
+    return tests.hevm.HAS_HEVM
 
 
 @pytest.fixture(scope="session")
@@ -179,14 +182,36 @@ def account_keys():
     return [PrivateKey(random.randbytes(32)) for _ in range(10)]
 
 
+@pytest.fixture(scope="session")
+def exporter(request: FixtureRequest):
+    export_dir_str = request.config.getoption("export")
+    if not export_dir_str:
+        yield None
+        return
+
+    export_dir = Path(export_dir_str)
+    export_dir.mkdir(parents=True, exist_ok=True)
+
+    project_root = request.config.rootpath
+    test_root = (project_root / "tests").resolve()
+
+    e = TestExporter(export_dir, test_root)
+    request.config.active_test_exporter = e
+    yield e
+
+    e.finalize_export()
+    request.config.active_test_exporter = None
+
+
 @pytest.fixture(scope="module")
-def env(gas_limit, evm_version, evm_backend, tracing, account_keys) -> BaseEnv:
+def env(gas_limit, evm_version, evm_backend, tracing, account_keys, exporter) -> BaseEnv:
     return evm_backend(
         gas_limit=gas_limit,
         tracing=tracing,
         block_number=1,
         evm_version=evm_version,
         account_keys=account_keys,
+        exporter=exporter,
     )
 
 
@@ -200,8 +225,13 @@ def get_contract_from_ir(env, optimize):
         assembly = compile_ir.compile_to_assembly(ir, optimize=optimize)
         bytecode, _ = compile_ir.assembly_to_evm(assembly)
 
+        export_metadata = None
+        if env.exporter:
+            ir_str = str(ir)
+            export_metadata = {"raw_ir": ir_str, "deployment_origin": DeploymentOrigin.IR}
+
         abi = kwargs.pop("abi", [])
-        return env.deploy(abi, bytecode, *args, **kwargs)
+        return env.deploy(abi, bytecode, *args, export_metadata=export_metadata, **kwargs)
 
     return ir_compiler
 
@@ -219,13 +249,49 @@ def compiler_settings(optimize, experimental_codegen, evm_version, debug):
     return settings
 
 
+_HEVM_MARKER = None
+
+
+# request.node.get_closest_marker does something different if fixture is module-scoped,
+# workaround with a global variable
+@pytest.fixture(autouse=True)
+def hevm_marker(request):
+    global _HEVM_MARKER
+
+    _HEVM_MARKER = request.node.get_closest_marker("hevm")
+
+
 @pytest.fixture(scope="module")
-def get_contract(env, optimize, output_formats, compiler_settings):
+def get_contract(env, optimize, output_formats, compiler_settings, hevm, request):
     def fn(source_code, *args, **kwargs):
         if "override_opt_level" in kwargs:
             kwargs["compiler_settings"] = Settings(
                 **dict(compiler_settings.__dict__, optimize=kwargs.pop("override_opt_level"))
             )
+
+        global _HEVM_MARKER
+        if hevm and _HEVM_MARKER is not None:
+            settings1 = copy.copy(compiler_settings)
+            settings1.experimental_codegen = False
+            settings1.optimize = OptimizationLevel.NONE
+            settings2 = copy.copy(compiler_settings)
+            settings2.experimental_codegen = True
+            settings2.optimize = OptimizationLevel.NONE
+
+            bytecode1 = compile_code(
+                source_code,
+                output_formats=("bytecode_runtime",),
+                settings=settings1,
+                input_bundle=kwargs.get("input_bundle"),
+            )["bytecode_runtime"]
+            bytecode2 = compile_code(
+                source_code,
+                output_formats=("bytecode_runtime",),
+                settings=settings2,
+                input_bundle=kwargs.get("input_bundle"),
+            )["bytecode_runtime"]
+            tests.hevm.hevm_check_bytecode(bytecode1, bytecode2, addl_args=_HEVM_MARKER.args)
+
         return env.deploy_source(source_code, output_formats, *args, **kwargs)
 
     return fn
@@ -318,6 +384,27 @@ def tx_failed(env):
 
 
 @pytest.hookimpl(hookwrapper=True)
+def pytest_fixture_setup(fixturedef: pytest.FixtureDef, request):
+    exporter = getattr(request.config, "active_test_exporter", None)
+    if not exporter:
+        yield
+        return
+
+    if fixturedef.cached_result is not None:
+        yield
+        return
+
+    is_tracked = exporter.set_item(fixturedef, request=request)
+
+    yield
+
+    if not is_tracked:
+        return
+
+    exporter.finalize_item(fixturedef)
+
+
+@pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_call(item) -> Generator:
     marker = item.get_closest_marker("requires_evm_version")
     if marker:
@@ -328,10 +415,18 @@ def pytest_runtest_call(item) -> Generator:
                 pytest.mark.xfail(reason="Wrong EVM version", raises=EvmVersionException)
             )
 
-    # Isolate tests by reverting the state of the environment after each test
-    env = item.funcargs.get("env")
-    if env:
-        with env.anchor():
+    active_exporter = getattr(item.config, "active_test_exporter", None)
+    if active_exporter:
+        active_exporter.set_item(item)
+
+    try:
+        # Isolate tests by reverting the state of the environment after each test
+        env = item.funcargs.get("env")
+        if env:
+            with env.anchor():
+                yield
+        else:
             yield
-    else:
-        yield
+    finally:
+        if active_exporter:
+            active_exporter.finalize_test()

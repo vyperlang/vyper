@@ -109,7 +109,7 @@ def test_from_annotation_literal(build_node, type_, source):
 def _check_type_equals(type_, t):
     if type_ in (BytesT, StringT):
         type_ = type_()
-    if not type_.compare_type(t):
+    if not type_.is_equivalent_to(t):
         raise InvalidType(f"{type_} != {t}")
 
 

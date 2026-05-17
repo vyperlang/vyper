@@ -23,6 +23,26 @@ def test_single_bb():
     assert_ctx_eq(parsed_ctx, expected_ctx)
 
 
+def test_hex_literal():
+    source = """
+    function main {
+        main:
+            mstore 0, 0x7  ; test odd-length literal
+            mstore 1, 0x03
+    }
+    """
+
+    parsed_ctx = parse_venom(source)
+
+    expected_ctx = IRContext()
+    expected_ctx.add_function(main_fn := IRFunction(IRLabel("main")))
+    main_bb = main_fn.get_basic_block("main")
+    main_bb.append_instruction("mstore", IRLiteral(7), IRLiteral(0))
+    main_bb.append_instruction("mstore", IRLiteral(3), IRLiteral(1))
+
+    assert_ctx_eq(parsed_ctx, expected_ctx)
+
+
 def test_multi_bb_single_fn():
     source = """
     function start {
@@ -55,14 +75,12 @@ def test_multi_bb_single_fn():
     has_callvalue_bb = IRBasicBlock(IRLabel("has_callvalue"), start_fn)
     start_fn.append_basic_block(has_callvalue_bb)
     has_callvalue_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
-    has_callvalue_bb.append_instruction("stop")
 
     assert_ctx_eq(parsed_ctx, expected_ctx)
 
 
 def test_data_section():
-    parsed_ctx = parse_venom(
-        """
+    parsed_ctx = parse_venom("""
     function entry {
         entry:
             stop
@@ -78,8 +96,7 @@ def test_data_section():
             db @selector_bucket_5
             db @selector_bucket_6
     }
-    """
-    )
+    """)
 
     expected_ctx = IRContext()
     expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
@@ -104,8 +121,7 @@ def test_data_section():
 
 
 def test_multi_function():
-    parsed_ctx = parse_venom(
-        """
+    parsed_ctx = parse_venom("""
     function entry {
         entry:
             invoke @check_cv
@@ -125,14 +141,13 @@ def test_multi_function():
         has_value:
             revert 0, 0
     }
-    """
-    )
+    """)
 
     expected_ctx = IRContext()
     expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
 
     entry_bb = entry_fn.get_basic_block("entry")
-    entry_bb.append_instruction("invoke", IRLabel("check_cv"))
+    entry_bb.append_invoke_instruction([IRLabel("check_cv")], returns=0)
     entry_bb.append_instruction("jmp", IRLabel("wow"))
 
     entry_fn.append_basic_block(wow_bb := IRBasicBlock(IRLabel("wow"), entry_fn))
@@ -152,14 +167,12 @@ def test_multi_function():
 
     check_fn.append_basic_block(value_bb := IRBasicBlock(IRLabel("has_value"), check_fn))
     value_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
-    value_bb.append_instruction("stop")
 
     assert_ctx_eq(parsed_ctx, expected_ctx)
 
 
 def test_multi_function_and_data():
-    parsed_ctx = parse_venom(
-        """
+    parsed_ctx = parse_venom("""
     function entry {
         entry:
             invoke @check_cv
@@ -188,14 +201,13 @@ def test_multi_function_and_data():
             db @selector_bucket_3
             db @selector_bucket_6
     }
-    """
-    )
+    """)
 
     expected_ctx = IRContext()
     expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
 
     entry_bb = entry_fn.get_basic_block("entry")
-    entry_bb.append_instruction("invoke", IRLabel("check_cv"))
+    entry_bb.append_invoke_instruction([IRLabel("check_cv")], returns=0)
     entry_bb.append_instruction("jmp", IRLabel("wow"))
 
     entry_fn.append_basic_block(wow_bb := IRBasicBlock(IRLabel("wow"), entry_fn))
@@ -215,7 +227,6 @@ def test_multi_function_and_data():
 
     check_fn.append_basic_block(value_bb := IRBasicBlock(IRLabel("has_value"), check_fn))
     value_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
-    value_bb.append_instruction("stop")
 
     expected_ctx.data_segment = [
         DataSection(
@@ -313,7 +324,6 @@ def test_phis():
         %50 = 0
         %51 = 0
         revert %51, %50
-        stop
         ; (__main_entry)
     }  ; close function __main_entry
     """
@@ -341,12 +351,46 @@ def test_phis():
         IRVariable("%11:4"),
         ret=IRVariable("11:3"),
     )
-    expect_bb.append_instruction("store", IRVariable("11:3"), ret=IRVariable("%35"))
-    expect_bb.append_instruction("store", IRLiteral(9), ret=IRVariable("%36"))
+    expect_bb.append_instruction("assign", IRVariable("11:3"), ret=IRVariable("%35"))
+    expect_bb.append_instruction("assign", IRLiteral(9), ret=IRVariable("%36"))
     expect_bb.append_instruction("xor", IRVariable("%35"), IRVariable("%36"), ret=IRVariable("%15"))
-    expect_bb.append_instruction("store", IRVariable("%15"), ret=IRVariable("%37"))
+    expect_bb.append_instruction("assign", IRVariable("%15"), ret=IRVariable("%37"))
     expect_bb.append_instruction("jnz", IRVariable("%37"), IRLabel("5_body"), IRLabel("7_exit"))
     # other basic blocks omitted for brevity
 
     parsed_fn = next(iter(ctx.functions.values()))
     assert_bb_eq(parsed_fn.get_basic_block(expect_bb.label.name), expect_bb)
+
+
+def test_multi_output_last_var():
+    source = """
+    function main {
+        main:
+            %1, %2 = invoke @f
+            %3, %4, %5 = invoke @g
+            sink %1, %2, %3, %4, %5
+    }
+
+    function f {
+        f:
+            %retpc = param
+            ret 10, 20, %retpc
+    }
+
+    function g {
+        g:
+            %retpc = param
+            ret 30, 40, 50, %retpc
+    }
+    """
+
+    parsed_ctx = parse_venom(source)
+
+    main_fn = parsed_ctx.get_function(IRLabel("main"))
+    assert main_fn.last_variable == 5
+
+    f_fn = parsed_ctx.get_function(IRLabel("f"))
+    assert f_fn.last_variable == 0
+
+    g_fn = parsed_ctx.get_function(IRLabel("g"))
+    assert g_fn.last_variable == 0

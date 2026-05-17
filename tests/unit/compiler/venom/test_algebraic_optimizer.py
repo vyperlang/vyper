@@ -1,182 +1,434 @@
 import pytest
 
 import vyper
-from vyper.venom.analysis import IRAnalysesCache
-from vyper.venom.basicblock import IRBasicBlock, IRLabel
-from vyper.venom.context import IRContext
-from vyper.venom.passes import AlgebraicOptimizationPass, MakeSSA, RemoveUnusedVariablesPass
+from tests.venom_utils import PrePostChecker
+from vyper.venom.passes import (
+    AffineFoldingPass,
+    AlgebraicOptimizationPass,
+    RemoveUnusedVariablesPass,
+)
+
+pytestmark = pytest.mark.hevm
+
+_check_pre_post = PrePostChecker(
+    [AffineFoldingPass, AlgebraicOptimizationPass, RemoveUnusedVariablesPass]
+)
 
 
 @pytest.mark.parametrize("iszero_count", range(5))
 def test_simple_jump_case(iszero_count):
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    """
+    Test remove iszero chains to jnz
+    """
 
-    bb = fn.get_basic_block()
+    iszero_chain = ""
+    for i in range(iszero_count):
+        new = i + 1
+        iszero_chain += f"""
+        %cond{new} = iszero %cond{i}"""
+    iszero_chain_output = f"cond{iszero_count}"
 
-    br1 = IRBasicBlock(IRLabel("then"), fn)
-    fn.append_basic_block(br1)
-    br2 = IRBasicBlock(IRLabel("else"), fn)
-    fn.append_basic_block(br2)
+    pre = f"""
+    main:
+        %par = source
+        %1 = %par
+        %2 = 64
+        %3 = add %1, %2
+        %cond0 = %3
+        {iszero_chain}
+        jnz %{iszero_chain_output}, @then, @else
+    then:
+        %4 = add 10, %3
+        sink %4
+    else:
+        %5 = add %3, %par
+        sink %5
+    """
 
-    p1 = bb.append_instruction("param")
-    op1 = bb.append_instruction("store", p1)
-    op2 = bb.append_instruction("store", 64)
-    op3 = bb.append_instruction("add", op1, op2)
-    jnz_input = op3
+    if iszero_count % 2 == 1:
+        post_chain = "%cond1 = iszero %cond0"
+        jnz_cond = "cond1"
+    else:
+        post_chain = ""
+        jnz_cond = "cond0"
 
-    for _ in range(iszero_count):
-        jnz_input = bb.append_instruction("iszero", jnz_input)
+    post = f"""
+    main:
+        %par = source
+        %1 = %par
+        %2 = 64
+        %3 = add %1, %2
+        %cond0 = %3
+        {post_chain}
+        jnz %{jnz_cond}, @then, @else
+    then:
+        %4 = add 10, %3
+        sink %4
+    else:
+        %5 = add %3, %par
+        sink %5
+    """
 
-    bb.append_instruction("jnz", jnz_input, br1.label, br2.label)
-
-    br1.append_instruction("add", op3, 10)
-    br1.append_instruction("stop")
-    br2.append_instruction("add", op3, p1)
-    br2.append_instruction("stop")
-
-    ac = IRAnalysesCache(fn)
-    MakeSSA(ac, fn).run_pass()
-    AlgebraicOptimizationPass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
-
-    iszeros = [inst for inst in bb.instructions if inst.opcode == "iszero"]
-    removed_iszeros = iszero_count - len(iszeros)
-
-    assert removed_iszeros % 2 == 0
-    assert len(iszeros) == iszero_count % 2
+    _check_pre_post(pre, post)
 
 
 @pytest.mark.parametrize("iszero_count", range(1, 5))
 def test_simple_bool_cast_case(iszero_count):
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    """
+    Test that iszero chain elimination would not eliminate
+    bool cast
 
-    bb = fn.get_basic_block()
+    sink(izero(iszero(iszero(iszero(x))))) => sink(iszero(iszero(x)))
 
-    br1 = IRBasicBlock(IRLabel("then"), fn)
-    fn.append_basic_block(br1)
+    You cannot remove all iszeros because the sink expects the bool
+    and the total elimination would invalidate it
+    """
 
-    p1 = bb.append_instruction("param")
-    op1 = bb.append_instruction("store", p1)
-    op2 = bb.append_instruction("store", 64)
-    op3 = bb.append_instruction("add", op1, op2)
-    jnz_input = op3
+    iszero_chain = ""
+    for i in range(iszero_count):
+        new = i + 1
+        iszero_chain += f"""
+        %cond{new} = iszero %cond{i}"""
 
-    for _ in range(iszero_count):
-        jnz_input = bb.append_instruction("iszero", jnz_input)
+    iszero_chain_output = f"cond{iszero_count}"
 
-    bb.append_instruction("mstore", jnz_input, p1)
-    bb.append_instruction("jmp", br1.label)
+    pre = f"""
+    main:
+        %par = source
+        %1 = %par
+        %2 = 64
+        %3 = add %1, %2
+        %cond0 = %3
+        {iszero_chain}
+        sink %{iszero_chain_output}
+    """
 
-    br1.append_instruction("add", op3, 10)
-    br1.append_instruction("stop")
-
-    ac = IRAnalysesCache(fn)
-    MakeSSA(ac, fn).run_pass()
-    AlgebraicOptimizationPass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
-
-    iszeros = [inst for inst in bb.instructions if inst.opcode == "iszero"]
-    removed_iszeros = iszero_count - len(iszeros)
-
-    assert removed_iszeros % 2 == 0
-    assert len(iszeros) in [1, 2]
-    assert len(iszeros) % 2 == iszero_count % 2
-
-
-@pytest.mark.parametrize("interleave_point", range(1, 5))
-def test_interleaved_case(interleave_point):
-    iszeros_after_interleave_point = interleave_point // 2
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
-
-    bb = fn.get_basic_block()
-
-    br1 = IRBasicBlock(IRLabel("then"), fn)
-    fn.append_basic_block(br1)
-    br2 = IRBasicBlock(IRLabel("else"), fn)
-    fn.append_basic_block(br2)
-
-    p1 = bb.append_instruction("param")
-    op1 = bb.append_instruction("store", p1)
-    op2 = bb.append_instruction("store", 64)
-    op3 = bb.append_instruction("add", op1, op2)
-    op3_inv = bb.append_instruction("iszero", op3)
-    jnz_input = op3_inv
-    for _ in range(interleave_point):
-        jnz_input = bb.append_instruction("iszero", jnz_input)
-    bb.append_instruction("mstore", jnz_input, p1)
-    for _ in range(iszeros_after_interleave_point):
-        jnz_input = bb.append_instruction("iszero", jnz_input)
-    bb.append_instruction("jnz", jnz_input, br1.label, br2.label)
-
-    br1.append_instruction("add", op3, 10)
-    br1.append_instruction("stop")
-    br2.append_instruction("add", op3, p1)
-    br2.append_instruction("stop")
-
-    ac = IRAnalysesCache(fn)
-    MakeSSA(ac, fn).run_pass()
-    AlgebraicOptimizationPass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
-
-    assert bb.instructions[-1].opcode == "jnz"
-    if (interleave_point + iszeros_after_interleave_point) % 2 == 0:
-        assert bb.instructions[-1].operands[0] == op3_inv
+    if iszero_count % 2 == 0:
+        post_chain = """
+        %cond1 = iszero %cond0
+        %cond2 = iszero %cond1
+        """
+        end_cond = "cond2"
     else:
-        assert bb.instructions[-1].operands[0] == op3
+        post_chain = """
+        %cond1 = iszero %cond0
+        """
+        end_cond = "cond1"
+
+    post = f"""
+    main:
+        %par = source
+        %1 = %par
+        %2 = 64
+        %3 = add %1, %2
+        %cond0 = %3
+        {post_chain}
+        sink %{end_cond}
+    """
+
+    _check_pre_post(pre, post)
+
+
+@pytest.mark.parametrize("interleave_point", range(5))
+def test_interleaved_case(interleave_point):
+    """
+    Test for the case where one of the iszeros results in
+    the chain is used by another instruction (outside the chain)
+    """
+
+    iszeros_after_interleave_point = interleave_point // 2
+
+    total_iszeros = interleave_point + iszeros_after_interleave_point
+
+    iszero_chain = ""
+    for i in range(interleave_point):
+        new = i + 2
+        iszero_chain += f"""
+        %cond{new} = iszero %cond{i + 1}"""
+
+    # use a variable from middle of iszero chain.
+    # (note we start the chain from cond1)
+    mstore_cond = interleave_point + 1
+
+    # continue building on iszero_chain1
+    continue_iszero_chain = ""
+    for i0 in range(iszeros_after_interleave_point):
+        i = i0 + interleave_point + 1
+        new = i + 1
+        continue_iszero_chain += f"""
+        %cond{new} = iszero %cond{i}"""
+
+    # output of iszero chain
+    jnz_cond = total_iszeros + 1
+
+    pre = f"""
+    main:
+        %par = source
+        %cond0 = add 64, %par
+        %cond1 = iszero %cond0
+        {iszero_chain}
+        mstore %par, %cond{mstore_cond}
+        {continue_iszero_chain}
+        jnz %cond{jnz_cond}, @then, @else
+    then:
+        %2 = add 10, %par
+
+        ; mload to sink value for hevm
+        %4 = mload %par
+        sink %2, %4
+    else:
+        %3 = add %cond0, %par
+        %5 = mload %par
+        sink %3, %5
+    """
+
+    post_iszero = "%cond2 = iszero %cond1" if interleave_point % 2 == 1 else ""
+
+    mstore_cond = (interleave_point % 2) + 1
+    jnz_cond = (total_iszeros + 1) % 2
+
+    post = f"""
+    main:
+        %par = source
+        %cond0 = add 64, %par
+        %cond1 = iszero %cond0
+        {post_iszero}
+        mstore %par, %cond{mstore_cond}
+        jnz %cond{jnz_cond}, @then, @else
+    then:
+        %2 = add 10, %par
+        %4 = mload %par
+        sink %2, %4
+    else:
+        %3 = add %cond0, %par
+        %5 = mload %par
+        sink %3, %5
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_fold_add_chain():
+    """add(add(x, 3), 5) => add(x, 8)"""
+    pre = """
+    main:
+        %x = source
+        %tmp = add 3, %x
+        %out = add 5, %tmp
+        sink %out
+    """
+    post = """
+    main:
+        %x = source
+        %out = add 8, %x
+        sink %out
+    """
+    _check_pre_post(pre, post)
+
+
+def test_fold_sub_lit_chain():
+    """(x + 10) - 3 => x + 7 (sub with var - lit)"""
+    pre = """
+    main:
+        %x = source
+        %tmp = add 10, %x
+        %out = sub %tmp, 3
+        sink %out
+    """
+    post = """
+    main:
+        %x = source
+        %out = add 7, %x
+        sink %out
+    """
+    _check_pre_post(pre, post)
+
+
+def test_fold_add_chain_cancels_to_zero():
+    """(x + 5) - 5 => x (constants cancel)"""
+    pre = """
+    main:
+        %x = source
+        %tmp = add 5, %x
+        %out = sub %tmp, 5
+        sink %out
+    """
+    post = """
+    main:
+        %x = source
+        %out = assign %x
+        sink %out
+    """
+    _check_pre_post(pre, post)
+
+
+def test_fold_add_chain_multi_use_stops():
+    """Don't fold through intermediates with multiple uses."""
+    pre = """
+    main:
+        %x = source
+        %tmp = add 3, %x
+        %out = add 5, %tmp
+        sink %out, %tmp
+    """
+    post = """
+    main:
+        %x = source
+        %tmp = add 3, %x
+        %out = add 5, %tmp
+        sink %out, %tmp
+    """
+    _check_pre_post(pre, post)
+
+
+def test_fold_stops_at_multi_use_intermediate():
+    """Don't fold past a multi-use intermediate deeper in the chain.
+    %a has multiple uses so it should be preserved as the base, even
+    though the lattice flattens all the way to %x."""
+    pre = """
+    main:
+        %x = source
+        %a = add 3, %x
+        %b = add 5, %a
+        %out = add 7, %b
+        sink %out, %a
+    """
+    # %a is multi-use (sink + %b). %b is single-use.
+    # The walk stops at %a: %out = %a + 12, not %x + 15.
+    post = """
+    main:
+        %x = source
+        %a = add 3, %x
+        %out = add 12, %a
+        sink %out, %a
+    """
+    _check_pre_post(pre, post)
+
+
+def test_fold_add_chain_three_deep():
+    """add(add(add(x, 1), 2), 3) => add(x, 6)"""
+    pre = """
+    main:
+        %x = source
+        %t1 = add 1, %x
+        %t2 = add 2, %t1
+        %out = add 3, %t2
+        sink %out
+    """
+    post = """
+    main:
+        %x = source
+        %out = add 6, %x
+        sink %out
+    """
+    _check_pre_post(pre, post)
+
+
+def test_iszero_chain_after_comparator_rewrite():
+    """Comparator rewrite can mutate an iszero in the chain (e.g. gt -> slt
+    removes an iszero), making the pre-computed iszero_depth stale.
+    The walk must bail out gracefully instead of asserting."""
+    pre = """
+    main:
+        %x = source
+        %cmp = gt %x, 5
+        %a = iszero %cmp
+        %b = iszero %a
+        jnz %b, @then, @else
+    then:
+        sink %x
+    else:
+        sink %x
+    """
+    # The comparator handler flips gt to lt and absorbs the iszero
+    # at %a (converting it to assign). The chain is now stale —
+    # %cmp has inverted semantics. The chain validator detects that
+    # %a is no longer iszero and bails out, leaving jnz %b intact.
+    post = """
+    main:
+        %x = source
+        %cmp = gt 6, %x
+        %a = %cmp
+        %b = iszero %a
+        jnz %b, @then, @else
+    then:
+        sink %x
+    else:
+        sink %x
+    """
+    _check_pre_post(pre, post)
 
 
 def test_offsets():
-    ctx = IRContext()
-    fn = ctx.create_function("_global")
+    """
+    Test of addition to offset rewrites
+    """
 
-    bb = fn.get_basic_block()
+    pre = """
+    main:
+        %par = source
+        %1 = add @main, 0
+        %2 = add 0, @main
+        %3 = add %par, @main
+        sink %1, %2, %3
+    """
 
-    br1 = IRBasicBlock(IRLabel("then"), fn)
-    fn.append_basic_block(br1)
-    br2 = IRBasicBlock(IRLabel("else"), fn)
-    fn.append_basic_block(br2)
+    post = """
+    main:
+        %par = source
+        %1 = offset @main, 0
 
-    p1 = bb.append_instruction("param")
-    op1 = bb.append_instruction("store", 32)
-    op2 = bb.append_instruction("add", 0, IRLabel("mem"))
-    op3 = bb.append_instruction("store", 64)
-    bb.append_instruction("dloadbytes", op1, op2, op3)
-    op5 = bb.append_instruction("mload", op3)
-    op6 = bb.append_instruction("iszero", op5)
-    bb.append_instruction("jnz", op6, br1.label, br2.label)
+        ; TODO fix this, should be `offset @main, 0`
+        ; (also, the `assign` opcode is used directly because
+        ; the parser does not see the label as literal)
+        %2 = assign @main
+        %3 = add %par, @main
+        sink %1, %2, %3
+    """
 
-    op01 = br1.append_instruction("store", 32)
-    op02 = br1.append_instruction("add", 0, IRLabel("mem"))
-    op03 = br1.append_instruction("store", 64)
-    br1.append_instruction("dloadbytes", op01, op02, op03)
-    op05 = br1.append_instruction("mload", op03)
-    op06 = br1.append_instruction("iszero", op05)
-    br1.append_instruction("return", p1, op06)
+    _check_pre_post(pre, post)
 
-    op11 = br2.append_instruction("store", 32)
-    op12 = br2.append_instruction("add", 0, IRLabel("mem"))
-    op13 = br2.append_instruction("store", 64)
-    br2.append_instruction("dloadbytes", op11, op12, op13)
-    op15 = br2.append_instruction("mload", op13)
-    op16 = br2.append_instruction("iszero", op15)
-    br2.append_instruction("return", p1, op16)
 
-    ac = IRAnalysesCache(fn)
-    MakeSSA(ac, fn).run_pass()
-    AlgebraicOptimizationPass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
+@pytest.mark.parametrize("iszero_count", range(5))
+def test_assert_unreachable_iszero_chain(iszero_count):
+    """
+    Test that iszero chains are optimized for assert_unreachable
+    the same way they are for jnz (truthy context)
+    """
+    iszero_chain = ""
+    for i in range(iszero_count):
+        new = i + 1
+        iszero_chain += f"""
+        %cond{new} = iszero %cond{i}"""
+    iszero_chain_output = f"cond{iszero_count}"
 
-    offset_count = 0
-    for bb in fn.get_basic_blocks():
-        for instruction in bb.instructions:
-            assert instruction.opcode != "add"
-            if instruction.opcode == "offset":
-                offset_count += 1
+    pre = f"""
+    main:
+        %par = source
+        %cond0 = add %par, 64
+        {iszero_chain}
+        assert_unreachable %{iszero_chain_output}
+        sink %par
+    """
 
-    assert offset_count == 3
+    if iszero_count % 2 == 1:
+        post_chain = "%cond1 = iszero %cond0"
+        assert_cond = "cond1"
+    else:
+        post_chain = ""
+        assert_cond = "cond0"
+
+    # note: add operands flipped due to commutative normalization
+    post = f"""
+    main:
+        %par = source
+        %cond0 = add 64, %par
+        {post_chain}
+        assert_unreachable %{assert_cond}
+        sink %par
+    """
+
+    _check_pre_post(pre, post)
 
 
 # Test the case of https://github.com/vyperlang/vyper/issues/4288

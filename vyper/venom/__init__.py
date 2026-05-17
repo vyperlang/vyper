@@ -1,99 +1,194 @@
 # maybe rename this `main.py` or `venom.py`
 # (can have an `__init__.py` which exposes the API).
 
-from typing import Optional
+from typing import Any, Dict, List
 
-from vyper.codegen.ir_node import IRnode
-from vyper.compiler.settings import OptimizationLevel
+from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
+from vyper.ir.compile_ir import AssemblyInstruction
+from vyper.venom.analysis import IRGlobalAnalysesCache, ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis.fcg import FCGGlobalAnalysis
+from vyper.venom.check_venom import check_calling_convention, check_mem_ops
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
-from vyper.venom.ir_node_to_venom import ir_node_to_venom
+from vyper.venom.optimization_levels.O2 import PASSES_O2
+from vyper.venom.optimization_levels.O3 import PASSES_O3
+from vyper.venom.optimization_levels.Os import PASSES_Os
+from vyper.venom.optimization_levels.pass_order import validate_pass_order
+from vyper.venom.optimization_levels.types import PassConfig
 from vyper.venom.passes import (
+    CSE,
     SCCP,
+    AffineFoldingPass,
     AlgebraicOptimizationPass,
+    AssertEliminationPass,
     BranchOptimizationPass,
-    DFTPass,
-    FloatAllocas,
+    DeadStoreElimination,
+    FunctionInlinerPass,
+    InternalReturnCopyForwardingPass,
     LoadElimination,
-    LowerDloadPass,
-    MakeSSA,
     Mem2Var,
-    MemMergePass,
-    ReduceLiteralsCodesize,
+    ReadonlyInvokeArgCopyForwardingPass,
     RemoveUnusedVariablesPass,
     SimplifyCFGPass,
-    StoreElimination,
-    StoreExpansionPass,
 )
+from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
+# Pass configuration for each optimization level
+# TODO: O1 (minimal passes) is currently disabled because it can cause
+# "stack too deep" errors. Re-enable once stack spilling machinery is
+# implemented to allow compilation with minimal optimization passes.
+OPTIMIZATION_PASSES: Dict[OptimizationLevel, List[PassConfig]] = {
+    OptimizationLevel.O2: PASSES_O2,
+    OptimizationLevel.O3: PASSES_O3,
+    OptimizationLevel.Os: PASSES_Os,
+}
+
+# Legacy aliases for backwards compatibility
+OPTIMIZATION_PASSES[OptimizationLevel.NONE] = OPTIMIZATION_PASSES[
+    OptimizationLevel.O2
+]  # none -> O2
+OPTIMIZATION_PASSES[OptimizationLevel.GAS] = OPTIMIZATION_PASSES[OptimizationLevel.O2]  # gas -> O2
+OPTIMIZATION_PASSES[OptimizationLevel.CODESIZE] = OPTIMIZATION_PASSES[
+    OptimizationLevel.Os
+]  # codesize -> Os
+
 
 def generate_assembly_experimental(
-    runtime_code: IRContext,
-    deploy_code: Optional[IRContext] = None,
-    optimize: OptimizationLevel = DEFAULT_OPT_LEVEL,
-) -> list[str]:
-    # note: VenomCompiler is sensitive to the order of these!
-    if deploy_code is not None:
-        functions = [deploy_code, runtime_code]
-    else:
-        functions = [runtime_code]
-
-    compiler = VenomCompiler(functions)
-    return compiler.generate_evm(optimize == OptimizationLevel.NONE)
+    venom_ctx: IRContext, optimize: OptimizationLevel = DEFAULT_OPT_LEVEL
+) -> list[AssemblyInstruction]:
+    compiler = VenomCompiler(venom_ctx)
+    return compiler.generate_evm_assembly(optimize == OptimizationLevel.NONE)
 
 
-def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
-    # Run passes on Venom IR
-    # TODO: Add support for optimization levels
-
-    ac = IRAnalysesCache(fn)
-
-    FloatAllocas(ac, fn).run_pass()
-
-    SimplifyCFGPass(ac, fn).run_pass()
-    MakeSSA(ac, fn).run_pass()
-    StoreElimination(ac, fn).run_pass()
-    Mem2Var(ac, fn).run_pass()
-    MakeSSA(ac, fn).run_pass()
-    SCCP(ac, fn).run_pass()
-
-    LoadElimination(ac, fn).run_pass()
-    StoreElimination(ac, fn).run_pass()
-    MemMergePass(ac, fn).run_pass()
-    SimplifyCFGPass(ac, fn).run_pass()
-
-    LowerDloadPass(ac, fn).run_pass()
-    AlgebraicOptimizationPass(ac, fn).run_pass()
-    # NOTE: MakeSSA is after algebraic optimization it currently produces
-    #       smaller code by adding some redundant phi nodes. This is not a
-    #       problem for us, but we need to be aware of it, and should be
-    #       removed when the dft pass is fixed to produce the smallest code
-    #       without making the code generation more expensive by running
-    #       MakeSSA again.
-    MakeSSA(ac, fn).run_pass()
-    BranchOptimizationPass(ac, fn).run_pass()
-    RemoveUnusedVariablesPass(ac, fn).run_pass()
-
-    StoreExpansionPass(ac, fn).run_pass()
-
-    if optimize == OptimizationLevel.CODESIZE:
-        ReduceLiteralsCodesize(ac, fn).run_pass()
-
-    DFTPass(ac, fn).run_pass()
+# Mapping of pass classes to their disable flag names
+# Passes not in this map are considered essential and always run
+PASS_FLAG_MAP = {
+    AffineFoldingPass: "disable_algebraic_optimization",
+    AlgebraicOptimizationPass: "disable_algebraic_optimization",
+    SCCP: "disable_sccp",
+    Mem2Var: "disable_mem2var",
+    LoadElimination: "disable_load_elimination",
+    RemoveUnusedVariablesPass: "disable_remove_unused_variables",
+    DeadStoreElimination: "disable_dead_store_elimination",
+    BranchOptimizationPass: "disable_branch_optimization",
+    CSE: "disable_cse",
+    SimplifyCFGPass: "disable_simplify_cfg",
+    AssertEliminationPass: "disable_assert_elimination",
+}
 
 
-def run_passes_on(ctx: IRContext, optimize: OptimizationLevel):
+PassRunConfig = tuple[type[IRPass], dict[str, Any]]
+
+
+def _run_passes(fn: IRFunction, pass_pipeline: list[PassRunConfig], ac: IRAnalysesCache) -> None:
+    for pass_cls, kwargs in pass_pipeline:
+        pass_instance = pass_cls(ac, fn)
+        pass_instance.run_pass(**kwargs)
+
+
+def _normalize_pass_config(pass_config: PassConfig) -> PassRunConfig:
+    if isinstance(pass_config, tuple):
+        pass_cls, kwargs = pass_config
+        return pass_cls, kwargs
+    return pass_config, {}
+
+
+def _build_fn_pass_pipeline(flags: VenomOptimizationFlags) -> list[PassRunConfig]:
+    passes = OPTIMIZATION_PASSES[flags.level]
+    pass_pipeline: list[PassRunConfig] = []
+    for pass_config in passes:
+        pass_cls, kwargs = _normalize_pass_config(pass_config)
+
+        # Check if pass should be skipped based on user flags.
+        flag_name = PASS_FLAG_MAP.get(pass_cls)
+        if flag_name is not None and getattr(flags, flag_name):
+            continue
+
+        pass_pipeline.append((pass_cls, kwargs))
+
+    validate_pass_order([pass_cls for pass_cls, _ in pass_pipeline], pipeline_name=str(flags.level))
+    return pass_pipeline
+
+
+def _run_global_passes(
+    ctx: IRContext, flags: VenomOptimizationFlags, ir_analyses: dict[IRFunction, IRAnalysesCache]
+) -> None:
+    ctx.global_analyses_cache = IRGlobalAnalysesCache(ctx, ir_analyses)
+    ctx.global_analyses_cache.force_analysis(ReadonlyMemoryArgsGlobalAnalysis)
+    # Clean unreachable blocks before passes that require dominator analysis
+    for fn in ctx.get_functions():
+        SimplifyCFGPass(ir_analyses[fn], fn).run_pass()
+    # Intentionally run invoke-copy forwarding twice in the full pipeline:
+    # 1) here (pre-inlining) to shrink obvious frontend-emitted staging copies
+    # 2) again in O2/O3/Os per-function pipelines to catch shapes created later.
+    # Keep this note in sync with optimization_levels/* where the second run is listed.
+    for fn in ctx.get_functions():
+        InternalReturnCopyForwardingPass(ir_analyses[fn], fn).run_pass()
+        ReadonlyInvokeArgCopyForwardingPass(ir_analyses[fn], fn).run_pass()
+    if not flags.disable_inlining:
+        FunctionInlinerPass(ir_analyses, ctx, flags).run_pass()
+
+
+def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags, disable_mem_checks=False) -> None:
+    ir_analyses: dict[IRFunction, IRAnalysesCache] = {}
+    # Validate calling convention invariants before running passes
+    if not disable_mem_checks:
+        check_mem_ops(ctx)
+    check_calling_convention(ctx)
     for fn in ctx.functions.values():
-        _run_passes(fn, optimize)
+        ir_analyses[fn] = IRAnalysesCache(fn)
+
+    _run_global_passes(ctx, flags, ir_analyses)
+
+    ctx.global_analyses_cache = None
+    ir_analyses = {}
+    for fn in ctx.functions.values():
+        ir_analyses[fn] = IRAnalysesCache(fn)
+
+    assert ctx.entry_function is not None
+
+    ctx.global_analyses_cache = IRGlobalAnalysesCache(ctx, ir_analyses)
+    fcg = ctx.global_analyses_cache.force_analysis(FCGGlobalAnalysis)
+
+    # Remove functions not reachable from entry.
+    for fn in fcg.get_unreachable_functions():
+        ctx.remove_function(fn)
+
+    ctx.global_analyses_cache.force_analysis(ReadonlyMemoryArgsGlobalAnalysis)
+
+    pass_pipeline = _build_fn_pass_pipeline(flags)
+    _run_fn_passes(ctx, fcg, ctx.entry_function, pass_pipeline, ir_analyses)
+    ctx.global_analyses_cache = None
 
 
-def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRContext:
-    # Convert "old" IR to "new" IR
-    ctx = ir_node_to_venom(ir)
-    run_passes_on(ctx, optimize)
+def _run_fn_passes(
+    ctx: IRContext,
+    fcg: FCGGlobalAnalysis,
+    fn: IRFunction,
+    pass_pipeline: list[PassRunConfig],
+    ir_analyses: dict[IRFunction, IRAnalysesCache],
+):
+    visited: set[IRFunction] = set()
+    assert ctx.entry_function is not None
+    _run_fn_passes_r(ctx, fcg, ctx.entry_function, pass_pipeline, ir_analyses, visited)
 
-    return ctx
+
+def _run_fn_passes_r(
+    ctx: IRContext,
+    fcg: FCGGlobalAnalysis,
+    fn: IRFunction,
+    pass_pipeline: list[PassRunConfig],
+    ir_analyses: dict[IRFunction, IRAnalysesCache],
+    visited: set,
+):
+    if fn in visited:
+        return
+    visited.add(fn)
+    for next_fn in fcg.get_callees(fn):
+        _run_fn_passes_r(ctx, fcg, next_fn, pass_pipeline, ir_analyses, visited)
+
+    _run_passes(fn, pass_pipeline, ir_analyses[fn])

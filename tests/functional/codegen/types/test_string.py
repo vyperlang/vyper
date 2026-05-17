@@ -1,4 +1,9 @@
+import contextlib
+
 import pytest
+
+from tests.utils import check_precompile_asserts
+from vyper.evm.opcodes import version_check
 
 
 def test_string_return(get_contract):
@@ -359,3 +364,56 @@ def compare_var_storage_not_equal_false() -> bool:
     assert c.compare_var_storage_equal_false() is False
     assert c.compare_var_storage_not_equal_true() is True
     assert c.compare_var_storage_not_equal_false() is False
+
+
+def test_string_copy_oog(env, get_contract, tx_failed):
+    # GHSA-vgf2-gvx8-xwc3
+    code = """
+@external
+@view
+def foo(x: String[1000000]) -> String[1000000]:
+    return x
+    """
+    check_precompile_asserts(code)
+
+    c = get_contract(code)
+    calldata = "a" * 1000000
+    assert c.foo(calldata) == calldata
+
+    gas_used = env.last_result.gas_used
+    if version_check(begin="cancun"):
+        ctx = contextlib.nullcontext
+    else:
+        ctx = tx_failed
+
+    with ctx():
+        # depends on EVM version. pre-cancun, will revert due to checking
+        # success flag from identity precompile.
+        c.foo(calldata, gas=gas_used)
+
+
+def test_string_copy_oog2(env, get_contract, tx_failed):
+    # GHSA-vgf2-gvx8-xwc3
+    code = """
+@external
+@view
+def foo(x: String[1000000]) -> uint256:
+    y: String[1000000] = x
+    return len(y)
+    """
+    check_precompile_asserts(code)
+
+    c = get_contract(code)
+    calldata = "a" * 1000000
+    assert c.foo(calldata) == len(calldata)
+
+    gas_used = env.last_result.gas_used
+    if version_check(begin="cancun"):
+        ctx = contextlib.nullcontext
+    else:
+        ctx = tx_failed
+
+    with ctx():
+        # depends on EVM version. pre-cancun, will revert due to checking
+        # success flag from identity precompile.
+        c.foo(calldata, gas=gas_used)

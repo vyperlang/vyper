@@ -141,7 +141,7 @@ This is best illustrated with an example:
     def accept_transfer():
         assert msg.sender == self.pending_owner
 
-        ownable.owner = new_owner
+        ownable.owner = self.pending_owner
         self.pending_owner = empty(address)
 
 Here, the ``ownable_2step`` module does not want to seal off access to calling the ``ownable`` module's ``__init__()`` function. So, it utilizes the ``uses: ownable`` statement to get access to the ``ownable`` module's state, without the requirement to initialize it. Note that this is a valid module, but it is not a valid contract (that is, it cannot produce bytecode) because it does not initialize the ``ownable`` module. To make a valid contract, the user of the ``ownable_2step`` module would be responsible for initializing the ``ownable`` module themselves (as in the next section: :ref:`initializing dependencies <init-dependencies>`).

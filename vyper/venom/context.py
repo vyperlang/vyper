@@ -1,9 +1,13 @@
 import textwrap
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import TYPE_CHECKING, Iterator, Optional
 
-from vyper.venom.basicblock import IRLabel
+from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 from vyper.venom.function import IRFunction
+from vyper.venom.memory_allocator import MemoryAllocator
+
+if TYPE_CHECKING:
+    from vyper.venom.analysis.analysis import IRGlobalAnalysesCache
 
 
 @dataclass
@@ -30,26 +34,47 @@ class DataSection:
         return "\n".join(ret)
 
 
+@dataclass
+class DeployInfo:
+    runtime_codesize: int
+    immutables_len: int
+
+
 class IRContext:
     functions: dict[IRLabel, IRFunction]
-    ctor_mem_size: Optional[int]
-    immutables_len: Optional[int]
+    entry_function: Optional[IRFunction]
     data_segment: list[DataSection]
     last_label: int
+    last_variable: int
+    mem_allocator: MemoryAllocator
+    global_analyses_cache: Optional["IRGlobalAnalysesCache"]
 
     def __init__(self) -> None:
         self.functions = {}
-        self.ctor_mem_size = None
-        self.immutables_len = None
+        self.entry_function = None
         self.data_segment = []
+
         self.last_label = 0
+        self.last_variable = 0
+
+        self.mem_allocator = MemoryAllocator()
+        self.global_analyses_cache = None
+
+    def get_basic_blocks(self) -> Iterator[IRBasicBlock]:
+        for fn in self.functions.values():
+            for bb in fn.get_basic_blocks():
+                yield bb
 
     def add_function(self, fn: IRFunction) -> None:
         fn.ctx = self
         self.functions[fn.name] = fn
 
+    def remove_function(self, fn: IRFunction) -> None:
+        del self.functions[fn.name]
+
     def create_function(self, name: str) -> IRFunction:
         label = IRLabel(name, True)
+        assert label not in self.functions, f"duplicate function {label}"
         fn = IRFunction(label, self)
         self.add_function(fn)
         return fn
@@ -59,19 +84,21 @@ class IRContext:
             return self.functions[name]
         raise Exception(f"Function {name} not found in context")
 
+    def get_functions(self) -> Iterator[IRFunction]:
+        return iter(self.functions.values())
+
     def get_next_label(self, suffix: str = "") -> IRLabel:
         if suffix != "":
             suffix = f"_{suffix}"
         self.last_label += 1
         return IRLabel(f"{self.last_label}{suffix}")
 
-    def chain_basic_blocks(self) -> None:
-        """
-        Chain basic blocks together. This is necessary for the IR to be valid, and is done after
-        the IR is generated.
-        """
-        for fn in self.functions.values():
-            fn.chain_basic_blocks()
+    def get_next_variable(self) -> IRVariable:
+        self.last_variable += 1
+        return IRVariable(f"%{self.last_variable}")
+
+    def get_last_variable(self) -> str:
+        return f"%{self.last_variable}"
 
     def append_data_section(self, name: IRLabel) -> None:
         self.data_segment.append(DataSection(name))

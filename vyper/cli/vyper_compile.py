@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 import argparse
+import functools
+import inspect
 import json
 import os
 import sys
-import warnings
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Optional, Set, TypeVar
+from typing import Any, Optional
 
 import vyper
 import vyper.codegen.ir_node as ir_node
@@ -13,12 +14,17 @@ import vyper.evm.opcodes as evm
 from vyper.cli import vyper_json
 from vyper.cli.compile_archive import NotZipInput, compile_from_zip
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
-from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
+from vyper.compiler.settings import (
+    VYPER_TRACEBACK_LIMIT,
+    OptimizationLevel,
+    Settings,
+    VenomOptimizationFlags,
+)
 from vyper.typing import ContractPath, OutputFormats
+from vyper.utils import uniq
+from vyper.warnings import warnings_filter
 
-T = TypeVar("T")
-
-format_options_help = """Format to print, one or more of:
+format_options_help = """Format to print, one or more of (comma-separated):
 bytecode (default) - Deployable bytecode
 bytecode_runtime   - Bytecode at runtime
 blueprint_bytecode - Deployment bytecode for an ERC-5202 compatible blueprint
@@ -30,6 +36,8 @@ method_identifiers - Dictionary of method signature to method identifier
 userdoc            - Natspec user documentation
 devdoc             - Natspec developer documentation
 metadata           - Contract metadata (intended for use by tooling developers)
+symbol_map_runtime - Symbol values in runtime bytecode (intended for use by tooling developers)
+symbol_map         - Symbol values in deployable bytecode (intended for use by tooling developers)
 combined_json      - All of the above format options combined as single JSON output
 layout             - Storage layout of a Vyper contract
 ast                - AST (not yet annotated) in JSON format
@@ -40,15 +48,15 @@ interface          - Vyper interface of a contract
 external_interface - External interface of a contract, used for outside contract calls
 opcodes            - List of opcodes as a string
 opcodes_runtime    - List of runtime opcodes as a string
-ir                 - Intermediate representation in list format
+ir                 - Intermediate representation in list format (Venom IR if --experimental-codegen)
 ir_json            - Intermediate representation in JSON format
-ir_runtime         - Intermediate representation of runtime bytecode in list format
-bb                 - Basic blocks of Venom IR for deployable bytecode
-bb_runtime         - Basic blocks of Venom IR for runtime bytecode
+ir_runtime         - Intermediate representation of runtime bytecode
+                      (Venom IR if --experimental-codegen)
 asm                - Output the EVM assembly of the deployable bytecode
 integrity          - Output the integrity hash of the source code
 archive            - Output the build as an archive file
 solc_json          - Output the build in solc json format
+settings           - Output the settings for a given build in json format
 """
 
 combined_json_outputs = [
@@ -62,6 +70,7 @@ combined_json_outputs = [
     "method_identifiers",
     "userdoc",
     "devdoc",
+    "settings_dict",
 ]
 
 
@@ -98,8 +107,6 @@ def _cli_helper(f, output_formats, compiled):
 
 
 def _parse_args(argv):
-    warnings.simplefilter("always")
-
     if "--standard-json" in argv:
         argv.remove("--standard-json")
         vyper_json._parse_args(argv)
@@ -129,7 +136,7 @@ def _parse_args(argv):
         choices=list(evm.EVM_VERSIONS),
         dest="evm_version",
     )
-    parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
+    parser.add_argument("--disable-optimize", help="Do not optimize", action="store_true")
     parser.add_argument(
         "--base64",
         help="Base64 encode the output (only valid in conjunction with `-f archive`",
@@ -138,12 +145,37 @@ def _parse_args(argv):
     parser.add_argument(
         "-O",
         "--optimize",
-        help="Optimization flag (defaults to 'gas')",
-        choices=["gas", "codesize", "none"],
+        help="Optimization level (defaults to 'gas'). Valid options: "
+        "1 (basic), 2 (gas/default), 3 (aggressive - experimental), "
+        "s (size), or legacy names: none (alias for 1), gas, codesize",
+        metavar="LEVEL",
+        dest="optimize",
     )
+    parser.add_argument(
+        "--disable-inlining", help="Disable function inlining optimization", action="store_true"
+    )
+    parser.add_argument(
+        "--disable-cse", help="Disable common subexpression elimination", action="store_true"
+    )
+    parser.add_argument(
+        "--disable-sccp",
+        help="Disable sparse conditional constant propagation",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--disable-load-elimination",
+        help="Disable load elimination optimization",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--disable-dead-store-elimination",
+        help="Disable dead store elimination",
+        action="store_true",
+    )
+    parser.add_argument("--inline-threshold", help="Function inlining cost threshold", type=int)
     parser.add_argument("--debug", help="Compile in debug mode", action="store_true")
     parser.add_argument(
-        "--no-bytecode-metadata", help="Do not add metadata to bytecode", action="store_true"
+        "--disable-bytecode-metadata", help="Do not add metadata to bytecode", action="store_true"
     )
     parser.add_argument(
         "--traceback-limit",
@@ -180,12 +212,22 @@ def _parse_args(argv):
     parser.add_argument("-o", help="Set the output path", dest="output_path")
     parser.add_argument(
         "--experimental-codegen",
-        "--venom",
+        "--venom-experimental",
         help="The compiler uses the new IR codegen. This is an experimental feature.",
         action="store_true",
         dest="experimental_codegen",
     )
     parser.add_argument("--enable-decimals", help="Enable decimals", action="store_true")
+    parser.add_argument(
+        "--disable-static-exceptions",
+        help="Don't raise compile-time errors for provably failing assertions",
+        action="store_true",
+        dest="disable_static_exceptions",
+    )
+
+    parser.add_argument(
+        "-W", help="Control warnings", dest="warnings_control", choices=["error", "none"]
+    )
 
     args = parser.parse_args(argv)
 
@@ -212,15 +254,34 @@ def _parse_args(argv):
     if args.base64:
         output_formats = ("archive_b64",)
 
-    if args.no_optimize and args.optimize:
-        raise ValueError("Cannot use `--no-optimize` and `--optimize` at the same time!")
+    if args.disable_optimize and args.optimize:
+        raise ValueError("Cannot use `--disable-optimize` and `-O/--optimize` at the same time!")
 
-    settings = Settings()
-
-    if args.no_optimize:
-        settings.optimize = OptimizationLevel.NONE
+    optimize = None
+    if args.disable_optimize:
+        optimize = OptimizationLevel.NONE
     elif args.optimize is not None:
-        settings.optimize = OptimizationLevel.from_string(args.optimize)
+        # Handle both old-style (none, gas, codesize) and numeric (1, 2, 3, s) arguments
+        opt_level = args.optimize.lower()
+        if opt_level in ["1", "2", "3"]:
+            opt_level = "O" + opt_level
+        elif opt_level == "s":
+            opt_level = "Os"
+        optimize = OptimizationLevel.from_string(opt_level)
+
+    settings = Settings(optimize=optimize)
+
+    # Apply individual flag overrides - ensure venom_flags exists before mutation
+    if settings.venom_flags is None:
+        settings.venom_flags = VenomOptimizationFlags(level=settings.optimize)
+    flags = settings.venom_flags
+    flags.disable_inlining |= args.disable_inlining
+    flags.disable_cse |= args.disable_cse
+    flags.disable_sccp |= args.disable_sccp
+    flags.disable_load_elimination |= args.disable_load_elimination
+    flags.disable_dead_store_elimination |= args.disable_dead_store_elimination
+    if args.inline_threshold is not None:
+        flags.inline_threshold = args.inline_threshold
 
     if args.evm_version:
         settings.evm_version = args.evm_version
@@ -233,6 +294,9 @@ def _parse_args(argv):
 
     if args.enable_decimals:
         settings.enable_decimals = args.enable_decimals
+
+    if args.disable_static_exceptions:
+        settings.disable_static_exceptions = args.disable_static_exceptions
 
     if args.verbose:
         print(f"cli specified: `{settings}`", file=sys.stderr)
@@ -247,7 +311,8 @@ def _parse_args(argv):
         args.show_gas_estimates,
         settings,
         args.storage_layout,
-        args.no_bytecode_metadata,
+        args.disable_bytecode_metadata,
+        args.warnings_control,
     )
 
     mode = "w"
@@ -261,20 +326,6 @@ def _parse_args(argv):
         # https://stackoverflow.com/a/54073813
         with os.fdopen(sys.stdout.fileno(), mode, closefd=False) as f:
             _cli_helper(f, output_formats, compiled)
-
-
-def uniq(seq: Iterable[T]) -> Iterator[T]:
-    """
-    Yield unique items in ``seq`` in order.
-    """
-    seen: Set[T] = set()
-
-    for x in seq:
-        if x in seen:
-            continue
-
-        seen.add(x)
-        yield x
 
 
 def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
@@ -305,6 +356,21 @@ def get_search_paths(paths: list[str] = None, include_sys_path=True) -> list[Pat
     return search_paths
 
 
+def _apply_warnings_filter(func):
+    @functools.wraps(func)
+    def inner(*args, **kwargs):
+        # find "warnings_control" argument
+        ba = inspect.signature(func).bind(*args, **kwargs)
+        ba.apply_defaults()
+
+        warnings_control = ba.arguments["warnings_control"]
+        with warnings_filter(warnings_control):
+            return func(*args, **kwargs)
+
+    return inner
+
+
+@_apply_warnings_filter
 def compile_files(
     input_files: list[str],
     output_formats: OutputFormats,
@@ -314,6 +380,7 @@ def compile_files(
     settings: Optional[Settings] = None,
     storage_layout_paths: list[str] = None,
     no_bytecode_metadata: bool = False,
+    warnings_control: Optional[str] = None,
 ) -> dict:
     search_paths = get_search_paths(paths, include_sys_path)
     input_bundle = FilesystemInputBundle(search_paths)
@@ -336,6 +403,7 @@ def compile_files(
         "ast": "ast_dict",
         "annotated_ast": "annotated_ast_dict",
         "ir_json": "ir_dict",
+        "settings": "settings_dict",
     }
     final_formats = [translate_map.get(i, i) for i in output_formats]
 
@@ -375,8 +443,7 @@ def compile_files(
         storage_layout_override = None
         if storage_layout_paths:
             storage_file_path = storage_layout_paths.pop(0)
-            with open(storage_file_path) as sfh:
-                storage_layout_override = json.load(sfh)
+            storage_layout_override = input_bundle.load_json_file(storage_file_path)
 
         output = vyper.compile_from_file_input(
             file,

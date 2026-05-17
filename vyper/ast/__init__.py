@@ -1,13 +1,14 @@
 """
 isort:skip_file
 """
+
 import sys
 
 from . import nodes, validation
 from .natspec import parse_natspec
 from .nodes import as_tuple
 from .utils import ast_to_dict
-from .parse import parse_to_ast, parse_to_ast_with_settings
+from .parse import parse_to_ast
 
 # adds vyper.ast.nodes classes into the local namespace
 for name, obj in (

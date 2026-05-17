@@ -10,6 +10,7 @@ totalTokenQty: public(uint256)
 invariant: public(uint256)
 token: IERC20
 owner: public(address)
+finalized: bool
 
 # Sets the on chain market maker with its owner, initial token quantity,
 # and initial ether quantity
@@ -29,6 +30,8 @@ def initiate(token_addr: address, token_quantity: uint256):
 @external
 @payable
 def ethToTokens():
+    assert not self.finalized
+
     fee: uint256 = msg.value // 500
     eth_in_purchase: uint256 = msg.value - fee
     new_total_eth: uint256 = self.totalEthQty + eth_in_purchase
@@ -40,6 +43,8 @@ def ethToTokens():
 # Sells tokens to the contract in exchange for ether
 @external
 def tokensToEth(sell_quantity: uint256):
+    assert not self.finalized
+
     extcall self.token.transferFrom(msg.sender, self, sell_quantity)
     new_total_tokens: uint256 = self.totalTokenQty + sell_quantity
     new_total_eth: uint256 = self.invariant // new_total_tokens
@@ -48,9 +53,14 @@ def tokensToEth(sell_quantity: uint256):
     self.totalEthQty = new_total_eth
     self.totalTokenQty = new_total_tokens
 
-# Owner can withdraw their funds and destroy the market maker
+# Owner can withdraw their funds and stop the exchange
 @external
 def ownerWithdraw():
     assert self.owner == msg.sender
+
+    self.finalized = True
+
     extcall self.token.transfer(self.owner, self.totalTokenQty)
-    selfdestruct(self.owner)
+
+    if self.balance > 0:
+        send(self.owner, self.balance)

@@ -52,6 +52,19 @@ bar: DynArray[Foo, 10]
     """
 bar: DynArray[Bytes[30], 10]
     """,  # dynamic arrays of bytestrings are allowed, but not static arrays
+    """
+@external
+def bar():
+    d: DynArray[uint256, 10] = []
+    i: DynArray[uint256, 30] = d
+    """,  # dynamic arrays can be assigned to others of larger size
+    """
+@external
+def bar():
+    d: DynArray[DynArray[uint256, 10], 10] = [[]]
+    for i: DynArray[uint256, 30] in d:
+        pass
+    """,  # dynamic arrays can be assigned to others of larger size
 ]
 
 

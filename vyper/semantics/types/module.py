@@ -13,19 +13,18 @@ from vyper.exceptions import (
 from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.utils import (
     check_modifiability,
-    get_exact_type_from_node,
     validate_expected_type,
     validate_unique_method_ids,
 )
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types.base import TYPE_T, VyperType, is_type_t
+from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.user import EventT, FlagT, StructT, _UserType
 from vyper.utils import OrderedSet
 
 if TYPE_CHECKING:
-    from vyper.semantics.analysis.base import ImportInfo, ModuleInfo
+    from vyper.semantics.analysis.base import ModuleInfo
 
 
 class InterfaceT(_UserType):
@@ -33,7 +32,7 @@ class InterfaceT(_UserType):
 
     _type_members = {"address": AddressT()}
     _is_prim_word = True
-    _as_array = True
+    is_valid_element_type = True
     _as_hashmap_key = True
     _supports_external_calls = True
     _attribute_in_annotation = True
@@ -47,6 +46,9 @@ class InterfaceT(_UserType):
         structs: dict,
         flags: dict,
     ) -> None:
+        # Note: If an event is reachable by a module, but not defined inside it,
+        # it will not be present in this `events` field, aka module.interface.events
+
         validate_unique_method_ids(list(functions.values()))
 
         members = functions | events | structs | flags
@@ -146,14 +148,6 @@ class InterfaceT(_UserType):
                 f"Contract does not implement all interface functions: {missing_str}", node
             )
 
-    def to_toplevel_abi_dict(self) -> list[dict]:
-        abi = []
-        for event in self.events.values():
-            abi += event.to_toplevel_abi_dict()
-        for func in self.functions.values():
-            abi += func.to_toplevel_abi_dict()
-        return abi
-
     # helper function which performs namespace collision checking
     @classmethod
     def _from_lists(
@@ -240,10 +234,7 @@ class InterfaceT(_UserType):
         for fn_t in module_t.exposed_functions:
             funcs.append((fn_t.name, fn_t))
 
-        event_set: OrderedSet[EventT] = OrderedSet()
-        event_set.update([node._metadata["event_type"] for node in module_t.event_defs])
-        event_set.update(module_t.used_events)
-        events = [(event_t.name, event_t) for event_t in event_set]
+        events = [(e.name, e._metadata["event_type"]) for e in module_t.event_defs]
 
         # these are accessible via import, but they do not show up
         # in the ABI json
@@ -288,6 +279,9 @@ class ModuleT(VyperType):
     typeclass = "module"
 
     _attribute_in_annotation = True
+    is_valid_element_type = False
+    _as_hashmap_key = False
+    is_valid_member_type = False
     _invalid_locations = (
         DataLocation.STORAGE,
         DataLocation.CALLDATA,
@@ -339,17 +333,16 @@ class ModuleT(VyperType):
             self.add_member(v.target.id, v.target._metadata["varinfo"])
 
         for i in self.import_stmts:
-            import_info = i._metadata["import_info"]
-
-            if hasattr(import_info.typ, "module_t"):
-                module_info = import_info.typ
-                # get_expr_info uses ModuleInfo
-                self.add_member(import_info.alias, module_info)
-                # type_from_annotation uses TYPE_T
-                self._helper.add_member(import_info.alias, TYPE_T(module_info.module_t))
-            else:  # interfaces
-                assert isinstance(import_info.typ, InterfaceT)
-                self.add_member(import_info.alias, TYPE_T(import_info.typ))
+            for import_info in i._metadata["import_infos"]:
+                if hasattr(import_info.typ, "module_t"):
+                    module_info = import_info.typ
+                    # get_expr_info uses ModuleInfo
+                    self.add_member(import_info.alias, module_info)
+                    # type_from_annotation uses TYPE_T
+                    self._helper.add_member(import_info.alias, TYPE_T(module_info.module_t))
+                else:  # interfaces
+                    assert isinstance(import_info.typ, InterfaceT)
+                    self.add_member(import_info.alias, TYPE_T(import_info.typ))
 
         for name, interface_t in self.interfaces.items():
             # can access interfaces in type position
@@ -405,7 +398,11 @@ class ModuleT(VyperType):
 
     @cached_property
     def implemented_interfaces(self):
-        ret = [node._metadata["interface_type"] for node in self.implements_decls]
+        ret = [
+            interface
+            for node in self.implements_decls
+            for interface in node._metadata["interface_types"]
+        ]
 
         # a module implicitly implements module.__interface__.
         ret.append(self.interface)
@@ -420,10 +417,10 @@ class ModuleT(VyperType):
             ret[i.name] = i._metadata["interface_type"]
 
         for i in self.import_stmts:
-            import_info = i._metadata["import_info"]
-            if isinstance(import_info.typ, InterfaceT):
-                assert import_info.alias not in ret  # precondition
-                ret[import_info.alias] = import_info.typ
+            for import_info in i._metadata["import_infos"]:
+                if isinstance(import_info.typ, InterfaceT):
+                    assert import_info.alias not in ret  # precondition
+                    ret[import_info.alias] = import_info.typ
 
         return ret
 
@@ -435,29 +432,11 @@ class ModuleT(VyperType):
     def imported_modules(self) -> dict[str, "ModuleInfo"]:
         ret = {}
         for s in self.import_stmts:
-            info = s._metadata["import_info"]
-            module_info = info.typ
-            if isinstance(module_info, InterfaceT):
-                continue
-            ret[info.alias] = module_info
-        return ret
-
-    @cached_property
-    def reachable_imports(self) -> list["ImportInfo"]:
-        """
-        Return (recursively) reachable imports from this module as a list in
-        depth-first (descendants-first) order.
-        """
-        ret = []
-        for s in self.import_stmts:
-            info = s._metadata["import_info"]
-
-            # NOTE: this needs to be redone if interfaces can import other interfaces
-            if not isinstance(info.typ, InterfaceT):
-                ret.extend(info.typ.typ.reachable_imports)
-
-            ret.append(info)
-
+            for info in s._metadata["import_infos"]:
+                module_info = info.typ
+                if isinstance(module_info, InterfaceT):
+                    continue
+                ret[info.alias] = module_info
         return ret
 
     def find_module_info(self, needle: "ModuleT") -> Optional["ModuleInfo"]:
@@ -534,33 +513,62 @@ class ModuleT(VyperType):
         return {f.name: f._metadata["func_type"] for f in self.function_defs}
 
     @cached_property
-    # it would be nice to rely on the function analyzer to do this analysis,
-    # but we don't have the result of function analysis at the time we need to
-    # construct `self.interface`.
-    def used_events(self) -> OrderedSet[EventT]:
-        ret: OrderedSet[EventT] = OrderedSet()
+    def reachable_functions(self) -> OrderedSet[ContractFunctionT]:
+        """
+        All functions reachable from entry points (init + exposed functions).
+        """
+        ret: OrderedSet[ContractFunctionT] = OrderedSet()
 
-        reachable: OrderedSet[ContractFunctionT] = OrderedSet()
         if self.init_function is not None:
-            reachable.add(self.init_function)
-            reachable.update(self.init_function.reachable_internal_functions)
+            ret.update(self.init_function.reachable_internal_functions)
+            ret.add(self.init_function)
         for fn_t in self.exposed_functions:
-            reachable.add(fn_t)
-            reachable.update(fn_t.reachable_internal_functions)
-
-        for fn_t in reachable:
-            fn_ast = fn_t.decl_node
-            assert isinstance(fn_ast, vy_ast.FunctionDef)
-
-            for node in fn_ast.get_descendants(vy_ast.Log):
-                call_t = get_exact_type_from_node(node.value.func)
-                if not is_type_t(call_t, EventT):
-                    # this is an error, but it will be handled later
-                    continue
-
-                ret.add(call_t.typedef)
+            ret.update(fn_t.reachable_internal_functions)
+            ret.add(fn_t)
 
         return ret
+
+    @cached_property
+    def used_events(self) -> OrderedSet[EventT]:
+        """
+        Collect events emitted from reachable functions.
+        Events are recorded during function analysis via FunctionAnalyzer.visit_Log().
+        """
+        ret: OrderedSet[EventT] = OrderedSet()
+
+        for fn_t in self.reachable_functions:
+            ret.update(fn_t.get_emitted_events())
+
+        return ret
+
+    def validate_used_events(self):
+        # check for name collisions between defined and used events
+        defined_events = {e._metadata["event_type"].name: e for e in self.event_defs}
+        for event in self.used_events:
+            if (
+                event.name in defined_events
+                and event != defined_events[event.name]._metadata["event_type"]
+            ):
+                prev = defined_events[event.name]
+                raise NamespaceCollision(
+                    f"multiple events named '{event.name}'!", event.decl_node, prev_decl=prev
+                )
+
+    def to_toplevel_abi_dict(self) -> list[dict]:
+        # Note: This is not a property only of an interface,
+        # since it requires information which is not local to a module, for example `used_events`
+        abi = []
+        internal_events = self.interface.events
+        external_events = self.used_events
+
+        events: OrderedSet[EventT] = OrderedSet(internal_events.values())
+        events.update(external_events)
+
+        for event in events:
+            abi += event.to_toplevel_abi_dict()
+        for func in self.interface.functions.values():
+            abi += func.to_toplevel_abi_dict()
+        return abi
 
     @cached_property
     def immutables(self):

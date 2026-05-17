@@ -214,6 +214,21 @@ def data() -> int128:
         assert c.data() == sum(xs)
 
 
+def test_constant_list_iter(get_contract):
+    code = """
+MY_LIST: constant(uint24[4]) = [1, 2, 3, 4]
+
+@external
+def foo() -> uint24:
+    x: uint24 = 0
+    for s: uint24 in MY_LIST:
+        x += s
+    return x
+    """
+    c = get_contract(code)
+    assert c.foo() == sum([1, 2, 3, 4])
+
+
 def test_basic_for_list_storage_address(get_contract):
     code = """
 addresses: address[3]
@@ -832,6 +847,38 @@ def foo():
     """,
         UnknownType,
     ),
+    # Mismatch between iterator and iterable types: struct
+    (
+        """
+struct Tx1:
+    x: uint256
+    y: address
+
+struct Tx2:
+    x: uint256
+    y: address
+
+@external
+def test():
+    txs: Tx1[20] = empty(Tx1[20])
+
+    for txx: Tx2 in txs:  # should be `txx: Tx1`
+        pass
+    """,
+        TypeMismatch,
+    ),
+    # Mismatch between iterator and iterable types: primitive
+    (
+        """
+@external
+def test():
+    txs: uint256[20] = empty(uint256[20])
+
+    for txx: uint248 in txs:
+        pass
+    """,
+        TypeMismatch,
+    ),
 ]
 
 BAD_CODE = [code if isinstance(code, tuple) else (code, StructureException) for code in BAD_CODE]
@@ -930,3 +977,67 @@ def foo() -> DynArray[uint256, 12]:
     """
     c = get_contract(code)
     assert c.foo() == [1, 2, 3]
+
+
+def test_iterator_eval_order(get_contract):
+    # GHSA-h33q-mhmp-8p67
+    code = """
+x: uint256
+trace: DynArray[uint256, 3]
+
+@deploy
+def __init__():
+    self.x = 0
+
+@external
+def test():
+    for i: uint256 in [self.usesideeffect(), self.usesideeffect(), self.usesideeffect()]:
+        self.x += 1
+        self.trace.append(i)
+
+@view
+def usesideeffect() -> uint256:
+    return self.x
+
+@view
+@external
+def get_trace() -> DynArray[uint256, 3]:
+    return self.trace
+    """
+    c = get_contract(code)
+    c.test()
+    assert c.get_trace() == [0, 0, 0]
+
+
+def test_iterator_eval_order2(get_contract):
+    # GHSA-h33q-mhmp-8p67
+    code = """
+x: uint256
+trace: DynArray[uint256, 3]
+
+@deploy
+def __init__():
+    self.x = 0
+
+@external
+def test():
+    for i: uint256 in ([self.usesideeffect(), self.usesideeffect(), self.usesideeffect()] if True else self.otherclause()):
+        self.x += 1
+        self.trace.append(i)
+
+@view
+def usesideeffect() -> uint256:
+    return self.x
+
+@view
+def otherclause() -> uint256[3]:
+    return [0, 0, 0]
+
+@view
+@external
+def get_trace() -> DynArray[uint256, 3]:
+    return self.trace
+    """  # noqa: E501
+    c = get_contract(code)
+    c.test()
+    assert c.get_trace() == [0, 0, 0]

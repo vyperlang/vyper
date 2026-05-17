@@ -1,4 +1,7 @@
+import pytest
+
 from vyper.compiler import compile_code
+from vyper.exceptions import StructureException
 
 
 def test_implements_from_vyi(make_input_bundle):
@@ -49,3 +52,95 @@ def foo():  # implementation
     input_bundle = make_input_bundle({"some_interface.vyi": vyi, "lib1.vy": lib1, "lib2.vy": lib2})
 
     assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_duplicate_implements_in_same_statement_fails(make_input_bundle):
+    vyi = """
+@external
+def foo():
+    ...
+    """
+    main = """
+import some_interface
+
+implements: (
+    some_interface,
+    some_interface,
+)
+
+@external
+def foo():  # implementation
+    pass
+    """
+    input_bundle = make_input_bundle({"some_interface.vyi": vyi})
+
+    with pytest.raises(StructureException) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "some_interface implemented more than once"
+    assert e.value._hint is None
+
+
+def test_duplicate_implements_in_different_statement_fails(make_input_bundle):
+    vyi = """
+@external
+def foo():
+    ...
+    """
+    main = """
+import some_interface
+
+implements: some_interface
+implements: some_interface
+
+@external
+def foo():  # implementation
+    pass
+    """
+    input_bundle = make_input_bundle({"some_interface.vyi": vyi})
+
+    with pytest.raises(StructureException) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "some_interface implemented more than once"
+    assert e.value._hint is None
+
+
+def test_duplicate_implements_in_different_statement_with_mixed_syntax_fails(make_input_bundle):
+    some_interface = """
+@external
+def foo():
+    ...
+    """
+    other_interface = """
+@external
+def bar():
+    ...
+    """
+    main = """
+import some_interface
+import other_interface
+
+implements: some_interface
+implements: (
+    other_interface,
+    some_interface,
+)
+
+@external
+def foo():  # implementation
+    pass
+
+@external
+def bar():  # implementation
+    pass
+    """
+    input_bundle = make_input_bundle(
+        {"some_interface.vyi": some_interface, "other_interface.vyi": other_interface}
+    )
+
+    with pytest.raises(StructureException) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "some_interface implemented more than once"
+    assert e.value._hint is None

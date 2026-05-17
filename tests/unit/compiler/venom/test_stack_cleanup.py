@@ -8,8 +8,8 @@ def test_cleanup_stack():
     fn = ctx.create_function("test")
     bb = fn.get_basic_block()
     ret_val = bb.append_instruction("param")
-    op = bb.append_instruction("store", 10)
-    op2 = bb.append_instruction("store", op)
+    op = bb.append_instruction("assign", 10)
+    op2 = bb.append_instruction("assign", op)
     bb.append_instruction("add", op, op2)
     bb.append_instruction("ret", ret_val)
 

@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import ModuleNotFound
+from vyper.exceptions import ModuleNotFound, StructureException
 
 CODE_TOP = """
 import subdir0.lib0 as lib0
@@ -28,8 +28,9 @@ def foo():
     )
 
     file_input = input_bundle.load_file("top.vy")
-    with pytest.raises(ModuleNotFound):
+    with pytest.raises(ModuleNotFound) as e:
         compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
+    assert "lib0.vy:" in str(e.value)
 
 
 def test_implicitly_relative_import_crashes_2(make_input_bundle):
@@ -44,8 +45,9 @@ def foo():
     )
 
     file_input = input_bundle.load_file("top.vy")
-    with pytest.raises(ModuleNotFound):
+    with pytest.raises(ModuleNotFound) as e:
         compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
+    assert "lib0.vy:" in str(e.value)
 
 
 def test_relative_import_searches_only_current_path(make_input_bundle):
@@ -70,8 +72,32 @@ def foo():
     input_bundle = make_input_bundle({"top.vy": top, "a.vy": a, "subdir/b.vy": b})
     file_input = input_bundle.load_file("top.vy")
 
-    with pytest.raises(ModuleNotFound):
+    with pytest.raises(ModuleNotFound) as e:
         compiler.compile_from_file_input(file_input, input_bundle=input_bundle)
+    assert "b.vy:" in str(e.value)
+
+
+def test_relative_import_works_with_multiple_interfaces(make_input_bundle):
+    top = """
+from subdir import a, b
+@external
+def foo():
+    a.foo()
+    b.bar()
+    """
+
+    a = """
+def foo():
+    pass
+    """
+
+    b = """
+def bar():
+    pass
+    """
+
+    input_bundle = make_input_bundle({"top.vy": top, "subdir/a.vy": a, "subdir/b.vy": b})
+    compiler.compile_from_file_input(top, input_bundle=input_bundle)
 
 
 def test_absolute_import_within_relative_import(make_input_bundle):
@@ -127,3 +153,44 @@ def foo():
         {"top.vy": CODE_TOP, "subdir0/lib0.vy": lib0, "subdir0/subdir1/lib1.vy": CODE_LIB1}
     )
     compiler.compile_code(CODE_TOP, input_bundle=input_bundle)
+
+
+def test_absolute_path_without_alias_fails(make_input_bundle):
+    top = """
+import subdir0.lib0
+@external
+def foo():
+    pass
+"""
+    lib0 = ""
+
+    input_bundle = make_input_bundle({"top.vy": top, "subdir0/lib0.vy": lib0})
+
+    with pytest.raises(StructureException) as e:
+        compiler.compile_code(top, input_bundle=input_bundle)
+
+    assert "import requires an accompanying `as` statement" in e.value.message
+
+
+def test_absolute_import_works_with_multiple_interfaces(make_input_bundle):
+    top = """
+import a
+import subdir.b as b
+@external
+def foo():
+    a.foo()
+    b.bar()
+    """
+
+    a = """
+def foo():
+    pass
+    """
+
+    b = """
+def bar():
+    pass
+    """
+
+    input_bundle = make_input_bundle({"top.vy": top, "a.vy": a, "subdir/b.vy": b})
+    compiler.compile_from_file_input(top, input_bundle=input_bundle)

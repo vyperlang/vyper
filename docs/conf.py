@@ -4,7 +4,15 @@
 extensions = [
     "sphinx_copybutton",
     "sphinx.ext.intersphinx",
+    "sphinx_reredirects",
 ]
+
+# Redirects for removed pages
+redirects = {
+    "testing-contracts-brownie": "testing-contracts.html",
+    "testing-contracts-titanoboa": "testing-contracts.html",
+    "vyper-by-example": "vyper-by-example/index.html",
+}
 
 templates_path = ["_templates"]
 master_doc = "toctree"
@@ -89,5 +97,5 @@ texinfo_documents = [
 intersphinx_mapping = {
     "brownie": ("https://eth-brownie.readthedocs.io/en/stable", None),
     "pytest": ("https://docs.pytest.org/en/latest/", None),
-    "python": ("https://docs.python.org/3.10/", None),
+    "python": ("https://docs.python.org/3.11/", None),
 }

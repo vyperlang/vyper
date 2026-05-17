@@ -23,13 +23,18 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
-from vyper.utils import keccak256, vyper_warn
+from vyper.utils import keccak256
+from vyper.warnings import Deprecation, vyper_warn
 
 
 # user defined type
 class _UserType(VyperType):
     def __init__(self, members=None):
         super().__init__(members=members)
+        if members is not None:
+            for mt in members.values():
+                if not mt.is_valid_member_type:
+                    raise StructureException(f"not a valid {self.typeclass} member: {mt}")
 
     def __eq__(self, other):
         return self is other
@@ -281,7 +286,9 @@ class EventT(_UserType):
             else:
                 indexed.append(False)
 
-            members[member_name] = type_from_annotation(annotation)
+            member_type = type_from_annotation(annotation)
+            members[member_name] = member_type
+            node.target._metadata["type"] = member_type
 
         return cls(base_node.name, members, indexed, base_node)
 
@@ -297,13 +304,19 @@ class EventT(_UserType):
 
             return validate_kwargs(node, self.arguments, self.typeclass)
 
-        # warn about positional argument depreciation
-        msg = "Instantiating events with positional arguments is "
-        msg += "deprecated as of v0.4.1 and will be disallowed "
-        msg += "in a future release. Use kwargs instead eg. "
-        msg += "Foo(a=1, b=2)"
+        # warn about positional argument deprecation
+        if len(node.args) != 0:
+            rec0 = ", ".join(
+                f"{argname}={val.node_source_code}"
+                for argname, val in zip(self.arguments.keys(), node.args)
+            )
+            recommendation = f"log {node.func.node_source_code}({rec0})"
+            msg = "Instantiating events with positional arguments is"
+            msg += " deprecated as of v0.4.1 and will be disallowed"
+            msg += " in a future release. Use kwargs instead e.g.:"
+            msg += f"\n```\n{recommendation}\n```"
 
-        vyper_warn(msg, node)
+            vyper_warn(Deprecation(msg, node))
 
         validate_call_args(node, len(self.arguments))
         for arg, expected in zip(node.args, self.arguments.values()):
@@ -325,7 +338,7 @@ class EventT(_UserType):
 
 class StructT(_UserType):
     typeclass = "struct"
-    _as_array = True
+    is_valid_element_type = True
 
     def __init__(self, _id, members, ast_def=None):
         super().__init__(members)
@@ -391,7 +404,9 @@ class StructT(_UserType):
                     f"struct member '{member_name}' has already been declared", node.value
                 )
 
-            members[member_name] = type_from_annotation(node.annotation)
+            member_type = type_from_annotation(node.annotation)
+            members[member_name] = member_type
+            node.target._metadata["type"] = member_type
 
         return cls(struct_name, members, ast_def=base_node)
 

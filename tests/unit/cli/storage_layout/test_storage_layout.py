@@ -380,3 +380,27 @@ initializes: lib
 
     assert layout1 == {"x": {"slot": start_slot, "type": "uint256", "n_slots": 1}}
     assert layout2 == {"x": {"slot": start_slot + 1, "type": "uint256", "n_slots": 1}}
+
+
+# test that the nonreentrancy lock gets excported when the nonreentrant pragma
+# is on and the public getters are nonreentrant
+def test_lock_export_with_nonreentrant_pragma(make_input_bundle):
+    main = """
+# pragma nonreentrancy on
+a: public(uint256)
+    """
+    out = compile_code(main, output_formats=["layout"])["layout"]
+
+    if version_check(begin="cancun"):
+        storage_layout = {"a": {"type": "uint256", "n_slots": 1, "slot": 0}}
+        transient_layout = {
+            "$.nonreentrant_key": {"type": "nonreentrant lock", "slot": 0, "n_slots": 1}
+        }
+        assert transient_layout == out["transient_storage_layout"]
+    else:
+        storage_layout = {
+            "a": {"type": "uint256", "n_slots": 1, "slot": 1},
+            "$.nonreentrant_key": {"type": "nonreentrant lock", "slot": 0, "n_slots": 1},
+        }
+
+    assert storage_layout == out["storage_layout"]

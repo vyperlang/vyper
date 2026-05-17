@@ -1,5 +1,5 @@
 import enum
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional
 
@@ -163,8 +163,10 @@ class UsesInfo(AnalysisResult):
 # analysis result of ExportsDecl
 @dataclass
 class ExportsInfo(AnalysisResult):
-    functions: list["ContractFunctionT"]
-    used_modules: OrderedSet[ModuleInfo]
+    # mapping from function to export node
+    functions: dict["ContractFunctionT", vy_ast.VyperNode]
+    # Populated during `_validate_exports_uses`
+    used_modules: OrderedSet[ModuleInfo] = field(default_factory=OrderedSet)
 
 
 @dataclass
@@ -205,6 +207,7 @@ class VarInfo:
         assert isinstance(position, VarOffset)  # sanity check
         self.position = position
 
+    # TODO: convert to property
     def is_state_variable(self):
         non_state_locations = (DataLocation.UNSET, DataLocation.MEMORY, DataLocation.CALLDATA)
         # `self` gets a VarInfo, but it is not considered a state
@@ -297,6 +300,8 @@ class ExprInfo:
     location: DataLocation = DataLocation.UNSET
     modifiability: Modifiability = Modifiability.MODIFIABLE
     attr: Optional[str] = None
+    _writes: OrderedSet[VarAccess] = field(default_factory=OrderedSet)
+    _reads: OrderedSet[VarAccess] = field(default_factory=OrderedSet)
 
     def __post_init__(self):
         should_match = ("typ", "location", "modifiability")
@@ -304,8 +309,6 @@ class ExprInfo:
             for attr in should_match:
                 if getattr(self.var_info, attr) != getattr(self, attr):
                     raise CompilerPanic(f"Bad analysis: non-matching {attr}: {self}")
-        self._writes: OrderedSet[VarAccess] = OrderedSet()
-        self._reads: OrderedSet[VarAccess] = OrderedSet()
 
     @classmethod
     def from_varinfo(cls, var_info: VarInfo, **kwargs) -> "ExprInfo":

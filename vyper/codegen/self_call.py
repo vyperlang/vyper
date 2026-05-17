@@ -1,3 +1,7 @@
+import copy
+import dataclasses
+
+from vyper import ast as vy_ast
 from vyper.codegen.core import _freshname, eval_once_check, make_setter
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.address_space import MEMORY
@@ -20,7 +24,7 @@ def _align_kwargs(func_t, args_ir):
     return [i.default_value for i in unprovided_kwargs]
 
 
-def ir_for_self_call(stmt_expr, context):
+def ir_for_self_call(stmt_expr: vy_ast.Call, context):
     from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
     # ** Internal Call **
@@ -30,8 +34,9 @@ def ir_for_self_call(stmt_expr, context):
     # - push jumpdest (callback ptr) and return buffer location
     # - jump to label
     # - (private function will fill return buffer and jump back)
+    assert isinstance(stmt_expr.func, vy_ast.Attribute)
     method_name = stmt_expr.func.attr
-    func_t = stmt_expr.func._metadata["type"]
+    func_t = stmt_expr.func._metadata["type"].get_concrete_override()
 
     pos_args_ir = [Expr(x, context).ir_node for x in stmt_expr.args]
 
@@ -41,11 +46,11 @@ def ir_for_self_call(stmt_expr, context):
     args_ir = pos_args_ir + default_vals_ir
     assert len(args_ir) == len(func_t.arguments)
 
-    args_tuple_t = TupleT([x.typ for x in args_ir])
+    args_tuple_t = TupleT(tuple(x.typ for x in args_ir))
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args_ir], typ=args_tuple_t)
 
     # CMC 2023-05-17 this seems like it is already caught in typechecker
-    if context.is_constant() and func_t.is_mutable:
+    if context.is_constant() and func_t.is_modifying:
         raise StateAccessViolation(
             f"May not call state modifying function "
             f"'{method_name}' within {context.pp_constancy()}.",
@@ -66,7 +71,28 @@ def ir_for_self_call(stmt_expr, context):
 
     # note: dst_tuple_t != args_tuple_t
     dst_tuple_t = TupleT(tuple(func_t.argument_types))
-    args_dst = IRnode(func_t._ir_info.frame_info.frame_start, typ=dst_tuple_t, location=MEMORY)
+    if context.settings.experimental_codegen:
+        arg_items = ["multi"]
+        frame_info = func_t._ir_info.frame_info
+
+        for var in frame_info.frame_vars.values():
+            var = copy.copy(var)
+            alloca = var.alloca
+            assert alloca is not None
+            assert isinstance(var.pos, str)  # help mypy
+            if not var.pos.startswith("$palloca"):
+                continue
+            newname = var.pos.replace("$palloca", "$calloca")
+            var.pos = newname
+            alloca = dataclasses.replace(alloca, _callsite=return_label)
+            irnode = var.as_ir_node()
+            irnode.passthrough_metadata["alloca"] = alloca
+            irnode.passthrough_metadata["callsite_func"] = func_t
+            arg_items.append(irnode)
+        args_dst = IRnode.from_list(arg_items, typ=dst_tuple_t)
+    else:
+        # legacy
+        args_dst = IRnode(func_t._ir_info.frame_info.frame_start, typ=dst_tuple_t, location=MEMORY)
 
     # if one of the arguments is a self call, the argument
     # buffer could get borked. to prevent against that,
@@ -93,7 +119,7 @@ def ir_for_self_call(stmt_expr, context):
     # pass return label to subroutine
     goto_op.append(["symbol", return_label])
 
-    call_sequence = ["seq"]
+    call_sequence: list = ["seq"]
     call_sequence.append(eval_once_check(_freshname(stmt_expr.node_source_code)))
     call_sequence.extend([copy_args, goto_op, ["label", return_label, ["var_list"], "pass"]])
     if return_buffer is not None:
@@ -108,5 +134,7 @@ def ir_for_self_call(stmt_expr, context):
         add_gas_estimate=func_t._ir_info.gas_estimate,
     )
     o.is_self_call = True
-    o.invoked_function_ir = func_t._ir_info.func_ir
+    o.invoked_function_ir = func_t._ir_info.func_ir  # type: ignore[attr-defined]
+    o.passthrough_metadata["func_t"] = func_t
+    o.passthrough_metadata["args_ir"] = args_ir
     return o

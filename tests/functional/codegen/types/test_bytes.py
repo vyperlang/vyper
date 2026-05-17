@@ -1,5 +1,6 @@
 import pytest
 
+from vyper.compiler import compile_code
 from vyper.exceptions import TypeMismatch
 
 
@@ -281,6 +282,20 @@ def test2(l: Bytes[{m}] = x"{val}") -> bool:
     assert c.test2(vyper_literal) is True
 
 
+def test_hex_literal_parser_edge_case():
+    # see GH issue 4405 example 2
+    code = """
+interface FooBar:
+    def test(a: Bytes[2], b: String[4]): payable
+
+@deploy
+def __init__(ext: FooBar):
+    extcall ext.test(x'6161', x'6161')  #ext.test(b'\x61\61', '6161') gets called
+    """
+    with pytest.raises(TypeMismatch):
+        compile_code(code)
+
+
 def test_zero_padding_with_private(get_contract):
     code = """
 counter: uint256
@@ -356,3 +371,23 @@ def assign():
 @pytest.mark.parametrize("code,exc", cases_invalid_assignments)
 def test_invalid_assignments(get_contract, assert_compile_failed, code, exc):
     assert_compile_failed(lambda: get_contract(code), exc)
+
+
+def test_immutable_bytes_equality(get_contract):
+    """Immutable bytes can be compared."""
+    code = """
+MY_BYTES: immutable(Bytes[100])
+
+@deploy
+def __init__():
+    MY_BYTES = b"hello"
+
+@external
+def compare(x: Bytes[100]) -> bool:
+    return x == MY_BYTES
+    """
+    c = get_contract(code)
+    assert c.compare(b"hello") is True
+    assert c.compare(b"world") is False
+    assert c.compare(b"") is False
+    assert c.compare(b"hello world") is False

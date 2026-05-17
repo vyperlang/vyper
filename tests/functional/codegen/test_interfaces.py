@@ -207,6 +207,72 @@ def test_extract_file_interface_imports_raises(code, exception_type, make_input_
         compile_from_file_input(file_input, input_bundle=input_bundle)
 
 
+def test_duplicate_import_via_different_paths(make_input_bundle):
+    # test that importing the same module via different relative paths
+    # is correctly detected as a duplicate import
+    lib_code = """
+@internal
+def foo() -> uint256:
+    return 42
+    """
+
+    main_code = """
+from . import lib as lib1
+from ..pkg import lib as lib2
+
+@external
+def bar() -> uint256:
+    return lib1.foo()
+    """
+
+    input_bundle = make_input_bundle({"pkg/lib.vy": lib_code, "pkg/main.vy": main_code})
+    file_input = input_bundle.load_file("pkg/main.vy")
+    with pytest.raises(DuplicateImport):
+        compile_from_file_input(file_input, input_bundle=input_bundle)
+
+
+def test_duplicate_import_via_different_paths_vyi(make_input_bundle):
+    # test duplicate .vyi import detection via different relative paths
+    iface_code = """
+@external
+def foo() -> uint256:
+    ...
+    """
+
+    main_code = """
+from . import iface as iface1
+from ..pkg import iface as iface2
+
+@external
+def bar() -> uint256:
+    return 42
+    """
+
+    input_bundle = make_input_bundle({"pkg/iface.vyi": iface_code, "pkg/main.vy": main_code})
+    file_input = input_bundle.load_file("pkg/main.vy")
+    with pytest.raises(DuplicateImport):
+        compile_from_file_input(file_input, input_bundle=input_bundle)
+
+
+def test_duplicate_import_via_different_paths_json(make_input_bundle):
+    # test duplicate .json import detection via different relative paths
+    abi_code = json.dumps([{"name": "foo", "type": "function", "inputs": [], "outputs": []}])
+
+    main_code = """
+from . import abi as abi1
+from ..pkg import abi as abi2
+
+@external
+def bar() -> uint256:
+    return 42
+    """
+
+    input_bundle = make_input_bundle({"pkg/abi.json": abi_code, "pkg/main.vy": main_code})
+    file_input = input_bundle.load_file("pkg/main.vy")
+    with pytest.raises(DuplicateImport):
+        compile_from_file_input(file_input, input_bundle=input_bundle)
+
+
 def test_external_call_to_interface(env, get_contract, make_input_bundle):
     token_interface = """
 @view
@@ -275,7 +341,7 @@ def test_external_call_to_interface_kwarg(get_contract, kwarg, typ, expected, ma
     interface_code = f"""
 @external
 @view
-def foo(_max: {typ} = {kwarg}) -> {typ}:
+def foo(_max: {typ} = ...) -> {typ}:
     ...
     """
     code1 = f"""

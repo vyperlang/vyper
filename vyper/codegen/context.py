@@ -35,6 +35,9 @@ class Alloca:
 
     _id: int
 
+    # hint for venom to tie alloca to call site.
+    _callsite: Optional[str] = None
+
     def __post_init__(self):
         assert self.typ.memory_bytes_required == self.size
 

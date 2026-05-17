@@ -3,7 +3,14 @@ import re
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import ArgumentException, StructureException, TypeMismatch, UnknownType
+from vyper.exceptions import (
+    ArgumentException,
+    StateAccessViolation,
+    StructureException,
+    SyntaxException,
+    TypeMismatch,
+    UnknownType,
+)
 
 fail_list = [
     (
@@ -322,6 +329,103 @@ def foo():
         None,
         "10.1",
     ),
+    (
+        """
+interface I:
+    def bar() -> uint256: payable
+
+@external
+def bar(t: address):
+    for i: uint256 in range(extcall I(t).bar(), bound=10):
+        pass
+    """,
+        StateAccessViolation,
+        "May not call state modifying function within a range expression or for loop iterator.",
+        None,
+        "extcall I(t).bar()",
+    ),
+    (
+        """
+a: DynArray[uint256, 3]
+
+@internal
+def foo() -> uint256:
+    return self.a.pop()
+
+
+@external
+def bar():
+    for i: uint256 in range(2, self.foo(), bound=5):
+        pass
+    """,
+        StateAccessViolation,
+        "May not call state modifying function within a range expression or for loop iterator.",
+        None,
+        "self.foo()",
+    ),
+    (
+        """
+interface I:
+    def bar() -> DynArray[uint256, 10]: nonpayable
+
+@external
+def bar(t: address):
+    for i: uint256 in extcall I(t).bar():
+        pass
+    """,
+        StateAccessViolation,
+        "May not call state modifying function within a range expression or for loop iterator.",
+        None,
+        "extcall I(t).bar()",
+    ),
+    # Cannot call `pop()` in for range because it modifies state
+    (
+        """
+arr: DynArray[uint256, 10]
+@external
+def test()-> (DynArray[uint256, 6], DynArray[uint256, 10]):
+    b: DynArray[uint256, 6] = []
+    self.arr = [1,0]
+    for i: uint256 in range(self.arr.pop(), 20, bound=12):
+        b.append(i)
+    return b, self.arr
+    """,
+        StateAccessViolation,
+        "May not call state modifying function within a range expression or for loop iterator.",
+        None,
+        "self.arr.pop()",
+    ),
+    (
+        """
+arr: DynArray[uint256, 10]
+@external
+def test()-> (DynArray[uint256, 6], DynArray[uint256, 10]):
+    b: DynArray[uint256, 6] = []
+    self.arr = [1,0]
+    for i: uint256 in range(5, self.arr.pop() + 2, bound=12):
+        b.append(i)
+    return b, self.arr
+    """,
+        StateAccessViolation,
+        "May not call state modifying function within a range expression or for loop iterator.",
+        None,
+        "self.arr.pop() + 2",
+    ),
+    # Cannot call `pop()` in iterator because it modifies state
+    (
+        """
+a: DynArray[uint256, 3]
+
+@external
+def foo():
+    for i: uint256 in [1, 2, self.a.pop()]:
+        pass
+    """,
+        StateAccessViolation,
+        "May not call state modifying function within a range expression or for loop iterator.",
+        None,
+        "self.a.pop()",
+    ),
 ]
 
 for_code_regex = re.compile(r"for .+ in (.*):", re.DOTALL)
@@ -343,6 +447,52 @@ def test_range_fail(bad_code, error_type, message, hint, source_code):
     assert message == exc_info.value._message
     assert hint == exc_info.value.hint
     assert source_code == exc_info.value.args[1].get_original_node().node_source_code
+
+
+@pytest.mark.parametrize(
+    "code,error_message",
+    [
+        (
+            """
+@external
+def bar():
+    for i: uint256 = 5 in range(0, 1):
+        pass
+    """,
+            "invalid type annotation",
+        ),
+        (
+            """
+@external
+def bar():
+    for i: uint256, j: uint256  in range(0, 1):
+        pass
+    """,
+            "for loop parse error",
+        ),
+        (
+            """
+@external
+def bar():
+    for i: uint256 =  in range(0, 1):
+        pass
+    """,
+            "invalid type annotation",
+        ),
+        (
+            """
+@external
+def bar():
+    for i: in range(0, 1):
+        pass
+    """,
+            "missing type annotation",
+        ),
+    ],
+)
+def test_for_annotation_syntax_exceptions(code, error_message):
+    with pytest.raises(SyntaxException, match=error_message):
+        compiler.compile_code(code)
 
 
 valid_list = [

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from functools import cached_property
 from typing import Any, Dict, Optional, Tuple, Union
 
@@ -25,6 +27,15 @@ class _GenericTypeAcceptor:
     def __init__(self, type_):
         self.type_ = type_
 
+    def is_subtype_of(self, other):
+        return other.compare_type(self)
+
+    def is_supertype_of(self, other):
+        return self.compare_type(other)
+
+    def is_equivalent_to(self, other):
+        return self.compare_type(other) and other.compare_type(self)
+
     def compare_type(self, other):
         if isinstance(other, self.type_):
             return True
@@ -48,8 +59,12 @@ class VyperType:
     ----------
     _id : str
         The name of the type.
-    _as_array: bool, optional
-        If `True`, this type can be used as the base member for an array.
+    is_valid_element_type: bool, optional
+        If `True`, this type can be used as the type of the elements of an array.
+    _as_hashmap_key: bool, optional
+        If `True`, this type can be used as a hashmap key
+    is_valid_member_type: bool, optional
+        If `True`, this type can be used as a member type
     _valid_literal : Tuple
         A tuple of Vyper ast classes that may be assigned this type.
     _invalid_locations : Tuple
@@ -76,8 +91,9 @@ class VyperType:
     _is_array_type: bool = False
     _is_bytestring: bool = False  # is it a bytes or a string?
 
-    _as_array: bool = False  # rename to something like can_be_array_member
+    is_valid_element_type: bool = False
     _as_hashmap_key: bool = False
+    is_valid_member_type: bool = True
 
     _supports_external_calls: bool = False
     _attribute_in_annotation: bool = False
@@ -130,7 +146,7 @@ class VyperType:
             ret["typeclass"] = self.typeclass
 
         # use dict ctor to block duplicates
-        return dict(**self._addl_dict_fields(), **ret)
+        return dict(sorted(self._addl_dict_fields().items()), **ret)
 
     # for most types, this is a reasonable implementation, but it can
     # be overridden as needed.
@@ -148,7 +164,7 @@ class VyperType:
 
     @cached_property
     def _as_darray(self):
-        return self._as_array
+        return self.is_valid_element_type
 
     @property
     def getter_signature(self):
@@ -164,14 +180,16 @@ class VyperType:
         """
         The ABI type corresponding to this type
         """
-        raise CompilerPanic("Method must be implemented by the inherited class")
+        raise CompilerPanic(f"{type(self).__name__} does not implement abi_type")
 
-    def get_size_in(self, location: DataLocation):
+    def get_size_in(self, location: DataLocation) -> int:
         if location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
             return self.storage_size_in_words
         if location == DataLocation.MEMORY:
             return self.memory_bytes_required
-        if location == DataLocation.CODE:
+        if location in (DataLocation.CODE, DataLocation.IMMUTABLES):
+            return self.memory_bytes_required
+        if location == DataLocation.CALLDATA:
             return self.memory_bytes_required
 
         raise CompilerPanic(f"unreachable: invalid location {location}")  # pragma: nocover
@@ -290,6 +308,78 @@ class VyperType:
     def validate_index_type(self, node: vy_ast.Subscript) -> None:
         raise StructureException(f"Not an indexable type: '{self}'", node)
 
+    def is_supertype_of(self, other: VyperType) -> bool:
+        """
+        Compare this type object against another type object.
+
+        Failed comparisons must return `False`, not raise an exception.
+
+        This method does *not* test for type equality, it is a type
+        checker function, it should have the meaning: "an expr of type
+        <other> can be assigned to an expr of type <self>."
+
+        DO NOT override this in subclasses, instead override compare_type
+
+        Arguments
+        ---------
+        other: VyperType
+            Another type object to be compared against this one.
+
+        Returns
+        -------
+        bool
+            Indicates if self is a supertype of other
+        """
+        return self.compare_type(other)
+
+    def is_subtype_of(self, other: VyperType) -> bool:
+        """
+        Compare this type object against another type object.
+
+        Failed comparisons must return `False`, not raise an exception.
+
+        This method does *not* test for type equality, it is a type
+        checker function, it should have the meaning: "an expr of type
+        <self> can be assigned to an expr of type <other>."
+
+        DO NOT override this in subclasses, instead override compare_type
+
+        Arguments
+        ---------
+        other: VyperType
+            Another type object to be compared against this one.
+
+        Returns
+        -------
+        bool
+            Indicates if self is a subtype of other.
+        """
+        return other.is_supertype_of(self)
+
+    def is_equivalent_to(self, other: VyperType) -> bool:
+        """
+        Compare this type object against another type object.
+
+        Failed comparisons must return `False`, not raise an exception.
+
+        This method does test for type equality, it is a type checker function, it should have
+        the meaning: "<self> and <other> can be used interchangeably"
+
+        DO NOT override this in subclasses, instead override compare_type
+
+        Arguments
+        ---------
+        other: VyperType
+            Another type object to be compared against this one.
+
+        Returns
+        -------
+        bool
+            Indicates if self is a subtype of other.
+        """
+        return self.is_subtype_of(other) and self.is_supertype_of(other)
+
+    # TODO: Deprecate in favor of one of the clearer above methods
     def compare_type(self, other: "VyperType") -> bool:
         """
         Compare this type object against another type object.
@@ -405,6 +495,11 @@ class TYPE_T(VyperType):
         super().__init__()
 
         self.typedef = typedef
+
+    @property
+    def is_modifying(self) -> bool:
+        # Constructor calls cannot mutate state
+        return False
 
     def to_dict(self):
         return {"type_t": self.typedef.to_dict()}

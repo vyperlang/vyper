@@ -1,16 +1,19 @@
+from __future__ import annotations
+
 import re
-import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, NoReturn, Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
+from vyper.compiler.settings import Settings
 from vyper.exceptions import (
     ArgumentException,
     CallViolation,
     CompilerPanic,
     FunctionDeclarationException,
+    InvalidLiteral,
     InvalidType,
     StateAccessViolation,
     StructureException,
@@ -32,11 +35,14 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
+from vyper.semantics.types.bytestrings import BytesT
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
+from vyper.semantics.types.user import EventT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import OrderedSet, keccak256
+from vyper.warnings import Deprecation, vyper_warn
 
 
 @dataclass
@@ -53,7 +59,7 @@ class PositionalArg(_FunctionArg):
 
 @dataclass(kw_only=True)
 class KeywordArg(_FunctionArg):
-    default_value: vy_ast.VyperNode
+    default_value: vy_ast.ExprNode
 
 
 # TODO: refactor this into FunctionT (from an ast) and ABIFunctionT (from json)
@@ -79,6 +85,8 @@ class ContractFunctionT(VyperType):
         enum indicating the external visibility of a function.
     state_mutability : StateMutability
         enum indicating the authority a function has to mutate it's own state.
+    is_abstract : bool
+        Whether this function is abstract
     nonreentrant : bool
         Whether this function is marked `@nonreentrant` or not
     """
@@ -95,9 +103,12 @@ class ContractFunctionT(VyperType):
         return_type: Optional[VyperType],
         function_visibility: FunctionVisibility,
         state_mutability: StateMutability,
+        is_abstract: bool,
         from_interface: bool = False,
         nonreentrant: bool = False,
-        ast_def: Optional[vy_ast.VyperNode] = None,
+        do_raw_return: bool = False,
+        ast_def: vy_ast.FunctionDef | vy_ast.VariableDecl | None = None,
+        override_nodes: list[vy_ast.Name] | None = None,
     ) -> None:
         super().__init__()
 
@@ -107,7 +118,11 @@ class ContractFunctionT(VyperType):
         self.return_type = return_type
         self.visibility = function_visibility
         self.mutability = state_mutability
+
+        self.is_abstract = is_abstract
+
         self.nonreentrant = nonreentrant
+        self.do_raw_return = do_raw_return
         self.from_interface = from_interface
 
         # sanity check, nonreentrant used to be Optional[str]
@@ -115,14 +130,21 @@ class ContractFunctionT(VyperType):
 
         self.ast_def = ast_def
 
+        self.override_nodes: list[vy_ast.Name] = override_nodes or []
+
+        self._overridden_by: ContractFunctionT | None = None
+
         self._analysed = False
 
         # a list of internal functions this function calls.
         # to be populated during module analysis.
+        # The with_overrides variant replaces called abstract functions by their override.
         self.called_functions: OrderedSet[ContractFunctionT] = OrderedSet()
 
         # recursively reachable from this function
         # to be populated during module analysis.
+        # The with_overrides variant replaces called abstract functions by their override,
+        # which might in turn reach more functions.
         self.reachable_internal_functions: OrderedSet[ContractFunctionT] = OrderedSet()
 
         # writes to variables from this function
@@ -134,9 +156,21 @@ class ContractFunctionT(VyperType):
         # list of modules used (accessed state) by this function
         self._used_modules: OrderedSet[ModuleInfo] = OrderedSet()
 
+        # events emitted by this function (populated during analysis)
+        self._emitted_events: OrderedSet[EventT] = OrderedSet()
+
         # to be populated during codegen
         self._ir_info: Any = None
         self._function_id: Optional[int] = None
+
+    def _addl_dict_fields(self):
+        ret = {}
+        ret["argument_types"] = [t.to_dict() for t in self.argument_types]
+        if self.return_type is not None:
+            ret["return_type"] = self.return_type.to_dict()
+        else:
+            ret["return_type"] = None
+        return ret
 
     @property
     # API compatibility
@@ -164,6 +198,19 @@ class ContractFunctionT(VyperType):
     def get_variable_accesses(self):
         return self._variable_reads | self._variable_writes
 
+    def get_concrete_override(self):
+        """
+        Returns the non-abstract method which overrides this method, or itself if it is not abstract
+        """
+        # By the fact there can be no import cycles on modules, we know this can never enter in an
+        # infinite loop, if it somehow did, python would raise a RecursionError
+        if self.is_abstract:
+            # get_concrete_override must be called once overrides have been resolved
+            assert self.overridden_by is not None
+            return self.overridden_by.get_concrete_override()
+        else:
+            return self
+
     def uses_state(self):
         return (
             self.nonreentrant
@@ -178,15 +225,17 @@ class ContractFunctionT(VyperType):
     def mark_used_module(self, module_info):
         self._used_modules.add(module_info)
 
+    def get_emitted_events(self):
+        return self._emitted_events
+
+    def mark_emitted_event(self, event: EventT):
+        self._emitted_events.add(event)
+
     def mark_variable_writes(self, var_infos):
         self._variable_writes.update(var_infos)
 
     def mark_variable_reads(self, var_infos):
         self._variable_reads.update(var_infos)
-
-    @property
-    def modifiability(self):
-        return Modifiability.from_state_mutability(self.mutability)
 
     @cached_property
     def call_site_kwargs(self):
@@ -247,6 +296,7 @@ class ContractFunctionT(VyperType):
             positional_args,
             [],
             return_type,
+            is_abstract=False,
             from_interface=True,
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.from_abi(abi),
@@ -296,7 +346,7 @@ class ContractFunctionT(VyperType):
                 "Default functions cannot appear in interfaces", funcdef
             )
 
-        positional_args, keyword_args = _parse_args(funcdef)
+        positional_args, keyword_args = _parse_args(funcdef, is_interface=True)
 
         return_type = _parse_return_type(funcdef)
 
@@ -307,6 +357,7 @@ class ContractFunctionT(VyperType):
             return_type,
             function_visibility,
             state_mutability,
+            is_abstract=False,
             from_interface=True,
             nonreentrant=False,
             ast_def=funcdef,
@@ -327,25 +378,39 @@ class ContractFunctionT(VyperType):
         -------
         ContractFunctionT
         """
-        function_visibility, state_mutability, nonreentrant = _parse_decorators(funcdef)
+        decorators = _parse_decorators(funcdef)
 
-        if nonreentrant:
-            # TODO: refactor so parse_decorators returns the AST location
-            decorator = next(d for d in funcdef.decorator_list if d.id == "nonreentrant")
+        if decorators.nonreentrant_node is not None:
             raise FunctionDeclarationException(
-                "`@nonreentrant` not allowed in interfaces", decorator
+                "`@nonreentrant` not allowed in interfaces", decorators.nonreentrant_node
+            )
+
+        # guaranteed by parse_decorators and disallowing nonreentrant pragma
+        assert decorators.reentrant_node is None  # sanity check
+
+        if decorators.raw_return_node is not None:
+            raise FunctionDeclarationException(
+                "`@raw_return` not allowed in interfaces", decorators.raw_return_node
+            )
+
+        if decorators.is_abstract:
+            raise FunctionDeclarationException(
+                "`@abstract` decorator not allowed in interfaces", decorators.abstract_node
+            )
+
+        if decorators.override_nodes:
+            raise FunctionDeclarationException(
+                "`@override` decorator not allowed in interfaces", *decorators.override_nodes
             )
 
         # it's redundant to specify visibility in vyi - always should be external
+        function_visibility = decorators.visibility
         if function_visibility is None:
             function_visibility = FunctionVisibility.EXTERNAL
 
         if function_visibility != FunctionVisibility.EXTERNAL:
-            nonexternal = next(
-                d for d in funcdef.decorator_list if d.id in FunctionVisibility.values()
-            )
             raise FunctionDeclarationException(
-                "Interface functions can only be marked as `@external`", nonexternal
+                "Interface functions can only be marked as `@external`", decorators.visibility_node
             )
 
         if funcdef.name == "__init__":
@@ -356,15 +421,11 @@ class ContractFunctionT(VyperType):
                 "Default functions cannot appear in interfaces", funcdef
             )
 
-        positional_args, keyword_args = _parse_args(funcdef)
+        positional_args, keyword_args = _parse_args(funcdef, is_interface=True)
 
         return_type = _parse_return_type(funcdef)
 
-        body = funcdef.body
-
-        if len(body) != 1 or not (
-            isinstance(body[0], vy_ast.Expr) and isinstance(body[0].value, vy_ast.Ellipsis)
-        ):
+        if not is_ellipsis_body(funcdef.body):
             raise FunctionDeclarationException(
                 "function body in an interface can only be `...`!", funcdef
             )
@@ -375,9 +436,10 @@ class ContractFunctionT(VyperType):
             keyword_args,
             return_type,
             function_visibility,
-            state_mutability,
+            decorators.state_mutability,
+            is_abstract=False,
             from_interface=True,
-            nonreentrant=nonreentrant,
+            nonreentrant=False,
             ast_def=funcdef,
         )
 
@@ -395,13 +457,29 @@ class ContractFunctionT(VyperType):
         -------
         ContractFunctionT
         """
-        function_visibility, state_mutability, nonreentrant = _parse_decorators(funcdef)
+        decorators = _parse_decorators(funcdef)
 
         # it's redundant to specify internal visibility - it's implied by not being external
+        function_visibility = decorators.visibility
         if function_visibility is None:
             function_visibility = FunctionVisibility.INTERNAL
 
-        positional_args, keyword_args = _parse_args(funcdef)
+        is_abstract = decorators.is_abstract
+
+        if function_visibility != FunctionVisibility.INTERNAL:
+            if is_abstract:
+                raise FunctionDeclarationException(
+                    f"@abstract decorator is not allowed on {function_visibility.value} functions",
+                    decorators.abstract_node,
+                )
+
+            if decorators.override_nodes:
+                raise FunctionDeclarationException(
+                    f"@override decorator is not allowed on {function_visibility.value} functions",
+                    *decorators.override_nodes,
+                )
+
+        positional_args, keyword_args = _parse_args(funcdef, is_abstract=is_abstract)
 
         return_type = _parse_return_type(funcdef)
 
@@ -421,7 +499,7 @@ class ContractFunctionT(VyperType):
                 "Only constructors can be marked as `@deploy`!", funcdef
             )
         if funcdef.name == "__init__":
-            if state_mutability in (StateMutability.PURE, StateMutability.VIEW):
+            if decorators.state_mutability in (StateMutability.PURE, StateMutability.VIEW):
                 raise FunctionDeclarationException(
                     "Constructor cannot be marked as `@pure` or `@view`", funcdef
                 )
@@ -439,10 +517,45 @@ class ContractFunctionT(VyperType):
                 raise FunctionDeclarationException(
                     "Constructor may not use default arguments", funcdef.args.defaults[0]
                 )
-            if nonreentrant:
-                decorator = next(d for d in funcdef.decorator_list if d.id == "nonreentrant")
+            if decorators.nonreentrant_node is not None:
                 msg = "`@nonreentrant` decorator disallowed on `__init__`"
-                raise FunctionDeclarationException(msg, decorator)
+                raise FunctionDeclarationException(msg, decorators.nonreentrant_node)
+
+        if decorators.raw_return:
+            if function_visibility != FunctionVisibility.EXTERNAL:
+                raise StructureException(
+                    "@raw_return is only allowed on external functions!", decorators.raw_return_node
+                )
+            if not isinstance(return_type, BytesT):
+                raise StructureException(
+                    "@raw_return is only allowed in conjunction with `Bytes[...]` return type!",
+                    decorators.raw_return_node,
+                )
+
+        # compute nonreentrancy
+        settings = funcdef.module_node.settings
+        nonreentrant: bool
+        is_external = function_visibility == FunctionVisibility.EXTERNAL
+        is_pure = decorators.state_mutability == StateMutability.PURE
+
+        if is_pure:
+            # pure functions are always nonreentrant
+            nonreentrant = False
+        elif settings.nonreentrancy_by_default:
+            if not is_external:
+                # default, internal functions default to reentrant even if
+                # the pragma is set
+                nonreentrant = decorators.nonreentrant_node is not None
+            else:
+                # validation -- cannot use `@nonreentrant` on external
+                # functions if nonreentrant pragma is set
+                if decorators.nonreentrant_node is not None:
+                    raise StructureException(
+                        "used @nonreentrant decorator, but `#pragma nonreentrancy` is set"
+                    )
+                nonreentrant = decorators.reentrant_node is None
+        else:
+            nonreentrant = decorators.nonreentrant_node is not None
 
         return cls(
             funcdef.name,
@@ -450,10 +563,13 @@ class ContractFunctionT(VyperType):
             keyword_args,
             return_type,
             function_visibility,
-            state_mutability,
+            decorators.state_mutability,
+            is_abstract=is_abstract,
             from_interface=False,
             nonreentrant=nonreentrant,
+            do_raw_return=decorators.raw_return,
             ast_def=funcdef,
+            override_nodes=decorators.override_nodes,
         )
 
     def set_reentrancy_key_position(self, position: VarOffset) -> None:
@@ -463,6 +579,16 @@ class ContractFunctionT(VyperType):
             raise CompilerPanic(f"Not nonreentrant {self}", self.ast_def)
 
         self.reentrancy_key_position = position
+
+    def set_overridden_by(self, func_t: ContractFunctionT) -> None:
+        assert self._overridden_by is None
+        self._overridden_by = func_t
+
+    @property
+    def overridden_by(self) -> ContractFunctionT:
+        if self._overridden_by is None:
+            raise FunctionDeclarationException("Abstract function was not overridden", self.ast_def)
+        return self._overridden_by
 
     @classmethod
     def getter_from_VariableDecl(cls, node: vy_ast.VariableDecl) -> "ContractFunctionT":
@@ -496,6 +622,7 @@ class ContractFunctionT(VyperType):
             args,
             [],
             return_type,
+            is_abstract=False,
             from_interface=False,
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.VIEW,
@@ -527,10 +654,16 @@ class ContractFunctionT(VyperType):
         if len(arguments) != len(other_arguments):
             return False
         for atyp, btyp in zip(arguments, other_arguments):
-            if not atyp.compare_type(btyp):
+            if not btyp.is_subtype_of(atyp):
                 return False
 
-        if return_type and not return_type.compare_type(other_return_type):  # type: ignore
+        # Return type should be covariant, not contravariant!
+        # It should be:
+        # if return_type and not return_type.is_subtype_of(other_return_type):  # type: ignore
+        # This is currently done to allow things like IERC20's name field to be implemented by
+        # strings of any length. `String[0]` is thus able to be implemented by a `String[20]`.
+        # TODO: Once we have a system which removes the need for this hack, change it
+        if return_type and not other_return_type.is_subtype_of(return_type):  # type: ignore
             return False
 
         return self.mutability == other.mutability
@@ -577,7 +710,7 @@ class ContractFunctionT(VyperType):
         return self.name == "__init__"
 
     @property
-    def is_mutable(self) -> bool:
+    def is_modifying(self) -> bool:
         return self.mutability > StateMutability.VIEW
 
     @property
@@ -716,6 +849,16 @@ class ContractFunctionT(VyperType):
         return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
 
+def is_ellipsis_body(body: list[vy_ast.VyperNode]) -> bool:
+    # Despite appearances, this does allow a docstring preceding the ellipsis
+    # Docstrings are parsed specially, and do not show up as string literals
+    return (
+        len(body) == 1
+        and isinstance(body[0], vy_ast.Expr)
+        and isinstance(body[0].value, vy_ast.Ellipsis)
+    )
+
+
 def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
     # return types
     if funcdef.returns is None:
@@ -724,73 +867,202 @@ def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
     return type_from_annotation(funcdef.returns, DataLocation.MEMORY)
 
 
-def _parse_decorators(
-    funcdef: vy_ast.FunctionDef,
-) -> tuple[Optional[FunctionVisibility], StateMutability, bool]:
-    function_visibility = None
-    state_mutability = None
-    nonreentrant_node = None
+@dataclass
+class _ParsedDecorators:
+    funcdef: vy_ast.FunctionDef
+    override_nodes: list[vy_ast.Name] = field(default_factory=list)
+    visibility_node: Optional[vy_ast.Name] = None
+    state_mutability_node: Optional[vy_ast.Name] = None
+    nonreentrant_node: Optional[vy_ast.Name] = None
+    raw_return_node: Optional[vy_ast.Name] = None
+    reentrant_node: Optional[vy_ast.Name] = None
+    abstract_node: Optional[vy_ast.Name] = None
+
+    def set_visibility(self, decorator_node: vy_ast.Name):
+        assert FunctionVisibility.is_valid_value(decorator_node.id), "unreachable"
+        if self.visibility_node is not None:
+            raise FunctionDeclarationException(
+                f"Visibility is already set to: {self.visibility}",
+                self.visibility_node,
+                decorator_node,
+                hint="only one visibility decorator is allowed per function",
+            )
+        self.visibility_node = decorator_node
+
+    @property
+    def visibility(self) -> Optional[FunctionVisibility]:
+        if self.visibility_node is None:
+            return None
+        return FunctionVisibility(self.visibility_node.id)
+
+    def set_state_mutability(self, decorator_node: vy_ast.Name):
+        assert StateMutability.is_valid_value(decorator_node.id), "unreachable"
+        self._check_none(self.state_mutability_node, decorator_node)
+        self.state_mutability_node = decorator_node
+
+    def set_abstract(self, decorator_node: vy_ast.Name):
+        if self.abstract_node is not None:
+            raise StructureException(
+                "abstract decorator is already set", self.abstract_node, decorator_node
+            )
+        self.abstract_node = decorator_node
+
+    @property
+    def is_abstract(self) -> bool:
+        return self.abstract_node is not None
+
+    def add_override(self, decorator_node: vy_ast.Name | vy_ast.Call):
+        # TODO: Add a smart hint that takes into account
+        # which modules are initialized with a method of the same name
+        def raise_missing_parameter() -> NoReturn:
+            raise StructureException(
+                "@override takes an argument (the module containing the method to override)",
+                decorator_node,
+            )
+
+        if isinstance(decorator_node, vy_ast.Name):
+            raise_missing_parameter()
+
+        num_args = len(decorator_node.args)
+
+        if num_args == 0:
+            raise_missing_parameter()
+
+        if num_args > 1:
+            # TODO: Add a smart hint that shows multiple consecutive decorators
+            raise StructureException(
+                f"@override takes a single argument ({num_args} given)", decorator_node
+            )
+
+        assert num_args == 1
+        arg = decorator_node.args[0]
+        if not isinstance(arg, vy_ast.Name):
+            raise StructureException("@override argument must be a module identifier", arg)
+
+        self.override_nodes.append(arg)
+
+    @property
+    def state_mutability(self) -> StateMutability:
+        if self.state_mutability_node is None:
+            return StateMutability.NONPAYABLE  # default
+        return StateMutability(self.state_mutability_node.id)
+
+    def get_file_settings(self) -> Settings:
+        return self.funcdef.module_node.settings
+
+    def _check_none(self, node_a, node_b):
+        if node_a is not None:
+            name_a = node_a.id
+            name_b = node_b.id
+            raise FunctionDeclarationException(
+                f"tried to set {name_b}, but {name_a} is already set", node_a, node_b
+            )
+
+    def set_nonreentrant(self, decorator_node: vy_ast.Name):
+        self._check_none(self.nonreentrant_node, decorator_node)
+        self._check_none(self.reentrant_node, decorator_node)
+
+        self.nonreentrant_node = decorator_node
+
+    def set_reentrant(self, decorator_node: vy_ast.Name):
+        self._check_none(self.nonreentrant_node, decorator_node)
+        self._check_none(self.reentrant_node, decorator_node)
+
+        settings = self.get_file_settings()
+
+        if not settings.nonreentrancy_by_default:
+            raise StructureException(
+                "used @reentrant decorator, but `#pragma nonreentrancy` is not set"
+            )
+
+        self.reentrant_node = decorator_node
+
+    def set_raw_return(self, decorator_node: vy_ast.Name):
+        if self.raw_return_node is not None:
+            raise StructureException(
+                "raw_return decorator is already set", self.raw_return_node, decorator_node
+            )
+
+        self.raw_return_node = decorator_node
+
+    @property
+    def raw_return(self) -> bool:
+        return self.raw_return_node is not None
+
+
+def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
+    ret = _ParsedDecorators(funcdef)
 
     for decorator in funcdef.decorator_list:
-        if isinstance(decorator, vy_ast.Call):
-            msg = "Decorator is not callable"
-            hint = None
-            if decorator.get("func.id") == "nonreentrant":
-                hint = "use `@nonreentrant` with no arguments. the "
-                hint += "`@nonreentrant` decorator does not accept any "
-                hint += "arguments since vyper 0.4.0."
-            raise StructureException(msg, decorator, hint=hint)
+        # order of precedence for error checking
 
-        if decorator.get("id") == "nonreentrant":
-            if nonreentrant_node is not None:
-                raise StructureException("nonreentrant decorator is already set", nonreentrant_node)
+        def fail_unknown_decorator(name: str) -> NoReturn:
+            raise FunctionDeclarationException(
+                f"Unknown decorator: {name}", decorator  # noqa: B023
+            )
 
-            nonreentrant_node = decorator
-
-        elif isinstance(decorator, vy_ast.Name):
-            if FunctionVisibility.is_valid_value(decorator.id):
-                if function_visibility is not None:
-                    raise FunctionDeclarationException(
-                        f"Visibility is already set to: {function_visibility}",
-                        decorator,
-                        hint="only one visibility decorator is allowed per function",
-                    )
-
-                function_visibility = FunctionVisibility(decorator.id)
-
-            elif StateMutability.is_valid_value(decorator.id):
-                if state_mutability is not None:
-                    raise FunctionDeclarationException(
-                        f"Mutability is already set to: {state_mutability}", funcdef
-                    )
-                state_mutability = StateMutability(decorator.id)
-
-            else:
-                if decorator.id == "constant":
-                    warnings.warn(
-                        "'@constant' decorator has been removed (see VIP2040). "
-                        "Use `@view` instead.",
-                        DeprecationWarning,
-                        stacklevel=2,
-                    )
-                raise FunctionDeclarationException(f"Unknown decorator: {decorator.id}", decorator)
-
-        else:
+        def fail_bad_decorator(decorator) -> NoReturn:
             raise StructureException("Bad decorator syntax", decorator)
 
-    if state_mutability is None:
-        # default to nonpayable
-        state_mutability = StateMutability.NONPAYABLE
+        # Decorators without argument clause: `@something`
+        if isinstance(decorator, vy_ast.Name):
+            if decorator.id == "nonreentrant":
+                ret.set_nonreentrant(decorator)
+            elif decorator.id == "reentrant":
+                ret.set_reentrant(decorator)
+            elif decorator.id == "raw_return":
+                ret.set_raw_return(decorator)
+            elif decorator.id == "abstract":
+                ret.set_abstract(decorator)
+            elif decorator.id == "override":
+                # Delegate error reporting to add_override
+                ret.add_override(decorator)
+            elif FunctionVisibility.is_valid_value(decorator.id):
+                ret.set_visibility(decorator)
+            elif StateMutability.is_valid_value(decorator.id):
+                ret.set_state_mutability(decorator)
+            else:
+                fail_unknown_decorator(decorator.id)
 
-    if state_mutability == StateMutability.PURE and nonreentrant_node is not None:
-        raise StructureException("Cannot use reentrancy guard on pure functions", nonreentrant_node)
+        # Decorators with argument clause: `@something()`
+        elif isinstance(decorator, vy_ast.Call):
+            decorators_without_parameters = (
+                ["reentrant", "nonreentrant", "raw_return", "abstract"]
+                + FunctionVisibility.values()
+                + StateMutability.values()
+            )
 
-    nonreentrant = nonreentrant_node is not None
-    return function_visibility, state_mutability, nonreentrant
+            # Things like @foo.bar()
+            if not isinstance(decorator.func, vy_ast.Name):
+                fail_bad_decorator(decorator)
+
+            if decorator.func.id == "override":
+                ret.add_override(decorator)
+
+            elif decorator.func.id in decorators_without_parameters:
+                msg = "Decorator does not take parameters"
+
+                hint = f"use `@{decorator.func.id}` with no arguments."
+                if decorator.func.id == "nonreentrant":
+                    hint += "the `@nonreentrant` decorator does not accept any "
+                    hint += "arguments since vyper 0.4.0."
+                raise StructureException(msg, decorator, hint=hint)
+            else:
+                fail_unknown_decorator(decorator.func.id)
+
+        else:
+            fail_bad_decorator(decorator)
+
+    if ret.state_mutability == StateMutability.PURE and ret.nonreentrant_node is not None:
+        raise StructureException(
+            "Cannot use reentrancy guard on pure functions", ret.nonreentrant_node
+        )
+
+    return ret
 
 
 def _parse_args(
-    funcdef: vy_ast.FunctionDef, is_interface: bool = False
+    funcdef: vy_ast.FunctionDef, is_interface: bool = False, is_abstract: bool = False
 ) -> tuple[list[PositionalArg], list[KeywordArg]]:
     argnames = set()  # for checking uniqueness
     n_total_args = len(funcdef.args.args)
@@ -817,9 +1089,28 @@ def _parse_args(
             positional_args.append(PositionalArg(argname, type_, ast_source=arg))
         else:
             value = funcdef.args.defaults[i - n_positional_args]
+            if is_interface and not isinstance(value, vy_ast.Ellipsis):
+                # TODO: for 0.5.0 we should just raise
+                vyper_warn(
+                    Deprecation(
+                        "Please use `...` as default value. (Values "
+                        "for default parameters in interfaces have always been ignored.)",
+                        value,
+                    )
+                )
+
+            if isinstance(value, vy_ast.Ellipsis) and not (is_interface or is_abstract):
+                raise InvalidLiteral(
+                    "`...` is only allowed as a default value in interfaces"
+                    " and for abstract methods.",
+                    value,
+                )
+
             if not check_modifiability(value, Modifiability.RUNTIME_CONSTANT):
                 raise StateAccessViolation("Value must be literal or environment variable", value)
-            validate_expected_type(value, type_)
+
+            if not isinstance(value, vy_ast.Ellipsis):
+                validate_expected_type(value, type_)
             keyword_args.append(KeywordArg(argname, type_, ast_source=arg, default_value=value))
 
         argnames.add(argname)
@@ -864,10 +1155,6 @@ class MemberFunctionT(VyperType):
         self.arg_types = arg_types
         self.return_type = return_type
         self.is_modifying = is_modifying
-
-    @property
-    def modifiability(self):
-        return Modifiability.MODIFIABLE if self.is_modifying else Modifiability.RUNTIME_CONSTANT
 
     @property
     def _id(self):
