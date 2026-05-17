@@ -4,7 +4,7 @@ init:
 	python setup.py install
 
 dev-init:
-	pip install .[dev]
+	pip install . --group dev
 
 test:
 	pytest
