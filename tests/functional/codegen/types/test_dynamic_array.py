@@ -1862,10 +1862,8 @@ def should_revert() -> DynArray[String[65], 2]:
 
 
 @pytest.mark.parametrize("code", dynarray_length_no_clobber_cases)
-def test_dynarray_length_no_clobber(get_contract, tx_failed, code):
+def test_dynarray_length_no_clobber(get_contract, tx_failed, code, compiler_settings):
     # check that length is not clobbered before dynarray data copy happens
-    compiler_settings = settings.get_global_settings()
-    assert compiler_settings is not None
     compiler_settings = dataclasses.replace(compiler_settings, disable_static_exceptions=True)
     c = get_contract(code, compiler_settings=compiler_settings)
     with tx_failed():

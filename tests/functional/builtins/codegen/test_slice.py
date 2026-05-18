@@ -565,9 +565,7 @@ def do_slice():
 
 
 @pytest.mark.parametrize("bad_code", oob_fail_list)
-def test_slice_buffer_oob_reverts(bad_code, get_contract, tx_failed):
-    compiler_settings = get_global_settings()
-    assert compiler_settings is not None
+def test_slice_buffer_oob_reverts(bad_code, get_contract, tx_failed, compiler_settings):
     compiler_settings = dataclasses.replace(compiler_settings, disable_static_exceptions=True)
     c = get_contract(bad_code, compiler_settings=compiler_settings)
     with tx_failed():
