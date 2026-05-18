@@ -1,6 +1,7 @@
 import enum
 import itertools
 import math
+import dataclasses
 from decimal import Decimal
 
 import eth.codecs.abi as abi
@@ -661,6 +662,20 @@ def foo() -> {t_bytes}:
     c2 = get_contract(code2)
     assert c2.foo() == test_data
 
+def test_conversion_tmp_negative_int_to_decimal_bounds(get_contract, tx_failed, compiler_settings):
+    code = """
+@external
+def foo():
+    bar: int136 = -18707220957835557353007165858768422651596
+    foobar: decimal = convert(bar, decimal)
+    """
+
+    compiler_settings = dataclasses.replace(compiler_settings, disable_static_exceptions=True)
+
+    c = get_contract(code, compiler_settings=compiler_settings)
+
+    with tx_failed():
+        c.foo()
 
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_reverting_cases())
 @pytest.mark.fuzzing
