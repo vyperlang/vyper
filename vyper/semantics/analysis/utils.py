@@ -630,9 +630,7 @@ def validate_expected_type(node, expected_type):
         )
 
         if failed_bytes_subtyping or failed_string_subtyping:
-            hint = "To reduce the maximum size, either: Use `slice` (with a constant length)"
-            hint += "to get a subset. Or use `convert` which will revert if the runtime length "
-            hint += "is too big."
+            hint = "to reduce the maximum size you can use `slice` or `convert`."
 
         raise TypeMismatch(
             f"Given reference has type {given}, expected {expected_str}", node, hint=hint
