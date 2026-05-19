@@ -23,7 +23,7 @@ from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, I
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import UINT160_T, UINT256_T
 from vyper.semantics.types.user import FlagT
-from vyper.utils import DECIMAL_DIVISOR, unsigned_to_signed, round_towards_zero
+from vyper.utils import DECIMAL_DIVISOR, round_towards_zero, unsigned_to_signed
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
