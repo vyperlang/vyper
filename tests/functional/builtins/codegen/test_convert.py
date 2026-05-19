@@ -663,7 +663,9 @@ def foo() -> {t_bytes}:
     assert c2.foo() == test_data
 
 
-def test_conversion_tmp_negative_int_to_decimal_bounds(get_contract, tx_failed, compiler_settings):
+def test_conversion_tmp_negative_int_to_decimal_bounds(
+    get_contract, tx_failed, compiler_settings, assert_compile_failed
+):
     code = """
 @external
 def foo():
@@ -677,6 +679,14 @@ def foo():
 
     with tx_failed():
         c.foo()
+
+    code = """
+@external
+def foo():
+    foobar: decimal = convert(-18707220957835557353007165858768422651596, decimal)
+    """
+
+    assert_compile_failed(lambda: get_contract(code), InvalidLiteral)
 
 
 def test_conversion_hex(get_contract, assert_compile_failed):
