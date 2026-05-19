@@ -687,6 +687,7 @@ def foo() -> uint8:
     """
     assert_compile_failed(lambda: get_contract(code), InvalidLiteral)
 
+
 def test_conversion_constant_different_leghts(get_contract):
     code = r"""
 FOO: constant(Bytes[2]) = b'\xff'
@@ -695,7 +696,7 @@ FOO: constant(Bytes[2]) = b'\xff'
 def foo() -> int16:
     return convert(FOO, int16)
     """
-    
+
     c = get_contract(code)
     assert c.foo() == -1
 
