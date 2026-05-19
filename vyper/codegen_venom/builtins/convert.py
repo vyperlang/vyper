@@ -38,13 +38,14 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     from vyper.codegen_venom.expr import Expr
 
-    arg_node = node.args[0]
+    arg_node = node.args[0].reduced()
     in_t = arg_node._metadata["type"]
     out_t = node.args[1]._metadata["type"].typedef
 
     # For bytestrings we need pointer, for primitives we need value
     if isinstance(in_t, _BytestringT):
         arg_vv = Expr(arg_node, ctx).lower()
+        in_t = arg_vv.typ
         arg = ctx.unwrap(arg_vv)  # Copies storage/transient to memory
     else:
         arg = Expr(arg_node, ctx).lower_value()
@@ -109,6 +110,7 @@ def _check_literal_int_bounds(arg_node: vy_ast.VyperNode, in_t, out_t: IntegerT)
 
     Raises InvalidLiteral if the value is out of range.
     """
+
     literal = _get_folded_value(arg_node)
     if literal is None:
         return
