@@ -13,8 +13,6 @@ convert(value, type) handles all type conversions in Vyper:
 
 from __future__ import annotations
 
-import decimal
-import math
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
@@ -23,7 +21,6 @@ from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, I
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import UINT160_T, UINT256_T
 from vyper.semantics.types.user import FlagT
-from vyper.utils import DECIMAL_DIVISOR, unsigned_to_signed
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
@@ -72,98 +69,38 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
 def _get_folded_value(node: vy_ast.VyperNode):
     """
-    Get the compile-time constant node for a node if available.
+    Get the compile-time constant value for a node if available.
 
-    Returns the constant node itself, or a folded constant node for constant
-    expressions / constant variables. This is intentionally node-based instead
-    of value-based so literal kind information (hex vs decimal vs bytes) is
-    available for legacy-compatible conversion checks.
+    Returns the Python value (int, bool, etc.) if the node is a constant or
+    has a folded value, otherwise returns None.
     """
+    # Check if it's a literal or has a folded constant value
     if isinstance(node, vy_ast.Constant):
-        return node
+        return node.value
     if node.has_folded_value:
         folded = node.get_folded_value()
         if isinstance(folded, vy_ast.Constant):
-            return folded
+            return folded.value
     return None
 
 
-def _signextend_literal(expr: vy_ast.Constant, val: int, arg_t) -> int:
-    # apply sign extension, if expected. note that the sign bit is always
-    # taken to be the first bit of the bytestring.
-    # (e.g. convert(0xff <bytes1>, int16) == -1)
-    if isinstance(expr, vy_ast.Hex):
-        assert len(expr.value[2:]) // 2 == arg_t.m
-        n_bits = arg_t.m_bits
-    else:
-        assert isinstance(expr.value, bytes)
-        assert len(expr.value) == arg_t.maxlen
-        n_bits = arg_t.maxlen * 8
-
-    return unsigned_to_signed(val, n_bits)
-
-
-def _check_literal_int_bounds(arg_node: vy_ast.VyperNode, in_t, out_t: IntegerT) -> None:
+def _check_literal_int_bounds(arg_node: vy_ast.VyperNode, out_t: IntegerT) -> None:
     """
-    Check if a compile-time constant fits in the output integer bounds.
+    Check if a compile-time constant integer fits in the output type bounds.
 
     Raises InvalidLiteral if the value is out of range.
     """
-    literal = _get_folded_value(arg_node)
-    if literal is None:
+    val = _get_folded_value(arg_node)
+    if val is None:
         return
 
-    if isinstance(literal, vy_ast.Hex):
-        val = int(literal.value, 16)
-    elif isinstance(literal, (vy_ast.Bytes, vy_ast.HexBytes)):
-        val = int.from_bytes(literal.value, "big")
-    elif isinstance(literal, (vy_ast.Int, vy_ast.Decimal, vy_ast.NameConstant)):
-        val = literal.value
-    else:  # pragma: no cover
-        raise CompilerPanic("unreachable")
-
-    if isinstance(literal, (vy_ast.Hex, vy_ast.Bytes, vy_ast.HexBytes)) and out_t.is_signed:
-        val = _signextend_literal(literal, val, in_t)
+    # Only check numeric values
+    if not isinstance(val, (int, bool)):
+        return
 
     lo, hi = out_t.int_bounds
     if not (lo <= val <= hi):
-        raise InvalidLiteral("Number out of range", literal)
-
-
-def _check_literal_decimal_bounds(arg_node: vy_ast.VyperNode, in_t, out_t: DecimalT) -> None:
-    """
-    Check if a compile-time constant fits in the output decimal bounds.
-
-    Raises InvalidLiteral if the value is out of range.
-    """
-    literal = _get_folded_value(arg_node)
-    if literal is None:
-        return
-
-    val: decimal.Decimal
-    if isinstance(literal, vy_ast.Hex):
-        val = decimal.Decimal(int(literal.value, 16))
-    elif isinstance(literal, (vy_ast.Int, vy_ast.Decimal)):
-        val = decimal.Decimal(literal.value)
-        assert isinstance(literal.value, int)
-        val *= DECIMAL_DIVISOR
-    else:
-        # Legacy only handles constants accepted by to_decimal's input types.
-        # Other constants should not reach here after type checking.
-        return
-
-    # sanity check type checker did its job
-    assert math.ceil(val) == math.floor(val)
-
-    int_val = int(val)
-
-    # apply sign extension, if expected
-    if isinstance(literal, vy_ast.Hex) and out_t.is_signed:
-        int_val = _signextend_literal(literal, int_val, in_t)
-
-    lo, hi = out_t.int_bounds
-    if not lo <= int_val <= hi:
-        raise InvalidLiteral("Number out of range", literal)
+        raise InvalidLiteral("Number out of range", arg_node)
 
 
 def _to_bool(
@@ -231,7 +168,7 @@ def _to_int(
     """
     _check_bytes(in_t, out_t, 32, arg_node)
     # Check literal bounds at compile time
-    _check_literal_int_bounds(arg_node, in_t, out_t)
+    _check_literal_int_bounds(arg_node, out_t)
 
     b = ctx.builder
 
@@ -312,7 +249,6 @@ def _to_decimal(
     From bytes: shift and interpret as decimal.
     """
     _check_bytes(in_t, out_t, 32, arg_node)
-    _check_literal_decimal_bounds(arg_node, in_t, out_t)
 
     b = ctx.builder
     divisor = out_t.divisor
