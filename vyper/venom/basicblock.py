@@ -40,6 +40,7 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "returndatacopy",
         "codecopy",
         "dloadbytes",
+        "gas",
         "return",
         "ret",
         "sink",

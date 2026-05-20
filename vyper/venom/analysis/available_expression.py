@@ -29,11 +29,12 @@ for opcode, eff in effects.writes.items():
 # staticcall doesn't have external effects, but it is not idempotent since
 # it can depend on gas
 _nonidempotent_insts.append("staticcall")
+_nonidempotent_insts.append("gas")
 
 NONIDEMPOTENT_INSTRUCTIONS = frozenset(_nonidempotent_insts)
 
 # sanity
-for opcode in ("call", "create", "staticcall", "delegatecall", "create2"):
+for opcode in ("call", "create", "staticcall", "delegatecall", "create2", "gas"):
     assert opcode in NONIDEMPOTENT_INSTRUCTIONS
 
 

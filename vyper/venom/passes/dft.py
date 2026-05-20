@@ -8,6 +8,9 @@ from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
 
+ORDERED_INSTRUCTIONS = frozenset(["gas"])
+
+
 class DFTPass(IRPass):
     function: IRFunction
     data_offspring: dict[IRInstruction, OrderedSet[IRInstruction]]
@@ -146,13 +149,23 @@ class DFTPass(IRPass):
         #
         last_write_effects: dict[effects.Effects, IRInstruction] = {}
         all_read_effects: dict[effects.Effects, list[IRInstruction]] = defaultdict(list)
+        last_ordered_instruction: IRInstruction | None = None
+        previous_instructions: OrderedSet[IRInstruction] = OrderedSet()
 
         for inst in non_phis:
+            if last_ordered_instruction is not None:
+                self.eda[inst].add(last_ordered_instruction)
+
             if inst.is_bb_terminator:
                 for var in self.order:
                     dep = self.dfg.get_producing_instruction(var)
                     if dep is not None and dep.parent == bb:
                         self.dda[inst].add(dep)
+
+            if inst.opcode in ORDERED_INSTRUCTIONS:
+                self.eda[inst] |= previous_instructions
+                last_ordered_instruction = inst
+
             for op in inst.operands:
                 dep = self.dfg.get_producing_instruction(op)
                 if dep is not None and dep.parent == bb:
@@ -178,6 +191,8 @@ class DFTPass(IRPass):
                 if read_effect in last_write_effects and last_write_effects[read_effect] != inst:
                     self.eda[inst].add(last_write_effects[read_effect])
                 all_read_effects[read_effect].append(inst)
+
+            previous_instructions.add(inst)
 
     def _calculate_data_offspring(self, inst: IRInstruction):
         if inst in self.data_offspring:
