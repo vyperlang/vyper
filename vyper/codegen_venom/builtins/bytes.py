@@ -278,9 +278,7 @@ def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     start = Expr(start_node, ctx).lower_value()
 
     # Bounds check: start + 32 <= length
-    end = b.add(start, IRLiteral(32))
-    oob = b.gt(end, src_len)
-    b.assert_(b.iszero(oob))
+    _assert_slice_bounds(ctx, start, IRLiteral(32), src_len)
 
     # Load 32 bytes at offset
     load_ptr = b.add(src_data, start)
@@ -314,8 +312,11 @@ def _clamp_extract32_result(val: IROperand, out_t, ctx: VenomCodegenContext) -> 
         mask = (1 << 160) - 1
         too_big = b.gt(val, IRLiteral(mask))
         b.assert_(b.iszero(too_big))
+    elif isinstance(out_t, BytesM_T) and out_t.m < 32:
+        # BytesM values are left-aligned, so any bytes after M must be zero.
+        b.assert_(b.iszero(b.shl(IRLiteral(out_t.m * 8), val)))
 
-    # bytes32 and bytesM need no clamping
+    # bytes32 needs no clamping
     return val
 
 
