@@ -118,21 +118,16 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         data_len = b.mload(data)
         data_ptr = b.add(data, IRLiteral(32))
 
-    # Handle gas kwarg - defaults to remaining gas
-    gas_node = _get_kwarg_value(node, "gas")
-    gas: IROperand
-    if gas_node is None:
-        gas = b.gas()
-    else:
-        gas = Expr(gas_node, ctx).lower_value()
-
-    # Handle value kwarg - only for regular call
-    value_node = _get_kwarg_value(node, "value")
     value: IROperand
-    if value_node is None:
-        value = IRLiteral(0)
-    else:
-        value = Expr(value_node, ctx).lower_value()
+    gas: Optional[IROperand] = None
+    value = IRLiteral(0)
+    for kw in node.keywords:
+        if kw.arg == "gas":
+            gas = Expr(kw.value, ctx).lower_value()
+        elif kw.arg == "value":
+            value = Expr(kw.value, ctx).lower_value()
+    if gas is None:
+        gas = b.gas()
 
     # Allocate output buffer if needed
     out_val: Optional["VyperValue"]

@@ -601,6 +601,40 @@ def bar(f: uint256) -> Bytes[100]:
     )
 
 
+def test_raw_call_msg_data_kwarg_evaluation_order(get_contract, experimental_codegen):
+    code = """
+identity: constant(address) = 0x0000000000000000000000000000000000000004
+
+marker: public(uint256)
+
+@internal
+def set_value() -> uint256:
+    self.marker = 1
+    return 0
+
+@internal
+def set_gas() -> uint256:
+    self.marker = 2
+    return msg.gas
+
+@external
+def value_then_gas() -> uint256:
+    raw_call(identity, msg.data, value=self.set_value(), gas=self.set_gas())
+    return self.marker
+
+@external
+def gas_then_value() -> uint256:
+    raw_call(identity, msg.data, gas=self.set_gas(), value=self.set_value())
+    return self.marker
+    """
+    c = get_contract(code)
+
+    assert c.value_then_gas() == 2
+    # Legacy codegen evaluates raw_call kwargs in operand order; #2863 tracks
+    # fixing it to source order.
+    assert c.gas_then_value() == (1 if experimental_codegen else 2)
+
+
 uncompilable_code = [
     (
         """
