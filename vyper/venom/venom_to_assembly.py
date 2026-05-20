@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from typing import Any, Iterable
 
 from vyper.evm.assembler.instructions import DATA_ITEM, PUSH, DataHeader
@@ -217,9 +218,8 @@ class VenomCompiler:
         if len(stack_ops) == 0:
             return 0
 
-        assert len(stack_ops) == len(
-            set(stack_ops)
-        ), f"duplicated stack {stack_ops}"  # precondition
+        if len(stack_ops) != len(set(stack_ops)):
+            return self._stack_reorder_with_duplicates(assembly, stack, stack_ops, spilled, dry_run)
 
         cost = 0
 
@@ -265,6 +265,69 @@ class VenomCompiler:
             self.spiller.restore(snap)
 
         return cost
+
+    def _stack_reorder_with_duplicates(
+        self,
+        assembly: list,
+        stack: StackModel,
+        stack_ops: list[IROperand],
+        spilled: dict[IROperand, int],
+        dry_run: bool = False,
+    ) -> int:
+        if dry_run:
+            assert len(assembly) == 0, "Dry run should not work on assembly"
+            stack = stack.copy()
+            spilled = spilled.copy()
+            snap = self.spiller.snapshot()
+
+        cost = 0
+
+        for op in stack_ops:
+            if op in spilled:
+                assert isinstance(op, IRVariable)
+                self.spiller.restore_spilled_operand(assembly, stack, spilled, op, dry_run=dry_run)
+
+        for op, needed in Counter(stack_ops).items():
+            available = sum(1 for stack_op in stack._stack if stack_op == op)
+            for _ in range(needed - available):
+                self.dup_op(assembly, stack, op)
+                cost += 1
+
+        for i, op in enumerate(stack_ops):
+            final_stack_depth = -(len(stack_ops) - i - 1)
+
+            if stack.peek(final_stack_depth) == op:
+                continue
+
+            depth = self._get_depth_at_or_above(stack, op, final_stack_depth)
+            assert depth != StackModel.NOT_IN_STACK
+
+            to_swap = stack.peek(final_stack_depth)
+            if self.dfg.are_equivalent(op, to_swap):
+                stack.poke(final_stack_depth, op)
+                stack.poke(depth, to_swap)
+                continue
+
+            cost += self.spiller.swap(assembly, stack, depth, dry_run)
+            cost += self.spiller.swap(assembly, stack, final_stack_depth, dry_run)
+
+        assert stack._stack[-len(stack_ops) :] == stack_ops, (stack, stack_ops)
+
+        if dry_run:
+            self.spiller.restore(snap)
+
+        return cost
+
+    def _get_depth_at_or_above(
+        self, stack: StackModel, op: IROperand, min_depth: int
+    ) -> int | object:
+        for i, stack_op in enumerate(reversed(stack._stack)):
+            depth = -i
+            if depth < min_depth:
+                break
+            if stack_op == op:
+                return depth
+        return StackModel.NOT_IN_STACK
 
     def _reduce_depth_via_spill(
         self,
@@ -514,7 +577,7 @@ class VenomCompiler:
             # example, for `%56 = %label1 %13 %label2 %14`, we will
             # find an instance of %13 *or* %14 in the stack and replace it with %56.
             to_be_replaced = stack.peek(depth)
-            if to_be_replaced in next_liveness:
+            if to_be_replaced in next_liveness and stack._stack.count(to_be_replaced) == 1:
                 # this branch seems unreachable (maybe due to make_ssa)
                 # %13/%14 is still live(!), so we make a copy of it
                 self.spiller.dup(assembly, stack, depth)
@@ -545,8 +608,8 @@ class VenomCompiler:
             # guaranteed by cfg normalization+simplification
             assert len(self.cfg.cfg_in(next_bb)) > 1
 
-            target_stack = self.liveness.input_vars_from(inst.parent, next_bb)
-            self._stack_reorder(assembly, stack, list(target_stack), spilled)
+            target_stack = self.liveness.input_vars_from_stack(inst.parent, next_bb)
+            self._stack_reorder(assembly, stack, target_stack, spilled)
 
         if inst.is_commutative:
             cost_no_swap = self._stack_reorder([], stack, operands, spilled, dry_run=True)

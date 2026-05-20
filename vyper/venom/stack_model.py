@@ -52,12 +52,14 @@ class StackModel:
         assert isinstance(phis, list)
 
         ret = StackModel.NOT_IN_STACK
+        ret_item = None
         for i, stack_item in enumerate(reversed(self._stack)):
             if stack_item in phis:
                 assert (
-                    ret is StackModel.NOT_IN_STACK
+                    ret is StackModel.NOT_IN_STACK or stack_item == ret_item
                 ), f"phi argument is not unique! {phis}, {self._stack}"
                 ret = -i
+                ret_item = stack_item
 
         return ret  # type: ignore
 

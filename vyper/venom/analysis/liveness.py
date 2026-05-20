@@ -4,7 +4,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 
 
 class LivenessAnalysis(IRAnalysis):
@@ -94,6 +94,11 @@ class LivenessAnalysis(IRAnalysis):
 
     # calculate the input variables into self from source
     def input_vars_from(self, source: IRBasicBlock, target: IRBasicBlock) -> OrderedSet[IRVariable]:
+        return OrderedSet(self.input_vars_from_stack(source, target))
+
+    # calculate the input stack variables into target from source, preserving
+    # duplicate phi operands which need duplicate stack slots.
+    def input_vars_from_stack(self, source: IRBasicBlock, target: IRBasicBlock) -> list[IRVariable]:
         liveness = self.inst_to_liveness[target.instructions[0]].copy()
 
         phis: list[IRInstruction] = []
@@ -106,31 +111,25 @@ class LivenessAnalysis(IRAnalysis):
                 break
 
         if len(phis) == 0:
-            return liveness
+            return list(liveness)
 
-        # Map every phi operand (from all sources) to its phi index,
-        # and record the matching operand from `source` for each phi.
-        operand_to_phi_idx: dict[IROperand, int] = {}
-        phi_matching: dict[int, IRVariable] = {}
-        for i, phi in enumerate(phis):
+        first_non_phi = target.instructions[len(phis)]
+        live_after_phis = self.inst_to_liveness[first_non_phi]
+        phi_outputs = {phi.output for phi in phis}
+
+        result: list[IRVariable] = []
+        for phi in phis:
+            if phi.output not in live_after_phis:
+                continue
             for label, var in phi.phi_operands:
-                operand_to_phi_idx[var] = i
                 if label == source.label:
                     assert isinstance(var, IRVariable)
-                    phi_matching[i] = var
+                    result.append(var)
+                    break
 
-        result: OrderedSet[IRVariable] = OrderedSet()
-        placed: set[int] = set()
-
-        for var in liveness:
-            phi_idx = operand_to_phi_idx.get(var)
-            if phi_idx is not None:
-                if phi_idx not in placed:
-                    placed.add(phi_idx)
-                    result.add(phi_matching[phi_idx])
-                # else: skip subsequent operands of same phi
-            else:
-                result.add(var)
+        for var in live_after_phis:
+            if var not in phi_outputs:
+                result.append(var)
 
         return result
 

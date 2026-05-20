@@ -1,8 +1,12 @@
-from vyper.compiler.settings import OptimizationLevel
-from vyper.venom import generate_assembly_experimental
+import pytest
+
+from vyper.compiler.phases import generate_bytecode
+from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
+from vyper.venom import generate_assembly_experimental, run_passes_on
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
 from vyper.venom.passes import SingleUseExpansion
+from vyper.venom.parser import parse_venom
 
 
 def test_duplicate_operands():
@@ -31,3 +35,51 @@ def test_duplicate_operands():
     optimize = OptimizationLevel.GAS
     asm = generate_assembly_experimental(ctx, optimize=optimize)
     assert asm == ["PUSH1", 10, "DUP1", "DUP2", "ADD", "MUL", "STOP"]
+
+
+def _deploy_runtime(env, runtime_bytecode):
+    bytecode_len_hex = hex(len(runtime_bytecode))[2:].rjust(6, "0")
+    initcode = bytes.fromhex("62" + bytecode_len_hex + "3d81600b3d39f3") + runtime_bytecode
+    return env.deploy([], initcode)
+
+
+def _word(value):
+    return int(value).to_bytes(32, "big")
+
+
+@pytest.mark.parametrize("opt_level", [OptimizationLevel.NONE, OptimizationLevel.GAS])
+def test_phi_duplicate_incoming_operands(env, opt_level):
+    source = """
+function runtime {
+entry:
+  %cond = calldataload 0
+  %a = calldataload 32
+  %b = calldataload 64
+  %c = calldataload 96
+  jnz %cond, @p1, @p2
+p1:
+  jmp @join
+p2:
+  jmp @join
+join:
+  %x = phi @p1, %a, @p2, %b
+  %y = phi @p1, %a, @p2, %c
+  %z = add %x, %y
+  mstore 0, %z
+  return 0, 32
+}
+    """
+
+    ctx = parse_venom(source)
+    if opt_level != OptimizationLevel.NONE:
+        run_passes_on(ctx, VenomOptimizationFlags(level=opt_level), disable_mem_checks=True)
+
+    asm = generate_assembly_experimental(ctx, optimize=opt_level)
+    runtime_bytecode, _ = generate_bytecode(asm)
+    contract = _deploy_runtime(env, runtime_bytecode)
+
+    calldata = b"".join(_word(x) for x in (1, 5, 7, 11))
+    assert int.from_bytes(env.message_call(contract.address, data=calldata), "big") == 10
+
+    calldata = b"".join(_word(x) for x in (0, 5, 7, 11))
+    assert int.from_bytes(env.message_call(contract.address, data=calldata), "big") == 18
