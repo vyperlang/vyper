@@ -7,6 +7,7 @@ from vyper.exceptions import UnfoldableNode
 
 
 # TODO expand to all signed types
+# TODO: add examples
 @pytest.mark.fuzzing
 @settings(max_examples=50)
 @given(left=st.integers(), right=st.integers())
@@ -27,6 +28,7 @@ def foo(a: int128, b: int128) -> bool:
 
 
 # TODO expand to all unsigned types
+# TODO: add examples
 @pytest.mark.fuzzing
 @settings(max_examples=50)
 @given(left=st.integers(min_value=0), right=st.integers(min_value=0))
@@ -46,6 +48,7 @@ def foo(a: uint128, b: uint128) -> bool:
     assert contract.foo(left, right) == new_node.value
 
 
+# TODO: add examples
 @pytest.mark.fuzzing
 @settings(max_examples=20)
 @given(left=st.integers(), right=st.lists(st.integers(), min_size=1, max_size=16))
@@ -75,6 +78,7 @@ def bar(a: int128) -> bool:
     assert (left in right) == new_node.value
 
 
+# TODO: add examples
 @pytest.mark.fuzzing
 @settings(max_examples=20)
 @given(left=st.integers(), right=st.lists(st.integers(), min_size=1, max_size=16))

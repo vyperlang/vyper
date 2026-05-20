@@ -86,6 +86,7 @@ def do_not(x: {typ}) -> {typ}:
         compile_code(code)
 
 
+# TODO: add examples
 @pytest.mark.fuzzing
 @settings(max_examples=50)
 @given(value=st.binary(min_size=32, max_size=32))
@@ -111,6 +112,7 @@ def get_bytes(draw, len):
     )
 
 
+# TODO: add examples
 @pytest.mark.fuzzing
 @pytest.mark.parametrize("typ", BYTESM_TYPES)
 @pytest.mark.parametrize("op", ["&", "|", "^"])
@@ -141,6 +143,7 @@ def do_op(a: {typ}, b: {typ}) -> {typ}:
     _fuzz()
 
 
+# TODO: add examples
 @pytest.mark.fuzzing
 @pytest.mark.parametrize("op", ["<<", ">>"])
 def test_bitwise_shift_bytes(get_contract, op):

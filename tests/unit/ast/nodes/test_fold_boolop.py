@@ -7,6 +7,7 @@ from tests.utils import parse_and_fold
 variables = "abcdefghij"
 
 
+# TODO: add examples
 @pytest.mark.fuzzing
 @settings(max_examples=50)
 @given(values=st.lists(st.booleans(), min_size=2, max_size=10))
@@ -31,6 +32,7 @@ def foo({input_value}) -> bool:
     assert contract.foo(*values) == new_node.value
 
 
+# TODO: add examples
 @pytest.mark.fuzzing
 @settings(max_examples=50)
 @given(

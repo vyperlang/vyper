@@ -27,6 +27,7 @@ N2: public(constant(uint256)) = N**N
     assert c.N2() == 3**3
 
 
+# TODO: add examples
 @pytest.mark.fuzzing
 @pytest.mark.parametrize("power", range(2, 255))
 def test_exp_uint256(get_contract, tx_failed, power):
@@ -46,6 +47,7 @@ def foo(a: uint256) -> uint256:
         c.foo(max_base + 1)
 
 
+# TODO: add examples
 @pytest.mark.fuzzing
 @pytest.mark.parametrize("power", range(2, 127))
 def test_exp_int128(get_contract, tx_failed, power):
@@ -73,6 +75,7 @@ def foo(a: int128) -> int128:
         c.foo(min_base - 1)
 
 
+# TODO: add examples
 @pytest.mark.fuzzing
 @pytest.mark.parametrize("power", range(2, 15))
 def test_exp_int16(get_contract, tx_failed, power):
