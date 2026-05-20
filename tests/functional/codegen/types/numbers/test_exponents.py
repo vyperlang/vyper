@@ -143,7 +143,7 @@ def test_max_exp(get_contract, tx_failed, a):
 
 
 @pytest.mark.fuzzing
-@given(a=st.integers(min_value=2, max_value=2**127 - 1))
+@given(a=st.integers(min_value=2, max_value=2**256 - 1))
 @settings(max_examples=200)
 def test_max_exp_fuzz(get_contract, tx_failed, a):
     _check_max_exp(get_contract, tx_failed, a)
