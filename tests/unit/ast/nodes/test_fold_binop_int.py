@@ -48,7 +48,6 @@ def test_binop_int128_fuzz(get_contract, tx_failed, op, left, right):
 st_uint64 = st.integers(min_value=0, max_value=2**64)
 
 
-# TODO: add examples
 @pytest.mark.fuzzing
 @settings(max_examples=50)
 @given(left=st_uint64, right=st_uint64)
@@ -97,7 +96,6 @@ def foo(a: uint256, b: uint256) -> uint256:
     assert contract.foo(left, right) == new_node.value
 
 
-# TODO: add examples
 @pytest.mark.fuzzing
 @settings(max_examples=50)
 @given(

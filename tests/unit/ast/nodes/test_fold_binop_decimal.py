@@ -77,7 +77,6 @@ def test_binop_pow():
         _ = parse_and_fold("3.1337 ** 4.2")
 
 
-# TODO: add examples
 @pytest.mark.fuzzing
 @settings(max_examples=50)
 @given(

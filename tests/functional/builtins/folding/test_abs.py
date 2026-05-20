@@ -6,7 +6,6 @@ from tests.utils import parse_and_fold
 from vyper.exceptions import TypeMismatch
 
 
-# TODO: add examples
 @pytest.mark.fuzzing
 @settings(max_examples=50)
 @given(a=st.integers(min_value=-(2**255) + 1, max_value=2**255 - 1))
@@ -26,7 +25,6 @@ def foo(a: int256) -> int256:
     assert contract.foo(a) == new_node.value == abs(a)
 
 
-# TODO: add examples
 @pytest.mark.fuzzing
 @settings(max_examples=50)
 @given(a=st.integers(min_value=2**255, max_value=2**256 - 1))

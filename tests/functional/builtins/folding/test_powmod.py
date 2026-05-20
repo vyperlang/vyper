@@ -7,7 +7,6 @@ from tests.utils import parse_and_fold
 st_uint256 = st.integers(min_value=0, max_value=(2**256 - 1))
 
 
-# TODO: add examples
 @pytest.mark.fuzzing
 @settings(max_examples=100)
 @given(a=st_uint256, b=st_uint256)

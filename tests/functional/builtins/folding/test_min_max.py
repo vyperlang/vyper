@@ -16,7 +16,6 @@ st_int128 = st.integers(min_value=-(2**127), max_value=2**127 - 1)
 st_uint256 = st.integers(min_value=0, max_value=2**256 - 1)
 
 
-# TODO: add examples
 @pytest.mark.fuzzing
 @settings(max_examples=50)
 @given(left=st_decimals, right=st_decimals)
@@ -37,7 +36,6 @@ def foo(a: decimal, b: decimal) -> decimal:
     assert contract.foo(l, r) == decimal_to_int(new_node.value)
 
 
-# TODO: add examples
 @pytest.mark.fuzzing
 @settings(max_examples=50)
 @given(left=st_int128, right=st_int128)
@@ -57,7 +55,6 @@ def foo(a: int128, b: int128) -> int128:
     assert contract.foo(left, right) == new_node.value
 
 
-# TODO: add examples
 @pytest.mark.fuzzing
 @settings(max_examples=50)
 @given(left=st_uint256, right=st_uint256)
