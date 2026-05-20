@@ -635,7 +635,7 @@ class Expr:
                 return VyperValue.from_stack_op(IRLiteral(value), typ)
 
         attr = node.attr
-        sub_typ = node.value._metadata.get("type")
+        sub_typ = node.value._metadata["type"]
 
         # Case 2: Struct field access (point.x)
         if isinstance(sub_typ, StructT) and attr in sub_typ.member_types:
