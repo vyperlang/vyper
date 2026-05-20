@@ -46,3 +46,26 @@ def test_in(addr: address) -> bool:
         assert c.test_in(t) is (True if not invert else False)
     for t in should_not_in:
         assert c.test_in(t) is (True if invert else False)
+
+
+@pytest.mark.parametrize("invert", (True, False))
+def test_in_list_short_circuits_side_effects(get_contract, invert):
+    INVERT = "not" if invert else ""
+    code = f"""
+counter: uint256
+
+@internal
+def bump() -> uint256:
+    self.counter += 1
+    return self.counter + 10
+
+@external
+def foo() -> uint256:
+    self.counter = 0
+    ok: bool = 1 {INVERT} in [1, self.bump()]
+    return self.counter
+    """
+
+    c = get_contract(code)
+
+    assert c.foo() == 0

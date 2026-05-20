@@ -1071,11 +1071,6 @@ class Expr:
         - For 'not in': (x != a) and (x != b) and (x != c)
 
         More efficient than loop for compile-time known list literals.
-
-        NOTE: All elements are evaluated FIRST before any comparisons,
-        so side effects are NOT short-circuited. This matches legacy
-        behavior (expr.py:486 does unwrap_location on ALL elements first).
-        The or_/and_ IR ops combine already-computed results.
         """
         # Block non-primitive element types (mirrors legacy codegen)
         # See issue #2637 for context
@@ -1091,24 +1086,36 @@ class Expr:
             # Empty list: x in [] is always False, x not in [] is always True
             return IRLiteral(0 if is_in else 1)
 
-        # Evaluate ALL elements first to preserve side effects
-        elem_vals = [Expr(elem, self.ctx).lower_value() for elem in list_node.elements]
+        result = b.new_variable()
+        b.assign_to(IRLiteral(0 if is_in else 1), result)
+        exit_block = b.create_block("in_list_exit")
 
-        # Then build comparison chain
-        comparisons = [b.eq(needle, elem_val) for elem_val in elem_vals]
+        for i, elem in enumerate(list_node.elements):
+            check_block = b.create_block("in_list_check")
+            found_block = b.create_block("in_list_found")
+            next_block = (
+                b.create_block("in_list_next") if i + 1 < len(list_node.elements) else exit_block
+            )
 
-        # Combine comparisons
-        if is_in:
-            # x in [a, b, c] = (x == a) or (x == b) or (x == c)
-            result = comparisons[0]
-            for cmp in comparisons[1:]:
-                result = b.or_(result, cmp)
-        else:
-            # x not in [a, b, c] = (x != a) and (x != b) and (x != c)
-            # = iszero(eq(x, a)) and iszero(eq(x, b)) and ...
-            result = b.iszero(comparisons[0])
-            for cmp in comparisons[1:]:
-                result = b.and_(result, b.iszero(cmp))
+            b.jmp(check_block.label)
+
+            b.append_block(check_block)
+            b.set_block(check_block)
+            elem_val = Expr(elem, self.ctx).lower_value()
+            match = b.eq(needle, elem_val)
+            b.jnz(match, found_block.label, next_block.label)
+
+            b.append_block(found_block)
+            b.set_block(found_block)
+            b.assign_to(IRLiteral(1 if is_in else 0), result)
+            b.jmp(exit_block.label)
+
+            if next_block is not exit_block:
+                b.append_block(next_block)
+                b.set_block(next_block)
+
+        b.append_block(exit_block)
+        b.set_block(exit_block)
 
         return result
 
