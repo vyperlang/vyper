@@ -647,6 +647,8 @@ class Expr:
             return VyperValue.from_stack_op(self.builder.balance(sub), UINT256_T)
 
         if attr == "codesize":
+            if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
+                return VyperValue.from_stack_op(self.builder.codesize(), UINT256_T)
             sub = Expr(node.value, self.ctx).lower_value()
             return VyperValue.from_stack_op(self.builder.extcodesize(sub), UINT256_T)
 
