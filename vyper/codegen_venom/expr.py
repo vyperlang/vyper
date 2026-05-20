@@ -61,7 +61,7 @@ class _CallKwargs:
     value: IROperand  # ETH value to send (CALL only)
     gas: IROperand  # Gas limit for the call
     skip_contract_check: bool  # Skip extcodesize check
-    default_return_value: Optional[VyperValue]  # Default if returndatasize==0
+    default_return_value: Optional[vy_ast.VyperNode]  # Default if returndatasize==0
 
 
 # Environment variable prefixes for attribute access
@@ -1653,39 +1653,29 @@ class Expr:
         Args:
             call_node: The Call AST node (from ExtCall.value or StaticCall.value)
         """
-        # Default values
         value: IROperand = IRLiteral(0)
-        gas: IROperand = self.builder.gas()
+        gas: Optional[IROperand] = None
         skip_contract_check = False
-        default_return_value: Optional[VyperValue] = None
+        default_return_value: Optional[vy_ast.VyperNode] = None
 
         for kw in call_node.keywords:
-            if kw.arg == "default_return_value":
-                drv_vv = Expr(kw.value, self.ctx).lower()
-                # Eagerly materialize mutable-location values so the read
-                # happens before CALL, not in the post-call default block
-                # (avoids reentrancy-dependent fallback semantics).
-                if drv_vv.location is not None and drv_vv.location in (
-                    DataLocation.STORAGE,
-                    DataLocation.TRANSIENT,
-                ):
-                    materialized = self.ctx.unwrap(drv_vv)
-                    drv_vv = VyperValue.from_stack_op(materialized, drv_vv.typ)
-                default_return_value = drv_vv
-                continue
-
-            kw_val = Expr(kw.value, self.ctx).lower_value()
             if kw.arg == "value":
-                value = kw_val
+                value = Expr(kw.value, self.ctx).lower_value()
             elif kw.arg == "gas":
-                gas = kw_val
+                gas = Expr(kw.value, self.ctx).lower_value()
             elif kw.arg == "skip_contract_check":
+                kw_val = Expr(kw.value, self.ctx).lower_value()
                 # Must be a literal True/False
                 if not isinstance(kw_val, IRLiteral):  # pragma: nocover
                     raise CompilerPanic(f"Expected IRLiteral for keyword, got {type(kw_val)}")
                 skip_contract_check = bool(kw_val.value)
+            elif kw.arg == "default_return_value":
+                default_return_value = kw.value
             else:  # pragma: nocover
                 raise CompilerPanic(f"Unexpected keyword argument: {kw.arg}")
+
+        if gas is None:
+            gas = self.builder.gas()
 
         return _CallKwargs(
             value=value,
@@ -1851,8 +1841,9 @@ class Expr:
             b.set_block(default_bb)
 
             # Store default value
-            default_vv = call_kwargs.default_return_value
-            assert default_vv is not None
+            default_node = call_kwargs.default_return_value
+            assert default_node is not None
+            default_vv = Expr(default_node, self.ctx).lower()
             self.ctx.store_vyper_value(default_vv, result_val.operand, return_t)
 
             # Check extcodesize if not skipped (contract might have selfdestructed)
