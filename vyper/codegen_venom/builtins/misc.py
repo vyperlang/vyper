@@ -468,9 +468,8 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         # Allocate buffer: [32 bytes padding for method_id alignment] | [data]
         buf = ctx.allocate_buffer(buflen)
 
-        # Store method_id at buf (shifted left to align in word)
-        method_id_word = mid << 224
-        b.mstore(buf._ptr, IRLiteral(method_id_word))
+        # Store method_id so buf+28 starts at the 4-byte selector.
+        b.mstore(buf._ptr, IRLiteral(mid))
 
         # Create tuple in memory and encode starting at buf + 32
         if len(args) > 0:
@@ -540,9 +539,8 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         final_buflen = 32 + outer_abi_size
         buf = ctx.allocate_buffer(final_buflen)
 
-        # Store method_id
-        method_id_word = mid << 224
-        b.mstore(buf._ptr, IRLiteral(method_id_word))
+        # Store method_id so buf+28 starts at the 4-byte selector.
+        b.mstore(buf._ptr, IRLiteral(mid))
 
         # Encode outer tuple
         data_dst = b.add(buf._ptr, IRLiteral(32))

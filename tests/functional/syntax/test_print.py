@@ -1,6 +1,8 @@
 import pytest
 
 from vyper import compiler
+from vyper.compiler.settings import Settings
+from vyper.utils import method_id_int
 
 valid_list = [
     """
@@ -79,3 +81,29 @@ def foo():
 @pytest.mark.parametrize("good_code", valid_list)
 def test_print_syntax(good_code):
     assert compiler.compile_code(good_code) is not None
+
+
+@pytest.mark.parametrize(
+    "print_call,signature",
+    [
+        ("print(x)", "log(string,bytes)"),
+        ("print(x, hardhat_compat=True)", "log(uint256)"),
+    ],
+)
+def test_venom_print_selector_stored_at_call_offset(print_call, signature):
+    code = f"""
+@external
+def foo(x: uint256):
+    {print_call}
+    """
+
+    out = compiler.compile_code(
+        code,
+        output_formats=["opcodes_runtime"],
+        settings=Settings(debug=True, experimental_codegen=True),
+    )
+    opcodes = out["opcodes_runtime"]
+    selector = method_id_int(signature)
+
+    assert f"PUSH4 0x{selector:08X}" in opcodes
+    assert f"PUSH32 0x{selector:08X}{'0' * 56}" not in opcodes
