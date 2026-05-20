@@ -137,6 +137,8 @@ class MemoryCopyElisionPass(IRPass):
                     self.copies[write_loc] = inst
 
             else:
+                if Effects.RETURNDATA in inst.get_write_effects():
+                    self._invalidate_returndata_copies()
                 if Effects.MEMORY in inst.get_write_effects():
                     self.copies.clear()
                     self.loads[Effects.MEMORY].clear()
@@ -151,6 +153,15 @@ class MemoryCopyElisionPass(IRPass):
             self.bb_copies[bb] = self.copies.copy()
             return True
         return False
+
+    def _invalidate_returndata_copies(self):
+        to_remove = [
+            mem_loc
+            for mem_loc, copy_inst in self.copies.items()
+            if copy_inst.opcode == "returndatacopy"
+        ]
+        for mem_loc in to_remove:
+            del self.copies[mem_loc]
 
     def _invalidate(self, write_loc: MemoryLocation, eff: Effects):
         if not write_loc.is_fixed and Effects.MEMORY in eff:
