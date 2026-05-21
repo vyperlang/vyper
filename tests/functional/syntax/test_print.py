@@ -85,10 +85,7 @@ def test_print_syntax(good_code):
 
 @pytest.mark.parametrize(
     "print_call,signature",
-    [
-        ("print(x)", "log(string,bytes)"),
-        ("print(x, hardhat_compat=True)", "log(uint256)"),
-    ],
+    [("print(x)", "log(string,bytes)"), ("print(x, hardhat_compat=True)", "log(uint256)")],
 )
 def test_venom_print_selector_stored_at_call_offset(print_call, signature):
     code = f"""
