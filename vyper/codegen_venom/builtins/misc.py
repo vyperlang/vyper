@@ -19,7 +19,7 @@ from vyper.builtins.functions import AsWeiValue
 from vyper.codegen_venom.abi.abi_encoder import abi_encode_to_buf
 from vyper.codegen_venom.constants import BLOCKHASH_LOOKBACK_LIMIT, ECRECOVER_PRECOMPILE
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import EvmVersionException
+from vyper.exceptions import CompilerPanic, EvmVersionException
 from vyper.semantics.types import BytesT, DecimalT, StringT, TupleT
 from vyper.utils import DECIMAL_DIVISOR, method_id_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
@@ -389,11 +389,12 @@ def _get_bool_kwarg(node: vy_ast.Call, kwarg_name: str, default: bool) -> bool:
     kw_node = _get_kwarg_value(node, kwarg_name)
     if kw_node is None:
         return default
+    kw_node = kw_node.reduced()
     if isinstance(kw_node, vy_ast.NameConstant):
         return kw_node.value
     if isinstance(kw_node, vy_ast.Int):
         return bool(kw_node.value)
-    return default
+    raise CompilerPanic(f"unfoldable boolean kwarg: {kwarg_name}", kw_node)
 
 
 def _create_tuple_in_memory(

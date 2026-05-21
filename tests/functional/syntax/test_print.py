@@ -1,6 +1,8 @@
 import pytest
 
 from vyper import compiler
+from vyper.compiler.settings import Settings
+from vyper.utils import method_id_int
 
 valid_list = [
     """
@@ -79,3 +81,21 @@ def foo():
 @pytest.mark.parametrize("good_code", valid_list)
 def test_print_syntax(good_code):
     assert compiler.compile_code(good_code) is not None
+
+
+def test_print_folded_hardhat_compat_kwarg():
+    code = """
+HARDHAT_COMPAT: constant(bool) = True
+
+@external
+def foo(x: uint256):
+    print(x, hardhat_compat=HARDHAT_COMPAT)
+    """
+
+    out = compiler.compile_code(
+        code, output_formats=["ir_runtime"], settings=Settings(experimental_codegen=True)
+    )
+    ir_runtime = str(out["ir_runtime"])
+
+    assert f"0x{method_id_int('log(uint256)'):08x}" in ir_runtime
+    assert f"0x{method_id_int('log(string,bytes)'):08x}" not in ir_runtime

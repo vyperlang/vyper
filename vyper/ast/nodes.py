@@ -14,6 +14,7 @@ from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
+    FunctionDeclarationException,
     InvalidLiteral,
     InvalidOperation,
     OverflowException,
@@ -666,6 +667,14 @@ class Module(TopLevel):
 
 class FunctionDef(TopLevel):
     __slots__ = ("args", "returns", "decorator_list")
+
+    def validate(self):
+        if not self.body:
+            raise FunctionDeclarationException(
+                "Function body cannot consist of only a docstring",
+                self,
+                hint="add a `pass` statement to the function body",
+            )
 
 
 class DocStr(VyperNode):
