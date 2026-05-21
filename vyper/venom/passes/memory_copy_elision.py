@@ -158,7 +158,7 @@ class MemoryCopyElisionPass(IRPass):
         to_remove = [
             mem_loc
             for mem_loc, copy_inst in self.copies.items()
-            if copy_inst.opcode == "returndatacopy"
+            if Effects.RETURNDATA in copy_inst.get_read_effects()
         ]
         for mem_loc in to_remove:
             del self.copies[mem_loc]
