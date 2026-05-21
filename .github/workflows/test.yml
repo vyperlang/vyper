@@ -7,6 +7,9 @@ on:
   pull_request:
   merge_group:
 
+permissions:
+  contents: read
+
 concurrency:
   # cancel older, in-progress jobs from the same PR, same workflow.
   # use run_id if the job is triggered by a push to ensure
@@ -20,10 +23,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      with:
+        persist-credentials: false
 
     - name: Set up Python 3.11
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
       with:
         python-version: "3.11"
         cache: "pip"
@@ -50,10 +55,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.11"
           cache: "pip"
@@ -70,10 +77,12 @@ jobs:
     name: symbolic-tests
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      with:
+        persist-credentials: false
 
     - name: Set up Python 3.11
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
       with:
         python-version: "3.11"
         cache: "pip"
@@ -176,13 +185,14 @@ jobs:
           - os: macos
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       with:
           # need to fetch unshallow so that setuptools_scm can infer the version
           fetch-depth: 0
+          persist-credentials: false
 
     - name: Set up Python ${{ matrix.python-version[0] || '3.11' }}
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
       with:
         python-version: ${{ matrix.python-version[0] || '3.11' }}
         cache: "pip"
@@ -207,7 +217,7 @@ jobs:
         tests/
 
     - name: Upload coverage artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
         name: coverage-files-${{ github.job }}-${{ strategy.job-index }}
         include-hidden-files: true
@@ -220,6 +230,7 @@ jobs:
     # see https://github.community/t/status-check-for-a-matrix-jobs/127354/7
     runs-on: ubuntu-latest
     needs: [tests, symbolic-tests]
+    permissions: {}
     steps:
       - name: Check tests tests all succeeded
         if: ${{ needs.tests.result != 'success' }}
@@ -239,10 +250,12 @@ jobs:
         group: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120]
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      with:
+        persist-credentials: false
 
     - name: Set up Python 3.11
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
       with:
         python-version: "3.11"
         cache: "pip"
@@ -268,7 +281,7 @@ jobs:
           tests/
 
     - name: Upload coverage artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
         name: coverage-files-${{ github.job }}-${{ strategy.job-index }}
         include-hidden-files: true
@@ -281,6 +294,7 @@ jobs:
     # see https://github.community/t/status-check-for-a-matrix-jobs/127354/7
     runs-on: ubuntu-latest
     needs: fuzzing
+    permissions: {}
 
     steps:
       - name: Check slow tests all succeeded
@@ -294,10 +308,12 @@ jobs:
     needs: [tests, fuzzing]
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      with:
+        persist-credentials: false
 
     - name: Set up Python 3.11
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
       with:
         python-version: "3.11"
         cache: "pip"
@@ -306,7 +322,7 @@ jobs:
       run: pip install coverage
 
     - name: Download coverage artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
       with:
         pattern: coverage-files-*
         path: coverage-files
@@ -327,7 +343,7 @@ jobs:
     - name: Upload coverage artifacts
       # upload coverage sqlite db for debugging
       # upload coverage.xml artifact for downstream codecov upload action
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
         name: coverage-artifacts
         include-hidden-files: true
@@ -338,17 +354,22 @@ jobs:
 
   upload-coverage:
     # upload coverage to the codecov app
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     needs: [coverage-report]
+    permissions:
+      contents: read
 
     steps:
-    - uses: actions/checkout@v6
-    - uses: actions/download-artifact@v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      with:
+        persist-credentials: false
+    - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
       with:
         name: coverage-artifacts
 
     - name: Upload Coverage
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: coverage.xml
