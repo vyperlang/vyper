@@ -12,7 +12,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional, Union
 
 from vyper import ast as vy_ast
-from vyper.codegen_venom.builtins._kwargs import get_literal_kwarg, get_reduced_kwarg_value
+from vyper.codegen_venom.builtins._kwargs import (
+    get_literal_kwarg,
+    get_reduced_kwarg_value,
+    lower_kwargs_in_source_order,
+)
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import ArgumentException, StateAccessViolation
 from vyper.semantics.types import BytesT, TupleT
@@ -31,6 +35,7 @@ def _is_msg_data(node) -> bool:
         and isinstance(node.value, vy_ast.Name)
         and node.value.id == "msg"
     )
+
 
 def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand, VyperValue]:
     """
@@ -90,21 +95,9 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         data_len = b.mload(data)
         data_ptr = b.add(data, IRLiteral(32))
 
-    # Handle gas kwarg - defaults to remaining gas
-    gas_node = get_reduced_kwarg_value(node, "gas")
-    gas: IROperand
-    if gas_node is None:
-        gas = b.gas()
-    else:
-        gas = Expr(gas_node, ctx).lower_value()
-
-    # Handle value kwarg - only for regular call
-    value_node = get_reduced_kwarg_value(node, "value")
-    value: IROperand
-    if value_node is None:
-        value = IRLiteral(0)
-    else:
-        value = Expr(value_node, ctx).lower_value()
+    runtime_kwargs = lower_kwargs_in_source_order(node, ctx, ("gas", "value"))
+    gas = runtime_kwargs["gas"] if "gas" in runtime_kwargs else b.gas()
+    value = runtime_kwargs["value"] if "value" in runtime_kwargs else IRLiteral(0)
 
     # Allocate output buffer if needed
     out_val: Optional["VyperValue"]
@@ -210,13 +203,8 @@ def lower_send(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     to = Expr(node.args[0], ctx).lower_value()
     value = Expr(node.args[1], ctx).lower_value()
 
-    # Parse gas kwarg (default 0)
-    gas_node = get_reduced_kwarg_value(node, "gas")
-    gas: IROperand
-    if gas_node is None:
-        gas = IRLiteral(0)
-    else:
-        gas = Expr(gas_node, ctx).lower_value()
+    runtime_kwargs = lower_kwargs_in_source_order(node, ctx, ("gas",))
+    gas = runtime_kwargs["gas"] if "gas" in runtime_kwargs else IRLiteral(0)
 
     argsptr_buf = ctx.allocate_buffer(0, annotation="lower send args buffer")
     retptr_buf = ctx.allocate_buffer(0, annotation="lower send retptr buffer")

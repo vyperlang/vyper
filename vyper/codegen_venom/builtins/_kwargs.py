@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any, Optional
 
 from vyper import ast as vy_ast
@@ -49,13 +50,12 @@ def get_literal_kwarg(node: vy_ast.Call, kwarg_name: str, default):
     raise CompilerPanic(f"unfoldable literal kwarg: {kwarg_name}", kw_node)
 
 
-def get_maybe_literal_kwarg(node: vy_ast.Call, kwarg_name: str, default):
-    kw_node = get_reduced_kwarg_value(node, kwarg_name)
-    if kw_node is None:
-        return default, True
+def lower_kwargs_in_source_order(node: vy_ast.Call, ctx, kwarg_names: Iterable[str]):
+    from vyper.codegen_venom.expr import Expr
 
-    value = _literal_value(kw_node)
-    if value is not _UNSET:
-        return value, True
-
-    return None, False
+    kwarg_names = set(kwarg_names)
+    ret = {}
+    for kw in node.keywords:
+        if kw.arg in kwarg_names:
+            ret[kw.arg] = Expr(kw.value.reduced(), ctx).lower_value()
+    return ret
