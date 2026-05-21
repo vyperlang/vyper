@@ -8,15 +8,7 @@ from vyper.exceptions import ZeroDivisionException
 st_int32 = st.integers(min_value=-(2**32), max_value=2**32)
 
 
-@pytest.mark.fuzzing
-@settings(max_examples=50)
-@given(left=st_int32, right=st_int32)
-@example(left=1, right=1)
-@example(left=1, right=-1)
-@example(left=-1, right=1)
-@example(left=-1, right=-1)
-@pytest.mark.parametrize("op", ["+", "-", "*", "//", "%"])
-def test_binop_int128(get_contract, tx_failed, op, left, right):
+def _check_binop_int128(get_contract, tx_failed, op, left, right):
     source = f"""
 @external
 def foo(a: int128, b: int128) -> int128:
@@ -37,6 +29,20 @@ def foo(a: int128, b: int128) -> int128:
     else:
         with tx_failed():
             contract.foo(left, right)
+
+
+@pytest.mark.parametrize("left,right", [(1, 1), (1, -1), (-1, 1), (-1, -1)])
+@pytest.mark.parametrize("op", ["+", "-", "*", "//", "%"])
+def test_binop_int128(get_contract, tx_failed, op, left, right):
+    _check_binop_int128(get_contract, tx_failed, op, left, right)
+
+
+@pytest.mark.fuzzing
+@settings(max_examples=50)
+@given(left=st_int32, right=st_int32)
+@pytest.mark.parametrize("op", ["+", "-", "*", "//", "%"])
+def test_binop_int128_fuzz(get_contract, tx_failed, op, left, right):
+    _check_binop_int128(get_contract, tx_failed, op, left, right)
 
 
 st_uint64 = st.integers(min_value=0, max_value=2**64)

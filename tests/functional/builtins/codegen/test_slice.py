@@ -30,6 +30,30 @@ def slice_tower_test(inp1: Bytes[50]) -> Bytes[50]:
     assert x == b"klmnopqrst", x
 
 
+def test_slice_struct_field_named_code(get_contract, env):
+    code = """
+struct Account:
+    code: Bytes[10]
+
+accounts: HashMap[address, Account]
+
+@external
+def set_code(owner: address, code: Bytes[10]):
+    self.accounts[owner].code = code
+
+@external
+@view
+def get_prefix(owner: address) -> Bytes[3]:
+    return slice(self.accounts[owner].code, 0, 3)
+    """
+
+    c = get_contract(code)
+    owner = env.accounts[1]
+    c.set_code(owner, b"abcdef")
+
+    assert c.get_prefix(owner) == b"abc"
+
+
 # note: optimization boundaries at 32, 64 and 320 depending on mode
 _draw_1024 = st.integers(min_value=0, max_value=1024)
 _draw_1024_1 = st.integers(min_value=1, max_value=1024)

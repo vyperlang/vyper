@@ -184,7 +184,7 @@ def _is_adhoc_slice(node: vy_ast.VyperNode) -> bool:
             return True
 
     # <addr>.code
-    if node.attr == "code":
+    if node.attr == "code" and isinstance(node.value._metadata["type"], AddressT):
         return True
 
     return False
