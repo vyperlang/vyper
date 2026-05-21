@@ -1671,10 +1671,18 @@ class Expr:
                 skip_contract_check = bool(kw_val.value)
             elif kw.arg == "default_return_value":
                 default_vv = Expr(kw.value, self.ctx).lower()
-                # Freeze the expression here; the default block runs after the external call.
-                default_return_value = VyperValue.from_stack_op(
-                    self.ctx.unwrap(default_vv), default_vv.typ
-                )
+                # Freeze the expression here; the default block runs after the
+                # external call. Primitive values can stay on the stack, but
+                # composite values need a fresh memory copy instead of a
+                # pointer to a source location that later code may mutate.
+                if default_vv.typ._is_prim_word:
+                    default_return_value = VyperValue.from_stack_op(
+                        self.ctx.unwrap(default_vv), default_vv.typ
+                    )
+                else:
+                    default_return_value = self.ctx.materialize_value(
+                        default_vv, annotation="external call default_return_value"
+                    )
             else:  # pragma: nocover
                 raise CompilerPanic(f"Unexpected keyword argument: {kw.arg}")
 
