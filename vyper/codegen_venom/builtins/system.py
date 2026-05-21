@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.value import VyperValue
-from vyper.exceptions import ArgumentException, StateAccessViolation
+from vyper.exceptions import ArgumentException, CompilerPanic, StateAccessViolation
 from vyper.semantics.types import BytesT, TupleT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
@@ -126,6 +126,13 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
             gas = Expr(kw.value, ctx).lower_value()
         elif kw.arg == "value":
             value = Expr(kw.value, ctx).lower_value()
+        elif kw.arg not in (
+            "max_outsize",
+            "is_delegate_call",
+            "is_static_call",
+            "revert_on_failure",
+        ):
+            raise CompilerPanic(f"unexpected raw_call kwarg: {kw.arg}", kw)
     if gas is None:
         gas = b.gas()
 
