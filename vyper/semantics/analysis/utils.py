@@ -26,9 +26,11 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
+from vyper.semantics.types.infinity import is_bounded_length
 
 if TYPE_CHECKING:
     from vyper.semantics.types.module import ModuleT
+
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.utils import OrderedSet, checksum_encode, int_to_fourbytes
@@ -545,7 +547,7 @@ def _validate_literal_array(node, expected):
         if len(node.elements) != expected.length:
             return False
     if isinstance(expected, DArrayT):
-        if len(node.elements) > expected.length:
+        if is_bounded_length(expected.length) and len(node.elements) > expected.length:
             return False
 
     for item in node.elements:

@@ -1,13 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import (
-    CodegenPanic,
-    CompilerPanic,
-    InvalidType,
-    TypeMismatch,
-    UndeclaredDefinition,
-)
+from vyper.exceptions import CodegenPanic, InvalidType, TypeMismatch, UndeclaredDefinition
 from vyper.semantics.types import INF, BytesT, DArrayT, StringT
 from vyper.semantics.types.infinity import WILDCARD, Inf, Wildcard
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -300,7 +294,7 @@ def test_inf_fail(bad_code, exc):
         compiler.compile_code(bad_code)
 
 
-@pytest.mark.xfail(raises=CompilerPanic)
+@pytest.mark.xfail(raises=CodegenPanic)
 def test_dynarray_inf():
     code = """
 a: DynArray[uint256, INF]
@@ -312,7 +306,7 @@ def foo() -> DynArray[uint256, INF]:
     compiler.compile_code(code)
 
 
-@pytest.mark.xfail(raises=CompilerPanic)
+@pytest.mark.xfail(raises=CodegenPanic)
 def test_inf_pure_param():
     code = """
 @pure
@@ -323,7 +317,7 @@ def foo(x: Bytes[INF]) -> Bytes[INF]:
     compiler.compile_code(code)
 
 
-@pytest.mark.xfail(raises=CompilerPanic)
+@pytest.mark.xfail(raises=CodegenPanic)
 def test_inf_pure_param_string():
     code = """
 @pure
@@ -345,7 +339,7 @@ def foo() -> Bytes[INF]:
     compiler.compile_code(code)
 
 
-@pytest.mark.xfail(raises=CompilerPanic)
+@pytest.mark.xfail(raises=CodegenPanic)
 def test_inf_pure_local_var():
     code = """
 @pure
@@ -357,7 +351,7 @@ def foo() -> Bytes[INF]:
     compiler.compile_code(code)
 
 
-@pytest.mark.xfail(raises=CompilerPanic)
+@pytest.mark.xfail(raises=CodegenPanic)
 def test_inf_pure_internal():
     code = """
 @pure
@@ -373,7 +367,7 @@ def foo(x: Bytes[INF]) -> Bytes[INF]:
     compiler.compile_code(code)
 
 
-@pytest.mark.xfail(raises=CompilerPanic)
+@pytest.mark.xfail(raises=CodegenPanic)
 def test_dynarray_inf_pure():
     code = """
 @pure

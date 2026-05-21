@@ -44,6 +44,7 @@ from vyper.evm.address_space import MEMORY
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
+    CodegenPanic,
     CompilerPanic,
     EvmVersionException,
     InvalidLiteral,
@@ -77,7 +78,7 @@ from vyper.semantics.types import (
     SArrayT,
     StringT,
     TupleT,
-    is_bounded,
+    is_bounded_length,
 )
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT8_T, UINT256_T
@@ -225,6 +226,11 @@ class Convert(BuiltinFunctionT):
             hint = "remove convert()"
             raise InvalidType(f"Already a '{target_type}' !", node, hint=hint)
 
+        if isinstance(value_type, _BytestringT) and not is_bounded_length(value_type.maxlen):
+            raise CodegenPanic("convert not yet implemented for unbounded sequence type")
+        if isinstance(value_type, DArrayT) and not is_bounded_length(value_type.count):
+            raise CodegenPanic("convert not yet implemented for unbounded sequence type")
+
         return [value_type, TYPE_T(target_type)]
 
     def build_IR(self, expr, context):
@@ -310,7 +316,7 @@ class Slice(BuiltinFunctionT):
             if length_literal < 1:
                 raise ArgumentException("Length cannot be less than 1", length_expr)
 
-        if is_bounded(arg_type.length):
+        if is_bounded_length(arg_type.length):
 
             if length_literal is not None and length_literal > arg_type.length:
                 raise ArgumentException(f"slice out of bounds for {arg_type}", length_expr)
@@ -491,7 +497,7 @@ class Concat(BuiltinFunctionT):
         for arg_t in arg_types:
             arg_length = arg_t.length
 
-            if not is_bounded(arg_length):
+            if not is_bounded_length(arg_length):
                 length = INF
                 break
 

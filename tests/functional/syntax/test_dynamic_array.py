@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import CompilerPanic, StructureException, TypeMismatch, UndeclaredDefinition
+from vyper.exceptions import CodegenPanic, StructureException, TypeMismatch, UndeclaredDefinition
 
 fail_list = [
     (
@@ -120,7 +120,7 @@ def test_dynarray_pass(good_code):
     assert compile_code(good_code) is not None
 
 
-@pytest.mark.xfail(raises=CompilerPanic, reason="unbounded sequence types not yet fully supported")
+@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
 def test_dynarray_inf_param():
     code = """
 @external
@@ -130,7 +130,7 @@ def foo(x: DynArray[uint256, INF]):
     compile_code(code)
 
 
-@pytest.mark.xfail(raises=CompilerPanic, reason="unbounded sequence types not yet fully supported")
+@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
 def test_dynarray_inf_state_var():
     code = """
 a: DynArray[uint256, INF]
@@ -142,7 +142,7 @@ def foo() -> DynArray[uint256, INF]:
     compile_code(code)
 
 
-@pytest.mark.xfail(raises=CompilerPanic, reason="unbounded sequence types not yet fully supported")
+@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
 def test_dynarray_inf_local_var():
     code = """
 @external
@@ -153,7 +153,7 @@ def foo():
     compile_code(code)
 
 
-@pytest.mark.xfail(raises=CompilerPanic, reason="unbounded sequence types not yet fully supported")
+@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
 def test_dynarray_inf_nested():
     code = """
 a: DynArray[DynArray[uint256, 5], INF]
@@ -170,7 +170,7 @@ def bar(other_b: DynArray[DynArray[uint256, INF], 5]) -> DynArray[DynArray[uint2
     compile_code(code)
 
 
-@pytest.mark.xfail(raises=CompilerPanic, reason="unbounded sequence types not yet fully supported")
+@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
 def test_dynarray_inf_append():
     code = """
 @external
@@ -181,7 +181,7 @@ def foo():
     compile_code(code)
 
 
-@pytest.mark.xfail(raises=CompilerPanic, reason="unbounded sequence types not yet fully supported")
+@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
 def test_dynarray_inf_assign_bounded_to_unbounded():
     code = """
 @external

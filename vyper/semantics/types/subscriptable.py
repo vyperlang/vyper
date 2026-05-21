@@ -2,10 +2,10 @@ from typing import Any, Dict, Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
-from vyper.exceptions import ArrayIndexException, CompilerPanic, InvalidType, StructureException
+from vyper.exceptions import ArrayIndexException, CodegenPanic, InvalidType, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.infinity import INF, WILDCARD, LengthUpperBound, is_bounded
+from vyper.semantics.types.infinity import INF, WILDCARD, LengthUpperBound, is_bounded_length
 from vyper.semantics.types.primitives import IntegerT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.utils import get_index_value, type_from_annotation
@@ -110,7 +110,7 @@ class _SequenceT(_SubscriptableT):
     _is_array_type: bool = True
 
     def __init__(self, value_type: VyperType, length: LengthUpperBound):
-        if is_bounded(length):
+        if is_bounded_length(length):
             if not 0 < length < 2**256:
                 raise InvalidType("Array length is invalid")
 
@@ -230,7 +230,7 @@ class SArrayT(_SequenceT):
         # note: validates index
         length = get_index_value(node.slice)
 
-        if not is_bounded(length):
+        if not is_bounded_length(length):
             raise InvalidType("Static arrays cannot have unbounded length", node.slice)
 
         return cls(value_type, length)
@@ -287,7 +287,7 @@ class DArrayT(_SequenceT):
     @property
     def size_in_bytes(self):
         if self.length is INF:
-            raise CompilerPanic("DynArray[..., INF] don't have a size!")
+            raise CodegenPanic("DynArray[..., INF] don't have a size!")
         # one length word + size of the array items
         return 32 + self.value_type.size_in_bytes * self.length
 

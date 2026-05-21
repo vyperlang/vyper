@@ -6,7 +6,7 @@ import pytest
 
 from vyper import compiler
 from vyper.exceptions import (
-    CompilerPanic,
+    CodegenPanic,
     NamespaceCollision,
     StructureException,
     TypeMismatch,
@@ -225,7 +225,7 @@ def test_code_properties(addr: address) -> (uint256, uint256, bytes32, bool):
     assert is_contract is True
 
 
-@pytest.mark.xfail(raises=CompilerPanic, reason="unbounded sequence types not yet fully supported")
+@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
 def test_address_code_convert():
     code = """
 @external

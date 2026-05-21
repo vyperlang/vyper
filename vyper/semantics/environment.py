@@ -50,6 +50,9 @@ class _Msg(_EnvType):
 class _Inf(_EnvType):
     _id = "INF"
 
+# TODO: Remove, see other todos
+_inf = _Inf()
+
 
 class _Tx(_EnvType):
     _id = "tx"
@@ -58,8 +61,10 @@ class _Tx(_EnvType):
 
 CONSTANT_ENVIRONMENT_VARS = {
     t._id: VarInfo(t, modifiability=Modifiability.RUNTIME_CONSTANT)
-    for t in (_Block(), _Chain(), _Tx(), _Msg(), _Inf())
+    for t in (_Block(), _Chain(), _Tx(), _Msg())
 }
+# TODO: Fix this by adding some notion of built-in constants
+CONSTANT_ENVIRONMENT_VARS[_inf._id] = VarInfo(_inf, modifiability=Modifiability.CONSTANT)
 
 
 MUTABLE_ENVIRONMENT_VARS: Dict[str, type[VyperType]] = {"self": SelfT}

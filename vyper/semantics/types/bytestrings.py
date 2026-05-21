@@ -1,6 +1,6 @@
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Bytes, ABI_String, ABIType
-from vyper.exceptions import CompilerPanic, StructureException, UnexpectedNodeType, UnexpectedValue
+from vyper.exceptions import CodegenPanic, StructureException, UnexpectedNodeType, UnexpectedValue
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.infinity import INF, WILDCARD, LengthUpperBound
 from vyper.semantics.types.utils import get_index_value
@@ -65,7 +65,7 @@ class _BytestringT(VyperType):
         # boundary as it's size, instead of giving it a size that is not cleanly divisible by 32
 
         if self.length is INF:
-            raise CompilerPanic("Bytes[INF] and String[INF] don't have a size !")
+            raise CodegenPanic("Bytes[INF] and String[INF] don't have a size!")
 
         return 32 + ceil32(self.length)
 
