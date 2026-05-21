@@ -7,7 +7,6 @@ from typing import Any
 from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic
 
-
 _UNSET = object()
 
 
@@ -37,9 +36,7 @@ class BuiltinCall:
     def get_kwarg_values(self, kwarg_defaults: Mapping[str, Any] | Iterable[str]):
         return get_kwarg_values(self.node, self.ctx, kwarg_defaults)
 
-    def lower_pos_args(
-        self, arg_nodes: Iterable[vy_ast.VyperNode] | None = None
-    ) -> list[Any]:
+    def lower_pos_args(self, arg_nodes: Iterable[vy_ast.VyperNode] | None = None) -> list[Any]:
         from vyper.codegen_venom.expr import Expr
 
         arg_nodes = self.node.args if arg_nodes is None else arg_nodes
@@ -107,11 +104,7 @@ def get_kwarg_ast_constants(
     return ret
 
 
-def get_kwarg_values(
-    node: vy_ast.Call,
-    ctx,
-    kwarg_defaults: Mapping[str, Any] | Iterable[str],
-):
+def get_kwarg_values(node: vy_ast.Call, ctx, kwarg_defaults: Mapping[str, Any] | Iterable[str]):
     from vyper.codegen_venom.expr import Expr
 
     kwarg_names, defaults = _kwarg_names_and_defaults(kwarg_defaults)
@@ -132,11 +125,7 @@ def _literal_value(node: vy_ast.VyperNode) -> Any:
     return _UNSET
 
 
-def get_bool_kwarg(
-    kwarg_constants: dict[str, Any],
-    kwarg_name: str,
-    default: Any = _UNSET,
-) -> bool:
+def get_bool_kwarg(kwarg_constants: dict[str, Any], kwarg_name: str, default: Any = _UNSET) -> bool:
     kw_node = kwarg_constants.get(kwarg_name, _UNSET)
     if kw_node is _UNSET:
         if default is _UNSET:  # pragma: nocover
@@ -151,11 +140,7 @@ def get_bool_kwarg(
     raise CompilerPanic(f"unfoldable boolean kwarg: {kwarg_name}", kw_node)
 
 
-def get_literal_kwarg(
-    kwarg_constants: dict[str, Any],
-    kwarg_name: str,
-    default: Any = _UNSET,
-):
+def get_literal_kwarg(kwarg_constants: dict[str, Any], kwarg_name: str, default: Any = _UNSET):
     kw_node = kwarg_constants.get(kwarg_name, _UNSET)
     if kw_node is _UNSET:
         if default is _UNSET:  # pragma: nocover

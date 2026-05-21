@@ -12,11 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional, Union
 
 from vyper import ast as vy_ast
-from vyper.codegen_venom.builtins._kwargs import (
-    BuiltinCall,
-    get_literal_kwarg,
-    kwarg_is_provided,
-)
+from vyper.codegen_venom.builtins._kwargs import BuiltinCall, get_literal_kwarg, kwarg_is_provided
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import ArgumentException, StateAccessViolation
 from vyper.semantics.types import BytesT, TupleT
@@ -48,9 +44,7 @@ def _is_msg_data(node) -> bool:
     )
 
 
-def lower_raw_call(
-    node: vy_ast.Call, ctx: VenomCodegenContext
-) -> Union[IROperand, VyperValue]:
+def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand, VyperValue]:
     """
     raw_call(to, data, max_outsize=0, gas=gas, value=0,
              is_delegate_call=False, is_static_call=False,
@@ -92,9 +86,7 @@ def lower_raw_call(
     # Check if value kwarg is explicitly provided (not relying on default)
     value_is_provided = kwarg_is_provided(node, "value")
     if (is_delegate or is_static) and value_is_provided:
-        raise ArgumentException(
-            "value= may not be passed for static or delegate calls!", node
-        )
+        raise ArgumentException("value= may not be passed for static or delegate calls!", node)
 
     # Check constancy: non-static calls are not allowed from view/pure functions
     if not is_static and ctx.is_constant():
@@ -142,19 +134,13 @@ def lower_raw_call(
     # Build the call instruction
     if is_delegate:
         # delegatecall(gas, to, argsptr, argsz, retptr, retsz)
-        success = b.delegatecall(
-            gas, to, data_ptr, data_len, out_ptr, IRLiteral(max_outsize)
-        )
+        success = b.delegatecall(gas, to, data_ptr, data_len, out_ptr, IRLiteral(max_outsize))
     elif is_static:
         # staticcall(gas, to, argsptr, argsz, retptr, retsz)
-        success = b.staticcall(
-            gas, to, data_ptr, data_len, out_ptr, IRLiteral(max_outsize)
-        )
+        success = b.staticcall(gas, to, data_ptr, data_len, out_ptr, IRLiteral(max_outsize))
     else:
         # call(gas, to, value, argsptr, argsz, retptr, retsz)
-        success = b.call(
-            gas, to, value, data_ptr, data_len, out_ptr, IRLiteral(max_outsize)
-        )
+        success = b.call(gas, to, value, data_ptr, data_len, out_ptr, IRLiteral(max_outsize))
 
     # Handle return based on revert_on_failure and max_outsize
     if revert_on_failure:
@@ -166,9 +152,7 @@ def lower_raw_call(
         b.append_block(fail_label)
         b.set_block(fail_label)
         ret_size = b.returndatasize()
-        revert_buffer = ctx.allocate_buffer(
-            0, annotation="lower raw call revert on failure buffer"
-        )
+        revert_buffer = ctx.allocate_buffer(0, annotation="lower raw call revert on failure buffer")
         b.returndatacopy(revert_buffer._ptr, IRLiteral(0), ret_size)
         b.revert(revert_buffer._ptr, ret_size)
 
@@ -210,9 +194,7 @@ def lower_raw_call(
             # bytes_t.memory_bytes_required = 32 (length) + ceil32(max_outsize) (data)
             bytes_ptr = ctx.add_offset(tuple_local.ptr(), IRLiteral(32))
             assert isinstance(bytes_ptr.operand, IRVariable)
-            ctx.copy_memory(
-                bytes_ptr.operand, out_val.operand, bytes_t.memory_bytes_required
-            )
+            ctx.copy_memory(bytes_ptr.operand, out_val.operand, bytes_t.memory_bytes_required)
 
             return tuple_local
 

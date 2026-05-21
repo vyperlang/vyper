@@ -14,10 +14,7 @@ from typing import TYPE_CHECKING, Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.abi import abi_encode_to_buf
-from vyper.codegen_venom.builtins._kwargs import (
-    BuiltinCall,
-    get_literal_kwarg,
-)
+from vyper.codegen_venom.builtins._kwargs import BuiltinCall, get_literal_kwarg
 from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.semantics.types import TupleT
@@ -29,13 +26,7 @@ if TYPE_CHECKING:
 
 
 _CREATE_KWARGS = ("value", "salt", "revert_on_failure")
-_CREATE_FROM_BLUEPRINT_KWARGS = (
-    "value",
-    "salt",
-    "raw_args",
-    "code_offset",
-    "revert_on_failure",
-)
+_CREATE_FROM_BLUEPRINT_KWARGS = ("value", "salt", "raw_args", "code_offset", "revert_on_failure")
 
 
 def _check_create_result(
@@ -60,9 +51,7 @@ def _check_create_result(
         # Failure path: bubble up revert data
         b.set_block(fail_bb)
         revert_size = b.returndatasize()
-        revert_buffer = ctx.allocate_buffer(
-            0, annotation="create revert on failure buffer"
-        )
+        revert_buffer = ctx.allocate_buffer(0, annotation="create revert on failure buffer")
         b.returndatacopy(revert_buffer._ptr, IRLiteral(0), revert_size)
         b.revert(revert_buffer._ptr, revert_size)
 
@@ -72,10 +61,7 @@ def _check_create_result(
 
 
 def _materialize_ctor_args(
-    ctx: VenomCodegenContext,
-    b,
-    ctor_arg_nodes: list[vy_ast.VyperNode],
-    ctor_tuple_typ: TupleT,
+    ctx: VenomCodegenContext, b, ctor_arg_nodes: list[vy_ast.VyperNode], ctor_tuple_typ: TupleT
 ) -> IRVariable:
     from vyper.codegen_venom.expr import Expr
 
@@ -196,9 +182,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     # or overlap its memory.
     bytecode_vv = call.lower_pos_args((bytecode_node,))[0]
     bytecode_typ = bytecode_node._metadata["type"]
-    bytecode = ctx.materialize_value(
-        bytecode_vv, bytecode_typ, "raw_create bytecode"
-    ).ptr().operand
+    bytecode = ctx.materialize_value(bytecode_vv, bytecode_typ, "raw_create bytecode").ptr().operand
 
     # Parse literal-only kwargs. Runtime kwargs are lowered after positional
     # constructor args so side effects follow source order.
@@ -257,9 +241,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     return _check_create_result(ctx, b, addr, revert_on_failure)
 
 
-def lower_create_minimal_proxy_to(
-    node: vy_ast.Call, ctx: VenomCodegenContext
-) -> IROperand:
+def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     create_minimal_proxy_to(target, value=0, salt=None, revert_on_failure=True)
 
@@ -291,9 +273,7 @@ def lower_create_minimal_proxy_to(
     # loader: 9 bytes, forwarder_pre: 10 bytes (including PUSH20), forwarder_post: 15 bytes
     # Total: 9 + 10 + 20 (address) + 15 = 54 bytes
     preamble_length = len(loader_evm) + len(forwarder_pre_evm)  # 9 + 10 = 19
-    buf_len = (
-        preamble_length + 20 + len(forwarder_post_evm)
-    )  # 19 + 20 + 15 = 54 bytes total
+    buf_len = preamble_length + 20 + len(forwarder_post_evm)  # 19 + 20 + 15 = 54 bytes total
 
     # Allocate 96-byte buffer (to fit 3 x 32-byte stores)
     buf = ctx.allocate_buffer(96, annotation="proxy_buf")
@@ -304,9 +284,7 @@ def lower_create_minimal_proxy_to(
     )
 
     # Build post as a 32-byte value (left-aligned)
-    forwarder_post = bytes_to_int(
-        forwarder_post_evm + b"\x00" * (32 - len(forwarder_post_evm))
-    )
+    forwarder_post = bytes_to_int(forwarder_post_evm + b"\x00" * (32 - len(forwarder_post_evm)))
 
     # Store preamble at buf
     b.mstore(buf._ptr, IRLiteral(forwarder_preamble))
@@ -402,9 +380,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     return _check_create_result(ctx, b, addr, revert_on_failure)
 
 
-def lower_create_from_blueprint(
-    node: vy_ast.Call, ctx: VenomCodegenContext
-) -> IROperand:
+def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     create_from_blueprint(target, *ctor_args, value=0, salt=None,
                           raw_args=False, code_offset=3, revert_on_failure=True)
@@ -426,9 +402,7 @@ def lower_create_from_blueprint(
     ctor_arg_nodes = node.args[1:]
 
     call.validate_kwargs(_CREATE_FROM_BLUEPRINT_KWARGS)
-    kwarg_constants = call.get_kwarg_ast_constants(
-        {"raw_args": False, "revert_on_failure": True}
-    )
+    kwarg_constants = call.get_kwarg_ast_constants({"raw_args": False, "revert_on_failure": True})
     raw_args = get_literal_kwarg(kwarg_constants, "raw_args")
     revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure")
 
@@ -446,9 +420,8 @@ def lower_create_from_blueprint(
 
         raw_arg_vv = call.lower_pos_args((ctor_arg_nodes[0],))[0]
         raw_arg_typ = ctor_arg_nodes[0]._metadata["type"]
-        raw_arg = ctx.materialize_value(
-            raw_arg_vv, raw_arg_typ, "raw blueprint args"
-        ).ptr().operand
+        raw_arg = ctx.materialize_value(raw_arg_vv, raw_arg_typ, "raw blueprint args").ptr().operand
+        assert isinstance(raw_arg, IRVariable)
         args_len = b.mload(raw_arg)
         args_ptr = b.add(raw_arg, IRLiteral(32))
     elif len(ctor_arg_nodes) > 0:
