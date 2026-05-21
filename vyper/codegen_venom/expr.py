@@ -637,13 +637,21 @@ class Expr:
                 value = 2**flag_id  # 0 => 1, 1 => 2, 2 => 4, etc.
                 return VyperValue.from_stack_op(IRLiteral(value), typ)
 
-        # Case 2: Address properties
         attr = node.attr
+        sub_typ = node.value._metadata["type"]
+
+        # Case 2: Struct field access (point.x)
+        if isinstance(sub_typ, StructT) and attr in sub_typ.member_types:
+            return self._lower_struct_field()
+
+        # Case 3: Address properties
         if attr == "balance":
             sub = Expr(node.value, self.ctx).lower_value()
             return VyperValue.from_stack_op(self.builder.balance(sub), UINT256_T)
 
         if attr == "codesize":
+            if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
+                return VyperValue.from_stack_op(self.builder.codesize(), UINT256_T)
             sub = Expr(node.value, self.ctx).lower_value()
             return VyperValue.from_stack_op(self.builder.extcodesize(sub), UINT256_T)
 
@@ -663,11 +671,11 @@ class Expr:
         ):  # pragma: nocover
             raise CompilerPanic(".code requires slice() context")
 
-        # Case 3: Environment variables (msg.*, block.*, tx.*, chain.*)
+        # Case 4: Environment variables (msg.*, block.*, tx.*, chain.*)
         if isinstance(node.value, vy_ast.Name) and node.value.id in ENVIRONMENT_VARIABLES:
             return VyperValue.from_stack_op(self._lower_environment_attr(), typ)
 
-        # Case 4: State variables (self.x)
+        # Case 5: State variables (self.x)
         varinfo = node._expr_info.var_info
         if varinfo is not None:
             # Constant state variable - evaluate the constant expression
@@ -686,14 +694,9 @@ class Expr:
             ptr = Ptr(operand=IRLiteral(slot), location=varinfo.location)
             return VyperValue.from_ptr(ptr, typ)
 
-        # Case 5: Interface address (x.address where x is an interface)
-        sub_typ = node.value._metadata.get("type")
+        # Case 6: Interface address (x.address where x is an interface)
         if isinstance(sub_typ, InterfaceT) and attr == "address":
             return VyperValue.from_stack_op(Expr(node.value, self.ctx).lower_value(), AddressT())
-
-        # Case 6: Struct field access (point.x)
-        if isinstance(sub_typ, StructT) and attr in sub_typ.member_types:
-            return self._lower_struct_field()
 
         raise CompilerPanic(f"Unsupported attribute access: {node.attr}")  # pragma: nocover
 
