@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.builtins._kwargs import (
+    get_kwarg_ast_constants,
     get_literal_kwarg,
     get_kwarg_values,
     kwarg_is_provided,
@@ -72,18 +73,15 @@ def lower_raw_call(
     to = Expr(node.args[0], ctx).lower_value()
 
     # Parse kwargs (need to know is_static before constancy check)
-    max_outsize = get_literal_kwarg(
-        node, "max_outsize", 0, allowed_kwarg_names=_RAW_CALL_KWARGS
+    kwarg_constants = get_kwarg_ast_constants(
+        node,
+        ("max_outsize", "is_delegate_call", "is_static_call", "revert_on_failure"),
+        allowed_kwarg_names=_RAW_CALL_KWARGS,
     )
-    is_delegate = get_literal_kwarg(
-        node, "is_delegate_call", False, allowed_kwarg_names=_RAW_CALL_KWARGS
-    )
-    is_static = get_literal_kwarg(
-        node, "is_static_call", False, allowed_kwarg_names=_RAW_CALL_KWARGS
-    )
-    revert_on_failure = get_literal_kwarg(
-        node, "revert_on_failure", True, allowed_kwarg_names=_RAW_CALL_KWARGS
-    )
+    max_outsize = get_literal_kwarg(kwarg_constants, "max_outsize", 0)
+    is_delegate = get_literal_kwarg(kwarg_constants, "is_delegate_call", False)
+    is_static = get_literal_kwarg(kwarg_constants, "is_static_call", False)
+    revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure", True)
 
     # Validate delegate/static mutual exclusivity
     if is_delegate and is_static:
@@ -93,9 +91,7 @@ def lower_raw_call(
 
     # Validate value not passed with delegate/static
     # Check if value kwarg is explicitly provided (not relying on default)
-    value_is_provided = kwarg_is_provided(
-        node, "value", allowed_kwarg_names=_RAW_CALL_KWARGS
-    )
+    value_is_provided = kwarg_is_provided(node, "value")
     if (is_delegate or is_static) and value_is_provided:
         raise ArgumentException(
             "value= may not be passed for static or delegate calls!", node

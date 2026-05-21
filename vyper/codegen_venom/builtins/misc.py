@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 from vyper import ast as vy_ast
 from vyper.builtins.functions import AsWeiValue
 from vyper.codegen_venom.abi.abi_encoder import abi_encode_to_buf
-from vyper.codegen_venom.builtins._kwargs import get_bool_kwarg
+from vyper.codegen_venom.builtins._kwargs import get_bool_kwarg, get_kwarg_ast_constants
 from vyper.codegen_venom.constants import BLOCKHASH_LOOKBACK_LIMIT, ECRECOVER_PRECOMPILE
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import EvmVersionException
@@ -422,9 +422,10 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
 
     b = ctx.builder
 
-    hardhat_compat = get_bool_kwarg(
-        node, "hardhat_compat", default=False, allowed_kwarg_names=_PRINT_KWARGS
+    kwarg_constants = get_kwarg_ast_constants(
+        node, _PRINT_KWARGS, allowed_kwarg_names=_PRINT_KWARGS
     )
+    hardhat_compat = get_bool_kwarg(kwarg_constants, "hardhat_compat", default=False)
 
     # Get arg types and values
     arg_types = [arg._metadata["type"] for arg in node.args]

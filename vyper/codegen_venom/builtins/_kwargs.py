@@ -13,6 +13,12 @@ _UNSET = object()
 def _validate_allowed_kwargs(
     node: vy_ast.Call, allowed_kwarg_names: Iterable[str] | None
 ) -> None:
+    seen = set()
+    for kw in node.keywords:
+        if kw.arg in seen:  # pragma: nocover
+            raise CompilerPanic(f"duplicate kwarg: {kw.arg}", kw)
+        seen.add(kw.arg)
+
     if allowed_kwarg_names is None:
         return
 
@@ -76,17 +82,11 @@ def _literal_value(node: vy_ast.VyperNode) -> Any:
 
 
 def get_bool_kwarg(
-    node: vy_ast.Call,
+    kwarg_constants: dict[str, vy_ast.Constant],
     kwarg_name: str,
     default: bool,
-    allowed_kwarg_names: Iterable[str] | None = None,
 ) -> bool:
-    kw_node = get_kwarg_ast_constants(
-        node,
-        (kwarg_name,),
-        allowed_kwarg_names,
-        error_prefix="unfoldable boolean kwarg",
-    ).get(kwarg_name)
+    kw_node = kwarg_constants.get(kwarg_name)
     if kw_node is None:
         return default
     if isinstance(kw_node, vy_ast.NameConstant):
@@ -97,17 +97,11 @@ def get_bool_kwarg(
 
 
 def get_literal_kwarg(
-    node: vy_ast.Call,
+    kwarg_constants: dict[str, vy_ast.Constant],
     kwarg_name: str,
     default,
-    allowed_kwarg_names: Iterable[str] | None = None,
 ):
-    kw_node = get_kwarg_ast_constants(
-        node,
-        (kwarg_name,),
-        allowed_kwarg_names,
-        error_prefix="unfoldable literal kwarg",
-    ).get(kwarg_name)
+    kw_node = kwarg_constants.get(kwarg_name)
     if kw_node is None:
         return default
 

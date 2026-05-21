@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Optional
 from vyper import ast as vy_ast
 from vyper.codegen_venom.abi import abi_encode_to_buf
 from vyper.codegen_venom.builtins._kwargs import (
+    get_kwarg_ast_constants,
     get_literal_kwarg,
     get_kwarg_values,
 )
@@ -201,9 +202,10 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Parse literal-only kwargs. Runtime kwargs are lowered after positional
     # constructor args so side effects follow source order.
-    revert_on_failure = get_literal_kwarg(
-        node, "revert_on_failure", True, allowed_kwarg_names=_CREATE_KWARGS
+    kwarg_constants = get_kwarg_ast_constants(
+        node, ("revert_on_failure",), allowed_kwarg_names=_CREATE_KWARGS
     )
+    revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure", True)
 
     ctor_args_val: Optional[IRVariable] = None
     ctor_tuple_typ: Optional[TupleT] = None
@@ -278,9 +280,10 @@ def lower_create_minimal_proxy_to(
     # Parse args
     target = Expr(node.args[0], ctx).lower_value()
 
-    revert_on_failure = get_literal_kwarg(
-        node, "revert_on_failure", True, allowed_kwarg_names=_CREATE_KWARGS
+    kwarg_constants = get_kwarg_ast_constants(
+        node, ("revert_on_failure",), allowed_kwarg_names=_CREATE_KWARGS
     )
+    revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure", True)
 
     runtime_kwargs = get_kwarg_values(
         node, ctx, ("value", "salt"), allowed_kwarg_names=_CREATE_KWARGS
@@ -353,9 +356,10 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     # Parse args
     target = Expr(node.args[0], ctx).lower_value()
 
-    revert_on_failure = get_literal_kwarg(
-        node, "revert_on_failure", True, allowed_kwarg_names=_CREATE_KWARGS
+    kwarg_constants = get_kwarg_ast_constants(
+        node, ("revert_on_failure",), allowed_kwarg_names=_CREATE_KWARGS
     )
+    revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure", True)
 
     runtime_kwargs = get_kwarg_values(
         node, ctx, ("value", "salt"), allowed_kwarg_names=_CREATE_KWARGS
@@ -433,15 +437,13 @@ def lower_create_from_blueprint(
     target = Expr(node.args[0], ctx).lower_value()
     ctor_arg_nodes = node.args[1:]
 
-    raw_args = get_literal_kwarg(
-        node, "raw_args", False, allowed_kwarg_names=_CREATE_FROM_BLUEPRINT_KWARGS
-    )
-    revert_on_failure = get_literal_kwarg(
+    kwarg_constants = get_kwarg_ast_constants(
         node,
-        "revert_on_failure",
-        True,
+        ("raw_args", "revert_on_failure"),
         allowed_kwarg_names=_CREATE_FROM_BLUEPRINT_KWARGS,
     )
+    raw_args = get_literal_kwarg(kwarg_constants, "raw_args", False)
+    revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure", True)
 
     # Evaluate and materialize positional constructor args before runtime kwargs.
     args_len: Optional[IROperand] = None

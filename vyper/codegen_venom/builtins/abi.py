@@ -104,12 +104,11 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     b = ctx.builder
 
     # Parse kwargs
-    ensure_tuple = get_bool_kwarg(
-        node, "ensure_tuple", default=True, allowed_kwarg_names=_ABI_ENCODE_KWARGS
+    kwarg_constants = get_kwarg_ast_constants(
+        node, _ABI_ENCODE_KWARGS, allowed_kwarg_names=_ABI_ENCODE_KWARGS
     )
-    method_id_node = get_kwarg_ast_constants(
-        node, ("method_id",), allowed_kwarg_names=_ABI_ENCODE_KWARGS
-    ).get("method_id")
+    ensure_tuple = get_bool_kwarg(kwarg_constants, "ensure_tuple", default=True)
+    method_id_node = kwarg_constants.get("method_id")
     method_id = _parse_method_id(method_id_node)
 
     # Evaluate all args - primitives get values, complex types get pointers
@@ -189,9 +188,10 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     # Parse args
     data_node = node.args[0]
     output_type_node = node.args[1]
-    unwrap_tuple = get_bool_kwarg(
-        node, "unwrap_tuple", default=True, allowed_kwarg_names=_ABI_DECODE_KWARGS
+    kwarg_constants = get_kwarg_ast_constants(
+        node, _ABI_DECODE_KWARGS, allowed_kwarg_names=_ABI_DECODE_KWARGS
     )
+    unwrap_tuple = get_bool_kwarg(kwarg_constants, "unwrap_tuple", default=True)
 
     # Get output type from type annotation
     output_typ = output_type_node._metadata["type"].typedef
