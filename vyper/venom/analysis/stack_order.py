@@ -86,7 +86,7 @@ class StackOrderAnalysis(IRAnalysis):
     def from_to(self, origin: IRBasicBlock, successor: IRBasicBlock) -> Needed:
         target = self._from_to.get((origin, successor), []).copy()
 
-        for var in self.liveness.input_vars_from_stack(origin, successor):
+        for var in self.liveness.input_vars_from(origin, successor):
             if var not in target:
                 target.append(var)
 

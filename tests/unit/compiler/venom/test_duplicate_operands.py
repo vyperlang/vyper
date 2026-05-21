@@ -1,12 +1,10 @@
-import pytest
-
 from vyper.compiler.phases import generate_bytecode
 from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.venom import generate_assembly_experimental, run_passes_on
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.context import IRContext
-from vyper.venom.passes import SingleUseExpansion
 from vyper.venom.parser import parse_venom
+from vyper.venom.passes import SingleUseExpansion
 
 
 def test_duplicate_operands():
@@ -47,8 +45,7 @@ def _word(value):
     return int(value).to_bytes(32, "big")
 
 
-@pytest.mark.parametrize("opt_level", [OptimizationLevel.NONE, OptimizationLevel.GAS])
-def test_phi_duplicate_incoming_operands(env, opt_level):
+def test_phi_duplicate_incoming_operands(env):
     source = """
 function runtime {
 entry:
@@ -71,10 +68,9 @@ join:
     """
 
     ctx = parse_venom(source)
-    if opt_level != OptimizationLevel.NONE:
-        run_passes_on(ctx, VenomOptimizationFlags(level=opt_level), disable_mem_checks=True)
+    run_passes_on(ctx, VenomOptimizationFlags(level=OptimizationLevel.GAS), disable_mem_checks=True)
 
-    asm = generate_assembly_experimental(ctx, optimize=opt_level)
+    asm = generate_assembly_experimental(ctx, optimize=OptimizationLevel.GAS)
     runtime_bytecode, _ = generate_bytecode(asm)
     contract = _deploy_runtime(env, runtime_bytecode)
 

@@ -20,12 +20,41 @@ class SingleUseExpansion(IRPass):
     """
 
     def run_pass(self):
+        self._expand_phi_operands()
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         for bb in self.function.get_basic_blocks():
             self._process_bb(bb)
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+
+    def _expand_phi_operands(self):
+        for target in self.function.get_basic_blocks():
+            phis = list(target.phi_instructions)
+            if len(phis) == 0:
+                continue
+
+            operands_by_source: dict[IRVariable, list[tuple[IRInstruction, int]]]
+            sources: dict[str, dict[IRVariable, list[tuple[IRInstruction, int]]]] = {}
+            for phi in phis:
+                for i in range(0, len(phi.operands), 2):
+                    label, var = phi.operands[i], phi.operands[i + 1]
+                    source = label.name
+                    operands_by_source = sources.setdefault(source, {})
+                    operands_by_source.setdefault(var, []).append((phi, i + 1))
+
+            for source, operands in sources.items():
+                source_bb = self.function.get_basic_block(source)
+                insert_idx = len(source_bb.instructions) - 1
+
+                for var, uses in operands.items():
+                    for phi, operand_idx in uses[1:]:
+                        new_var = self.function.get_next_variable()
+                        to_insert = IRInstruction("assign", [var], outputs=[new_var])
+                        source_bb.insert_instruction(to_insert, index=insert_idx)
+                        insert_idx += 1
+                        phi.operands[operand_idx] = new_var
 
     def _process_bb(self, bb):
         i = 0
