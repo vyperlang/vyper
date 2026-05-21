@@ -693,6 +693,31 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         # through folded constants
         return _get_variable_access(iter_val)
 
+    # TODO: Implement a more standard "mutability of this expression" method and use it here
+    def _check_for_loop_modifiability(self, iter_node: vy_ast.VyperNode):
+        "Checks the expression X in `for something in X` does not modify state"
+
+        args = None
+        if isinstance(iter_node, vy_ast.Call):
+            args = iter_node.args
+        else:
+            iter_val = iter_node.reduced()
+            if isinstance(iter_val, vy_ast.List):
+                args = iter_val.elements
+            else:
+                args = [iter_node]
+
+        for arg in args:
+            call_nodes = arg.get_descendants(vy_ast.Call, include_self=True)
+            for c in call_nodes:
+                func_type = c.func._metadata["type"]
+                mutating = func_type.is_modifying
+
+                if mutating:
+                    msg = "May not call state modifying function within a range expression "
+                    msg += "or for loop iterator."
+                    raise StateAccessViolation(msg, arg)
+
     def visit_For(self, node):
         if not isinstance(node.target.target, vy_ast.Name):
             raise StructureException("Invalid syntax for loop iterator", node.target.target)
@@ -720,6 +745,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
             for stmt in node.body:
                 self.visit(stmt)
+
+        self._check_for_loop_modifiability(node.iter)
 
     def visit_If(self, node):
         self.expr_visitor.visit(node.test, BoolT())
@@ -925,7 +952,10 @@ class ExprVisitor(VyperNodeVisitorBase):
                     hint = f"remove the `{kind}` keyword"
                     raise CallViolation(msg, node.parent, hint=hint)
 
-            if not func_type.from_interface:
+            # methods from other contracts should not have their variable accesses added
+            # note that this logic will be insufficient if we add a way to
+            # internally call external methods
+            if func_type.is_internal:
                 for s in func_type.get_variable_writes():
                     if s.variable.is_state_variable():
                         func_info._writes.add(s)

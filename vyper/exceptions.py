@@ -357,7 +357,6 @@ class MemoryAllocationException(VyperException):
 
 
 class JSONError(Exception):
-
     """Invalid compiler input JSON."""
 
     def __init__(self, msg, lineno=None, col_offset=None):

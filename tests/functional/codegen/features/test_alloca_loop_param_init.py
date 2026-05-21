@@ -2,6 +2,7 @@
 Regression test for alloca param initialization being incorrectly repeated
 in loops.
 """
+
 import copy
 
 import pytest

@@ -162,15 +162,13 @@ def test_bad_as_wei_code(get_contract, assert_compile_failed, bad_code, exceptio
         compile_code(bad_code)
 
 
-valid_list = [
-    """
+valid_list = ["""
 @external
 def foo():
     a:int24 = 31
     b:uint136 = 31
     x: uint256 = as_wei_value(a, "szabo") + as_wei_value(b, "ether")
-    """
-]
+    """]
 
 
 @pytest.mark.parametrize("good_code", valid_list)

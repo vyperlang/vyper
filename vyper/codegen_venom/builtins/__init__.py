@@ -8,6 +8,7 @@ Builtins that return memory-located data (abi_decode, concat, slice, etc.)
 should return VyperValue.from_ptr() to preserve location info. Builtins that return
 stack values can return IROperand directly.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Union
@@ -61,6 +62,6 @@ def lower_builtin(builtin_id: str, node, ctx) -> Union[IROperand, VyperValue]:
         IROperand for stack values, or VyperValue for memory-located results
     """
     handler = BUILTIN_HANDLERS.get(builtin_id)
-    if handler is None:
+    if handler is None:  # pragma: nocover
         raise CompilerPanic(f"Built-in '{builtin_id}' not yet implemented in venom codegen")
     return handler(node, ctx)
