@@ -30,11 +30,7 @@ class TestContractFunctionFromAbi:
 
     def test_missing_both(self):
         """Function ABI with neither 'inputs' nor 'outputs' should not raise KeyError."""
-        abi = {
-            "name": "baz",
-            "type": "function",
-            "stateMutability": "nonpayable",
-        }
+        abi = {"name": "baz", "type": "function", "stateMutability": "nonpayable"}
         fn = ContractFunctionT.from_abi(abi)
         assert fn.name == "baz"
         assert fn.arguments == []
@@ -44,10 +40,7 @@ class TestContractFunctionFromAbi:
 class TestEventFromAbi:
     def test_missing_inputs(self):
         """Event ABI with missing 'inputs' key should not raise KeyError."""
-        abi = {
-            "name": "Transfer",
-            "type": "event",
-        }
+        abi = {"name": "Transfer", "type": "event"}
         event = EventT.from_abi(abi)
         assert event.name == "Transfer"
 
@@ -56,15 +49,8 @@ class TestInterfaceFromAbi:
     def test_function_missing_inputs_outputs(self):
         """InterfaceT.from_abi should handle functions with missing keys."""
         abi = [
-            {
-                "name": "noargs",
-                "type": "function",
-                "stateMutability": "view",
-            },
-            {
-                "name": "Deposit",
-                "type": "event",
-            },
+            {"name": "noargs", "type": "function", "stateMutability": "view"},
+            {"name": "Deposit", "type": "event"},
         ]
         interface = InterfaceT.from_json_abi("TestInterface", abi)
         assert interface is not None
