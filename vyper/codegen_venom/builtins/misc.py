@@ -18,9 +18,8 @@ from vyper import ast as vy_ast
 from vyper.builtins.functions import AsWeiValue
 from vyper.codegen_venom.abi.abi_encoder import abi_encode_to_buf
 from vyper.codegen_venom.builtins._kwargs import (
+    BuiltinCall,
     get_bool_kwarg,
-    get_kwarg_ast_constants,
-    validate_kwargs,
 )
 from vyper.codegen_venom.constants import BLOCKHASH_LOOKBACK_LIMIT, ECRECOVER_PRECOMPILE
 from vyper.evm.opcodes import version_check
@@ -422,26 +421,20 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     - Uses method_id("log(type1,type2,...)") directly
     - Args are ABI-encoded inline
     """
-    from vyper.codegen_venom.expr import Expr
-
     b = ctx.builder
+    call = BuiltinCall(node, ctx)
 
-    validate_kwargs(node, _PRINT_KWARGS)
-    kwarg_constants = get_kwarg_ast_constants(node, _PRINT_KWARGS)
-    hardhat_compat = get_bool_kwarg(kwarg_constants, "hardhat_compat", default=False)
+    call.validate_kwargs(_PRINT_KWARGS)
+    kwarg_constants = call.get_kwarg_ast_constants({"hardhat_compat": False})
+    hardhat_compat = get_bool_kwarg(kwarg_constants, "hardhat_compat")
 
     # Get arg types and values
     arg_types = [arg._metadata["type"] for arg in node.args]
 
     # Evaluate all args - primitives get values, complex types get pointers
     args = []
-    for arg in node.args:
-        arg_t = arg._metadata["type"]
-        if arg_t._is_prim_word:
-            args.append(Expr(arg, ctx).lower_value())
-        else:
-            arg_vv = Expr(arg, ctx).lower()
-            args.append(ctx.unwrap(arg_vv))  # Copies storage/transient to memory
+    for arg_vv in call.lower_pos_args():
+        args.append(ctx.unwrap(arg_vv))  # Copies storage/transient to memory
 
     # Create tuple type for ABI encoding
     tuple_t = TupleT(tuple(arg_types))

@@ -15,9 +15,8 @@ from vyper.codegen.core import calculate_type_for_external_return
 from vyper.codegen_venom.abi import abi_decode_to_buf, abi_encode_to_buf
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.builtins._kwargs import (
+    BuiltinCall,
     get_bool_kwarg,
-    get_kwarg_ast_constants,
-    validate_kwargs,
 )
 from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.data_locations import DataLocation
@@ -91,26 +90,21 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     - ensure_tuple: If True (default), wrap single arg in tuple for ABI conformance
     - method_id: Optional 4-byte prefix (function selector)
     """
-    from vyper.codegen_venom.expr import Expr
-
     b = ctx.builder
+    call = BuiltinCall(node, ctx)
 
-    # Parse kwargs
-    validate_kwargs(node, _ABI_ENCODE_KWARGS)
-    kwarg_constants = get_kwarg_ast_constants(node, _ABI_ENCODE_KWARGS)
-    ensure_tuple = get_bool_kwarg(kwarg_constants, "ensure_tuple", default=True)
-    method_id_node = kwarg_constants.get("method_id")
+    call.validate_kwargs(_ABI_ENCODE_KWARGS)
+    kwarg_constants = call.get_kwarg_ast_constants(
+        {"ensure_tuple": True, "method_id": None}
+    )
+    ensure_tuple = get_bool_kwarg(kwarg_constants, "ensure_tuple")
+    method_id_node = kwarg_constants["method_id"]
     method_id = _parse_method_id(method_id_node)
 
     # Evaluate all args - primitives get values, complex types get pointers
     args = []
-    for arg in node.args:
-        arg_t = arg._metadata["type"]
-        if arg_t._is_prim_word:
-            args.append(Expr(arg, ctx).lower_value())
-        else:
-            arg_vv = Expr(arg, ctx).lower()
-            args.append(ctx.unwrap(arg_vv))  # Copies storage/transient to memory
+    for arg_vv in call.lower_pos_args():
+        args.append(ctx.unwrap(arg_vv))  # Copies storage/transient to memory
     arg_types = [arg._metadata["type"] for arg in node.args]
 
     # Build input to encode
@@ -172,16 +166,15 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     - unwrap_tuple: If True (default), single-element tuples are unwrapped
     """
-    from vyper.codegen_venom.expr import Expr
-
     b = ctx.builder
+    call = BuiltinCall(node, ctx)
 
     # Parse args
     data_node = node.args[0]
     output_type_node = node.args[1]
-    validate_kwargs(node, _ABI_DECODE_KWARGS)
-    kwarg_constants = get_kwarg_ast_constants(node, _ABI_DECODE_KWARGS)
-    unwrap_tuple = get_bool_kwarg(kwarg_constants, "unwrap_tuple", default=True)
+    call.validate_kwargs(_ABI_DECODE_KWARGS)
+    kwarg_constants = call.get_kwarg_ast_constants({"unwrap_tuple": True})
+    unwrap_tuple = get_bool_kwarg(kwarg_constants, "unwrap_tuple")
 
     # Get output type from type annotation
     output_typ = output_type_node._metadata["type"].typedef
@@ -192,7 +185,7 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         wrapped_typ = calculate_type_for_external_return(output_typ)
 
     # Get data pointer and length
-    data_vv = Expr(data_node, ctx).lower()
+    data_vv = call.lower_pos_args((data_node,))[0]
     data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
     assert isinstance(data, IRVariable)
     data_len = b.mload(data)  # Length word at start of Bytes

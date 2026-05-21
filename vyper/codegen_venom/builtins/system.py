@@ -13,11 +13,9 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.builtins._kwargs import (
-    get_kwarg_ast_constants,
+    BuiltinCall,
     get_literal_kwarg,
-    get_kwarg_values,
     kwarg_is_provided,
-    validate_kwargs,
 )
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import ArgumentException, StateAccessViolation
@@ -66,23 +64,23 @@ def lower_raw_call(
         - Bytes[N] if max_outsize>0 and revert_on_failure=True
         - (bool, Bytes[N]) if max_outsize>0 and revert_on_failure=False
     """
-    from vyper.codegen_venom.expr import Expr
-
     b = ctx.builder
-
-    # Parse positional args
-    to = Expr(node.args[0], ctx).lower_value()
+    call = BuiltinCall(node, ctx)
 
     # Parse kwargs (need to know is_static before constancy check)
-    validate_kwargs(node, _RAW_CALL_KWARGS)
-    kwarg_constants = get_kwarg_ast_constants(
-        node,
-        ("max_outsize", "is_delegate_call", "is_static_call", "revert_on_failure"),
+    call.validate_kwargs(_RAW_CALL_KWARGS)
+    kwarg_constants = call.get_kwarg_ast_constants(
+        {
+            "max_outsize": 0,
+            "is_delegate_call": False,
+            "is_static_call": False,
+            "revert_on_failure": True,
+        }
     )
-    max_outsize = get_literal_kwarg(kwarg_constants, "max_outsize", 0)
-    is_delegate = get_literal_kwarg(kwarg_constants, "is_delegate_call", False)
-    is_static = get_literal_kwarg(kwarg_constants, "is_static_call", False)
-    revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure", True)
+    max_outsize = get_literal_kwarg(kwarg_constants, "max_outsize")
+    is_delegate = get_literal_kwarg(kwarg_constants, "is_delegate_call")
+    is_static = get_literal_kwarg(kwarg_constants, "is_static_call")
+    revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure")
 
     # Validate delegate/static mutual exclusivity
     if is_delegate and is_static:
@@ -106,20 +104,23 @@ def lower_raw_call(
             node,
         )
 
+    # Parse positional args
+    to = call.lower_pos_arg_values(node.args[:1])[0]
+
     # Evaluate data argument
     data_node = node.args[1]
     use_msg_data = _is_msg_data(data_node)
     if not use_msg_data:
-        data_vv = Expr(data_node, ctx).lower()
+        data_vv = call.lower_pos_args((data_node,))[0]
         data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
         # Bytes layout: [32-byte length][data...]
         assert isinstance(data, IRVariable)
         data_len = b.mload(data)
         data_ptr = b.add(data, IRLiteral(32))
 
-    runtime_kwargs = get_kwarg_values(node, ctx, ("gas", "value"))
-    gas = runtime_kwargs["gas"] if "gas" in runtime_kwargs else b.gas()
-    value = runtime_kwargs["value"] if "value" in runtime_kwargs else IRLiteral(0)
+    runtime_kwargs = call.get_kwarg_values({"gas": b.gas, "value": IRLiteral(0)})
+    gas = runtime_kwargs["gas"]
+    value = runtime_kwargs["value"]
 
     # Allocate output buffer if needed
     out_val: Optional["VyperValue"]
@@ -226,18 +227,16 @@ def lower_send(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     Send ether to address. Reverts on failure.
     The gas kwarg defaults to 0 (empty gas stipend) in Vyper.
     """
-    from vyper.codegen_venom.expr import Expr
-
     ctx.check_is_not_constant("send ether", node)
 
     b = ctx.builder
+    call = BuiltinCall(node, ctx)
 
-    to = Expr(node.args[0], ctx).lower_value()
-    value = Expr(node.args[1], ctx).lower_value()
+    to, value = call.lower_pos_arg_values()
 
-    validate_kwargs(node, _SEND_KWARGS)
-    runtime_kwargs = get_kwarg_values(node, ctx, ("gas",))
-    gas = runtime_kwargs["gas"] if "gas" in runtime_kwargs else IRLiteral(0)
+    call.validate_kwargs(_SEND_KWARGS)
+    runtime_kwargs = call.get_kwarg_values({"gas": IRLiteral(0)})
+    gas = runtime_kwargs["gas"]
 
     argsptr_buf = ctx.allocate_buffer(0, annotation="lower send args buffer")
     retptr_buf = ctx.allocate_buffer(0, annotation="lower send retptr buffer")

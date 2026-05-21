@@ -15,10 +15,8 @@ from typing import TYPE_CHECKING, Optional
 from vyper import ast as vy_ast
 from vyper.codegen_venom.abi import abi_encode_to_buf
 from vyper.codegen_venom.builtins._kwargs import (
-    get_kwarg_ast_constants,
+    BuiltinCall,
     get_literal_kwarg,
-    get_kwarg_values,
-    validate_kwargs,
 )
 from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import assembly_to_evm
@@ -185,11 +183,10 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     Returns deployed contract address.
     """
-    from vyper.codegen_venom.expr import Expr
-
     ctx.check_is_not_constant("use raw_create", node)
 
     b = ctx.builder
+    call = BuiltinCall(node, ctx)
 
     # Parse positional args: bytecode is first, rest are ctor_args
     bytecode_node = node.args[0]
@@ -197,15 +194,17 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Snapshot bytecode before constructor args or kwargs can mutate its source
     # or overlap its memory.
-    bytecode_vv = Expr(bytecode_node, ctx).lower()
+    bytecode_vv = call.lower_pos_args((bytecode_node,))[0]
     bytecode_typ = bytecode_node._metadata["type"]
-    bytecode = ctx.materialize_value(bytecode_vv, bytecode_typ, "raw_create bytecode").operand
+    bytecode = ctx.materialize_value(
+        bytecode_vv, bytecode_typ, "raw_create bytecode"
+    ).ptr().operand
 
     # Parse literal-only kwargs. Runtime kwargs are lowered after positional
     # constructor args so side effects follow source order.
-    validate_kwargs(node, _CREATE_KWARGS)
-    kwarg_constants = get_kwarg_ast_constants(node, ("revert_on_failure",))
-    revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure", True)
+    call.validate_kwargs(_CREATE_KWARGS)
+    kwarg_constants = call.get_kwarg_ast_constants({"revert_on_failure": True})
+    revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure")
 
     ctor_args_val: Optional[IRVariable] = None
     ctor_tuple_typ: Optional[TupleT] = None
@@ -216,9 +215,9 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         ctor_abi_size = ctor_tuple_typ.abi_type.size_bound()
         ctor_args_val = _materialize_ctor_args(ctx, b, ctor_arg_nodes, ctor_tuple_typ)
 
-    runtime_kwargs = get_kwarg_values(node, ctx, ("value", "salt"))
-    value = runtime_kwargs["value"] if "value" in runtime_kwargs else IRLiteral(0)
-    salt = runtime_kwargs.get("salt")
+    runtime_kwargs = call.get_kwarg_values({"value": IRLiteral(0), "salt": None})
+    value = runtime_kwargs["value"]
+    salt = runtime_kwargs["salt"]
 
     # Get bytecode length and data pointer
     assert isinstance(bytecode, IRVariable)
@@ -269,22 +268,21 @@ def lower_create_minimal_proxy_to(
 
     Returns deployed proxy address.
     """
-    from vyper.codegen_venom.expr import Expr
-
     ctx.check_is_not_constant("use create_minimal_proxy_to", node)
 
     b = ctx.builder
+    call = BuiltinCall(node, ctx)
 
     # Parse args
-    target = Expr(node.args[0], ctx).lower_value()
+    target = call.lower_pos_arg_values(node.args[:1])[0]
 
-    validate_kwargs(node, _CREATE_KWARGS)
-    kwarg_constants = get_kwarg_ast_constants(node, ("revert_on_failure",))
-    revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure", True)
+    call.validate_kwargs(_CREATE_KWARGS)
+    kwarg_constants = call.get_kwarg_ast_constants({"revert_on_failure": True})
+    revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure")
 
-    runtime_kwargs = get_kwarg_values(node, ctx, ("value", "salt"))
-    value = runtime_kwargs["value"] if "value" in runtime_kwargs else IRLiteral(0)
-    salt = runtime_kwargs.get("salt")
+    runtime_kwargs = call.get_kwarg_values({"value": IRLiteral(0), "salt": None})
+    value = runtime_kwargs["value"]
+    salt = runtime_kwargs["salt"]
 
     # Get EIP-1167 bytecode components
     loader_evm, forwarder_pre_evm, forwarder_post_evm = _eip1167_bytecode()
@@ -342,22 +340,21 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
 
     Returns deployed contract address.
     """
-    from vyper.codegen_venom.expr import Expr
-
     ctx.check_is_not_constant("use create_copy_of", node)
 
     b = ctx.builder
+    call = BuiltinCall(node, ctx)
 
     # Parse args
-    target = Expr(node.args[0], ctx).lower_value()
+    target = call.lower_pos_arg_values(node.args[:1])[0]
 
-    validate_kwargs(node, _CREATE_KWARGS)
-    kwarg_constants = get_kwarg_ast_constants(node, ("revert_on_failure",))
-    revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure", True)
+    call.validate_kwargs(_CREATE_KWARGS)
+    kwarg_constants = call.get_kwarg_ast_constants({"revert_on_failure": True})
+    revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure")
 
-    runtime_kwargs = get_kwarg_values(node, ctx, ("value", "salt"))
-    value = runtime_kwargs["value"] if "value" in runtime_kwargs else IRLiteral(0)
-    salt = runtime_kwargs.get("salt")
+    runtime_kwargs = call.get_kwarg_values({"value": IRLiteral(0), "salt": None})
+    value = runtime_kwargs["value"]
+    salt = runtime_kwargs["salt"]
 
     # Get target code size
     codesize = b.extcodesize(target)
@@ -419,20 +416,21 @@ def lower_create_from_blueprint(
 
     Returns deployed contract address.
     """
-    from vyper.codegen_venom.expr import Expr
-
     ctx.check_is_not_constant("use create_from_blueprint", node)
 
     b = ctx.builder
+    call = BuiltinCall(node, ctx)
 
     # Parse args: target is first, rest are ctor_args
-    target = Expr(node.args[0], ctx).lower_value()
+    target = call.lower_pos_arg_values(node.args[:1])[0]
     ctor_arg_nodes = node.args[1:]
 
-    validate_kwargs(node, _CREATE_FROM_BLUEPRINT_KWARGS)
-    kwarg_constants = get_kwarg_ast_constants(node, ("raw_args", "revert_on_failure"))
-    raw_args = get_literal_kwarg(kwarg_constants, "raw_args", False)
-    revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure", True)
+    call.validate_kwargs(_CREATE_FROM_BLUEPRINT_KWARGS)
+    kwarg_constants = call.get_kwarg_ast_constants(
+        {"raw_args": False, "revert_on_failure": True}
+    )
+    raw_args = get_literal_kwarg(kwarg_constants, "raw_args")
+    revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure")
 
     # Evaluate and materialize positional constructor args before runtime kwargs.
     args_len: Optional[IROperand] = None
@@ -446,9 +444,11 @@ def lower_create_from_blueprint(
             # This should be caught by type checker, but be defensive
             raise CompilerPanic("raw_args requires exactly 1 bytes argument")
 
-        raw_arg_vv = Expr(ctor_arg_nodes[0], ctx).lower()
+        raw_arg_vv = call.lower_pos_args((ctor_arg_nodes[0],))[0]
         raw_arg_typ = ctor_arg_nodes[0]._metadata["type"]
-        raw_arg = ctx.materialize_value(raw_arg_vv, raw_arg_typ, "raw blueprint args").operand
+        raw_arg = ctx.materialize_value(
+            raw_arg_vv, raw_arg_typ, "raw blueprint args"
+        ).ptr().operand
         args_len = b.mload(raw_arg)
         args_ptr = b.add(raw_arg, IRLiteral(32))
     elif len(ctor_arg_nodes) > 0:
@@ -461,14 +461,12 @@ def lower_create_from_blueprint(
         args_len = IRLiteral(0)
         args_ptr = IRLiteral(0)
 
-    runtime_kwargs = get_kwarg_values(node, ctx, ("value", "salt", "code_offset"))
-    value = runtime_kwargs["value"] if "value" in runtime_kwargs else IRLiteral(0)
-    salt = runtime_kwargs.get("salt")
-    code_offset = (
-        runtime_kwargs["code_offset"]
-        if "code_offset" in runtime_kwargs
-        else IRLiteral(3)
+    runtime_kwargs = call.get_kwarg_values(
+        {"value": IRLiteral(0), "salt": None, "code_offset": IRLiteral(3)}
     )
+    value = runtime_kwargs["value"]
+    salt = runtime_kwargs["salt"]
+    code_offset = runtime_kwargs["code_offset"]
 
     if ctor_args_src is not None:
         assert ctor_tuple_typ is not None

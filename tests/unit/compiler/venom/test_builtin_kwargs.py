@@ -4,6 +4,7 @@ from vyper import ast as vy_ast
 from vyper.codegen_venom.builtins._kwargs import (
     get_bool_kwarg,
     get_kwarg_ast_constants,
+    get_kwarg_values,
     get_literal_kwarg,
     kwarg_is_provided,
     validate_kwargs,
@@ -58,6 +59,24 @@ def test_bool_kwarg_uses_reduced_value():
     constants = get_kwarg_ast_constants(call_node, ("flag",))
 
     assert get_bool_kwarg(constants, "flag", True) is False
+
+
+def test_kwarg_constants_fill_defaults():
+    call_node = _call_node("foo(flag=False)")
+
+    constants = get_kwarg_ast_constants(call_node, {"flag": True, "limit": 3, "salt": None})
+
+    assert get_bool_kwarg(constants, "flag") is False
+    assert get_literal_kwarg(constants, "limit") == 3
+    assert get_literal_kwarg(constants, "salt") is None
+
+
+def test_kwarg_values_fill_late_defaults():
+    call_node = _call_node("foo()")
+
+    values = get_kwarg_values(call_node, object(), {"gas": lambda: "gas-left", "value": 0})
+
+    assert values == {"gas": "gas-left", "value": 0}
 
 
 def test_bool_kwarg_rejects_unreduced_value():
