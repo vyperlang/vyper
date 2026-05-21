@@ -435,6 +435,8 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
 
     # module_t internal functions first so we have the function info
     for func_ast in internal_functions:
+        if func_ast._metadata["func_type"].is_abstract:
+            continue
         func_ir = _ir_for_internal_function(func_ast, module_t, False)
         internal_functions_ir.append(IRnode.from_list(func_ir))
 

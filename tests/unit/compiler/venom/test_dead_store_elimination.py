@@ -44,7 +44,7 @@ class VolatilePrePostChecker(PrePostChecker):
                 volatile_loc = MemoryLocation(offset=address, size=size, _is_volatile=True)
                 mem_ssa.mark_location_volatile(volatile_loc)
 
-            for p in self.passes:
+            for p, _ in self.passes:
                 obj = p(ac, fn)
                 self.pass_objects.append(obj)
                 obj.run_pass(self.addr_space)

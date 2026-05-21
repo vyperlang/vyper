@@ -14,6 +14,7 @@ from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
+    FunctionDeclarationException,
     InvalidLiteral,
     InvalidOperation,
     OverflowException,
@@ -330,6 +331,16 @@ class VyperNode:
         slot_fields = [x for i in cls.__mro__ for x in getattr(i, "__slots__", [])]
         return set(i for i in slot_fields if not i.startswith("_"))
 
+    # TODO: perf profiling
+    @classmethod
+    def get_comparison_fields(cls) -> set:
+        """
+        For a node, return the subset of its field names that are useful for comparison
+
+        Excludes things like source position and caches
+        """
+        return cls.get_fields() - set(VyperNode.__slots__)
+
     def __deepcopy__(self, memo):
         # default implementation of deepcopy is a hotspot
         return pickle.loads(pickle.dumps(self))
@@ -362,7 +373,7 @@ class VyperNode:
         return getattr(self, "_description", type(self).__name__)
 
     @property
-    def module_node(self):
+    def module_node(self) -> "Module":
         if isinstance(self, Module):
             return self
         return self.get_ancestor(Module)
@@ -655,7 +666,15 @@ class Module(TopLevel):
 
 
 class FunctionDef(TopLevel):
-    __slots__ = ("args", "returns", "decorator_list", "pos")
+    __slots__ = ("args", "returns", "decorator_list")
+
+    def validate(self):
+        if not self.body:
+            raise FunctionDeclarationException(
+                "Function body cannot consist of only a docstring",
+                self,
+                hint="add a `pass` statement to the function body",
+            )
 
 
 class DocStr(VyperNode):
