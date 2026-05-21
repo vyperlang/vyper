@@ -14,7 +14,12 @@ from typing import TYPE_CHECKING, Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.abi import abi_encode_to_buf
-from vyper.exceptions import CompilerPanic, UnfoldableNode
+from vyper.codegen_venom.builtins._kwargs import (
+    get_literal_kwarg,
+    get_maybe_literal_kwarg,
+    get_reduced_kwarg_value,
+)
+from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import TupleT
@@ -23,46 +28,6 @@ from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
-
-
-def _get_kwarg_value(node: vy_ast.Call, kwarg_name: str, default=None):
-    """Extract a keyword argument value from a Call node."""
-    for kw in node.keywords:
-        if kw.arg == kwarg_name:
-            return kw.value
-    return default
-
-
-def _get_literal_kwarg(node: vy_ast.Call, kwarg_name: str, default):
-    """Extract a literal value from a keyword argument.
-
-    Returns (value, is_literal) tuple. If is_literal is False, the value is None
-    and the caller should evaluate the kwarg at runtime.
-    """
-    kw_node = _get_kwarg_value(node, kwarg_name)
-    if kw_node is None:
-        return default, True
-    # Try to get folded value
-    try:
-        folded = kw_node.get_folded_value()
-        if isinstance(folded, vy_ast.Int):
-            return folded.value, True
-        if isinstance(folded, vy_ast.NameConstant):
-            return folded.value, True
-    except (KeyError, UnfoldableNode):
-        # Not foldable - caller needs to evaluate at runtime
-        pass
-    # Try direct value
-    if isinstance(kw_node, vy_ast.Int):
-        return kw_node.value, True
-    if isinstance(kw_node, vy_ast.NameConstant):
-        return kw_node.value, True
-    return None, False
-
-
-def _has_kwarg(node: vy_ast.Call, kwarg_name: str) -> bool:
-    """Check if a keyword argument is present."""
-    return any(kw.arg == kwarg_name for kw in node.keywords)
 
 
 def _check_create_result(
@@ -227,9 +192,9 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         bytecode = mem_buf.operand
 
     # Parse kwargs
-    value_node = _get_kwarg_value(node, "value")
-    salt_node = _get_kwarg_value(node, "salt")
-    revert_on_failure, _ = _get_literal_kwarg(node, "revert_on_failure", True)
+    value_node = get_reduced_kwarg_value(node, "value")
+    salt_node = get_reduced_kwarg_value(node, "salt")
+    revert_on_failure = get_literal_kwarg(node, "revert_on_failure", True)
 
     if value_node is not None:
         value = Expr(value_node, ctx).lower_value()
@@ -310,9 +275,9 @@ def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -
     target = Expr(node.args[0], ctx).lower_value()
 
     # Parse kwargs
-    value_node = _get_kwarg_value(node, "value")
-    salt_node = _get_kwarg_value(node, "salt")
-    revert_on_failure, _ = _get_literal_kwarg(node, "revert_on_failure", True)
+    value_node = get_reduced_kwarg_value(node, "value")
+    salt_node = get_reduced_kwarg_value(node, "salt")
+    revert_on_failure = get_literal_kwarg(node, "revert_on_failure", True)
 
     if value_node is not None:
         value = Expr(value_node, ctx).lower_value()
@@ -382,9 +347,9 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     target = Expr(node.args[0], ctx).lower_value()
 
     # Parse kwargs
-    value_node = _get_kwarg_value(node, "value")
-    salt_node = _get_kwarg_value(node, "salt")
-    revert_on_failure, _ = _get_literal_kwarg(node, "revert_on_failure", True)
+    value_node = get_reduced_kwarg_value(node, "value")
+    salt_node = get_reduced_kwarg_value(node, "salt")
+    revert_on_failure = get_literal_kwarg(node, "revert_on_failure", True)
 
     if value_node is not None:
         value = Expr(value_node, ctx).lower_value()
@@ -464,12 +429,12 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     ctor_arg_nodes = node.args[1:]
 
     # Parse kwargs
-    value_node = _get_kwarg_value(node, "value")
-    salt_node = _get_kwarg_value(node, "salt")
-    code_offset_node = _get_kwarg_value(node, "code_offset")
-    code_offset_lit, code_offset_is_literal = _get_literal_kwarg(node, "code_offset", 3)
-    raw_args, _ = _get_literal_kwarg(node, "raw_args", False)
-    revert_on_failure, _ = _get_literal_kwarg(node, "revert_on_failure", True)
+    value_node = get_reduced_kwarg_value(node, "value")
+    salt_node = get_reduced_kwarg_value(node, "salt")
+    code_offset_node = get_reduced_kwarg_value(node, "code_offset")
+    code_offset_lit, code_offset_is_literal = get_maybe_literal_kwarg(node, "code_offset", 3)
+    raw_args = get_literal_kwarg(node, "raw_args", False)
+    revert_on_failure = get_literal_kwarg(node, "revert_on_failure", True)
 
     if value_node is not None:
         value = Expr(value_node, ctx).lower_value()

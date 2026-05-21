@@ -2242,10 +2242,14 @@ class ABIEncode(BuiltinFunctionT):
 
     def fetch_call_return(self, node):
         self._validate_arg_types(node)
-        ensure_tuple = next(
-            (arg.value.value for arg in node.keywords if arg.arg == "ensure_tuple"), True
-        )
-        assert isinstance(ensure_tuple, bool)
+        ensure_tuple = True
+        for arg in node.keywords:
+            if arg.arg == "ensure_tuple":
+                ensure_tuple_node = arg.value.reduced()
+                if not isinstance(ensure_tuple_node, vy_ast.NameConstant):  # pragma: nocover
+                    raise CompilerPanic("unfoldable boolean kwarg: ensure_tuple", ensure_tuple_node)
+                ensure_tuple = ensure_tuple_node.value
+                break
         has_method_id = "method_id" in [arg.arg for arg in node.keywords]
 
         # figure out the output type by converting

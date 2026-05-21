@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional, Union
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.builtins._kwargs import get_literal_kwarg, get_reduced_kwarg_value
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import ArgumentException, StateAccessViolation
 from vyper.semantics.types import BytesT, TupleT
@@ -22,14 +23,6 @@ if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
-def _get_kwarg_value(node: vy_ast.Call, kwarg_name: str, default=None):
-    """Extract a keyword argument value from a Call node."""
-    for kw in node.keywords:
-        if kw.arg == kwarg_name:
-            return kw.value
-    return default
-
-
 def _is_msg_data(node) -> bool:
     """Check if node is msg.data attribute access."""
     return (
@@ -38,27 +31,6 @@ def _is_msg_data(node) -> bool:
         and isinstance(node.value, vy_ast.Name)
         and node.value.id == "msg"
     )
-
-
-def _get_literal_kwarg(node: vy_ast.Call, kwarg_name: str, default):
-    """Extract a literal value from a keyword argument."""
-    kw_node = _get_kwarg_value(node, kwarg_name)
-    if kw_node is None:
-        return default
-    # Try to get folded value
-    if hasattr(kw_node, "get_folded_value"):
-        folded = kw_node.get_folded_value()
-        if isinstance(folded, vy_ast.Int):
-            return folded.value
-        if isinstance(folded, vy_ast.NameConstant):
-            return folded.value
-    # Try direct value
-    if isinstance(kw_node, vy_ast.Int):
-        return kw_node.value
-    if isinstance(kw_node, vy_ast.NameConstant):
-        return kw_node.value
-    return default
-
 
 def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand, VyperValue]:
     """
@@ -82,10 +54,10 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
     to = Expr(node.args[0], ctx).lower_value()
 
     # Parse kwargs (need to know is_static before constancy check)
-    max_outsize = _get_literal_kwarg(node, "max_outsize", 0)
-    is_delegate = _get_literal_kwarg(node, "is_delegate_call", False)
-    is_static = _get_literal_kwarg(node, "is_static_call", False)
-    revert_on_failure = _get_literal_kwarg(node, "revert_on_failure", True)
+    max_outsize = get_literal_kwarg(node, "max_outsize", 0)
+    is_delegate = get_literal_kwarg(node, "is_delegate_call", False)
+    is_static = get_literal_kwarg(node, "is_static_call", False)
+    revert_on_failure = get_literal_kwarg(node, "revert_on_failure", True)
 
     # Validate delegate/static mutual exclusivity
     if is_delegate and is_static:
@@ -95,7 +67,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
 
     # Validate value not passed with delegate/static
     # Check if value kwarg is explicitly provided (not relying on default)
-    value_node = _get_kwarg_value(node, "value")
+    value_node = get_reduced_kwarg_value(node, "value")
     if (is_delegate or is_static) and value_node is not None:
         raise ArgumentException("value= may not be passed for static or delegate calls!", node)
 
@@ -119,7 +91,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         data_ptr = b.add(data, IRLiteral(32))
 
     # Handle gas kwarg - defaults to remaining gas
-    gas_node = _get_kwarg_value(node, "gas")
+    gas_node = get_reduced_kwarg_value(node, "gas")
     gas: IROperand
     if gas_node is None:
         gas = b.gas()
@@ -127,7 +99,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         gas = Expr(gas_node, ctx).lower_value()
 
     # Handle value kwarg - only for regular call
-    value_node = _get_kwarg_value(node, "value")
+    value_node = get_reduced_kwarg_value(node, "value")
     value: IROperand
     if value_node is None:
         value = IRLiteral(0)
@@ -239,7 +211,7 @@ def lower_send(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     value = Expr(node.args[1], ctx).lower_value()
 
     # Parse gas kwarg (default 0)
-    gas_node = _get_kwarg_value(node, "gas")
+    gas_node = get_reduced_kwarg_value(node, "gas")
     gas: IROperand
     if gas_node is None:
         gas = IRLiteral(0)
