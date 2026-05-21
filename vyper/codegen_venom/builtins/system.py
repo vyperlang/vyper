@@ -12,12 +12,7 @@ from __future__ import annotations
 from typing import Optional, Union
 
 from vyper import ast as vy_ast
-from vyper.codegen_venom.builtins._kwargs import (
-    BuiltinCall,
-    get_bool_kwarg,
-    get_literal_kwarg,
-    kwarg_is_provided,
-)
+from vyper.codegen_venom.builtins._kwargs import BuiltinCall, get_bool_kwarg, get_literal_kwarg
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import ArgumentException, StateAccessViolation
 from vyper.semantics.types import BytesT, TupleT
@@ -86,7 +81,7 @@ def lower_raw_call(call: BuiltinCall) -> Union[IROperand, VyperValue]:
 
     # Validate value not passed with delegate/static
     # Check if value kwarg is explicitly provided (not relying on default)
-    value_is_provided = kwarg_is_provided(node, "value")
+    value_is_provided = call.kwarg_is_provided("value")
     if (is_delegate or is_static) and value_is_provided:
         raise ArgumentException("value= may not be passed for static or delegate calls!", node)
 
