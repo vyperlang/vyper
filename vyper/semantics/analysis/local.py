@@ -934,7 +934,10 @@ class ExprVisitor(VyperNodeVisitorBase):
                     hint = f"remove the `{kind}` keyword"
                     raise CallViolation(msg, node.parent, hint=hint)
 
-            if not func_type.from_interface:
+            # methods from other contracts should not have their variable accesses added
+            # note that this logic will be insufficient if we add a way to
+            # internally call external methods
+            if func_type.is_internal:
                 for s in func_type.get_variable_writes():
                     if s.variable.is_state_variable():
                         func_info._writes.add(s)
