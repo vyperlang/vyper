@@ -61,7 +61,7 @@ class _CallKwargs:
     value: IROperand  # ETH value to send (CALL only)
     gas: IROperand  # Gas limit for the call
     skip_contract_check: bool  # Skip extcodesize check
-    default_return_value: Optional[vy_ast.VyperNode]  # Default if returndatasize==0
+    default_return_value: Optional[VyperValue]  # Default if returndatasize==0
 
 
 # Environment variable prefixes for attribute access
@@ -1656,7 +1656,7 @@ class Expr:
         value: IROperand = IRLiteral(0)
         gas: Optional[IROperand] = None
         skip_contract_check = False
-        default_return_value: Optional[vy_ast.VyperNode] = None
+        default_return_value: Optional[VyperValue] = None
 
         for kw in call_node.keywords:
             if kw.arg == "value":
@@ -1670,7 +1670,14 @@ class Expr:
                     raise CompilerPanic(f"Expected IRLiteral for keyword, got {type(kw_val)}")
                 skip_contract_check = bool(kw_val.value)
             elif kw.arg == "default_return_value":
-                default_return_value = kw.value
+                default_vv = Expr(kw.value, self.ctx).lower()
+                if default_vv.location is not None and default_vv.location in (
+                    DataLocation.STORAGE,
+                    DataLocation.TRANSIENT,
+                ):
+                    materialized = self.ctx.unwrap(default_vv)
+                    default_vv = VyperValue.from_stack_op(materialized, default_vv.typ)
+                default_return_value = default_vv
             else:  # pragma: nocover
                 raise CompilerPanic(f"Unexpected keyword argument: {kw.arg}")
 
@@ -1841,9 +1848,8 @@ class Expr:
             b.set_block(default_bb)
 
             # Store default value
-            default_node = call_kwargs.default_return_value
-            assert default_node is not None
-            default_vv = Expr(default_node, self.ctx).lower()
+            default_vv = call_kwargs.default_return_value
+            assert default_vv is not None
             self.ctx.store_vyper_value(default_vv, result_val.operand, return_t)
 
             # Check extcodesize if not skipped (contract might have selfdestructed)

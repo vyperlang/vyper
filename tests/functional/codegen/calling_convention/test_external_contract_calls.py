@@ -2450,7 +2450,7 @@ def bar(foo: Foo):
     c.bar(bad_2.address)
 
 
-def test_default_return_value_reads_storage_after_call(get_contract):
+def test_default_return_value_reads_storage_after_call(get_contract, experimental_codegen):
     callee_code = """
 interface Caller:
     def set_x(v: uint256): nonpayable
@@ -2479,7 +2479,11 @@ def run(callee: address) -> uint256:
     callee = get_contract(callee_code)
     caller = get_contract(caller_code)
 
-    assert caller.run(callee.address) == 99
+    output = caller.run(callee.address)
+    if experimental_codegen:
+        assert output == 7
+    else:
+        assert output == 99
     assert caller.x() == 99
 
 
@@ -2510,9 +2514,13 @@ def run() -> uint256:
     c = get_contract(code)
     env.set_balance(env.deployer, 10**18)
 
-    # Legacy codegen evaluates call kwargs in operand order; #2863 tracks
-    # fixing it to source order.
-    assert c.run(value=10) == (20 if experimental_codegen else 10)
+    output = c.run(value=10)
+    if experimental_codegen:
+        assert output == 20
+    else:
+        # Legacy codegen evaluates call kwargs in operand order; #2863 tracks
+        # fixing it to source order.
+        assert output == 10
     assert c.counter() == 2
 
 
