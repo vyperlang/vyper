@@ -12,7 +12,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional, Union
 
 from vyper import ast as vy_ast
-from vyper.codegen_venom.builtins._kwargs import BuiltinCall, get_literal_kwarg, kwarg_is_provided
+from vyper.codegen_venom.builtins._kwargs import (
+    BuiltinCall,
+    get_bool_kwarg,
+    get_literal_kwarg,
+    kwarg_is_provided,
+)
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import ArgumentException, StateAccessViolation
 from vyper.semantics.types import BytesT, TupleT
@@ -72,9 +77,9 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         }
     )
     max_outsize = get_literal_kwarg(kwarg_constants, "max_outsize")
-    is_delegate = get_literal_kwarg(kwarg_constants, "is_delegate_call")
-    is_static = get_literal_kwarg(kwarg_constants, "is_static_call")
-    revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure")
+    is_delegate = get_bool_kwarg(kwarg_constants, "is_delegate_call")
+    is_static = get_bool_kwarg(kwarg_constants, "is_static_call")
+    revert_on_failure = get_bool_kwarg(kwarg_constants, "revert_on_failure")
 
     # Validate delegate/static mutual exclusivity
     if is_delegate and is_static:

@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.abi import abi_encode_to_buf
-from vyper.codegen_venom.builtins._kwargs import BuiltinCall, get_literal_kwarg
+from vyper.codegen_venom.builtins._kwargs import BuiltinCall, get_bool_kwarg
 from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.semantics.types import TupleT
@@ -188,7 +188,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     # constructor args so side effects follow source order.
     call.validate_kwargs(_CREATE_KWARGS)
     kwarg_constants = call.get_kwarg_ast_constants({"revert_on_failure": True})
-    revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure")
+    revert_on_failure = get_bool_kwarg(kwarg_constants, "revert_on_failure")
 
     ctor_args_val: Optional[IRVariable] = None
     ctor_tuple_typ: Optional[TupleT] = None
@@ -260,7 +260,7 @@ def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -
 
     call.validate_kwargs(_CREATE_KWARGS)
     kwarg_constants = call.get_kwarg_ast_constants({"revert_on_failure": True})
-    revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure")
+    revert_on_failure = get_bool_kwarg(kwarg_constants, "revert_on_failure")
 
     runtime_kwargs = call.get_kwarg_values({"value": IRLiteral(0), "salt": None})
     value = runtime_kwargs["value"]
@@ -328,7 +328,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
 
     call.validate_kwargs(_CREATE_KWARGS)
     kwarg_constants = call.get_kwarg_ast_constants({"revert_on_failure": True})
-    revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure")
+    revert_on_failure = get_bool_kwarg(kwarg_constants, "revert_on_failure")
 
     runtime_kwargs = call.get_kwarg_values({"value": IRLiteral(0), "salt": None})
     value = runtime_kwargs["value"]
@@ -403,8 +403,8 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
 
     call.validate_kwargs(_CREATE_FROM_BLUEPRINT_KWARGS)
     kwarg_constants = call.get_kwarg_ast_constants({"raw_args": False, "revert_on_failure": True})
-    raw_args = get_literal_kwarg(kwarg_constants, "raw_args")
-    revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure")
+    raw_args = get_bool_kwarg(kwarg_constants, "raw_args")
+    revert_on_failure = get_bool_kwarg(kwarg_constants, "revert_on_failure")
 
     # Evaluate and materialize positional constructor args before runtime kwargs.
     args_len: Optional[IROperand] = None
