@@ -45,7 +45,7 @@ def _get_bool_kwarg(node: vy_ast.Call, kwarg_name: str, default: bool) -> bool:
     # Could also be an Int with constant value
     if isinstance(kw_node, vy_ast.Int):
         return bool(kw_node.value)
-    raise CompilerPanic(f"unfoldable boolean kwarg: {kwarg_name}")
+    raise CompilerPanic(f"unfoldable boolean kwarg: {kwarg_name}", kw_node)
 
 
 def _parse_method_id(method_id_node: vy_ast.VyperNode) -> Optional[int]:
