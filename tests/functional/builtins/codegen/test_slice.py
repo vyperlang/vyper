@@ -1,3 +1,5 @@
+import dataclasses
+
 import hypothesis.strategies as st
 import pytest
 from hypothesis import given, settings
@@ -5,7 +7,7 @@ from hypothesis import given, settings
 from vyper.compiler import compile_code
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import ArgumentException, StaticAssertionException, TypeMismatch
+from vyper.exceptions import ArgumentException, TypeMismatch
 
 _fun_bytes32_bounds = [(0, 32), (3, 29), (27, 5), (0, 5), (5, 3), (30, 2)]
 
@@ -26,6 +28,30 @@ def slice_tower_test(inp1: Bytes[50]) -> Bytes[50]:
     c = get_contract(code)
     x = c.slice_tower_test(b"abcdefghijklmnopqrstuvwxyz1234")
     assert x == b"klmnopqrst", x
+
+
+def test_slice_struct_field_named_code(get_contract, env):
+    code = """
+struct Account:
+    code: Bytes[10]
+
+accounts: HashMap[address, Account]
+
+@external
+def set_code(owner: address, code: Bytes[10]):
+    self.accounts[owner].code = code
+
+@external
+@view
+def get_prefix(owner: address) -> Bytes[3]:
+    return slice(self.accounts[owner].code, 0, 3)
+    """
+
+    c = get_contract(code)
+    owner = env.accounts[1]
+    c.set_code(owner, b"abcdef")
+
+    assert c.get_prefix(owner) == b"abc"
 
 
 # note: optimization boundaries at 32, 64 and 320 depending on mode
@@ -563,16 +589,11 @@ def do_slice():
 
 
 @pytest.mark.parametrize("bad_code", oob_fail_list)
-def test_slice_buffer_oob_reverts(bad_code, get_contract, tx_failed):
-    try:
-        c = get_contract(bad_code)
-        with tx_failed():
-            c.do_slice()
-    except StaticAssertionException:
-        # it should be ok if we
-        # catch the assert in compile time
-        # since it supposed to be revert
-        pass
+def test_slice_buffer_oob_reverts(bad_code, get_contract, tx_failed, compiler_settings):
+    compiler_settings = dataclasses.replace(compiler_settings, disable_static_exceptions=True)
+    c = get_contract(bad_code, compiler_settings=compiler_settings)
+    with tx_failed():
+        c.do_slice()
 
 
 # tests all 3 adhoc locations: `msg.data`, `self.code`, `<address>.code`
