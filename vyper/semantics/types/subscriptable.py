@@ -2,9 +2,10 @@ from typing import Any, Dict, Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
-from vyper.exceptions import ArrayIndexException, InvalidType, StructureException
+from vyper.exceptions import ArrayIndexException, CodegenPanic, InvalidType, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.infinity import INF, WILDCARD, LengthUpperBound, is_bounded_length
 from vyper.semantics.types.primitives import IntegerT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.utils import get_index_value, type_from_annotation
@@ -108,12 +109,13 @@ class _SequenceT(_SubscriptableT):
 
     _is_array_type: bool = True
 
-    def __init__(self, value_type: VyperType, length: int):
-        if not 0 < length < 2**256:
-            raise InvalidType("Array length is invalid")
+    def __init__(self, value_type: VyperType, length: LengthUpperBound):
+        if is_bounded_length(length):
+            if not 0 < length < 2**256:
+                raise InvalidType("Array length is invalid")
 
-        if length >= 2**64:
-            vyper_warn(VyperWarning("Use of large arrays can be unsafe!"))
+            if length >= 2**64:
+                vyper_warn(VyperWarning("Use of large arrays can be unsafe!"))
 
         super().__init__(UINT256_T, value_type)
         self.length = length
@@ -196,6 +198,16 @@ class SArrayT(_SequenceT):
     def get_subscripted_type(self, node):
         return self.value_type
 
+    @property
+    def has_wildcard(self):
+        return self.value_type.has_wildcard
+
+    def resolve_wildcard(self):
+        resolved_value = self.value_type.resolve_wildcard()
+        if resolved_value is not self.value_type:
+            return SArrayT(resolved_value, self.length)
+        return self
+
     def compare_type(self, other):
         if not isinstance(self, type(other)):
             return False
@@ -215,8 +227,12 @@ class SArrayT(_SequenceT):
         if not value_type.is_valid_element_type:
             raise StructureException(f"arrays of {value_type} are not allowed!")
 
-        # note: validates index is a vy_ast.Int.
+        # note: validates index
         length = get_index_value(node.slice)
+
+        if not is_bounded_length(length):
+            raise InvalidType("Static arrays cannot have unbounded length", node.slice)
+
         return cls(value_type, length)
 
 
@@ -232,7 +248,7 @@ class DArrayT(_SequenceT):
 
     _id = "DynArray"  # CMC 2024-03-03 maybe this would be better as repr(self)
 
-    def __init__(self, value_type: VyperType, length: int) -> None:
+    def __init__(self, value_type: VyperType, length: LengthUpperBound) -> None:
         super().__init__(value_type, length)
 
         from vyper.semantics.types.function import MemberFunctionT
@@ -270,17 +286,46 @@ class DArrayT(_SequenceT):
     # TODO rename me to memory_bytes_required
     @property
     def size_in_bytes(self):
+        if self.length is INF:
+            raise CodegenPanic("DynArray[..., INF] don't have a size!")
         # one length word + size of the array items
         return 32 + self.value_type.size_in_bytes * self.length
+
+    @property
+    def has_wildcard(self):
+        return self.length is WILDCARD or self.value_type.has_wildcard
+
+    def resolve_wildcard(self):
+        resolved_value = self.value_type.resolve_wildcard()
+        resolved_length = INF if self.length is WILDCARD else self.length
+        if resolved_value is not self.value_type or resolved_length is not self.length:
+            return DArrayT(resolved_value, resolved_length)
+        return self
+
+    def _compare_length(self, other):
+
+        # Wildcard matches any length (bidirectional)
+        if self.length is WILDCARD or other.length is WILDCARD:
+            return True
+
+        if self.length is INF:
+            # INF >= INF
+            # INF >= n
+            return True
+
+        if other.length is INF:
+            # n < INF
+            return False
+
+        return self.length >= other.length
 
     def compare_type(self, other):
         # TODO allow static array to be assigned to dyn array?
         # if not isinstance(other, (DArrayT, SArrayT)):
         if not isinstance(self, type(other)):
             return False
-        if self.length < other.length:
-            return False
-        return self.value_type.compare_type(other.value_type)
+
+        return self._compare_length(other) and self.value_type.compare_type(other.value_type)
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Subscript) -> "DArrayT":
@@ -293,12 +338,7 @@ class DArrayT(_SequenceT):
         if not isinstance(node.slice, vy_ast.Tuple) or len(node.slice.elements) != 2:
             raise StructureException(err_msg, node.slice)
 
-        length_node = node.slice.elements[1].reduced()
-
-        if not isinstance(length_node, vy_ast.Int):
-            raise StructureException(err_msg, length_node)
-
-        length = length_node.value
+        length = get_index_value(node.slice.elements[1])
 
         value_node = node.slice.elements[0]
         value_type = type_from_annotation(value_node)
@@ -374,6 +414,16 @@ class TupleT(VyperType):
     def to_abi_arg(self, name: str = "") -> dict:
         components = [t.to_abi_arg() for t in self.member_types]
         return {"name": name, "type": "tuple", "components": components}
+
+    @property
+    def has_wildcard(self):
+        return any(m.has_wildcard for m in self.member_types)
+
+    def resolve_wildcard(self):
+        resolved = tuple(m.resolve_wildcard() for m in self.member_types)
+        if resolved != self.member_types:
+            return TupleT(resolved)
+        return self
 
     @property
     def size_in_bytes(self):
