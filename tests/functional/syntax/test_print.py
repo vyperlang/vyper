@@ -105,6 +105,9 @@ def foo(x: uint256):
     opcodes = out["opcodes_runtime"]
     selector = method_id_int(signature)
 
+    # This is intentionally a narrow opcode regression and is brittle to
+    # unrelated codegen changes. If it starts failing from harmless lowering
+    # churn, replace it with functional console-precompile instrumentation.
     assert f"PUSH4 0x{selector:08X}" in opcodes
     assert f"PUSH32 0x{selector:08X}{'0' * 56}" not in opcodes
 
