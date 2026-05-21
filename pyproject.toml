@@ -65,9 +65,6 @@ extend-exclude = [
 
 [tool.ruff.lint]
 select = ["B0", "E", "F", "I", "UP031", "UP032", "W"]
-ignore = [
-    "E203",  # match the previous Black-compatible Flake8 config
-]
 external = [
     "E122",
     "E128",
