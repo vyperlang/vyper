@@ -1671,13 +1671,10 @@ class Expr:
                 skip_contract_check = bool(kw_val.value)
             elif kw.arg == "default_return_value":
                 default_vv = Expr(kw.value, self.ctx).lower()
-                if default_vv.location is not None and default_vv.location in (
-                    DataLocation.STORAGE,
-                    DataLocation.TRANSIENT,
-                ):
-                    materialized = self.ctx.unwrap(default_vv)
-                    default_vv = VyperValue.from_stack_op(materialized, default_vv.typ)
-                default_return_value = default_vv
+                # Freeze the expression here; the default block runs after the external call.
+                default_return_value = VyperValue.from_stack_op(
+                    self.ctx.unwrap(default_vv), default_vv.typ
+                )
             else:  # pragma: nocover
                 raise CompilerPanic(f"Unexpected keyword argument: {kw.arg}")
 

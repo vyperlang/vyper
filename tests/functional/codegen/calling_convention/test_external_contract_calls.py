@@ -2450,19 +2450,21 @@ def bar(foo: Foo):
     c.bar(bad_2.address)
 
 
-def test_default_return_value_reads_storage_after_call(get_contract, experimental_codegen):
+def test_default_return_value_reads_storage_before_empty_returndata_call(
+    get_contract, experimental_codegen
+):
     callee_code = """
 interface Caller:
     def set_x(v: uint256): nonpayable
 
 @external
-def poke(c: address):
+def set_x_without_return(c: address):
     extcall Caller(c).set_x(99)
     """
 
     caller_code = """
 interface Callee:
-    def poke(c: address) -> uint256: nonpayable
+    def set_x_without_return(c: address) -> uint256: nonpayable
 
 x: public(uint256)
 
@@ -2473,7 +2475,7 @@ def set_x(v: uint256):
 @external
 def run(callee: address) -> uint256:
     self.x = 7
-    return extcall Callee(callee).poke(self, default_return_value=self.x)
+    return extcall Callee(callee).set_x_without_return(self, default_return_value=self.x)
     """
 
     callee = get_contract(callee_code)
