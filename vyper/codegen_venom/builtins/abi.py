@@ -14,7 +14,7 @@ from vyper import ast as vy_ast
 from vyper.codegen.core import calculate_type_for_external_return
 from vyper.codegen_venom.abi import abi_decode_to_buf, abi_encode_to_buf
 from vyper.codegen_venom.buffer import Buffer, Ptr
-from vyper.codegen_venom.builtins._kwargs import get_bool_kwarg, get_reduced_kwarg_value
+from vyper.codegen_venom.builtins._kwargs import get_bool_kwarg, get_kwarg_ast_constants
 from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import BytesT, TupleT
@@ -23,6 +23,10 @@ from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
+
+
+_ABI_ENCODE_KWARGS = ("ensure_tuple", "method_id")
+_ABI_DECODE_KWARGS = ("unwrap_tuple",)
 
 
 def _parse_method_id(method_id_node: vy_ast.VyperNode) -> Optional[int]:
@@ -47,7 +51,10 @@ def _parse_method_id(method_id_node: vy_ast.VyperNode) -> Optional[int]:
         return method_id_node.value
 
     # If it has a folded value (constant expression)
-    if hasattr(method_id_node, "_metadata") and "folded_value" in method_id_node._metadata:
+    if (
+        hasattr(method_id_node, "_metadata")
+        and "folded_value" in method_id_node._metadata
+    ):
         folded = method_id_node._metadata["folded_value"]
         if isinstance(folded, vy_ast.Bytes):
             return fourbytes_to_int(folded.value)
@@ -97,8 +104,12 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     b = ctx.builder
 
     # Parse kwargs
-    ensure_tuple = get_bool_kwarg(node, "ensure_tuple", default=True)
-    method_id_node = get_reduced_kwarg_value(node, "method_id")
+    ensure_tuple = get_bool_kwarg(
+        node, "ensure_tuple", default=True, allowed_kwarg_names=_ABI_ENCODE_KWARGS
+    )
+    method_id_node = get_kwarg_ast_constants(
+        node, ("method_id",), allowed_kwarg_names=_ABI_ENCODE_KWARGS
+    ).get("method_id")
     method_id = _parse_method_id(method_id_node)
 
     # Evaluate all args - primitives get values, complex types get pointers
@@ -178,7 +189,9 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     # Parse args
     data_node = node.args[0]
     output_type_node = node.args[1]
-    unwrap_tuple = get_bool_kwarg(node, "unwrap_tuple", default=True)
+    unwrap_tuple = get_bool_kwarg(
+        node, "unwrap_tuple", default=True, allowed_kwarg_names=_ABI_DECODE_KWARGS
+    )
 
     # Get output type from type annotation
     output_typ = output_type_node._metadata["type"].typedef
@@ -216,7 +229,11 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     # Decode with bounds checking
     hi = b.add(data_ptr, data_len)
-    buf = Buffer(_ptr=data_ptr, size=wrapped_typ.memory_bytes_required, annotation="abi_decode_src")
+    buf = Buffer(
+        _ptr=data_ptr,
+        size=wrapped_typ.memory_bytes_required,
+        annotation="abi_decode_src",
+    )
     ptr = Ptr(operand=data_ptr, location=DataLocation.MEMORY, buf=buf)
     src = VyperValue.from_ptr(ptr, wrapped_typ)
     abi_decode_to_buf(ctx, output_val.operand, src, hi=hi)

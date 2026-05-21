@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 
 # Console.log address used by debugging tools
 CONSOLE_ADDRESS = 0x000000000000000000636F6E736F6C652E6C6F67
+_PRINT_KWARGS = ("hardhat_compat",)
 
 
 # =============================================================================
@@ -102,7 +103,9 @@ def lower_ecmul(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     return _lower_ec_arith(node, ctx, precompile=7)
 
 
-def _lower_ec_arith(node: vy_ast.Call, ctx: VenomCodegenContext, precompile: int) -> IROperand:
+def _lower_ec_arith(
+    node: vy_ast.Call, ctx: VenomCodegenContext, precompile: int
+) -> IROperand:
     """
     Common implementation for ecadd/ecmul.
 
@@ -419,7 +422,9 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
 
     b = ctx.builder
 
-    hardhat_compat = get_bool_kwarg(node, "hardhat_compat", default=False)
+    hardhat_compat = get_bool_kwarg(
+        node, "hardhat_compat", default=False, allowed_kwarg_names=_PRINT_KWARGS
+    )
 
     # Get arg types and values
     arg_types = [arg._metadata["type"] for arg in node.args]
@@ -484,7 +489,9 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         if len(args) > 0:
             encode_input, encode_type = _create_tuple_in_memory(ctx, args, arg_types)
             payload_data_dst = b.add(payload_buf._ptr, IRLiteral(32))
-            payload_len = abi_encode_to_buf(ctx, payload_data_dst, encode_input, encode_type)
+            payload_len = abi_encode_to_buf(
+                ctx, payload_data_dst, encode_input, encode_type
+            )
         else:
             payload_len = IRLiteral(0)
 
@@ -512,8 +519,12 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         # Create tuple in memory with pointers to schema and payload buffers
         outer_val = ctx.new_temporary_value(outer_tuple_t)
         assert isinstance(outer_val.operand, IRVariable)
-        ctx.copy_memory(outer_val.operand, schema_buf._ptr, schema_t.memory_bytes_required)
-        dst_payload = b.add(outer_val.operand, IRLiteral(schema_t.memory_bytes_required))
+        ctx.copy_memory(
+            outer_val.operand, schema_buf._ptr, schema_t.memory_bytes_required
+        )
+        dst_payload = b.add(
+            outer_val.operand, IRLiteral(schema_t.memory_bytes_required)
+        )
         ctx.copy_memory(dst_payload, payload_buf._ptr, payload_t.memory_bytes_required)
 
         # Allocate final output buffer for ABI encoding
@@ -535,7 +546,12 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     # Make the staticcall to console.log
     retptr = ctx.allocate_buffer(0)
     b.staticcall(
-        b.gas(), IRLiteral(CONSOLE_ADDRESS), call_start, call_len, retptr._ptr, IRLiteral(0)
+        b.gas(),
+        IRLiteral(CONSOLE_ADDRESS),
+        call_start,
+        call_len,
+        retptr._ptr,
+        IRLiteral(0),
     )
 
     return IRLiteral(0)

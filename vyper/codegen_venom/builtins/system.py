@@ -14,8 +14,8 @@ from typing import TYPE_CHECKING, Optional, Union
 from vyper import ast as vy_ast
 from vyper.codegen_venom.builtins._kwargs import (
     get_literal_kwarg,
-    get_reduced_kwarg_value,
-    lower_kwargs_in_source_order,
+    get_kwarg_values,
+    kwarg_is_provided,
 )
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import ArgumentException, StateAccessViolation
@@ -25,6 +25,17 @@ from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
+
+
+_RAW_CALL_KWARGS = (
+    "max_outsize",
+    "gas",
+    "value",
+    "is_delegate_call",
+    "is_static_call",
+    "revert_on_failure",
+)
+_SEND_KWARGS = ("gas",)
 
 
 def _is_msg_data(node) -> bool:
@@ -37,7 +48,9 @@ def _is_msg_data(node) -> bool:
     )
 
 
-def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand, VyperValue]:
+def lower_raw_call(
+    node: vy_ast.Call, ctx: VenomCodegenContext
+) -> Union[IROperand, VyperValue]:
     """
     raw_call(to, data, max_outsize=0, gas=gas, value=0,
              is_delegate_call=False, is_static_call=False,
@@ -59,10 +72,18 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
     to = Expr(node.args[0], ctx).lower_value()
 
     # Parse kwargs (need to know is_static before constancy check)
-    max_outsize = get_literal_kwarg(node, "max_outsize", 0)
-    is_delegate = get_literal_kwarg(node, "is_delegate_call", False)
-    is_static = get_literal_kwarg(node, "is_static_call", False)
-    revert_on_failure = get_literal_kwarg(node, "revert_on_failure", True)
+    max_outsize = get_literal_kwarg(
+        node, "max_outsize", 0, allowed_kwarg_names=_RAW_CALL_KWARGS
+    )
+    is_delegate = get_literal_kwarg(
+        node, "is_delegate_call", False, allowed_kwarg_names=_RAW_CALL_KWARGS
+    )
+    is_static = get_literal_kwarg(
+        node, "is_static_call", False, allowed_kwarg_names=_RAW_CALL_KWARGS
+    )
+    revert_on_failure = get_literal_kwarg(
+        node, "revert_on_failure", True, allowed_kwarg_names=_RAW_CALL_KWARGS
+    )
 
     # Validate delegate/static mutual exclusivity
     if is_delegate and is_static:
@@ -72,9 +93,13 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
 
     # Validate value not passed with delegate/static
     # Check if value kwarg is explicitly provided (not relying on default)
-    value_node = get_reduced_kwarg_value(node, "value")
-    if (is_delegate or is_static) and value_node is not None:
-        raise ArgumentException("value= may not be passed for static or delegate calls!", node)
+    value_is_provided = kwarg_is_provided(
+        node, "value", allowed_kwarg_names=_RAW_CALL_KWARGS
+    )
+    if (is_delegate or is_static) and value_is_provided:
+        raise ArgumentException(
+            "value= may not be passed for static or delegate calls!", node
+        )
 
     # Check constancy: non-static calls are not allowed from view/pure functions
     if not is_static and ctx.is_constant():
@@ -95,7 +120,9 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         data_len = b.mload(data)
         data_ptr = b.add(data, IRLiteral(32))
 
-    runtime_kwargs = lower_kwargs_in_source_order(node, ctx, ("gas", "value"))
+    runtime_kwargs = get_kwarg_values(
+        node, ctx, ("gas", "value"), allowed_kwarg_names=_RAW_CALL_KWARGS
+    )
     gas = runtime_kwargs["gas"] if "gas" in runtime_kwargs else b.gas()
     value = runtime_kwargs["value"] if "value" in runtime_kwargs else IRLiteral(0)
 
@@ -119,13 +146,19 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
     # Build the call instruction
     if is_delegate:
         # delegatecall(gas, to, argsptr, argsz, retptr, retsz)
-        success = b.delegatecall(gas, to, data_ptr, data_len, out_ptr, IRLiteral(max_outsize))
+        success = b.delegatecall(
+            gas, to, data_ptr, data_len, out_ptr, IRLiteral(max_outsize)
+        )
     elif is_static:
         # staticcall(gas, to, argsptr, argsz, retptr, retsz)
-        success = b.staticcall(gas, to, data_ptr, data_len, out_ptr, IRLiteral(max_outsize))
+        success = b.staticcall(
+            gas, to, data_ptr, data_len, out_ptr, IRLiteral(max_outsize)
+        )
     else:
         # call(gas, to, value, argsptr, argsz, retptr, retsz)
-        success = b.call(gas, to, value, data_ptr, data_len, out_ptr, IRLiteral(max_outsize))
+        success = b.call(
+            gas, to, value, data_ptr, data_len, out_ptr, IRLiteral(max_outsize)
+        )
 
     # Handle return based on revert_on_failure and max_outsize
     if revert_on_failure:
@@ -137,7 +170,9 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         b.append_block(fail_label)
         b.set_block(fail_label)
         ret_size = b.returndatasize()
-        revert_buffer = ctx.allocate_buffer(0, annotation="lower raw call revert on failure buffer")
+        revert_buffer = ctx.allocate_buffer(
+            0, annotation="lower raw call revert on failure buffer"
+        )
         b.returndatacopy(revert_buffer._ptr, IRLiteral(0), ret_size)
         b.revert(revert_buffer._ptr, ret_size)
 
@@ -179,7 +214,9 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
             # bytes_t.memory_bytes_required = 32 (length) + ceil32(max_outsize) (data)
             bytes_ptr = ctx.add_offset(tuple_local.ptr(), IRLiteral(32))
             assert isinstance(bytes_ptr.operand, IRVariable)
-            ctx.copy_memory(bytes_ptr.operand, out_val.operand, bytes_t.memory_bytes_required)
+            ctx.copy_memory(
+                bytes_ptr.operand, out_val.operand, bytes_t.memory_bytes_required
+            )
 
             return tuple_local
 
@@ -203,7 +240,9 @@ def lower_send(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     to = Expr(node.args[0], ctx).lower_value()
     value = Expr(node.args[1], ctx).lower_value()
 
-    runtime_kwargs = lower_kwargs_in_source_order(node, ctx, ("gas",))
+    runtime_kwargs = get_kwarg_values(
+        node, ctx, ("gas",), allowed_kwarg_names=_SEND_KWARGS
+    )
     gas = runtime_kwargs["gas"] if "gas" in runtime_kwargs else IRLiteral(0)
 
     argsptr_buf = ctx.allocate_buffer(0, annotation="lower send args buffer")
