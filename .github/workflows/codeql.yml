@@ -6,29 +6,36 @@ on:
   pull_request:
     branches: [ "master" ]
 
+permissions: {}
+
 jobs:
   analyze:
     name: Analyze
     runs-on: ubuntu-latest
     permissions:
+      # Required for CodeQL to read workflow metadata.
       actions: read
+      # Required to checkout and analyze repository contents.
       contents: read
+      # Required to upload CodeQL analysis results.
       security-events: write
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@458d36d7d4f47d0dd16ca424c1d3cda0060f1360 # v3
         with:
           languages: python
           queries: +security-and-quality
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@458d36d7d4f47d0dd16ca424c1d3cda0060f1360 # v3
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@458d36d7d4f47d0dd16ca424c1d3cda0060f1360 # v3
         with:
           category: "/language:python"
