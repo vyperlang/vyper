@@ -34,6 +34,8 @@ def _parse_method_id(method_id_node: vy_ast.VyperNode) -> Optional[int]:
     if method_id_node is None:
         return None
 
+    method_id_node = method_id_node.reduced()
+
     # Handle bytes literal: method_id=0xaabbccdd
     if isinstance(method_id_node, vy_ast.Hex):
         hex_val = method_id_node.value
@@ -49,20 +51,6 @@ def _parse_method_id(method_id_node: vy_ast.VyperNode) -> Optional[int]:
     # Handle Int literal
     if isinstance(method_id_node, vy_ast.Int):
         return method_id_node.value
-
-    # If it has a folded value (constant expression)
-    if (
-        hasattr(method_id_node, "_metadata")
-        and "folded_value" in method_id_node._metadata
-    ):
-        folded = method_id_node._metadata["folded_value"]
-        if isinstance(folded, vy_ast.Bytes):
-            return fourbytes_to_int(folded.value)
-        if isinstance(folded, vy_ast.Hex):
-            hex_val = folded.value
-            if isinstance(hex_val, str):
-                hex_str = hex_val[2:] if hex_val.startswith("0x") else hex_val
-                return fourbytes_to_int(bytes.fromhex(hex_str))
 
     return None
 
