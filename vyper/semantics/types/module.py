@@ -205,16 +205,32 @@ class InterfaceT(_UserType):
         InterfaceT
             primitive interface type
         """
-        # Functions with default arguments are expanded by the Vyper compiler
-        # into multiple ABI entries sharing the same name but with different
-        # input counts (one entry per arity). Deduplicate by keeping the
-        # overload with the most inputs, mirroring the AST-side handling in
-        # _get_module_functions (d1859cd8). Entries with the same name but
-        # incompatible input-type prefixes represent a genuine collision and
-        # are rejected. Types are compared on the parsed argument objects
-        # rather than the raw ABI "type" string, so e.g. `int168` and
-        # `decimal` (which share `"type": "int168"` but differ in
-        # `internalType`) are correctly treated as incompatible.
+        functions: list = cls._dedup_default_arg_overloads(abi)
+        events: list = []
+
+        for item in [i for i in abi if i.get("type") == "event"]:
+            events.append((item["name"], EventT.from_abi(item)))
+
+        return cls._from_lists(name, None, functions, events)
+
+    @classmethod
+    def _dedup_default_arg_overloads(cls, abi: dict) -> list:
+        """
+        Deduplicate function ABI entries produced by default-argument
+        expansion.
+
+        Functions with default arguments are expanded by the Vyper
+        compiler into multiple ABI entries sharing the same name but
+        with different input counts (one entry per arity). Keep the
+        overload with the most inputs, mirroring the AST-side handling
+        in _get_module_functions (d1859cd8). Entries with the same
+        name but incompatible input-type prefixes represent a genuine
+        collision and are rejected. Types are compared on the parsed
+        argument objects rather than the raw ABI "type" string, so
+        e.g. `int168` and `decimal` (which share `"type": "int168"`
+        but differ in `internalType`) are correctly treated as
+        incompatible.
+        """
         parsed_fns: dict = {}
         for item in [i for i in abi if i.get("type") == "function"]:
             fn_name = item["name"]
@@ -235,12 +251,7 @@ class InterfaceT(_UserType):
             if len(curr_args) > len(prev_args):
                 parsed_fns[fn_name] = curr_fn
 
-        functions: list = [(fn_name, fn) for fn_name, fn in parsed_fns.items()]
-        events: list = [
-            (item["name"], EventT.from_abi(item)) for item in abi if item.get("type") == "event"
-        ]
-
-        return cls._from_lists(name, None, functions, events)
+        return [(fn_name, fn) for fn_name, fn in parsed_fns.items()]
 
     @classmethod
     def from_ModuleT(cls, module_t: "ModuleT") -> "InterfaceT":

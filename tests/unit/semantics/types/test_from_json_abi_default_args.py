@@ -225,3 +225,94 @@ def test_decimal_vs_int168_rejected_despite_same_raw_type():
     ]
     with pytest.raises(NamespaceCollision, match="incompatible input types"):
         InterfaceT.from_json_abi("T", abi)
+
+
+def test_mixed_prefix_lengths_keeps_longest_overload():
+    # Three overloads with mixed arities (2, 4, 3) and a shared
+    # compatible input-type prefix. Regardless of input order, the
+    # 4-argument overload must be the survivor.
+    abi = [
+        {
+            "type": "function",
+            "name": "foo",
+            "stateMutability": "view",
+            "inputs": [
+                {"name": "a", "type": "uint256"},
+                {"name": "b", "type": "address"},
+            ],
+            "outputs": [{"name": "", "type": "uint256"}],
+        },
+        {
+            "type": "function",
+            "name": "foo",
+            "stateMutability": "view",
+            "inputs": [
+                {"name": "a", "type": "uint256"},
+                {"name": "b", "type": "address"},
+                {"name": "c", "type": "uint256"},
+                {"name": "d", "type": "uint256"},
+            ],
+            "outputs": [{"name": "", "type": "uint256"}],
+        },
+        {
+            "type": "function",
+            "name": "foo",
+            "stateMutability": "view",
+            "inputs": [
+                {"name": "a", "type": "uint256"},
+                {"name": "b", "type": "address"},
+                {"name": "c", "type": "uint256"},
+            ],
+            "outputs": [{"name": "", "type": "uint256"}],
+        },
+    ]
+    interface = InterfaceT.from_json_abi("T", abi)
+    fn = interface.functions["foo"]
+    args = list(fn.arguments)
+    assert len(args) == 4
+    assert [a.name for a in args] == ["a", "b", "c", "d"]
+    assert [str(a.typ) for a in args] == ["uint256", "address", "uint256", "uint256"]
+
+
+def test_mixed_prefix_lengths_with_incompatible_extra_arg_raises():
+    # The case raised in upstream review: three overloads share the
+    # `(uint256, address)` prefix, but the third argument's type
+    # differs across overloads (decimal vs int128). The dedup must
+    # detect the collision on the third position even though a
+    # shorter compatible overload sits between the two longer ones.
+    abi = [
+        {
+            "type": "function",
+            "name": "foo",
+            "stateMutability": "view",
+            "inputs": [
+                {"name": "a", "type": "uint256"},
+                {"name": "b", "type": "address"},
+                {"name": "c", "type": "int168", "internalType": "decimal"},
+            ],
+            "outputs": [{"name": "", "type": "uint256"}],
+        },
+        {
+            "type": "function",
+            "name": "foo",
+            "stateMutability": "view",
+            "inputs": [
+                {"name": "a", "type": "uint256"},
+                {"name": "b", "type": "address"},
+            ],
+            "outputs": [{"name": "", "type": "uint256"}],
+        },
+        {
+            "type": "function",
+            "name": "foo",
+            "stateMutability": "view",
+            "inputs": [
+                {"name": "a", "type": "uint256"},
+                {"name": "b", "type": "address"},
+                {"name": "c", "type": "int128"},
+            ],
+            "outputs": [{"name": "", "type": "uint256"}],
+        },
+    ]
+    with pytest.raises(NamespaceCollision, match="incompatible input types"):
+        InterfaceT.from_json_abi("T", abi)
