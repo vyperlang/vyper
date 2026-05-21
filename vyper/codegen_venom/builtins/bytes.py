@@ -11,8 +11,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.arithmetic import clamp_basetype
 from vyper.codegen_venom.value import VyperValue
-from vyper.semantics.types import AddressT, BytesM_T, BytesT, IntegerT, StringT
+from vyper.semantics.types import BytesM_T, BytesT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -286,38 +287,7 @@ def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Apply type-specific clamping if needed
     out_t = node._metadata["type"]
-    return _clamp_extract32_result(result, out_t, ctx)
-
-
-def _clamp_extract32_result(val: IROperand, out_t, ctx: VenomCodegenContext) -> IROperand:
-    """Apply bounds check for extract32 output type."""
-    b = ctx.builder
-
-    if isinstance(out_t, IntegerT):
-        # Need to clamp to type bounds for signed/unsigned integers
-        if out_t.bits < 256:
-            if out_t.is_signed:
-                # For signed types, check signextend(val) == val
-                # This ensures the value's high bits match the sign bit
-                bytes_minus_1 = out_t.bits // 8 - 1
-                canonical = b.signextend(IRLiteral(bytes_minus_1), val)
-                b.assert_(b.eq(val, canonical))
-            else:
-                # For unsigned types, check value fits in type range
-                mask = (1 << out_t.bits) - 1
-                too_big = b.gt(val, IRLiteral(mask))
-                b.assert_(b.iszero(too_big))
-    elif isinstance(out_t, AddressT):
-        # Address is 160 bits, ensure high 96 bits are zero
-        mask = (1 << 160) - 1
-        too_big = b.gt(val, IRLiteral(mask))
-        b.assert_(b.iszero(too_big))
-    elif isinstance(out_t, BytesM_T) and out_t.m < 32:
-        # BytesM values are left-aligned, so any bytes after M must be zero.
-        b.assert_(b.iszero(b.shl(IRLiteral(out_t.m * 8), val)))
-
-    # bytes32 needs no clamping
-    return val
+    return clamp_basetype(b, result, out_t)
 
 
 # Export handlers

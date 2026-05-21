@@ -12,7 +12,7 @@ from typing import Optional, Union
 from vyper import ast as vy_ast
 from vyper.codegen.arithmetic import calculate_largest_base, calculate_largest_power
 from vyper.exceptions import CompilerPanic, TypeCheckFailure
-from vyper.semantics.types import DecimalT, IntegerT
+from vyper.semantics.types import AddressT, BoolT, BytesM_T, DecimalT, IntegerT
 from vyper.venom.basicblock import IRLiteral, IROperand
 from vyper.venom.builder import VenomBuilder
 
@@ -235,8 +235,28 @@ def safe_pow(
     return b.exp(x, y)
 
 
-def clamp_basetype(b: VenomBuilder, val: IROperand, typ: Union[IntegerT, DecimalT]) -> IROperand:
+def clamp_basetype(
+    b: VenomBuilder, val: IROperand, typ: Union[AddressT, BoolT, BytesM_T, DecimalT, IntegerT]
+) -> IROperand:
     """Clamp value to type bounds."""
+    if isinstance(typ, BytesM_T):
+        if typ.m < 32:
+            b.assert_(b.iszero(b.shl(IRLiteral(typ.m * 8), val)))
+        return val
+
+    if isinstance(typ, AddressT):
+        ok = b.iszero(b.gt(val, IRLiteral((1 << 160) - 1)))
+        b.assert_(ok)
+        return val
+
+    if isinstance(typ, BoolT):
+        ok = b.iszero(b.gt(val, IRLiteral(1)))
+        b.assert_(ok)
+        return val
+
+    if isinstance(typ, IntegerT) and typ.bits == 256:
+        return val
+
     lo, hi = typ.int_bounds
 
     if typ.is_signed:
