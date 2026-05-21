@@ -1,4 +1,5 @@
 from vyper import ast as vy_ast
+from vyper.compiler.input_bundle import BUILTIN
 from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import (
     ArrayIndexException,
@@ -94,7 +95,8 @@ def type_from_annotation(
     # TODO: cursed import cycle!
     from vyper.semantics.types.primitives import DecimalT
 
-    if isinstance(typ, DecimalT):
+    # Gate uses of decimal outside of built-ins behind a flag
+    if isinstance(typ, DecimalT) and node.module_node.source_id != BUILTIN:
         # is there a better place to put this check?
         settings = get_global_settings()
         if settings and not settings.get_enable_decimals():

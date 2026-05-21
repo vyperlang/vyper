@@ -12,6 +12,7 @@ from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.effects import Effects, to_addr_space
 from vyper.venom.memory_location import MemoryLocation
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.copy_forwarding import CopyForwardingPolicy
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
 _NONMEM_COPY_OPCODES = ("calldatacopy", "codecopy", "dloadbytes", "returndatacopy")
@@ -30,6 +31,7 @@ class MemoryCopyElisionPass(IRPass):
     loads: dict[Effects, dict[IRVariable, tuple[MemoryLocation, IRInstruction]]]
     # For cross-BB analysis: maps BB -> copy state at end of BB
     bb_copies: dict[IRBasicBlock, CopyMap]
+    copy_forwarding: CopyForwardingPolicy
 
     def run_pass(self):
         self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
@@ -37,6 +39,9 @@ class MemoryCopyElisionPass(IRPass):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.updater = InstUpdater(self.dfg)
+        self.copy_forwarding = CopyForwardingPolicy(
+            self.function, self.dfg, self.base_ptr, self.mem_alias
+        )
         self.loads = {Effects.MEMORY: dict(), Effects.STORAGE: dict(), Effects.TRANSIENT: dict()}
         self.bb_copies = {}
 
@@ -87,34 +92,7 @@ class MemoryCopyElisionPass(IRPass):
 
     def _copies_equivalent(self, inst1: IRInstruction, inst2: IRInstruction) -> bool:
         """Check if two copy instructions are semantically equivalent."""
-
-        # we can assume that the write location since the copies are
-        # compared if they are in the same key in the copies map
-        # so this is a sanity check for that
-        write_loc1 = self.base_ptr.get_write_location(inst1, addr_space.MEMORY)
-        write_loc2 = self.base_ptr.get_write_location(inst2, addr_space.MEMORY)
-        assert write_loc1 == write_loc2
-
-        if inst1 is inst2:
-            return True
-
-        if inst1.opcode != inst2.opcode:
-            return False
-
-        # Verify the source OPERANDS are equivalent (not just locations).
-        # This ensures we can safely use either instruction's operands after merge.
-        # are_equivalent handles assign chains (e.g., %x = 0; %y = %x -> %x == %y)
-        #
-        # Operand layout: [size, src, dst]
-        size1, src_op1, _ = inst1.operands
-        size2, src_op2, _ = inst2.operands
-
-        if not self.dfg.are_equivalent(src_op1, src_op2):
-            return False
-        if not self.dfg.are_equivalent(size1, size2):
-            return False
-
-        return True
+        return self.copy_forwarding.copies_equivalent(inst1, inst2)
 
     def _process_bb(self, bb: IRBasicBlock) -> bool:
         """Process a basic block, return True if copy state changed."""
@@ -220,21 +198,7 @@ class MemoryCopyElisionPass(IRPass):
         # MemoryLocation includes size as part of its identity, and only
         # fixed-size copies (where size is a literal) are tracked in self.copies.
         # Variable-size copies have is_fixed=False and aren't tracked.
-        _, src, _ = previous.operands
-
-        # Traverse assign chain to get the canonical operand. This handles
-        # the case where equivalent copies on different paths use different
-        # variable names (e.g., %x = 0 vs %y = 0). Using the root (literal 0)
-        # avoids SSA violations when the original variable isn't defined on
-        # all paths to the current block.
-        #
-        # Safety: _traverse_assign_chain returns a value that dominates the
-        # use site because _copies_equivalent only returns True when operands
-        # share a common assign-chain root (via are_equivalent), and that root
-        # must dominate all paths that use it.
-        if isinstance(src, IRVariable):
-            src = self.dfg._traverse_assign_chain(src)
-
+        src = self.copy_forwarding.copy_source(previous)
         inst.opcode = previous.opcode
         inst.operands[1] = src
 
