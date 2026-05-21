@@ -632,7 +632,11 @@ def gas_then_value() -> uint256:
     assert c.value_then_gas() == 2
     # Legacy codegen evaluates raw_call kwargs in operand order; #2863 tracks
     # fixing it to source order.
-    assert c.gas_then_value() == (1 if experimental_codegen else 2)
+    gas_then_value = c.gas_then_value()
+    if experimental_codegen:
+        assert gas_then_value == 1
+    else:
+        assert gas_then_value == 2
 
 
 uncompilable_code = [
