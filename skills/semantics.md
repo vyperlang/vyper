@@ -15,7 +15,7 @@ Source → pre_parser → Python AST → Vyper AST → semantic analysis → ann
 See [vyper/ast/README.md](../vyper/ast/README.md).
 
 - `pre_parser.py`: Vyper source → parseable Python (substitutes `struct`/`interface` → `class`, etc.)
-- `grammar.lark`: Lark grammar definition (but we mainly use the python parser)
+- `grammar.lark`: Lark grammar definition (for reference/making sure we adhere to a bnf spec)
 - `nodes.py`: Vyper AST node classes (use `__slots__`)
 - `parse.py` / `utils.py`: `parse_to_ast()` — main entry
 

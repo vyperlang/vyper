@@ -179,7 +179,7 @@ Full details in [docs/style-guide.rst](../docs/style-guide.rst). Highlights:
 
 - PEP 8, 100 char line length, enforced by `make lint`
 - Type classes end in `T` (`IntegerT`, `ModuleT`)
-- Method naming: `get_` (pure), `fetch_` (side effects), `build_` (creates new), static `from_` (creates new from specific source), `check_` (pure, no raise, returns boolean), `validate_` (raises or returns None)
+- Method naming: `get_` (pure), `fetch_` (side effects), `build_` (creates new), classmethod `from_` (creates new from specific source), `check_` (pure, no raise, returns boolean), `validate_` (raises or returns None)
 - No builtin exceptions — use custom exception classes from `vyper/exceptions.py`
 - f-strings for string formatting
 - Import modules, not objects (avoids circular deps)
