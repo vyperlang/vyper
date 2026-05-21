@@ -93,9 +93,9 @@ class LivenessAnalysis(IRAnalysis):
         return self.inst_to_liveness[inst]
 
     # calculate the input variables into self from source
-    def input_vars_from(self, source: IRBasicBlock, target: IRBasicBlock) -> OrderedSet[IRVariable]:
-        liveness = self.inst_to_liveness[target.instructions[0]].copy()
-
+    def input_vars_from(
+        self, source: IRBasicBlock, target: IRBasicBlock
+    ) -> OrderedSet[IRVariable] | list[IRVariable]:
         phis: list[IRInstruction] = []
         for inst in target.instructions:
             if inst.opcode == "phi":
@@ -106,31 +106,35 @@ class LivenessAnalysis(IRAnalysis):
                 break
 
         if len(phis) == 0:
+            liveness = self.inst_to_liveness[target.instructions[0]].copy()
             return liveness
 
-        # Map every phi operand (from all sources) to its phi index,
-        # and record the matching operand from `source` for each phi.
-        operand_to_phi_idx: dict[IROperand, int] = {}
+        # Map live phi outputs to the matching operand from `source`.
+        # Mapping by input operand is ambiguous when the same variable feeds
+        # more than one phi. The block-entry stack only needs values for live
+        # phi results, in that result order.
+        liveness = OrderedSet()
+        for inst in target.instructions:
+            if inst.opcode != "phi":
+                liveness = self.inst_to_liveness[inst].copy()
+                break
+
+        output_to_phi_idx: dict[IROperand, int] = {}
         phi_matching: dict[int, IRVariable] = {}
         for i, phi in enumerate(phis):
+            output_to_phi_idx[phi.output] = i
             for label, var in phi.phi_operands:
-                operand_to_phi_idx[var] = i
                 if label == source.label:
                     assert isinstance(var, IRVariable)
                     phi_matching[i] = var
 
-        result: OrderedSet[IRVariable] = OrderedSet()
-        placed: set[int] = set()
-
+        result: list[IRVariable] = []
         for var in liveness:
-            phi_idx = operand_to_phi_idx.get(var)
+            phi_idx = output_to_phi_idx.get(var)
             if phi_idx is not None:
-                if phi_idx not in placed:
-                    placed.add(phi_idx)
-                    result.add(phi_matching[phi_idx])
-                # else: skip subsequent operands of same phi
+                result.append(phi_matching[phi_idx])
             else:
-                result.add(var)
+                result.append(var)
 
         return result
 

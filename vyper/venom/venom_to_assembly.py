@@ -217,6 +217,12 @@ class VenomCompiler:
         if len(stack_ops) == 0:
             return 0
 
+        if len(stack_ops) != len(set(stack_ops)):
+            cost = self._stack_reorder_with_duplicates(assembly, stack, stack_ops, spilled, dry_run)
+            if dry_run:
+                self.spiller.restore(snap)
+            return cost
+
         assert len(stack_ops) == len(
             set(stack_ops)
         ), f"duplicated stack {stack_ops}"  # precondition
@@ -265,6 +271,58 @@ class VenomCompiler:
             self.spiller.restore(snap)
 
         return cost
+
+    def _stack_reorder_with_duplicates(
+        self,
+        assembly: list,
+        stack: StackModel,
+        stack_ops: list[IROperand],
+        spilled: dict[IROperand, int],
+        dry_run: bool = False,
+    ) -> int:
+        cost = 0
+
+        unique_ops = list(dict.fromkeys(stack_ops))
+        for op in unique_ops:
+            if op in spilled:
+                assert isinstance(op, IRVariable)
+                self.spiller.restore_spilled_operand(assembly, stack, spilled, op, dry_run=dry_run)
+
+        for op in unique_ops:
+            required = stack_ops.count(op)
+            while stack._stack.count(op) < required:
+                depth = stack.get_depth(op)
+                assert depth != StackModel.NOT_IN_STACK
+                cost += self.spiller.dup(assembly, stack, depth, dry_run)
+
+        locked_depths: set[int] = set()
+        for i, op in enumerate(stack_ops):
+            final_stack_depth = -(len(stack_ops) - i - 1)
+            if stack.peek(final_stack_depth) == op:
+                locked_depths.add(final_stack_depth)
+                continue
+
+            depth = self._find_unlocked_depth(stack, op, locked_depths)
+            assert depth != StackModel.NOT_IN_STACK
+
+            cost += self.spiller.swap(assembly, stack, depth, dry_run)
+            cost += self.spiller.swap(assembly, stack, final_stack_depth, dry_run)
+            locked_depths.add(final_stack_depth)
+
+        assert stack._stack[-len(stack_ops) :] == stack_ops, (stack, stack_ops)
+        return cost
+
+    @staticmethod
+    def _find_unlocked_depth(
+        stack: StackModel, op: IROperand, locked_depths: set[int]
+    ) -> int | object:
+        for i, stack_op in enumerate(reversed(stack._stack)):
+            depth = -i
+            if depth in locked_depths:
+                continue
+            if stack_op == op:
+                return depth
+        return StackModel.NOT_IN_STACK
 
     def _reduce_depth_via_spill(
         self,
@@ -509,12 +567,12 @@ class VenomCompiler:
         if opcode == "phi":
             ret = inst.output
             phis = list(inst.get_input_variables())
-            depth = stack.get_phi_depth(phis)
+            depth = self._get_phi_depth(stack, phis)
             # collapse the arguments to the phi node in the stack.
             # example, for `%56 = %label1 %13 %label2 %14`, we will
             # find an instance of %13 *or* %14 in the stack and replace it with %56.
             to_be_replaced = stack.peek(depth)
-            if to_be_replaced in next_liveness:
+            if to_be_replaced in next_liveness and stack._stack.count(to_be_replaced) == 1:
                 # this branch seems unreachable (maybe due to make_ssa)
                 # %13/%14 is still live(!), so we make a copy of it
                 self.spiller.dup(assembly, stack, depth)
@@ -677,6 +735,19 @@ class VenomCompiler:
         self.spiller.release_dead_spills(spilled, next_liveness)
 
         return apply_line_numbers(inst, assembly)
+
+    @staticmethod
+    def _get_phi_depth(stack: StackModel, phis: list[IRVariable]) -> int:
+        candidates = []
+        for i, stack_item in enumerate(reversed(stack._stack)):
+            if stack_item in phis:
+                candidates.append((-i, stack_item))
+
+        assert len(candidates) > 0, f"phi argument not in stack! {phis}, {stack._stack}"
+        assert len({candidate for _, candidate in candidates}) == 1, (
+            f"phi argument is not unique! {phis}, {stack._stack}"
+        )
+        return candidates[0][0]
 
     def _optimistic_swap(self, assembly, inst, next_liveness, stack):
         # heuristic: peek at next_liveness to find the next scheduled
