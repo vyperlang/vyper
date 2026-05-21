@@ -50,6 +50,7 @@ class _Msg(_EnvType):
 class _Inf(_EnvType):
     _id = "INF"
 
+
 # TODO: Remove, see other todos
 _inf = _Inf()
 
