@@ -66,6 +66,8 @@ Make sure you have `uv` installed
 5. Run `vyper --version` to verify the setup
 6. (optional) Run `git config blame.ignoreRevsFile .git-blame-ignore-revs` to improve `git blame`
 
+CI intentionally uses the pip workflow to validate the standard Python installation path end to end.
+
 #### pip
 
 Make sure you have `pip` (version 25.1 or above), `setuptools`, and `pytest` installed
