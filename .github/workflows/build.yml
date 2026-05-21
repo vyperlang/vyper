@@ -12,6 +12,9 @@ on:
   release:
     types: [published]  # releases and pre-releases (release candidates)
 
+permissions:
+  contents: read
+
 defaults:
   run:
     shell: bash
@@ -29,22 +32,22 @@ jobs:
           - macos-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
             # grab the commit passed in via `tag`, if any
             ref: ${{ github.event.inputs.tag }}
             # need to fetch unshallow so that setuptools_scm can infer the version
             fetch-depth: 0
+            persist-credentials: false
 
       # debug
       - name: Git shorthash
         run: git rev-parse --short HEAD
 
       - name: Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.11"
-          cache: "pip"
 
       - name: Generate Binary
         run: |
@@ -58,7 +61,7 @@ jobs:
 
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: vyper-${{ runner.os }}
           path: dist/vyper.*
@@ -67,22 +70,22 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
             # grab the commit passed in via `tag`, if any
             ref: ${{ github.event.inputs.tag }}
             # need to fetch unshallow so that setuptools_scm can infer the version
             fetch-depth: 0
+            persist-credentials: false
 
       # debug
       - name: Git shorthash
         run: git rev-parse --short HEAD
 
       - name: Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.11"
-          cache: "pip"
 
       - name: Generate Binary
         run: >-
@@ -91,7 +94,7 @@ jobs:
           ./make.cmd freeze
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: vyper-${{ runner.os }}
           path: dist/vyper.*
@@ -100,26 +103,35 @@ jobs:
     needs: [windows-build, unix-build]
     if: ${{ github.event_name == 'release' }}
     runs-on: ubuntu-latest
+    permissions:
+      # Upload generated binaries to the GitHub release.
+      contents: write
 
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artifacts/
           merge-multiple: true
 
       - name: Upload assets
         working-directory: artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_ID: ${{ github.event.release.id }}
         run: |
-          set -Eeuxo pipefail
+          set -Eeuo pipefail
           for BIN_NAME in $(ls)
           do
             curl -L \
               --no-progress-meter \
               -X POST \
-              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"\
+              -H "Authorization: Bearer ${GH_TOKEN}"\
               -H "Content-Type: application/octet-stream" \
-              "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ github.event.release.id }}/assets?name=${BIN_NAME/+/%2B}" \
+              "https://uploads.github.com/repos/${REPOSITORY}/releases/${RELEASE_ID}/assets?name=${BIN_NAME/+/%2B}" \
               --data-binary "@${BIN_NAME}"
           done
 
@@ -128,6 +140,7 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     needs: [windows-build, unix-build]
+    permissions: {}
     steps:
       - name: check that all builds succeeded
         if: ${{ contains(needs.*.result, 'failure') }}
