@@ -23,7 +23,7 @@ def goo() -> int128:
     return(god[0] + god[1] * 10 + god[2] * 100)
 
 @external
-def gop() -> int128: # Following a standard naming scheme; nothing to do with the US republican party  # noqa: E501
+def gop() -> int128: # Following a standard naming scheme; nothing to do with the US republican party
     gar: int128[3][3] = [[1, 2, 3], [4, 5, 6], [0, 0, 0]]
     return gar[0][0] + gar[0][1] * 10 + gar[0][2] * 100 + \
         gar[1][0] * 1000 + gar[1][1] * 10000 + gar[1][2] * 100000

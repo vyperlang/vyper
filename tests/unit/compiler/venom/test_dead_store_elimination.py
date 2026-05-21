@@ -982,7 +982,7 @@ def test_new_test():
       jmp @"external 0 fooBar(Bytes[100],int128,Bytes[100],uint256)_common"
 
   "external 0 fooBar(Bytes[100],int128,Bytes[100],uint256)_common":
-      %alloca_4_19_0 = phi @selector_bucket_2, %alloca_4_19_0:1, @selector_bucket_1, %alloca_4_19_0:2, @selector_bucket_0, %alloca_4_19_0:3  # noqa: E501
+      %alloca_4_19_0 = phi @selector_bucket_2, %alloca_4_19_0:1, @selector_bucket_1, %alloca_4_19_0:2, @selector_bucket_0, %alloca_4_19_0:3
       %57 = calldataload 4
       %58 = add 4, %57
       %60 = calldataload %58

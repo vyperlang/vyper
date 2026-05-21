@@ -60,7 +60,7 @@ def fooBar(a:int128, b: uint256 = 333) -> (int128, uint256):
 def test_basic_default_param_set_2args(get_contract):
     code = """
 @external
-def fooBar(a:int128, b: uint256 = 999, c: address = 0x0000000000000000000000000000000000000001) -> (int128, uint256, address):  # noqa: E501
+def fooBar(a:int128, b: uint256 = 999, c: address = 0x0000000000000000000000000000000000000001) -> (int128, uint256, address):
     return a, b, c
     """
 
@@ -80,7 +80,7 @@ def fooBar(a:int128, b: uint256 = 999, c: address = 0x00000000000000000000000000
 def test_default_param_bytes(get_contract):
     code = """
 @external
-def fooBar(a: Bytes[100], b: int128, c: Bytes[100] = b"testing", d: uint256 = 999) -> (Bytes[100], int128, Bytes[100], uint256):  # noqa: E501
+def fooBar(a: Bytes[100], b: int128, c: Bytes[100] = b"testing", d: uint256 = 999) -> (Bytes[100], int128, Bytes[100], uint256):
     return a, b, c, d
     """
     c = get_contract(code)
@@ -98,7 +98,7 @@ def fooBar(a: Bytes[100], b: int128, c: Bytes[100] = b"testing", d: uint256 = 99
 def test_default_param_array(get_contract):
     code = """
 @external
-def fooBar(a: Bytes[100], b: uint256[2], c: Bytes[6] = b"hello", d: int128[3] = [6, 7, 8]) -> (Bytes[100], uint256, Bytes[6], int128):  # noqa: E501
+def fooBar(a: Bytes[100], b: uint256[2], c: Bytes[6] = b"hello", d: int128[3] = [6, 7, 8]) -> (Bytes[100], uint256, Bytes[6], int128):
     return a, b[1], c, d[2]
     """
     c = get_contract(code)
@@ -187,7 +187,7 @@ def foo(a: int128[3] = [1, 2, 3]) -> int128[3]:
 def test_default_param_clamp(env, get_contract, tx_failed):
     code = """
 @external
-def bar(a: int128, b: int128 = -1) -> (int128, int128):  # noqa: E501
+def bar(a: int128, b: int128 = -1) -> (int128, int128):
     return a, b
     """
 

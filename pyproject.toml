@@ -98,7 +98,6 @@ split-on-trailing-comma = true
 "tests/functional/codegen/types/test_dynamic_array.py" = ["E501", "E741"]
 "tests/functional/codegen/types/test_lists.py" = ["E501"]
 "tests/functional/syntax/exceptions/test_overflow_exception.py" = ["E501"]
-"tests/functional/syntax/test_as_wei_value.py" = ["E501"]
 "tests/functional/syntax/test_constants.py" = ["E501"]
 "tests/unit/compiler/venom/test_dead_store_elimination.py" = ["E501"]
 

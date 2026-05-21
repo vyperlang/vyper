@@ -759,14 +759,14 @@ def test_multi3_2() -> DynArray[DynArray[DynArray[uint256, 2], 2], 2]:
 
 @external
 def test_multi4_1() -> DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 2]:
-    l: DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 2] = [[[[1, 0], [0, 4]], [[0, 0], [0, 0]]], [[[444, 0], [0, 0]],[[1, 0], [0, 222]]]]  # noqa: E501
+    l: DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 2] = [[[[1, 0], [0, 4]], [[0, 0], [0, 0]]], [[[444, 0], [0, 0]],[[1, 0], [0, 222]]]]
     self.nest4 = l
     l = self.nest4
     return l
 
 @external
 def test_multi4_2() -> DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 2]:
-    l: DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 2] = [[[[1, 0], [0, 4]], [[0, 0], [0, 0]]], [[[444, 0], [0, 0]],[[1, 0], [0, 222]]]]  # noqa: E501
+    l: DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 2] = [[[[1, 0], [0, 4]], [[0, 0], [0, 0]]], [[[444, 0], [0, 0]],[[1, 0], [0, 222]]]]
     self.nest4 = l
     return self.nest4
     """
