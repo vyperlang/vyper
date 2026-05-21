@@ -12,6 +12,7 @@ jobs:
   analyze:
     name: Analyze
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       # Required for CodeQL to read workflow metadata.
       actions: read

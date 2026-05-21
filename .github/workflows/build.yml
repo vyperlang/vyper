@@ -5,6 +5,7 @@ on:
     inputs:
       tag:
         default: ''
+        type: string
   push:
     branches:
       - master
@@ -22,6 +23,7 @@ defaults:
 jobs:
   unix-build:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     strategy:
       matrix:
         os:
@@ -68,6 +70,7 @@ jobs:
 
   windows-build:
     runs-on: windows-latest
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -103,6 +106,7 @@ jobs:
     needs: [windows-build, unix-build]
     if: ${{ github.event_name == 'release' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       # Upload generated binaries to the GitHub release.
       contents: write
@@ -139,6 +143,7 @@ jobs:
   build-success:
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     needs: [windows-build, unix-build]
     permissions: {}
     steps:

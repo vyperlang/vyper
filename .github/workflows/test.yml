@@ -21,6 +21,7 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -53,6 +54,7 @@ jobs:
 
   docs:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -74,6 +76,7 @@ jobs:
   # Symbolic tests
   symbolic-tests:
     runs-on: "ubuntu-latest"
+    timeout-minutes: 45
     name: symbolic-tests
 
     steps:
@@ -115,6 +118,7 @@ jobs:
   # "Regular"/core tests.
   tests:
     runs-on: ${{ matrix.os || 'ubuntu' }}-latest
+    timeout-minutes: 45
     # IMPORTANT: Test defaults are duplicated in the "Run tests" step below!
     # it is annoying that we need to duplicate them, but it is necessary
     # to avoid repeating defaults for every "include" in the matrix.
@@ -229,6 +233,7 @@ jobs:
     # summary result from test matrix.
     # see https://github.community/t/status-check-for-a-matrix-jobs/127354/7
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     needs: [tests, symbolic-tests]
     permissions: {}
     steps:
@@ -241,6 +246,7 @@ jobs:
   # the regular test suite)
   fuzzing:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     strategy:
       matrix:
@@ -293,6 +299,7 @@ jobs:
     # summary result from test matrix.
     # see https://github.community/t/status-check-for-a-matrix-jobs/127354/7
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     needs: fuzzing
     permissions: {}
 
@@ -305,6 +312,7 @@ jobs:
     # Consolidate code coverage using `coverage combine` and
     # call coverage report with fail-under=90
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     needs: [tests, fuzzing]
 
     steps:
@@ -356,6 +364,7 @@ jobs:
     # upload coverage to the codecov app
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     needs: [coverage-report]
     permissions:
       contents: read

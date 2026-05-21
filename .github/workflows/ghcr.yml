@@ -23,6 +23,7 @@ jobs:
   deploy-ghcr:
 
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
       # Push built images to GitHub Container Registry.

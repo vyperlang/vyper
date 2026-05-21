@@ -26,6 +26,7 @@ concurrency:
 jobs:
   era-compiler-tester:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
   
     steps:
     - name: Checkout

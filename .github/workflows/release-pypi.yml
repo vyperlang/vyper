@@ -12,6 +12,7 @@ permissions: {}
 jobs:
   publish-pypi:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     # https://docs.pypi.org/trusted-publishers/using-a-publisher/
     permissions:
