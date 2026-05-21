@@ -78,7 +78,7 @@ def _create_tuple_in_memory(
     return val.operand, tuple_t
 
 
-def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
+def lower_abi_encode(call: BuiltinCall) -> VyperValue:
     """
     abi_encode(*args, ensure_tuple=True, method_id=None) -> Bytes[N]
 
@@ -87,8 +87,9 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     - ensure_tuple: If True (default), wrap single arg in tuple for ABI conformance
     - method_id: Optional 4-byte prefix (function selector)
     """
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
-    call = BuiltinCall(node, ctx)
 
     call.validate_kwargs(_ABI_ENCODE_KWARGS)
     kwarg_constants = call.get_kwarg_ast_constants({"ensure_tuple": True, "method_id": None})
@@ -153,7 +154,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     return buf_val
 
 
-def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
+def lower_abi_decode(call: BuiltinCall) -> VyperValue:
     """
     abi_decode(data, output_type, unwrap_tuple=True) -> output_type
 
@@ -161,8 +162,9 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     - unwrap_tuple: If True (default), single-element tuples are unwrapped
     """
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
-    call = BuiltinCall(node, ctx)
 
     # Parse args
     data_node = node.args[0]

@@ -12,30 +12,31 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.builtins._kwargs import BuiltinCall
 from vyper.venom.basicblock import IRLiteral, IROperand
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
-def lower_unsafe_add(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_unsafe_add(call: BuiltinCall) -> IROperand:
     """unsafe_add(a, b) - unchecked addition."""
-    return _lower_unsafe_binop(node, ctx, "add")
+    return _lower_unsafe_binop(call.node, call.ctx, "add")
 
 
-def lower_unsafe_sub(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_unsafe_sub(call: BuiltinCall) -> IROperand:
     """unsafe_sub(a, b) - unchecked subtraction."""
-    return _lower_unsafe_binop(node, ctx, "sub")
+    return _lower_unsafe_binop(call.node, call.ctx, "sub")
 
 
-def lower_unsafe_mul(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_unsafe_mul(call: BuiltinCall) -> IROperand:
     """unsafe_mul(a, b) - unchecked multiplication."""
-    return _lower_unsafe_binop(node, ctx, "mul")
+    return _lower_unsafe_binop(call.node, call.ctx, "mul")
 
 
-def lower_unsafe_div(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_unsafe_div(call: BuiltinCall) -> IROperand:
     """unsafe_div(a, b) - unchecked division."""
-    return _lower_unsafe_binop(node, ctx, "div")
+    return _lower_unsafe_binop(call.node, call.ctx, "div")
 
 
 def _lower_unsafe_binop(node: vy_ast.Call, ctx: VenomCodegenContext, op: str) -> IROperand:
@@ -75,7 +76,7 @@ def _lower_unsafe_binop(node: vy_ast.Call, ctx: VenomCodegenContext, op: str) ->
     return result
 
 
-def lower_pow_mod256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_pow_mod256(call: BuiltinCall) -> IROperand:
     """
     pow_mod256(base, exp) - unchecked exponentiation mod 2^256.
 
@@ -83,6 +84,8 @@ def lower_pow_mod256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     from vyper.codegen_venom.expr import Expr
 
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
 
     base = Expr(node.args[0], ctx).lower_value()
@@ -91,7 +94,7 @@ def lower_pow_mod256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     return b.exp(base, exp)
 
 
-def lower_uint256_addmod(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_uint256_addmod(call: BuiltinCall) -> IROperand:
     """
     uint256_addmod(a, b, c) - (a + b) % c without intermediate overflow.
 
@@ -100,6 +103,8 @@ def lower_uint256_addmod(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     """
     from vyper.codegen_venom.expr import Expr
 
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
 
     a_val = Expr(node.args[0], ctx).lower_value()
@@ -112,7 +117,7 @@ def lower_uint256_addmod(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     return b.addmod(a_val, b_val, c_val)
 
 
-def lower_uint256_mulmod(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_uint256_mulmod(call: BuiltinCall) -> IROperand:
     """
     uint256_mulmod(a, b, c) - (a * b) % c without intermediate overflow.
 
@@ -121,6 +126,8 @@ def lower_uint256_mulmod(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     """
     from vyper.codegen_venom.expr import Expr
 
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
 
     a_val = Expr(node.args[0], ctx).lower_value()
@@ -133,7 +140,7 @@ def lower_uint256_mulmod(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     return b.mulmod(a_val, b_val, c_val)
 
 
-def lower_shift(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_shift(call: BuiltinCall) -> IROperand:
     """
     shift(x, bits) - bit shift operation (deprecated in favor of << / >> operators).
 
@@ -142,6 +149,8 @@ def lower_shift(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     from vyper.codegen_venom.expr import Expr
 
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
 
     val = Expr(node.args[0], ctx).lower_value()

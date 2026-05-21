@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.builtins._kwargs import BuiltinCall
 from vyper.semantics.types import BytesM_T
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
@@ -41,24 +42,28 @@ def _prepare_hash_input(node: vy_ast.Call, ctx: VenomCodegenContext) -> tuple[IR
     return buf._ptr, IRLiteral(32)
 
 
-def lower_keccak256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_keccak256(call: BuiltinCall) -> IROperand:
     """
     keccak256(data) -> bytes32
 
     Computes Keccak-256 hash using native SHA3 opcode.
     Handles both variable-length bytes/string and fixed bytes32.
     """
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
     data_ptr, length = _prepare_hash_input(node, ctx)
     return b.sha3(data_ptr, length)
 
 
-def lower_sha256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_sha256(call: BuiltinCall) -> IROperand:
     """
     sha256(data) -> bytes32
 
     Computes SHA-256 hash via precompile at address 0x2.
     """
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
     data_ptr, length = _prepare_hash_input(node, ctx)
     assert isinstance(data_ptr, IRVariable)

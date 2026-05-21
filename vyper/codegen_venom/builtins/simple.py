@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Union
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.builtins._kwargs import BuiltinCall
 from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
-def lower_len(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_len(call: BuiltinCall) -> IROperand:
     """
     len(x) for dynamic arrays, bytes, strings.
 
@@ -26,6 +27,8 @@ def lower_len(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     from vyper.codegen_venom.expr import Expr
 
+    node = call.node
+    ctx = call.ctx
     arg_node = node.args[0]
 
     # Special case: len(msg.data) returns calldatasize
@@ -39,7 +42,7 @@ def lower_len(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     return ctx.load_word(arg_vv.operand, arg_vv.location)
 
 
-def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand, VyperValue]:
+def lower_empty(call: BuiltinCall) -> Union[IROperand, VyperValue]:
     """
     empty(T) returns zero-initialized value of type T.
 
@@ -52,6 +55,8 @@ def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand,
     sufficient since length=0 means no valid data. For other complex types,
     we zero the entire buffer.
     """
+    node = call.node
+    ctx = call.ctx
     typ = node._metadata["type"]
 
     if typ._is_prim_word:
@@ -80,14 +85,14 @@ def _zero_memory(ctx: VenomCodegenContext, ptr: IRVariable, size: int) -> None:
         ctx.builder.mstore(dst, IRLiteral(0))
 
 
-def lower_min(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_min(call: BuiltinCall) -> IROperand:
     """min(a, b) - returns smaller of two values."""
-    return _lower_minmax(node, ctx, is_max=False)
+    return _lower_minmax(call.node, call.ctx, is_max=False)
 
 
-def lower_max(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_max(call: BuiltinCall) -> IROperand:
     """max(a, b) - returns larger of two values."""
-    return _lower_minmax(node, ctx, is_max=True)
+    return _lower_minmax(call.node, call.ctx, is_max=True)
 
 
 def _lower_minmax(node: vy_ast.Call, ctx: VenomCodegenContext, is_max: bool) -> IROperand:
@@ -113,7 +118,7 @@ def _lower_minmax(node: vy_ast.Call, ctx: VenomCodegenContext, is_max: bool) -> 
     return b.select(cmp_result, a_val, b_val)
 
 
-def lower_abs(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_abs(call: BuiltinCall) -> IROperand:
     """
     abs(x) for int256 only.
 
@@ -122,6 +127,8 @@ def lower_abs(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     from vyper.codegen_venom.expr import Expr
 
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
 
     val = Expr(node.args[0], ctx).lower_value()

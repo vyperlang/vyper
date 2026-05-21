@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.builtins._kwargs import BuiltinCall
 from vyper.exceptions import CompilerPanic, InvalidLiteral, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
@@ -27,7 +28,7 @@ if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
-def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_convert(call: BuiltinCall) -> IROperand:
     """
     convert(value, type) - type conversion.
 
@@ -35,6 +36,8 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     from vyper.codegen_venom.expr import Expr
 
+    node = call.node
+    ctx = call.ctx
     arg_node = node.args[0]
     in_t = arg_node._metadata["type"]
     out_t = node.args[1]._metadata["type"].typedef

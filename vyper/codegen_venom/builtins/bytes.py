@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.builtins._kwargs import BuiltinCall
 from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.types import AddressT, BytesM_T, BytesT, IntegerT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
@@ -32,7 +33,7 @@ def _assert_slice_bounds(
     b.assert_(b.iszero(oob))
 
 
-def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
+def lower_concat(call: BuiltinCall) -> VyperValue:
     """
     concat(a, b, ...) -> bytes | string
 
@@ -42,6 +43,8 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     """
     from vyper.codegen_venom.expr import Expr
 
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
     args = node.args
 
@@ -102,7 +105,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     return out_val
 
 
-def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
+def lower_slice(call: BuiltinCall) -> VyperValue:
     """
     slice(b, start, length) -> bytes | string
 
@@ -111,6 +114,8 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     """
     from vyper.codegen_venom.expr import Expr
 
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
 
     src_node = node.args[0]
@@ -241,7 +246,7 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
     return out_val
 
 
-def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_extract32(call: BuiltinCall) -> IROperand:
     """
     extract32(b, start, output_type=bytes32) -> bytes32 | int | address
 
@@ -250,6 +255,8 @@ def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     from vyper.codegen_venom.expr import Expr
 
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
 
     src_node = node.args[0]

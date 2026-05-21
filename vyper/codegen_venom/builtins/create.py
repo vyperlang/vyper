@@ -160,7 +160,7 @@ def _create_preamble_bytes():
     return evm
 
 
-def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_raw_create(call: BuiltinCall) -> IROperand:
     """
     raw_create(bytecode, *ctor_args, value=0, salt=None, revert_on_failure=True)
 
@@ -169,10 +169,11 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     Returns deployed contract address.
     """
+    node = call.node
+    ctx = call.ctx
     ctx.check_is_not_constant("use raw_create", node)
 
     b = ctx.builder
-    call = BuiltinCall(node, ctx)
 
     # Parse positional args: bytecode is first, rest are ctor_args
     bytecode_node = node.args[0]
@@ -241,7 +242,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     return _check_create_result(ctx, b, addr, revert_on_failure)
 
 
-def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_create_minimal_proxy_to(call: BuiltinCall) -> IROperand:
     """
     create_minimal_proxy_to(target, value=0, salt=None, revert_on_failure=True)
 
@@ -250,10 +251,11 @@ def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -
 
     Returns deployed proxy address.
     """
+    node = call.node
+    ctx = call.ctx
     ctx.check_is_not_constant("use create_minimal_proxy_to", node)
 
     b = ctx.builder
-    call = BuiltinCall(node, ctx)
 
     # Parse args
     target = call.lower_pos_arg_values(node.args[:1])[0]
@@ -309,7 +311,7 @@ def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -
     return _check_create_result(ctx, b, addr, revert_on_failure)
 
 
-def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_create_copy_of(call: BuiltinCall) -> IROperand:
     """
     create_copy_of(target, value=0, salt=None, revert_on_failure=True)
 
@@ -318,10 +320,11 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
 
     Returns deployed contract address.
     """
+    node = call.node
+    ctx = call.ctx
     ctx.check_is_not_constant("use create_copy_of", node)
 
     b = ctx.builder
-    call = BuiltinCall(node, ctx)
 
     # Parse args
     target = call.lower_pos_arg_values(node.args[:1])[0]
@@ -380,7 +383,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     return _check_create_result(ctx, b, addr, revert_on_failure)
 
 
-def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_create_from_blueprint(call: BuiltinCall) -> IROperand:
     """
     create_from_blueprint(target, *ctor_args, value=0, salt=None,
                           raw_args=False, code_offset=3, revert_on_failure=True)
@@ -392,10 +395,11 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
 
     Returns deployed contract address.
     """
+    node = call.node
+    ctx = call.ctx
     ctx.check_is_not_constant("use create_from_blueprint", node)
 
     b = ctx.builder
-    call = BuiltinCall(node, ctx)
 
     # Parse args: target is first, rest are ctor_args
     target = call.lower_pos_arg_values(node.args[:1])[0]
