@@ -62,7 +62,7 @@ def test_basic_default_param_set_2args(get_contract):
 @external
 def fooBar(a:int128, b: uint256 = 999, c: address = 0x0000000000000000000000000000000000000001) -> (int128, uint256, address):
     return a, b, c
-    """
+    """  # noqa: E501
 
     c = get_contract(code)
     c_default_value = "0x0000000000000000000000000000000000000001"
@@ -82,7 +82,7 @@ def test_default_param_bytes(get_contract):
 @external
 def fooBar(a: Bytes[100], b: int128, c: Bytes[100] = b"testing", d: uint256 = 999) -> (Bytes[100], int128, Bytes[100], uint256):
     return a, b, c, d
-    """
+    """  # noqa: E501
     c = get_contract(code)
     c_default = b"testing"
     d_default = 999
@@ -100,7 +100,7 @@ def test_default_param_array(get_contract):
 @external
 def fooBar(a: Bytes[100], b: uint256[2], c: Bytes[6] = b"hello", d: int128[3] = [6, 7, 8]) -> (Bytes[100], uint256, Bytes[6], int128):
     return a, b[1], c, d[2]
-    """
+    """  # noqa: E501
     c = get_contract(code)
     c_default = b"hello"
     d_default = 8

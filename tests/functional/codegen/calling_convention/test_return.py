@@ -80,7 +80,7 @@ def out_chunk() -> (Bytes[8], int128, Bytes[8]):
 @external
 def out_very_long_bytes() -> (int128, Bytes[1024], int128, address):
     return 5555, b"testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest", 6666, 0x0000000000000000000000000000000000001234
-    """
+    """  # noqa: E501
 
     c = get_contract(code)
 

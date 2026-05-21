@@ -8,7 +8,7 @@ def double(x: int128) -> int128:
 def returnten() -> int128:
     ans: Bytes[32] = raw_call(self, concat(method_id("double(int128)"), convert(5, bytes32)), gas=50000, max_outsize=32)
     return convert(convert(ans, bytes32), int128)
-    """
+    """  # noqa: E501
     c = get_contract(method_id_test)
     assert c.returnten() == 10
 

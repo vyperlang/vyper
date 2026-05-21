@@ -52,7 +52,7 @@ def jop() -> int128:
     return gar[0][0] + gar[0][1] * 10 + gar[0][2] * 100 + \
         gar[1][0] * 1000 + gar[1][1] * 10000 + gar[1][2] * 100000
 
-    """
+    """  # noqa: E501
 
     c = get_contract(multi_setter_test)
     assert c.foo() == 321

@@ -85,21 +85,7 @@ split-on-trailing-comma = true
 "vyper/ast/__init__.py" = ["I001"]
 # Ruff emits E741 in two existing tests where the previous Flake8 stack did not.
 "tests/functional/builtins/folding/test_min_max.py" = ["E741"]
-# These files have existing long embedded Vyper/Venom snippets. Keep the
-# Ruff migration behavior-preserving rather than rewriting test fixtures.
-"tests/functional/builtins/codegen/test_method_id.py" = ["E501"]
-"tests/functional/builtins/codegen/test_minmax.py" = ["E501"]
-"tests/functional/builtins/codegen/test_raw_call.py" = ["E501"]
-"tests/functional/codegen/calling_convention/test_default_parameters.py" = ["E501"]
-"tests/functional/codegen/calling_convention/test_internal_call.py" = ["E501"]
-"tests/functional/codegen/calling_convention/test_return.py" = ["E501"]
-"tests/functional/codegen/features/test_logging.py" = ["E501"]
-"tests/functional/codegen/storage_variables/test_setters.py" = ["E501"]
-"tests/functional/codegen/types/test_dynamic_array.py" = ["E501", "E741"]
-"tests/functional/codegen/types/test_lists.py" = ["E501"]
-"tests/functional/syntax/exceptions/test_overflow_exception.py" = ["E501"]
-"tests/functional/syntax/test_constants.py" = ["E501"]
-"tests/unit/compiler/venom/test_dead_store_elimination.py" = ["E501"]
+"tests/functional/codegen/types/test_dynamic_array.py" = ["E741"]
 
 [tool.pytest.ini_options]
 addopts = """-n auto --dist worksteal --strict-markers -m "not fuzzing" """

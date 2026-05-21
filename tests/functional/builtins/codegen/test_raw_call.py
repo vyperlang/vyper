@@ -69,7 +69,7 @@ def create_and_call_returnten(inp: address) -> int128:
 def create_and_return_proxy(inp: address) -> address:
     x: address = create_minimal_proxy_to(inp)
     return x
-    """
+    """  # noqa: E501
 
     c2 = get_contract(outer_code)
     assert c2.create_and_call_returnten(c.address) == 10
@@ -109,7 +109,7 @@ def create_and_call_returnten(inp: address) -> int128:
 @external
 def create_and_return_proxy(inp: address) -> address:
     return create_minimal_proxy_to(inp)
-    """
+    """  # noqa: E501
 
     c2 = get_contract(outer_code)
 
@@ -152,7 +152,7 @@ def set(i: int128, owner: address):
         max_outsize=0,
         is_delegate_call=True
     )
-    """
+    """  # noqa: E501
 
     a0, a1, a2 = env.accounts[:3]
     outer_contract = get_contract(outer_code, inner_contract.address)

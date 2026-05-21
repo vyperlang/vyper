@@ -1031,7 +1031,7 @@ def test_new_test():
       %115 = and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0, %113
       %116 = add %94, %115
       return 512, %116
-    """
+    """  # noqa: E501
     _check_pre_post(pre, pre, hevm=False)
 
 

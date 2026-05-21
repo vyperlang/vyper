@@ -13,7 +13,7 @@ def foo() -> decimal:
 @external
 def goo() -> uint256:
     return min(3, 5) + max(40, 80)
-    """
+    """  # noqa: E501
 
     c = get_contract(minmax_test)
     assert c.foo() == decimal_to_int("58223.123")
