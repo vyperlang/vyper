@@ -16,6 +16,8 @@ from vyper.semantics.types import AddressT, BoolT, BytesM_T, DecimalT, IntegerT
 from vyper.venom.basicblock import IRLiteral, IROperand
 from vyper.venom.builder import VenomBuilder
 
+AnyPrimType = Union[AddressT, BoolT, BytesM_T, DecimalT, IntegerT]  # TODO: move to shared location
+
 
 def safe_add(
     b: VenomBuilder, x: IROperand, y: IROperand, typ: Union[IntegerT, DecimalT]
@@ -235,9 +237,7 @@ def safe_pow(
     return b.exp(x, y)
 
 
-def clamp_basetype(
-    b: VenomBuilder, val: IROperand, typ: Union[AddressT, BoolT, BytesM_T, DecimalT, IntegerT]
-) -> IROperand:
+def clamp_basetype(b: VenomBuilder, val: IROperand, typ: AnyPrimType) -> IROperand:
     """Clamp value to type bounds."""
     if isinstance(typ, BytesM_T):
         if typ.m < 32:
