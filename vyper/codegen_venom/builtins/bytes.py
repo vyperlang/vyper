@@ -5,6 +5,7 @@ Byte manipulation built-in functions.
 - slice(b, start, length) - extract substring
 - extract32(b, start) - extract bytes32 from bytearray
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -182,7 +183,7 @@ def _is_adhoc_slice(node: vy_ast.VyperNode) -> bool:
             return True
 
     # <addr>.code
-    if node.attr == "code":
+    if node.attr == "code" and isinstance(node.value._metadata["type"], AddressT):
         return True
 
     return False

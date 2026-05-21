@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 import pytest
-from hypothesis import example, given, settings
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from tests.utils import decimal_to_int, parse_and_fold
@@ -20,15 +20,7 @@ st_decimals = st.decimals(
 )
 
 
-@pytest.mark.fuzzing
-@settings(max_examples=50)
-@given(left=st_decimals, right=st_decimals)
-@example(left=Decimal("0.9999999999"), right=Decimal("0.0000000001"))
-@example(left=Decimal("0.0000000001"), right=Decimal("0.9999999999"))
-@example(left=Decimal("0.9999999999"), right=Decimal("0.9999999999"))
-@example(left=Decimal("0.0000000001"), right=Decimal("0.0000000001"))
-@pytest.mark.parametrize("op", "+-*/%")
-def test_binop_decimal(get_contract, tx_failed, op, left, right):
+def _check_binop_decimal(get_contract, tx_failed, op, left, right):
     source = f"""
 @external
 def foo(a: decimal, b: decimal) -> decimal:
@@ -55,6 +47,28 @@ def foo(a: decimal, b: decimal) -> decimal:
     else:
         with tx_failed():
             contract.foo(left, right)
+
+
+@pytest.mark.parametrize(
+    "left,right",
+    [
+        (Decimal("0.9999999999"), Decimal("0.0000000001")),
+        (Decimal("0.0000000001"), Decimal("0.9999999999")),
+        (Decimal("0.9999999999"), Decimal("0.9999999999")),
+        (Decimal("0.0000000001"), Decimal("0.0000000001")),
+    ],
+)
+@pytest.mark.parametrize("op", "+-*/%")
+def test_binop_decimal(get_contract, tx_failed, op, left, right):
+    _check_binop_decimal(get_contract, tx_failed, op, left, right)
+
+
+@pytest.mark.fuzzing
+@settings(max_examples=50)
+@given(left=st_decimals, right=st_decimals)
+@pytest.mark.parametrize("op", "+-*/%")
+def test_binop_decimal_fuzz(get_contract, tx_failed, op, left, right):
+    _check_binop_decimal(get_contract, tx_failed, op, left, right)
 
 
 def test_binop_pow():

@@ -56,9 +56,7 @@ def _parse_args(argv):
         help="JSON file to compile from. If none is given, Vyper will receive it from stdin.",
         nargs="?",
     )
-    parser.add_argument(
-        "--version", action="version", version=f"{vyper.__version__}+commit.{vyper.__commit__}"
-    )
+    parser.add_argument("--version", action="version", version=vyper.__long_version__)
     parser.add_argument(
         "-o",
         help="Filename to save JSON output to. If the file exists it will be overwritten.",
@@ -332,6 +330,7 @@ def get_settings(input_dict: dict) -> Settings:
 
     # TODO: maybe change these to camelCase for consistency
     enable_decimals = input_dict["settings"].get("enable_decimals", None)
+    disable_static_exceptions = input_dict["settings"].get("disableStaticExceptions", None)
 
     # Create Venom optimization flags with the optimization level
     venom_flags = VenomOptimizationFlags(level=optimize)
@@ -372,6 +371,7 @@ def get_settings(input_dict: dict) -> Settings:
         experimental_codegen=experimental_codegen,
         debug=debug,
         enable_decimals=enable_decimals,
+        disable_static_exceptions=disable_static_exceptions,
         venom_flags=venom_flags,
     )
 
