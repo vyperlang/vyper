@@ -1136,7 +1136,11 @@ class Pow(Operator):
         # l**r > 2**256
         # r * ln(l) > ln(2 ** 256)
         # r > ln(2 ** 256) / ln(l)
-        if right > math.log(decimal.Decimal(2**257)) / math.log(decimal.Decimal(left)):
+        # math.log is undefined for left <= 0 and zero for left == 1; use the
+        # base magnitude so |left| > 1 still gets the early bound check.
+        if abs(left) > 1 and right > math.log(decimal.Decimal(2**257)) / math.log(
+            decimal.Decimal(abs(left))
+        ):
             raise InvalidLiteral("Out of bounds", self)
 
         return int(left**right)
