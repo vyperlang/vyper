@@ -1,0 +1,61 @@
+name: Gas Benchmark PR Comment
+
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers] Comment-only follow-up; never checks out or executes PR code.
+    workflows: ["Gas Benchmark Report"]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  comment:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.pull_requests[0].number != null
+    runs-on: ubuntu-latest
+    permissions:
+      # Download the report artifact from the completed measurement run.
+      actions: read
+      # Required by artifact download and workflow run metadata reads.
+      contents: read
+      # Update only the benchmark report comment on the pull request.
+      pull-requests: write
+    steps:
+      - name: Download report
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: gas-bench-report
+          path: report
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Post or update PR comment
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- gas-bench-report -->';
+            const report = fs.readFileSync('report/report.md', 'utf8');
+            const body = marker + '\n\n' + report;
+            const issue_number = context.payload.workflow_run.pull_requests[0].number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number
+            });
+            const existing = comments.find(c => c.body.includes(marker));
+            if (existing) {
+              return github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body
+              });
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              body
+            });
