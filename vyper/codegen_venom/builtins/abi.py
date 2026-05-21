@@ -14,7 +14,11 @@ from vyper import ast as vy_ast
 from vyper.codegen.core import calculate_type_for_external_return
 from vyper.codegen_venom.abi import abi_decode_to_buf, abi_encode_to_buf
 from vyper.codegen_venom.buffer import Buffer, Ptr
-from vyper.codegen_venom.builtins._kwargs import get_bool_kwarg, get_kwarg_ast_constants
+from vyper.codegen_venom.builtins._kwargs import (
+    get_bool_kwarg,
+    get_kwarg_ast_constants,
+    validate_kwargs,
+)
 from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import BytesT, TupleT
@@ -92,9 +96,8 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     b = ctx.builder
 
     # Parse kwargs
-    kwarg_constants = get_kwarg_ast_constants(
-        node, _ABI_ENCODE_KWARGS, allowed_kwarg_names=_ABI_ENCODE_KWARGS
-    )
+    validate_kwargs(node, _ABI_ENCODE_KWARGS)
+    kwarg_constants = get_kwarg_ast_constants(node, _ABI_ENCODE_KWARGS)
     ensure_tuple = get_bool_kwarg(kwarg_constants, "ensure_tuple", default=True)
     method_id_node = kwarg_constants.get("method_id")
     method_id = _parse_method_id(method_id_node)
@@ -176,9 +179,8 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     # Parse args
     data_node = node.args[0]
     output_type_node = node.args[1]
-    kwarg_constants = get_kwarg_ast_constants(
-        node, _ABI_DECODE_KWARGS, allowed_kwarg_names=_ABI_DECODE_KWARGS
-    )
+    validate_kwargs(node, _ABI_DECODE_KWARGS)
+    kwarg_constants = get_kwarg_ast_constants(node, _ABI_DECODE_KWARGS)
     unwrap_tuple = get_bool_kwarg(kwarg_constants, "unwrap_tuple", default=True)
 
     # Get output type from type annotation

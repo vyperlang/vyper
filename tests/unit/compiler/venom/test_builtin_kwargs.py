@@ -6,6 +6,7 @@ from vyper.codegen_venom.builtins._kwargs import (
     get_kwarg_ast_constants,
     get_literal_kwarg,
     kwarg_is_provided,
+    validate_kwargs,
 )
 from vyper.exceptions import CompilerPanic
 
@@ -18,9 +19,7 @@ def test_kwarg_ast_constants_return_folded_nodes():
     call_node = _call_node("foo(flag=FLAG)")
     call_node.keywords[0].value._set_folded_value(vy_ast.NameConstant(value=False))
 
-    constants = get_kwarg_ast_constants(
-        call_node, ("flag",), allowed_kwarg_names=("flag",)
-    )
+    constants = get_kwarg_ast_constants(call_node, ("flag",))
 
     assert constants["flag"].value is False
 
@@ -36,27 +35,27 @@ def test_kwarg_helpers_reject_unexpected_kwargs():
     call_node = _call_node("foo(flag=False)")
 
     with pytest.raises(CompilerPanic, match="unexpected kwarg: flag"):
-        kwarg_is_provided(call_node, "flag", allowed_kwarg_names=("other",))
+        validate_kwargs(call_node, ("other",))
 
 
 def test_kwarg_helpers_reject_duplicate_kwargs():
     call_node = _call_node("foo(flag=False, flag=True)")
 
     with pytest.raises(CompilerPanic, match="duplicate kwarg: flag"):
-        get_kwarg_ast_constants(call_node, ("flag",))
+        validate_kwargs(call_node, ("flag",))
 
 
 def test_kwarg_is_provided():
     call_node = _call_node("foo(flag=False)")
 
-    assert kwarg_is_provided(call_node, "flag", allowed_kwarg_names=("flag",)) is True
-    assert kwarg_is_provided(call_node, "other", allowed_kwarg_names=("flag",)) is False
+    assert kwarg_is_provided(call_node, "flag") is True
+    assert kwarg_is_provided(call_node, "other") is False
 
 
 def test_bool_kwarg_uses_reduced_value():
     call_node = _call_node("foo(flag=FLAG)")
     call_node.keywords[0].value._set_folded_value(vy_ast.NameConstant(value=False))
-    constants = get_kwarg_ast_constants(call_node, ("flag",), allowed_kwarg_names=("flag",))
+    constants = get_kwarg_ast_constants(call_node, ("flag",))
 
     assert get_bool_kwarg(constants, "flag", True) is False
 
@@ -71,9 +70,7 @@ def test_bool_kwarg_rejects_unreduced_value():
 def test_literal_kwarg_uses_reduced_value():
     call_node = _call_node("foo(revert_on_failure=REVERT)")
     call_node.keywords[0].value._set_folded_value(vy_ast.NameConstant(value=False))
-    constants = get_kwarg_ast_constants(
-        call_node, ("revert_on_failure",), allowed_kwarg_names=("revert_on_failure",)
-    )
+    constants = get_kwarg_ast_constants(call_node, ("revert_on_failure",))
 
     assert get_literal_kwarg(constants, "revert_on_failure", True) is False
 

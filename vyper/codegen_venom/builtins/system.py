@@ -17,6 +17,7 @@ from vyper.codegen_venom.builtins._kwargs import (
     get_literal_kwarg,
     get_kwarg_values,
     kwarg_is_provided,
+    validate_kwargs,
 )
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import ArgumentException, StateAccessViolation
@@ -73,10 +74,10 @@ def lower_raw_call(
     to = Expr(node.args[0], ctx).lower_value()
 
     # Parse kwargs (need to know is_static before constancy check)
+    validate_kwargs(node, _RAW_CALL_KWARGS)
     kwarg_constants = get_kwarg_ast_constants(
         node,
         ("max_outsize", "is_delegate_call", "is_static_call", "revert_on_failure"),
-        allowed_kwarg_names=_RAW_CALL_KWARGS,
     )
     max_outsize = get_literal_kwarg(kwarg_constants, "max_outsize", 0)
     is_delegate = get_literal_kwarg(kwarg_constants, "is_delegate_call", False)
@@ -116,9 +117,7 @@ def lower_raw_call(
         data_len = b.mload(data)
         data_ptr = b.add(data, IRLiteral(32))
 
-    runtime_kwargs = get_kwarg_values(
-        node, ctx, ("gas", "value"), allowed_kwarg_names=_RAW_CALL_KWARGS
-    )
+    runtime_kwargs = get_kwarg_values(node, ctx, ("gas", "value"))
     gas = runtime_kwargs["gas"] if "gas" in runtime_kwargs else b.gas()
     value = runtime_kwargs["value"] if "value" in runtime_kwargs else IRLiteral(0)
 
@@ -236,9 +235,8 @@ def lower_send(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     to = Expr(node.args[0], ctx).lower_value()
     value = Expr(node.args[1], ctx).lower_value()
 
-    runtime_kwargs = get_kwarg_values(
-        node, ctx, ("gas",), allowed_kwarg_names=_SEND_KWARGS
-    )
+    validate_kwargs(node, _SEND_KWARGS)
+    runtime_kwargs = get_kwarg_values(node, ctx, ("gas",))
     gas = runtime_kwargs["gas"] if "gas" in runtime_kwargs else IRLiteral(0)
 
     argsptr_buf = ctx.allocate_buffer(0, annotation="lower send args buffer")

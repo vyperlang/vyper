@@ -10,17 +10,12 @@ from vyper.exceptions import CompilerPanic
 _UNSET = object()
 
 
-def _validate_allowed_kwargs(
-    node: vy_ast.Call, allowed_kwarg_names: Iterable[str] | None
-) -> None:
+def validate_kwargs(node: vy_ast.Call, allowed_kwarg_names: Iterable[str]) -> None:
     seen = set()
     for kw in node.keywords:
         if kw.arg in seen:  # pragma: nocover
             raise CompilerPanic(f"duplicate kwarg: {kw.arg}", kw)
         seen.add(kw.arg)
-
-    if allowed_kwarg_names is None:
-        return
 
     allowed_kwarg_names = set(allowed_kwarg_names)
     for kw in node.keywords:
@@ -28,20 +23,15 @@ def _validate_allowed_kwargs(
             raise CompilerPanic(f"unexpected kwarg: {kw.arg}", kw)
 
 
-def kwarg_is_provided(
-    node: vy_ast.Call, kwarg_name: str, allowed_kwarg_names: Iterable[str] | None = None
-) -> bool:
-    _validate_allowed_kwargs(node, allowed_kwarg_names)
+def kwarg_is_provided(node: vy_ast.Call, kwarg_name: str) -> bool:
     return any(kw.arg == kwarg_name for kw in node.keywords)
 
 
 def get_kwarg_ast_constants(
     node: vy_ast.Call,
     kwarg_names: Iterable[str],
-    allowed_kwarg_names: Iterable[str] | None = None,
     error_prefix: str = "unfoldable constant kwarg",
 ) -> dict[str, vy_ast.Constant]:
-    _validate_allowed_kwargs(node, allowed_kwarg_names)
     kwarg_names = set(kwarg_names)
     ret = {}
     for kw in node.keywords:
@@ -60,11 +50,9 @@ def get_kwarg_values(
     node: vy_ast.Call,
     ctx,
     kwarg_names: Iterable[str],
-    allowed_kwarg_names: Iterable[str] | None = None,
 ):
     from vyper.codegen_venom.expr import Expr
 
-    _validate_allowed_kwargs(node, allowed_kwarg_names)
     kwarg_names = set(kwarg_names)
     ret = {}
     for kw in node.keywords:

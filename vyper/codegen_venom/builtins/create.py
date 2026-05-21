@@ -18,6 +18,7 @@ from vyper.codegen_venom.builtins._kwargs import (
     get_kwarg_ast_constants,
     get_literal_kwarg,
     get_kwarg_values,
+    validate_kwargs,
 )
 from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import assembly_to_evm
@@ -202,9 +203,8 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Parse literal-only kwargs. Runtime kwargs are lowered after positional
     # constructor args so side effects follow source order.
-    kwarg_constants = get_kwarg_ast_constants(
-        node, ("revert_on_failure",), allowed_kwarg_names=_CREATE_KWARGS
-    )
+    validate_kwargs(node, _CREATE_KWARGS)
+    kwarg_constants = get_kwarg_ast_constants(node, ("revert_on_failure",))
     revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure", True)
 
     ctor_args_val: Optional[IRVariable] = None
@@ -216,9 +216,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         ctor_abi_size = ctor_tuple_typ.abi_type.size_bound()
         ctor_args_val = _materialize_ctor_args(ctx, b, ctor_arg_nodes, ctor_tuple_typ)
 
-    runtime_kwargs = get_kwarg_values(
-        node, ctx, ("value", "salt"), allowed_kwarg_names=_CREATE_KWARGS
-    )
+    runtime_kwargs = get_kwarg_values(node, ctx, ("value", "salt"))
     value = runtime_kwargs["value"] if "value" in runtime_kwargs else IRLiteral(0)
     salt = runtime_kwargs.get("salt")
 
@@ -280,14 +278,11 @@ def lower_create_minimal_proxy_to(
     # Parse args
     target = Expr(node.args[0], ctx).lower_value()
 
-    kwarg_constants = get_kwarg_ast_constants(
-        node, ("revert_on_failure",), allowed_kwarg_names=_CREATE_KWARGS
-    )
+    validate_kwargs(node, _CREATE_KWARGS)
+    kwarg_constants = get_kwarg_ast_constants(node, ("revert_on_failure",))
     revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure", True)
 
-    runtime_kwargs = get_kwarg_values(
-        node, ctx, ("value", "salt"), allowed_kwarg_names=_CREATE_KWARGS
-    )
+    runtime_kwargs = get_kwarg_values(node, ctx, ("value", "salt"))
     value = runtime_kwargs["value"] if "value" in runtime_kwargs else IRLiteral(0)
     salt = runtime_kwargs.get("salt")
 
@@ -356,14 +351,11 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     # Parse args
     target = Expr(node.args[0], ctx).lower_value()
 
-    kwarg_constants = get_kwarg_ast_constants(
-        node, ("revert_on_failure",), allowed_kwarg_names=_CREATE_KWARGS
-    )
+    validate_kwargs(node, _CREATE_KWARGS)
+    kwarg_constants = get_kwarg_ast_constants(node, ("revert_on_failure",))
     revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure", True)
 
-    runtime_kwargs = get_kwarg_values(
-        node, ctx, ("value", "salt"), allowed_kwarg_names=_CREATE_KWARGS
-    )
+    runtime_kwargs = get_kwarg_values(node, ctx, ("value", "salt"))
     value = runtime_kwargs["value"] if "value" in runtime_kwargs else IRLiteral(0)
     salt = runtime_kwargs.get("salt")
 
@@ -437,11 +429,8 @@ def lower_create_from_blueprint(
     target = Expr(node.args[0], ctx).lower_value()
     ctor_arg_nodes = node.args[1:]
 
-    kwarg_constants = get_kwarg_ast_constants(
-        node,
-        ("raw_args", "revert_on_failure"),
-        allowed_kwarg_names=_CREATE_FROM_BLUEPRINT_KWARGS,
-    )
+    validate_kwargs(node, _CREATE_FROM_BLUEPRINT_KWARGS)
+    kwarg_constants = get_kwarg_ast_constants(node, ("raw_args", "revert_on_failure"))
     raw_args = get_literal_kwarg(kwarg_constants, "raw_args", False)
     revert_on_failure = get_literal_kwarg(kwarg_constants, "revert_on_failure", True)
 
@@ -472,12 +461,7 @@ def lower_create_from_blueprint(
         args_len = IRLiteral(0)
         args_ptr = IRLiteral(0)
 
-    runtime_kwargs = get_kwarg_values(
-        node,
-        ctx,
-        ("value", "salt", "code_offset"),
-        allowed_kwarg_names=_CREATE_FROM_BLUEPRINT_KWARGS,
-    )
+    runtime_kwargs = get_kwarg_values(node, ctx, ("value", "salt", "code_offset"))
     value = runtime_kwargs["value"] if "value" in runtime_kwargs else IRLiteral(0)
     salt = runtime_kwargs.get("salt")
     code_offset = (
