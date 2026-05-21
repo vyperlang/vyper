@@ -155,6 +155,18 @@ class VenomCodegenContext:
         """Store a VyperValue into memory, preserving its source layout."""
         self.store_memory(self.unwrap(vv), ptr, typ, src_typ=vv.typ)
 
+    def materialize_value(
+        self, vv: VyperValue, typ: Optional[VyperType] = None, annotation: Optional[str] = None
+    ) -> VyperValue:
+        """Copy a VyperValue into a fresh memory temporary."""
+        if typ is None:
+            typ = vv.typ
+
+        ret = self.new_temporary_value(typ, annotation=annotation)
+        assert isinstance(ret.operand, IRVariable)
+        self.store_vyper_value(vv, ret.operand, typ)
+        return ret
+
     def bytes_data_ptr(self, vv: VyperValue) -> IROperand:
         """Get pointer to bytestring data (skipping length word).
 

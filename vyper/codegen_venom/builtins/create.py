@@ -20,7 +20,6 @@ from vyper.codegen_venom.builtins._kwargs import (
 )
 from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import assembly_to_evm
-from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import TupleT
 from vyper.utils import bytes_to_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
@@ -70,17 +69,6 @@ def _check_create_result(
         # Success path
         b.set_block(exit_bb)
     return addr
-
-
-def _copy_bytes_value(ctx: VenomCodegenContext, b, src: IROperand, typ) -> IRVariable:
-    """Materialize a Bytes/String value before later source-order expressions run."""
-    dst = ctx.new_temporary_value(typ)
-    assert isinstance(dst.operand, IRVariable)
-    assert isinstance(src, IRVariable)
-    src_len = b.mload(src)
-    copy_size = b.add(src_len, IRLiteral(32))
-    ctx.copy_memory_dynamic(dst.operand, src, copy_size)
-    return dst.operand
 
 
 def _materialize_ctor_args(
@@ -205,36 +193,11 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     bytecode_node = node.args[0]
     ctor_arg_nodes = node.args[1:]
 
-    # Get bytecode - may be in memory, storage, or transient
+    # Snapshot bytecode before constructor args or kwargs can mutate its source
+    # or overlap its memory.
     bytecode_vv = Expr(bytecode_node, ctx).lower()
     bytecode_typ = bytecode_node._metadata["type"]
-
-    # Ensure bytecode is in memory. Storage/transient data needs to be copied first.
-    # This is critical when ctor args might modify the storage location that holds
-    # the bytecode (cf. test_raw_create_change_initcode_size).
-    if bytecode_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
-        assert bytecode_vv.location is not None
-        # Allocate memory buffer and copy from storage/transient
-        mem_buf = ctx.new_temporary_value(bytecode_typ)
-        ctx.slot_to_memory(
-            bytecode_vv.operand,
-            mem_buf.operand,
-            bytecode_typ.storage_size_in_words,
-            bytecode_vv.location,
-        )
-        bytecode = mem_buf.operand
-    else:
-        # Memory bytecode: copy to fresh buffer to avoid potential overlap
-        # when evaluating value, salt, or ctor_args expressions
-        # (cf. test_raw_create_memory_overlap - e.g. value=arr.pop())
-        mem_buf = ctx.new_temporary_value(bytecode_typ)
-        assert isinstance(bytecode_vv.operand, IRVariable)
-        bytecode_len_tmp = b.mload(bytecode_vv.operand)
-        # Copy length word + data
-        copy_size = b.add(bytecode_len_tmp, IRLiteral(32))
-        assert isinstance(mem_buf.operand, IRVariable)
-        ctx.copy_memory_dynamic(mem_buf.operand, bytecode_vv.operand, copy_size)
-        bytecode = mem_buf.operand
+    bytecode = ctx.materialize_value(bytecode_vv, bytecode_typ, "raw_create bytecode").operand
 
     # Parse literal-only kwargs. Runtime kwargs are lowered after positional
     # constructor args so side effects follow source order.
@@ -493,10 +456,8 @@ def lower_create_from_blueprint(
             raise CompilerPanic("raw_args requires exactly 1 bytes argument")
 
         raw_arg_vv = Expr(ctor_arg_nodes[0], ctx).lower()
-        raw_arg = ctx.unwrap(raw_arg_vv)  # Copies storage/transient to memory
-        raw_arg = _copy_bytes_value(
-            ctx, b, raw_arg, ctor_arg_nodes[0]._metadata["type"]
-        )
+        raw_arg_typ = ctor_arg_nodes[0]._metadata["type"]
+        raw_arg = ctx.materialize_value(raw_arg_vv, raw_arg_typ, "raw blueprint args").operand
         args_len = b.mload(raw_arg)
         args_ptr = b.add(raw_arg, IRLiteral(32))
     elif len(ctor_arg_nodes) > 0:

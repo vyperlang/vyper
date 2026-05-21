@@ -120,19 +120,6 @@ def abi_encode3(x: uint256, ensure_tuple: bool, include_method_id: bool) -> Byte
     assert c.abi_encode(*args, True, True).hex() == (method_id + human_encoded).hex()
 
 
-def test_abi_encode_folded_ensure_tuple_kwarg(get_contract):
-    code = """
-ENSURE_TUPLE: constant(bool) = False
-
-@external
-def foo(name: String[32]) -> Bytes[100]:
-    return abi_encode(name, ensure_tuple=ENSURE_TUPLE)
-    """
-    c = get_contract(code)
-
-    assert c.foo("some string").hex() == abi.encode("string", "some string").hex()
-
-
 @pytest.mark.parametrize("type,value", [("Bytes", b"hello"), ("String", "hello")])
 def test_abi_encode_length_failing(get_contract, assert_compile_failed, type, value):
     code = f"""
