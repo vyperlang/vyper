@@ -1,6 +1,8 @@
 import pytest
 
+from vyper.builtins.functions import BUILTIN_FUNCTIONS
 from vyper.exceptions import InvalidType, UnknownType
+from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS
 
 fail_list = [
     """
@@ -13,12 +15,17 @@ x: HashMap[int, int128]
 struct A:
     b: B
     """,
+    """
+v: uint256
+x: v # unknown type because to refer to `v` it would be `self.v`
+    """,
 ]
 
 
 @pytest.mark.parametrize("bad_code", fail_list)
-def test_unknown_type_exception(bad_code, get_contract, assert_compile_failed):
-    assert_compile_failed(lambda: get_contract(bad_code), UnknownType)
+def test_unknown_type_exception(bad_code, get_contract):
+    with pytest.raises(UnknownType):
+        get_contract(bad_code)
 
 
 invalid_list = [
@@ -50,9 +57,24 @@ x: Bytes <= wei
     """
 x: 5
     """,
+    """
+v: constant(uint256) = 0
+x: v
+    """,
+    """
+v: uint256
+
+def foo():
+    x: self.v = 0
+    """,
+    # environment variables and builtin functions used as types should be invalid
+    *[f"x: {name}" for name in CONSTANT_ENVIRONMENT_VARS],
+    *[f"x: {name}" for name in MUTABLE_ENVIRONMENT_VARS],
+    *[f"x: {name}" for name in BUILTIN_FUNCTIONS],
 ]
 
 
 @pytest.mark.parametrize("bad_code", invalid_list)
-def test_invalid_type_exception(bad_code, get_contract, assert_compile_failed):
-    assert_compile_failed(lambda: get_contract(bad_code), InvalidType)
+def test_invalid_type_exception(bad_code, get_contract):
+    with pytest.raises(InvalidType):
+        get_contract(bad_code)
