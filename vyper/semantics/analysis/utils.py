@@ -63,14 +63,13 @@ def uses_state(var_accesses: Iterable[VarAccess]) -> bool:
     return any(s.variable.is_state_variable() for s in var_accesses)
 
 
-class _ExprAnalyser(VyperNodeVisitorBase[list[VyperType]]):
+class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
     """
-    Node type-checker class.
+    Returns all types an expression can have.
+    (Or its type if it has already been computed.)
 
-    Type-check logic is implemented in `visit_<NODE_CLASS>` methods, organized
-    according to the Vyper ast node class. Calls to `get_exact_type_from_node` and
-    `get_possible_types_from_node` are forwarded to this class, where the node
-    class's method resolution order is examined to decide which method to call.
+    Do not call directly, instead go through `get_exact_type_from_node` or
+    `get_possible_types_from_node`.
     """
 
     scope_name = "expression"
@@ -392,11 +391,8 @@ def get_possible_types_from_node(node, allow_type_exprs=True) -> list[VyperType]
     List
         List of one or more VyperType objects.
     """
-    # Early termination if typedef is propagated in metadata
-    if "type" in node._metadata:
-        return [node._metadata["type"]]
 
-    ret = _ExprAnalyser().visit(node)
+    ret = _TypeSynthesizer().visit(node)
 
     if not allow_type_exprs:
         invalid = next((i for i in ret if isinstance(i, TYPE_T)), None)
