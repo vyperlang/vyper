@@ -181,20 +181,14 @@ def test_incompatible_overload_at_later_position_raises():
             "type": "function",
             "name": "foo",
             "stateMutability": "view",
-            "inputs": [
-                {"name": "a", "type": "uint256"},
-                {"name": "b", "type": "uint256"},
-            ],
+            "inputs": [{"name": "a", "type": "uint256"}, {"name": "b", "type": "uint256"}],
             "outputs": [{"name": "", "type": "uint256"}],
         },
         {
             "type": "function",
             "name": "foo",
             "stateMutability": "view",
-            "inputs": [
-                {"name": "a", "type": "uint256"},
-                {"name": "b", "type": "address"},
-            ],
+            "inputs": [{"name": "a", "type": "uint256"}, {"name": "b", "type": "address"}],
             "outputs": [{"name": "", "type": "uint256"}],
         },
     ]
@@ -236,10 +230,7 @@ def test_mixed_prefix_lengths_keeps_longest_overload():
             "type": "function",
             "name": "foo",
             "stateMutability": "view",
-            "inputs": [
-                {"name": "a", "type": "uint256"},
-                {"name": "b", "type": "address"},
-            ],
+            "inputs": [{"name": "a", "type": "uint256"}, {"name": "b", "type": "address"}],
             "outputs": [{"name": "", "type": "uint256"}],
         },
         {
@@ -296,10 +287,7 @@ def test_mixed_prefix_lengths_with_incompatible_extra_arg_raises():
             "type": "function",
             "name": "foo",
             "stateMutability": "view",
-            "inputs": [
-                {"name": "a", "type": "uint256"},
-                {"name": "b", "type": "address"},
-            ],
+            "inputs": [{"name": "a", "type": "uint256"}, {"name": "b", "type": "address"}],
             "outputs": [{"name": "", "type": "uint256"}],
         },
         {
