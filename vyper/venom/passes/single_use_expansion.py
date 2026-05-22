@@ -73,6 +73,7 @@ class SingleUseExpansion(IRPass):
             assert isinstance(var, IRVariable)
 
             uses = self.dfg.get_uses(var)
+            uses = [use for use in uses if use.opcode != "assign"]
             if len(uses) == 1:
                 return
             
