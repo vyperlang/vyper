@@ -1,6 +1,7 @@
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IRVariable
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
 
 class SingleUseExpansion(IRPass):
@@ -21,6 +22,7 @@ class SingleUseExpansion(IRPass):
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.updater = InstUpdater(self.dfg)
         for bb in self.function.get_basic_blocks():
             self._process_bb(bb)
 
@@ -31,7 +33,11 @@ class SingleUseExpansion(IRPass):
         i = 0
         while i < len(bb.instructions):
             inst = bb.instructions[i]
-            if inst.opcode in ("assign", "offset", "phi", "param"):
+            if inst.opcode == "phi":
+                self._process_phi(inst)
+                i += 1
+                continue
+            if inst.opcode in ("assign", "offset", "param"):
                 i += 1
                 continue
 
@@ -52,11 +58,28 @@ class SingleUseExpansion(IRPass):
                     # skip them for now.
                     continue
 
-                var = self.function.get_next_variable()
-                to_insert = IRInstruction("assign", [op], outputs=[var])
-                bb.insert_instruction(to_insert, index=i)
+                var = self.updater.add_before(inst, "assign", [op])
+                assert var is not None
                 if len(inst.operands) > j:
                     inst.operands[j] = var
                 i += 1
 
             i += 1
+
+    def _process_phi(self, inst: IRInstruction):
+        assert inst.opcode == "phi"
+
+        for label, var in inst.phi_operands:
+            assert isinstance(var, IRVariable)
+
+            uses = self.dfg.get_uses(var)
+            if len(uses) == 1:
+                return
+            
+            source = self.function.get_basic_block(label.name)
+            terminator = source.instructions[-1]
+            new_var = self.updater.add_before(terminator, "assign", [var])
+            assert new_var is not None
+
+            self.updater.update_operands(inst, {var: new_var})
+
