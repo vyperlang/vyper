@@ -12,6 +12,7 @@ from vyper.exceptions import (
     ExceptionList,
     FunctionDeclarationException,
     ImmutableViolation,
+    InvalidReference,
     InvalidType,
     IteratorException,
     NonPayableViolation,
@@ -21,7 +22,6 @@ from vyper.exceptions import (
     TypeMismatch,
     VariableDeclarationException,
     VyperException,
-    InvalidReference,
 )
 
 # TODO consolidate some of these imports
@@ -547,7 +547,9 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
         var_access = _get_variable_access(target)
         if var_access is None and isinstance(target, vy_ast.Attribute):
             # raises for type expressions (e.g. Flag.MEMBER = x)
-            raise InvalidReference(f"not a variable or literal: '{target.value._expr_info.typ.typedef}'", target.value)
+            raise InvalidReference(
+                f"not a variable or literal: '{target.value._expr_info.typ.typedef}'", target.value
+            )
         assert var_access is not None
 
         info._writes.add(var_access)

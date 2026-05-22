@@ -480,6 +480,7 @@ def _get_expr_info_helper(node: vy_ast.ExprNode, allow_type_exprs: bool = False)
 
     return ExprInfo(t)
 
+
 def get_expr_info(node: vy_ast.ExprNode, allow_type_exprs: bool = False) -> ExprInfo:
     if node._expr_info is None:
         node._expr_info = _get_expr_info_helper(node, allow_type_exprs=allow_type_exprs)
