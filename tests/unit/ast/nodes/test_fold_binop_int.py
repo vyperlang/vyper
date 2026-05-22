@@ -131,3 +131,32 @@ def foo({input_value}) -> int128:
     else:
         with tx_failed():
             contract.foo(*values)
+
+
+@pytest.mark.parametrize(
+    "expr,expected",
+    [
+        ("(-2) ** 2", 4),
+        ("(-2) ** 3", -8),
+        ("(-1) ** 100", 1),
+        ("(-1) ** 101", -1),
+        ("0 ** 0", 1),
+        ("1 ** 99", 1),
+    ],
+)
+def test_binop_pow_degenerate_base(expr, expected):
+    # Negative bases (and 0/1 bases) used to trip the log-based overflow
+    # heuristic in Pow._op, which called math.log on Decimal(left).
+    vyper_ast = parse_and_fold(expr)
+    folded = vyper_ast.body[0].value.get_folded_value()
+    assert folded.value == expected
+
+
+@pytest.mark.parametrize("expr", ["(-2) ** 1000", "(-3) ** 500"])
+def test_binop_pow_negative_base_overflow(expr):
+    # Bases with magnitude > 1 must still be caught by the log-based bound.
+    from vyper.exceptions import InvalidLiteral
+
+    with pytest.raises(InvalidLiteral):
+        vyper_ast = parse_and_fold(expr)
+        vyper_ast.body[0].value.get_folded_value()
