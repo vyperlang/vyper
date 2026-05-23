@@ -2,7 +2,7 @@ from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Bytes, ABI_String, ABIType
 from vyper.exceptions import CodegenPanic, StructureException, UnexpectedNodeType, UnexpectedValue
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.infinity import INF, WILDCARD, LengthUpperBound
+from vyper.semantics.types.infinity import INF, WILDCARD, LengthUpperBound, length_to_json
 from vyper.semantics.types.utils import get_index_value
 from vyper.utils import ceil32
 
@@ -35,7 +35,7 @@ class _BytestringT(VyperType):
         return f"{self._id}[{self.length}]"
 
     def _addl_dict_fields(self):
-        return {"length": self.length}
+        return {"length": length_to_json(self.length)}
 
     @property
     def length(self) -> LengthUpperBound:
