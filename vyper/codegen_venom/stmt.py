@@ -14,7 +14,7 @@ from vyper import ast as vy_ast
 from vyper.codegen.core import calculate_type_for_external_return
 from vyper.codegen_venom.abi import abi_encode_to_buf
 from vyper.codegen_venom.arithmetic import apply_binop
-from vyper.exceptions import CompilerPanic, TypeCheckFailure
+from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, tag_exceptions
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT
@@ -41,10 +41,11 @@ class Stmt:
     def lower(self) -> None:
         """Dispatch to type-specific lowering method."""
         fn_name = f"lower_{type(self.node).__name__}"
-        method = getattr(self, fn_name, None)
-        if method is None:  # pragma: nocover
-            raise CompilerPanic(f"Unsupported stmt: {type(self.node)}")
-        return method()
+        with tag_exceptions(self.node, fallback_exception_type=CodegenPanic, note=fn_name):
+            method = getattr(self, fn_name, None)
+            if method is None:  # pragma: nocover
+                raise CompilerPanic(f"Unsupported stmt: {type(self.node)}")
+            return method()
 
     # === Assignment Statements ===
 
