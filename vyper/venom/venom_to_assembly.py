@@ -744,9 +744,9 @@ class VenomCompiler:
                 candidates.append((-i, stack_item))
 
         assert len(candidates) > 0, f"phi argument not in stack! {phis}, {stack._stack}"
-        assert len({candidate for _, candidate in candidates}) == 1, (
-            f"phi argument is not unique! {phis}, {stack._stack}"
-        )
+        assert (
+            len({candidate for _, candidate in candidates}) == 1
+        ), f"phi argument is not unique! {phis}, {stack._stack}"
         return candidates[0][0]
 
     def _optimistic_swap(self, assembly, inst, next_liveness, stack):
