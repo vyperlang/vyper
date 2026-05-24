@@ -167,6 +167,13 @@ class VyperType:
         return self.is_valid_element_type
 
     @property
+    def has_wildcard(self):
+        return False
+
+    def resolve_wildcard(self):
+        return self
+
+    @property
     def getter_signature(self):
         return (), self
 

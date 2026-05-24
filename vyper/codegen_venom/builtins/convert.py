@@ -150,6 +150,9 @@ def _to_address(
     From signed integers: disallowed (type checker handles this)
     From bytes: right-shift if needed, clamp to 160 bits
     """
+    if isinstance(in_t, IntegerT) and in_t.is_signed:
+        raise TypeMismatch(f"Can't convert {in_t} to address", arg_node)
+
     # Use _to_int to get uint160, which handles clamping
     result = _to_int(val, in_t, UINT160_T, arg_node, ctx)
     return result
@@ -229,6 +232,8 @@ def _to_int(
 
     # From address: treat as uint160
     if in_t == AddressT():
+        if out_t.is_signed:
+            raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
         # Can only go to unsigned types >= 160 bits
         if out_t.bits < 160:
             val = _int_clamp(val, out_t, ctx)
@@ -332,6 +337,16 @@ def _to_bytes_m(
             return val
         # Widening is no-op (already left-aligned)
         return val
+
+    if isinstance(in_t, IntegerT):
+        if out_t.m_bits < in_t.bits:
+            raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
+    elif in_t == AddressT():
+        if out_t.m_bits < 160:
+            raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
+    elif isinstance(in_t, DecimalT):
+        if out_t.m_bits < in_t.bits:
+            raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     # From integer/address/decimal: left-shift to align
     shift_bits = (32 - out_t.m) * 8

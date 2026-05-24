@@ -21,7 +21,7 @@ from vyper.codegen_venom.builtins._kwargs import BuiltinCall, get_bool_kwarg
 from vyper.codegen_venom.constants import BLOCKHASH_LOOKBACK_LIMIT, ECRECOVER_PRECOMPILE
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import EvmVersionException
-from vyper.semantics.types import BytesT, DecimalT, StringT, TupleT
+from vyper.semantics.types import BytesT, DecimalT, IntegerT, StringT, TupleT
 from vyper.utils import DECIMAL_DIVISOR, method_id_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -318,8 +318,10 @@ def lower_as_wei_value(call: BuiltinCall) -> IROperand:
             is_non_negative = b.iszero(b.slt(value, IRLiteral(0)))
             b.assert_(is_non_negative)
             return b.div(value, IRLiteral(DECIMAL_DIVISOR))
-        else:
-            return value
+        if isinstance(typ, IntegerT) and typ.is_signed:
+            is_non_negative = b.iszero(b.slt(value, IRLiteral(0)))
+            b.assert_(is_non_negative)
+        return value
 
     if isinstance(typ, DecimalT):
         # Decimal: check non-negative, multiply, then divide by DECIMAL_DIVISOR
@@ -461,9 +463,8 @@ def lower_print(call: BuiltinCall) -> IROperand:
         # Allocate buffer: [32 bytes padding for method_id alignment] | [data]
         buf = ctx.allocate_buffer(buflen)
 
-        # Store method_id at buf (shifted left to align in word)
-        method_id_word = mid << 224
-        b.mstore(buf._ptr, IRLiteral(method_id_word))
+        # Store method_id so buf+28 starts at the 4-byte selector.
+        b.mstore(buf._ptr, IRLiteral(mid))
 
         # Create tuple in memory and encode starting at buf + 32
         if len(args) > 0:
@@ -533,9 +534,8 @@ def lower_print(call: BuiltinCall) -> IROperand:
         final_buflen = 32 + outer_abi_size
         buf = ctx.allocate_buffer(final_buflen)
 
-        # Store method_id
-        method_id_word = mid << 224
-        b.mstore(buf._ptr, IRLiteral(method_id_word))
+        # Store method_id so buf+28 starts at the 4-byte selector.
+        b.mstore(buf._ptr, IRLiteral(mid))
 
         # Encode outer tuple
         data_dst = b.add(buf._ptr, IRLiteral(32))
