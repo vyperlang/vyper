@@ -12,6 +12,8 @@ _UNSET = object()
 
 @dataclass(frozen=True)
 class BuiltinCall:
+    """Builtin callsite plus the codegen context used to lower it."""
+
     node: vy_ast.Call
     ctx: Any
     _kwarg_nodes: dict[str, vy_ast.VyperNode] | None = field(default=None, init=False, repr=False)
@@ -51,6 +53,8 @@ class BuiltinCall:
         from vyper.codegen_venom.expr import Expr
 
         arg_nodes = self.node.args if arg_nodes is None else arg_nodes
+        # Positional args are yielded in AST/source order. Each caller should
+        # route every runtime arg through exactly one lowering helper.
         return [Expr(arg, self.ctx).lower() for arg in arg_nodes]
 
     def lower_pos_arg_values(
@@ -59,6 +63,8 @@ class BuiltinCall:
         from vyper.codegen_venom.expr import Expr
 
         arg_nodes = self.node.args if arg_nodes is None else arg_nodes
+        # Positional args are yielded in AST/source order. Each caller should
+        # route every runtime arg through exactly one lowering helper.
         return [Expr(arg, self.ctx).lower_value() for arg in arg_nodes]
 
 
@@ -143,6 +149,9 @@ def get_kwarg_values(
 
     kwarg_names, defaults = _kwarg_names_and_defaults(kwarg_defaults)
     ret = {}
+    # `kwarg_nodes` is produced by walking node.keywords in source order.
+    # Do not iterate over `kwarg_names` here: lowering emits code, so every
+    # explicit runtime kwarg must be lowered once, in the user's keyword order.
     for name, node in kwarg_nodes.items():
         if name in kwarg_names:
             ret[name] = Expr(node.reduced(), ctx).lower_value()
