@@ -9,37 +9,31 @@ These operations skip overflow/underflow checks for performance.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from vyper import ast as vy_ast
 from vyper.codegen_venom.builtins._kwargs import BuiltinCall
 from vyper.venom.basicblock import IRLiteral, IROperand
-
-if TYPE_CHECKING:
-    from vyper.codegen_venom.context import VenomCodegenContext
 
 
 def lower_unsafe_add(call: BuiltinCall) -> IROperand:
     """unsafe_add(a, b) - unchecked addition."""
-    return _lower_unsafe_binop(call.node, call.ctx, "add")
+    return _lower_unsafe_binop(call, "add")
 
 
 def lower_unsafe_sub(call: BuiltinCall) -> IROperand:
     """unsafe_sub(a, b) - unchecked subtraction."""
-    return _lower_unsafe_binop(call.node, call.ctx, "sub")
+    return _lower_unsafe_binop(call, "sub")
 
 
 def lower_unsafe_mul(call: BuiltinCall) -> IROperand:
     """unsafe_mul(a, b) - unchecked multiplication."""
-    return _lower_unsafe_binop(call.node, call.ctx, "mul")
+    return _lower_unsafe_binop(call, "mul")
 
 
 def lower_unsafe_div(call: BuiltinCall) -> IROperand:
     """unsafe_div(a, b) - unchecked division."""
-    return _lower_unsafe_binop(call.node, call.ctx, "div")
+    return _lower_unsafe_binop(call, "div")
 
 
-def _lower_unsafe_binop(node: vy_ast.Call, ctx: VenomCodegenContext, op: str) -> IROperand:
+def _lower_unsafe_binop(call: BuiltinCall, op: str) -> IROperand:
     """
     Common implementation for unsafe binary operations.
 
@@ -47,12 +41,11 @@ def _lower_unsafe_binop(node: vy_ast.Call, ctx: VenomCodegenContext, op: str) ->
     - Unsigned: mask to bit width
     - Signed: sign-extend
     """
-    from vyper.codegen_venom.expr import Expr
-
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
 
-    a_val = Expr(node.args[0], ctx).lower_value()
-    b_val = Expr(node.args[1], ctx).lower_value()
+    a_val, b_val = call.lower_pos_arg_values()
     typ = node.args[0]._metadata["type"]
 
     # Use signed division for signed types
@@ -82,14 +75,10 @@ def lower_pow_mod256(call: BuiltinCall) -> IROperand:
 
     Uses EVM EXP opcode directly with no overflow checks.
     """
-    from vyper.codegen_venom.expr import Expr
-
-    node = call.node
     ctx = call.ctx
     b = ctx.builder
 
-    base = Expr(node.args[0], ctx).lower_value()
-    exp = Expr(node.args[1], ctx).lower_value()
+    base, exp = call.lower_pos_arg_values()
 
     return b.exp(base, exp)
 
@@ -101,15 +90,10 @@ def lower_uint256_addmod(call: BuiltinCall) -> IROperand:
     Uses EVM ADDMOD opcode which handles the 512-bit intermediate result.
     Reverts if c is zero.
     """
-    from vyper.codegen_venom.expr import Expr
-
-    node = call.node
     ctx = call.ctx
     b = ctx.builder
 
-    a_val = Expr(node.args[0], ctx).lower_value()
-    b_val = Expr(node.args[1], ctx).lower_value()
-    c_val = Expr(node.args[2], ctx).lower_value()
+    a_val, b_val, c_val = call.lower_pos_arg_values()
 
     # Assert divisor is non-zero (EVM ADDMOD returns 0 on div by zero)
     b.assert_(c_val)
@@ -124,15 +108,10 @@ def lower_uint256_mulmod(call: BuiltinCall) -> IROperand:
     Uses EVM MULMOD opcode which handles the 512-bit intermediate result.
     Reverts if c is zero.
     """
-    from vyper.codegen_venom.expr import Expr
-
-    node = call.node
     ctx = call.ctx
     b = ctx.builder
 
-    a_val = Expr(node.args[0], ctx).lower_value()
-    b_val = Expr(node.args[1], ctx).lower_value()
-    c_val = Expr(node.args[2], ctx).lower_value()
+    a_val, b_val, c_val = call.lower_pos_arg_values()
 
     # Assert divisor is non-zero (EVM MULMOD returns 0 on div by zero)
     b.assert_(c_val)
@@ -147,14 +126,11 @@ def lower_shift(call: BuiltinCall) -> IROperand:
     If bits < 0: right shift (sar for signed, shr for unsigned)
     If bits >= 0: left shift (shl)
     """
-    from vyper.codegen_venom.expr import Expr
-
     node = call.node
     ctx = call.ctx
     b = ctx.builder
 
-    val = Expr(node.args[0], ctx).lower_value()
-    bits = Expr(node.args[1], ctx).lower_value()
+    val, bits = call.lower_pos_arg_values()
     val_typ = node.args[0]._metadata["type"]
 
     # Generalized right shift: sar for signed, shr for unsigned

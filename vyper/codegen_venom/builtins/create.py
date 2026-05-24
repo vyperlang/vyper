@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Optional
 from vyper import ast as vy_ast
 from vyper.codegen_venom.abi import abi_encode_to_buf
 from vyper.codegen_venom.builtins._kwargs import BuiltinCall, get_bool_kwarg
+from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.semantics.types import TupleT
@@ -61,17 +62,18 @@ def _check_create_result(
 
 
 def _materialize_ctor_args(
-    ctx: VenomCodegenContext, b, ctor_arg_nodes: list[vy_ast.VyperNode], ctor_tuple_typ: TupleT
+    ctx: VenomCodegenContext,
+    b,
+    ctor_arg_nodes: list[vy_ast.VyperNode],
+    ctor_arg_values: list[VyperValue],
+    ctor_tuple_typ: TupleT,
 ) -> IRVariable:
-    from vyper.codegen_venom.expr import Expr
-
     ctor_arg_types = [arg._metadata["type"] for arg in ctor_arg_nodes]
     ctor_args_val = ctx.new_temporary_value(ctor_tuple_typ)
     assert isinstance(ctor_args_val.operand, IRVariable)
 
     offset = 0
-    for arg, arg_t in zip(ctor_arg_nodes, ctor_arg_types):
-        vv = Expr(arg, ctx).lower()
+    for vv, arg_t in zip(ctor_arg_values, ctor_arg_types):
         dst = b.add(ctor_args_val.operand, IRLiteral(offset))
         assert isinstance(dst, IRVariable)
         ctx.store_vyper_value(vv, dst, arg_t)
@@ -183,7 +185,7 @@ def lower_raw_create(call: BuiltinCall) -> IROperand:
     # or overlap its memory.
     bytecode_vv = call.lower_pos_args((bytecode_node,))[0]
     bytecode_typ = bytecode_node._metadata["type"]
-    bytecode = ctx.materialize_value(bytecode_vv, bytecode_typ, "raw_create bytecode").ptr().operand
+    bytecode = bytecode_vv.ptr().operand
 
     # Parse literal-only kwargs. Runtime kwargs are lowered after positional
     # constructor args so side effects follow source order.
@@ -198,7 +200,10 @@ def lower_raw_create(call: BuiltinCall) -> IROperand:
         ctor_arg_types = [arg._metadata["type"] for arg in ctor_arg_nodes]
         ctor_tuple_typ = TupleT(tuple(ctor_arg_types))
         ctor_abi_size = ctor_tuple_typ.abi_type.size_bound()
-        ctor_args_val = _materialize_ctor_args(ctx, b, ctor_arg_nodes, ctor_tuple_typ)
+        ctor_arg_values = call.lower_pos_args(ctor_arg_nodes)
+        ctor_args_val = _materialize_ctor_args(
+            ctx, b, ctor_arg_nodes, ctor_arg_values, ctor_tuple_typ
+        )
 
     runtime_kwargs = call.get_kwarg_values({"value": IRLiteral(0), "salt": None})
     value = runtime_kwargs["value"]
@@ -423,8 +428,7 @@ def lower_create_from_blueprint(call: BuiltinCall) -> IROperand:
             raise CompilerPanic("raw_args requires exactly 1 bytes argument")
 
         raw_arg_vv = call.lower_pos_args((ctor_arg_nodes[0],))[0]
-        raw_arg_typ = ctor_arg_nodes[0]._metadata["type"]
-        raw_arg = ctx.materialize_value(raw_arg_vv, raw_arg_typ, "raw blueprint args").ptr().operand
+        raw_arg = raw_arg_vv.ptr().operand
         assert isinstance(raw_arg, IRVariable)
         args_len = b.mload(raw_arg)
         args_ptr = b.add(raw_arg, IRLiteral(32))
@@ -432,7 +436,10 @@ def lower_create_from_blueprint(call: BuiltinCall) -> IROperand:
         ctor_arg_types = [arg._metadata["type"] for arg in ctor_arg_nodes]
         ctor_tuple_typ = TupleT(tuple(ctor_arg_types))
         ctor_abi_size = ctor_tuple_typ.abi_type.size_bound()
-        ctor_args_src = _materialize_ctor_args(ctx, b, ctor_arg_nodes, ctor_tuple_typ)
+        ctor_arg_values = call.lower_pos_args(ctor_arg_nodes)
+        ctor_args_src = _materialize_ctor_args(
+            ctx, b, ctor_arg_nodes, ctor_arg_values, ctor_tuple_typ
+        )
     else:
         # No constructor arguments
         args_len = IRLiteral(0)

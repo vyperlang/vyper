@@ -32,13 +32,11 @@ def lower_uint2str(call: BuiltinCall) -> VyperValue:
       result_ptr[33]     = '2' (0x32)
       result_ptr[34]     = '3' (0x33)
     """
-    from vyper.codegen_venom.expr import Expr
-
     node = call.node
     ctx = call.ctx
     b = ctx.builder
 
-    val_input = Expr(node.args[0], ctx).lower_value()
+    val_input = call.lower_pos_arg_values(node.args[:1])[0]
     out_t = node._metadata["type"]
     n_digits = out_t.maxlen
 

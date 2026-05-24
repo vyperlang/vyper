@@ -5,7 +5,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic
+from vyper.semantics.types import AddressT, TYPE_T
 
 _UNSET = object()
 
@@ -16,7 +18,57 @@ class BuiltinCall:
 
     node: vy_ast.Call
     ctx: Any
+    runtime_arg_indices: frozenset[int] | None = None
+    runtime_kwarg_names: frozenset[str] = field(default_factory=frozenset)
+    materialize_complex_args: bool = False
     _kwarg_nodes: dict[str, vy_ast.VyperNode] | None = field(default=None, init=False, repr=False)
+    _lowered_args: tuple[VyperValue | None, ...] = field(default=(), init=False, repr=False)
+    _lowered_kwargs: dict[str, VyperValue] = field(default_factory=dict, init=False, repr=False)
+    _arg_indices: dict[int, int] = field(default_factory=dict, init=False, repr=False)
+
+    def __post_init__(self):
+        from vyper.codegen_venom.expr import Expr
+
+        kwarg_nodes = collect_kwargs(self.node)
+        lowered_args: list[VyperValue | None] = []
+
+        for index, arg in enumerate(self.node.args):
+            if not self._should_lower_pos_arg(index, arg):
+                lowered_args.append(None)
+                continue
+
+            vv = Expr(arg, self.ctx).lower()
+            if self.materialize_complex_args and not arg._metadata["type"]._is_prim_word:
+                vv = self.ctx.materialize_value(vv, arg._metadata["type"], "builtin arg")
+            lowered_args.append(vv)
+
+        lowered_kwargs = {}
+        for name, node in kwarg_nodes.items():
+            if name in self.runtime_kwarg_names:
+                lowered_kwargs[name] = Expr(node.reduced(), self.ctx).lower()
+
+        object.__setattr__(self, "_kwarg_nodes", kwarg_nodes)
+        object.__setattr__(self, "_lowered_args", tuple(lowered_args))
+        object.__setattr__(self, "_lowered_kwargs", lowered_kwargs)
+        object.__setattr__(
+            self, "_arg_indices", {id(arg): i for i, arg in enumerate(self.node.args)}
+        )
+
+    def _should_lower_pos_arg(self, index: int, arg: vy_ast.VyperNode) -> bool:
+        if self.runtime_arg_indices is not None and index not in self.runtime_arg_indices:
+            return False
+
+        typ = arg._metadata.get("type")
+        if isinstance(typ, TYPE_T):
+            return False
+
+        if isinstance(arg, vy_ast.Attribute):
+            if arg.attr == "data" and isinstance(arg.value, vy_ast.Name) and arg.value.id == "msg":
+                return False
+            if arg.attr == "code" and isinstance(arg.value._metadata.get("type"), AddressT):
+                return False
+
+        return True
 
     @property
     def args(self) -> list[vy_ast.VyperNode]:
@@ -47,25 +99,27 @@ class BuiltinCall:
         return get_kwarg_ast_constants(self._kwargs_dict(), kwarg_defaults, error_prefix)
 
     def get_kwarg_values(self, kwarg_defaults: Mapping[str, Any] | Iterable[str]):
-        return get_kwarg_values(self._kwargs_dict(), self.ctx, kwarg_defaults)
+        return get_kwarg_values(self._kwargs_dict(), self.ctx, kwarg_defaults, self._lowered_kwargs)
 
     def lower_pos_args(self, arg_nodes: Iterable[vy_ast.VyperNode] | None = None) -> list[Any]:
-        from vyper.codegen_venom.expr import Expr
-
         arg_nodes = self.node.args if arg_nodes is None else arg_nodes
-        # Positional args are yielded in AST/source order. Each caller should
-        # route every runtime arg through exactly one lowering helper.
-        return [Expr(arg, self.ctx).lower() for arg in arg_nodes]
+        ret = []
+        for arg in arg_nodes:
+            try:
+                index = self._arg_indices[id(arg)]
+            except KeyError:  # pragma: nocover
+                raise CompilerPanic("requested non-call positional arg")
+
+            vv = self._lowered_args[index]
+            if vv is None:  # pragma: nocover
+                raise CompilerPanic("requested positional arg was not pre-lowered")
+            ret.append(vv)
+        return ret
 
     def lower_pos_arg_values(
         self, arg_nodes: Iterable[vy_ast.VyperNode] | None = None
     ) -> list[Any]:
-        from vyper.codegen_venom.expr import Expr
-
-        arg_nodes = self.node.args if arg_nodes is None else arg_nodes
-        # Positional args are yielded in AST/source order. Each caller should
-        # route every runtime arg through exactly one lowering helper.
-        return [Expr(arg, self.ctx).lower_value() for arg in arg_nodes]
+        return [self.ctx.unwrap(arg) for arg in self.lower_pos_args(arg_nodes)]
 
 
 def _kwarg_names_and_defaults(
@@ -144,17 +198,18 @@ def get_kwarg_values(
     kwarg_nodes: Mapping[str, vy_ast.VyperNode],
     ctx,
     kwarg_defaults: Mapping[str, Any] | Iterable[str],
+    lowered_kwargs: Mapping[str, VyperValue] | None = None,
 ):
     from vyper.codegen_venom.expr import Expr
 
     kwarg_names, defaults = _kwarg_names_and_defaults(kwarg_defaults)
     ret = {}
-    # `kwarg_nodes` is produced by walking node.keywords in source order.
-    # Do not iterate over `kwarg_names` here: lowering emits code, so every
-    # explicit runtime kwarg must be lowered once, in the user's keyword order.
     for name, node in kwarg_nodes.items():
         if name in kwarg_names:
-            ret[name] = Expr(node.reduced(), ctx).lower_value()
+            if lowered_kwargs is None:
+                ret[name] = Expr(node.reduced(), ctx).lower_value()
+            else:
+                ret[name] = ctx.unwrap(lowered_kwargs[name])
     for name, default in defaults.items():
         ret.setdefault(name, _default_value(default))
     return ret

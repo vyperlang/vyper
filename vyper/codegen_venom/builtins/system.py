@@ -294,13 +294,10 @@ def lower_raw_revert(call: BuiltinCall) -> IROperand:
 
     Revert with custom data. This is a terminal operation.
     """
-    from vyper.codegen_venom.expr import Expr
-
-    node = call.node
     ctx = call.ctx
     b = ctx.builder
 
-    data_vv = Expr(node.args[0], ctx).lower()
+    data_vv = call.lower_pos_args()[0]
     data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
 
     # Get data pointer and length
@@ -324,15 +321,13 @@ def lower_selfdestruct(call: BuiltinCall) -> IROperand:
     Note: selfdestruct is deprecated and may have reduced functionality
     in future EVM upgrades. Warning is emitted during semantic analysis.
     """
-    from vyper.codegen_venom.expr import Expr
-
     node = call.node
     ctx = call.ctx
     ctx.check_is_not_constant("selfdestruct", node)
 
     b = ctx.builder
 
-    to = Expr(node.args[0], ctx).lower_value()
+    to = call.lower_pos_arg_values()[0]
     b.selfdestruct(to)
 
     return IRLiteral(0)  # Unreachable

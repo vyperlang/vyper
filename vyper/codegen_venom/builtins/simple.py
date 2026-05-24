@@ -87,26 +87,25 @@ def _zero_memory(ctx: VenomCodegenContext, ptr: IRVariable, size: int) -> None:
 
 def lower_min(call: BuiltinCall) -> IROperand:
     """min(a, b) - returns smaller of two values."""
-    return _lower_minmax(call.node, call.ctx, is_max=False)
+    return _lower_minmax(call, is_max=False)
 
 
 def lower_max(call: BuiltinCall) -> IROperand:
     """max(a, b) - returns larger of two values."""
-    return _lower_minmax(call.node, call.ctx, is_max=True)
+    return _lower_minmax(call, is_max=True)
 
 
-def _lower_minmax(node: vy_ast.Call, ctx: VenomCodegenContext, is_max: bool) -> IROperand:
+def _lower_minmax(call: BuiltinCall, is_max: bool) -> IROperand:
     """
     Common implementation for min/max.
 
     Uses select: if (a op b) then a else b
     """
-    from vyper.codegen_venom.expr import Expr
-
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
 
-    a_val = Expr(node.args[0], ctx).lower_value()
-    b_val = Expr(node.args[1], ctx).lower_value()
+    a_val, b_val = call.lower_pos_arg_values()
     typ = node.args[0]._metadata["type"]
 
     # Choose comparison - signed for most types, unsigned only for uint256
@@ -125,13 +124,11 @@ def lower_abs(call: BuiltinCall) -> IROperand:
     Returns absolute value, with overflow check for MIN_INT256.
     abs(-2^255) would overflow since 2^255 > MAX_INT256.
     """
-    from vyper.codegen_venom.expr import Expr
-
     node = call.node
     ctx = call.ctx
     b = ctx.builder
 
-    val = Expr(node.args[0], ctx).lower_value()
+    val = call.lower_pos_arg_values(node.args[:1])[0]
 
     # Compute negation: neg_val = 0 - val
     neg_val = b.sub(IRLiteral(0), val)
