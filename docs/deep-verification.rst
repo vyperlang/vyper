@@ -6,7 +6,7 @@ Deep Verification
 
 Formal verification is becoming substantially more practical for smart contracts. Better tooling and accessible machine-checked semantics now make it feasible to prove properties on production code that were previously out of reach.
 
-Formal verification proves that a program satisfies a specified property within a formal model. In practice, however, most verification work establishes that property at only one layer of the stack. The remaining layers (from source semantics through the compiler to the EVM execution model) are taken on trust.
+However, formal verification only proves that a program satisfies a specified property *within its formal model*. In practice, most verification work today establishes that property at only one layer of the stack. Everything else (from the accuracy and completeness of the model itself, through the compiler, to the EVM execution semantics), is taken on trust.
 
 This distance between what is formally proved and what actually executes on chain is the **verification gap**.
 
