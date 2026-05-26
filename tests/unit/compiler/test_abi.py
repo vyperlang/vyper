@@ -287,6 +287,47 @@ def which(d: Direction) -> Direction:
     assert func["outputs"] == [{"name": "", "type": "uint256", "internalType": "flag Direction"}]
 
 
+def test_event_with_struct_abi():
+    """
+    Verifies that struct event parameters carry internalType in ABI output.
+    Event signature hashing (the topic keccak) uses canonical_abi_type —
+    a separate code path unaffected by this field — so existing decoders
+    and log parsers remain fully compatible. The internalType field is
+    consumed by off-chain tooling (ethers, viem, wagmi) to reconstruct
+    typed log objects from raw topic/data bytes.
+    """
+    code = """
+struct LogData:
+    user: address
+    amount: uint256
+
+event ForAudit:
+    data: LogData
+
+@external
+def audit(addr: address, val: uint256):
+    log ForAudit(data=LogData(user=addr, amount=val))
+    """
+
+    data = CompilerData(code)
+    abi = build_abi_output(data)
+    event_abi = next(e for e in abi if e["type"] == "event")
+
+    assert event_abi["name"] == "ForAudit"
+    assert event_abi["inputs"] == [
+        {
+            "name": "data",
+            "type": "tuple",
+            "internalType": "struct LogData",
+            "components": [
+                {"name": "user", "type": "address"},
+                {"name": "amount", "type": "uint256"},
+            ],
+            "indexed": False,
+        }
+    ]
+
+
 def test_exports_abi(make_input_bundle):
     lib1 = """
 @external
