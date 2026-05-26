@@ -147,18 +147,9 @@ def _encode_child(
     else:
         # Dynamic type:
         #
-        # Ordering invariant: encode child data BEFORE writing the static
-        # offset word. Backend invoke-arg forwarding may pass references
-        # directly, so `child_ptr` may alias the destination buffer.
-        # In particular `static_loc` can point into the same region as
-        # `child_ptr`. Writing the offset word first
-        # would clobber source bytes that `_abi_encode_to_buf` still
-        # needs to read, producing corrupt output.
-        #
-        # Encoding the child first is always safe: it reads from
-        # `child_ptr` and writes to the dynamic section (`dst +
-        # dyn_ofst`), which lies past the static section and therefore
-        # cannot overlap `static_loc`.
+        # ABI encoding is not alias-safe: `dst` must not overlap any source
+        # region being encoded. The child tail is emitted before its static
+        # offset; this ordering does not make overlapping encodes valid.
 
         # 1. Read current dyn_ofst
         dyn_ofst = ctx.ptr_load(dyn_ofst_val.ptr())
@@ -260,9 +251,8 @@ def _encode_dyn_array(
         child_dst = b.add(dst_data, dyn_ofst)
         child_len = _abi_encode_to_buf(ctx, child_dst, child_src, subtyp)
 
-        # Preserve aliasing safety: encode child data before storing static offset.
-        # If source and destination overlap, writing static_loc first can clobber
-        # bytes that _abi_encode_to_buf still needs to read.
+        # Emit the child tail before its static offset. This ordering does not
+        # make overlapping encodes valid; see _abi_encode_to_buf's contract.
         b.mstore(static_loc, dyn_ofst)
 
         new_dyn_ofst = b.add(dyn_ofst, child_len)
@@ -305,6 +295,10 @@ def _abi_encode_to_buf(
     Encode src to ABI format at dst.
 
     Port of abi_encode() from abi_encoder.py.
+
+    Precondition: dst must not overlap src or any child source region. ABI
+    encoding is not alias-safe; callers must stage through a temporary buffer
+    when overlap is possible.
 
     Args:
         ctx: Venom codegen context
@@ -404,6 +398,10 @@ def abi_encode_to_buf(
     Public entry point for ABI encoding.
 
     Encode src to ABI format at dst.
+
+    Precondition: dst must not overlap src or any child source region. ABI
+    encoding is not alias-safe; callers must stage through a temporary buffer
+    when overlap is possible.
 
     Args:
         ctx: Venom codegen context
