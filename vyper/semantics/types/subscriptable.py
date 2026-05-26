@@ -5,7 +5,13 @@ from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABITyp
 from vyper.exceptions import ArrayIndexException, CodegenPanic, InvalidType, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.infinity import INF, WILDCARD, LengthUpperBound, is_bounded_length
+from vyper.semantics.types.infinity import (
+    INF,
+    WILDCARD,
+    LengthUpperBound,
+    is_bounded_length,
+    length_to_json,
+)
 from vyper.semantics.types.primitives import IntegerT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.utils import get_index_value, type_from_annotation
@@ -282,6 +288,11 @@ class DArrayT(_SequenceT):
         # modify the child name in place.
         ret["type"] += "[]"
         return _set_first_key(ret, "name", name)
+
+    def _addl_dict_fields(self):
+        ret = super()._addl_dict_fields()
+        ret["length"] = length_to_json(self.length)
+        return ret
 
     # TODO rename me to memory_bytes_required
     @property

@@ -202,6 +202,21 @@ def test_no_repeated_mcopy_elision_when_dest_modified():
     _check_no_change(pre)
 
 
+def test_returndatacopy_not_forwarded_across_create():
+    pre = """
+    _global:
+        %src = alloca 32
+        %dst = alloca 32
+        %code = alloca 1
+        returndatacopy %src, 0, 32
+        %addr = create 0, %code, 1
+        mcopy %dst, %src, 32
+        %1 = mload %dst
+        sink %1
+    """
+    _check_no_change(pre)
+
+
 def test_no_elision_with_intermediate_write():
     """
     Test that copy elision doesn't happen if there's an intermediate write
