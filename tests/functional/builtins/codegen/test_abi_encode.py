@@ -2,6 +2,8 @@ import pytest
 from eth.codecs import abi
 
 from tests.utils import decimal_to_int
+from vyper import compile_code
+from vyper.exceptions import StructureException
 
 
 # @pytest.mark.parametrize("string", ["a", "abc", "abcde", "potato"])
@@ -392,3 +394,86 @@ def foo(ensure_tuple: bool) -> Bytes[96]:
     assert c.foo(False) == expected_output
     expected_output = b"\x00" * 31 + b"\x20" + b"\x00" * 32
     assert c.foo(True) == expected_output
+
+
+# ------------------------------------------------------------------
+#                  ensure_tuple=False multi-arg guard (#4958)
+# ------------------------------------------------------------------
+
+
+def test_abi_encode_ensure_tuple_false_rejects_two_args():
+    """
+    The minimum reproducer from #4958: a two-argument `abi_encode` with
+    `ensure_tuple=False` used to be silently miscompiled (the kwarg was
+    dropped and a tuple-wrapped encoding was emitted). Verify it now
+    raises at compile time so any decoder relying on the user's stated
+    intent can't desynchronize.
+    """
+    code = """
+@external
+@view
+def encode_pair(s: String[10], n: uint256) -> Bytes[256]:
+    return abi_encode(s, n, ensure_tuple=False)
+    """
+    with pytest.raises(StructureException):
+        compile_code(code)
+
+
+def test_abi_encode_ensure_tuple_false_rejects_merkle_leaf_pattern():
+    """
+    Realistic five-argument case modeled on a domain-bound Merkle leaf:
+        leaf_inner = keccak256(abi_encode(addr, amount, gauge, epoch, token))
+    A maintainer who naively added `ensure_tuple=False` here in pursuit of
+    a 32-byte saving would silently corrupt every leaf relative to the
+    off-chain Python tree builder, and every Merkle proof would fail at
+    claim time with no compile-time or runtime signal. The guard must
+    fire on this exact shape, not just the two-arg minimum.
+    """
+    code = """
+@external
+@view
+def leaf_inner(
+    addr: address,
+    amount: uint256,
+    gauge: address,
+    epoch: uint256,
+    token: address,
+) -> Bytes[256]:
+    return abi_encode(addr, amount, gauge, epoch, token, ensure_tuple=False)
+    """
+    with pytest.raises(StructureException):
+        compile_code(code)
+
+
+def test_abi_encode_ensure_tuple_false_single_arg_still_works(get_contract):
+    """
+    Single-argument `ensure_tuple=False` is the supported, well-defined
+    path and must keep round-tripping byte-for-byte with `eth-abi`'s
+    non-tuple encoder. Regression guard for the fix.
+    """
+    code = """
+@external
+@view
+def encode_string(s: String[10]) -> Bytes[64]:
+    return abi_encode(s, ensure_tuple=False)
+    """
+    c = get_contract(code)
+    assert c.encode_string("hello").hex() == abi.encode("string", "hello").hex()
+
+
+def test_abi_encode_ensure_tuple_default_multi_arg_still_works(get_contract):
+    """
+    The default tuple-encoded multi-argument path is the supported
+    alternative the new error points users toward — must still match
+    `eth-abi`'s `(string,uint256)` tuple encoding exactly. Regression
+    guard that the fix didn't accidentally narrow the existing surface.
+    """
+    code = """
+@external
+@view
+def encode_pair(s: String[10], n: uint256) -> Bytes[128]:
+    return abi_encode(s, n)
+    """
+    c = get_contract(code)
+    expected = abi.encode("(string,uint256)", ("hello", 42)).hex()
+    assert c.encode_pair("hello", 42).hex() == expected
