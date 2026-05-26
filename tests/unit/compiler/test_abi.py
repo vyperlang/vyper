@@ -113,6 +113,7 @@ def foo(s: MyStruct) -> MyStruct:
         {
             "type": "tuple",
             "name": "",
+            "internalType": "struct MyStruct",
             "components": [{"type": "address", "name": "a"}, {"type": "uint256", "name": "b"}],
         }
     ]
@@ -122,6 +123,7 @@ def foo(s: MyStruct) -> MyStruct:
     expected_input = {
         "type": "tuple",
         "name": "s",
+        "internalType": "struct MyStruct",
         "components": [{"type": "address", "name": "a"}, {"type": "uint256", "name": "b"}],
     }
 
@@ -129,9 +131,13 @@ def foo(s: MyStruct) -> MyStruct:
 
 
 @pytest.mark.parametrize(
-    "type,abi_type", [("DynArray[NestedStruct, 2]", "tuple[]"), ("NestedStruct[2]", "tuple[2]")]
+    "type,abi_type,internal_type",
+    [
+        ("DynArray[NestedStruct, 2]", "tuple[]", "struct NestedStruct[]"),
+        ("NestedStruct[2]", "tuple[2]", "struct NestedStruct[2]"),
+    ],
 )
-def test_nested_struct(type, abi_type):
+def test_nested_struct(type, abi_type, internal_type):
     code = f"""
 struct MyStruct:
     a: address
@@ -166,11 +172,13 @@ def getStructList() -> {type}:
                             ],
                             "name": "t",
                             "type": "tuple",
+                            "internalType": "struct MyStruct",
                         },
                         {"name": "foo", "type": "uint256"},
                     ],
                     "name": "",
-                    "type": f"{abi_type}",
+                    "type": abi_type,
+                    "internalType": internal_type,
                 }
             ],
             "stateMutability": "view",
@@ -180,9 +188,13 @@ def getStructList() -> {type}:
 
 
 @pytest.mark.parametrize(
-    "type,abi_type", [("DynArray[DynArray[Foo, 2], 2]", "tuple[][]"), ("Foo[2][2]", "tuple[2][2]")]
+    "type,abi_type,internal_type",
+    [
+        ("DynArray[DynArray[Foo, 2], 2]", "tuple[][]", "struct Foo[][]"),
+        ("Foo[2][2]", "tuple[2][2]", "struct Foo[2][2]"),
+    ],
 )
-def test_2d_list_of_struct(type, abi_type):
+def test_2d_list_of_struct(type, abi_type, internal_type):
     code = f"""
 struct Foo:
     a: uint256
@@ -205,7 +217,8 @@ def bar(x: {type}):
                         {"name": "b", "type": "uint256"},
                     ],
                     "name": "x",
-                    "type": f"{abi_type}",
+                    "type": abi_type,
+                    "internalType": internal_type,
                 }
             ],
             "name": "bar",
@@ -214,6 +227,64 @@ def bar(x: {type}):
             "type": "function",
         }
     ]
+
+
+def test_struct_abi_internaltype():
+    """
+    Validates that struct parameters and return values carry internalType in ABI output.
+    EIP-712 typed-data libraries (viem, ethers, wagmi) derive the struct name used
+    in the domain-separator type hash directly from internalType. Without it, a Permit
+    or Order struct appears only as "tuple" and integrators must hardcode the name
+    out of band — creating silent drift whenever the contract layout changes.
+    """
+    code = """
+struct Permit:
+    owner: address
+    spender: address
+    value: uint256
+    deadline: uint256
+
+@external
+@view
+def echo(p: Permit) -> Permit:
+    return p
+    """
+
+    out = compile_code(code, output_formats=["abi"])
+    func = next(i for i in out["abi"] if i.get("name") == "echo")
+
+    assert func["inputs"][0]["internalType"] == "struct Permit"
+    assert func["inputs"][0]["type"] == "tuple"
+    assert func["outputs"][0]["internalType"] == "struct Permit"
+    assert func["outputs"][0]["type"] == "tuple"
+
+
+def test_flag_abi_internaltype():
+    """
+    Validates that flag parameters and return values carry internalType in ABI output.
+    A flag is ABI-encoded as uint256, indistinguishable from a plain integer at the
+    wire level. internalType lets downstream tooling reconstruct the flag name for
+    display, documentation generation, and typed SDK generation — the same reason
+    Solidity exposes enum names via internalType.
+    """
+    code = """
+flag Direction:
+    NORTH
+    SOUTH
+    EAST
+    WEST
+
+@external
+@view
+def which(d: Direction) -> Direction:
+    return d
+    """
+
+    out = compile_code(code, output_formats=["abi"])
+    func = next(i for i in out["abi"] if i.get("name") == "which")
+
+    assert func["inputs"] == [{"name": "d", "type": "uint256", "internalType": "flag Direction"}]
+    assert func["outputs"] == [{"name": "", "type": "uint256", "internalType": "flag Direction"}]
 
 
 def test_exports_abi(make_input_bundle):
