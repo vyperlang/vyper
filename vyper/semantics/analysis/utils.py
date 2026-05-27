@@ -26,9 +26,11 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
+from vyper.semantics.types.infinity import is_bounded_length
 
 if TYPE_CHECKING:
     from vyper.semantics.types.module import ModuleT
+
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.utils import OrderedSet, checksum_encode, int_to_fourbytes
@@ -139,7 +141,7 @@ class _ExprAnalyser:
 
         return types_list[0]
 
-    def get_possible_types_from_node(self, node, include_type_exprs=False):
+    def get_possible_types_from_node(self, node, include_type_exprs=False) -> list[VyperType]:
         """
         Find all possible types for a given node.
         If the node's metadata contains type information, then that type is returned.
@@ -545,7 +547,7 @@ def _validate_literal_array(node, expected):
         if len(node.elements) != expected.length:
             return False
     if isinstance(expected, DArrayT):
-        if len(node.elements) > expected.length:
+        if is_bounded_length(expected.length) and len(node.elements) > expected.length:
             return False
 
     for item in node.elements:
@@ -620,8 +622,21 @@ def validate_expected_type(node, expected_type):
     if not isinstance(node, (vy_ast.List, vy_ast.Tuple)) and node.get_descendants(
         vy_ast.Name, include_self=True
     ):
-        given = given_types[0]
-        raise TypeMismatch(f"Given reference has type {given}, expected {expected_str}", node)
+        given: VyperType = given_types[0]
+        hint = None
+        failed_bytes_subtyping = isinstance(given, BytesT) and any(
+            isinstance(expected, BytesT) for expected in expected_type
+        )
+        failed_string_subtyping = isinstance(given, StringT) and any(
+            isinstance(expected, StringT) for expected in expected_type
+        )
+
+        if failed_bytes_subtyping or failed_string_subtyping:
+            hint = "to reduce the maximum size you can use `slice` or `convert`."
+
+        raise TypeMismatch(
+            f"Given reference has type {given}, expected {expected_str}", node, hint=hint
+        )
     else:
         if len(given_types) == 1:
             given_str = str(given_types[0])
