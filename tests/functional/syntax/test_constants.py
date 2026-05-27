@@ -324,6 +324,17 @@ interface Foo:
 FOO: constant(Foo) = Foo(BAR)
 BAR: constant(address) = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF
     """,
+    # conversion of literal bytestrings to bytes_M
+    """
+b: constant(bytes5) = convert(b"vyper", bytes5)
+    """,
+    """
+b: constant(bytes5) = convert("vyper", bytes5)
+    """,
+    """
+a: constant(Bytes[5]) = b"vyper"
+b: constant(bytes5) = convert(a, bytes5)
+    """,
 ]
 
 
