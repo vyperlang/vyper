@@ -426,6 +426,49 @@ def _vyper_literal(val, typ):
     return str(val)
 
 
+def test_bytes_to_int_different_sizes(get_contract):
+    code = r"""
+@external
+def foo() -> int16:
+    return convert(b'\xff', int16)
+    """
+    
+    c = get_contract(code)
+    assert c.foo() == -1
+    return
+
+    code = r"""
+FOO: constant(Bytes[2]) = b'\xff'
+
+@external
+def foo() -> int16:
+    return convert(FOO, int16)
+    """
+    
+    c = get_contract(code)
+    assert c.foo() == 255
+
+def test_bytes_to_int_different_sizes_runtime(get_contract):
+    code = """
+@external
+def foo(x: Bytes[1]) -> int16:
+    return convert(x, int16)
+    """
+    
+    c = get_contract(code)
+    assert c.foo(b"\xff") == -1
+
+    code = """
+@external
+def foo(x: Bytes[2]) -> int16:
+    return convert(x, int16)
+    """
+    
+    c = get_contract(code)
+    assert c.foo(b"\xff") == 255
+
+
+
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_passing_cases())
 @pytest.mark.fuzzing
 def test_convert_passing(get_contract, assert_compile_failed, i_typ, o_typ, val):
