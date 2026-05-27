@@ -134,7 +134,7 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
         assert alias_set is not None
         res = set()
         for alias_loc in alias_set:
-            tmp = self.mem_loc_insts[alias_loc]
+            tmp = self.mem_loc_insts.get(alias_loc, set())
             res.update(tmp)
         return res
 
