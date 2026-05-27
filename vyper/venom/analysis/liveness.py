@@ -109,15 +109,12 @@ class LivenessAnalysis(IRAnalysis):
             liveness = self.inst_to_liveness[target.instructions[0]].copy()
             return liveness
 
-        # Map live phi outputs to the matching operand from `source`.
-        # Mapping by input operand is ambiguous when the same variable feeds
-        # more than one phi. The block-entry stack only needs values for live
-        # phi results, in that result order.
-        liveness = OrderedSet()
-        for inst in target.instructions:
-            if inst.opcode != "phi":
-                liveness = self.inst_to_liveness[inst].copy()
-                break
+        # Map phi outputs to the matching operand from `source`. Mapping by
+        # input operand is ambiguous when the same variable feeds more than one
+        # phi, so we key on the (unique) phi output instead. This yields one
+        # stack slot per phi, even when two phis take the same value from
+        # `source`.
+        liveness = self.liveness_in_vars(target)
 
         output_to_phi_idx: dict[IROperand, int] = {}
         phi_matching: dict[int, IRVariable] = {}
@@ -129,12 +126,21 @@ class LivenessAnalysis(IRAnalysis):
                     phi_matching[i] = var
 
         result: list[IRVariable] = []
+        placed: set[int] = set()
         for var in liveness:
             phi_idx = output_to_phi_idx.get(var)
             if phi_idx is not None:
+                placed.add(phi_idx)
                 result.append(phi_matching[phi_idx])
             else:
                 result.append(var)
+
+        # a phi whose output is dead is absent from `liveness`, but codegen
+        # still processes the phi and expects its incoming value on the stack,
+        # so emit a slot for every phi that wasn't placed above.
+        for i in range(len(phis)):
+            if i not in placed:
+                result.append(phi_matching[i])
 
         return result
 
