@@ -79,3 +79,41 @@ join:
 
     calldata = b"".join(_word(x) for x in (0, 5, 7, 11))
     assert int.from_bytes(env.message_call(contract.address, data=calldata), "big") == 18
+
+
+def test_phi_dead_output(env):
+    # a phi whose output is dead still needs its incoming value materialized
+    # on the predecessor stack, otherwise codegen sees an empty stack at the
+    # join. a live phi (`%live`) shares the join to check it is not corrupted.
+    # codegen runs without optimization passes so the dead phi is not DCE'd.
+    source = """
+function runtime {
+entry:
+  %cond = calldataload 0
+  %a = calldataload 32
+  %b = calldataload 64
+  %c = calldataload 96
+  %d = calldataload 128
+  jnz %cond, @p1, @p2
+p1:
+  jmp @join
+p2:
+  jmp @join
+join:
+  %dead = phi @p1, %a, @p2, %b
+  %live = phi @p1, %c, @p2, %d
+  mstore 0, %live
+  return 0, 32
+}
+    """
+
+    ctx = parse_venom(source)
+    asm = generate_assembly_experimental(ctx, optimize=OptimizationLevel.GAS)
+    runtime_bytecode, _ = generate_bytecode(asm)
+    contract = _deploy_runtime(env, runtime_bytecode)
+
+    calldata = b"".join(_word(x) for x in (1, 5, 7, 9, 11))  # cond=1 -> %live=%c=9
+    assert int.from_bytes(env.message_call(contract.address, data=calldata), "big") == 9
+
+    calldata = b"".join(_word(x) for x in (0, 5, 7, 9, 11))  # cond=0 -> %live=%d=11
+    assert int.from_bytes(env.message_call(contract.address, data=calldata), "big") == 11
