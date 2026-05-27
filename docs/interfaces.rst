@@ -128,9 +128,34 @@ Multiple ``implements`` statements can be grouped into one:
 
 .. note::
 
-  For functions returning length-bounded types (``Bytes``, ``DynArray``, ``String``), the upper bound declared in the interface is the **upper bound** for the implementation: if the interface declares ``String[10]``, the implementation must return a value of length **at most** 10 (covariant return types). Parameter bounds go the other way — an implementation may accept *wider* parameter types than the interface declares (contravariant parameters).
+  Functions involving length-bounded types (``Bytes``, ``DynArray``, ``String``) follow standard variance rules:
 
-  To declare "any length" in an interface, use the wildcard syntax ``T[...]`` (e.g. ``Bytes[...]``, ``String[...]``, ``DynArray[uint256, ...]``). The wildcard is only valid inside interface declarations and is resolved at the external call site against the expected type.
+  - **Return types are covariant**: if the interface declares ``String[10]``, the implementation's declared maximum must be **at most** 10 (it may be narrower).
+  - **Parameter types are contravariant**: if the interface declares ``Bytes[10]``, the implementation's declared maximum must be **at least** 10 (it may be wider).
+
+  For example, given the interface:
+
+  .. code-block:: vyper
+
+      interface IFoo:
+          def foo(x: Bytes[10]) -> String[10]: view
+
+  the following implementation is accepted:
+
+  .. code-block:: vyper
+
+      implements: IFoo
+
+      @external
+      @view
+      def foo(x: Bytes[20]) -> String[5]:  # wider parameter, narrower return
+          return ""
+
+  Matching bounds are also valid: an implementation declared as ``def foo(x: Bytes[10]) -> String[10]`` satisfies the same interface.
+
+  Think of a function as a funnel. To swap it for another, the input has to be at least as wide (the new function must accept everything the original did, and may accept more), and the output has to be no wider (whatever it produces must still fit where the original output went). A narrower input would let some valid arguments fall through, and a wider output would exceed what the caller is prepared to receive.
+
+  To declare "any length" in an interface, use the wildcard ``...`` with one of the length-bounded types: ``Bytes[...]``, ``DynArray[uint256, ...]``, or ``String[...]``. The wildcard is only valid inside interface declarations and only for these types; static arrays (e.g. ``uint256[5]``) still require a concrete length. At the call site, a wildcard in the return type is resolved against the expected type, or to an unbounded type otherwise.
 
 .. note::
 
