@@ -3,6 +3,16 @@ from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizati
 from vyper.venom.basicblock import IRVariable
 
 
+def _settings():
+    settings = Settings(
+        experimental_codegen=True,
+        optimize=OptimizationLevel.O3,
+        evm_version="prague",
+    )
+    settings.venom_flags = VenomOptimizationFlags(level=OptimizationLevel.O3, disable_inlining=True)
+    return settings
+
+
 def test_annassign_internal_call_result_reuses_return_buffer():
     code = """
 @internal
@@ -24,10 +34,7 @@ def foo() -> uint256:
     return self._driver(x)
     """
 
-    settings = Settings(experimental_codegen=True, optimize=OptimizationLevel.O3)
-    settings.venom_flags = VenomOptimizationFlags(level=OptimizationLevel.O3, disable_inlining=True)
-
-    ctx = compile_code(code, settings=settings, output_formats=["ir_runtime"])["ir_runtime"]
+    ctx = compile_code(code, settings=_settings(), output_formats=["ir_runtime"])["ir_runtime"]
 
     driver_fn = next(fn for fn in ctx.functions.values() if "_driver" in str(fn.name))
     opcodes = [inst.opcode for bb in driver_fn.get_basic_blocks() for inst in bb.instructions]
@@ -54,10 +61,7 @@ def foo() -> uint256:
     return self._driver()
     """
 
-    settings = Settings(experimental_codegen=True, optimize=OptimizationLevel.O3)
-    settings.venom_flags = VenomOptimizationFlags(level=OptimizationLevel.O3, disable_inlining=True)
-
-    ctx = compile_code(code, settings=settings, output_formats=["ir_runtime"])["ir_runtime"]
+    ctx = compile_code(code, settings=_settings(), output_formats=["ir_runtime"])["ir_runtime"]
 
     driver_fn = next(fn for fn in ctx.functions.values() if "_driver" in str(fn.name))
     driver_insts = [inst for bb in driver_fn.get_basic_blocks() for inst in bb.instructions]
@@ -110,10 +114,7 @@ def foo() -> uint256:
     return self._driver()
     """
 
-    settings = Settings(experimental_codegen=True, optimize=OptimizationLevel.O3)
-    settings.venom_flags = VenomOptimizationFlags(level=OptimizationLevel.O3, disable_inlining=True)
-
-    ctx = compile_code(code, settings=settings, output_formats=["ir_runtime"])["ir_runtime"]
+    ctx = compile_code(code, settings=_settings(), output_formats=["ir_runtime"])["ir_runtime"]
 
     driver_fn = next(fn for fn in ctx.functions.values() if "_driver" in str(fn.name))
     driver_insts = [inst for bb in driver_fn.get_basic_blocks() for inst in bb.instructions]
@@ -161,10 +162,7 @@ def foo() -> uint256:
     return self._driver()
     """
 
-    settings = Settings(experimental_codegen=True, optimize=OptimizationLevel.O3)
-    settings.venom_flags = VenomOptimizationFlags(level=OptimizationLevel.O3, disable_inlining=True)
-
-    ctx = compile_code(code, settings=settings, output_formats=["ir_runtime"])["ir_runtime"]
+    ctx = compile_code(code, settings=_settings(), output_formats=["ir_runtime"])["ir_runtime"]
 
     driver_fn = next(fn for fn in ctx.functions.values() if "_driver" in str(fn.name))
     opcodes = [inst.opcode for bb in driver_fn.get_basic_blocks() for inst in bb.instructions]
@@ -193,10 +191,7 @@ def foo() -> uint256:
     return self._driver()
     """
 
-    settings = Settings(experimental_codegen=True, optimize=OptimizationLevel.O3)
-    settings.venom_flags = VenomOptimizationFlags(level=OptimizationLevel.O3, disable_inlining=True)
-
-    ctx = compile_code(code, settings=settings, output_formats=["ir_runtime"])["ir_runtime"]
+    ctx = compile_code(code, settings=_settings(), output_formats=["ir_runtime"])["ir_runtime"]
 
     driver_fn = next(fn for fn in ctx.functions.values() if "_driver" in str(fn.name))
     opcodes = [inst.opcode for bb in driver_fn.get_basic_blocks() for inst in bb.instructions]
