@@ -128,7 +128,9 @@ Multiple ``implements`` statements can be grouped into one:
 
 .. note::
 
-  Interfaces that implement functions with return values that require an upper bound (e.g. ``Bytes``, ``DynArray``, or ``String``), the upper bound defined in the interface represents the lower bound of the implementation. Assuming a function ``my_func`` returns a value ``String[1]`` in the interface, this would mean for the implementation function of ``my_func`` that the return value must have **at least** length 1. This behavior might change in the future.
+  For functions returning length-bounded types (``Bytes``, ``DynArray``, ``String``), the upper bound declared in the interface is the **upper bound** for the implementation: if the interface declares ``String[10]``, the implementation must return a value of length **at most** 10 (covariant return types). Parameter bounds go the other way — an implementation may accept *wider* parameter types than the interface declares (contravariant parameters).
+
+  To declare "any length" in an interface, use the wildcard syntax ``T[...]`` (e.g. ``Bytes[...]``, ``String[...]``, ``DynArray[uint256, ...]``). The wildcard is only valid inside interface declarations and is resolved at the external call site against the expected type.
 
 .. note::
 
