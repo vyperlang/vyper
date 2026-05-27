@@ -185,7 +185,10 @@ def _to_int(
         # Right-shift to convert left-aligned bytes to right-aligned int
         # num_zero_bits = (32 - len) * 8
         num_zero_bits = b.mul(b.sub(IRLiteral(32), length), IRLiteral(8))
-        val = b.shr(num_zero_bits, data)
+        if out_t.is_signed:
+            val = b.sar(num_zero_bits, data)
+        else:
+            val = b.shr(num_zero_bits, data)
         # Clamp if bytes could exceed output range
         if in_t.maxlen * 8 > out_t.bits:
             val = _int_clamp(val, out_t, ctx)
@@ -194,7 +197,10 @@ def _to_int(
     # From bytesM: right-shift by (32 - M) * 8 bits
     if isinstance(in_t, BytesM_T):
         shift_bits = (32 - in_t.m) * 8
-        val = b.shr(IRLiteral(shift_bits), val)
+        if out_t.is_signed:
+            val = b.sar(IRLiteral(shift_bits), val)
+        else:
+            val = b.shr(IRLiteral(shift_bits), val)
         # Clamp if bytesM could exceed output range
         if in_t.m * 8 > out_t.bits:
             val = _int_clamp(val, out_t, ctx)
@@ -259,7 +265,7 @@ def _to_decimal(
         data_ptr = b.add(val, IRLiteral(32))
         data = b.mload(data_ptr)
         num_zero_bits = b.mul(b.sub(IRLiteral(32), length), IRLiteral(8))
-        val = b.shr(num_zero_bits, data)
+        val = b.sar(num_zero_bits, data)
         # Clamp to decimal bounds if needed
         if in_t.maxlen * 8 > 168:  # decimal is 168 bits
             val = _clamp_basetype(val, out_t, ctx)
@@ -268,7 +274,7 @@ def _to_decimal(
     # From bytesM
     if isinstance(in_t, BytesM_T):
         shift_bits = (32 - in_t.m) * 8
-        val = b.shr(IRLiteral(shift_bits), val)
+        val = b.sar(IRLiteral(shift_bits), val)
         if in_t.m * 8 > 168:
             val = _clamp_basetype(val, out_t, ctx)
         return val

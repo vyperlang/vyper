@@ -93,7 +93,10 @@ def _bytes_to_num(arg, out_typ, signed):
     else:  # pragma: nocover
         raise CompilerPanic("unreachable")
 
-    ret = shr(num_zero_bits, arg)
+    if signed:
+        ret = sar(num_zero_bits, arg)
+    else:
+        ret = shr(num_zero_bits, arg)
 
     annotation = (f"__intrinsic__byte_array_to_num({out_typ})",)
     return IRnode.from_list(ret, annotation=annotation)
