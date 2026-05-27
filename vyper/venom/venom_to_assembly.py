@@ -313,16 +313,14 @@ class VenomCompiler:
         return cost
 
     @staticmethod
-    def _find_unlocked_depth(
-        stack: StackModel, op: IROperand, locked_depths: set[int]
-    ) -> int | object:
+    def _find_unlocked_depth(stack: StackModel, op: IROperand, locked_depths: set[int]) -> int:
         for i, stack_op in enumerate(reversed(stack._stack)):
             depth = -i
             if depth in locked_depths:
                 continue
             if stack_op == op:
                 return depth
-        return StackModel.NOT_IN_STACK
+        return StackModel.NOT_IN_STACK  # type: ignore
 
     def _reduce_depth_via_spill(
         self,
