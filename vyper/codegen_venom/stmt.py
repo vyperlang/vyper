@@ -5,6 +5,7 @@ This module handles statement codegen: assignments, augmented assignments,
 and other statement types. Complex multi-word assignments (structs, arrays)
 are deferred to later tasks.
 """
+
 from __future__ import annotations
 
 from typing import Optional
@@ -13,7 +14,7 @@ from vyper import ast as vy_ast
 from vyper.codegen.core import calculate_type_for_external_return
 from vyper.codegen_venom.abi import abi_encode_to_buf
 from vyper.codegen_venom.arithmetic import apply_binop
-from vyper.exceptions import CompilerPanic, TypeCheckFailure
+from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, tag_exceptions
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT
@@ -40,10 +41,11 @@ class Stmt:
     def lower(self) -> None:
         """Dispatch to type-specific lowering method."""
         fn_name = f"lower_{type(self.node).__name__}"
-        method = getattr(self, fn_name, None)
-        if method is None:
-            raise CompilerPanic(f"Unsupported stmt: {type(self.node)}")
-        return method()
+        with tag_exceptions(self.node, fallback_exception_type=CodegenPanic, note=fn_name):
+            method = getattr(self, fn_name, None)
+            if method is None:  # pragma: nocover
+                raise CompilerPanic(f"Unsupported stmt: {type(self.node)}")
+            return method()
 
     # === Assignment Statements ===
 
@@ -248,12 +250,7 @@ class Stmt:
             src = staged_src.operand
 
         for src_elem_typ, dst_elem_typ in zip(src_member_types, dst_member_types):
-            if src_offset == 0:
-                elem_ptr = src
-            elif isinstance(src, IRLiteral):
-                elem_ptr = IRLiteral(src.value + src_offset)
-            else:
-                elem_ptr = self.builder.add(src, IRLiteral(src_offset))
+            elem_ptr = self.builder.add(src, IRLiteral(src_offset))
 
             # Load the value
             val = self.ctx.load_memory(elem_ptr, src_elem_typ)
@@ -290,7 +287,7 @@ class Stmt:
         right_node = node.value
 
         # AugAssign only works on primitive word types
-        if not target_typ._is_prim_word:
+        if not target_typ._is_prim_word:  # pragma: nocover
             raise TypeCheckFailure("AugAssign only valid for primitive types")
 
         # Get target pointer (with location info)
@@ -306,7 +303,7 @@ class Stmt:
         exp_literal = None
         if isinstance(op, vy_ast.Pow):
             right_reduced = right_node.reduced()
-            if not isinstance(right_reduced, vy_ast.Int):
+            if not isinstance(right_reduced, vy_ast.Int):  # pragma: nocover
                 raise TypeCheckFailure("AugAssign pow requires literal exponent")
             exp_literal = right_reduced.value
 
@@ -447,7 +444,7 @@ class Stmt:
             if varinfo is not None and varinfo.is_immutable and self.ctx.is_ctor_context:
                 return Ptr(IRLiteral(varinfo.position.position), DataLocation.IMMUTABLES)
 
-            raise CompilerPanic(f"Unknown variable: {varname}")
+            raise CompilerPanic(f"Unknown variable: {varname}")  # pragma: nocover
 
         elif isinstance(target, vy_ast.Attribute):
             # self.x = ... (state variable assignment)
@@ -462,9 +459,9 @@ class Stmt:
                 if varinfo.is_immutable and self.ctx.is_ctor_context:
                     return Ptr(IRLiteral(varinfo.position.position), DataLocation.IMMUTABLES)
 
-                if varinfo.is_constant:
+                if varinfo.is_constant:  # pragma: nocover
                     raise TypeCheckFailure("Cannot assign to constant")
-                if varinfo.is_immutable:
+                if varinfo.is_immutable:  # pragma: nocover
                     raise TypeCheckFailure("Cannot assign to immutable outside constructor")
 
             # Struct field access (point.x = ...)
@@ -473,14 +470,14 @@ class Stmt:
                 # Use Expr to compute the field pointer
                 return Expr(target, self.ctx).lower().ptr()
 
-            raise CompilerPanic(f"Unsupported attribute target: {target.attr}")
+            raise CompilerPanic(f"Unsupported attribute target: {target.attr}")  # pragma: nocover
 
         elif isinstance(target, vy_ast.Subscript):
             # x[i] = ... or self.arr[i] = ... or self.map[key] = ...
             # Use Expr to compute the element pointer/slot
             return Expr(target, self.ctx).lower().ptr()
 
-        raise CompilerPanic(f"Unsupported assignment target: {type(target)}")
+        raise CompilerPanic(f"Unsupported assignment target: {type(target)}")  # pragma: nocover
 
     # === Control Flow Statements ===
 
@@ -600,8 +597,7 @@ class Stmt:
                 if isinstance(start, IRLiteral) and isinstance(end_expr, IRLiteral):
                     rounds = IRLiteral(end_expr.value - start.value)
                     rounds_bound = rounds.value
-                else:
-                    # Non-literal but no bound - semantic analysis should catch this
+                else:  # pragma: nocover
                     raise CompilerPanic("range() with non-literal args requires bound=")
 
         # Allocate counter variable in memory for user access
@@ -714,7 +710,7 @@ class Stmt:
             # Static array: length is compile-time constant
             length = IRLiteral(array_typ.count)
             bound = array_typ.count
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"Cannot iterate over type: {array_typ}")
 
         # Element size (in slots for storage, bytes for memory)
@@ -820,13 +816,13 @@ class Stmt:
 
     def lower_Break(self) -> None:
         """Lower break statement - jump to loop exit."""
-        if self.ctx.break_target is None:
+        if self.ctx.break_target is None:  # pragma: nocover
             raise CompilerPanic("break outside loop")
         self.builder.jmp(self.ctx.break_target)
 
     def lower_Continue(self) -> None:
         """Lower continue statement - jump to loop increment."""
-        if self.ctx.continue_target is None:
+        if self.ctx.continue_target is None:  # pragma: nocover
             raise CompilerPanic("continue outside loop")
         self.builder.jmp(self.ctx.continue_target)
 
@@ -850,7 +846,7 @@ class Stmt:
         assert isinstance(node, vy_ast.Return)
         func_t = self.ctx.func_t
 
-        if func_t is None:
+        if func_t is None:  # pragma: nocover
             raise CompilerPanic("Return outside function")
 
         # Evaluate return value if present
@@ -910,7 +906,7 @@ class Stmt:
             self.ctx.store_memory(ret_val, self.ctx.return_buffer, ret_typ, src_typ=ret_src_typ)
             self.builder.ret(return_pc)
 
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic("Internal function missing return mechanism")
 
     def _lower_external_return(
@@ -1051,10 +1047,7 @@ class Stmt:
             # Store each data value into the tuple buffer
             offset = 0
             for (val, src_typ), typ in zip(data_vals, data_typs):
-                if offset == 0:
-                    dst = data_buf._ptr
-                else:
-                    dst = self.builder.add(data_buf._ptr, IRLiteral(offset))
+                dst = self.builder.add(data_buf._ptr, IRLiteral(offset))
                 self.ctx.store_memory(val, dst, typ, src_typ=src_typ)
                 offset += typ.memory_bytes_required
 
@@ -1098,7 +1091,7 @@ class Stmt:
             length = self.builder.mload(val)
             return self.builder.sha3(data_ptr, length)
 
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"Event indexes may only be value types, got {typ}")
 
     # === Error Handling (Assert/Raise) ===

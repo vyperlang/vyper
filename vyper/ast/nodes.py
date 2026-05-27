@@ -14,6 +14,7 @@ from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
+    FunctionDeclarationException,
     InvalidLiteral,
     InvalidOperation,
     OverflowException,
@@ -667,6 +668,14 @@ class Module(TopLevel):
 class FunctionDef(TopLevel):
     __slots__ = ("args", "returns", "decorator_list")
 
+    def validate(self):
+        if not self.body:
+            raise FunctionDeclarationException(
+                "Function body cannot consist of only a docstring",
+                self,
+                hint="add a `pass` statement to the function body",
+            )
+
 
 class DocStr(VyperNode):
     """
@@ -1124,10 +1133,16 @@ class Pow(Operator):
         # stage since we are just trying to filter out inputs which can cause
         # the compiler to hang. the others will get caught during constant
         # folding or codegen.
+        # |left| <= 1 can never overflow (result magnitude stays <= 1), so
+        # fast-path it before the log-based heuristic. math.log is undefined
+        # for left <= 0 and zero for left == 1, so the log check below would
+        # also be ill-defined for those cases.
+        if abs(left) <= 1:
+            return int(left**right)
         # l**r > 2**256
         # r * ln(l) > ln(2 ** 256)
         # r > ln(2 ** 256) / ln(l)
-        if right > math.log(decimal.Decimal(2**257)) / math.log(decimal.Decimal(left)):
+        if right > math.log(decimal.Decimal(2**257)) / math.log(decimal.Decimal(abs(left))):
             raise InvalidLiteral("Out of bounds", self)
 
         return int(left**right)

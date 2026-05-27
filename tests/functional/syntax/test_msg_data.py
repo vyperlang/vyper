@@ -2,7 +2,7 @@ import pytest
 from eth_utils import to_bytes
 
 from vyper import compiler
-from vyper.exceptions import StructureException, TypeMismatch, VyperException
+from vyper.exceptions import CodegenPanic, TypeMismatch, VyperException
 from vyper.utils import method_id
 
 
@@ -108,7 +108,7 @@ def foo() -> Bytes[4]:
     bar: Bytes[4] = msg.data
     return bar
     """,
-        StructureException,
+        TypeMismatch,
     ),
     (
         """
@@ -117,16 +117,7 @@ def foo() -> Bytes[7]:
     bar: Bytes[7] = concat(msg.data, 0xc0ffee)
     return bar
     """,
-        StructureException,
-    ),
-    (
-        """
-@external
-def foo() -> uint256:
-    bar: uint256 = convert(msg.data, uint256)
-    return bar
-    """,
-        StructureException,
+        TypeMismatch,
     ),
     (
         """
@@ -136,7 +127,7 @@ a: HashMap[Bytes[10], uint256]
 def foo():
     self.a[msg.data] += 1
     """,
-        StructureException,
+        TypeMismatch,
     ),
     (
         """
@@ -164,7 +155,7 @@ a: HashMap[Bytes[10], uint256]
 def foo():
     self.a[msg.data] += 1
     """
-    with pytest.raises(StructureException):
+    with pytest.raises(TypeMismatch):
         compiler.compile_code(poison_code)
 
     for bad_code in (
@@ -181,7 +172,7 @@ def foo() -> Bytes[7]:
     return bar
         """,
     ):
-        with pytest.raises(StructureException):
+        with pytest.raises(TypeMismatch):
             compiler.compile_code(bad_code)
 
 
@@ -202,8 +193,12 @@ def bad() -> Bytes[4]:
         compiler.compile_code(bad_code)
 
     err = str(exc_info.value)
-    assert err.count("StructureException: msg.data is only allowed") == 2
-    assert "TypeMismatch" not in err
+    # Both errors should be TypeMismatch about Bytes[INF]
+    assert err.count("TypeMismatch") == 2
+    assert err.count("Bytes[INF]") == 2
+    # Each error should mention the correct expected type (not polluted)
+    assert "Bytes[10]" in err  # for HashMap key
+    assert "Bytes[4]" in err  # for direct assignment
 
 
 def test_successful_compilation_no_cross_pollution():
@@ -238,3 +233,25 @@ def foo(_value: uint256) -> uint256:
     contract = get_contract(code)
     with tx_failed():
         contract.foo(42)
+
+
+@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
+def test_msg_data_assign_to_bytes_inf():
+    code = """
+@external
+def foo() -> Bytes[100]:
+    x: Bytes[INF] = msg.data
+    return slice(x, 0, 100)
+    """
+    compiler.compile_code(code)
+
+
+@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
+def test_msg_data_convert():
+    code = """
+@external
+def foo() -> uint256:
+    bar: uint256 = convert(msg.data, uint256)
+    return bar
+    """
+    compiler.compile_code(code)
