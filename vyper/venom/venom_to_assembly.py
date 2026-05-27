@@ -375,7 +375,7 @@ class VenomCompiler:
         self._optimistic_swap(asm, last_param_inst, next_liveness, stack)
 
     def popmany(self, asm, to_pop: Iterable[IRVariable], stack):
-        to_pop = list(to_pop)
+        to_pop = [var for var in to_pop if stack.get_depth(var) is not StackModel.NOT_IN_STACK]
         if len(to_pop) == 0:
             return
 
