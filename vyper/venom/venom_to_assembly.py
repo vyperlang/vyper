@@ -564,6 +564,8 @@ class VenomCompiler:
 
         if opcode == "phi":
             ret = inst.output
+            if ret not in next_liveness:
+                return apply_line_numbers(inst, assembly)
             phis = list(inst.get_input_variables())
             depth = self._get_phi_depth(stack, phis)
             # collapse the arguments to the phi node in the stack.
