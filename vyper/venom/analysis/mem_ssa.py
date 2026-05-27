@@ -157,6 +157,9 @@ class MemSSAAbstract(IRAnalysis):
         # Clean up unnecessary phi nodes
         self._remove_redundant_phis()
 
+    def invalidate(self):
+        self.analyses_cache.invalidate_analysis(self.mem_alias_type)
+
     def mark_location_volatile(self, loc: MemoryLocation) -> MemoryLocation:
         self.volatiles.append(loc)
         volatile_loc = self.memalias.mark_volatile(loc)
