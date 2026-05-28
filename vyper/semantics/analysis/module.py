@@ -180,6 +180,73 @@ def _validate_used_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None
 
         err_list.raise_if_not_empty()
 
+# TODO: Make this use a dict of other_module_info to initializing_node,
+# and use that info + module dependencies to check __init__ are called in the dependency order
+def is_initialized(block: list[vy_ast.VyperNode], other_module_info: ModuleInfo) -> list[vy_ast.VyperNode]:
+    """
+    Check a block for wether it calls other_module.__init__()
+    """
+
+    initializing_nodes = []
+    """
+    All inescapable call nodes to the constructor above this one.
+    Contains multiple in case of branching.
+    """
+    
+
+    def is_relevant_init_call(node: vy_ast.Call) -> bool:
+        """
+        Is this node a call to other_module.__init__() ?
+        """
+        expr_info = node.func._expr_info
+
+        if expr_info is None:
+            # this can happen for range() calls; CMC 2024-02-05 try to
+            # refactor so that range() is properly tagged.
+            return False
+
+        call_t = expr_info.typ
+
+        if not isinstance(call_t, ContractFunctionT):
+            return False
+
+        if not call_t.is_constructor:
+            return False
+
+        # XXX: check this works as expected for nested attributes
+        initialized_module = node.func.value._expr_info.module_info  # type: ignore
+
+        return initialized_module == other_module_info
+
+    for node in block:
+        if isinstance(node, vy_ast.Call) and is_relevant_init_call(node):
+            if initializing_nodes:
+                msg = f"tried to initialize `{other_module_info.alias}`, "
+                msg += "but its __init__() function was already called!"
+                raise InitializerException(msg, node.func, initializing_nodes)
+            
+            initializing_nodes += [node]
+
+        if isinstance(node, vy_ast.If):
+            then_nodes = is_initialized(node.body, other_module_info)
+            else_nodes = is_initialized(node.orelse, other_module_info) if node.orelse is not None else []
+
+            if bool(then_nodes) != bool(else_nodes):
+                msg = f"`{other_module_info.alias}`.__init__() is not guaranteed to be reachable: "
+                msg += "present only in a single branch of an if"
+                raise InitializerException(msg, node.func, node)
+
+            initializing_nodes += then_nodes + else_nodes
+
+        if isinstance(node, vy_ast.For):
+            # call is_initialized for its side effects
+            if is_initialized(node.body, other_module_info):
+                msg = f"`{other_module_info.alias}`.__init__() is not guaranteed to be reachable: "
+                msg += "present in for loop"
+                raise InitializerException(msg, node.func, node)
+
+    return initializing_nodes
+
 
 def _validate_initialized_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
     """Check all `initializes:` modules have `__init__()` called exactly once."""
@@ -197,6 +264,8 @@ def _validate_initialized_modules(module_ast: vy_ast.Module, module_t: ModuleT) 
     init_calls: list[vy_ast.Call] = []
     if constructor is not None:
         init_calls = constructor.ast_def.get_descendants(vy_ast.Call)  # type: ignore
+        for other_module_t in should_initialize:
+            is_initialized(constructor.ast_def.body, should_initialize[other_module_t].module_info)
 
     seen_initializers: dict[ModuleT, vy_ast.VyperNode] = {}
     for call_node in init_calls:
@@ -218,6 +287,7 @@ def _validate_initialized_modules(module_ast: vy_ast.Module, module_t: ModuleT) 
         initialized_module = call_node.func.value._expr_info.module_info  # type: ignore
 
         if initialized_module.module_t in seen_initializers:
+            assert False
             seen_location = seen_initializers[initialized_module.module_t]
             msg = f"tried to initialize `{initialized_module.alias}`, "
             msg += "but its __init__() function was already called!"

@@ -10,7 +10,7 @@ from vyper.exceptions import (
     StructureException,
     UnfoldableNode,
 )
-from vyper.semantics.analysis.base import Modifiability
+from vyper.semantics.analysis.base import InitializesInfo, Modifiability
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     validate_expected_type,
@@ -509,7 +509,7 @@ class ModuleT(VyperType):
         return ret
 
     @property
-    def initialized_modules(self):
+    def initialized_modules(self) -> list[InitializesInfo]:
         # modules which are initialized to
         ret = []
         for node in self.initializes_decls:
