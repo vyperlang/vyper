@@ -2251,10 +2251,22 @@ class ABIEncode(BuiltinFunctionT):
 
         # figure out the output type by converting
         # the types to ABI_Types and calling size_bound API
-        arg_abi_types = []
         arg_types = self.infer_arg_types(node)
-        for arg_t in arg_types:
-            arg_abi_types.append(arg_t.abi_type)
+
+        # `ensure_tuple=False` is only well-defined for a single argument.
+        # For multiple args we previously emitted a tuple-wrapped encoding
+        # anyway, silently ignoring the kwarg — any decoder honoring the
+        # user's intent would desynchronize on the 32-byte head offset.
+        # Reject at compile time rather than miscompile.
+        if not ensure_tuple and len(arg_types) > 1:
+            raise StructureException(
+                "`abi_encode` with `ensure_tuple=False` requires exactly one "
+                f"argument; got {len(arg_types)}. Wrap the values in a struct "
+                "or tuple, or omit the kwarg to use the default tuple encoding.",
+                node,
+            )
+
+        arg_abi_types = [arg_t.abi_type for arg_t in arg_types]
 
         # special case, no tuple
         if len(arg_abi_types) == 1 and not ensure_tuple:
