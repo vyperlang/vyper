@@ -236,7 +236,7 @@ class BasePtrAnalysis(IRAnalysis):
             return MemoryLocation.UNDEFINED
         elif opcode in ("create", "create2"):
             return MemoryLocation.UNDEFINED
-        elif opcode in ("return", "stop", "sink"):
+        elif opcode in ("return", "stop", "sink", "selfdestruct"):
             # these opcodes terminate execution and commit to (persistent)
             # storage, resulting in storage writes escaping our control.
             # returning `MemoryLocation.UNDEFINED` represents "future" reads
