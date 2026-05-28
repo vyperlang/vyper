@@ -14,7 +14,7 @@ permissions:
 
 env:
   ERA_HASH: 943fcc39d1173409fb4a3f53029b170fb7cb4e60
-  ERA_VYPER_HASH: 178d18fc81ab16bd76db0ce2bf89a87930ae9861
+  PYTHON_VERSION: "3.11"
 
 concurrency:
   # cancel older, in-progress jobs from the same PR, same workflow.
@@ -27,7 +27,7 @@ jobs:
   era-compiler-tester:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-  
+
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -39,10 +39,10 @@ jobs:
       with:
         toolchain: nightly-2022-11-03
 
-    - name: Set up Python ${{ matrix.python-version[0] }}
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
       uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
       with:
-        python-version: ${{ matrix.python-version[0] }}
+        python-version: ${{ env.PYTHON_VERSION }}
         cache: "pip"
 
     - name: Get cache
@@ -59,7 +59,7 @@ jobs:
           **/compiler_tester
           **/llvm
           **/era-compiler-tester
-        key: ${{ runner.os }}-${{ env.ERA_HASH }}-${{ env.ERA_VYPER_HASH }}
+        key: ${{ runner.os }}-${{ env.ERA_HASH }}
 
     - name: Initialize repository and install dependencies
       if: steps.get-cache.outputs.cache-hit != 'true'
@@ -90,7 +90,7 @@ jobs:
           **/compiler_tester
           **/llvm
           **/era-compiler-tester
-        key: ${{ runner.os }}-${{ env.ERA_HASH }}-${{ env.ERA_VYPER_HASH }}
+        key: ${{ runner.os }}-${{ env.ERA_HASH }}
 
     - name: Build Vyper
       run: |
