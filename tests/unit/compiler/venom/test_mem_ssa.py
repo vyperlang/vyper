@@ -13,7 +13,6 @@ from vyper.venom.analysis.mem_ssa import (
 )
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.effects import Effects
-from vyper.venom.memory_location import MemoryLocationSegment, get_read_location, get_write_location
 
 
 @pytest.fixture
@@ -327,16 +326,16 @@ def test_may_alias(dummy_mem_ssa):
     mem_ssa, _, _ = dummy_mem_ssa
 
     # Test non-overlapping memory locations
-    loc1 = MemoryLocationSegment(offset=0, size=32)
-    loc2 = MemoryLocationSegment(offset=32, size=32)
+    loc1 = MemoryLocation(offset=0, size=32)
+    loc2 = MemoryLocation(offset=32, size=32)
     assert not mem_ssa.memalias.may_alias(loc1, loc2), "Non-overlapping locations should not alias"
 
     # Test overlapping memory locations
-    loc3 = MemoryLocationSegment(offset=0, size=16)
-    loc4 = MemoryLocationSegment(offset=8, size=8)
+    loc3 = MemoryLocation(offset=0, size=16)
+    loc4 = MemoryLocation(offset=8, size=8)
     assert mem_ssa.memalias.may_alias(loc3, loc4), "Overlapping locations should alias"
 
-    full_loc = MemoryLocationSegment(offset=0, size=None)
+    full_loc = MemoryLocation(offset=0, size=None)
     assert mem_ssa.memalias.may_alias(full_loc, loc1), "should alias with any non-empty location"
     assert not mem_ssa.memalias.may_alias(
         full_loc, MemoryLocation.EMPTY
@@ -352,7 +351,7 @@ def test_may_alias(dummy_mem_ssa):
     ), "EMPTY_MEMORY_ACCESS should not alias"
 
     # Test zero/negative size locations
-    zero_size_loc = MemoryLocationSegment(offset=0, size=0)
+    zero_size_loc = MemoryLocation(offset=0, size=0)
     assert not mem_ssa.memalias.may_alias(
         zero_size_loc, loc1
     ), "Zero size location should not alias"
@@ -361,19 +360,19 @@ def test_may_alias(dummy_mem_ssa):
     ), "Zero size locations should not alias with each other"
 
     # Test partial overlap
-    loc5 = MemoryLocationSegment(offset=0, size=64)
-    loc6 = MemoryLocationSegment(offset=32, size=32)
+    loc5 = MemoryLocation(offset=0, size=64)
+    loc6 = MemoryLocation(offset=32, size=32)
     assert mem_ssa.memalias.may_alias(loc5, loc6), "Partially overlapping locations should alias"
     assert mem_ssa.memalias.may_alias(loc6, loc5), "Partially overlapping locations should alias"
 
     # Test exact same location
-    loc7 = MemoryLocationSegment(offset=0, size=64)
-    loc8 = MemoryLocationSegment(offset=0, size=64)
+    loc7 = MemoryLocation(offset=0, size=64)
+    loc8 = MemoryLocation(offset=0, size=64)
     assert mem_ssa.memalias.may_alias(loc7, loc8), "Identical locations should alias"
 
     # Test adjacent but non-overlapping locations
-    loc9 = MemoryLocationSegment(offset=0, size=64)
-    loc10 = MemoryLocationSegment(offset=64, size=64)
+    loc9 = MemoryLocation(offset=0, size=64)
+    loc10 = MemoryLocation(offset=64, size=64)
     assert not mem_ssa.memalias.may_alias(
         loc9, loc10
     ), "Adjacent but non-overlapping locations should not alias"
@@ -557,15 +556,9 @@ def test_analyze_instruction_with_no_memory_ops():
     }
     """
 
-    mem_ssa, fn, _ = create_mem_ssa(pre)
+    mem_ssa, _, _ = create_mem_ssa(pre)
 
-    # Get the block and instruction
-    bb = fn.get_basic_block("_global")
-    assignment_inst = bb.instructions[0]  # %1 = 42
-
-    # Verify that the instruction doesn't have memory operations
-    assert get_read_location(assignment_inst, MEMORY, {}) is MemoryLocation.EMPTY
-    assert get_write_location(assignment_inst, MEMORY, {}) is MemoryLocation.EMPTY
+    # more check for this scenarion in tests for BasePtrAnalysis
 
     assert mem_ssa.memalias.alias_sets is not None
 
@@ -826,7 +819,7 @@ def test_get_reaching_def_with_phi():
     # Create a new memory definition with the same location as the phi
     new_def = MemoryDef(mem_ssa.next_id, merge_block.instructions[0], MEMORY)
     mem_ssa.next_id += 1
-    new_def.loc = MemoryLocationSegment(offset=0, size=32)  # Same location as the phi
+    new_def.loc = MemoryLocation(offset=0, size=32)  # Same location as the phi
 
     result = mem_ssa._get_reaching_def(new_def)
     assert result == phi
@@ -846,7 +839,7 @@ def test_get_reaching_def_with_no_phi():
 
     new_def = MemoryDef(mem_ssa.next_id, entry_block.instructions[0], MEMORY)
     mem_ssa.next_id += 1
-    new_def.loc = MemoryLocationSegment(offset=0, size=32)
+    new_def.loc = MemoryLocation(offset=0, size=32)
 
     result = mem_ssa._get_reaching_def(new_def)
     assert result == mem_ssa.live_on_entry
@@ -1052,3 +1045,103 @@ def test_pre_block_without_phi():
 
     result = mem_ssa._pre_block(entry_block)
     assert result == ""
+
+
+def test_large_write_small_read_clobber():
+    """
+    Test that a large write (e.g., calldatacopy of 64 bytes) correctly clobbers
+    a smaller read (e.g., mload of 32 bytes) when the read is fully contained
+    within the write region.
+
+    This tests the fix for the reversed containment check in _walk_for_clobbered_access.
+    The check should be: current.loc.completely_contains(query_loc)
+    NOT: query_loc.completely_contains(current.loc)
+    """
+    pre = """
+    function _global {
+        entry:
+            calldatacopy 0, 0, 64
+            %1 = mload 16
+            stop
+    }
+    """
+    mem_ssa, fn, _ = create_mem_ssa(pre)
+
+    entry_block = fn.get_basic_block("entry")
+    calldatacopy_inst = entry_block.instructions[0]
+    mload_inst = entry_block.instructions[1]
+
+    # Verify the memory locations
+    calldatacopy_def = mem_ssa.get_memory_def(calldatacopy_inst)
+    mload_use = mem_ssa.get_memory_use(mload_inst)
+
+    assert calldatacopy_def is not None
+    assert mload_use is not None
+
+    # calldatacopy writes [0, 64), mload reads [16, 48)
+    assert calldatacopy_def.loc.offset == 0
+    assert calldatacopy_def.loc.size == 64
+    assert mload_use.loc.offset == 16
+    assert mload_use.loc.size == 32
+
+    # Verify the containment relationship
+    assert calldatacopy_def.loc.completely_contains(
+        mload_use.loc
+    ), "calldatacopy [0,64) should completely contain mload [16,48)"
+    assert not mload_use.loc.completely_contains(
+        calldatacopy_def.loc
+    ), "mload [16,48) should NOT completely contain calldatacopy [0,64)"
+
+    # The clobber should be the calldatacopy, NOT live_on_entry
+    clobber = mem_ssa.get_clobbered_memory_access(mload_use)
+    assert clobber is not None, "Should find a clobber"
+    assert not clobber.is_live_on_entry, (
+        "Clobber should be calldatacopy, not live_on_entry. "
+        "This indicates the containment check in _walk_for_clobbered_access is reversed."
+    )
+    assert isinstance(clobber, MemoryDef)
+    assert clobber.store_inst == calldatacopy_inst
+
+
+def test_small_write_large_read_no_clobber():
+    """
+    Test that a small write does NOT clobber a larger read that extends beyond it.
+    This is the correct behavior - partial coverage is not a complete clobber.
+    """
+    pre = """
+    function _global {
+        entry:
+            mstore 16, 42
+            mcopy 0, 0, 64
+            stop
+    }
+    """
+    mem_ssa, fn, _ = create_mem_ssa(pre)
+
+    entry_block = fn.get_basic_block("entry")
+    mstore_inst = entry_block.instructions[0]
+    mcopy_inst = entry_block.instructions[1]
+
+    mstore_def = mem_ssa.get_memory_def(mstore_inst)
+    mcopy_use = mem_ssa.get_memory_use(mcopy_inst)
+
+    assert mstore_def is not None
+    assert mcopy_use is not None
+
+    # mstore writes [16, 48), mcopy reads [0, 64)
+    assert mstore_def.loc.offset == 16
+    assert mstore_def.loc.size == 32
+    assert mcopy_use.loc.offset == 0
+    assert mcopy_use.loc.size == 64
+
+    # The mstore does NOT completely contain the mcopy read
+    assert not mstore_def.loc.completely_contains(
+        mcopy_use.loc
+    ), "mstore [16,48) should NOT completely contain mcopy read [0,64)"
+
+    # Therefore, clobber should be live_on_entry (no complete clobber found)
+    clobber = mem_ssa.get_clobbered_memory_access(mcopy_use)
+    assert clobber is not None
+    assert (
+        clobber.is_live_on_entry
+    ), "No complete clobber should be found - mstore only partially covers the read"

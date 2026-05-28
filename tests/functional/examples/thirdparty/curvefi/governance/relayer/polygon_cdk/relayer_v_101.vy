@@ -24,7 +24,7 @@ interface IAgent:
     def execute(_messages: DynArray[Message, MAX_MESSAGES]): nonpayable
 
 
-enum Agent:
+flag Agent:
     OWNERSHIP
     PARAMETER
     EMERGENCY
@@ -57,7 +57,7 @@ ORIGIN_NETWORK: public(immutable(uint32))
 def __init__(_broadcaster: address, _agent_blueprint: address, _messenger: address, _origin_network: uint32):
     BROADCASTER = _broadcaster
     MESSENGER = _messenger
-    log SetMessenger(_messenger)
+    log SetMessenger(messenger=_messenger)
     ORIGIN_NETWORK = _origin_network
 
     OWNERSHIP_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
@@ -80,7 +80,7 @@ def relay(_agent: Agent, _messages: DynArray[Message, MAX_MESSAGES]):
 
     extcall IAgent(self.agent[_agent]).execute(_messages)
 
-    log Relay(_agent, _messages)
+    log Relay(agent=_agent, messages=_messages)
 
 
 @external

@@ -157,6 +157,9 @@ class MemSSAAbstract(IRAnalysis):
         # Clean up unnecessary phi nodes
         self._remove_redundant_phis()
 
+    def invalidate(self):
+        self.analyses_cache.invalidate_analysis(self.mem_alias_type)
+
     def mark_location_volatile(self, loc: MemoryLocation) -> MemoryLocation:
         self.volatiles.append(loc)
         volatile_loc = self.memalias.mark_volatile(loc)
@@ -197,7 +200,7 @@ class MemSSAAbstract(IRAnalysis):
         """Process memory definitions and uses in a basic block"""
         for inst in block.instructions:
             # Check for memory reads
-            loc = self.memalias._get_read_location(inst, self.addr_space)
+            loc = self.memalias.base_ptr.get_read_location(inst, self.addr_space)
             if loc != MemoryLocation.EMPTY:
                 mem_use = MemoryUse(self.next_id, inst, loc)
                 self.next_id += 1
@@ -205,7 +208,7 @@ class MemSSAAbstract(IRAnalysis):
                 self.inst_to_use[inst] = mem_use
 
             # Check for memory writes
-            loc = self.memalias._get_write_location(inst, self.addr_space)
+            loc = self.memalias.base_ptr.get_write_location(inst, self.addr_space)
             if loc != MemoryLocation.EMPTY:
                 mem_def = MemoryDef(self.next_id, inst, loc)
                 self.next_id += 1
@@ -388,8 +391,10 @@ class MemSSAAbstract(IRAnalysis):
 
             # If the current node is a memory definition, check if
             # it completely contains the query location.
+            # For a store to "clobber" (provide data for) a load, the store's
+            # location must completely contain the load's location.
             if isinstance(current, MemoryDef):
-                if query_loc.completely_contains(current.loc):
+                if current.loc.completely_contains(query_loc):
                     return current
 
             # If the current node is a phi node, check if any of the operands

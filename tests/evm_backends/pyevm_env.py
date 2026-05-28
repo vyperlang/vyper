@@ -21,6 +21,7 @@ from eth_utils import setup_DEBUG2_logging, to_canonical_address, to_checksum_ad
 
 import vyper.evm.opcodes as evm_opcodes
 from tests.evm_backends.base_env import BaseEnv, EvmError, ExecutionResult, LogEntry
+from tests.exports import TestExporter
 from vyper.utils import keccak256
 
 
@@ -37,8 +38,9 @@ class PyEvmEnv(BaseEnv):
         tracing: bool,
         block_number: int,
         evm_version: str,
+        exporter: Optional[TestExporter],
     ) -> None:
-        super().__init__(gas_limit, account_keys)
+        super().__init__(gas_limit, account_keys, exporter)
 
         evm_opcodes.DEFAULT_EVM_VERSION = evm_version
 
@@ -85,7 +87,7 @@ class PyEvmEnv(BaseEnv):
     def get_balance(self, address: str) -> int:
         return self._state.get_balance(_addr(address))
 
-    def set_balance(self, address: str, value: int):
+    def _set_balance(self, address: str, value: int):
         self._state.set_balance(_addr(address), value)
 
     @property
@@ -122,32 +124,20 @@ class PyEvmEnv(BaseEnv):
     def blob_hashes(self, value: list[bytes]):
         self._blob_hashes = value
 
-    def message_call(
-        self,
-        to: str,
-        sender: str | None = None,
-        data: bytes | str = b"",
-        value: int = 0,
-        gas: int | None = None,
-        gas_price: int = 0,
-        is_modifying: bool = True,
-    ):
-        if isinstance(data, str):
-            data = bytes.fromhex(data.removeprefix("0x"))
-        sender = _addr(sender or self.deployer)
+    def _message_call(self, to, sender, data, value, gas, gas_price, is_modifying, blob_hashes):
         try:
             computation = self._state.computation_class.apply_message(
                 state=self._state,
                 message=Message(
                     to=_addr(to),
-                    sender=sender,
+                    sender=_addr(sender),
                     data=data,
                     code=self.get_code(to),
                     value=value,
-                    gas=self.gas_limit if gas is None else gas,
+                    gas=gas,
                     is_static=not is_modifying,
                 ),
-                transaction_context=self._make_tx_context(sender, gas_price),
+                transaction_context=self._make_tx_context(_addr(sender), gas_price),
             )
         except VMError as e:
             # py-evm raises when user is out-of-funds instead of returning a failed computation
@@ -164,7 +154,7 @@ class PyEvmEnv(BaseEnv):
             context._blob_versioned_hashes = self._blob_hashes
         return context
 
-    def clear_transient_storage(self) -> None:
+    def _clear_transient_storage(self) -> None:
         try:
             self._state.clear_transient_storage()
         except AttributeError as e:
@@ -213,6 +203,11 @@ class PyEvmEnv(BaseEnv):
 
         self._check_computation(computation)
         return "0x" + target_address.hex()
+
+    def get_block_hash(self, block_number: int) -> bytes:
+        """Get the hash of a block by its number."""
+        # Returns b''  for invalid/future blocks
+        return self._state.get_ancestor_hash(block_number)
 
     def _generate_contract_address(self, sender: Address) -> Address:
         nonce = self._state.get_nonce(sender)

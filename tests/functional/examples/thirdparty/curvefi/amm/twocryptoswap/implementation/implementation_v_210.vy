@@ -10,6 +10,7 @@
 """
 
 from ethereum.ercs import IERC20
+import math
 implements: IERC20  # <--------------------- AMM contract is also the LP token.
 
 # ------------------------------- Version ------------------------------------
@@ -278,7 +279,7 @@ def __init__(
         )
     )
 
-    log Transfer(empty(address), self, 0)  # <------- Fire empty transfer from
+    log Transfer(sender=empty(address), receiver=self, value=0)  # <------- Fire empty transfer from
     #                                       0x0 to self for indexers to catch.
 
 
@@ -401,7 +402,7 @@ def exchange(
     self._transfer_out(j, out[0], receiver)
 
     # log:
-    log TokenExchange(msg.sender, i, dx_received, j, out[0], out[1], out[2])
+    log TokenExchange(buyer=msg.sender, sold_id=i, tokens_sold=dx_received, bought_id=j, tokens_bought=out[0], fee=out[1], packed_price_scale=out[2])
 
     return out[0]
 
@@ -450,7 +451,7 @@ def exchange_received(
     self._transfer_out(j, out[0], receiver)
 
     # log:
-    log TokenExchange(msg.sender, i, dx_received, j, out[0], out[1], out[2])
+    log TokenExchange(buyer=msg.sender, sold_id=i, tokens_sold=dx_received, bought_id=j, tokens_bought=out[0], fee=out[1], packed_price_scale=out[2])
 
     return out[0]
 
@@ -563,11 +564,11 @@ def add_liquidity(
     # ---------------------------------------------- Log and claim admin fees.
 
     log AddLiquidity(
-        receiver,
-        amounts_received,
-        d_token_fee,
-        token_supply,
-        price_scale
+        provider=receiver,
+        token_amounts=amounts_received,
+        fee=d_token_fee,
+        token_supply=token_supply,
+        packed_price_scale=price_scale
     )
 
     return d_token
@@ -636,7 +637,7 @@ def remove_liquidity(
         # before external calls:
         self._transfer_out(i, withdraw_amounts[i], receiver)
 
-    log RemoveLiquidity(msg.sender, withdraw_amounts, total_supply - _amount)
+    log RemoveLiquidity(provider=msg.sender, token_amounts=withdraw_amounts, token_supply=total_supply - _amount)
 
     return withdraw_amounts
 
@@ -696,7 +697,7 @@ def remove_liquidity_one_coin(
     self._transfer_out(i, dy, receiver)
 
     log RemoveLiquidityOne(
-        msg.sender, token_amount, i, dy, approx_fee, packed_price_scale
+        provider=msg.sender, token_amount=token_amount, coin_index=i, coin_amount=dy, approx_fee=approx_fee, packed_price_scale=packed_price_scale
     )
 
     return dy
@@ -910,7 +911,7 @@ def tweak_price(
 
     if old_virtual_price > 0:
 
-        xcp: uint256 = isqrt(xp[0] * xp[1])
+        xcp: uint256 = math.isqrt(xp[0] * xp[1])
         virtual_price = 10**18 * xcp // total_supply
 
         xcp_profit = unsafe_div(
@@ -979,7 +980,7 @@ def tweak_price(
             # ---------- Calculate new virtual_price using new xp and D. Reuse
             #              `old_virtual_price` (but it has new virtual_price).
             old_virtual_price = unsafe_div(
-                10**18 * isqrt(xp[0] * xp[1]), total_supply
+                10**18 * math.isqrt(xp[0] * xp[1]), total_supply
             )  # <----- unsafe_div because we did safediv before (if vp>1e18)
 
             # ---------------------------- Proceed if we've got enough profit.
@@ -1121,7 +1122,7 @@ def _claim_admin_fees():
             # update to self.balances occurs before external contract calls:
             self._transfer_out(i, admin_tokens[i], fee_receiver)
 
-        log ClaimAdminFee(fee_receiver, admin_tokens)
+        log ClaimAdminFee(admin=fee_receiver, tokens=admin_tokens)
 
 
 @internal
@@ -1189,7 +1190,7 @@ def get_xcp(D: uint256, price_scale: uint256) -> uint256:
         D * PRECISION // (price_scale * N_COINS)
     ]
 
-    return isqrt(x[0] * x[1])  # <------------------- Geometric Mean.
+    return math.isqrt(x[0] * x[1])  # <------------------- Geometric Mean.
 
 
 @view
@@ -1294,7 +1295,7 @@ def _calc_withdraw_one_coin(
 def _approve(_owner: address, _spender: address, _value: uint256):
     self.allowance[_owner][_spender] = _value
 
-    log Approval(_owner, _spender, _value)
+    log Approval(owner=_owner, spender=_spender, value=_value)
 
 
 @internal
@@ -1304,7 +1305,7 @@ def _transfer(_from: address, _to: address, _value: uint256):
     self.balanceOf[_from] -= _value
     self.balanceOf[_to] += _value
 
-    log Transfer(_from, _to, _value)
+    log Transfer(sender=_from, receiver=_to, value=_value)
 
 
 @view
@@ -1432,7 +1433,7 @@ def mint(_to: address, _value: uint256) -> bool:
     self.totalSupply += _value
     self.balanceOf[_to] += _value
 
-    log Transfer(empty(address), _to, _value)
+    log Transfer(sender=empty(address), receiver=_to, value=_value)
     return True
 
 
@@ -1447,7 +1448,7 @@ def burnFrom(_to: address, _value: uint256) -> bool:
     self.totalSupply -= _value
     self.balanceOf[_to] -= _value
 
-    log Transfer(_to, empty(address), _value)
+    log Transfer(sender=_to, receiver=empty(address), value=_value)
     return True
 
 
@@ -1568,7 +1569,7 @@ def lp_price() -> uint256:
             0th index
     @return uint256 LP price.
     """
-    return 2 * self.virtual_price * isqrt(self.internal_price_oracle() * 10**18) // 10**18
+    return 2 * self.virtual_price * math.isqrt(self.internal_price_oracle() * 10**18) // 10**18
 
 
 @external
@@ -1815,12 +1816,12 @@ def ramp_A_gamma(
     self.future_A_gamma = future_A_gamma
 
     log RampAgamma(
-        A_gamma[0],
-        future_A,
-        A_gamma[1],
-        future_gamma,
-        block.timestamp,
-        future_time,
+        initial_A=A_gamma[0],
+        future_A=future_A,
+        initial_gamma=A_gamma[1],
+        future_gamma=future_gamma,
+        initial_time=block.timestamp,
+        future_time=future_time,
     )
 
 
@@ -1842,7 +1843,7 @@ def stop_ramp_A_gamma():
 
     # ------ Now (block.timestamp < t1) is always False, so we return saved A.
 
-    log StopRampA(A_gamma[0], A_gamma[1], block.timestamp)
+    log StopRampA(current_A=A_gamma[0], current_gamma=A_gamma[1], time=block.timestamp)
 
 
 @external
@@ -1917,10 +1918,10 @@ def apply_new_parameters(
     # ---------------------------------- LOG ---------------------------------
 
     log NewParameters(
-        new_mid_fee,
-        new_out_fee,
-        new_fee_gamma,
-        new_allowed_extra_profit,
-        new_adjustment_step,
-        new_ma_time,
+        mid_fee=new_mid_fee,
+        out_fee=new_out_fee,
+        fee_gamma=new_fee_gamma,
+        allowed_extra_profit=new_allowed_extra_profit,
+        adjustment_step=new_adjustment_step,
+        ma_time=new_ma_time,
     )

@@ -113,6 +113,20 @@ def foo(x: Bytes[{input_len}]) -> {output_typ}:
     assert c.foo(encoded) == expected
 
 
+def test_abi_decode_folded_unwrap_tuple_kwarg(get_contract):
+    contract = """
+UNWRAP: constant(bool) = False
+
+@external
+def foo(x: Bytes[64]) -> Bytes[3]:
+    return abi_decode(x, Bytes[3], unwrap_tuple=UNWRAP)
+    """
+    c = get_contract(contract)
+
+    encoded = abi.encode("bytes", b"vyx")
+    assert c.foo(encoded) == b"vyx"
+
+
 @pytest.mark.parametrize(
     "arg,expected,input_len,output_typ1,output_typ2,abi_typ",
     [
@@ -551,7 +565,10 @@ def f(x: Bytes[{buffer_size}]):
     # parent payload - this word will be considered as the head of the
     # abi-encoded inner array and it will be added to base ptr leading to an
     # arithmetic overflow
-    buffer_payload = (2**256 - 0x60,)
+    # originally this was different value (2**256 - 0x60) but memelision
+    # allowed to change memlayout which this relyed on so to preserve
+    # the purpouse of this test it is changed to this
+    buffer_payload = (2**256 - 0x20,)
 
     data += _abi_payload_from_tuple(buffer_payload, buffer_size)
 
@@ -1557,6 +1574,21 @@ def foo(a:Bytes[{buffer_size}]):
 
     with tx_failed():
         c.foo(_abi_payload_from_tuple(payload, buffer_size))
+
+
+def test_abi_decode_storage_bytes(get_contract):
+    """Regression test: abi_decode correctly handles storage bytes as input."""
+    code = """
+stored_data: Bytes[128]
+
+@external
+def test_decode() -> uint256:
+    x: uint256 = 42
+    self.stored_data = abi_encode(x)
+    return abi_decode(self.stored_data, uint256)
+    """
+    c = get_contract(code)
+    assert c.test_decode() == 42
 
 
 # returndatasize check for uint256

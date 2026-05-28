@@ -309,11 +309,18 @@ _NEWLINE: ( /\r?\n[\t ]*/ | COMMENT )+
 STRING: /x?b?("(?!"").*?(?<!\\)(\\\\)*?"|'(?!'').*?(?<!\\)(\\\\)*?')/i
 DOCSTRING: /(""".*?(?<!\\)(\\\\)*?"""|'''.*?(?<!\\)(\\\\)*?''')/is
 
-DEC_NUMBER: /0|[1-9]\d*/i
-HEX_NUMBER.2: /0x[\da-f]*/i
-OCT_NUMBER.2: /0o[0-7]*/i
-BIN_NUMBER.2 : /0b[0-1]*/i
-FLOAT_NUMBER.2: /((\d+\.\d*|\.\d+)(e[-+]?\d+)?|\d+(e[-+]?\d+))/i
+DEC_NUMBER: /0|[1-9](_?[0-9])*/
+HEX_NUMBER.2: /0[xX](_?[\da-f])+/i
+OCT_NUMBER.2: /0[oO](_?[0-7])+/
+BIN_NUMBER.2 : /0[bB](_?[0-1])+/i
+
+// Floating point literals (PEP 515)
+_DIGITPART: /\d(_?\d)*/
+_FRACTION: "." _DIGITPART
+_EXPONENT: /[eE][+-]?/ _DIGITPART
+FLOAT_NUMBER.2: _DIGITPART "." _DIGITPART? _EXPONENT?
+              | _FRACTION _EXPONENT?
+              | _DIGITPART _EXPONENT
 
 _number: DEC_NUMBER
        | HEX_NUMBER

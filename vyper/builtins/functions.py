@@ -44,6 +44,7 @@ from vyper.evm.address_space import MEMORY
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
+    CodegenPanic,
     CompilerPanic,
     EvmVersionException,
     InvalidLiteral,
@@ -63,6 +64,7 @@ from vyper.semantics.analysis.utils import (
     validate_expected_type,
 )
 from vyper.semantics.types import (
+    INF,
     TYPE_T,
     AddressT,
     BoolT,
@@ -76,6 +78,7 @@ from vyper.semantics.types import (
     SArrayT,
     StringT,
     TupleT,
+    is_bounded_length,
 )
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT8_T, UINT256_T
@@ -214,13 +217,19 @@ class Convert(BuiltinFunctionT):
                 value_types = sorted(value_types, key=lambda v: (v.is_signed, v.bits), reverse=True)
             else:
                 # filter out the target type from list of possible types
-                value_types = [i for i in value_types if not target_type.compare_type(i)]
+                value_types = [i for i in value_types if not i.is_equivalent_to(target_type)]
 
         value_type = value_types.pop()
 
         # block conversions between same type
-        if target_type.compare_type(value_type):
-            raise InvalidType(f"Value and target type are both '{target_type}'", node)
+        if value_type.is_subtype_of(target_type):
+            hint = "remove convert()"
+            raise InvalidType(f"Already a '{target_type}' !", node, hint=hint)
+
+        if isinstance(value_type, _BytestringT) and not is_bounded_length(value_type.maxlen):
+            raise CodegenPanic("convert not yet implemented for unbounded sequence type")
+        if isinstance(value_type, DArrayT) and not is_bounded_length(value_type.count):
+            raise CodegenPanic("convert not yet implemented for unbounded sequence type")
 
         return [value_type, TYPE_T(target_type)]
 
@@ -293,21 +302,10 @@ class Slice(BuiltinFunctionT):
     def fetch_call_return(self, node):
         arg_type, _, _ = self.infer_arg_types(node)
 
-        if isinstance(arg_type, StringT):
-            return_type = StringT()
-        else:
-            return_type = BytesT()
-
         # validate start and length are in bounds
 
-        arg = node.args[0]
         start_expr = node.args[1]
         length_expr = node.args[2].reduced()
-
-        # CMC 2022-03-22 NOTE slight code duplication with semantics/analysis/local
-        is_adhoc_slice = arg.get("attr") == "code" or (
-            arg.get("value.id") == "msg" and arg.get("attr") == "data"
-        )
 
         start_literal = start_expr.value if isinstance(start_expr, vy_ast.Int) else None
         length_literal = length_expr.value if isinstance(length_expr, vy_ast.Int) else None
@@ -318,8 +316,7 @@ class Slice(BuiltinFunctionT):
             if length_literal < 1:
                 raise ArgumentException("Length cannot be less than 1", length_expr)
 
-        if not is_adhoc_slice:
-            # arg_type.length is only valid when `not is_adhoc_slice`.
+        if is_bounded_length(arg_type.length):
 
             if length_literal is not None and length_literal > arg_type.length:
                 raise ArgumentException(f"slice out of bounds for {arg_type}", length_expr)
@@ -330,11 +327,12 @@ class Slice(BuiltinFunctionT):
                 if length_literal is not None and start_literal + length_literal > arg_type.length:
                     raise ArgumentException(f"slice out of bounds for {arg_type}", node)
 
-        # we know the length statically
-        if length_literal is not None:
-            return_type.set_length(length_literal)
+        length = length_literal if length_literal is not None else arg_type.length
+
+        if isinstance(arg_type, StringT):
+            return_type = StringT(length)
         else:
-            return_type.set_min_length(arg_type.length)
+            return_type = BytesT(length)
 
         return return_type
 
@@ -361,10 +359,11 @@ class Slice(BuiltinFunctionT):
         elif potential_overlap(src, start) or potential_overlap(src, length):
             src = create_memory_copy(src, context)
 
-        with src.cache_when_complex("src") as (b1, src), start.cache_when_complex("start") as (
-            b2,
-            start,
-        ), length.cache_when_complex("length") as (b3, length):
+        with (
+            src.cache_when_complex("src") as (b1, src),
+            start.cache_when_complex("start") as (b2, start),
+            length.cache_when_complex("length") as (b3, length),
+        ):
             if is_bytes32:
                 src_maxlen = 32
             else:
@@ -496,13 +495,18 @@ class Concat(BuiltinFunctionT):
 
         length = 0
         for arg_t in arg_types:
-            length += arg_t.length
+            arg_length = arg_t.length
+
+            if not is_bounded_length(arg_length):
+                length = INF
+                break
+
+            length += arg_length
 
         if isinstance(arg_types[0], (StringT)):
-            return_type = StringT()
+            return_type = StringT(length)
         else:
-            return_type = BytesT()
-        return_type.set_length(length)
+            return_type = BytesT(length)
         return return_type
 
     def infer_arg_types(self, node, expected_return_typ=None):
@@ -889,10 +893,10 @@ class Extract32(BuiltinFunctionT):
                 # byte offset within the slot
                 byte_ofst = IRnode.from_list(["mod", index, 32])
 
-                with byte_ofst.cache_when_complex("byte_ofst") as (
-                    b3,
-                    byte_ofst,
-                ), slot.cache_when_complex("slot") as (b4, slot):
+                with (
+                    byte_ofst.cache_when_complex("byte_ofst") as (b3, byte_ofst),
+                    slot.cache_when_complex("slot") as (b4, slot),
+                ):
                     # perform two loads and merge
                     w1 = LOAD(add_ofst(bytes_data_ptr(bytez), slot))
                     w2 = LOAD(add_ofst(bytes_data_ptr(bytez), ["add", slot, 1]))
@@ -1041,8 +1045,7 @@ class RawCall(BuiltinFunctionT):
             raise
 
         if outsize.value:
-            return_type = BytesT()
-            return_type.set_min_length(outsize.value)
+            return_type = BytesT(outsize.value)
 
             if revert_on_failure:
                 return return_type
@@ -1201,12 +1204,15 @@ class SelfDestruct(BuiltinFunctionT):
     _inputs = [("to", AddressT())]
     _is_terminus = True
 
+    def fetch_call_return(self, node):
+        # Emit deprecation warning during semantic analysis (runs exactly once)
+        vyper_warn(
+            "`selfdestruct` is deprecated! The opcode is no longer recommended for use.", node
+        )
+        return super().fetch_call_return(node)
+
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        vyper_warn(
-            "`selfdestruct` is deprecated! The opcode is no longer recommended for use.", expr
-        )
-
         context.check_is_not_constant("selfdestruct", expr)
         return IRnode.from_list(ensure_eval_once("selfdestruct", ["selfdestruct", args[0]]))
 
@@ -1349,9 +1355,10 @@ class Shift(BuiltinFunctionT):
         argty = args[0].typ
         GSHR = sar if argty.is_signed else shr
 
-        with args[0].cache_when_complex("to_shift") as (b1, arg), args[1].cache_when_complex(
-            "bits"
-        ) as (b2, bits):
+        with (
+            args[0].cache_when_complex("to_shift") as (b1, arg),
+            args[1].cache_when_complex("bits") as (b2, bits),
+        ):
             neg_bits = ["sub", 0, bits]
             ret = ["if", ["slt", bits, 0], GSHR(neg_bits, arg), shl(bits, arg)]
             return b1.resolve(b2.resolve(IRnode.from_list(ret, typ=argty)))
@@ -1873,7 +1880,7 @@ class _UnsafeMath(BuiltinFunctionT):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        (a, b) = args
+        a, b = args
         op = self.op
 
         assert a.typ == b.typ, "unreachable"
@@ -1963,9 +1970,9 @@ class _MinMax(BuiltinFunctionT):
     def build_IR(self, expr, args, kwargs, context):
         op = self._opcode
 
-        with args[0].cache_when_complex("_l") as (b1, left), args[1].cache_when_complex("_r") as (
-            b2,
-            right,
+        with (
+            args[0].cache_when_complex("_l") as (b1, left),
+            args[1].cache_when_complex("_r") as (b2, right),
         ):
             if left.typ == right.typ:
                 if left.typ != UINT256_T:
@@ -2087,49 +2094,10 @@ class ISqrt(BuiltinFunctionT):
     _inputs = [("d", UINT256_T)]
     _return_type = UINT256_T
 
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        # calculate isqrt using the babylonian method
-
-        y, z = "y", "z"
-        arg = args[0]
-        with arg.cache_when_complex("x") as (b1, x):
-            ret = [
-                "seq",
-                [
-                    "if",
-                    ["ge", y, 2 ** (128 + 8)],
-                    ["seq", ["set", y, shr(128, y)], ["set", z, shl(64, z)]],
-                ],
-                [
-                    "if",
-                    ["ge", y, 2 ** (64 + 8)],
-                    ["seq", ["set", y, shr(64, y)], ["set", z, shl(32, z)]],
-                ],
-                [
-                    "if",
-                    ["ge", y, 2 ** (32 + 8)],
-                    ["seq", ["set", y, shr(32, y)], ["set", z, shl(16, z)]],
-                ],
-                [
-                    "if",
-                    ["ge", y, 2 ** (16 + 8)],
-                    ["seq", ["set", y, shr(16, y)], ["set", z, shl(8, z)]],
-                ],
-            ]
-            ret.append(["set", z, ["div", ["mul", z, ["add", y, 2**16]], 2**18]])
-
-            for _ in range(7):
-                ret.append(["set", z, ["div", ["add", ["div", x, z], z], 2]])
-
-            # note: If ``x+1`` is a perfect square, then the Babylonian
-            # algorithm oscillates between floor(sqrt(x)) and ceil(sqrt(x)) in
-            # consecutive iterations. return the floor value always.
-
-            ret.append(["with", "t", ["div", x, z], ["select", ["lt", z, "t"], z, "t"]])
-
-            ret = ["with", y, x, ["with", z, 181, ret]]
-            return b1.resolve(IRnode.from_list(ret, typ=UINT256_T))
+    def fetch_call_return(self, node):
+        message = "The `isqrt` builtin was removed. Instead import module "
+        message += "`math` and use `math.isqrt()`"
+        raise UnimplementedException(message, node)
 
 
 class Empty(TypenameFoldedFunctionT):
@@ -2300,9 +2268,7 @@ class ABIEncode(BuiltinFunctionT):
             # the output includes 4 bytes for the method_id.
             maxlen += 4
 
-        ret = BytesT()
-        ret.set_length(maxlen)
-        return ret
+        return BytesT(maxlen)
 
     @staticmethod
     def _parse_method_id(method_id_literal):
@@ -2522,7 +2488,7 @@ class Epsilon(TypenameFoldedFunctionT):
         self._validate_arg_types(node)
         input_type = type_from_annotation(node.args[0])
 
-        if not input_type.compare_type(DecimalT()):
+        if not input_type.is_subtype_of(DecimalT()):
             raise InvalidType(f"Expected decimal type but got {input_type} instead", node)
 
         return vy_ast.Decimal.from_node(node, value=input_type.epsilon)

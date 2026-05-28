@@ -1,10 +1,13 @@
 import textwrap
 from dataclasses import dataclass, field
-from typing import Iterator, Optional
+from typing import TYPE_CHECKING, Iterator, Optional
 
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.memory_allocator import MemoryAllocator
+
+if TYPE_CHECKING:
+    from vyper.venom.analysis.analysis import IRGlobalAnalysesCache
 
 
 @dataclass
@@ -31,24 +34,31 @@ class DataSection:
         return "\n".join(ret)
 
 
+@dataclass
+class DeployInfo:
+    runtime_codesize: int
+    immutables_len: int
+
+
 class IRContext:
     functions: dict[IRLabel, IRFunction]
     entry_function: Optional[IRFunction]
-    constants: dict[str, int]  # globally defined constants
     data_segment: list[DataSection]
     last_label: int
     last_variable: int
     mem_allocator: MemoryAllocator
+    global_analyses_cache: Optional["IRGlobalAnalysesCache"]
 
     def __init__(self) -> None:
         self.functions = {}
         self.entry_function = None
         self.data_segment = []
-        self.constants = {}
 
         self.last_label = 0
         self.last_variable = 0
+
         self.mem_allocator = MemoryAllocator()
+        self.global_analyses_cache = None
 
     def get_basic_blocks(self) -> Iterator[IRBasicBlock]:
         for fn in self.functions.values():
@@ -100,10 +110,6 @@ class IRContext:
         assert len(self.data_segment) > 0
         data_section = self.data_segment[-1]
         data_section.data_items.append(DataItem(data))
-
-    def add_constant(self, name: str, value: int) -> None:
-        assert name not in self.constants
-        self.constants[name] = value
 
     def as_graph(self) -> str:
         s = ["digraph G {"]

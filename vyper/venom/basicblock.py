@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Any, ClassVar, Iterator, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Iterator, Optional, Sequence, Union
 
 import vyper.venom.effects as effects
 from vyper.codegen.ir_node import IRnode
@@ -14,10 +14,12 @@ if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "sink"])
+BB_TERMINATORS = frozenset(
+    ["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "sink", "invalid", "selfdestruct"]
+)
 
 # Terminators that halt program/message call execution
-HALTING_TERMINATORS = frozenset(["return", "revert", "stop", "invalid"])
+HALTING_TERMINATORS = frozenset(["return", "revert", "stop", "invalid", "selfdestruct"])
 
 VOLATILE_INSTRUCTIONS = frozenset(
     [
@@ -98,6 +100,7 @@ COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", 
 
 COMPARATOR_INSTRUCTIONS = ("gt", "lt", "sgt", "slt")
 
+
 ir_printer = ContextVar("ir_printer", default=None)
 
 
@@ -173,58 +176,9 @@ class IRLiteral(IROperand):
     def __repr__(self) -> str:
         if abs(self.value) < 1024:
             return str(self.value)
+        if self.value < 0:
+            return f"-0x{abs(self.value):x}"
         return f"0x{self.value:x}"
-
-
-class IRAbstractMemLoc(IROperand):
-    """
-    operand representing an offset into an alloca'ed memory segment
-    which has not be concretized (allocated) yet.
-    """
-
-    _id: int
-
-    # size of the memory segment
-    size: int
-
-    # offset inside of a memory segment
-    offset: int
-
-    _curr_id: ClassVar[int] = 0
-    FREE_VAR1: ClassVar[IRAbstractMemLoc]
-    FREE_VAR2: ClassVar[IRAbstractMemLoc]
-
-    def __init__(self, size: int, offset: int = 0, force_id=None):
-        if force_id is None:
-            self._id = IRAbstractMemLoc._curr_id
-            IRAbstractMemLoc._curr_id += 1
-        else:
-            self._id = force_id
-        super().__init__(self._id)
-        self.size = size
-        self.offset = offset
-
-    def __hash__(self) -> int:
-        return self._id
-
-    def __eq__(self, other) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self._id == other._id and self.offset == other.offset
-
-    def __repr__(self) -> str:
-        return f"[{self._id},{self.size} + {self.offset}]"
-
-    def without_offset(self) -> IRAbstractMemLoc:
-        return IRAbstractMemLoc(self.size, force_id=self._id)
-
-    def with_offset(self, offset: int) -> IRAbstractMemLoc:
-        return IRAbstractMemLoc(self.size, offset=offset, force_id=self._id)
-
-
-# cannot assign in class since it is not defined in that place
-IRAbstractMemLoc.FREE_VAR1 = IRAbstractMemLoc(32)
-IRAbstractMemLoc.FREE_VAR2 = IRAbstractMemLoc(32)
 
 
 class IRVariable(IROperand):
@@ -293,7 +247,9 @@ class IRInstruction:
         self,
         opcode: str,
         operands: list[IROperand] | Iterator[IROperand],
+        /,
         outputs: Optional[list[IRVariable]] = None,
+        annotation: Optional[str] = None,
     ):
         assert isinstance(opcode, str), "opcode must be an str"
         assert isinstance(operands, list | Iterator), "operands must be a list"
@@ -301,7 +257,8 @@ class IRInstruction:
         self.operands = list(operands)  # in case we get an iterator
         self._outputs = list(outputs) if outputs is not None else []
 
-        self.annotation = None
+        self.annotation = annotation
+
         self.ast_source = None
         self.error_msg = None
 
@@ -467,8 +424,10 @@ class IRInstruction:
     def code_size_cost(self) -> int:
         if self.opcode in ("ret", "param"):
             return 0
-        if self.opcode in ("assign", "palloca", "alloca", "calloca"):
+        if self.opcode in ("assign", "alloca"):
             return 1
+        if self.opcode == "memtop":
+            return 1  # lowers to single MSIZE byte
         return 2
 
     def get_ast_source(self) -> Optional[IRnode]:
@@ -485,6 +444,7 @@ class IRInstruction:
         ret.annotation = self.annotation
         ret.ast_source = self.ast_source
         ret.error_msg = self.error_msg
+        ret.parent = self.parent
         return ret
 
     def str_short(self) -> str:
@@ -580,6 +540,7 @@ class IRBasicBlock:
     def append_instruction(
         self,
         opcode: str,
+        /,
         *args: Union[IROperand, int],
         ret: Optional[IRVariable] = None,
         annotation: str = None,

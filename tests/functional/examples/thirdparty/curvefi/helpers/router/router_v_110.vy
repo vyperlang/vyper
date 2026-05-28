@@ -198,7 +198,7 @@ def exchange(
     else:
         assert extcall IERC20(output_token).transfer(_receiver, amount, default_return_value=True)
 
-    log Exchange(msg.sender, _receiver, _route, _swap_params, _amount, amount)
+    log Exchange(sender=msg.sender, receiver=_receiver, route=_route, swap_params=_swap_params, in_amount=_amount, out_amount=amount)
 
     return amount
 

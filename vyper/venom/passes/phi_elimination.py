@@ -25,14 +25,14 @@ class PhiEliminationPass(IRPass):
     def _process_phi(self, inst: IRInstruction):
         srcs = self.phi_to_origins[inst]
 
+        # len > 1: multiple origins, phi is doing real work, keep it.
         if len(srcs) == 1:
-            src = srcs.pop()
+            src = next(iter(srcs))
             if src == inst:
                 return
             self.updater.mk_assign(inst, src.output)
 
     def _calculate_phi_origins(self):
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.phi_to_origins = dict()
 
         for bb in self.function.get_basic_blocks():
@@ -72,16 +72,18 @@ class PhiEliminationPass(IRPass):
                 res |= self._get_phi_origins_r(next_inst, visited)
 
             if len(res) > 1:
-                # if this phi has more than one origin, then for future
-                # phis, it is better to treat this as a barrier in the
-                # graph traversal. for example (without basic blocks)
-                #   %a = 1
-                #   %b = 2
-                #   %c = phi %a, %b  ; has two origins
+                # multi-origin phi: treat the phi itself as a "barrier" origin.
+                # this is correct because the phi is a single SSA definition,
+                # even though its runtime value varies. any downstream phi that
+                # only references this barrier (through copies) can be safely
+                # eliminated to an assign from the barrier's output; this
+                # increases the number of phis which can be eliminated.
+                # example:
+                #   %a = ...
+                #   %b = ...
+                #   %c = phi %a, %b  ; barrier (two origins)
                 #   %d = %c
-                #   %e = %d
-                #   %f = phi %d, %e
-                # in this case, %f should reduce to %c.
+                #   %f = phi %d, %c  ; both paths lead to %c, so %f = %c
                 return set([inst])
             return res
 

@@ -1,8 +1,8 @@
 import pytest
 
+from tests.utils import analyze_module_single
 from vyper.ast import parse_to_ast
 from vyper.exceptions import ArgumentException, ImmutableViolation, StructureException, TypeMismatch
-from vyper.semantics.analysis import analyze_module
 
 
 def test_modify_iterator_function_outside_loop():
@@ -21,7 +21,7 @@ def bar():
         pass
     """
     vyper_module = parse_to_ast(code)
-    analyze_module(vyper_module)
+    analyze_module_single(vyper_module)
 
 
 def test_pass_memory_var_to_other_function():
@@ -41,7 +41,7 @@ def bar():
         self.foo(a)
     """
     vyper_module = parse_to_ast(code)
-    analyze_module(vyper_module)
+    analyze_module_single(vyper_module)
 
 
 def test_modify_iterator():
@@ -56,7 +56,7 @@ def bar():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation):
-        analyze_module(vyper_module)
+        analyze_module_single(vyper_module)
 
 
 def test_bad_keywords():
@@ -70,7 +70,7 @@ def bar(n: uint256):
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ArgumentException):
-        analyze_module(vyper_module)
+        analyze_module_single(vyper_module)
 
 
 def test_bad_bound():
@@ -84,7 +84,7 @@ def bar(n: uint256):
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(StructureException):
-        analyze_module(vyper_module)
+        analyze_module_single(vyper_module)
 
 
 def test_modify_iterator_function_call():
@@ -103,7 +103,7 @@ def bar():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation):
-        analyze_module(vyper_module)
+        analyze_module_single(vyper_module)
 
 
 def test_modify_iterator_recursive_function_call():
@@ -126,7 +126,7 @@ def baz():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation):
-        analyze_module(vyper_module)
+        analyze_module_single(vyper_module)
 
 
 def test_modify_iterator_recursive_function_call_topsort():
@@ -149,7 +149,7 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation) as e:
-        analyze_module(vyper_module)
+        analyze_module_single(vyper_module)
 
     assert e.value._message == "Cannot modify loop variable `a`"
 
@@ -170,7 +170,7 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation) as e:
-        analyze_module(vyper_module)
+        analyze_module_single(vyper_module)
 
     assert e.value._message == "Cannot modify loop variable `a`"
 
@@ -189,7 +189,7 @@ def foo():
         self.b[self.a[1]] = i
     """
     vyper_module = parse_to_ast(code)
-    analyze_module(vyper_module)
+    analyze_module_single(vyper_module)
 
 
 def test_modify_iterator_siblings():
@@ -207,7 +207,7 @@ def foo():
         self.f.b += i
     """
     vyper_module = parse_to_ast(code)
-    analyze_module(vyper_module)
+    analyze_module_single(vyper_module)
 
 
 def test_modify_subscript_barrier():
@@ -229,9 +229,24 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation) as e:
-        analyze_module(vyper_module)
+        analyze_module_single(vyper_module)
 
     assert e.value._message == "Cannot modify loop variable `b`"
+
+
+def test_modify_loop_variable_function_param():
+    # GH issue 4797
+    code = """
+@internal
+def boo(a: DynArray[uint256, 12] = []):
+    for i: uint256 in a:
+        a[0] = 1
+    """
+    vyper_module = parse_to_ast(code)
+    with pytest.raises(ImmutableViolation) as e:
+        analyze_module_single(vyper_module)
+
+    assert e.value._message == "Cannot modify loop variable `a`"
 
 
 iterator_inference_codes = [
@@ -272,4 +287,4 @@ def foo():
 def test_iterator_type_inference_checker(code):
     vyper_module = parse_to_ast(code)
     with pytest.raises(TypeMismatch):
-        analyze_module(vyper_module)
+        analyze_module_single(vyper_module)
