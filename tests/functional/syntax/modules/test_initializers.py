@@ -1811,3 +1811,57 @@ def foo() -> uint256:
     data = CompilerData(main, input_bundle=input_bundle)
     foo_t = data.function_signatures["foo"]
     assert len(foo_t._variable_reads) == 0
+
+
+def test_init_in_both_if_branches(make_input_bundle):
+    other = """
+counter: uint256
+
+@deploy
+def __init__():
+    pass
+    """
+    main = """
+import other
+
+initializes: other
+
+@deploy
+def __init__():
+    if True:
+        other.__init__()
+    else:
+        other.__init__()
+    """
+    input_bundle = make_input_bundle({"other.vy": other})
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_double_init_if_else(make_input_bundle):
+    other = """
+counter: uint256
+
+@deploy
+def __init__():
+    pass
+    """
+    main = """
+import other
+
+initializes: other
+
+@deploy
+def __init__():
+    other.__init__()
+    if True:
+        other.__init__()
+    else:
+        other.__init__()
+    """
+    input_bundle = make_input_bundle({"other.vy": other})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert (
+        e.value.message
+        == "tried to initialize `other`, but its __init__() function was already called!"
+    )
