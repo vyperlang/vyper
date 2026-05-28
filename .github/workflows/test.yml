@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 env:
-  PYTHON_VERSION: "3.11"
+  PYTHON_VERSION: "3.12"
 
 concurrency:
   # cancel older, in-progress jobs from the same PR, same workflow.
@@ -126,7 +126,7 @@ jobs:
     # it is annoying that we need to duplicate them, but it is necessary
     # to avoid repeating defaults for every "include" in the matrix.
     name: "${{ matrix.os && matrix.os != 'ubuntu' && format('{0}-', matrix.os) || '' }}\
-      py${{ matrix.python-version[1] || '311' }}\
+      py${{ matrix.python-version[1] || '312' }}\
       -opt-${{ matrix.opt-mode || 'gas' }}\
       ${{ matrix.debug && '-debug' || '' }}\
       ${{ matrix.experimental-codegen && '-experimental' || '' }}\
@@ -136,7 +136,7 @@ jobs:
       matrix:
         # declare all variables used in the "include" section here! Conflicting jobs get overwritten by GitHub actions.
         os: [ubuntu]
-        python-version: [["3.11", "311"]]  # note: do not forget to replace 311 in the job names when upgrading!
+        python-version: [["3.12", "312"]]  # note: do not forget to replace 312 in the job names when upgrading!
         opt-mode: [gas, none, codesize, O1, O2, O3]
         debug: [true, false]
         evm-version: [prague]  # note: when upgrading, check the "include" section below for conflicting jobs
@@ -145,7 +145,7 @@ jobs:
 
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
-          # test default settings with 3.11 across all supported evm versions
+          # test default settings with 3.12 across all supported evm versions
           - evm-version: london
           - evm-version: paris
           - evm-version: shanghai
@@ -183,7 +183,7 @@ jobs:
 
           # run across other python versions. we don't really need to run all
           # modes across all python versions - one is enough
-          - python-version: ["3.12", "312"]
+          - python-version: ["3.11", "311"]
           - python-version: ["3.13", "313"]
           # todo: add 3.14 when it is released on oct 7 2025
 

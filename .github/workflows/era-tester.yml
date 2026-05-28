@@ -14,7 +14,7 @@ permissions:
 
 env:
   ERA_HASH: 943fcc39d1173409fb4a3f53029b170fb7cb4e60
-  PYTHON_VERSION: "3.11"
+  PYTHON_VERSION: "3.12"
 
 concurrency:
   # cancel older, in-progress jobs from the same PR, same workflow.
