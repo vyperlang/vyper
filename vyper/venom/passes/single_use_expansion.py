@@ -72,7 +72,7 @@ class SingleUseExpansion(IRPass):
         for label, var in inst.phi_operands:
             assert isinstance(var, IRVariable)
 
-            uses = self.dfg.get_uses(var)
+            uses = self.dfg.get_uses_in_bb(var, inst.parent)
             uses = [use for use in uses if use.opcode != "assign"]
             if len(uses) == 1:
                 return
