@@ -10,6 +10,9 @@ on:
 permissions:
   contents: read
 
+env:
+  PYTHON_VERSION: "3.11"
+
 concurrency:
   # cancel older, in-progress jobs from the same PR, same workflow.
   # use run_id if the job is triggered by a push to ensure
@@ -28,10 +31,10 @@ jobs:
       with:
         persist-credentials: false
 
-    - name: Set up Python 3.11
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
       uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
       with:
-        python-version: "3.11"
+        python-version: ${{ env.PYTHON_VERSION }}
         cache: "pip"
 
     - name: Install Dependencies
@@ -61,10 +64,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Python 3.11
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: "pip"
 
       - name: Install deps
@@ -84,10 +87,10 @@ jobs:
       with:
         persist-credentials: false
 
-    - name: Set up Python 3.11
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
       uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
       with:
-        python-version: "3.11"
+        python-version: ${{ env.PYTHON_VERSION }}
         cache: "pip"
 
     - name: Install dependencies
@@ -195,10 +198,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-    - name: Set up Python ${{ matrix.python-version[0] || '3.11' }}
+    - name: Set up Python ${{ matrix.python-version[0] || env.PYTHON_VERSION }}
       uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
       with:
-        python-version: ${{ matrix.python-version[0] || '3.11' }}
+        python-version: ${{ matrix.python-version[0] || env.PYTHON_VERSION }}
         cache: "pip"
 
     - name: Install dependencies
@@ -260,10 +263,10 @@ jobs:
       with:
         persist-credentials: false
 
-    - name: Set up Python 3.11
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
       uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
       with:
-        python-version: "3.11"
+        python-version: ${{ env.PYTHON_VERSION }}
         cache: "pip"
 
     - name: Install dependencies
@@ -320,10 +323,10 @@ jobs:
       with:
         persist-credentials: false
 
-    - name: Set up Python 3.11
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
       uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
       with:
-        python-version: "3.11"
+        python-version: ${{ env.PYTHON_VERSION }}
         cache: "pip"
   
     - name: Install coverage

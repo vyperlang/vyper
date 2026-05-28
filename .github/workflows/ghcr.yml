@@ -18,6 +18,7 @@ permissions: {}
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  PYTHON_VERSION: "3.11"
 
 jobs:
   deploy-ghcr:
@@ -38,9 +39,9 @@ jobs:
             persist-credentials: false
 
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
-        name: Install python
+        name: Install Python ${{ env.PYTHON_VERSION }}
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Generate vyper/version.py
         run: |
