@@ -155,7 +155,11 @@ Multiple ``implements`` statements can be grouped into one:
 
   Think of a function as a funnel. To swap it for another, the input has to be at least as wide (the new function must accept everything the original did, and may accept more), and the output has to be no wider (whatever it produces must still fit where the original output went). A narrower input would let some valid arguments fall through, and a wider output would exceed what the caller is prepared to receive.
 
-  To declare "any length" in an interface, use the wildcard ``...`` with one of the length-bounded types: ``Bytes[...]``, ``DynArray[uint256, ...]``, or ``String[...]``. The wildcard is only valid inside interface declarations and only for these types; static arrays (e.g. ``uint256[5]``) still require a concrete length. At the call site, a wildcard in the return type is resolved against the expected type, or to an unbounded type otherwise.
+  To declare "any length" in an interface, use the wildcard ``...`` with one of the length-bounded types: ``Bytes[...]``, ``DynArray[uint256, ...]``, or ``String[...]``. The wildcard is only valid inside interface declarations and only for these types; static arrays (e.g. ``uint256[5]``) still require a concrete length.
+
+  At the call site, a wildcard in a return type resolves against the type Vyper infers from context (e.g. an assignment target). If there is no such type (for example when the return value is discarded), it resolves to an unbounded length.
+
+  Because ``...`` leaves the actual bound up to the implementation, the call-site type check accepts arguments of any declared length. If the value the caller passes is longer than the implementation's declared bound, the callee reverts when decoding the argument. For example, given an interface ``def foo(x: String[...])`` and an implementation ``def foo(x: String[2])``, calling ``IFoo(addr).foo("hello")`` passes the call-site type check but reverts at the callee, because the value's length (5) exceeds the implementation's bound (2). A concrete bound in the interface (e.g. ``String[5]``) is checked at compile time instead. The compiler rejects arguments whose declared type allows lengths greater than 5 before the contract is deployed. This is a robustness consideration, not a security one.
 
 .. note::
 
