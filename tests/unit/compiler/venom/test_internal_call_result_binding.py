@@ -110,7 +110,9 @@ def foo() -> uint256:
     return self._driver()
     """
 
-    settings = Settings(experimental_codegen=True, optimize=OptimizationLevel.O3, evm_version="cancun")
+    settings = Settings(
+        experimental_codegen=True, optimize=OptimizationLevel.O3, evm_version="cancun"
+    )
     settings.venom_flags = VenomOptimizationFlags(level=OptimizationLevel.O3, disable_inlining=True)
 
     ctx = compile_code(code, settings=settings, output_formats=["ir_runtime"])["ir_runtime"]
@@ -161,7 +163,9 @@ def foo() -> uint256:
     return self._driver()
     """
 
-    settings = Settings(experimental_codegen=True, optimize=OptimizationLevel.O3, evm_version="cancun")
+    settings = Settings(
+        experimental_codegen=True, optimize=OptimizationLevel.O3, evm_version="cancun"
+    )
     settings.venom_flags = VenomOptimizationFlags(level=OptimizationLevel.O3, disable_inlining=True)
 
     ctx = compile_code(code, settings=settings, output_formats=["ir_runtime"])["ir_runtime"]

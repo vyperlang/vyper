@@ -76,11 +76,10 @@ class SingleUseExpansion(IRPass):
             uses = [use for use in uses if use.opcode != "assign"]
             if len(uses) == 1:
                 return
-            
+
             source = self.function.get_basic_block(label.name)
             terminator = source.instructions[-1]
             new_var = self.updater.add_before(terminator, "assign", [var])
             assert new_var is not None
 
             self.updater.update_operands(inst, {var: new_var})
-

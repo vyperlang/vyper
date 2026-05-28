@@ -12,9 +12,9 @@ from vyper.venom.passes import (
     CFGNormalization,
     ConcretizeMemLocPass,
     LowerDloadPass,
+    PhiEliminationPass,
     SimplifyCFGPass,
     SingleUseExpansion,
-    PhiEliminationPass,
 )
 from vyper.venom.venom_to_assembly import VenomCompiler
 
