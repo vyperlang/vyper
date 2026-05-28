@@ -187,6 +187,8 @@ class SArrayT(_SequenceT):
         ret = self.value_type.to_abi_arg()
         # modify the child name in place
         ret["type"] += f"[{self.length}]"
+        if "internalType" in ret:
+            ret["internalType"] += f"[{self.length}]"
         return _set_first_key(ret, "name", name)
 
     # TODO rename to `memory_bytes_required`
@@ -287,6 +289,8 @@ class DArrayT(_SequenceT):
         ret = self.value_type.to_abi_arg()
         # modify the child name in place.
         ret["type"] += "[]"
+        if "internalType" in ret:
+            ret["internalType"] += "[]"
         return _set_first_key(ret, "name", name)
 
     def _addl_dict_fields(self):
