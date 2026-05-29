@@ -139,18 +139,32 @@ class BasePtrAnalysis(IRAnalysis):
             return False
 
         # BasePtrAnalysis is normally queried after MakeSSA, where each
-        # variable has one definition. DallocaLoweringPass also queries it
-        # before MakeSSA, where the same variable can be assigned different
+        # variable has one definition. Some early global passes still query
+        # it before MakeSSA, where the same variable can be assigned different
         # values on different paths. Keep facts monotonic so a later
         # non-pointer assignment cannot erase a base pointer that may still
         # reach a use through another path.
         original = self.var_to_mem.get(var, set())
-        new_ptrs = original | ptrs
+        new_ptrs = self._normalize_ptrs(original | ptrs)
         if new_ptrs == original:
             return False
 
         self.var_to_mem[var] = new_ptrs
         return True
+
+    def _normalize_ptrs(self, ptrs: set[Ptr]) -> set[Ptr]:
+        offsets_by_base: dict[Allocation, set[int | None]] = {}
+        for ptr in ptrs:
+            offsets_by_base.setdefault(ptr.base_alloca, set()).add(ptr.offset)
+
+        ret: set[Ptr] = set()
+        for base_alloca, offsets in offsets_by_base.items():
+            if len(offsets) == 1:
+                ret.add(Ptr(base_alloca, next(iter(offsets))))
+            else:
+                ret.add(Ptr(base_alloca, None))
+
+        return ret
 
     # return Ptr if there is exactly one known source for the op
     # otherwise (e.g. could return multiple sources), return None

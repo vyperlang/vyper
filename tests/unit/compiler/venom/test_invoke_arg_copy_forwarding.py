@@ -3,7 +3,10 @@ from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLabel, IRVariable
 from vyper.venom.passes import (
     DallocaLoweringPass,
+    DretLoweringPass,
     InternalReturnCopyForwardingPass,
+    MakeSSA,
+    PhiEliminationPass,
     ReadonlyInvokeArgCopyForwardingPass,
 )
 
@@ -21,7 +24,14 @@ def _run_copy_forwarding(src: str, setup=None):
 
 def _lower_dalloca(ctx):
     for fn in reversed(list(ctx.functions.values())):
+        DretLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+        ac = IRAnalysesCache(fn)
+        MakeSSA(ac, fn).run_pass()
+        PhiEliminationPass(ac, fn).run_pass()
         DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+        ac = IRAnalysesCache(fn)
+        MakeSSA(ac, fn).run_pass()
+        PhiEliminationPass(ac, fn).run_pass()
 
 
 def test_readonly_forwarding_rejects_src_clobber_before_invoke():

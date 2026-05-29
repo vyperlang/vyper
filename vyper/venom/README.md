@@ -187,17 +187,17 @@ To enable Venom IR in Vyper, use the `--experimental-codegen` CLI flag or the co
     ```
   - Allocates a runtime-sized scratch region of `ceil32(size)` bytes and returns its base pointer.
     The producer does not receive a restore token and should not emit a release instruction.
-    `DallocaLoweringPass` threads the free-memory pointer explicitly and may synthesize
-    conservative LIFO rewinds when the allocation and all aliases are dead.
+    `DallocaLoweringPass` runs after SSA, threads the free-memory pointer explicitly,
+    and may synthesize conservative LIFO rewinds when the allocation and all aliases are dead.
 - `dret`
   - ```
     dret dyn_count, <ordinary returns...>, src0, size0, ..., return_pc
     ```
   - Internal dynamic return terminator. The final `2 * dyn_count` operands before `return_pc`
-    are `(src, size)` pairs. Lowering packs those buffers at the callee entry FMP and rewrites
-    the terminator to a physical `ret` that returns ordinary values, packed destination pointers,
-    a hidden adopted FMP, and the return PC. Invoke lowering adopts that hidden FMP output
-    atomically at the caller edge.
+    are `(src, size)` pairs. `DretLoweringPass` runs before inlining, packs those buffers
+    at the callee entry FMP, and rewrites the terminator to a physical `ret` that returns
+    ordinary values, packed destination pointers, a hidden adopted FMP, and the return PC.
+    Invoke lowering adopts that hidden FMP output atomically at the caller edge.
 
 Assembly can be inspected with `-f asm`, whereas an opcode view of the final bytecode can be seen with `-f opcodes` or `-f opcodes_runtime`, respectively.
 

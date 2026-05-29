@@ -24,6 +24,7 @@ from vyper.venom.passes import (
     AssertEliminationPass,
     BranchOptimizationPass,
     DallocaLoweringPass,
+    DretLoweringPass,
     DeadStoreElimination,
     FunctionInlinerPass,
     InternalReturnCopyForwardingPass,
@@ -133,14 +134,14 @@ def _run_global_passes(
 
     assert ctx.entry_function is not None
     fcg = ctx.global_analyses_cache.force_analysis(FCGGlobalAnalysis)
-    _run_pre_inline_dalloca_lowering(ctx.entry_function, fcg, ir_analyses)
+    _run_pre_inline_dret_lowering(ctx.entry_function, fcg, ir_analyses)
     ctx.global_analyses_cache.invalidate_analysis(ReadonlyMemoryArgsGlobalAnalysis)
 
     if not flags.disable_inlining:
         FunctionInlinerPass(ir_analyses, ctx, flags).run_pass()
 
 
-def _run_pre_inline_dalloca_lowering(
+def _run_pre_inline_dret_lowering(
     entry: IRFunction, fcg: FCGGlobalAnalysis, ir_analyses: dict[IRFunction, IRAnalysesCache]
 ) -> None:
     visited: set[IRFunction] = set()
@@ -153,7 +154,7 @@ def _run_pre_inline_dalloca_lowering(
         for callee in fcg.get_callees(fn):
             walk(callee)
 
-        DallocaLoweringPass(ir_analyses[fn], fn).run_pass()
+        DretLoweringPass(ir_analyses[fn], fn).run_pass()
 
     walk(entry)
 

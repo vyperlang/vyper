@@ -1,4 +1,5 @@
 from vyper.evm.opcodes import version_check
+from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import (
     BasePtrAnalysis,
     DFGAnalysis,
@@ -21,7 +22,7 @@ IDENTITY_PRECOMPILE = 4
 
 class DallocaLoweringPass(IRPass):
     """
-    Lower `dalloca` and `dret` into explicit FMP-threaded IR.
+    Lower `dalloca` into explicit FMP-threaded IR.
 
     Producer-facing dynamic allocation has one output:
 
@@ -32,31 +33,35 @@ class DallocaLoweringPass(IRPass):
     rewinds for dead LIFO allocation suffixes at points where the current FMP
     is observed by later lowering.
 
-    `dret` packs live dynamic return buffers at the callee entry FMP and
-    physically returns the packed destination pointers plus a hidden adopted
-    FMP. Callers adopt that hidden output on the invoke edge.
+    `dret` is lowered earlier by DretLoweringPass so reclaim decisions can run
+    after SSA while raw dynamic-return terminators are still gone before
+    inlining.
     """
 
+    required_predecessors = ("MakeSSA",)
     required_successors = ("MakeSSA",)
 
     def run_pass(self):
         fn = self.function
-        self._infer_dret_metadata(fn)
+        had_fmp = fn._needs_fmp
 
         has_dalloca, has_dfree, has_dret, calls_needs_fmp = self._scan_function_flags(fn)
+        if has_dret:
+            raise CompilerPanic("DretLoweringPass must run before DallocaLoweringPass")
 
-        if fn._needs_fmp and not has_dalloca and not has_dfree and not has_dret:
+        if fn._needs_fmp and not has_dalloca and not has_dfree:
             changed = self._deaugment_stale_invoke_fmp_args(fn)
             if changed:
                 self._invalidate_analyses()
 
-            if not fn._returns_adopted_fmp and self._prune_dead_hidden_fmp_param(fn):
-                fn._needs_fmp = False
-                self._invalidate_analyses()
-                return
+            if not calls_needs_fmp:
+                if not fn._returns_adopted_fmp and self._prune_dead_hidden_fmp_param(fn):
+                    fn._needs_fmp = False
+                    self._invalidate_analyses()
+                    return
 
-            fn._needs_fmp = True
-            return
+                fn._needs_fmp = True
+                return
 
         if not has_dalloca and not has_dfree and not has_dret and not calls_needs_fmp:
             if not fn._returns_adopted_fmp:
@@ -65,21 +70,23 @@ class DallocaLoweringPass(IRPass):
 
         fn._needs_fmp = True
 
-        fmp_var = self._ensure_hidden_fmp_param(fn)
-        entry_fmp_var = fmp_var
-        if has_dret:
-            entry_fmp_var = self._materialize_entry_fmp(fn, fmp_var)
+        hidden_fmp_var = self._ensure_hidden_fmp_param(fn, hidden_may_exist=had_fmp)
+        fmp_var = hidden_fmp_var
+        canonicalize_adopted_fmp = False
+        if has_dalloca or has_dfree or calls_needs_fmp:
+            fmp_var = self._materialize_fmp_thread_var(fn, hidden_fmp_var)
+            canonicalize_adopted_fmp = True
 
         liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
         base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
         bb_entry_stacks = self._compute_bb_entry_stacks(fn, base_ptrs, liveness)
 
         for bb in fn.get_basic_blocks():
-            self._rewrite_bb(bb, fmp_var, entry_fmp_var, base_ptrs, liveness, bb_entry_stacks[bb])
+            self._rewrite_bb(
+                bb, fmp_var, canonicalize_adopted_fmp, base_ptrs, liveness, bb_entry_stacks[bb]
+            )
 
         fn._needs_fmp = True
-        if has_dret:
-            fn._returns_adopted_fmp = True
 
         self._invalidate_analyses()
 
@@ -137,10 +144,15 @@ class DallocaLoweringPass(IRPass):
         self.analyses_cache.invalidate_analysis(VariableRangeAnalysis)
         self.analyses_cache.invalidate_analysis(ReadonlyMemoryArgsGlobalAnalysis)
 
-    def _ensure_hidden_fmp_param(self, fn) -> IRVariable:
+    def _ensure_hidden_fmp_param(self, fn, hidden_may_exist: bool = False) -> IRVariable:
         layout = FunctionCallLayout(fn)
         params = layout.params
         return_pc_offset = int(layout.has_return_pc_param)
+
+        if hidden_may_exist:
+            hidden_fmp_param = layout.hidden_fmp_param
+            if hidden_fmp_param is not None:
+                return hidden_fmp_param.output
 
         if fn._invoke_param_count is not None:
             hidden_pos = fn._invoke_param_count
@@ -164,6 +176,18 @@ class DallocaLoweringPass(IRPass):
             index = max(fn.entry.instructions.index(param) for param in params) + 1
         fn.entry.insert_instruction(inst, index=index)
         return entry_fmp_var
+
+    def _materialize_fmp_thread_var(self, fn, fmp_var: IRVariable) -> IRVariable:
+        thread_fmp_var = fn.get_next_variable()
+        inst = IRInstruction("assign", [fmp_var], [thread_fmp_var])
+
+        params = FunctionCallLayout(fn).params
+        if len(params) == 0:
+            index = 0
+        else:
+            index = max(fn.entry.instructions.index(param) for param in params) + 1
+        fn.entry.insert_instruction(inst, index=index)
+        return thread_fmp_var
 
     def _compute_bb_entry_stacks(self, fn, base_ptrs: BasePtrAnalysis, liveness) -> dict:
         bbs = list(fn.get_basic_blocks())
@@ -268,21 +292,31 @@ class DallocaLoweringPass(IRPass):
         return False
 
     def _rewrite_bb(
-        self, bb, fmp_var, entry_fmp_var, base_ptrs: BasePtrAnalysis, liveness, entry_stack
+        self,
+        bb,
+        fmp_var,
+        canonicalize_adopted_fmp,
+        base_ptrs: BasePtrAnalysis,
+        liveness,
+        entry_stack,
     ) -> None:
         new_instructions: list[IRInstruction] = []
         stack = list(entry_stack)
+        current_fmp_var = fmp_var
 
         for inst in bb.instructions:
             if self._is_reclaim_point(inst):
-                self._emit_auto_reclaim(
+                reclaimed = self._emit_auto_reclaim(
                     inst, fmp_var, bb, stack, base_ptrs, liveness, new_instructions
                 )
+                if reclaimed:
+                    current_fmp_var = fmp_var
 
             if inst.opcode == "dalloca":
-                lowered = self._lower_dalloca(inst, bb, fmp_var)
+                lowered = self._lower_dalloca(inst, bb, current_fmp_var, fmp_var)
                 stack.append(inst.output)
                 new_instructions.extend(lowered)
+                current_fmp_var = fmp_var
                 continue
 
             if inst.opcode == "dfree":
@@ -291,19 +325,25 @@ class DallocaLoweringPass(IRPass):
                 # IR fail safe instead of reaching codegen.
                 stack.clear()
                 new_instructions.append(self._restore_fmp_inst(inst.operands[0], fmp_var, bb, inst))
-                continue
-
-            if inst.opcode == "dret":
-                lowered = self._lower_dret(inst, bb, entry_fmp_var)
-                new_instructions.extend(lowered)
+                current_fmp_var = fmp_var
                 continue
 
             if inst.opcode == "invoke":
                 callee = InvokeLayout(self.function.ctx, inst).callee
+                hidden_fmp_output = None
                 if callee is not None and callee._needs_fmp:
-                    self._augment_invoke(inst, fmp_var)
+                    hidden_fmp_output = self._augment_invoke(inst, current_fmp_var)
+                new_instructions.append(inst)
                 if callee is not None and callee._returns_adopted_fmp:
                     stack.clear()
+                    if hidden_fmp_output is not None:
+                        current_fmp_var = hidden_fmp_output
+                        if canonicalize_adopted_fmp and hidden_fmp_output != fmp_var:
+                            new_instructions.append(
+                                self._restore_fmp_inst(hidden_fmp_output, fmp_var, bb, inst)
+                            )
+                            current_fmp_var = fmp_var
+                continue
 
             new_instructions.append(inst)
 
@@ -311,14 +351,15 @@ class DallocaLoweringPass(IRPass):
 
     def _emit_auto_reclaim(
         self, inst, fmp_var, bb, stack, base_ptrs: BasePtrAnalysis, liveness, new_instructions
-    ) -> None:
+    ) -> bool:
         suffix_start = self._dead_lifo_suffix_start(stack, base_ptrs, liveness.live_vars_at(inst))
         if suffix_start == len(stack):
-            return
+            return False
 
         mark = stack[suffix_start]
         del stack[suffix_start:]
         new_instructions.append(self._restore_fmp_inst(mark, fmp_var, bb, inst))
+        return True
 
     def _restore_fmp_inst(
         self, mark: IROperand, fmp_var: IRVariable, bb, origin: IRInstruction
@@ -341,7 +382,9 @@ class DallocaLoweringPass(IRPass):
             self._copy_metadata(origin, new_inst, bb)
         return insts, aligned_var
 
-    def _lower_dalloca(self, inst: IRInstruction, bb, fmp_var: IRVariable) -> list[IRInstruction]:
+    def _lower_dalloca(
+        self, inst: IRInstruction, bb, current_fmp_var: IRVariable, fmp_var: IRVariable
+    ) -> list[IRInstruction]:
         assert len(inst.operands) == 1, inst
         assert inst.num_outputs == 1, inst
 
@@ -349,7 +392,7 @@ class DallocaLoweringPass(IRPass):
         ptr_out = inst.output
 
         ceil_insts, aligned_var = self._ceil32_insts(size, bb, inst)
-        bump_inst = IRInstruction("bump", [fmp_var, aligned_var], [ptr_out, fmp_var])
+        bump_inst = IRInstruction("bump", [current_fmp_var, aligned_var], [ptr_out, fmp_var])
         self._copy_metadata(inst, bump_inst, bb)
         return [*ceil_insts, bump_inst]
 
@@ -428,7 +471,7 @@ class DallocaLoweringPass(IRPass):
         target.ast_source = source.ast_source
         target.error_msg = source.error_msg
 
-    def _augment_invoke(self, inst: IRInstruction, fmp_var: IRVariable) -> None:
+    def _augment_invoke(self, inst: IRInstruction, fmp_var: IRVariable) -> IRVariable | None:
         layout = InvokeLayout(self.function.ctx, inst)
         callee = layout.callee
         assert callee is not None
@@ -438,10 +481,26 @@ class DallocaLoweringPass(IRPass):
         if not has_hidden_fmp_operand:
             layout.append_hidden_fmp_operand(fmp_var)
 
+        hidden_fmp_output = None
         if callee._returns_adopted_fmp:
             outputs = inst.get_outputs()
-            if len(outputs) == 0 or outputs[-1] != fmp_var:
+            has_hidden_fmp_output = False
+            if callee._dret_shape is not None:
+                ordinary_count, dynamic_count = callee._dret_shape
+                user_output_count = ordinary_count + dynamic_count
+                has_hidden_fmp_output = len(outputs) > user_output_count
+                if has_hidden_fmp_output:
+                    hidden_fmp_output = outputs[user_output_count]
+            elif len(outputs) > 0:
+                has_hidden_fmp_output = outputs[-1] == fmp_var
+                if has_hidden_fmp_output:
+                    hidden_fmp_output = outputs[-1]
+
+            if not has_hidden_fmp_output:
                 layout.append_hidden_fmp_output(fmp_var)
+                hidden_fmp_output = fmp_var
+
+        return hidden_fmp_output
 
     def _prune_dead_hidden_fmp_param(self, fn) -> bool:
         param_inst = FunctionCallLayout(fn).hidden_fmp_param
@@ -563,3 +622,57 @@ class DallocaLoweringPass(IRPass):
                 changed = True
 
         return changed
+
+
+class DretLoweringPass(DallocaLoweringPass):
+    """
+    Lower `dret` and hidden adopted-FMP invoke edges before inlining.
+
+    This pass intentionally leaves raw `dalloca` instructions in place. The
+    later DallocaLoweringPass runs after SSA and handles allocation reclaim.
+    """
+
+    required_predecessors = ()
+    required_successors = ()
+
+    def run_pass(self):
+        fn = self.function
+        had_fmp = fn._needs_fmp
+        self._infer_dret_metadata(fn)
+
+        has_dalloca, has_dfree, has_dret, calls_needs_fmp = self._scan_function_flags(fn)
+        del has_dalloca, has_dfree
+
+        if not has_dret and not calls_needs_fmp:
+            return
+
+        fn._needs_fmp = True
+        fmp_var = self._ensure_hidden_fmp_param(fn, hidden_may_exist=had_fmp)
+        entry_fmp_var = fmp_var
+        if has_dret:
+            entry_fmp_var = self._materialize_entry_fmp(fn, fmp_var)
+
+        for bb in fn.get_basic_blocks():
+            self._rewrite_dret_bb(bb, fmp_var, entry_fmp_var)
+
+        if has_dret:
+            fn._returns_adopted_fmp = True
+
+        self._invalidate_analyses()
+
+    def _rewrite_dret_bb(self, bb, fmp_var: IRVariable, entry_fmp_var: IRVariable) -> None:
+        new_instructions: list[IRInstruction] = []
+
+        for inst in bb.instructions:
+            if inst.opcode == "dret":
+                new_instructions.extend(self._lower_dret(inst, bb, entry_fmp_var))
+                continue
+
+            if inst.opcode == "invoke":
+                callee = InvokeLayout(self.function.ctx, inst).callee
+                if callee is not None and callee._needs_fmp:
+                    self._augment_invoke(inst, fmp_var)
+
+            new_instructions.append(inst)
+
+        bb.instructions = new_instructions

@@ -639,7 +639,7 @@ class VenomCompiler:
             # Surviving dfrees indicate a pipeline misconfiguration.
             raise CompilerPanic("dfree reached codegen; DallocaLoweringPass missing?")
         elif opcode == "dret":
-            raise CompilerPanic("dret reached codegen; DallocaLoweringPass missing?")
+            raise CompilerPanic("dret reached codegen; DretLoweringPass missing?")
         elif opcode == "initial_fmp":
             # Lowers to a deferred PUSH of the initial FMP value. We emit a
             # CONSTREF here and declare the CONST with the final value once

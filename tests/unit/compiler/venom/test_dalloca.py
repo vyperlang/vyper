@@ -22,6 +22,7 @@ from vyper.venom.parser import parse_venom
 from vyper.venom.passes import (
     ConcretizeMemLocPass,
     DallocaLoweringPass,
+    DretLoweringPass,
     MakeSSA,
     PhiEliminationPass,
 )
@@ -30,12 +31,22 @@ from vyper.venom.passes.function_inliner import FunctionInlinerPass
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 
-def _apply_lowering(fn):
-    ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
-    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+def _run_ssa(fn):
     ac = IRAnalysesCache(fn)
     MakeSSA(ac, fn).run_pass()
     PhiEliminationPass(ac, fn).run_pass()
+
+
+def _apply_dalloca_lowering(fn):
+    ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+    _run_ssa(fn)
+    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+    _run_ssa(fn)
+
+
+def _apply_lowering(fn):
+    DretLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+    _apply_dalloca_lowering(fn)
 
 
 def _run_program(src: str, calldata: bytes = b"") -> bytes:
@@ -152,9 +163,10 @@ def test_dalloca_is_fully_lowered():
             %b = dalloca 32
             mstore %a, %b
             stop
-        """)
+    """)
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+    _run_ssa(fn)
     DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
 
     opcodes = [inst.opcode for bb in fn.get_basic_blocks() for inst in bb.instructions]
@@ -169,9 +181,10 @@ def test_dalloca_alignment_mask_uses_small_literal():
             %p = dalloca %size
             mstore %p, 1
             stop
-        """)
+    """)
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+    _run_ssa(fn)
     DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
 
     insts = [inst for bb in fn.get_basic_blocks() for inst in bb.instructions]
@@ -191,8 +204,10 @@ def test_dalloca_lowering_invalidates_stale_analyses():
             stop
         """)
     fn = next(iter(ctx.functions.values()))
-    ac = IRAnalysesCache(fn)
+    ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+    _run_ssa(fn)
 
+    ac = IRAnalysesCache(fn)
     ac.request_analysis(LoadAnalysis)
     ac.request_analysis(MemSSA)
     ac.request_analysis(MemoryAliasAnalysis)
@@ -601,9 +616,9 @@ def test_dret_pre_cancun_copy_path(monkeypatch):
                 %p = dalloca 32
                 dret 1, %p, 32, %retpc
         }
-        """)
+    """)
     fn = ctx.get_function(IRLabel("callee"))
-    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+    DretLoweringPass(IRAnalysesCache(fn), fn).run_pass()
 
     opcodes = [inst.opcode for bb in fn.get_basic_blocks() for inst in bb.instructions]
     assert "mcopy" not in opcodes
@@ -638,6 +653,43 @@ def test_dret_full_pipeline_with_and_without_inlining():
     assert IRLabel("callee") not in ctx_inlined.functions
 
 
+def test_dret_adopted_fmp_flows_to_later_non_inlined_callee():
+    out, _ = _run_program_full_pipeline(
+        """
+        function main {
+            main:
+                %ptr = invoke @producer
+                jmp @join
+
+            join:
+                invoke @scratch
+                %v = mload %ptr
+                mstore 0, %v
+                return 0, 32
+        }
+
+        function producer {
+            producer:
+                %retpc = param
+                %p = dalloca 32
+                mstore %p, 0x1234
+                dret 1, %p, 32, %retpc
+        }
+
+        function scratch {
+            scratch:
+                %retpc = param
+                %q = dalloca 32
+                mstore %q, 0xdead
+                ret %retpc
+        }
+        """,
+        disable_inlining=True,
+    )
+
+    assert _word(out) == 0x1234
+
+
 def test_dret_must_be_lowered_before_inlining():
     ctx = parse_venom("""
         function main {
@@ -654,5 +706,5 @@ def test_dret_must_be_lowered_before_inlining():
         }
         """)
     analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
-    with pytest.raises(CompilerPanic, match="DallocaLoweringPass must run before"):
+    with pytest.raises(CompilerPanic, match="DretLoweringPass must run before"):
         FunctionInlinerPass(analyses, ctx, VenomOptimizationFlags()).run_pass()
