@@ -8,6 +8,7 @@ from vyper.evm.assembler.core import assembly_to_evm
 from vyper.exceptions import CompilerPanic
 from vyper.venom import run_passes_on
 from vyper.venom.analysis import (
+    DFGAnalysis,
     IRAnalysesCache,
     LoadAnalysis,
     MemoryAliasAnalysis,
@@ -531,10 +532,7 @@ def test_no_ret_function_inserts_hidden_fmp_before_return_pc():
     assert hidden_fmp != retpc
 
     bump = next(
-        inst
-        for bb in fn.get_basic_blocks()
-        for inst in bb.instructions
-        if inst.opcode == "bump"
+        inst for bb in fn.get_basic_blocks() for inst in bb.instructions if inst.opcode == "bump"
     )
 
     # resolve the bump's FMP operand through any assign chain back to its root
@@ -551,6 +549,34 @@ def test_no_ret_function_inserts_hidden_fmp_before_return_pc():
     # the FMP base must be the inserted hidden FMP param, never the return PC
     assert root == hidden_fmp
     assert root != retpc
+
+
+def test_get_transitive_uses_handles_multi_output_bump():
+    # Regression: DFGAnalysis.get_transitive_uses walked only `.output`, which
+    # asserts a single output. `bump` (the lowered form of `dalloca`) has two
+    # outputs, so taking transitive uses of a bump must not crash.
+    ctx = parse_venom("""
+        function main {
+            main:
+                %p = dalloca 64
+                %q = add 32, %p
+                mstore %q, 7
+                return %p, 64
+        }
+        """)
+    fn = ctx.get_function(IRLabel("main"))
+    _apply_lowering(fn)
+
+    bump = next(
+        inst for bb in fn.get_basic_blocks() for inst in bb.instructions if inst.opcode == "bump"
+    )
+
+    dfg = IRAnalysesCache(fn).request_analysis(DFGAnalysis)
+    uses = dfg.get_transitive_uses(bump)  # must not raise on the 2-output bump
+
+    assert bump in uses
+    # the pointer output feeds `add %q`, reachable transitively from the bump
+    assert any(inst.opcode == "add" for inst in uses)
 
 
 def test_dret_lowering_with_ordinary_return_and_dynamic_buffer():
