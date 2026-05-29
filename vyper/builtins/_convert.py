@@ -95,7 +95,7 @@ def _bytes_to_num(arg, in_typ, out_typ, signed):
         val = shr(["mul", runtime_compile_diff, 8], arg)
         num_zero_bits = ["mul", 8, ["sub", 32, maxlen]]
     elif is_bytes_m_type(in_typ):
-        num_zero_bits = 8 * (32 - in_typ)
+        num_zero_bits = 8 * (32 - in_typ.m)
         val = arg
     else:  # pragma: nocover
         raise CompilerPanic("unreachable")
