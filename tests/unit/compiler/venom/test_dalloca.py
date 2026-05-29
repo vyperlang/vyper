@@ -379,6 +379,44 @@ def test_hidden_fmp_output_on_dret_invoke_moves_later_dalloca():
     assert _word(out, 1) == 32
 
 
+def test_stale_hidden_fmp_arg_removed_after_callee_prunes_fmp():
+    out, ctx = _run_program_full_pipeline(
+        """
+        function main {
+            main:
+                %p = dalloca 32
+                mstore %p, 5
+                invoke @callee
+                %v = mload %p
+                mstore 0, %v
+                return 0, 32
+        }
+
+        function callee {
+            callee:
+                %retpc = param
+                %q = dalloca 32
+                ret %retpc
+        }
+        """,
+        disable_inlining=True,
+    )
+
+    assert _word(out) == 5
+
+    callee = ctx.get_function(IRLabel("callee"))
+    assert not callee._needs_fmp
+
+    main = ctx.get_function(IRLabel("main"))
+    invoke = next(
+        inst
+        for bb in main.get_basic_blocks()
+        for inst in bb.instructions
+        if inst.opcode == "invoke"
+    )
+    assert invoke.operands == [IRLabel("callee")]
+
+
 def test_dret_lowering_with_ordinary_return_and_dynamic_buffer():
     out = _run_program("""
         function main {
