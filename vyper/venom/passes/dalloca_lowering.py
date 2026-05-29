@@ -500,10 +500,10 @@ class DallocaLoweringPass(IRPass):
                 if current_arg_count != expected_arg_count + 1:
                     continue
 
-                trailing_operand = inst.operands[-1]
-                if caller_layout.param_for_alias(trailing_operand) != hidden_fmp_param:
-                    continue
-
+                # This invoke still has one extra trailing operand, but the
+                # callee no longer has a hidden FMP param. That trailing value
+                # may be a locally bumped FMP, not just the caller's original
+                # hidden FMP param, so remove it based on arity.
                 layout.remove_trailing_operand()
                 changed = True
 
