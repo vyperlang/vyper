@@ -340,8 +340,7 @@ class CopyForwardingPolicy:
                     if inst.opcode != "invoke":
                         continue
                     target = inst.operands[0]
-                    if not isinstance(target, IRLabel):
-                        continue
+                    assert isinstance(target, IRLabel)
                     sub_callee = self.function.ctx.functions.get(target)
                     if sub_callee is None:
                         continue
