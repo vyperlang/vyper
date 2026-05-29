@@ -314,6 +314,46 @@ def test_readonly_forwarding_allows_param_source_with_small_callee_frame():
     assert all(inst.opcode != "mcopy" for inst in insts)
 
 
+def test_readonly_forwarding_rejects_param_source_with_unresolvable_callee_frame():
+    # Source is a function param (unresolved alloca). The callee has no visible
+    # frame of its own, but its transitive frame cannot be resolved: it invokes
+    # an unknown target, so the walker cannot bound the frame size. An
+    # unresolved frame must NOT be treated as empty (zero-cost) — we cannot rule
+    # out a catastrophic post-inlining placement, so forwarding must bail out.
+    src = """
+    function caller {
+    caller:
+        %arg = param
+        %retpc = param
+        %tmp = alloca 1056
+        mcopy %tmp, %arg, 1056
+        invoke @callee, %tmp
+        ret %retpc
+    }
+
+    function callee {
+    callee:
+        %a = param
+        %retpc = param
+        invoke @unknown_external
+        mload %a
+        ret %retpc
+    }
+    """
+
+    ctx = _run_copy_forwarding(src)
+    caller = ctx.get_function(IRLabel("caller"))
+    insts = [inst for bb in caller.get_basic_blocks() for inst in bb.instructions]
+
+    mcopy = next(inst for inst in insts if inst.opcode == "mcopy")
+    invoke = next(
+        inst for inst in insts if inst.opcode == "invoke" and inst.operands[0] == IRLabel("callee")
+    )
+
+    # forwarding blocked: the invoke still consumes the staged copy, not %arg
+    assert invoke.operands[1] == mcopy.operands[2]
+
+
 def test_readonly_forwarding_rejects_larger_source_liveness_extension():
     src = """
     function caller {

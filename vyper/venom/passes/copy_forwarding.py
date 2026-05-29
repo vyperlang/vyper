@@ -109,7 +109,12 @@ class CopyForwardingPolicy:
             for invoke_inst, _ in rewrite_sites:
                 penalty = self._memory_expansion_penalty_across_callee(invoke_inst, copy_size)
                 if penalty is None:
-                    continue
+                    # The callee's transitive frame could not be resolved (an
+                    # indirect or unknown callee). We cannot rule out a frame
+                    # large enough to make the forwarded source's liveness a
+                    # quadratic memory-expansion gas bomb, so block forwarding
+                    # conservatively rather than let it through unchecked.
+                    return True
                 if penalty > self.UNRESOLVED_SOURCE_PENALTY_THRESHOLD:
                     return True
             return False
@@ -267,9 +272,13 @@ class CopyForwardingPolicy:
         callee = self._get_invoke_callee(invoke_inst)
 
         reserved = self._callee_reserved_intervals(callee)
-        if len(reserved) == 0:
+        if reserved is None:
+            # Frame size unknown (unresolvable call graph) — propagate the
+            # "unresolved" signal rather than treating it as an empty frame.
             return None
 
+        # A resolved-but-empty frame causes no expansion: the loop is a no-op
+        # and ptr stays 0, yielding a penalty of 0 (safe to forward).
         ptr = 0
         for resv_ptr, resv_size in sorted(reserved):
             resv_end = resv_ptr + resv_size
@@ -305,9 +314,14 @@ class CopyForwardingPolicy:
                 cost += penalty
         return cost
 
-    def _callee_reserved_intervals(self, callee: IRFunction) -> list[tuple[int, int]]:
+    def _callee_reserved_intervals(self, callee: IRFunction) -> list[tuple[int, int]] | None:
+        # Returns the callee's reserved frame intervals, or None when the frame
+        # size cannot be determined (an unresolvable call graph). None means
+        # "unknown / potentially unbounded", which callers must NOT conflate with
+        # an empty (zero-cost) frame.
         allocator = self.function.ctx.mem_allocator
         if callee in allocator.mems_used:
+            # Allocator has run: layout is authoritative and fully resolved.
             return [
                 (allocator.allocated[alloca], alloca.alloca_size)
                 for alloca in allocator.mems_used[callee]
@@ -319,18 +333,27 @@ class CopyForwardingPolicy:
         # local-only would miss deep ABI-encode buffers and the cost
         # check would let through forwardings that become quadratic
         # memory-expansion bombs after inlining.
+        sizes = self._collect_transitive_alloca_sizes(callee)
+        if sizes is None:
+            return None
+
         intervals: list[tuple[int, int]] = []
         ptr = 0
-        for alloca_size in self._collect_transitive_alloca_sizes(callee):
+        for alloca_size in sizes:
             intervals.append((ptr, alloca_size))
             ptr += alloca_size
 
         return intervals
 
-    def _collect_transitive_alloca_sizes(self, callee: IRFunction) -> list[int]:
+    def _collect_transitive_alloca_sizes(self, callee: IRFunction) -> list[int] | None:
+        # Static alloca sizes reachable from `callee`, or None if the call graph
+        # could not be fully walked (an indirect invoke target, or a callee not
+        # found in ctx.functions). None signals "frame unknown" so the cost model
+        # does not mistake an unresolved frame for an empty one.
         sizes: list[int] = []
         visited: set[IRFunction] = set()
         stack: list[IRFunction] = [callee]
+        resolved = True
         while len(stack) > 0:
             fn = stack.pop()
             if fn in visited:
@@ -347,12 +370,14 @@ class CopyForwardingPolicy:
                         continue
                     target = inst.operands[0]
                     if not isinstance(target, IRLabel):
+                        resolved = False
                         continue
                     sub_callee = self.function.ctx.functions.get(target)
                     if sub_callee is None:
+                        resolved = False
                         continue
                     stack.append(sub_callee)
-        return sizes
+        return sizes if resolved else None
 
     def _get_invoke_callee(self, invoke_inst: IRInstruction) -> IRFunction:
         target = invoke_inst.operands[0]
