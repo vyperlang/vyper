@@ -43,27 +43,7 @@ class DallocaLoweringPass(IRPass):
         fn = self.function
         self._infer_dret_metadata(fn)
 
-        has_dalloca = any(
-            inst.opcode == "dalloca" for bb in fn.get_basic_blocks() for inst in bb.instructions
-        )
-        has_dfree = any(
-            inst.opcode == "dfree" for bb in fn.get_basic_blocks() for inst in bb.instructions
-        )
-        has_dret = any(
-            inst.opcode == "dret" for bb in fn.get_basic_blocks() for inst in bb.instructions
-        )
-
-        calls_needs_fmp = False
-        for bb in fn.get_basic_blocks():
-            for inst in bb.instructions:
-                if inst.opcode != "invoke":
-                    continue
-                callee = InvokeLayout(fn.ctx, inst).callee
-                if callee is not None and callee._needs_fmp:
-                    calls_needs_fmp = True
-                    break
-            if calls_needs_fmp:
-                break
+        has_dalloca, has_dfree, has_dret, calls_needs_fmp = self._scan_function_flags(fn)
 
         if fn._needs_fmp and not has_dalloca and not has_dfree and not has_dret:
             changed = self._deaugment_stale_invoke_fmp_args(fn)
@@ -121,6 +101,29 @@ class DallocaLoweringPass(IRPass):
             fn._dret_shape = next(iter(shapes))
             fn._returns_adopted_fmp = True
             fn._needs_fmp = True
+
+    def _scan_function_flags(self, fn) -> tuple[bool, bool, bool, bool]:
+        has_dalloca = False
+        has_dfree = False
+        has_dret = False
+        calls_needs_fmp = False
+
+        for bb in fn.get_basic_blocks():
+            for inst in bb.instructions:
+                if inst.opcode == "dalloca":
+                    has_dalloca = True
+                    continue
+                if inst.opcode == "dfree":
+                    has_dfree = True
+                    continue
+                if inst.opcode == "dret":
+                    has_dret = True
+                    continue
+                if inst.opcode == "invoke" and not calls_needs_fmp:
+                    callee = InvokeLayout(fn.ctx, inst).callee
+                    calls_needs_fmp = callee is not None and callee._needs_fmp
+
+        return has_dalloca, has_dfree, has_dret, calls_needs_fmp
 
     def _invalidate_analyses(self) -> None:
         self.analyses_cache.invalidate_analysis(LoadAnalysis)
@@ -476,12 +479,61 @@ class DallocaLoweringPass(IRPass):
 
         return dead_insts
 
+    def _is_fmp_value(
+        self,
+        value: IROperand,
+        root: IRVariable,
+        dfg: DFGAnalysis,
+        seen: set[IRVariable] | None = None,
+    ) -> bool:
+        if value == root:
+            return True
+        if not isinstance(value, IRVariable):
+            return False
+
+        if seen is None:
+            seen = set()
+        if value in seen:
+            return False
+        seen.add(value)
+
+        producer = dfg.get_producing_instruction(value)
+        if producer is None:
+            return False
+
+        if producer.opcode == "assign" and len(producer.operands) == 1:
+            return self._is_fmp_value(producer.operands[0], root, dfg, seen)
+
+        if producer.opcode == "phi":
+            return all(
+                self._is_fmp_value(op, root, dfg, seen.copy()) for _, op in producer.phi_operands
+            )
+
+        if producer.opcode == "bump":
+            outputs = producer.get_outputs()
+            if len(outputs) == 2 and outputs[1] == value:
+                return self._is_fmp_value(producer.operands[0], root, dfg, seen)
+            return False
+
+        if producer.opcode == "invoke":
+            callee = InvokeLayout(self.function.ctx, producer).callee
+            outputs = producer.get_outputs()
+            return (
+                callee is not None
+                and callee._returns_adopted_fmp
+                and len(outputs) > 0
+                and outputs[-1] == value
+            )
+
+        return False
+
     def _deaugment_stale_invoke_fmp_args(self, fn) -> bool:
         changed = False
         caller_layout = FunctionCallLayout(fn)
         hidden_fmp_param = caller_layout.hidden_fmp_param
         if hidden_fmp_param is None:
             return False
+        dfg = self.analyses_cache.request_analysis(DFGAnalysis)
 
         for bb in fn.get_basic_blocks():
             for inst in bb.instructions:
@@ -500,10 +552,13 @@ class DallocaLoweringPass(IRPass):
                 if current_arg_count != expected_arg_count + 1:
                     continue
 
-                # This invoke still has one extra trailing operand, but the
-                # callee no longer has a hidden FMP param. That trailing value
-                # may be a locally bumped FMP, not just the caller's original
-                # hidden FMP param, so remove it based on arity.
+                trailing_operand = inst.operands[-1]
+                if not self._is_fmp_value(trailing_operand, hidden_fmp_param.output, dfg):
+                    continue
+
+                # This invoke still has one extra trailing operand and that
+                # operand belongs to the caller's FMP chain, but the callee no
+                # longer has a hidden FMP param. Drop the stale hidden arg.
                 layout.remove_trailing_operand()
                 changed = True
 

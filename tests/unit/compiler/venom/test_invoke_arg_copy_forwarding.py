@@ -531,6 +531,47 @@ def test_readonly_forwarding_ignores_hidden_fmp_arg():
     assert all(inst.opcode != "mcopy" for inst in insts)
 
 
+def test_readonly_forwarding_blocks_dynamic_copy_source():
+    src = """
+    function caller {
+    caller:
+        %src = dalloca 32
+        %cond = source
+        jnz %cond, @write, @copy
+
+    write:
+        mstore %src, 1
+        %cond2 = source
+        jnz %cond2, @copy, @exit
+
+    copy:
+        %tmp = alloca 32
+        mcopy %tmp, %src, 32
+        invoke @callee, %tmp
+        stop
+
+    exit:
+        stop
+    }
+
+    function callee {
+    callee:
+        %arg = param
+        %retpc = param
+        mload %arg
+        ret %retpc
+    }
+    """
+
+    ctx = _run_copy_forwarding(src)
+    caller = ctx.get_function(IRLabel("caller"))
+    insts = [inst for bb in caller.get_basic_blocks() for inst in bb.instructions]
+
+    mcopy = next(inst for inst in insts if inst.opcode == "mcopy")
+    invoke = next(inst for inst in insts if inst.opcode == "invoke")
+    assert invoke.operands[1] == mcopy.operands[2]
+
+
 def test_internal_return_forwarding_still_applies_without_src_clobber():
     src = """
     function caller {

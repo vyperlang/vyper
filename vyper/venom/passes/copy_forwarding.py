@@ -85,6 +85,12 @@ class CopyForwardingPolicy:
     ) -> bool:
         src_alloca = self._copy_source_alloca(copy_inst)
 
+        # The liveness-extension cost model below is for fixed-size static
+        # frame allocas. Dynamic allocations live in the threaded FMP region,
+        # so keep forwarding conservative and avoid asking for alloca_size.
+        if dst_alloca.is_dynamic or (src_alloca is not None and src_alloca.is_dynamic):
+            return True
+
         copy_size = self.copy_size(copy_inst)
         if copy_size is None:
             copy_size = dst_alloca.alloca_size

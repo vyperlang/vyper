@@ -16,7 +16,7 @@ from vyper.venom.analysis import (
     VarDefinition,
     VariableRangeAnalysis,
 )
-from vyper.venom.basicblock import IRLabel, IRLiteral
+from vyper.venom.basicblock import IRLabel, IRLiteral, IRVariable
 from vyper.venom.effects import Effects
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes import (
@@ -288,6 +288,41 @@ def test_auto_reclaim_keeps_pointer_arithmetic_alias_live():
     assert _word(out, 1) == 7
 
 
+def test_auto_reclaim_pre_ssa_reassigned_pointer_var_is_conservative():
+    out = _run_program(
+        """
+        function main {
+            main:
+                %zero = 0
+                %p = dalloca 64
+                %d = add 32, %p
+                mstore %d, 7
+                %cond = calldatasize
+                jnz %cond, @clobber, @keep
+
+            keep:
+                jmp @join
+
+            clobber:
+                %d = %zero
+                jmp @join
+
+            join:
+                %q = dalloca 64
+                %q_tail = add 32, %q
+                mstore %q_tail, 0xdead
+                %v = mload %d
+                mstore 0, %q
+                mstore 32, %v
+                return 0, 64
+        }
+        """,
+        b"",
+    )
+    assert _word(out, 0) == 64
+    assert _word(out, 1) == 7
+
+
 def test_auto_reclaim_only_dead_lifo_suffix():
     out = _run_program("""
         function main {
@@ -415,6 +450,37 @@ def test_stale_hidden_fmp_arg_removed_after_callee_prunes_fmp():
         if inst.opcode == "invoke"
     )
     assert invoke.operands == [IRLabel("callee")]
+
+
+def test_stale_hidden_fmp_cleanup_keeps_non_fmp_extra_arg():
+    ctx = parse_venom("""
+        function caller {
+            caller:
+                %fmp = param
+                %arg = source
+                mstore 0, %fmp
+                invoke @callee, %arg
+                stop
+        }
+
+        function callee {
+            callee:
+                %retpc = param
+                ret %retpc
+        }
+        """)
+
+    caller = ctx.get_function(IRLabel("caller"))
+    caller._needs_fmp = True
+    DallocaLoweringPass(IRAnalysesCache(caller), caller).run_pass()
+
+    invoke = next(
+        inst
+        for bb in caller.get_basic_blocks()
+        for inst in bb.instructions
+        if inst.opcode == "invoke"
+    )
+    assert invoke.operands == [IRLabel("callee"), IRVariable("%arg")]
 
 
 def test_dret_lowering_with_ordinary_return_and_dynamic_buffer():

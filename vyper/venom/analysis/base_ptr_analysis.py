@@ -87,17 +87,13 @@ class BasePtrAnalysis(IRAnalysis):
         # subsequent bumps/invokes and does not alias any known region.
         if opcode == "bump":
             ptr_out = inst.get_outputs()[0]
-            original = self.var_to_mem.get(ptr_out, set())
-            self.var_to_mem[ptr_out] = set([Ptr.from_alloca(inst)])
-            return original != self.var_to_mem.get(ptr_out, set())
+            return self._add_possible_ptrs(ptr_out, {Ptr.from_alloca(inst)})
 
         if inst.num_outputs != 1:
             return False
 
-        original = self.var_to_mem.get(inst.output, set())
-
         if opcode in ("alloca", "dalloca"):
-            self.var_to_mem[inst.output] = set([Ptr.from_alloca(inst)])
+            return self._add_possible_ptrs(inst.output, {Ptr.from_alloca(inst)})
 
         elif opcode in ("add", "sub"):
             rhs, lhs = inst.operands
@@ -123,7 +119,7 @@ class BasePtrAnalysis(IRAnalysis):
                     out_ptrs.update(ptr.offset_by(None) for ptr in rhs_ptrs)
 
             if out_ptrs:
-                self.var_to_mem[inst.output] = out_ptrs
+                return self._add_possible_ptrs(inst.output, out_ptrs)
 
         elif opcode == "phi":
             phi_sources = set()
@@ -131,12 +127,30 @@ class BasePtrAnalysis(IRAnalysis):
                 assert isinstance(var, IRVariable)  # mypy help
                 var_sources = self.get_possible_ptrs(var)
                 phi_sources.update(var_sources)
-            self.var_to_mem[inst.output] = phi_sources
+            return self._add_possible_ptrs(inst.output, phi_sources)
 
         elif opcode == "assign" and isinstance(inst.operands[0], IRVariable):
-            self.var_to_mem[inst.output] = self.get_possible_ptrs(inst.operands[0])
+            return self._add_possible_ptrs(inst.output, self.get_possible_ptrs(inst.operands[0]))
 
-        return original != self.var_to_mem.get(inst.output, set())
+        return False
+
+    def _add_possible_ptrs(self, var: IRVariable, ptrs: set[Ptr]) -> bool:
+        if len(ptrs) == 0:
+            return False
+
+        # BasePtrAnalysis is normally queried after MakeSSA, where each
+        # variable has one definition. DallocaLoweringPass also queries it
+        # before MakeSSA, where the same variable can be assigned different
+        # values on different paths. Keep facts monotonic so a later
+        # non-pointer assignment cannot erase a base pointer that may still
+        # reach a use through another path.
+        original = self.var_to_mem.get(var, set())
+        new_ptrs = original | ptrs
+        if new_ptrs == original:
+            return False
+
+        self.var_to_mem[var] = new_ptrs
+        return True
 
     # return Ptr if there is exactly one known source for the op
     # otherwise (e.g. could return multiple sources), return None
