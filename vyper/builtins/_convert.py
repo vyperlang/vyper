@@ -490,17 +490,17 @@ def convert(expr, context):
         elif out_typ == AddressT():
             ret = to_address(arg_ast, arg, in_typ, out_typ)
         elif is_flag_type(out_typ):
-            ret = to_flag(arg_ast, arg, out_typ)
+            ret = to_flag(arg_ast, arg, in_typ, out_typ)
         elif is_integer_type(out_typ):
             ret = to_int(arg_ast, arg, in_typ, out_typ)
         elif is_bytes_m_type(out_typ):
-            ret = to_bytes_m(arg_ast, arg, out_typ)
+            ret = to_bytes_m(arg_ast, arg, in_typ, out_typ)
         elif is_decimal_type(out_typ):
             ret = to_decimal(arg_ast, arg, in_typ, out_typ)
         elif isinstance(out_typ, BytesT):
-            ret = to_bytes(arg_ast, arg, out_typ)
+            ret = to_bytes(arg_ast, arg, in_typ, out_typ)
         elif isinstance(out_typ, StringT):
-            ret = to_string(arg_ast, arg, out_typ)
+            ret = to_string(arg_ast, arg, in_typ, out_typ)
         else:
             raise StructureException(f"Conversion to {out_typ} is invalid.", arg_ast)
 
