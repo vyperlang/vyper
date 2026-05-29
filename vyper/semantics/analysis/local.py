@@ -134,34 +134,18 @@ def is_terminated(block: list[vy_ast.VyperNode]) -> bool:
 
 # helpers
 def _validate_address_code(node: vy_ast.Attribute, value_type: VyperType) -> None:
+    # Error on `len(<address>.code)`
     if isinstance(value_type, AddressT) and node.attr == "code":
-        # Validate `slice(<address>.code, start, length)` where `length` is constant
         parent = node.get_ancestor()
-        if isinstance(parent, vy_ast.Call):
-            ok_func = isinstance(parent.func, vy_ast.Name) and parent.func.id == "slice"
-            ok_args = len(parent.args) == 3 and isinstance(parent.args[2].reduced(), vy_ast.Int)
-            if ok_func and ok_args:
-                return
-
-        raise StructureException(
-            "(address).code is only allowed inside of a slice function with a constant length", node
-        )
-
-
-def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
-    if isinstance(node.value, vy_ast.Name) and node.value.id == "msg" and node.attr == "data":
-        parent = node.get_ancestor()
-        allowed_builtins = ("slice", "len", "raw_call")
-        if not isinstance(parent, vy_ast.Call) or parent.get("func.id") not in allowed_builtins:
+        if (
+            isinstance(parent, vy_ast.Call)
+            and isinstance(parent.func, vy_ast.Name)
+            and parent.func.id == "len"
+        ):
+            base = node.value.node_source_code
             raise StructureException(
-                "msg.data is only allowed inside of the slice, len or raw_call functions", node
+                f"`len({base}.code)` is inefficient: use `{base}.codesize` instead", node
             )
-        if parent.get("func.id") == "slice":
-            ok_args = len(parent.args) == 3 and isinstance(parent.args[2].reduced(), vy_ast.Int)
-            if not ok_args:
-                raise StructureException(
-                    "slice(msg.data) must use a compile-time constant for length argument", parent
-                )
 
 
 def _validate_msg_value_access(node: vy_ast.Attribute) -> None:
@@ -866,8 +850,6 @@ class ExprVisitor(VyperNodeVisitorBase):
             self.visit(folded_node, typ)
 
     def visit_Attribute(self, node: vy_ast.Attribute, typ: VyperType) -> None:
-        _validate_msg_data_attribute(node)
-
         # CMC 2023-10-19 TODO generalize this to mutability check on every node.
         # something like,
         # if self.func.mutability < expr_info.mutability:
@@ -991,12 +973,27 @@ class ExprVisitor(VyperNodeVisitorBase):
                         node,
                     )
 
-            for arg, typ in zip(node.args, func_type.argument_types):
-                self.visit(arg, typ)
+            for arg, arg_typ in zip(node.args, func_type.argument_types):
+                self.visit(arg, arg_typ)
             for kwarg in node.keywords:
                 # We should only see special kwargs
-                typ = func_type.call_site_kwargs[kwarg.arg].typ
-                self.visit(kwarg.value, typ)
+                kwarg_typ = func_type.call_site_kwargs[kwarg.arg].typ
+                self.visit(kwarg.value, kwarg_typ)
+
+            if func_type.is_external:
+                return_t = func_type.return_type
+                if return_t is not None and return_t.has_wildcard:
+                    if not typ.has_wildcard and typ is not VOID_TYPE:
+                        # Replace wildcard-containing type by the concrete expected type
+                        return_t = typ
+                    else:
+                        # Replace wildcards in the type by INF, since there is no expected type
+                        return_t = return_t.resolve_wildcard()
+                    # Sanity check
+                    assert func_type.return_type is not None
+                    assert return_t.is_subtype_of(func_type.return_type)
+                # TODO: Instead overwrite the normal type metadata ?
+                node._metadata["call_return_type"] = return_t
 
         elif is_type_t(func_type, EventT):
             # event ctors
