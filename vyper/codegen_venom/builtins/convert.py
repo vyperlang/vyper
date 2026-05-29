@@ -184,7 +184,7 @@ def _to_int(
         data = b.mload(data_ptr)
         # Right-shift to convert left-aligned bytes to right-aligned int
         # num_zero_bits = (32 - len) * 8
-        
+
         assert isinstance(in_t.maxlen, int)
         runtime_compile_diff = b.sub(in_t.maxlen, length)
 

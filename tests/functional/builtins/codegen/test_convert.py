@@ -432,7 +432,7 @@ def test_bytes_to_int_different_sizes(get_contract):
 def foo() -> int16:
     return convert(b'\xff', int16)
     """
-    
+
     c = get_contract(code)
     assert c.foo() == -1
 
@@ -443,9 +443,10 @@ FOO: constant(Bytes[2]) = b'\xff'
 def foo() -> int16:
     return convert(FOO, int16)
     """
-    
+
     c = get_contract(code)
     assert c.foo() == 255
+
 
 def test_bytes_to_int_different_sizes_runtime(get_contract):
     code = """
@@ -453,7 +454,7 @@ def test_bytes_to_int_different_sizes_runtime(get_contract):
 def foo(x: Bytes[1]) -> int16:
     return convert(x, int16)
     """
-    
+
     c = get_contract(code)
     assert c.foo(b"\xff") == -1
 
@@ -462,10 +463,9 @@ def foo(x: Bytes[1]) -> int16:
 def foo(x: Bytes[2]) -> int16:
     return convert(x, int16)
     """
-    
+
     c = get_contract(code)
     assert c.foo(b"\xff") == 255
-
 
 
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_passing_cases())
