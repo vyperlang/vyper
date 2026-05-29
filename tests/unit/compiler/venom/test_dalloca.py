@@ -498,6 +498,61 @@ def test_stale_hidden_fmp_cleanup_keeps_non_fmp_extra_arg():
     assert invoke.operands == [IRLabel("callee"), IRVariable("%arg")]
 
 
+def test_no_ret_function_inserts_hidden_fmp_before_return_pc():
+    # An internal function that unconditionally terminates (no `ret`/`dret`,
+    # e.g. reverts, self-destructs) still carries a return-PC param. When it needs FMP
+    # (here, a dalloca), the hidden FMP param must be inserted *before* the
+    # return-PC param and the bump must thread that FMP — not reuse the
+    # return-PC value as the allocation base. Regression for layout inference
+    # counting a not-yet-inserted hidden FMP slot.
+    ctx = parse_venom("""
+        function f {
+            f:
+                %a = param
+                %retpc = param
+                %p = dalloca 64
+                mstore %p, %a
+                return %p, 64
+        }
+        """)
+
+    fn = ctx.get_function(IRLabel("f"))
+    fn._invoke_param_count = 1  # one user param (%a); %retpc is the return-PC param
+
+    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    params = [inst for inst in fn.entry.instructions if inst.opcode == "param"]
+    # a hidden FMP param was inserted (user, hidden_fmp, return_pc)
+    assert len(params) == 3
+    retpc = IRVariable("%retpc")
+    # return-PC param stays last; the inserted hidden FMP sits before it
+    assert params[-1].output == retpc
+    hidden_fmp = params[1].output
+    assert hidden_fmp != retpc
+
+    bump = next(
+        inst
+        for bb in fn.get_basic_blocks()
+        for inst in bb.instructions
+        if inst.opcode == "bump"
+    )
+
+    # resolve the bump's FMP operand through any assign chain back to its root
+    defs = {
+        inst.output: inst
+        for bb in fn.get_basic_blocks()
+        for inst in bb.instructions
+        if inst.num_outputs == 1
+    }
+    root = bump.operands[0]
+    while isinstance(root, IRVariable) and root in defs and defs[root].opcode == "assign":
+        root = defs[root].operands[0]
+
+    # the FMP base must be the inserted hidden FMP param, never the return PC
+    assert root == hidden_fmp
+    assert root != retpc
+
+
 def test_dret_lowering_with_ordinary_return_and_dynamic_buffer():
     out = _run_program("""
         function main {

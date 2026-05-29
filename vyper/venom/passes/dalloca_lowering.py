@@ -68,9 +68,8 @@ class DallocaLoweringPass(IRPass):
                 fn._needs_fmp = False
             return
 
-        fn._needs_fmp = True
-
         hidden_fmp_var = self._ensure_hidden_fmp_param(fn, hidden_may_exist=had_fmp)
+        fn._needs_fmp = True
         fmp_var = hidden_fmp_var
         canonicalize_adopted_fmp = False
         if has_dalloca or has_dfree or calls_needs_fmp:
@@ -646,8 +645,8 @@ class DretLoweringPass(DallocaLoweringPass):
         if not has_dret and not calls_needs_fmp:
             return
 
-        fn._needs_fmp = True
         fmp_var = self._ensure_hidden_fmp_param(fn, hidden_may_exist=had_fmp)
+        fn._needs_fmp = True
         entry_fmp_var = fmp_var
         if has_dret:
             entry_fmp_var = self._materialize_entry_fmp(fn, fmp_var)
