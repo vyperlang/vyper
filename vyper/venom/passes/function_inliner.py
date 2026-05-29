@@ -41,8 +41,9 @@ class FunctionInlinerPass(IRGlobalPass):
     def run_pass(self):
         entry = self.ctx.entry_function
         self.inline_count = 0
+        self.fcg = self.analyses_caches[entry].force_analysis(FCGGlobalAnalysis)
 
-        for fn in self.ctx.functions.values():
+        for fn in self.fcg.get_reachable_functions():
             for bb in fn.get_basic_blocks():
                 if any(inst.opcode == "dret" for inst in bb.instructions):
                     raise CompilerPanic(
@@ -50,7 +51,6 @@ class FunctionInlinerPass(IRGlobalPass):
                     )
 
         function_count = len(self.ctx.functions)
-        self.fcg = self.analyses_caches[entry].force_analysis(FCGGlobalAnalysis)
         self.walk = self._build_call_walk(entry)
 
         for _ in range(function_count):

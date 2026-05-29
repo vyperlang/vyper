@@ -771,6 +771,27 @@ def test_dret_adopted_fmp_flows_to_later_non_inlined_callee():
     assert _word(out) == 0x1234
 
 
+def test_unreachable_raw_dret_does_not_block_inlining():
+    ctx = parse_venom("""
+        function main {
+            main:
+                return 0, 0
+        }
+
+        function dead {
+            dead:
+                %retpc = param
+                %p = dalloca 32
+                dret 1, %p, 32, %retpc
+        }
+        """)
+    flags = VenomOptimizationFlags(level=OptimizationLevel.O2, disable_inlining=False)
+
+    run_passes_on(ctx, flags, disable_mem_checks=True)
+
+    assert IRLabel("dead") not in ctx.functions
+
+
 def test_dret_must_be_lowered_before_inlining():
     ctx = parse_venom("""
         function main {
