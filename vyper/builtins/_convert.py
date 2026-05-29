@@ -86,17 +86,24 @@ def _bytes_to_num(arg, out_typ, signed):
         if not is_bounded_length(arg.typ.maxlen):
             raise CodegenPanic("convert: unbounded bytestring type")
         _len = get_bytearray_length(arg)
+        assert isinstance(arg.typ, _BytestringT)
+        maxlen = arg.typ.maxlen
+        assert isinstance(maxlen, int)
+
         arg = LOAD(bytes_data_ptr(arg))
-        num_zero_bits = ["mul", 8, ["sub", 32, _len]]
+        runtime_compile_diff = ["sub", maxlen, _len]
+        val = shr(["mul", runtime_compile_diff, 8], arg)
+        num_zero_bits = ["mul", 8, ["sub", 32, maxlen]]
     elif is_bytes_m_type(arg.typ):
         num_zero_bits = 8 * (32 - arg.typ.m)
+        val = arg
     else:  # pragma: nocover
         raise CompilerPanic("unreachable")
 
     if signed:
-        ret = sar(num_zero_bits, arg)
+        ret = sar(num_zero_bits, val)
     else:
-        ret = shr(num_zero_bits, arg)
+        ret = shr(num_zero_bits, val)
 
     annotation = (f"__intrinsic__byte_array_to_num({out_typ})",)
     return IRnode.from_list(ret, annotation=annotation)
