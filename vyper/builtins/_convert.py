@@ -220,7 +220,7 @@ def _signextend(expr, val, arg_typ):
         assert len(expr.value[2:]) // 2 == arg_typ.m
         n_bits = arg_typ.m_bits
     else:
-        assert len(expr.value) == arg_typ.maxlen
+        assert len(expr.value) <= arg_typ.maxlen
         n_bits = arg_typ.maxlen * 8
 
     return unsigned_to_signed(val, n_bits)
@@ -300,7 +300,7 @@ def _to_int(expr, arg, in_typ, out_typ):
     _check_bytes(expr, arg, out_typ, 32)
 
     if isinstance(expr, vy_ast.Constant):
-        return _literal_int(expr, arg.typ, out_typ)
+        return _literal_int(expr, in_typ, out_typ)
 
     elif isinstance(arg.typ, BytesT):
         arg_typ = arg.typ
