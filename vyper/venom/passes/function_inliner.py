@@ -47,7 +47,8 @@ class FunctionInlinerPass(IRGlobalPass):
             for bb in fn.get_basic_blocks():
                 if any(inst.opcode == "dret" for inst in bb.instructions):
                     raise CompilerPanic(
-                        "DretLoweringPass must run before FunctionInlinerPass when `dret` is present"
+                        "DretLoweringPass must run before FunctionInlinerPass "
+                        "when `dret` is present"
                     )
 
         function_count = len(self.ctx.functions)

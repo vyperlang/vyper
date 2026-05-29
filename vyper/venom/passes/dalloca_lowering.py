@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import (
@@ -12,10 +14,10 @@ from vyper.venom.analysis import (
     VarDefinition,
     VariableRangeAnalysis,
 )
-from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.call_layout import FunctionCallLayout, InvokeLayout
 from vyper.venom.memory_location import Allocation
-from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.base_pass import IRPass, PassRef
 
 IDENTITY_PRECOMPILE = 4
 
@@ -38,8 +40,8 @@ class DallocaLoweringPass(IRPass):
     inlining.
     """
 
-    required_predecessors = ("MakeSSA",)
-    required_successors = ("MakeSSA",)
+    required_predecessors: ClassVar[tuple[PassRef, ...]] = ("MakeSSA",)
+    required_successors: ClassVar[tuple[PassRef, ...]] = ("MakeSSA",)
 
     def run_pass(self):
         fn = self.function
@@ -188,10 +190,12 @@ class DallocaLoweringPass(IRPass):
         fn.entry.insert_instruction(inst, index=index)
         return thread_fmp_var
 
-    def _compute_bb_entry_stacks(self, fn, base_ptrs: BasePtrAnalysis, liveness) -> dict:
+    def _compute_bb_entry_stacks(
+        self, fn, base_ptrs: BasePtrAnalysis, liveness
+    ) -> dict[IRBasicBlock, tuple[IRVariable, ...]]:
         bbs = list(fn.get_basic_blocks())
-        entry_stacks = {bb: tuple() for bb in bbs}
-        exit_stacks = {bb: tuple() for bb in bbs}
+        entry_stacks: dict[IRBasicBlock, tuple[IRVariable, ...]] = {bb: tuple() for bb in bbs}
+        exit_stacks: dict[IRBasicBlock, tuple[IRVariable, ...]] = {bb: tuple() for bb in bbs}
         cfg = liveness.cfg
 
         changed = True
@@ -200,7 +204,7 @@ class DallocaLoweringPass(IRPass):
             for bb in bbs:
                 in_bbs = list(cfg.cfg_in(bb))
                 if len(in_bbs) == 0:
-                    new_entry = tuple()
+                    new_entry: tuple[IRVariable, ...] = tuple()
                 else:
                     new_entry = self._common_stack_prefix([exit_stacks[pred] for pred in in_bbs])
 
@@ -412,7 +416,7 @@ class DallocaLoweringPass(IRPass):
         pairs = [(pair_ops[i], pair_ops[i + 1]) for i in range(0, len(pair_ops), 2)]
 
         lowered: list[IRInstruction] = []
-        dsts: list[IROperand] = []
+        dsts: list[IRVariable] = []
         prev_dst: IROperand = entry_fmp_var
         prev_aligned: IRVariable | None = None
 
@@ -438,8 +442,8 @@ class DallocaLoweringPass(IRPass):
         self._copy_metadata(inst, new_fmp_inst, bb)
         lowered.append(new_fmp_inst)
 
-        for dst, (src, size) in zip(dsts, pairs, strict=True):
-            lowered.extend(self._copy_memory(dst, src, size, bb, inst))
+        for dst_op, (src, size) in zip(dsts, pairs, strict=True):
+            lowered.extend(self._copy_memory(dst_op, src, size, bb, inst))
 
         ret_inst = IRInstruction("ret", [*ordinary_returns, *dsts, new_fmp, return_pc], [])
         self._copy_metadata(inst, ret_inst, bb)
@@ -631,8 +635,8 @@ class DretLoweringPass(DallocaLoweringPass):
     later DallocaLoweringPass runs after SSA and handles allocation reclaim.
     """
 
-    required_predecessors = ()
-    required_successors = ()
+    required_predecessors: ClassVar[tuple[PassRef, ...]] = ()
+    required_successors: ClassVar[tuple[PassRef, ...]] = ()
 
     def run_pass(self):
         fn = self.function
