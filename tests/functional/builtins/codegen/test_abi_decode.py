@@ -113,6 +113,20 @@ def foo(x: Bytes[{input_len}]) -> {output_typ}:
     assert c.foo(encoded) == expected
 
 
+def test_abi_decode_folded_unwrap_tuple_kwarg(get_contract):
+    contract = """
+UNWRAP: constant(bool) = False
+
+@external
+def foo(x: Bytes[64]) -> Bytes[3]:
+    return abi_decode(x, Bytes[3], unwrap_tuple=UNWRAP)
+    """
+    c = get_contract(contract)
+
+    encoded = abi.encode("bytes", b"vyx")
+    assert c.foo(encoded) == b"vyx"
+
+
 @pytest.mark.parametrize(
     "arg,expected,input_len,output_typ1,output_typ2,abi_typ",
     [
