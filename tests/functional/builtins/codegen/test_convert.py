@@ -435,7 +435,6 @@ def foo() -> int16:
     
     c = get_contract(code)
     assert c.foo() == -1
-    return
 
     code = r"""
 FOO: constant(Bytes[2]) = b'\xff'
