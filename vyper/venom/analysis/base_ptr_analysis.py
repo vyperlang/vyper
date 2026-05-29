@@ -51,8 +51,9 @@ class Ptr:
 class BasePtrAnalysis(IRAnalysis):
     """
     Analysis to get every possible base pointer for variables.
-    The alloca is the source of base pointer and other instructions
-    (add/assign) are used to manipulate these base pointers
+    The allocation instruction is the source of base pointer and other
+    instructions (add/sub/assign/phi) are used to manipulate these base
+    pointers.
     """
 
     var_to_mem: dict[IRVariable, set[Ptr]]
@@ -95,7 +96,7 @@ class BasePtrAnalysis(IRAnalysis):
 
         original = self.var_to_mem.get(inst.output, set())
 
-        if opcode == "alloca":
+        if opcode in ("alloca", "dalloca"):
             self.var_to_mem[inst.output] = set([Ptr.from_alloca(inst)])
 
         elif opcode in ("add", "sub"):

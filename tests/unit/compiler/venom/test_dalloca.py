@@ -268,6 +268,26 @@ def test_auto_reclaim_keeps_aliased_live_allocation():
     assert _word(out, 1) == 7
 
 
+def test_auto_reclaim_keeps_pointer_arithmetic_alias_live():
+    out = _run_program("""
+        function main {
+            main:
+                %p = dalloca 64
+                %q = add 32, %p
+                mstore %q, 7
+                %r = dalloca 64
+                %r_tail = add 32, %r
+                mstore %r_tail, 9
+                %v = mload %q
+                mstore 0, %r
+                mstore 32, %v
+                return 0, 64
+        }
+        """)
+    assert _word(out, 0) == 64
+    assert _word(out, 1) == 7
+
+
 def test_auto_reclaim_only_dead_lifo_suffix():
     out = _run_program("""
         function main {

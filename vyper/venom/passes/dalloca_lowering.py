@@ -13,6 +13,7 @@ from vyper.venom.analysis import (
 )
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.call_layout import FunctionCallLayout, InvokeLayout
+from vyper.venom.memory_location import Allocation
 from vyper.venom.passes.base_pass import IRPass
 
 IDENTITY_PRECOMPILE = 4
@@ -89,12 +90,12 @@ class DallocaLoweringPass(IRPass):
         if has_dret:
             entry_fmp_var = self._materialize_entry_fmp(fn, fmp_var)
 
-        aliases = self._collect_dalloca_aliases(fn)
         liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
-        bb_entry_stacks = self._compute_bb_entry_stacks(fn, aliases, liveness)
+        base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
+        bb_entry_stacks = self._compute_bb_entry_stacks(fn, base_ptrs, liveness)
 
         for bb in fn.get_basic_blocks():
-            self._rewrite_bb(bb, fmp_var, entry_fmp_var, aliases, liveness, bb_entry_stacks[bb])
+            self._rewrite_bb(bb, fmp_var, entry_fmp_var, base_ptrs, liveness, bb_entry_stacks[bb])
 
         fn._needs_fmp = True
         if has_dret:
@@ -161,45 +162,7 @@ class DallocaLoweringPass(IRPass):
         fn.entry.insert_instruction(inst, index=index)
         return entry_fmp_var
 
-    def _collect_dalloca_aliases(self, fn) -> dict[IRVariable, set[IRVariable]]:
-        aliases: dict[IRVariable, set[IRVariable]] = {}
-
-        for bb in fn.get_basic_blocks():
-            for inst in bb.instructions:
-                if inst.opcode != "dalloca" or inst.num_outputs == 0:
-                    continue
-                ptr = inst.output
-                aliases[ptr] = {ptr}
-
-        changed = True
-        while changed:
-            changed = False
-            for bb in fn.get_basic_blocks():
-                for inst in bb.instructions:
-                    outputs = inst.get_outputs()
-                    if len(outputs) != 1:
-                        continue
-
-                    source_aliases: set[IRVariable] = set()
-                    if inst.opcode == "assign" and len(inst.operands) == 1:
-                        source = inst.operands[0]
-                        for root, root_aliases in aliases.items():
-                            if source in root_aliases:
-                                source_aliases.add(root)
-                    elif inst.opcode == "phi":
-                        phi_ops = [op for _, op in inst.phi_operands]
-                        for root, root_aliases in aliases.items():
-                            if any(op in root_aliases for op in phi_ops):
-                                source_aliases.add(root)
-
-                    for root in source_aliases:
-                        if outputs[0] not in aliases[root]:
-                            aliases[root].add(outputs[0])
-                            changed = True
-
-        return aliases
-
-    def _compute_bb_entry_stacks(self, fn, aliases, liveness) -> dict:
+    def _compute_bb_entry_stacks(self, fn, base_ptrs: BasePtrAnalysis, liveness) -> dict:
         bbs = list(fn.get_basic_blocks())
         entry_stacks = {bb: tuple() for bb in bbs}
         exit_stacks = {bb: tuple() for bb in bbs}
@@ -219,7 +182,7 @@ class DallocaLoweringPass(IRPass):
                     entry_stacks[bb] = new_entry
                     changed = True
 
-                new_exit = self._simulate_bb_stack(bb, list(new_entry), aliases, liveness)
+                new_exit = self._simulate_bb_stack(bb, list(new_entry), base_ptrs, liveness)
                 if exit_stacks[bb] != new_exit:
                     exit_stacks[bb] = new_exit
                     changed = True
@@ -239,11 +202,13 @@ class DallocaLoweringPass(IRPass):
             break
         return tuple(prefix)
 
-    def _simulate_bb_stack(self, bb, stack, aliases, liveness) -> tuple[IRVariable, ...]:
+    def _simulate_bb_stack(
+        self, bb, stack, base_ptrs: BasePtrAnalysis, liveness
+    ) -> tuple[IRVariable, ...]:
         for inst in bb.instructions:
             if self._is_reclaim_point(inst):
                 suffix_start = self._dead_lifo_suffix_start(
-                    stack, aliases, liveness.live_vars_at(inst)
+                    stack, base_ptrs, liveness.live_vars_at(inst)
                 )
                 del stack[suffix_start:]
 
@@ -268,24 +233,47 @@ class DallocaLoweringPass(IRPass):
             return callee is not None and callee._needs_fmp
         return False
 
-    def _dead_lifo_suffix_start(self, stack, aliases, live_vars) -> int:
+    def _dead_lifo_suffix_start(self, stack, base_ptrs: BasePtrAnalysis, live_vars) -> int:
         suffix_start = len(stack)
         while suffix_start > 0:
             ptr = stack[suffix_start - 1]
-            ptr_aliases = aliases.get(ptr, {ptr})
-            if any(alias in live_vars for alias in ptr_aliases):
+            allocation = self._dalloca_allocation(base_ptrs, ptr)
+            if allocation is None:
+                break
+            if self._allocation_is_live(base_ptrs, allocation, live_vars):
                 break
             suffix_start -= 1
         return suffix_start
 
-    def _rewrite_bb(self, bb, fmp_var, entry_fmp_var, aliases, liveness, entry_stack) -> None:
+    def _dalloca_allocation(self, base_ptrs: BasePtrAnalysis, ptr: IRVariable) -> Allocation | None:
+        possible_ptrs = base_ptrs.get_possible_ptrs(ptr)
+        if len(possible_ptrs) != 1:
+            return None
+
+        allocation = next(iter(possible_ptrs)).base_alloca
+        if allocation.inst.opcode != "dalloca":
+            return None
+        return allocation
+
+    def _allocation_is_live(
+        self, base_ptrs: BasePtrAnalysis, allocation: Allocation, live_vars
+    ) -> bool:
+        for live_var in live_vars:
+            for live_ptr in base_ptrs.get_possible_ptrs(live_var):
+                if live_ptr.base_alloca == allocation:
+                    return True
+        return False
+
+    def _rewrite_bb(
+        self, bb, fmp_var, entry_fmp_var, base_ptrs: BasePtrAnalysis, liveness, entry_stack
+    ) -> None:
         new_instructions: list[IRInstruction] = []
         stack = list(entry_stack)
 
         for inst in bb.instructions:
             if self._is_reclaim_point(inst):
                 self._emit_auto_reclaim(
-                    inst, fmp_var, bb, stack, aliases, liveness, new_instructions
+                    inst, fmp_var, bb, stack, base_ptrs, liveness, new_instructions
                 )
 
             if inst.opcode == "dalloca":
@@ -319,9 +307,9 @@ class DallocaLoweringPass(IRPass):
         bb.instructions = new_instructions
 
     def _emit_auto_reclaim(
-        self, inst, fmp_var, bb, stack, aliases, liveness, new_instructions
+        self, inst, fmp_var, bb, stack, base_ptrs: BasePtrAnalysis, liveness, new_instructions
     ) -> None:
-        suffix_start = self._dead_lifo_suffix_start(stack, aliases, liveness.live_vars_at(inst))
+        suffix_start = self._dead_lifo_suffix_start(stack, base_ptrs, liveness.live_vars_at(inst))
         if suffix_start == len(stack):
             return
 
