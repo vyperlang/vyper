@@ -179,6 +179,26 @@ By convention, variables have a `%-` prefix, e.g. `%1` is a valid variable. Howe
 ## Instructions
 To enable Venom IR in Vyper, use the `--experimental-codegen` CLI flag or the corresponding pragma statements (e.g. `#pragma experimental-codegen`). To view the Venom IR output, use `-f ir_runtime` for the runtime code, or `-f ir` to see the deploy code. To get a dot file (for use e.g. with `xdot -`), use `-f cfg` or `-f cfg_runtime`.
 
+### Dynamic memory
+
+- `dalloca`
+  - ```
+    %ptr = dalloca %size
+    ```
+  - Allocates a runtime-sized scratch region of `ceil32(size)` bytes and returns its base pointer.
+    The producer does not receive a restore token and should not emit a release instruction.
+    `DallocaLoweringPass` threads the free-memory pointer explicitly and may synthesize
+    conservative LIFO rewinds when the allocation and all aliases are dead.
+- `dret`
+  - ```
+    dret dyn_count, <ordinary returns...>, src0, size0, ..., return_pc
+    ```
+  - Internal dynamic return terminator. The final `2 * dyn_count` operands before `return_pc`
+    are `(src, size)` pairs. Lowering packs those buffers at the callee entry FMP and rewrites
+    the terminator to a physical `ret` that returns ordinary values, packed destination pointers,
+    a hidden adopted FMP, and the return PC. Invoke lowering adopts that hidden FMP output
+    atomically at the caller edge.
+
 Assembly can be inspected with `-f asm`, whereas an opcode view of the final bytecode can be seen with `-f opcodes` or `-f opcodes_runtime`, respectively.
 
 ### Special instructions
