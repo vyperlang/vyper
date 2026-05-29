@@ -440,8 +440,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     else:
         addr = b.create(value, buf, buf_len)
 
-    # Free scratch (must be in the same BB as the dalloca, before any
-    # control-flow branching introduced by `_check_create_result`).
+    # Scratch reclaim is compiler-owned; this compatibility hook is a no-op.
     ctx.free_scratch(mem_mark)
 
     return _check_create_result(ctx, b, addr, revert_on_failure)
@@ -563,8 +562,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     else:
         addr = b.create(value, mem_ofst, total_len)
 
-    # Free scratch (must be in the same BB as the dalloca, before any
-    # control-flow branching introduced by `_check_create_result`).
+    # Scratch reclaim is compiler-owned; this compatibility hook is a no-op.
     ctx.free_scratch(mem_mark)
 
     return _check_create_result(ctx, b, addr, revert_on_failure)

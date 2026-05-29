@@ -42,6 +42,13 @@ class FunctionInlinerPass(IRGlobalPass):
         entry = self.ctx.entry_function
         self.inline_count = 0
 
+        for fn in self.ctx.functions.values():
+            for bb in fn.get_basic_blocks():
+                if any(inst.opcode == "dret" for inst in bb.instructions):
+                    raise CompilerPanic(
+                        "DallocaLoweringPass must run before FunctionInlinerPass when `dret` is present"
+                    )
+
         function_count = len(self.ctx.functions)
         self.fcg = self.analyses_caches[entry].force_analysis(FCGGlobalAnalysis)
         self.walk = self._build_call_walk(entry)

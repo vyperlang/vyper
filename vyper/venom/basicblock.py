@@ -15,7 +15,19 @@ if TYPE_CHECKING:
 
 # instructions which can terminate a basic block
 BB_TERMINATORS = frozenset(
-    ["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "sink", "invalid", "selfdestruct"]
+    [
+        "jmp",
+        "djmp",
+        "jnz",
+        "ret",
+        "dret",
+        "return",
+        "revert",
+        "stop",
+        "sink",
+        "invalid",
+        "selfdestruct",
+    ]
 )
 
 # Terminators that halt program/message call execution
@@ -42,6 +54,7 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "dloadbytes",
         "return",
         "ret",
+        "dret",
         "sink",
         "jmp",
         "jnz",
@@ -72,6 +85,7 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "extcodecopy",
         "return",
         "ret",
+        "dret",
         "sink",
         "revert",
         "assert",
@@ -425,7 +439,7 @@ class IRInstruction:
 
     @property
     def code_size_cost(self) -> int:
-        if self.opcode in ("ret", "param"):
+        if self.opcode in ("ret", "dret", "param"):
             return 0
         if self.opcode in ("assign", "alloca"):
             return 1
@@ -437,12 +451,12 @@ class IRInstruction:
         if self.opcode == "dalloca":
             # `dalloca` is high-level sugar and is eliminated by DallocaLoweringPass
             # before assembly emission. The lowered generic form is:
-            #   PUSH1 31 + ADD, PUSH1 31 + NOT, AND, DUP2 + ADD, assign ptr -> mark
+            #   PUSH1 31 + ADD, PUSH1 31 + NOT, AND, DUP2 + ADD
             return 10
         if self.opcode == "bump":
             return 2  # DUP2 ADD
         if self.opcode == "dfree":
-            # high-level FMP restore marker; eliminated or lowered to
+            # legacy low-level FMP restore; eliminated or lowered to
             # `assign mark -> fmp` by DallocaLoweringPass.
             return 1
         return 2
@@ -472,7 +486,7 @@ class IRInstruction:
         opcode = f"{self.opcode} " if self.opcode != "assign" else ""
         s += opcode
         operands = self.operands
-        if opcode not in ["jmp", "jnz", "djmp", "invoke"]:
+        if opcode not in ["jmp", "jnz", "djmp", "invoke", "dret"]:
             operands = list(reversed(operands))
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
         return s
@@ -487,7 +501,7 @@ class IRInstruction:
         operands = self.operands
         if self.opcode == "invoke":
             operands = [operands[0]] + list(reversed(operands[1:]))
-        elif self.opcode not in ("jmp", "jnz", "djmp", "phi"):
+        elif self.opcode not in ("jmp", "jnz", "djmp", "phi", "dret"):
             operands = reversed(operands)  # type: ignore
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
 

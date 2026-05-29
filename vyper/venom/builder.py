@@ -174,26 +174,20 @@ class VenomBuilder:
         """Allocate abstract memory. Returns pointer. (IR-specific)"""
         return self._emit1("alloca", size)
 
-    def dalloca(self, size: Operand) -> tuple[IRVariable, IRVariable]:
-        """Allocate dynamic (runtime-sized) memory and return `(ptr, mark)`.
+    def dalloca(self, size: Operand) -> IRVariable:
+        """Allocate dynamic memory and return its pointer.
 
-        `ptr` is the base of the newly allocated `ceil32(size)`-byte region.
-        `mark` is the pre-bump FMP restore token for this allocation. The two
-        values are numerically equal, but they carry different roles in the IR:
-        `ptr` is used for addressing, while `mark` is passed to `dfree(mark)`
-        to restore the FMP.
+        The pointer is the base of a `ceil32(size)`-byte region. Reclaiming the
+        threaded FMP is compiler-owned; producers do not receive or pass an
+        explicit restore mark.
         """
-        ptr = self.fn.get_next_variable()
-        mark = self.fn.get_next_variable()
-        outputs = self._current_bb.append_instruction_multi("dalloca", size, outputs=[ptr, mark])
-        return outputs[0], outputs[1]
+        return self._emit1("dalloca", size)
 
     def dfree(self, mark: Operand) -> None:
-        """Restore the FMP to a prior `dalloca` mark.
+        """Legacy low-level FMP restore hook.
 
-        `dfree` models a cursor rewind, not a malloc/free heap operation.
-        Frontends should pass the `mark` returned by `dalloca`; hand-written IR
-        may use any operand, with the obvious low-level consequences.
+        Producer-facing dynamic allocation does not return a restore mark; new
+        code should let `DallocaLoweringPass` synthesize any safe rewind.
         """
         self._emit("dfree", mark)
 
@@ -315,6 +309,19 @@ class VenomBuilder:
     def ret(self, *values: Operand) -> None:
         """Return from internal function. Terminates block."""
         self._emit("ret", *values)
+
+    def dret(
+        self,
+        dyn_count: int,
+        ordinary_returns: Sequence[Operand],
+        dynamic_returns: Sequence[Operand],
+    ) -> None:
+        """Return one or more dynamic buffers from an internal function.
+
+        `dynamic_returns` is a flat sequence of `(src, size)` pairs followed by
+        the return PC as the final operand.
+        """
+        self._emit("dret", IRLiteral(dyn_count), *ordinary_returns, *dynamic_returns)
 
     # === EVM Terminators ===
     def return_(self, offset: Operand, size: Operand) -> None:

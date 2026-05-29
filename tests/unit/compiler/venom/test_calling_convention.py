@@ -6,6 +6,9 @@ from vyper.venom.check_venom import (
     BumpArityError,
     DallocaArityError,
     DfreeArityError,
+    DretReturnMixError,
+    DretShapeError,
+    DretShapeMismatch,
     FunctionCallLayoutError,
     InconsistentReturnArity,
     InitialFmpArityError,
@@ -271,12 +274,24 @@ def test_initial_fmp_arity_multi_output_rejected():
     _assert_raises(excinfo.value, InitialFmpArityError)
 
 
-def test_dalloca_arity_single_output_rejected():
+def test_dalloca_arity_single_output_accepted():
     src = """
     function main {
     main:
         %p = dalloca 32
         sink %p
+    }
+    """
+    ctx = parse_venom(src)
+    check_calling_convention(ctx)
+
+
+def test_dalloca_arity_two_outputs_rejected():
+    src = """
+    function main {
+    main:
+        %p, %mark = dalloca 32
+        sink %p, %mark
     }
     """
     ctx = parse_venom(src)
@@ -326,6 +341,116 @@ def test_dfree_arity_wrong_operand_count_rejected():
     with pytest.raises(ExceptionGroup) as excinfo:
         check_calling_convention(ctx)
     _assert_raises(excinfo.value, DfreeArityError)
+
+
+def test_dret_shape_accepted():
+    src = """
+    function main {
+    main:
+        %ret = invoke @f
+        sink %ret
+    }
+
+    function f {
+    main:
+        %retpc = param
+        %p = source
+        dret 1, %p, 32, %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    check_calling_convention(ctx)
+
+
+def test_dret_rejects_zero_dynamic_count():
+    src = """
+    function main {
+    main:
+        invoke @f
+    }
+
+    function f {
+    main:
+        %retpc = param
+        dret 0, %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, DretShapeError)
+
+
+def test_dret_rejects_non_return_pc_tail():
+    src = """
+    function main {
+    main:
+        %ret = invoke @f
+        sink %ret
+    }
+
+    function f {
+    main:
+        %p = source
+        dret 1, %p, 32, 0
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, DretShapeError)
+
+
+def test_dret_rejects_inconsistent_shapes():
+    src = """
+    function main {
+    main:
+        %ret = invoke @f
+        sink %ret
+    }
+
+    function f {
+    entry:
+        %retpc = param
+        %cond = source
+        %p = source
+        jnz %cond, @left, @right
+    left:
+        dret 1, %p, 32, %retpc
+    right:
+        %ordinary = source
+        dret 1, %ordinary, %p, 32, %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, DretShapeMismatch)
+
+
+def test_dret_rejects_mixing_ret_and_dret():
+    src = """
+    function main {
+    main:
+        invoke @f
+    }
+
+    function f {
+    entry:
+        %retpc = param
+        %cond = source
+        %p = source
+        jnz %cond, @left, @right
+    left:
+        dret 1, %p, 32, %retpc
+    right:
+        ret %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, DretReturnMixError)
 
 
 def test_invoke_argument_count_mismatch_too_few_inputs():

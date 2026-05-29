@@ -78,7 +78,7 @@ class FunctionCallLayout:
 
         for bb in self.fn.get_basic_blocks():
             for inst in bb.instructions:
-                if inst.opcode != "ret" or len(inst.operands) == 0:
+                if inst.opcode not in ("ret", "dret") or len(inst.operands) == 0:
                     continue
 
                 ret_pc = inst.operands[-1]
@@ -270,6 +270,9 @@ class InvokeLayout:
 
     def append_hidden_fmp_operand(self, fmp_var: IROperand) -> None:
         self.inst.operands = [*self.inst.operands, fmp_var]
+
+    def append_hidden_fmp_output(self, fmp_var: IRVariable) -> None:
+        self.inst.set_outputs([*self.inst.get_outputs(), fmp_var])
 
     def remove_trailing_operand(self) -> None:
         self.inst.operands.pop()

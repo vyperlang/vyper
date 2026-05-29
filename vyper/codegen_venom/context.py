@@ -627,26 +627,15 @@ class VenomCodegenContext:
         """Allocate a scoped, runtime-sized scratch buffer.
 
         Returns a pointer to `ceil32(size)` bytes of scratch space above all
-        static allocations and spill slots, along with a restore mark. The
-        caller MUST pair this with a matching `free_scratch(mark)` after the
-        single consumer (CALL/CREATE/etc.) in the same basic block, in LIFO
-        order.
-
-        Lowers via `dalloca -> (ptr, mark)`. The paired `dfree(mark)` is
-        eliminated at lowering time: leaf functions with strictly sequential
-        scratch pairs fold each to a single `initial_fmp` constant load
-        (resolved at assembly time), and FMP-threaded functions either rewire
-        the allocation away or restore the threaded FMP from the mark.
+        static allocations and spill slots. The second tuple element is kept
+        for existing call sites; `free_scratch()` is intentionally a no-op.
         """
-        return self.builder.dalloca(size)
+        ptr = self.builder.dalloca(size)
+        return ptr, ptr
 
     def free_scratch(self, mark: "IRVariable") -> None:
-        """Free a prior `allocate_scratch` allocation.
-
-        Must be in the same basic block as the allocation and pair in LIFO
-        order with any other open scratch allocations.
-        """
-        self.builder.dfree(mark)
+        """Compatibility hook; scratch reclaim is handled by dalloca lowering."""
+        pass
 
     # === Storage Operations ===
 

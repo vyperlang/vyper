@@ -30,6 +30,8 @@ class PhiEliminationPass(IRPass):
             src = next(iter(srcs))
             if src == inst:
                 return
+            if len(src.get_outputs()) != 1:
+                return
             self.updater.mk_assign(inst, src.output)
 
     def _calculate_phi_origins(self):

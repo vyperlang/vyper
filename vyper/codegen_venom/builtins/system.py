@@ -163,8 +163,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         # call(gas, to, value, argsptr, argsz, retptr, retsz)
         success = b.call(gas, to, value, data_ptr, data_len, out_ptr, IRLiteral(max_outsize))
 
-    # Free the scratch buffer (must be in the same BB as the dalloca, before
-    # any control-flow branching from `revert_on_failure` below).
+    # Scratch reclaim is compiler-owned; this compatibility hook is a no-op.
     if data_mark is not None:
         ctx.free_scratch(data_mark)
 

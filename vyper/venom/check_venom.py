@@ -152,7 +152,7 @@ class BumpArityError(VenomError):
 
 
 class DallocaArityError(VenomError):
-    message: str = "dalloca must have exactly 1 operand and 2 outputs"
+    message: str = "dalloca must have exactly 1 operand and 1 output"
 
     def __init__(self, caller: IRFunction, inst: IRInstruction):
         self.caller = caller
@@ -181,6 +181,53 @@ class DfreeArityError(VenomError):
             f"got {len(self.inst.operands)} operand(s), {self.inst.num_outputs} output(s)\n"
             f"  {self.inst}\n\n{bb}"
         )
+
+
+class DretShapeError(VenomError):
+    message: str = "dret operands are malformed"
+
+    def __init__(self, caller: IRFunction, inst: IRInstruction, detail: str):
+        self.caller = caller
+        self.inst = inst
+        self.detail = detail
+
+    def __str__(self):
+        bb = self.inst.parent
+        return f"dret shape error in {self.caller.name}: {self.detail}\n  {self.inst}\n\n{bb}"
+
+
+class DretReturnMixError(VenomError):
+    message: str = "function cannot mix ret and dret"
+
+    def __init__(self, function: IRFunction):
+        self.function = function
+
+    def __str__(self):
+        return f"function {self.function.name} mixes 'ret' and 'dret'"
+
+
+class DretShapeMismatch(VenomError):
+    message: str = "function has inconsistent dret shape"
+
+    def __init__(self, function: IRFunction, shapes: set[tuple[int, int]]):
+        self.function = function
+        self.shapes = shapes
+
+    def __str__(self):
+        return (
+            f"function {self.function.name} has inconsistent 'dret' shapes: {sorted(self.shapes)}"
+        )
+
+
+class AdoptedFmpMetadataError(VenomError):
+    message: str = "adopted FMP return metadata is inconsistent"
+
+    def __init__(self, function: IRFunction, detail: str):
+        self.function = function
+        self.detail = detail
+
+    def __str__(self):
+        return f"function {self.function.name} has invalid adopted FMP metadata: {self.detail}"
 
 
 class InitialFmpArityError(VenomError):
@@ -261,10 +308,97 @@ def _collect_ret_arities(context: IRContext) -> dict[IRFunction, set[int]]:
                 if inst.opcode == "ret":
                     # last operand is return PC; all preceding (if any) are return values
                     arities.add(len(inst.operands) - 1)
+                elif inst.opcode == "dret":
+                    shape = _dret_shape(inst)
+                    if shape is not None:
+                        ordinary_count, dyn_count = shape
+                        arities.add(ordinary_count + dyn_count)
 
         ret_arities[fn] = arities
 
     return ret_arities
+
+
+def _dret_shape(inst: IRInstruction) -> tuple[int, int] | None:
+    if len(inst.operands) < 4:
+        return None
+
+    dyn_count_op = inst.operands[0]
+    if not isinstance(dyn_count_op, IRLiteral):
+        return None
+
+    dyn_count = dyn_count_op.value
+    if dyn_count < 1:
+        return None
+
+    ordinary_count = len(inst.operands) - 2 - 2 * dyn_count
+    if ordinary_count < 0:
+        return None
+
+    return ordinary_count, dyn_count
+
+
+def _has_raw_dret(fn: IRFunction) -> bool:
+    return any(inst.opcode == "dret" for bb in fn.get_basic_blocks() for inst in bb.instructions)
+
+
+def _find_dret_errors(fn: IRFunction) -> list[VenomError]:
+    errors: list[VenomError] = []
+    shapes: set[tuple[int, int]] = set()
+    has_ret = False
+    has_dret = False
+    layout = FunctionCallLayout(fn)
+
+    for bb in fn.get_basic_blocks():
+        for inst in bb.instructions:
+            if inst.opcode == "ret":
+                has_ret = True
+                continue
+            if inst.opcode != "dret":
+                continue
+
+            has_dret = True
+            if inst.num_outputs != 0:
+                errors.append(DretShapeError(fn, inst, "dret must not have outputs"))
+                continue
+
+            shape = _dret_shape(inst)
+            if shape is None:
+                errors.append(
+                    DretShapeError(
+                        fn,
+                        inst,
+                        "expected literal dyn_count >= 1, dynamic src/size pairs, and return_pc",
+                    )
+                )
+                continue
+
+            return_pc = inst.operands[-1]
+            if not isinstance(return_pc, IRLabel) and layout.param_for_alias(return_pc) is None:
+                errors.append(DretShapeError(fn, inst, "return_pc must be a label or param alias"))
+                continue
+
+            shapes.add(shape)
+
+    if has_ret and has_dret:
+        errors.append(DretReturnMixError(fn))
+
+    if len(shapes) > 1:
+        errors.append(DretShapeMismatch(fn, shapes))
+
+    if len(shapes) == 1:
+        fn._dret_shape = next(iter(shapes))
+        fn._returns_adopted_fmp = True
+    elif not fn._returns_adopted_fmp:
+        fn._dret_shape = None
+
+    if fn._returns_adopted_fmp:
+        if fn._dret_shape is None:
+            errors.append(AdoptedFmpMetadataError(fn, "_dret_shape is missing"))
+        if not _has_raw_dret(fn) and not fn._needs_fmp:
+            errors.append(AdoptedFmpMetadataError(fn, "_returns_adopted_fmp requires _needs_fmp"))
+
+    return errors
 
 
 def _find_function_call_layout_errors(fn: IRFunction) -> list[VenomError]:
@@ -280,7 +414,7 @@ def _find_function_call_layout_errors(fn: IRFunction) -> list[VenomError]:
             return_pc_var = return_pc.output
             for bb in fn.get_basic_blocks():
                 for inst in bb.instructions:
-                    if inst.opcode != "ret" or len(inst.operands) == 0:
+                    if inst.opcode not in ("ret", "dret") or len(inst.operands) == 0:
                         continue
                     ret_pc = inst.operands[-1]
                     ret_pc_param = layout.param_for_alias(ret_pc)
@@ -327,6 +461,9 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
     errors: list[VenomError] = []
 
     # Enforce invoke binding exactly callee arity
+    for fn in context.functions.values():
+        errors.extend(_find_dret_errors(fn))
+
     ret_arities = _collect_ret_arities(context)
 
     for fn, arities in ret_arities.items():
@@ -355,7 +492,7 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
                         errors.append(BumpArityError(caller, inst))
                     continue
                 if inst.opcode == "dalloca":
-                    if len(inst.operands) != 1 or got_num != 2:
+                    if len(inst.operands) != 1 or got_num != 1:
                         errors.append(DallocaArityError(caller, inst))
                     continue
                 if inst.opcode == "dfree":

@@ -507,7 +507,7 @@ def test_readonly_forwarding_ignores_hidden_fmp_arg():
         %arg_rw = param
         %arg_ro = param
         %retpc = param
-        %scratch, %scratch_mark = dalloca 32
+        %scratch = dalloca 32
         mstore %arg_rw, 1
         %v = mload %arg_ro
         mstore 0, %v
@@ -630,7 +630,7 @@ def test_internal_return_forwarding_ignores_hidden_fmp_arg():
     callee:
         %retbuf = param
         %retpc = param
-        %scratch, %scratch_mark = dalloca 32
+        %scratch = dalloca 32
         mstore %retbuf, 7
         ret %retpc
     }

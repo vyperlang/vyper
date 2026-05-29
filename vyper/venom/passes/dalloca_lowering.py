@@ -1,3 +1,4 @@
+from vyper.evm.opcodes import version_check
 from vyper.venom.analysis import (
     BasePtrAnalysis,
     DFGAnalysis,
@@ -14,56 +15,41 @@ from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariab
 from vyper.venom.call_layout import FunctionCallLayout, InvokeLayout
 from vyper.venom.passes.base_pass import IRPass
 
+IDENTITY_PRECOMPILE = 4
+
 
 class DallocaLoweringPass(IRPass):
     """
-    Lower `dalloca` into explicit FMP-threaded arithmetic using `bump`.
+    Lower `dalloca` and `dret` into explicit FMP-threaded IR.
 
-    `dalloca` is a generic low-level region/cursor primitive. It takes one
-    operand (`size`) and always produces:
+    Producer-facing dynamic allocation has one output:
 
-      - `%ptr, %mark = dalloca %size`
+        %ptr = dalloca %size
 
-    `%ptr` is the base address of the newly allocated `ceil32(size)`-byte
-    region. `%mark` is a restore token equal to the pre-bump FMP. `dfree %mark`
-    restores the current threaded FMP to that token; it does not model heap
-    free semantics or pointer identity.
+    `%ptr` is both the allocated pointer and the pre-bump FMP mark. Producers
+    do not emit a release instruction. This pass may synthesize conservative
+    rewinds for dead LIFO allocation suffixes at points where the current FMP
+    is observed by later lowering.
 
-    Generic lowering:
-      1. Thread the free-memory pointer (FMP) as a plain SSA value through
-         every function that uses `dalloca` directly, or invokes a callee
-         that already needs FMP threading.
-      2. Rewrite each `dalloca` into:
-             %a       = add %size, 31
-             %mask    = not 31
-             %aligned = and %a, %mask
-             %ptr, %fmp = bump %fmp, %aligned
-         and, for the 2-output form, materialize `%mark = assign %ptr`.
-      3. Rewrite `dfree %mark` into `assign %mark -> %fmp`.
-
-    Structured same-BB scratch patterns are optimized more aggressively:
-      - If the function is the entry function, has no invokes, and every
-        `dalloca/dfree` pair is same-BB, LIFO, and non-overlapping, each
-        `dalloca` is folded to `initial_fmp` and each `dfree` is dropped.
-      - In the threaded path, a same-BB top-of-stack `dfree` can rewire its
-        matching allocation away entirely if nothing after the `bump` observes
-        the advanced FMP or performs an `invoke`.
-
-    Unpaired allocations are allowed. In that case the allocation stays live
-    until function return, and caller/callee isolation still relies on the
-    invoke boundary preserving the caller's threaded FMP.
+    `dret` packs live dynamic return buffers at the callee entry FMP and
+    physically returns the packed destination pointers plus a hidden adopted
+    FMP. Callers adopt that hidden output on the invoke edge.
     """
 
     required_successors = ("MakeSSA",)
 
     def run_pass(self):
         fn = self.function
+        self._infer_dret_metadata(fn)
 
         has_dalloca = any(
             inst.opcode == "dalloca" for bb in fn.get_basic_blocks() for inst in bb.instructions
         )
         has_dfree = any(
             inst.opcode == "dfree" for bb in fn.get_basic_blocks() for inst in bb.instructions
+        )
+        has_dret = any(
+            inst.opcode == "dret" for bb in fn.get_basic_blocks() for inst in bb.instructions
         )
 
         calls_needs_fmp = False
@@ -78,12 +64,12 @@ class DallocaLoweringPass(IRPass):
             if calls_needs_fmp:
                 break
 
-        if fn._needs_fmp and not has_dalloca and not has_dfree:
+        if fn._needs_fmp and not has_dalloca and not has_dfree and not has_dret:
             changed = self._deaugment_stale_invoke_fmp_args(fn)
             if changed:
                 self._invalidate_analyses()
 
-            if self._prune_dead_hidden_fmp_param(fn):
+            if not fn._returns_adopted_fmp and self._prune_dead_hidden_fmp_param(fn):
                 fn._needs_fmp = False
                 self._invalidate_analyses()
                 return
@@ -91,29 +77,49 @@ class DallocaLoweringPass(IRPass):
             fn._needs_fmp = True
             return
 
-        if not has_dalloca and not has_dfree and not calls_needs_fmp:
-            fn._needs_fmp = False
+        if not has_dalloca and not has_dfree and not has_dret and not calls_needs_fmp:
+            if not fn._returns_adopted_fmp:
+                fn._needs_fmp = False
             return
-
-        if has_dalloca and not calls_needs_fmp and self._can_initial_fmp_lower(fn):
-            self._initial_fmp_lower(fn)
-            fn._needs_fmp = False
-            self._invalidate_analyses()
-            return
-
-        # Single pre-SSA variable representing the threaded FMP across the
-        # whole function. MakeSSA will version this and place phis as needed.
-        fmp_var = fn.get_next_variable()
-        param_inst = IRInstruction("param", [], [fmp_var])
-        fn.entry.insert_instruction(
-            param_inst, index=FunctionCallLayout(fn).hidden_fmp_param_insert_index
-        )
-
-        for bb in fn.get_basic_blocks():
-            self._rewrite_bb(bb, fn, fmp_var)
 
         fn._needs_fmp = True
+
+        fmp_var = self._ensure_hidden_fmp_param(fn)
+        entry_fmp_var = fmp_var
+        if has_dret:
+            entry_fmp_var = self._materialize_entry_fmp(fn, fmp_var)
+
+        aliases = self._collect_dalloca_aliases(fn)
+        liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
+        bb_entry_stacks = self._compute_bb_entry_stacks(fn, aliases, liveness)
+
+        for bb in fn.get_basic_blocks():
+            self._rewrite_bb(bb, fmp_var, entry_fmp_var, aliases, liveness, bb_entry_stacks[bb])
+
+        fn._needs_fmp = True
+        if has_dret:
+            fn._returns_adopted_fmp = True
+
         self._invalidate_analyses()
+
+    def _infer_dret_metadata(self, fn) -> None:
+        shapes: set[tuple[int, int]] = set()
+        for bb in fn.get_basic_blocks():
+            for inst in bb.instructions:
+                if inst.opcode != "dret" or len(inst.operands) == 0:
+                    continue
+                dyn_count_op = inst.operands[0]
+                if not isinstance(dyn_count_op, IRLiteral):
+                    continue
+                dyn_count = dyn_count_op.value
+                ordinary_count = len(inst.operands) - 2 - 2 * dyn_count
+                if dyn_count >= 1 and ordinary_count >= 0:
+                    shapes.add((ordinary_count, dyn_count))
+
+        if len(shapes) == 1:
+            fn._dret_shape = next(iter(shapes))
+            fn._returns_adopted_fmp = True
+            fn._needs_fmp = True
 
     def _invalidate_analyses(self) -> None:
         self.analyses_cache.invalidate_analysis(LoadAnalysis)
@@ -127,109 +133,201 @@ class DallocaLoweringPass(IRPass):
         self.analyses_cache.invalidate_analysis(VariableRangeAnalysis)
         self.analyses_cache.invalidate_analysis(ReadonlyMemoryArgsGlobalAnalysis)
 
-    def _restore_token(self, inst: IRInstruction) -> IRVariable:
-        outs = inst.get_outputs()
-        assert len(outs) == 2, inst
-        return outs[-1]
+    def _ensure_hidden_fmp_param(self, fn) -> IRVariable:
+        layout = FunctionCallLayout(fn)
+        params = layout.params
+        return_pc_offset = int(layout.has_return_pc_param)
 
-    def _can_initial_fmp_lower(self, fn) -> bool:
-        """
-        True if the compact `initial_fmp` fast path is safe for this function.
+        if fn._invoke_param_count is not None:
+            hidden_pos = fn._invoke_param_count
+            hidden_exists = len(params) == fn._invoke_param_count + 1 + return_pc_offset
+            if hidden_exists and hidden_pos < len(params):
+                return params[hidden_pos].output
 
-        This path is intentionally conservative. It is restricted to the entry
-        function so a fast-path callee cannot alias a caller's live dynamic
-        allocation through the contract-wide `initial_fmp` constant.
-        """
-        if fn is not fn.ctx.entry_function:
-            return False
+        fmp_var = fn.get_next_variable()
+        param_inst = IRInstruction("param", [], [fmp_var])
+        fn.entry.insert_instruction(param_inst, index=layout.hidden_fmp_param_insert_index)
+        return fmp_var
 
-        liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
+    def _materialize_entry_fmp(self, fn, fmp_var: IRVariable) -> IRVariable:
+        entry_fmp_var = fn.get_next_variable()
+        inst = IRInstruction("assign", [fmp_var], [entry_fmp_var])
+
+        params = FunctionCallLayout(fn).params
+        if len(params) == 0:
+            index = 0
+        else:
+            index = max(fn.entry.instructions.index(param) for param in params) + 1
+        fn.entry.insert_instruction(inst, index=index)
+        return entry_fmp_var
+
+    def _collect_dalloca_aliases(self, fn) -> dict[IRVariable, set[IRVariable]]:
+        aliases: dict[IRVariable, set[IRVariable]] = {}
+
         for bb in fn.get_basic_blocks():
-            open_allocs: list[tuple[IRVariable, IRVariable]] = []
-            ptr_aliases: set[IRVariable] = set()
-            closed_ptrs: set[IRVariable] = set()
             for inst in bb.instructions:
-                if inst.opcode == "dalloca":
-                    if open_allocs:
-                        return False
-                    ptr_out = inst.get_outputs()[0]
-                    ptr_aliases.add(ptr_out)
-                    open_allocs.append((ptr_out, self._restore_token(inst)))
+                if inst.opcode != "dalloca" or inst.num_outputs == 0:
                     continue
+                ptr = inst.output
+                aliases[ptr] = {ptr}
 
-                if inst.opcode == "dfree":
-                    if not open_allocs or inst.operands[0] != open_allocs[-1][1]:
-                        return False
-                    open_allocs.pop()
-                    closed_ptrs.update(ptr_aliases)
-                    continue
-
-                if any(op in closed_ptrs for op in inst.operands):
-                    return False
-
-                if inst.opcode == "invoke" and open_allocs:
-                    return False
-
-                if inst.opcode == "assign" and len(inst.operands) == 1:
+        changed = True
+        while changed:
+            changed = False
+            for bb in fn.get_basic_blocks():
+                for inst in bb.instructions:
                     outputs = inst.get_outputs()
-                    if len(outputs) == 1 and inst.operands[0] in ptr_aliases:
-                        ptr_aliases.add(outputs[0])
+                    if len(outputs) != 1:
+                        continue
 
-            if open_allocs:
-                return False
-            if any(ptr in liveness.out_vars(bb) for ptr in closed_ptrs):
-                return False
-        return True
+                    source_aliases: set[IRVariable] = set()
+                    if inst.opcode == "assign" and len(inst.operands) == 1:
+                        source = inst.operands[0]
+                        for root, root_aliases in aliases.items():
+                            if source in root_aliases:
+                                source_aliases.add(root)
+                    elif inst.opcode == "phi":
+                        phi_ops = [op for _, op in inst.phi_operands]
+                        for root, root_aliases in aliases.items():
+                            if any(op in root_aliases for op in phi_ops):
+                                source_aliases.add(root)
 
-    def _inst_taints_fmp(self, inst: IRInstruction, fmp_var: IRVariable) -> bool:
-        return inst.opcode == "invoke" or fmp_var in inst.operands or fmp_var in inst.get_outputs()
+                    for root in source_aliases:
+                        if outputs[0] not in aliases[root]:
+                            aliases[root].add(outputs[0])
+                            changed = True
 
-    def _initial_fmp_lower(self, fn) -> None:
-        for bb in fn.get_basic_blocks():
-            new_instructions: list[IRInstruction] = []
-            for inst in bb.instructions:
-                if inst.opcode == "dalloca":
-                    ptr_out = inst.get_outputs()[0]
-                    mark_out = inst.get_outputs()[1]
+        return aliases
 
-                    init_inst = IRInstruction("initial_fmp", [], [ptr_out])
-                    self._copy_metadata(inst, init_inst, bb)
-                    new_instructions.append(init_inst)
+    def _compute_bb_entry_stacks(self, fn, aliases, liveness) -> dict:
+        bbs = list(fn.get_basic_blocks())
+        entry_stacks = {bb: tuple() for bb in bbs}
+        exit_stacks = {bb: tuple() for bb in bbs}
+        cfg = liveness.cfg
 
-                    mark_inst = IRInstruction("assign", [ptr_out], [mark_out])
-                    self._copy_metadata(inst, mark_inst, bb)
-                    new_instructions.append(mark_inst)
-                    continue
+        changed = True
+        while changed:
+            changed = False
+            for bb in bbs:
+                in_bbs = list(cfg.cfg_in(bb))
+                if len(in_bbs) == 0:
+                    new_entry = tuple()
+                else:
+                    new_entry = self._common_stack_prefix([exit_stacks[pred] for pred in in_bbs])
 
-                if inst.opcode == "dfree":
-                    continue
+                if entry_stacks[bb] != new_entry:
+                    entry_stacks[bb] = new_entry
+                    changed = True
 
-                new_instructions.append(inst)
+                new_exit = self._simulate_bb_stack(bb, list(new_entry), aliases, liveness)
+                if exit_stacks[bb] != new_exit:
+                    exit_stacks[bb] = new_exit
+                    changed = True
 
-            bb.instructions = new_instructions
+        return entry_stacks
 
-    def _rewrite_bb(self, bb, fn, fmp_var: IRVariable) -> None:
+    def _common_stack_prefix(self, stacks: list[tuple[IRVariable, ...]]) -> tuple[IRVariable, ...]:
+        if len(stacks) == 0:
+            return tuple()
+
+        prefix: list[IRVariable] = []
+        for values in zip(*stacks, strict=False):
+            first = values[0]
+            if all(value == first for value in values):
+                prefix.append(first)
+                continue
+            break
+        return tuple(prefix)
+
+    def _simulate_bb_stack(self, bb, stack, aliases, liveness) -> tuple[IRVariable, ...]:
+        for inst in bb.instructions:
+            if self._is_reclaim_point(inst):
+                suffix_start = self._dead_lifo_suffix_start(
+                    stack, aliases, liveness.live_vars_at(inst)
+                )
+                del stack[suffix_start:]
+
+            if inst.opcode == "dalloca":
+                stack.append(inst.output)
+            elif inst.opcode == "dfree":
+                stack.clear()
+            elif inst.opcode == "invoke":
+                callee = InvokeLayout(self.function.ctx, inst).callee
+                if callee is not None and callee._returns_adopted_fmp:
+                    stack.clear()
+
+        return tuple(stack)
+
+    def _is_reclaim_point(self, inst: IRInstruction) -> bool:
+        if inst.opcode == "dalloca":
+            return True
+        if inst.opcode in ("jmp", "jnz", "djmp"):
+            return True
+        if inst.opcode == "invoke":
+            callee = InvokeLayout(self.function.ctx, inst).callee
+            return callee is not None and callee._needs_fmp
+        return False
+
+    def _dead_lifo_suffix_start(self, stack, aliases, live_vars) -> int:
+        suffix_start = len(stack)
+        while suffix_start > 0:
+            ptr = stack[suffix_start - 1]
+            ptr_aliases = aliases.get(ptr, {ptr})
+            if any(alias in live_vars for alias in ptr_aliases):
+                break
+            suffix_start -= 1
+        return suffix_start
+
+    def _rewrite_bb(self, bb, fmp_var, entry_fmp_var, aliases, liveness, entry_stack) -> None:
         new_instructions: list[IRInstruction] = []
-        bump_stack: list[dict] = []
+        stack = list(entry_stack)
 
         for inst in bb.instructions:
+            if self._is_reclaim_point(inst):
+                self._emit_auto_reclaim(
+                    inst, fmp_var, bb, stack, aliases, liveness, new_instructions
+                )
+
             if inst.opcode == "dalloca":
-                lowered, entry = self._lower_dalloca(inst, fn, fmp_var, bb)
-                bump_stack.append(entry)
+                lowered = self._lower_dalloca(inst, bb, fmp_var)
+                stack.append(inst.output)
                 new_instructions.extend(lowered)
                 continue
 
             if inst.opcode == "dfree":
-                self._lower_dfree(inst, fmp_var, bb, bump_stack, new_instructions)
+                # Legacy low-level restore. Producer-facing code should not
+                # emit this, but keeping the lowering makes stale hand-written
+                # IR fail safe instead of reaching codegen.
+                stack.clear()
+                new_instructions.append(self._restore_fmp_inst(inst.operands[0], fmp_var, bb, inst))
+                continue
+
+            if inst.opcode == "dret":
+                lowered = self._lower_dret(inst, bb, entry_fmp_var)
+                new_instructions.extend(lowered)
                 continue
 
             if inst.opcode == "invoke":
-                callee = InvokeLayout(fn.ctx, inst).callee
+                callee = InvokeLayout(self.function.ctx, inst).callee
                 if callee is not None and callee._needs_fmp:
                     self._augment_invoke(inst, fmp_var)
+                if callee is not None and callee._returns_adopted_fmp:
+                    stack.clear()
+
             new_instructions.append(inst)
 
         bb.instructions = new_instructions
+
+    def _emit_auto_reclaim(
+        self, inst, fmp_var, bb, stack, aliases, liveness, new_instructions
+    ) -> None:
+        suffix_start = self._dead_lifo_suffix_start(stack, aliases, liveness.live_vars_at(inst))
+        if suffix_start == len(stack):
+            return
+
+        mark = stack[suffix_start]
+        del stack[suffix_start:]
+        new_instructions.append(self._restore_fmp_inst(mark, fmp_var, bb, inst))
 
     def _restore_fmp_inst(
         self, mark: IROperand, fmp_var: IRVariable, bb, origin: IRInstruction
@@ -238,61 +336,8 @@ class DallocaLoweringPass(IRPass):
         self._copy_metadata(origin, inst, bb)
         return inst
 
-    def _rewire_entry(self, entry: dict, fmp_var: IRVariable, bb) -> list[IRInstruction]:
-        ptr_alias = IRInstruction("assign", [fmp_var], [entry["ptr"]])
-        self._copy_metadata(entry["origin"], ptr_alias, bb)
-
-        mark_alias = IRInstruction("assign", [entry["ptr"]], [entry["mark"]])
-        self._copy_metadata(entry["origin"], mark_alias, bb)
-        return [ptr_alias, mark_alias]
-
-    def _lower_dfree(
-        self,
-        inst: IRInstruction,
-        fmp_var: IRVariable,
-        bb,
-        bump_stack: list[dict],
-        new_instructions: list[IRInstruction],
-    ) -> None:
-        mark = inst.operands[0]
-        top = bump_stack[-1] if bump_stack else None
-
-        if top is None or mark != top["mark"]:
-            # Unstructured restore. This is still valid low-level IR; it just
-            # does not qualify for the local scratch rewrite. Restoring to an
-            # older mark invalidates any allocations above it, so hand-written
-            # IR can create use-after-free by using those pointers later. That
-            # is already the source semantics of `dfree`; keep the explicit
-            # restore and discard local stack state so later rewrites do not
-            # assume the open allocations are still valid.
-            bump_stack.clear()
-            new_instructions.append(self._restore_fmp_inst(mark, fmp_var, bb, inst))
-            return
-
-        entry = bump_stack.pop()
-        first_idx = new_instructions.index(entry["introduced"][0])
-
-        tainted = any(
-            self._inst_taints_fmp(new_instructions[i], fmp_var)
-            for i in range(first_idx + len(entry["introduced"]), len(new_instructions))
-        )
-
-        if not tainted:
-            for to_remove in entry["introduced"]:
-                new_instructions.remove(to_remove)
-            new_instructions[first_idx:first_idx] = self._rewire_entry(entry, fmp_var, bb)
-            return
-
-        new_instructions.append(self._restore_fmp_inst(mark, fmp_var, bb, inst))
-
-    def _lower_dalloca(self, inst: IRInstruction, fn, fmp_var: IRVariable, bb) -> tuple[list, dict]:
-        assert len(inst.operands) == 1, inst
-        assert inst.num_outputs == 2, inst
-
-        size = inst.operands[0]
-        ptr_out = inst.get_outputs()[0]
-        mark_out = inst.get_outputs()[1]
-
+    def _ceil32_insts(self, size: IROperand, bb, origin: IRInstruction) -> tuple[list, IRVariable]:
+        fn = self.function
         a_var = fn.get_next_variable()
         mask_var = fn.get_next_variable()
         aligned_var = fn.get_next_variable()
@@ -300,27 +345,92 @@ class DallocaLoweringPass(IRPass):
         add_inst = IRInstruction("add", [IRLiteral(31), size], [a_var])
         mask_inst = IRInstruction("not", [IRLiteral(31)], [mask_var])
         and_inst = IRInstruction("and", [mask_var, a_var], [aligned_var])
+        insts = [add_inst, mask_inst, and_inst]
+        for new_inst in insts:
+            self._copy_metadata(origin, new_inst, bb)
+        return insts, aligned_var
+
+    def _lower_dalloca(self, inst: IRInstruction, bb, fmp_var: IRVariable) -> list[IRInstruction]:
+        assert len(inst.operands) == 1, inst
+        assert inst.num_outputs == 1, inst
+
+        size = inst.operands[0]
+        ptr_out = inst.output
+
+        ceil_insts, aligned_var = self._ceil32_insts(size, bb, inst)
         bump_inst = IRInstruction("bump", [fmp_var, aligned_var], [ptr_out, fmp_var])
+        self._copy_metadata(inst, bump_inst, bb)
+        return [*ceil_insts, bump_inst]
 
-        lowered = [add_inst, mask_inst, and_inst, bump_inst]
-        for new_inst in lowered:
-            self._copy_metadata(inst, new_inst, bb)
+    def _lower_dret(
+        self, inst: IRInstruction, bb, entry_fmp_var: IRVariable
+    ) -> list[IRInstruction]:
+        assert len(inst.operands) >= 4, inst
+        dyn_count_op = inst.operands[0]
+        assert isinstance(dyn_count_op, IRLiteral), inst
+        dyn_count = dyn_count_op.value
+        assert dyn_count >= 1, inst
 
-        mark_inst = IRInstruction("assign", [ptr_out], [mark_out])
-        self._copy_metadata(inst, mark_inst, bb)
-        lowered.append(mark_inst)
+        return_pc = inst.operands[-1]
+        ordinary_count = len(inst.operands) - 2 - 2 * dyn_count
+        assert ordinary_count >= 0, inst
+        ordinary_returns = list(inst.operands[1 : 1 + ordinary_count])
+        pair_ops = inst.operands[1 + ordinary_count : -1]
+        pairs = [(pair_ops[i], pair_ops[i + 1]) for i in range(0, len(pair_ops), 2)]
 
-        entry = {
-            "origin": inst,
-            "ptr": ptr_out,
-            "mark": mark_out,
-            "aligned_var": aligned_var,
-            "bump_inst": bump_inst,
-            "introduced": tuple(lowered),
-        }
-        entry["mark_inst"] = mark_inst
+        lowered: list[IRInstruction] = []
+        dsts: list[IROperand] = []
+        prev_dst: IROperand = entry_fmp_var
+        prev_aligned: IRVariable | None = None
 
-        return lowered, entry
+        for idx, (_, size) in enumerate(pairs):
+            if idx == 0:
+                dst = entry_fmp_var
+            else:
+                assert prev_aligned is not None
+                dst = self.function.get_next_variable()
+                dst_inst = IRInstruction("add", [prev_aligned, prev_dst], [dst])
+                self._copy_metadata(inst, dst_inst, bb)
+                lowered.append(dst_inst)
+
+            ceil_insts, aligned = self._ceil32_insts(size, bb, inst)
+            lowered.extend(ceil_insts)
+            dsts.append(dst)
+            prev_dst = dst
+            prev_aligned = aligned
+
+        assert prev_aligned is not None
+        new_fmp = self.function.get_next_variable()
+        new_fmp_inst = IRInstruction("add", [prev_aligned, prev_dst], [new_fmp])
+        self._copy_metadata(inst, new_fmp_inst, bb)
+        lowered.append(new_fmp_inst)
+
+        for dst, (src, size) in zip(dsts, pairs, strict=True):
+            lowered.extend(self._copy_memory(dst, src, size, bb, inst))
+
+        ret_inst = IRInstruction("ret", [*ordinary_returns, *dsts, new_fmp, return_pc], [])
+        self._copy_metadata(inst, ret_inst, bb)
+        lowered.append(ret_inst)
+        return lowered
+
+    def _copy_memory(
+        self, dst: IROperand, src: IROperand, size: IROperand, bb, origin: IRInstruction
+    ) -> list[IRInstruction]:
+        if version_check(begin="cancun"):
+            inst = IRInstruction("mcopy", [size, src, dst], [])
+            self._copy_metadata(origin, inst, bb)
+            return [inst]
+
+        gas = self.function.get_next_variable()
+        success = self.function.get_next_variable()
+        gas_inst = IRInstruction("gas", [], [gas])
+        call_inst = IRInstruction(
+            "staticcall", [size, dst, size, src, IRLiteral(IDENTITY_PRECOMPILE), gas], [success]
+        )
+        assert_inst = IRInstruction("assert", [success], [])
+        for new_inst in (gas_inst, call_inst, assert_inst):
+            self._copy_metadata(origin, new_inst, bb)
+        return [gas_inst, call_inst, assert_inst]
 
     def _copy_metadata(self, source: IRInstruction, target: IRInstruction, bb) -> None:
         target.parent = bb
@@ -328,19 +438,19 @@ class DallocaLoweringPass(IRPass):
         target.error_msg = source.error_msg
 
     def _augment_invoke(self, inst: IRInstruction, fmp_var: IRVariable) -> None:
-        # Invoke's internal operand layout (after parser reversal):
-        #   operands[0] = target label
-        #   operands[1:] = user args in callee-param order
-        #   operands[-1] = hidden FMP when present
-        # The callee's params bind in internal operand order, so appending
-        # the hidden FMP keeps every user-arg position stable and makes the
-        # FMP param the last param before return_pc.
-        #
-        # We intentionally do not thread a new FMP value back out of the
-        # callee. The caller's current FMP SSA value survives the invoke
-        # via liveness, so any callee allocation left unreleased is
-        # reclaimed when control returns to the caller.
-        InvokeLayout(self.function.ctx, inst).append_hidden_fmp_operand(fmp_var)
+        layout = InvokeLayout(self.function.ctx, inst)
+        callee = layout.callee
+        assert callee is not None
+
+        expected_user_args = FunctionCallLayout(callee).expected_user_arg_count
+        has_hidden_fmp_operand = len(inst.operands) == 1 + expected_user_args + 1
+        if not has_hidden_fmp_operand:
+            layout.append_hidden_fmp_operand(fmp_var)
+
+        if callee._returns_adopted_fmp:
+            outputs = inst.get_outputs()
+            if len(outputs) == 0 or outputs[-1] != fmp_var:
+                layout.append_hidden_fmp_output(fmp_var)
 
     def _prune_dead_hidden_fmp_param(self, fn) -> bool:
         param_inst = FunctionCallLayout(fn).hidden_fmp_param
