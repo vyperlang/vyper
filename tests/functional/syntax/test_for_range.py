@@ -487,7 +487,7 @@ def bar():
     for i, j in [(1, 2)]:
         pass
     """,
-            "missing type annotation",
+            "invalid for loop syntax: not a name",
         ),
         (
             """
