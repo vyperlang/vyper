@@ -26,6 +26,7 @@ from vyper.venom.passes import (
     DretLoweringPass,
     MakeSSA,
     PhiEliminationPass,
+    SingleUseExpansion,
 )
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.passes.function_inliner import FunctionInlinerPass
@@ -48,6 +49,7 @@ def _apply_dalloca_lowering(fn):
 def _apply_lowering(fn):
     DretLoweringPass(IRAnalysesCache(fn), fn).run_pass()
     _apply_dalloca_lowering(fn)
+    SingleUseExpansion(IRAnalysesCache(fn), fn).run_pass()
 
 
 def _run_program(src: str, calldata: bytes = b"") -> bytes:
@@ -705,6 +707,29 @@ def test_dret_pre_cancun_copy_path(monkeypatch):
     assert "mcopy" not in opcodes
     assert "staticcall" in opcodes
     assert "assert" in opcodes
+
+    out = _run_program(
+        """
+        function main {
+            main:
+                %returned = invoke @callee
+                %v = mload %returned
+                mstore 0, %v
+                return 0, 32
+        }
+
+        function callee {
+            callee:
+                %retpc = param
+                %size = calldatasize
+                %p = dalloca 64
+                mstore %p, 7
+                dret 1, %p, %size, %retpc
+        }
+        """,
+        b"x" * 33,
+    )
+    assert _word(out) == 7
 
 
 def test_dret_full_pipeline_with_and_without_inlining():
