@@ -483,7 +483,7 @@ def bar():
             """
 @external
 def bar():
-    for i, j in range(0, 1):
+    for i, j in [(1, 2)]:
         pass
     """,
             "missing type annotation",
