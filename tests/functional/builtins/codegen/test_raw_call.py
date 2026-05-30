@@ -529,6 +529,53 @@ def foo() -> String[32]:
     assert c.foo() == "goo"
 
 
+def test_raw_call_runtime_kwargs_source_order(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen does not preserve this source order")
+
+    code = """
+canary: public(uint256)
+
+@internal
+def set_gas(v: uint256) -> uint256:
+    self.canary = v
+    return 50000
+
+@internal
+def set_value(v: uint256) -> uint256:
+    self.canary = v
+    return 0
+
+@external
+def value_then_gas() -> uint256:
+    success: bool = raw_call(
+        0x0000000000000000000000000000000000000004,
+        b"",
+        max_outsize=0,
+        value=self.set_value(1),
+        gas=self.set_gas(2),
+        revert_on_failure=False,
+    )
+    return self.canary
+
+@external
+def gas_then_value() -> uint256:
+    success: bool = raw_call(
+        0x0000000000000000000000000000000000000004,
+        b"",
+        max_outsize=0,
+        gas=self.set_gas(1),
+        value=self.set_value(2),
+        revert_on_failure=False,
+    )
+    return self.canary
+    """
+    c = get_contract(code)
+
+    assert c.value_then_gas() == 2
+    assert c.gas_then_value() == 2
+
+
 def test_raw_call_clean_mem_kwargs_value(get_contract, env):
     # test msize uses clean memory and does not get overwritten by
     # any raw_call() kwargs

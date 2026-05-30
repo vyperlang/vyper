@@ -9,25 +9,25 @@ System-level built-in functions for raw operations.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Union
+from typing import Optional, Union
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.builtins._kwargs import BuiltinCall, get_bool_kwarg, get_literal_kwarg
 from vyper.codegen_venom.value import VyperValue
-from vyper.exceptions import ArgumentException, CompilerPanic, StateAccessViolation
+from vyper.exceptions import ArgumentException, StateAccessViolation
 from vyper.semantics.types import BytesT, TupleT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
-if TYPE_CHECKING:
-    from vyper.codegen_venom.context import VenomCodegenContext
-
-
-def _get_kwarg_value(node: vy_ast.Call, kwarg_name: str, default=None):
-    """Extract a keyword argument value from a Call node."""
-    for kw in node.keywords:
-        if kw.arg == kwarg_name:
-            return kw.value
-    return default
+_RAW_CALL_KWARGS = (
+    "max_outsize",
+    "gas",
+    "value",
+    "is_delegate_call",
+    "is_static_call",
+    "revert_on_failure",
+)
+_SEND_KWARGS = ("gas",)
 
 
 def _is_msg_data(node) -> bool:
@@ -40,27 +40,7 @@ def _is_msg_data(node) -> bool:
     )
 
 
-def _get_literal_kwarg(node: vy_ast.Call, kwarg_name: str, default):
-    """Extract a literal value from a keyword argument."""
-    kw_node = _get_kwarg_value(node, kwarg_name)
-    if kw_node is None:
-        return default
-    # Try to get folded value
-    if hasattr(kw_node, "get_folded_value"):
-        folded = kw_node.get_folded_value()
-        if isinstance(folded, vy_ast.Int):
-            return folded.value
-        if isinstance(folded, vy_ast.NameConstant):
-            return folded.value
-    # Try direct value
-    if isinstance(kw_node, vy_ast.Int):
-        return kw_node.value
-    if isinstance(kw_node, vy_ast.NameConstant):
-        return kw_node.value
-    return default
-
-
-def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand, VyperValue]:
+def lower_raw_call(call: BuiltinCall) -> Union[IROperand, VyperValue]:
     """
     raw_call(to, data, max_outsize=0, gas=gas, value=0,
              is_delegate_call=False, is_static_call=False,
@@ -74,18 +54,24 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         - Bytes[N] if max_outsize>0 and revert_on_failure=True
         - (bool, Bytes[N]) if max_outsize>0 and revert_on_failure=False
     """
-    from vyper.codegen_venom.expr import Expr
-
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
 
-    # Parse positional args
-    to = Expr(node.args[0], ctx).lower_value()
-
     # Parse kwargs (need to know is_static before constancy check)
-    max_outsize = _get_literal_kwarg(node, "max_outsize", 0)
-    is_delegate = _get_literal_kwarg(node, "is_delegate_call", False)
-    is_static = _get_literal_kwarg(node, "is_static_call", False)
-    revert_on_failure = _get_literal_kwarg(node, "revert_on_failure", True)
+    call.validate_kwargs(_RAW_CALL_KWARGS)
+    kwarg_constants = call.get_kwarg_ast_constants(
+        {
+            "max_outsize": 0,
+            "is_delegate_call": False,
+            "is_static_call": False,
+            "revert_on_failure": True,
+        }
+    )
+    max_outsize = get_literal_kwarg(kwarg_constants, "max_outsize")
+    is_delegate = get_bool_kwarg(kwarg_constants, "is_delegate_call")
+    is_static = get_bool_kwarg(kwarg_constants, "is_static_call")
+    revert_on_failure = get_bool_kwarg(kwarg_constants, "revert_on_failure")
 
     # Validate delegate/static mutual exclusivity
     if is_delegate and is_static:
@@ -95,8 +81,8 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
 
     # Validate value not passed with delegate/static
     # Check if value kwarg is explicitly provided (not relying on default)
-    value_node = _get_kwarg_value(node, "value")
-    if (is_delegate or is_static) and value_node is not None:
+    value_is_provided = call.kwarg_is_provided("value")
+    if (is_delegate or is_static) and value_is_provided:
         raise ArgumentException("value= may not be passed for static or delegate calls!", node)
 
     # Check constancy: non-static calls are not allowed from view/pure functions
@@ -107,34 +93,23 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
             node,
         )
 
+    # Parse positional args
+    to = call.lower_pos_arg_values(node.args[:1])[0]
+
     # Evaluate data argument
     data_node = node.args[1]
     use_msg_data = _is_msg_data(data_node)
     if not use_msg_data:
-        data_vv = Expr(data_node, ctx).lower()
+        data_vv = call.lower_pos_args((data_node,))[0]
         data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
         # Bytes layout: [32-byte length][data...]
         assert isinstance(data, IRVariable)
         data_len = b.mload(data)
         data_ptr = b.add(data, IRLiteral(32))
 
-    value: IROperand
-    gas: Optional[IROperand] = None
-    value = IRLiteral(0)
-    for kw in node.keywords:
-        if kw.arg == "gas":
-            gas = Expr(kw.value, ctx).lower_value()
-        elif kw.arg == "value":
-            value = Expr(kw.value, ctx).lower_value()
-        elif kw.arg not in (
-            "max_outsize",
-            "is_delegate_call",
-            "is_static_call",
-            "revert_on_failure",
-        ):
-            raise CompilerPanic(f"unexpected raw_call kwarg: {kw.arg}", kw)
-    if gas is None:
-        gas = b.gas()
+    runtime_kwargs = call.get_kwarg_values({"gas": b.gas, "value": IRLiteral(0)})
+    gas = runtime_kwargs["gas"]
+    value = runtime_kwargs["value"]
 
     # Allocate output buffer if needed
     out_val: Optional["VyperValue"]
@@ -224,29 +199,24 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         return success
 
 
-def lower_send(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_send(call: BuiltinCall) -> IROperand:
     """
     send(to, value, gas=0)
 
     Send ether to address. Reverts on failure.
     The gas kwarg defaults to 0 (empty gas stipend) in Vyper.
     """
-    from vyper.codegen_venom.expr import Expr
-
+    node = call.node
+    ctx = call.ctx
     ctx.check_is_not_constant("send ether", node)
 
     b = ctx.builder
 
-    to = Expr(node.args[0], ctx).lower_value()
-    value = Expr(node.args[1], ctx).lower_value()
+    to, value = call.lower_pos_arg_values()
 
-    # Parse gas kwarg (default 0)
-    gas_node = _get_kwarg_value(node, "gas")
-    gas: IROperand
-    if gas_node is None:
-        gas = IRLiteral(0)
-    else:
-        gas = Expr(gas_node, ctx).lower_value()
+    call.validate_kwargs(_SEND_KWARGS)
+    runtime_kwargs = call.get_kwarg_values({"gas": IRLiteral(0)})
+    gas = runtime_kwargs["gas"]
 
     argsptr_buf = ctx.allocate_buffer(0, annotation="lower send args buffer")
     retptr_buf = ctx.allocate_buffer(0, annotation="lower send retptr buffer")
@@ -267,7 +237,7 @@ def lower_send(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     return IRLiteral(0)  # Statement builtin, no return
 
 
-def lower_raw_log(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_raw_log(call: BuiltinCall) -> IROperand:
     """
     raw_log(topics, data)
 
@@ -277,6 +247,8 @@ def lower_raw_log(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     from vyper.codegen_venom.expr import Expr
 
+    node = call.node
+    ctx = call.ctx
     ctx.check_is_not_constant("use raw_log", node)
 
     b = ctx.builder
@@ -316,17 +288,16 @@ def lower_raw_log(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     return IRLiteral(0)  # Statement builtin, no return
 
 
-def lower_raw_revert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_raw_revert(call: BuiltinCall) -> IROperand:
     """
     raw_revert(data)
 
     Revert with custom data. This is a terminal operation.
     """
-    from vyper.codegen_venom.expr import Expr
-
+    ctx = call.ctx
     b = ctx.builder
 
-    data_vv = Expr(node.args[0], ctx).lower()
+    data_vv = call.lower_pos_args()[0]
     data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
 
     # Get data pointer and length
@@ -340,7 +311,7 @@ def lower_raw_revert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     return IRLiteral(0)  # Unreachable
 
 
-def lower_selfdestruct(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_selfdestruct(call: BuiltinCall) -> IROperand:
     """
     selfdestruct(to)
 
@@ -350,13 +321,13 @@ def lower_selfdestruct(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand
     Note: selfdestruct is deprecated and may have reduced functionality
     in future EVM upgrades. Warning is emitted during semantic analysis.
     """
-    from vyper.codegen_venom.expr import Expr
-
+    node = call.node
+    ctx = call.ctx
     ctx.check_is_not_constant("selfdestruct", node)
 
     b = ctx.builder
 
-    to = Expr(node.args[0], ctx).lower_value()
+    to = call.lower_pos_arg_values()[0]
     b.selfdestruct(to)
 
     return IRLiteral(0)  # Unreachable

@@ -14,8 +14,8 @@ from vyper import ast as vy_ast
 from vyper.codegen.core import calculate_type_for_external_return
 from vyper.codegen_venom.abi import abi_decode_to_buf, abi_encode_to_buf
 from vyper.codegen_venom.buffer import Buffer, Ptr
+from vyper.codegen_venom.builtins._kwargs import BuiltinCall, get_bool_kwarg
 from vyper.codegen_venom.value import VyperValue
-from vyper.exceptions import CompilerPanic
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import BytesT, TupleT
 from vyper.utils import fourbytes_to_int
@@ -25,33 +25,16 @@ if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
-def _get_kwarg_value(node: vy_ast.Call, kwarg_name: str, default=None):
-    """Extract a keyword argument value from a Call node."""
-    for kw in node.keywords:
-        if kw.arg == kwarg_name:
-            return kw.value
-    return default
-
-
-def _get_bool_kwarg(node: vy_ast.Call, kwarg_name: str, default: bool) -> bool:
-    """Extract a boolean keyword argument (must be literal)."""
-    kw_node = _get_kwarg_value(node, kwarg_name)
-    if kw_node is None:
-        return default
-    kw_node = kw_node.reduced()
-    # The value should be a NameConstant (True/False)
-    if isinstance(kw_node, vy_ast.NameConstant):
-        return kw_node.value
-    # Could also be an Int with constant value
-    if isinstance(kw_node, vy_ast.Int):
-        return bool(kw_node.value)
-    raise CompilerPanic(f"unfoldable boolean kwarg: {kwarg_name}", kw_node)
+_ABI_ENCODE_KWARGS = ("ensure_tuple", "method_id")
+_ABI_DECODE_KWARGS = ("unwrap_tuple",)
 
 
 def _parse_method_id(method_id_node: vy_ast.VyperNode) -> Optional[int]:
     """Parse method_id kwarg to integer."""
     if method_id_node is None:
         return None
+
+    method_id_node = method_id_node.reduced()
 
     # Handle bytes literal: method_id=0xaabbccdd
     if isinstance(method_id_node, vy_ast.Hex):
@@ -68,17 +51,6 @@ def _parse_method_id(method_id_node: vy_ast.VyperNode) -> Optional[int]:
     # Handle Int literal
     if isinstance(method_id_node, vy_ast.Int):
         return method_id_node.value
-
-    # If it has a folded value (constant expression)
-    if hasattr(method_id_node, "_metadata") and "folded_value" in method_id_node._metadata:
-        folded = method_id_node._metadata["folded_value"]
-        if isinstance(folded, vy_ast.Bytes):
-            return fourbytes_to_int(folded.value)
-        if isinstance(folded, vy_ast.Hex):
-            hex_val = folded.value
-            if isinstance(hex_val, str):
-                hex_str = hex_val[2:] if hex_val.startswith("0x") else hex_val
-                return fourbytes_to_int(bytes.fromhex(hex_str))
 
     return None
 
@@ -106,7 +78,7 @@ def _create_tuple_in_memory(
     return val.operand, tuple_t
 
 
-def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
+def lower_abi_encode(call: BuiltinCall) -> VyperValue:
     """
     abi_encode(*args, ensure_tuple=True, method_id=None) -> Bytes[N]
 
@@ -115,24 +87,20 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     - ensure_tuple: If True (default), wrap single arg in tuple for ABI conformance
     - method_id: Optional 4-byte prefix (function selector)
     """
-    from vyper.codegen_venom.expr import Expr
-
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
 
-    # Parse kwargs
-    ensure_tuple = _get_bool_kwarg(node, "ensure_tuple", default=True)
-    method_id_node = _get_kwarg_value(node, "method_id")
+    call.validate_kwargs(_ABI_ENCODE_KWARGS)
+    kwarg_constants = call.get_kwarg_ast_constants({"ensure_tuple": True, "method_id": None})
+    ensure_tuple = get_bool_kwarg(kwarg_constants, "ensure_tuple")
+    method_id_node = kwarg_constants["method_id"]
     method_id = _parse_method_id(method_id_node)
 
     # Evaluate all args - primitives get values, complex types get pointers
     args = []
-    for arg in node.args:
-        arg_t = arg._metadata["type"]
-        if arg_t._is_prim_word:
-            args.append(Expr(arg, ctx).lower_value())
-        else:
-            arg_vv = Expr(arg, ctx).lower()
-            args.append(ctx.unwrap(arg_vv))  # Copies storage/transient to memory
+    for arg_vv in call.lower_pos_args():
+        args.append(ctx.unwrap(arg_vv))  # Copies storage/transient to memory
     arg_types = [arg._metadata["type"] for arg in node.args]
 
     # Build input to encode
@@ -186,7 +154,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     return buf_val
 
 
-def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
+def lower_abi_decode(call: BuiltinCall) -> VyperValue:
     """
     abi_decode(data, output_type, unwrap_tuple=True) -> output_type
 
@@ -194,14 +162,16 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     - unwrap_tuple: If True (default), single-element tuples are unwrapped
     """
-    from vyper.codegen_venom.expr import Expr
-
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
 
     # Parse args
     data_node = node.args[0]
     output_type_node = node.args[1]
-    unwrap_tuple = _get_bool_kwarg(node, "unwrap_tuple", default=True)
+    call.validate_kwargs(_ABI_DECODE_KWARGS)
+    kwarg_constants = call.get_kwarg_ast_constants({"unwrap_tuple": True})
+    unwrap_tuple = get_bool_kwarg(kwarg_constants, "unwrap_tuple")
 
     # Get output type from type annotation
     output_typ = output_type_node._metadata["type"].typedef
@@ -212,7 +182,7 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         wrapped_typ = calculate_type_for_external_return(output_typ)
 
     # Get data pointer and length
-    data_vv = Expr(data_node, ctx).lower()
+    data_vv = call.lower_pos_args((data_node,))[0]
     data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
     assert isinstance(data, IRVariable)
     data_len = b.mload(data)  # Length word at start of Bytes

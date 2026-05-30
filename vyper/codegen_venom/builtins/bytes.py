@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.builtins._kwargs import BuiltinCall
 from vyper.codegen_venom.arithmetic import clamp_basetype
 from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.types import AddressT, BytesM_T, BytesT, StringT
@@ -33,7 +34,7 @@ def _assert_slice_bounds(
     b.assert_(b.iszero(oob))
 
 
-def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
+def lower_concat(call: BuiltinCall) -> VyperValue:
     """
     concat(a, b, ...) -> bytes | string
 
@@ -41,8 +42,8 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     BytesM args contribute fixed M bytes, bytestring args contribute
     their dynamic length.
     """
-    from vyper.codegen_venom.expr import Expr
-
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
     args = node.args
 
@@ -71,13 +72,13 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     offset_local = ctx.new_temporary_value(BytesT(32))  # just need 32 bytes
     ctx.ptr_store(offset_local.ptr(), IRLiteral(0))
 
-    for arg_node in args:
+    for arg_node, arg_vv in zip(args, call.lower_pos_args()):
         arg_t = arg_node._metadata["type"]
 
         if isinstance(arg_t, _BytestringT):
             # Variable-length bytes/string: copy data, advance by actual length
             # lower_value() handles storage -> memory copy if needed
-            arg_ptr = Expr(arg_node, ctx).lower_value()
+            arg_ptr = ctx.unwrap(arg_vv)
             assert isinstance(arg_ptr, IRVariable)
             arg_len = b.mload(arg_ptr)
             arg_data = b.add(arg_ptr, IRLiteral(32))
@@ -89,7 +90,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         else:
             # Fixed bytesM: the value is already left-aligned in 32 bytes
             # Store full 32 bytes and advance by M
-            arg_val = Expr(arg_node, ctx).lower_value()
+            arg_val = ctx.unwrap(arg_vv)
             m = arg_t.m
             offset = ctx.ptr_load(offset_local.ptr())
             dst = b.add(data_ptr.operand, offset)
@@ -103,7 +104,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     return out_val
 
 
-def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
+def lower_slice(call: BuiltinCall) -> VyperValue:
     """
     slice(b, start, length) -> bytes | string
 
@@ -112,6 +113,8 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     """
     from vyper.codegen_venom.expr import Expr
 
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
 
     src_node = node.args[0]
@@ -242,41 +245,39 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
     return out_val
 
 
-def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_extract32(call: BuiltinCall) -> IROperand:
     """
     extract32(b, start, output_type=bytes32) -> bytes32 | int | address
 
     Extract 32 bytes from bytearray at given position.
     Result type can be specified via output_type kwarg.
     """
-    from vyper.codegen_venom.expr import Expr
-
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
 
     src_node = node.args[0]
-    start_node = node.args[1]
     src_t = src_node._metadata["type"]
+    src_vv, start_vv = call.lower_pos_args()
 
-    # Evaluate arguments in left-to-right order for correct order of evaluation
-    # (src must be evaluated before start, since start's side effects may modify src)
+    # Arguments have already been evaluated in left-to-right order by BuiltinCall.
     src_len: IROperand
     src_data: IROperand
     if isinstance(src_t, _BytestringT):
         # lower_value() handles storage -> memory copy if needed
-        src_ptr = Expr(src_node, ctx).lower_value()
+        src_ptr = ctx.unwrap(src_vv)
         assert isinstance(src_ptr, IRVariable)
         src_len = b.mload(src_ptr)
         src_data = b.add(src_ptr, IRLiteral(32))
     else:
         # bytes32 or other fixed type - shouldn't happen but handle it
-        src_val = Expr(src_node, ctx).lower_value()
+        src_val = ctx.unwrap(src_vv)
         src_len = IRLiteral(32)
         tmp_buf = ctx.allocate_buffer(32)
         b.mstore(tmp_buf._ptr, src_val)
         src_data = tmp_buf._ptr
 
-    # Evaluate start AFTER src to maintain left-to-right evaluation order
-    start = Expr(start_node, ctx).lower_value()
+    start = ctx.unwrap(start_vv)
 
     # Bounds check: start + 32 <= length
     _assert_slice_bounds(ctx, start, IRLiteral(32), src_len)
