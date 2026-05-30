@@ -483,6 +483,7 @@ def bar():
             """
 @external
 def bar():
+    # Tuple targets are invalid Vyper syntax, but should raise SyntaxException.
     for i, j in [(1, 2)]:
         pass
     """,
