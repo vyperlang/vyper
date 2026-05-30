@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import vyper
-import vyper.codegen.ir_node as ir_node
+import vyper.codegen_legacy.ir_node as ir_node
 import vyper.evm.opcodes as evm
 from vyper.cli import vyper_json
 from vyper.cli.compile_archive import NotZipInput, compile_from_zip

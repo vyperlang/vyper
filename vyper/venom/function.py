@@ -3,7 +3,6 @@ from __future__ import annotations
 import textwrap
 from typing import TYPE_CHECKING, Iterator, Optional
 
-from vyper.codegen.ir_node import IRnode
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 
 if TYPE_CHECKING:
@@ -26,10 +25,6 @@ class IRFunction:
     _invoke_param_count: Optional[int]
     _has_memory_return_buffer_param: Optional[bool]
 
-    # Used during code generation
-    _ast_source_stack: list[IRnode]
-    _error_msg_stack: list[Optional[str]]
-
     def __init__(self, name: IRLabel, ctx: IRContext = None):
         self.ctx = ctx  # type: ignore
         self.name = name
@@ -39,9 +34,6 @@ class IRFunction:
 
         self._invoke_param_count = None
         self._has_memory_return_buffer_param = None
-
-        self._ast_source_stack = []
-        self._error_msg_stack = []
 
         self.append_basic_block(IRBasicBlock(name, self))
 
@@ -97,34 +89,6 @@ class IRFunction:
 
     def get_last_variable(self) -> str:
         return f"%{self.last_variable}"
-
-    def push_source(self, ir):
-        if isinstance(ir, IRnode):
-            self._ast_source_stack.append(ir.ast_source)
-            self._error_msg_stack.append(ir.error_msg)
-
-    def push_error_msg(self, error_msg: Optional[str]):
-        """Push an error message without changing ast_source."""
-        self._error_msg_stack.append(error_msg)
-
-    def pop_error_msg(self):
-        """Pop an error message."""
-        assert len(self._error_msg_stack) > 0, "Empty error stack"
-        self._error_msg_stack.pop()
-
-    def pop_source(self):
-        assert len(self._ast_source_stack) > 0, "Empty source stack"
-        self._ast_source_stack.pop()
-        assert len(self._error_msg_stack) > 0, "Empty error stack"
-        self._error_msg_stack.pop()
-
-    @property
-    def ast_source(self) -> Optional[IRnode]:
-        return self._ast_source_stack[-1] if len(self._ast_source_stack) > 0 else None
-
-    @property
-    def error_msg(self) -> Optional[str]:
-        return self._error_msg_stack[-1] if len(self._error_msg_stack) > 0 else None
 
     def copy(self):
         new = IRFunction(self.name)

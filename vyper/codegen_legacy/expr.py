@@ -1,10 +1,10 @@
 import decimal
 import math
 
-import vyper.codegen.arithmetic as arithmetic
+import vyper.codegen_legacy.arithmetic as arithmetic
 from vyper import ast as vy_ast
-from vyper.codegen import external_call, self_call
-from vyper.codegen.core import (
+from vyper.codegen_legacy import external_call, self_call
+from vyper.codegen_legacy.core import (
     append_dyn_array,
     check_assign,
     clamp,
@@ -27,8 +27,8 @@ from vyper.codegen.core import (
     shr,
     unwrap_location,
 )
-from vyper.codegen.ir_node import IRnode
-from vyper.codegen.keccak256_helper import keccak256_helper
+from vyper.codegen_legacy.ir_node import IRnode
+from vyper.codegen_legacy.keccak256_helper import keccak256_helper
 from vyper.evm.address_space import MEMORY
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (

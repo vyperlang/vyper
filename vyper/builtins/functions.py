@@ -5,9 +5,9 @@ import operator
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple
 from vyper.ast.validation import validate_call_args
-from vyper.codegen.abi_encoder import abi_encode
-from vyper.codegen.context import Context
-from vyper.codegen.core import (
+from vyper.codegen_legacy.abi_encoder import abi_encode
+from vyper.codegen_legacy.context import Context
+from vyper.codegen_legacy.core import (
     LOAD,
     STORE,
     IRnode,
@@ -37,9 +37,9 @@ from vyper.codegen.core import (
     shr,
     unwrap_location,
 )
-from vyper.codegen.expr import Expr
-from vyper.codegen.ir_node import Encoding, scope_multi
-from vyper.codegen.keccak256_helper import keccak256_helper
+from vyper.codegen_legacy.expr import Expr
+from vyper.codegen_legacy.ir_node import Encoding, scope_multi
+from vyper.codegen_legacy.keccak256_helper import keccak256_helper
 from vyper.evm.address_space import MEMORY
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (

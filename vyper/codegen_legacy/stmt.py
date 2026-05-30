@@ -1,9 +1,9 @@
-import vyper.codegen.events as events
+import vyper.codegen_legacy.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
-from vyper.codegen.abi_encoder import abi_encode
-from vyper.codegen.context import Constancy, Context
-from vyper.codegen.core import (
+from vyper.codegen_legacy.abi_encoder import abi_encode
+from vyper.codegen_legacy.context import Constancy, Context
+from vyper.codegen_legacy.core import (
     LOAD,
     STORE,
     IRnode,
@@ -17,8 +17,8 @@ from vyper.codegen.core import (
     wrap_value_for_external_return,
     writeable,
 )
-from vyper.codegen.expr import Expr
-from vyper.codegen.return_ import make_return_stmt
+from vyper.codegen_legacy.expr import Expr
+from vyper.codegen_legacy.return_ import make_return_stmt
 from vyper.exceptions import CodegenPanic, StructureException, TypeCheckFailure, tag_exceptions
 from vyper.semantics.types import DArrayT
 from vyper.semantics.types.shortcuts import UINT256_T

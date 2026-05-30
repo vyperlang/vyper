@@ -1,16 +1,16 @@
-from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
-from vyper.codegen.context import Context, VariableRecord
-from vyper.codegen.core import get_element_ptr, make_setter, needs_clamp
-from vyper.codegen.expr import Expr
-from vyper.codegen.function_definitions.common import (
+from vyper.codegen_legacy.context import Context, VariableRecord
+from vyper.codegen_legacy.core import get_element_ptr, make_setter, needs_clamp
+from vyper.codegen_legacy.expr import Expr
+from vyper.codegen_legacy.function_definitions.common import (
     EntryPointInfo,
     ExternalFuncIR,
     get_nonreentrant_lock,
     initialize_context,
     tag_frame_info,
 )
-from vyper.codegen.ir_node import Encoding, IRnode
-from vyper.codegen.stmt import parse_body
+from vyper.codegen_legacy.ir_node import Encoding, IRnode
+from vyper.codegen_legacy.stmt import parse_body
+from vyper.codegen_shared.abi_utils import abi_encoding_matches_vyper
 from vyper.evm.address_space import CALLDATA, DATA
 from vyper.semantics.types import TupleT
 from vyper.semantics.types.function import ContractFunctionT

@@ -1,8 +1,8 @@
 from typing import Any, Optional
 
-from vyper.codegen.abi_encoder import abi_encode, abi_encoding_matches_vyper
-from vyper.codegen.context import Context
-from vyper.codegen.core import (
+from vyper.codegen_legacy.abi_encoder import abi_encode
+from vyper.codegen_legacy.context import Context
+from vyper.codegen_legacy.core import (
     bytes_data_ptr,
     calculate_type_for_external_return,
     check_assign,
@@ -13,7 +13,8 @@ from vyper.codegen.core import (
     needs_clamp,
     wrap_value_for_external_return,
 )
-from vyper.codegen.ir_node import IRnode
+from vyper.codegen_legacy.ir_node import IRnode
+from vyper.codegen_shared.abi_utils import abi_encoding_matches_vyper
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import TypeCheckFailure
 
@@ -78,6 +79,7 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
         # optimize: if the value already happens to be ABI encoded in
         # memory, don't bother running abi_encode, just return the
         # buffer it is in.
+        assert ir_val.typ is not None  # help mypy
         can_skip_encode = (
             abi_encoding_matches_vyper(ir_val.typ)
             and ir_val.location == MEMORY

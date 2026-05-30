@@ -5,7 +5,7 @@ from typing import Iterable
 
 import vyper.ast as vy_ast
 from vyper.ast.utils import ast_to_dict
-from vyper.codegen.ir_node import IRnode
+from vyper.codegen_legacy.ir_node import IRnode
 from vyper.codegen_venom.calling_convention import pass_via_stack, returns_stack_count
 from vyper.compiler.output_bundle import SolcJSONWriter, VyperArchiveWriter
 from vyper.compiler.phases import CompilerData
