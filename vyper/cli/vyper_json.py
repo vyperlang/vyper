@@ -255,17 +255,10 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
             outputs.remove(key)
             outputs.update([i for i in TRANSLATE_MAP if i.startswith(key)])
 
-        legacy_codegen = input_dict["settings"].get("legacyCodegen")
-        if legacy_codegen is None:
-            legacy_codegen = input_dict["settings"].get("legacy")
-
-        if legacy_codegen is None:
-            should_output_venom = any(
-                input_dict["settings"].get(alias, False)
-                for alias in ("venomExperimental", "experimentalCodegen")
-            )
-        else:
-            should_output_venom = not legacy_codegen
+        should_output_venom = any(
+            input_dict["settings"].get(alias, False)
+            for alias in ("venomExperimental", "experimentalCodegen")
+        )
 
         if "*" in outputs:
             outputs = TRANSLATE_MAP.values()
@@ -282,7 +275,7 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
         if not should_output_venom and any(k in outputs for k in VENOM_KEYS):
             selected_venom_keys = [k for k in outputs if k in VENOM_KEYS]
             raise JSONError(
-                f"requested Venom outputs {selected_venom_keys} but legacyCodegen is enabled"
+                f"requested {selected_venom_keys} but experimentalCodegen not selected!"
             )
 
         if path == "*":
@@ -312,26 +305,11 @@ def get_settings(input_dict: dict) -> Settings:
     if optimize is not None and opt_level is not None:
         raise JSONError("both 'optimize' and 'optLevel' cannot be set")
 
-    # legacy_codegen: True = use legacy IRnode codegen, False (default) = use Venom
-    # support deprecated keys for backwards compatibility
-    legacy_codegen = input_dict["settings"].get("legacyCodegen")
-    if legacy_codegen is None:
-        legacy_codegen = input_dict["settings"].get("legacy")
-
-    # deprecated: experimentalCodegen/venomExperimental (inverted semantics)
     experimental_codegen = input_dict["settings"].get("experimentalCodegen")
     if experimental_codegen is None:
         experimental_codegen = input_dict["settings"].get("venomExperimental")
     elif input_dict["settings"].get("venomExperimental") is not None:
-        raise JSONError(
-            "both deprecated Venom aliases experimentalCodegen and venomExperimental cannot be set"
-        )
-
-    if legacy_codegen is not None and experimental_codegen is not None:
-        raise JSONError("both legacyCodegen and deprecated Venom codegen flags cannot be set")
-    if experimental_codegen is not None:
-        if legacy_codegen is None:
-            legacy_codegen = not experimental_codegen  # invert semantics
+        raise JSONError("both experimentalCodegen and venomExperimental cannot be set")
 
     if opt_level is not None:
         optimize = OptimizationLevel.from_string(opt_level)
@@ -390,7 +368,7 @@ def get_settings(input_dict: dict) -> Settings:
     return Settings(
         evm_version=evm_version,
         optimize=optimize,
-        legacy_codegen=legacy_codegen,
+        experimental_codegen=experimental_codegen,
         debug=debug,
         enable_decimals=enable_decimals,
         disable_static_exceptions=disable_static_exceptions,

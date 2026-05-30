@@ -40,7 +40,7 @@ def test_round_trip_examples(path: Path, debug, optimize, compiler_settings, req
     """
     Check all examples round trip
     """
-    if compiler_settings.legacy_codegen:
+    if not compiler_settings.experimental_codegen:
         pytest.skip("tests n/a when venom is not enabled")
 
     if debug and optimize == OptimizationLevel.CODESIZE:
@@ -74,7 +74,7 @@ def test_round_trip_sources(vyper_source, debug, optimize, compiler_settings, re
     """
     Test vyper_sources round trip
     """
-    if compiler_settings.legacy_codegen:
+    if not compiler_settings.experimental_codegen:
         pytest.skip("tests n/a when venom is not enabled")
 
     vyper_source = textwrap.dedent(vyper_source)
@@ -103,7 +103,7 @@ def _helper1(vyper_source, optimize, input_bundle=None):
     """
     from vyper.compiler.settings import Settings
 
-    settings = Settings()
+    settings = Settings(experimental_codegen=True)
     # note: compiling any later stage than ir_runtime like `asm` or
     # `bytecode` modifies the ir_runtime data structure in place and results
     # in normalization of the venom cfg (which breaks again make_ssa)
@@ -135,6 +135,8 @@ def _helper2(vyper_source, optimize, compiler_settings, input_bundle=None):
     that the output bytecode is equal to going through the normal vyper pipeline
     """
     settings = copy.copy(compiler_settings)
+    # bytecode equivalence only makes sense if we use venom pipeline
+    settings.experimental_codegen = True
 
     out = compile_code(
         vyper_source, input_bundle=input_bundle, settings=settings, output_formats=["ir_runtime"]

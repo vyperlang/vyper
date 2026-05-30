@@ -274,7 +274,7 @@ def test():
 
 
 @pytest.mark.parametrize("typ", ["uint8", "int128", "uint256"])
-def test_for_range_oob_compile_time_check(get_contract, tx_failed, typ, legacy_codegen):
+def test_for_range_oob_compile_time_check(get_contract, tx_failed, typ, experimental_codegen):
     code = f"""
 @external
 def test():
@@ -282,7 +282,7 @@ def test():
     for i: {typ} in range(x, x + 2, bound=2):
         pass
     """
-    if legacy_codegen:
+    if not experimental_codegen:
         return
     with pytest.raises(StaticAssertionException):
         get_contract(code)
@@ -440,7 +440,7 @@ def foo(a: {typ}) -> {typ}:
     assert c.foo(0) == 31337
 
 
-def test_for_range_signed_int_overflow_runtime_check(get_contract, tx_failed, legacy_codegen):
+def test_for_range_signed_int_overflow_runtime_check(get_contract, tx_failed, experimental_codegen):
     code = """
 @external
 def foo(_min:int256, _max: int256) -> DynArray[int256, 10]:
@@ -456,7 +456,9 @@ def foo(_min:int256, _max: int256) -> DynArray[int256, 10]:
         c.foo(SizeLimits.MIN_INT256, SizeLimits.MAX_INT256)
 
 
-def test_for_range_signed_int_overflow_compile_time_check(get_contract, tx_failed, legacy_codegen):
+def test_for_range_signed_int_overflow_compile_time_check(
+    get_contract, tx_failed, experimental_codegen
+):
     code = """
 @external
 def foo() -> DynArray[int256, 10]:
@@ -467,7 +469,7 @@ def foo() -> DynArray[int256, 10]:
         res.append(i)
     return res
     """
-    if legacy_codegen:
+    if not experimental_codegen:
         return
     with pytest.raises(StaticAssertionException):
         get_contract(code)

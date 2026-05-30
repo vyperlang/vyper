@@ -90,7 +90,7 @@ BAR_ABI = [
 
 
 @pytest.fixture(scope="function")
-def input_json(optimize, evm_version, legacy_codegen, debug):
+def input_json(optimize, evm_version, experimental_codegen, debug):
     return {
         "language": "Vyper",
         "sources": {
@@ -103,7 +103,7 @@ def input_json(optimize, evm_version, legacy_codegen, debug):
             "outputSelection": {"*": ["*"]},
             "optimize": str(optimize),
             "evmVersion": evm_version,
-            "legacyCodegen": legacy_codegen,
+            "experimentalCodegen": experimental_codegen,
             "debug": debug,
         },
         "storage_layout_overrides": {
@@ -146,11 +146,12 @@ def json_input(json_data, path):
     )
 
 
-def test_compile_json(input_json, input_bundle, legacy_codegen):
+def test_compile_json(input_json, input_bundle, experimental_codegen):
     foo_input = input_bundle.load_file("contracts/foo.vy")
-    # remove venom-related output formats for the legacy pipeline
+    # remove venom related from output formats
+    # because they require venom (experimental)
     output_formats = OUTPUT_FORMATS.copy()
-    if legacy_codegen:
+    if not experimental_codegen:
         output_formats.pop("cfg", None)
         output_formats.pop("cfg_runtime", None)
     foo = compile_from_file_input(
@@ -221,7 +222,7 @@ def test_compile_json(input_json, input_bundle, legacy_codegen):
                 "methodIdentifiers": data["method_identifiers"],
             },
         }
-        if not legacy_codegen:
+        if experimental_codegen:
             expected["venom"] = {"cfg": data["cfg"], "cfg_runtime": data["cfg_runtime"]}
         assert output_json["contracts"][path][contract_name] == expected
 
@@ -241,7 +242,7 @@ def test_compilation_targets(input_json):
     assert list(output_json["contracts"].keys()) == ["contracts/foo.vy", "contracts/bar.vy"]
 
 
-def test_different_outputs(input_bundle, input_json, legacy_codegen):
+def test_different_outputs(input_bundle, input_json, experimental_codegen):
     input_json["settings"]["outputSelection"] = {
         "contracts/bar.vy": "*",
         "contracts/foo.vy": ["evm.methodIdentifiers"],
@@ -257,7 +258,7 @@ def test_different_outputs(input_bundle, input_json, legacy_codegen):
     foo = contracts["contracts/foo.vy"]["foo"]
     bar = contracts["contracts/bar.vy"]["bar"]
     expected_keys = ["abi", "devdoc", "evm", "interface", "ir", "layout", "metadata", "userdoc"]
-    if not legacy_codegen:
+    if experimental_codegen:
         expected_keys.append("venom")
         expected_keys.sort()
     assert sorted(bar.keys()) == expected_keys
@@ -392,7 +393,7 @@ def test_compile_json_with_experimental_codegen():
     expected = compiled[0][PurePath("foo.vy")]
 
     settings = get_settings(code)
-    assert settings.legacy_codegen is False  # venom = not legacy
+    assert settings.experimental_codegen is True
     output_json = compile_json(code)
     assert "venom" in output_json["contracts"]["foo.vy"]["foo"]
     venom = output_json["contracts"]["foo.vy"]["foo"]["venom"]
@@ -429,7 +430,7 @@ def call_foo(amount: uint256, account: address) -> uint256:
         "settings": {
             "evmVersion": "cancun",
             "optimize": "gas",
-            "legacyCodegen": False,
+            "venomExperimental": True,
             "search_paths": ["."],
             "outputSelection": {"*": ["cfg_runtime"]},
         },
@@ -454,7 +455,7 @@ def test_compile_json_without_experimental_codegen():
     }
 
     settings = get_settings(code)
-    assert settings.legacy_codegen is True  # legacy
+    assert settings.experimental_codegen is False
     output_json = compile_json(code)
     assert "venom" not in output_json["contracts"]["foo.vy"]["foo"]
 
@@ -474,7 +475,4 @@ def test_compile_json_with_both_venom_aliases():
     }
     with pytest.raises(JSONError) as e:
         get_settings(code)
-    assert (
-        e.value.args[0]
-        == "both deprecated Venom aliases experimentalCodegen and venomExperimental cannot be set"
-    )
+    assert e.value.args[0] == "both experimentalCodegen and venomExperimental cannot be set"

@@ -32,7 +32,7 @@ def foo(a: uint256) -> int128:
     """
 
 
-def test_jump_map(optimize, legacy_codegen):
+def test_jump_map(optimize, experimental_codegen):
     compiler_output = compile_code(TEST_CODE, output_formats=["source_map_runtime"])
     source_map = compiler_output["source_map_runtime"]
     pos_map = source_map["pc_pos_map"]
@@ -41,19 +41,19 @@ def test_jump_map(optimize, legacy_codegen):
     if optimize == OptimizationLevel.NONE:
         # some jumps which don't get optimized out when optimizer is off
         # (slightly different behavior depending if venom pipeline is enabled):
-        if legacy_codegen:
+        if experimental_codegen:
+            expected_jumps = 0
+            expected_internals = 0
+        else:
             expected_jumps = 3
             expected_internals = 2
-        else:
+    else:
+        if experimental_codegen:
             expected_jumps = 0
             expected_internals = 0
-    else:
-        if legacy_codegen:
+        else:
             expected_jumps = 1
             expected_internals = 2
-        else:
-            expected_jumps = 0
-            expected_internals = 0
 
     assert len([v for v in jump_map.values() if v == "o"]) == expected_jumps
     assert len([v for v in jump_map.values() if v == "i"]) == expected_internals
@@ -99,7 +99,7 @@ def test_pos_map_offsets():
             )
 
 
-def test_error_map(legacy_codegen):
+def test_error_map(experimental_codegen):
     code = """
 foo: uint256
 
@@ -112,11 +112,11 @@ def update_foo():
 
     assert "safeadd" in error_map.values()
 
-    if legacy_codegen:
-        assert "fallback function" in error_map.values()
-    else:
+    if experimental_codegen:
         # fallback function gets turned into an assertion
         pass
+    else:
+        assert "fallback function" in error_map.values()
 
 
 def test_error_map_with_user_error():

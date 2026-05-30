@@ -204,8 +204,8 @@ class SolcJSONWriter(OutputBundleWriter):
             s = settings.as_dict()
             if "evm_version" in s:
                 s["evmVersion"] = s.pop("evm_version")
-            if "legacy_codegen" in s:
-                s["legacyCodegen"] = s.pop("legacy_codegen")
+            if "experimental_codegen" in s:
+                s["experimentalCodegen"] = s.pop("experimental_codegen")
 
             self._output["settings"].update(s)
 

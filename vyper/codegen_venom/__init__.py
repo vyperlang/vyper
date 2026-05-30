@@ -7,7 +7,7 @@ Public API:
     generate_runtime_venom: Compile contract runtime code
     generate_deploy_venom: Compile contract deployment code
 
-Venom is the default code generation pipeline; use --legacy for the legacy IRnode pipeline.
+Enable via: vyper --experimental-codegen
 """
 
 from __future__ import annotations

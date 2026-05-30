@@ -197,12 +197,12 @@ def test() -> Bytes[100]:
     assert c.test() == test_str
 
 
-def test_constant_folds(legacy_codegen):
+def test_constant_folds(experimental_codegen):
     # This test verifies constant folding by checking the IR structure.
-    # Skip for Venom since Venom IR has a different structure that doesn't
-    # support the nested list pattern search. Constant folding still happens at
-    # AST level via reduced() for both codegen paths.
-    if not legacy_codegen:
+    # Skip for experimental codegen since Venom IR has a different structure
+    # that doesn't support the nested list pattern search. Constant folding
+    # still happens at AST level via reduced() for both codegen paths.
+    if experimental_codegen:
         pytest.skip("IR structure check not applicable to Venom IR")
 
     some_prime = 10013677

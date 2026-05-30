@@ -1,4 +1,3 @@
-import dataclasses
 import enum
 import itertools
 import math
@@ -666,14 +665,11 @@ def foo() -> {t_bytes}:
 
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_reverting_cases())
 @pytest.mark.fuzzing
-def test_conversion_failures(get_contract, assert_compile_failed, tx_failed, i_typ, o_typ, val, compiler_settings):
+def test_conversion_failures(get_contract, assert_compile_failed, tx_failed, i_typ, o_typ, val):
     """
     Test multiple contracts and check for a specific exception.
     If no exception is provided, a runtime revert is expected (e.g. clamping).
     """
-
-    compiler_settings = dataclasses.replace(compiler_settings, disable_static_exceptions=True)
-
     contract_1 = f"""
 @external
 def foo() -> {o_typ}:
@@ -700,9 +696,7 @@ def foo() -> {o_typ}:
     #    skip_c1 = True
 
     if not skip_c1:
-        assert_compile_failed(
-            lambda: get_contract(contract_1), c1_exception
-        )
+        assert_compile_failed(lambda: get_contract(contract_1), c1_exception)
 
     contract_2 = f"""
 @external
@@ -711,7 +705,7 @@ def foo():
     foobar: {o_typ} = convert(bar, {o_typ})
     """
 
-    c2 = get_contract(contract_2, compiler_settings=compiler_settings)
+    c2 = get_contract(contract_2)
     with tx_failed():
         c2.foo()
 
@@ -721,7 +715,7 @@ def foo(bar: {i_typ}) -> {o_typ}:
     return convert(bar, {o_typ})
     """
 
-    c3 = get_contract(contract_3, compiler_settings=compiler_settings)
+    c3 = get_contract(contract_3)
     input_val = val
     if isinstance(i_typ, DecimalT):
         input_val = decimal_to_int(input_val)

@@ -44,7 +44,7 @@ def pytest_addoption(parser):
         help="change optimization mode",
     )
     parser.addoption("--enable-compiler-debug-mode", action="store_true")
-    parser.addoption("--legacy-codegen", action="store_true", default=False)
+    parser.addoption("--experimental-codegen", action="store_true")
     parser.addoption("--tracing", action="store_true")
     parser.addoption("--hevm", action="store_true")
 
@@ -87,8 +87,10 @@ def debug(pytestconfig):
 
 
 @pytest.fixture(scope="session")
-def legacy_codegen(pytestconfig):
-    return pytestconfig.getoption("legacy_codegen")
+def experimental_codegen(pytestconfig):
+    ret = pytestconfig.getoption("experimental_codegen")
+    assert isinstance(ret, bool)
+    return ret
 
 
 @pytest.fixture(scope="session")
@@ -235,10 +237,13 @@ def get_contract_from_ir(env, optimize):
 
 
 @pytest.fixture(scope="module", autouse=True)
-def compiler_settings(optimize, legacy_codegen, evm_version, debug):
+def compiler_settings(optimize, experimental_codegen, evm_version, debug):
     compiler.settings.DEFAULT_ENABLE_DECIMALS = True
     settings = Settings(
-        optimize=optimize, evm_version=evm_version, legacy_codegen=legacy_codegen, debug=debug
+        optimize=optimize,
+        evm_version=evm_version,
+        experimental_codegen=experimental_codegen,
+        debug=debug,
     )
     set_global_settings(settings)
     return settings
@@ -267,10 +272,10 @@ def get_contract(env, optimize, output_formats, compiler_settings, hevm, request
         global _HEVM_MARKER
         if hevm and _HEVM_MARKER is not None:
             settings1 = copy.copy(compiler_settings)
-            settings1.legacy_codegen = True  # legacy
+            settings1.experimental_codegen = False
             settings1.optimize = OptimizationLevel.NONE
             settings2 = copy.copy(compiler_settings)
-            settings2.legacy_codegen = False  # venom
+            settings2.experimental_codegen = True
             settings2.optimize = OptimizationLevel.NONE
 
             bytecode1 = compile_code(

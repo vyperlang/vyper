@@ -2,7 +2,7 @@ import pytest
 
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
-from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
+from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.assembler.instructions import PUSHLABEL, Label
 from vyper.evm.assembler.optimizer import _merge_jumpdests
 
@@ -78,22 +78,9 @@ def __init__():
 # CMC 2024-02-05 this is not really the asm eliminator anymore,
 # it happens during function code generation in module.py. so we don't
 # need to test this using asm anymore.
-def _dead_code_eliminator_settings(compiler_settings):
-    settings = Settings(
-        optimize=OptimizationLevel.NONE, legacy_codegen=compiler_settings.legacy_codegen
-    )
-    if not settings.legacy_codegen:
-        # Venom normally inlines these tiny internal functions. Disable inlining so
-        # the final assembly still exposes function labels for this reachability check.
-        settings.venom_flags = VenomOptimizationFlags(
-            level=OptimizationLevel.NONE, disable_inlining=True
-        )
-    return settings
-
-
 @pytest.mark.parametrize("code", codes)
-def test_dead_code_eliminator(code, compiler_settings):
-    c = CompilerData(code, settings=_dead_code_eliminator_settings(compiler_settings))
+def test_dead_code_eliminator(code):
+    c = CompilerData(code, settings=Settings(optimize=OptimizationLevel.NONE))
 
     # get the labels
     initcode_labels = [i for i in c.assembly if isinstance(i, Label)]
@@ -110,7 +97,7 @@ def test_dead_code_eliminator(code, compiler_settings):
     assert all(ctor_only not in label.label for label in runtime_labels)
 
 
-def test_library_code_eliminator(make_input_bundle, legacy_codegen):
+def test_library_code_eliminator(make_input_bundle, experimental_codegen):
     library = """
 @internal
 def unused1():
@@ -135,7 +122,7 @@ def foo():
     res = compile_code(code, input_bundle=input_bundle, output_formats=["asm_runtime"])
     asm = res["asm_runtime"]
 
-    if legacy_codegen:
+    if not experimental_codegen:
         assert "some_function()" in asm  # Venom function inliner will remove this
 
     assert "unused1()" not in asm

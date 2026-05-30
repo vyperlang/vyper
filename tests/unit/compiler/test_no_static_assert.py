@@ -12,13 +12,13 @@ def foo():
     assert 1 == 2
 """
     # without the flag, compile_code should raise StaticAssertionException
-    settings = Settings(optimize=OptimizationLevel.GAS, legacy_codegen=True)
+    settings = Settings(optimize=OptimizationLevel.GAS, experimental_codegen=False)
     with pytest.raises(StaticAssertionException):
         compile_code(code, output_formats=["bytecode"], settings=settings)
 
     # with the flag, it should compile but revert at runtime
     settings = Settings(
-        optimize=OptimizationLevel.GAS, legacy_codegen=True, disable_static_exceptions=True
+        optimize=OptimizationLevel.GAS, experimental_codegen=False, disable_static_exceptions=True
     )
     c = get_contract(code, compiler_settings=settings)
     with tx_failed():
@@ -33,13 +33,13 @@ def foo() -> uint256:
     return x - 1
 """
     # without the flag, compile_code should raise StaticAssertionException
-    settings = Settings(optimize=OptimizationLevel.GAS, legacy_codegen=False)
+    settings = Settings(optimize=OptimizationLevel.GAS, experimental_codegen=True)
     with pytest.raises(StaticAssertionException):
         compile_code(code, output_formats=["bytecode"], settings=settings)
 
     # with the flag, it should compile but revert at runtime
     settings = Settings(
-        optimize=OptimizationLevel.GAS, legacy_codegen=False, disable_static_exceptions=True
+        optimize=OptimizationLevel.GAS, experimental_codegen=True, disable_static_exceptions=True
     )
     c = get_contract(code, compiler_settings=settings)
     with tx_failed():

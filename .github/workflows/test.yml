@@ -113,7 +113,7 @@ jobs:
       py${{ matrix.python-version[1] || '311' }}\
       -opt-${{ matrix.opt-mode || 'gas' }}\
       ${{ matrix.debug && '-debug' || '' }}\
-      ${{ matrix.legacy && '-legacy' || '' }}\
+      ${{ matrix.experimental-codegen && '-experimental' || '' }}\
       -${{ matrix.evm-version || 'prague' }}\
       -${{ matrix.evm-backend || 'revm' }}"
     strategy:
@@ -124,7 +124,7 @@ jobs:
         opt-mode: [gas, none, codesize, O1, O2, O3]
         debug: [true, false]
         evm-version: [prague]  # note: when upgrading, check the "include" section below for conflicting jobs
-        legacy: [false]
+        experimental-codegen: [false]
         evm-backend: [revm]
 
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
@@ -151,18 +151,18 @@ jobs:
           - evm-backend: py-evm
             evm-version: prague
 
-          # test legacy pipeline
-          - legacy: true
+          # test experimental pipeline
+          - experimental-codegen: true
             opt-mode: gas
-          - legacy: true
+          - experimental-codegen: true
             opt-mode: none
-          - legacy: true
+          - experimental-codegen: true
             opt-mode: codesize
-          - legacy: true
+          - experimental-codegen: true
             opt-mode: O1
-          - legacy: true
+          - experimental-codegen: true
             opt-mode: O2
-          - legacy: true
+          - experimental-codegen: true
             opt-mode: O3
 
           # run across other python versions. we don't really need to run all
@@ -201,7 +201,7 @@ jobs:
         --evm-version ${{ matrix.evm-version || 'prague' }}
         --evm-backend ${{ matrix.evm-backend || 'revm' }}
         ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
-        ${{ matrix.legacy && '--legacy-codegen' || '' }}
+        ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }}
         --cov-config=pyproject.toml
         --cov=vyper
         tests/
