@@ -326,10 +326,15 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         if not annotation_tokens:
             # a common case for people migrating to 0.4.0, provide a more
             # specific error message than "invalid type annotation"
+            msg = "missing type annotation"
+            if isinstance(node.target, python_ast.Name):
+                msg += (
+                    "\n\n"
+                    "  (hint: did you mean something like "
+                    f"`for {node.target.id}: uint256 in ...`?)"
+                )
             raise SyntaxException(
-                "missing type annotation\n\n"
-                "  (hint: did you mean something like "
-                f"`for {node.target.id}: uint256 in ...`?)",
+                msg,
                 self._source_code,
                 node.lineno,
                 node.col_offset,
