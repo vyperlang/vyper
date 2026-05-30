@@ -183,14 +183,6 @@ class VenomBuilder:
         """
         return self._emit1("dalloca", size)
 
-    def dfree(self, mark: Operand) -> None:
-        """Legacy low-level FMP restore hook.
-
-        Producer-facing dynamic allocation does not return a restore mark; new
-        code should let `DallocaLoweringPass` synthesize any safe rewind.
-        """
-        self._emit("dfree", mark)
-
     # === Storage ===
     def sload(self, slot: Operand) -> IRVariable:
         return self._emit1_evm("sload", slot)

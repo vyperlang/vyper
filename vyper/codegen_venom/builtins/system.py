@@ -148,10 +148,9 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
 
     # Copy msg.data to unreserved scratch AFTER all kwarg evaluation, so nothing
     # else overwrites the borrowed scratch region before the call.
-    data_mark: Optional[IRVariable] = None
     if use_msg_data:
         data_len = b.calldatasize()
-        data_ptr, data_mark = ctx.allocate_scratch(data_len)
+        data_ptr = ctx.allocate_scratch(data_len)
         b.calldatacopy(data_ptr, IRLiteral(0), data_len)
 
     # Build the call instruction
@@ -164,10 +163,6 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
     else:
         # call(gas, to, value, argsptr, argsz, retptr, retsz)
         success = b.call(gas, to, value, data_ptr, data_len, out_ptr, IRLiteral(max_outsize))
-
-    # Scratch reclaim is compiler-owned; this compatibility hook is a no-op.
-    if data_mark is not None:
-        ctx.free_scratch(data_mark)
 
     # Handle return based on revert_on_failure and max_outsize
     if revert_on_failure:

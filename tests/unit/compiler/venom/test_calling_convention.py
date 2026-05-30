@@ -5,7 +5,6 @@ from vyper.venom.basicblock import IRLabel, IRVariable
 from vyper.venom.check_venom import (
     BumpArityError,
     DallocaArityError,
-    DfreeArityError,
     DretReturnMixError,
     DretShapeError,
     DretShapeMismatch,
@@ -312,35 +311,6 @@ def test_dalloca_arity_wrong_operand_count_rejected():
     with pytest.raises(ExceptionGroup) as excinfo:
         check_calling_convention(ctx)
     _assert_raises(excinfo.value, DallocaArityError)
-
-
-def test_dfree_arity_with_output_rejected():
-    src = """
-    function main {
-    main:
-        %mark = source
-        %x = dfree %mark
-        sink %x
-    }
-    """
-    ctx = parse_venom(src)
-    with pytest.raises(ExceptionGroup) as excinfo:
-        check_calling_convention(ctx)
-    _assert_raises(excinfo.value, DfreeArityError)
-
-
-def test_dfree_arity_wrong_operand_count_rejected():
-    src = """
-    function main {
-    main:
-        dfree
-        stop
-    }
-    """
-    ctx = parse_venom(src)
-    with pytest.raises(ExceptionGroup) as excinfo:
-        check_calling_convention(ctx)
-    _assert_raises(excinfo.value, DfreeArityError)
 
 
 def test_dret_shape_accepted():

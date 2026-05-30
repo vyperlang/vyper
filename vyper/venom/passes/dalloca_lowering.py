@@ -47,11 +47,11 @@ class DallocaLoweringPass(IRPass):
         fn = self.function
         had_fmp = fn._needs_fmp
 
-        has_dalloca, has_dfree, has_dret, calls_needs_fmp = self._scan_function_flags(fn)
+        has_dalloca, has_dret, calls_needs_fmp = self._scan_function_flags(fn)
         if has_dret:
             raise CompilerPanic("DretLoweringPass must run before DallocaLoweringPass")
 
-        if fn._needs_fmp and not has_dalloca and not has_dfree:
+        if fn._needs_fmp and not has_dalloca:
             changed = self._deaugment_stale_invoke_fmp_args(fn)
             if changed:
                 self._invalidate_analyses()
@@ -65,7 +65,7 @@ class DallocaLoweringPass(IRPass):
                 fn._needs_fmp = True
                 return
 
-        if not has_dalloca and not has_dfree and not has_dret and not calls_needs_fmp:
+        if not has_dalloca and not has_dret and not calls_needs_fmp:
             if not fn._returns_adopted_fmp:
                 fn._needs_fmp = False
             return
@@ -74,7 +74,7 @@ class DallocaLoweringPass(IRPass):
         fn._needs_fmp = True
         fmp_var = hidden_fmp_var
         canonicalize_adopted_fmp = False
-        if has_dalloca or has_dfree or calls_needs_fmp:
+        if has_dalloca or calls_needs_fmp:
             fmp_var = self._materialize_fmp_thread_var(fn, hidden_fmp_var)
             canonicalize_adopted_fmp = True
 
@@ -110,9 +110,8 @@ class DallocaLoweringPass(IRPass):
             fn._returns_adopted_fmp = True
             fn._needs_fmp = True
 
-    def _scan_function_flags(self, fn) -> tuple[bool, bool, bool, bool]:
+    def _scan_function_flags(self, fn) -> tuple[bool, bool, bool]:
         has_dalloca = False
-        has_dfree = False
         has_dret = False
         calls_needs_fmp = False
 
@@ -121,9 +120,6 @@ class DallocaLoweringPass(IRPass):
                 if inst.opcode == "dalloca":
                     has_dalloca = True
                     continue
-                if inst.opcode == "dfree":
-                    has_dfree = True
-                    continue
                 if inst.opcode == "dret":
                     has_dret = True
                     continue
@@ -131,7 +127,7 @@ class DallocaLoweringPass(IRPass):
                     callee = InvokeLayout(fn.ctx, inst).callee
                     calls_needs_fmp = callee is not None and callee._needs_fmp
 
-        return has_dalloca, has_dfree, has_dret, calls_needs_fmp
+        return has_dalloca, has_dret, calls_needs_fmp
 
     def _invalidate_analyses(self) -> None:
         self.analyses_cache.invalidate_analysis(LoadAnalysis)
@@ -244,8 +240,6 @@ class DallocaLoweringPass(IRPass):
 
             if inst.opcode == "dalloca":
                 stack.append(inst.output)
-            elif inst.opcode == "dfree":
-                stack.clear()
             elif inst.opcode == "invoke":
                 callee = InvokeLayout(self.function.ctx, inst).callee
                 if callee is not None and callee._returns_adopted_fmp:
@@ -319,15 +313,6 @@ class DallocaLoweringPass(IRPass):
                 lowered = self._lower_dalloca(inst, bb, current_fmp_var, fmp_var)
                 stack.append(inst.output)
                 new_instructions.extend(lowered)
-                current_fmp_var = fmp_var
-                continue
-
-            if inst.opcode == "dfree":
-                # Legacy low-level restore. Producer-facing code should not
-                # emit this, but keeping the lowering makes stale hand-written
-                # IR fail safe instead of reaching codegen.
-                stack.clear()
-                new_instructions.append(self._restore_fmp_inst(inst.operands[0], fmp_var, bb, inst))
                 current_fmp_var = fmp_var
                 continue
 
@@ -643,8 +628,8 @@ class DretLoweringPass(DallocaLoweringPass):
         had_fmp = fn._needs_fmp
         self._infer_dret_metadata(fn)
 
-        has_dalloca, has_dfree, has_dret, calls_needs_fmp = self._scan_function_flags(fn)
-        del has_dalloca, has_dfree
+        has_dalloca, has_dret, calls_needs_fmp = self._scan_function_flags(fn)
+        del has_dalloca
 
         if not has_dret and not calls_needs_fmp:
             return

@@ -643,19 +643,13 @@ class VenomCodegenContext:
         ptr = self.builder.alloca(size)
         return Buffer(_ptr=ptr, size=size, annotation=annotation)
 
-    def allocate_scratch(self, size: "IROperand") -> tuple["IRVariable", "IRVariable"]:
+    def allocate_scratch(self, size: "IROperand") -> "IRVariable":
         """Allocate a scoped, runtime-sized scratch buffer.
 
         Returns a pointer to `ceil32(size)` bytes of scratch space above all
-        static allocations and spill slots. The second tuple element is kept
-        for existing call sites; `free_scratch()` is intentionally a no-op.
+        static allocations and spill slots.
         """
-        ptr = self.builder.dalloca(size)
-        return ptr, ptr
-
-    def free_scratch(self, mark: "IRVariable") -> None:
-        """Compatibility hook; scratch reclaim is handled by dalloca lowering."""
-        pass
+        return self.builder.dalloca(size)
 
     # === Storage Operations ===
 

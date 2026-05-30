@@ -634,10 +634,6 @@ class VenomCompiler:
             # before we reach codegen. If we see one here, the pipeline is
             # misconfigured.
             raise CompilerPanic("dalloca reached codegen; DallocaLoweringPass missing?")
-        elif opcode == "dfree":
-            # DallocaLoweringPass eliminates legacy low-level FMP restores.
-            # Surviving dfrees indicate a pipeline misconfiguration.
-            raise CompilerPanic("dfree reached codegen; DallocaLoweringPass missing?")
         elif opcode == "dret":
             raise CompilerPanic("dret reached codegen; DretLoweringPass missing?")
         elif opcode == "initial_fmp":

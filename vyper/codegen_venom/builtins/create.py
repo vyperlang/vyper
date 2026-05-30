@@ -417,7 +417,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
 
     # Scratch region holds: [32-byte preamble word] [codesize bytes of target code].
     scratch_size = b.add(codesize, IRLiteral(32))
-    mem_ofst, mem_mark = ctx.allocate_scratch(scratch_size)
+    mem_ofst = ctx.allocate_scratch(scratch_size)
 
     # Store preamble at mem_ofst (will be stored as 32-byte word)
     b.mstore(mem_ofst, preamble_with_size)
@@ -439,9 +439,6 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
         addr = b.create2(value, buf, buf_len, salt)
     else:
         addr = b.create(value, buf, buf_len)
-
-    # Scratch reclaim is compiler-owned; this compatibility hook is a no-op.
-    ctx.free_scratch(mem_mark)
 
     return _check_create_result(ctx, b, addr, revert_on_failure)
 
@@ -546,7 +543,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     # Total length = codesize + args_len. When args_len is literal 0,
     # algebraic optimization folds `add(codesize, 0) -> codesize`.
     total_len = b.add(codesize, args_len)
-    mem_ofst, mem_mark = ctx.allocate_scratch(total_len)
+    mem_ofst = ctx.allocate_scratch(total_len)
 
     # Copy blueprint code (skipping preamble) to memory
     b.extcodecopy(target, mem_ofst, code_offset, codesize)
@@ -561,9 +558,6 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         addr = b.create2(value, mem_ofst, total_len, salt)
     else:
         addr = b.create(value, mem_ofst, total_len)
-
-    # Scratch reclaim is compiler-owned; this compatibility hook is a no-op.
-    ctx.free_scratch(mem_mark)
 
     return _check_create_result(ctx, b, addr, revert_on_failure)
 

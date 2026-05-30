@@ -67,7 +67,6 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "assert_unreachable",
         "stop",
         "dalloca",
-        "dfree",
     ]
 )
 
@@ -98,7 +97,6 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "jnz",
         "log",
         "nop",
-        "dfree",
     ]
 )
 
@@ -455,10 +453,6 @@ class IRInstruction:
             return 10
         if self.opcode == "bump":
             return 2  # DUP2 ADD
-        if self.opcode == "dfree":
-            # legacy low-level FMP restore; eliminated or lowered to
-            # `assign mark -> fmp` by DallocaLoweringPass.
-            return 1
         return 2
 
     def get_ast_source(self) -> Optional[IRnode]:

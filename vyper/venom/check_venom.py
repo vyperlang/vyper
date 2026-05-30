@@ -167,22 +167,6 @@ class DallocaArityError(VenomError):
         )
 
 
-class DfreeArityError(VenomError):
-    message: str = "dfree must have exactly 1 operand and 0 outputs"
-
-    def __init__(self, caller: IRFunction, inst: IRInstruction):
-        self.caller = caller
-        self.inst = inst
-
-    def __str__(self):
-        bb = self.inst.parent
-        return (
-            f"dfree arity error in {self.caller.name}: "
-            f"got {len(self.inst.operands)} operand(s), {self.inst.num_outputs} output(s)\n"
-            f"  {self.inst}\n\n{bb}"
-        )
-
-
 class DretShapeError(VenomError):
     message: str = "dret operands are malformed"
 
@@ -494,10 +478,6 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
                 if inst.opcode == "dalloca":
                     if len(inst.operands) != 1 or got_num != 1:
                         errors.append(DallocaArityError(caller, inst))
-                    continue
-                if inst.opcode == "dfree":
-                    if len(inst.operands) != 1 or got_num != 0:
-                        errors.append(DfreeArityError(caller, inst))
                     continue
                 if inst.opcode == "memtop":
                     errors.append(
