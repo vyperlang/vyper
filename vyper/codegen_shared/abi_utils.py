@@ -43,7 +43,7 @@ def calculate_type_for_external_return(typ: "VyperType") -> "VyperType":
     from vyper.semantics.types import TupleT
 
     if needs_external_call_wrap(typ):
-        return TupleT([typ])
+        return TupleT((typ,))
     return typ
 
 
