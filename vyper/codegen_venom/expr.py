@@ -1656,39 +1656,41 @@ class Expr:
         Args:
             call_node: The Call AST node (from ExtCall.value or StaticCall.value)
         """
-        # Default values
         value: IROperand = IRLiteral(0)
-        gas: IROperand = self.builder.gas()
+        gas: Optional[IROperand] = None
         skip_contract_check = False
         default_return_value: Optional[VyperValue] = None
 
         for kw in call_node.keywords:
-            if kw.arg == "default_return_value":
-                drv_vv = Expr(kw.value, self.ctx).lower()
-                # Eagerly materialize mutable-location values so the read
-                # happens before CALL, not in the post-call default block
-                # (avoids reentrancy-dependent fallback semantics).
-                if drv_vv.location is not None and drv_vv.location in (
-                    DataLocation.STORAGE,
-                    DataLocation.TRANSIENT,
-                ):
-                    materialized = self.ctx.unwrap(drv_vv)
-                    drv_vv = VyperValue.from_stack_op(materialized, drv_vv.typ)
-                default_return_value = drv_vv
-                continue
-
-            kw_val = Expr(kw.value, self.ctx).lower_value()
             if kw.arg == "value":
-                value = kw_val
+                value = Expr(kw.value, self.ctx).lower_value()
             elif kw.arg == "gas":
-                gas = kw_val
+                gas = Expr(kw.value, self.ctx).lower_value()
             elif kw.arg == "skip_contract_check":
+                kw_val = Expr(kw.value, self.ctx).lower_value()
                 # Must be a literal True/False
                 if not isinstance(kw_val, IRLiteral):  # pragma: nocover
                     raise CompilerPanic(f"Expected IRLiteral for keyword, got {type(kw_val)}")
                 skip_contract_check = bool(kw_val.value)
+            elif kw.arg == "default_return_value":
+                default_vv = Expr(kw.value, self.ctx).lower()
+                # Freeze the expression here; the default block runs after the
+                # external call. Primitive values can stay on the stack, but
+                # composite values need a fresh memory copy instead of a
+                # pointer to a source location that later code may mutate.
+                if default_vv.typ._is_prim_word:
+                    default_return_value = VyperValue.from_stack_op(
+                        self.ctx.unwrap(default_vv), default_vv.typ
+                    )
+                else:
+                    default_return_value = self.ctx.materialize_value(
+                        default_vv, annotation="external call default_return_value"
+                    )
             else:  # pragma: nocover
                 raise CompilerPanic(f"Unexpected keyword argument: {kw.arg}")
+
+        if gas is None:
+            gas = self.builder.gas()
 
         return _CallKwargs(
             value=value,

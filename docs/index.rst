@@ -67,6 +67,13 @@ Vyper eliminates entire vulnerability classes by excluding features that enable 
 
 These constraints mean developers cannot accidentally introduce dangerous patterns, even under time pressure or with limited blockchain experience.
 
+Deep Verification
+=================
+
+Vyper’s design makes **deep verification** practical on a production smart-contract language.
+
+See :doc:`deep-verification` for the full discussion of verification depth, verification gap, and the current state of Vyper’s formal semantics and compiler verification work.
+
 Decimal Fixed Point
 ===================
 
