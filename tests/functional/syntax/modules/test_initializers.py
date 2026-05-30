@@ -9,6 +9,7 @@ main properties to test:
 import pytest
 
 from vyper.compiler import compile_code
+from vyper.compiler.phases import CompilerData
 from vyper.exceptions import (
     BorrowException,
     CallViolation,
@@ -1758,3 +1759,55 @@ def test_foo() -> uint256:
 
     assert "abstract_module.vy` is used but never initialized!" in e.value._message
     assert "add `initializes: abstract_module`" in e.value._hint
+
+
+def test_at_call_does_not_propagate_writes(make_input_bundle):
+    # calling a module's function via __at__ is an external call.
+    # the callee's variable writes should NOT be propagated into
+    # the caller function's _variable_writes.
+    other = """
+counter: uint256
+
+@external
+def increment():
+    self.counter += 1
+    """
+    main = """
+import other
+
+@external
+def foo(addr: address):
+    extcall other.__at__(0x0000000000000000000000000000000000000000).increment()
+    """
+    input_bundle = make_input_bundle({"other.vy": other})
+
+    data = CompilerData(main, input_bundle=input_bundle)
+    foo_t = data.function_signatures["foo"]
+    assert len(foo_t._variable_writes) == 0
+
+
+def test_at_call_does_not_propagate_reads(make_input_bundle):
+    # calling a module's function via __at__ is an external call.
+    # the callee's variable reads should NOT be propagated into
+    # the caller function's _variable_reads.
+    lib = """
+counter: uint256
+
+@external
+@view
+def get_counter() -> uint256:
+    return self.counter
+    """
+    main = """
+import lib
+
+@external
+@view
+def foo() -> uint256:
+    return staticcall lib.__at__(0x0000000000000000000000000000000000000000).get_counter()
+    """
+    input_bundle = make_input_bundle({"lib.vy": lib})
+
+    data = CompilerData(main, input_bundle=input_bundle)
+    foo_t = data.function_signatures["foo"]
+    assert len(foo_t._variable_reads) == 0

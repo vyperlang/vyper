@@ -20,10 +20,12 @@ from vyper.codegen_shared.abi_utils import (
 )
 from vyper.codegen_venom.arithmetic import apply_binop
 from vyper.exceptions import (
+    CodegenPanic,
     CompilerPanic,
     StateAccessViolation,
     TypeMismatch,
     UnimplementedException,
+    tag_exceptions,
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
@@ -90,10 +92,11 @@ class Expr:
         Use lower_value() when you need the loaded value.
         """
         fn_name = f"lower_{type(self.node).__name__}"
-        method = getattr(self, fn_name, None)
-        if method is None:  # pragma: nocover
-            raise CompilerPanic(f"Unsupported expr: {type(self.node)}")
-        return method()
+        with tag_exceptions(self.node, fallback_exception_type=CodegenPanic, note=fn_name):
+            method = getattr(self, fn_name, None)
+            if method is None:  # pragma: nocover
+                raise CompilerPanic(f"Unsupported expr: {type(self.node)}")
+            return method()
 
     def lower_value(self) -> IROperand:
         """Lower and unwrap to get the value.
@@ -634,13 +637,21 @@ class Expr:
                 value = 2**flag_id  # 0 => 1, 1 => 2, 2 => 4, etc.
                 return VyperValue.from_stack_op(IRLiteral(value), typ)
 
-        # Case 2: Address properties
         attr = node.attr
+        sub_typ = node.value._metadata["type"]
+
+        # Case 2: Struct field access (point.x)
+        if isinstance(sub_typ, StructT) and attr in sub_typ.member_types:
+            return self._lower_struct_field()
+
+        # Case 3: Address properties
         if attr == "balance":
             sub = Expr(node.value, self.ctx).lower_value()
             return VyperValue.from_stack_op(self.builder.balance(sub), UINT256_T)
 
         if attr == "codesize":
+            if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
+                return VyperValue.from_stack_op(self.builder.codesize(), UINT256_T)
             sub = Expr(node.value, self.ctx).lower_value()
             return VyperValue.from_stack_op(self.builder.extcodesize(sub), UINT256_T)
 
@@ -660,11 +671,11 @@ class Expr:
         ):  # pragma: nocover
             raise CompilerPanic(".code requires slice() context")
 
-        # Case 3: Environment variables (msg.*, block.*, tx.*, chain.*)
+        # Case 4: Environment variables (msg.*, block.*, tx.*, chain.*)
         if isinstance(node.value, vy_ast.Name) and node.value.id in ENVIRONMENT_VARIABLES:
             return VyperValue.from_stack_op(self._lower_environment_attr(), typ)
 
-        # Case 4: State variables (self.x)
+        # Case 5: State variables (self.x)
         varinfo = node._expr_info.var_info
         if varinfo is not None:
             # Constant state variable - evaluate the constant expression
@@ -683,14 +694,9 @@ class Expr:
             ptr = Ptr(operand=IRLiteral(slot), location=varinfo.location)
             return VyperValue.from_ptr(ptr, typ)
 
-        # Case 5: Interface address (x.address where x is an interface)
-        sub_typ = node.value._metadata.get("type")
+        # Case 6: Interface address (x.address where x is an interface)
         if isinstance(sub_typ, InterfaceT) and attr == "address":
             return VyperValue.from_stack_op(Expr(node.value, self.ctx).lower_value(), AddressT())
-
-        # Case 6: Struct field access (point.x)
-        if isinstance(sub_typ, StructT) and attr in sub_typ.member_types:
-            return self._lower_struct_field()
 
         raise CompilerPanic(f"Unsupported attribute access: {node.attr}")  # pragma: nocover
 
@@ -1650,39 +1656,41 @@ class Expr:
         Args:
             call_node: The Call AST node (from ExtCall.value or StaticCall.value)
         """
-        # Default values
         value: IROperand = IRLiteral(0)
-        gas: IROperand = self.builder.gas()
+        gas: Optional[IROperand] = None
         skip_contract_check = False
         default_return_value: Optional[VyperValue] = None
 
         for kw in call_node.keywords:
-            if kw.arg == "default_return_value":
-                drv_vv = Expr(kw.value, self.ctx).lower()
-                # Eagerly materialize mutable-location values so the read
-                # happens before CALL, not in the post-call default block
-                # (avoids reentrancy-dependent fallback semantics).
-                if drv_vv.location is not None and drv_vv.location in (
-                    DataLocation.STORAGE,
-                    DataLocation.TRANSIENT,
-                ):
-                    materialized = self.ctx.unwrap(drv_vv)
-                    drv_vv = VyperValue.from_stack_op(materialized, drv_vv.typ)
-                default_return_value = drv_vv
-                continue
-
-            kw_val = Expr(kw.value, self.ctx).lower_value()
             if kw.arg == "value":
-                value = kw_val
+                value = Expr(kw.value, self.ctx).lower_value()
             elif kw.arg == "gas":
-                gas = kw_val
+                gas = Expr(kw.value, self.ctx).lower_value()
             elif kw.arg == "skip_contract_check":
+                kw_val = Expr(kw.value, self.ctx).lower_value()
                 # Must be a literal True/False
                 if not isinstance(kw_val, IRLiteral):  # pragma: nocover
                     raise CompilerPanic(f"Expected IRLiteral for keyword, got {type(kw_val)}")
                 skip_contract_check = bool(kw_val.value)
+            elif kw.arg == "default_return_value":
+                default_vv = Expr(kw.value, self.ctx).lower()
+                # Freeze the expression here; the default block runs after the
+                # external call. Primitive values can stay on the stack, but
+                # composite values need a fresh memory copy instead of a
+                # pointer to a source location that later code may mutate.
+                if default_vv.typ._is_prim_word:
+                    default_return_value = VyperValue.from_stack_op(
+                        self.ctx.unwrap(default_vv), default_vv.typ
+                    )
+                else:
+                    default_return_value = self.ctx.materialize_value(
+                        default_vv, annotation="external call default_return_value"
+                    )
             else:  # pragma: nocover
                 raise CompilerPanic(f"Unexpected keyword argument: {kw.arg}")
+
+        if gas is None:
+            gas = self.builder.gas()
 
         return _CallKwargs(
             value=value,
@@ -1714,6 +1722,9 @@ class Expr:
         assert isinstance(call_node.func, vy_ast.Attribute)
         fn_type: ContractFunctionT = call_node.func._metadata["type"]
 
+        # get un-wildcard-ed return type
+        return_t = call_node._metadata["call_return_type"]
+
         # Evaluate contract address (the interface value)
         contract_address = Expr(call_node.func.value, self.ctx).lower_value()
 
@@ -1725,13 +1736,15 @@ class Expr:
         # Parse kwargs
         call_kwargs = self._parse_external_call_kwargs(call_node)
 
-        # Calculate buffer size needed
-        args_tuple_t = TupleT(tuple(fn_type.arguments[i].typ for i in range(len(arg_vals))))
+        # Calculate buffer size needed.
+        # Use concrete types from the lowered argument values, not the interface's
+        # declared parameter types (which may be WILDCARD for JSON ABI interfaces).
+        args_tuple_t = TupleT(tuple(v.typ for v in arg_vals))
         args_abi_t = args_tuple_t.abi_type
         args_abi_size = args_abi_t.size_bound()
 
-        if fn_type.return_type is not None:
-            return_abi_t = calculate_type_for_external_return(fn_type.return_type).abi_type
+        if return_t is not None:
+            return_abi_t = calculate_type_for_external_return(return_t).abi_type
             return_abi_size = return_abi_t.size_bound()
         else:
             return_abi_size = 0
@@ -1757,8 +1770,8 @@ class Expr:
 
             # Store each arg at its position in args_buf
             offset = 0
-            for i, arg_vv in enumerate(arg_vals):
-                arg_typ = fn_type.arguments[i].typ
+            for arg_vv in arg_vals:
+                arg_typ = arg_vv.typ
                 dst = b.add(args_val.operand, IRLiteral(offset))
                 self.ctx.store_vyper_value(arg_vv, dst, arg_typ)
                 offset += arg_typ.memory_bytes_required
@@ -1774,7 +1787,7 @@ class Expr:
         # === Contract Existence Check ===
         # If function returns nothing and skip_contract_check is False,
         # check extcodesize before call (can't rely on returndatasize check)
-        if fn_type.return_type is None and not call_kwargs.skip_contract_check:
+        if return_t is None and not call_kwargs.skip_contract_check:
             codesize = b.extcodesize(contract_address)
             b.assert_(codesize)
 
@@ -1820,10 +1833,9 @@ class Expr:
         b.set_block(cont_bb)
 
         # === Unpack Return Value ===
-        if fn_type.return_type is None:
+        if return_t is None:
             return VyperValue.from_stack_op(IRLiteral(0), VOID_TYPE)
 
-        return_t = fn_type.return_type
         wrapped_return_t = calculate_type_for_external_return(return_t)
         min_return_size = wrapped_return_t.abi_type.static_size()
 

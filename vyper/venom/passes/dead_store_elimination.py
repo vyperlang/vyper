@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis
+from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis, ReachableAnalysis
 from vyper.venom.analysis.mem_ssa import MemoryDef, mem_ssa_type_factory
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.effects import NON_MEMORY_EFFECTS, NON_STORAGE_EFFECTS, NON_TRANSIENT_EFFECTS
@@ -19,12 +19,15 @@ class DeadStoreElimination(IRPass):
 
     def run_pass(self, /, addr_space: AddrSpace):
         mem_ssa_type = mem_ssa_type_factory(addr_space)
+        self.addr_space = addr_space
         if addr_space == MEMORY:
             self.NON_RELATED_EFFECTS = NON_MEMORY_EFFECTS
         elif addr_space == STORAGE:
             self.NON_RELATED_EFFECTS = NON_STORAGE_EFFECTS
         elif addr_space == TRANSIENT:
             self.NON_RELATED_EFFECTS = NON_TRANSIENT_EFFECTS
+
+        self.reachable = self.analyses_cache.request_analysis(ReachableAnalysis)
 
         volatiles: list[MemoryLocation] = []
         while True:
@@ -77,6 +80,46 @@ class DeadStoreElimination(IRPass):
         # starting from instruction 0.
         worklist.add(query_def.inst.parent)
 
+        # short circuit since the empty
+        # write is noop
+        if query_loc.is_empty():
+            return False
+
+        # short circuit for a case where only one instruction
+        # uses all of the mem location in alias set
+        # from that we know the write cannot be read
+        # and therefore is dead
+        alias_set = self.mem_ssa.memalias.get_alias_set(query_loc)
+        assert alias_set is not None
+        insts = self.mem_ssa.memalias.get_all_insts(query_loc)
+        if len(alias_set) == 1 and len(insts) == 1:
+            return False
+
+        # if the all the instrcution with location
+        # that may alias the query loc are reads we
+        # can just check if the reads are reachable
+        # from query def
+        some_reachable = False
+        for inst in insts:
+            if inst is query_def.inst:
+                continue
+            other_loc = self.mem_ssa.memalias.base_ptr.get_write_location(
+                inst, addr_space=self.addr_space
+            )
+            if other_loc in alias_set:
+                # there is some write so we need to handle clobers
+                # so we need to go to the slow path
+                break
+
+            # the loc use is reachable from the query def
+            some_reachable |= self._is_reachable_from(inst, query_def.inst)
+        else:
+            # there were only reads so just return if some of them where reachable
+            return some_reachable
+
+        # original slow path that handles the clobers
+        # by other writes into location that may alias
+        # query location
         while len(worklist) > 0:
             bb = worklist.pop()
 
@@ -147,3 +190,12 @@ class DeadStoreElimination(IRPass):
         # If the memory definition is clobbered by another memory access,
         # it is a dead store.
         return not self._is_memory_def_live(mem_def)
+
+    def _is_reachable_from(self, inst: IRInstruction, start_inst: IRInstruction) -> bool:
+        if inst.parent == start_inst.parent:
+            bb = inst.parent
+            start_index = bb.instructions.index(start_inst)
+            index = bb.instructions.index(inst)
+            return start_index < index or bb in self.reachable.reachable[bb]
+
+        return inst.parent in self.reachable.reachable[start_inst.parent]

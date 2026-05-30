@@ -44,6 +44,7 @@ from vyper.evm.address_space import MEMORY
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
+    CodegenPanic,
     CompilerPanic,
     EvmVersionException,
     InvalidLiteral,
@@ -63,6 +64,7 @@ from vyper.semantics.analysis.utils import (
     validate_expected_type,
 )
 from vyper.semantics.types import (
+    INF,
     TYPE_T,
     AddressT,
     BoolT,
@@ -76,6 +78,7 @@ from vyper.semantics.types import (
     SArrayT,
     StringT,
     TupleT,
+    is_bounded_length,
 )
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT8_T, UINT256_T
@@ -223,6 +226,11 @@ class Convert(BuiltinFunctionT):
             hint = "remove convert()"
             raise InvalidType(f"Already a '{target_type}' !", node, hint=hint)
 
+        if isinstance(value_type, _BytestringT) and not is_bounded_length(value_type.maxlen):
+            raise CodegenPanic("convert not yet implemented for unbounded sequence type")
+        if isinstance(value_type, DArrayT) and not is_bounded_length(value_type.count):
+            raise CodegenPanic("convert not yet implemented for unbounded sequence type")
+
         return [value_type, TYPE_T(target_type)]
 
     def build_IR(self, expr, context):
@@ -294,21 +302,10 @@ class Slice(BuiltinFunctionT):
     def fetch_call_return(self, node):
         arg_type, _, _ = self.infer_arg_types(node)
 
-        if isinstance(arg_type, StringT):
-            return_type = StringT()
-        else:
-            return_type = BytesT()
-
         # validate start and length are in bounds
 
-        arg = node.args[0]
         start_expr = node.args[1]
         length_expr = node.args[2].reduced()
-
-        # CMC 2022-03-22 NOTE slight code duplication with semantics/analysis/local
-        is_adhoc_slice = arg.get("attr") == "code" or (
-            arg.get("value.id") == "msg" and arg.get("attr") == "data"
-        )
 
         start_literal = start_expr.value if isinstance(start_expr, vy_ast.Int) else None
         length_literal = length_expr.value if isinstance(length_expr, vy_ast.Int) else None
@@ -319,8 +316,7 @@ class Slice(BuiltinFunctionT):
             if length_literal < 1:
                 raise ArgumentException("Length cannot be less than 1", length_expr)
 
-        if not is_adhoc_slice:
-            # arg_type.length is only valid when `not is_adhoc_slice`.
+        if is_bounded_length(arg_type.length):
 
             if length_literal is not None and length_literal > arg_type.length:
                 raise ArgumentException(f"slice out of bounds for {arg_type}", length_expr)
@@ -331,11 +327,12 @@ class Slice(BuiltinFunctionT):
                 if length_literal is not None and start_literal + length_literal > arg_type.length:
                     raise ArgumentException(f"slice out of bounds for {arg_type}", node)
 
-        # we know the length statically
-        if length_literal is not None:
-            return_type.set_length(length_literal)
+        length = length_literal if length_literal is not None else arg_type.length
+
+        if isinstance(arg_type, StringT):
+            return_type = StringT(length)
         else:
-            return_type.set_min_length(arg_type.length)
+            return_type = BytesT(length)
 
         return return_type
 
@@ -498,13 +495,18 @@ class Concat(BuiltinFunctionT):
 
         length = 0
         for arg_t in arg_types:
-            length += arg_t.length
+            arg_length = arg_t.length
+
+            if not is_bounded_length(arg_length):
+                length = INF
+                break
+
+            length += arg_length
 
         if isinstance(arg_types[0], (StringT)):
-            return_type = StringT()
+            return_type = StringT(length)
         else:
-            return_type = BytesT()
-        return_type.set_length(length)
+            return_type = BytesT(length)
         return return_type
 
     def infer_arg_types(self, node, expected_return_typ=None):
@@ -1043,8 +1045,7 @@ class RawCall(BuiltinFunctionT):
             raise
 
         if outsize.value:
-            return_type = BytesT()
-            return_type.set_min_length(outsize.value)
+            return_type = BytesT(outsize.value)
 
             if revert_on_failure:
                 return return_type
@@ -2267,9 +2268,7 @@ class ABIEncode(BuiltinFunctionT):
             # the output includes 4 bytes for the method_id.
             maxlen += 4
 
-        ret = BytesT()
-        ret.set_length(maxlen)
-        return ret
+        return BytesT(maxlen)
 
     @staticmethod
     def _parse_method_id(method_id_literal):
