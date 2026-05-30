@@ -495,6 +495,58 @@ def test_for_annotation_syntax_exceptions(code, error_message):
         compiler.compile_code(code)
 
 
+@pytest.mark.parametrize(
+    "code,expected_hint",
+    [
+        (
+            """
+@external
+def bar():
+    for i in range(10):
+        pass
+    """,
+            "did you mean something like `for i: uint256 in ...`?",
+        ),
+        (
+            """
+@external
+def bar(strategies: DynArray[address, 10]):
+    for strategy in strategies:
+        pass
+    """,
+            "did you mean something like `for strategy: address in ...`?",
+        ),
+        (
+            """
+@external
+def bar(strategies: DynArray[address, 10]):
+    _strategies: DynArray[address, 10] = strategies
+    for strategy in _strategies:
+        pass
+    """,
+            "did you mean something like `for strategy: address in ...`?",
+        ),
+        (
+            """
+default_queue: public(DynArray[address, 10])
+
+@external
+def bar():
+    for strategy in self.default_queue:
+        pass
+    """,
+            "did you mean something like `for strategy: address in ...`?",
+        ),
+    ],
+)
+def test_missing_for_annotation_hints(code, expected_hint):
+    with pytest.raises(SyntaxException) as exc_info:
+        compiler.compile_code(code)
+
+    assert exc_info.value._message == "missing type annotation"
+    assert exc_info.value.hint == expected_hint
+
+
 valid_list = [
     """
 @external

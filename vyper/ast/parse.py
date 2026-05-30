@@ -185,6 +185,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self._source_code = source_code
         self._pre_parser = pre_parser
         self._parents = []
+        self._annotation_scopes: list[dict[str, python_ast.expr]] = [{}]
 
         self.counter: int = 0
 
@@ -281,6 +282,68 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         return node
 
+    @staticmethod
+    def _unwrap_annotation(annotation):
+        if isinstance(annotation, python_ast.Call) and isinstance(annotation.func, python_ast.Name):
+            if annotation.func.id in ("constant", "immutable", "public", "transient"):
+                if len(annotation.args) == 1:
+                    return AnnotatingVisitor._unwrap_annotation(annotation.args[0])
+
+        return annotation
+
+    @staticmethod
+    def _iter_type_from_annotation(annotation):
+        annotation = AnnotatingVisitor._unwrap_annotation(annotation)
+
+        if not isinstance(annotation, python_ast.Subscript):
+            return None
+
+        if isinstance(annotation.value, python_ast.Name):
+            if annotation.value.id == "DynArray":
+                if isinstance(annotation.slice, python_ast.Tuple) and annotation.slice.elts:
+                    return python_ast.unparse(annotation.slice.elts[0])
+                return None
+
+            if annotation.value.id in ("HashMap", "Bytes", "String"):
+                return None
+
+        # Static array, e.g. `address[MAX_QUEUE]`.
+        return python_ast.unparse(annotation.value)
+
+    def _lookup_annotation(self, name):
+        for scope in reversed(self._annotation_scopes):
+            if name in scope:
+                return scope[name]
+
+        return None
+
+    def _hint_for_missing_for_loop_annotation(self, node):
+        target = node.target.id
+        iter_type = None
+
+        if isinstance(node.iter, python_ast.Call):
+            if isinstance(node.iter.func, python_ast.Name) and node.iter.func.id == "range":
+                iter_type = "uint256"
+
+        elif isinstance(node.iter, python_ast.Name):
+            annotation = self._lookup_annotation(node.iter.id)
+            if annotation is not None:
+                iter_type = self._iter_type_from_annotation(annotation)
+
+        elif (
+            isinstance(node.iter, python_ast.Attribute)
+            and isinstance(node.iter.value, python_ast.Name)
+            and node.iter.value.id == "self"
+        ):
+            annotation = self._annotation_scopes[0].get(node.iter.attr)
+            if annotation is not None:
+                iter_type = self._iter_type_from_annotation(annotation)
+
+        if iter_type is None:
+            iter_type = "uint256"
+
+        return f"did you mean something like `for {target}: {iter_type} in ...`?"
+
     def visit_Module(self, node):
         node.lineno = 1
         node.col_offset = 0
@@ -300,7 +363,27 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return self._visit_docstring(node)
 
     def visit_FunctionDef(self, node):
-        return self._visit_docstring(node)
+        self._annotation_scopes.append({})
+
+        args = (
+            *node.args.posonlyargs,
+            *node.args.args,
+            *node.args.kwonlyargs,
+        )
+        for arg in args:
+            if arg.annotation is not None:
+                self._annotation_scopes[-1][arg.arg] = arg.annotation
+
+        try:
+            return self._visit_docstring(node)
+        finally:
+            self._annotation_scopes.pop()
+
+    def visit_AnnAssign(self, node):
+        if isinstance(node.target, python_ast.Name):
+            self._annotation_scopes[-1][node.target.id] = node.annotation
+
+        return self.generic_visit(node)
 
     def visit_ClassDef(self, node):
         """
@@ -327,12 +410,11 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             # a common case for people migrating to 0.4.0, provide a more
             # specific error message than "invalid type annotation"
             raise SyntaxException(
-                "missing type annotation\n\n"
-                "  (hint: did you mean something like "
-                f"`for {node.target.id}: uint256 in ...`?)",
+                "missing type annotation",
                 self._source_code,
                 node.lineno,
                 node.col_offset,
+                hint=self._hint_for_missing_for_loop_annotation(node),
             )
 
         # some kind of black magic. untokenize preserves the line and column
