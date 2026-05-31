@@ -184,11 +184,17 @@ def _to_int(
         data = b.mload(data_ptr)
         # Right-shift to convert left-aligned bytes to right-aligned int
         # num_zero_bits = (32 - len) * 8
-        num_zero_bits = b.mul(b.sub(IRLiteral(32), length), IRLiteral(8))
+
+        assert isinstance(in_t.maxlen, int)
+        runtime_compile_diff = b.sub(in_t.maxlen, length)
+
+        val = b.shr(b.mul(runtime_compile_diff, 8), data)
+
+        num_zero_bits = b.mul(b.sub(IRLiteral(32), in_t.maxlen), IRLiteral(8))
         if out_t.is_signed:
-            val = b.sar(num_zero_bits, data)
+            val = b.sar(num_zero_bits, val)
         else:
-            val = b.shr(num_zero_bits, data)
+            val = b.shr(num_zero_bits, val)
         # Clamp if bytes could exceed output range
         if in_t.maxlen * 8 > out_t.bits:
             val = _int_clamp(val, out_t, ctx)
