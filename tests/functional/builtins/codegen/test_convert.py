@@ -437,6 +437,15 @@ def foo() -> int16:
     assert c.foo() == -1
 
     code = r"""
+@external
+def foo() -> int16:
+    return convert(b'\x00\xff', int16)
+    """
+
+    c = get_contract(code)
+    assert c.foo() == 255
+
+    code = r"""
 FOO: constant(Bytes[2]) = b'\xff'
 
 @external
