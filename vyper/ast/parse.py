@@ -111,6 +111,15 @@ def _parse_to_ast(
                 lines[e.lineno - 1] = ""
             code = "\n".join(lines)
 
+    # If we collected syntax errors during parsing, raise them before
+    # AST annotation. Otherwise, blanked lines may leave unconsumed
+    # pre-parser metadata (e.g. for_loop_annotations) that would cause
+    # an internal AssertionError instead of the intended diagnostics.
+    if errors:
+        err_list = ExceptionList()
+        err_list.extend(errors)
+        err_list.raise_if_not_empty()
+
     annotate_python_ast(
         py_ast,
         vyper_source,
@@ -133,12 +142,6 @@ def _parse_to_ast(
     module.is_interface = is_interface
 
     module.settings = pre_parser.settings
-
-    # If we collected errors along the way, raise them now
-    if errors:
-        err_list = ExceptionList()
-        err_list.extend(errors)
-        err_list.raise_if_not_empty()
 
     return module
 
