@@ -8,7 +8,7 @@ from typing import Optional
 
 from vyper.ast import nodes as vy_ast
 from vyper.ast.pre_parser import PreParser
-from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
+from vyper.exceptions import CompilerPanic, ExceptionList, ParserException, SyntaxException
 from vyper.utils import sha256sum
 from vyper.warnings import Deprecation, vyper_warn
 
@@ -76,29 +76,40 @@ def _parse_to_ast(
     pre_parser = PreParser(is_interface)
     pre_parser.parse(vyper_source)
 
-    try:
-        py_ast = python_ast.parse(pre_parser.reformatted_code)
-    except SyntaxError as e:
-        offset = e.offset
-        if offset is not None:
-            # SyntaxError offset is 1-based, not 0-based (see:
-            # https://docs.python.org/3/library/exceptions.html#SyntaxError.offset)
-            offset -= 1
+    errors: list[SyntaxException] = []
+    code = pre_parser.reformatted_code
 
-            # adjust the column of the error if it was modified by the pre-parser
-            if e.lineno is not None:  # help mypy
-                offset += pre_parser.adjustments.get((e.lineno, offset), 0)
+    while True:
+        try:
+            py_ast = python_ast.parse(code)
+            break
+        except SyntaxError as e:
+            offset = e.offset
+            if offset is not None:
+                # SyntaxError offset is 1-based, not 0-based (see:
+                # https://docs.python.org/3/library/exceptions.html#SyntaxError.offset)
+                offset -= 1
 
-        new_e = SyntaxException(str(e), vyper_source, e.lineno, offset)
+                # adjust the column of the error if it was modified by the pre-parser
+                if e.lineno is not None:  # help mypy
+                    offset += pre_parser.adjustments.get((e.lineno, offset), 0)
 
-        likely_errors = ("staticall", "staticcal")
-        tmp = str(new_e)
-        for s in likely_errors:
-            if s in tmp:
-                new_e._hint = "did you mean `staticcall`?"
-                break
+            new_e = SyntaxException(str(e), vyper_source, e.lineno, offset)
 
-        raise new_e from None
+            likely_errors = ("staticall", "staticcal")
+            tmp = str(new_e)
+            for s in likely_errors:
+                if s in tmp:
+                    new_e._hint = "did you mean `staticcall`?"
+                    break
+
+            errors.append(new_e)
+
+            # Blank the error line in the reformatted code to recover
+            lines = code.split("\n")
+            if e.lineno is not None and 1 <= e.lineno <= len(lines):
+                lines[e.lineno - 1] = ""
+            code = "\n".join(lines)
 
     annotate_python_ast(
         py_ast,
@@ -122,6 +133,12 @@ def _parse_to_ast(
     module.is_interface = is_interface
 
     module.settings = pre_parser.settings
+
+    # If we collected errors along the way, raise them now
+    if errors:
+        err_list = ExceptionList()
+        err_list.extend(errors)
+        err_list.raise_if_not_empty()
 
     return module
 
@@ -324,6 +341,14 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         annotation_tokens = self._pre_parser.for_loop_annotations.pop(key)
 
         if not annotation_tokens:
+            if not isinstance(node.target, python_ast.Name):
+                raise SyntaxException(
+                    "invalid for loop syntax: not a name",
+                    self._source_code,
+                    node.target.lineno,
+                    node.target.col_offset,
+                )
+
             # a common case for people migrating to 0.4.0, provide a more
             # specific error message than "invalid type annotation"
             raise SyntaxException(
