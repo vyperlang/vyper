@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Type, TypeVar
+from typing import TYPE_CHECKING, Type, TypeVar, cast
 
 if TYPE_CHECKING:
     from vyper.venom.context import IRContext
@@ -91,21 +91,25 @@ class IRAnalysesCache:
         returned if the analysis has already been run.
         """
         if issubclass(analysis_cls, IRGlobalAnalysis):
-            return self._ensure_global_analyses_cache().request_analysis(
-                analysis_cls, *args, **kwargs
+            global_analysis_cls = cast(Type[IRGlobalAnalysis], analysis_cls)
+            return cast(
+                T,
+                self._ensure_global_analyses_cache().request_analysis(
+                    global_analysis_cls, *args, **kwargs
+                ),
             )
 
         assert issubclass(analysis_cls, IRAnalysis), f"{analysis_cls} is not an IRAnalysis"
         if analysis_cls in self.analyses_cache:
             ret = self.analyses_cache[analysis_cls]
             assert isinstance(ret, analysis_cls)  # help mypy
-            return ret
+            return cast(T, ret)
 
         analysis = analysis_cls(self, self.function)
         self.analyses_cache[analysis_cls] = analysis
         analysis.analyze(*args, **kwargs)
 
-        return analysis
+        return cast(T, analysis)
 
     def invalidate_analysis(self, analysis_cls: Type[IRAnalysisBase]):
         """
@@ -128,15 +132,19 @@ class IRAnalysesCache:
         and is cached.
         """
         if issubclass(analysis_cls, IRGlobalAnalysis):
-            return self._ensure_global_analyses_cache().force_analysis(
-                analysis_cls, *args, **kwargs
+            global_analysis_cls = cast(Type[IRGlobalAnalysis], analysis_cls)
+            return cast(
+                T,
+                self._ensure_global_analyses_cache().force_analysis(
+                    global_analysis_cls, *args, **kwargs
+                ),
             )
 
         assert issubclass(analysis_cls, IRAnalysis), f"{analysis_cls} is not an IRAnalysis"
         if analysis_cls in self.analyses_cache:
             self.invalidate_analysis(analysis_cls)
 
-        return self.request_analysis(analysis_cls, *args, **kwargs)
+        return cast(T, self.request_analysis(analysis_cls, *args, **kwargs))
 
 
 class IRGlobalAnalysesCache:

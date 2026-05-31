@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from vyper.venom.basicblock import IRInstruction, IRLabel, IROperand, IRVariable
+from vyper.venom.call_layout import FunctionCallLayout, InvokeLayout
 from vyper.venom.function import IRFunction
 from vyper.venom.memory_location import memory_write_ops
 
@@ -49,27 +50,13 @@ class ReadonlyMemoryArgsGlobalAnalysis(IRGlobalAnalysis):
         return self.readonly_idxs_by_fn.get(fn, ())
 
     def _collect_param_info(self, fn: IRFunction) -> _FnParamInfo:
-        params = [inst.output for inst in fn.entry.param_instructions]
+        params = [inst.output for inst in FunctionCallLayout(fn).user_params]
         if len(params) == 0:
             return _FnParamInfo(tuple(), {})
 
-        if fn._invoke_param_count is not None:
-            invoke_count = min(fn._invoke_param_count, len(params))
-            invoke_params = tuple(params[:invoke_count])
-        elif self._has_ret_instruction(fn):
-            invoke_params = tuple(params[:-1])
-        else:
-            invoke_params = tuple(params)
-
+        invoke_params = tuple(params)
         invoke_param_index = {var: i for i, var in enumerate(invoke_params)}
         return _FnParamInfo(invoke_params, invoke_param_index)
-
-    def _has_ret_instruction(self, fn: IRFunction) -> bool:
-        for bb in fn.get_basic_blocks():
-            for inst in bb.instructions:
-                if inst.opcode == "ret":
-                    return True
-        return False
 
     def _analyze_fn(
         self, fn: IRFunction, info: _FnParamInfo, readonly_by_fn: dict[IRFunction, tuple[bool, ...]]
@@ -131,21 +118,21 @@ class ReadonlyMemoryArgsGlobalAnalysis(IRGlobalAnalysis):
         root_param_indices,
         readonly_by_fn: dict[IRFunction, tuple[bool, ...]],
     ) -> None:
-        target = inst.operands[0]
+        layout = InvokeLayout(self.ctx, inst)
+        target = layout.target
         if not isinstance(target, IRLabel):
-            for op in inst.operands[1:]:
+            for op in layout.user_operands:
                 for idx in root_param_indices(op):
                     mutable[idx] = True
             return
 
-        callee = self.ctx.functions.get(target, None)
+        callee = layout.callee
 
-        for op_idx, op in enumerate(inst.operands[1:], start=1):
+        for callee_arg_idx, op in enumerate(layout.user_operands):
             caller_idxs = root_param_indices(op)
             if len(caller_idxs) == 0:
                 continue
 
-            callee_arg_idx = op_idx - 1
             if callee is None:
                 for caller_idx in caller_idxs:
                     mutable[caller_idx] = True

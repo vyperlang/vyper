@@ -7,6 +7,7 @@ from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache
 from vyper.venom.analysis.fcg import FCGGlobalAnalysis
 from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
+from vyper.venom.call_layout import InvokeLayout
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRGlobalPass
@@ -40,9 +41,17 @@ class FunctionInlinerPass(IRGlobalPass):
     def run_pass(self):
         entry = self.ctx.entry_function
         self.inline_count = 0
+        self.fcg = self.analyses_caches[entry].force_analysis(FCGGlobalAnalysis)
+
+        for fn in self.fcg.get_reachable_functions():
+            for bb in fn.get_basic_blocks():
+                if any(inst.opcode == "dret" for inst in bb.instructions):
+                    raise CompilerPanic(
+                        "DretLoweringPass must run before FunctionInlinerPass "
+                        "when `dret` is present"
+                    )
 
         function_count = len(self.ctx.functions)
-        self.fcg = self.analyses_caches[entry].force_analysis(FCGGlobalAnalysis)
         self.walk = self._build_call_walk(entry)
 
         for _ in range(function_count):
@@ -116,6 +125,7 @@ class FunctionInlinerPass(IRGlobalPass):
         call_site_func.append_basic_block(call_site_return)
 
         func_copy = self._clone_function(func, prefix)
+        binding_ops = InvokeLayout(self.ctx, call_site).bound_params
 
         for bb in func_copy.get_basic_blocks():
             bb.parent = call_site_func
@@ -125,9 +135,7 @@ class FunctionInlinerPass(IRGlobalPass):
                 if inst.opcode == "param":
                     # NOTE: one of these params is the return pc.
                     inst.opcode = "assign"
-                    # handle return pc specially - it's at top of stack.
-                    ops = call_site.operands[1:] + [call_site.operands[0]]
-                    val = ops[param_idx]
+                    val = binding_ops[param_idx]
                     inst.operands = [val]
                     param_idx += 1
                 elif inst.opcode == "ret":

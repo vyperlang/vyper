@@ -643,17 +643,13 @@ class VenomCodegenContext:
         ptr = self.builder.alloca(size)
         return Buffer(_ptr=ptr, size=size, annotation=annotation)
 
-    def allocate_dyn(self) -> "IRVariable":
-        """Get a pointer to scratch memory for runtime-sized data.
+    def allocate_scratch(self, size: "IROperand") -> "IRVariable":
+        """Allocate a scoped, runtime-sized scratch buffer.
 
-        Returns an address past all static allocations and any prior memory
-        use. The caller may write arbitrary data at this address; the region
-        is untracked and must be consumed (e.g. by CALL/CREATE) before any
-        other code that could also call allocate_dyn().
-
-        Lowers to EVM MSIZE at assembly time.
+        Returns a pointer to `ceil32(size)` bytes of scratch space above all
+        static allocations and spill slots.
         """
-        return self.builder.memtop()
+        return self.builder.dalloca(size)
 
     # === Storage Operations ===
 
