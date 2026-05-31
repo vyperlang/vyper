@@ -481,6 +481,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         self.expr_visitor.visit(node.target, typ)
 
     def _validate_revert_reason(self, msg_node: vy_ast.VyperNode) -> None:
+        if isinstance(msg_node, vy_ast.ExtCall):
+            raise StructureException("Cannot use extcall in revert reason", msg_node)
+        if isinstance(msg_node, vy_ast.StaticCall):
+            raise StructureException("Cannot use staticcall in revert reason", msg_node)
         if isinstance(msg_node, vy_ast.Str):
             if not msg_node.value.strip():
                 raise StructureException("Reason string cannot be empty", msg_node)
