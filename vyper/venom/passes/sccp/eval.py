@@ -22,13 +22,20 @@ def _signed_to_unsigned(value: int) -> int:
     assert isinstance(value, int)
     return signed_to_unsigned(value, 256)
 
+def _ensure_number(value) -> int:
+    if value is True:
+        return 1
+    elif value is False:
+        return 0
+    return value
+
 
 def _wrap_signed_binop(operation):
     def wrapper(ops: list[IRLiteral]) -> int:
         assert len(ops) == 2
         first = _unsigned_to_signed(ops[1].value)
         second = _unsigned_to_signed(ops[0].value)
-        return _signed_to_unsigned(operation(first, second))
+        return _signed_to_unsigned(_ensure_number(operation(first, second)))
 
     return wrapper
 
@@ -38,7 +45,7 @@ def _wrap_binop(operation):
         assert len(ops) == 2
         first = _signed_to_unsigned(ops[1].value)
         second = _signed_to_unsigned(ops[0].value)
-        ret = operation(first, second)
+        ret = _ensure_number(operation(first, second))
         # TODO: use wrap256 here
         return ret & SizeLimits.MAX_UINT256
 
