@@ -81,8 +81,8 @@ class SingleUseExpansion(IRPass):
             terminator = source.instructions[-1]
             new_var = self.updater.add_before(terminator, "assign", [var])
             assert new_var is not None
-            
+
             ops = inst.operands.copy()
-            ops[2*idx + 1] = new_var
+            ops[2 * idx + 1] = new_var
 
             self.updater.update(inst, "phi", ops)
