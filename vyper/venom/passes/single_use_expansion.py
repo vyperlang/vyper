@@ -76,7 +76,6 @@ class SingleUseExpansion(IRPass):
             uses = [use for use in uses if use.opcode != "assign"]
             if len(uses) == 1:
                 continue
-            assert False
 
             source = self.function.get_basic_block(label.name)
             terminator = source.instructions[-1]
