@@ -72,6 +72,9 @@ class SingleUseExpansion(IRPass):
         for idx, (label, var) in enumerate(inst.phi_operands):
             assert isinstance(var, IRVariable)
 
+            # problematic case is only when two phis
+            # are getting same variable at the start of the
+            # same basic block otherwise this is not needed
             uses = self.dfg.get_uses_in_bb(var, inst.parent)
             uses = [use for use in uses if use.opcode != "assign"]
             if len(uses) == 1:
@@ -82,6 +85,9 @@ class SingleUseExpansion(IRPass):
             new_var = self.updater.add_before(terminator, "assign", [var])
             assert new_var is not None
 
+            # only update the current var and not 
+            # more in the case that the variable is used
+            # in more edges
             ops = inst.operands.copy()
             ops[2 * idx + 1] = new_var
 
