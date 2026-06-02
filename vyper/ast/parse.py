@@ -76,7 +76,7 @@ def _parse_to_ast(
     pre_parser = PreParser(is_interface)
     pre_parser.parse(vyper_source)
 
-    errors: list[SyntaxException] = []
+    errors = ExceptionList()
     code = pre_parser.reformatted_code
 
     while True:
@@ -84,6 +84,16 @@ def _parse_to_ast(
             py_ast = python_ast.parse(code)
             break
         except SyntaxError as e:
+            if errors and (
+                e.msg.startswith("expected an indented block")
+                or e.msg
+                in (
+                    "unexpected indent",
+                    "unindent does not match any outer indentation level",
+                )
+            ):
+                errors.raise_if_not_empty()
+
             offset = e.offset
             if offset is not None:
                 # SyntaxError offset is 1-based, not 0-based (see:
@@ -95,6 +105,7 @@ def _parse_to_ast(
                     offset += pre_parser.adjustments.get((e.lineno, offset), 0)
 
             new_e = SyntaxException(str(e), vyper_source, e.lineno, offset)
+            new_e.resolved_path = resolved_path
 
             likely_errors = ("staticall", "staticcal")
             tmp = str(new_e)
@@ -103,12 +114,16 @@ def _parse_to_ast(
                     new_e._hint = "did you mean `staticcall`?"
                     break
 
-            errors.append(new_e)
+            errors.insert(0, new_e)
 
             # Blank the error line in the reformatted code to recover
             lines = code.split("\n")
             if e.lineno is not None and 1 <= e.lineno <= len(lines):
+                if lines[e.lineno - 1] == "":
+                    errors.raise_if_not_empty()
                 lines[e.lineno - 1] = ""
+            else:
+                errors.raise_if_not_empty()
             code = "\n".join(lines)
 
     # If we collected syntax errors during parsing, raise them before
@@ -116,9 +131,7 @@ def _parse_to_ast(
     # pre-parser metadata (e.g. for_loop_annotations) that would cause
     # an internal AssertionError instead of the intended diagnostics.
     if errors:
-        err_list = ExceptionList()
-        err_list.extend(errors)
-        err_list.raise_if_not_empty()
+        errors.raise_if_not_empty()
 
     annotate_python_ast(
         py_ast,
