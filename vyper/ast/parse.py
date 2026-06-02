@@ -87,10 +87,7 @@ def _parse_to_ast(
             if errors and (
                 e.msg.startswith("expected an indented block")
                 or e.msg
-                in (
-                    "unexpected indent",
-                    "unindent does not match any outer indentation level",
-                )
+                in ("unexpected indent", "unindent does not match any outer indentation level")
             ):
                 errors.raise_if_not_empty()
 

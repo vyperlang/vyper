@@ -62,12 +62,7 @@ if True
 
 def test_multi_syntax_errors_include_resolved_path():
     path = Path("/tmp/multi_error_path_check.vy")
-    file_input = FileInput(
-        source_id=1,
-        path=path,
-        resolved_path=path,
-        contents=MULTI_ERROR_CODE,
-    )
+    file_input = FileInput(source_id=1, path=path, resolved_path=path, contents=MULTI_ERROR_CODE)
 
     with pytest.raises(VyperException) as exc_info:
         compiler.compile_from_file_input(file_input)
