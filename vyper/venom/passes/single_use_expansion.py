@@ -85,7 +85,7 @@ class SingleUseExpansion(IRPass):
             new_var = self.updater.add_before(terminator, "assign", [var])
             assert new_var is not None
 
-            # only update the current var and not 
+            # only update the current var and not
             # more in the case that the variable is used
             # in more edges
             ops = inst.operands.copy()
