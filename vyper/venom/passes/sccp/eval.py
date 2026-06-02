@@ -22,6 +22,7 @@ def _signed_to_unsigned(value: int) -> int:
     assert isinstance(value, int)
     return signed_to_unsigned(value, 256)
 
+
 def _ensure_number(value) -> int:
     if value is True:
         return 1
