@@ -1865,3 +1865,26 @@ def __init__():
         e.value.message
         == "tried to initialize `other`, but its __init__() function was already called!"
     )
+
+
+def test_init_followed_by_for_loop(make_input_bundle):
+    other = """
+counter: uint256
+
+@deploy
+def __init__():
+    pass
+    """
+    main = """
+import other
+
+initializes: other
+
+@deploy
+def __init__():
+    other.__init__()
+    for i: uint256 in range(10):
+        pass
+    """
+    input_bundle = make_input_bundle({"other.vy": other})
+    assert compile_code(main, input_bundle=input_bundle) is not None

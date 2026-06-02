@@ -119,6 +119,11 @@ class ModuleInfo(AnalysisResult):
     def __hash__(self):
         return hash(id(self.module_t))
 
+    def __eq__(self, other):
+        if not isinstance(other, ModuleInfo):
+            return NotImplemented
+        return self.module_t is other.module_t
+
 
 @dataclass
 class ImportInfo(AnalysisResult):
