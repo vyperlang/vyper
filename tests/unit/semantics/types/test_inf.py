@@ -103,15 +103,15 @@ def test_dynarray_wildcard_from_annotation(build_node):
 def test_wildcard_rejected_outside_interface(build_node):
     with pytest.raises(InvalidType) as e:
         type_from_annotation(build_node("Bytes[...]"))
-    assert e.value.message == "Wildcard length is only allowed in interfaces"
+    assert e.value.message == "Wildcard length is only allowed in interfaces and events"
 
     with pytest.raises(InvalidType) as e:
         type_from_annotation(build_node("String[...]"))
-    assert e.value.message == "Wildcard length is only allowed in interfaces"
+    assert e.value.message == "Wildcard length is only allowed in interfaces and events"
 
     with pytest.raises(InvalidType) as e:
         type_from_annotation(build_node("DynArray[uint256, ...]"))
-    assert e.value.message == "Wildcard length is only allowed in interfaces"
+    assert e.value.message == "Wildcard length is only allowed in interfaces and events"
 
 
 @pytest.mark.parametrize(
@@ -120,7 +120,7 @@ def test_wildcard_rejected_outside_interface(build_node):
         (
             """
 event Foo:
-    x: Bytes[INF]
+    x: Bytes[...]
 
 @external
 def go():
@@ -131,7 +131,7 @@ def go():
         (
             """
 event Foo:
-    x: String[INF]
+    x: String[...]
 
 @external
 def go():
@@ -142,7 +142,7 @@ def go():
         pytest.param(
             """
 event Foo:
-    x: DynArray[uint256, INF]
+    x: DynArray[uint256, ...]
 
 @external
 def go():
@@ -165,7 +165,7 @@ def test_event_wildcard_emits(get_contract, get_logs, source, expected):
     [
         """
 event Foo:
-    x: indexed(Bytes[INF])
+    x: indexed(Bytes[...])
 
 @external
 def go():
@@ -173,7 +173,7 @@ def go():
 """,
         """
 event Foo:
-    x: indexed(String[INF])
+    x: indexed(String[...])
 
 @external
 def go():
@@ -193,9 +193,9 @@ def test_event_wildcard_abi_signature():
     out = compiler.compile_code(
         """
 event Foo:
-    x: Bytes[INF]
-    y: String[INF]
-    z: DynArray[uint256, INF]
+    x: Bytes[...]
+    y: String[...]
+    z: DynArray[uint256, ...]
 """,
         output_formats=["abi"],
     )
@@ -374,35 +374,35 @@ x: Bytes[...]
     """,
         InvalidType,
     ),
-    # Ellipsis rejected as event field (Bytes)
+    # INF rejected as event field (Bytes)
     (
         """
 event Foo:
-    x: Bytes[...]
+    x: Bytes[INF]
     """,
         InvalidType,
     ),
-    # Ellipsis rejected as event field (String)
+    # INF rejected as event field (String)
     (
         """
 event Foo:
-    x: String[...]
+    x: String[INF]
     """,
         InvalidType,
     ),
-    # Ellipsis rejected as event field (DynArray)
+    # INF rejected as event field (DynArray)
     (
         """
 event Foo:
-    x: DynArray[uint256, ...]
+    x: DynArray[uint256, INF]
     """,
         InvalidType,
     ),
-    # Ellipsis rejected even when indexed-wrapped
+    # INF rejected even when indexed-wrapped
     (
         """
 event Foo:
-    x: indexed(Bytes[...])
+    x: indexed(Bytes[INF])
     """,
         InvalidType,
     ),

@@ -200,14 +200,19 @@ def get_index_value(node: vy_ast.VyperNode) -> LengthUpperBound:
     if isinstance(node, vy_ast.Ellipsis):
         # module_node gives the module for the file, we need to check for inline interfaces as well
         in_interface = node.module_node.is_interface or node.get_ancestor(vy_ast.InterfaceDef)
-        if not in_interface:
-            raise InvalidType("Wildcard length is only allowed in interfaces", node)
+        in_event = node.get_ancestor(vy_ast.EventDef) is not None
+        if not (in_interface or in_event):
+            raise InvalidType("Wildcard length is only allowed in interfaces and events", node)
         return WILDCARD
 
     node = node.reduced()
 
     # TODO: Maybe instead check that get_possible_types_from_node(node) is _Inf ?
     if isinstance(node, vy_ast.Name) and node.id == "INF":
+        in_interface = node.module_node.is_interface or node.get_ancestor(vy_ast.InterfaceDef)
+        in_event = node.get_ancestor(vy_ast.EventDef) is not None
+        if in_event and not in_interface:
+            raise InvalidType("INF length is not allowed in events; use `...` instead", node)
         return INF
 
     if not isinstance(node, vy_ast.Int):
