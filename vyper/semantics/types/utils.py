@@ -209,9 +209,8 @@ def get_index_value(node: vy_ast.VyperNode) -> LengthUpperBound:
 
     # TODO: Maybe instead check that get_possible_types_from_node(node) is _Inf ?
     if isinstance(node, vy_ast.Name) and node.id == "INF":
-        in_interface = node.module_node.is_interface or node.get_ancestor(vy_ast.InterfaceDef)
         in_event = node.get_ancestor(vy_ast.EventDef) is not None
-        if in_event and not in_interface:
+        if in_event:
             raise InvalidType("INF length is not allowed in events; use `...` instead", node)
         return INF
 
