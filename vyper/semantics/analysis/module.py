@@ -229,6 +229,7 @@ def is_initialized(
             other_module_info = extract_init_call(node.value)
 
             if other_module_info is None:
+                # Not an init call, nothing to do
                 continue
 
             if other_module_info not in initializing_nodes:
@@ -260,6 +261,9 @@ def is_initialized(
                     msg += "present only in a single branch of an if"
                     raise InitializerException(msg, node)
                 else:
+                    # If the context and the branches had init calls, 
+                    # then we would already have errored: "__init__() function was already called!"
+                    assert initializing_nodes[module_info] == [] or (then_nodes[module_info] == [] and else_nodes[module_info] == [])
                     initializing_nodes[module_info] += then_nodes[module_info] + else_nodes[module_info]
 
         elif isinstance(node, vy_ast.For):
