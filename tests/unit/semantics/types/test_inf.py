@@ -114,6 +114,95 @@ def test_wildcard_rejected_outside_interface(build_node):
     assert e.value.message == "Wildcard length is only allowed in interfaces"
 
 
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        (
+            """
+event Foo:
+    x: Bytes[INF]
+
+@external
+def go():
+    log Foo(x=b"abc")
+""",
+            b"abc",
+        ),
+        (
+            """
+event Foo:
+    x: String[INF]
+
+@external
+def go():
+    log Foo(x="abc")
+""",
+            "abc",
+        ),
+        pytest.param(
+            """
+event Foo:
+    x: DynArray[uint256, INF]
+
+@external
+def go():
+    log Foo(x=[1, 2, 3])
+""",
+            [1, 2, 3],
+            marks=pytest.mark.xfail(raises=CodegenPanic, strict=True),
+        ),
+    ],
+)
+def test_event_wildcard_emits(get_contract, get_logs, source, expected):
+    c = get_contract(source)
+    c.go()
+    (log,) = get_logs(c, "Foo")
+    assert log.args.x == expected
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        """
+event Foo:
+    x: indexed(Bytes[INF])
+
+@external
+def go():
+    log Foo(x=b"abc")
+""",
+        """
+event Foo:
+    x: indexed(String[INF])
+
+@external
+def go():
+    log Foo(x="abc")
+""",
+    ],
+)
+def test_event_wildcard_indexed_emits(get_contract, get_logs, keccak, source):
+    c = get_contract(source)
+    c.go()
+    (log,) = get_logs(c, "Foo")
+    assert log.topics[1] == keccak(b"abc")
+
+
+def test_event_wildcard_abi_signature():
+    # wildcard event fields collapse to the canonical unbounded ABI type
+    out = compiler.compile_code(
+        """
+event Foo:
+    x: Bytes[INF]
+    y: String[INF]
+    z: DynArray[uint256, INF]
+""",
+        output_formats=["abi"],
+    )
+    foo_abi = next(item for item in out["abi"] if item.get("name") == "Foo")
+    assert [i["type"] for i in foo_abi["inputs"]] == ["bytes", "string", "uint256[]"]
+
+
 def test_wildcard_subtyping():
     # Wildcard matches anything bidirectionally
     assert BytesT(WILDCARD).compare_type(BytesT(10))
@@ -282,6 +371,38 @@ def foo() -> Bytes[...]:
     (
         """
 x: Bytes[...]
+    """,
+        InvalidType,
+    ),
+    # Ellipsis rejected as event field (Bytes)
+    (
+        """
+event Foo:
+    x: Bytes[...]
+    """,
+        InvalidType,
+    ),
+    # Ellipsis rejected as event field (String)
+    (
+        """
+event Foo:
+    x: String[...]
+    """,
+        InvalidType,
+    ),
+    # Ellipsis rejected as event field (DynArray)
+    (
+        """
+event Foo:
+    x: DynArray[uint256, ...]
+    """,
+        InvalidType,
+    ),
+    # Ellipsis rejected even when indexed-wrapped
+    (
+        """
+event Foo:
+    x: indexed(Bytes[...])
     """,
         InvalidType,
     ),
