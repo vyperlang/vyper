@@ -115,7 +115,7 @@ def test_wildcard_rejected_outside_interface(build_node):
 
 
 @pytest.mark.parametrize(
-    "source,expected",
+    "source,expected,panics_in_legacy",
     [
         (
             """
@@ -127,6 +127,7 @@ def go():
     log Foo(x=b"abc")
 """,
             b"abc",
+            False,
         ),
         (
             """
@@ -138,8 +139,9 @@ def go():
     log Foo(x="abc")
 """,
             "abc",
+            False,
         ),
-        pytest.param(
+        (
             """
 event Foo:
     x: DynArray[uint256, ...]
@@ -149,11 +151,15 @@ def go():
     log Foo(x=[1, 2, 3])
 """,
             [1, 2, 3],
-            marks=pytest.mark.xfail(raises=CodegenPanic, strict=True),
+            True,
         ),
     ],
 )
-def test_event_wildcard_emits(get_contract, get_logs, source, expected):
+def test_event_wildcard_emits(
+    get_contract, get_logs, source, expected, panics_in_legacy, experimental_codegen, request
+):
+    if experimental_codegen or panics_in_legacy:
+        request.node.add_marker(pytest.mark.xfail(raises=CodegenPanic, strict=True))
     c = get_contract(source)
     c.go()
     (log,) = get_logs(c, "Foo")
