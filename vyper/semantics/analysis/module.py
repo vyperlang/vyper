@@ -184,8 +184,7 @@ def _validate_used_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None
 # TODO: use module dependencies to check __init__ are called in the dependency order
 # TODO: add handling of one side of an if-then-else reverting
 def is_initialized(
-    block: list[vy_ast.VyperNode],
-    initializing_nodes: dict[ModuleInfo, list[vy_ast.VyperNode]],
+    block: list[vy_ast.VyperNode], initializing_nodes: dict[ModuleInfo, list[vy_ast.VyperNode]]
 ) -> dict[ModuleInfo, list[vy_ast.VyperNode]]:
     """
     TODO: Outdated
@@ -223,9 +222,7 @@ def is_initialized(
 
         # TODO: This assumes a specific AST shape for init calls,
         # but it seems to be correct in practice
-        if (
-            isinstance(node, vy_ast.Expr) and isinstance(node.value, vy_ast.Call)
-        ):
+        if isinstance(node, vy_ast.Expr) and isinstance(node.value, vy_ast.Call):
             other_module_info = extract_init_call(node.value)
 
             if other_module_info is None:
@@ -261,10 +258,14 @@ def is_initialized(
                     msg += "present only in a single branch of an if"
                     raise InitializerException(msg, node)
                 else:
-                    # If the context and the branches had init calls, 
+                    # If the context and the branches had init calls,
                     # then we would already have errored: "__init__() function was already called!"
-                    assert initializing_nodes[module_info] == [] or (then_nodes[module_info] == [] and else_nodes[module_info] == [])
-                    initializing_nodes[module_info] += then_nodes[module_info] + else_nodes[module_info]
+                    assert initializing_nodes[module_info] == [] or (
+                        then_nodes[module_info] == [] and else_nodes[module_info] == []
+                    )
+                    initializing_nodes[module_info] += (
+                        then_nodes[module_info] + else_nodes[module_info]
+                    )
 
         elif isinstance(node, vy_ast.For):
             # TODO: This forbids any calls to __init__() in a for loop, implement it more directly
@@ -283,7 +284,8 @@ def _validate_initialized_modules(module_ast: vy_ast.Module, module_t: ModuleT) 
     # only call `__init__()` for modules which have an
     # `__init__()` function
     initializing_nodes: dict[ModuleInfo, list[vy_ast.VyperNode]] = {
-        t.module_info: [] for t in module_t.initialized_modules
+        t.module_info: []
+        for t in module_t.initialized_modules
         if t.module_info.module_t.init_function is not None
     }
 
@@ -305,7 +307,9 @@ def _validate_initialized_modules(module_ast: vy_ast.Module, module_t: ModuleT) 
             init_func_node = None
             if constructor is not None:
                 init_func_node = constructor.decl_node
-            err_list.append(InitializerException(msg, init_func_node, module_info.ownership_decl, hint=hint))
+            err_list.append(
+                InitializerException(msg, init_func_node, module_info.ownership_decl, hint=hint)
+            )
 
     err_list.raise_if_not_empty()
 
