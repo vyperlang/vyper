@@ -243,6 +243,22 @@ def is_initialized(
                 msg += "but its __init__() function was already called!"
                 raise InitializerException(msg, node.value.func, init_calls)
 
+            uninitialized_dependents: list[str] = []
+            """
+            Modules which the other module initializes, but whose init are not called beforehand
+            """
+
+            for dependent in other_module_info.module_t.used_modules:
+                dependent_init_calls = initializing_nodes.get(dependent)
+                if dependent_init_calls is not None and len(dependent_init_calls) == 0:
+                    uninitialized_dependents.append(dependent.alias)
+
+            if len(uninitialized_dependents) != 0:
+                msg = f"tried to initialize `{other_module_info.alias}`, "
+                msg += "but it depends on modules whose __init__() functions were not called: "
+                msg += ", ".join(uninitialized_dependents)
+                raise InitializerException(msg, node.value.func, init_calls)
+
             init_calls += [node.value]
 
         elif isinstance(node, vy_ast.If):

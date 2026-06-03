@@ -200,10 +200,10 @@ initializes: lib1
 
 @deploy
 def __init__():
-    lib2.__init__()
     # demonstrate we can call lib1.__init__ through lib2.lib1
     # (not sure this should be allowed, really.
     lib2.lib1.__init__()
+    lib2.__init__()
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
 
@@ -1887,4 +1887,296 @@ def __init__():
         pass
     """
     input_bundle = make_input_bundle({"other.vy": other})
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+# --- Dependency-ordering checks (`is_initialized` enforces that
+# a module's `uses:` dependencies are initialized before it) ---
+
+
+# Shared module sources for the dependency-ordering tests below.
+# Each `uses:` declaration must be backed by real state access (otherwise
+# BorrowException fires before `is_initialized` ever runs).
+_LIB1 = """
+counter: uint256
+
+@deploy
+def __init__():
+    pass
+"""
+
+_LIB2_USES_LIB1 = """
+import lib1
+
+uses: lib1
+
+counter: uint256
+
+@deploy
+def __init__():
+    pass
+
+@internal
+def touch():
+    lib1.counter += 1
+"""
+
+_LIB1_NO_INIT = """
+counter: uint256
+"""
+
+_LIB2_NO_DEPS = """
+counter: uint256
+
+@deploy
+def __init__():
+    pass
+"""
+
+_LIB3_USES_BOTH = """
+import lib1
+import lib2
+
+uses: (lib1, lib2)
+
+@deploy
+def __init__():
+    pass
+
+@internal
+def touch():
+    lib1.counter += 1
+    lib2.counter += 1
+"""
+
+
+def test_init_before_dependency(make_input_bundle):
+    main = """
+import lib1
+import lib2
+
+initializes: lib2[lib1 := lib1]
+initializes: lib1
+
+@deploy
+def __init__():
+    lib2.__init__()
+    lib1.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1, "lib2.vy": _LIB2_USES_LIB1})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    msg = (
+        "tried to initialize `lib2`, but it depends on modules whose "
+        "__init__() functions were not called: lib1"
+    )
+    assert e.value._message == msg
+
+
+def test_init_before_multiple_dependencies(make_input_bundle):
+    main = """
+import lib1
+import lib2
+import lib3
+
+initializes: lib1
+initializes: lib2
+initializes: lib3[lib1 := lib1, lib2 := lib2]
+
+@deploy
+def __init__():
+    lib3.__init__()
+    lib1.__init__()
+    lib2.__init__()
+    """
+    input_bundle = make_input_bundle(
+        {"lib1.vy": _LIB1, "lib2.vy": _LIB2_NO_DEPS, "lib3.vy": _LIB3_USES_BOTH}
+    )
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    msg = (
+        "tried to initialize `lib3`, but it depends on modules whose "
+        "__init__() functions were not called: lib1, lib2"
+    )
+    assert e.value._message == msg
+
+
+def test_init_before_some_dependencies(make_input_bundle):
+    main = """
+import lib1
+import lib2
+import lib3
+
+initializes: lib1
+initializes: lib2
+initializes: lib3[lib1 := lib1, lib2 := lib2]
+
+@deploy
+def __init__():
+    lib1.__init__()
+    lib3.__init__()
+    lib2.__init__()
+    """
+    input_bundle = make_input_bundle(
+        {"lib1.vy": _LIB1, "lib2.vy": _LIB2_NO_DEPS, "lib3.vy": _LIB3_USES_BOTH}
+    )
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    msg = (
+        "tried to initialize `lib3`, but it depends on modules whose "
+        "__init__() functions were not called: lib2"
+    )
+    assert e.value._message == msg
+
+
+def test_dep_init_in_only_one_if_branch_then_parent(make_input_bundle):
+    # The existing "not guaranteed to be reachable" check fires before
+    # the new ordering check is reached: lib1 is only initialized in
+    # one branch of the `if`, which is detected when the branches merge.
+    main = """
+import lib1
+import lib2
+
+initializes: lib2[lib1 := lib1]
+initializes: lib1
+
+@deploy
+def __init__(use: bool):
+    if use:
+        lib1.__init__()
+    lib2.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1, "lib2.vy": _LIB2_USES_LIB1})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert "not guaranteed to be reachable" in e.value._message
+
+
+def test_init_attribute_path_before_parent(make_input_bundle):
+    # `lib2.lib1.__init__()` reaches lib1 through lib2's namespace; the
+    # ordering rule must still treat it as a lib1 init and reject the
+    # reverse order.
+    main = """
+import lib1
+import lib2
+
+initializes: lib2[lib1 := lib1]
+initializes: lib1
+
+@deploy
+def __init__():
+    lib2.__init__()
+    lib2.lib1.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1, "lib2.vy": _LIB2_USES_LIB1})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    msg = (
+        "tried to initialize `lib2`, but it depends on modules whose "
+        "__init__() functions were not called: lib1"
+    )
+    assert e.value._message == msg
+
+
+def test_init_after_dependency(make_input_bundle):
+    main = """
+import lib1
+import lib2
+
+initializes: lib2[lib1 := lib1]
+initializes: lib1
+
+@deploy
+def __init__():
+    lib1.__init__()
+    lib2.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1, "lib2.vy": _LIB2_USES_LIB1})
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_init_after_dependency_in_both_branches(make_input_bundle):
+    main = """
+import lib1
+import lib2
+
+initializes: lib2[lib1 := lib1]
+initializes: lib1
+
+@deploy
+def __init__(use: bool):
+    if use:
+        lib1.__init__()
+        lib2.__init__()
+    else:
+        lib1.__init__()
+        lib2.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1, "lib2.vy": _LIB2_USES_LIB1})
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_init_chain_of_dependencies(make_input_bundle):
+    main = """
+import lib1
+import lib2
+import lib3
+
+initializes: lib1
+initializes: lib2[lib1 := lib1]
+initializes: lib3[lib1 := lib1, lib2 := lib2]
+
+@deploy
+def __init__():
+    lib1.__init__()
+    lib2.__init__()
+    lib3.__init__()
+    """
+    input_bundle = make_input_bundle(
+        {"lib1.vy": _LIB1, "lib2.vy": _LIB2_USES_LIB1, "lib3.vy": _LIB3_USES_BOTH}
+    )
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_init_with_dependency_without_init_function(make_input_bundle):
+    # lib1 has no __init__(); it is filtered out of `initializing_nodes`.
+    # The dependency loop in `is_initialized` must skip it (otherwise the
+    # dict lookup would KeyError when processing `lib2.__init__()`).
+    main = """
+import lib1
+import lib2
+
+initializes: lib2[lib1 := lib1]
+initializes: lib1
+
+@deploy
+def __init__():
+    lib2.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1_NO_INIT, "lib2.vy": _LIB2_USES_LIB1})
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_init_transitive_dependency_unchecked(make_input_bundle):
+    # The dependency-ordering check is one level deep: when initializing
+    # lib3 (direct deps: lib1, lib2), only those direct deps' init must
+    # have run. Correct order compiles cleanly.
+    main = """
+import lib1
+import lib2
+import lib3
+
+initializes: lib1
+initializes: lib2[lib1 := lib1]
+initializes: lib3[lib1 := lib1, lib2 := lib2]
+
+@deploy
+def __init__():
+    lib1.__init__()
+    lib2.__init__()
+    lib3.__init__()
+    """
+    input_bundle = make_input_bundle(
+        {"lib1.vy": _LIB1, "lib2.vy": _LIB2_USES_LIB1, "lib3.vy": _LIB3_USES_BOTH}
+    )
     assert compile_code(main, input_bundle=input_bundle) is not None

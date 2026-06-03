@@ -500,7 +500,7 @@ class ModuleT(VyperType):
         return self._module.get_children(vy_ast.ExportsDecl)
 
     @cached_property
-    def used_modules(self):
+    def used_modules(self) -> list["ModuleInfo"]:
         # modules which are written to
         ret = []
         for node in self.uses_decls:
