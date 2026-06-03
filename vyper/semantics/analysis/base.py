@@ -150,6 +150,8 @@ class ImportInfo(AnalysisResult):
         return ret
 
 
+# TODO: Remove, the dependencies field is never used,
+#       and the node field is redundant with ModuleInfo.ownership_decl
 # analysis result of InitializesDecl
 @dataclass
 class InitializesInfo(AnalysisResult):
@@ -158,6 +160,7 @@ class InitializesInfo(AnalysisResult):
     node: Optional[vy_ast.VyperNode] = None
 
 
+# TODO: Remove, the node field is redundant with ModuleInfo.ownership_decl
 # analysis result of UsesDecl
 @dataclass
 class UsesInfo(AnalysisResult):
