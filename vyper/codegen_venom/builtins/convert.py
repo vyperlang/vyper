@@ -186,11 +186,13 @@ def _to_int(
         # num_zero_bits = (32 - len) * 8
 
         assert isinstance(in_t.maxlen, int)
-        runtime_compile_diff = b.sub(in_t.maxlen, length)
+        maxlen = max(in_t.maxlen, out_t.bits // 8)
+
+        runtime_compile_diff = b.sub(maxlen, length)
 
         val = b.shr(b.mul(runtime_compile_diff, 8), data)
 
-        num_zero_bits = b.mul(b.sub(IRLiteral(32), in_t.maxlen), IRLiteral(8))
+        num_zero_bits = b.mul(b.sub(IRLiteral(32), maxlen), IRLiteral(8))
         if out_t.is_signed:
             val = b.sar(num_zero_bits, val)
         else:
