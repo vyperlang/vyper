@@ -283,7 +283,7 @@ Vyper has four built-ins for contract creation; the first three contract creatio
 
     .. warning::
 
-        The ``gas`` parameter defaults to ``0``. When transferring a **non-zero amount of ETH**, the EVM automatically grants the callee a 2300-gas stipend (``GAS_STIPEND``). However, no stipend is added when ``value == 0``.
+        The ``gas`` parameter defaults to ``0``. When transferring a **non-zero amount of ETH**, the EVM `automatically <https://github.com/ethereum/execution-specs/blob/6137bb32f9b8eda6194096992cb97b28be06957d/src/ethereum/forks/amsterdam/vm/gas.py#L371>`_ grants the callee a 2300-gas stipend (``GAS_STIPEND``). However, no stipend is added when ``value == 0``.
 
         As a result, ``send(to, 0)`` forwards no gas and will only succeed if the recipient requires no execution gas (for example, an account with no code).
 
