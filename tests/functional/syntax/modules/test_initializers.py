@@ -2180,3 +2180,121 @@ def __init__():
         {"lib1.vy": _LIB1, "lib2.vy": _LIB2_USES_LIB1, "lib3.vy": _LIB3_USES_BOTH}
     )
     assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+@pytest.mark.xfail(raises=AssertionError)
+def test_init_then_if_else_no_inner_init(make_input_bundle):
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__():
+    lib1.__init__()
+    if True:
+        x: uint256 = 1
+    else:
+        x: uint256 = 2
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1})
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+@pytest.mark.xfail(raises=AssertionError)
+def test_init_then_if_no_else(make_input_bundle):
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__():
+    lib1.__init__()
+    if True:
+        x: uint256 = 1
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1})
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_init_inside_for_loop(make_input_bundle):
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__():
+    for i: uint256 in range(10):
+        lib1.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert "not guaranteed to be reachable" in e.value._message
+    assert "present in for loop" in e.value._message
+
+
+def test_duplicate_init_in_single_branch(make_input_bundle):
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__():
+    if True:
+        lib1.__init__()
+        lib1.__init__()
+    else:
+        lib1.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert (
+        e.value._message
+        == "tried to initialize `lib1`, but its __init__() function was already called!"
+    )
+
+
+def test_init_only_in_if_no_else(make_input_bundle):
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__():
+    if True:
+        lib1.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert "not guaranteed to be reachable" in e.value._message
+    assert "present only in a single branch of an if" in e.value._message
+
+
+def test_nested_if_asymmetric(make_input_bundle):
+    # Outer if/else is balanced (both branches reach init), but the inner if
+    # only initializes in one branch — the inner asymmetry must be detected.
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__():
+    if True:
+        if True:
+            lib1.__init__()
+    else:
+        lib1.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert "not guaranteed to be reachable" in e.value._message
+    assert "present only in a single branch of an if" in e.value._message
