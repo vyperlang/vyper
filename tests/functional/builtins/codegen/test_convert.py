@@ -434,7 +434,7 @@ def foo() -> int16:
     """
 
     c = get_contract(code)
-    assert c.foo() == -1
+    assert c.foo() == 255
 
     code = r"""
 @external
@@ -465,7 +465,7 @@ def foo(x: Bytes[1]) -> int16:
     """
 
     c = get_contract(code)
-    assert c.foo(b"\xff") == -1
+    assert c.foo(b"\xff") == 255
 
     code = """
 @external
