@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from itertools import zip_longest
 from typing import Optional
 
@@ -184,7 +185,7 @@ def _validate_used_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None
 # TODO: use module dependencies to check __init__ are called in the dependency order
 # TODO: add handling of one side of an if-then-else reverting
 def is_initialized(
-    block: list[vy_ast.VyperNode], initializing_nodes: dict[ModuleInfo, list[vy_ast.VyperNode]]
+    block: list[vy_ast.VyperNode], init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]]
 ) -> dict[ModuleInfo, list[vy_ast.VyperNode]]:
     """
     TODO: Outdated
@@ -196,7 +197,10 @@ def is_initialized(
             above this one. Contains multiple in case of branching.
     """
 
-    initializing_nodes = {k: v.copy() for k, v in initializing_nodes.items()}
+    init_calls = {k: v.copy() for k, v in init_calls.items()}
+
+    local_init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]] = defaultdict(list)
+    """Subset of init_calls that happen in this block"""
 
     def extract_init_call(node: vy_ast.Call) -> ModuleInfo | None:
 
@@ -229,19 +233,19 @@ def is_initialized(
                 # Not an init call, nothing to do
                 continue
 
-            if other_module_info not in initializing_nodes:
+            if other_module_info not in init_calls:
                 msg = f"tried to initialize `{other_module_info.alias}`, "
                 msg += "but it is not in initializer list!"
                 hint = f"add `initializes: {other_module_info.alias}` "
                 hint += "as a top-level statement to your contract"
                 raise InitializerException(msg, node.value.func, hint=hint)
 
-            init_calls = initializing_nodes[other_module_info]
+            init_calls_m = init_calls[other_module_info]
 
-            if len(init_calls) != 0:
+            if len(init_calls_m) != 0:
                 msg = f"tried to initialize `{other_module_info.alias}`, "
                 msg += "but its __init__() function was already called!"
-                raise InitializerException(msg, node.value.func, init_calls)
+                raise InitializerException(msg, node.value.func, init_calls_m)
 
             uninitialized_dependents: list[str] = []
             """
@@ -249,7 +253,8 @@ def is_initialized(
             """
 
             for dependent in other_module_info.module_t.used_modules:
-                dependent_init_calls = initializing_nodes.get(dependent)
+                # Will be none in the case where the dependent module does not have an init method
+                dependent_init_calls = init_calls.get(dependent)
                 if dependent_init_calls is not None and len(dependent_init_calls) == 0:
                     uninitialized_dependents.append(dependent.alias)
 
@@ -259,16 +264,14 @@ def is_initialized(
                 msg += ", ".join(uninitialized_dependents)
                 raise InitializerException(msg, node.value.func, init_calls)
 
-            init_calls += [node.value]
+            init_calls_m.append(node.value)
+            local_init_calls[other_module_info].append(node.value)
 
         elif isinstance(node, vy_ast.If):
-            then_nodes = is_initialized(node.body, initializing_nodes)
-            else_nodes = (
-                is_initialized(node.orelse, initializing_nodes)
-                if node.orelse is not None
-                else {k: [] for k in initializing_nodes}
-            )
-            for module_info in initializing_nodes:
+            then_nodes = is_initialized(node.body, init_calls)
+            else_nodes = is_initialized(node.orelse, init_calls) if node.orelse is not None else {}
+            # TODO: UX: instead of raising on the first, batch them all together
+            for module_info in init_calls:
                 if bool(then_nodes[module_info]) != bool(else_nodes[module_info]):
                     msg = f"`{module_info.alias}`.__init__() is not guaranteed to be reachable: "
                     msg += "present only in a single branch of an if"
@@ -276,23 +279,25 @@ def is_initialized(
                 else:
                     # If the context and the branches had init calls,
                     # then we would already have errored: "__init__() function was already called!"
-                    assert initializing_nodes[module_info] == [] or (
+                    assert init_calls[module_info] == [] or (
                         then_nodes[module_info] == [] and else_nodes[module_info] == []
                     )
-                    initializing_nodes[module_info] += (
-                        then_nodes[module_info] + else_nodes[module_info]
-                    )
+
+                    both_branches = then_nodes[module_info] + else_nodes[module_info]
+
+                    init_calls[module_info] += both_branches
+                    local_init_calls[module_info] += both_branches
 
         elif isinstance(node, vy_ast.For):
-            # TODO: This forbids any calls to __init__() in a for loop, implement it more directly
-            loop_nodes = is_initialized(node.body, initializing_nodes)
-            for module_info in initializing_nodes:
-                if bool(initializing_nodes[module_info]) != bool(loop_nodes[module_info]):
+            loop_nodes = is_initialized(node.body, init_calls)
+            for module_info in init_calls:
+                if len(loop_nodes[module_info]) != 0:
                     msg = f"`{module_info.alias}`.__init__() is not guaranteed to be reachable: "
                     msg += "present in for loop"
                     raise InitializerException(msg, node)
 
-    return initializing_nodes
+    # Only return the local init calls, this simplifies the branching logic
+    return local_init_calls
 
 
 def _validate_initialized_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
@@ -309,11 +314,14 @@ def _validate_initialized_modules(module_ast: vy_ast.Module, module_t: ModuleT) 
 
     if constructor is not None:
         assert isinstance(constructor.ast_def, vy_ast.FunctionDef)  # help mypy
-        initializing_nodes = is_initialized(constructor.ast_def.body, initializing_nodes)
+        init_calls = is_initialized(constructor.ast_def.body, initializing_nodes)
+    else:
+        init_calls = {}
 
     err_list = ExceptionList()
-    for module_info, init_calls in initializing_nodes.items():
-        if len(init_calls) == 0:
+    for module_info in initializing_nodes:
+        init_calls_m = init_calls.get(module_info, [])
+        if len(init_calls_m) == 0:
             msg = "not initialized!"
             hint = f"add `{module_info.alias}.__init__()` to "
             hint += "your `__init__()` function"

@@ -2182,7 +2182,6 @@ def __init__():
     assert compile_code(main, input_bundle=input_bundle) is not None
 
 
-@pytest.mark.xfail(raises=AssertionError)
 def test_init_then_if_else_no_inner_init(make_input_bundle):
     main = """
 import lib1
@@ -2201,7 +2200,6 @@ def __init__():
     assert compile_code(main, input_bundle=input_bundle) is not None
 
 
-@pytest.mark.xfail(raises=AssertionError)
 def test_init_then_if_no_else(make_input_bundle):
     main = """
 import lib1
