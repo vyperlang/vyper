@@ -212,7 +212,7 @@ class _ExprAnalyser:
                 return [s]
 
             # general case. s is a VarInfo, e.g. self.foo
-            if is_self_reference and (s.is_constant or s.is_immutable):
+            if is_self_reference and s.is_constant:
                 _raise_invalid_reference(name, node)
             return [s.typ]
 
@@ -391,7 +391,7 @@ class _ExprAnalyser:
             and name in self.namespace["self"].typ.members
         ):
             raise InvalidReference(
-                f"'{name}' is a storage variable, access it as self.{name}", node
+                f"'{name}' is an assignable variable, access it as self.{name}", node
             )
         try:
             t = self.namespace[node.id]

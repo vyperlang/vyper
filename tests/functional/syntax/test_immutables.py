@@ -19,7 +19,7 @@ VALUE: immutable(uint256)
 @view
 @external
 def get_value() -> uint256:
-    return VALUE
+    return self.VALUE
     """,
     # VALUE given an initial value
     """
@@ -35,11 +35,11 @@ VALUE: immutable(uint256)
 
 @deploy
 def __init__():
-    VALUE = 0
+    self.VALUE = 0
 
 @external
 def set_value(_value: uint256):
-    VALUE = _value
+    self.VALUE = _value
     """,
     # modifying immutable multiple times in constructor
     """
@@ -47,8 +47,8 @@ VALUE: immutable(uint256)
 
 @deploy
 def __init__(_value: uint256):
-    VALUE = _value * 3
-    VALUE = VALUE + 1
+    self.VALUE = _value * 3
+    self.VALUE = self.VALUE + 1
     """,
     # immutable(public()) banned
     """
@@ -56,7 +56,7 @@ VALUE: immutable(public(uint256))
 
 @deploy
 def __init__(_value: uint256):
-    VALUE = _value * 3
+    self.VALUE = _value * 3
     """,
 ]
 
@@ -87,12 +87,12 @@ VALUE: immutable({typ})
 
 @deploy
 def __init__(_value: {typ}):
-    VALUE = _value
+    self.VALUE = _value
 
 @view
 @external
 def get_value() -> {typ}:
-    return VALUE
+    return self.VALUE
     """
 
     assert compile_code(code)
@@ -105,8 +105,8 @@ VALUE: immutable(uint256)
 
 @deploy
 def __init__(_value: uint256):
-    VALUE = _value * 3
-    x: uint256 = VALUE + 1
+    self.VALUE = _value * 3
+    x: uint256 = self.VALUE + 1
     """
 ]
 
@@ -124,22 +124,12 @@ imm: immutable(uint256)
 @deploy
 def __init__(x: uint256):
     self.imm = x
-    """,
-        "Immutable variables must be accessed without 'self'",
-    ),
-    (
-        """
-imm: immutable(uint256)
-
-@deploy
-def __init__(x: uint256):
-    x = imm
 
 @external
-def report():
-    y: uint256 = imm + imm
+def report() -> uint256:
+    return imm
     """,
-        "Immutable definition requires an assignment in the constructor",
+        "'imm' is an assignable variable, access it as self.imm",
     ),
     (
         """
@@ -148,13 +138,8 @@ imm: immutable(uint256)
 @deploy
 def __init__(x: uint256):
     imm = x
-
-@external
-def report():
-    y: uint256 = imm
-    z: uint256 = self.imm
     """,
-        "'imm' is not a storage variable, it should not be prepended with self",
+        "'imm' is an assignable variable, access it as self.imm",
     ),
     (
         """
@@ -165,11 +150,11 @@ x: immutable(Foo)
 
 @deploy
 def __init__():
-    x = Foo(a=1)
+    self.x = Foo(a=1)
 
 @external
 def hello() :
-    x.a =  2
+    self.x.a =  2
     """,
         "Immutable value cannot be written to",
     ),
