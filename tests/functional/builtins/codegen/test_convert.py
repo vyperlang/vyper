@@ -333,7 +333,9 @@ def _py_convert(val, i_typ, o_typ):
         val_bits = _padconvert(val_bits, _padding_direction(o_typ), n, padding_byte)
 
     if getattr(o_typ, "is_signed", False) and isinstance(i_typ, BytesM_T):
-        n_bits = _bits_of_type(i_typ)
+        out_size = bytes_of_type(o_typ)
+        in_size = bytes_of_type(i_typ)
+        n_bits = max(out_size, in_size)
         val_bits = _signextend(val_bits, n_bits)
 
     try:
