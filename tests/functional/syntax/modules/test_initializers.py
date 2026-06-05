@@ -1890,10 +1890,6 @@ def __init__():
     assert compile_code(main, input_bundle=input_bundle) is not None
 
 
-# --- Dependency-ordering checks (`is_initialized` enforces that
-# a module's `uses:` dependencies are initialized before it) ---
-
-
 # Shared module sources for the dependency-ordering tests below.
 # Each `uses:` declaration must be backed by real state access (otherwise
 # BorrowException fires before `is_initialized` ever runs).

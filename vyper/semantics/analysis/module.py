@@ -182,21 +182,23 @@ def _validate_used_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None
         err_list.raise_if_not_empty()
 
 
-# TODO: use module dependencies to check __init__ are called in the dependency order
 # TODO: add handling of one side of an if-then-else reverting
-def is_initialized(
+def _validate_init_calls(
     block: list[vy_ast.VyperNode], init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]]
 ) -> dict[ModuleInfo, list[vy_ast.VyperNode]]:
     """
-    TODO: Outdated
-    Check a block for wether it calls other_module.__init__()
+    Check a block for wether it calls all required __init__() methods, and in the right order.
+    (Dependencies must be initialized before dependents.)
 
     Args:
-        TODO:
-        initializing_nodes: All inescapable call nodes to the constructor
-            above this one. Contains multiple in case of branching.
+        block: the current block, a list of nodes to analyze
+        init_calls: a dict from:
+            * Modules which need to be initialized, to
+            * Nodes in the containing scope which initialize it
+                (There can be more than one because of branching)
     """
 
+    # Make a copy so that branches do not interfere
     init_calls = {k: v.copy() for k, v in init_calls.items()}
 
     local_init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]] = defaultdict(list)
@@ -268,8 +270,8 @@ def is_initialized(
             local_init_calls[other_module_info].append(node.value)
 
         elif isinstance(node, vy_ast.If):
-            then_nodes = is_initialized(node.body, init_calls)
-            else_nodes = is_initialized(node.orelse, init_calls) if node.orelse is not None else {}
+            then_nodes = _validate_init_calls(node.body, init_calls)
+            else_nodes = _validate_init_calls(node.orelse, init_calls) if node.orelse is not None else {}
             # TODO: UX: instead of raising on the first, batch them all together
             for module_info in init_calls:
                 if bool(then_nodes[module_info]) != bool(else_nodes[module_info]):
@@ -289,7 +291,7 @@ def is_initialized(
                     local_init_calls[module_info] += both_branches
 
         elif isinstance(node, vy_ast.For):
-            loop_nodes = is_initialized(node.body, init_calls)
+            loop_nodes = _validate_init_calls(node.body, init_calls)
             for module_info in init_calls:
                 if len(loop_nodes[module_info]) != 0:
                     msg = f"`{module_info.alias}`.__init__() is not guaranteed to be reachable: "
@@ -301,7 +303,7 @@ def is_initialized(
 
 
 def _validate_initialized_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
-    """Check all `initializes:` modules have `__init__()` called exactly once."""
+    """Check all `initializes:` modules each have `__init__()` executed exactly once."""
     # only call `__init__()` for modules which have an
     # `__init__()` function
     initializing_nodes: dict[ModuleInfo, list[vy_ast.VyperNode]] = {
@@ -314,7 +316,7 @@ def _validate_initialized_modules(module_ast: vy_ast.Module, module_t: ModuleT) 
 
     if constructor is not None:
         assert isinstance(constructor.ast_def, vy_ast.FunctionDef)  # help mypy
-        init_calls = is_initialized(constructor.ast_def.body, initializing_nodes)
+        init_calls = _validate_init_calls(constructor.ast_def.body, initializing_nodes)
     else:
         init_calls = {}
 
