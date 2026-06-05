@@ -278,7 +278,7 @@ def _literal_decimal(expr, arg_typ, out_typ):
 
     # apply sign extension, if expected
     if isinstance(expr, vy_ast.Hex) and out_typ.is_signed:
-        val = _signextend(expr, val, arg_typ)
+        val = _signextend(expr, val, arg_typ, out_size=_bits_count(out_typ))
 
     lo, hi = out_typ.int_bounds
     if not lo <= val <= hi:
