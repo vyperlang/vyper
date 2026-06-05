@@ -226,52 +226,11 @@ def _validate_init_calls(
 
     for node in block:
 
-        # TODO: This assumes a specific AST shape for init calls,
-        # but it seems to be correct in practice
-        if isinstance(node, vy_ast.Expr) and isinstance(node.value, vy_ast.Call):
-            other_module_info = extract_init_call(node.value)
-
-            if other_module_info is None:
-                # Not an init call, nothing to do
-                continue
-
-            if other_module_info not in init_calls:
-                msg = f"tried to initialize `{other_module_info.alias}`, "
-                msg += "but it is not in initializer list!"
-                hint = f"add `initializes: {other_module_info.alias}` "
-                hint += "as a top-level statement to your contract"
-                raise InitializerException(msg, node.value.func, hint=hint)
-
-            init_calls_m = init_calls[other_module_info]
-
-            if len(init_calls_m) != 0:
-                msg = f"tried to initialize `{other_module_info.alias}`, "
-                msg += "but its __init__() function was already called!"
-                raise InitializerException(msg, node.value.func, init_calls_m)
-
-            uninitialized_dependents: list[str] = []
-            """
-            Modules which the other module initializes, but whose init are not called beforehand
-            """
-
-            for dependent in other_module_info.module_t.used_modules:
-                # Will be none in the case where the dependent module does not have an init method
-                dependent_init_calls = init_calls.get(dependent)
-                if dependent_init_calls is not None and len(dependent_init_calls) == 0:
-                    uninitialized_dependents.append(dependent.alias)
-
-            if len(uninitialized_dependents) != 0:
-                msg = f"tried to initialize `{other_module_info.alias}`, "
-                msg += "but it depends on modules whose __init__() functions were not called: "
-                msg += ", ".join(uninitialized_dependents)
-                raise InitializerException(msg, node.value.func, init_calls)
-
-            init_calls_m.append(node.value)
-            local_init_calls[other_module_info].append(node.value)
-
-        elif isinstance(node, vy_ast.If):
+        if isinstance(node, vy_ast.If):
             then_nodes = _validate_init_calls(node.body, init_calls)
-            else_nodes = _validate_init_calls(node.orelse, init_calls) if node.orelse is not None else {}
+            else_nodes = (
+                _validate_init_calls(node.orelse, init_calls) if node.orelse is not None else {}
+            )
             # TODO: UX: instead of raising on the first, batch them all together
             for module_info in init_calls:
                 if bool(then_nodes[module_info]) != bool(else_nodes[module_info]):
@@ -295,8 +254,51 @@ def _validate_init_calls(
             for module_info in init_calls:
                 if len(loop_nodes[module_info]) != 0:
                     msg = f"`{module_info.alias}`.__init__() is not guaranteed to be reachable: "
-                    msg += "present in for loop"
+                    msg += "present in a for loop"
                     raise InitializerException(msg, node)
+
+        else:
+            for call in node.get_descendants(vy_ast.Call):
+
+                other_module_info = extract_init_call(call)
+
+                if other_module_info is None:
+                    # Not an init call, nothing to do
+                    continue
+
+                if other_module_info not in init_calls:
+                    msg = f"tried to initialize `{other_module_info.alias}`, "
+                    msg += "but it is not in initializer list!"
+                    hint = f"add `initializes: {other_module_info.alias}` "
+                    hint += "as a top-level statement to your contract"
+                    raise InitializerException(msg, call.func, hint=hint)
+
+                init_calls_m = init_calls[other_module_info]
+
+                if len(init_calls_m) != 0:
+                    msg = f"tried to initialize `{other_module_info.alias}`, "
+                    msg += "but its __init__() function was already called!"
+                    raise InitializerException(msg, call.func, init_calls_m)
+
+                uninitialized_dependents: list[str] = []
+                """
+                Modules which the other module initializes, but whose init are not called beforehand
+                """
+
+                for dependent in other_module_info.module_t.used_modules:
+                    # None in the case where the dependent module does not have an init method
+                    dependent_init_calls = init_calls.get(dependent)
+                    if dependent_init_calls is not None and len(dependent_init_calls) == 0:
+                        uninitialized_dependents.append(dependent.alias)
+
+                if len(uninitialized_dependents) != 0:
+                    msg = f"tried to initialize `{other_module_info.alias}`, "
+                    msg += "but it depends on modules whose __init__() functions were not called: "
+                    msg += ", ".join(uninitialized_dependents)
+                    raise InitializerException(msg, call.func, init_calls)
+
+                init_calls_m.append(call)
+                local_init_calls[other_module_info].append(call)
 
     # Only return the local init calls, this simplifies the branching logic
     return local_init_calls

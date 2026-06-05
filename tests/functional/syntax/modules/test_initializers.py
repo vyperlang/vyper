@@ -2227,7 +2227,7 @@ def __init__():
     with pytest.raises(InitializerException) as e:
         compile_code(main, input_bundle=input_bundle)
     assert "not guaranteed to be reachable" in e.value._message
-    assert "present in for loop" in e.value._message
+    assert "present in a for loop" in e.value._message
 
 
 def test_duplicate_init_in_single_branch(make_input_bundle):
