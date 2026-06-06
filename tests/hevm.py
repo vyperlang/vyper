@@ -32,11 +32,12 @@ def _prep_hevm_venom(venom_source_code, verbose=False):
 # small class to ensure correct function traversal order and help with
 # allocation
 class _FunctionVisitor:
-    num_calldataloads = 0
     visited: set
+    num_calldataloads: int
 
     def __init__(self):
         self.visited = set()
+        self.num_calldataloads = 0
 
 
 def _prep_hevm_venom_ctx(ctx, verbose=False):

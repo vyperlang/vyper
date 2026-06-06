@@ -1,6 +1,6 @@
 import pytest
 
-from tests.hevm import hevm_check_venom, hevm_raises
+from tests.hevm import _prep_hevm_venom, hevm_check_venom, hevm_raises
 
 """
 Test that the hevm harness can actually detect faults,
@@ -9,6 +9,41 @@ setup.
 """
 
 pytestmark = pytest.mark.hevm
+
+
+def test_hevm_source_limit():
+    # 8 symbolic sources should work (hevm limit: 256 bytes of calldata)
+    code8 = """
+    main:
+        %1 = source
+        %2 = source
+        %3 = source
+        %4 = source
+        %5 = source
+        %6 = source
+        %7 = source
+        %8 = source
+        sink %1
+    """
+    result = _prep_hevm_venom(code8)
+    assert isinstance(result, str)
+
+    # 9 sources should fail the harness limit assertion
+    code9 = """
+    main:
+        %1 = source
+        %2 = source
+        %3 = source
+        %4 = source
+        %5 = source
+        %6 = source
+        %7 = source
+        %8 = source
+        %9 = source
+        sink %1
+    """
+    with pytest.raises(AssertionError):
+        _prep_hevm_venom(code9)
 
 
 def test_hevm_simple():
