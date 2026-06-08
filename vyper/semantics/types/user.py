@@ -99,6 +99,9 @@ class FlagT(_UserType):
     def name(self):
         return f"{self._id}"
 
+    def to_abi_arg(self, name: str = "") -> dict:
+        return {"name": name, "type": "uint256", "internalType": f"flag {self.name}"}
+
     def validate_numeric_op(self, node):
         allowed_ops = (vy_ast.BitOr, vy_ast.BitAnd, vy_ast.Invert, vy_ast.BitXor)
         if isinstance(node.op, allowed_ops):
@@ -442,7 +445,12 @@ class StructT(_UserType):
 
     def to_abi_arg(self, name: str = "") -> dict:
         components = [t.to_abi_arg(name=k) for k, t in self.member_types.items()]
-        return {"name": name, "type": "tuple", "components": components}
+        return {
+            "name": name,
+            "type": "tuple",
+            "internalType": f"struct {self.name}",
+            "components": components,
+        }
 
     def _ctor_call_return(self, node: vy_ast.Call) -> "StructT":
         if len(node.args) > 0:
