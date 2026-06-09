@@ -104,11 +104,11 @@ def _bytes_to_num(arg, in_typ, out_typ, signed):
         arg = LOAD(bytes_data_ptr(arg))
         runtime_compile_diff = ["sub", out_size, _len]
         val = shr(["mul", runtime_compile_diff, 8], arg)
-        num_zero_bits = ["mul", 8, ["sub", 32, out_size]]
+        num_zero_bits = 8 * (32 - out_size)
     elif is_bytes_m_type(in_typ):
         if in_typ.m > out_size:
             out_size = in_typ.m
-        runtime_compile_diff = ["sub", out_size, in_typ.m]
+        runtime_compile_diff = out_size - in_typ.m
         val = shr(["mul", runtime_compile_diff, 8], arg)
         num_zero_bits = 8 * (32 - out_size)
     else:  # pragma: nocover
