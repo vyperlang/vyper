@@ -459,6 +459,17 @@ def foo() -> int16:
     assert c.foo() == 255
 
 
+def test_bytes_to_int_different_sizes_bytes3(get_contract):
+    code = r"""
+@external
+def foo(x: bytes3) -> int96:
+    return convert(x, int96)
+    """
+
+    c = get_contract(code)
+    assert c.foo(b"\xff\xff\xff") == 0xff_ff_ff
+
+
 def test_bytes_to_int_different_sizes_runtime(get_contract):
     code = """
 @external

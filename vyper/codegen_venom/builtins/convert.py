@@ -84,6 +84,12 @@ def _get_folded_value(node: vy_ast.VyperNode):
     return None
 
 
+def _bytes_of_numeric_type(out_t: BoolT | IntegerT | DecimalT) -> int:
+    if isinstance(out_t, BoolT):
+        return 1
+    return out_t.bits // 8
+
+
 def _check_literal_int_bounds(arg_node: vy_ast.VyperNode, out_t: IntegerT) -> None:
     """
     Check if a compile-time constant integer fits in the output type bounds.
@@ -177,38 +183,16 @@ def _to_int(
 
     # From bytes/string: load data, shift right
     if isinstance(in_t, _BytestringT):
-        # Length at val, data at val+32
         assert isinstance(val, IRVariable)
-        length = b.mload(val)
-        data_ptr = b.add(val, IRLiteral(32))
-        data = b.mload(data_ptr)
-        # Right-shift to convert left-aligned bytes to right-aligned int
-        # num_zero_bits = (32 - len) * 8
-
-        assert isinstance(in_t.maxlen, int)
-        maxlen = max(in_t.maxlen, out_t.bits // 8)
-
-        runtime_compile_diff = b.sub(maxlen, length)
-
-        val = b.shr(b.mul(runtime_compile_diff, 8), data)
-
-        num_zero_bits = b.mul(b.sub(IRLiteral(32), maxlen), IRLiteral(8))
-        if out_t.is_signed:
-            val = b.sar(num_zero_bits, val)
-        else:
-            val = b.shr(num_zero_bits, val)
+        val = _bytestring_to_num(val, in_t, out_t, out_t.is_signed, ctx)
         # Clamp if bytes could exceed output range
         if in_t.maxlen * 8 > out_t.bits:
             val = _int_clamp(val, out_t, ctx)
         return val
 
-    # From bytesM: right-shift by (32 - M) * 8 bits
+    # From bytesM: shift to extract value
     if isinstance(in_t, BytesM_T):
-        shift_bits = (32 - in_t.m) * 8
-        if out_t.is_signed:
-            val = b.sar(IRLiteral(shift_bits), val)
-        else:
-            val = b.shr(IRLiteral(shift_bits), val)
+        val = _bytes_m_to_num(val, in_t, out_t, out_t.is_signed, ctx)
         # Clamp if bytesM could exceed output range
         if in_t.m * 8 > out_t.bits:
             val = _int_clamp(val, out_t, ctx)
@@ -269,21 +253,16 @@ def _to_decimal(
     # From bytes/string
     if isinstance(in_t, _BytestringT):
         assert isinstance(val, IRVariable)
-        length = b.mload(val)
-        data_ptr = b.add(val, IRLiteral(32))
-        data = b.mload(data_ptr)
-        num_zero_bits = b.mul(b.sub(IRLiteral(32), length), IRLiteral(8))
-        val = b.sar(num_zero_bits, data)
+        val = _bytestring_to_num(val, in_t, out_t, signed=True, ctx=ctx)
         # Clamp to decimal bounds if needed
-        if in_t.maxlen * 8 > 168:  # decimal is 168 bits
+        if in_t.maxlen * 8 > out_t.bits:
             val = _clamp_basetype(val, out_t, ctx)
         return val
 
     # From bytesM
     if isinstance(in_t, BytesM_T):
-        shift_bits = (32 - in_t.m) * 8
-        val = b.sar(IRLiteral(shift_bits), val)
-        if in_t.m * 8 > 168:
+        val = _bytes_m_to_num(val, in_t, out_t, signed=True, ctx=ctx)
+        if in_t.m * 8 > out_t.bits:
             val = _clamp_basetype(val, out_t, ctx)
         return val
 
@@ -459,6 +438,69 @@ def _check_bytes(in_t, out_t, max_bytes_allowed: int, source_expr: vy_ast.VyperN
     """
     if isinstance(in_t, _BytestringT) and in_t.maxlen > max_bytes_allowed:  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", source_expr)
+
+
+def _bytestring_to_num(
+    val: IRVariable,
+    in_t: _BytestringT,
+    out_t: BoolT | IntegerT | DecimalT,
+    signed: bool,
+    ctx: VenomCodegenContext,
+) -> IROperand:
+    """
+    Convert a dynamic bytestring into a numeric value.
+
+    Bytestrings are left-aligned and right-padded, while numbers are right-aligned.  For
+    signed outputs, the sign bit is taken from max(input_maxlen, output_size), matching legacy
+    codegen and literal folding.
+    """
+    b = ctx.builder
+    length = b.mload(val)
+    data_ptr = b.add(val, IRLiteral(32))
+    data = b.mload(data_ptr)
+
+    assert isinstance(in_t.maxlen, int)
+    out_size = _bytes_of_numeric_type(out_t)
+    num_bytes = max(in_t.maxlen, out_size)
+
+    # First shift the runtime value into a compile-time sized window. For example,
+    # Bytes[2](b"\xff") -> int16 uses a 2-byte window containing 0x00ff, not 0xff00.
+    runtime_compile_diff = b.sub(IRLiteral(num_bytes), length)
+    val = b.shr(b.mul(runtime_compile_diff, IRLiteral(8)), data)
+
+    # Then shift/sign-extend that window into a right-aligned integer.
+    num_zero_bits = IRLiteral(8 * (32 - num_bytes))
+    if signed:
+        return b.sar(num_zero_bits, val)
+    return b.shr(num_zero_bits, val)
+
+
+def _bytes_m_to_num(
+    val: IROperand,
+    in_t: BytesM_T,
+    out_t: BoolT | IntegerT | DecimalT,
+    signed: bool,
+    ctx: VenomCodegenContext,
+) -> IROperand:
+    """
+    Convert a bytesM value into a numeric value.
+
+    As with dynamic bytestrings, use max(input_size, output_size) as the sign-extension width.
+    This means convert(0xff, int16) is 255, while convert(0xff00, int8) still reverts after
+    clamping.
+    """
+    b = ctx.builder
+    out_size = _bytes_of_numeric_type(out_t)
+    num_bytes = max(in_t.m, out_size)
+
+    shift_into_window = 8 * (num_bytes - in_t.m)
+    if shift_into_window:
+        val = b.shr(IRLiteral(shift_into_window), val)
+
+    num_zero_bits = IRLiteral(8 * (32 - num_bytes))
+    if signed:
+        return b.sar(num_zero_bits, val)
+    return b.shr(num_zero_bits, val)
 
 
 def _int_clamp(val: IROperand, out_t: IntegerT, ctx: VenomCodegenContext) -> IROperand:
