@@ -3,7 +3,7 @@ from typing import List, Optional
 from vyper.compiler.settings import VenomOptimizationFlags
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, DynamicMemoryAnalysis, IRAnalysesCache
 from vyper.venom.analysis.fcg import FCGGlobalAnalysis
 from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
@@ -96,6 +96,7 @@ class FunctionInlinerPass(IRGlobalPass):
             fn = call_site.parent.parent
             self.analyses_caches[fn].invalidate_analysis(DFGAnalysis)
             self.analyses_caches[fn].invalidate_analysis(CFGAnalysis)
+            self.analyses_caches[fn].invalidate_analysis(DynamicMemoryAnalysis)
 
     def _inline_call_site(self, func: IRFunction, call_site: IRInstruction) -> None:
         """

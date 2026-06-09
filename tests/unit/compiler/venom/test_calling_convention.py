@@ -2,6 +2,7 @@ import pytest
 
 from tests.venom_utils import parse_venom
 from vyper.venom.basicblock import IRLabel, IRVariable
+from vyper.venom.call_layout import FunctionCallLayout
 from vyper.venom.check_venom import (
     BumpArityError,
     DallocaArityError,
@@ -229,6 +230,28 @@ def test_bump_arity_correct_accepted():
     ctx = parse_venom(src)
     # Should not raise: bump has 2 operands and 2 outputs.
     check_calling_convention(ctx)
+
+
+def test_function_layout_detects_hidden_fmp_without_return_pc():
+    src = """
+    function f {
+    main:
+        %arg = param
+        %fmp = param
+        %p, %next_fmp = bump 32, %fmp
+        sink %arg, %p, %next_fmp
+    }
+    """
+    ctx = parse_venom(src)
+    fn = ctx.get_function(IRLabel("f"))
+    fn._invoke_param_count = 1
+
+    layout = FunctionCallLayout(fn)
+    assert not layout.has_return_pc_param
+    assert layout.has_physical_hidden_fmp_param
+    assert layout.hidden_fmp_param is not None
+    assert layout.hidden_fmp_param.output == IRVariable("%fmp")
+    assert [inst.output for inst in layout.user_params] == [IRVariable("%arg")]
 
 
 def test_initial_fmp_arity_operand_rejected():
@@ -510,7 +533,7 @@ def test_invoke_argument_count_accepts_hidden_fmp_tail():
     invoke.operands = [IRLabel("f"), IRVariable("%arg"), IRVariable("%fmp")]
 
     callee = ctx.get_function(IRLabel("f"))
-    callee._needs_fmp = True
+    callee._invoke_param_count = 1
     check_calling_convention(ctx)
 
 
@@ -578,7 +601,7 @@ def test_invoke_argument_count_rejects_missing_hidden_fmp_tail():
     """
     ctx = parse_venom(src)
     callee = ctx.get_function(IRLabel("f"))
-    callee._needs_fmp = True
+    callee._invoke_param_count = 1
 
     with pytest.raises(ExceptionGroup) as excinfo:
         check_calling_convention(ctx)

@@ -9,6 +9,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.venom import run_passes_on
 from vyper.venom.analysis import (
     DFGAnalysis,
+    DynamicMemoryAnalysis,
     IRAnalysesCache,
     LoadAnalysis,
     MemoryAliasAnalysis,
@@ -18,6 +19,7 @@ from vyper.venom.analysis import (
     VariableRangeAnalysis,
 )
 from vyper.venom.basicblock import IRLabel, IRLiteral, IRVariable
+from vyper.venom.call_layout import FunctionCallLayout
 from vyper.venom.effects import Effects
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes import (
@@ -458,7 +460,8 @@ def test_stale_hidden_fmp_arg_removed_after_callee_prunes_fmp():
     assert _word(out) == 5
 
     callee = ctx.get_function(IRLabel("callee"))
-    assert not callee._needs_fmp
+    dynamic_memory = IRAnalysesCache(callee).request_analysis(DynamicMemoryAnalysis)
+    assert not dynamic_memory.function_needs_fmp(callee)
 
     main = ctx.get_function(IRLabel("main"))
     invoke = next(
@@ -475,10 +478,11 @@ def test_stale_hidden_fmp_cleanup_keeps_non_fmp_extra_arg():
         function caller {
             caller:
                 %fmp = param
+                %retpc = param
                 %arg = source
                 mstore 0, %fmp
                 invoke @callee, %arg
-                stop
+                ret %retpc
         }
 
         function callee {
@@ -486,10 +490,10 @@ def test_stale_hidden_fmp_cleanup_keeps_non_fmp_extra_arg():
                 %retpc = param
                 ret %retpc
         }
-        """)
+    """)
 
     caller = ctx.get_function(IRLabel("caller"))
-    caller._needs_fmp = True
+    caller._invoke_param_count = 0
     DallocaLoweringPass(IRAnalysesCache(caller), caller).run_pass()
 
     invoke = next(
@@ -551,6 +555,113 @@ def test_no_ret_function_inserts_hidden_fmp_before_return_pc():
     # the FMP base must be the inserted hidden FMP param, never the return PC
     assert root == hidden_fmp
     assert root != retpc
+
+
+def test_phi_resolves_hidden_fmp_param_through_bump_base():
+    # Regression: the hidden-FMP param flows through a `phi` into a `bump` base.
+    # Both predecessors forward the hidden-FMP param into the phi, whose output
+    # feeds the bump base, so resolution must walk through the phi alias back to
+    # the param. This is the exact branch the recent P1 fix repaired (the pre-fix
+    # code crashed taking `len()` of the phi-operands generator); without phi
+    # handling the bump base never resolves back to the param.
+    ctx = parse_venom("""
+        function f {
+            f:
+                %fmp = param
+                %cond = calldatasize
+                jnz %cond, @left, @right
+
+            left:
+                %l = %fmp
+                jmp @join
+
+            right:
+                %r = %fmp
+                jmp @join
+
+            join:
+                %cur = phi @left, %l, @right, %r
+                %p, %next = bump 32, %cur
+                mstore %p, 1
+                stop
+        }
+        """)
+    fn = ctx.get_function(IRLabel("f"))
+    # one hidden-FMP param (%fmp), no user params and no return-PC param, so
+    # `has_physical_hidden_fmp_param` must fall through to the phi/bump walk.
+    fn._invoke_param_count = 0
+
+    dynamic_memory = IRAnalysesCache(fn).request_analysis(DynamicMemoryAnalysis)
+    assert dynamic_memory.get_info(fn).has_physical_hidden_fmp is True
+    assert FunctionCallLayout(fn).has_physical_hidden_fmp_param is True
+
+
+def test_parser_infers_invoke_param_count_with_hidden_fmp():
+    # Already-lowered IR carries a physical hidden-FMP param between the user
+    # params and the return-PC param: `[%user, %fmp, %ret_pc]`. The return-PC
+    # param sits at index 2, but `_invoke_param_count` must be the user count (1),
+    # i.e. the return-PC index minus the hidden-FMP slot detected via the bump
+    # base. `%ret_pc` is the last `ret` operand in the model (`ret` operands are
+    # reversed at parse time, so it is written first) and `%fmp` feeds the bump
+    # base.
+    ctx = parse_venom("""
+        function f {
+            f:
+                %user = param
+                %fmp = param
+                %ret_pc = param
+                %p, %next = bump 32, %fmp
+                mstore %p, %user
+                ret %ret_pc, %p
+        }
+        """)
+    fn = ctx.get_function(IRLabel("f"))
+    assert fn._invoke_param_count == 1
+    assert fn._return_value_count == 1
+
+
+def test_parser_infers_invoke_param_count_without_hidden_fmp():
+    # Control: a non-lowered function `[%user, %ret_pc]` with no `bump` has no
+    # hidden FMP, so the return-PC index (1) is the user count unchanged.
+    ctx = parse_venom("""
+        function f {
+            f:
+                %user = param
+                %ret_pc = param
+                ret %ret_pc, %user
+        }
+        """)
+    fn = ctx.get_function(IRLabel("f"))
+    assert fn._invoke_param_count == 1
+    assert fn._return_value_count == 1
+
+
+def test_dret_lowering_ignores_dalloca_only_callee():
+    ctx = parse_venom("""
+        function main {
+            main:
+                invoke @callee
+                return 0, 0
+        }
+
+        function callee {
+            callee:
+                %retpc = param
+                %p = dalloca 32
+                ret %retpc
+        }
+    """)
+
+    fn = ctx.entry_function
+    DretLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    params = [inst for inst in fn.entry.instructions if inst.opcode == "param"]
+    assert params == []
+
+    invoke = next(
+        inst for bb in fn.get_basic_blocks() for inst in bb.instructions if inst.opcode == "invoke"
+    )
+    assert invoke.operands == [IRLabel("callee")]
 
 
 def test_get_transitive_uses_handles_multi_output_bump():

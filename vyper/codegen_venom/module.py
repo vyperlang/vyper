@@ -1282,6 +1282,7 @@ def _generate_internal_function(
     # Structured invoke metadata used by backend passes.
     fn._has_memory_return_buffer_param = has_memory_return_buffer
     fn._invoke_param_count = len(func_t.arguments) + (1 if has_memory_return_buffer else 0)
+    fn._return_value_count = returns_count
 
     # Handle parameters
     # First: return buffer pointer if memory return

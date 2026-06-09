@@ -12,7 +12,13 @@ from vyper.ir.compile_ir import (
     optimize_assembly,
 )
 from vyper.utils import OrderedSet, ceil32, wrap256
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
+from vyper.venom.analysis import (
+    CFGAnalysis,
+    DFGAnalysis,
+    DynamicMemoryAnalysis,
+    IRAnalysesCache,
+    LivenessAnalysis,
+)
 from vyper.venom.basicblock import (
     PSEUDO_INSTRUCTION,
     TEST_INSTRUCTIONS,
@@ -195,7 +201,10 @@ class VenomCompiler:
         # during codegen (peak_spill_end). Without this, a function
         # with small fn_eom and many spills could have its spill
         # slots collide with the dynamic allocation region.
-        entry_needs_fmp = self._entry_fn is not None and self._entry_fn._needs_fmp
+        entry_needs_fmp = False
+        if self._entry_fn is not None:
+            dynamic_memory = IRAnalysesCache(self._entry_fn).request_analysis(DynamicMemoryAnalysis)
+            entry_needs_fmp = dynamic_memory.function_needs_fmp(self._entry_fn)
         if entry_needs_fmp:
             asm = [PUSH_OFST(CONSTREF(_INITIAL_FMP_CONST), 0)] + asm
 

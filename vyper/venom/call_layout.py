@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from vyper.venom.basicblock import IRInstruction, IRLabel, IROperand, IRVariable
+from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 
@@ -11,6 +11,68 @@ from vyper.venom.function import IRFunction
 # - callee params are `[user params..., hidden_fmp?, return_pc?]`
 # User args/params stay in stable leading positions; hidden FMP, when
 # present, lives at the tail.
+
+
+def parse_dret_shape(inst: IRInstruction) -> tuple[int, int] | None:
+    """
+    Decode a `dret` instruction's operand layout into `(ordinary_count,
+    dyn_count)`, or None if the operands are malformed.
+
+    dret operands are `[dyn_count, ordinary returns..., (src, size) pairs...,
+    return_pc]`, with `dyn_count` dynamic (src, size) pairs.
+    """
+    if len(inst.operands) < 4:
+        return None
+
+    dyn_count_op = inst.operands[0]
+    if not isinstance(dyn_count_op, IRLiteral):
+        return None
+
+    dyn_count = dyn_count_op.value
+    if dyn_count < 1:
+        return None
+
+    ordinary_count = len(inst.operands) - 2 - 2 * dyn_count
+    if ordinary_count < 0:
+        return None
+
+    return ordinary_count, dyn_count
+
+
+def params_feed_fmp(fn: IRFunction, roots: set[IRVariable]) -> bool:
+    """
+    True if any variable in `roots` (param outputs) transitively reaches the
+    base operand of a `bump` through `assign`/`phi` aliases — i.e. the function
+    threads an adopted FMP.
+    """
+    if len(roots) == 0:
+        return False
+
+    aliases = set(roots)
+    changed = True
+    while changed:
+        changed = False
+        for bb in fn.get_basic_blocks():
+            for inst in bb.instructions:
+                outputs = inst.get_outputs()
+                if len(outputs) != 1 or outputs[0] in aliases:
+                    continue
+                if inst.opcode == "assign" and len(inst.operands) == 1:
+                    if inst.operands[0] in aliases:
+                        aliases.add(outputs[0])
+                        changed = True
+                elif inst.opcode == "phi":
+                    phi_ops = list(inst.phi_operands)
+                    if len(phi_ops) > 0 and all(op in aliases for _, op in phi_ops):
+                        aliases.add(outputs[0])
+                        changed = True
+
+    for bb in fn.get_basic_blocks():
+        for inst in bb.instructions:
+            if inst.opcode == "bump" and len(inst.operands) >= 1:
+                if inst.operands[0] in aliases:
+                    return True
+    return False
 
 
 @dataclass(frozen=True)
@@ -71,21 +133,49 @@ class FunctionCallLayout:
 
     @property
     def has_return_pc_param(self) -> bool:
+        if self._return_pc_param_from_ret is not None:
+            return True
+
         if self.fn._invoke_param_count is not None:
-            non_return_pc_params = self.fn._invoke_param_count + int(self.fn._needs_fmp)
+            non_return_pc_params = self.fn._invoke_param_count + int(
+                self.has_physical_hidden_fmp_param
+            )
             if len(self.params) > non_return_pc_params:
                 return True
 
+        return False
+
+    @property
+    def _return_pc_param_from_ret(self) -> IRInstruction | None:
         for bb in self.fn.get_basic_blocks():
             for inst in bb.instructions:
                 if inst.opcode not in ("ret", "dret") or len(inst.operands) == 0:
                     continue
 
                 ret_pc = inst.operands[-1]
-                if self.param_for_alias(ret_pc) is not None:
-                    return True
+                param = self.param_for_alias(ret_pc)
+                if param is not None:
+                    return param
 
-        return False
+        return None
+
+    @property
+    def has_physical_hidden_fmp_param(self) -> bool:
+        if self.fn._invoke_param_count is None:
+            return False
+
+        params = self.params
+        hidden_pos = self.fn._invoke_param_count
+        if len(params) <= hidden_pos:
+            return False
+
+        if self._return_pc_param_from_ret is not None:
+            return len(params) > hidden_pos + 1
+
+        if len(params) > hidden_pos + 1:
+            return True
+
+        return params_feed_fmp(self.fn, {params[hidden_pos].output})
 
     @property
     def return_pc_param(self) -> IRInstruction | None:
@@ -99,7 +189,7 @@ class FunctionCallLayout:
 
     @property
     def hidden_fmp_param_pos(self) -> int | None:
-        if not self.fn._needs_fmp:
+        if not self.has_physical_hidden_fmp_param:
             return None
 
         return_pc_offset = int(self.has_return_pc_param)
@@ -139,7 +229,7 @@ class FunctionCallLayout:
     def user_params(self) -> tuple[IRInstruction, ...]:
         count = len(self.params)
         count -= int(self.has_return_pc_param)
-        count -= int(self.fn._needs_fmp)
+        count -= int(self.has_physical_hidden_fmp_param)
         return self.params[: max(count, 0)]
 
     @property
@@ -185,7 +275,7 @@ class InvokeLayout:
     @property
     def expects_hidden_fmp(self) -> bool:
         callee = self.callee
-        return callee is not None and callee._needs_fmp
+        return callee is not None and FunctionCallLayout(callee).has_physical_hidden_fmp_param
 
     @property
     def expected_operand_count(self) -> int | None:

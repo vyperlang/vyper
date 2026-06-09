@@ -11,6 +11,7 @@ from vyper.venom.basicblock import (
     IROperand,
     IRVariable,
 )
+from vyper.venom.call_layout import params_feed_fmp, parse_dret_shape
 from vyper.venom.context import DataItem, DataSection, IRContext
 from vyper.venom.function import IRFunction
 
@@ -90,6 +91,41 @@ def _set_last_label(ctx: IRContext):
                 ctx.last_label = max(int(label_head), ctx.last_label)
 
 
+def _infer_internal_call_metadata(fn: IRFunction):
+    params = [inst.output for inst in fn.entry.instructions if inst.opcode == "param"]
+    param_idxs = {param: idx for idx, param in enumerate(params)}
+    return_pc_idxs: set[int] = set()
+    return_counts: set[int] = set()
+
+    for bb in fn.get_basic_blocks():
+        for inst in bb.instructions:
+            if inst.opcode == "ret":
+                if len(inst.operands) == 0:
+                    continue
+                return_counts.add(len(inst.operands) - 1)
+            elif inst.opcode == "dret":
+                shape = parse_dret_shape(inst)
+                if shape is not None:
+                    ordinary_count, dynamic_count = shape
+                    return_counts.add(ordinary_count + dynamic_count)
+                if len(inst.operands) == 0:
+                    continue
+            else:
+                continue
+
+            ret_pc_idx = param_idxs.get(inst.operands[-1], None)
+            if ret_pc_idx is not None:
+                return_pc_idxs.add(ret_pc_idx)
+
+    if len(return_pc_idxs) == 1:
+        ret_pc_idx = next(iter(return_pc_idxs))
+        has_hidden_fmp = params_feed_fmp(fn, set(params))
+        fn._invoke_param_count = ret_pc_idx - int(has_hidden_fmp)
+
+    if len(return_counts) == 1:
+        fn._return_value_count = next(iter(return_counts))
+
+
 def _unescape(s: str) -> str:
     """
     Unescape the escaped string. This is the inverse of `IRLabel.__repr__()`.
@@ -162,6 +198,7 @@ class VenomTransformer(Transformer):
                     bb.insert_instruction(instruction)
 
             _set_last_var(fn)
+            _infer_internal_call_metadata(fn)
         _set_last_label(ctx)
 
         return ctx

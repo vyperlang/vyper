@@ -1,7 +1,7 @@
 from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import IRAnalysesCache, VarDefinition
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
-from vyper.venom.call_layout import FunctionCallLayout, InvokeLayout
+from vyper.venom.call_layout import FunctionCallLayout, InvokeLayout, parse_dret_shape
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.memory_location import (
@@ -203,17 +203,6 @@ class DretShapeMismatch(VenomError):
         )
 
 
-class AdoptedFmpMetadataError(VenomError):
-    message: str = "adopted FMP return metadata is inconsistent"
-
-    def __init__(self, function: IRFunction, detail: str):
-        self.function = function
-        self.detail = detail
-
-    def __str__(self):
-        return f"function {self.function.name} has invalid adopted FMP metadata: {self.detail}"
-
-
 class InitialFmpArityError(VenomError):
     message: str = "initial_fmp must have exactly 0 operands and 1 output"
 
@@ -293,7 +282,7 @@ def _collect_ret_arities(context: IRContext) -> dict[IRFunction, set[int]]:
                     # last operand is return PC; all preceding (if any) are return values
                     arities.add(len(inst.operands) - 1)
                 elif inst.opcode == "dret":
-                    shape = _dret_shape(inst)
+                    shape = parse_dret_shape(inst)
                     if shape is not None:
                         ordinary_count, dyn_count = shape
                         arities.add(ordinary_count + dyn_count)
@@ -301,29 +290,6 @@ def _collect_ret_arities(context: IRContext) -> dict[IRFunction, set[int]]:
         ret_arities[fn] = arities
 
     return ret_arities
-
-
-def _dret_shape(inst: IRInstruction) -> tuple[int, int] | None:
-    if len(inst.operands) < 4:
-        return None
-
-    dyn_count_op = inst.operands[0]
-    if not isinstance(dyn_count_op, IRLiteral):
-        return None
-
-    dyn_count = dyn_count_op.value
-    if dyn_count < 1:
-        return None
-
-    ordinary_count = len(inst.operands) - 2 - 2 * dyn_count
-    if ordinary_count < 0:
-        return None
-
-    return ordinary_count, dyn_count
-
-
-def _has_raw_dret(fn: IRFunction) -> bool:
-    return any(inst.opcode == "dret" for bb in fn.get_basic_blocks() for inst in bb.instructions)
 
 
 def _find_dret_errors(fn: IRFunction) -> list[VenomError]:
@@ -346,7 +312,7 @@ def _find_dret_errors(fn: IRFunction) -> list[VenomError]:
                 errors.append(DretShapeError(fn, inst, "dret must not have outputs"))
                 continue
 
-            shape = _dret_shape(inst)
+            shape = parse_dret_shape(inst)
             if shape is None:
                 errors.append(
                     DretShapeError(
@@ -369,18 +335,6 @@ def _find_dret_errors(fn: IRFunction) -> list[VenomError]:
 
     if len(shapes) > 1:
         errors.append(DretShapeMismatch(fn, shapes))
-
-    if len(shapes) == 1:
-        fn._dret_shape = next(iter(shapes))
-        fn._returns_adopted_fmp = True
-    elif not fn._returns_adopted_fmp:
-        fn._dret_shape = None
-
-    if fn._returns_adopted_fmp:
-        if fn._dret_shape is None:
-            errors.append(AdoptedFmpMetadataError(fn, "_dret_shape is missing"))
-        if not _has_raw_dret(fn) and not fn._needs_fmp:
-            errors.append(AdoptedFmpMetadataError(fn, "_returns_adopted_fmp requires _needs_fmp"))
 
     return errors
 
@@ -413,9 +367,6 @@ def _find_function_call_layout_errors(fn: IRFunction) -> list[VenomError]:
                             )
                         )
                         return errors
-
-    if fn._needs_fmp and layout.hidden_fmp_param is None:
-        errors.append(FunctionCallLayoutError(fn, "hidden FMP param is missing"))
 
     if fn._invoke_param_count is not None:
         if fn._invoke_param_count < 0:
