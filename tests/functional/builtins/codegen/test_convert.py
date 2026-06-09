@@ -467,7 +467,7 @@ def foo(x: bytes3) -> int96:
     """
 
     c = get_contract(code)
-    assert c.foo(b"\xff\xff\xff") == 0xff_ff_ff
+    assert c.foo(b"\xff\xff\xff") == 0xFF_FF_FF
 
 
 def test_bytes_to_int_different_sizes_runtime(get_contract):
