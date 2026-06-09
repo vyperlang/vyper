@@ -89,8 +89,9 @@ def _bytes_to_num(arg, in_typ, out_typ, signed):
     # bytestring and bytes_m are right-padded with zeroes, int is left-padded.
     # convert by shr or sar the number of zero bytes (converted to bits)
     # e.g. "abcd000000000000" -> bitcast(000000000000abcd, output_type)
-    out_size = _bits_count(out_typ) // 8
+    out_size = _bits_count(out_typ)
     assert out_size is not None
+    out_size = out_size // 8
 
     if isinstance(in_typ, _BytestringT):
         if not is_bounded_length(in_typ.maxlen):
@@ -105,8 +106,11 @@ def _bytes_to_num(arg, in_typ, out_typ, signed):
         val = shr(["mul", runtime_compile_diff, 8], arg)
         num_zero_bits = ["mul", 8, ["sub", 32, out_size]]
     elif is_bytes_m_type(in_typ):
-        num_zero_bits = 8 * (32 - in_typ.m)
-        val = arg
+        if in_typ.m > out_size:
+            out_size = in_typ.m
+        runtime_compile_diff = ["sub", out_size, in_typ.m]
+        val = shr(["mul", runtime_compile_diff, 8], arg)
+        num_zero_bits = 8 * (32 - out_size)
     else:  # pragma: nocover
         raise CompilerPanic("unreachable")
 
