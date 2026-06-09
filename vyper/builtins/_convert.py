@@ -84,6 +84,7 @@ def _bits_count(typ) -> int | None:
         return typ.bits
     return None
 
+
 def _bytes_to_num(arg, in_typ, out_typ, signed):
     # converting a bytestring to a number:
     # bytestring and bytes_m are right-padded with zeroes, int is left-padded.
