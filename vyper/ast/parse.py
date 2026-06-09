@@ -324,6 +324,14 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         annotation_tokens = self._pre_parser.for_loop_annotations.pop(key)
 
         if not annotation_tokens:
+            if not isinstance(node.target, python_ast.Name):
+                raise SyntaxException(
+                    "invalid for loop syntax: not a name",
+                    self._source_code,
+                    node.target.lineno,
+                    node.target.col_offset,
+                )
+
             # a common case for people migrating to 0.4.0, provide a more
             # specific error message than "invalid type annotation"
             raise SyntaxException(
