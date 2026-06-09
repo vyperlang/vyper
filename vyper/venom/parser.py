@@ -113,7 +113,8 @@ def _infer_internal_call_metadata(fn: IRFunction):
             else:
                 continue
 
-            ret_pc_idx = param_idxs.get(inst.operands[-1], None)
+            last_op = inst.operands[-1]
+            ret_pc_idx = param_idxs.get(last_op) if isinstance(last_op, IRVariable) else None
             if ret_pc_idx is not None:
                 return_pc_idxs.add(ret_pc_idx)
 
