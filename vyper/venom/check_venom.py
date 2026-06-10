@@ -300,6 +300,21 @@ class ParamLayoutError(VenomError):
         return s
 
 
+class FmpAnnotationError(VenomError):
+    message: str = "function-header annotation is missing or inconsistent"
+
+    def __init__(self, function: IRFunction, detail: str, inst: IRInstruction | None = None):
+        self.function = function
+        self.detail = detail
+        self.inst = inst
+
+    def __str__(self):
+        s = f"annotation error in {self.function.name}: {self.detail}"
+        if self.inst is not None:
+            s += f"\n  {self.inst}"
+        return s
+
+
 class MixedFmpIRError(VenomError):
     message: str = "mixed raw/lowered FMP IR"
 
@@ -403,7 +418,11 @@ def _collect_ret_arities(context: IRContext) -> dict[IRFunction, set[int]]:
     return ret_arities
 
 
-def _find_dret_errors(fn: IRFunction) -> list[VenomError]:
+def _find_fmp_errors(fn: IRFunction) -> list[VenomError]:
+    """
+    Validate the shapes of the raw FMP publishing terminators (`dret`,
+    `retfmp`) and their mixing rules with plain `ret`.
+    """
     errors: list[VenomError] = []
     shapes: set[tuple[int, int]] = set()
     has_ret = False
@@ -479,24 +498,20 @@ def _find_function_call_layout_errors(fn: IRFunction) -> list[VenomError]:
     errors: list[VenomError] = []
     layout = FunctionCallLayout(fn)
 
-    if layout.has_return_pc_param:
-        return_pc = layout.return_pc_param
-        if return_pc is None:
-            errors.append(FunctionCallLayoutError(fn, "return-PC param is missing"))
+    return_pc = layout.return_pc_param
+    if return_pc is not None:
+        if layout.params[-1] is not return_pc:
+            errors.append(
+                FunctionCallLayoutError(fn, "return-PC param must be the final function param")
+            )
         else:
-            param_outputs = {inst.output for inst in layout.params}
-            return_pc_var = return_pc.output
+            # every ret must anchor the same (final) return-PC param
             for bb in fn.get_basic_blocks():
                 for inst in bb.instructions:
                     if inst.opcode not in ("ret", "dret", "retfmp") or len(inst.operands) == 0:
                         continue
-                    ret_pc = inst.operands[-1]
-                    ret_pc_param = layout.param_for_alias(ret_pc)
-                    if (
-                        ret_pc_param is not None
-                        and ret_pc_param.output in param_outputs
-                        and ret_pc_param.output != return_pc_var
-                    ):
+                    ret_pc_param = layout.param_for_alias(inst.operands[-1])
+                    if ret_pc_param is not None and ret_pc_param is not return_pc:
                         errors.append(
                             FunctionCallLayoutError(
                                 fn, "return-PC param must be the final function param"
@@ -504,52 +519,27 @@ def _find_function_call_layout_errors(fn: IRFunction) -> list[VenomError]:
                         )
                         return errors
 
-    if fn._invoke_param_count is not None:
-        if fn._invoke_param_count < 0:
-            errors.append(FunctionCallLayoutError(fn, "_invoke_param_count cannot be negative"))
-        elif layout.physical_user_param_count != fn._invoke_param_count:
-            errors.append(
-                FunctionCallLayoutError(
-                    fn,
-                    "_invoke_param_count does not match physical user params: "
-                    f"expected {layout.physical_user_param_count}, got {fn._invoke_param_count}",
-                )
-            )
-
-    if fn._has_memory_return_buffer_param and (
-        fn._invoke_param_count is None or fn._invoke_param_count == 0
-    ):
+    if fn._has_memory_return_buffer_param and layout.physical_user_param_count == 0:
         errors.append(
             FunctionCallLayoutError(
-                fn, "memory return buffer metadata requires at least one invoke param"
+                fn, "memory return buffer metadata requires at least one user param"
             )
         )
 
     return errors
 
 
+# lowered FMP artifacts: a function containing any of these has a (partially)
+# materialized FMP convention and must carry the `[fmp_lowered]` annotation
+# (i.e. have its `fmp_signature` set). Note `retpc_param` is *not* in this
+# set: it is a level-neutral syntactic name for the return-PC slot, emitted
+# by the frontend in raw IR.
+LOWERED_FMP_ARTIFACTS = frozenset(["fmp_param", "bump", "initial_fmp"])
+
+
 def _fn_has_raw_fmp_ops(fn: IRFunction) -> bool:
     return any(
         inst.opcode in RAW_FMP_OPS for bb in fn.get_basic_blocks() for inst in bb.instructions
-    )
-
-
-def _fn_has_opcode(fn: IRFunction, opcode: str) -> bool:
-    return any(inst.opcode == opcode for bb in fn.get_basic_blocks() for inst in bb.instructions)
-
-
-def _fn_is_fmp_lowered(fn: IRFunction) -> bool:
-    """
-    True if the function's FMP convention is already materialized: it
-    contains lowered FMP artifacts (`bump`, an `initial_fmp` root, or a
-    physical hidden FMP param) and no raw FMP opcodes.
-    """
-    if _fn_has_raw_fmp_ops(fn):
-        return False
-    return (
-        _fn_has_opcode(fn, "bump")
-        or _fn_has_opcode(fn, "initial_fmp")
-        or FunctionCallLayout(fn).has_physical_hidden_fmp_param
     )
 
 
@@ -606,22 +596,85 @@ def _find_param_layout_errors(fn: IRFunction) -> list[VenomError]:
 
 
 def _find_mixed_fmp_errors(fn: IRFunction) -> list[VenomError]:
-    # raw FMP opcodes may not coexist with lowered-convention artifacts in
-    # the same function: such half-lowered IR would make FmpLoweringPass
-    # (the single owner of the convention) thread a function whose shape is
+    # raw FMP opcodes may not coexist with the lowered convention in the
+    # same function: such half-lowered IR would make FmpLoweringPass (the
+    # single owner of the convention) thread a function whose shape is
     # partially materialized by someone else.
     errors: list[VenomError] = []
     if not _fn_has_raw_fmp_ops(fn):
         return errors
 
-    for inst in fn.entry.instructions:
-        if inst.opcode in ("fmp_param", "retpc_param"):
-            errors.append(
-                MixedFmpIRError(fn, f"raw FMP opcodes coexist with `{inst.opcode}`", inst)
-            )
+    if fn._fmp_signature is not None:
+        errors.append(
+            MixedFmpIRError(fn, "function annotated `fmp_lowered` contains raw FMP opcodes")
+        )
 
-    if _fn_has_opcode(fn, "bump"):
-        errors.append(MixedFmpIRError(fn, "raw FMP opcodes coexist with lowered `bump`"))
+    for bb in fn.get_basic_blocks():
+        for inst in bb.instructions:
+            if inst.opcode in LOWERED_FMP_ARTIFACTS:
+                errors.append(
+                    MixedFmpIRError(fn, f"raw FMP opcodes coexist with lowered `{inst.opcode}`")
+                )
+                return errors
+
+    return errors
+
+
+def _find_annotation_errors(fn: IRFunction) -> list[VenomError]:
+    """
+    The function-header annotation (`[fmp_lowered]` / `[fmp_lowered,
+    fmp_publishes]`, materialized as `fn._fmp_signature`) is the only
+    carrier of the lowered-convention facts that are not opcodes. Enforce
+    that it is present exactly when the IR is lowered and that the lowered
+    shape is internally consistent with it.
+    """
+    errors: list[VenomError] = []
+    sig = fn._fmp_signature
+
+    if sig is None:
+        for bb in fn.get_basic_blocks():
+            for inst in bb.instructions:
+                if inst.opcode in LOWERED_FMP_ARTIFACTS:
+                    errors.append(
+                        FmpAnnotationError(
+                            fn,
+                            f"lowered FMP artifact `{inst.opcode}` requires the "
+                            "`[fmp_lowered]` function-header annotation",
+                            inst,
+                        )
+                    )
+                    return errors
+        return errors
+
+    layout = FunctionCallLayout(fn)
+    for bb in fn.get_basic_blocks():
+        for inst in bb.instructions:
+            if inst.opcode != "ret" or len(inst.operands) == 0:
+                continue
+            if sig.publishes and len(inst.operands) < 2:
+                # publishing convention: ret operands are
+                # [user returns..., adopted FMP, return_pc]
+                errors.append(
+                    FmpAnnotationError(
+                        fn,
+                        "function annotated `fmp_publishes` must return the hidden "
+                        "adopted-FMP value before the return PC",
+                        inst,
+                    )
+                )
+                continue
+            ret_pc_param = layout.param_for_alias(inst.operands[-1])
+            if ret_pc_param is not None and ret_pc_param.opcode == "param":
+                # lowered IR carries the convention in opcodes only: a plain
+                # param cannot serve as the return PC (no ret-anchored
+                # discovery at this level)
+                errors.append(
+                    FmpAnnotationError(
+                        fn,
+                        "lowered function must name its return-PC param with `retpc_param`",
+                        inst,
+                    )
+                )
 
     return errors
 
@@ -631,9 +684,10 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
 
     # Enforce invoke binding exactly callee arity
     for fn in context.functions.values():
-        errors.extend(_find_dret_errors(fn))
+        errors.extend(_find_fmp_errors(fn))
         errors.extend(_find_param_layout_errors(fn))
         errors.extend(_find_mixed_fmp_errors(fn))
+        errors.extend(_find_annotation_errors(fn))
 
     ret_arities = _collect_ret_arities(context)
 
@@ -704,17 +758,37 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
                             layout.actual_operand_count_after_target,
                         )
                     )
-                elif layout.expects_hidden_fmp and not _fn_is_fmp_lowered(caller):
+                elif layout.expects_hidden_fmp and caller._fmp_signature is None:
                     # an invoke already carrying the hidden FMP operand is
-                    # only legal in an already-lowered caller. In any other
-                    # function FmpLoweringPass is the sole writer of that
-                    # operand (assert-and-set): half-lowered input must be
-                    # rejected here so the pass-level panic is unreachable.
+                    # only legal in an already-lowered (annotated) caller.
+                    # In any other function FmpLoweringPass is the sole
+                    # writer of that operand (assert-and-set): half-lowered
+                    # input must be rejected here so the pass-level panic is
+                    # unreachable.
                     errors.append(
                         MixedFmpIRError(
                             caller,
                             f"invoke of {callee.name} carries a hidden FMP operand "
                             "but the caller is not lowered",
+                            inst,
+                        )
+                    )
+
+                callee_sig = callee._fmp_signature
+                if (
+                    callee_sig is not None
+                    and callee_sig.publishes
+                    and caller._fmp_signature is None
+                ):
+                    # a lowered publishing callee returns a hidden adopted-FMP
+                    # value; binding (and consuming) it is part of the lowered
+                    # convention, which FmpLoweringPass alone materializes --
+                    # a raw caller cannot legally express this call.
+                    errors.append(
+                        MixedFmpIRError(
+                            caller,
+                            f"invoke of publishing lowered callee {callee.name} "
+                            "from a non-lowered caller",
                             inst,
                         )
                     )

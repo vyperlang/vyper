@@ -119,33 +119,26 @@ class FmpLoweringPass(IRPass):
     def run_pass(self):
         fn = self.function
 
+        if fn._fmp_signature is not None:
+            # the convention is already frozen: either the function was
+            # parsed with the `[fmp_lowered]` annotation (the input
+            # validator guarantees no raw FMP opcode coexists with it), or
+            # this is an idempotent re-run after lowering. Nothing to do.
+            return
+
+        if any(inst.opcode == "dret" for bb in fn.get_basic_blocks() for inst in bb.instructions):
+            raise CompilerPanic("DretDesugarPass must run before FmpLoweringPass")
+
         self.dynamic_memory = self.analyses_cache.force_analysis(DynamicMemoryAnalysis)
         info = self.dynamic_memory.get_info(fn)
 
-        if info.has_dret:
-            raise CompilerPanic("DretDesugarPass must run before FmpLoweringPass")
-
-        if info.is_lowered:
-            # hand-written already-lowered input: the convention has been
-            # materialized externally; freeze the observed shape and leave
-            # the IR untouched. (Stage 4 replaces this inference with an
-            # explicit function-header annotation.)
-            if fn._fmp_signature is None:
-                fn._fmp_signature = FmpSignature(
-                    has_fmp_param=info.has_physical_hidden_fmp, publishes=info.returns_adopted_fmp
-                )
-            return
-
-        if fn._fmp_signature is not None:
-            raise CompilerPanic(f"FmpLoweringPass ran twice on {fn.name}")
-
-        if not (info.has_dalloca or info.has_fmp_ops or info.calls_need_fmp):
+        if not info.needs_fmp:
             # leaf fast path: no FMP needs, zero plumbing
             fn._fmp_signature = FmpSignature(has_fmp_param=False, publishes=False)
             return
 
         # `retfmp` (the desugared publishing terminator) is the publish fact
-        publishes = info.returns_adopted_fmp
+        publishes = info.publishes
 
         fmp_root_var, has_fmp_param = self._materialize_fmp_root(fn)
         self.fmp_var = self._materialize_fmp_copy(fn, fmp_root_var)
@@ -217,11 +210,13 @@ class FmpLoweringPass(IRPass):
         return_pc_param = layout.return_pc_param
         if return_pc_param is None:
             # every invoked function physically receives the return PC as
-            # the top-of-stack entry slot. When it is not discoverable (no
-            # `ret` to anchor it and no metadata -- e.g. a metadata-less
-            # never-returning forwarder), the last plain param names that
-            # slot; with no params at all, synthesize the name so the
-            # hidden FMP param can be placed beneath it.
+            # the top-of-stack entry slot. The frontend names it with the
+            # dedicated `retpc_param` opcode; for hand-written raw IR the
+            # ret-anchored discovery (the raw-level definition, see
+            # call_layout) finds it. When neither applies (a never-returning
+            # forwarder written with plain params), the last plain param
+            # names that slot; with no params at all, synthesize the name so
+            # the hidden FMP param can be placed beneath it.
             params = layout.params
             if len(params) > 0:
                 return_pc_param = params[-1]
@@ -414,7 +409,7 @@ class FmpLoweringPass(IRPass):
                 if callee_info is not None and callee_info.needs_fmp:
                     self._augment_invoke(inst, self.fmp_var)
                 out.append(inst)
-            if callee_info is not None and callee_info.returns_adopted_fmp:
+            if callee_info is not None and callee_info.publishes:
                 # the callee published a new frame layout over the FMP
                 state.clear()
             return
@@ -693,7 +688,7 @@ class FmpLoweringPass(IRPass):
         layout.append_hidden_fmp_operand(fmp_var)
 
         callee_info = self.dynamic_memory.get_info(callee)
-        if callee_info.returns_adopted_fmp:
+        if callee_info.publishes:
             # the adopted FMP is canonicalized straight into the runner
             layout.append_hidden_fmp_output(fmp_var)
 
@@ -724,8 +719,10 @@ class FmpPrunePass(IRPass):
         if not sig.has_fmp_param or sig.publishes:
             return
 
-        # only the syntactic fmp_param is pruned; hand-written lowered input
-        # without the dedicated opcode keeps its shape as-is
+        # the hidden FMP param is always the dedicated `fmp_param` opcode
+        # (sig.has_fmp_param is reconstructed from it); the None guard is
+        # belt-and-suspenders against externally corrupted shapes, which
+        # check_post_lowering reports.
         param_inst = FunctionCallLayout(fn).fmp_param_opcode_inst
         if param_inst is None:
             return

@@ -2,6 +2,7 @@ import json
 from typing import Optional
 
 from lark import Lark, Transformer
+from lark.exceptions import VisitError
 
 from vyper.venom.basicblock import (
     IRBasicBlock,
@@ -11,9 +12,8 @@ from vyper.venom.basicblock import (
     IROperand,
     IRVariable,
 )
-from vyper.venom.call_layout import params_feed_fmp, parse_dret_shape
 from vyper.venom.context import DataItem, DataSection, IRContext
-from vyper.venom.function import IRFunction
+from vyper.venom.function import FmpSignature, IRFunction
 
 VENOM_GRAMMAR = """
     %import common.DIGIT
@@ -30,7 +30,9 @@ VENOM_GRAMMAR = """
 
     start: function* data_segment?
 
-    function: "function" func_name "{" block_content "}"
+    function: "function" func_name annotations? "{" block_content "}"
+
+    annotations: "[" IDENT ("," IDENT)* "]"
 
     block_content: (label_decl | statement)*
 
@@ -91,51 +93,34 @@ def _set_last_label(ctx: IRContext):
                 ctx.last_label = max(int(label_head), ctx.last_label)
 
 
-def _infer_internal_call_metadata(fn: IRFunction):
-    param_insts = [inst for inst in fn.entry.instructions if inst.is_param]
-    params = [inst.output for inst in param_insts]
-    param_idxs = {param: idx for idx, param in enumerate(params)}
-    return_pc_idxs: set[int] = set()
-    return_counts: set[int] = set()
+# the calling convention is carried only by syntax (opcodes) and the
+# explicit function-header annotation -- there is no shape inference.
+_KNOWN_ANNOTATIONS = frozenset(["fmp_lowered", "fmp_publishes"])
 
-    # syntactically lowered IR: the dedicated param opcodes make (parts of)
-    # the layout explicit, replacing the corresponding inference below.
-    has_fmp_param_opcode = any(inst.opcode == "fmp_param" for inst in param_insts)
-    retpc_param_idx = next(
-        (idx for idx, inst in enumerate(param_insts) if inst.opcode == "retpc_param"), None
+
+def _apply_annotations(fn: IRFunction, annotations: Optional[list[str]]):
+    """
+    Reconstruct `fn._fmp_signature` from the function-header annotation and
+    the `fmp_param` opcode. Raw functions carry no annotation and keep
+    `_fmp_signature is None`; the input validator (check_venom) rejects
+    un-annotated functions containing lowered FMP artifacts.
+    """
+    if annotations is None:
+        return
+
+    for attr in annotations:
+        if attr not in _KNOWN_ANNOTATIONS:
+            raise ValueError(f"unknown function annotation `{attr}` on {fn.name}")
+    if len(set(annotations)) != len(annotations):
+        raise ValueError(f"duplicate function annotation on {fn.name}")
+    if "fmp_lowered" not in annotations:
+        raise ValueError(f"`fmp_publishes` requires `fmp_lowered` on {fn.name}")
+
+    publishes = "fmp_publishes" in annotations
+    has_fmp_param = any(
+        inst.opcode == "fmp_param" for bb in fn.get_basic_blocks() for inst in bb.instructions
     )
-
-    for bb in fn.get_basic_blocks():
-        for inst in bb.instructions:
-            if inst.opcode in ("ret", "retfmp"):
-                if len(inst.operands) == 0:
-                    continue
-                return_counts.add(len(inst.operands) - 1)
-            elif inst.opcode == "dret":
-                shape = parse_dret_shape(inst)
-                if shape is not None:
-                    ordinary_count, dynamic_count = shape
-                    return_counts.add(ordinary_count + dynamic_count)
-                if len(inst.operands) == 0:
-                    continue
-            else:
-                continue
-
-            last_op = inst.operands[-1]
-            ret_pc_idx = param_idxs.get(last_op) if isinstance(last_op, IRVariable) else None
-            if ret_pc_idx is not None:
-                return_pc_idxs.add(ret_pc_idx)
-
-    if retpc_param_idx is not None:
-        return_pc_idxs = {retpc_param_idx}
-
-    if len(return_pc_idxs) == 1:
-        ret_pc_idx = next(iter(return_pc_idxs))
-        has_hidden_fmp = has_fmp_param_opcode or params_feed_fmp(fn, set(params))
-        fn._invoke_param_count = ret_pc_idx - int(has_hidden_fmp)
-
-    if len(return_counts) == 1:
-        fn._return_value_count = next(iter(return_counts))
+    fn._fmp_signature = FmpSignature(has_fmp_param=has_fmp_param, publishes=publishes)
 
 
 def _unescape(s: str) -> str:
@@ -163,6 +148,10 @@ class _LabelDecl:
         self.label = label
 
 
+class _Annotations(list):
+    """Represents a function-header annotation list in the parse tree."""
+
+
 class VenomTransformer(Transformer):
     def start(self, children) -> IRContext:
         ctx = IRContext()
@@ -170,7 +159,7 @@ class VenomTransformer(Transformer):
             ctx.data_segment = children.pop().children
 
         funcs = children
-        for fn_name, items in funcs:
+        for fn_name, annotations, items in funcs:
             fn = ctx.create_function(fn_name)
             if ctx.entry_function is None:
                 ctx.entry_function = fn
@@ -210,15 +199,23 @@ class VenomTransformer(Transformer):
                     bb.insert_instruction(instruction)
 
             _set_last_var(fn)
-            _infer_internal_call_metadata(fn)
+            _apply_annotations(fn, annotations)
         _set_last_label(ctx)
 
         return ctx
 
-    def function(self, children) -> tuple[str, list]:
+    def function(self, children) -> tuple[str, Optional[list[str]], list]:
         name = children[0]
-        block_content = children[1]  # this is the block_content node
-        return name, block_content
+        annotations: Optional[_Annotations] = None
+        if isinstance(children[1], _Annotations):
+            annotations = children[1]
+            block_content = children[2]
+        else:
+            block_content = children[1]  # this is the block_content node
+        return name, annotations, block_content
+
+    def annotations(self, children) -> _Annotations:
+        return _Annotations(str(child) for child in children)
 
     def block_content(self, children) -> list:
         # children contains label_decls and statements
@@ -353,6 +350,13 @@ class VenomTransformer(Transformer):
 
 def parse_venom(source: str) -> IRContext:
     tree = VENOM_PARSER.parse(source)
-    ctx = VenomTransformer().transform(tree)
+    try:
+        ctx = VenomTransformer().transform(tree)
+    except VisitError as e:
+        if isinstance(e.orig_exc, ValueError):
+            # unwrap our own validation errors (e.g. bad function
+            # annotations) from lark's transformer wrapper
+            raise e.orig_exc from None
+        raise
     assert isinstance(ctx, IRContext)  # help mypy
     return ctx

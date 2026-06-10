@@ -10,7 +10,17 @@ from vyper.venom.function import IRFunction
 # - invoke operands are `[target, user args..., hidden_fmp?]`
 # - callee params are `[user params..., hidden_fmp?, return_pc?]`
 # User args/params stay in stable leading positions; hidden FMP, when
-# present, lives at the tail.
+# present, lives at the tail (named by the dedicated `fmp_param` opcode).
+#
+# The return-PC param is identified at two levels:
+# - The `retpc_param` opcode names it syntactically (emitted by the
+#   frontend and by FmpLoweringPass; mandatory in lowered IR).
+# - In RAW IR a plain `param` may serve as the return PC. There it is
+#   *defined* as the unique param that the last operand of a
+#   `ret`/`dret`/`retfmp` aliases -- this ret-anchored discovery is the
+#   raw-level definition of the return PC, not a heuristic. Lowered
+#   (annotated) functions get no such discovery: their convention is
+#   carried by opcodes only.
 
 
 def parse_dret_shape(inst: IRInstruction) -> tuple[int, int] | None:
@@ -39,42 +49,6 @@ def parse_dret_shape(inst: IRInstruction) -> tuple[int, int] | None:
     return ordinary_count, dyn_count
 
 
-def params_feed_fmp(fn: IRFunction, roots: set[IRVariable]) -> bool:
-    """
-    True if any variable in `roots` (param outputs) transitively reaches the
-    base operand of a `bump` through `assign`/`phi` aliases — i.e. the function
-    threads an adopted FMP.
-    """
-    if len(roots) == 0:
-        return False
-
-    aliases = set(roots)
-    changed = True
-    while changed:
-        changed = False
-        for bb in fn.get_basic_blocks():
-            for inst in bb.instructions:
-                outputs = inst.get_outputs()
-                if len(outputs) != 1 or outputs[0] in aliases:
-                    continue
-                if inst.opcode == "assign" and len(inst.operands) == 1:
-                    if inst.operands[0] in aliases:
-                        aliases.add(outputs[0])
-                        changed = True
-                elif inst.opcode == "phi":
-                    phi_ops = list(inst.phi_operands)
-                    if len(phi_ops) > 0 and all(op in aliases for _, op in phi_ops):
-                        aliases.add(outputs[0])
-                        changed = True
-
-    for bb in fn.get_basic_blocks():
-        for inst in bb.instructions:
-            if inst.opcode == "bump" and len(inst.operands) >= 1:
-                if inst.operands[0] in aliases:
-                    return True
-    return False
-
-
 @dataclass(frozen=True)
 class FunctionCallLayout:
     fn: IRFunction
@@ -93,7 +67,8 @@ class FunctionCallLayout:
 
     @property
     def retpc_param_opcode_inst(self) -> IRInstruction | None:
-        # syntactic return-PC param, normalized by FmpLoweringPass
+        # syntactic return-PC param, emitted by the frontend and by
+        # FmpLoweringPass
         for inst in self.fn.entry.instructions:
             if inst.opcode == "retpc_param":
                 return inst
@@ -155,21 +130,26 @@ class FunctionCallLayout:
         return lookup_alias(operand)
 
     @property
-    def has_return_pc_param(self) -> bool:
-        if self.retpc_param_opcode_inst is not None:
-            return True
+    def is_lowered(self) -> bool:
+        # the FMP convention has been frozen (by FmpLoweringPass or the
+        # parsed function-header annotation); the layout is syntax-only
+        return self.fn._fmp_signature is not None
 
-        if self._return_pc_param_from_ret is not None:
-            return True
+    @property
+    def return_pc_param(self) -> IRInstruction | None:
+        retpc_inst = self.retpc_param_opcode_inst
+        if retpc_inst is not None:
+            return retpc_inst
 
-        if self.fn._invoke_param_count is not None:
-            non_return_pc_params = self.fn._invoke_param_count + int(
-                self.has_physical_hidden_fmp_param
-            )
-            if len(self.params) > non_return_pc_params:
-                return True
+        if self.is_lowered:
+            # lowered IR carries its convention in opcodes only; a plain
+            # param is never the return PC here (the input validator
+            # rejects lowered functions whose ret anchors a plain param)
+            return None
 
-        return False
+        # raw-level definition: the return PC is the param that the rets
+        # anchor (see module docstring)
+        return self._return_pc_param_from_ret
 
     @property
     def _return_pc_param_from_ret(self) -> IRInstruction | None:
@@ -186,74 +166,18 @@ class FunctionCallLayout:
         return None
 
     @property
+    def has_return_pc_param(self) -> bool:
+        return self.return_pc_param is not None
+
+    @property
     def has_physical_hidden_fmp_param(self) -> bool:
-        if self.fmp_param_opcode_inst is not None:
-            return True
-
-        if self.fn._invoke_param_count is None:
-            return False
-
-        params = self.params
-        hidden_pos = self.fn._invoke_param_count
-        if len(params) <= hidden_pos:
-            return False
-
-        if self._return_pc_param_from_ret is not None:
-            return len(params) > hidden_pos + 1
-
-        if len(params) > hidden_pos + 1:
-            return True
-
-        return params_feed_fmp(self.fn, {params[hidden_pos].output})
-
-    @property
-    def return_pc_param(self) -> IRInstruction | None:
-        retpc_inst = self.retpc_param_opcode_inst
-        if retpc_inst is not None:
-            return retpc_inst
-
-        if not self.has_return_pc_param:
-            return None
-
-        params = self.params
-        if len(params) == 0:
-            return None
-        return params[-1]
-
-    @property
-    def hidden_fmp_param_pos(self) -> int | None:
-        fmp_inst = self.fmp_param_opcode_inst
-        if fmp_inst is not None:
-            return self.params.index(fmp_inst)
-
-        if not self.has_physical_hidden_fmp_param:
-            return None
-
-        return_pc_offset = int(self.has_return_pc_param)
-        pos = len(self.params) - return_pc_offset - 1
-        if self.fn._invoke_param_count is not None:
-            # Metadata gives the authoritative hidden-FMP slot: after all
-            # user invoke params and before return_pc, if any.
-            assert pos == self.fn._invoke_param_count, (self.fn.name, pos)
-
-        if pos < 0:
-            return None
-        return pos
+        # purely syntactic: the hidden FMP param exists iff the dedicated
+        # opcode does
+        return self.fmp_param_opcode_inst is not None
 
     @property
     def hidden_fmp_param(self) -> IRInstruction | None:
-        fmp_inst = self.fmp_param_opcode_inst
-        if fmp_inst is not None:
-            return fmp_inst
-
-        pos = self.hidden_fmp_param_pos
-        if pos is None:
-            return None
-
-        params = self.params
-        if pos >= len(params):
-            return None
-        return params[pos]
+        return self.fmp_param_opcode_inst
 
     @property
     def hidden_fmp_param_insert_index(self) -> int:
@@ -268,10 +192,8 @@ class FunctionCallLayout:
 
     @property
     def user_params(self) -> tuple[IRInstruction, ...]:
-        count = len(self.params)
-        count -= int(self.has_return_pc_param)
-        count -= int(self.has_physical_hidden_fmp_param)
-        return self.params[: max(count, 0)]
+        hidden = {self.fmp_param_opcode_inst, self.return_pc_param}
+        return tuple(inst for inst in self.params if inst not in hidden)
 
     @property
     def physical_user_param_count(self) -> int:
@@ -279,8 +201,6 @@ class FunctionCallLayout:
 
     @property
     def expected_user_arg_count(self) -> int:
-        if self.fn._invoke_param_count is not None:
-            return self.fn._invoke_param_count
         return self.physical_user_param_count
 
 
@@ -376,7 +296,7 @@ class InvokeLayout:
         callee_layout = self.callee_layout
         if callee is None or callee_layout is None:
             return None
-        if callee._invoke_param_count is None or callee._has_memory_return_buffer_param is None:
+        if callee._has_memory_return_buffer_param is None:
             return None
         if self.user_arg_count != callee_layout.expected_user_arg_count:
             return None
@@ -404,87 +324,3 @@ class InvokeLayout:
 
     def append_hidden_fmp_output(self, fmp_var: IRVariable) -> None:
         self.inst.set_outputs([*self.inst.get_outputs(), fmp_var])
-
-    def remove_trailing_operand(self) -> None:
-        self.inst.operands.pop()
-
-
-def function_has_return_pc_param(fn: IRFunction) -> bool:
-    return FunctionCallLayout(fn).has_return_pc_param
-
-
-def get_param_instructions(fn: IRFunction) -> tuple[IRInstruction, ...]:
-    return FunctionCallLayout(fn).params
-
-
-def get_user_param_instructions(fn: IRFunction) -> tuple[IRInstruction, ...]:
-    return FunctionCallLayout(fn).user_params
-
-
-def get_return_pc_param_inst(fn: IRFunction) -> IRInstruction | None:
-    return FunctionCallLayout(fn).return_pc_param
-
-
-def get_hidden_fmp_param_inst(fn: IRFunction) -> IRInstruction | None:
-    return FunctionCallLayout(fn).hidden_fmp_param
-
-
-def get_hidden_fmp_param_insert_index(fn: IRFunction) -> int:
-    return FunctionCallLayout(fn).hidden_fmp_param_insert_index
-
-
-def get_invoke_callee(ctx: IRContext, invoke_inst: IRInstruction) -> IRFunction | None:
-    return InvokeLayout(ctx, invoke_inst).callee
-
-
-def get_invoke_hidden_fmp_operand_pos(
-    invoke_inst: IRInstruction, callee: IRFunction | None
-) -> int | None:
-    if callee is None:
-        return None
-    return InvokeLayout(callee.ctx, invoke_inst, callee).hidden_fmp_operand_pos
-
-
-def get_invoke_user_operands(
-    invoke_inst: IRInstruction, callee: IRFunction | None
-) -> tuple[IROperand, ...]:
-    if callee is None:
-        if len(invoke_inst.operands) <= 1:
-            return ()
-        return tuple(invoke_inst.operands[1:])
-    return InvokeLayout(callee.ctx, invoke_inst, callee).user_operands
-
-
-def get_invoke_user_arg_count(invoke_inst: IRInstruction, callee: IRFunction | None) -> int:
-    if callee is None:
-        return len(get_invoke_user_operands(invoke_inst, callee))
-    return InvokeLayout(callee.ctx, invoke_inst, callee).user_arg_count
-
-
-def get_invoke_user_arg_index(
-    invoke_inst: IRInstruction, operand_idx: int, callee: IRFunction | None
-) -> int | None:
-    if callee is None:
-        if operand_idx <= 0:
-            return None
-        return operand_idx - 1
-    return InvokeLayout(callee.ctx, invoke_inst, callee).user_arg_index(operand_idx)
-
-
-def get_invoke_return_buffer_operand_pos(
-    invoke_inst: IRInstruction, callee: IRFunction | None
-) -> int | None:
-    if callee is None:
-        return None
-    return InvokeLayout(callee.ctx, invoke_inst, callee).return_buffer_operand_pos
-
-
-def get_invoke_bound_params(
-    invoke_inst: IRInstruction, callee: IRFunction | None
-) -> tuple[IROperand, ...]:
-    if callee is None:
-        ops = list(get_invoke_user_operands(invoke_inst, None))
-        if len(invoke_inst.operands) > 0:
-            ops.append(invoke_inst.operands[0])
-        return tuple(ops)
-    return InvokeLayout(callee.ctx, invoke_inst, callee).bound_params

@@ -1279,9 +1279,9 @@ def _generate_internal_function(
     returns_count = returns_stack_count(func_t)
     has_memory_return_buffer = func_t.return_type is not None and returns_count == 0
 
-    # Structured invoke metadata used by backend passes.
+    # Structured invoke metadata used by backend passes. (The user-arg
+    # count is syntactic: the number of plain `param` instructions.)
     fn._has_memory_return_buffer_param = has_memory_return_buffer
-    fn._invoke_param_count = len(func_t.arguments) + (1 if has_memory_return_buffer else 0)
     fn._return_value_count = returns_count
 
     # Handle parameters
@@ -1301,8 +1301,9 @@ def _generate_internal_function(
             ptr = builder.param()
             codegen_ctx.register_variable(arg.name, arg.typ, ptr, mutable=True)
 
-    # Return PC is last param
-    codegen_ctx.return_pc = builder.param()
+    # Return PC is the last param, named by its dedicated opcode so the
+    # raw IR is self-describing even for functions with no `ret` to anchor it
+    codegen_ctx.return_pc = builder.retpc_param()
 
     # Allocate return buffer if needed
     if func_t.return_type is not None:

@@ -353,6 +353,10 @@ class VenomBuilder:
         """Declare function parameter (must be at block start)."""
         return self._emit1("param")
 
+    def retpc_param(self) -> IRVariable:
+        """Declare the return-PC parameter (the top-of-stack entry slot)."""
+        return self._emit1("retpc_param")
+
     # === External Calls ===
     def call(
         self,

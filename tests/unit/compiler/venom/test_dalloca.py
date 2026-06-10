@@ -478,12 +478,16 @@ def test_stale_hidden_fmp_arg_removed_after_callee_prunes_fmp():
     assert invoke.operands == [IRLabel("callee")]
 
 
-def test_stale_hidden_fmp_cleanup_keeps_non_fmp_extra_arg():
+def test_lowered_caller_invokes_untouched_by_fmp_lowering():
+    # an already-lowered (annotated) caller's convention is frozen:
+    # FmpLoweringPass must leave its shape -- including invoke operands that
+    # are NOT hidden FMP operands -- exactly as written. (Successor of the
+    # deleted de-augmentation machinery's "keep non-FMP extra arg" guard.)
     ctx = parse_venom("""
-        function caller {
+        function caller [fmp_lowered] {
             caller:
-                %fmp = param
-                %retpc = param
+                %fmp = fmp_param
+                %retpc = retpc_param
                 %arg = source
                 mstore 0, %fmp
                 invoke @callee, %arg
@@ -492,13 +496,12 @@ def test_stale_hidden_fmp_cleanup_keeps_non_fmp_extra_arg():
 
         function callee {
             callee:
-                %retpc = param
+                %retpc = retpc_param
                 ret %retpc
         }
     """)
 
     caller = ctx.get_function(IRLabel("caller"))
-    caller._invoke_param_count = 0
     FmpLoweringPass(IRAnalysesCache(caller), caller).run_pass()
 
     invoke = next(
@@ -515,12 +518,11 @@ def test_no_ret_function_inserts_hidden_fmp_before_return_pc():
     # e.g. reverts, self-destructs) still carries a return-PC param. When it needs FMP
     # (here, a dalloca), the hidden FMP param must be inserted *before* the
     # return-PC param and the bump must thread that FMP — not reuse the
-    # return-PC value as the allocation base. Regression for layout inference
-    # counting a not-yet-inserted hidden FMP slot.
-    # (Stage 2: the hidden param is the dedicated `fmp_param` opcode and the
-    # return-PC param is normalized to `retpc_param`; a separate entry
-    # function keeps `f` non-entry, since the entry function's FMP root is
-    # seeded with `initial_fmp` instead of a param.)
+    # return-PC value as the allocation base. With no `ret` to anchor it, the
+    # return-PC slot is named syntactically by the frontend-emitted
+    # `retpc_param` opcode.
+    # (A separate entry function keeps `f` non-entry, since the entry
+    # function's FMP root is seeded with `initial_fmp` instead of a param.)
     ctx = parse_venom("""
         function main {
             main:
@@ -530,7 +532,7 @@ def test_no_ret_function_inserts_hidden_fmp_before_return_pc():
         function f {
             f:
                 %a = param
-                %retpc = param
+                %retpc = retpc_param
                 %p = dalloca 64
                 mstore %p, %a
                 return %p, 64
@@ -538,7 +540,6 @@ def test_no_ret_function_inserts_hidden_fmp_before_return_pc():
         """)
 
     fn = ctx.get_function(IRLabel("f"))
-    fn._invoke_param_count = 1  # one user param (%a); %retpc is the return-PC param
 
     FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
 
@@ -572,72 +573,36 @@ def test_no_ret_function_inserts_hidden_fmp_before_return_pc():
     assert root != retpc
 
 
-def test_phi_resolves_hidden_fmp_param_through_bump_base():
-    # Regression: the hidden-FMP param flows through a `phi` into a `bump` base.
-    # Both predecessors forward the hidden-FMP param into the phi, whose output
-    # feeds the bump base, so resolution must walk through the phi alias back to
-    # the param. This is the exact branch the recent P1 fix repaired (the pre-fix
-    # code crashed taking `len()` of the phi-operands generator); without phi
-    # handling the bump base never resolves back to the param.
+def test_parser_reconstructs_signature_from_annotation_and_opcodes():
+    # parsed lowered IR is self-describing: `publishes` comes from the
+    # `fmp_publishes` annotation token, `has_fmp_param` from the presence of
+    # the `fmp_param` opcode -- nothing is inferred from shapes or arities.
     ctx = parse_venom("""
-        function f {
-            f:
-                %fmp = param
-                %cond = calldatasize
-                jnz %cond, @left, @right
-
-            left:
-                %l = %fmp
-                jmp @join
-
-            right:
-                %r = %fmp
-                jmp @join
-
-            join:
-                %cur = phi @left, %l, @right, %r
-                %p, %next = bump 32, %cur
-                mstore %p, 1
-                stop
-        }
-        """)
-    fn = ctx.get_function(IRLabel("f"))
-    # one hidden-FMP param (%fmp), no user params and no return-PC param, so
-    # `has_physical_hidden_fmp_param` must fall through to the phi/bump walk.
-    fn._invoke_param_count = 0
-
-    dynamic_memory = IRAnalysesCache(fn).request_analysis(DynamicMemoryAnalysis)
-    assert dynamic_memory.get_info(fn).has_physical_hidden_fmp is True
-    assert FunctionCallLayout(fn).has_physical_hidden_fmp_param is True
-
-
-def test_parser_infers_invoke_param_count_with_hidden_fmp():
-    # Already-lowered IR carries a physical hidden-FMP param between the user
-    # params and the return-PC param: `[%user, %fmp, %ret_pc]`. The return-PC
-    # param sits at index 2, but `_invoke_param_count` must be the user count (1),
-    # i.e. the return-PC index minus the hidden-FMP slot detected via the bump
-    # base. `%ret_pc` is the last `ret` operand in the model (`ret` operands are
-    # reversed at parse time, so it is written first) and `%fmp` feeds the bump
-    # base.
-    ctx = parse_venom("""
-        function f {
+        function f [fmp_lowered] {
             f:
                 %user = param
-                %fmp = param
-                %ret_pc = param
+                %fmp = fmp_param
+                %ret_pc = retpc_param
                 %p, %next = bump 32, %fmp
                 mstore %p, %user
                 ret %ret_pc, %p
         }
         """)
     fn = ctx.get_function(IRLabel("f"))
-    assert fn._invoke_param_count == 1
-    assert fn._return_value_count == 1
+    sig = fn._fmp_signature
+    assert sig is not None
+    assert sig.has_fmp_param is True
+    assert sig.publishes is False
+
+    layout = FunctionCallLayout(fn)
+    assert layout.has_physical_hidden_fmp_param is True
+    assert [inst.output for inst in layout.user_params] == [IRVariable("%user")]
+    assert layout.expected_user_arg_count == 1
 
 
-def test_parser_infers_invoke_param_count_without_hidden_fmp():
-    # Control: a non-lowered function `[%user, %ret_pc]` with no `bump` has no
-    # hidden FMP, so the return-PC index (1) is the user count unchanged.
+def test_parser_leaves_raw_functions_unsealed():
+    # control: an un-annotated (raw) function gets no signature; its
+    # convention is materialized later by FmpLoweringPass
     ctx = parse_venom("""
         function f {
             f:
@@ -647,8 +612,12 @@ def test_parser_infers_invoke_param_count_without_hidden_fmp():
         }
         """)
     fn = ctx.get_function(IRLabel("f"))
-    assert fn._invoke_param_count == 1
-    assert fn._return_value_count == 1
+    assert fn._fmp_signature is None
+    # raw-level definition: the ret anchors the return-PC param
+    layout = FunctionCallLayout(fn)
+    assert layout.return_pc_param is not None
+    assert layout.return_pc_param.output == IRVariable("%ret_pc")
+    assert layout.expected_user_arg_count == 1
 
 
 def test_dret_desugar_ignores_dalloca_only_callee():
@@ -815,9 +784,9 @@ def test_dret_supports_zero_and_runtime_sizes(calldata, expected_next):
 
 
 def test_dret_pre_cancun_copy_path(monkeypatch):
-    import vyper.venom.passes.dalloca_lowering as dalloca_lowering
+    import vyper.venom.passes.fmp_lowering as fmp_lowering
 
-    monkeypatch.setattr(dalloca_lowering, "version_check", lambda **kwargs: False)
+    monkeypatch.setattr(fmp_lowering, "version_check", lambda **kwargs: False)
     ctx = parse_venom("""
         function callee {
             callee:
@@ -1197,7 +1166,7 @@ def test_inlined_publishing_callee_host_does_not_publish():
 
     dynamic_memory = IRAnalysesCache(host).request_analysis(DynamicMemoryAnalysis)
     info = dynamic_memory.get_info(host)
-    assert info.returns_adopted_fmp is False
+    assert info.publishes is False
     assert info.needs_fmp is True
 
     # end-to-end execution equivalence, inlined and not
@@ -1309,15 +1278,15 @@ def test_fmp_register_ops_reaching_codegen_panic():
 
 
 def test_fmp_param_retpc_param_round_trip():
-    # the dedicated param opcodes parse, infer layout metadata syntactically
-    # and round-trip through the printer
+    # the dedicated param opcodes and the function-header annotation carry
+    # the layout syntactically and round-trip through the printer
     src = """
     function main {
         main:
             stop
     }
 
-    function f {
+    function f [fmp_lowered] {
         f:
             %user = param
             %fmp = fmp_param
@@ -1331,15 +1300,16 @@ def test_fmp_param_retpc_param_round_trip():
     check_calling_convention(ctx)
 
     fn = ctx.get_function(IRLabel("f"))
-    # syntactic metadata inference: one user param; fmp/retpc named by opcode
-    assert fn._invoke_param_count == 1
+    # syntactic layout: one user param; fmp/retpc named by opcode
     layout = FunctionCallLayout(fn)
+    assert layout.expected_user_arg_count == 1
     assert layout.has_physical_hidden_fmp_param
     assert layout.hidden_fmp_param.output == IRVariable("%fmp")
     assert layout.return_pc_param.output == IRVariable("%retpc")
     assert [inst.output for inst in layout.user_params] == [IRVariable("%user")]
 
-    # printer/parser round trip preserves shape
+    # printer/parser round trip preserves shape (including the annotation:
+    # assert_fn_eq compares the reconstructed fmp_signature)
     assert_ctx_eq(ctx, parse_venom(str(ctx)))
 
 
@@ -1475,11 +1445,11 @@ def test_metadata_less_never_returning_forwarder_no_duplicate_fmp_param():
     # run-2 slot is the deletion-only FmpPrunePass) and the syntactic
     # `fmp_param` opcode this is impossible by construction.
 
-    # variant 1: truly metadata-less, driven through the manual lowering
-    # helper (without _invoke_param_count the input validator cannot
-    # classify the retpc param of a no-ret function until Stage 4's
-    # annotations). FmpLoweringPass falls back to treating the last plain
-    # param as the return-PC slot.
+    # variant 1: hand-written raw IR with only plain params. Neither the
+    # ret-anchored discovery (no `ret`) nor a `retpc_param` opcode names the
+    # return-PC slot, so FmpLoweringPass falls back to treating the last
+    # plain param as that slot (part of the raw-level definition: every
+    # invoked function receives the return PC on top of the entry stack).
     ctx = parse_venom(_NEVER_RETURNING_FORWARDER_SRC)
     for fn in reversed(list(ctx.functions.values())):
         _apply_lowering(fn)
@@ -1495,11 +1465,11 @@ def test_metadata_less_never_returning_forwarder_no_duplicate_fmp_param():
     out = evm.message_call(caller=caller, to=addr, calldata=b"", gas=1_000_000)
     assert _word(out) == 7
 
-    # variant 2: full O2 pipeline with frontend-realistic metadata (the
-    # frontend always sets _invoke_param_count; the return-anchoring
-    # heuristics still cannot see the retpc param of a no-ret function)
-    ctx = parse_venom(_NEVER_RETURNING_FORWARDER_SRC)
-    ctx.get_function(IRLabel("fwd"))._invoke_param_count = 0
+    # variant 2: full O2 pipeline on frontend-realistic raw IR -- the
+    # frontend names the return-PC slot with the dedicated `retpc_param`
+    # opcode, so even a no-ret function is self-describing.
+    src = _NEVER_RETURNING_FORWARDER_SRC.replace("%retpc = param", "%retpc = retpc_param")
+    ctx = parse_venom(src)
     flags = VenomOptimizationFlags(level=OptimizationLevel.O2, disable_inlining=True)
     run_passes_on(ctx, flags, disable_mem_checks=True)
     _assert_single_fmp_param_layout(ctx.get_function(IRLabel("fwd")))
@@ -1951,7 +1921,7 @@ def test_restore_dominance_assertion_fires_on_illegal_restore():
     # arm tracked at a join the definition does not dominate. The emitted
     # restore would be SSA-illegal; the engine's dominance assertion fires.
     from vyper.venom.analysis import BasePtrAnalysis, DominatorTreeAnalysis, LivenessAnalysis
-    from vyper.venom.passes import dalloca_lowering
+    from vyper.venom.passes import fmp_lowering
 
     ctx = parse_venom("""
         function main {
@@ -1987,7 +1957,7 @@ def test_restore_dominance_assertion_fires_on_illegal_restore():
 
     p_var = IRVariable("%p")
     lowering._mark_def_bbs = {p_var: fn.get_basic_block("a")}
-    state = dalloca_lowering._ReclaimState(stack=[p_var])
+    state = fmp_lowering._ReclaimState(stack=[p_var])
 
     q_inst = fn.get_basic_block("join").instructions[0]
     assert q_inst.opcode == "dalloca"

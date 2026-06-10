@@ -690,7 +690,6 @@ def test_internal_return_forwarding_still_applies_without_src_clobber():
 
     def _setup(ctx):
         callee = ctx.get_function(IRLabel("callee"))
-        callee._invoke_param_count = 1
         callee._has_memory_return_buffer_param = True
 
     ctx = _run_copy_forwarding(src, setup=_setup)
@@ -737,7 +736,6 @@ def test_internal_return_forwarding_allows_disjoint_intervening_invoke_write():
     def _setup(ctx):
         for fn_name in ("producer", "writer"):
             callee = ctx.get_function(IRLabel(fn_name))
-            callee._invoke_param_count = 1
             callee._has_memory_return_buffer_param = True
 
     ctx = _run_copy_forwarding(src, setup=_setup)
@@ -774,7 +772,6 @@ def test_internal_return_forwarding_ignores_hidden_fmp_arg():
 
     ctx = parse_venom(src)
     callee = ctx.get_function(IRLabel("callee"))
-    callee._invoke_param_count = 1
     callee._has_memory_return_buffer_param = True
 
     _lower_dalloca(ctx)

@@ -11,6 +11,7 @@ from vyper.venom.check_venom import (
     DretReturnMixError,
     DretShapeError,
     DretShapeMismatch,
+    FmpAnnotationError,
     FunctionCallLayoutError,
     GetfmpArityError,
     InconsistentReturnArity,
@@ -228,7 +229,7 @@ def test_bump_arity_wrong_operand_count_rejected():
 
 def test_bump_arity_correct_accepted():
     src = """
-    function main {
+    function main [fmp_lowered] {
     main:
         %fmp = calldatasize
         %a, %b = bump 32, %fmp
@@ -241,18 +242,19 @@ def test_bump_arity_correct_accepted():
 
 
 def test_function_layout_detects_hidden_fmp_without_return_pc():
+    # the hidden FMP param is named by its dedicated opcode; the layout
+    # facts are purely syntactic (no return-PC param exists here)
     src = """
-    function f {
+    function f [fmp_lowered] {
     main:
         %arg = param
-        %fmp = param
+        %fmp = fmp_param
         %p, %next_fmp = bump 32, %fmp
         sink %arg, %p, %next_fmp
     }
     """
     ctx = parse_venom(src)
     fn = ctx.get_function(IRLabel("f"))
-    fn._invoke_param_count = 1
 
     layout = FunctionCallLayout(fn)
     assert not layout.has_return_pc_param
@@ -600,25 +602,25 @@ def test_invoke_argument_count_accepts_literal_return_label():
 
 
 def test_invoke_argument_count_accepts_hidden_fmp_tail():
-    # Stage 2: an invoke carrying the hidden FMP operand is only legal in an
-    # already-lowered caller (FmpLoweringPass is the sole writer of that
-    # operand for everything else), so the caller threads its own hidden FMP
-    # param here.
+    # an invoke carrying the hidden FMP operand is only legal in an
+    # already-lowered (annotated) caller (FmpLoweringPass is the sole writer
+    # of that operand for everything else), so the caller threads its own
+    # hidden FMP param here.
     src = """
-    function caller {
+    function caller [fmp_lowered] {
     caller:
         %arg = param
-        %fmp = param
-        %retpc = param
+        %fmp = fmp_param
+        %retpc = retpc_param
         invoke @f, %arg
         ret %retpc
     }
 
-    function f {
+    function f [fmp_lowered] {
     main:
         %arg = param
-        %fmp = param
-        %retpc = param
+        %fmp = fmp_param
+        %retpc = retpc_param
         ret %retpc
     }
     """
@@ -631,9 +633,6 @@ def test_invoke_argument_count_accepts_hidden_fmp_tail():
     )
     invoke.operands = [IRLabel("f"), IRVariable("%arg"), IRVariable("%fmp")]
 
-    ctx.get_function(IRLabel("caller"))._invoke_param_count = 1
-    callee = ctx.get_function(IRLabel("f"))
-    callee._invoke_param_count = 1
     check_calling_convention(ctx)
 
 
@@ -651,11 +650,11 @@ def test_invoke_hidden_fmp_tail_rejected_in_raw_caller():
         stop
     }
 
-    function f {
+    function f [fmp_lowered] {
     main:
         %arg = param
-        %fmp = param
-        %retpc = param
+        %fmp = fmp_param
+        %retpc = retpc_param
         ret %retpc
     }
     """
@@ -667,9 +666,6 @@ def test_invoke_hidden_fmp_tail_rejected_in_raw_caller():
         if inst.opcode == "invoke"
     )
     invoke.operands = [IRLabel("f"), IRVariable("%arg"), IRVariable("%fmp")]
-
-    callee = ctx.get_function(IRLabel("f"))
-    callee._invoke_param_count = 1
 
     with pytest.raises(ExceptionGroup) as excinfo:
         check_calling_convention(ctx)
@@ -697,7 +693,6 @@ def test_function_layout_counts_non_contiguous_params():
     }
     """
     ctx = parse_venom(src)
-    ctx.get_function(IRLabel("f"))._invoke_param_count = 2
     check_calling_convention(ctx)
 
 
@@ -730,17 +725,15 @@ def test_invoke_argument_count_rejects_missing_hidden_fmp_tail():
         invoke @f, %arg
     }
 
-    function f {
+    function f [fmp_lowered] {
     main:
         %arg = param
-        %fmp = param
-        %retpc = param
+        %fmp = fmp_param
+        %retpc = retpc_param
         ret %retpc
     }
     """
     ctx = parse_venom(src)
-    callee = ctx.get_function(IRLabel("f"))
-    callee._invoke_param_count = 1
 
     with pytest.raises(ExceptionGroup) as excinfo:
         check_calling_convention(ctx)
@@ -777,22 +770,24 @@ def test_invoke_argument_count_rejects_stale_hidden_fmp_tail():
     _assert_raises(excinfo.value, InvokeArgumentCountMismatch)
 
 
-def test_function_invoke_param_count_metadata_must_match_user_params():
+def test_return_pc_param_must_be_final():
+    # raw-level definition: the return PC is the param the rets anchor; it
+    # must occupy the final (top-of-stack) param slot
     src = """
     function main {
     main:
-        invoke @f
+        %a = source
+        invoke @f, %a
     }
 
     function f {
     main:
         %retpc = param
+        %a = param
         ret %retpc
     }
     """
     ctx = parse_venom(src)
-    callee = ctx.get_function(IRLabel("f"))
-    callee._invoke_param_count = 1
 
     with pytest.raises(ExceptionGroup) as excinfo:
         check_calling_convention(ctx)
@@ -1003,7 +998,7 @@ def test_fmp_param_canonical_position_accepted():
         stop
     }
 
-    function f {
+    function f [fmp_lowered] {
     f:
         %a = param
         %fmp = fmp_param
@@ -1037,7 +1032,7 @@ def test_fmp_param_position_violations_rejected(params):
         stop
     }}
 
-    function f {{
+    function f [fmp_lowered] {{
     f:
         {params}
         ret %retpc
@@ -1056,9 +1051,9 @@ def test_fmp_param_outside_entry_block_rejected():
         stop
     }
 
-    function f {
+    function f [fmp_lowered] {
     f:
-        %retpc = param
+        %retpc = retpc_param
         jmp @body
     body:
         %fmp = fmp_param
@@ -1109,3 +1104,227 @@ def test_mixed_raw_ops_with_bump_rejected():
     with pytest.raises(ExceptionGroup) as excinfo:
         check_calling_convention(ctx)
     _assert_raises(excinfo.value, MixedFmpIRError)
+
+
+# ---------------------------------------------------------------------------
+# Stage 4: the calling convention is carried only by syntax (opcodes) and the
+# explicit `[fmp_lowered(, fmp_publishes)?]` function-header annotation.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        # bump without annotation
+        "%fmp = calldatasize\n        %a, %b = bump 32, %fmp\n        sink %a, %b",
+        # initial_fmp without annotation
+        "%fmp = initial_fmp\n        sink %fmp",
+    ],
+)
+def test_lowered_artifacts_require_annotation(body):
+    src = f"""
+    function main {{
+    main:
+        {body}
+    }}
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, FmpAnnotationError)
+
+
+def test_fmp_param_requires_annotation():
+    src = """
+    function main {
+    main:
+        stop
+    }
+
+    function f {
+    f:
+        %fmp = fmp_param
+        %retpc = retpc_param
+        ret %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, FmpAnnotationError)
+
+
+def test_retpc_param_is_level_neutral():
+    # `retpc_param` is just a syntactic name for the return-PC slot: the
+    # frontend emits it in RAW IR (so even no-ret functions are
+    # self-describing); it requires no annotation and may coexist with raw
+    # FMP opcodes.
+    src = """
+    function main {
+    main:
+        %ret = invoke @f
+        sink %ret
+    }
+
+    function f {
+    f:
+        %retpc = retpc_param
+        %p = dalloca 32
+        mstore %p, 7
+        dret 1, %p, 32, %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    check_calling_convention(ctx)
+
+
+def test_annotated_function_with_raw_ops_rejected():
+    # an annotated (lowered) function may not contain raw FMP opcodes
+    src = """
+    function main {
+    main:
+        stop
+    }
+
+    function f [fmp_lowered] {
+    f:
+        %retpc = retpc_param
+        %p = dalloca 32
+        mstore %p, 1
+        ret %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, MixedFmpIRError)
+
+
+def test_annotated_publishing_function_shape_accepted():
+    # lowered publishing convention: ret operands are
+    # [user returns..., adopted FMP, return_pc]; the (lowered) caller binds
+    # the extra hidden output
+    src = """
+    function main [fmp_lowered] {
+    main:
+        %v, %fmp = invoke @f
+        sink %v, %fmp
+    }
+
+    function f [fmp_lowered, fmp_publishes] {
+    f:
+        %retpc = retpc_param
+        %base = initial_fmp
+        %p, %new = bump 32, %base
+        ret %p, %new, %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    check_calling_convention(ctx)
+
+    fn = ctx.get_function(IRLabel("f"))
+    assert fn._fmp_signature is not None
+    assert fn._fmp_signature.publishes is True
+    assert fn._fmp_signature.has_fmp_param is False
+
+
+def test_publishing_lowered_callee_rejected_in_raw_caller():
+    # the hidden adopted-FMP output of a publishing lowered callee is part
+    # of the lowered convention; a raw caller cannot legally bind it
+    # (FmpLoweringPass alone writes hidden invoke outputs)
+    src = """
+    function main {
+    main:
+        %v, %fmp = invoke @f
+        mstore 0, %v
+        return 0, 32
+    }
+
+    function f [fmp_lowered, fmp_publishes] {
+    f:
+        %retpc = retpc_param
+        %base = initial_fmp
+        %p, %new = bump 32, %base
+        ret %p, %new, %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, MixedFmpIRError)
+
+
+def test_annotated_publishes_without_hidden_ret_value_rejected():
+    # the annotation claims the rets carry a hidden adopted-FMP value; a
+    # bare `ret %retpc` cannot
+    src = """
+    function main {
+    main:
+        stop
+    }
+
+    function f [fmp_lowered, fmp_publishes] {
+    f:
+        %retpc = retpc_param
+        ret %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, FmpAnnotationError)
+
+
+def test_annotated_function_with_plain_param_retpc_rejected():
+    # lowered IR carries its convention in opcodes only: ret-anchored
+    # return-PC discovery is a raw-level definition, so an annotated
+    # function whose ret anchors a plain `param` is malformed
+    src = """
+    function main {
+    main:
+        stop
+    }
+
+    function f [fmp_lowered] {
+    f:
+        %retpc = param
+        ret %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, FmpAnnotationError)
+
+
+def test_unknown_annotation_rejected():
+    src = """
+    function main [fmp_bogus] {
+    main:
+        stop
+    }
+    """
+    with pytest.raises(ValueError, match="unknown function annotation"):
+        parse_venom(src)
+
+
+def test_publishes_annotation_requires_lowered():
+    src = """
+    function main [fmp_publishes] {
+    main:
+        stop
+    }
+    """
+    with pytest.raises(ValueError, match="requires `fmp_lowered`"):
+        parse_venom(src)
+
+
+def test_duplicate_annotation_rejected():
+    src = """
+    function main [fmp_lowered, fmp_lowered] {
+    main:
+        stop
+    }
+    """
+    with pytest.raises(ValueError, match="duplicate function annotation"):
+        parse_venom(src)

@@ -16,14 +16,27 @@ class FmpSignature:
     """
     Frozen FMP calling-convention shape of a function.
 
-    Written by FmpLoweringPass when it materializes the convention and
-    resealed by FmpPrunePass if the hidden FMP param is deleted. Once set,
-    it is authoritative: callers augment invokes against it and the
-    post-lowering checks compare the physical shape against it.
+    Written by FmpLoweringPass when it materializes the convention,
+    resealed by FmpPrunePass if the hidden FMP param is deleted, and
+    reconstructed by the parser from the function-header annotation
+    (`[fmp_lowered]` / `[fmp_lowered, fmp_publishes]`) plus the
+    `fmp_param` opcode. Once set, it is authoritative: callers augment
+    invokes against it and the post-lowering checks compare the physical
+    shape against it.
     """
 
     has_fmp_param: bool
     publishes: bool
+
+    @property
+    def annotation(self) -> str:
+        # the function-header annotation in the Venom text format.
+        # `has_fmp_param` is not part of the annotation: it is carried
+        # syntactically by the `fmp_param` opcode.
+        attrs = ["fmp_lowered"]
+        if self.publishes:
+            attrs.append("fmp_publishes")
+        return f"[{', '.join(attrs)}]"
 
 
 class IRFunction:
@@ -37,10 +50,11 @@ class IRFunction:
     _basic_block_dict: dict[str, IRBasicBlock]
 
     # Internal-call metadata (excluding return_pc):
-    # - number of invoke params
     # - whether first invoke param is a memory return buffer
     # - number of user-visible return values produced by invoke
-    _invoke_param_count: Optional[int]
+    # The user-arg count itself is syntactic: plain `param` instructions
+    # are exactly the user params (`fmp_param`/`retpc_param` name the
+    # hidden slots).
     _has_memory_return_buffer_param: Optional[bool]
     _return_value_count: Optional[int]
 
@@ -58,7 +72,6 @@ class IRFunction:
 
         self.last_variable = 0
 
-        self._invoke_param_count = None
         self._has_memory_return_buffer_param = None
         self._return_value_count = None
         self._fmp_signature = None
@@ -151,7 +164,6 @@ class IRFunction:
 
     def copy(self):
         new = IRFunction(self.name)
-        new._invoke_param_count = self._invoke_param_count
         new._has_memory_return_buffer_param = self._has_memory_return_buffer_param
         new._return_value_count = self._return_value_count
         new._fmp_signature = self._fmp_signature
@@ -199,7 +211,10 @@ class IRFunction:
         return "\n".join(ret)
 
     def __repr__(self) -> str:
-        ret = f"function {self.name} {{\n"
+        annotation = ""
+        if self._fmp_signature is not None:
+            annotation = f" {self._fmp_signature.annotation}"
+        ret = f"function {self.name}{annotation} {{\n"
         for bb in self.get_basic_blocks():
             bb_str = textwrap.indent(str(bb), "  ")
             ret += f"{bb_str}\n"
