@@ -323,9 +323,13 @@ def _find_dret_errors(fn: IRFunction) -> list[VenomError]:
                 )
                 continue
 
+            # dret is valid only in internal functions with a return-PC param.
+            # A static label (or any other unresolvable return_pc) must be
+            # rejected: DretLoweringPass would otherwise conjure an FMP param
+            # that pops the caller's return PC at runtime.
             return_pc = inst.operands[-1]
-            if not isinstance(return_pc, IRLabel) and layout.param_for_alias(return_pc) is None:
-                errors.append(DretShapeError(fn, inst, "return_pc must be a label or param alias"))
+            if layout.param_for_alias(return_pc) is None:
+                errors.append(DretShapeError(fn, inst, "return_pc must be a param alias"))
                 continue
 
             shapes.add(shape)

@@ -84,7 +84,13 @@ class FunctionCallLayout:
         return tuple(inst for inst in self.fn.entry.instructions if inst.opcode == "param")
 
     def param_for_alias(self, operand: IROperand) -> IRInstruction | None:
-        aliases: dict[IRVariable, IRInstruction] = {inst.output: inst for inst in self.params}
+        # A `None` value is a demotion sentinel: the variable has conflicting
+        # definitions from different params (valid in pre-SSA IR, which MakeSSA
+        # repairs), so it is "not a unique param alias". Lookups on demoted
+        # variables return None and demotion stops further propagation.
+        aliases: dict[IRVariable, IRInstruction | None] = {
+            inst.output: inst for inst in self.params
+        }
 
         def lookup_alias(op: IROperand) -> IRInstruction | None:
             if not isinstance(op, IRVariable):
@@ -120,12 +126,13 @@ class FunctionCallLayout:
                     existing_param = aliases.get(outputs[0])
                     if source_param is None or existing_param == source_param:
                         continue
-                    assert existing_param is None, (
-                        self.fn.name,
-                        outputs[0],
-                        existing_param,
-                        source_param,
-                    )
+                    if outputs[0] in aliases:
+                        # Conflicting definitions (multi-def pre-SSA variable):
+                        # demote to "not a unique param alias".
+                        if existing_param is not None:
+                            aliases[outputs[0]] = None
+                            changed = True
+                        continue
                     aliases[outputs[0]] = source_param
                     changed = True
 

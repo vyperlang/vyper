@@ -1,6 +1,8 @@
 import pytest
 
 from tests.venom_utils import parse_venom
+from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
+from vyper.venom import run_passes_on
 from vyper.venom.basicblock import IRLabel, IRVariable
 from vyper.venom.call_layout import FunctionCallLayout
 from vyper.venom.check_venom import (
@@ -444,6 +446,91 @@ def test_dret_rejects_mixing_ret_and_dret():
     with pytest.raises(ExceptionGroup) as excinfo:
         check_calling_convention(ctx)
     _assert_raises(excinfo.value, DretReturnMixError)
+
+
+def test_multi_def_param_alias_is_demoted_not_crash():
+    # Pre-SSA IR may contain multi-def variables (MakeSSA repairs them). A
+    # variable assigned from two different params is simply "not a unique
+    # param alias": validation must accept the IR, not crash.
+    src = """
+    function main {
+    main:
+        %a = source
+        %b = source
+        invoke @f, %a, %b
+        stop
+    }
+
+    function f {
+    main:
+        %p1 = param
+        %p2 = param
+        %retpc = param
+        %x = %p1
+        %x = %p2
+        mstore 0, %x
+        ret %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    check_calling_convention(ctx)
+
+    layout = FunctionCallLayout(ctx.get_function(IRLabel("f")))
+    assert layout.param_for_alias(IRVariable("%x")) is None
+    assert layout.param_for_alias(IRVariable("%retpc")) is not None
+
+
+def test_multi_def_param_alias_survives_full_pipeline():
+    src = """
+    function main {
+    main:
+        %a = source
+        %b = source
+        invoke @f, %a, %b
+        stop
+    }
+
+    function f {
+    main:
+        %p1 = param
+        %p2 = param
+        %retpc = param
+        %x = %p1
+        %x = %p2
+        mstore 0, %x
+        ret %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    flags = VenomOptimizationFlags(level=OptimizationLevel.O2)
+    run_passes_on(ctx, flags, disable_mem_checks=True)
+
+
+def test_dret_rejects_static_label_return_pc():
+    # Per the dret spec, dret is valid only in internal functions with a
+    # return-PC param. A static label return_pc must be rejected: otherwise
+    # DretLoweringPass conjures an FMP param that pops the caller's return PC
+    # at runtime (silent corruption).
+    src = """
+    function main {
+    main:
+        %ret = invoke @f
+        sink %ret
+    }
+
+    function f {
+    entry:
+        %p = dalloca 64
+        mstore %p, 42
+        dret 1, %p, 32, @exit
+    exit:
+        stop
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, DretShapeError)
 
 
 def test_invoke_argument_count_mismatch_too_few_inputs():
