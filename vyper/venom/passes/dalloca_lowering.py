@@ -17,10 +17,14 @@ from vyper.venom.analysis import (
 )
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.call_layout import FunctionCallLayout, InvokeLayout, parse_dret_shape
-from vyper.venom.memory_location import Allocation
+from vyper.venom.memory_location import Allocation, memory_read_ops, memory_write_ops
 from vyper.venom.passes.base_pass import IRPass, PassRef
 
 IDENTITY_PRECOMPILE = 4
+
+# instructions through which BasePtrAnalysis propagates pointer facts; a
+# pointer flowing into these stays visible to SSA-based liveness.
+_PTR_PROPAGATION_OPS = frozenset(["add", "sub", "assign", "phi", "bump", "dalloca", "alloca"])
 
 
 class DallocaLoweringPass(IRPass):
@@ -43,6 +47,16 @@ class DallocaLoweringPass(IRPass):
 
     required_predecessors: ClassVar[tuple[PassRef, ...]] = ("MakeSSA",)
     required_successors: ClassVar[tuple[PassRef, ...]] = ("MakeSSA",)
+
+    # whether the FMP value threaded by the current run reflects every
+    # allocation in the function. only then may `_augment_invoke` overwrite an
+    # existing hidden-FMP operand. False for DretLoweringPass (which threads
+    # no allocations) and for repeat runs on already-lowered IR.
+    _fmp_model_authoritative: bool = False
+
+    # allocations whose pointer escapes SSA tracking; never reclaimed.
+    # recomputed per run in run_pass.
+    _pinned_allocations: frozenset[Allocation] = frozenset()
 
     def run_pass(self):
         fn = self.function
@@ -72,6 +86,13 @@ class DallocaLoweringPass(IRPass):
         if not has_dalloca and not has_dret and not calls_needs_fmp:
             return
 
+        # Pre-existing `bump`s mean a previous run already lowered (and
+        # threaded) allocations that this run does not model, so the FMP value
+        # threaded below would be stale at points past those bumps.
+        self._fmp_model_authoritative = not any(
+            inst.opcode == "bump" for bb in fn.get_basic_blocks() for inst in bb.instructions
+        )
+
         hidden_fmp_var = self._ensure_hidden_fmp_param(fn, hidden_may_exist=had_fmp)
         fmp_var = hidden_fmp_var
         canonicalize_adopted_fmp = False
@@ -81,11 +102,19 @@ class DallocaLoweringPass(IRPass):
 
         liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
         base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
+        self._pinned_allocations = self._compute_escaping_allocations(fn, base_ptrs)
         bb_entry_stacks = self._compute_bb_entry_stacks(fn, base_ptrs, liveness)
 
         for bb in fn.get_basic_blocks():
+            entry_stack, entry_ghosts = bb_entry_stacks[bb]
             self._rewrite_bb(
-                bb, fmp_var, canonicalize_adopted_fmp, base_ptrs, liveness, bb_entry_stacks[bb]
+                bb,
+                fmp_var,
+                canonicalize_adopted_fmp,
+                base_ptrs,
+                liveness,
+                entry_stack,
+                entry_ghosts,
             )
 
         self._invalidate_analyses()
@@ -142,10 +171,35 @@ class DallocaLoweringPass(IRPass):
 
     def _compute_bb_entry_stacks(
         self, fn, base_ptrs: BasePtrAnalysis, liveness
-    ) -> dict[IRBasicBlock, tuple[IRVariable, ...]]:
+    ) -> dict[IRBasicBlock, tuple[tuple[IRVariable, ...], frozenset[IRVariable]]]:
+        """
+        Compute, for every basic block, the LIFO allocation stack at entry and
+        the set of "ghost" allocations.
+
+        At CFG merges the stack meet is the common prefix of the predecessor
+        exit stacks. Allocations dropped from the top by the meet are not
+        forgotten: they become *ghosts*. A ghost's mark is lost, but its
+        memory may still be live (e.g. carried through a phi), so rewinding
+        the FMP to any surviving mark could free it. While any ghost is
+        possibly live, reclaim is suppressed entirely (see
+        `_reclaim_suffix_start`). Ghosts propagate transitively: once a ghost,
+        always a ghost in all successors.
+
+        Termination: ghost sets only grow (unions over predecessors) and are
+        bounded by the number of dalloca outputs, so they change finitely
+        often. For a fixed ghost assignment, exit stacks are a deterministic
+        function of entry stacks, entry stacks are common prefixes of
+        predecessor exit stacks, and stack contents are drawn from the finite
+        set of dalloca outputs with per-path-bounded height, so the stack
+        iteration reaches its fixpoint as before. Hence the combined fixpoint
+        terminates.
+        """
         bbs = list(fn.get_basic_blocks())
         entry_stacks: dict[IRBasicBlock, tuple[IRVariable, ...]] = {bb: tuple() for bb in bbs}
         exit_stacks: dict[IRBasicBlock, tuple[IRVariable, ...]] = {bb: tuple() for bb in bbs}
+        # ghosts are created only at entry meets; blocks don't add ghosts
+        # mid-block, so a block's exit ghosts equal its entry ghosts.
+        entry_ghosts: dict[IRBasicBlock, frozenset[IRVariable]] = {bb: frozenset() for bb in bbs}
         cfg = liveness.cfg
 
         changed = True
@@ -155,19 +209,32 @@ class DallocaLoweringPass(IRPass):
                 in_bbs = list(cfg.cfg_in(bb))
                 if len(in_bbs) == 0:
                     new_entry: tuple[IRVariable, ...] = tuple()
+                    new_ghosts = entry_ghosts[bb]
                 else:
                     new_entry = self._common_stack_prefix([exit_stacks[pred] for pred in in_bbs])
+                    ghosts = set(entry_ghosts[bb])
+                    for pred in in_bbs:
+                        ghosts.update(entry_ghosts[pred])
+                        # allocations dropped from this predecessor by the meet
+                        ghosts.update(exit_stacks[pred][len(new_entry) :])
+                    new_ghosts = frozenset(ghosts)
 
                 if entry_stacks[bb] != new_entry:
                     entry_stacks[bb] = new_entry
                     changed = True
 
-                new_exit = self._simulate_bb_stack(bb, list(new_entry), base_ptrs, liveness)
+                if entry_ghosts[bb] != new_ghosts:
+                    entry_ghosts[bb] = new_ghosts
+                    changed = True
+
+                new_exit = self._simulate_bb_stack(
+                    bb, list(new_entry), new_ghosts, base_ptrs, liveness
+                )
                 if exit_stacks[bb] != new_exit:
                     exit_stacks[bb] = new_exit
                     changed = True
 
-        return entry_stacks
+        return {bb: (entry_stacks[bb], entry_ghosts[bb]) for bb in bbs}
 
     def _common_stack_prefix(self, stacks: list[tuple[IRVariable, ...]]) -> tuple[IRVariable, ...]:
         if len(stacks) == 0:
@@ -183,12 +250,12 @@ class DallocaLoweringPass(IRPass):
         return tuple(prefix)
 
     def _simulate_bb_stack(
-        self, bb, stack, base_ptrs: BasePtrAnalysis, liveness
+        self, bb, stack, ghosts, base_ptrs: BasePtrAnalysis, liveness
     ) -> tuple[IRVariable, ...]:
         for inst in bb.instructions:
             if self._is_reclaim_point(inst):
-                suffix_start = self._dead_lifo_suffix_start(
-                    stack, base_ptrs, liveness.live_vars_at(inst)
+                suffix_start = self._reclaim_suffix_start(
+                    stack, ghosts, base_ptrs, liveness.live_vars_at(inst)
                 )
                 del stack[suffix_start:]
 
@@ -210,6 +277,18 @@ class DallocaLoweringPass(IRPass):
             callee = InvokeLayout(self.function.ctx, inst).callee
             return callee is not None and self.dynamic_memory.get_info(callee).needs_fmp
         return False
+
+    def _reclaim_suffix_start(self, stack, ghosts, base_ptrs: BasePtrAnalysis, live_vars) -> int:
+        # If any ghost allocation (mark dropped at a CFG meet) is possibly
+        # live here, suppress reclaim entirely: rewinding the FMP to a
+        # surviving mark could free the ghost's memory. Unknown == live.
+        for ghost in ghosts:
+            allocation = self._dalloca_allocation(base_ptrs, ghost)
+            if allocation is None:
+                return len(stack)
+            if self._allocation_is_live(base_ptrs, allocation, live_vars):
+                return len(stack)
+        return self._dead_lifo_suffix_start(stack, base_ptrs, live_vars)
 
     def _dead_lifo_suffix_start(self, stack, base_ptrs: BasePtrAnalysis, live_vars) -> int:
         suffix_start = len(stack)
@@ -236,11 +315,62 @@ class DallocaLoweringPass(IRPass):
     def _allocation_is_live(
         self, base_ptrs: BasePtrAnalysis, allocation: Allocation, live_vars
     ) -> bool:
+        # pinned allocations escaped SSA tracking (e.g. pointer stored to
+        # memory as a value); their memory may be reachable even when no SSA
+        # alias is live, so treat them as always live.
+        if allocation in self._pinned_allocations:
+            return True
         for live_var in live_vars:
             for live_ptr in base_ptrs.get_possible_ptrs(live_var):
                 if live_ptr.base_alloca == allocation:
                     return True
         return False
+
+    def _compute_escaping_allocations(
+        self, fn, base_ptrs: BasePtrAnalysis
+    ) -> frozenset[Allocation]:
+        """
+        Conservatively compute the dynamic allocations whose pointer escapes
+        SSA tracking. An operand escapes when it is used outside
+        BasePtrAnalysis's propagation grammar (add/sub/assign/phi/bump/
+        dalloca/alloca) and outside the address/length positions of known
+        memory ops -- e.g. as the stored *value* of a store-family
+        instruction, or as an operand of `invoke`/`ret`/`dret`. An escaped
+        pointer can re-enter through memory where SSA liveness cannot see it,
+        so the allocation must never be reclaimed. Fail closed: anything not
+        provably a non-escaping use pins the allocation.
+        """
+        pinned: set[Allocation] = set()
+        for bb in fn.get_basic_blocks():
+            for inst in bb.instructions:
+                if inst.opcode in _PTR_PROPAGATION_OPS:
+                    continue
+
+                # operand values consumed by known-safe (address/length)
+                # positions, derived from the shared memory-op descriptions.
+                safe: list[IROperand] = []
+                for access_ops in (memory_read_ops(inst), memory_write_ops(inst)):
+                    for op in (access_ops.ofst, access_ops.size):
+                        if op is not None:
+                            safe.append(op)
+                    # post_init aliases max_size to size; only count a
+                    # distinct max_size to avoid inflating safe occurrences.
+                    max_size = access_ops.max_size
+                    if max_size is not None and max_size is not access_ops.size:
+                        safe.append(max_size)
+
+                operands = [op for op in inst.operands if isinstance(op, IRVariable)]
+                for op in operands:
+                    # an operand escapes if it occurs more often than safe
+                    # positions account for (`mstore %x, %x` stores the
+                    # pointer value at its own address).
+                    if operands.count(op) <= safe.count(op):
+                        continue
+                    for ptr in base_ptrs.get_possible_ptrs(op):
+                        if ptr.base_alloca.inst.opcode == "dalloca":
+                            pinned.add(ptr.base_alloca)
+
+        return frozenset(pinned)
 
     def _rewrite_bb(
         self,
@@ -250,6 +380,7 @@ class DallocaLoweringPass(IRPass):
         base_ptrs: BasePtrAnalysis,
         liveness,
         entry_stack,
+        entry_ghosts,
     ) -> None:
         new_instructions: list[IRInstruction] = []
         stack = list(entry_stack)
@@ -258,7 +389,7 @@ class DallocaLoweringPass(IRPass):
         for inst in bb.instructions:
             if self._is_reclaim_point(inst):
                 reclaimed = self._emit_auto_reclaim(
-                    inst, fmp_var, bb, stack, base_ptrs, liveness, new_instructions
+                    inst, fmp_var, bb, stack, entry_ghosts, base_ptrs, liveness, new_instructions
                 )
                 if reclaimed:
                     current_fmp_var = fmp_var
@@ -293,9 +424,19 @@ class DallocaLoweringPass(IRPass):
         bb.instructions = new_instructions
 
     def _emit_auto_reclaim(
-        self, inst, fmp_var, bb, stack, base_ptrs: BasePtrAnalysis, liveness, new_instructions
+        self,
+        inst,
+        fmp_var,
+        bb,
+        stack,
+        ghosts,
+        base_ptrs: BasePtrAnalysis,
+        liveness,
+        new_instructions,
     ) -> bool:
-        suffix_start = self._dead_lifo_suffix_start(stack, base_ptrs, liveness.live_vars_at(inst))
+        suffix_start = self._reclaim_suffix_start(
+            stack, ghosts, base_ptrs, liveness.live_vars_at(inst)
+        )
         if suffix_start == len(stack):
             return False
 
@@ -417,7 +558,21 @@ class DallocaLoweringPass(IRPass):
 
         expected_user_args = FunctionCallLayout(callee).expected_user_arg_count
         has_hidden_fmp_operand = len(inst.operands) == 1 + expected_user_args + 1
-        if not has_hidden_fmp_operand:
+        if has_hidden_fmp_operand:
+            # Set, don't just ensure: an earlier pass (DretLoweringPass,
+            # pre-inline) may have appended the entry-FMP param as the hidden
+            # operand. By the time DallocaLoweringPass threads the FMP, the
+            # current FMP at this invoke may have advanced past caller-side
+            # dallocas, so the stale entry-FMP operand would let the callee
+            # clobber live caller allocations.
+            #
+            # Only overwrite when this run's FMP model is authoritative
+            # (`_fmp_model_authoritative`): a repeat run on already-lowered IR
+            # (pre-existing `bump`s) models the FMP as the raw entry param and
+            # would re-stale the operand a previous run threaded correctly.
+            if self._fmp_model_authoritative:
+                inst.operands[-1] = fmp_var
+        else:
             layout.append_hidden_fmp_operand(fmp_var)
 
         hidden_fmp_output = None

@@ -928,6 +928,126 @@ def test_unreachable_raw_dret_does_not_block_inlining():
     assert IRLabel("dead") not in ctx.functions
 
 
+# caller allocates before invoking a dret callee. DretLoweringPass appends the
+# caller's *entry* FMP as the invoke's hidden operand; DallocaLoweringPass must
+# overwrite it with the threaded FMP (past the caller's dalloca), otherwise the
+# callee packs its dret data over the caller's live buffer.
+_STALE_INVOKE_FMP_SRC = """
+function main {
+    main:
+        %a = dalloca 32
+        mstore %a, 5
+        %ptr = invoke @dret_callee
+        %v = mload %a
+        %w = mload %ptr
+        mstore 0, %v
+        mstore 32, %w
+        return 0, 64
+}
+
+function dret_callee {
+    dret_callee:
+        %retpc = param
+        %p = dalloca 32
+        mstore %p, 7
+        dret 1, %p, 32, %retpc
+}
+"""
+
+
+def test_invoke_hidden_fmp_operand_rewritten_after_caller_dalloca():
+    out = _run_program(_STALE_INVOKE_FMP_SRC)
+    assert _word(out, 0) == 5
+    assert _word(out, 1) == 7
+
+    out, _ = _run_program_full_pipeline(_STALE_INVOKE_FMP_SRC, disable_inlining=True)
+    assert _word(out, 0) == 5
+    assert _word(out, 1) == 7
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="inliner consumes the stale entry-FMP hidden operand before "
+    "DallocaLoweringPass can rewrite it: the inlined dret pack roots at the "
+    "raw entry-FMP param and clobbers the caller's earlier dalloca. Not "
+    "fixable by the invoke-operand rewrite (the invoke no longer exists when "
+    "FMP threading runs); needs the FMP-as-virtual-register redesign. The "
+    "frontend does not emit dret yet, so this cannot occur in real compiles.",
+)
+def test_invoke_hidden_fmp_operand_rewritten_after_caller_dalloca_inlined():
+    out, _ = _run_program_full_pipeline(_STALE_INVOKE_FMP_SRC, disable_inlining=False)
+    assert _word(out, 0) == 5
+    assert _word(out, 1) == 7
+
+
+def test_auto_reclaim_suppressed_for_live_allocation_dropped_at_merge():
+    # One arm of the branch allocates %p2 on top of %p1; the join's meet
+    # drops %p2 from the allocation stack (divergent stacks), but %p2 stays
+    # live through the phi %p3. Reclaiming %p1's (dead) mark at %p4 would
+    # rewind the FMP below %p2, so %p4's tail write would clobber it.
+    src = """
+    function main {
+        main:
+            %z = 0
+            %p1 = dalloca 32
+            mstore %p1, 1
+            %cond = calldatasize
+            jnz %cond, @a, @b
+
+        a:
+            %p2 = dalloca 32
+            mstore %p2, 777
+            jmp @join
+
+        b:
+            jmp @join
+
+        join:
+            %p3 = phi @a, %p2, @b, %z
+            %v1 = mload %p1
+            %p4 = dalloca 64
+            %p4_tail = add 32, %p4
+            mstore %p4_tail, 999
+            %v = mload %p3
+            mstore 0, %v
+            return 0, 32
+    }
+    """
+    out = _run_program(src, b"x")
+    assert _word(out) == 777
+
+    out, _ = _run_program_full_pipeline(src, calldata=b"x", disable_inlining=True)
+    assert _word(out) == 777
+
+
+def test_no_reclaim_for_pointer_escaping_through_memory():
+    # %x's pointer escapes SSA tracking by being stored (as a value) into a
+    # static slot, then is reloaded through an optimizer-opaque address.
+    # Reclaiming %x at %q's allocation would let %q overwrite memory that is
+    # still reachable through the slot.
+    out = _run_program(
+        """
+        function main {
+            main:
+                %slot = alloca 32
+                %x = dalloca 32
+                mstore %x, 7
+                mstore %slot, %x
+                %q = dalloca 32
+                mstore %q, 0xdead
+                %opaque = calldataload 0
+                %addr = add %slot, %opaque
+                %xptr = mload %addr
+                %v = mload %xptr
+                mstore 0, %v
+                return 0, 32
+        }
+        """,
+        (0).to_bytes(32, "big"),
+    )
+    assert _word(out) == 7
+
+
 def test_dret_must_be_lowered_before_inlining():
     ctx = parse_venom("""
         function main {
