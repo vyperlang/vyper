@@ -1,29 +1,24 @@
 import pytest
 
-from tests.venom_utils import parse_venom
+from tests.venom_utils import find_inst, parse_venom
 from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.venom import run_passes_on
 from vyper.venom.basicblock import IRLabel, IRVariable
 from vyper.venom.call_layout import FunctionCallLayout
 from vyper.venom.check_venom import (
-    BumpArityError,
-    DallocaArityError,
     DretReturnMixError,
     DretShapeError,
     DretShapeMismatch,
     FmpAnnotationError,
     FunctionCallLayoutError,
-    GetfmpArityError,
     InconsistentReturnArity,
-    InitialFmpArityError,
     InvokeArgumentCountMismatch,
     InvokeArityMismatch,
     MixedFmpIRError,
-    MultiOutputNonInvoke,
+    MultiOutputNotAllowed,
     ParamLayoutError,
     RetfmpReturnMixError,
     RetfmpShapeError,
-    SetfmpArityError,
     check_calling_convention,
 )
 
@@ -179,52 +174,47 @@ def test_multi_lhs_non_invoke_rejected():
     ctx = parse_venom(src)
     with pytest.raises(ExceptionGroup) as excinfo:
         check_calling_convention(ctx)
-    _assert_raises(excinfo.value, MultiOutputNonInvoke)
+    _assert_raises(excinfo.value, MultiOutputNotAllowed)
 
 
-def test_bump_arity_single_output_rejected():
-    src = """
-    function main {
+@pytest.mark.parametrize(
+    ("opcode", "body"),
+    [
+        # bump must have exactly 2 operands and 2 outputs
+        ("bump", "%fmp = calldatasize\n        %a = bump 32, %fmp\n        sink %a"),
+        (
+            "bump",
+            "%fmp = calldatasize\n        %a, %b, %c = bump 32, %fmp\n        sink %a, %b, %c",
+        ),
+        ("bump", "%fmp = calldatasize\n        %a, %b = bump %fmp\n        sink %a, %b"),
+        # initial_fmp must have exactly 0 operands and 1 output
+        ("initial_fmp", "%p = initial_fmp 1\n        sink %p"),
+        ("initial_fmp", "initial_fmp\n        stop"),
+        ("initial_fmp", "%p, %q = initial_fmp\n        sink %p, %q"),
+        # dalloca must have exactly 1 operand and 1 output
+        ("dalloca", "%p, %mark = dalloca 32\n        sink %p, %mark"),
+        ("dalloca", "%p, %mark = dalloca\n        sink %p, %mark"),
+        # getfmp must have exactly 0 operands and 1 output
+        ("getfmp", "%p = getfmp 1\n        sink %p"),
+        ("getfmp", "getfmp\n        stop"),
+        # setfmp must have exactly 1 operand and 0 outputs
+        ("setfmp", "setfmp\n        stop"),
+        ("setfmp", "%q = setfmp 64\n        sink %q"),
+    ],
+)
+def test_fmp_opcode_arity_violations_rejected(opcode, body):
+    src = f"""
+    function main {{
     main:
-        %fmp = calldatasize
-        %a = bump 32, %fmp
-        sink %a
-    }
+        {body}
+    }}
     """
     ctx = parse_venom(src)
     with pytest.raises(ExceptionGroup) as excinfo:
         check_calling_convention(ctx)
-    _assert_raises(excinfo.value, BumpArityError)
-
-
-def test_bump_arity_three_outputs_rejected():
-    src = """
-    function main {
-    main:
-        %fmp = calldatasize
-        %a, %b, %c = bump 32, %fmp
-        sink %a, %b, %c
-    }
-    """
-    ctx = parse_venom(src)
-    with pytest.raises(ExceptionGroup) as excinfo:
-        check_calling_convention(ctx)
-    _assert_raises(excinfo.value, BumpArityError)
-
-
-def test_bump_arity_wrong_operand_count_rejected():
-    src = """
-    function main {
-    main:
-        %fmp = calldatasize
-        %a, %b = bump %fmp
-        sink %a, %b
-    }
-    """
-    ctx = parse_venom(src)
-    with pytest.raises(ExceptionGroup) as excinfo:
-        check_calling_convention(ctx)
-    _assert_raises(excinfo.value, BumpArityError)
+    # assert on the validation outcome rather than a concrete error class:
+    # an arity diagnostic naming the offending opcode must be reported
+    assert any("arity" in str(err) and opcode in str(err) for err in excinfo.value.exceptions)
 
 
 def test_bump_arity_correct_accepted():
@@ -264,48 +254,6 @@ def test_function_layout_detects_hidden_fmp_without_return_pc():
     assert [inst.output for inst in layout.user_params] == [IRVariable("%arg")]
 
 
-def test_initial_fmp_arity_operand_rejected():
-    src = """
-    function main {
-    main:
-        %p = initial_fmp 1
-        sink %p
-    }
-    """
-    ctx = parse_venom(src)
-    with pytest.raises(ExceptionGroup) as excinfo:
-        check_calling_convention(ctx)
-    _assert_raises(excinfo.value, InitialFmpArityError)
-
-
-def test_initial_fmp_arity_missing_output_rejected():
-    src = """
-    function main {
-    main:
-        initial_fmp
-        stop
-    }
-    """
-    ctx = parse_venom(src)
-    with pytest.raises(ExceptionGroup) as excinfo:
-        check_calling_convention(ctx)
-    _assert_raises(excinfo.value, InitialFmpArityError)
-
-
-def test_initial_fmp_arity_multi_output_rejected():
-    src = """
-    function main {
-    main:
-        %p, %q = initial_fmp
-        sink %p, %q
-    }
-    """
-    ctx = parse_venom(src)
-    with pytest.raises(ExceptionGroup) as excinfo:
-        check_calling_convention(ctx)
-    _assert_raises(excinfo.value, InitialFmpArityError)
-
-
 def test_dalloca_arity_single_output_accepted():
     src = """
     function main {
@@ -316,34 +264,6 @@ def test_dalloca_arity_single_output_accepted():
     """
     ctx = parse_venom(src)
     check_calling_convention(ctx)
-
-
-def test_dalloca_arity_two_outputs_rejected():
-    src = """
-    function main {
-    main:
-        %p, %mark = dalloca 32
-        sink %p, %mark
-    }
-    """
-    ctx = parse_venom(src)
-    with pytest.raises(ExceptionGroup) as excinfo:
-        check_calling_convention(ctx)
-    _assert_raises(excinfo.value, DallocaArityError)
-
-
-def test_dalloca_arity_wrong_operand_count_rejected():
-    src = """
-    function main {
-    main:
-        %p, %mark = dalloca
-        sink %p, %mark
-    }
-    """
-    ctx = parse_venom(src)
-    with pytest.raises(ExceptionGroup) as excinfo:
-        check_calling_convention(ctx)
-    _assert_raises(excinfo.value, DallocaArityError)
 
 
 def test_dret_shape_accepted():
@@ -456,31 +376,35 @@ def test_dret_rejects_mixing_ret_and_dret():
     _assert_raises(excinfo.value, DretReturnMixError)
 
 
+# a caller invoking `f`, whose `%x` is assigned from two different params
+# (legal pre-SSA IR; MakeSSA repairs the multi-def)
+_MULTI_DEF_PARAM_ALIAS_SRC = """
+function main {
+main:
+    %a = source
+    %b = source
+    invoke @f, %a, %b
+    stop
+}
+
+function f {
+main:
+    %p1 = param
+    %p2 = param
+    %retpc = param
+    %x = %p1
+    %x = %p2
+    mstore 0, %x
+    ret %retpc
+}
+"""
+
+
 def test_multi_def_param_alias_is_demoted_not_crash():
     # Pre-SSA IR may contain multi-def variables (MakeSSA repairs them). A
     # variable assigned from two different params is simply "not a unique
     # param alias": validation must accept the IR, not crash.
-    src = """
-    function main {
-    main:
-        %a = source
-        %b = source
-        invoke @f, %a, %b
-        stop
-    }
-
-    function f {
-    main:
-        %p1 = param
-        %p2 = param
-        %retpc = param
-        %x = %p1
-        %x = %p2
-        mstore 0, %x
-        ret %retpc
-    }
-    """
-    ctx = parse_venom(src)
+    ctx = parse_venom(_MULTI_DEF_PARAM_ALIAS_SRC)
     check_calling_convention(ctx)
 
     layout = FunctionCallLayout(ctx.get_function(IRLabel("f")))
@@ -489,27 +413,7 @@ def test_multi_def_param_alias_is_demoted_not_crash():
 
 
 def test_multi_def_param_alias_survives_full_pipeline():
-    src = """
-    function main {
-    main:
-        %a = source
-        %b = source
-        invoke @f, %a, %b
-        stop
-    }
-
-    function f {
-    main:
-        %p1 = param
-        %p2 = param
-        %retpc = param
-        %x = %p1
-        %x = %p2
-        mstore 0, %x
-        ret %retpc
-    }
-    """
-    ctx = parse_venom(src)
+    ctx = parse_venom(_MULTI_DEF_PARAM_ALIAS_SRC)
     flags = VenomOptimizationFlags(level=OptimizationLevel.O2)
     run_passes_on(ctx, flags, disable_mem_checks=True)
 
@@ -625,12 +529,7 @@ def test_invoke_argument_count_accepts_hidden_fmp_tail():
     }
     """
     ctx = parse_venom(src)
-    invoke = next(
-        inst
-        for bb in ctx.get_function(IRLabel("caller")).get_basic_blocks()
-        for inst in bb.instructions
-        if inst.opcode == "invoke"
-    )
+    invoke = find_inst(ctx.get_function(IRLabel("caller")), "invoke")
     invoke.operands = [IRLabel("f"), IRVariable("%arg"), IRVariable("%fmp")]
 
     check_calling_convention(ctx)
@@ -659,12 +558,7 @@ def test_invoke_hidden_fmp_tail_rejected_in_raw_caller():
     }
     """
     ctx = parse_venom(src)
-    invoke = next(
-        inst
-        for bb in ctx.get_function(IRLabel("main")).get_basic_blocks()
-        for inst in bb.instructions
-        if inst.opcode == "invoke"
-    )
+    invoke = find_inst(ctx.get_function(IRLabel("main")), "invoke")
     invoke.operands = [IRLabel("f"), IRVariable("%arg"), IRVariable("%fmp")]
 
     with pytest.raises(ExceptionGroup) as excinfo:
@@ -757,12 +651,7 @@ def test_invoke_argument_count_rejects_stale_hidden_fmp_tail():
     }
     """
     ctx = parse_venom(src)
-    invoke = next(
-        inst
-        for bb in ctx.get_function(IRLabel("main")).get_basic_blocks()
-        for inst in bb.instructions
-        if inst.opcode == "invoke"
-    )
+    invoke = find_inst(ctx.get_function(IRLabel("main")), "invoke")
     invoke.operands = [IRLabel("f"), IRVariable("%arg"), IRVariable("%fmp")]
 
     with pytest.raises(ExceptionGroup) as excinfo:
@@ -806,34 +695,6 @@ def test_getfmp_arity_correct_accepted():
     check_calling_convention(ctx)
 
 
-def test_getfmp_arity_operand_rejected():
-    src = """
-    function main {
-    main:
-        %p = getfmp 1
-        sink %p
-    }
-    """
-    ctx = parse_venom(src)
-    with pytest.raises(ExceptionGroup) as excinfo:
-        check_calling_convention(ctx)
-    _assert_raises(excinfo.value, GetfmpArityError)
-
-
-def test_getfmp_arity_missing_output_rejected():
-    src = """
-    function main {
-    main:
-        getfmp
-        stop
-    }
-    """
-    ctx = parse_venom(src)
-    with pytest.raises(ExceptionGroup) as excinfo:
-        check_calling_convention(ctx)
-    _assert_raises(excinfo.value, GetfmpArityError)
-
-
 def test_setfmp_arity_correct_accepted():
     src = """
     function main {
@@ -845,34 +706,6 @@ def test_setfmp_arity_correct_accepted():
     """
     ctx = parse_venom(src)
     check_calling_convention(ctx)
-
-
-def test_setfmp_arity_missing_operand_rejected():
-    src = """
-    function main {
-    main:
-        setfmp
-        stop
-    }
-    """
-    ctx = parse_venom(src)
-    with pytest.raises(ExceptionGroup) as excinfo:
-        check_calling_convention(ctx)
-    _assert_raises(excinfo.value, SetfmpArityError)
-
-
-def test_setfmp_arity_output_rejected():
-    src = """
-    function main {
-    main:
-        %q = setfmp 64
-        sink %q
-    }
-    """
-    ctx = parse_venom(src)
-    with pytest.raises(ExceptionGroup) as excinfo:
-        check_calling_convention(ctx)
-    _assert_raises(excinfo.value, SetfmpArityError)
 
 
 def test_retfmp_shape_accepted():

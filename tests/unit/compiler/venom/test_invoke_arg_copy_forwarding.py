@@ -1,12 +1,10 @@
-from tests.venom_utils import parse_venom
+from tests.venom_utils import parse_venom, run_ssa
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLabel, IRVariable
 from vyper.venom.passes import (
     DretDesugarPass,
     FmpLoweringPass,
     InternalReturnCopyForwardingPass,
-    MakeSSA,
-    PhiEliminationPass,
     ReadonlyInvokeArgCopyForwardingPass,
 )
 
@@ -25,13 +23,9 @@ def _run_copy_forwarding(src: str, setup=None):
 def _lower_dalloca(ctx):
     for fn in reversed(list(ctx.functions.values())):
         DretDesugarPass(IRAnalysesCache(fn), fn).run_pass()
-        ac = IRAnalysesCache(fn)
-        MakeSSA(ac, fn).run_pass()
-        PhiEliminationPass(ac, fn).run_pass()
+        run_ssa(fn)
         FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
-        ac = IRAnalysesCache(fn)
-        MakeSSA(ac, fn).run_pass()
-        PhiEliminationPass(ac, fn).run_pass()
+        run_ssa(fn)
 
 
 def test_readonly_forwarding_rejects_src_clobber_before_invoke():

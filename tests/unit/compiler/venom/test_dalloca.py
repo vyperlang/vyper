@@ -1,16 +1,21 @@
 import pytest
 from pyrevm import EVM, AccountInfo
 
-from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
+from tests.venom_utils import assert_ctx_eq, find_inst, parse_from_basic_block, run_ssa
 from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.evm.address_space import MEMORY
 from vyper.evm.assembler.core import assembly_to_evm
+from vyper.evm.assembler.instructions import CONST
 from vyper.exceptions import CompilerPanic
+from vyper.ir.compile_ir import Label
 from vyper.venom import run_passes_on
 from vyper.venom.analysis import (
+    BasePtrAnalysis,
     DFGAnalysis,
+    DominatorTreeAnalysis,
     DynamicMemoryAnalysis,
     IRAnalysesCache,
+    LivenessAnalysis,
     LoadAnalysis,
     MemoryAliasAnalysis,
     MemSSA,
@@ -20,7 +25,13 @@ from vyper.venom.analysis import (
 )
 from vyper.venom.basicblock import IRLabel, IRLiteral, IRVariable
 from vyper.venom.call_layout import FunctionCallLayout
-from vyper.venom.check_venom import check_calling_convention
+from vyper.venom.check_venom import (
+    MixedFmpIRError,
+    PostLoweringError,
+    check_calling_convention,
+    find_post_lowering_errors,
+)
+from vyper.venom.context import IRContext
 from vyper.venom.effects import Effects
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes import (
@@ -29,28 +40,21 @@ from vyper.venom.passes import (
     ConcretizeMemLocPass,
     DretDesugarPass,
     FmpLoweringPass,
-    MakeSSA,
-    PhiEliminationPass,
     RemoveUnusedVariablesPass,
     SimplifyCFGPass,
     SingleUseExpansion,
+    fmp_lowering,
 )
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
 from vyper.venom.passes.function_inliner import FunctionInlinerPass
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 
-def _run_ssa(fn):
-    ac = IRAnalysesCache(fn)
-    MakeSSA(ac, fn).run_pass()
-    PhiEliminationPass(ac, fn).run_pass()
-
-
 def _apply_dalloca_lowering(fn):
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
-    _run_ssa(fn)
+    run_ssa(fn)
     FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
-    _run_ssa(fn)
+    run_ssa(fn)
 
 
 def _apply_lowering(fn):
@@ -59,14 +63,17 @@ def _apply_lowering(fn):
     SingleUseExpansion(IRAnalysesCache(fn), fn).run_pass()
 
 
-def _run_program(src: str, calldata: bytes = b"") -> bytes:
-    ctx = parse_venom(src)
-    for fn in reversed(list(ctx.functions.values())):
-        _apply_lowering(fn)
+def _apply_loop_lowering(fn):
+    # like _apply_lowering, but with the CFG cleanup the assembler requires
+    # for loop-shaped (multi-in/multi-out) basic blocks
+    DretDesugarPass(IRAnalysesCache(fn), fn).run_pass()
+    _apply_dalloca_lowering(fn)
+    SimplifyCFGPass(IRAnalysesCache(fn), fn).run_pass()
+    CFGNormalization(IRAnalysesCache(fn), fn).run_pass()
+    SingleUseExpansion(IRAnalysesCache(fn), fn).run_pass()
 
-    asm = VenomCompiler(ctx).generate_evm_assembly()
-    bytecode, _ = assembly_to_evm(asm)
 
+def _execute(bytecode: bytes, calldata: bytes = b"") -> bytes:
     caller = "0x" + "10" * 20
     addr = "0x" + "20" * 20
     evm = EVM()
@@ -75,23 +82,26 @@ def _run_program(src: str, calldata: bytes = b"") -> bytes:
     return evm.message_call(caller=caller, to=addr, calldata=calldata, gas=1_000_000)
 
 
+def _run_program(src: str, calldata: bytes = b"", *, lower=_apply_lowering) -> bytes:
+    ctx = parse_venom(src)
+    for fn in reversed(list(ctx.functions.values())):
+        lower(fn)
+
+    asm = VenomCompiler(ctx).generate_evm_assembly()
+    bytecode, _ = assembly_to_evm(asm)
+    return _execute(bytecode, calldata)
+
+
 def _run_program_full_pipeline(
     src: str, calldata: bytes = b"", *, disable_inlining: bool
-) -> tuple[bytes, object]:
+) -> tuple[bytes, IRContext]:
     ctx = parse_venom(src)
     flags = VenomOptimizationFlags(level=OptimizationLevel.O2, disable_inlining=disable_inlining)
     run_passes_on(ctx, flags, disable_mem_checks=True)
 
     asm = VenomCompiler(ctx).generate_evm_assembly()
     bytecode, _ = assembly_to_evm(asm)
-
-    caller = "0x" + "10" * 20
-    addr = "0x" + "20" * 20
-    evm = EVM()
-    evm.set_balance(caller, 1)
-    evm.insert_account_info(addr, AccountInfo(code=bytecode))
-    out = evm.message_call(caller=caller, to=addr, calldata=calldata, gas=1_000_000)
-    return out, ctx
+    return _execute(bytecode, calldata), ctx
 
 
 def _word(out: bytes, idx: int = 0) -> int:
@@ -176,7 +186,7 @@ def test_dalloca_is_fully_lowered():
     """)
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
-    _run_ssa(fn)
+    run_ssa(fn)
     FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
 
     opcodes = [inst.opcode for bb in fn.get_basic_blocks() for inst in bb.instructions]
@@ -194,7 +204,7 @@ def test_dalloca_alignment_mask_uses_small_literal():
     """)
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
-    _run_ssa(fn)
+    run_ssa(fn)
     FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
 
     insts = [inst for bb in fn.get_basic_blocks() for inst in bb.instructions]
@@ -215,7 +225,7 @@ def test_dalloca_lowering_invalidates_stale_analyses():
         """)
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
-    _run_ssa(fn)
+    run_ssa(fn)
 
     ac = IRAnalysesCache(fn)
     ac.request_analysis(LoadAnalysis)
@@ -439,50 +449,10 @@ def test_hidden_fmp_output_on_dret_invoke_moves_later_dalloca():
     assert _word(out, 1) == 32
 
 
-def test_stale_hidden_fmp_arg_removed_after_callee_prunes_fmp():
-    out, ctx = _run_program_full_pipeline(
-        """
-        function main {
-            main:
-                %p = dalloca 32
-                mstore %p, 5
-                invoke @callee
-                %v = mload %p
-                mstore 0, %v
-                return 0, 32
-        }
-
-        function callee {
-            callee:
-                %retpc = param
-                %q = dalloca 32
-                ret %retpc
-        }
-        """,
-        disable_inlining=True,
-    )
-
-    assert _word(out) == 5
-
-    callee = ctx.get_function(IRLabel("callee"))
-    dynamic_memory = IRAnalysesCache(callee).request_analysis(DynamicMemoryAnalysis)
-    assert not dynamic_memory.function_needs_fmp(callee)
-
-    main = ctx.get_function(IRLabel("main"))
-    invoke = next(
-        inst
-        for bb in main.get_basic_blocks()
-        for inst in bb.instructions
-        if inst.opcode == "invoke"
-    )
-    assert invoke.operands == [IRLabel("callee")]
-
-
 def test_lowered_caller_invokes_untouched_by_fmp_lowering():
     # an already-lowered (annotated) caller's convention is frozen:
     # FmpLoweringPass must leave its shape -- including invoke operands that
-    # are NOT hidden FMP operands -- exactly as written. (Successor of the
-    # deleted de-augmentation machinery's "keep non-FMP extra arg" guard.)
+    # are NOT hidden FMP operands -- exactly as written.
     ctx = parse_venom("""
         function caller [fmp_lowered] {
             caller:
@@ -504,12 +474,7 @@ def test_lowered_caller_invokes_untouched_by_fmp_lowering():
     caller = ctx.get_function(IRLabel("caller"))
     FmpLoweringPass(IRAnalysesCache(caller), caller).run_pass()
 
-    invoke = next(
-        inst
-        for bb in caller.get_basic_blocks()
-        for inst in bb.instructions
-        if inst.opcode == "invoke"
-    )
+    invoke = find_inst(caller, "invoke")
     assert invoke.operands == [IRLabel("callee"), IRVariable("%arg")]
 
 
@@ -545,7 +510,6 @@ def test_no_ret_function_inserts_hidden_fmp_before_return_pc():
 
     params = [inst for inst in fn.entry.instructions if inst.is_param]
     # a hidden FMP param was inserted (user, hidden_fmp, return_pc)
-    assert len(params) == 3
     assert [inst.opcode for inst in params] == ["param", "fmp_param", "retpc_param"]
     retpc = IRVariable("%retpc")
     # return-PC param stays last; the inserted hidden FMP sits before it
@@ -553,9 +517,7 @@ def test_no_ret_function_inserts_hidden_fmp_before_return_pc():
     hidden_fmp = params[1].output
     assert hidden_fmp != retpc
 
-    bump = next(
-        inst for bb in fn.get_basic_blocks() for inst in bb.instructions if inst.opcode == "bump"
-    )
+    bump = find_inst(fn, "bump")
 
     # resolve the bump's FMP operand through any assign chain back to its root
     defs = {
@@ -642,9 +604,7 @@ def test_dret_desugar_ignores_dalloca_only_callee():
     params = [inst for inst in fn.entry.instructions if inst.opcode == "param"]
     assert params == []
 
-    invoke = next(
-        inst for bb in fn.get_basic_blocks() for inst in bb.instructions if inst.opcode == "invoke"
-    )
+    invoke = find_inst(fn, "invoke")
     assert invoke.operands == [IRLabel("callee")]
 
 
@@ -664,9 +624,7 @@ def test_get_transitive_uses_handles_multi_output_bump():
     fn = ctx.get_function(IRLabel("main"))
     _apply_lowering(fn)
 
-    bump = next(
-        inst for bb in fn.get_basic_blocks() for inst in bb.instructions if inst.opcode == "bump"
-    )
+    bump = find_inst(fn, "bump")
 
     dfg = IRAnalysesCache(fn).request_analysis(DFGAnalysis)
     uses = dfg.get_transitive_uses(bump)  # must not raise on the 2-output bump
@@ -676,7 +634,7 @@ def test_get_transitive_uses_handles_multi_output_bump():
     assert any(inst.opcode == "add" for inst in uses)
 
 
-def test_dret_lowering_with_ordinary_return_and_dynamic_buffer():
+def test_dret_desugar_with_ordinary_return_and_dynamic_buffer():
     out = _run_program("""
         function main {
             main:
@@ -699,7 +657,7 @@ def test_dret_lowering_with_ordinary_return_and_dynamic_buffer():
     assert _word(out, 1) == 0x1234
 
 
-def test_dret_lowering_with_multiple_dynamic_buffers():
+def test_dret_desugar_with_multiple_dynamic_buffers():
     out = _run_program("""
         function main {
             main:
@@ -784,8 +742,6 @@ def test_dret_supports_zero_and_runtime_sizes(calldata, expected_next):
 
 
 def test_dret_pre_cancun_copy_path(monkeypatch):
-    import vyper.venom.passes.fmp_lowering as fmp_lowering
-
     monkeypatch.setattr(fmp_lowering, "version_check", lambda **kwargs: False)
     ctx = parse_venom("""
         function callee {
@@ -1028,7 +984,7 @@ def test_no_reclaim_for_pointer_escaping_through_memory():
     assert _word(out) == 7
 
 
-def test_dret_must_be_lowered_before_inlining():
+def test_dret_must_be_desugared_before_inlining():
     ctx = parse_venom("""
         function main {
             main:
@@ -1077,12 +1033,7 @@ def test_dret_desugar_shape_is_purely_local():
     main = ctx.get_function(IRLabel("main"))
     main_params = [inst for inst in main.entry.instructions if inst.opcode == "param"]
     assert main_params == []
-    invoke = next(
-        inst
-        for bb in main.get_basic_blocks()
-        for inst in bb.instructions
-        if inst.opcode == "invoke"
-    )
+    invoke = find_inst(main, "invoke")
     assert invoke.operands == [IRLabel("callee")]
     main_opcodes = [inst.opcode for bb in main.get_basic_blocks() for inst in bb.instructions]
     assert "getfmp" not in main_opcodes and "setfmp" not in main_opcodes
@@ -1318,9 +1269,6 @@ def test_entry_function_seeds_initial_fmp_no_prelude():
     # (lowered to the deferred __initial_fmp__ CONST); the assembler entry
     # prelude special case is gone, so the assembly starts with the CONST
     # declaration followed directly by the entry label.
-    from vyper.evm.assembler.instructions import CONST
-    from vyper.ir.compile_ir import Label
-
     src = """
     function main {
         main:
@@ -1349,19 +1297,14 @@ def test_entry_function_seeds_initial_fmp_no_prelude():
     assert isinstance(asm[1], Label)
 
     bytecode, _ = assembly_to_evm(asm)
-    caller = "0x" + "10" * 20
-    addr = "0x" + "20" * 20
-    evm = EVM()
-    evm.set_balance(caller, 1)
-    evm.insert_account_info(addr, AccountInfo(code=bytecode))
-    out = evm.message_call(caller=caller, to=addr, calldata=b"", gas=1_000_000)
+    out = _execute(bytecode)
     assert _word(out) == 7
 
 
 def test_fmp_prune_seals_signature_and_callers_see_final_shape():
     # callee's dalloca dies in the optimization tail; FmpPrunePass deletes
     # the fmp_param chain and seals the signature BEFORE main is lowered, so
-    # main's invoke is never augmented (no de-augmentation pass needed).
+    # main's invoke is never augmented with a (stale) hidden FMP operand.
     out, ctx = _run_program_full_pipeline(
         """
         function main {
@@ -1386,6 +1329,9 @@ def test_fmp_prune_seals_signature_and_callers_see_final_shape():
     assert _word(out) == 5
 
     callee = ctx.get_function(IRLabel("callee"))
+    dynamic_memory = IRAnalysesCache(callee).request_analysis(DynamicMemoryAnalysis)
+    assert not dynamic_memory.function_needs_fmp(callee)
+
     sig = callee._fmp_signature
     assert sig is not None
     assert sig.has_fmp_param is False
@@ -1394,12 +1340,7 @@ def test_fmp_prune_seals_signature_and_callers_see_final_shape():
     assert "fmp_param" not in callee_opcodes
 
     main = ctx.get_function(IRLabel("main"))
-    invoke = next(
-        inst
-        for bb in main.get_basic_blocks()
-        for inst in bb.instructions
-        if inst.opcode == "invoke"
-    )
+    invoke = find_inst(main, "invoke")
     assert invoke.operands == [IRLabel("callee")]
 
 
@@ -1434,7 +1375,6 @@ def _assert_single_fmp_param_layout(fwd):
     # exactly one hidden FMP param; the return-PC param was normalized to
     # retpc_param and stays the last (top-of-stack) slot
     assert [inst.opcode for inst in params] == ["fmp_param", "retpc_param"]
-    assert sum(1 for inst in params if inst.opcode == "fmp_param") == 1
 
 
 def test_metadata_less_never_returning_forwarder_no_duplicate_fmp_param():
@@ -1457,12 +1397,7 @@ def test_metadata_less_never_returning_forwarder_no_duplicate_fmp_param():
 
     asm = VenomCompiler(ctx).generate_evm_assembly()
     bytecode, _ = assembly_to_evm(asm)
-    caller = "0x" + "10" * 20
-    addr = "0x" + "20" * 20
-    evm = EVM()
-    evm.set_balance(caller, 1)
-    evm.insert_account_info(addr, AccountInfo(code=bytecode))
-    out = evm.message_call(caller=caller, to=addr, calldata=b"", gas=1_000_000)
+    out = _execute(bytecode)
     assert _word(out) == 7
 
     # variant 2: full O2 pipeline on frontend-realistic raw IR -- the
@@ -1476,18 +1411,13 @@ def test_metadata_less_never_returning_forwarder_no_duplicate_fmp_param():
 
     asm = VenomCompiler(ctx).generate_evm_assembly()
     bytecode, _ = assembly_to_evm(asm)
-    evm = EVM()
-    evm.set_balance(caller, 1)
-    evm.insert_account_info(addr, AccountInfo(code=bytecode))
-    out = evm.message_call(caller=caller, to=addr, calldata=b"", gas=1_000_000)
+    out = _execute(bytecode)
     assert _word(out) == 7
 
 
 def test_post_lowering_check_fires_on_corrupted_shape():
     # corrupting the lowered IR after the pipeline (deleting the hidden FMP
     # operand of an invoke) must be caught by the signature-vs-shape checks
-    from vyper.venom.check_venom import PostLoweringError, find_post_lowering_errors
-
     src = """
     function main {
         main:
@@ -1512,12 +1442,7 @@ def test_post_lowering_check_fires_on_corrupted_shape():
     assert find_post_lowering_errors(ctx) == []
 
     main = ctx.get_function(IRLabel("main"))
-    invoke = next(
-        inst
-        for bb in main.get_basic_blocks()
-        for inst in bb.instructions
-        if inst.opcode == "invoke"
-    )
+    invoke = find_inst(main, "invoke")
     # callee kept its fmp_param (the allocation is observable via log)
     callee = ctx.get_function(IRLabel("callee"))
     assert callee._fmp_signature is not None and callee._fmp_signature.has_fmp_param
@@ -1550,31 +1475,6 @@ def test_post_lowering_check_fires_on_corrupted_shape():
 # ---------------------------------------------------------------------------
 
 
-def _run_loop_program(src: str, calldata: bytes = b"") -> bytes:
-    # like _run_program, but with the CFG cleanup the assembler requires
-    # for loop-shaped (multi-in/multi-out) basic blocks
-    ctx = parse_venom(src)
-    for fn in reversed(list(ctx.functions.values())):
-        DretDesugarPass(IRAnalysesCache(fn), fn).run_pass()
-        ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
-        _run_ssa(fn)
-        FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
-        _run_ssa(fn)
-        SimplifyCFGPass(IRAnalysesCache(fn), fn).run_pass()
-        CFGNormalization(IRAnalysesCache(fn), fn).run_pass()
-        SingleUseExpansion(IRAnalysesCache(fn), fn).run_pass()
-
-    asm = VenomCompiler(ctx).generate_evm_assembly()
-    bytecode, _ = assembly_to_evm(asm)
-
-    caller = "0x" + "10" * 20
-    addr = "0x" + "20" * 20
-    evm = EVM()
-    evm.set_balance(caller, 1)
-    evm.insert_account_info(addr, AccountInfo(code=bytecode))
-    return evm.message_call(caller=caller, to=addr, calldata=calldata, gas=1_000_000)
-
-
 def test_loop_dalloca_reclaimed_each_iteration():
     # a dalloca that dies within the loop body is reclaimed at the back
     # edge every iteration: the FMP does not grow with the trip count, and
@@ -1598,7 +1498,7 @@ def test_loop_dalloca_reclaimed_each_iteration():
             return 0, 32
     }
     """
-    out = _run_loop_program(src)
+    out = _run_program(src, lower=_apply_loop_lowering)
     assert _word(out) == 0  # 64 if the loop leaked one buffer per iteration
 
     out, _ = _run_program_full_pipeline(src, disable_inlining=True)
@@ -1625,7 +1525,8 @@ def test_loop_carried_live_dalloca_not_reclaimed():
     # the loop header drops the live mark (sound: untracked allocations are
     # never reclaimed), so each iteration's buffer stays intact and the FMP
     # grows monotonically.
-    out = _run_loop_program("""
+    out = _run_program(
+        """
         function main {
             main:
                 %prev = 0
@@ -1648,7 +1549,9 @@ def test_loop_carried_live_dalloca_not_reclaimed():
                 mstore 32, %v
                 return 0, 64
         }
-        """)
+        """,
+        lower=_apply_loop_lowering,
+    )
     # iteration 2's buffer sits at 32: iteration 1's buffer was not
     # reclaimed under it. (%q == 32: the final buffer itself is dead after
     # the exit-block load and is legitimately reclaimed there.)
@@ -1893,7 +1796,7 @@ def test_unreachable_block_lowering_is_robust():
         """)
     fn = ctx.get_function(IRLabel("main"))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
-    _run_ssa(fn)
+    run_ssa(fn)
     FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
 
     opcodes = [inst.opcode for bb in fn.get_basic_blocks() for inst in bb.instructions]
@@ -1920,9 +1823,6 @@ def test_restore_dominance_assertion_fires_on_illegal_restore():
     # hand-construct an illegal reclaim state: a mark defined in one branch
     # arm tracked at a join the definition does not dominate. The emitted
     # restore would be SSA-illegal; the engine's dominance assertion fires.
-    from vyper.venom.analysis import BasePtrAnalysis, DominatorTreeAnalysis, LivenessAnalysis
-    from vyper.venom.passes import fmp_lowering
-
     ctx = parse_venom("""
         function main {
             main:
@@ -1970,8 +1870,6 @@ def test_full_pipeline_rejects_half_lowered_invoke():
     # hidden FMP operand) is rejected by check_venom at pipeline entry, so
     # FmpLoweringPass's assert-and-set panic is unreachable from validated
     # input.
-    from vyper.venom.check_venom import MixedFmpIRError
-
     ctx = parse_venom("""
         function main {
             main:
@@ -1989,12 +1887,7 @@ def test_full_pipeline_rejects_half_lowered_invoke():
                 ret %retpc
         }
         """)
-    invoke = next(
-        inst
-        for bb in ctx.get_function(IRLabel("main")).get_basic_blocks()
-        for inst in bb.instructions
-        if inst.opcode == "invoke"
-    )
+    invoke = find_inst(ctx.get_function(IRLabel("main")), "invoke")
     invoke.operands = [IRLabel("callee"), IRVariable("%junk")]
 
     flags = VenomOptimizationFlags(level=OptimizationLevel.O2, disable_inlining=True)

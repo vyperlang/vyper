@@ -611,8 +611,8 @@ def test_cse_bump_not_merged():
     pre = """
     main:
         %fmp = source
-        %p1 = bump %fmp, 32
-        %p2 = bump %fmp, 32
+        %p1, %f1 = bump 32, %fmp
+        %p2, %f2 = bump 32, %fmp
         sink %p1, %p2
     """
 
