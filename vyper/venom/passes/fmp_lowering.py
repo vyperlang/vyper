@@ -277,15 +277,13 @@ class FmpLoweringPass(IRPass):
             # dedicated `retpc_param` opcode; for hand-written raw IR the
             # ret-anchored discovery (the raw-level definition, see
             # call_layout) finds it. When neither applies (a never-returning
-            # forwarder written with plain params), the last plain param
-            # names that slot; with no params at all, synthesize the name so
-            # the hidden FMP param can be placed beneath it.
-            params = layout.params
-            if len(params) > 0:
-                return_pc_param = params[-1]
-            else:
-                return_pc_param = IRInstruction("retpc_param", [], [fn.get_next_variable()])
-                fn.entry.insert_instruction(return_pc_param, index=0)
+            # function), the PC slot is unnamed: input validation counted
+            # every plain param as a caller-pushed user arg, so the name
+            # must be synthesized, never taken from an existing param
+            # (renaming a user param would shrink the expected user-arg
+            # count and break validated callers).
+            return_pc_param = IRInstruction("retpc_param", [], [fn.get_next_variable()])
+            fn.entry.insert_instruction(return_pc_param, index=_after_params_index(fn))
         return_pc_param.opcode = "retpc_param"
 
         param_inst = IRInstruction("fmp_param", [], [fmp_var])

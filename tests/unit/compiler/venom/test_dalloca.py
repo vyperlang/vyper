@@ -1347,17 +1347,17 @@ def test_fmp_prune_seals_signature_and_callers_see_final_shape():
 _NEVER_RETURNING_FORWARDER_SRC = """
 function main {
     main:
-        invoke @fwd
+        invoke @fwd, 60
         return 0, 0
 }
 
 function fwd {
     fwd:
-        %retpc = param
+        %a = param
         %ptr = invoke @producer
         %v = mload %ptr
-        mstore 0, %v
-        return 0, 32
+        mstore %a, %v
+        return %a, 32
 }
 
 function producer {
@@ -1372,9 +1372,9 @@ function producer {
 
 def _assert_single_fmp_param_layout(fwd):
     params = [inst for inst in fwd.entry.instructions if inst.is_param]
-    # exactly one hidden FMP param; the return-PC param was normalized to
-    # retpc_param and stays the last (top-of-stack) slot
-    assert [inst.opcode for inst in params] == ["fmp_param", "retpc_param"]
+    # exactly one hidden FMP param, placed after the user params and before
+    # the return-PC param (the last, top-of-stack slot)
+    assert [inst.opcode for inst in params] == ["param", "fmp_param", "retpc_param"]
 
 
 def test_metadata_less_never_returning_forwarder_no_duplicate_fmp_param():
@@ -1387,10 +1387,13 @@ def test_metadata_less_never_returning_forwarder_no_duplicate_fmp_param():
 
     # variant 1: hand-written raw IR with only plain params. Neither the
     # ret-anchored discovery (no `ret`) nor a `retpc_param` opcode names the
-    # return-PC slot, so FmpLoweringPass falls back to treating the last
-    # plain param as that slot (part of the raw-level definition: every
-    # invoked function receives the return PC on top of the entry stack).
+    # return-PC slot. Input validation counts every plain param of a
+    # never-returning callee as a caller-pushed user arg, so FmpLoweringPass
+    # SYNTHESIZES the return-PC name for the unnamed top-of-stack slot --
+    # renaming a plain param instead would shrink the user-arg count and
+    # panic on validated callers (final-review regression).
     ctx = parse_venom(_NEVER_RETURNING_FORWARDER_SRC)
+    check_calling_convention(ctx)  # the shape must be validator-accepted
     for fn in reversed(list(ctx.functions.values())):
         _apply_lowering(fn)
     _assert_single_fmp_param_layout(ctx.get_function(IRLabel("fwd")))
@@ -1403,7 +1406,9 @@ def test_metadata_less_never_returning_forwarder_no_duplicate_fmp_param():
     # variant 2: full O2 pipeline on frontend-realistic raw IR -- the
     # frontend names the return-PC slot with the dedicated `retpc_param`
     # opcode, so even a no-ret function is self-describing.
-    src = _NEVER_RETURNING_FORWARDER_SRC.replace("%retpc = param", "%retpc = retpc_param")
+    src = _NEVER_RETURNING_FORWARDER_SRC.replace(
+        "%a = param", "%a = param\n        %retpc = retpc_param"
+    )
     ctx = parse_venom(src)
     flags = VenomOptimizationFlags(level=OptimizationLevel.O2, disable_inlining=True)
     run_passes_on(ctx, flags, disable_mem_checks=True)

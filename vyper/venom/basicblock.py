@@ -494,7 +494,7 @@ class IRInstruction:
         opcode = f"{self.opcode} " if self.opcode != "assign" else ""
         s += opcode
         operands = self.operands
-        if self.opcode not in ("jmp", "jnz", "djmp", "invoke", "dret", "retfmp"):
+        if self.opcode not in ("jmp", "jnz", "djmp", "phi", "dret", "retfmp"):
             operands = list(reversed(operands))
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
         return s

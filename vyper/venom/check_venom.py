@@ -136,7 +136,7 @@ class FunctionCallLayoutError(VenomError):
 
 
 class MultiOutputNotAllowed(VenomError):
-    message: str = "multi-output assignment only supported for invoke/bump/dalloca"
+    message: str = "multi-output assignment only supported for invoke/bump"
 
     def __init__(self, caller: IRFunction, inst: IRInstruction):
         self.caller = caller
@@ -145,9 +145,6 @@ class MultiOutputNotAllowed(VenomError):
     def __str__(self):
         bb = self.inst.parent
         return f"multi-output not allowed in {self.caller.name}:\n" f"  {self.inst}\n\n{bb}"
-
-
-# compatibility alias for the pre-rename class name
 
 
 class OpcodeArityError(VenomError):
@@ -171,8 +168,8 @@ class OpcodeArityError(VenomError):
         )
 
 
-# per-opcode subclasses so callers (and tests) can assert the specific
-# opcode family; all behavior lives in OpcodeArityError
+# per-opcode subclasses give each opcode family a specific message; all
+# behavior lives in OpcodeArityError
 class BumpArityError(OpcodeArityError):
     message: str = "bump must have exactly 2 operands and 2 outputs"
 
@@ -692,7 +689,10 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
                     _check_fixed_arity(caller, inst, errors)
                     continue
 
-                # Disallow multi-output except on invoke, bump, and dalloca.
+                # Disallow multi-output except on invoke and bump. dalloca
+                # is fixed at one output, but routes through its specific
+                # arity error (like initial_fmp above) rather than the
+                # generic multi-output one.
                 if got_num > 1 and inst.opcode not in ("invoke", "bump", "dalloca"):
                     errors.append(MultiOutputNotAllowed(caller, inst))
                     continue
@@ -909,6 +909,12 @@ def find_post_lowering_errors(context: IRContext) -> list[VenomError]:
     errors: list[VenomError] = []
 
     for fn in context.functions.values():
+        # the param-layout invariants (single fmp_param, canonical order,
+        # entry-block-only) are validated on input, but the shape checks
+        # below count params through FunctionCallLayout, which assumes
+        # them -- re-check so a pass bug cannot turn a malformed layout
+        # into a silently wrong expected operand count.
+        errors.extend(_find_param_layout_errors(fn))
         for bb in fn.get_basic_blocks():
             for inst in bb.instructions:
                 if inst.opcode in RAW_FMP_OPS:

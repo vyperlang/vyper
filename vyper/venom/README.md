@@ -183,6 +183,8 @@ The exit point must be one of the following terminator instructions:
 - `djmp` 
 - `jnz` 
 - `ret` 
+- `dret` 
+- `retfmp` 
 - `return` 
 - `stop` 
 - `exit`
@@ -197,6 +199,7 @@ By convention, variables have a `%-` prefix, e.g. `%1` is a valid variable. Howe
 
 ## Instructions
 To enable Venom IR in Vyper, use the `--experimental-codegen` CLI flag or the corresponding pragma statements (e.g. `#pragma experimental-codegen`). To view the Venom IR output, use `-f ir_runtime` for the runtime code, or `-f ir` to see the deploy code. To get a dot file (for use e.g. with `xdot -`), use `-f cfg` or `-f cfg_runtime`.
+Assembly can be inspected with `-f asm`, whereas an opcode view of the final bytecode can be seen with `-f opcodes` or `-f opcodes_runtime`, respectively.
 
 ### Dynamic memory
 
@@ -242,8 +245,6 @@ To enable Venom IR in Vyper, use the `--experimental-codegen` CLI flag or the co
     `FmpLoweringPass` lowers `retfmp` to `ret <values...>, <adopted FMP>, return_pc`; the
     lowered publish fact is then carried by the `fmp_publishes` annotation token, and the
     caller's invoke binds the adopted FMP as a hidden extra output.
-
-Assembly can be inspected with `-f asm`, whereas an opcode view of the final bytecode can be seen with `-f opcodes` or `-f opcodes_runtime`, respectively.
 
 ### Special instructions
 
