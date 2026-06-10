@@ -644,7 +644,11 @@ class VenomCompiler:
             # misconfigured.
             raise CompilerPanic("dalloca reached codegen; DallocaLoweringPass missing?")
         elif opcode == "dret":
-            raise CompilerPanic("dret reached codegen; DretLoweringPass missing?")
+            raise CompilerPanic("dret reached codegen; DretDesugarPass missing?")
+        elif opcode in ("getfmp", "setfmp", "retfmp"):
+            # FMP virtual-register opcodes exist only between DretDesugarPass
+            # and DallocaLoweringPass; the latter must thread them away.
+            raise CompilerPanic(f"{opcode} reached codegen; DallocaLoweringPass missing?")
         elif opcode == "initial_fmp":
             # Lowers to a deferred PUSH of the initial FMP value. We emit a
             # CONSTREF here and declare the CONST with the final value once

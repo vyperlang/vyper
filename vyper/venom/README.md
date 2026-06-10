@@ -194,10 +194,20 @@ To enable Venom IR in Vyper, use the `--experimental-codegen` CLI flag or the co
     dret dyn_count, <ordinary returns...>, src0, size0, ..., return_pc
     ```
   - Internal dynamic return terminator. The final `2 * dyn_count` operands before `return_pc`
-    are `(src, size)` pairs. `DretLoweringPass` runs before inlining, packs those buffers
-    at the callee entry FMP, and rewrites the terminator to a physical `ret` that returns
-    ordinary values, packed destination pointers, a hidden adopted FMP, and the return PC.
-    Invoke lowering adopts that hidden FMP output atomically at the caller edge.
+    are `(src, size)` pairs. `DretDesugarPass` runs before inlining and locally desugars the
+    terminator into FMP virtual-register IR: pack destinations computed off `getfmp`, the pack
+    copies, `setfmp` (advancing the register over the packed data) and a `retfmp` terminator.
+    `DallocaLoweringPass` later threads the register and materializes the physical convention
+    (hidden FMP param/operand, `ret` with the hidden adopted-FMP value).
+- FMP virtual-register opcodes (exist only between `DretDesugarPass` and `DallocaLoweringPass`)
+  - `%v = getfmp` reads the FMP virtual register; `setfmp %v` writes it.
+  - ```
+    retfmp <ordinary returns...>, <packed dst ptrs...>, return_pc
+    ```
+  - Publishing return terminator: returns values *and* makes the caller adopt the callee's FMP.
+    The publish fact lives in this opcode; plain `ret` is callee-save (FMP implicitly reverts
+    to its value at entry), so a function whose terminators are all `ret` does not publish even
+    if its body contains `setfmp` (e.g. after inlining a publishing callee).
 
 Assembly can be inspected with `-f asm`, whereas an opcode view of the final bytecode can be seen with `-f opcodes` or `-f opcodes_runtime`, respectively.
 

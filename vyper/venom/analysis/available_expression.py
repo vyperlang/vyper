@@ -36,6 +36,11 @@ _nonidempotent_insts.append("bump")
 # `dalloca` is a dynamic allocation: two `dalloca`s with identical size
 # operands are distinct allocations and must not be merged by CSE.
 _nonidempotent_insts.append("dalloca")
+# `setfmp` writes the FMP virtual register; even two `setfmp`s with the same
+# operand must never be merged away (fail closed). note `getfmp` is
+# intentionally *not* here: two getfmps with no intervening FMP write may
+# merge -- the FMP effect row blocks merging across setfmp/dalloca/bump.
+_nonidempotent_insts.append("setfmp")
 
 NONIDEMPOTENT_INSTRUCTIONS = frozenset(_nonidempotent_insts)
 

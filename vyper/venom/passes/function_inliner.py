@@ -47,7 +47,7 @@ class FunctionInlinerPass(IRGlobalPass):
             for bb in fn.get_basic_blocks():
                 if any(inst.opcode == "dret" for inst in bb.instructions):
                     raise CompilerPanic(
-                        "DretLoweringPass must run before FunctionInlinerPass "
+                        "DretDesugarPass must run before FunctionInlinerPass "
                         "when `dret` is present"
                     )
 
@@ -139,10 +139,19 @@ class FunctionInlinerPass(IRGlobalPass):
                     val = binding_ops[param_idx]
                     inst.operands = [val]
                     param_idx += 1
-                elif inst.opcode == "ret":
+                elif inst.opcode in ("ret", "retfmp"):
                     # ret may be: ret @return_pc  OR  ret v1, v2, ..., @return_pc
                     # The last operand is the return PC (label or variable);
                     # all preceding operands (if any) are return values.
+                    #
+                    # `retfmp` maps exactly like `ret`: assign the return
+                    # values (ordinaries and pack dsts) to the call-site
+                    # outputs and jump to the continuation. No FMP restore is
+                    # emitted -- the inlined body's `setfmp` already advanced
+                    # the register, which *is* the adoption; from here the
+                    # host's own reclaim governs the inlined data. Whether the
+                    # host publishes is determined solely by the host's own
+                    # terminators (plain `ret` is callee-save).
                     ret_values = [op for op in inst.operands[:-1] if not isinstance(op, IRLabel)]
 
                     # Map each returned value to corresponding callsite outputs

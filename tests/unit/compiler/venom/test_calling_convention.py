@@ -12,11 +12,15 @@ from vyper.venom.check_venom import (
     DretShapeError,
     DretShapeMismatch,
     FunctionCallLayoutError,
+    GetfmpArityError,
     InconsistentReturnArity,
     InitialFmpArityError,
     InvokeArgumentCountMismatch,
     InvokeArityMismatch,
     MultiOutputNonInvoke,
+    RetfmpReturnMixError,
+    RetfmpShapeError,
+    SetfmpArityError,
     check_calling_convention,
 )
 
@@ -509,7 +513,7 @@ def test_multi_def_param_alias_survives_full_pipeline():
 def test_dret_rejects_static_label_return_pc():
     # Per the dret spec, dret is valid only in internal functions with a
     # return-PC param. A static label return_pc must be rejected: otherwise
-    # DretLoweringPass conjures an FMP param that pops the caller's return PC
+    # the lowered convention conjures an FMP param that pops the caller's return PC
     # at runtime (silent corruption).
     src = """
     function main {
@@ -745,3 +749,200 @@ def test_function_invoke_param_count_metadata_must_match_user_params():
     with pytest.raises(ExceptionGroup) as excinfo:
         check_calling_convention(ctx)
     _assert_raises(excinfo.value, FunctionCallLayoutError)
+
+
+def test_getfmp_arity_correct_accepted():
+    src = """
+    function main {
+    main:
+        %p = getfmp
+        sink %p
+    }
+    """
+    ctx = parse_venom(src)
+    check_calling_convention(ctx)
+
+
+def test_getfmp_arity_operand_rejected():
+    src = """
+    function main {
+    main:
+        %p = getfmp 1
+        sink %p
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, GetfmpArityError)
+
+
+def test_getfmp_arity_missing_output_rejected():
+    src = """
+    function main {
+    main:
+        getfmp
+        stop
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, GetfmpArityError)
+
+
+def test_setfmp_arity_correct_accepted():
+    src = """
+    function main {
+    main:
+        %p = getfmp
+        setfmp %p
+        stop
+    }
+    """
+    ctx = parse_venom(src)
+    check_calling_convention(ctx)
+
+
+def test_setfmp_arity_missing_operand_rejected():
+    src = """
+    function main {
+    main:
+        setfmp
+        stop
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, SetfmpArityError)
+
+
+def test_setfmp_arity_output_rejected():
+    src = """
+    function main {
+    main:
+        %q = setfmp 64
+        sink %q
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, SetfmpArityError)
+
+
+def test_retfmp_shape_accepted():
+    src = """
+    function main {
+    main:
+        %ret = invoke @f
+        sink %ret
+    }
+
+    function f {
+    main:
+        %retpc = param
+        %p = source
+        retfmp %p, %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    check_calling_convention(ctx)
+
+
+def test_retfmp_rejects_non_return_pc_tail():
+    # like dret, retfmp publishes the FMP to the caller, which is only
+    # meaningful in internal functions with a return-PC param
+    src = """
+    function main {
+    main:
+        %ret = invoke @f
+        sink %ret
+    }
+
+    function f {
+    main:
+        %p = source
+        retfmp %p, 0
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, RetfmpShapeError)
+
+
+def test_retfmp_rejects_static_label_return_pc():
+    src = """
+    function main {
+    main:
+        %ret = invoke @f
+        sink %ret
+    }
+
+    function f {
+    entry:
+        %p = source
+        retfmp %p, @exit
+    exit:
+        stop
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, RetfmpShapeError)
+
+
+def test_retfmp_rejects_mixing_with_ret():
+    src = """
+    function main {
+    main:
+        %ret = invoke @f
+        sink %ret
+    }
+
+    function f {
+    entry:
+        %retpc = param
+        %cond = source
+        %p = source
+        jnz %cond, @left, @right
+    left:
+        retfmp %p, %retpc
+    right:
+        ret %retpc, %p
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, RetfmpReturnMixError)
+
+
+def test_retfmp_rejects_mixing_with_dret():
+    # a function with both raw `dret` and `retfmp` is half-desugared
+    src = """
+    function main {
+    main:
+        %ret = invoke @f
+        sink %ret
+    }
+
+    function f {
+    entry:
+        %retpc = param
+        %cond = source
+        %p = source
+        jnz %cond, @left, @right
+    left:
+        retfmp %p, %retpc
+    right:
+        dret 1, %p, 32, %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, RetfmpReturnMixError)

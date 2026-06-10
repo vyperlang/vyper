@@ -89,6 +89,12 @@ class BasePtrAnalysis(IRAnalysis):
             ptr_out = inst.get_outputs()[0]
             return self._add_possible_ptrs(ptr_out, {Ptr.from_alloca(inst)})
 
+        # `getfmp` (a read of the FMP virtual register) intentionally gets no
+        # pointer facts: its output is an *untracked* base, so anything rooted
+        # at it (e.g. DretDesugarPass's pack destinations) resolves to an
+        # unknown-offset location and aliases conservatively -- the same
+        # protection the entry-FMP param copy gives lowered IR.
+
         if inst.num_outputs != 1:
             return False
 

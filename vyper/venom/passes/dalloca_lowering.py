@@ -40,9 +40,13 @@ class DallocaLoweringPass(IRPass):
     rewinds for dead LIFO allocation suffixes at points where the current FMP
     is observed by later lowering.
 
-    `dret` is lowered earlier by DretLoweringPass so reclaim decisions can run
-    after SSA while raw dynamic-return terminators are still gone before
-    inlining.
+    `dret` is desugared earlier by DretDesugarPass into the FMP
+    virtual-register opcodes (`getfmp`/`setfmp`/`retfmp`), which this pass
+    threads against the same FMP runner:
+    - `getfmp` reads the current FMP value
+    - `setfmp` writes it (and invalidates all tracked reclaim marks)
+    - `retfmp` returns values *and* publishes the FMP to the caller; it
+      lowers to `ret` with the hidden adopted-FMP value appended
     """
 
     required_predecessors: ClassVar[tuple[PassRef, ...]] = ("MakeSSA",)
@@ -50,8 +54,8 @@ class DallocaLoweringPass(IRPass):
 
     # whether the FMP value threaded by the current run reflects every
     # allocation in the function. only then may `_augment_invoke` overwrite an
-    # existing hidden-FMP operand. False for DretLoweringPass (which threads
-    # no allocations) and for repeat runs on already-lowered IR.
+    # existing hidden-FMP operand. False for repeat runs on already-lowered
+    # IR (pre-existing `bump`s).
     _fmp_model_authoritative: bool = False
 
     # allocations whose pointer escapes SSA tracking; never reclaimed.
@@ -67,11 +71,12 @@ class DallocaLoweringPass(IRPass):
 
         has_dalloca = info.has_dalloca
         has_dret = info.has_dret
+        has_fmp_ops = info.has_fmp_ops
         calls_needs_fmp = info.calls_need_fmp
         if has_dret:
-            raise CompilerPanic("DretLoweringPass must run before DallocaLoweringPass")
+            raise CompilerPanic("DretDesugarPass must run before DallocaLoweringPass")
 
-        if had_fmp and not has_dalloca:
+        if had_fmp and not has_dalloca and not has_fmp_ops:
             changed = self._deaugment_stale_invoke_fmp_args(fn)
             if changed:
                 self._invalidate_analyses()
@@ -83,7 +88,7 @@ class DallocaLoweringPass(IRPass):
 
                 return
 
-        if not has_dalloca and not has_dret and not calls_needs_fmp:
+        if not has_dalloca and not has_fmp_ops and not calls_needs_fmp:
             return
 
         # Pre-existing `bump`s mean a previous run already lowered (and
@@ -96,7 +101,7 @@ class DallocaLoweringPass(IRPass):
         hidden_fmp_var = self._ensure_hidden_fmp_param(fn, hidden_may_exist=had_fmp)
         fmp_var = hidden_fmp_var
         canonicalize_adopted_fmp = False
-        if has_dalloca or calls_needs_fmp:
+        if has_dalloca or has_fmp_ops or calls_needs_fmp:
             fmp_var = self._materialize_fmp_copy(fn, hidden_fmp_var)
             canonicalize_adopted_fmp = True
 
@@ -261,6 +266,10 @@ class DallocaLoweringPass(IRPass):
 
             if inst.opcode == "dalloca":
                 stack.append(inst.output)
+            elif inst.opcode == "setfmp":
+                # an explicit FMP write invalidates every tracked mark, like
+                # an invoke whose callee adopts the FMP
+                stack.clear()
             elif inst.opcode == "invoke":
                 callee = InvokeLayout(self.function.ctx, inst).callee
                 if callee is not None and self.dynamic_memory.get_info(callee).returns_adopted_fmp:
@@ -335,10 +344,10 @@ class DallocaLoweringPass(IRPass):
         BasePtrAnalysis's propagation grammar (add/sub/assign/phi/bump/
         dalloca/alloca) and outside the address/length positions of known
         memory ops -- e.g. as the stored *value* of a store-family
-        instruction, or as an operand of `invoke`/`ret`/`dret`. An escaped
-        pointer can re-enter through memory where SSA liveness cannot see it,
-        so the allocation must never be reclaimed. Fail closed: anything not
-        provably a non-escaping use pins the allocation.
+        instruction, or as an operand of `invoke`/`ret`/`retfmp`/`setfmp`.
+        An escaped pointer can re-enter through memory where SSA liveness
+        cannot see it, so the allocation must never be reclaimed. Fail
+        closed: anything not provably a non-escaping use pins the allocation.
         """
         pinned: set[Allocation] = set()
         for bb in fn.get_basic_blocks():
@@ -399,6 +408,33 @@ class DallocaLoweringPass(IRPass):
                 stack.append(inst.output)
                 new_instructions.extend(lowered)
                 current_fmp_var = fmp_var
+                continue
+
+            if inst.opcode == "getfmp":
+                # read of the FMP virtual register: the current FMP value
+                inst.opcode = "assign"
+                inst.operands = [current_fmp_var]
+                new_instructions.append(inst)
+                continue
+
+            if inst.opcode == "setfmp":
+                # write of the FMP virtual register: assign into the runner
+                # (multiply-assigned; MakeSSA repairs). The write invalidates
+                # every tracked reclaim mark, mirroring adopted-FMP invokes.
+                inst.opcode = "assign"
+                inst.set_outputs([fmp_var])
+                new_instructions.append(inst)
+                stack.clear()
+                current_fmp_var = fmp_var
+                continue
+
+            if inst.opcode == "retfmp":
+                # publishing return: plain `ret` of the values plus the
+                # hidden adopted-FMP value (before the return PC)
+                return_pc = inst.operands[-1]
+                inst.opcode = "ret"
+                inst.operands = [*inst.operands[:-1], current_fmp_var, return_pc]
+                new_instructions.append(inst)
                 continue
 
             if inst.opcode == "invoke":
@@ -480,53 +516,6 @@ class DallocaLoweringPass(IRPass):
         self._copy_metadata(inst, bump_inst, bb)
         return [*ceil_insts, bump_inst]
 
-    def _lower_dret(
-        self, inst: IRInstruction, bb, entry_fmp_var: IRVariable
-    ) -> list[IRInstruction]:
-        shape = parse_dret_shape(inst)
-        assert shape is not None, inst
-        ordinary_count, _ = shape
-
-        return_pc = inst.operands[-1]
-        ordinary_returns = list(inst.operands[1 : 1 + ordinary_count])
-        pair_ops = inst.operands[1 + ordinary_count : -1]
-        pairs = [(pair_ops[i], pair_ops[i + 1]) for i in range(0, len(pair_ops), 2)]
-
-        lowered: list[IRInstruction] = []
-        dsts: list[IRVariable] = []
-        prev_dst: IROperand = entry_fmp_var
-        prev_aligned: IRVariable | None = None
-
-        for idx, (_, size) in enumerate(pairs):
-            if idx == 0:
-                dst = entry_fmp_var
-            else:
-                assert prev_aligned is not None
-                dst = self.function.get_next_variable()
-                dst_inst = IRInstruction("add", [prev_aligned, prev_dst], [dst])
-                self._copy_metadata(inst, dst_inst, bb)
-                lowered.append(dst_inst)
-
-            ceil_insts, aligned = self._ceil32_insts(size, bb, inst)
-            lowered.extend(ceil_insts)
-            dsts.append(dst)
-            prev_dst = dst
-            prev_aligned = aligned
-
-        assert prev_aligned is not None
-        new_fmp = self.function.get_next_variable()
-        new_fmp_inst = IRInstruction("add", [prev_aligned, prev_dst], [new_fmp])
-        self._copy_metadata(inst, new_fmp_inst, bb)
-        lowered.append(new_fmp_inst)
-
-        for dst_op, (src, size) in zip(dsts, pairs, strict=True):
-            lowered.extend(self._copy_memory(dst_op, src, size, bb, inst))
-
-        ret_inst = IRInstruction("ret", [*ordinary_returns, *dsts, new_fmp, return_pc], [])
-        self._copy_metadata(inst, ret_inst, bb)
-        lowered.append(ret_inst)
-        return lowered
-
     def _copy_memory(
         self, dst: IROperand, src: IROperand, size: IROperand, bb, origin: IRInstruction
     ) -> list[IRInstruction]:
@@ -559,12 +548,12 @@ class DallocaLoweringPass(IRPass):
         expected_user_args = FunctionCallLayout(callee).expected_user_arg_count
         has_hidden_fmp_operand = len(inst.operands) == 1 + expected_user_args + 1
         if has_hidden_fmp_operand:
-            # Set, don't just ensure: an earlier pass (DretLoweringPass,
-            # pre-inline) may have appended the entry-FMP param as the hidden
-            # operand. By the time DallocaLoweringPass threads the FMP, the
-            # current FMP at this invoke may have advanced past caller-side
-            # dallocas, so the stale entry-FMP operand would let the callee
-            # clobber live caller allocations.
+            # The frontend pipeline never reaches this branch anymore:
+            # DretDesugarPass touches no invokes, so this pass is the only
+            # writer of the hidden operand and the append branch below is the
+            # primary path. Hand-written half-lowered IR may still carry a
+            # (possibly stale) hidden operand; overwrite it with the current
+            # FMP -- set, don't just ensure.
             #
             # Only overwrite when this run's FMP model is authoritative
             # (`_fmp_model_authoritative`): a repeat run on already-lowered IR
@@ -733,9 +722,17 @@ class DallocaLoweringPass(IRPass):
         return changed
 
 
-class DretLoweringPass(DallocaLoweringPass):
+class DretDesugarPass(DallocaLoweringPass):
     """
-    Lower `dret` and hidden adopted-FMP invoke edges before inlining.
+    Desugar `dret` into FMP virtual-register IR before inlining.
+
+    Purely local: a function containing `dret` gets `%e = getfmp` at entry,
+    and each `dret` becomes the dst-chain arithmetic rooted at `%e`, the
+    pack-by-copy memory copies, `setfmp %new_fmp` (an *advance* over the
+    packed data, never a rewind) and a `retfmp` publishing terminator.
+    Functions without `dret` are untouched; no params and no invokes are
+    modified anywhere -- the calling convention is materialized later by
+    DallocaLoweringPass.
 
     This pass intentionally leaves raw `dalloca` instructions in place. The
     later DallocaLoweringPass runs after SSA and handles allocation reclaim.
@@ -747,39 +744,90 @@ class DretLoweringPass(DallocaLoweringPass):
     def run_pass(self):
         fn = self.function
 
-        self.dynamic_memory = self.analyses_cache.force_analysis(DynamicMemoryAnalysis)
-        info = self.dynamic_memory.get_info(fn)
-        had_fmp = info.has_physical_hidden_fmp
-
-        has_dret = info.has_dret
-        calls_needs_fmp = info.calls_need_dret_fmp
-
-        if not has_dret and not calls_needs_fmp:
+        has_dret = any(
+            inst.opcode == "dret" for bb in fn.get_basic_blocks() for inst in bb.instructions
+        )
+        if not has_dret:
             return
 
-        fmp_var = self._ensure_hidden_fmp_param(fn, hidden_may_exist=had_fmp)
-        entry_fmp_var = fmp_var
-        if has_dret:
-            entry_fmp_var = self._materialize_fmp_copy(fn, fmp_var)
+        entry_fmp_var = self._insert_entry_getfmp(fn)
 
         for bb in fn.get_basic_blocks():
-            self._rewrite_dret_bb(bb, fmp_var, entry_fmp_var)
+            self._desugar_bb(bb, entry_fmp_var)
 
         self._invalidate_analyses()
 
-    def _rewrite_dret_bb(self, bb, fmp_var: IRVariable, entry_fmp_var: IRVariable) -> None:
+    def _insert_entry_getfmp(self, fn) -> IRVariable:
+        fmp_var = fn.get_next_variable()
+        inst = IRInstruction("getfmp", [], [fmp_var])
+
+        params = FunctionCallLayout(fn).params
+        if len(params) == 0:
+            index = 0
+        else:
+            index = max(fn.entry.instructions.index(param) for param in params) + 1
+        fn.entry.insert_instruction(inst, index=index)
+        return fmp_var
+
+    def _desugar_bb(self, bb, entry_fmp_var: IRVariable) -> None:
         new_instructions: list[IRInstruction] = []
 
         for inst in bb.instructions:
             if inst.opcode == "dret":
-                new_instructions.extend(self._lower_dret(inst, bb, entry_fmp_var))
+                new_instructions.extend(self._desugar_dret(inst, bb, entry_fmp_var))
                 continue
-
-            if inst.opcode == "invoke":
-                callee = InvokeLayout(self.function.ctx, inst).callee
-                if callee is not None and self.dynamic_memory.get_info(callee).needs_dret_fmp:
-                    self._augment_invoke(inst, fmp_var)
 
             new_instructions.append(inst)
 
         bb.instructions = new_instructions
+
+    def _desugar_dret(
+        self, inst: IRInstruction, bb, entry_fmp_var: IRVariable
+    ) -> list[IRInstruction]:
+        shape = parse_dret_shape(inst)
+        assert shape is not None, inst
+        ordinary_count, _ = shape
+
+        return_pc = inst.operands[-1]
+        ordinary_returns = list(inst.operands[1 : 1 + ordinary_count])
+        pair_ops = inst.operands[1 + ordinary_count : -1]
+        pairs = [(pair_ops[i], pair_ops[i + 1]) for i in range(0, len(pair_ops), 2)]
+
+        lowered: list[IRInstruction] = []
+        dsts: list[IRVariable] = []
+        prev_dst: IROperand = entry_fmp_var
+        prev_aligned: IRVariable | None = None
+
+        for idx, (_, size) in enumerate(pairs):
+            if idx == 0:
+                dst = entry_fmp_var
+            else:
+                assert prev_aligned is not None
+                dst = self.function.get_next_variable()
+                dst_inst = IRInstruction("add", [prev_aligned, prev_dst], [dst])
+                self._copy_metadata(inst, dst_inst, bb)
+                lowered.append(dst_inst)
+
+            ceil_insts, aligned = self._ceil32_insts(size, bb, inst)
+            lowered.extend(ceil_insts)
+            dsts.append(dst)
+            prev_dst = dst
+            prev_aligned = aligned
+
+        assert prev_aligned is not None
+        new_fmp = self.function.get_next_variable()
+        new_fmp_inst = IRInstruction("add", [prev_aligned, prev_dst], [new_fmp])
+        self._copy_metadata(inst, new_fmp_inst, bb)
+        lowered.append(new_fmp_inst)
+
+        for dst_op, (src, size) in zip(dsts, pairs, strict=True):
+            lowered.extend(self._copy_memory(dst_op, src, size, bb, inst))
+
+        setfmp_inst = IRInstruction("setfmp", [new_fmp], [])
+        self._copy_metadata(inst, setfmp_inst, bb)
+        lowered.append(setfmp_inst)
+
+        retfmp_inst = IRInstruction("retfmp", [*ordinary_returns, *dsts, return_pc], [])
+        self._copy_metadata(inst, retfmp_inst, bb)
+        lowered.append(retfmp_inst)
+        return lowered

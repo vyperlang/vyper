@@ -156,7 +156,7 @@ class FunctionCallLayout:
     def _return_pc_param_from_ret(self) -> IRInstruction | None:
         for bb in self.fn.get_basic_blocks():
             for inst in bb.instructions:
-                if inst.opcode not in ("ret", "dret") or len(inst.operands) == 0:
+                if inst.opcode not in ("ret", "dret", "retfmp") or len(inst.operands) == 0:
                     continue
 
                 ret_pc = inst.operands[-1]

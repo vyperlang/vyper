@@ -1,7 +1,7 @@
 import pytest
 from pyrevm import EVM, AccountInfo
 
-from tests.venom_utils import parse_from_basic_block
+from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.evm.address_space import MEMORY
 from vyper.evm.assembler.core import assembly_to_evm
@@ -20,14 +20,17 @@ from vyper.venom.analysis import (
 )
 from vyper.venom.basicblock import IRLabel, IRLiteral, IRVariable
 from vyper.venom.call_layout import FunctionCallLayout
+from vyper.venom.check_venom import check_calling_convention
 from vyper.venom.effects import Effects
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes import (
+    CSE,
     ConcretizeMemLocPass,
     DallocaLoweringPass,
-    DretLoweringPass,
+    DretDesugarPass,
     MakeSSA,
     PhiEliminationPass,
+    RemoveUnusedVariablesPass,
     SingleUseExpansion,
 )
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
@@ -49,7 +52,7 @@ def _apply_dalloca_lowering(fn):
 
 
 def _apply_lowering(fn):
-    DretLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+    DretDesugarPass(IRAnalysesCache(fn), fn).run_pass()
     _apply_dalloca_lowering(fn)
     SingleUseExpansion(IRAnalysesCache(fn), fn).run_pass()
 
@@ -636,7 +639,7 @@ def test_parser_infers_invoke_param_count_without_hidden_fmp():
     assert fn._return_value_count == 1
 
 
-def test_dret_lowering_ignores_dalloca_only_callee():
+def test_dret_desugar_ignores_dalloca_only_callee():
     ctx = parse_venom("""
         function main {
             main:
@@ -653,7 +656,7 @@ def test_dret_lowering_ignores_dalloca_only_callee():
     """)
 
     fn = ctx.entry_function
-    DretLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+    DretDesugarPass(IRAnalysesCache(fn), fn).run_pass()
 
     params = [inst for inst in fn.entry.instructions if inst.opcode == "param"]
     assert params == []
@@ -812,7 +815,7 @@ def test_dret_pre_cancun_copy_path(monkeypatch):
         }
     """)
     fn = ctx.get_function(IRLabel("callee"))
-    DretLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+    DretDesugarPass(IRAnalysesCache(fn), fn).run_pass()
 
     opcodes = [inst.opcode for bb in fn.get_basic_blocks() for inst in bb.instructions]
     assert "mcopy" not in opcodes
@@ -928,10 +931,11 @@ def test_unreachable_raw_dret_does_not_block_inlining():
     assert IRLabel("dead") not in ctx.functions
 
 
-# caller allocates before invoking a dret callee. DretLoweringPass appends the
-# caller's *entry* FMP as the invoke's hidden operand; DallocaLoweringPass must
-# overwrite it with the threaded FMP (past the caller's dalloca), otherwise the
-# callee packs its dret data over the caller's live buffer.
+# caller allocates before invoking a dret callee. DretDesugarPass touches no
+# invokes, so DallocaLoweringPass is the sole writer of the hidden FMP operand
+# and appends the *threaded* FMP (past the caller's dalloca). A stale
+# entry-FMP operand would let the callee pack its dret data over the caller's
+# live buffer.
 _STALE_INVOKE_FMP_SRC = """
 function main {
     main:
@@ -965,16 +969,11 @@ def test_invoke_hidden_fmp_operand_rewritten_after_caller_dalloca():
     assert _word(out, 1) == 7
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="inliner consumes the stale entry-FMP hidden operand before "
-    "DallocaLoweringPass can rewrite it: the inlined dret pack roots at the "
-    "raw entry-FMP param and clobbers the caller's earlier dalloca. Not "
-    "fixable by the invoke-operand rewrite (the invoke no longer exists when "
-    "FMP threading runs); needs the FMP-as-virtual-register redesign. The "
-    "frontend does not emit dret yet, so this cannot occur in real compiles.",
-)
 def test_invoke_hidden_fmp_operand_rewritten_after_caller_dalloca_inlined():
+    # structural acceptance criterion for the FMP-virtual-register redesign:
+    # with DretDesugarPass the inlined callee's pack addresses root at a
+    # cloned `getfmp`, which DallocaLoweringPass threads to the post-bump FMP
+    # of the host -- there is no stale entry-FMP operand left to consume.
     out, _ = _run_program_full_pipeline(_STALE_INVOKE_FMP_SRC, disable_inlining=False)
     assert _word(out, 0) == 5
     assert _word(out, 1) == 7
@@ -1064,5 +1063,228 @@ def test_dret_must_be_lowered_before_inlining():
         }
         """)
     analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
-    with pytest.raises(CompilerPanic, match="DretLoweringPass must run before"):
+    with pytest.raises(CompilerPanic, match="DretDesugarPass must run before"):
         FunctionInlinerPass(analyses, ctx, VenomOptimizationFlags()).run_pass()
+
+
+def test_dret_desugar_shape_is_purely_local():
+    # DretDesugarPass rewrites only the dret function itself:
+    # dret -> getfmp at entry, dst chain, pack copies, setfmp, retfmp.
+    # No params are conjured and no invokes are augmented anywhere.
+    ctx = parse_venom("""
+        function main {
+            main:
+                %a = dalloca 32
+                %ptr = invoke @callee
+                mstore 0, %ptr
+                return 0, 32
+        }
+
+        function callee {
+            callee:
+                %retpc = param
+                %p = dalloca 32
+                mstore %p, 7
+                dret 1, %p, 32, %retpc
+        }
+        """)
+
+    for fn in ctx.functions.values():
+        DretDesugarPass(IRAnalysesCache(fn), fn).run_pass()
+
+    # caller untouched: no params, invoke not augmented
+    main = ctx.get_function(IRLabel("main"))
+    main_params = [inst for inst in main.entry.instructions if inst.opcode == "param"]
+    assert main_params == []
+    invoke = next(
+        inst
+        for bb in main.get_basic_blocks()
+        for inst in bb.instructions
+        if inst.opcode == "invoke"
+    )
+    assert invoke.operands == [IRLabel("callee")]
+    main_opcodes = [inst.opcode for bb in main.get_basic_blocks() for inst in bb.instructions]
+    assert "getfmp" not in main_opcodes and "setfmp" not in main_opcodes
+
+    # callee desugared: no dret, no new params; getfmp right after the params
+    callee = ctx.get_function(IRLabel("callee"))
+    callee_params = [inst for inst in callee.entry.instructions if inst.opcode == "param"]
+    assert [p.output for p in callee_params] == [IRVariable("%retpc")]
+    assert callee.entry.instructions[len(callee_params)].opcode == "getfmp"
+
+    callee_insts = [inst for bb in callee.get_basic_blocks() for inst in bb.instructions]
+    callee_opcodes = [inst.opcode for inst in callee_insts]
+    assert "dret" not in callee_opcodes
+    assert "mcopy" in callee_opcodes
+    # setfmp directly precedes the retfmp terminator
+    assert callee_opcodes[-2:] == ["setfmp", "retfmp"]
+
+    # retfmp returns the pack dst (rooted at the entry getfmp) plus return PC
+    retfmp = callee_insts[-1]
+    entry_fmp = callee.entry.instructions[len(callee_params)].output
+    assert retfmp.operands == [entry_fmp, IRVariable("%retpc")]
+    # setfmp advances over the packed data; its operand is not the entry FMP
+    setfmp = callee_insts[-2]
+    assert setfmp.operands != [entry_fmp]
+
+    # the desugared (half-lowered) IR still validates as input IR
+    check_calling_convention(ctx)
+
+
+def test_inlined_publishing_callee_host_does_not_publish():
+    # `retfmp` maps like `ret` in the inliner: values assigned to the
+    # call-site outputs, jmp to the continuation, no FMP restore. The host's
+    # publish status is determined by the HOST's own terminators: after
+    # inlining a publishing callee, a plain-ret host does NOT publish.
+    src = """
+    function main {
+        main:
+            %v1 = invoke @host
+            %v2 = invoke @host
+            mstore 0, %v1
+            mstore 32, %v2
+            return 0, 64
+    }
+
+    function host {
+        host:
+            %retpc = param
+            %ptr = invoke @callee
+            %v = mload %ptr
+            ret %retpc, %v
+    }
+
+    function callee {
+        callee:
+            %retpc = param
+            %p = dalloca 32
+            mstore %p, 123
+            dret 1, %p, 32, %retpc
+    }
+    """
+
+    ctx = parse_venom(src)
+    for fn in ctx.functions.values():
+        DretDesugarPass(IRAnalysesCache(fn), fn).run_pass()
+
+    analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
+    # callee has a single call site and gets inlined into host; host has two
+    # call sites and survives (threshold 0 blocks size-based inlining)
+    flags = VenomOptimizationFlags(inline_threshold=0)
+    FunctionInlinerPass(analyses, ctx, flags).run_pass()
+    assert IRLabel("callee") not in ctx.functions
+
+    host = ctx.get_function(IRLabel("host"))
+    host_opcodes = [inst.opcode for bb in host.get_basic_blocks() for inst in bb.instructions]
+    # the cloned FMP register ops are plain instructions in the host body...
+    assert "getfmp" in host_opcodes
+    assert "setfmp" in host_opcodes
+    assert "dalloca" in host_opcodes
+    # ...but the host's terminators stay plain `ret`: no publish
+    assert "retfmp" not in host_opcodes
+
+    dynamic_memory = IRAnalysesCache(host).request_analysis(DynamicMemoryAnalysis)
+    info = dynamic_memory.get_info(host)
+    assert info.returns_adopted_fmp is False
+    assert info.needs_fmp is True
+
+    # end-to-end execution equivalence, inlined and not
+    out_inlined, _ = _run_program_full_pipeline(src, disable_inlining=False)
+    out_no_inline, _ = _run_program_full_pipeline(src, disable_inlining=True)
+    assert _word(out_inlined, 0) == 123
+    assert _word(out_inlined, 1) == 123
+    assert out_inlined == out_no_inline
+
+
+def test_getfmp_cse_merges_only_without_intervening_fmp_write():
+    # two getfmps with no FMP write in between may merge; a getfmp after an
+    # FMP write (dalloca or setfmp) must not be merged with one before it.
+    ctx = parse_from_basic_block("""
+        main:
+            %a = getfmp
+            %b = getfmp
+            %p = dalloca 32
+            %c = getfmp
+            sink %a, %b, %c, %p
+        """)
+    fn = next(iter(ctx.functions.values()))
+    CSE(IRAnalysesCache(fn), fn).run_pass()
+
+    insts = {inst.output: inst for inst in fn.entry.instructions if inst.num_outputs == 1}
+    # %b merged into %a
+    assert insts[IRVariable("%b")].opcode == "assign"
+    assert insts[IRVariable("%b")].operands == [IRVariable("%a")]
+    # %c not merged: dalloca wrote the FMP register
+    assert insts[IRVariable("%c")].opcode == "getfmp"
+
+
+def test_getfmp_cse_blocked_across_setfmp():
+    ctx = parse_from_basic_block("""
+        main:
+            %a = getfmp
+            setfmp 64
+            %b = getfmp
+            sink %a, %b
+        """)
+    fn = next(iter(ctx.functions.values()))
+    CSE(IRAnalysesCache(fn), fn).run_pass()
+
+    insts = {inst.output: inst for inst in fn.entry.instructions if inst.num_outputs == 1}
+    assert insts[IRVariable("%b")].opcode == "getfmp"
+
+
+def test_setfmp_not_removed_as_unused():
+    # setfmp has no outputs and is volatile: DCE-style passes must keep it
+    # (and the chain feeding its operand).
+    ctx = parse_from_basic_block("""
+        main:
+            %e = getfmp
+            %new = add 32, %e
+            setfmp %new
+            stop
+        """)
+    fn = next(iter(ctx.functions.values()))
+    RemoveUnusedVariablesPass(IRAnalysesCache(fn), fn).run_pass()
+
+    opcodes = [inst.opcode for inst in fn.entry.instructions]
+    assert "setfmp" in opcodes
+    assert "getfmp" in opcodes
+    assert "add" in opcodes
+
+
+def test_fmp_register_ops_parser_round_trip():
+    src = """
+    function main {
+        main:
+            %retpc = param
+            %e = getfmp
+            %p = dalloca 32
+            setfmp %e
+            retfmp 1, %p, %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    check_calling_convention(ctx)
+
+    fn = ctx.get_function(IRLabel("main"))
+    insts = {inst.opcode: inst for inst in fn.entry.instructions}
+    # retfmp follows dret's text convention: operands are NOT reversed
+    assert insts["retfmp"].operands == [IRLiteral(1), IRVariable("%p"), IRVariable("%retpc")]
+    assert insts["setfmp"].operands == [IRVariable("%e")]
+    assert insts["getfmp"].operands == []
+    assert insts["getfmp"].output == IRVariable("%e")
+
+    # printer/parser round trip preserves shape
+    assert_ctx_eq(ctx, parse_venom(str(ctx)))
+
+
+def test_fmp_register_ops_reaching_codegen_panic():
+    for body in ("%e = getfmp\n                stop", "setfmp 64\n                stop"):
+        ctx = parse_venom(f"""
+            function main {{
+                main:
+                    {body}
+            }}
+            """)
+        with pytest.raises(CompilerPanic, match="reached codegen"):
+            VenomCompiler(ctx).generate_evm_assembly()

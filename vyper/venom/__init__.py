@@ -25,7 +25,7 @@ from vyper.venom.passes import (
     BranchOptimizationPass,
     DallocaLoweringPass,
     DeadStoreElimination,
-    DretLoweringPass,
+    DretDesugarPass,
     FunctionInlinerPass,
     InternalReturnCopyForwardingPass,
     LoadElimination,
@@ -133,30 +133,20 @@ def _run_global_passes(
         ReadonlyInvokeArgCopyForwardingPass(ir_analyses[fn], fn).run_pass()
 
     assert ctx.entry_function is not None
-    fcg = ctx.global_analyses_cache.force_analysis(FCGGlobalAnalysis)
-    _run_pre_inline_dret_lowering(ctx.entry_function, fcg, ir_analyses)
+    _run_pre_inline_dret_desugar(ctx, ir_analyses)
     ctx.global_analyses_cache.invalidate_analysis(ReadonlyMemoryArgsGlobalAnalysis)
 
     if not flags.disable_inlining:
         FunctionInlinerPass(ir_analyses, ctx, flags).run_pass()
 
 
-def _run_pre_inline_dret_lowering(
-    entry: IRFunction, fcg: FCGGlobalAnalysis, ir_analyses: dict[IRFunction, IRAnalysesCache]
+def _run_pre_inline_dret_desugar(
+    ctx: IRContext, ir_analyses: dict[IRFunction, IRAnalysesCache]
 ) -> None:
-    visited: set[IRFunction] = set()
-
-    def walk(fn: IRFunction) -> None:
-        if fn in visited:
-            return
-        visited.add(fn)
-
-        for callee in fcg.get_callees(fn):
-            walk(callee)
-
-        DretLoweringPass(ir_analyses[fn], fn).run_pass()
-
-    walk(entry)
+    # DretDesugarPass is purely local (it touches no params and no invokes),
+    # so no call-graph order is required: a plain loop over functions.
+    for fn in ctx.get_functions():
+        DretDesugarPass(ir_analyses[fn], fn).run_pass()
 
 
 def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags, disable_mem_checks=False) -> None:

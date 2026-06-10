@@ -3,7 +3,7 @@ from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLabel, IRVariable
 from vyper.venom.passes import (
     DallocaLoweringPass,
-    DretLoweringPass,
+    DretDesugarPass,
     InternalReturnCopyForwardingPass,
     MakeSSA,
     PhiEliminationPass,
@@ -24,7 +24,7 @@ def _run_copy_forwarding(src: str, setup=None):
 
 def _lower_dalloca(ctx):
     for fn in reversed(list(ctx.functions.values())):
-        DretLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+        DretDesugarPass(IRAnalysesCache(fn), fn).run_pass()
         ac = IRAnalysesCache(fn)
         MakeSSA(ac, fn).run_pass()
         PhiEliminationPass(ac, fn).run_pass()

@@ -21,6 +21,7 @@ BB_TERMINATORS = frozenset(
         "jnz",
         "ret",
         "dret",
+        "retfmp",
         "return",
         "revert",
         "stop",
@@ -55,6 +56,8 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "return",
         "ret",
         "dret",
+        "retfmp",
+        "setfmp",
         "sink",
         "jmp",
         "jnz",
@@ -85,6 +88,8 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "return",
         "ret",
         "dret",
+        "retfmp",
+        "setfmp",
         "sink",
         "revert",
         "assert",
@@ -437,9 +442,10 @@ class IRInstruction:
 
     @property
     def code_size_cost(self) -> int:
-        if self.opcode in ("ret", "dret", "param"):
+        if self.opcode in ("ret", "dret", "retfmp", "param"):
             return 0
-        if self.opcode in ("assign", "alloca"):
+        if self.opcode in ("assign", "alloca", "getfmp", "setfmp"):
+            # getfmp/setfmp lower to assigns of the threaded FMP variable
             return 1
         if self.opcode == "initial_fmp":
             # Pure value: repeated initial_fmp instructions intentionally may
@@ -480,7 +486,7 @@ class IRInstruction:
         opcode = f"{self.opcode} " if self.opcode != "assign" else ""
         s += opcode
         operands = self.operands
-        if opcode not in ["jmp", "jnz", "djmp", "invoke", "dret"]:
+        if opcode not in ["jmp", "jnz", "djmp", "invoke", "dret", "retfmp"]:
             operands = list(reversed(operands))
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
         return s
@@ -495,7 +501,7 @@ class IRInstruction:
         operands = self.operands
         if self.opcode == "invoke":
             operands = [operands[0]] + list(reversed(operands[1:]))
-        elif self.opcode not in ("jmp", "jnz", "djmp", "phi", "dret"):
+        elif self.opcode not in ("jmp", "jnz", "djmp", "phi", "dret", "retfmp"):
             operands = reversed(operands)  # type: ignore
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
 

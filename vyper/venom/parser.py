@@ -99,7 +99,7 @@ def _infer_internal_call_metadata(fn: IRFunction):
 
     for bb in fn.get_basic_blocks():
         for inst in bb.instructions:
-            if inst.opcode == "ret":
+            if inst.opcode in ("ret", "retfmp"):
                 if len(inst.operands) == 0:
                     continue
                 return_counts.add(len(inst.operands) - 1)
@@ -297,7 +297,7 @@ class VenomTransformer(Transformer):
             # invoke <target> <stack arguments>
             operands = [operands[0]] + list(reversed(operands[1:]))
         # special cases: operands with labels look better un-reversed
-        elif opcode not in ("jmp", "jnz", "djmp", "phi", "dret"):
+        elif opcode not in ("jmp", "jnz", "djmp", "phi", "dret", "retfmp"):
             operands.reverse()
         return IRInstruction(opcode, operands)
 

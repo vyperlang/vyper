@@ -203,6 +203,61 @@ class DretShapeMismatch(VenomError):
         )
 
 
+class GetfmpArityError(VenomError):
+    message: str = "getfmp must have exactly 0 operands and 1 output"
+
+    def __init__(self, caller: IRFunction, inst: IRInstruction):
+        self.caller = caller
+        self.inst = inst
+
+    def __str__(self):
+        bb = self.inst.parent
+        return (
+            f"getfmp arity error in {self.caller.name}: "
+            f"got {len(self.inst.operands)} operand(s), {self.inst.num_outputs} output(s)\n"
+            f"  {self.inst}\n\n{bb}"
+        )
+
+
+class SetfmpArityError(VenomError):
+    message: str = "setfmp must have exactly 1 operand and 0 outputs"
+
+    def __init__(self, caller: IRFunction, inst: IRInstruction):
+        self.caller = caller
+        self.inst = inst
+
+    def __str__(self):
+        bb = self.inst.parent
+        return (
+            f"setfmp arity error in {self.caller.name}: "
+            f"got {len(self.inst.operands)} operand(s), {self.inst.num_outputs} output(s)\n"
+            f"  {self.inst}\n\n{bb}"
+        )
+
+
+class RetfmpShapeError(VenomError):
+    message: str = "retfmp operands are malformed"
+
+    def __init__(self, caller: IRFunction, inst: IRInstruction, detail: str):
+        self.caller = caller
+        self.inst = inst
+        self.detail = detail
+
+    def __str__(self):
+        bb = self.inst.parent
+        return f"retfmp shape error in {self.caller.name}: {self.detail}\n  {self.inst}\n\n{bb}"
+
+
+class RetfmpReturnMixError(VenomError):
+    message: str = "function cannot mix retfmp with ret or dret"
+
+    def __init__(self, function: IRFunction):
+        self.function = function
+
+    def __str__(self):
+        return f"function {self.function.name} mixes 'retfmp' with 'ret' or 'dret'"
+
+
 class InitialFmpArityError(VenomError):
     message: str = "initial_fmp must have exactly 0 operands and 1 output"
 
@@ -278,7 +333,7 @@ def _collect_ret_arities(context: IRContext) -> dict[IRFunction, set[int]]:
         arities: set[int] = set()
         for bb in fn.get_basic_blocks():
             for inst in bb.instructions:
-                if inst.opcode == "ret":
+                if inst.opcode in ("ret", "retfmp"):
                     # last operand is return PC; all preceding (if any) are return values
                     arities.add(len(inst.operands) - 1)
                 elif inst.opcode == "dret":
@@ -297,12 +352,30 @@ def _find_dret_errors(fn: IRFunction) -> list[VenomError]:
     shapes: set[tuple[int, int]] = set()
     has_ret = False
     has_dret = False
+    has_retfmp = False
     layout = FunctionCallLayout(fn)
 
     for bb in fn.get_basic_blocks():
         for inst in bb.instructions:
             if inst.opcode == "ret":
                 has_ret = True
+                continue
+            if inst.opcode == "retfmp":
+                has_retfmp = True
+                if inst.num_outputs != 0:
+                    errors.append(RetfmpShapeError(fn, inst, "retfmp must not have outputs"))
+                    continue
+                if len(inst.operands) == 0:
+                    errors.append(
+                        RetfmpShapeError(fn, inst, "expected return values and return_pc")
+                    )
+                    continue
+
+                # like dret, retfmp publishes the FMP to the caller, which is
+                # only meaningful in internal functions with a return-PC param.
+                return_pc = inst.operands[-1]
+                if layout.param_for_alias(return_pc) is None:
+                    errors.append(RetfmpShapeError(fn, inst, "return_pc must be a param alias"))
                 continue
             if inst.opcode != "dret":
                 continue
@@ -325,8 +398,8 @@ def _find_dret_errors(fn: IRFunction) -> list[VenomError]:
 
             # dret is valid only in internal functions with a return-PC param.
             # A static label (or any other unresolvable return_pc) must be
-            # rejected: DretLoweringPass would otherwise conjure an FMP param
-            # that pops the caller's return PC at runtime.
+            # rejected: the lowered convention would otherwise conjure an FMP
+            # param that pops the caller's return PC at runtime.
             return_pc = inst.operands[-1]
             if layout.param_for_alias(return_pc) is None:
                 errors.append(DretShapeError(fn, inst, "return_pc must be a param alias"))
@@ -336,6 +409,9 @@ def _find_dret_errors(fn: IRFunction) -> list[VenomError]:
 
     if has_ret and has_dret:
         errors.append(DretReturnMixError(fn))
+
+    if has_retfmp and (has_ret or has_dret):
+        errors.append(RetfmpReturnMixError(fn))
 
     if len(shapes) > 1:
         errors.append(DretShapeMismatch(fn, shapes))
@@ -356,7 +432,7 @@ def _find_function_call_layout_errors(fn: IRFunction) -> list[VenomError]:
             return_pc_var = return_pc.output
             for bb in fn.get_basic_blocks():
                 for inst in bb.instructions:
-                    if inst.opcode not in ("ret", "dret") or len(inst.operands) == 0:
+                    if inst.opcode not in ("ret", "dret", "retfmp") or len(inst.operands) == 0:
                         continue
                     ret_pc = inst.operands[-1]
                     ret_pc_param = layout.param_for_alias(ret_pc)
@@ -433,6 +509,14 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
                 if inst.opcode == "dalloca":
                     if len(inst.operands) != 1 or got_num != 1:
                         errors.append(DallocaArityError(caller, inst))
+                    continue
+                if inst.opcode == "getfmp":
+                    if len(inst.operands) != 0 or got_num != 1:
+                        errors.append(GetfmpArityError(caller, inst))
+                    continue
+                if inst.opcode == "setfmp":
+                    if len(inst.operands) != 1 or got_num != 0:
+                        errors.append(SetfmpArityError(caller, inst))
                     continue
                 if inst.opcode == "memtop":
                     errors.append(
