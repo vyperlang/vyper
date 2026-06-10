@@ -590,3 +590,30 @@ def test_cse_different_params():
     """
 
     _check_no_change(pre)
+
+
+def test_cse_dalloca_not_merged():
+    # two identical `dalloca`s are distinct dynamic allocations and
+    # must not be merged by CSE
+    pre = """
+    main:
+        %p1 = dalloca 32
+        %p2 = dalloca 32
+        sink %p1, %p2
+    """
+
+    _check_no_change(pre, hevm=False)
+
+
+def test_cse_bump_not_merged():
+    # two `bump`s with identical operands are distinct allocations in the
+    # FMP threading chain and must not be merged by CSE
+    pre = """
+    main:
+        %fmp = source
+        %p1 = bump %fmp, 32
+        %p2 = bump %fmp, 32
+        sink %p1, %p2
+    """
+
+    _check_no_change(pre, hevm=False)

@@ -33,6 +33,9 @@ _nonidempotent_insts.append("staticcall")
 # two `bump`s with distinct SSA operands represent distinct allocations
 # and must not be merged by CSE.
 _nonidempotent_insts.append("bump")
+# `dalloca` is a dynamic allocation: two `dalloca`s with identical size
+# operands are distinct allocations and must not be merged by CSE.
+_nonidempotent_insts.append("dalloca")
 
 NONIDEMPOTENT_INSTRUCTIONS = frozenset(_nonidempotent_insts)
 
