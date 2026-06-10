@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from typing import ClassVar
 
 from vyper.evm.opcodes import version_check
@@ -5,6 +6,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import (
     BasePtrAnalysis,
     DFGAnalysis,
+    DominatorTreeAnalysis,
     DynamicMemoryAnalysis,
     LivenessAnalysis,
     LoadAnalysis,
@@ -26,6 +28,44 @@ IDENTITY_PRECOMPILE = 4
 # instructions through which BasePtrAnalysis propagates pointer facts; a
 # pointer flowing into these stays visible to SSA-based liveness.
 _PTR_PROPAGATION_OPS = frozenset(["add", "sub", "assign", "phi", "bump", "dalloca", "alloca"])
+
+
+@dataclass
+class _ReclaimState:
+    """
+    Abstract reclaim state at a program point.
+
+    `stack` is the tracked LIFO allocation stack: `dalloca` output variables
+    in allocation order (bottom -> top). Each mark names the pre-bump FMP of
+    its allocation, so along any execution the marks' runtime values are
+    non-decreasing bottom -> top and a restore `FMP := mark` frees exactly
+    `[mark, FMP)` -- the mark's own region plus everything tracked above it.
+
+    `captures` is the set of in-scope `getfmp` outputs. A capture observes
+    the FMP without advancing it, and pointers derived from it may address
+    memory arbitrarily far *above* the capture point (the desugared-dret
+    pack destinations are the canonical example), so captures are not stack
+    entries: while a capture is possibly live it vetoes every restore (see
+    FmpLoweringPass._pop_dead_suffix).
+
+    `can_reclaim` is cleared for unreachable blocks during the rewrite walk:
+    they still get lowered, but no restores are synthesized there (the
+    dominator tree does not cover them, and they cannot execute anyway).
+    """
+
+    stack: list[IRVariable] = field(default_factory=list)
+    captures: set[IRVariable] = field(default_factory=set)
+    can_reclaim: bool = True
+
+    def copy(self) -> "_ReclaimState":
+        return _ReclaimState(list(self.stack), set(self.captures), self.can_reclaim)
+
+    def clear(self) -> None:
+        self.stack.clear()
+        self.captures.clear()
+
+    def frozen(self) -> tuple:
+        return (tuple(self.stack), frozenset(self.captures))
 
 
 class FmpLoweringPass(IRPass):
@@ -62,9 +102,19 @@ class FmpLoweringPass(IRPass):
     required_predecessors: ClassVar[tuple[PassRef, ...]] = ("MakeSSA",)
     required_successors: ClassVar[tuple[PassRef, ...]] = ("MakeSSA",)
 
-    # allocations whose pointer escapes SSA tracking; never reclaimed.
-    # recomputed per run in run_pass.
+    # per-run reclaim engine context, (re)computed in run_pass
+    fmp_var: IRVariable
+    liveness: LivenessAnalysis
+    base_ptrs: BasePtrAnalysis
+    dom: DominatorTreeAnalysis
+    # allocations whose pointer escapes SSA tracking; never reclaimed
     _pinned_allocations: frozenset[Allocation] = frozenset()
+    # getfmp capture -> SSA variables (transitively) derived from it
+    _capture_derived: dict[IRVariable, set[IRVariable]]
+    # getfmp captures whose derived pointers escape SSA tracking
+    _pinned_captures: frozenset[IRVariable]
+    # dalloca output -> defining basic block (for the restore-dominance check)
+    _mark_def_bbs: dict[IRVariable, IRBasicBlock]
 
     def run_pass(self):
         fn = self.function
@@ -98,16 +148,34 @@ class FmpLoweringPass(IRPass):
         publishes = info.returns_adopted_fmp
 
         fmp_root_var, has_fmp_param = self._materialize_fmp_root(fn)
-        fmp_var = self._materialize_fmp_copy(fn, fmp_root_var)
+        self.fmp_var = self._materialize_fmp_copy(fn, fmp_root_var)
 
-        liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
-        base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
-        self._pinned_allocations = self._compute_escaping_allocations(fn, base_ptrs)
-        bb_entry_stacks = self._compute_bb_entry_stacks(fn, base_ptrs, liveness)
+        self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
+        self.base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
+        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
+        self._pinned_allocations = self._compute_escaping_allocations(fn, self.base_ptrs)
+        self._capture_derived, self._pinned_captures = self._compute_capture_facts(fn)
+        self._mark_def_bbs = {
+            inst.output: bb
+            for bb in fn.get_basic_blocks()
+            for inst in bb.instructions
+            if inst.opcode == "dalloca"
+        }
+
+        entry_states = self._compute_entry_states(fn)
 
         for bb in fn.get_basic_blocks():
-            entry_stack, entry_ghosts = bb_entry_stacks[bb]
-            self._rewrite_bb(bb, fmp_var, base_ptrs, liveness, entry_stack, entry_ghosts)
+            state = entry_states.get(bb)
+            if state is None:
+                # unreachable block: lower it (no raw opcode may survive),
+                # but never synthesize restores in it
+                state = _ReclaimState(can_reclaim=False)
+            else:
+                state = state.copy()
+            new_instructions: list[IRInstruction] = []
+            for inst in bb.instructions:
+                self._step(state, inst, new_instructions)
+            bb.instructions = new_instructions
 
         # freeze the convention shape; FmpPrunePass may reseal it
         fn._fmp_signature = FmpSignature(has_fmp_param=has_fmp_param, publishes=publishes)
@@ -185,108 +253,174 @@ class FmpLoweringPass(IRPass):
         fn.entry.insert_instruction(inst, index=index)
         return copy_var
 
-    def _compute_bb_entry_stacks(
-        self, fn, base_ptrs: BasePtrAnalysis, liveness
-    ) -> dict[IRBasicBlock, tuple[tuple[IRVariable, ...], frozenset[IRVariable]]]:
+    def _compute_entry_states(self, fn) -> dict[IRBasicBlock, _ReclaimState]:
         """
-        Compute, for every basic block, the LIFO allocation stack at entry and
-        the set of "ghost" allocations.
+        Forward dataflow fixpoint computing the reclaim state at every
+        reachable basic block entry.
 
-        At CFG merges the stack meet is the common prefix of the predecessor
-        exit stacks. Allocations dropped from the top by the meet are not
-        forgotten: they become *ghosts*. A ghost's mark is lost, but its
-        memory may still be live (e.g. carried through a phi), so rewinding
-        the FMP to any surviving mark could free it. While any ghost is
-        possibly live, reclaim is suppressed entirely (see
-        `_reclaim_suffix_start`). Ghosts propagate transitively: once a ghost,
-        always a ghost in all successors.
+        Lattice and meet. The stack component is ordered by the top-segment
+        relation: s' <= s iff s' is a (possibly empty) top segment (suffix)
+        of s, with "not yet computed" as top. The meet at a CFG join is the
+        LONGEST COMMON TOP SEGMENT of the predecessor exit stacks: a mark
+        survives only if every predecessor agrees on it *and on everything
+        above it*. Marks dropped by the meet become untracked and are simply
+        never reclaimed (sound: leak-until-ret is the default). The capture
+        component meets by union (any predecessor's live capture must veto).
 
-        Termination: ghost sets only grow (unions over predecessors) and are
-        bounded by the number of dalloca outputs, so they change finitely
-        often. For a fixed ghost assignment, exit stacks are a deterministic
-        function of entry stacks, entry stacks are common prefixes of
-        predecessor exit stacks, and stack contents are drawn from the finite
-        set of dalloca outputs with per-path-bounded height, so the stack
-        iteration reaches its fixpoint as before. Hence the combined fixpoint
-        terminates.
+        Soundness invariant. Along every execution reaching a point, the
+        tracked marks' runtime values are non-decreasing bottom -> top
+        (pushes happen at the current FMP; pops restore to a tracked mark;
+        setfmp clears the stack), and every untracked-but-possibly-live
+        allocation lies entirely below the runtime value of every tracked
+        mark. The meet preserves this: a dropped mark sits *below* the
+        surviving segment on every predecessor stack (the segment is a
+        common suffix), hence below every survivor's value; and marks pushed
+        after a clear (setfmp / adopted-FMP invoke) sit at-or-above the
+        post-clear FMP, which is above everything previously tracked or
+        captured. A restore `FMP := m` therefore frees only `[m, FMP)`:
+        the popped marks above `m` (each proven dead and unpinned), and
+        `m`'s own dead region -- never an untracked allocation. Note this is
+        the inverse of a common-*prefix* meet, which keeps the bottom and is
+        unsound: there the dropped remainder sits *above* the survivors, so
+        restoring a survivor frees possibly-live divergent allocations.
+        getfmp captures are the one upward-unbounded exception and are
+        handled by the veto in `_pop_dead_suffix` (never dropped at meets --
+        unioned -- and cleared only by setfmp / adopted-FMP invokes, after
+        which all future marks sit above the capture-reachable region).
+
+        Termination. The capture sets evolve independently of the stacks
+        (transfer: union locals, or reset at clears) and grow monotonically
+        under the union meet into a finite powerset, so they converge first.
+        For a fixed capture assignment the pop decisions depend only on the
+        stack top and static facts (liveness, pins), so the transfer maps a
+        top segment of a stack to a top segment of its image; with top-
+        initialized re-iteration (in RPO, every block has an already-visited
+        predecessor on the first sweep), once a block's entry first becomes
+        a finite stack, subsequent meets only shorten or keep it. Stack
+        heights are bounded by the dalloca count, so the descending chains
+        are finite and the combined fixpoint terminates at the maximum
+        (most-precise sound) fixpoint.
         """
-        bbs = list(fn.get_basic_blocks())
-        entry_stacks: dict[IRBasicBlock, tuple[IRVariable, ...]] = {bb: tuple() for bb in bbs}
-        exit_stacks: dict[IRBasicBlock, tuple[IRVariable, ...]] = {bb: tuple() for bb in bbs}
-        # ghosts are created only at entry meets; blocks don't add ghosts
-        # mid-block, so a block's exit ghosts equal its entry ghosts.
-        entry_ghosts: dict[IRBasicBlock, frozenset[IRVariable]] = {bb: frozenset() for bb in bbs}
-        cfg = liveness.cfg
+        cfg = self.liveness.cfg
+        rpo = list(cfg.dfs_post_walk)
+        rpo.reverse()
+
+        entry_states: dict[IRBasicBlock, _ReclaimState] = {}
+        exit_states: dict[IRBasicBlock, _ReclaimState] = {}
 
         changed = True
         while changed:
             changed = False
-            for bb in bbs:
-                in_bbs = list(cfg.cfg_in(bb))
-                if len(in_bbs) == 0:
-                    new_entry: tuple[IRVariable, ...] = tuple()
-                    new_ghosts = entry_ghosts[bb]
-                else:
-                    new_entry = self._common_stack_prefix([exit_stacks[pred] for pred in in_bbs])
-                    ghosts = set(entry_ghosts[bb])
-                    for pred in in_bbs:
-                        ghosts.update(entry_ghosts[pred])
-                        # allocations dropped from this predecessor by the meet
-                        ghosts.update(exit_stacks[pred][len(new_entry) :])
-                    new_ghosts = frozenset(ghosts)
+            for bb in rpo:
+                # unreachable predecessors never get an exit state and are
+                # ignored (they contribute no executions); so are not-yet-
+                # visited back-edge predecessors (top-initialization)
+                pred_states = [exit_states[pred] for pred in cfg.cfg_in(bb) if pred in exit_states]
+                if bb is fn.entry:
+                    # function boundary: empty state (met with any back
+                    # edges into the entry block)
+                    pred_states.append(_ReclaimState())
+                assert len(pred_states) > 0  # RPO: a predecessor was visited
+                entry = self._meet(pred_states)
+                entry_states[bb] = entry
 
-                if entry_stacks[bb] != new_entry:
-                    entry_stacks[bb] = new_entry
+                state = entry.copy()
+                for inst in bb.instructions:
+                    self._step(state, inst, None)
+
+                old = exit_states.get(bb)
+                if old is None or old.frozen() != state.frozen():
+                    exit_states[bb] = state
                     changed = True
 
-                if entry_ghosts[bb] != new_ghosts:
-                    entry_ghosts[bb] = new_ghosts
-                    changed = True
+        return entry_states
 
-                new_exit = self._simulate_bb_stack(
-                    bb, list(new_entry), new_ghosts, base_ptrs, liveness
-                )
-                if exit_stacks[bb] != new_exit:
-                    exit_stacks[bb] = new_exit
-                    changed = True
+    def _meet(self, states: list[_ReclaimState]) -> _ReclaimState:
+        stacks = [state.stack for state in states]
+        depth = min(len(stack) for stack in stacks)
 
-        return {bb: (entry_stacks[bb], entry_ghosts[bb]) for bb in bbs}
+        common = 0
+        while common < depth:
+            mark = stacks[0][-(common + 1)]
+            if any(stack[-(common + 1)] != mark for stack in stacks[1:]):
+                break
+            common += 1
 
-    def _common_stack_prefix(self, stacks: list[tuple[IRVariable, ...]]) -> tuple[IRVariable, ...]:
-        if len(stacks) == 0:
-            return tuple()
+        stack = stacks[0][len(stacks[0]) - common :] if common > 0 else []
+        captures: set[IRVariable] = set()
+        for state in states:
+            captures.update(state.captures)
+        return _ReclaimState(stack=list(stack), captures=captures)
 
-        prefix: list[IRVariable] = []
-        for values in zip(*stacks, strict=False):
-            first = values[0]
-            if all(value == first for value in values):
-                prefix.append(first)
-                continue
-            break
-        return tuple(prefix)
+    def _step(self, state: _ReclaimState, inst: IRInstruction, out: list | None) -> None:
+        """
+        The single transfer/rewrite interpreter, shared by the dataflow
+        fixpoint (`out is None`: state transition only) and the rewrite walk
+        (`out` collects the lowered instructions). One interpreter guarantees
+        the rewrite-time state is exactly the fixpoint's transfer -- the old
+        engine's two hand-synchronized walkers were themselves a bug source.
+        """
+        if self._is_reclaim_point(inst):
+            mark = self._pop_dead_suffix(state, self.liveness.live_vars_at(inst))
+            if mark is not None and out is not None:
+                self._check_restore_dominance(mark, inst)
+                out.append(self._restore_fmp_inst(mark, self.fmp_var, inst.parent, inst))
 
-    def _simulate_bb_stack(
-        self, bb, stack, ghosts, base_ptrs: BasePtrAnalysis, liveness
-    ) -> tuple[IRVariable, ...]:
-        for inst in bb.instructions:
-            if self._is_reclaim_point(inst):
-                suffix_start = self._reclaim_suffix_start(
-                    stack, ghosts, base_ptrs, liveness.live_vars_at(inst)
-                )
-                del stack[suffix_start:]
+        opcode = inst.opcode
 
-            if inst.opcode == "dalloca":
-                stack.append(inst.output)
-            elif inst.opcode == "setfmp":
-                # an explicit FMP write invalidates every tracked mark, like
-                # an invoke whose callee adopts the FMP
-                stack.clear()
-            elif inst.opcode == "invoke":
-                callee = InvokeLayout(self.function.ctx, inst).callee
-                if callee is not None and self.dynamic_memory.get_info(callee).returns_adopted_fmp:
-                    stack.clear()
+        if opcode == "dalloca":
+            state.stack.append(inst.output)
+            if out is not None:
+                out.extend(self._lower_dalloca(inst))
+            return
 
-        return tuple(stack)
+        if opcode == "getfmp":
+            # a read of the FMP virtual register: record the capture (its
+            # derived-pointer region is unbounded above, so it is tracked
+            # in the capture set, not at a stack position)
+            state.captures.add(inst.output)
+            if out is not None:
+                inst.opcode = "assign"
+                inst.operands = [self.fmp_var]
+                out.append(inst)
+            return
+
+        if opcode == "setfmp":
+            # an explicit FMP write: the producer asserts the new frame
+            # layout (everything above the written value is free), which
+            # supersedes every tracked mark and capture. Lowered to an
+            # assign into the runner (multiply-assigned; MakeSSA repairs).
+            state.clear()
+            if out is not None:
+                inst.opcode = "assign"
+                inst.set_outputs([self.fmp_var])
+                out.append(inst)
+            return
+
+        if opcode == "retfmp":
+            # publishing return: plain `ret` of the values plus the hidden
+            # adopted-FMP value (before the return PC)
+            if out is not None:
+                return_pc = inst.operands[-1]
+                inst.opcode = "ret"
+                inst.operands = [*inst.operands[:-1], self.fmp_var, return_pc]
+                out.append(inst)
+            return
+
+        if opcode == "invoke":
+            callee = InvokeLayout(self.function.ctx, inst).callee
+            callee_info = self.dynamic_memory.get_info(callee) if callee is not None else None
+            if out is not None:
+                if callee_info is not None and callee_info.needs_fmp:
+                    self._augment_invoke(inst, self.fmp_var)
+                out.append(inst)
+            if callee_info is not None and callee_info.returns_adopted_fmp:
+                # the callee published a new frame layout over the FMP
+                state.clear()
+            return
+
+        if out is not None:
+            out.append(inst)
 
     def _is_reclaim_point(self, inst: IRInstruction) -> bool:
         if inst.opcode == "dalloca":
@@ -298,29 +432,69 @@ class FmpLoweringPass(IRPass):
             return callee is not None and self.dynamic_memory.get_info(callee).needs_fmp
         return False
 
-    def _reclaim_suffix_start(self, stack, ghosts, base_ptrs: BasePtrAnalysis, live_vars) -> int:
-        # If any ghost allocation (mark dropped at a CFG meet) is possibly
-        # live here, suppress reclaim entirely: rewinding the FMP to a
-        # surviving mark could free the ghost's memory. Unknown == live.
-        for ghost in ghosts:
-            allocation = self._dalloca_allocation(base_ptrs, ghost)
-            if allocation is None:
-                return len(stack)
-            if self._allocation_is_live(base_ptrs, allocation, live_vars):
-                return len(stack)
-        return self._dead_lifo_suffix_start(stack, base_ptrs, live_vars)
+    def _pop_dead_suffix(self, state: _ReclaimState, live_vars) -> IRVariable | None:
+        """
+        Pop the longest dead, unpinned top segment of the tracked mark stack
+        and return the restore target (the lowest popped mark) -- restoring
+        the FMP to it frees exactly the popped allocations -- or None when
+        nothing may be popped. A live or pinned mark blocks everything
+        beneath it (a deeper restore would free its region).
 
-    def _dead_lifo_suffix_start(self, stack, base_ptrs: BasePtrAnalysis, live_vars) -> int:
+        A possibly-live capture vetoes ALL popping, not only beneath itself:
+        pointers derived from a getfmp output form an *upward-unbounded*
+        region `[capture, oo)` -- e.g. the desugared-dret pack destinations
+        extend above every later allocation until the closing setfmp -- so
+        any restore, even to a mark pushed after the capture, frees
+        addresses the capture may still reach. (This is deliberately
+        stronger than the design note's "a pseudo-mark blocks popping
+        anything beneath it", which is unsound for marks *above* the
+        capture: a dalloca between a capture and its pack writes can be
+        popped and re-allocated on top of the pack destinations.)
+        """
+        if not state.can_reclaim:
+            return None
+        if self._captures_veto(state, live_vars):
+            return None
+
+        stack = state.stack
         suffix_start = len(stack)
         while suffix_start > 0:
-            ptr = stack[suffix_start - 1]
-            allocation = self._dalloca_allocation(base_ptrs, ptr)
+            mark = stack[suffix_start - 1]
+            allocation = self._dalloca_allocation(self.base_ptrs, mark)
             if allocation is None:
                 break
-            if self._allocation_is_live(base_ptrs, allocation, live_vars):
+            if self._allocation_is_live(self.base_ptrs, allocation, live_vars):
                 break
             suffix_start -= 1
-        return suffix_start
+
+        if suffix_start == len(stack):
+            return None
+        mark = stack[suffix_start]
+        del stack[suffix_start:]
+        return mark
+
+    def _captures_veto(self, state: _ReclaimState, live_vars) -> bool:
+        for capture in state.captures:
+            if capture in self._pinned_captures:
+                # escaped capture: derived pointers can re-enter through
+                # memory where liveness cannot see them. Unknown == live.
+                return True
+            if any(var in live_vars for var in self._capture_derived[capture]):
+                return True
+        return False
+
+    def _check_restore_dominance(self, mark: IRVariable, inst: IRInstruction) -> None:
+        # a restore assigns `mark` to the FMP runner; SSA legality requires
+        # the mark's definition to dominate the restore point. A mark that
+        # survives the top-segment meet is the same SSA definition along all
+        # predecessor paths, so its def dominates the join by construction;
+        # assert it (cheap enough to keep on).
+        def_bb = self._mark_def_bbs.get(mark)
+        assert def_bb is not None, f"reclaim mark {mark} has no dalloca definition"
+        assert self.dom.dominates(def_bb, inst.parent), (
+            f"restore mark {mark} (defined in {def_bb.label}) does not "
+            f"dominate the restore point in {inst.parent.label}"
+        )
 
     def _dalloca_allocation(self, base_ptrs: BasePtrAnalysis, ptr: IRVariable) -> Allocation | None:
         possible_ptrs = base_ptrs.get_possible_ptrs(ptr)
@@ -363,127 +537,84 @@ class FmpLoweringPass(IRPass):
         pinned: set[Allocation] = set()
         for bb in fn.get_basic_blocks():
             for inst in bb.instructions:
-                if inst.opcode in _PTR_PROPAGATION_OPS:
-                    continue
-
-                # operand values consumed by known-safe (address/length)
-                # positions, derived from the shared memory-op descriptions.
-                safe: list[IROperand] = []
-                for access_ops in (memory_read_ops(inst), memory_write_ops(inst)):
-                    for op in (access_ops.ofst, access_ops.size):
-                        if op is not None:
-                            safe.append(op)
-                    # post_init aliases max_size to size; only count a
-                    # distinct max_size to avoid inflating safe occurrences.
-                    max_size = access_ops.max_size
-                    if max_size is not None and max_size is not access_ops.size:
-                        safe.append(max_size)
-
-                operands = [op for op in inst.operands if isinstance(op, IRVariable)]
-                for op in operands:
-                    # an operand escapes if it occurs more often than safe
-                    # positions account for (`mstore %x, %x` stores the
-                    # pointer value at its own address).
-                    if operands.count(op) <= safe.count(op):
-                        continue
+                for op in self._escaping_operands(inst):
                     for ptr in base_ptrs.get_possible_ptrs(op):
                         if ptr.base_alloca.inst.opcode == "dalloca":
                             pinned.add(ptr.base_alloca)
 
         return frozenset(pinned)
 
-    def _rewrite_bb(
-        self, bb, fmp_var, base_ptrs: BasePtrAnalysis, liveness, entry_stack, entry_ghosts
-    ) -> None:
-        new_instructions: list[IRInstruction] = []
-        stack = list(entry_stack)
-        current_fmp_var = fmp_var
+    def _escaping_operands(self, inst: IRInstruction) -> list[IRVariable]:
+        """
+        The variable operands of `inst` that escape SSA pointer tracking:
+        occurrences not accounted for by the BasePtr propagation grammar or
+        by the known-safe (address/length) positions of the shared memory-op
+        descriptions. Fail closed.
+        """
+        if inst.opcode in _PTR_PROPAGATION_OPS:
+            return []
 
-        for inst in bb.instructions:
-            if self._is_reclaim_point(inst):
-                reclaimed = self._emit_auto_reclaim(
-                    inst, fmp_var, bb, stack, entry_ghosts, base_ptrs, liveness, new_instructions
-                )
-                if reclaimed:
-                    current_fmp_var = fmp_var
+        safe: list[IROperand] = []
+        for access_ops in (memory_read_ops(inst), memory_write_ops(inst)):
+            for op in (access_ops.ofst, access_ops.size):
+                if op is not None:
+                    safe.append(op)
+            # post_init aliases max_size to size; only count a
+            # distinct max_size to avoid inflating safe occurrences.
+            max_size = access_ops.max_size
+            if max_size is not None and max_size is not access_ops.size:
+                safe.append(max_size)
 
-            if inst.opcode == "dalloca":
-                lowered = self._lower_dalloca(inst, bb, current_fmp_var, fmp_var)
-                stack.append(inst.output)
-                new_instructions.extend(lowered)
-                current_fmp_var = fmp_var
-                continue
+        operands = [op for op in inst.operands if isinstance(op, IRVariable)]
+        # an operand escapes if it occurs more often than safe positions
+        # account for (`mstore %x, %x` stores the pointer value at its own
+        # address).
+        return [op for op in operands if operands.count(op) > safe.count(op)]
 
-            if inst.opcode == "getfmp":
-                # read of the FMP virtual register: the current FMP value
-                inst.opcode = "assign"
-                inst.operands = [current_fmp_var]
-                new_instructions.append(inst)
-                continue
+    def _compute_capture_facts(
+        self, fn
+    ) -> tuple[dict[IRVariable, set[IRVariable]], frozenset[IRVariable]]:
+        """
+        For every `getfmp` capture, conservatively compute the set of SSA
+        variables derived from it and the set of captures that escape SSA
+        tracking. BasePtrAnalysis intentionally assigns no pointer facts to
+        getfmp outputs (they are untracked bases), so the derivation closure
+        is recomputed here over the same propagation grammar; SSA liveness
+        of the derived set then bounds the capture's reclaim veto. Escaped
+        captures veto until the capture set is cleared. Fail closed.
+        """
+        insts = [inst for bb in fn.get_basic_blocks() for inst in bb.instructions]
+        roots = [inst.output for inst in insts if inst.opcode == "getfmp"]
+        if len(roots) == 0:
+            return {}, frozenset()
 
-            if inst.opcode == "setfmp":
-                # write of the FMP virtual register: assign into the runner
-                # (multiply-assigned; MakeSSA repairs). The write invalidates
-                # every tracked reclaim mark, mirroring adopted-FMP invokes.
-                inst.opcode = "assign"
-                inst.set_outputs([fmp_var])
-                new_instructions.append(inst)
-                stack.clear()
-                current_fmp_var = fmp_var
-                continue
+        var_roots: dict[IRVariable, set[IRVariable]] = {root: {root} for root in roots}
+        changed = True
+        while changed:
+            changed = False
+            for inst in insts:
+                if inst.opcode not in ("add", "sub", "assign", "phi") or inst.num_outputs != 1:
+                    continue
+                derived_roots: set[IRVariable] = set()
+                for op in inst.get_input_variables():
+                    derived_roots.update(var_roots.get(op, ()))
+                if len(derived_roots) == 0:
+                    continue
+                current = var_roots.setdefault(inst.output, set())
+                if not derived_roots <= current:
+                    current.update(derived_roots)
+                    changed = True
 
-            if inst.opcode == "retfmp":
-                # publishing return: plain `ret` of the values plus the
-                # hidden adopted-FMP value (before the return PC)
-                return_pc = inst.operands[-1]
-                inst.opcode = "ret"
-                inst.operands = [*inst.operands[:-1], current_fmp_var, return_pc]
-                new_instructions.append(inst)
-                continue
+        pinned: set[IRVariable] = set()
+        for inst in insts:
+            for op in self._escaping_operands(inst):
+                pinned.update(var_roots.get(op, ()))
 
-            if inst.opcode == "invoke":
-                callee = InvokeLayout(self.function.ctx, inst).callee
-                hidden_fmp_output = None
-                callee_info = self.dynamic_memory.get_info(callee) if callee is not None else None
-                if callee_info is not None and callee_info.needs_fmp:
-                    hidden_fmp_output = self._augment_invoke(inst, current_fmp_var)
-                new_instructions.append(inst)
-                if callee_info is not None and callee_info.returns_adopted_fmp:
-                    stack.clear()
-                    if hidden_fmp_output is not None:
-                        current_fmp_var = hidden_fmp_output
-                        if hidden_fmp_output != fmp_var:
-                            new_instructions.append(
-                                self._restore_fmp_inst(hidden_fmp_output, fmp_var, bb, inst)
-                            )
-                            current_fmp_var = fmp_var
-                continue
-
-            new_instructions.append(inst)
-
-        bb.instructions = new_instructions
-
-    def _emit_auto_reclaim(
-        self,
-        inst,
-        fmp_var,
-        bb,
-        stack,
-        ghosts,
-        base_ptrs: BasePtrAnalysis,
-        liveness,
-        new_instructions,
-    ) -> bool:
-        suffix_start = self._reclaim_suffix_start(
-            stack, ghosts, base_ptrs, liveness.live_vars_at(inst)
-        )
-        if suffix_start == len(stack):
-            return False
-
-        mark = stack[suffix_start]
-        del stack[suffix_start:]
-        new_instructions.append(self._restore_fmp_inst(mark, fmp_var, bb, inst))
-        return True
+        derived: dict[IRVariable, set[IRVariable]] = {root: set() for root in roots}
+        for var, var_root_set in var_roots.items():
+            for root in var_root_set:
+                derived[root].add(var)
+        return derived, frozenset(pinned)
 
     def _restore_fmp_inst(
         self, mark: IROperand, fmp_var: IRVariable, bb, origin: IRInstruction
@@ -506,17 +637,16 @@ class FmpLoweringPass(IRPass):
             self._copy_metadata(origin, new_inst, bb)
         return insts, aligned_var
 
-    def _lower_dalloca(
-        self, inst: IRInstruction, bb, current_fmp_var: IRVariable, fmp_var: IRVariable
-    ) -> list[IRInstruction]:
+    def _lower_dalloca(self, inst: IRInstruction) -> list[IRInstruction]:
         assert len(inst.operands) == 1, inst
         assert inst.num_outputs == 1, inst
 
         size = inst.operands[0]
         ptr_out = inst.output
+        bb = inst.parent
 
         ceil_insts, aligned_var = self._ceil32_insts(size, bb, inst)
-        bump_inst = IRInstruction("bump", [current_fmp_var, aligned_var], [ptr_out, fmp_var])
+        bump_inst = IRInstruction("bump", [self.fmp_var, aligned_var], [ptr_out, self.fmp_var])
         self._copy_metadata(inst, bump_inst, bb)
         return [*ceil_insts, bump_inst]
 
@@ -544,7 +674,7 @@ class FmpLoweringPass(IRPass):
         target.ast_source = source.ast_source
         target.error_msg = source.error_msg
 
-    def _augment_invoke(self, inst: IRInstruction, fmp_var: IRVariable) -> IRVariable | None:
+    def _augment_invoke(self, inst: IRInstruction, fmp_var: IRVariable) -> None:
         layout = InvokeLayout(self.function.ctx, inst)
         callee = layout.callee
         assert callee is not None
@@ -562,13 +692,10 @@ class FmpLoweringPass(IRPass):
             )
         layout.append_hidden_fmp_operand(fmp_var)
 
-        hidden_fmp_output = None
         callee_info = self.dynamic_memory.get_info(callee)
         if callee_info.returns_adopted_fmp:
+            # the adopted FMP is canonicalized straight into the runner
             layout.append_hidden_fmp_output(fmp_var)
-            hidden_fmp_output = fmp_var
-
-        return hidden_fmp_output
 
 
 class FmpPrunePass(IRPass):

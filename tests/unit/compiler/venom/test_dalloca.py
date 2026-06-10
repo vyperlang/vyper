@@ -25,12 +25,14 @@ from vyper.venom.effects import Effects
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes import (
     CSE,
+    CFGNormalization,
     ConcretizeMemLocPass,
     DretDesugarPass,
     FmpLoweringPass,
     MakeSSA,
     PhiEliminationPass,
     RemoveUnusedVariablesPass,
+    SimplifyCFGPass,
     SingleUseExpansion,
 )
 from vyper.venom.passes.dead_store_elimination import DeadStoreElimination
@@ -1570,6 +1572,427 @@ def test_post_lowering_check_fires_on_corrupted_shape():
     callee.entry.remove_instruction(fmp_param)
     errors = find_post_lowering_errors(ctx)
     assert any(isinstance(err, PostLoweringError) for err in errors)
+
+
+# ---------------------------------------------------------------------------
+# Stage 3: principled reclaim engine -- top-segment-meet dataflow fixpoint,
+# single _step interpreter, getfmp capture veto, restore-dominance assertion.
+# ---------------------------------------------------------------------------
+
+
+def _run_loop_program(src: str, calldata: bytes = b"") -> bytes:
+    # like _run_program, but with the CFG cleanup the assembler requires
+    # for loop-shaped (multi-in/multi-out) basic blocks
+    ctx = parse_venom(src)
+    for fn in reversed(list(ctx.functions.values())):
+        DretDesugarPass(IRAnalysesCache(fn), fn).run_pass()
+        ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+        _run_ssa(fn)
+        FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+        _run_ssa(fn)
+        SimplifyCFGPass(IRAnalysesCache(fn), fn).run_pass()
+        CFGNormalization(IRAnalysesCache(fn), fn).run_pass()
+        SingleUseExpansion(IRAnalysesCache(fn), fn).run_pass()
+
+    asm = VenomCompiler(ctx).generate_evm_assembly()
+    bytecode, _ = assembly_to_evm(asm)
+
+    caller = "0x" + "10" * 20
+    addr = "0x" + "20" * 20
+    evm = EVM()
+    evm.set_balance(caller, 1)
+    evm.insert_account_info(addr, AccountInfo(code=bytecode))
+    return evm.message_call(caller=caller, to=addr, calldata=calldata, gas=1_000_000)
+
+
+def test_loop_dalloca_reclaimed_each_iteration():
+    # a dalloca that dies within the loop body is reclaimed at the back
+    # edge every iteration: the FMP does not grow with the trip count, and
+    # the post-loop allocation lands back at the base address.
+    src = """
+    function main {
+        main:
+            %i = 0
+            jmp @loop
+
+        loop:
+            %p = dalloca 32
+            mstore %p, %i
+            %i = add %i, 1
+            %done = eq %i, 2
+            jnz %done, @exit, @loop
+
+        exit:
+            %q = dalloca 32
+            mstore 0, %q
+            return 0, 32
+    }
+    """
+    out = _run_loop_program(src)
+    assert _word(out) == 0  # 64 if the loop leaked one buffer per iteration
+
+    out, _ = _run_program_full_pipeline(src, disable_inlining=True)
+    assert _word(out) == 0
+
+    # IR-level: the back-edge reclaim is a restore of %p's mark in the loop
+    # body (the bump pointer output assigned back into the FMP runner)
+    ctx = parse_venom(src)
+    fn = ctx.get_function(IRLabel("main"))
+    _apply_dalloca_lowering(fn)
+    loop_insts = fn.get_basic_block("loop").instructions
+    p_bump = next(inst for inst in loop_insts if inst.opcode == "bump")
+    restores = [
+        inst
+        for inst in loop_insts
+        if inst.opcode == "assign" and inst.operands == [p_bump.get_outputs()[0]]
+    ]
+    assert len(restores) == 1
+
+
+def test_loop_carried_live_dalloca_not_reclaimed():
+    # negative: a loop-carried live pointer (previous iteration's buffer
+    # read by the next iteration) blocks per-iteration reclaim. The meet at
+    # the loop header drops the live mark (sound: untracked allocations are
+    # never reclaimed), so each iteration's buffer stays intact and the FMP
+    # grows monotonically.
+    out = _run_loop_program("""
+        function main {
+            main:
+                %prev = 0
+                %i = 0
+                jmp @loop
+
+            loop:
+                %p = dalloca 32
+                mstore %p, 777
+                %junk = mload %prev
+                %prev = %p
+                %i = add %i, 1
+                %done = eq %i, 2
+                jnz %done, @exit, @loop
+
+            exit:
+                %v = mload %prev
+                %q = dalloca 32
+                mstore 0, %q
+                mstore 32, %v
+                return 0, 64
+        }
+        """)
+    # iteration 2's buffer sits at 32: iteration 1's buffer was not
+    # reclaimed under it. (%q == 32: the final buffer itself is dead after
+    # the exit-block load and is legitimately reclaimed there.)
+    assert _word(out, 0) == 32
+    assert _word(out, 1) == 777
+
+
+@pytest.mark.parametrize(("calldata", "expected_q", "expected_vx"), [(b"x", 0, 9), (b"", 0, 0)])
+def test_reclaim_fires_across_join_with_agreeing_top_segment(calldata, expected_q, expected_vx):
+    # precision: one arm allocates a scratch buffer that dies before the
+    # join (popped at the arm's terminator), so all predecessors agree on
+    # the surviving top segment [%m]. The meet keeps %m and the reclaim
+    # fires after the join -- the engine is not all-or-nothing at merges.
+    out = _run_program(
+        """
+        function main {
+            main:
+                %m = dalloca 32
+                mstore %m, 7
+                %vx = 0
+                %cond = calldatasize
+                jnz %cond, @a, @b
+
+            a:
+                %x = dalloca 32
+                mstore %x, 9
+                %vx = mload %x
+                jmp @join
+
+            b:
+                jmp @join
+
+            join:
+                %vm = mload %m
+                %q = dalloca 32
+                mstore 0, %q
+                mstore 32, %vm
+                mstore 64, %vx
+                return 0, 96
+        }
+        """,
+        calldata,
+    )
+    assert _word(out, 0) == expected_q  # %m's mark survived the join and was reclaimed
+    assert _word(out, 1) == 7
+    assert _word(out, 2) == expected_vx
+
+
+def test_getfmp_capture_blocks_reclaim_while_live():
+    # %e captures the FMP at 0 (where %p is then allocated). While %e is
+    # live, popping %p would let %q reuse address 0 and clobber the memory
+    # %e still addresses -- the capture vetoes the reclaim.
+    out = _run_program("""
+        function main {
+            main:
+                %e = getfmp
+                %p = dalloca 32
+                mstore %p, 5
+                %v = mload %p
+                %q = dalloca 32
+                mstore %q, 6
+                %w = mload %e
+                mstore 0, %q
+                mstore 32, %w
+                mstore 64, %v
+                return 0, 96
+        }
+        """)
+    assert _word(out, 0) == 32  # %q did not reuse %p's address
+    assert _word(out, 1) == 5  # the capture still sees %p's data
+    assert _word(out, 2) == 5
+
+
+def test_getfmp_capture_allows_reclaim_after_death():
+    # once the capture (and everything derived from it) is dead, it no
+    # longer vetoes: the dead %p is reclaimed and %q reuses its address.
+    out = _run_program("""
+        function main {
+            main:
+                %e = getfmp
+                %junk = mload %e
+                %p = dalloca 32
+                mstore %p, 5
+                %v = mload %p
+                %q = dalloca 32
+                mstore 0, %q
+                mstore 32, %v
+                return 0, 64
+        }
+        """)
+    assert _word(out, 0) == 0  # %p reclaimed; %q reuses the base address
+    assert _word(out, 1) == 5
+
+
+def test_escaped_getfmp_capture_pins_reclaim():
+    # the capture escapes SSA tracking (stored to memory as a value), so
+    # derived pointers can re-enter where liveness cannot see them: the
+    # capture vetoes reclaim for the rest of the function (fail closed).
+    out = _run_program("""
+        function main {
+            main:
+                %slot = alloca 32
+                %e = getfmp
+                mstore %slot, %e
+                %p = dalloca 32
+                mstore %p, 5
+                %v = mload %p
+                %q = dalloca 32
+                mstore 0, %q
+                mstore 32, %v
+                return 0, 64
+        }
+        """)
+    assert _word(out, 0) == 64  # %p not reclaimed (static frame is 32 bytes)
+    assert _word(out, 1) == 5
+
+
+# the verified inlined-dret pack-anchor shape: the caller's dead %h is
+# reclaim bait at the first dalloca of the inlined body, *after* the cloned
+# `getfmp` captured the pack anchor. An engine without the capture veto
+# restores the FMP under the anchor, re-allocates %s1/%s2 beneath the pack
+# destinations, and the first pack copy clobbers %s2 before the second copy
+# reads it (w2 == 11 instead of 22).
+_PACK_ANCHOR_SRC = """
+function main {
+    main:
+        %h = dalloca 32
+        mstore %h, 5
+        %hv = mload %h
+        %p1, %p2 = invoke @callee
+        %t = dalloca 32
+        mstore %t, 77
+        %w1 = mload %p1
+        %w2 = mload %p2
+        %tv = mload %t
+        mstore 0, %w1
+        mstore 32, %w2
+        mstore 64, %hv
+        mstore 96, %tv
+        return 0, 128
+}
+
+function callee {
+    callee:
+        %retpc = param
+        %s1 = dalloca 32
+        %s2 = dalloca 32
+        mstore %s1, 11
+        mstore %s2, 22
+        dret 2, %s1, 32, %s2, 32, %retpc
+}
+"""
+
+
+def test_inlined_dret_pack_anchor_reclaim_bait():
+    out_inlined, _ = _run_program_full_pipeline(_PACK_ANCHOR_SRC, disable_inlining=False)
+    out_no_inline, _ = _run_program_full_pipeline(_PACK_ANCHOR_SRC, disable_inlining=True)
+
+    assert _word(out_inlined, 0) == 11
+    assert _word(out_inlined, 1) == 22
+    assert _word(out_inlined, 2) == 5
+    assert _word(out_inlined, 3) == 77
+    assert out_inlined == out_no_inline
+
+
+@pytest.mark.parametrize(("calldata", "expected_q", "expected_vx"), [(b"x", 64, 9), (b"", 32, 7)])
+def test_meet_over_three_predecessors_drops_divergent_mark(calldata, expected_q, expected_vx):
+    # three predecessors: one carries a live divergent allocation on top of
+    # %m, the other two only %m. The top segments disagree, so the meet
+    # drops everything: %m is intentionally NOT reclaimed at the join (a
+    # restore to it would free the live %x above it), and %q allocates
+    # above the leak.
+    out = _run_program(
+        """
+        function main {
+            main:
+                %m = dalloca 32
+                mstore %m, 7
+                %ptr = 0
+                %c1 = calldatasize
+                jnz %c1, @a, @rest
+
+            a:
+                %x = dalloca 32
+                mstore %x, 9
+                %ptr = %x
+                jmp @join
+
+            rest:
+                %c2 = calldataload 0
+                jnz %c2, @b1, @b2
+
+            b1:
+                jmp @join
+
+            b2:
+                jmp @join
+
+            join:
+                %vm = mload %m
+                %q = dalloca 32
+                mstore %q, 123
+                %vx = mload %ptr
+                mstore 0, %q
+                mstore 32, %vm
+                mstore 64, %vx
+                return 0, 96
+        }
+        """,
+        calldata,
+    )
+    assert _word(out, 0) == expected_q
+    assert _word(out, 1) == 7
+    assert _word(out, 2) == expected_vx
+
+
+def test_unreachable_block_lowering_is_robust():
+    # an unreachable block is still lowered -- no raw opcode may survive
+    # check_post_lowering -- but never gets synthesized restores: the
+    # dataflow fixpoint only covers reachable blocks, and the dominator
+    # tree does not cover unreachable code. (An unreachable *predecessor*
+    # of a reachable block crashes MakeSSA's dominator computation long
+    # before this pass runs, so that shape is unreachable here.)
+    ctx = parse_venom("""
+        function main {
+            main:
+                %p = dalloca 32
+                mstore %p, 3
+                %v = mload %p
+                %q = dalloca 32
+                mstore 0, %q
+                mstore 32, %v
+                return 0, 64
+
+            dead:
+                %d = dalloca 32
+                mstore %d, 1
+                %d2 = dalloca 32
+                mstore %d2, 2
+                stop
+        }
+        """)
+    fn = ctx.get_function(IRLabel("main"))
+    ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+    _run_ssa(fn)
+    FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+    opcodes = [inst.opcode for bb in fn.get_basic_blocks() for inst in bb.instructions]
+    assert "dalloca" not in opcodes
+    assert opcodes.count("bump") == 4
+
+    # the reachable path still reclaims: %p is dead at %q's allocation
+    main_insts = fn.get_basic_block("main").instructions
+    p_bump = next(inst for inst in main_insts if inst.opcode == "bump")
+    restores = [
+        inst
+        for inst in main_insts
+        if inst.opcode == "assign" and inst.operands == [p_bump.get_outputs()[0]]
+    ]
+    assert len(restores) == 1
+
+    # %d is dead at %d2's allocation, but no restore is synthesized in the
+    # unreachable block
+    dead_opcodes = [inst.opcode for inst in fn.get_basic_block("dead").instructions]
+    assert "assign" not in dead_opcodes
+
+
+def test_restore_dominance_assertion_fires_on_illegal_restore():
+    # hand-construct an illegal reclaim state: a mark defined in one branch
+    # arm tracked at a join the definition does not dominate. The emitted
+    # restore would be SSA-illegal; the engine's dominance assertion fires.
+    from vyper.venom.analysis import BasePtrAnalysis, DominatorTreeAnalysis, LivenessAnalysis
+    from vyper.venom.passes import dalloca_lowering
+
+    ctx = parse_venom("""
+        function main {
+            main:
+                %c = calldatasize
+                jnz %c, @a, @b
+
+            a:
+                %p = dalloca 32
+                mstore %p, 1
+                jmp @join
+
+            b:
+                jmp @join
+
+            join:
+                %q = dalloca 32
+                mstore 0, %q
+                return 0, 32
+        }
+        """)
+    fn = ctx.get_function(IRLabel("main"))
+    ac = IRAnalysesCache(fn)
+    lowering = FmpLoweringPass(ac, fn)
+    lowering.dynamic_memory = ac.force_analysis(DynamicMemoryAnalysis)
+    lowering.fmp_var = fn.get_next_variable()
+    lowering.liveness = ac.request_analysis(LivenessAnalysis)
+    lowering.base_ptrs = ac.request_analysis(BasePtrAnalysis)
+    lowering.dom = ac.request_analysis(DominatorTreeAnalysis)
+    lowering._pinned_allocations = frozenset()
+    lowering._capture_derived = {}
+    lowering._pinned_captures = frozenset()
+
+    p_var = IRVariable("%p")
+    lowering._mark_def_bbs = {p_var: fn.get_basic_block("a")}
+    state = dalloca_lowering._ReclaimState(stack=[p_var])
+
+    q_inst = fn.get_basic_block("join").instructions[0]
+    assert q_inst.opcode == "dalloca"
+    with pytest.raises(AssertionError, match="dominate"):
+        lowering._step(state, q_inst, [])
 
 
 def test_full_pipeline_rejects_half_lowered_invoke():
