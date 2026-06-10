@@ -133,7 +133,12 @@ class CopyForwardingPolicy:
                 invoke_inst, src_alloca.alloca_size
             )
             if penalty is None:
-                continue
+                # The callee's transitive frame could not be resolved (an
+                # indirect or unknown callee). Per _callee_reserved_intervals,
+                # "unknown frame" must not be conflated with "empty frame" —
+                # block forwarding conservatively, mirroring the
+                # unresolved-source path above.
+                return True
 
             # Source writes often come from setup/decoder work on paths that can
             # skip the invoke. Keep those conservative so early exits do not

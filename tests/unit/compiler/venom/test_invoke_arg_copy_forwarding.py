@@ -354,6 +354,51 @@ def test_readonly_forwarding_rejects_param_source_with_unresolvable_callee_frame
     assert invoke.operands[1] == mcopy.operands[2]
 
 
+def test_readonly_forwarding_rejects_resolved_source_with_unresolvable_callee_frame():
+    # Source is a resolved static-frame alloca whose write sits on a path that
+    # can skip the invoke, so the cost model must weigh liveness extension
+    # against the callee's frame. That frame cannot be resolved (the callee
+    # invokes an unknown target), and an unresolved frame must NOT be treated
+    # as empty (zero-cost) — mirror the unresolved-source path and bail out.
+    src = """
+    function caller {
+    caller:
+        %cond = param
+        %src = alloca 1056
+        %tmp = alloca 1056
+        mstore %src, 1
+        jnz %cond, @call, @exit
+    call:
+        mcopy %tmp, %src, 1056
+        invoke @callee, %tmp
+        stop
+    exit:
+        stop
+    }
+
+    function callee {
+    callee:
+        %arg = param
+        %retpc = param
+        invoke @unknown_external
+        mload %arg
+        ret %retpc
+    }
+    """
+
+    ctx = _run_copy_forwarding(src)
+    caller = ctx.get_function(IRLabel("caller"))
+    insts = [inst for bb in caller.get_basic_blocks() for inst in bb.instructions]
+
+    mcopy = next(inst for inst in insts if inst.opcode == "mcopy")
+    invoke = next(
+        inst for inst in insts if inst.opcode == "invoke" and inst.operands[0] == IRLabel("callee")
+    )
+
+    # forwarding blocked: the invoke still consumes the staged copy, not %src
+    assert invoke.operands[1] == mcopy.operands[2]
+
+
 def test_readonly_forwarding_rejects_larger_source_liveness_extension():
     src = """
     function caller {
