@@ -17,6 +17,8 @@ UNINTERESTING_OPCODES = frozenset(
         "assign",
         "phi",
         "param",
+        "fmp_param",
+        "retpc_param",
         "source",
         "nop",
         "returndatasize",

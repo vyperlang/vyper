@@ -17,6 +17,7 @@ from vyper.venom.analysis import (
 )
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.call_layout import FunctionCallLayout, InvokeLayout, parse_dret_shape
+from vyper.venom.function import FmpSignature
 from vyper.venom.memory_location import Allocation, memory_read_ops, memory_write_ops
 from vyper.venom.passes.base_pass import IRPass, PassRef
 
@@ -27,9 +28,13 @@ IDENTITY_PRECOMPILE = 4
 _PTR_PROPAGATION_OPS = frozenset(["add", "sub", "assign", "phi", "bump", "dalloca", "alloca"])
 
 
-class DallocaLoweringPass(IRPass):
+class FmpLoweringPass(IRPass):
     """
-    Lower `dalloca` into explicit FMP-threaded IR.
+    Lower `dalloca` and the FMP virtual-register opcodes into explicit
+    FMP-threaded IR. This pass is the *single owner* of the hidden-FMP
+    calling convention: it alone materializes the hidden FMP param
+    (`fmp_param`), seeds the entry function's FMP root (`initial_fmp`),
+    and writes the hidden invoke operand (assert-and-set, never ensure).
 
     Producer-facing dynamic allocation has one output:
 
@@ -47,16 +52,15 @@ class DallocaLoweringPass(IRPass):
     - `setfmp` writes it (and invalidates all tracked reclaim marks)
     - `retfmp` returns values *and* publishes the FMP to the caller; it
       lowers to `ret` with the hidden adopted-FMP value appended
+
+    After lowering, the function's convention shape is frozen as
+    `fn._fmp_signature`; FmpPrunePass may later delete a dead hidden FMP
+    param and reseal the signature -- before any caller is lowered (the
+    callee-first pass driver), so callers only augment against final shapes.
     """
 
     required_predecessors: ClassVar[tuple[PassRef, ...]] = ("MakeSSA",)
     required_successors: ClassVar[tuple[PassRef, ...]] = ("MakeSSA",)
-
-    # whether the FMP value threaded by the current run reflects every
-    # allocation in the function. only then may `_augment_invoke` overwrite an
-    # existing hidden-FMP operand. False for repeat runs on already-lowered
-    # IR (pre-existing `bump`s).
-    _fmp_model_authoritative: bool = False
 
     # allocations whose pointer escapes SSA tracking; never reclaimed.
     # recomputed per run in run_pass.
@@ -67,43 +71,34 @@ class DallocaLoweringPass(IRPass):
 
         self.dynamic_memory = self.analyses_cache.force_analysis(DynamicMemoryAnalysis)
         info = self.dynamic_memory.get_info(fn)
-        had_fmp = info.has_physical_hidden_fmp
 
-        has_dalloca = info.has_dalloca
-        has_dret = info.has_dret
-        has_fmp_ops = info.has_fmp_ops
-        calls_needs_fmp = info.calls_need_fmp
-        if has_dret:
-            raise CompilerPanic("DretDesugarPass must run before DallocaLoweringPass")
+        if info.has_dret:
+            raise CompilerPanic("DretDesugarPass must run before FmpLoweringPass")
 
-        if had_fmp and not has_dalloca and not has_fmp_ops:
-            changed = self._deaugment_stale_invoke_fmp_args(fn)
-            if changed:
-                self._invalidate_analyses()
-
-            if not calls_needs_fmp:
-                if not info.returns_adopted_fmp and self._prune_dead_hidden_fmp_param(fn):
-                    self._invalidate_analyses()
-                    return
-
-                return
-
-        if not has_dalloca and not has_fmp_ops and not calls_needs_fmp:
+        if info.is_lowered:
+            # hand-written already-lowered input: the convention has been
+            # materialized externally; freeze the observed shape and leave
+            # the IR untouched. (Stage 4 replaces this inference with an
+            # explicit function-header annotation.)
+            if fn._fmp_signature is None:
+                fn._fmp_signature = FmpSignature(
+                    has_fmp_param=info.has_physical_hidden_fmp, publishes=info.returns_adopted_fmp
+                )
             return
 
-        # Pre-existing `bump`s mean a previous run already lowered (and
-        # threaded) allocations that this run does not model, so the FMP value
-        # threaded below would be stale at points past those bumps.
-        self._fmp_model_authoritative = not any(
-            inst.opcode == "bump" for bb in fn.get_basic_blocks() for inst in bb.instructions
-        )
+        if fn._fmp_signature is not None:
+            raise CompilerPanic(f"FmpLoweringPass ran twice on {fn.name}")
 
-        hidden_fmp_var = self._ensure_hidden_fmp_param(fn, hidden_may_exist=had_fmp)
-        fmp_var = hidden_fmp_var
-        canonicalize_adopted_fmp = False
-        if has_dalloca or has_fmp_ops or calls_needs_fmp:
-            fmp_var = self._materialize_fmp_copy(fn, hidden_fmp_var)
-            canonicalize_adopted_fmp = True
+        if not (info.has_dalloca or info.has_fmp_ops or info.calls_need_fmp):
+            # leaf fast path: no FMP needs, zero plumbing
+            fn._fmp_signature = FmpSignature(has_fmp_param=False, publishes=False)
+            return
+
+        # `retfmp` (the desugared publishing terminator) is the publish fact
+        publishes = info.returns_adopted_fmp
+
+        fmp_root_var, has_fmp_param = self._materialize_fmp_root(fn)
+        fmp_var = self._materialize_fmp_copy(fn, fmp_root_var)
 
         liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
         base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
@@ -112,15 +107,10 @@ class DallocaLoweringPass(IRPass):
 
         for bb in fn.get_basic_blocks():
             entry_stack, entry_ghosts = bb_entry_stacks[bb]
-            self._rewrite_bb(
-                bb,
-                fmp_var,
-                canonicalize_adopted_fmp,
-                base_ptrs,
-                liveness,
-                entry_stack,
-                entry_ghosts,
-            )
+            self._rewrite_bb(bb, fmp_var, base_ptrs, liveness, entry_stack, entry_ghosts)
+
+        # freeze the convention shape; FmpPrunePass may reseal it
+        fn._fmp_signature = FmpSignature(has_fmp_param=has_fmp_param, publishes=publishes)
 
         self._invalidate_analyses()
 
@@ -137,40 +127,61 @@ class DallocaLoweringPass(IRPass):
         self.analyses_cache.invalidate_analysis(ReadonlyMemoryArgsGlobalAnalysis)
         self.analyses_cache.invalidate_analysis(DynamicMemoryAnalysis)
 
-    def _ensure_hidden_fmp_param(self, fn, hidden_may_exist: bool = False) -> IRVariable:
-        layout = FunctionCallLayout(fn)
-        params = layout.params
-        return_pc_offset = int(layout.has_return_pc_param)
-
-        if hidden_may_exist:
-            hidden_fmp_param = layout.hidden_fmp_param
-            if hidden_fmp_param is not None:
-                return hidden_fmp_param.output
-            if fn is fn.ctx.entry_function:
-                entry_params = [inst for inst in fn.entry.instructions if inst.opcode == "param"]
-                if len(entry_params) == 1:
-                    return entry_params[0].output
-
-        if fn._invoke_param_count is not None:
-            hidden_pos = fn._invoke_param_count
-            hidden_exists = len(params) == fn._invoke_param_count + 1 + return_pc_offset
-            if hidden_exists and hidden_pos < len(params):
-                return params[hidden_pos].output
-
+    def _materialize_fmp_root(self, fn) -> tuple[IRVariable, bool]:
+        """
+        Materialize the function's FMP root and return `(root_var,
+        has_fmp_param)`. The entry function's root is an explicit
+        `initial_fmp` instruction (lowered to the deferred assembler CONST);
+        every other FMP-needing function receives a hidden `fmp_param`,
+        physically placed after the user params and before the return-PC
+        param. The return-PC param, when discoverable, is normalized to its
+        dedicated `retpc_param` opcode (same stack slot, only the name
+        changes).
+        """
         fmp_var = fn.get_next_variable()
-        param_inst = IRInstruction("param", [], [fmp_var])
+
+        if fn is fn.ctx.entry_function:
+            inst = IRInstruction("initial_fmp", [], [fmp_var])
+            fn.entry.insert_instruction(inst, index=self._after_params_index(fn))
+            return fmp_var, False
+
+        layout = FunctionCallLayout(fn)
+        return_pc_param = layout.return_pc_param
+        if return_pc_param is None:
+            # every invoked function physically receives the return PC as
+            # the top-of-stack entry slot. When it is not discoverable (no
+            # `ret` to anchor it and no metadata -- e.g. a metadata-less
+            # never-returning forwarder), the last plain param names that
+            # slot; with no params at all, synthesize the name so the
+            # hidden FMP param can be placed beneath it.
+            params = layout.params
+            if len(params) > 0:
+                return_pc_param = params[-1]
+            else:
+                return_pc_param = IRInstruction("retpc_param", [], [fn.get_next_variable()])
+                fn.entry.insert_instruction(return_pc_param, index=0)
+        return_pc_param.opcode = "retpc_param"
+
+        param_inst = IRInstruction("fmp_param", [], [fmp_var])
         fn.entry.insert_instruction(param_inst, index=layout.hidden_fmp_param_insert_index)
-        return fmp_var
+        return fmp_var, True
+
+    def _after_params_index(self, fn) -> int:
+        params = FunctionCallLayout(fn).params
+        if len(params) == 0:
+            return 0
+        return max(fn.entry.instructions.index(param) for param in params) + 1
 
     def _materialize_fmp_copy(self, fn, fmp_var: IRVariable) -> IRVariable:
         copy_var = fn.get_next_variable()
         inst = IRInstruction("assign", [fmp_var], [copy_var])
 
-        params = FunctionCallLayout(fn).params
-        if len(params) == 0:
-            index = 0
-        else:
-            index = max(fn.entry.instructions.index(param) for param in params) + 1
+        # insert after the params and after the FMP root definition
+        index = self._after_params_index(fn)
+        for idx, entry_inst in enumerate(fn.entry.instructions):
+            if fmp_var in entry_inst.get_outputs():
+                index = max(index, idx + 1)
+                break
         fn.entry.insert_instruction(inst, index=index)
         return copy_var
 
@@ -382,14 +393,7 @@ class DallocaLoweringPass(IRPass):
         return frozenset(pinned)
 
     def _rewrite_bb(
-        self,
-        bb,
-        fmp_var,
-        canonicalize_adopted_fmp,
-        base_ptrs: BasePtrAnalysis,
-        liveness,
-        entry_stack,
-        entry_ghosts,
+        self, bb, fmp_var, base_ptrs: BasePtrAnalysis, liveness, entry_stack, entry_ghosts
     ) -> None:
         new_instructions: list[IRInstruction] = []
         stack = list(entry_stack)
@@ -448,7 +452,7 @@ class DallocaLoweringPass(IRPass):
                     stack.clear()
                     if hidden_fmp_output is not None:
                         current_fmp_var = hidden_fmp_output
-                        if canonicalize_adopted_fmp and hidden_fmp_output != fmp_var:
+                        if hidden_fmp_output != fmp_var:
                             new_instructions.append(
                                 self._restore_fmp_inst(hidden_fmp_output, fmp_var, bb, inst)
                             )
@@ -545,75 +549,75 @@ class DallocaLoweringPass(IRPass):
         callee = layout.callee
         assert callee is not None
 
+        # Assert-and-set: this pass is the *only* writer of the hidden FMP
+        # operand, so the operand must not already be present. The input
+        # validator rejects half-lowered IR (an invoke already carrying a
+        # hidden operand in a function this pass will thread), so this panic
+        # is unreachable from validated input.
         expected_user_args = FunctionCallLayout(callee).expected_user_arg_count
-        has_hidden_fmp_operand = len(inst.operands) == 1 + expected_user_args + 1
-        if has_hidden_fmp_operand:
-            # The frontend pipeline never reaches this branch anymore:
-            # DretDesugarPass touches no invokes, so this pass is the only
-            # writer of the hidden operand and the append branch below is the
-            # primary path. Hand-written half-lowered IR may still carry a
-            # (possibly stale) hidden operand; overwrite it with the current
-            # FMP -- set, don't just ensure.
-            #
-            # Only overwrite when this run's FMP model is authoritative
-            # (`_fmp_model_authoritative`): a repeat run on already-lowered IR
-            # (pre-existing `bump`s) models the FMP as the raw entry param and
-            # would re-stale the operand a previous run threaded correctly.
-            if self._fmp_model_authoritative:
-                inst.operands[-1] = fmp_var
-        else:
-            layout.append_hidden_fmp_operand(fmp_var)
+        if len(inst.operands) != 1 + expected_user_args:
+            raise CompilerPanic(
+                f"invoke of {callee.name} already carries a hidden FMP operand "
+                f"(mixed raw/lowered IR?): {inst}"
+            )
+        layout.append_hidden_fmp_operand(fmp_var)
 
         hidden_fmp_output = None
         callee_info = self.dynamic_memory.get_info(callee)
         if callee_info.returns_adopted_fmp:
-            outputs = inst.get_outputs()
-            has_hidden_fmp_output = False
-            if callee_info.user_return_count is not None:
-                user_output_count = callee_info.user_return_count
-                has_hidden_fmp_output = len(outputs) > user_output_count
-                if has_hidden_fmp_output:
-                    hidden_fmp_output = outputs[user_output_count]
-            elif len(outputs) > 0:
-                has_hidden_fmp_output = outputs[-1] == fmp_var
-                if has_hidden_fmp_output:
-                    hidden_fmp_output = outputs[-1]
-
-            if not has_hidden_fmp_output:
-                layout.append_hidden_fmp_output(fmp_var)
-                hidden_fmp_output = fmp_var
+            layout.append_hidden_fmp_output(fmp_var)
+            hidden_fmp_output = fmp_var
 
         return hidden_fmp_output
 
-    def _hidden_fmp_param(self, fn):
-        param_inst = FunctionCallLayout(fn).hidden_fmp_param
-        if param_inst is not None:
-            return param_inst
 
-        if fn is not fn.ctx.entry_function:
-            return None
+class FmpPrunePass(IRPass):
+    """
+    Deletion-only second FMP pass (the run-2 slot in the optimization
+    pipelines). If the optimization tail removed every use of the hidden FMP
+    param materialized by FmpLoweringPass (no `bump`, no publish, no
+    FMP-needing invoke survived -- equivalently, the param's transitive use
+    chain is pure assign/phi), delete the param together with its dead chain
+    and *seal* the function's `fmp_signature`.
 
-        if not self.dynamic_memory.get_info(fn).has_physical_hidden_fmp:
-            return None
+    The callee-first pass driver guarantees a callee's signature is sealed
+    before any caller is lowered, so callers only ever augment invokes
+    against final shapes and no de-augmentation machinery is needed.
+    """
 
-        params = [inst for inst in fn.entry.instructions if inst.opcode == "param"]
-        if len(params) != 1:
-            return None
-        return params[0]
+    required_predecessors: ClassVar[tuple[PassRef, ...]] = ("FmpLoweringPass",)
 
-    def _prune_dead_hidden_fmp_param(self, fn) -> bool:
-        param_inst = self._hidden_fmp_param(fn)
+    def run_pass(self):
+        fn = self.function
+
+        sig = fn._fmp_signature
+        if sig is None:
+            raise CompilerPanic(f"FmpPrunePass requires FmpLoweringPass ({fn.name})")
+
+        if not sig.has_fmp_param or sig.publishes:
+            return
+
+        # only the syntactic fmp_param is pruned; hand-written lowered input
+        # without the dedicated opcode keeps its shape as-is
+        param_inst = FunctionCallLayout(fn).fmp_param_opcode_inst
         if param_inst is None:
-            return False
+            return
 
         dead_chain = self._collect_dead_fmp_chain(param_inst.output)
         if dead_chain is None:
-            return False
+            return
 
         for inst in dead_chain:
             inst.parent.remove_instruction(inst)
         fn.entry.remove_instruction(param_inst)
-        return True
+
+        # seal the final shape (before any caller lowers)
+        fn._fmp_signature = FmpSignature(has_fmp_param=False, publishes=False)
+
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+        self.analyses_cache.invalidate_analysis(VarDefinition)
+        self.analyses_cache.invalidate_analysis(DynamicMemoryAnalysis)
 
     def _collect_dead_fmp_chain(self, root: IRVariable) -> list[IRInstruction] | None:
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -637,92 +641,8 @@ class DallocaLoweringPass(IRPass):
 
         return dead_insts
 
-    def _is_fmp_value(
-        self,
-        value: IROperand,
-        root: IRVariable,
-        dfg: DFGAnalysis,
-        seen: set[IRVariable] | None = None,
-    ) -> bool:
-        if value == root:
-            return True
-        if not isinstance(value, IRVariable):
-            return False
 
-        if seen is None:
-            seen = set()
-        if value in seen:
-            return False
-        seen.add(value)
-
-        producer = dfg.get_producing_instruction(value)
-        if producer is None:
-            return False
-
-        if producer.opcode == "assign" and len(producer.operands) == 1:
-            return self._is_fmp_value(producer.operands[0], root, dfg, seen)
-
-        if producer.opcode == "phi":
-            return all(
-                self._is_fmp_value(op, root, dfg, seen.copy()) for _, op in producer.phi_operands
-            )
-
-        if producer.opcode == "bump":
-            outputs = producer.get_outputs()
-            if len(outputs) == 2 and outputs[1] == value:
-                return self._is_fmp_value(producer.operands[0], root, dfg, seen)
-            return False
-
-        if producer.opcode == "invoke":
-            callee = InvokeLayout(self.function.ctx, producer).callee
-            outputs = producer.get_outputs()
-            return (
-                callee is not None
-                and self.dynamic_memory.get_info(callee).returns_adopted_fmp
-                and len(outputs) > 0
-                and outputs[-1] == value
-            )
-
-        return False
-
-    def _deaugment_stale_invoke_fmp_args(self, fn) -> bool:
-        changed = False
-        hidden_fmp_param = self._hidden_fmp_param(fn)
-        if hidden_fmp_param is None:
-            return False
-        dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-
-        for bb in fn.get_basic_blocks():
-            for inst in bb.instructions:
-                if inst.opcode != "invoke":
-                    continue
-
-                layout = InvokeLayout(fn.ctx, inst)
-                callee = layout.callee
-                if callee is None:
-                    continue
-                if self.dynamic_memory.get_info(callee).needs_fmp:
-                    continue
-
-                expected_arg_count = FunctionCallLayout(callee).expected_user_arg_count
-                current_arg_count = layout.actual_operand_count_after_target
-                if current_arg_count != expected_arg_count + 1:
-                    continue
-
-                trailing_operand = inst.operands[-1]
-                if not self._is_fmp_value(trailing_operand, hidden_fmp_param.output, dfg):
-                    continue
-
-                # This invoke still has one extra trailing operand and that
-                # operand belongs to the caller's FMP chain, but the callee no
-                # longer has a hidden FMP param. Drop the stale hidden arg.
-                layout.remove_trailing_operand()
-                changed = True
-
-        return changed
-
-
-class DretDesugarPass(DallocaLoweringPass):
+class DretDesugarPass(FmpLoweringPass):
     """
     Desugar `dret` into FMP virtual-register IR before inlining.
 
@@ -732,10 +652,10 @@ class DretDesugarPass(DallocaLoweringPass):
     packed data, never a rewind) and a `retfmp` publishing terminator.
     Functions without `dret` are untouched; no params and no invokes are
     modified anywhere -- the calling convention is materialized later by
-    DallocaLoweringPass.
+    FmpLoweringPass.
 
     This pass intentionally leaves raw `dalloca` instructions in place. The
-    later DallocaLoweringPass runs after SSA and handles allocation reclaim.
+    later FmpLoweringPass runs after SSA and handles allocation reclaim.
     """
 
     required_predecessors: ClassVar[tuple[PassRef, ...]] = ()

@@ -31,7 +31,7 @@ class SingleUseExpansion(IRPass):
         i = 0
         while i < len(bb.instructions):
             inst = bb.instructions[i]
-            if inst.opcode in ("assign", "offset", "phi", "param"):
+            if inst.opcode in ("assign", "offset", "phi") or inst.is_param:
                 i += 1
                 continue
 

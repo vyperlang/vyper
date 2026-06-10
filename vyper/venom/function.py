@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import textwrap
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
@@ -8,6 +9,21 @@ from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 
 if TYPE_CHECKING:
     from vyper.venom.context import IRContext
+
+
+@dataclass(frozen=True)
+class FmpSignature:
+    """
+    Frozen FMP calling-convention shape of a function.
+
+    Written by FmpLoweringPass when it materializes the convention and
+    resealed by FmpPrunePass if the hidden FMP param is deleted. Once set,
+    it is authoritative: callers augment invokes against it and the
+    post-lowering checks compare the physical shape against it.
+    """
+
+    has_fmp_param: bool
+    publishes: bool
 
 
 class IRFunction:
@@ -28,6 +44,9 @@ class IRFunction:
     _has_memory_return_buffer_param: Optional[bool]
     _return_value_count: Optional[int]
 
+    # Frozen FMP convention shape; None until FmpLoweringPass runs.
+    _fmp_signature: Optional[FmpSignature]
+
     # Used during code generation
     _ast_source_stack: list[IRnode]
     _error_msg_stack: list[Optional[str]]
@@ -42,6 +61,7 @@ class IRFunction:
         self._invoke_param_count = None
         self._has_memory_return_buffer_param = None
         self._return_value_count = None
+        self._fmp_signature = None
 
         self._ast_source_stack = []
         self._error_msg_stack = []
@@ -134,6 +154,7 @@ class IRFunction:
         new._invoke_param_count = self._invoke_param_count
         new._has_memory_return_buffer_param = self._has_memory_return_buffer_param
         new._return_value_count = self._return_value_count
+        new._fmp_signature = self._fmp_signature
         for bb in self.get_basic_blocks():
             new_bb = bb.copy()
             new.append_basic_block(new_bb)

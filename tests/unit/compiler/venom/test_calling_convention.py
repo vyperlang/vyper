@@ -17,7 +17,9 @@ from vyper.venom.check_venom import (
     InitialFmpArityError,
     InvokeArgumentCountMismatch,
     InvokeArityMismatch,
+    MixedFmpIRError,
     MultiOutputNonInvoke,
+    ParamLayoutError,
     RetfmpReturnMixError,
     RetfmpShapeError,
     SetfmpArityError,
@@ -598,12 +600,55 @@ def test_invoke_argument_count_accepts_literal_return_label():
 
 
 def test_invoke_argument_count_accepts_hidden_fmp_tail():
+    # Stage 2: an invoke carrying the hidden FMP operand is only legal in an
+    # already-lowered caller (FmpLoweringPass is the sole writer of that
+    # operand for everything else), so the caller threads its own hidden FMP
+    # param here.
+    src = """
+    function caller {
+    caller:
+        %arg = param
+        %fmp = param
+        %retpc = param
+        invoke @f, %arg
+        ret %retpc
+    }
+
+    function f {
+    main:
+        %arg = param
+        %fmp = param
+        %retpc = param
+        ret %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    invoke = next(
+        inst
+        for bb in ctx.get_function(IRLabel("caller")).get_basic_blocks()
+        for inst in bb.instructions
+        if inst.opcode == "invoke"
+    )
+    invoke.operands = [IRLabel("f"), IRVariable("%arg"), IRVariable("%fmp")]
+
+    ctx.get_function(IRLabel("caller"))._invoke_param_count = 1
+    callee = ctx.get_function(IRLabel("f"))
+    callee._invoke_param_count = 1
+    check_calling_convention(ctx)
+
+
+def test_invoke_hidden_fmp_tail_rejected_in_raw_caller():
+    # half-lowered (mixed raw/lowered) IR: an invoke already carrying the
+    # hidden FMP operand inside a function that FmpLoweringPass will thread
+    # (a raw caller) must be rejected up front -- this makes the pass's
+    # assert-and-set panic unreachable from validated input.
     src = """
     function main {
     main:
         %arg = source
         %fmp = source
         invoke @f, %arg
+        stop
     }
 
     function f {
@@ -625,7 +670,10 @@ def test_invoke_argument_count_accepts_hidden_fmp_tail():
 
     callee = ctx.get_function(IRLabel("f"))
     callee._invoke_param_count = 1
-    check_calling_convention(ctx)
+
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, MixedFmpIRError)
 
 
 def test_function_layout_counts_non_contiguous_params():
@@ -946,3 +994,118 @@ def test_retfmp_rejects_mixing_with_dret():
     with pytest.raises(ExceptionGroup) as excinfo:
         check_calling_convention(ctx)
     _assert_raises(excinfo.value, RetfmpReturnMixError)
+
+
+def test_fmp_param_canonical_position_accepted():
+    src = """
+    function main {
+    main:
+        stop
+    }
+
+    function f {
+    f:
+        %a = param
+        %fmp = fmp_param
+        %retpc = retpc_param
+        %p, %next = bump 32, %fmp
+        mstore %p, %a
+        ret %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    check_calling_convention(ctx)
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        # plain param after fmp_param
+        "%fmp = fmp_param\n        %a = param\n        %retpc = retpc_param",
+        # fmp_param after retpc_param
+        "%a = param\n        %retpc = retpc_param\n        %fmp = fmp_param",
+        # duplicate fmp_param
+        "%fmp = fmp_param\n        %fmp2 = fmp_param\n        %retpc = retpc_param",
+        # duplicate retpc_param
+        "%fmp = fmp_param\n        %retpc = retpc_param\n        %retpc2 = retpc_param",
+    ],
+)
+def test_fmp_param_position_violations_rejected(params):
+    src = f"""
+    function main {{
+    main:
+        stop
+    }}
+
+    function f {{
+    f:
+        {params}
+        ret %retpc
+    }}
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, ParamLayoutError)
+
+
+def test_fmp_param_outside_entry_block_rejected():
+    src = """
+    function main {
+    main:
+        stop
+    }
+
+    function f {
+    f:
+        %retpc = param
+        jmp @body
+    body:
+        %fmp = fmp_param
+        ret %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, ParamLayoutError)
+
+
+def test_mixed_raw_ops_with_fmp_param_rejected():
+    # a function containing raw FMP opcodes may not also carry the lowered
+    # convention (half-lowered IR is rejected, not tolerated)
+    src = """
+    function main {
+    main:
+        stop
+    }
+
+    function f {
+    f:
+        %fmp = fmp_param
+        %retpc = retpc_param
+        %p = dalloca 32
+        mstore %p, 1
+        ret %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, MixedFmpIRError)
+
+
+def test_mixed_raw_ops_with_bump_rejected():
+    src = """
+    function main {
+    main:
+        %fmp = calldatasize
+        %a, %b = bump 32, %fmp
+        %p = dalloca 32
+        sink %a, %b, %p
+    }
+    """
+    ctx = parse_venom(src)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        check_calling_convention(ctx)
+    _assert_raises(excinfo.value, MixedFmpIRError)

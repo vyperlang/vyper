@@ -26,8 +26,8 @@ from vyper.venom.parser import parse_venom
 from vyper.venom.passes import (
     CSE,
     ConcretizeMemLocPass,
-    DallocaLoweringPass,
     DretDesugarPass,
+    FmpLoweringPass,
     MakeSSA,
     PhiEliminationPass,
     RemoveUnusedVariablesPass,
@@ -47,7 +47,7 @@ def _run_ssa(fn):
 def _apply_dalloca_lowering(fn):
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
     _run_ssa(fn)
-    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+    FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
     _run_ssa(fn)
 
 
@@ -175,7 +175,7 @@ def test_dalloca_is_fully_lowered():
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
     _run_ssa(fn)
-    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+    FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
 
     opcodes = [inst.opcode for bb in fn.get_basic_blocks() for inst in bb.instructions]
     assert "dalloca" not in opcodes
@@ -193,7 +193,7 @@ def test_dalloca_alignment_mask_uses_small_literal():
     fn = next(iter(ctx.functions.values()))
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
     _run_ssa(fn)
-    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+    FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
 
     insts = [inst for bb in fn.get_basic_blocks() for inst in bb.instructions]
     assert any(inst.opcode == "not" and inst.operands == [IRLiteral(31)] for inst in insts)
@@ -223,7 +223,7 @@ def test_dalloca_lowering_invalidates_stale_analyses():
     ac.request_analysis(VariableRangeAnalysis)
     ac.request_analysis(ReadonlyMemoryArgsGlobalAnalysis)
 
-    DallocaLoweringPass(ac, fn).run_pass()
+    FmpLoweringPass(ac, fn).run_pass()
 
     assert LoadAnalysis not in ac.analyses_cache
     assert MemSSA not in ac.analyses_cache
@@ -497,7 +497,7 @@ def test_stale_hidden_fmp_cleanup_keeps_non_fmp_extra_arg():
 
     caller = ctx.get_function(IRLabel("caller"))
     caller._invoke_param_count = 0
-    DallocaLoweringPass(IRAnalysesCache(caller), caller).run_pass()
+    FmpLoweringPass(IRAnalysesCache(caller), caller).run_pass()
 
     invoke = next(
         inst
@@ -515,7 +515,16 @@ def test_no_ret_function_inserts_hidden_fmp_before_return_pc():
     # return-PC param and the bump must thread that FMP — not reuse the
     # return-PC value as the allocation base. Regression for layout inference
     # counting a not-yet-inserted hidden FMP slot.
+    # (Stage 2: the hidden param is the dedicated `fmp_param` opcode and the
+    # return-PC param is normalized to `retpc_param`; a separate entry
+    # function keeps `f` non-entry, since the entry function's FMP root is
+    # seeded with `initial_fmp` instead of a param.)
     ctx = parse_venom("""
+        function main {
+            main:
+                return 0, 0
+        }
+
         function f {
             f:
                 %a = param
@@ -529,11 +538,12 @@ def test_no_ret_function_inserts_hidden_fmp_before_return_pc():
     fn = ctx.get_function(IRLabel("f"))
     fn._invoke_param_count = 1  # one user param (%a); %retpc is the return-PC param
 
-    DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+    FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
 
-    params = [inst for inst in fn.entry.instructions if inst.opcode == "param"]
+    params = [inst for inst in fn.entry.instructions if inst.is_param]
     # a hidden FMP param was inserted (user, hidden_fmp, return_pc)
     assert len(params) == 3
+    assert [inst.opcode for inst in params] == ["param", "fmp_param", "retpc_param"]
     retpc = IRVariable("%retpc")
     # return-PC param stays last; the inserted hidden FMP sits before it
     assert params[-1].output == retpc
@@ -932,7 +942,7 @@ def test_unreachable_raw_dret_does_not_block_inlining():
 
 
 # caller allocates before invoking a dret callee. DretDesugarPass touches no
-# invokes, so DallocaLoweringPass is the sole writer of the hidden FMP operand
+# invokes, so FmpLoweringPass is the sole writer of the hidden FMP operand
 # and appends the *threaded* FMP (past the caller's dalloca). A stale
 # entry-FMP operand would let the callee pack its dret data over the caller's
 # live buffer.
@@ -972,7 +982,7 @@ def test_invoke_hidden_fmp_operand_rewritten_after_caller_dalloca():
 def test_invoke_hidden_fmp_operand_rewritten_after_caller_dalloca_inlined():
     # structural acceptance criterion for the FMP-virtual-register redesign:
     # with DretDesugarPass the inlined callee's pack addresses root at a
-    # cloned `getfmp`, which DallocaLoweringPass threads to the post-bump FMP
+    # cloned `getfmp`, which FmpLoweringPass threads to the post-bump FMP
     # of the host -- there is no stale entry-FMP operand left to consume.
     out, _ = _run_program_full_pipeline(_STALE_INVOKE_FMP_SRC, disable_inlining=False)
     assert _word(out, 0) == 5
@@ -1288,3 +1298,313 @@ def test_fmp_register_ops_reaching_codegen_panic():
             """)
         with pytest.raises(CompilerPanic, match="reached codegen"):
             VenomCompiler(ctx).generate_evm_assembly()
+
+
+# ---------------------------------------------------------------------------
+# Stage 2: single-owner FmpLoweringPass, fmp_param/retpc_param opcodes,
+# initial_fmp entry seeding, FmpPrunePass sealing, post-lowering checks.
+# ---------------------------------------------------------------------------
+
+
+def test_fmp_param_retpc_param_round_trip():
+    # the dedicated param opcodes parse, infer layout metadata syntactically
+    # and round-trip through the printer
+    src = """
+    function main {
+        main:
+            stop
+    }
+
+    function f {
+        f:
+            %user = param
+            %fmp = fmp_param
+            %retpc = retpc_param
+            %p, %next = bump 32, %fmp
+            mstore %p, %user
+            ret %retpc, %p
+    }
+    """
+    ctx = parse_venom(src)
+    check_calling_convention(ctx)
+
+    fn = ctx.get_function(IRLabel("f"))
+    # syntactic metadata inference: one user param; fmp/retpc named by opcode
+    assert fn._invoke_param_count == 1
+    layout = FunctionCallLayout(fn)
+    assert layout.has_physical_hidden_fmp_param
+    assert layout.hidden_fmp_param.output == IRVariable("%fmp")
+    assert layout.return_pc_param.output == IRVariable("%retpc")
+    assert [inst.output for inst in layout.user_params] == [IRVariable("%user")]
+
+    # printer/parser round trip preserves shape
+    assert_ctx_eq(ctx, parse_venom(str(ctx)))
+
+
+def test_entry_function_seeds_initial_fmp_no_prelude():
+    # the entry function's FMP root is an explicit `initial_fmp` instruction
+    # (lowered to the deferred __initial_fmp__ CONST); the assembler entry
+    # prelude special case is gone, so the assembly starts with the CONST
+    # declaration followed directly by the entry label.
+    from vyper.evm.assembler.instructions import CONST
+    from vyper.ir.compile_ir import Label
+
+    src = """
+    function main {
+        main:
+            %p = dalloca 32
+            mstore %p, 7
+            %v = mload %p
+            mstore 0, %v
+            return 0, 32
+    }
+    """
+    ctx = parse_venom(src)
+    flags = VenomOptimizationFlags(level=OptimizationLevel.O2, disable_inlining=True)
+    run_passes_on(ctx, flags, disable_mem_checks=True)
+
+    main = ctx.entry_function
+    main_insts = [inst for bb in main.get_basic_blocks() for inst in bb.instructions]
+    opcodes = [inst.opcode for inst in main_insts]
+    assert "initial_fmp" in opcodes
+    # the entry function gets no hidden param
+    assert not any(inst.is_param for inst in main.entry.instructions)
+
+    asm = VenomCompiler(ctx).generate_evm_assembly(no_optimize=True)
+    assert isinstance(asm[0], CONST)
+    assert asm[0].name == "__initial_fmp__"
+    # no prelude PUSH between the CONST declaration and the entry label
+    assert isinstance(asm[1], Label)
+
+    bytecode, _ = assembly_to_evm(asm)
+    caller = "0x" + "10" * 20
+    addr = "0x" + "20" * 20
+    evm = EVM()
+    evm.set_balance(caller, 1)
+    evm.insert_account_info(addr, AccountInfo(code=bytecode))
+    out = evm.message_call(caller=caller, to=addr, calldata=b"", gas=1_000_000)
+    assert _word(out) == 7
+
+
+def test_fmp_prune_seals_signature_and_callers_see_final_shape():
+    # callee's dalloca dies in the optimization tail; FmpPrunePass deletes
+    # the fmp_param chain and seals the signature BEFORE main is lowered, so
+    # main's invoke is never augmented (no de-augmentation pass needed).
+    out, ctx = _run_program_full_pipeline(
+        """
+        function main {
+            main:
+                %p = dalloca 32
+                mstore %p, 5
+                invoke @callee
+                %v = mload %p
+                mstore 0, %v
+                return 0, 32
+        }
+
+        function callee {
+            callee:
+                %retpc = param
+                %q = dalloca 32
+                ret %retpc
+        }
+        """,
+        disable_inlining=True,
+    )
+    assert _word(out) == 5
+
+    callee = ctx.get_function(IRLabel("callee"))
+    sig = callee._fmp_signature
+    assert sig is not None
+    assert sig.has_fmp_param is False
+    assert sig.publishes is False
+    callee_opcodes = [inst.opcode for bb in callee.get_basic_blocks() for inst in bb.instructions]
+    assert "fmp_param" not in callee_opcodes
+
+    main = ctx.get_function(IRLabel("main"))
+    invoke = next(
+        inst
+        for bb in main.get_basic_blocks()
+        for inst in bb.instructions
+        if inst.opcode == "invoke"
+    )
+    assert invoke.operands == [IRLabel("callee")]
+
+
+_NEVER_RETURNING_FORWARDER_SRC = """
+function main {
+    main:
+        invoke @fwd
+        return 0, 0
+}
+
+function fwd {
+    fwd:
+        %retpc = param
+        %ptr = invoke @producer
+        %v = mload %ptr
+        mstore 0, %v
+        return 0, 32
+}
+
+function producer {
+    producer:
+        %retpc = param
+        %p = dalloca 32
+        mstore %p, 7
+        dret 1, %p, 32, %retpc
+}
+"""
+
+
+def _assert_single_fmp_param_layout(fwd):
+    params = [inst for inst in fwd.entry.instructions if inst.is_param]
+    # exactly one hidden FMP param; the return-PC param was normalized to
+    # retpc_param and stays the last (top-of-stack) slot
+    assert [inst.opcode for inst in params] == ["fmp_param", "retpc_param"]
+    assert sum(1 for inst in params if inst.opcode == "fmp_param") == 1
+
+
+def test_metadata_less_never_returning_forwarder_no_duplicate_fmp_param():
+    # Stage-0 minor bug 5 regression: a never-returning forwarder (no `ret`
+    # to anchor the return-PC param) used to get a SECOND hidden FMP param
+    # from the old second lowering run, whose heuristics could not rediscover
+    # the first one. With the single-owner FmpLoweringPass (one run, the
+    # run-2 slot is the deletion-only FmpPrunePass) and the syntactic
+    # `fmp_param` opcode this is impossible by construction.
+
+    # variant 1: truly metadata-less, driven through the manual lowering
+    # helper (without _invoke_param_count the input validator cannot
+    # classify the retpc param of a no-ret function until Stage 4's
+    # annotations). FmpLoweringPass falls back to treating the last plain
+    # param as the return-PC slot.
+    ctx = parse_venom(_NEVER_RETURNING_FORWARDER_SRC)
+    for fn in reversed(list(ctx.functions.values())):
+        _apply_lowering(fn)
+    _assert_single_fmp_param_layout(ctx.get_function(IRLabel("fwd")))
+
+    asm = VenomCompiler(ctx).generate_evm_assembly()
+    bytecode, _ = assembly_to_evm(asm)
+    caller = "0x" + "10" * 20
+    addr = "0x" + "20" * 20
+    evm = EVM()
+    evm.set_balance(caller, 1)
+    evm.insert_account_info(addr, AccountInfo(code=bytecode))
+    out = evm.message_call(caller=caller, to=addr, calldata=b"", gas=1_000_000)
+    assert _word(out) == 7
+
+    # variant 2: full O2 pipeline with frontend-realistic metadata (the
+    # frontend always sets _invoke_param_count; the return-anchoring
+    # heuristics still cannot see the retpc param of a no-ret function)
+    ctx = parse_venom(_NEVER_RETURNING_FORWARDER_SRC)
+    ctx.get_function(IRLabel("fwd"))._invoke_param_count = 0
+    flags = VenomOptimizationFlags(level=OptimizationLevel.O2, disable_inlining=True)
+    run_passes_on(ctx, flags, disable_mem_checks=True)
+    _assert_single_fmp_param_layout(ctx.get_function(IRLabel("fwd")))
+
+    asm = VenomCompiler(ctx).generate_evm_assembly()
+    bytecode, _ = assembly_to_evm(asm)
+    evm = EVM()
+    evm.set_balance(caller, 1)
+    evm.insert_account_info(addr, AccountInfo(code=bytecode))
+    out = evm.message_call(caller=caller, to=addr, calldata=b"", gas=1_000_000)
+    assert _word(out) == 7
+
+
+def test_post_lowering_check_fires_on_corrupted_shape():
+    # corrupting the lowered IR after the pipeline (deleting the hidden FMP
+    # operand of an invoke) must be caught by the signature-vs-shape checks
+    from vyper.venom.check_venom import PostLoweringError, find_post_lowering_errors
+
+    src = """
+    function main {
+        main:
+            %p = dalloca 32
+            mstore %p, 5
+            invoke @callee
+            return 0, 32
+    }
+
+    function callee {
+        callee:
+            %retpc = param
+            %q = dalloca 32
+            mstore %q, 9
+            log 0, %q, 32
+            ret %retpc
+    }
+    """
+    ctx = parse_venom(src)
+    flags = VenomOptimizationFlags(level=OptimizationLevel.O2, disable_inlining=True)
+    run_passes_on(ctx, flags, disable_mem_checks=True)
+    assert find_post_lowering_errors(ctx) == []
+
+    main = ctx.get_function(IRLabel("main"))
+    invoke = next(
+        inst
+        for bb in main.get_basic_blocks()
+        for inst in bb.instructions
+        if inst.opcode == "invoke"
+    )
+    # callee kept its fmp_param (the allocation is observable via log)
+    callee = ctx.get_function(IRLabel("callee"))
+    assert callee._fmp_signature is not None and callee._fmp_signature.has_fmp_param
+    assert len(invoke.operands) == 2  # [target, hidden fmp]
+
+    # corruption 1: drop the hidden operand
+    dropped = invoke.operands.pop()
+    errors = find_post_lowering_errors(ctx)
+    assert any(isinstance(err, PostLoweringError) for err in errors)
+    invoke.operands.append(dropped)
+    assert find_post_lowering_errors(ctx) == []
+
+    # corruption 2: replace the hidden operand with a non-FMP-rooted value
+    invoke.operands[-1] = IRLiteral(0x1234)
+    errors = find_post_lowering_errors(ctx)
+    assert any(isinstance(err, PostLoweringError) for err in errors)
+
+    # corruption 3: delete the callee's fmp_param (shape no longer matches
+    # the frozen signature)
+    invoke.operands[-1] = dropped
+    fmp_param = next(inst for inst in callee.entry.instructions if inst.opcode == "fmp_param")
+    callee.entry.remove_instruction(fmp_param)
+    errors = find_post_lowering_errors(ctx)
+    assert any(isinstance(err, PostLoweringError) for err in errors)
+
+
+def test_full_pipeline_rejects_half_lowered_invoke():
+    # mixed raw/lowered IR (a raw caller whose invoke already carries the
+    # hidden FMP operand) is rejected by check_venom at pipeline entry, so
+    # FmpLoweringPass's assert-and-set panic is unreachable from validated
+    # input.
+    from vyper.venom.check_venom import MixedFmpIRError
+
+    ctx = parse_venom("""
+        function main {
+            main:
+                %a = dalloca 32
+                %junk = mload 0
+                invoke @callee
+                return 0, 32
+        }
+
+        function callee {
+            callee:
+                %fmp = fmp_param
+                %retpc = retpc_param
+                %p, %next = bump 32, %fmp
+                ret %retpc
+        }
+        """)
+    invoke = next(
+        inst
+        for bb in ctx.get_function(IRLabel("main")).get_basic_blocks()
+        for inst in bb.instructions
+        if inst.opcode == "invoke"
+    )
+    invoke.operands = [IRLabel("callee"), IRVariable("%junk")]
+
+    flags = VenomOptimizationFlags(level=OptimizationLevel.O2, disable_inlining=True)
+    with pytest.raises(ExceptionGroup) as excinfo:
+        run_passes_on(ctx, flags, disable_mem_checks=True)
+    assert any(isinstance(err, MixedFmpIRError) for err in excinfo.value.exceptions)

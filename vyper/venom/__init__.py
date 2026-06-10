@@ -8,7 +8,7 @@ from vyper.ir.compile_ir import AssemblyInstruction
 from vyper.venom.analysis import IRGlobalAnalysesCache, ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.fcg import FCGGlobalAnalysis
-from vyper.venom.check_venom import check_calling_convention, check_mem_ops
+from vyper.venom.check_venom import check_calling_convention, check_mem_ops, check_post_lowering
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.optimization_levels.O2 import PASSES_O2
@@ -23,7 +23,6 @@ from vyper.venom.passes import (
     AlgebraicOptimizationPass,
     AssertEliminationPass,
     BranchOptimizationPass,
-    DallocaLoweringPass,
     DeadStoreElimination,
     DretDesugarPass,
     FunctionInlinerPass,
@@ -180,6 +179,10 @@ def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags, disable_mem_che
     pass_pipeline = _build_fn_pass_pipeline(flags)
     _run_fn_passes(ctx, fcg, ctx.entry_function, pass_pipeline, ir_analyses)
     ctx.global_analyses_cache = None
+
+    # validate the frozen FMP calling convention (not debug-gated: this is
+    # the staleness defense for the convention registry)
+    check_post_lowering(ctx)
 
 
 def _run_fn_passes(

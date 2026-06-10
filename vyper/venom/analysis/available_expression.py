@@ -329,7 +329,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
             return op
         if inst.opcode == "assign":
             return self._get_operand(inst.operands[0], available_exprs)
-        if inst.opcode == "param":
+        if inst.is_param:
             return op
         # source is a magic opcode for tests
         if inst.opcode == "source":

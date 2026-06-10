@@ -81,7 +81,23 @@ class FunctionCallLayout:
 
     @property
     def params(self) -> tuple[IRInstruction, ...]:
-        return tuple(inst for inst in self.fn.entry.instructions if inst.opcode == "param")
+        return tuple(inst for inst in self.fn.entry.instructions if inst.is_param)
+
+    @property
+    def fmp_param_opcode_inst(self) -> IRInstruction | None:
+        # syntactic hidden-FMP param, created by FmpLoweringPass
+        for inst in self.fn.entry.instructions:
+            if inst.opcode == "fmp_param":
+                return inst
+        return None
+
+    @property
+    def retpc_param_opcode_inst(self) -> IRInstruction | None:
+        # syntactic return-PC param, normalized by FmpLoweringPass
+        for inst in self.fn.entry.instructions:
+            if inst.opcode == "retpc_param":
+                return inst
+        return None
 
     def param_for_alias(self, operand: IROperand) -> IRInstruction | None:
         # A `None` value is a demotion sentinel: the variable has conflicting
@@ -140,6 +156,9 @@ class FunctionCallLayout:
 
     @property
     def has_return_pc_param(self) -> bool:
+        if self.retpc_param_opcode_inst is not None:
+            return True
+
         if self._return_pc_param_from_ret is not None:
             return True
 
@@ -168,6 +187,9 @@ class FunctionCallLayout:
 
     @property
     def has_physical_hidden_fmp_param(self) -> bool:
+        if self.fmp_param_opcode_inst is not None:
+            return True
+
         if self.fn._invoke_param_count is None:
             return False
 
@@ -186,6 +208,10 @@ class FunctionCallLayout:
 
     @property
     def return_pc_param(self) -> IRInstruction | None:
+        retpc_inst = self.retpc_param_opcode_inst
+        if retpc_inst is not None:
+            return retpc_inst
+
         if not self.has_return_pc_param:
             return None
 
@@ -196,6 +222,10 @@ class FunctionCallLayout:
 
     @property
     def hidden_fmp_param_pos(self) -> int | None:
+        fmp_inst = self.fmp_param_opcode_inst
+        if fmp_inst is not None:
+            return self.params.index(fmp_inst)
+
         if not self.has_physical_hidden_fmp_param:
             return None
 
@@ -212,6 +242,10 @@ class FunctionCallLayout:
 
     @property
     def hidden_fmp_param(self) -> IRInstruction | None:
+        fmp_inst = self.fmp_param_opcode_inst
+        if fmp_inst is not None:
+            return fmp_inst
+
         pos = self.hidden_fmp_param_pos
         if pos is None:
             return None

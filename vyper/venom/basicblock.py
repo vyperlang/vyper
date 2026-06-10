@@ -34,9 +34,17 @@ BB_TERMINATORS = frozenset(
 # Terminators that halt program/message call execution
 HALTING_TERMINATORS = frozenset(["return", "revert", "stop", "invalid", "selfdestruct"])
 
+# entry stack-slot naming instructions. `fmp_param` names the hidden FMP
+# slot and `retpc_param` the return-PC slot of the lowered internal calling
+# convention; all three assemble identically (they are names for values
+# already on the stack at function entry).
+PARAM_INSTRUCTIONS = frozenset(["param", "fmp_param", "retpc_param"])
+
 VOLATILE_INSTRUCTIONS = frozenset(
     [
         "param",
+        "fmp_param",
+        "retpc_param",
         "call",
         "staticcall",
         "delegatecall",
@@ -308,7 +316,7 @@ class IRInstruction:
 
     @property
     def is_param(self) -> bool:
-        return self.opcode == "param"
+        return self.opcode in PARAM_INSTRUCTIONS
 
     @property
     def is_pseudo(self) -> bool:
@@ -442,7 +450,7 @@ class IRInstruction:
 
     @property
     def code_size_cost(self) -> int:
-        if self.opcode in ("ret", "dret", "retfmp", "param"):
+        if self.opcode in ("ret", "dret", "retfmp") or self.is_param:
             return 0
         if self.opcode in ("assign", "alloca", "getfmp", "setfmp"):
             # getfmp/setfmp lower to assigns of the threaded FMP variable
@@ -453,7 +461,7 @@ class IRInstruction:
             # fit in PUSH1 (2 bytes) but may grow for large static frames.
             return 2
         if self.opcode == "dalloca":
-            # `dalloca` is high-level sugar and is eliminated by DallocaLoweringPass
+            # `dalloca` is high-level sugar and is eliminated by FmpLoweringPass
             # before assembly emission. The lowered generic form is:
             #   PUSH1 31 + ADD, PUSH1 31 + NOT, AND, DUP2 + ADD
             return 10
@@ -693,7 +701,7 @@ class IRBasicBlock:
             assert inst.parent == self  # sanity check
 
         def key(inst):
-            if inst.opcode in ("phi", "param"):
+            if inst.opcode == "phi" or inst.is_param:
                 return 0
             if inst.is_bb_terminator:
                 return 2
@@ -716,7 +724,7 @@ class IRBasicBlock:
     @property
     def param_instructions(self) -> Iterator[IRInstruction]:
         for inst in self.instructions:
-            if inst.opcode == "param":
+            if inst.is_param:
                 yield inst
             else:
                 return

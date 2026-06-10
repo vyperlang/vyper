@@ -133,7 +133,7 @@ class FunctionInlinerPass(IRGlobalPass):
             call_site_func.append_basic_block(bb)
             param_idx = 0
             for inst in bb.instructions:
-                if inst.opcode == "param":
+                if inst.is_param:
                     # NOTE: one of these params is the return pc.
                     inst.opcode = "assign"
                     val = binding_ops[param_idx]

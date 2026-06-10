@@ -8,7 +8,7 @@ from vyper.venom.call_layout import FunctionCallLayout, params_feed_fmp, parse_d
 from vyper.venom.function import IRFunction
 
 # FMP virtual-register opcodes (between DretDesugarPass and
-# DallocaLoweringPass). A function containing any of these needs the FMP
+# FmpLoweringPass). A function containing any of these needs the FMP
 # threaded; containing `retfmp` means it publishes its FMP to the caller.
 _FMP_REGISTER_OPS = frozenset(["getfmp", "setfmp", "retfmp"])
 
@@ -18,6 +18,8 @@ class DynamicMemoryInfo:
     has_dalloca: bool
     has_dret: bool
     has_fmp_ops: bool
+    has_bump: bool
+    has_initial_fmp: bool
     calls_need_fmp: bool
     needs_fmp: bool
     has_physical_hidden_fmp: bool
@@ -25,12 +27,27 @@ class DynamicMemoryInfo:
     dret_shape: tuple[int, int] | None
     user_return_count: int | None
 
+    @property
+    def has_raw_fmp_ops(self) -> bool:
+        return self.has_dalloca or self.has_dret or self.has_fmp_ops
+
+    @property
+    def is_lowered(self) -> bool:
+        # the FMP convention has already been materialized: lowered
+        # allocations (`bump`), a physical hidden FMP param or an explicit
+        # `initial_fmp` root exist and no raw FMP opcodes remain.
+        return (
+            self.has_bump or self.has_physical_hidden_fmp or self.has_initial_fmp
+        ) and not self.has_raw_fmp_ops
+
 
 @dataclass(frozen=True)
 class _DirectDynamicMemoryInfo:
     has_dalloca: bool
     has_dret: bool
     has_fmp_ops: bool
+    has_bump: bool
+    has_initial_fmp: bool
     has_physical_hidden_fmp: bool
     returns_adopted_fmp: bool
     dret_shape: tuple[int, int] | None
@@ -41,10 +58,14 @@ class DynamicMemoryAnalysis(IRGlobalAnalysis):
     """
     Infer dynamic-memory calling-convention facts for each function.
 
-    This intentionally keeps FMP facts out of IRFunction. The analysis tracks
-    raw producer IR (`dalloca`/`dret`), the desugared FMP virtual-register
-    form (`getfmp`/`setfmp`/`retfmp`) and lowered physical shapes, such as
-    a hidden FMP param plus an adopted-FMP return value.
+    This tracks raw producer IR (`dalloca`/`dret`), the desugared FMP
+    virtual-register form (`getfmp`/`setfmp`/`retfmp`) and lowered physical
+    shapes. For functions whose convention has been frozen by
+    FmpLoweringPass/FmpPrunePass (`fn._fmp_signature` is set) the frozen
+    signature is authoritative; for raw functions the order-insensitive
+    transitive `needs_fmp` fixpoint below stays load-bearing: the
+    callee-first pass driver breaks call-graph cycles arbitrarily, so
+    frozen-callee-first reads alone would miscompile on cycles.
     """
 
     infos: dict[IRFunction, DynamicMemoryInfo]
@@ -53,21 +74,31 @@ class DynamicMemoryAnalysis(IRGlobalAnalysis):
         functions = tuple(self.ctx.get_functions())
         direct = {fn: self._scan_direct(fn) for fn in functions}
 
-        needs_fmp = {
-            fn: (
-                info.has_dalloca
-                or info.has_dret
-                or info.has_fmp_ops
-                or info.has_physical_hidden_fmp
-                or info.returns_adopted_fmp
-            )
-            for fn, info in direct.items()
-        }
+        # functions with a frozen signature have a final shape; they neither
+        # gain a hidden FMP param via the closure nor lose one.
+        frozen = {fn for fn in functions if fn._fmp_signature is not None}
+
+        needs_fmp = {}
+        for fn, info in direct.items():
+            if fn in frozen:
+                sig = fn._fmp_signature
+                assert sig is not None  # help mypy
+                needs_fmp[fn] = sig.has_fmp_param or sig.publishes
+            else:
+                needs_fmp[fn] = (
+                    info.has_dalloca
+                    or info.has_dret
+                    or info.has_fmp_ops
+                    or info.has_physical_hidden_fmp
+                    or info.returns_adopted_fmp
+                )
 
         changed = True
         while changed:
             changed = False
             for fn in functions:
+                if fn in frozen:
+                    continue
                 if not needs_fmp[fn] and any(
                     needs_fmp.get(callee, False) for callee in self._iter_callees(fn)
                 ):
@@ -81,6 +112,8 @@ class DynamicMemoryAnalysis(IRGlobalAnalysis):
                 has_dalloca=info.has_dalloca,
                 has_dret=info.has_dret,
                 has_fmp_ops=info.has_fmp_ops,
+                has_bump=info.has_bump,
+                has_initial_fmp=info.has_initial_fmp,
                 calls_need_fmp=calls_need_fmp,
                 needs_fmp=needs_fmp[fn],
                 has_physical_hidden_fmp=info.has_physical_hidden_fmp,
@@ -96,6 +129,8 @@ class DynamicMemoryAnalysis(IRGlobalAnalysis):
                 has_dalloca=False,
                 has_dret=False,
                 has_fmp_ops=False,
+                has_bump=False,
+                has_initial_fmp=False,
                 calls_need_fmp=False,
                 needs_fmp=False,
                 has_physical_hidden_fmp=False,
@@ -128,12 +163,20 @@ class DynamicMemoryAnalysis(IRGlobalAnalysis):
         has_dret = False
         has_fmp_ops = False
         has_retfmp = False
+        has_bump = False
+        has_initial_fmp = False
         shapes: set[tuple[int, int]] = set()
 
         for bb in fn.get_basic_blocks():
             for inst in bb.instructions:
                 if inst.opcode == "dalloca":
                     has_dalloca = True
+                    continue
+                if inst.opcode == "bump":
+                    has_bump = True
+                    continue
+                if inst.opcode == "initial_fmp":
+                    has_initial_fmp = True
                     continue
                 if inst.opcode in _FMP_REGISTER_OPS:
                     has_fmp_ops = True
@@ -150,17 +193,35 @@ class DynamicMemoryAnalysis(IRGlobalAnalysis):
 
         ret_arities = _ret_arities(fn)
         user_return_count = fn._return_value_count
+
+        sig = fn._fmp_signature
+        if sig is not None:
+            # frozen signature is authoritative for the lowered shape
+            has_physical_hidden_fmp = sig.has_fmp_param
+            returns_adopted_fmp = sig.publishes
+            if user_return_count is None and len(ret_arities) == 1:
+                user_return_count = next(iter(ret_arities)) - int(sig.publishes)
+            return _DirectDynamicMemoryInfo(
+                has_dalloca=has_dalloca,
+                has_dret=has_dret,
+                has_fmp_ops=has_fmp_ops,
+                has_bump=has_bump,
+                has_initial_fmp=has_initial_fmp,
+                has_physical_hidden_fmp=has_physical_hidden_fmp,
+                returns_adopted_fmp=returns_adopted_fmp,
+                dret_shape=dret_shape,
+                user_return_count=user_return_count,
+            )
+
         if user_return_count is None and dret_shape is not None:
             ordinary_count, dynamic_count = dret_shape
             user_return_count = ordinary_count + dynamic_count
         elif user_return_count is None and len(ret_arities) == 1:
             user_return_count = next(iter(ret_arities))
 
-        has_physical_hidden_fmp = (
-            FunctionCallLayout(fn).has_physical_hidden_fmp_param
-            or self._has_entry_hidden_fmp_param(fn)
-            or self._has_param_fmp_use(fn)
-        )
+        has_physical_hidden_fmp = FunctionCallLayout(
+            fn
+        ).has_physical_hidden_fmp_param or self._has_param_fmp_use(fn)
         # the publish fact lives in the terminator opcode: `dret` (raw) and
         # `retfmp` (desugared) both make the caller adopt the callee's FMP.
         returns_adopted_fmp = dret_shape is not None or has_retfmp
@@ -177,20 +238,16 @@ class DynamicMemoryAnalysis(IRGlobalAnalysis):
             has_dalloca=has_dalloca,
             has_dret=has_dret,
             has_fmp_ops=has_fmp_ops,
+            has_bump=has_bump,
+            has_initial_fmp=has_initial_fmp,
             has_physical_hidden_fmp=has_physical_hidden_fmp,
             returns_adopted_fmp=returns_adopted_fmp,
             dret_shape=dret_shape,
             user_return_count=user_return_count,
         )
 
-    def _has_entry_hidden_fmp_param(self, fn: IRFunction) -> bool:
-        if fn is not self.ctx.entry_function or fn._invoke_param_count is not None:
-            return False
-        params = [inst for inst in fn.entry.instructions if inst.opcode == "param"]
-        return len(params) == 1
-
     def _has_param_fmp_use(self, fn: IRFunction) -> bool:
-        params = {inst.output for inst in fn.entry.instructions if inst.opcode == "param"}
+        params = {inst.output for inst in fn.entry.instructions if inst.is_param}
         return params_feed_fmp(fn, params)
 
 

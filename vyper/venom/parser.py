@@ -92,10 +92,18 @@ def _set_last_label(ctx: IRContext):
 
 
 def _infer_internal_call_metadata(fn: IRFunction):
-    params = [inst.output for inst in fn.entry.instructions if inst.opcode == "param"]
+    param_insts = [inst for inst in fn.entry.instructions if inst.is_param]
+    params = [inst.output for inst in param_insts]
     param_idxs = {param: idx for idx, param in enumerate(params)}
     return_pc_idxs: set[int] = set()
     return_counts: set[int] = set()
+
+    # syntactically lowered IR: the dedicated param opcodes make (parts of)
+    # the layout explicit, replacing the corresponding inference below.
+    has_fmp_param_opcode = any(inst.opcode == "fmp_param" for inst in param_insts)
+    retpc_param_idx = next(
+        (idx for idx, inst in enumerate(param_insts) if inst.opcode == "retpc_param"), None
+    )
 
     for bb in fn.get_basic_blocks():
         for inst in bb.instructions:
@@ -118,9 +126,12 @@ def _infer_internal_call_metadata(fn: IRFunction):
             if ret_pc_idx is not None:
                 return_pc_idxs.add(ret_pc_idx)
 
+    if retpc_param_idx is not None:
+        return_pc_idxs = {retpc_param_idx}
+
     if len(return_pc_idxs) == 1:
         ret_pc_idx = next(iter(return_pc_idxs))
-        has_hidden_fmp = params_feed_fmp(fn, set(params))
+        has_hidden_fmp = has_fmp_param_opcode or params_feed_fmp(fn, set(params))
         fn._invoke_param_count = ret_pc_idx - int(has_hidden_fmp)
 
     if len(return_counts) == 1:

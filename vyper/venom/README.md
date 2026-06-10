@@ -187,8 +187,15 @@ To enable Venom IR in Vyper, use the `--experimental-codegen` CLI flag or the co
     ```
   - Allocates a runtime-sized scratch region of `ceil32(size)` bytes and returns its base pointer.
     The producer does not receive a restore token and should not emit a release instruction.
-    `DallocaLoweringPass` runs after SSA, threads the free-memory pointer explicitly,
+    `FmpLoweringPass` runs after SSA, threads the free-memory pointer explicitly,
     and may synthesize conservative LIFO rewinds when the allocation and all aliases are dead.
+    It is the single owner of the hidden-FMP calling convention: it materializes the hidden
+    `fmp_param` (normalizing the return-PC param to `retpc_param`), seeds the entry function's
+    FMP root with an explicit `initial_fmp` instruction, appends hidden invoke operands
+    (assert-and-set) and freezes the resulting shape as the function's `fmp_signature`. The
+    deletion-only `FmpPrunePass` runs after the optimization tail and deletes a hidden FMP
+    param whose use chain died, resealing the signature before any caller is lowered (the
+    pass driver is callee-first).
 - `dret`
   - ```
     dret dyn_count, <ordinary returns...>, src0, size0, ..., return_pc
@@ -197,9 +204,9 @@ To enable Venom IR in Vyper, use the `--experimental-codegen` CLI flag or the co
     are `(src, size)` pairs. `DretDesugarPass` runs before inlining and locally desugars the
     terminator into FMP virtual-register IR: pack destinations computed off `getfmp`, the pack
     copies, `setfmp` (advancing the register over the packed data) and a `retfmp` terminator.
-    `DallocaLoweringPass` later threads the register and materializes the physical convention
+    `FmpLoweringPass` later threads the register and materializes the physical convention
     (hidden FMP param/operand, `ret` with the hidden adopted-FMP value).
-- FMP virtual-register opcodes (exist only between `DretDesugarPass` and `DallocaLoweringPass`)
+- FMP virtual-register opcodes (exist only between `DretDesugarPass` and `FmpLoweringPass`)
   - `%v = getfmp` reads the FMP virtual register; `setfmp %v` writes it.
   - ```
     retfmp <ordinary returns...>, <packed dst ptrs...>, return_pc

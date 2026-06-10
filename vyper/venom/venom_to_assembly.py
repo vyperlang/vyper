@@ -12,13 +12,7 @@ from vyper.ir.compile_ir import (
     optimize_assembly,
 )
 from vyper.utils import OrderedSet, ceil32, wrap256
-from vyper.venom.analysis import (
-    CFGAnalysis,
-    DFGAnalysis,
-    DynamicMemoryAnalysis,
-    IRAnalysesCache,
-    LivenessAnalysis,
-)
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import (
     PSEUDO_INSTRUCTION,
     TEST_INSTRUCTIONS,
@@ -115,9 +109,9 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
 
 _REVERT_POSTAMBLE = [Label("revert"), *PUSH(0), "DUP1", "REVERT"]
 
-# Name of the assembler-level CONST used by the `initial_fmp` Venom opcode and
-# the entry-function FMP prelude. The CONST is declared at the end of assembly
-# generation (after spill analysis completes) and resolved at assembly time.
+# Name of the assembler-level CONST used by the `initial_fmp` Venom opcode.
+# The CONST is declared at the end of assembly generation (after spill
+# analysis completes) and resolved at assembly time.
 _INITIAL_FMP_CONST = "__initial_fmp__"
 
 
@@ -196,23 +190,13 @@ class VenomCompiler:
             finally:
                 self.spiller.set_current_function(None)
 
-        # Prepend the FMP init PUSH after all codegen so that the
-        # initial FMP can account for the actual spill usage observed
-        # during codegen (peak_spill_end). Without this, a function
-        # with small fn_eom and many spills could have its spill
-        # slots collide with the dynamic allocation region.
-        entry_needs_fmp = False
-        if self._entry_fn is not None:
-            dynamic_memory = IRAnalysesCache(self._entry_fn).request_analysis(DynamicMemoryAnalysis)
-            entry_needs_fmp = dynamic_memory.function_needs_fmp(self._entry_fn)
-        if entry_needs_fmp:
-            asm = [PUSH_OFST(CONSTREF(_INITIAL_FMP_CONST), 0)] + asm
-
-        # Declare the initial-FMP CONST if anything referenced it. The
-        # declaration must sit in the assembly stream before
-        # resolve_symbols runs; its value is known now that all
-        # per-function codegen (and spill analysis) has completed.
-        if entry_needs_fmp or self._uses_initial_fmp_const:
+        # Declare the initial-FMP CONST if anything referenced it (the
+        # entry function's FMP root is an explicit `initial_fmp`
+        # instruction, lowered to a CONSTREF push below). The declaration
+        # must sit in the assembly stream before resolve_symbols runs; its
+        # value is known now that all per-function codegen (and spill
+        # analysis) has completed.
+        if self._uses_initial_fmp_const:
             asm = [CONST(_INITIAL_FMP_CONST, self._initial_fmp_value())] + asm
 
         asm.extend(_REVERT_POSTAMBLE)
@@ -400,7 +384,7 @@ class VenomCompiler:
     def _prepare_stack_for_function(self, asm, fn: IRFunction, stack: StackModel):
         last_param_inst = None
         for inst in fn.entry.instructions:
-            if inst.opcode != "param":
+            if not inst.is_param:
                 # note: always well defined if the bb is terminated
                 next_liveness = self.liveness.live_vars_at(inst)
                 break
@@ -469,17 +453,12 @@ class VenomCompiler:
 
         fn = basicblock.parent
         if basicblock == fn.entry:
-            # Note: the FMP-init PUSH is prepended to the assembly
-            # AFTER all codegen completes, in generate_evm_assembly.
-            # It must be emitted late because the initial FMP value
-            # depends on the spiller's peak spill offset, which is
-            # only known once every function has been laid out.
             self._prepare_stack_for_function(asm, fn, stack)
 
         if len(self.cfg.cfg_in(basicblock)) == 1:
             self.clean_stack_from_cfg_in(asm, basicblock, stack)
 
-        all_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
+        all_insts = [inst for inst in basicblock.instructions if not inst.is_param]
 
         # Check if this block ends with a halting terminator (return, revert, stop)
         # If so, we don't need to pop dead variables since execution halts anyway
@@ -639,23 +618,25 @@ class VenomCompiler:
         elif opcode == "bump":
             self._emit_bump(assembly)
         elif opcode == "dalloca":
-            # DallocaLoweringPass is expected to eliminate every `dalloca`
+            # FmpLoweringPass is expected to eliminate every `dalloca`
             # before we reach codegen. If we see one here, the pipeline is
             # misconfigured.
-            raise CompilerPanic("dalloca reached codegen; DallocaLoweringPass missing?")
+            raise CompilerPanic("dalloca reached codegen; FmpLoweringPass missing?")
         elif opcode == "dret":
             raise CompilerPanic("dret reached codegen; DretDesugarPass missing?")
         elif opcode in ("getfmp", "setfmp", "retfmp"):
             # FMP virtual-register opcodes exist only between DretDesugarPass
-            # and DallocaLoweringPass; the latter must thread them away.
-            raise CompilerPanic(f"{opcode} reached codegen; DallocaLoweringPass missing?")
+            # and FmpLoweringPass; the latter must thread them away.
+            raise CompilerPanic(f"{opcode} reached codegen; FmpLoweringPass missing?")
         elif opcode == "initial_fmp":
             # Lowers to a deferred PUSH of the initial FMP value. We emit a
             # CONSTREF here and declare the CONST with the final value once
             # all per-function codegen (and spill analysis) has completed.
             assembly.append(PUSH_OFST(CONSTREF(_INITIAL_FMP_CONST), 0))
             self._uses_initial_fmp_const = True
-        elif opcode == "param":
+        elif opcode in ("param", "fmp_param", "retpc_param"):
+            # names for entry stack slots; all three assemble identically
+            # (no code emitted)
             pass
         elif opcode == "assign":
             pass

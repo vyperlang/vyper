@@ -2,8 +2,8 @@ from tests.venom_utils import parse_venom
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLabel, IRVariable
 from vyper.venom.passes import (
-    DallocaLoweringPass,
     DretDesugarPass,
+    FmpLoweringPass,
     InternalReturnCopyForwardingPass,
     MakeSSA,
     PhiEliminationPass,
@@ -28,7 +28,7 @@ def _lower_dalloca(ctx):
         ac = IRAnalysesCache(fn)
         MakeSSA(ac, fn).run_pass()
         PhiEliminationPass(ac, fn).run_pass()
-        DallocaLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+        FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
         ac = IRAnalysesCache(fn)
         MakeSSA(ac, fn).run_pass()
         PhiEliminationPass(ac, fn).run_pass()
