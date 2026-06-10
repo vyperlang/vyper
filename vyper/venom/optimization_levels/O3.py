@@ -103,9 +103,9 @@ PASSES_O3: List[PassConfig] = [
     CSE,
     AssignElimination,
     RemoveUnusedVariablesPass,
+    # deletion-only (removes a dead fmp_param plus its self-contained
+    # assign/phi chain), so SSA form is preserved and no re-SSA is needed
     FmpPrunePass,
-    MakeSSA,
-    PhiEliminationPass,
     RemoveUnusedVariablesPass,
     TailMergePass,
     SimplifyCFGPass,

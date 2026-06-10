@@ -167,13 +167,11 @@ class VenomCompiler:
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
         self.spiller.reset_peak_spill_end()
+        self._uses_initial_fmp_const = False
 
         asm: list[AssemblyInstruction] = []
 
-        fns = list(self.ctx.functions.values())
-        self._entry_fn = self.ctx.entry_function
-
-        for fn in fns:
+        for fn in self.ctx.functions.values():
             ac = IRAnalysesCache(fn)
 
             self.liveness = ac.request_analysis(LivenessAnalysis)

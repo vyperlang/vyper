@@ -50,11 +50,7 @@ class ReadonlyMemoryArgsGlobalAnalysis(IRGlobalAnalysis):
         return self.readonly_idxs_by_fn.get(fn, ())
 
     def _collect_param_info(self, fn: IRFunction) -> _FnParamInfo:
-        params = [inst.output for inst in FunctionCallLayout(fn).user_params]
-        if len(params) == 0:
-            return _FnParamInfo(tuple(), {})
-
-        invoke_params = tuple(params)
+        invoke_params = tuple(inst.output for inst in FunctionCallLayout(fn).user_params)
         invoke_param_index = {var: i for i, var in enumerate(invoke_params)}
         return _FnParamInfo(invoke_params, invoke_param_index)
 

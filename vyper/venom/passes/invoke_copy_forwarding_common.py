@@ -62,9 +62,6 @@ class InvokeCopyForwardingBase(IRPass):
 
         return self.domtree.dominates(copy_bb, use_bb)
 
-    def _invoke_has_return_buffer(self, invoke_inst: IRInstruction) -> bool:
-        return self._invoke_layout(invoke_inst).return_buffer_operand_pos is not None
-
     def _invoke_user_arg_index(self, invoke_inst: IRInstruction, operand_idx: int) -> int | None:
         return self._invoke_layout(invoke_inst).user_arg_index(operand_idx)
 

@@ -331,6 +331,26 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
     `FmpLoweringPass`; its presence *is* the `has_fmp_param` fact of the function's
     `fmp_signature`. Only legal in `[fmp_lowered]`-annotated functions, at most once, in the
     entry block, after all plain params. Assembles identically to `param`.
+- `bump`
+  - ```
+    %ptr, %fmp_out = bump %size, %fmp_in
+    ```
+  - Advances the threaded free-memory pointer: `%ptr` is the pre-bump FMP (the allocation's
+    base pointer and reclaim mark) and `%fmp_out = %fmp_in + %size` is the advanced FMP.
+    Created only by `FmpLoweringPass` (from `dalloca`, after ceil32-aligning the size);
+    `%fmp_in` must be FMP-rooted (validated post-lowering). Pure stack arithmetic
+    (assembles to `DUP2 ADD`), but never idempotent: each `bump` is a distinct allocation,
+    so two `bump`s must not be CSE-merged even with identical operands.
+- `initial_fmp`
+  - ```
+    %out = initial_fmp
+    ```
+  - Pushes the initial free-memory-pointer value (the first address above the static frame
+    and any stack-spill slots). This is the FMP root of the entry function; internal
+    functions receive their FMP root via `fmp_param` instead. The concrete value is only
+    known once spill analysis completes, so it assembles to a `PUSH` of an assembler-level
+    `CONST` resolved at assembly time. Pure: repeated `initial_fmp` instructions may CSE
+    together.
 - `store`
   - ```
     %out = op

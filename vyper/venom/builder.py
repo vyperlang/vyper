@@ -302,19 +302,6 @@ class VenomBuilder:
         """Return from internal function. Terminates block."""
         self._emit("ret", *values)
 
-    def dret(
-        self,
-        dyn_count: int,
-        ordinary_returns: Sequence[Operand],
-        dynamic_returns: Sequence[Operand],
-    ) -> None:
-        """Return one or more dynamic buffers from an internal function.
-
-        `dynamic_returns` is a flat sequence of `(src, size)` pairs followed by
-        the return PC as the final operand.
-        """
-        self._emit("dret", IRLiteral(dyn_count), *ordinary_returns, *dynamic_returns)
-
     # === EVM Terminators ===
     def return_(self, offset: Operand, size: Operand) -> None:
         """Return from external call (EVM RETURN). Terminates block."""

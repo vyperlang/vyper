@@ -26,9 +26,6 @@ class DynamicMemoryInfo:
     publishes: bool
 
 
-_EMPTY_INFO = DynamicMemoryInfo(needs_fmp=False, publishes=False)
-
-
 class DynamicMemoryAnalysis(IRGlobalAnalysis):
     """
     The FMP touches-closure: which functions need the free-memory pointer
@@ -81,7 +78,10 @@ class DynamicMemoryAnalysis(IRGlobalAnalysis):
         }
 
     def get_info(self, fn: IRFunction) -> DynamicMemoryInfo:
-        return self.infos.get(fn, _EMPTY_INFO)
+        # analyze() covers every function in the context; a miss means a
+        # stale analysis (a function added/removed without invalidation)
+        assert fn in self.infos, fn.name
+        return self.infos[fn]
 
     def function_needs_fmp(self, fn: IRFunction) -> bool:
         return self.get_info(fn).needs_fmp
@@ -101,13 +101,17 @@ class DynamicMemoryAnalysis(IRGlobalAnalysis):
         )
 
     def _iter_callees(self, fn: IRFunction):
+        # NOTE: deliberately a fresh invoke scan rather than consuming
+        # FCGGlobalAnalysis: the global-analyses cache does not track
+        # inter-analysis dependencies, so a cached FCG could be stale here
+        # when this analysis is recomputed after the call graph changed.
+        # Malformed invokes must crash (like FCG's resolution does), not be
+        # skipped: silently dropping a callee would fail open by not
+        # propagating its FMP need.
         for bb in fn.get_basic_blocks():
             for inst in bb.instructions:
-                if inst.opcode != "invoke" or len(inst.operands) == 0:
+                if inst.opcode != "invoke":
                     continue
                 target = inst.operands[0]
-                if not isinstance(target, IRLabel):
-                    continue
-                callee = fn.ctx.functions.get(target)
-                if callee is not None:
-                    yield callee
+                assert isinstance(target, IRLabel), inst
+                yield fn.ctx.get_function(target)

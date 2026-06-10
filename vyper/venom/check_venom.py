@@ -1,6 +1,7 @@
 from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import DFGAnalysis, IRAnalysesCache, VarDefinition
 from vyper.venom.basicblock import (
+    RET_INSTRUCTIONS,
     IRBasicBlock,
     IRInstruction,
     IRLabel,
@@ -134,8 +135,8 @@ class FunctionCallLayoutError(VenomError):
         return f"function {self.function.name} has invalid call layout: {self.detail}"
 
 
-class MultiOutputNonInvoke(VenomError):
-    message: str = "multi-output assignment only supported for invoke"
+class MultiOutputNotAllowed(VenomError):
+    message: str = "multi-output assignment only supported for invoke/bump/dalloca"
 
     def __init__(self, caller: IRFunction, inst: IRInstruction):
         self.caller = caller
@@ -143,39 +144,70 @@ class MultiOutputNonInvoke(VenomError):
 
     def __str__(self):
         bb = self.inst.parent
-        return f"multi-output on non-invoke in {self.caller.name}:\n" f"  {self.inst}\n\n{bb}"
+        return f"multi-output not allowed in {self.caller.name}:\n" f"  {self.inst}\n\n{bb}"
 
 
-class BumpArityError(VenomError):
+# compatibility alias for the pre-rename class name
+
+
+class OpcodeArityError(VenomError):
+    """
+    An opcode with a fixed shape (see _FIXED_ARITY) has the wrong
+    operand/output count.
+    """
+
+    message: str = "opcode has a fixed operand/output arity"
+
+    def __init__(self, caller: IRFunction, inst: IRInstruction):
+        self.caller = caller
+        self.inst = inst
+
+    def __str__(self):
+        bb = self.inst.parent
+        return (
+            f"{self.inst.opcode} arity error in {self.caller.name}: "
+            f"got {len(self.inst.operands)} operand(s), {self.inst.num_outputs} output(s)\n"
+            f"  {self.inst}\n\n{bb}"
+        )
+
+
+# per-opcode subclasses so callers (and tests) can assert the specific
+# opcode family; all behavior lives in OpcodeArityError
+class BumpArityError(OpcodeArityError):
     message: str = "bump must have exactly 2 operands and 2 outputs"
 
-    def __init__(self, caller: IRFunction, inst: IRInstruction):
-        self.caller = caller
-        self.inst = inst
 
-    def __str__(self):
-        bb = self.inst.parent
-        return (
-            f"bump arity error in {self.caller.name}: "
-            f"got {len(self.inst.operands)} operand(s), {self.inst.num_outputs} output(s)\n"
-            f"  {self.inst}\n\n{bb}"
-        )
-
-
-class DallocaArityError(VenomError):
+class DallocaArityError(OpcodeArityError):
     message: str = "dalloca must have exactly 1 operand and 1 output"
 
-    def __init__(self, caller: IRFunction, inst: IRInstruction):
-        self.caller = caller
-        self.inst = inst
 
-    def __str__(self):
-        bb = self.inst.parent
-        return (
-            f"dalloca arity error in {self.caller.name}: "
-            f"got {len(self.inst.operands)} operand(s), {self.inst.num_outputs} output(s)\n"
-            f"  {self.inst}\n\n{bb}"
-        )
+class GetfmpArityError(OpcodeArityError):
+    message: str = "getfmp must have exactly 0 operands and 1 output"
+
+
+class SetfmpArityError(OpcodeArityError):
+    message: str = "setfmp must have exactly 1 operand and 0 outputs"
+
+
+class InitialFmpArityError(OpcodeArityError):
+    message: str = "initial_fmp must have exactly 0 operands and 1 output"
+
+
+# fixed-arity opcodes: opcode -> (expected operand count, expected output
+# count, error class)
+_FIXED_ARITY: dict[str, tuple[int, int, type[OpcodeArityError]]] = {
+    "bump": (2, 2, BumpArityError),
+    "dalloca": (1, 1, DallocaArityError),
+    "getfmp": (0, 1, GetfmpArityError),
+    "setfmp": (1, 0, SetfmpArityError),
+    "initial_fmp": (0, 1, InitialFmpArityError),
+}
+
+
+def _check_fixed_arity(caller: IRFunction, inst: IRInstruction, errors: list[VenomError]) -> None:
+    expected_operands, expected_outputs, err_cls = _FIXED_ARITY[inst.opcode]
+    if len(inst.operands) != expected_operands or inst.num_outputs != expected_outputs:
+        errors.append(err_cls(caller, inst))
 
 
 class DretShapeError(VenomError):
@@ -214,38 +246,6 @@ class DretShapeMismatch(VenomError):
         )
 
 
-class GetfmpArityError(VenomError):
-    message: str = "getfmp must have exactly 0 operands and 1 output"
-
-    def __init__(self, caller: IRFunction, inst: IRInstruction):
-        self.caller = caller
-        self.inst = inst
-
-    def __str__(self):
-        bb = self.inst.parent
-        return (
-            f"getfmp arity error in {self.caller.name}: "
-            f"got {len(self.inst.operands)} operand(s), {self.inst.num_outputs} output(s)\n"
-            f"  {self.inst}\n\n{bb}"
-        )
-
-
-class SetfmpArityError(VenomError):
-    message: str = "setfmp must have exactly 1 operand and 0 outputs"
-
-    def __init__(self, caller: IRFunction, inst: IRInstruction):
-        self.caller = caller
-        self.inst = inst
-
-    def __str__(self):
-        bb = self.inst.parent
-        return (
-            f"setfmp arity error in {self.caller.name}: "
-            f"got {len(self.inst.operands)} operand(s), {self.inst.num_outputs} output(s)\n"
-            f"  {self.inst}\n\n{bb}"
-        )
-
-
 class RetfmpShapeError(VenomError):
     message: str = "retfmp operands are malformed"
 
@@ -267,22 +267,6 @@ class RetfmpReturnMixError(VenomError):
 
     def __str__(self):
         return f"function {self.function.name} mixes 'retfmp' with 'ret' or 'dret'"
-
-
-class InitialFmpArityError(VenomError):
-    message: str = "initial_fmp must have exactly 0 operands and 1 output"
-
-    def __init__(self, caller: IRFunction, inst: IRInstruction):
-        self.caller = caller
-        self.inst = inst
-
-    def __str__(self):
-        bb = self.inst.parent
-        return (
-            f"initial_fmp arity error in {self.caller.name}: "
-            f"got {len(self.inst.operands)} operand(s), {self.inst.num_outputs} output(s)\n"
-            f"  {self.inst}\n\n{bb}"
-        )
 
 
 class ParamLayoutError(VenomError):
@@ -508,18 +492,18 @@ def _find_function_call_layout_errors(fn: IRFunction) -> list[VenomError]:
             # every ret must anchor the same (final) return-PC param
             for bb in fn.get_basic_blocks():
                 for inst in bb.instructions:
-                    if inst.opcode not in ("ret", "dret", "retfmp") or len(inst.operands) == 0:
+                    if inst.opcode not in RET_INSTRUCTIONS or len(inst.operands) == 0:
                         continue
                     ret_pc_param = layout.param_for_alias(inst.operands[-1])
                     if ret_pc_param is not None and ret_pc_param is not return_pc:
                         errors.append(
                             FunctionCallLayoutError(
-                                fn, "return-PC param must be the final function param"
+                                fn, "ret anchors a param other than the return-PC param"
                             )
                         )
                         return errors
 
-    if fn._has_memory_return_buffer_param and layout.physical_user_param_count == 0:
+    if fn._has_memory_return_buffer_param and layout.expected_user_arg_count == 0:
         errors.append(
             FunctionCallLayoutError(
                 fn, "memory return buffer metadata requires at least one user param"
@@ -702,31 +686,18 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
             for inst in bb.instructions:
                 got_num = inst.num_outputs
                 if inst.opcode == "initial_fmp":
-                    if len(inst.operands) != 0 or got_num != 1:
-                        errors.append(InitialFmpArityError(caller, inst))
+                    # checked before the generic multi-output rule so a
+                    # malformed initial_fmp reports its arity error rather
+                    # than MultiOutputNotAllowed
+                    _check_fixed_arity(caller, inst, errors)
                     continue
 
                 # Disallow multi-output except on invoke, bump, and dalloca.
                 if got_num > 1 and inst.opcode not in ("invoke", "bump", "dalloca"):
-                    errors.append(MultiOutputNonInvoke(caller, inst))
+                    errors.append(MultiOutputNotAllowed(caller, inst))
                     continue
-                if inst.opcode == "bump":
-                    # bump has a fixed stack shape (DUP2; ADD) with two inputs
-                    # and two outputs; any other shape is malformed.
-                    if len(inst.operands) != 2 or got_num != 2:
-                        errors.append(BumpArityError(caller, inst))
-                    continue
-                if inst.opcode == "dalloca":
-                    if len(inst.operands) != 1 or got_num != 1:
-                        errors.append(DallocaArityError(caller, inst))
-                    continue
-                if inst.opcode == "getfmp":
-                    if len(inst.operands) != 0 or got_num != 1:
-                        errors.append(GetfmpArityError(caller, inst))
-                    continue
-                if inst.opcode == "setfmp":
-                    if len(inst.operands) != 1 or got_num != 0:
-                        errors.append(SetfmpArityError(caller, inst))
+                if inst.opcode in _FIXED_ARITY:
+                    _check_fixed_arity(caller, inst, errors)
                     continue
                 if inst.opcode == "memtop":
                     errors.append(
@@ -744,7 +715,8 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
                     errors.append(InvokeTargetError(caller, inst))
                     continue
 
-                callee_layout = FunctionCallLayout(callee)
+                callee_layout = layout.callee_layout
+                assert callee_layout is not None  # callee resolved above
                 expected_operand_count = layout.expected_operand_count
                 assert expected_operand_count is not None
                 if len(inst.operands) != expected_operand_count:
@@ -972,17 +944,19 @@ def find_post_lowering_errors(context: IRContext) -> list[VenomError]:
             for inst in bb.instructions:
                 if inst.opcode != "invoke":
                     continue
-                callee = InvokeLayout(context, inst).callee
+                layout = InvokeLayout(context, inst)
+                callee = layout.callee
                 if callee is None:
                     continue
                 callee_sig = callee._fmp_signature
                 assert callee_sig is not None  # checked above
 
-                expected_operands = (
-                    1
-                    + FunctionCallLayout(callee).expected_user_arg_count
-                    + int(callee_sig.has_fmp_param)
-                )
+                # the per-function loop above already verified the physical
+                # hidden-FMP param shape matches callee_sig.has_fmp_param, so
+                # the syntactic expected_operand_count equals the frozen
+                # signature's operand count here
+                expected_operands = layout.expected_operand_count
+                assert expected_operands is not None  # callee resolved above
                 if len(inst.operands) != expected_operands:
                     errors.append(
                         PostLoweringError(
@@ -1020,7 +994,7 @@ def find_post_lowering_errors(context: IRContext) -> list[VenomError]:
 
 def check_post_lowering(context: IRContext):
     errors = find_post_lowering_errors(context)
-    if errors:
+    if len(errors) > 0:
         raise ExceptionGroup("venom post-lowering errors", errors)
 
 

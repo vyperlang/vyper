@@ -109,11 +109,7 @@ class CopyForwardingPolicy:
             for invoke_inst, _ in rewrite_sites:
                 penalty = self._memory_expansion_penalty_across_callee(invoke_inst, copy_size)
                 if penalty is None:
-                    # The callee's transitive frame could not be resolved (an
-                    # indirect or unknown callee). We cannot rule out a frame
-                    # large enough to make the forwarded source's liveness a
-                    # quadratic memory-expansion gas bomb, so block forwarding
-                    # conservatively rather than let it through unchecked.
+                    # unknown frame: fail closed (see _callee_reserved_intervals)
                     return True
                 if penalty > self.UNRESOLVED_SOURCE_PENALTY_THRESHOLD:
                     return True
@@ -133,11 +129,7 @@ class CopyForwardingPolicy:
                 invoke_inst, src_alloca.alloca_size
             )
             if penalty is None:
-                # The callee's transitive frame could not be resolved (an
-                # indirect or unknown callee). Per _callee_reserved_intervals,
-                # "unknown frame" must not be conflated with "empty frame" —
-                # block forwarding conservatively, mirroring the
-                # unresolved-source path above.
+                # unknown frame: fail closed (see _callee_reserved_intervals)
                 return True
 
             # Source writes often come from setup/decoder work on paths that can
@@ -275,11 +267,8 @@ class CopyForwardingPolicy:
         self, invoke_inst: IRInstruction, size: int
     ) -> int | None:
         callee = self._get_invoke_callee(invoke_inst)
-
         reserved = self._callee_reserved_intervals(callee)
         if reserved is None:
-            # Frame size unknown (unresolvable call graph) — propagate the
-            # "unresolved" signal rather than treating it as an empty frame.
             return None
 
         # A resolved-but-empty frame causes no expansion: the loop is a no-op
@@ -320,10 +309,13 @@ class CopyForwardingPolicy:
         return cost
 
     def _callee_reserved_intervals(self, callee: IRFunction) -> list[tuple[int, int]] | None:
-        # Returns the callee's reserved frame intervals, or None when the frame
-        # size cannot be determined (an unresolvable call graph). None means
-        # "unknown / potentially unbounded", which callers must NOT conflate with
-        # an empty (zero-cost) frame.
+        # Returns the callee's reserved frame intervals, or None when the
+        # frame cannot be determined: the transitive walk hit an invoke whose
+        # target is not a function in the context (an unknown target inside a
+        # callee body -- rewrite-site invokes, by contrast, are always
+        # resolvable, see _get_invoke_callee). None means "unknown /
+        # potentially unbounded" and must NOT be conflated with an empty
+        # (zero-cost) frame; callers fail closed by blocking forwarding.
         allocator = self.function.ctx.mem_allocator
         if callee in allocator.mems_used:
             # Allocator has run: layout is authoritative and fully resolved.
@@ -351,10 +343,8 @@ class CopyForwardingPolicy:
         return intervals
 
     def _collect_transitive_alloca_sizes(self, callee: IRFunction) -> list[int] | None:
-        # Static alloca sizes reachable from `callee`, or None if the call graph
-        # could not be fully walked (an indirect invoke target, or a callee not
-        # found in ctx.functions). None signals "frame unknown" so the cost model
-        # does not mistake an unresolved frame for an empty one.
+        # Static alloca sizes reachable from `callee`, or None if an invoke
+        # target could not be resolved (see _callee_reserved_intervals).
         sizes: list[int] = []
         visited: set[IRFunction] = set()
         stack: list[IRFunction] = [callee]
@@ -374,10 +364,9 @@ class CopyForwardingPolicy:
                     if inst.opcode != "invoke":
                         continue
                     target = inst.operands[0]
-                    if not isinstance(target, IRLabel):
-                        resolved = False
-                        continue
-                    sub_callee = self.function.ctx.functions.get(target)
+                    sub_callee = None
+                    if isinstance(target, IRLabel):
+                        sub_callee = self.function.ctx.functions.get(target)
                     if sub_callee is None:
                         resolved = False
                         continue
@@ -385,10 +374,13 @@ class CopyForwardingPolicy:
         return sizes if resolved else None
 
     def _get_invoke_callee(self, invoke_inst: IRInstruction) -> IRFunction:
+        # Rewrite-site invokes (in the function being optimized) always have
+        # resolvable function-label targets; only the transitive callee-body
+        # walk may encounter unknown targets (see _callee_reserved_intervals).
         target = invoke_inst.operands[0]
-        assert isinstance(target, IRLabel)
+        assert isinstance(target, IRLabel), invoke_inst
         callee = self.function.ctx.functions.get(target)
-        assert callee is not None
+        assert callee is not None, invoke_inst
         return callee
 
     def _memory_cost(self, size: int) -> int:

@@ -34,17 +34,17 @@ BB_TERMINATORS = frozenset(
 # Terminators that halt program/message call execution
 HALTING_TERMINATORS = frozenset(["return", "revert", "stop", "invalid", "selfdestruct"])
 
+# internal-function return terminators (subset of BB_TERMINATORS)
+RET_INSTRUCTIONS = frozenset(["ret", "dret", "retfmp"])
+
 # entry stack-slot naming instructions. `fmp_param` names the hidden FMP
 # slot and `retpc_param` the return-PC slot of the lowered internal calling
 # convention; all three assemble identically (they are names for values
 # already on the stack at function entry).
 PARAM_INSTRUCTIONS = frozenset(["param", "fmp_param", "retpc_param"])
 
-VOLATILE_INSTRUCTIONS = frozenset(
+VOLATILE_INSTRUCTIONS = PARAM_INSTRUCTIONS | frozenset(
     [
-        "param",
-        "fmp_param",
-        "retpc_param",
         "call",
         "staticcall",
         "delegatecall",
@@ -450,7 +450,7 @@ class IRInstruction:
 
     @property
     def code_size_cost(self) -> int:
-        if self.opcode in ("ret", "dret", "retfmp") or self.is_param:
+        if self.opcode in RET_INSTRUCTIONS or self.is_param:
             return 0
         if self.opcode in ("assign", "alloca", "getfmp", "setfmp"):
             # getfmp/setfmp lower to assigns of the threaded FMP variable
@@ -494,7 +494,7 @@ class IRInstruction:
         opcode = f"{self.opcode} " if self.opcode != "assign" else ""
         s += opcode
         operands = self.operands
-        if opcode not in ["jmp", "jnz", "djmp", "invoke", "dret", "retfmp"]:
+        if self.opcode not in ("jmp", "jnz", "djmp", "invoke", "dret", "retfmp"):
             operands = list(reversed(operands))
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
         return s
@@ -623,28 +623,6 @@ class IRBasicBlock:
         ret = self.append_instruction(opcode, *args, ret=ret, **kwargs)
         assert ret is not None  # help mypy
         return ret
-
-    def append_instruction_multi(
-        self,
-        opcode: str,
-        /,
-        *args: Union[IROperand, int],
-        outputs: Sequence[IRVariable],
-        annotation: str = None,
-    ) -> list[IRVariable]:
-        """
-        Append an instruction with an explicit multi-output shape.
-        """
-        assert not self.is_terminated, self
-
-        inst_args = [_ir_operand_from_value(arg) for arg in args]
-        inst = IRInstruction(opcode, inst_args, list(outputs))
-        inst.parent = self
-        inst.ast_source = self.parent.ast_source
-        inst.error_msg = self.parent.error_msg
-        inst.annotation = annotation
-        self.instructions.append(inst)
-        return inst.get_outputs()
 
     def append_invoke_instruction(
         self, args: Sequence[IROperand | int], returns: int = 0

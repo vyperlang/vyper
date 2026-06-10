@@ -20,7 +20,7 @@ class Allocation:
 
     # note this class is NOT robust to mutations to the alloca instruction!
 
-    inst: IRInstruction  # the alloca or bump instruction
+    inst: IRInstruction  # the alloca/dalloca/bump instruction
 
     def __post_init__(self):
         # sanity check

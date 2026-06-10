@@ -7,7 +7,7 @@ from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, DynamicMemoryAnalysis
 from vyper.venom.analysis.fcg import FCGGlobalAnalysis
 from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
-from vyper.venom.call_layout import InvokeLayout
+from vyper.venom.call_layout import InvokeLayout, has_dret
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRGlobalPass
@@ -44,12 +44,10 @@ class FunctionInlinerPass(IRGlobalPass):
         self.fcg = self.analyses_caches[entry].force_analysis(FCGGlobalAnalysis)
 
         for fn in self.fcg.get_reachable_functions():
-            for bb in fn.get_basic_blocks():
-                if any(inst.opcode == "dret" for inst in bb.instructions):
-                    raise CompilerPanic(
-                        "DretDesugarPass must run before FunctionInlinerPass "
-                        "when `dret` is present"
-                    )
+            if has_dret(fn):
+                raise CompilerPanic(
+                    "DretDesugarPass must run before FunctionInlinerPass when `dret` is present"
+                )
 
         function_count = len(self.ctx.functions)
         self.walk = self._build_call_walk(entry)

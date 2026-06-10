@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import vyper.evm.address_space as addr_space
 from vyper.venom.basicblock import IRInstruction, IROperand, IRVariable
+from vyper.venom.call_layout import InvokeLayout
 from vyper.venom.effects import EMPTY, Effects
 from vyper.venom.memory_location import MemoryLocation
 from vyper.venom.passes.invoke_copy_forwarding_common import InvokeCopyForwardingBase
@@ -124,11 +125,11 @@ class InternalReturnCopyForwardingPass(InvokeCopyForwardingBase):
                 continue
 
             if use.opcode == "invoke" and pos == self._invoke_return_buffer_operand_pos(use):
+                # `pos` is an int, so matching the (possibly-None)
+                # return-buffer position implies the invoke has one
                 if use.parent is not copy_bb:
                     return False
                 if bb_insts.index(use) >= copy_idx:
-                    return False
-                if not self._invoke_has_return_buffer(use):
                     return False
                 invoke_sites.add(use)
                 continue
@@ -138,10 +139,16 @@ class InternalReturnCopyForwardingPass(InvokeCopyForwardingBase):
         return copy_seen and len(invoke_sites) == 1
 
     def _invoke_may_clobber_src(self, invoke_inst: IRInstruction, src_loc: MemoryLocation) -> bool:
+        # one layout per invoke: the layout queries (the return-buffer
+        # position in particular) re-scan the callee per access, so hoist
+        # them out of the per-operand loop
+        layout = self._invoke_layout(invoke_inst)
+        retbuf_pos = layout.return_buffer_operand_pos
+
         for pos, op in enumerate(invoke_inst.operands):
             if pos == 0:
                 continue
-            if not self._invoke_operand_may_write(invoke_inst, pos):
+            if not self._invoke_operand_may_write(layout, pos, retbuf_pos):
                 continue
             if not isinstance(op, IRVariable):
                 continue
@@ -157,10 +164,16 @@ class InternalReturnCopyForwardingPass(InvokeCopyForwardingBase):
 
         return False
 
-    def _invoke_operand_may_write(self, invoke_inst: IRInstruction, operand_pos: int) -> bool:
-        retbuf_pos = self._invoke_return_buffer_operand_pos(invoke_inst)
+    def _invoke_operand_may_write(
+        self, layout: InvokeLayout, operand_pos: int, retbuf_pos: int | None
+    ) -> bool:
         if operand_pos == retbuf_pos:
             return True
-        if self._invoke_user_arg_index(invoke_inst, operand_pos) is None:
+        arg_idx = layout.user_arg_index(operand_pos)
+        if arg_idx is None:
             return False
-        return not self._is_readonly_invoke_operand(invoke_inst, operand_pos)
+        callee = layout.callee
+        if callee is None:
+            return True
+        readonly_idxs = self.readonly_memory_args.get_readonly_invoke_arg_idxs(callee)
+        return arg_idx not in readonly_idxs
