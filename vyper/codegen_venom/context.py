@@ -16,7 +16,6 @@ from enum import Enum
 from typing import Optional
 
 from vyper.codegen_venom.buffer import Buffer, Ptr
-from vyper.codegen_venom.constants import IDENTITY_PRECOMPILE
 from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
@@ -33,6 +32,7 @@ from vyper.semantics.types.infinity import is_bounded_length
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.semantics.types.user import StructT
+from vyper.utils import IDENTITY_PRECOMPILE
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 
