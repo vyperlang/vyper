@@ -1,8 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cached_property
 
-from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import (
+    RET_INSTRUCTIONS,
+    IRInstruction,
+    IRLabel,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+)
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 
@@ -49,6 +57,10 @@ def parse_dret_shape(inst: IRInstruction) -> tuple[int, int] | None:
     return ordinary_count, dyn_count
 
 
+def has_dret(fn: IRFunction) -> bool:
+    return any(inst.opcode == "dret" for bb in fn.get_basic_blocks() for inst in bb.instructions)
+
+
 @dataclass(frozen=True)
 class FunctionCallLayout:
     fn: IRFunction
@@ -58,7 +70,7 @@ class FunctionCallLayout:
         return tuple(inst for inst in self.fn.entry.instructions if inst.is_param)
 
     @property
-    def fmp_param_opcode_inst(self) -> IRInstruction | None:
+    def hidden_fmp_param(self) -> IRInstruction | None:
         # syntactic hidden-FMP param, created by FmpLoweringPass
         for inst in self.fn.entry.instructions:
             if inst.opcode == "fmp_param":
@@ -75,6 +87,15 @@ class FunctionCallLayout:
         return None
 
     def param_for_alias(self, operand: IROperand) -> IRInstruction | None:
+        if not isinstance(operand, IRVariable):
+            return None
+        return self._param_aliases.get(operand)
+
+    @cached_property
+    def _param_aliases(self) -> dict[IRVariable, IRInstruction | None]:
+        # Computed once per layout instance (layouts are built fresh per
+        # query site, so the cache never outlives an IR mutation).
+        #
         # A `None` value is a demotion sentinel: the variable has conflicting
         # definitions from different params (valid in pre-SSA IR, which MakeSSA
         # repairs), so it is "not a unique param alias". Lookups on demoted
@@ -127,7 +148,7 @@ class FunctionCallLayout:
                     aliases[outputs[0]] = source_param
                     changed = True
 
-        return lookup_alias(operand)
+        return aliases
 
     @property
     def is_lowered(self) -> bool:
@@ -155,7 +176,7 @@ class FunctionCallLayout:
     def _return_pc_param_from_ret(self) -> IRInstruction | None:
         for bb in self.fn.get_basic_blocks():
             for inst in bb.instructions:
-                if inst.opcode not in ("ret", "dret", "retfmp") or len(inst.operands) == 0:
+                if inst.opcode not in RET_INSTRUCTIONS or len(inst.operands) == 0:
                     continue
 
                 ret_pc = inst.operands[-1]
@@ -173,11 +194,7 @@ class FunctionCallLayout:
     def has_physical_hidden_fmp_param(self) -> bool:
         # purely syntactic: the hidden FMP param exists iff the dedicated
         # opcode does
-        return self.fmp_param_opcode_inst is not None
-
-    @property
-    def hidden_fmp_param(self) -> IRInstruction | None:
-        return self.fmp_param_opcode_inst
+        return self.hidden_fmp_param is not None
 
     @property
     def hidden_fmp_param_insert_index(self) -> int:
@@ -192,16 +209,12 @@ class FunctionCallLayout:
 
     @property
     def user_params(self) -> tuple[IRInstruction, ...]:
-        hidden = {self.fmp_param_opcode_inst, self.return_pc_param}
+        hidden = {self.hidden_fmp_param, self.return_pc_param}
         return tuple(inst for inst in self.params if inst not in hidden)
 
     @property
-    def physical_user_param_count(self) -> int:
-        return len(self.user_params)
-
-    @property
     def expected_user_arg_count(self) -> int:
-        return self.physical_user_param_count
+        return len(self.user_params)
 
 
 @dataclass(frozen=True)
@@ -235,8 +248,8 @@ class InvokeLayout:
 
     @property
     def expects_hidden_fmp(self) -> bool:
-        callee = self.callee
-        return callee is not None and FunctionCallLayout(callee).has_physical_hidden_fmp_param
+        callee_layout = self.callee_layout
+        return callee_layout is not None and callee_layout.has_physical_hidden_fmp_param
 
     @property
     def expected_operand_count(self) -> int | None:

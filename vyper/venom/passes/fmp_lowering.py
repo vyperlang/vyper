@@ -3,11 +3,14 @@ from typing import ClassVar
 
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic
+from vyper.utils import IDENTITY_PRECOMPILE
 from vyper.venom.analysis import (
     BasePtrAnalysis,
     DFGAnalysis,
     DominatorTreeAnalysis,
     DynamicMemoryAnalysis,
+    DynamicMemoryInfo,
+    IRAnalysesCache,
     LivenessAnalysis,
     LoadAnalysis,
     MemLivenessAnalysis,
@@ -18,16 +21,85 @@ from vyper.venom.analysis import (
     VariableRangeAnalysis,
 )
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
-from vyper.venom.call_layout import FunctionCallLayout, InvokeLayout, parse_dret_shape
-from vyper.venom.function import FmpSignature
+from vyper.venom.call_layout import FunctionCallLayout, InvokeLayout, has_dret, parse_dret_shape
+from vyper.venom.function import FmpSignature, IRFunction
 from vyper.venom.memory_location import Allocation, memory_read_ops, memory_write_ops
 from vyper.venom.passes.base_pass import IRPass, PassRef
-
-IDENTITY_PRECOMPILE = 4
 
 # instructions through which BasePtrAnalysis propagates pointer facts; a
 # pointer flowing into these stays visible to SSA-based liveness.
 _PTR_PROPAGATION_OPS = frozenset(["add", "sub", "assign", "phi", "bump", "dalloca", "alloca"])
+
+# instructions through which getfmp-capture derivation propagates. Unlike
+# _PTR_PROPAGATION_OPS this excludes bump/dalloca/alloca: their outputs are
+# fresh allocation bases, never capture-derived pointers.
+_CAPTURE_PROPAGATION_OPS = frozenset(["add", "sub", "assign", "phi"])
+
+
+# emission helpers shared by FmpLoweringPass and DretDesugarPass
+
+
+def _after_params_index(fn: IRFunction) -> int:
+    params = FunctionCallLayout(fn).params
+    if len(params) == 0:
+        return 0
+    return max(fn.entry.instructions.index(param) for param in params) + 1
+
+
+def _copy_metadata(source: IRInstruction, target: IRInstruction) -> None:
+    target.parent = source.parent
+    target.ast_source = source.ast_source
+    target.error_msg = source.error_msg
+
+
+def _ceil32_insts(
+    fn: IRFunction, size: IROperand, origin: IRInstruction
+) -> tuple[list[IRInstruction], IRVariable]:
+    a_var = fn.get_next_variable()
+    mask_var = fn.get_next_variable()
+    aligned_var = fn.get_next_variable()
+
+    add_inst = IRInstruction("add", [IRLiteral(31), size], [a_var])
+    mask_inst = IRInstruction("not", [IRLiteral(31)], [mask_var])
+    and_inst = IRInstruction("and", [mask_var, a_var], [aligned_var])
+    insts = [add_inst, mask_inst, and_inst]
+    for new_inst in insts:
+        _copy_metadata(origin, new_inst)
+    return insts, aligned_var
+
+
+def _copy_memory(
+    fn: IRFunction, dst: IROperand, src: IROperand, size: IROperand, origin: IRInstruction
+) -> list[IRInstruction]:
+    if version_check(begin="cancun"):
+        inst = IRInstruction("mcopy", [size, src, dst], [])
+        _copy_metadata(origin, inst)
+        return [inst]
+
+    gas = fn.get_next_variable()
+    success = fn.get_next_variable()
+    gas_inst = IRInstruction("gas", [], [gas])
+    call_inst = IRInstruction(
+        "staticcall", [size, dst, size, src, IRLiteral(IDENTITY_PRECOMPILE), gas], [success]
+    )
+    assert_inst = IRInstruction("assert", [success], [])
+    for new_inst in (gas_inst, call_inst, assert_inst):
+        _copy_metadata(origin, new_inst)
+    return [gas_inst, call_inst, assert_inst]
+
+
+def _invalidate_fmp_analyses(analyses_cache: IRAnalysesCache) -> None:
+    analyses_cache.invalidate_analysis(LoadAnalysis)
+    analyses_cache.invalidate_analysis(MemSSA)
+    analyses_cache.invalidate_analysis(MemoryAliasAnalysis)
+    analyses_cache.invalidate_analysis(LivenessAnalysis)
+    analyses_cache.invalidate_analysis(DFGAnalysis)
+    analyses_cache.invalidate_analysis(BasePtrAnalysis)
+    analyses_cache.invalidate_analysis(MemLivenessAnalysis)
+    analyses_cache.invalidate_analysis(VarDefinition)
+    analyses_cache.invalidate_analysis(VariableRangeAnalysis)
+    analyses_cache.invalidate_analysis(ReadonlyMemoryArgsGlobalAnalysis)
+    analyses_cache.invalidate_analysis(DynamicMemoryAnalysis)
 
 
 @dataclass
@@ -115,6 +187,9 @@ class FmpLoweringPass(IRPass):
     _pinned_captures: frozenset[IRVariable]
     # dalloca output -> defining basic block (for the restore-dominance check)
     _mark_def_bbs: dict[IRVariable, IRBasicBlock]
+    # invoke -> resolved callee dynamic-memory info (None for an unresolved
+    # callee); memoized, see _invoke_callee_info
+    _invoke_callee_infos: dict[IRInstruction, DynamicMemoryInfo | None]
 
     def run_pass(self):
         fn = self.function
@@ -126,7 +201,7 @@ class FmpLoweringPass(IRPass):
             # this is an idempotent re-run after lowering. Nothing to do.
             return
 
-        if any(inst.opcode == "dret" for bb in fn.get_basic_blocks() for inst in bb.instructions):
+        if has_dret(fn):
             raise CompilerPanic("DretDesugarPass must run before FmpLoweringPass")
 
         self.dynamic_memory = self.analyses_cache.force_analysis(DynamicMemoryAnalysis)
@@ -146,6 +221,7 @@ class FmpLoweringPass(IRPass):
         self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
         self.base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
+        self._invoke_callee_infos = {}
         self._pinned_allocations = self._compute_escaping_allocations(fn, self.base_ptrs)
         self._capture_derived, self._pinned_captures = self._compute_capture_facts(fn)
         self._mark_def_bbs = {
@@ -173,22 +249,9 @@ class FmpLoweringPass(IRPass):
         # freeze the convention shape; FmpPrunePass may reseal it
         fn._fmp_signature = FmpSignature(has_fmp_param=has_fmp_param, publishes=publishes)
 
-        self._invalidate_analyses()
+        _invalidate_fmp_analyses(self.analyses_cache)
 
-    def _invalidate_analyses(self) -> None:
-        self.analyses_cache.invalidate_analysis(LoadAnalysis)
-        self.analyses_cache.invalidate_analysis(MemSSA)
-        self.analyses_cache.invalidate_analysis(MemoryAliasAnalysis)
-        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
-        self.analyses_cache.invalidate_analysis(DFGAnalysis)
-        self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
-        self.analyses_cache.invalidate_analysis(MemLivenessAnalysis)
-        self.analyses_cache.invalidate_analysis(VarDefinition)
-        self.analyses_cache.invalidate_analysis(VariableRangeAnalysis)
-        self.analyses_cache.invalidate_analysis(ReadonlyMemoryArgsGlobalAnalysis)
-        self.analyses_cache.invalidate_analysis(DynamicMemoryAnalysis)
-
-    def _materialize_fmp_root(self, fn) -> tuple[IRVariable, bool]:
+    def _materialize_fmp_root(self, fn: IRFunction) -> tuple[IRVariable, bool]:
         """
         Materialize the function's FMP root and return `(root_var,
         has_fmp_param)`. The entry function's root is an explicit
@@ -203,7 +266,7 @@ class FmpLoweringPass(IRPass):
 
         if fn is fn.ctx.entry_function:
             inst = IRInstruction("initial_fmp", [], [fmp_var])
-            fn.entry.insert_instruction(inst, index=self._after_params_index(fn))
+            fn.entry.insert_instruction(inst, index=_after_params_index(fn))
             return fmp_var, False
 
         layout = FunctionCallLayout(fn)
@@ -229,18 +292,12 @@ class FmpLoweringPass(IRPass):
         fn.entry.insert_instruction(param_inst, index=layout.hidden_fmp_param_insert_index)
         return fmp_var, True
 
-    def _after_params_index(self, fn) -> int:
-        params = FunctionCallLayout(fn).params
-        if len(params) == 0:
-            return 0
-        return max(fn.entry.instructions.index(param) for param in params) + 1
-
-    def _materialize_fmp_copy(self, fn, fmp_var: IRVariable) -> IRVariable:
+    def _materialize_fmp_copy(self, fn: IRFunction, fmp_var: IRVariable) -> IRVariable:
         copy_var = fn.get_next_variable()
         inst = IRInstruction("assign", [fmp_var], [copy_var])
 
         # insert after the params and after the FMP root definition
-        index = self._after_params_index(fn)
+        index = _after_params_index(fn)
         for idx, entry_inst in enumerate(fn.entry.instructions):
             if fmp_var in entry_inst.get_outputs():
                 index = max(index, idx + 1)
@@ -248,7 +305,7 @@ class FmpLoweringPass(IRPass):
         fn.entry.insert_instruction(inst, index=index)
         return copy_var
 
-    def _compute_entry_states(self, fn) -> dict[IRBasicBlock, _ReclaimState]:
+    def _compute_entry_states(self, fn: IRFunction) -> dict[IRBasicBlock, _ReclaimState]:
         """
         Forward dataflow fixpoint computing the reclaim state at every
         reachable basic block entry.
@@ -341,25 +398,26 @@ class FmpLoweringPass(IRPass):
                 break
             common += 1
 
-        stack = stacks[0][len(stacks[0]) - common :] if common > 0 else []
+        stack = stacks[0][len(stacks[0]) - common :]
         captures: set[IRVariable] = set()
         for state in states:
             captures.update(state.captures)
-        return _ReclaimState(stack=list(stack), captures=captures)
+        return _ReclaimState(stack=stack, captures=captures)
 
-    def _step(self, state: _ReclaimState, inst: IRInstruction, out: list | None) -> None:
+    def _step(
+        self, state: _ReclaimState, inst: IRInstruction, out: list[IRInstruction] | None
+    ) -> None:
         """
         The single transfer/rewrite interpreter, shared by the dataflow
         fixpoint (`out is None`: state transition only) and the rewrite walk
         (`out` collects the lowered instructions). One interpreter guarantees
-        the rewrite-time state is exactly the fixpoint's transfer -- the old
-        engine's two hand-synchronized walkers were themselves a bug source.
+        the rewrite-time state is exactly the fixpoint's transfer.
         """
         if self._is_reclaim_point(inst):
             mark = self._pop_dead_suffix(state, self.liveness.live_vars_at(inst))
             if mark is not None and out is not None:
                 self._check_restore_dominance(mark, inst)
-                out.append(self._restore_fmp_inst(mark, self.fmp_var, inst.parent, inst))
+                out.append(self._restore_fmp_inst(mark, self.fmp_var, inst))
 
         opcode = inst.opcode
 
@@ -403,8 +461,7 @@ class FmpLoweringPass(IRPass):
             return
 
         if opcode == "invoke":
-            callee = InvokeLayout(self.function.ctx, inst).callee
-            callee_info = self.dynamic_memory.get_info(callee) if callee is not None else None
+            callee_info = self._invoke_callee_info(inst)
             if out is not None:
                 if callee_info is not None and callee_info.needs_fmp:
                     self._augment_invoke(inst, self.fmp_var)
@@ -417,14 +474,25 @@ class FmpLoweringPass(IRPass):
         if out is not None:
             out.append(inst)
 
+    def _invoke_callee_info(self, inst: IRInstruction) -> DynamicMemoryInfo | None:
+        # resolved callee dynamic-memory info for an invoke, or None for an
+        # unresolved callee. Memoized: the callee of an invoke is fixed for
+        # the whole pass run, while _step visits each instruction once per
+        # fixpoint iteration plus once for the rewrite.
+        if inst not in self._invoke_callee_infos:
+            callee = InvokeLayout(self.function.ctx, inst).callee
+            info = self.dynamic_memory.get_info(callee) if callee is not None else None
+            self._invoke_callee_infos[inst] = info
+        return self._invoke_callee_infos[inst]
+
     def _is_reclaim_point(self, inst: IRInstruction) -> bool:
         if inst.opcode == "dalloca":
             return True
         if inst.opcode in ("jmp", "jnz", "djmp"):
             return True
         if inst.opcode == "invoke":
-            callee = InvokeLayout(self.function.ctx, inst).callee
-            return callee is not None and self.dynamic_memory.get_info(callee).needs_fmp
+            callee_info = self._invoke_callee_info(inst)
+            return callee_info is not None and callee_info.needs_fmp
         return False
 
     def _pop_dead_suffix(self, state: _ReclaimState, live_vars) -> IRVariable | None:
@@ -440,11 +508,10 @@ class FmpLoweringPass(IRPass):
         region `[capture, oo)` -- e.g. the desugared-dret pack destinations
         extend above every later allocation until the closing setfmp -- so
         any restore, even to a mark pushed after the capture, frees
-        addresses the capture may still reach. (This is deliberately
-        stronger than the design note's "a pseudo-mark blocks popping
-        anything beneath it", which is unsound for marks *above* the
-        capture: a dalloca between a capture and its pack writes can be
-        popped and re-allocated on top of the pack destinations.)
+        addresses the capture may still reach. A weaker rule that only
+        blocked popping beneath the capture would be unsound for marks
+        *above* it: a dalloca made between a capture and its pack writes
+        could be popped and re-allocated under the pack destinations.
         """
         if not state.can_reclaim:
             return None
@@ -516,7 +583,7 @@ class FmpLoweringPass(IRPass):
         return False
 
     def _compute_escaping_allocations(
-        self, fn, base_ptrs: BasePtrAnalysis
+        self, fn: IRFunction, base_ptrs: BasePtrAnalysis
     ) -> frozenset[Allocation]:
         """
         Conservatively compute the dynamic allocations whose pointer escapes
@@ -567,15 +634,15 @@ class FmpLoweringPass(IRPass):
         return [op for op in operands if operands.count(op) > safe.count(op)]
 
     def _compute_capture_facts(
-        self, fn
+        self, fn: IRFunction
     ) -> tuple[dict[IRVariable, set[IRVariable]], frozenset[IRVariable]]:
         """
         For every `getfmp` capture, conservatively compute the set of SSA
         variables derived from it and the set of captures that escape SSA
         tracking. BasePtrAnalysis intentionally assigns no pointer facts to
         getfmp outputs (they are untracked bases), so the derivation closure
-        is recomputed here over the same propagation grammar; SSA liveness
-        of the derived set then bounds the capture's reclaim veto. Escaped
+        is computed here, over `_CAPTURE_PROPAGATION_OPS`; SSA liveness of
+        the derived set then bounds the capture's reclaim veto. Escaped
         captures veto until the capture set is cleared. Fail closed.
         """
         insts = [inst for bb in fn.get_basic_blocks() for inst in bb.instructions]
@@ -588,7 +655,7 @@ class FmpLoweringPass(IRPass):
         while changed:
             changed = False
             for inst in insts:
-                if inst.opcode not in ("add", "sub", "assign", "phi") or inst.num_outputs != 1:
+                if inst.opcode not in _CAPTURE_PROPAGATION_OPS or inst.num_outputs != 1:
                     continue
                 derived_roots: set[IRVariable] = set()
                 for op in inst.get_input_variables():
@@ -612,25 +679,11 @@ class FmpLoweringPass(IRPass):
         return derived, frozenset(pinned)
 
     def _restore_fmp_inst(
-        self, mark: IROperand, fmp_var: IRVariable, bb, origin: IRInstruction
+        self, mark: IROperand, fmp_var: IRVariable, origin: IRInstruction
     ) -> IRInstruction:
         inst = IRInstruction("assign", [mark], [fmp_var])
-        self._copy_metadata(origin, inst, bb)
+        _copy_metadata(origin, inst)
         return inst
-
-    def _ceil32_insts(self, size: IROperand, bb, origin: IRInstruction) -> tuple[list, IRVariable]:
-        fn = self.function
-        a_var = fn.get_next_variable()
-        mask_var = fn.get_next_variable()
-        aligned_var = fn.get_next_variable()
-
-        add_inst = IRInstruction("add", [IRLiteral(31), size], [a_var])
-        mask_inst = IRInstruction("not", [IRLiteral(31)], [mask_var])
-        and_inst = IRInstruction("and", [mask_var, a_var], [aligned_var])
-        insts = [add_inst, mask_inst, and_inst]
-        for new_inst in insts:
-            self._copy_metadata(origin, new_inst, bb)
-        return insts, aligned_var
 
     def _lower_dalloca(self, inst: IRInstruction) -> list[IRInstruction]:
         assert len(inst.operands) == 1, inst
@@ -638,36 +691,11 @@ class FmpLoweringPass(IRPass):
 
         size = inst.operands[0]
         ptr_out = inst.output
-        bb = inst.parent
 
-        ceil_insts, aligned_var = self._ceil32_insts(size, bb, inst)
+        ceil_insts, aligned_var = _ceil32_insts(self.function, size, inst)
         bump_inst = IRInstruction("bump", [self.fmp_var, aligned_var], [ptr_out, self.fmp_var])
-        self._copy_metadata(inst, bump_inst, bb)
+        _copy_metadata(inst, bump_inst)
         return [*ceil_insts, bump_inst]
-
-    def _copy_memory(
-        self, dst: IROperand, src: IROperand, size: IROperand, bb, origin: IRInstruction
-    ) -> list[IRInstruction]:
-        if version_check(begin="cancun"):
-            inst = IRInstruction("mcopy", [size, src, dst], [])
-            self._copy_metadata(origin, inst, bb)
-            return [inst]
-
-        gas = self.function.get_next_variable()
-        success = self.function.get_next_variable()
-        gas_inst = IRInstruction("gas", [], [gas])
-        call_inst = IRInstruction(
-            "staticcall", [size, dst, size, src, IRLiteral(IDENTITY_PRECOMPILE), gas], [success]
-        )
-        assert_inst = IRInstruction("assert", [success], [])
-        for new_inst in (gas_inst, call_inst, assert_inst):
-            self._copy_metadata(origin, new_inst, bb)
-        return [gas_inst, call_inst, assert_inst]
-
-    def _copy_metadata(self, source: IRInstruction, target: IRInstruction, bb) -> None:
-        target.parent = bb
-        target.ast_source = source.ast_source
-        target.error_msg = source.error_msg
 
     def _augment_invoke(self, inst: IRInstruction, fmp_var: IRVariable) -> None:
         layout = InvokeLayout(self.function.ctx, inst)
@@ -687,7 +715,8 @@ class FmpLoweringPass(IRPass):
             )
         layout.append_hidden_fmp_operand(fmp_var)
 
-        callee_info = self.dynamic_memory.get_info(callee)
+        callee_info = self._invoke_callee_info(inst)
+        assert callee_info is not None
         if callee_info.publishes:
             # the adopted FMP is canonicalized straight into the runner
             layout.append_hidden_fmp_output(fmp_var)
@@ -704,7 +733,7 @@ class FmpPrunePass(IRPass):
 
     The callee-first pass driver guarantees a callee's signature is sealed
     before any caller is lowered, so callers only ever augment invokes
-    against final shapes and no de-augmentation machinery is needed.
+    against final shapes.
     """
 
     required_predecessors: ClassVar[tuple[PassRef, ...]] = ("FmpLoweringPass",)
@@ -719,13 +748,11 @@ class FmpPrunePass(IRPass):
         if not sig.has_fmp_param or sig.publishes:
             return
 
-        # the hidden FMP param is always the dedicated `fmp_param` opcode
-        # (sig.has_fmp_param is reconstructed from it); the None guard is
-        # belt-and-suspenders against externally corrupted shapes, which
-        # check_post_lowering reports.
-        param_inst = FunctionCallLayout(fn).fmp_param_opcode_inst
-        if param_inst is None:
-            return
+        # the hidden FMP param is always the dedicated `fmp_param` opcode:
+        # sig.has_fmp_param is set by FmpLoweringPass exactly when it inserts
+        # the param (and reconstructed from the opcode by the parser)
+        param_inst = FunctionCallLayout(fn).hidden_fmp_param
+        assert param_inst is not None, fn.name
 
         dead_chain = self._collect_dead_fmp_chain(param_inst.output)
         if dead_chain is None:
@@ -766,7 +793,7 @@ class FmpPrunePass(IRPass):
         return dead_insts
 
 
-class DretDesugarPass(FmpLoweringPass):
+class DretDesugarPass(IRPass):
     """
     Desugar `dret` into FMP virtual-register IR before inlining.
 
@@ -782,16 +809,10 @@ class DretDesugarPass(FmpLoweringPass):
     later FmpLoweringPass runs after SSA and handles allocation reclaim.
     """
 
-    required_predecessors: ClassVar[tuple[PassRef, ...]] = ()
-    required_successors: ClassVar[tuple[PassRef, ...]] = ()
-
     def run_pass(self):
         fn = self.function
 
-        has_dret = any(
-            inst.opcode == "dret" for bb in fn.get_basic_blocks() for inst in bb.instructions
-        )
-        if not has_dret:
+        if not has_dret(fn):
             return
 
         entry_fmp_var = self._insert_entry_getfmp(fn)
@@ -799,35 +820,27 @@ class DretDesugarPass(FmpLoweringPass):
         for bb in fn.get_basic_blocks():
             self._desugar_bb(bb, entry_fmp_var)
 
-        self._invalidate_analyses()
+        _invalidate_fmp_analyses(self.analyses_cache)
 
-    def _insert_entry_getfmp(self, fn) -> IRVariable:
+    def _insert_entry_getfmp(self, fn: IRFunction) -> IRVariable:
         fmp_var = fn.get_next_variable()
         inst = IRInstruction("getfmp", [], [fmp_var])
-
-        params = FunctionCallLayout(fn).params
-        if len(params) == 0:
-            index = 0
-        else:
-            index = max(fn.entry.instructions.index(param) for param in params) + 1
-        fn.entry.insert_instruction(inst, index=index)
+        fn.entry.insert_instruction(inst, index=_after_params_index(fn))
         return fmp_var
 
-    def _desugar_bb(self, bb, entry_fmp_var: IRVariable) -> None:
+    def _desugar_bb(self, bb: IRBasicBlock, entry_fmp_var: IRVariable) -> None:
         new_instructions: list[IRInstruction] = []
 
         for inst in bb.instructions:
             if inst.opcode == "dret":
-                new_instructions.extend(self._desugar_dret(inst, bb, entry_fmp_var))
+                new_instructions.extend(self._desugar_dret(inst, entry_fmp_var))
                 continue
 
             new_instructions.append(inst)
 
         bb.instructions = new_instructions
 
-    def _desugar_dret(
-        self, inst: IRInstruction, bb, entry_fmp_var: IRVariable
-    ) -> list[IRInstruction]:
+    def _desugar_dret(self, inst: IRInstruction, entry_fmp_var: IRVariable) -> list[IRInstruction]:
         shape = parse_dret_shape(inst)
         assert shape is not None, inst
         ordinary_count, _ = shape
@@ -849,10 +862,10 @@ class DretDesugarPass(FmpLoweringPass):
                 assert prev_aligned is not None
                 dst = self.function.get_next_variable()
                 dst_inst = IRInstruction("add", [prev_aligned, prev_dst], [dst])
-                self._copy_metadata(inst, dst_inst, bb)
+                _copy_metadata(inst, dst_inst)
                 lowered.append(dst_inst)
 
-            ceil_insts, aligned = self._ceil32_insts(size, bb, inst)
+            ceil_insts, aligned = _ceil32_insts(self.function, size, inst)
             lowered.extend(ceil_insts)
             dsts.append(dst)
             prev_dst = dst
@@ -861,17 +874,17 @@ class DretDesugarPass(FmpLoweringPass):
         assert prev_aligned is not None
         new_fmp = self.function.get_next_variable()
         new_fmp_inst = IRInstruction("add", [prev_aligned, prev_dst], [new_fmp])
-        self._copy_metadata(inst, new_fmp_inst, bb)
+        _copy_metadata(inst, new_fmp_inst)
         lowered.append(new_fmp_inst)
 
         for dst_op, (src, size) in zip(dsts, pairs, strict=True):
-            lowered.extend(self._copy_memory(dst_op, src, size, bb, inst))
+            lowered.extend(_copy_memory(self.function, dst_op, src, size, inst))
 
         setfmp_inst = IRInstruction("setfmp", [new_fmp], [])
-        self._copy_metadata(inst, setfmp_inst, bb)
+        _copy_metadata(inst, setfmp_inst)
         lowered.append(setfmp_inst)
 
         retfmp_inst = IRInstruction("retfmp", [*ordinary_returns, *dsts, return_pc], [])
-        self._copy_metadata(inst, retfmp_inst, bb)
+        _copy_metadata(inst, retfmp_inst)
         lowered.append(retfmp_inst)
         return lowered
