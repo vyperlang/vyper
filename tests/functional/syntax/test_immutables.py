@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import VyperException
+from vyper.exceptions import ImmutableViolation, VyperException
 
 fail_list = [
     # VALUE is not set in the constructor
@@ -65,6 +65,33 @@ def __init__(_value: uint256):
 def test_compilation_fails_with_exception(bad_code):
     with pytest.raises(VyperException):
         compile_code(bad_code)
+
+
+def test_augassign_modification():
+    code = """
+VALUE: immutable(uint256)
+
+@deploy
+def __init__():
+    self.VALUE = 1
+    self.VALUE += 1
+    """
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(code)
+    assert e.value.message == "Immutable value cannot be modified"
+
+
+def test_augassign_setting():
+    code = """
+VALUE: immutable(uint256)
+
+@deploy
+def __init__():
+    self.VALUE += 1
+    """
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(code)
+    assert e.value.message == "Immutable value cannot be modified"
 
 
 types_list = (

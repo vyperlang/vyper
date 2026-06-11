@@ -258,12 +258,13 @@ def _validate_immutable_assignments(module_ast: vy_ast.Module, module_t: ModuleT
 
     if constructor is not None:
         assert isinstance(constructor.ast_def, vy_ast.FunctionDef)
+
         self_assigns = constructor.ast_def.get_descendants(
-            vy_ast.Assign, {"target.value.id": "self"}
+            (vy_ast.Assign, vy_ast.AugAssign), {"target.value.id": "self"}
         )
 
         for self_assign in self_assigns:
-            # self.<attr> =
+            # self.<attr> = or +=, *=, ...
             attr = self_assign.target.attr
 
             member = module_t.members.get(attr)
@@ -279,6 +280,10 @@ def _validate_immutable_assignments(module_ast: vy_ast.Module, module_t: ModuleT
             if not member.is_immutable:
                 # We only check immutable assignments
                 continue
+
+            # self.<attr> += or *=, /=, etc
+            if isinstance(self_assign, vy_ast.AugAssign):
+                raise ImmutableViolation("Immutable value cannot be modified", self_assign)
 
             previous_assign = set_immutables.get(attr)
 
