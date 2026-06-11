@@ -6,6 +6,7 @@ from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.evm.address_space import MEMORY
 from vyper.evm.assembler.core import assembly_to_evm
 from vyper.evm.assembler.instructions import CONST
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import Label
 from vyper.venom import run_passes_on
@@ -1047,7 +1048,11 @@ def test_dret_desugar_shape_is_purely_local():
     callee_insts = [inst for bb in callee.get_basic_blocks() for inst in bb.instructions]
     callee_opcodes = [inst.opcode for inst in callee_insts]
     assert "dret" not in callee_opcodes
-    assert "mcopy" in callee_opcodes
+    # the pack copy: mcopy on cancun+, identity-precompile staticcall before
+    if version_check(begin="cancun"):
+        assert "mcopy" in callee_opcodes
+    else:
+        assert "staticcall" in callee_opcodes
     # setfmp directly precedes the retfmp terminator
     assert callee_opcodes[-2:] == ["setfmp", "retfmp"]
 
