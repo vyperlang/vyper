@@ -185,6 +185,20 @@ def hello() :
     """,
         "Immutable value cannot be written to",
     ),
+    (
+        """
+VALUE: immutable(uint256)
+
+@deploy
+def __init__():
+    self.VALUE = 1
+
+@external
+def bump():
+    self.VALUE += 1
+    """,
+        "Immutable value cannot be written to",
+    ),
 ]
 
 
