@@ -30,6 +30,7 @@ author = "Vyper Team (originally created by Vitalik Buterin)"
 language = "vyper"
 
 # -- Options for HTML output ----------------------------------------------
+html_static_path = ["_static"]
 html_theme = "shibuya"
 html_theme_options = {
     "light_logo": "_static/logo-light.svg",
