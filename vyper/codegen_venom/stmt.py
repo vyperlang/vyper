@@ -871,11 +871,16 @@ class Stmt:
         """Lower internal function return.
 
         For internal functions:
+        - Nonreentrant unlock (if applicable)
         - Load return values and pass on stack
         - ret to return_pc
         """
         return_pc = self.ctx.return_pc
         assert return_pc is not None  # Caller ensures this
+
+        # Nonreentrant unlock. The return expression has already been
+        # evaluated by the caller, so this runs at function exit.
+        self.ctx.emit_nonreentrant_unlock(func_t)
 
         if ret_val is None:
             self.builder.ret(return_pc)
