@@ -15,9 +15,10 @@ from vyper.codegen.core import calculate_type_for_external_return
 from vyper.codegen_venom.abi import abi_encode_to_buf
 from vyper.codegen_venom.arithmetic import apply_binop
 from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, tag_exceptions
+from vyper.semantics.analysis.utils import get_expr_writes
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.semantics.types.user import EventT, StructT
 from vyper.utils import method_id_int
@@ -28,6 +29,67 @@ from .calling_convention import returns_stack_count
 from .context import Constancy, VenomCodegenContext
 from .expr import Expr
 from .value import VyperValue
+
+
+# AST-level equivalent of legacy `IRnode.referenced_variables`: all
+# variables read while evaluating `node` (including state accesses of
+# internal functions called within `node`, which the frontend folds
+# into the call node's `_reads`).
+def _referenced_variables(node: vy_ast.VyperNode) -> set:
+    node = node.reduced()
+    ret: set = set()
+    if isinstance(node, vy_ast.ExprNode) and node._expr_info is not None:
+        ret.update(access.variable for access in node._expr_info._reads)
+    for c in node._children:
+        ret |= _referenced_variables(c)
+    return ret
+
+
+# AST-level equivalent of legacy `IRnode.contains_writeable_call`: return
+# True if evaluating `node` can issue a state-modifying call (i.e. one
+# which compiles to `call`/`delegatecall`/`create`/`create2`), including
+# transitively through internal function calls.
+def _contains_writeable_call(node: vy_ast.VyperNode) -> bool:
+    if _emits_writeable_call(node):
+        return True
+    fns = set()
+    for fn_t in _called_internal_functions(node):
+        fns.add(fn_t)
+        fns.update(fn_t.reachable_internal_functions)
+    return any(_emits_writeable_call(fn_t.decl_node) for fn_t in fns)
+
+
+def _called_internal_functions(node: vy_ast.VyperNode) -> set:
+    ret = set()
+    for call in node.get_descendants(vy_ast.Call, include_self=True):
+        func_t = call.func._metadata.get("type")
+        if isinstance(func_t, ContractFunctionT) and (func_t.is_internal or func_t.is_constructor):
+            ret.add(func_t.get_concrete_override())
+    return ret
+
+
+# check if `node` directly contains a state-modifying call (without
+# recursing into internal functions)
+def _emits_writeable_call(node: vy_ast.VyperNode) -> bool:
+    # delayed import due to import cycle
+    from vyper.builtins.functions import RawCall, Send, _CreateBase
+
+    # `extcall` compiles to the `call` opcode (`staticcall`s are emitted
+    # via vy_ast.StaticCall and cannot modify state)
+    if len(node.get_descendants(vy_ast.ExtCall, include_self=True)) > 0:
+        return True
+
+    for call in node.get_descendants(vy_ast.Call, include_self=True):
+        func_t = call.func._metadata.get("type")
+        if isinstance(func_t, RawCall):
+            # raw_call compiles to `staticcall` when `is_static_call=True`
+            if func_t.get_mutability_at_call_site(call) > StateMutability.VIEW:
+                return True
+        elif isinstance(func_t, (Send, _CreateBase)):
+            # `send` compiles to `call`, create builtins to `create`/`create2`
+            return True
+
+    return False
 
 
 class Stmt:
@@ -289,6 +351,21 @@ class Stmt:
         # AugAssign only works on primitive word types
         if not target_typ._is_prim_word:  # pragma: nocover
             raise TypeCheckFailure("AugAssign only valid for primitive types")
+
+        # oob - GHSA-4w26-8p97-f4jp
+        # ported from legacy codegen (vyper/codegen/stmt.py:parse_AugAssign).
+        # the target pointer is computed (and bounds-checked) before the RHS
+        # is evaluated, so reject the augassign if the RHS could mutate a
+        # complex variable which the target points into (e.g.
+        # `self.a[1] += self.a.pop()`).
+        rhs_writes = set(access.variable for access in get_expr_writes(right_node))
+        for var in _referenced_variables(target):
+            if var.typ._is_prim_word:
+                continue
+            if var in rhs_writes or (
+                var.is_state_variable() and _contains_writeable_call(right_node)
+            ):
+                raise CodegenPanic("unreachable")
 
         # Get target pointer (with location info)
         dst_ptr = self._get_target_ptr(target)

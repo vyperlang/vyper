@@ -1,5 +1,7 @@
 import pytest
 
+from vyper import compile_code
+from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CodegenPanic, ImmutableViolation, InvalidType, TypeMismatch
 
@@ -40,16 +42,16 @@ def augmod(x: int128, y: int128) -> int128:
     print("Passed aug-assignment test")
 
 
-@pytest.mark.parametrize(
-    "source",
-    [
-        """
+# augassigns which can write to the target out from under us;
+# rejected with a (compile-time) panic - GHSA-4w26-8p97-f4jp
+AUGASSIGN_OOB_SOURCES = [
+    """
 @external
 def poc():
     a: DynArray[uint256, 2] = [1, 2]
     a[1] += a.pop()
     """,
-        """
+    """
 a: DynArray[uint256, 2]
 
 def side_effect() -> uint256:
@@ -60,7 +62,7 @@ def poc():
     self.a = [1, 2]
     self.a[1] += self.side_effect()
     """,
-        """
+    """
 a: DynArray[uint256, 2]
 
 def side_effect() -> uint256:
@@ -72,7 +74,7 @@ def poc():
     self.a = [1, 2]
     self.a[1] += self.side_effect()
     """,
-        """
+    """
 a: DynArray[uint256, 2]
 
 interface Foo:
@@ -88,29 +90,19 @@ def poc():
     # panics due to extcall
     self.a[1] += extcall Foo(self).foo()
     """,
-    ],
-)
-@pytest.mark.xfail(strict=True, raises=CodegenPanic)
-def test_augassign_oob(get_contract, tx_failed, source):
-    # xfail here (with panic):
-    c = get_contract(source)
+]
 
-    # not reached until the panic is fixed
-    with tx_failed(c):
-        c.poc()
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        """
+# augassigns where the rhs references the lhs but cannot write to it;
+# these compile and run fine
+AUGASSIGN_OVERLAP_OK_SOURCES = [
+    """
 @external
 def entry() -> DynArray[uint256, 2]:
     a: DynArray[uint256, 2] = [1, 1]
     a[1] += a[1]
     return a
     """,
-        """
+    """
 @external
 def entry() -> DynArray[uint256, 2]:
     a: uint256 = 1
@@ -120,7 +112,7 @@ def entry() -> DynArray[uint256, 2]:
     b[0] += b[1] // 2
     return b
     """,
-        """
+    """
 a: DynArray[uint256, 2]
 
 def read() -> uint256:
@@ -132,7 +124,7 @@ def entry() -> DynArray[uint256, 2]:
     self.a[1] += self.read()
     return self.a
     """,
-        """
+    """
 interface Foo:
     def foo() -> uint256: nonpayable
 
@@ -148,7 +140,7 @@ def entry() -> DynArray[uint256, 2]:
     a[1] += extcall Foo(self).foo()
     return a
     """,
-        """
+    """
 interface Foo:
     def foo() -> uint256: nonpayable
 
@@ -168,7 +160,7 @@ def entry() -> DynArray[uint256, 2]:
     a[1] += self.get_foo()
     return a
     """,
-        """
+    """
 a: public(DynArray[uint256, 2])
 
 interface Foo:
@@ -184,11 +176,39 @@ def entry() -> DynArray[uint256, 2]:
     self.a[1] += staticcall Foo(self).foo()
     return self.a
     """,
-    ],
-)
+]
+
+
+@pytest.mark.parametrize("source", AUGASSIGN_OOB_SOURCES)
+@pytest.mark.xfail(strict=True, raises=CodegenPanic)
+def test_augassign_oob(get_contract, tx_failed, source):
+    # xfail here (with panic):
+    c = get_contract(source)
+
+    # not reached until the panic is fixed
+    with tx_failed(c):
+        c.poc()
+
+
+@pytest.mark.parametrize("source", AUGASSIGN_OOB_SOURCES)
+def test_augassign_oob_venom(source):
+    # the venom pipeline must reject the same programs as legacy
+    # (GH issue #5051)
+    with pytest.raises(CodegenPanic):
+        compile_code(source, settings=Settings(experimental_codegen=True))
+
+
+@pytest.mark.parametrize("source", AUGASSIGN_OVERLAP_OK_SOURCES)
 def test_augassign_rhs_references_lhs2(get_contract, source):
     c = get_contract(source)
     assert c.entry() == [1, 2]
+
+
+@pytest.mark.parametrize("source", AUGASSIGN_OVERLAP_OK_SOURCES)
+def test_augassign_rhs_references_lhs_venom(source):
+    # the venom port of the augassign overlap guard must not reject
+    # programs which legacy accepts (GH issue #5051)
+    assert compile_code(source, settings=Settings(experimental_codegen=True)) is not None
 
 
 @pytest.mark.requires_evm_version("cancun")
@@ -213,10 +233,8 @@ def entry() -> DynArray[uint256, 2]:
     assert c.entry() == [2, 3]
 
 
-@pytest.mark.parametrize(
-    "source",
-    [
-        """
+AUGASSIGN_OOB_TRANSIENT_SOURCES = [
+    """
 x: transient(DynArray[uint256, 2])
 
 def write() -> uint256:
@@ -229,7 +247,7 @@ def entry() -> DynArray[uint256, 2]:
     self.x[1] += self.write()
     return self.x
     """,
-        """
+    """
 x: transient(DynArray[uint256, 2])
 
 @external
@@ -239,8 +257,10 @@ def entry() -> DynArray[uint256, 2]:
     self.x[1] += self.x.pop()
     return self.x
     """,
-    ],
-)
+]
+
+
+@pytest.mark.parametrize("source", AUGASSIGN_OOB_TRANSIENT_SOURCES)
 @pytest.mark.xfail(strict=True, raises=CodegenPanic)
 def test_augassign_rhs_references_lhs_transient2(get_contract, tx_failed, source):
     if not version_check(begin="cancun"):
@@ -253,6 +273,15 @@ def test_augassign_rhs_references_lhs_transient2(get_contract, tx_failed, source
     # not reached until the panic is fixed
     with tx_failed(c):
         c.entry()
+
+
+@pytest.mark.parametrize("source", AUGASSIGN_OOB_TRANSIENT_SOURCES)
+def test_augassign_oob_transient_venom(source):
+    # the venom pipeline must reject the same programs as legacy
+    # (GH issue #5051). note: the default evm version supports transient
+    # storage, no need for a version check here.
+    with pytest.raises(CodegenPanic):
+        compile_code(source, settings=Settings(experimental_codegen=True))
 
 
 @pytest.mark.parametrize(
