@@ -237,9 +237,8 @@ def _validate_init_calls(
 
         elif isinstance(node, vy_ast.If):
             then_nodes = _validate_init_calls(node.body, init_calls)
-            else_nodes = (
-                _validate_init_calls(node.orelse, init_calls) if node.orelse is not None else {}
-            )
+            else_nodes = _validate_init_calls(node.orelse, init_calls)
+
             if then_nodes is None and else_nodes is None:
                 # Both branches revert, the block as a whole reverts
                 return None
