@@ -1335,6 +1335,11 @@ class Shift(BuiltinFunctionT):
         if shift < 0:
             value = value >> -shift
         else:
+            if value < 0:
+                # the unsigned wrap below would produce a constant which is
+                # out of bounds for the (signed) input type. defer to runtime
+                # evaluation, which handles signed values correctly.
+                raise UnfoldableNode("not foldable for negative values", node.args[0])
             value = (value << shift) % (2**256)
         return vy_ast.Int.from_node(node, value=value)
 
