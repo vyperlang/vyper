@@ -818,3 +818,69 @@ def test_convert() -> uint256:
     """  # noqa: E501
     c = get_contract(code)
     assert c.test_convert() == 42
+
+
+FLAG_PREAMBLE = """
+flag Roles:
+    ADMIN
+    USER
+"""
+
+# conversions which the venom pipeline accepted due to missing input
+# validation (GH 5111, GH 5019). the conversion matrix is shared between
+# pipelines, so both must reject these at compile time.
+ILLEGAL_CONVERSIONS = [
+    ("String[20]", "uint256"),
+    ("String[20]", "address"),
+    ("Roles", "uint8"),
+    ("Roles", "bool"),
+    ("Roles", "decimal"),
+    ("uint8", "Roles"),
+    ("bytes32", "Roles"),
+    ("bool", "Roles"),
+    ("bool", "address"),
+    ("address", "decimal"),
+    ("address", "int256"),
+    ("decimal", "address"),
+    ("decimal", "Roles"),
+]
+
+
+@pytest.mark.parametrize("i_typ,o_typ", ILLEGAL_CONVERSIONS)
+@pytest.mark.parametrize("use_venom", [False, True])
+def test_illegal_conversions_blocked(i_typ, o_typ, use_venom):
+    preamble = FLAG_PREAMBLE if "Roles" in (i_typ, o_typ) else ""
+    code = f"""{preamble}
+@external
+def foo(x: {i_typ}) -> {o_typ}:
+    return convert(x, {o_typ})
+    """
+    settings = Settings(experimental_codegen=use_venom, enable_decimals=True)
+    # compile bytecode only: other output formats run the legacy pipeline
+    # even when experimental_codegen is set, masking venom-only bugs
+    with pytest.raises(TypeMismatch):
+        compile_code(code, output_formats=("bytecode",), settings=settings)
+
+
+def test_int_to_decimal_clamp_bounds(get_contract, tx_failed):
+    code = """
+@external
+def foo(x: int256) -> decimal:
+    return convert(x, decimal)
+    """
+    c = get_contract(code)
+
+    # the largest-magnitude integers whose promotion stays within the
+    # decimal range: MIN/MAX raw decimal divided by the divisor, rounded
+    # towards zero. flooring instead admits one extra negative value
+    # whose scaled result lands below the decimal lower bound (GH 5110).
+    bound = 18707220957835557353007165858768422651595
+    assert -(2**167) // DECIMAL_DIVISOR == -bound - 1  # floor differs from truncation
+
+    assert c.foo(bound) == bound * DECIMAL_DIVISOR
+    assert c.foo(-bound) == -bound * DECIMAL_DIVISOR
+
+    with tx_failed():
+        c.foo(bound + 1)
+    with tx_failed():
+        c.foo(-bound - 1)

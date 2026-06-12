@@ -100,6 +100,7 @@ from vyper.utils import (
 from vyper.warnings import vyper_warn
 
 from ._convert import convert
+from ._convert_rules import validate_convertibility
 from ._signatures import BuiltinFunctionT, process_inputs
 
 SHA256_ADDRESS = 2
@@ -197,10 +198,12 @@ class Convert(BuiltinFunctionT):
     def fetch_call_return(self, node):
         _, target_typedef = self.infer_arg_types(node)
 
-        # note: more type conversion validation happens in convert.py
+        # note: value-dependent validation (e.g. literal range checks)
+        # happens in convert.py
         return target_typedef.typedef
 
-    # TODO: push this down into convert.py for more consistency
+    # TODO: push the literal type inference down into convert.py for
+    # more consistency
     def infer_arg_types(self, node, expected_return_typ=None):
         validate_call_args(node, 2)
 
@@ -230,6 +233,10 @@ class Convert(BuiltinFunctionT):
             raise CodegenPanic("convert not yet implemented for unbounded sequence type")
         if isinstance(value_type, DArrayT) and not is_bounded_length(value_type.count):
             raise CodegenPanic("convert not yet implemented for unbounded sequence type")
+
+        # reject illegal conversion pairs at typechecking time, for all
+        # backends. codegen re-validates as defense-in-depth.
+        validate_convertibility(value_type, target_type, node)
 
         return [value_type, TYPE_T(target_type)]
 
