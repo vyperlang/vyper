@@ -85,7 +85,7 @@ def _bits_count(typ) -> int | None:
     return None
 
 
-def _bytes_to_num(arg,  out_typ, signed):
+def _bytes_to_num(arg, out_typ, signed):
     # converting a bytestring to a number:
     # bytestring and bytes_m are right-padded with zeroes, int is left-padded.
     # convert by shr or sar the number of zero bytes (converted to bits)
