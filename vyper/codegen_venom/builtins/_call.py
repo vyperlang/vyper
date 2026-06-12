@@ -98,15 +98,24 @@ def callsite(
     return decorator
 
 
+def is_msg_data(node: vy_ast.VyperNode) -> bool:
+    """Check for `msg.data`."""
+    return (
+        isinstance(node, vy_ast.Attribute)
+        and node.attr == "data"
+        and isinstance(node.value, vy_ast.Name)
+        and node.value.id == "msg"
+    )
+
+
 def is_data_view(node: vy_ast.VyperNode) -> bool:
     """Check for `msg.data`, `self.code` or `<address>.code`."""
+    if is_msg_data(node):
+        return True
     if not isinstance(node, vy_ast.Attribute):
         return False
-    if isinstance(node.value, vy_ast.Name):
-        if node.value.id == "msg" and node.attr == "data":
-            return True
-        if node.value.id == "self" and node.attr == "code":
-            return True
+    if isinstance(node.value, vy_ast.Name) and node.value.id == "self" and node.attr == "code":
+        return True
     return node.attr == "code" and isinstance(node.value._metadata.get("type"), AddressT)
 
 

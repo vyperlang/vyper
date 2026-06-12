@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Union
 
-from vyper.codegen_venom.builtins._call import BuiltinCall, is_data_view
+from vyper.codegen_venom.builtins._call import BuiltinCall, is_msg_data
 from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -28,7 +28,7 @@ def lower_len(call: BuiltinCall) -> IROperand:
     ctx = call.ctx
 
     # Special case: len(msg.data) returns calldatasize
-    if is_data_view(node.args[0]):
+    if is_msg_data(node.args[0]):
         return ctx.builder.calldatasize()
 
     # For bytes/string/DynArray: length is stored at pointer

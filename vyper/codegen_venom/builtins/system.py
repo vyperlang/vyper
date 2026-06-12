@@ -11,9 +11,9 @@ from __future__ import annotations
 
 from typing import Optional, Union
 
-from vyper.codegen_venom.builtins._call import BuiltinCall, callsite, is_data_view
+from vyper.codegen_venom.builtins._call import BuiltinCall, callsite, is_data_view, is_msg_data
 from vyper.codegen_venom.value import VyperValue
-from vyper.exceptions import ArgumentException, StateAccessViolation
+from vyper.exceptions import ArgumentException, CompilerPanic, StateAccessViolation
 from vyper.semantics.types import BytesT, TupleT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
@@ -75,7 +75,12 @@ def lower_raw_call(call: BuiltinCall) -> Union[IROperand, VyperValue]:
 
     to = call.arg_operand(0)
 
-    use_msg_data = is_data_view(node.args[1])
+    # only msg.data is supported as a raw payload; semantic analysis lets
+    # `.code` views through, but they have no lowering (legacy panics too)
+    data_node = node.args[1]
+    use_msg_data = is_msg_data(data_node)
+    if not use_msg_data and is_data_view(data_node):
+        raise CompilerPanic("unsupported raw_call payload", data_node)
     if not use_msg_data:
         data = call.arg_operand(1)  # Copies storage/transient to memory
         # Bytes layout: [32-byte length][data...]
