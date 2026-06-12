@@ -52,3 +52,24 @@ def test_existing_global_cache_registers_self():
     global_cache = ctx.global_analyses_cache
     assert global_cache is not None
     assert global_cache.function_analyses_caches[f] is ac_f
+
+
+def test_existing_authoritative_cache_not_displaced():
+    # a real (non-placeholder) cache registered for a function must not be
+    # displaced by a temporary cache for the same function -- consumers
+    # rely on the registered cache's invalidations
+    ctx = parse_venom(SRC)
+    entry = ctx.get_function(IRLabel("entry"))
+
+    ac_entry = IRAnalysesCache(entry)
+    ac_entry.request_analysis(FCGGlobalAnalysis)
+
+    global_cache = ctx.global_analyses_cache
+    assert global_cache is not None
+    assert global_cache.function_analyses_caches[entry] is ac_entry
+
+    # a second, temporary cache for the same function must defer to the
+    # registered one
+    ac_tmp = IRAnalysesCache(entry)
+    ac_tmp.request_analysis(FCGGlobalAnalysis)
+    assert global_cache.function_analyses_caches[entry] is ac_entry

@@ -67,21 +67,39 @@ class IRAnalysesCache:
         self.analyses_cache = {}
         self.function = function
 
+        # marker for caches created as placeholders by
+        # `_ensure_global_analyses_cache` (as opposed to caches owned by
+        # a pass pipeline or another "real" consumer, whose invalidations
+        # downstream consumers rely on)
+        self._auto_created = False
+
+    @classmethod
+    def _placeholder(cls, function: IRFunction) -> "IRAnalysesCache":
+        ret = cls(function)
+        ret._auto_created = True
+        return ret
+
     def _ensure_global_analyses_cache(self) -> "IRGlobalAnalysesCache":
         global_cache = self.function.ctx.global_analyses_cache
         if global_cache is None:
             function_analyses_caches = {
-                fn: IRAnalysesCache(fn) for fn in self.function.ctx.functions.values()
+                fn: IRAnalysesCache._placeholder(fn) for fn in self.function.ctx.functions.values()
             }
             function_analyses_caches[self.function] = self
             global_cache = IRGlobalAnalysesCache(self.function.ctx, function_analyses_caches)
             self.function.ctx.global_analyses_cache = global_cache
             return global_cache
 
-        global_cache.function_analyses_caches[self.function] = self
+        # register self, but never displace a non-placeholder cache for
+        # the same function (e.g. one registered by the pass pipeline) --
+        # its consumers rely on its invalidations.
+        caches = global_cache.function_analyses_caches
+        registered = caches.get(self.function)
+        if registered is None or registered._auto_created:
+            caches[self.function] = self
         for fn in self.function.ctx.functions.values():
-            if fn not in global_cache.function_analyses_caches:
-                global_cache.function_analyses_caches[fn] = IRAnalysesCache(fn)
+            if fn not in caches:
+                caches[fn] = IRAnalysesCache._placeholder(fn)
         return global_cache
 
     def request_analysis(self, analysis_cls: Type[T], *args, **kwargs) -> T:
