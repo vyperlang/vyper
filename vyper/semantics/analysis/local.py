@@ -540,10 +540,21 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             raise ImmutableViolation("Cannot write to calldata")
 
         if info.modifiability == Modifiability.RUNTIME_CONSTANT:
-            if info.location != DataLocation.CODE:
+            if info.location == DataLocation.CODE:
+                if not func_t.is_constructor:
+                    raise ImmutableViolation("Immutable value cannot be written to")
+
+                # handle immutables
+                if info.var_info is not None:  # don't handle complex (struct,array) immutables
+                    # special handling for immutable variables in the ctor
+                    # TODO: maybe we want to remove this restriction.
+                    if info.var_info._modification_count != 0:
+                        raise ImmutableViolation(
+                            "Immutable value cannot be modified after assignment"
+                        )
+                    info.var_info._modification_count += 1
+            else:
                 raise ImmutableViolation("Environment variable cannot be written to")
-            if not func_t.is_constructor:
-                raise ImmutableViolation("Immutable value cannot be written to")
 
         if info.modifiability == Modifiability.CONSTANT:
             raise ImmutableViolation("Constant value cannot be written to.")

@@ -49,11 +49,11 @@ a: public(immutable(uint256))
 
 @deploy
 def __init__():
-    a = 123
+    self.a = 123
 
 @external
 def foo():
-    b: uint256 = self.a
+    b: uint256 = a
     """,
 ]
 

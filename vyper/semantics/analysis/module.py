@@ -137,7 +137,7 @@ def _analyze_module_bodies(module_ast: vy_ast.Module) -> None:
     with override_global_namespace(namespace):
         analyze_functions(module_ast)
         _validate_exports_uses(module_ast, module_t)
-        _validate_constructor(module_ast, module_t)
+        _validate_initialized_modules(module_ast, module_t)
         _validate_used_modules(module_ast, module_t)
 
 
@@ -181,7 +181,7 @@ def _validate_used_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None
         err_list.raise_if_not_empty()
 
 
-def _validate_init_calls(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
+def _validate_initialized_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
     """Check all `initializes:` modules have `__init__()` called exactly once."""
     # only call `__init__()` for modules which have an
     # `__init__()` function
@@ -248,68 +248,6 @@ def _validate_init_calls(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
             err_list.append(InitializerException(msg, init_func_node, s.node, hint=hint))
 
         err_list.raise_if_not_empty()
-
-
-def _validate_immutable_assignments(module_ast: vy_ast.Module, module_t: ModuleT):
-
-    constructor = module_t.init_function
-
-    set_immutables: dict[str, vy_ast.Assign] = {}
-
-    if constructor is not None:
-        assert isinstance(constructor.ast_def, vy_ast.FunctionDef)
-
-        self_assigns = constructor.ast_def.get_descendants(
-            (vy_ast.Assign, vy_ast.AugAssign), {"target.value.id": "self"}
-        )
-
-        for self_assign in self_assigns:
-            # self.<attr> = or +=, *=, ...
-            attr = self_assign.target.attr
-
-            member = module_t.members.get(attr)
-
-            if member is None:
-                # Will be handled somewhere else
-                continue
-
-            if not isinstance(member, VarInfo):
-                # Will be handled somewhere else
-                continue
-
-            if not member.is_immutable:
-                # We only check immutable assignments
-                continue
-
-            # self.<attr> += or *=, /=, etc
-            if isinstance(self_assign, vy_ast.AugAssign):
-                raise ImmutableViolation("Immutable value cannot be modified", self_assign)
-
-            previous_assign = set_immutables.get(attr)
-
-            if previous_assign is not None:
-                raise ImmutableViolation(
-                    "Immutable value cannot be modified after assignment",
-                    self_assign,
-                    previous_assign,
-                )
-
-            set_immutables[attr] = self_assign
-
-    for name, var_info in module_t.variables.items():
-
-        if not var_info.is_immutable:
-            continue
-
-        if name not in set_immutables:
-            raise ImmutableViolation(
-                "Immutable definition requires an assignment in the constructor", var_info.decl_node
-            )
-
-
-def _validate_constructor(module_ast: vy_ast.Module, module_t: ModuleT):
-    _validate_init_calls(module_ast, module_t)
-    _validate_immutable_assignments(module_ast, module_t)
 
 
 def _validate_exports_uses(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
@@ -813,6 +751,19 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 "reentrant() is not allowed without `pragma nonreentrancy on`", node
             )
 
+        # TODO: move this check to local analysis
+        if node.is_immutable:
+            # mutability is checked automatically preventing assignment
+            # outside of the constructor, here we just check a value is assigned,
+            # not necessarily where
+            # Assign(target=Attribute(value=Name("self"), attr=<node.target.id>))
+            assignments = self.ast.get_descendants(
+                vy_ast.Assign, filters={"target.value.id": "self", "target.attr": node.target.id}
+            )
+            if not assignments:
+                message = "Immutable definition requires an assignment in the constructor"
+                raise ImmutableViolation(message, node)
+
         location = (
             DataLocation.CODE
             if node.is_immutable
@@ -854,8 +805,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         def _finalize():
             # add the variable name to `self` namespace if the variable is either
-            # 1. a public constant or immutable; or
-            # 2. a storage variable, whether private or public
+            # 1. a public constant; or
+            # 2. a storage/transient/immutable variable, whether private or public
             if node.is_constant and not node.is_public:
                 return
 

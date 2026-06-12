@@ -78,7 +78,7 @@ def __init__():
     """
     with pytest.raises(ImmutableViolation) as e:
         compile_code(code)
-    assert e.value.message == "Immutable value cannot be modified"
+    assert e.value.message == "Immutable value cannot be modified after assignment"
 
 
 def test_augassign_setting():
@@ -91,7 +91,7 @@ def __init__():
     """
     with pytest.raises(ImmutableViolation) as e:
         compile_code(code)
-    assert e.value.message == "Immutable value cannot be modified"
+    assert e.value.message == "Immutable definition requires an assignment in the constructor"
 
 
 types_list = (
@@ -166,7 +166,8 @@ imm: immutable(uint256)
 def __init__(x: uint256):
     imm = x
     """,
-        "'imm' is an assignable variable, access it as self.imm",
+        # TODO: not great UX, the user did try to assign, we should point them to how to fix it
+        "Immutable definition requires an assignment in the constructor",
     ),
     (
         """
