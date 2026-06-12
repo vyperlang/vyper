@@ -211,6 +211,24 @@ def _shl(x: int256, y: uint256) -> int256:
             assert c._shl(t, s) == unsigned_to_signed((t << s) % (2**256), 256)
 
 
+def test_shift_builtin_negative_literal(get_contract):
+    # folding the deprecated `shift()` builtin must not turn a negative
+    # value into an unsigned constant, which is out of bounds for the
+    # signed output type
+    code = """
+@external
+def foo() -> int256:
+    return shift(-1, 1)
+
+@external
+def bar() -> int256:
+    return shift(-4, -1)
+    """
+    c = get_contract(code)
+    assert c.foo() == -2
+    assert c.bar() == -2
+
+
 def test_precedence(get_contract):
     code = """
 @external
