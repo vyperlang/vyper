@@ -795,3 +795,44 @@ def test_swap() -> uint256:
     c = get_contract(code)
     assert c.test_increment() == 6
     assert c.test_swap() == 30
+
+
+def test_internal_call_arg_evaluation_order(get_contract):
+    # the first argument must be read before the second argument's
+    # side effects execute
+    code = """
+x: uint256
+
+@internal
+def mutate() -> uint256:
+    self.x = 999
+    return 0
+
+@internal
+def foo(a: uint256, b: uint256) -> uint256:
+    return a
+
+@external
+def bar() -> uint256:
+    self.x = 1
+    return self.foo(self.x, self.mutate())
+    """
+    c = get_contract(code)
+    assert c.bar() == 1
+
+
+def test_internal_call_arg_evaluation_order_complex(get_contract):
+    # complex (memory) arguments must be snapshotted before later
+    # arguments mutate them
+    code = """
+@internal
+def take(a: DynArray[uint256, 4], b: uint256) -> uint256:
+    return len(a) * 100 + b
+
+@external
+def bar() -> uint256:
+    arr: DynArray[uint256, 4] = [1, 2, 3]
+    return self.take(arr, arr.pop())
+    """
+    c = get_contract(code)
+    assert c.bar() == 303

@@ -70,6 +70,15 @@ class _CallKwargs:
 ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
 
+def _may_have_side_effects(node: vy_ast.VyperNode) -> bool:
+    """Whether evaluating the expression can mutate observable state.
+
+    Conservative: any call (internal call, extcall, builtin, mutating
+    method call like `arr.append(...)`) counts as a side effect.
+    """
+    return len(node.get_descendants(vy_ast.Call, include_self=True)) > 0
+
+
 class Expr:
     """Lower Vyper expressions to Venom IR.
 
@@ -1355,9 +1364,18 @@ class Expr:
         # By evaluating all args first, we ensure nested calls complete before we
         # allocate staging buffers, avoiding corruption.
         # See legacy codegen: vyper/codegen/self_call.py (contains_self_call handling)
+        #
+        # Each argument is frozen (loaded to stack / copied to a fresh
+        # temporary) as soon as it is evaluated if any later argument can
+        # have side effects; otherwise the lazily-read location could be
+        # mutated before the staging copy, observably changing evaluation
+        # order vs the legacy pipeline.
         arg_vals: list[VyperValue] = []
-        for arg_node in all_arg_nodes:
-            arg_vals.append(Expr(arg_node, self.ctx).lower())
+        for i, arg_node in enumerate(all_arg_nodes):
+            arg_val = Expr(arg_node, self.ctx).lower()
+            if any(_may_have_side_effects(n) for n in all_arg_nodes[i + 1 :]):
+                arg_val = self.ctx.freeze_value(arg_val, annotation="internal call arg")
+            arg_vals.append(arg_val)
 
         # Now allocate staging buffers and copy evaluated values
         for i, arg_val in enumerate(arg_vals):
@@ -1728,10 +1746,20 @@ class Expr:
         # Evaluate contract address (the interface value)
         contract_address = Expr(call_node.func.value, self.ctx).lower_value()
 
-        # Evaluate arguments.
+        # Evaluate arguments left-to-right. Each argument is frozen (loaded
+        # to stack / copied to a fresh temporary) as soon as it is evaluated
+        # if any later argument or kwarg expression can have side effects;
+        # otherwise the lazily-read location could be mutated before the
+        # staging copy below, observably changing evaluation order vs the
+        # legacy pipeline. Kwargs count because they are evaluated next.
+        kwarg_nodes = [kw.value for kw in call_node.keywords]
         arg_vals: list[VyperValue] = []
-        for arg in call_node.args:
-            arg_vals.append(Expr(arg, self.ctx).lower())
+        for i, arg in enumerate(call_node.args):
+            arg_val = Expr(arg, self.ctx).lower()
+            later_nodes = list(call_node.args[i + 1 :]) + kwarg_nodes
+            if any(_may_have_side_effects(n) for n in later_nodes):
+                arg_val = self.ctx.freeze_value(arg_val, annotation="external call arg")
+            arg_vals.append(arg_val)
 
         # Parse kwargs
         call_kwargs = self._parse_external_call_kwargs(call_node)
