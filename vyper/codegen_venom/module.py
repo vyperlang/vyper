@@ -1372,6 +1372,24 @@ def _generate_constructor(
         # never reuses this region for temporary allocas.
         builder.ctx.mem_allocator.add_global(imm_alloc)
 
+        # Force msize to be initialized past the end of the immutables
+        # section, so that builtins which use msize ("memtop") for dynamic
+        # memory allocation cannot return a pointer inside the
+        # uninitialized immutables staging region (cf. GH issue 3101 and
+        # the equivalent `iload` guard in legacy `codegen/module.py`).
+        # note mstore X touches bytes from X to X+32, and msize rounds up
+        # to the nearest 32, so touching `immutables_len - 32` guarantees
+        # `msize >= immutables_len`.
+        # memory is zero-initialized here (this is the first memory write
+        # in the deploy code), so storing zero is a no-op write. we use
+        # `istore` (not `mload`/`mstore`) so the guard cannot be removed
+        # by optimizer passes: `istore` is volatile and carries the
+        # IMMUTABLES effect, which memory dead store elimination skips.
+        touch_ptr = builder.add(
+            codegen_ctx.immutables_alloca, IRLiteral(max(0, immutables_len - 32))
+        )
+        builder.istore(touch_ptr, IRLiteral(0))
+
     # Register constructor args from DATA section (not calldata)
     # Constructor args are appended to the deploy code
     _register_constructor_args(codegen_ctx, func_t)
