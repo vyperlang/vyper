@@ -268,6 +268,10 @@ class AvailableExpressionAnalysis(IRAnalysis):
             if inst.opcode == "assign" or inst.is_pseudo or inst.is_bb_terminator:
                 continue
             if inst.num_outputs > 1:
+                # multi-output instructions cannot be mapped to an
+                # expression, but their write effects must still
+                # invalidate available expressions
+                available_exprs.remove_effect(_get_write_effects(inst.opcode))
                 continue
 
             if (

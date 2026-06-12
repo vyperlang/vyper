@@ -1,7 +1,7 @@
 import pytest
 
 from tests.hevm import hevm_check_venom
-from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
+from tests.venom_utils import assert_ctx_eq, parse_from_basic_block, parse_venom
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.passes.common_subexpression_elimination import CSE
 
@@ -590,3 +590,34 @@ def test_cse_different_params():
     """
 
     _check_no_change(pre)
+
+
+def test_cse_multi_output_invoke_effects():
+    """
+    A multi-output (tuple-returning) invoke has write effects like any
+    other invoke; an sload before the invoke must not be forwarded to
+    an sload after it, since the callee may write the same slot.
+    """
+    pre = """
+    function main {
+    main:
+        %1 = sload 0
+        %a, %b = invoke @f
+        %2 = sload 0
+        sink %1, %2, %a, %b
+    }
+
+    function f {
+    f:
+        %retpc = param
+        sstore 0, 1
+        ret 1, 2, %retpc
+    }
+    """
+
+    ctx = parse_venom(pre)
+    for fn in ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        CSE(ac, fn).run_pass()
+
+    assert_ctx_eq(ctx, parse_venom(pre))
