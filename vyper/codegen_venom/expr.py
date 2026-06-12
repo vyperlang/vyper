@@ -1793,6 +1793,8 @@ class Expr:
 
         # === Dispatch CALL or STATICCALL ===
         use_staticcall = fn_type.mutability in (StateMutability.VIEW, StateMutability.PURE)
+        if self.ctx.is_constant():
+            assert use_staticcall, "typechecker missed this"
 
         # Return buffer location and size
         ret_ofst = buf._ptr
