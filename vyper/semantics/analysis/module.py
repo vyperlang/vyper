@@ -202,6 +202,7 @@ def _extract_init_call(node: vy_ast.Call) -> ModuleInfo | None:
     # XXX: check this works as expected for nested attributes
     return node.func.value._expr_info.module_info  # type: ignore
 
+
 def _validate_init_calls(
     block: list[vy_ast.VyperNode], init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]]
 ) -> dict[ModuleInfo, list[vy_ast.VyperNode]] | None:
@@ -321,9 +322,11 @@ def _validate_init_calls(
 
                 if len(uninitialized_dependents) != 0:
                     msg = f"tried to initialize `{other_module_info.alias}`, "
-                    msg += "but it depends on modules whose __init__() functions "
-                    msg += "were not called beforehand: " + ", ".join(uninitialized_dependents)
-                    raise InitializerException(msg, call.func, init_calls)
+                    msg += "but it depends on the following modules "
+                    msg += "which have not been initialized: " + ", ".join(uninitialized_dependents)
+                    hint = f"call their `__init__()` methods before "
+                    hint += f"`{other_module_info.alias}.__init__()`."
+                    raise InitializerException(msg, call.func, init_calls, hint=hint)
 
                 init_calls_m.append(call)
                 local_init_calls[other_module_info].append(call)
@@ -337,7 +340,7 @@ def _validate_initialized_modules(module_ast: vy_ast.Module, module_t: ModuleT) 
     Check all `initializes:` modules each have `__init__()` executed exactly once.
     Also checks that the initializes calls are done in the correct order,
     if a uses b, init of b is called before init of a.
-    
+
     This check handles branching by requiring the set of initialized modules to be
     the same in both branches.
     (If one branch raises, we act as if it initialized all necessary modules.)

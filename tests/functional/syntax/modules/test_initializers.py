@@ -1963,8 +1963,8 @@ def __init__():
     with pytest.raises(InitializerException) as e:
         compile_code(main, input_bundle=input_bundle)
     msg = (
-        "tried to initialize `lib2`, but it depends on modules whose "
-        "__init__() functions were not called beforehand: lib1"
+        "tried to initialize `lib2`, but it depends on the following modules "
+        "which have not been initialized: lib1"
     )
     assert e.value._message == msg
 
@@ -1991,8 +1991,8 @@ def __init__():
     with pytest.raises(InitializerException) as e:
         compile_code(main, input_bundle=input_bundle)
     msg = (
-        "tried to initialize `lib3`, but it depends on modules whose "
-        "__init__() functions were not called beforehand: lib1, lib2"
+        "tried to initialize `lib3`, but it depends on the following modules "
+        "which have not been initialized: lib1, lib2"
     )
     assert e.value._message == msg
 
@@ -2019,8 +2019,8 @@ def __init__():
     with pytest.raises(InitializerException) as e:
         compile_code(main, input_bundle=input_bundle)
     msg = (
-        "tried to initialize `lib3`, but it depends on modules whose "
-        "__init__() functions were not called beforehand: lib2"
+        "tried to initialize `lib3`, but it depends on the following modules "
+        "which have not been initialized: lib2"
     )
     assert e.value._message == msg
 
@@ -2068,8 +2068,8 @@ def __init__():
     with pytest.raises(InitializerException) as e:
         compile_code(main, input_bundle=input_bundle)
     msg = (
-        "tried to initialize `lib2`, but it depends on modules whose "
-        "__init__() functions were not called beforehand: lib1"
+        "tried to initialize `lib2`, but it depends on the following modules "
+        "which have not been initialized: lib1"
     )
     assert e.value._message == msg
 
@@ -2456,8 +2456,8 @@ def __init__(cond: bool):
     with pytest.raises(InitializerException) as e:
         compile_code(main, input_bundle=input_bundle)
     msg = (
-        "tried to initialize `lib2`, but it depends on modules whose "
-        "__init__() functions were not called beforehand: lib1"
+        "tried to initialize `lib2`, but it depends on the following modules "
+        "which have not been initialized: lib1"
     )
     assert e.value._message == msg
 
