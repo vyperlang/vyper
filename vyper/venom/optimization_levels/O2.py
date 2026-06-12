@@ -76,7 +76,9 @@ PASSES_O2: List[PassConfig] = [
     RemoveUnusedVariablesPass,
     ConcretizeMemLocPass,
     FmpLoweringPass,
-    # repairs the multiply-assigned FMP runner emitted by the lowering
+    # repairs the multiply-assigned FMP runner emitted by the lowering;
+    # PhiEliminationPass then folds the trivial phis MakeSSA inserts for
+    # the runner before SCCP sees them
     MakeSSA,
     PhiEliminationPass,
     SCCP,
@@ -96,7 +98,9 @@ PASSES_O2: List[PassConfig] = [
     AssignElimination,
     RemoveUnusedVariablesPass,
     # deletion-only (removes a dead fmp_param plus its self-contained
-    # assign/phi chain), so SSA form is preserved and no re-SSA is needed
+    # assign/phi chain), so SSA form is preserved and no re-SSA is needed;
+    # the trailing RemoveUnusedVariablesPass sweeps values that become dead
+    # only once the fmp_param chain is deleted
     FmpPrunePass,
     RemoveUnusedVariablesPass,
     SingleUseExpansion,

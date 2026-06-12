@@ -30,6 +30,12 @@ class PhiEliminationPass(IRPass):
             src = next(iter(srcs))
             if src == inst:
                 return
+            # the origin may be a multi-output instruction (invoke with a
+            # hidden adopted-FMP output, bump); `src.output` asserts
+            # single-output, and collapsing the phi to outputs[0] would be
+            # wrong when the phi'd value is a later output. Latent for
+            # multi-output invokes; common once FmpLoweringPass threads
+            # bump/invoke outputs through loop phis.
             if len(src.get_outputs()) != 1:
                 return
             self.updater.mk_assign(inst, src.output)

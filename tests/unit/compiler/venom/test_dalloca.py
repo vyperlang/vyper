@@ -85,6 +85,9 @@ def _execute(bytecode: bytes, calldata: bytes = b"") -> bytes:
 
 def _run_program(src: str, calldata: bytes = b"", *, lower=_apply_lowering) -> bytes:
     ctx = parse_venom(src)
+    # lower callees before callers: lowering a caller's invokes writes the
+    # hidden operands against the callee's already-sealed fmp signature, and
+    # the test sources list the caller first
     for fn in reversed(list(ctx.functions.values())):
         lower(fn)
 
@@ -158,7 +161,10 @@ def test_dalloca_handles_small_sizes(calldata, expected_ptr1, expected_ptr2):
     assert _word(out, 1) == expected_ptr2
 
 
-def test_dalloca_static_frame_prime_is_word_aligned():
+def test_dalloca_region_word_aligned_after_static_frame():
+    # the static frame is ceil32(33) = 64 bytes, so the dynamic region must
+    # start word-aligned at 64 (%a is a zero-size allocation and shares the
+    # address with %b)
     out = _run_program("""
         function main {
             main:
@@ -209,6 +215,8 @@ def test_dalloca_alignment_mask_uses_small_literal():
     FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
 
     insts = [inst for bb in fn.get_basic_blocks() for inst in bb.instructions]
+    # ceil32 must build the mask as `not 31` (1-byte immediate) rather than a
+    # 32-byte 0xff..e0 `and` literal -- pins the codesize of every dalloca site
     assert any(inst.opcode == "not" and inst.operands == [IRLiteral(31)] for inst in insts)
     assert not any(
         inst.opcode == "and" and any(isinstance(op, IRLiteral) for op in inst.operands)
@@ -689,6 +697,11 @@ def test_dret_desugar_with_multiple_dynamic_buffers():
 
 
 def test_dret_bad_return_order_can_clobber_later_source():
+    # producer contract: dret sources must be ordered so an earlier pack
+    # destination does not clobber a later source (the pack copies run in
+    # operand order). This pins the in-order pack semantics the contract is
+    # defined against -- the clobber observed here is the deterministic
+    # consequence of violating the contract, not supported behavior.
     out = _run_program("""
         function main {
             main:
@@ -908,10 +921,10 @@ def test_invoke_hidden_fmp_operand_rewritten_after_caller_dalloca():
 
 
 def test_invoke_hidden_fmp_operand_rewritten_after_caller_dalloca_inlined():
-    # structural acceptance criterion for the FMP-virtual-register redesign:
-    # with DretDesugarPass the inlined callee's pack addresses root at a
-    # cloned `getfmp`, which FmpLoweringPass threads to the post-bump FMP
-    # of the host -- there is no stale entry-FMP operand left to consume.
+    # structural property: DretDesugarPass roots the inlined callee's pack
+    # addresses at a cloned `getfmp`, which FmpLoweringPass threads to the
+    # host's post-bump FMP -- there is no stale entry-FMP operand left to
+    # consume.
     out, _ = _run_program_full_pipeline(_STALE_INVOKE_FMP_SRC, disable_inlining=False)
     assert _word(out, 0) == 5
     assert _word(out, 1) == 7
@@ -1228,7 +1241,7 @@ def test_fmp_register_ops_reaching_codegen_panic():
 
 
 # ---------------------------------------------------------------------------
-# Stage 2: single-owner FmpLoweringPass, fmp_param/retpc_param opcodes,
+# FmpLoweringPass calling convention: fmp_param/retpc_param opcodes,
 # initial_fmp entry seeding, FmpPrunePass sealing, post-lowering checks.
 # ---------------------------------------------------------------------------
 
@@ -1382,13 +1395,12 @@ def _assert_single_fmp_param_layout(fwd):
     assert [inst.opcode for inst in params] == ["param", "fmp_param", "retpc_param"]
 
 
-def test_metadata_less_never_returning_forwarder_no_duplicate_fmp_param():
-    # Stage-0 minor bug 5 regression: a never-returning forwarder (no `ret`
-    # to anchor the return-PC param) used to get a SECOND hidden FMP param
-    # from the old second lowering run, whose heuristics could not rediscover
-    # the first one. With the single-owner FmpLoweringPass (one run, the
-    # run-2 slot is the deletion-only FmpPrunePass) and the syntactic
-    # `fmp_param` opcode this is impossible by construction.
+def test_never_returning_forwarder_gets_single_fmp_param():
+    # a never-returning forwarder (no `ret` to anchor the return-PC param)
+    # must end up with exactly ONE hidden FMP param. FmpLoweringPass runs
+    # once and the slot is named by the syntactic `fmp_param` opcode (the
+    # only later pass touching it is the deletion-only FmpPrunePass), so a
+    # duplicate cannot be introduced by a later pass.
 
     # variant 1: hand-written raw IR with only plain params. Neither the
     # ret-anchored discovery (no `ret`) nor a `retpc_param` opcode names the
@@ -1396,7 +1408,7 @@ def test_metadata_less_never_returning_forwarder_no_duplicate_fmp_param():
     # never-returning callee as a caller-pushed user arg, so FmpLoweringPass
     # SYNTHESIZES the return-PC name for the unnamed top-of-stack slot --
     # renaming a plain param instead would shrink the user-arg count and
-    # panic on validated callers (final-review regression).
+    # panic on callers that were already validated against it.
     ctx = parse_venom(_NEVER_RETURNING_FORWARDER_SRC)
     check_calling_convention(ctx)  # the shape must be validator-accepted
     for fn in reversed(list(ctx.functions.values())):
@@ -1480,8 +1492,8 @@ def test_post_lowering_check_fires_on_corrupted_shape():
 
 
 # ---------------------------------------------------------------------------
-# Stage 3: principled reclaim engine -- top-segment-meet dataflow fixpoint,
-# single _step interpreter, getfmp capture veto, restore-dominance assertion.
+# reclaim engine: top-segment-meet dataflow fixpoint, single _step
+# interpreter, getfmp capture veto, restore-dominance assertion.
 # ---------------------------------------------------------------------------
 
 
@@ -1679,7 +1691,7 @@ def test_escaped_getfmp_capture_pins_reclaim():
     assert _word(out, 1) == 5
 
 
-# the verified inlined-dret pack-anchor shape: the caller's dead %h is
+# the inlined-dret pack-anchor shape: the caller's dead %h is
 # reclaim bait at the first dalloca of the inlined body, *after* the cloned
 # `getfmp` captured the pack anchor. An engine without the capture veto
 # restores the FMP under the anchor, re-allocates %s1/%s2 beneath the pack
@@ -1833,6 +1845,11 @@ def test_restore_dominance_assertion_fires_on_illegal_restore():
     # hand-construct an illegal reclaim state: a mark defined in one branch
     # arm tracked at a join the definition does not dominate. The emitted
     # restore would be SSA-illegal; the engine's dominance assertion fires.
+    #
+    # white-box on purpose: no valid input reaches this state (the join meet
+    # drops such marks), so the pass internals are poked directly -- the test
+    # pins the assertion itself, the engine's last-line SSA-validity guard
+    # against future changes to the meet.
     ctx = parse_venom("""
         function main {
             main:

@@ -33,6 +33,13 @@ class StackSpiller:
         if fn is not None and fn in self.ctx.mem_allocator.fn_eom:
             self._next_spill_offset = self.ctx.mem_allocator.fn_eom[fn]
         else:
+            # reset on function exit / unknown fn: a stale offset from the
+            # previous function would let a spill land in that function's
+            # frame. Previously latent (the allocator populates fn_eom for
+            # every function in practice), but peak_spill_end feeds the
+            # initial-FMP constant, so a stale cursor must fail loudly
+            # (CompilerPanic in _get_spill_slot) rather than silently reuse
+            # the previous function's region.
             self._next_spill_offset = None
 
     def reset_spill_slots(self) -> None:

@@ -54,7 +54,10 @@ class DynamicMemoryAnalysis(IRGlobalAnalysis):
             sig = fn._fmp_signature
             if sig is not None:
                 # frozen signature is authoritative; the function neither
-                # gains a hidden FMP param via the closure nor loses one
+                # gains a hidden FMP param via the closure nor loses one.
+                # `or sig.publishes`: parsed annotated IR may publish without
+                # a physical fmp_param; the caller still adopts the hidden
+                # FMP output, so it must thread the FMP.
                 needs_fmp[fn] = sig.has_fmp_param or sig.publishes
                 publishes[fn] = sig.publishes
             else:

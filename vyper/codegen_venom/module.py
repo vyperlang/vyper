@@ -1279,8 +1279,10 @@ def _generate_internal_function(
     returns_count = returns_stack_count(func_t)
     has_memory_return_buffer = func_t.return_type is not None and returns_count == 0
 
-    # Structured invoke metadata used by backend passes. (The user-arg
-    # count is syntactic: the number of plain `param` instructions.)
+    # Structured invoke metadata used by backend passes. _invoke_param_count
+    # is gone: the user-arg count is now syntactic (FunctionCallLayout counts
+    # plain `param` opcodes). _return_value_count feeds the post-lowering
+    # invoke output-count check (find_post_lowering_errors).
     fn._has_memory_return_buffer_param = has_memory_return_buffer
     fn._return_value_count = returns_count
 

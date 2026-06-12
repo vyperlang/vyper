@@ -146,11 +146,13 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         out_val = None
         out_ptr = ctx.allocate_buffer(0)._ptr
 
-    # Copy msg.data into the scratch buffer AFTER all kwarg evaluation:
-    # evaluating a kwarg may itself make calls that change msg.data-derived
-    # state or clobber calldata-staging assumptions, so the copy must be the
-    # last thing before the call. (The buffer itself is a tracked `dalloca`
-    # allocation -- owned until reclaim, not borrowed.)
+    # calldatasize must be computed before allocate_scratch, since the
+    # allocation is runtime-sized now. The copy stays after all kwarg
+    # evaluation, preserving the instruction order of the previous
+    # memtop (MSIZE-based) lowering, where the scratch region was
+    # genuinely unreserved and the copy had to be last; with a tracked
+    # `dalloca` buffer the ordering is no longer load-bearing, it is
+    # kept only to avoid disturbing generated code.
     if use_msg_data:
         data_len = b.calldatasize()
         data_ptr = ctx.allocate_scratch(data_len)

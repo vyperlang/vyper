@@ -126,7 +126,10 @@ class InternalReturnCopyForwardingPass(InvokeCopyForwardingBase):
 
             if use.opcode == "invoke" and pos == self._invoke_return_buffer_operand_pos(use):
                 # `pos` is an int, so matching the (possibly-None)
-                # return-buffer position implies the invoke has one
+                # return-buffer position implies the invoke has one.
+                # The old arity/metadata guards from _invoke_has_return_buffer
+                # live inside InvokeLayout.return_buffer_operand_pos (returns
+                # None on user-arg-count mismatch or missing metadata).
                 if use.parent is not copy_bb:
                     return False
                 if bb_insts.index(use) >= copy_idx:

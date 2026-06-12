@@ -109,8 +109,12 @@ class FunctionCallLayout:
                 return None
             return aliases.get(op)
 
-        # This fixed-point walk is quadratic in the worst case. That is fine
-        # for call-layout validation: functions have a small param frontier,
+        # Iteration to fixpoint, not a single sweep: a loop-header phi's
+        # back-edge operand is defined later in block order, so its
+        # param-aliasing is only discovered on a later sweep; and pre-SSA
+        # parsed IR (the validator path) has no def-before-use order at all.
+        # The walk is quadratic in the worst case. That is fine for
+        # call-layout validation: functions have a small param frontier,
         # and this only needs enough precision to follow return-PC aliases.
         changed = True
         while changed:
@@ -136,6 +140,11 @@ class FunctionCallLayout:
                             source_param = source_params[0]
 
                     existing_param = aliases.get(outputs[0])
+                    # a non-param redefinition (source_param is None) does not
+                    # demote: this map only *identifies* which param slot the
+                    # rets anchor (raw-IR convention discovery / validation),
+                    # never the runtime value at the use site; FmpLoweringPass
+                    # itself runs post-MakeSSA, where multi-def is impossible.
                     if source_param is None or existing_param == source_param:
                         continue
                     if outputs[0] in aliases:
@@ -221,7 +230,6 @@ class FunctionCallLayout:
 class InvokeLayout:
     ctx: IRContext
     inst: IRInstruction
-    callee_override: IRFunction | None = None
 
     @property
     def target(self) -> IROperand | None:
@@ -231,9 +239,6 @@ class InvokeLayout:
 
     @property
     def callee(self) -> IRFunction | None:
-        if self.callee_override is not None:
-            return self.callee_override
-
         target = self.target
         if not isinstance(target, IRLabel):
             return None
@@ -311,6 +316,11 @@ class InvokeLayout:
             return None
         if callee._has_memory_return_buffer_param is None:
             return None
+        # replaces the old frontend-side `_invoke_param_count` arity guard:
+        # post-lowering the physical arity gains a hidden fmp operand, so the
+        # expected *user* arg count is derived from the callee's entry params
+        # minus the hidden fmp/retpc params -- identical to the old count on
+        # raw IR.
         if self.user_arg_count != callee_layout.expected_user_arg_count:
             return None
         if not callee._has_memory_return_buffer_param:

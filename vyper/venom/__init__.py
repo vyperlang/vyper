@@ -131,8 +131,9 @@ def _run_global_passes(
         InternalReturnCopyForwardingPass(ir_analyses[fn], fn).run_pass()
         ReadonlyInvokeArgCopyForwardingPass(ir_analyses[fn], fn).run_pass()
 
-    assert ctx.entry_function is not None
     _run_pre_inline_dret_desugar(ctx, ir_analyses)
+    # the desugar rewrites callee bodies, so the readonly facts must be
+    # recomputed before the inliner reads them
     ctx.global_analyses_cache.invalidate_analysis(ReadonlyMemoryArgsGlobalAnalysis)
 
     if not flags.disable_inlining:
@@ -152,9 +153,9 @@ def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags, disable_mem_che
     ir_analyses: dict[IRFunction, IRAnalysesCache] = {}
     # Pre-SSA frontend IR can contain loop-carried values which are repaired by
     # MakeSSA. Only validate invariants that must already hold before passes.
-    check_calling_convention(ctx)
     if not disable_mem_checks:
         check_mem_ops(ctx)
+    check_calling_convention(ctx)
     for fn in ctx.functions.values():
         ir_analyses[fn] = IRAnalysesCache(fn)
 

@@ -419,8 +419,8 @@ def test_multi_def_param_alias_survives_full_pipeline():
 
 
 def test_dret_rejects_static_label_return_pc():
-    # Per the dret spec, dret is valid only in internal functions with a
-    # return-PC param. A static label return_pc must be rejected: otherwise
+    # dret is valid only in internal functions with a return-PC param.
+    # A static label return_pc must be rejected: otherwise
     # the lowered convention conjures an FMP param that pops the caller's return PC
     # at runtime (silent corruption).
     src = """
@@ -940,8 +940,9 @@ def test_mixed_raw_ops_with_bump_rejected():
 
 
 # ---------------------------------------------------------------------------
-# Stage 4: the calling convention is carried only by syntax (opcodes) and the
-# explicit `[fmp_lowered(, fmp_publishes)?]` function-header annotation.
+# annotation-level validation: the calling convention is carried only by
+# syntax (opcodes) and the explicit `[fmp_lowered(, fmp_publishes)?]`
+# function-header annotation.
 # ---------------------------------------------------------------------------
 
 

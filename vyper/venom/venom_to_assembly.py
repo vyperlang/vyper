@@ -183,10 +183,8 @@ class VenomCompiler:
             self.spiller.set_current_function(fn)
             self.spiller.reset_spill_slots()
 
-            try:
-                self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), {})
-            finally:
-                self.spiller.set_current_function(None)
+            self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), {})
+            self.spiller.set_current_function(None)
 
         # Declare the initial-FMP CONST if anything referenced it (the
         # entry function's FMP root is an explicit `initial_fmp`

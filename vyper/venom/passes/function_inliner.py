@@ -124,6 +124,9 @@ class FunctionInlinerPass(IRGlobalPass):
         call_site_func.append_basic_block(call_site_return)
 
         func_copy = self._clone_function(func, prefix)
+        # bound_params = user args + (hidden fmp operand, never present
+        # pre-lowering) + target-as-return-pc: identical to the old
+        # operands[1:] + [operands[0]] reorder for raw IR.
         binding_ops = InvokeLayout(self.ctx, call_site).bound_params
 
         for bb in func_copy.get_basic_blocks():

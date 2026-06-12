@@ -203,6 +203,12 @@ def test_branch_spill_integration() -> None:
     ctx = parse_venom(venom_src)
     compiler = VenomCompiler(ctx)
     fn = next(iter(ctx.functions.values()))
+    # generate_evm_assembly seeds the spill cursor per function via
+    # set_current_function, which clears _next_spill_offset when fn is absent
+    # from fn_eom -- presetting the private field directly would be
+    # overwritten, so seed fn_eom instead. (test_swap_spills_deep_stack above
+    # can still preset the field because it never goes through
+    # generate_evm_assembly.)
     ctx.mem_allocator.fn_eom[fn] = 0x10000
     asm = compiler.generate_evm_assembly()
     opcodes = [op for op in asm if isinstance(op, str)]

@@ -21,6 +21,9 @@ def _run_copy_forwarding(src: str, setup=None):
 
 
 def _lower_dalloca(ctx):
+    # lower callees before callers: lowering a caller's invokes writes the
+    # hidden operands against the callee's already-sealed fmp signature, and
+    # these test sources list the caller first
     for fn in reversed(list(ctx.functions.values())):
         DretDesugarPass(IRAnalysesCache(fn), fn).run_pass()
         run_ssa(fn)
@@ -684,6 +687,9 @@ def test_internal_return_forwarding_still_applies_without_src_clobber():
 
     def _setup(ctx):
         callee = ctx.get_function(IRLabel("callee"))
+        # _invoke_param_count no longer needs faking: InvokeLayout derives
+        # operand positions from the callee's actual param shape instead of
+        # a frontend-cached count, so only the retbuf flag remains metadata
         callee._has_memory_return_buffer_param = True
 
     ctx = _run_copy_forwarding(src, setup=_setup)
