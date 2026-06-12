@@ -78,11 +78,10 @@ class IRAnalysesCache:
             self.function.ctx.global_analyses_cache = global_cache
             return global_cache
 
+        global_cache.function_analyses_caches[self.function] = self
         for fn in self.function.ctx.functions.values():
             if fn not in global_cache.function_analyses_caches:
                 global_cache.function_analyses_caches[fn] = IRAnalysesCache(fn)
-        if self.function not in global_cache.function_analyses_caches:
-            global_cache.function_analyses_caches[self.function] = self
         return global_cache
 
     def request_analysis(self, analysis_cls: Type[T], *args, **kwargs) -> T:
