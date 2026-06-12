@@ -81,9 +81,8 @@ PASSES_O3: List[PassConfig] = [
     AssignElimination,
     RemoveUnusedVariablesPass,
     ConcretizeMemLocPass,
-    MakeSSA,
-    PhiEliminationPass,
     FmpLoweringPass,
+    # repairs the multiply-assigned FMP runner emitted by the lowering
     MakeSSA,
     PhiEliminationPass,
     SCCP,
