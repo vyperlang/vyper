@@ -7,7 +7,7 @@ String manipulation built-in functions.
 from __future__ import annotations
 
 from vyper.codegen_venom.buffer import Buffer
-from vyper.codegen_venom.builtins._kwargs import BuiltinCall
+from vyper.codegen_venom.builtins._call import BuiltinCall
 from vyper.codegen_venom.value import VyperValue
 from vyper.venom.basicblock import IRLiteral
 
@@ -36,7 +36,7 @@ def lower_uint2str(call: BuiltinCall) -> VyperValue:
     ctx = call.ctx
     b = ctx.builder
 
-    val_input = call.lower_pos_arg_values(node.args[:1])[0]
+    val_input = call.arg_operand(0)
     out_t = node._metadata["type"]
     n_digits = out_t.maxlen
 

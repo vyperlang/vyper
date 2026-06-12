@@ -4,6 +4,10 @@ Built-in function lowering for Venom IR.
 Each submodule exports a HANDLERS dict mapping builtin_id -> handler function.
 Handler signature: (call: BuiltinCall) -> IROperand | VyperValue
 
+`lower_builtin` prepares a `BuiltinCall` -- validating kwargs and lowering
+all runtime arguments in source order -- before the handler runs; see
+`_call.py` for the callsite interface that handlers declare.
+
 Builtins that return memory-located data (abi_decode, concat, slice, etc.)
 should return VyperValue.from_ptr() to preserve location info. Builtins that return
 stack values can return IROperand directly.
@@ -13,12 +17,11 @@ from __future__ import annotations
 
 from typing import Union
 
+from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic
 from vyper.venom.basicblock import IROperand
 
-from vyper.codegen_venom.value import VyperValue
-
-from ._kwargs import BuiltinCall
+from ._call import DEFAULT_SPEC, BuiltinCall
 from .abi import HANDLERS as ABI_HANDLERS
 from .bytes import HANDLERS as BYTES_HANDLERS
 from .convert import HANDLERS as CONVERT_HANDLERS
@@ -46,31 +49,6 @@ BUILTIN_HANDLERS: dict = {
     **STRINGS_HANDLERS,
 }
 
-RUNTIME_ARG_INDICES: dict[str, frozenset[int]] = {
-    "abi_decode": frozenset((0,)),
-    "_abi_decode": frozenset((0,)),
-    "convert": frozenset((0,)),
-    "empty": frozenset(),
-    "len": frozenset(),
-    "min_value": frozenset(),
-    "max_value": frozenset(),
-    "epsilon": frozenset(),
-    "raw_log": frozenset(),
-    "slice": frozenset(),
-}
-
-RUNTIME_KWARGS: dict[str, frozenset[str]] = {
-    "raw_call": frozenset(("gas", "value")),
-    "send": frozenset(("gas",)),
-    "raw_create": frozenset(("value", "salt")),
-    "create_minimal_proxy_to": frozenset(("value", "salt")),
-    "create_forwarder_to": frozenset(("value", "salt")),
-    "create_copy_of": frozenset(("value", "salt")),
-    "create_from_blueprint": frozenset(("value", "salt", "code_offset")),
-}
-
-MATERIALIZE_COMPLEX_ARGS = frozenset(("raw_create", "create_from_blueprint"))
-
 
 def lower_builtin(builtin_id: str, node, ctx) -> Union[IROperand, VyperValue]:
     """
@@ -87,12 +65,5 @@ def lower_builtin(builtin_id: str, node, ctx) -> Union[IROperand, VyperValue]:
     handler = BUILTIN_HANDLERS.get(builtin_id)
     if handler is None:  # pragma: nocover
         raise CompilerPanic(f"Built-in '{builtin_id}' not yet implemented in venom codegen")
-    return handler(
-        BuiltinCall(
-            node,
-            ctx,
-            runtime_arg_indices=RUNTIME_ARG_INDICES.get(builtin_id),
-            runtime_kwarg_names=RUNTIME_KWARGS.get(builtin_id, frozenset()),
-            materialize_complex_args=builtin_id in MATERIALIZE_COMPLEX_ARGS,
-        )
-    )
+    spec = getattr(handler, "_callsite_spec", DEFAULT_SPEC)
+    return handler(BuiltinCall(node, ctx, spec))

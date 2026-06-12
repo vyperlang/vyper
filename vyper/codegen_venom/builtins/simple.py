@@ -6,8 +6,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Union
 
-from vyper import ast as vy_ast
-from vyper.codegen_venom.builtins._kwargs import BuiltinCall
+from vyper.codegen_venom.builtins._call import BuiltinCall, is_data_view
 from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -25,19 +24,15 @@ def lower_len(call: BuiltinCall) -> IROperand:
     Returns the length stored at the pointer (first word).
     Special case: len(msg.data) returns calldatasize.
     """
-    from vyper.codegen_venom.expr import Expr
-
     node = call.node
     ctx = call.ctx
-    arg_node = node.args[0]
 
     # Special case: len(msg.data) returns calldatasize
-    if isinstance(arg_node, vy_ast.Attribute) and arg_node.attr == "data":
-        if isinstance(arg_node.value, vy_ast.Name) and arg_node.value.id == "msg":
-            return ctx.builder.calldatasize()
+    if is_data_view(node.args[0]):
+        return ctx.builder.calldatasize()
 
     # For bytes/string/DynArray: length is stored at pointer
-    arg_vv = Expr(arg_node, ctx).lower()
+    arg_vv = call.arg(0)
     assert arg_vv.location is not None
     return ctx.load_word(arg_vv.operand, arg_vv.location)
 
@@ -105,7 +100,7 @@ def _lower_minmax(call: BuiltinCall, is_max: bool) -> IROperand:
     ctx = call.ctx
     b = ctx.builder
 
-    a_val, b_val = call.lower_pos_arg_values()
+    a_val, b_val = call.arg_operands()
     typ = node.args[0]._metadata["type"]
 
     # Choose comparison - signed for most types, unsigned only for uint256
@@ -124,11 +119,10 @@ def lower_abs(call: BuiltinCall) -> IROperand:
     Returns absolute value, with overflow check for MIN_INT256.
     abs(-2^255) would overflow since 2^255 > MAX_INT256.
     """
-    node = call.node
     ctx = call.ctx
     b = ctx.builder
 
-    val = call.lower_pos_arg_values(node.args[:1])[0]
+    val = call.arg_operand(0)
 
     # Compute negation: neg_val = 0 - val
     neg_val = b.sub(IRLiteral(0), val)

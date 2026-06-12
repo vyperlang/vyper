@@ -11,35 +11,27 @@ from __future__ import annotations
 
 from typing import Optional, Union
 
-from vyper import ast as vy_ast
-from vyper.codegen_venom.builtins._kwargs import BuiltinCall, get_bool_kwarg, get_literal_kwarg
+from vyper.codegen_venom.builtins._call import BuiltinCall, callsite, is_data_view
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import ArgumentException, StateAccessViolation
 from vyper.semantics.types import BytesT, TupleT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
-_RAW_CALL_KWARGS = (
-    "max_outsize",
-    "gas",
-    "value",
-    "is_delegate_call",
-    "is_static_call",
-    "revert_on_failure",
+
+def _gas(ctx) -> IROperand:
+    return ctx.builder.gas()
+
+
+@callsite(
+    constant_kwargs={
+        "max_outsize": 0,
+        "is_delegate_call": False,
+        "is_static_call": False,
+        "revert_on_failure": True,
+    },
+    runtime_kwargs={"gas": _gas, "value": 0},
 )
-_SEND_KWARGS = ("gas",)
-
-
-def _is_msg_data(node) -> bool:
-    """Check if node is msg.data attribute access."""
-    return (
-        isinstance(node, vy_ast.Attribute)
-        and node.attr == "data"
-        and isinstance(node.value, vy_ast.Name)
-        and node.value.id == "msg"
-    )
-
-
 def lower_raw_call(call: BuiltinCall) -> Union[IROperand, VyperValue]:
     """
     raw_call(to, data, max_outsize=0, gas=gas, value=0,
@@ -58,20 +50,10 @@ def lower_raw_call(call: BuiltinCall) -> Union[IROperand, VyperValue]:
     ctx = call.ctx
     b = ctx.builder
 
-    # Parse kwargs (need to know is_static before constancy check)
-    call.validate_kwargs(_RAW_CALL_KWARGS)
-    kwarg_constants = call.get_kwarg_ast_constants(
-        {
-            "max_outsize": 0,
-            "is_delegate_call": False,
-            "is_static_call": False,
-            "revert_on_failure": True,
-        }
-    )
-    max_outsize = get_literal_kwarg(kwarg_constants, "max_outsize")
-    is_delegate = get_bool_kwarg(kwarg_constants, "is_delegate_call")
-    is_static = get_bool_kwarg(kwarg_constants, "is_static_call")
-    revert_on_failure = get_bool_kwarg(kwarg_constants, "revert_on_failure")
+    max_outsize = call.kwarg_constants["max_outsize"]
+    is_delegate = call.kwarg_constants["is_delegate_call"]
+    is_static = call.kwarg_constants["is_static_call"]
+    revert_on_failure = call.kwarg_constants["revert_on_failure"]
 
     # Validate delegate/static mutual exclusivity
     if is_delegate and is_static:
@@ -80,9 +62,7 @@ def lower_raw_call(call: BuiltinCall) -> Union[IROperand, VyperValue]:
         )
 
     # Validate value not passed with delegate/static
-    # Check if value kwarg is explicitly provided (not relying on default)
-    value_is_provided = call.kwarg_is_provided("value")
-    if (is_delegate or is_static) and value_is_provided:
+    if (is_delegate or is_static) and "value" in call.provided_kwargs:
         raise ArgumentException("value= may not be passed for static or delegate calls!", node)
 
     # Check constancy: non-static calls are not allowed from view/pure functions
@@ -93,23 +73,18 @@ def lower_raw_call(call: BuiltinCall) -> Union[IROperand, VyperValue]:
             node,
         )
 
-    # Parse positional args
-    to = call.lower_pos_arg_values(node.args[:1])[0]
+    to = call.arg_operand(0)
 
-    # Evaluate data argument
-    data_node = node.args[1]
-    use_msg_data = _is_msg_data(data_node)
+    use_msg_data = is_data_view(node.args[1])
     if not use_msg_data:
-        data_vv = call.lower_pos_args((data_node,))[0]
-        data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
+        data = call.arg_operand(1)  # Copies storage/transient to memory
         # Bytes layout: [32-byte length][data...]
         assert isinstance(data, IRVariable)
         data_len = b.mload(data)
         data_ptr = b.add(data, IRLiteral(32))
 
-    runtime_kwargs = call.get_kwarg_values({"gas": b.gas, "value": IRLiteral(0)})
-    gas = runtime_kwargs["gas"]
-    value = runtime_kwargs["value"]
+    gas = call.kwarg_value("gas")
+    value = call.kwarg_value("value")
 
     # Allocate output buffer if needed
     out_val: Optional["VyperValue"]
@@ -199,6 +174,7 @@ def lower_raw_call(call: BuiltinCall) -> Union[IROperand, VyperValue]:
         return success
 
 
+@callsite(runtime_kwargs={"gas": 0})
 def lower_send(call: BuiltinCall) -> IROperand:
     """
     send(to, value, gas=0)
@@ -212,11 +188,8 @@ def lower_send(call: BuiltinCall) -> IROperand:
 
     b = ctx.builder
 
-    to, value = call.lower_pos_arg_values()
-
-    call.validate_kwargs(_SEND_KWARGS)
-    runtime_kwargs = call.get_kwarg_values({"gas": IRLiteral(0)})
-    gas = runtime_kwargs["gas"]
+    to, value = call.arg_operands()
+    gas = call.kwarg_value("gas")
 
     argsptr_buf = ctx.allocate_buffer(0, annotation="lower send args buffer")
     retptr_buf = ctx.allocate_buffer(0, annotation="lower send retptr buffer")
@@ -237,6 +210,9 @@ def lower_send(call: BuiltinCall) -> IROperand:
     return IRLiteral(0)  # Statement builtin, no return
 
 
+# the topics list literal has no uniform value form, and data must be
+# lowered after it to preserve source order, so the handler lowers both.
+@callsite(handler_args=(0, 1))
 def lower_raw_log(call: BuiltinCall) -> IROperand:
     """
     raw_log(topics, data)
@@ -297,8 +273,7 @@ def lower_raw_revert(call: BuiltinCall) -> IROperand:
     ctx = call.ctx
     b = ctx.builder
 
-    data_vv = call.lower_pos_args()[0]
-    data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
+    data = call.arg_operand(0)  # Copies storage/transient to memory
 
     # Get data pointer and length
     assert isinstance(data, IRVariable)
@@ -327,7 +302,7 @@ def lower_selfdestruct(call: BuiltinCall) -> IROperand:
 
     b = ctx.builder
 
-    to = call.lower_pos_arg_values()[0]
+    to = call.arg_operand(0)
     b.selfdestruct(to)
 
     return IRLiteral(0)  # Unreachable

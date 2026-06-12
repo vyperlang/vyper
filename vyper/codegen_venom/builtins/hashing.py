@@ -7,7 +7,7 @@ Hashing built-in functions.
 
 from __future__ import annotations
 
-from vyper.codegen_venom.builtins._kwargs import BuiltinCall
+from vyper.codegen_venom.builtins._call import BuiltinCall
 from vyper.semantics.types import BytesM_T
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
@@ -18,9 +18,8 @@ def _prepare_hash_input(call: BuiltinCall) -> tuple[IROperand, IROperand]:
     node = call.node
     ctx = call.ctx
     b = ctx.builder
-    arg_node = node.args[0]
-    arg_t = arg_node._metadata["type"]
-    arg_vv = call.lower_pos_args(node.args[:1])[0]
+    arg_t = node.args[0]._metadata["type"]
+    arg_vv = call.arg(0)
 
     if isinstance(arg_t, _BytestringT):
         arg_mem = ctx.ensure_bytestring_in_memory(arg_vv, arg_t)

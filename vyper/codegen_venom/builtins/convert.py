@@ -16,7 +16,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
-from vyper.codegen_venom.builtins._kwargs import BuiltinCall
+from vyper.codegen_venom.builtins._call import BuiltinCall
 from vyper.exceptions import CompilerPanic, InvalidLiteral, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
@@ -39,13 +39,10 @@ def lower_convert(call: BuiltinCall) -> IROperand:
     arg_node = node.args[0]
     in_t = arg_node._metadata["type"]
     out_t = node.args[1]._metadata["type"].typedef
-    arg_vv = call.lower_pos_args(node.args[:1])[0]
 
-    # For bytestrings we need pointer, for primitives we need value
-    if isinstance(in_t, _BytestringT):
-        arg = ctx.unwrap(arg_vv)  # Copies storage/transient to memory
-    else:
-        arg = ctx.unwrap(arg_vv)
+    # bytestrings unwrap to a pointer (copying storage/transient to
+    # memory), primitives unwrap to a value
+    arg = call.arg_operand(0)
 
     # Dispatch based on output type
     if out_t == BoolT():

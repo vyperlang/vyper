@@ -9,7 +9,7 @@ These operations skip overflow/underflow checks for performance.
 
 from __future__ import annotations
 
-from vyper.codegen_venom.builtins._kwargs import BuiltinCall
+from vyper.codegen_venom.builtins._call import BuiltinCall
 from vyper.venom.basicblock import IRLiteral, IROperand
 
 
@@ -45,7 +45,7 @@ def _lower_unsafe_binop(call: BuiltinCall, op: str) -> IROperand:
     ctx = call.ctx
     b = ctx.builder
 
-    a_val, b_val = call.lower_pos_arg_values()
+    a_val, b_val = call.arg_operands()
     typ = node.args[0]._metadata["type"]
 
     # Use signed division for signed types
@@ -78,7 +78,7 @@ def lower_pow_mod256(call: BuiltinCall) -> IROperand:
     ctx = call.ctx
     b = ctx.builder
 
-    base, exp = call.lower_pos_arg_values()
+    base, exp = call.arg_operands()
 
     return b.exp(base, exp)
 
@@ -93,7 +93,7 @@ def lower_uint256_addmod(call: BuiltinCall) -> IROperand:
     ctx = call.ctx
     b = ctx.builder
 
-    a_val, b_val, c_val = call.lower_pos_arg_values()
+    a_val, b_val, c_val = call.arg_operands()
 
     # Assert divisor is non-zero (EVM ADDMOD returns 0 on div by zero)
     b.assert_(c_val)
@@ -111,7 +111,7 @@ def lower_uint256_mulmod(call: BuiltinCall) -> IROperand:
     ctx = call.ctx
     b = ctx.builder
 
-    a_val, b_val, c_val = call.lower_pos_arg_values()
+    a_val, b_val, c_val = call.arg_operands()
 
     # Assert divisor is non-zero (EVM MULMOD returns 0 on div by zero)
     b.assert_(c_val)
@@ -130,7 +130,7 @@ def lower_shift(call: BuiltinCall) -> IROperand:
     ctx = call.ctx
     b = ctx.builder
 
-    val, bits = call.lower_pos_arg_values()
+    val, bits = call.arg_operands()
     val_typ = node.args[0]._metadata["type"]
 
     # Generalized right shift: sar for signed, shr for unsigned
