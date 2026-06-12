@@ -323,6 +323,28 @@ def test_unknown_storage_layout_overrides(input_json):
     assert e.value.args[0] == f"unknown target for storage layout override: {unknown_contract_path}"
 
 
+@pytest.mark.parametrize(
+    "bad_override",
+    [
+        # more than one override file for a single target
+        {
+            "foo_overrides.json": FOO_STORAGE_LAYOUT_OVERRIDES,
+            "bar_overrides.json": BAR_STORAGE_LAYOUT_OVERRIDES,
+        },
+        # not a dict
+        [FOO_STORAGE_LAYOUT_OVERRIDES],
+        "foo_overrides.json",
+        # empty dict
+        {},
+    ],
+)
+def test_invalid_storage_layout_overrides(input_json, bad_override):
+    input_json["storage_layout_overrides"] = {"contracts/foo.vy": bad_override}
+    with pytest.raises(JSONError) as e:
+        compile_json(input_json)
+    assert e.value.args[0] == f"invalid storage layout override: {bad_override}"
+
+
 def test_source_ids_increment(input_json):
     input_json["settings"]["outputSelection"] = {"*": ["ast", "evm.deployedBytecode.sourceMap"]}
     result = compile_json(input_json)
