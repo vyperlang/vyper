@@ -461,6 +461,90 @@ initializes: lib1
         )
 
 
+# user errors in the override file should be rejected with
+# `StorageLayoutException`, not internal errors (GH 5074 review follow-up)
+def test_override_extra_entry():
+    code = """
+a: uint256
+    """
+    storage_layout_override = {
+        "a": {"type": "uint256", "slot": 0, "n_slots": 1},
+        "ghost": {"type": "uint256", "slot": 9, "n_slots": 1},
+    }
+
+    with pytest.raises(
+        StorageLayoutException, match="Computed storage layout does not match override file!"
+    ):
+        compile_code(
+            code,
+            output_formats=["layout"],
+            storage_layout_override=json_input(storage_layout_override),
+        )
+
+
+def test_override_wrong_n_slots():
+    code = """
+a: uint256[2]
+    """
+    storage_layout_override = {"a": {"type": "uint256[2]", "slot": 0, "n_slots": 1}}
+
+    with pytest.raises(
+        StorageLayoutException, match="Computed storage layout does not match override file!"
+    ):
+        compile_code(
+            code,
+            output_formats=["layout"],
+            storage_layout_override=json_input(storage_layout_override),
+        )
+
+
+@pytest.mark.parametrize("bad_slot", ["0", 1.5, None, True, [0]])
+def test_override_invalid_slot_type(bad_slot):
+    code = """
+a: uint256
+    """
+    storage_layout_override = {"a": {"type": "uint256", "slot": bad_slot, "n_slots": 1}}
+
+    with pytest.raises(StorageLayoutException, match="invalid storage slot for a, expected int"):
+        compile_code(
+            code,
+            output_formats=["layout"],
+            storage_layout_override=json_input(storage_layout_override),
+        )
+
+
+def test_override_entry_not_dict():
+    code = """
+a: uint256
+    """
+    storage_layout_override = {"a": 5}
+
+    with pytest.raises(StorageLayoutException, match="no storage slot for a"):
+        compile_code(
+            code,
+            output_formats=["layout"],
+            storage_layout_override=json_input(storage_layout_override),
+        )
+
+
+def test_override_nonreentrant_key_missing_slot():
+    code = """
+@nonreentrant
+@external
+def foo():
+    pass
+    """
+    storage_layout_override = {"$.nonreentrant_key": {"type": "nonreentrant lock", "n_slots": 1}}
+
+    exception_regex = re.escape("no storage slot for $.nonreentrant_key")
+    with pytest.raises(StorageLayoutException, match=exception_regex):
+        compile_code(
+            code,
+            output_formats=["layout"],
+            storage_layout_override=json_input(storage_layout_override),
+        )
+
+
 def test_override_with_nonreentrant_pragma(make_input_bundle):
     code = """
 # pragma nonreentrancy on
