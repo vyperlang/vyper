@@ -1964,7 +1964,7 @@ def __init__():
         compile_code(main, input_bundle=input_bundle)
     msg = (
         "tried to initialize `lib2`, but it depends on modules whose "
-        "__init__() functions were not called: lib1"
+        "__init__() functions were not called beforehand: lib1"
     )
     assert e.value._message == msg
 
@@ -1992,7 +1992,7 @@ def __init__():
         compile_code(main, input_bundle=input_bundle)
     msg = (
         "tried to initialize `lib3`, but it depends on modules whose "
-        "__init__() functions were not called: lib1, lib2"
+        "__init__() functions were not called beforehand: lib1, lib2"
     )
     assert e.value._message == msg
 
@@ -2020,7 +2020,7 @@ def __init__():
         compile_code(main, input_bundle=input_bundle)
     msg = (
         "tried to initialize `lib3`, but it depends on modules whose "
-        "__init__() functions were not called: lib2"
+        "__init__() functions were not called beforehand: lib2"
     )
     assert e.value._message == msg
 
@@ -2069,7 +2069,7 @@ def __init__():
         compile_code(main, input_bundle=input_bundle)
     msg = (
         "tried to initialize `lib2`, but it depends on modules whose "
-        "__init__() functions were not called: lib1"
+        "__init__() functions were not called beforehand: lib1"
     )
     assert e.value._message == msg
 
