@@ -324,7 +324,7 @@ def _validate_init_calls(
                     msg = f"tried to initialize `{other_module_info.alias}`, "
                     msg += "but it depends on the following modules "
                     msg += "which have not been initialized: " + ", ".join(uninitialized_dependents)
-                    hint = f"call their `__init__()` methods before "
+                    hint = "call their `__init__()` methods before "
                     hint += f"`{other_module_info.alias}.__init__()`."
                     raise InitializerException(msg, call.func, init_calls, hint=hint)
 
