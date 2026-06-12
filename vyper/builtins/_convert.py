@@ -43,6 +43,7 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.infinity import is_bounded_length
+from vyper.semantics.types.primitives import NumericT
 from vyper.semantics.types.shortcuts import INT256_T, UINT160_T, UINT256_T
 from vyper.utils import DECIMAL_DIVISOR, round_towards_zero, unsigned_to_signed
 
@@ -76,27 +77,48 @@ def _input_types(*allowed_types):
     return decorator
 
 
+def _bits_count(typ) -> int | None:
+    if isinstance(typ, BoolT):
+        return 8
+    elif isinstance(typ, NumericT):
+        return typ.bits
+    return None
+
+
 def _bytes_to_num(arg, out_typ, signed):
     # converting a bytestring to a number:
     # bytestring and bytes_m are right-padded with zeroes, int is left-padded.
     # convert by shr or sar the number of zero bytes (converted to bits)
     # e.g. "abcd000000000000" -> bitcast(000000000000abcd, output_type)
+    out_size = _bits_count(out_typ)
+    assert out_size is not None
+    out_size = out_size // 8
 
     if isinstance(arg.typ, _BytestringT):
         if not is_bounded_length(arg.typ.maxlen):
             raise CodegenPanic("convert: unbounded bytestring type")
         _len = get_bytearray_length(arg)
+        assert isinstance(arg.typ, _BytestringT)
+        if arg.typ.maxlen > out_size:
+            out_size = arg.typ.maxlen
+
         arg = LOAD(bytes_data_ptr(arg))
-        num_zero_bits = ["mul", 8, ["sub", 32, _len]]
+        runtime_compile_diff = ["sub", out_size, _len]
+        val = shr(["mul", runtime_compile_diff, 8], arg)
+        num_zero_bits = 8 * (32 - out_size)
     elif is_bytes_m_type(arg.typ):
-        num_zero_bits = 8 * (32 - arg.typ.m)
+        if arg.typ.m > out_size:
+            out_size = arg.typ.m
+        runtime_compile_diff = out_size - arg.typ.m
+        val = shr(["mul", runtime_compile_diff, 8], arg)
+        num_zero_bits = 8 * (32 - out_size)
     else:  # pragma: nocover
         raise CompilerPanic("unreachable")
 
     if signed:
-        ret = sar(num_zero_bits, arg)
+        ret = sar(num_zero_bits, val)
     else:
-        ret = shr(num_zero_bits, arg)
+        ret = shr(num_zero_bits, val)
 
     annotation = (f"__intrinsic__byte_array_to_num({out_typ})",)
     return IRnode.from_list(ret, annotation=annotation)
@@ -208,13 +230,16 @@ def _check_bytes(expr, arg, output_type, max_bytes_allowed):
 # apply sign extension, if expected. note that the sign bit
 # is always taken to be the first bit of the bytestring.
 # (e.g. convert(0xff <bytes1>, int16) == -1)
-def _signextend(expr, val, arg_typ):
+def _signextend(expr, val, arg_typ, out_size):
     if isinstance(expr, vy_ast.Hex):
         assert len(expr.value[2:]) // 2 == arg_typ.m
         n_bits = arg_typ.m_bits
     else:
-        assert len(expr.value) == arg_typ.maxlen
+        assert len(expr.value) <= arg_typ.maxlen
         n_bits = arg_typ.maxlen * 8
+
+    if n_bits < out_size:
+        n_bits = out_size
 
     return unsigned_to_signed(val, n_bits)
 
@@ -231,7 +256,7 @@ def _literal_int(expr, arg_typ, out_typ):
         raise CompilerPanic("unreachable")
 
     if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes, vy_ast.HexBytes)) and out_typ.is_signed:
-        val = _signextend(expr, val, arg_typ)
+        val = _signextend(expr, val, arg_typ, out_size=_bits_count(out_typ))
 
     lo, hi = out_typ.int_bounds
     if not (lo <= val <= hi):
@@ -258,7 +283,7 @@ def _literal_decimal(expr, arg_typ, out_typ):
 
     # apply sign extension, if expected
     if isinstance(expr, vy_ast.Hex) and out_typ.is_signed:
-        val = _signextend(expr, val, arg_typ)
+        val = _signextend(expr, val, arg_typ, out_size=_bits_count(out_typ))
 
     lo, hi = out_typ.int_bounds
     if not lo <= val <= hi:
