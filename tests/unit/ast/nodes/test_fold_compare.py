@@ -127,3 +127,28 @@ def foo(a: bytes4, b: bytes4) -> bool:
     new_node = old_node.get_folded_value()
 
     assert contract.foo(left, right) == new_node.value
+
+
+@pytest.mark.parametrize("op", ["in", "not in"])
+@pytest.mark.parametrize(
+    "left,right",
+    [
+        ("0xA1AAB33F", ["0xa1aab33f", "0x12345678"]),
+        ("0xa1aab33f", ["0xA1AAB33F", "0x12345678"]),
+        ("0xA1AAB33F", ["0x12345678", "0xabcdef01"]),
+    ],
+)
+def test_compare_in_bytes(get_contract, op, left, right):
+    source = f"""
+@external
+def foo(a: bytes4, b: bytes4[{len(right)}]) -> bool:
+    c: bytes4[{len(right)}] = b
+    return a {op} c
+    """
+    contract = get_contract(source)
+
+    vyper_ast = parse_and_fold(f"{left} {op} [{', '.join(right)}]")
+    old_node = vyper_ast.body[0].value
+    new_node = old_node.get_folded_value()
+
+    assert contract.foo(left, right) == new_node.value
