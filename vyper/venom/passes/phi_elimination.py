@@ -1,10 +1,14 @@
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction, IRVariable
+from vyper.venom.basicblock import IRInstruction, IROperand, IRVariable
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
 class PhiEliminationPass(IRPass):
-    phi_to_origins: dict[IRInstruction, set[IRInstruction]]
+    # phi -> set of (root instruction, variable produced by it). origins
+    # are keyed by the produced variable and not just the instruction,
+    # since different outputs of one multi-output instruction (e.g.
+    # invoke) are distinct origins.
+    phi_to_origins: dict[IRInstruction, set[tuple[IRInstruction, IROperand]]]
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -27,10 +31,10 @@ class PhiEliminationPass(IRPass):
 
         # len > 1: multiple origins, phi is doing real work, keep it.
         if len(srcs) == 1:
-            src = next(iter(srcs))
+            ((src, var),) = srcs
             if src == inst:
                 return
-            self.updater.mk_assign(inst, src.output)
+            self.updater.mk_assign(inst, var)
 
     def _calculate_phi_origins(self):
         self.phi_to_origins = dict()
@@ -44,13 +48,14 @@ class PhiEliminationPass(IRPass):
     def _get_phi_origins(self, inst: IRInstruction):
         assert inst.opcode == "phi"  # sanity
         visited: set[IRInstruction] = set()
-        self.phi_to_origins[inst] = self._get_phi_origins_r(inst, visited)
+        self.phi_to_origins[inst] = self._get_phi_origins_r(inst, inst.output, visited)
 
-    # traverse chains of phis and stores to get the "root" instructions
-    # for phis.
+    # traverse chains of phis and stores to get the "root" definitions
+    # for phis. `var` is the ssa variable through which `inst` was
+    # reached; it identifies which output of `inst` is the origin.
     def _get_phi_origins_r(
-        self, inst: IRInstruction, visited: set[IRInstruction]
-    ) -> set[IRInstruction]:
+        self, inst: IRInstruction, var: IROperand, visited: set[IRInstruction]
+    ) -> set[tuple[IRInstruction, IROperand]]:
         if inst.opcode == "phi":
             if inst in self.phi_to_origins:
                 return self.phi_to_origins[inst]
@@ -64,12 +69,12 @@ class PhiEliminationPass(IRPass):
 
             visited.add(inst)
 
-            res: set[IRInstruction] = set()
+            res: set[tuple[IRInstruction, IROperand]] = set()
 
-            for _, var in inst.phi_operands:
-                next_inst = self.dfg.get_producing_instruction(var)
-                assert next_inst is not None, (inst, var)
-                res |= self._get_phi_origins_r(next_inst, visited)
+            for _, op_var in inst.phi_operands:
+                next_inst = self.dfg.get_producing_instruction(op_var)
+                assert next_inst is not None, (inst, op_var)
+                res |= self._get_phi_origins_r(next_inst, op_var, visited)
 
             if len(res) > 1:
                 # multi-origin phi: treat the phi itself as a "barrier" origin.
@@ -84,15 +89,17 @@ class PhiEliminationPass(IRPass):
                 #   %c = phi %a, %b  ; barrier (two origins)
                 #   %d = %c
                 #   %f = phi %d, %c  ; both paths lead to %c, so %f = %c
-                return set([inst])
+                return set([(inst, inst.output)])
             return res
 
         if inst.opcode == "assign" and isinstance(inst.operands[0], IRVariable):
             # traverse assignment chain
-            var = inst.operands[0]
-            next_inst = self.dfg.get_producing_instruction(var)
+            src_var = inst.operands[0]
+            next_inst = self.dfg.get_producing_instruction(src_var)
             assert next_inst is not None
-            return self._get_phi_origins_r(next_inst, visited)
+            return self._get_phi_origins_r(next_inst, src_var, visited)
 
-        # root of the phi/assignment chain
-        return set([inst])
+        # root of the phi/assignment chain. note that for multi-output
+        # instructions (e.g. invoke), different outputs are distinct
+        # origins, so the origin is identified by (inst, var).
+        return set([(inst, var)])
