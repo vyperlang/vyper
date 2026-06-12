@@ -68,6 +68,15 @@ class JSONInput(CompilerInput):
         s = json.loads(file_input.source_code)
         return cls(**asdict(file_input), data=s)
 
+    @cached_property
+    def canonical_sha256sum(self):
+        # like `sha256sum`, but hash a canonical serialization of the data
+        # rather than the raw file contents, so that the hash is invariant
+        # to the formatting of the input file. (formatting is not preserved
+        # by all input/output bundle types, e.g. solc-style json output
+        # round-trips json inputs through parse/serialize.)
+        return sha256sum(json.dumps(self.data, sort_keys=True))
+
     def __hash__(self):
         # don't use dataclass provided implementation
         return super().__hash__()

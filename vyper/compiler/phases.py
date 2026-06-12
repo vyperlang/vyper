@@ -151,7 +151,10 @@ class CompilerData:
 
     def _compute_integrity_sum(self, imports_integrity_sum: str) -> str:
         if self.storage_layout_override is not None:
-            layout_sum = self.storage_layout_override.sha256sum
+            # use canonical_sha256sum so that the integrity sum does not
+            # depend on the formatting of the storage layout file, which
+            # is not preserved by the solc_json output format
+            layout_sum = self.storage_layout_override.canonical_sha256sum
             return sha256sum(layout_sum + imports_integrity_sum)
         return imports_integrity_sum
 
