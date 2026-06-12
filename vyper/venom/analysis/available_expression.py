@@ -29,6 +29,9 @@ for opcode, eff in effects.writes.items():
 # staticcall doesn't have external effects, but it is not idempotent since
 # it can depend on gas
 _nonidempotent_insts.append("staticcall")
+# gas returns the remaining gas, which decreases as execution proceeds,
+# so two reads in the same call are not equivalent
+_nonidempotent_insts.append("gas")
 
 NONIDEMPOTENT_INSTRUCTIONS = frozenset(_nonidempotent_insts)
 
