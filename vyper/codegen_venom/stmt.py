@@ -924,6 +924,17 @@ class Stmt:
         2. ABI encode the return value (if any), unless @raw_return
         3. Return encoded data or stop
         """
+        # Constructor: jump to the shared deploy epilogue (which also
+        # unlocks) instead of halting, otherwise the runtime code would
+        # never be returned.
+        if self.ctx.is_ctor_context:
+            assert ret_val is None  # __init__ has no return value
+            exit_bb = self.ctx.ctor_exit_block
+            assert exit_bb is not None
+            self.ctx.ctor_exit_used = True
+            self.builder.jmp(exit_bb.label)
+            return
+
         # Nonreentrant unlock
         self.ctx.emit_nonreentrant_unlock(func_t)
 
