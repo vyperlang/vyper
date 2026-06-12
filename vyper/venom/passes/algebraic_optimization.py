@@ -295,7 +295,7 @@ class AlgebraicOptimizationPass(IRPass):
         # x | n -> 1 in truthy positions (if n != 0)
         uses = self.dfg.get_uses(inst.output)
         is_truthy = all(i.opcode in TRUTHY_INSTRUCTIONS for i in uses)
-        if is_truthy and self._is_lit(ops[0]) and ops[0].value != 0:
+        if is_truthy and self._is_lit(ops[0]) and not lit_eq(ops[0], 0):
             self.updater.mk_assign(inst, IRLiteral(1))
             return
 
