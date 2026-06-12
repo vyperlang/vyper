@@ -4,8 +4,8 @@ from vyper.venom.passes import DFTPass
 _check_pre_post = PrePostChecker([DFTPass])
 
 
-def _check_no_change(pre):
-    _check_pre_post(pre, pre)
+def _check_no_change(pre, hevm=None):
+    _check_pre_post(pre, pre, hevm=hevm)
 
 
 def test_dft():
@@ -25,3 +25,35 @@ def test_dft():
         return %x, %y
     """
     _check_pre_post(pre, post)
+
+
+def test_dft_memtop_stays_after_memory_read():
+    """
+    `memtop` lowers to MSIZE, and memory reads (like mload) can expand
+    memory, advancing MSIZE. DFT must not schedule `memtop` before a
+    prior memory read.
+    """
+    pre = """
+    main:
+        %ptr = source
+        %v = mload %ptr
+        %m = memtop
+        sink %v, %m
+    """
+    # hevm does not model msize-dependent equivalence
+    _check_no_change(pre, hevm=False)
+
+
+def test_dft_memory_read_stays_after_memtop():
+    """
+    The converse direction: a memory read scheduled before a prior
+    `memtop` could expand memory and change the observed MSIZE.
+    """
+    pre = """
+    main:
+        %ptr = source
+        %m = memtop
+        %v = mload %ptr
+        sink %m, %v
+    """
+    _check_no_change(pre, hevm=False)
