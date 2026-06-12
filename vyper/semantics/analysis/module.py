@@ -182,13 +182,14 @@ def _validate_used_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None
         err_list.raise_if_not_empty()
 
 
-# TODO: add handling of one side of an if-then-else reverting
 def _validate_init_calls(
     block: list[vy_ast.VyperNode], init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]]
-) -> dict[ModuleInfo, list[vy_ast.VyperNode]]:
+) -> dict[ModuleInfo, list[vy_ast.VyperNode]] | None:
     """
     Check a block for wether it calls all required __init__() methods, and in the right order.
     (Dependencies must be initialized before dependents.)
+    Reverting acts as a wildcard with respects to initialization: when a branch contains a revert,
+    we count it as initializing whatever the other branch also initialized.
 
     Args:
         block: the current block, a list of nodes to analyze
@@ -196,6 +197,10 @@ def _validate_init_calls(
             * Modules which need to be initialized, to
             * Nodes in the containing scope which initialize it
                 (There can be more than one because of branching)
+
+    Returns:
+        Which modules are initialized *in this block* (for example a single branch of an if),
+        or None if there is a revert.
     """
 
     # Make a copy so that branches do not interfere
@@ -226,11 +231,33 @@ def _validate_init_calls(
 
     for node in block:
 
-        if isinstance(node, vy_ast.If):
+        if isinstance(node, vy_ast.Raise):
+            # If we raise, return the wildcard
+            return None
+
+        elif isinstance(node, vy_ast.If):
             then_nodes = _validate_init_calls(node.body, init_calls)
             else_nodes = (
                 _validate_init_calls(node.orelse, init_calls) if node.orelse is not None else {}
             )
+            if then_nodes is None and else_nodes is None:
+                # Both branches revert, the block as a whole reverts
+                return None
+            elif then_nodes is None:
+                # then-branch reverts, use the initializations from the else-branch
+                assert else_nodes is not None  # help mypy
+                for module_info in else_nodes:
+                    init_calls[module_info] += else_nodes[module_info]
+                    local_init_calls[module_info] += else_nodes[module_info]
+                continue
+            elif else_nodes is None:
+                assert then_nodes is not None  # help mypy
+                # else-branch reverts, use the initializations from the then-branch
+                for module_info in then_nodes:
+                    init_calls[module_info] += then_nodes[module_info]
+                    local_init_calls[module_info] += then_nodes[module_info]
+                continue
+            assert then_nodes is not None and else_nodes is not None  # help mypy
             # TODO: UX: instead of raising on the first, batch them all together
             for module_info in {**then_nodes, **else_nodes}:
                 if bool(then_nodes[module_info]) != bool(else_nodes[module_info]):
@@ -251,6 +278,9 @@ def _validate_init_calls(
 
         elif isinstance(node, vy_ast.For):
             loop_nodes = _validate_init_calls(node.body, init_calls)
+            if loop_nodes is None:
+                # Raise in the body of loop is not necessarily reachable
+                continue
             for module_info in loop_nodes:
                 if len(loop_nodes[module_info]) != 0:
                     msg = f"`{module_info.alias}`.__init__() is not guaranteed to be reachable: "
@@ -317,6 +347,10 @@ def _validate_initialized_modules(module_ast: vy_ast.Module, module_t: ModuleT) 
     if constructor is not None:
         assert isinstance(constructor.ast_def, vy_ast.FunctionDef)  # help mypy
         init_calls = _validate_init_calls(constructor.ast_def.body, defaultdict(list))
+
+        if init_calls is None:
+            # __init__ always reverts, maybe we should throw an error ?
+            init_calls = {}
     else:
         init_calls = {}
 
@@ -345,7 +379,6 @@ def _validate_initialized_modules(module_ast: vy_ast.Module, module_t: ModuleT) 
             hint = f"add `initializes: {module_info.alias}` "
             hint += "as a top-level statement to your contract"
             raise InitializerException(msg, *init_calls[module_info], hint=hint)
-
 
 
 def _validate_exports_uses(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
