@@ -1,6 +1,9 @@
 import pytest
 
 from tests.venom_utils import PrePostChecker
+from vyper.venom.analysis import IRAnalysesCache
+from vyper.venom.basicblock import IRLabel
+from vyper.venom.parser import parse_venom
 from vyper.venom.passes import PhiEliminationPass
 
 _check_pre_post = PrePostChecker([PhiEliminationPass], default_hevm=False)
@@ -319,3 +322,40 @@ def test_phi_elim_two_phi_merges():
     """
 
     _check_pre_post(pre, post, hevm=True)
+
+
+def test_phi_elim_multi_output_invoke():
+    # a phi over two different outputs of the same invoke instruction
+    # must not be collapsed: the origins trace to the same producing
+    # instruction, but to different variables (GH 5039)
+    pre = """
+    function main {
+    main:
+        %cond = source
+        %r1, %r2 = invoke @f
+        jnz %cond, @then, @else
+    then:
+        jmp @join
+    else:
+        jmp @join
+    join:
+        %z = phi @then, %r1, @else, %r2
+        sink %z
+    }
+
+    function f {
+    f:
+        %retpc = param
+        ret %retpc
+    }
+    """
+
+    ctx = parse_venom(pre)
+    fn = ctx.get_function(IRLabel("main"))
+    ac = IRAnalysesCache(fn)
+    PhiEliminationPass(ac, fn).run_pass()
+
+    insts = [inst for bb in fn.get_basic_blocks() for inst in bb.instructions]
+    phis = [inst for inst in insts if inst.opcode == "phi"]
+    assert len(phis) == 1, "phi over distinct invoke outputs must be kept"
+    assert phis[0].output.name == "%z"
