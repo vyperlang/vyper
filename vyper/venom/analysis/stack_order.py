@@ -141,14 +141,6 @@ class StackOrderAnalysis(IRAnalysis):
         if inst.opcode != "phi":
             self._reorder(ops)
 
-        if len(ops) > 0 and not inst.is_bb_terminator and inst.opcode != "phi":
-            assert self.stack[-len(ops) :] == ops, (inst, self.stack, ops)
-            self.stack = self.stack[: -len(ops)]
-        elif inst.opcode == "phi":
-            self.stack = self.stack[: -len(ops)]
-
-        self.stack.extend(inst.get_outputs())
-
     def _merge(self, orders: list[Needed]) -> Needed:
         if len(orders) == 0:
             return []
