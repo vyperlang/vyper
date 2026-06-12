@@ -15,7 +15,7 @@ from vyper.codegen.core import calculate_type_for_external_return
 from vyper.codegen_venom.abi import abi_decode_to_buf, abi_encode_to_buf
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.value import VyperValue
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import CompilerPanic, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import BytesT, TupleT
 from vyper.utils import fourbytes_to_int
@@ -210,6 +210,19 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     wrapped_typ = output_typ
     if unwrap_tuple:
         wrapped_typ = calculate_type_for_external_return(output_typ)
+
+    # Compile-time check that the input buffer can fit the decoded type
+    abi_size_bound = wrapped_typ.abi_type.size_bound()
+    input_max_len = data_node._metadata["type"].maxlen
+    if input_max_len < abi_size_bound:
+        raise StructureException(
+            (
+                "Mismatch between size of input and size of decoded types. "
+                f"length of ABI-encoded {wrapped_typ} must be equal to or greater "
+                f"than {abi_size_bound}"
+            ),
+            node.args[0],
+        )
 
     # Get data pointer and length
     data_vv = Expr(data_node, ctx).lower()

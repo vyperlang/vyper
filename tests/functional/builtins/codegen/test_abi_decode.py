@@ -4,6 +4,7 @@ from eth.codecs import abi
 from tests.evm_backends.base_env import EvmError, ExecutionReverted
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
+from vyper.compiler.settings import Settings
 from vyper.exceptions import ArgumentException, StructureException
 from vyper.utils import method_id
 
@@ -489,6 +490,19 @@ def foo(x: Bytes[32]):
 @pytest.mark.parametrize("bad_code,exception", FAIL_LIST)
 def test_abi_decode_length_mismatch(get_contract, assert_compile_failed, bad_code, exception):
     assert_compile_failed(lambda: get_contract(bad_code), exception)
+
+
+def test_abi_decode_undersized_buffer_venom():
+    # GH issue 5055: the venom pipeline must reject statically
+    # undersized input buffers at compile time, like the legacy pipeline
+    code = """
+@external
+def f(data: Bytes[4]) -> (uint256, uint256):
+    return abi_decode(data, (uint256, uint256))
+    """
+    settings = Settings(experimental_codegen=True)
+    with pytest.raises(StructureException, match="Mismatch between size of input"):
+        compile_code(code, settings=settings)
 
 
 def _abi_payload_from_tuple(payload: tuple[int | bytes, ...], max_sz: int) -> bytes:
