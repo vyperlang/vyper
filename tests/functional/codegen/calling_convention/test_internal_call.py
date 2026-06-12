@@ -79,7 +79,7 @@ def _hashy2(x: Bytes[100]) -> bytes32:
 
 @external
 def return_hash_of_cow_x_30() -> bytes32:
-    return self._hashy2(b"cowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcow")  # noqa: E501
+    return self._hashy2(b"cowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcow")
 
 @internal
 def _len(x: Bytes[100]) -> uint256:
@@ -88,7 +88,7 @@ def _len(x: Bytes[100]) -> uint256:
 @external
 def returnten() -> uint256:
     return self._len(b"badminton!")
-    """
+    """  # noqa: E501
 
     c = get_contract(selfcall_code_3)
     assert c.return_hash_of_cow_x_30() == keccak(b"cow" * 30)
@@ -177,14 +177,14 @@ def _underscore() -> Bytes[1]:
     return b"_"
 
 @internal
-def _hardtest(x: Bytes[100], y: uint256, z: uint256, a: Bytes[100], b: uint256, c: uint256) -> Bytes[201]:  # noqa: E501
+def _hardtest(x: Bytes[100], y: uint256, z: uint256, a: Bytes[100], b: uint256, c: uint256) -> Bytes[201]:
     return concat(slice(x, y, z), self._underscore(), slice(a, b, c))
 
 @external
 def return_mongoose_revolution_32_excls() -> Bytes[201]:
     self._set_excls(b"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     return self._hardtest(b"megamongoose123", 4, 8, concat(b"russian revolution", self.excls), 8, 42)
-    """
+    """  # noqa: E501
 
     c = get_contract(selfcall_code_6)
     assert c.return_mongoose_revolution_32_excls() == b"mongoose_revolution" + b"!" * 32
