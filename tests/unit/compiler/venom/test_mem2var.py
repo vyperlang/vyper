@@ -63,3 +63,35 @@ def test_mem2var_skips_alloca_used_as_stored_value():
     assert val == allocas[0].output, f"stored value should be the pointer, got {val}"
     # the load through %a must survive as well
     assert len(_find_insts(fn, "mload")) == 1
+
+
+def test_mem2var_stored_pointer_dest_promoted_first():
+    """
+    Same escape shape as above, but the *destination* slot is itself a
+    promotable alloca which is visited first. Promoting %b rewrites
+    `mstore %b, %a` to `%alloca_b = %a`; that assign use must then block
+    promotion of %a, and the pointer-value flow must be preserved.
+    """
+    pre = """
+    main:
+        %b = alloca 32
+        %a = alloca 32
+        mstore %b, %a
+        %x = mload %a
+        %y = mload %b
+        sink %x, %y
+    """
+    fn = _run_mem2var(pre)
+
+    # the load through %a must remain a real memory load
+    # (the dead %b alloca instruction is left for DCE to clean up)
+    allocas = _find_insts(fn, "alloca")
+    a = next(inst for inst in allocas if inst.output.name.startswith("%a"))
+    mloads = _find_insts(fn, "mload")
+    assert len(mloads) == 1
+    assert mloads[0].operands[0] == a.output
+
+    # %b may be promoted; the pointer value must flow into its
+    # replacement variable (an assign of %a)
+    assigns = [inst for inst in _find_insts(fn, "assign") if inst.operands[0] == a.output]
+    assert len(assigns) == 1
