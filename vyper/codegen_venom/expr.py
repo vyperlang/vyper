@@ -27,6 +27,8 @@ from vyper.exceptions import (
     UnimplementedException,
     tag_exceptions,
 )
+from vyper.semantics.analysis.base import Modifiability
+from vyper.semantics.analysis.utils import get_expr_writes
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     AddressT,
@@ -68,6 +70,97 @@ class _CallKwargs:
 
 # Environment variable prefixes for attribute access
 ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
+
+# builtins whose (legacy) lowering emits call-family opcodes
+# (`call`/`delegatecall`/`staticcall`/`create`/`create2`); mirrors
+# `IRnode.contains_risky_call` (vyper/codegen/ir_node.py) at source level.
+_RISKY_BUILTINS = {
+    "raw_call",
+    "send",
+    "raw_create",
+    "create_minimal_proxy_to",
+    "create_copy_of",
+    "create_from_blueprint",
+    "ecrecover",
+    "ecadd",
+    "ecmul",
+    "sha256",
+    "print",
+}
+
+
+def _expr_reads(node: vy_ast.VyperNode) -> set:
+    # analogue of `get_expr_writes()` (vyper/semantics/analysis/utils.py),
+    # but for reads. returns the set of `VarInfo`s read by `node`.
+    ret = set()
+    if isinstance(node, vy_ast.ExprNode) and node._expr_info is not None:
+        ret = {access.variable for access in node._expr_info._reads}
+    for c in node._children:
+        ret |= _expr_reads(c)
+    return ret
+
+
+def _contains_risky_call(node: vy_ast.VyperNode) -> bool:
+    # AST-level port of `IRnode.contains_risky_call`
+    # (vyper/codegen/ir_node.py): does evaluating `node` perform any
+    # call-family operation (including transitively, through internal
+    # function calls)?
+    if isinstance(node, vy_ast.ExprNode):
+        # skip calls which got folded away at compile time
+        node = node.reduced()
+
+    if isinstance(node, (vy_ast.ExtCall, vy_ast.StaticCall)):
+        return True
+
+    if isinstance(node, vy_ast.Call):
+        func_t = node.func._metadata.get("type")
+        if isinstance(func_t, BuiltinFunctionT) and func_t._id in _RISKY_BUILTINS:
+            return True
+        if isinstance(func_t, ContractFunctionT) and func_t.is_internal:
+            func_t = func_t.get_concrete_override()
+            if _function_contains_risky_call(func_t):
+                return True
+
+    return any(_contains_risky_call(c) for c in node._children)
+
+
+def _function_contains_risky_call(func_t: ContractFunctionT) -> bool:
+    decl_node = func_t.decl_node
+    assert decl_node is not None  # help mypy
+    if "contains_risky_call" not in decl_node._metadata:
+        # cache the result; note vyper bans recursion, so the call graph
+        # is a DAG and this recursion terminates.
+        ret = any(_contains_risky_call(c) for c in decl_node._children)
+        decl_node._metadata["contains_risky_call"] = ret
+    return decl_node._metadata["contains_risky_call"]
+
+
+def _subscript_read_write_overlap(
+    base_node: vy_ast.VyperNode, index_node: vy_ast.VyperNode
+) -> bool:
+    # port of `read_write_overlap()` (vyper/codegen/core.py) used in legacy
+    # `parse_Subscript`: the base pointer is evaluated before the index
+    # expression, so reject the program if evaluating the index can mutate
+    # the base out from under us. (the legacy prim-word fastpath is omitted
+    # since the base here is always array-typed, never a primitive word.)
+    #
+    # legacy only counts variables which are lowered to pointers (locals,
+    # state variables, immutables); filter out constants (which are inlined
+    # at their use sites) and builtins like `self` (which have no decl_node).
+    base_reads = {
+        v
+        for v in _expr_reads(base_node)
+        if v.decl_node is not None and v.modifiability != Modifiability.CONSTANT
+    }
+
+    if len(base_reads) == 0:
+        return False
+
+    index_writes = {access.variable for access in get_expr_writes(index_node)}
+    if len(base_reads & index_writes) > 0:
+        return True
+
+    return _contains_risky_call(index_node)
 
 
 class Expr:
@@ -837,6 +930,12 @@ class Expr:
         base_vv = Expr(node.value, self.ctx).lower()
         base = base_vv.operand  # Extract pointer for address math
         index = Expr(node.slice, self.ctx).lower_value()  # Need the value
+
+        # the base pointer was evaluated before the index expression;
+        # reject if evaluating the index can mutate the base (cf. legacy
+        # `parse_Subscript` in vyper/codegen/expr.py)
+        if _subscript_read_write_overlap(node.value, node.slice):
+            raise CompilerPanic("risky overlap")
 
         base_typ = node.value._metadata["type"]
         elem_typ = base_typ.value_type
