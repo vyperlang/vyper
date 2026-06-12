@@ -88,6 +88,10 @@ def _copy_memory(
     return [gas_inst, call_inst, assert_inst]
 
 
+# The lowering rewrites every block's instruction list wholesale, so every
+# per-function analysis caching instruction-level or memory facts is stale;
+# only CFG/dominators survive (block structure is untouched). Keep this list
+# in sync when adding analyses.
 def _invalidate_fmp_analyses(analyses_cache: IRAnalysesCache) -> None:
     analyses_cache.invalidate_analysis(LoadAnalysis)
     analyses_cache.invalidate_analysis(MemSSA)
@@ -215,8 +219,10 @@ class FmpLoweringPass(IRPass):
         # `retfmp` (the desugared publishing terminator) is the publish fact
         publishes = info.publishes
 
-        fmp_root_var, has_fmp_param = self._materialize_fmp_root(fn)
-        self.fmp_var = self._materialize_fmp_copy(fn, fmp_root_var)
+        # the FMP root output is used directly as the runner; the rewrite
+        # multiply-assigns it (restores, setfmp, adopted-FMP invoke outputs,
+        # bump outputs), which the required MakeSSA successor repairs
+        self.fmp_var, has_fmp_param = self._materialize_fmp_root(fn)
 
         self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
         self.base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
@@ -237,7 +243,10 @@ class FmpLoweringPass(IRPass):
             state = entry_states.get(bb)
             if state is None:
                 # unreachable block: lower it (no raw opcode may survive),
-                # but never synthesize restores in it
+                # but never synthesize restores in it. Only reachable from
+                # hand-written Venom text: the pipelines run SimplifyCFG
+                # before this pass and no intervening pass creates dead
+                # blocks; see test_unreachable_block_lowering_is_robust.
                 state = _ReclaimState(can_reclaim=False)
             else:
                 state = state.copy()
@@ -289,19 +298,6 @@ class FmpLoweringPass(IRPass):
         param_inst = IRInstruction("fmp_param", [], [fmp_var])
         fn.entry.insert_instruction(param_inst, index=layout.hidden_fmp_param_insert_index)
         return fmp_var, True
-
-    def _materialize_fmp_copy(self, fn: IRFunction, fmp_var: IRVariable) -> IRVariable:
-        copy_var = fn.get_next_variable()
-        inst = IRInstruction("assign", [fmp_var], [copy_var])
-
-        # insert after the params and after the FMP root definition
-        index = _after_params_index(fn)
-        for idx, entry_inst in enumerate(fn.entry.instructions):
-            if fmp_var in entry_inst.get_outputs():
-                index = max(index, idx + 1)
-                break
-        fn.entry.insert_instruction(inst, index=index)
-        return copy_var
 
     def _compute_entry_states(self, fn: IRFunction) -> dict[IRBasicBlock, _ReclaimState]:
         """
@@ -649,6 +645,11 @@ class FmpLoweringPass(IRPass):
             return {}, frozenset()
 
         var_roots: dict[IRVariable, set[IRVariable]] = {root: {root} for root in roots}
+        # fixpoint, not one ordered sweep: derivation flows through
+        # loop-header phis whose back-edge operands are defined later in
+        # block order, so loop-carried derivations only close on
+        # re-iteration; the sets grow monotonically into a finite powerset,
+        # so it terminates.
         changed = True
         while changed:
             changed = False
@@ -771,6 +772,9 @@ class FmpPrunePass(IRPass):
     def _collect_dead_fmp_chain(self, root: IRVariable) -> list[IRInstruction] | None:
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         dead_insts: list[IRInstruction] = []
+        # seen set: the assign/phi use chain can be cyclic through
+        # loop-header phis (a phi's output feeding its own back-edge
+        # operand), so a plain walk would not terminate.
         seen_insts: set[IRInstruction] = set()
         worklist = [root]
 
