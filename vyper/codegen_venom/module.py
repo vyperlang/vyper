@@ -1379,12 +1379,24 @@ def _generate_constructor(
     # Nonreentrant lock
     codegen_ctx.emit_nonreentrant_lock(func_t)
 
+    # Shared exit block with the deploy epilogue. Explicit `return`
+    # statements in the constructor body jump here.
+    exit_bb = builder.create_block("ctor_exit")
+    codegen_ctx.ctor_exit_block = exit_bb
+
     # Constructor body
     for stmt in func_ast.body:
         Stmt(stmt, codegen_ctx).lower()
 
-    # Unlock
-    if not builder.is_terminated():
+    fallthrough = not builder.is_terminated()
+    if fallthrough:
+        builder.jmp(exit_bb.label)
+
+    if fallthrough or codegen_ctx.ctor_exit_used:
+        builder.append_block(exit_bb)
+        builder.set_block(exit_bb)
+
+        # Unlock
         codegen_ctx.emit_nonreentrant_unlock(func_t)
 
         # Deploy epilogue: copy runtime code to memory and return
