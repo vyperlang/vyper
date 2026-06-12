@@ -57,7 +57,7 @@ def _FAIL(ityp, otyp, source_expr=None):
 def _input_types(*allowed_types):
     def decorator(f):
         @functools.wraps(f)
-        def check_input_type(expr, arg, in_typ, out_typ):
+        def check_input_type(expr, arg, out_typ):
             # convert arg to out_typ.
             # (expr is the AST corresponding to `arg`)
             ok = isinstance(arg.typ, allowed_types)
@@ -70,7 +70,7 @@ def _input_types(*allowed_types):
             if arg.typ == out_typ and arg.typ not in (UINT256_T, INT256_T):
                 raise InvalidType(f"value and target are both {out_typ}", expr)
 
-            return f(expr, arg, in_typ, out_typ)
+            return f(expr, arg, out_typ)
 
         return check_input_type
 
@@ -85,7 +85,7 @@ def _bits_count(typ) -> int | None:
     return None
 
 
-def _bytes_to_num(arg, in_typ, out_typ, signed):
+def _bytes_to_num(arg,  out_typ, signed):
     # converting a bytestring to a number:
     # bytestring and bytes_m are right-padded with zeroes, int is left-padded.
     # convert by shr or sar the number of zero bytes (converted to bits)
@@ -94,22 +94,22 @@ def _bytes_to_num(arg, in_typ, out_typ, signed):
     assert out_size is not None
     out_size = out_size // 8
 
-    if isinstance(in_typ, _BytestringT):
-        if not is_bounded_length(in_typ.maxlen):
+    if isinstance(arg.typ, _BytestringT):
+        if not is_bounded_length(arg.typ.maxlen):
             raise CodegenPanic("convert: unbounded bytestring type")
         _len = get_bytearray_length(arg)
-        assert isinstance(in_typ, _BytestringT)
-        if in_typ.maxlen > out_size:
-            out_size = in_typ.maxlen
+        assert isinstance(arg.typ, _BytestringT)
+        if arg.typ.maxlen > out_size:
+            out_size = arg.typ.maxlen
 
         arg = LOAD(bytes_data_ptr(arg))
         runtime_compile_diff = ["sub", out_size, _len]
         val = shr(["mul", runtime_compile_diff, 8], arg)
         num_zero_bits = 8 * (32 - out_size)
-    elif is_bytes_m_type(in_typ):
-        if in_typ.m > out_size:
-            out_size = in_typ.m
-        runtime_compile_diff = out_size - in_typ.m
+    elif is_bytes_m_type(arg.typ):
+        if arg.typ.m > out_size:
+            out_size = arg.typ.m
+        runtime_compile_diff = out_size - arg.typ.m
         val = shr(["mul", runtime_compile_diff, 8], arg)
         num_zero_bits = 8 * (32 - out_size)
     else:  # pragma: nocover
@@ -294,12 +294,12 @@ def _literal_decimal(expr, arg_typ, out_typ):
 
 # any base type or bytes/string
 @_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BoolT, BytesT, StringT)
-def to_bool(expr, arg, in_typ, out_typ):
+def to_bool(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, 32)  # should we restrict to Bytes[1]?
 
     if isinstance(arg.typ, _BytestringT):
         # no clamp. checks for any nonzero bytes.
-        arg = _bytes_to_num(arg, in_typ, out_typ, signed=False)
+        arg = _bytes_to_num(arg, out_typ, signed=False)
 
     # NOTE: for decimal, the behavior is x != 0.0,
     # (we do not issue an `sdiv DECIMAL_DIVISOR`)
@@ -308,27 +308,27 @@ def to_bool(expr, arg, in_typ, out_typ):
 
 
 @_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BoolT, FlagT, BytesT)
-def to_int(expr, arg, in_typ, out_typ):
-    return _to_int(expr, arg, in_typ, out_typ)
+def to_int(expr, arg, out_typ):
+    return _to_int(expr, arg, out_typ)
 
 
 # an internal version of to_int without input validation
-def _to_int(expr, arg, in_typ, out_typ):
+def _to_int(expr, arg, out_typ):
     assert out_typ.bits % 8 == 0
     _check_bytes(expr, arg, out_typ, 32)
 
     if isinstance(expr, vy_ast.Constant):
-        return _literal_int(expr, in_typ, out_typ)
+        return _literal_int(expr, arg.typ, out_typ)
 
     elif isinstance(arg.typ, BytesT):
         arg_typ = arg.typ
-        arg = _bytes_to_num(arg, in_typ, out_typ, signed=out_typ.is_signed)
+        arg = _bytes_to_num(arg, out_typ, signed=out_typ.is_signed)
         if arg_typ.maxlen * 8 > out_typ.bits:
             arg = int_clamp(arg, out_typ.bits, signed=out_typ.is_signed)
 
     elif is_bytes_m_type(arg.typ):
         arg_typ = arg.typ
-        arg = _bytes_to_num(arg, in_typ, out_typ, signed=out_typ.is_signed)
+        arg = _bytes_to_num(arg, out_typ, signed=out_typ.is_signed)
         if arg_typ.m_bits > out_typ.bits:
             arg = int_clamp(arg, out_typ.bits, signed=out_typ.is_signed)
 
@@ -357,7 +357,7 @@ def _to_int(expr, arg, in_typ, out_typ):
 
 
 @_input_types(IntegerT, BoolT, BytesM_T, BytesT)
-def to_decimal(expr, arg, in_typ, out_typ):
+def to_decimal(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, 32)
 
     if isinstance(expr, vy_ast.Constant):
@@ -365,7 +365,7 @@ def to_decimal(expr, arg, in_typ, out_typ):
 
     if isinstance(arg.typ, BytesT):
         arg_typ = arg.typ
-        arg = _bytes_to_num(arg, in_typ, out_typ, signed=True)
+        arg = _bytes_to_num(arg, out_typ, signed=True)
         if arg_typ.maxlen * 8 > 168:
             arg = IRnode.from_list(arg, typ=out_typ)
             arg = clamp_basetype(arg)
@@ -374,7 +374,7 @@ def to_decimal(expr, arg, in_typ, out_typ):
 
     elif is_bytes_m_type(arg.typ):
         arg_typ = arg.typ
-        arg = _bytes_to_num(arg, in_typ, out_typ, signed=True)
+        arg = _bytes_to_num(arg, out_typ, signed=True)
         if arg_typ.m_bits > 168:
             arg = IRnode.from_list(arg, typ=out_typ)
             arg = clamp_basetype(arg)
@@ -394,7 +394,7 @@ def to_decimal(expr, arg, in_typ, out_typ):
 
 
 @_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BytesT, BoolT)
-def to_bytes_m(expr, arg, in_typ, out_typ):
+def to_bytes_m(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, max_bytes_allowed=out_typ.m)
 
     if isinstance(arg.typ, BytesT):
@@ -442,13 +442,13 @@ def to_bytes_m(expr, arg, in_typ, out_typ):
 
 
 @_input_types(BytesM_T, IntegerT, BytesT)
-def to_address(expr, arg, in_typ, out_typ):
+def to_address(expr, arg, out_typ):
     # question: should this be allowed?
     if is_integer_type(arg.typ):
         if arg.typ.is_signed:
             _FAIL(arg.typ, out_typ, expr)
 
-    ret = _to_int(expr, arg, in_typ, UINT160_T)
+    ret = _to_int(expr, arg, UINT160_T)
     return IRnode.from_list(ret, out_typ)
 
 
@@ -470,17 +470,17 @@ def _cast_bytestring(expr, arg, out_typ):
 
 # question: should we allow bytesM -> String?
 @_input_types(BytesT, StringT)
-def to_string(expr, arg, in_typ, out_typ):
+def to_string(expr, arg, out_typ):
     return _cast_bytestring(expr, arg, out_typ)
 
 
 @_input_types(StringT, BytesT)
-def to_bytes(expr, arg, in_typ, out_typ):
+def to_bytes(expr, arg, out_typ):
     return _cast_bytestring(expr, arg, out_typ)
 
 
 @_input_types(IntegerT)
-def to_flag(expr, arg, in_typ, out_typ):
+def to_flag(expr, arg, out_typ):
     if arg.typ != UINT256_T:
         _FAIL(arg.typ, out_typ, expr)
 
@@ -493,7 +493,6 @@ def to_flag(expr, arg, in_typ, out_typ):
 def convert(expr, context):
     assert len(expr.args) == 2, "bad typecheck: convert"
 
-    in_typ = expr.args[0]._metadata["type"]
     arg_ast = expr.args[0].reduced()
     arg = Expr(arg_ast, context).ir_node
     original_arg = arg
@@ -504,21 +503,21 @@ def convert(expr, context):
         arg = unwrap_location(arg)
     with arg.cache_when_complex("arg") as (b, arg):
         if out_typ == BoolT():
-            ret = to_bool(arg_ast, arg, in_typ, out_typ)
+            ret = to_bool(arg_ast, arg, out_typ)
         elif out_typ == AddressT():
-            ret = to_address(arg_ast, arg, in_typ, out_typ)
+            ret = to_address(arg_ast, arg, out_typ)
         elif is_flag_type(out_typ):
-            ret = to_flag(arg_ast, arg, in_typ, out_typ)
+            ret = to_flag(arg_ast, arg, out_typ)
         elif is_integer_type(out_typ):
-            ret = to_int(arg_ast, arg, in_typ, out_typ)
+            ret = to_int(arg_ast, arg, out_typ)
         elif is_bytes_m_type(out_typ):
-            ret = to_bytes_m(arg_ast, arg, in_typ, out_typ)
+            ret = to_bytes_m(arg_ast, arg, out_typ)
         elif is_decimal_type(out_typ):
-            ret = to_decimal(arg_ast, arg, in_typ, out_typ)
+            ret = to_decimal(arg_ast, arg, out_typ)
         elif isinstance(out_typ, BytesT):
-            ret = to_bytes(arg_ast, arg, in_typ, out_typ)
+            ret = to_bytes(arg_ast, arg, out_typ)
         elif isinstance(out_typ, StringT):
-            ret = to_string(arg_ast, arg, in_typ, out_typ)
+            ret = to_string(arg_ast, arg, out_typ)
         else:
             raise StructureException(f"Conversion to {out_typ} is invalid.", arg_ast)
 
