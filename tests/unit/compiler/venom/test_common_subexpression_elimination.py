@@ -362,6 +362,24 @@ def test_cse_non_idempotent():
     _check_no_change(pre)
 
 
+def test_cse_gas_not_idempotent():
+    """
+    Test that distinct `gas` reads (and expressions built on top of them)
+    are not coalesced, since `gas` returns the remaining gas which
+    decreases as execution proceeds
+    """
+    pre = """
+    main:
+        %g1 = gas
+        %d1 = div %g1, 3
+        %g2 = gas
+        %d2 = div %g2, 3
+        sink %d1, %d2
+    """
+
+    _check_no_change(pre, hevm=False)
+
+
 @pytest.mark.xfail
 def test_cse_loop():
     """
