@@ -167,6 +167,13 @@ class VyperType:
         return self.is_valid_element_type
 
     @property
+    def has_wildcard(self):
+        return False
+
+    def resolve_wildcard(self):
+        return self
+
+    @property
     def getter_signature(self):
         return (), self
 
@@ -495,6 +502,11 @@ class TYPE_T(VyperType):
         super().__init__()
 
         self.typedef = typedef
+
+    @property
+    def is_modifying(self) -> bool:
+        # Constructor calls cannot mutate state
+        return False
 
     def to_dict(self):
         return {"type_t": self.typedef.to_dict()}

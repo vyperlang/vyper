@@ -237,10 +237,6 @@ class ContractFunctionT(VyperType):
     def mark_variable_reads(self, var_infos):
         self._variable_reads.update(var_infos)
 
-    @property
-    def modifiability(self):
-        return Modifiability.from_state_mutability(self.mutability)
-
     @cached_property
     def call_site_kwargs(self):
         # special kwargs that are allowed in call site
@@ -655,19 +651,15 @@ class ContractFunctionT(VyperType):
         arguments, return_type = self._iface_sig
         other_arguments, other_return_type = other._iface_sig
 
+        # Contravariant
         if len(arguments) != len(other_arguments):
             return False
         for atyp, btyp in zip(arguments, other_arguments):
             if not btyp.is_subtype_of(atyp):
                 return False
 
-        # Return type should be covariant, not contravariant!
-        # It should be:
-        # if return_type and not return_type.is_subtype_of(other_return_type):  # type: ignore
-        # This is currently done to allow things like IERC20's name field to be implemented by
-        # strings of any length. `String[0]` is thus able to be implemented by a `String[20]`.
-        # TODO: Once we have a system which removes the need for this hack, change it
-        if return_type and not other_return_type.is_subtype_of(return_type):  # type: ignore
+        # Covariant
+        if return_type and not return_type.is_subtype_of(other_return_type):  # type: ignore
             return False
 
         return self.mutability == other.mutability
@@ -714,7 +706,7 @@ class ContractFunctionT(VyperType):
         return self.name == "__init__"
 
     @property
-    def is_mutable(self) -> bool:
+    def is_modifying(self) -> bool:
         return self.mutability > StateMutability.VIEW
 
     @property
@@ -1159,10 +1151,6 @@ class MemberFunctionT(VyperType):
         self.arg_types = arg_types
         self.return_type = return_type
         self.is_modifying = is_modifying
-
-    @property
-    def modifiability(self):
-        return Modifiability.MODIFIABLE if self.is_modifying else Modifiability.RUNTIME_CONSTANT
 
     @property
     def _id(self):

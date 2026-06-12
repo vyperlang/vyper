@@ -1,8 +1,8 @@
 from vyper import ast as vy_ast
+from vyper.compiler.input_bundle import BUILTIN
 from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import (
     ArrayIndexException,
-    CompilerPanic,
     FeatureException,
     InstantiationException,
     InvalidType,
@@ -14,6 +14,7 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
+from vyper.semantics.types.infinity import INF, WILDCARD, LengthUpperBound
 
 # TODO maybe this should be merged with .types/base.py
 
@@ -63,7 +64,7 @@ def type_from_abi(abi_type: dict) -> VyperType:
             if type_string in ("Bytes", "String"):
                 # special handling for bytes, string, since
                 # the type ctor is in the namespace instead of a concrete type.
-                return t()
+                return t(WILDCARD)
             return t
         except KeyError:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
@@ -94,7 +95,8 @@ def type_from_annotation(
     # TODO: cursed import cycle!
     from vyper.semantics.types.primitives import DecimalT
 
-    if isinstance(typ, DecimalT):
+    # Gate uses of decimal outside of built-ins behind a flag
+    if isinstance(typ, DecimalT) and node.module_node.source_id != BUILTIN:
         # is there a better place to put this check?
         settings = get_global_settings()
         if settings and not settings.get_enable_decimals():
@@ -171,12 +173,12 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         typ_ = typ_.module_t
 
     if not isinstance(typ_, VyperType):
-        raise CompilerPanic(f"Not a type: {typ_}", node)
+        raise InvalidType(err_msg, node)
 
     return typ_
 
 
-def get_index_value(node: vy_ast.VyperNode) -> int:
+def get_index_value(node: vy_ast.VyperNode) -> LengthUpperBound:
     """
     Return the literal value for a `Subscript` index.
 
@@ -195,7 +197,18 @@ def get_index_value(node: vy_ast.VyperNode) -> int:
     # TODO: revisit this!
     from vyper.semantics.analysis.utils import get_possible_types_from_node
 
+    if isinstance(node, vy_ast.Ellipsis):
+        # module_node gives the module for the file, we need to check for inline interfaces as well
+        in_interface = node.module_node.is_interface or node.get_ancestor(vy_ast.InterfaceDef)
+        if not in_interface:
+            raise InvalidType("Wildcard length is only allowed in interfaces", node)
+        return WILDCARD
+
     node = node.reduced()
+
+    # TODO: Maybe instead check that get_possible_types_from_node(node) is _Inf ?
+    if isinstance(node, vy_ast.Name) and node.id == "INF":
+        return INF
 
     if not isinstance(node, vy_ast.Int):
         # even though the subscript is an invalid type, first check if it's a valid _something_
