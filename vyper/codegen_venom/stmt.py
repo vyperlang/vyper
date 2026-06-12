@@ -95,8 +95,9 @@ class Stmt:
         if isinstance(target, vy_ast.Tuple):
             return self._lower_tuple_unpack()
 
-        # Special case: empty Bytestring assignment — just zero the length word.
-        if isinstance(target_typ, _BytestringT) and self._is_empty_value(node.value):
+        # Special case: empty Bytestring/DynArray assignment — just zero the
+        # length word.
+        if isinstance(target_typ, (_BytestringT, DArrayT)) and self._is_empty_value(node.value):
             dst_ptr = self._get_target_ptr(target)
             self.ctx.ptr_store(dst_ptr, IRLiteral(0))
             return
@@ -117,8 +118,8 @@ class Stmt:
         (with overlap-safe copying when source and dest are in the same
         address space).
         """
-        if isinstance(typ, _BytestringT) and self._is_empty_value(src_node):
-            # Empty bytes/string assignment only needs a zero length word.
+        if isinstance(typ, (_BytestringT, DArrayT)) and self._is_empty_value(src_node):
+            # Empty bytes/string/dynarray assignment only needs a zero length word.
             self.ctx.ptr_store(dst_ptr, IRLiteral(0))
             return
 
