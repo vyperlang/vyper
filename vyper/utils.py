@@ -219,7 +219,16 @@ class DecimalContextOverride(decimal.Context):
         super().__setattr__(name, value)
 
 
+# set the context for the thread which imports vyper
 decimal.setcontext(DecimalContextOverride(prec=78))
+
+# contexts are thread-local; a thread which has not called setcontext()
+# gets a context copied from the `DefaultContext` template on first use.
+# mutate the template so that threads spawned later (e.g. compiling in a
+# thread pool) also get 78 digits of precision instead of the stdlib
+# default of 28, which silently rounds decimal constants wider than 28
+# significant digits.
+decimal.DefaultContext.prec = 78
 
 
 def keccak256(x):
