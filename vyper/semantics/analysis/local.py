@@ -631,6 +631,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if is_type_t(fn_type, EventT):
             raise StructureException("To call an event you must use the `log` statement", node)
 
+        if is_type_t(fn_type, ErrorT):
+            raise StructureException(
+                "To raise a custom error you must use `raise` or `assert`", node
+            )
+
         if is_type_t(fn_type, StructT):
             raise StructureException("Struct creation without assignment is disallowed", node)
 
@@ -758,6 +763,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         assert isinstance(node.value, vy_ast.Call)
 
         f = get_exact_type_from_node(node.value.func)
+        if is_type_t(f, ErrorT):
+            raise StructureException(
+                "To raise a custom error you must use `raise` or `assert`", node
+            )
         if not is_type_t(f, EventT):
             raise StructureException("Value is not an event", node.value)
         if self.func.mutability <= StateMutability.VIEW:

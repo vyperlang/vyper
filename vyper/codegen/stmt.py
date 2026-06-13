@@ -172,7 +172,12 @@ class Stmt:
         is_raise = test_expr is None
 
         arg_nodes = self._custom_error_args(msg, error_t)
-        arg_irs = [Expr(arg, self.context).ir_node for arg in arg_nodes]
+        old_constancy = self.context.constancy
+        try:
+            self.context.constancy = Constancy.Constant
+            arg_irs = [Expr(arg, self.context).ir_node for arg in arg_nodes]
+        finally:
+            self.context.constancy = old_constancy
 
         args_tuple_t = TupleT(tuple(error_t.arguments.values()))
         args_as_tuple = IRnode.from_list(["multi", *arg_irs], typ=args_tuple_t)
