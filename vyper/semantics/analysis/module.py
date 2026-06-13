@@ -756,19 +756,12 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             # mutability is checked automatically preventing assignment
             # outside of the constructor, here we just check a value is assigned,
             # not necessarily where
+            # Assign(target=Attribute(value=Name("self"), attr=<node.target.id>))
             assignments = self.ast.get_descendants(
-                vy_ast.Assign, filters={"target.id": node.target.id}
+                vy_ast.Assign, filters={"target.value.id": "self", "target.attr": node.target.id}
             )
             if not assignments:
-                # Special error message for common wrong usages via `self.<immutable name>`
-                wrong_self_attribute = self.ast.get_descendants(
-                    vy_ast.Attribute, {"value.id": "self", "attr": node.target.id}
-                )
-                message = (
-                    "Immutable variables must be accessed without 'self'"
-                    if len(wrong_self_attribute) > 0
-                    else "Immutable definition requires an assignment in the constructor"
-                )
+                message = "Immutable definition requires an assignment in the constructor"
                 raise ImmutableViolation(message, node)
 
         location = (
@@ -812,9 +805,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         def _finalize():
             # add the variable name to `self` namespace if the variable is either
-            # 1. a public constant or immutable; or
-            # 2. a storage variable, whether private or public
-            if (node.is_constant or node.is_immutable) and not node.is_public:
+            # 1. a public constant; or
+            # 2. a storage/transient/immutable variable, whether private or public
+            if node.is_constant and not node.is_public:
                 return
 
             self._self_t.typ.add_member(name, var_info)
@@ -837,9 +830,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             return _finalize()
 
         assert node.value is None  # checked in VariableDecl.validate()
-        if node.is_immutable:
-            _validate_self_namespace()
-            return _finalize()
 
         self.namespace.validate_assignment(name)
 

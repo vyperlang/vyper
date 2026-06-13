@@ -270,8 +270,8 @@ public_constant_variable: public(constant(uint256)) = 10
 
 @deploy
 def __init__(a: uint256, b: uint256):
-    public_immutable_variable = a
-    private_immutable_variable = b
+    self.public_immutable_variable = a
+    self.private_immutable_variable = b
     """
 
     main = """
