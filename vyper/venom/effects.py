@@ -8,6 +8,7 @@ class Effects(Flag):
     STORAGE = auto()
     TRANSIENT = auto()
     MEMORY = auto()
+    MSIZE = auto()
     IMMUTABLES = auto()
     RETURNDATA = auto()
     LOG = auto()
@@ -30,6 +31,7 @@ ALL = ~EMPTY
 STORAGE = Effects.STORAGE
 TRANSIENT = Effects.TRANSIENT
 MEMORY = Effects.MEMORY
+MSIZE = Effects.MSIZE
 IMMUTABLES = Effects.IMMUTABLES
 RETURNDATA = Effects.RETURNDATA
 LOG = Effects.LOG
@@ -39,7 +41,19 @@ NON_MEMORY_EFFECTS = ~Effects.MEMORY
 NON_STORAGE_EFFECTS = ~Effects.STORAGE
 NON_TRANSIENT_EFFECTS = ~Effects.TRANSIENT
 
+# MSIZE models the EVM memory high-water mark, which is observed by
+# `memtop` (lowered to the MSIZE opcode). any memory access -- read or
+# write -- can expand memory and therefore bump msize. memory expansion
+# commutes (msize is monotonically non-decreasing), so memory-touching
+# instructions can be freely reordered with each other as far as msize is
+# concerned, but `memtop` must not cross any of them. we model this by
+# making `memtop` *write* MSIZE and making instructions which read memory
+# (without writing it) *read* MSIZE: this serializes `memtop` against
+# memory reads in both directions while leaving the reads free to commute
+# with each other. instructions which write MEMORY are already serialized
+# against `memtop` through its MEMORY read effect.
 _writes = {
+    "memtop": MSIZE,
     "sstore": STORAGE,
     "tstore": TRANSIENT,
     "mstore": MEMORY,
@@ -63,8 +77,8 @@ _writes = {
 _reads = {
     "sload": STORAGE,
     "tload": TRANSIENT,
-    "iload": IMMUTABLES | MEMORY,
-    "mload": MEMORY,
+    "iload": IMMUTABLES | MEMORY | MSIZE,
+    "mload": MEMORY | MSIZE,
     "mcopy": MEMORY,
     "call": ALL,
     "delegatecall": ALL,
@@ -80,11 +94,11 @@ _reads = {
     "extcodesize": EXTCODE,
     "extcodehash": EXTCODE,
     "selfdestruct": BALANCE,  # may modify code, but after the transaction
-    "log": MEMORY,
-    "revert": MEMORY,
-    "sha3": MEMORY,
-    "return": MEMORY,
-    "memtop": MEMORY,  # lowers to MSIZE; depends on all prior memory writes
+    "log": MEMORY | MSIZE,
+    "revert": MEMORY | MSIZE,
+    "sha3": MEMORY | MSIZE,
+    "return": MEMORY | MSIZE,
+    "memtop": MEMORY,  # lowers to MSIZE; depends on all prior memory accesses
 }
 
 reads = _reads.copy()
