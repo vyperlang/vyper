@@ -12,8 +12,9 @@ from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.arithmetic import clamp_basetype
+from vyper.codegen_venom.builtins._call import BuiltinCall, callsite, is_data_view
 from vyper.codegen_venom.value import VyperValue
-from vyper.semantics.types import AddressT, BytesM_T, BytesT, StringT
+from vyper.semantics.types import BytesM_T, BytesT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -33,7 +34,7 @@ def _assert_slice_bounds(
     b.assert_(b.iszero(oob))
 
 
-def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
+def lower_concat(call: BuiltinCall) -> VyperValue:
     """
     concat(a, b, ...) -> bytes | string
 
@@ -41,8 +42,8 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     BytesM args contribute fixed M bytes, bytestring args contribute
     their dynamic length.
     """
-    from vyper.codegen_venom.expr import Expr
-
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
     args = node.args
 
@@ -71,13 +72,13 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     offset_local = ctx.new_temporary_value(BytesT(32))  # just need 32 bytes
     ctx.ptr_store(offset_local.ptr(), IRLiteral(0))
 
-    for arg_node in args:
+    for i, arg_node in enumerate(args):
         arg_t = arg_node._metadata["type"]
 
         if isinstance(arg_t, _BytestringT):
             # Variable-length bytes/string: copy data, advance by actual length
-            # lower_value() handles storage -> memory copy if needed
-            arg_ptr = Expr(arg_node, ctx).lower_value()
+            # unwrap handles storage -> memory copy if needed
+            arg_ptr = call.arg_operand(i)
             assert isinstance(arg_ptr, IRVariable)
             arg_len = b.mload(arg_ptr)
             arg_data = b.add(arg_ptr, IRLiteral(32))
@@ -89,7 +90,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         else:
             # Fixed bytesM: the value is already left-aligned in 32 bytes
             # Store full 32 bytes and advance by M
-            arg_val = Expr(arg_node, ctx).lower_value()
+            arg_val = call.arg_operand(i)
             m = arg_t.m
             offset = ctx.ptr_load(offset_local.ptr())
             dst = b.add(data_ptr.operand, offset)
@@ -103,57 +104,46 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     return out_val
 
 
-def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
+def lower_slice(call: BuiltinCall) -> VyperValue:
     """
     slice(b, start, length) -> bytes | string
 
     Extract substring from byte array or string.
     Handles special cases: msg.data, self.code, <address>.code.
     """
-    from vyper.codegen_venom.expr import Expr
-
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
 
     src_node = node.args[0]
-    start_node = node.args[1]
-    length_node = node.args[2]
-
     src_t = src_node._metadata["type"]
     out_t = node._metadata["type"]
 
-    # Check for adhoc slice macros (msg.data, self.code, <addr>.code)
-    if _is_adhoc_slice(src_node):
-        return _lower_adhoc_slice(node, ctx)
+    # Adhoc slice macros (msg.data, self.code, <addr>.code)
+    if is_data_view(src_node):
+        return _lower_data_view_slice(call)
 
-    # Evaluate arguments in left-to-right order for correct order of evaluation
-    # (src must be evaluated before start/length, since their side effects may modify src)
+    # Arguments were lowered in source order (src before start/length,
+    # frozen against their side effects where necessary).
     src_len: IROperand
     src_data: IROperand
     if isinstance(src_t, _BytestringT):
-        # lower_value() handles storage -> memory copy if needed
-        src_ptr = Expr(src_node, ctx).lower_value()
+        # unwrap handles storage -> memory copy if needed
+        src_ptr = call.arg_operand(0)
         assert isinstance(src_ptr, IRVariable)
         src_len = b.mload(src_ptr)
         src_data = b.add(src_ptr, IRLiteral(32))
-    elif isinstance(src_t, BytesM_T):
-        # bytesM: fixed length, value is the data (left-aligned)
-        src_val = Expr(src_node, ctx).lower_value()
-        src_len = IRLiteral(src_t.m)
-        # Need to store to memory first to slice from it
-        tmp_buf = ctx.allocate_buffer(32)
-        b.mstore(tmp_buf._ptr, src_val)
-        src_data = tmp_buf._ptr
     else:
-        # bytes32 or other 32-byte type
-        src_val = Expr(src_node, ctx).lower_value()
-        src_len = IRLiteral(32)
+        # bytesM (incl. bytes32): fixed length, the value is the data
+        # (left-aligned). Store to memory first to slice from it.
+        src_val = call.arg_operand(0)
+        src_len = IRLiteral(src_t.m) if isinstance(src_t, BytesM_T) else IRLiteral(32)
         tmp_buf = ctx.allocate_buffer(32)
         b.mstore(tmp_buf._ptr, src_val)
         src_data = tmp_buf._ptr
 
-    # Evaluate start and length AFTER src to maintain left-to-right evaluation order
-    start = Expr(start_node, ctx).lower_value()
-    length = Expr(length_node, ctx).lower_value()
+    start = call.arg_operand(1)
+    length = call.arg_operand(2)
 
     _assert_slice_bounds(ctx, start, length, src_len)
 
@@ -171,41 +161,21 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     return out_val
 
 
-def _is_adhoc_slice(node: vy_ast.VyperNode) -> bool:
-    """Check if node represents msg.data, self.code, or <addr>.code."""
-    if not isinstance(node, vy_ast.Attribute):
-        return False
-
-    # msg.data
-    if isinstance(node.value, vy_ast.Name):
-        if node.value.id == "msg" and node.attr == "data":
-            return True
-        if node.value.id == "self" and node.attr == "code":
-            return True
-
-    # <addr>.code
-    if node.attr == "code" and isinstance(node.value._metadata["type"], AddressT):
-        return True
-
-    return False
-
-
-def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
+def _lower_data_view_slice(call: BuiltinCall) -> VyperValue:
     """
     Lower slice() for special sources: msg.data, self.code, <addr>.code.
 
     These use specialized opcodes: calldatacopy, codecopy, extcodecopy.
     """
-    from vyper.codegen_venom.expr import Expr
-
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
 
     src_node = node.args[0]
-    start_node = node.args[1]
-    length_node = node.args[2]
+    assert isinstance(src_node, vy_ast.Attribute)
 
-    start = Expr(start_node, ctx).lower_value()
-    length = Expr(length_node, ctx).lower_value()
+    start = call.arg_operand(1)
+    length = call.arg_operand(2)
 
     out_t = node._metadata["type"]
     out_val = ctx.new_temporary_value(out_t)
@@ -232,8 +202,9 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
             ctx.ptr_store(out_val.ptr(), length)
             return out_val
 
-    # <addr>.code: use extcodecopy
-    addr = Expr(src_node.value, ctx).lower_value()
+    # <addr>.code: use extcodecopy. The address subexpression was lowered
+    # in the view's place, before start/length.
+    addr = call.arg_operand(0)
     src_len = b.extcodesize(addr)
     _assert_slice_bounds(ctx, start, length, src_len)
     # extcodecopy(address, destOffset, offset, size)
@@ -242,41 +213,38 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
     return out_val
 
 
-def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+@callsite(type_kwargs=("output_type",))
+def lower_extract32(call: BuiltinCall) -> IROperand:
     """
     extract32(b, start, output_type=bytes32) -> bytes32 | int | address
 
     Extract 32 bytes from bytearray at given position.
     Result type can be specified via output_type kwarg.
     """
-    from vyper.codegen_venom.expr import Expr
-
+    node = call.node
+    ctx = call.ctx
     b = ctx.builder
 
-    src_node = node.args[0]
-    start_node = node.args[1]
-    src_t = src_node._metadata["type"]
+    src_t = node.args[0]._metadata["type"]
 
-    # Evaluate arguments in left-to-right order for correct order of evaluation
-    # (src must be evaluated before start, since start's side effects may modify src)
+    # Arguments have already been evaluated in left-to-right order.
     src_len: IROperand
     src_data: IROperand
     if isinstance(src_t, _BytestringT):
-        # lower_value() handles storage -> memory copy if needed
-        src_ptr = Expr(src_node, ctx).lower_value()
+        # unwrap handles storage -> memory copy if needed
+        src_ptr = call.arg_operand(0)
         assert isinstance(src_ptr, IRVariable)
         src_len = b.mload(src_ptr)
         src_data = b.add(src_ptr, IRLiteral(32))
     else:
         # bytes32 or other fixed type - shouldn't happen but handle it
-        src_val = Expr(src_node, ctx).lower_value()
+        src_val = call.arg_operand(0)
         src_len = IRLiteral(32)
         tmp_buf = ctx.allocate_buffer(32)
         b.mstore(tmp_buf._ptr, src_val)
         src_data = tmp_buf._ptr
 
-    # Evaluate start AFTER src to maintain left-to-right evaluation order
-    start = Expr(start_node, ctx).lower_value()
+    start = call.arg_operand(1)
 
     # Bounds check: start + 32 <= length
     _assert_slice_bounds(ctx, start, IRLiteral(32), src_len)

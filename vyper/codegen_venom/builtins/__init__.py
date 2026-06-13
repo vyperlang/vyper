@@ -2,7 +2,11 @@
 Built-in function lowering for Venom IR.
 
 Each submodule exports a HANDLERS dict mapping builtin_id -> handler function.
-Handler signature: (node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand | VyperValue
+Handler signature: (call: BuiltinCall) -> IROperand | VyperValue
+
+`lower_builtin` prepares a `BuiltinCall` -- validating kwargs and lowering
+all runtime arguments in source order -- before the handler runs; see
+`_call.py` for the callsite interface that handlers declare.
 
 Builtins that return memory-located data (abi_decode, concat, slice, etc.)
 should return VyperValue.from_ptr() to preserve location info. Builtins that return
@@ -11,16 +15,13 @@ stack values can return IROperand directly.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Union
+from typing import Union
 
+from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic
 from vyper.venom.basicblock import IROperand
 
-if TYPE_CHECKING:
-    from vyper.codegen_venom.context import VenomCodegenContext
-
-from vyper.codegen_venom.value import VyperValue
-
+from ._call import DEFAULT_SPEC, BuiltinCall
 from .abi import HANDLERS as ABI_HANDLERS
 from .bytes import HANDLERS as BYTES_HANDLERS
 from .convert import HANDLERS as CONVERT_HANDLERS
@@ -64,4 +65,5 @@ def lower_builtin(builtin_id: str, node, ctx) -> Union[IROperand, VyperValue]:
     handler = BUILTIN_HANDLERS.get(builtin_id)
     if handler is None:  # pragma: nocover
         raise CompilerPanic(f"Built-in '{builtin_id}' not yet implemented in venom codegen")
-    return handler(node, ctx)
+    spec = getattr(handler, "_callsite_spec", DEFAULT_SPEC)
+    return handler(BuiltinCall(node, ctx, spec))
