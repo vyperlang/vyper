@@ -3,7 +3,6 @@ import pytest
 from vyper.semantics.types.user import ErrorT
 from vyper.utils import method_id_int
 
-
 ERROR_ID_TESTS = [
     ("error Unauthorized: pass", "Unauthorized()", method_id_int("Unauthorized()")),
     (

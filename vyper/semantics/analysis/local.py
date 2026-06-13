@@ -489,6 +489,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             call_type = get_exact_type_from_node(msg_node.func)
             if is_type_t(call_type, ErrorT):
                 self.expr_visitor.visit(msg_node, call_type.typedef)
+                self.func.mark_raised_error(call_type.typedef)
                 return
 
         if isinstance(msg_node, vy_ast.Str):

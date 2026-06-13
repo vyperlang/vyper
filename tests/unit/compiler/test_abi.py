@@ -112,7 +112,9 @@ def fail():
     assert unauthorized["inputs"][0]["name"] == "caller"
     assert unauthorized["inputs"][0]["type"] == "address"
 
-    simple = next(item for item in abi if item.get("type") == "error" and item.get("name") == "Simple")
+    simple = next(
+        item for item in abi if item.get("type") == "error" and item.get("name") == "Simple"
+    )
     assert simple["inputs"] == []
 
 

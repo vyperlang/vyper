@@ -55,9 +55,9 @@ class InterfaceT(_UserType):
         members = functions | events | errors | structs | flags
 
         # sanity check: by construction, there should be no duplicates.
-        assert len(members) == len(functions) + len(events) + len(errors) + len(
-            structs
-        ) + len(flags)
+        assert len(members) == len(functions) + len(events) + len(errors) + len(structs) + len(
+            flags
+        )
 
         super().__init__(functions)
 
@@ -112,15 +112,11 @@ class InterfaceT(_UserType):
     def _ctor_kwarg_types(self, node):
         return {}
 
-    def _ctor_modifiability_for_call(
-        self, node: vy_ast.Call, modifiability: Modifiability
-    ) -> bool:
+    def _ctor_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
         return check_modifiability(node.args[0], modifiability)
 
     def validate_implements(
-        self,
-        node: vy_ast.ImplementsDecl,
-        functions: dict[ContractFunctionT, vy_ast.VyperNode],
+        self, node: vy_ast.ImplementsDecl, functions: dict[ContractFunctionT, vy_ast.VyperNode]
     ) -> None:
         # only external functions can implement interfaces
         fns_by_name = {fn_t.name: fn_t for fn_t in functions.keys()}
@@ -153,8 +149,7 @@ class InterfaceT(_UserType):
             # is off, etc).
             missing_str = ", ".join(sorted(unimplemented))
             raise InterfaceViolation(
-                f"Contract does not implement all interface functions: {missing_str}",
-                node,
+                f"Contract does not implement all interface functions: {missing_str}", node
             )
 
     def to_toplevel_abi_dict(self) -> list[dict]:
@@ -166,7 +161,6 @@ class InterfaceT(_UserType):
         for func in self.functions.values():
             abi += func.to_toplevel_abi_dict()
         return abi
-
 
     # helper function which performs namespace collision checking
     @classmethod
@@ -300,18 +294,12 @@ class InterfaceT(_UserType):
 
         events = [(e.name, e._metadata["event_type"]) for e in module_t.event_defs]
 
-        errors = [
-            (node.name, node._metadata["error_type"]) for node in module_t.error_defs
-        ]
+        errors = [(node.name, node._metadata["error_type"]) for node in module_t.error_defs]
 
         # these are accessible via import, but they do not show up
         # in the ABI json
-        structs = [
-            (node.name, node._metadata["struct_type"]) for node in module_t.struct_defs
-        ]
-        flags = [
-            (node.name, node._metadata["flag_type"]) for node in module_t.flag_defs
-        ]
+        structs = [(node.name, node._metadata["struct_type"]) for node in module_t.struct_defs]
+        flags = [(node.name, node._metadata["flag_type"]) for node in module_t.flag_defs]
 
         return cls._from_lists(
             module_t._id, module_t.decl_node, funcs, events, errors, structs, flags
@@ -330,9 +318,7 @@ class InterfaceT(_UserType):
                     "Function definition in interface cannot be decorated",
                     func_ast.decorator_list[0],
                 )
-            functions.append(
-                (func_ast.name, ContractFunctionT.from_InterfaceDef(func_ast))
-            )
+            functions.append((func_ast.name, ContractFunctionT.from_InterfaceDef(func_ast)))
 
         return cls._from_lists(node.name, node, functions)
 
@@ -419,9 +405,7 @@ class ModuleT(VyperType):
                     # get_expr_info uses ModuleInfo
                     self.add_member(import_info.alias, module_info)
                     # type_from_annotation uses TYPE_T
-                    self._helper.add_member(
-                        import_info.alias, TYPE_T(module_info.module_t)
-                    )
+                    self._helper.add_member(import_info.alias, TYPE_T(module_info.module_t))
                 else:  # interfaces
                     assert isinstance(import_info.typ, InterfaceT)
                     self.add_member(import_info.alias, TYPE_T(import_info.typ))
@@ -573,12 +557,7 @@ class ModuleT(VyperType):
             ret.extend(node._metadata["exports_info"].functions)
 
         ret.extend([f for f in self.functions.values() if f.is_external])
-        ret.extend(
-            [
-                v.getter_ast._metadata["func_type"]
-                for v in self.public_variables.values()
-            ]
-        )
+        ret.extend([v.getter_ast._metadata["func_type"] for v in self.public_variables.values()])
 
         # precondition: no duplicate exports
         assert len(set(ret)) == len(ret)
@@ -645,9 +624,35 @@ class ModuleT(VyperType):
                     f"multiple events named '{event.name}'!", event.decl_node, prev_decl=prev
                 )
 
+    @cached_property
+    def used_errors(self) -> OrderedSet[ErrorT]:
+        """
+        Collect custom errors raised from reachable functions.
+        Errors are recorded during function analysis via FunctionAnalyzer._validate_revert_reason().
+        """
+        ret: OrderedSet[ErrorT] = OrderedSet()
+
+        for fn_t in self.reachable_functions:
+            ret.update(fn_t.get_raised_errors())
+
+        return ret
+
+    def validate_used_errors(self):
+        # check for name collisions between defined and used errors
+        defined_errors = {e._metadata["error_type"].name: e for e in self.error_defs}
+        for error in self.used_errors:
+            if (
+                error.name in defined_errors
+                and error != defined_errors[error.name]._metadata["error_type"]
+            ):
+                prev = defined_errors[error.name]
+                raise NamespaceCollision(
+                    f"multiple errors named '{error.name}'!", error.decl_node, prev_decl=prev
+                )
+
     def to_toplevel_abi_dict(self) -> list[dict]:
-        # Note: This is not a property only of an interface,
-        # since it requires information which is not local to a module, for example `used_events`
+        # Note: This is not a property only of an interface, since it requires information which
+        # is not local to a module, for example `used_events` and `used_errors`.
         abi = []
         internal_events = self.interface.events
         external_events = self.used_events
@@ -655,8 +660,16 @@ class ModuleT(VyperType):
         events: OrderedSet[EventT] = OrderedSet(internal_events.values())
         events.update(external_events)
 
+        internal_errors = self.interface.errors
+        external_errors = self.used_errors
+
+        errors: OrderedSet[ErrorT] = OrderedSet(internal_errors.values())
+        errors.update(external_errors)
+
         for event in events:
             abi += event.to_toplevel_abi_dict()
+        for error in errors:
+            abi += error.to_toplevel_abi_dict()
         for func in self.interface.functions.values():
             abi += func.to_toplevel_abi_dict()
         return abi

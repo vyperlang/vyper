@@ -161,9 +161,7 @@ class Stmt:
             ir_node = ["if", ["iszero", test_expr], revert_seq]
         return IRnode.from_list(ir_node, error_msg="user revert with reason")
 
-    def _custom_error_args(
-        self, call: vy_ast.Call, error_t: ErrorT
-    ) -> list[vy_ast.VyperNode]:
+    def _custom_error_args(self, call: vy_ast.Call, error_t: ErrorT) -> list[vy_ast.VyperNode]:
         if len(call.keywords) > 0:
             kwarg_lookup = {kw.arg: kw.value for kw in call.keywords}
             return [kwarg_lookup[name] for name in error_t.arguments.keys()]
@@ -193,16 +191,9 @@ class Stmt:
             payload_buf = add_ofst(buf, 32)
             encode_buflen = buflen - 32
             encoded_length = abi_encode(
-                payload_buf,
-                args_as_tuple,
-                self.context,
-                bufsz=encode_buflen,
-                returns_len=True,
+                payload_buf, args_as_tuple, self.context, bufsz=encode_buflen, returns_len=True
             )
-            with encoded_length.cache_when_complex("encoded_len") as (
-                b1,
-                encoded_length,
-            ):
+            with encoded_length.cache_when_complex("encoded_len") as (b1, encoded_length):
                 revert_seq = [
                     "seq",
                     ["mstore", buf, error_t.selector],
