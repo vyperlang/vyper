@@ -92,7 +92,7 @@ def set_owner(_owner: address):
     assert _owner != deployer
 
     self.owner = _owner
-    log TransferOwnership(empty(address), _owner)
+    log TransferOwnership(_old_owner=empty(address), _new_owner=_owner)
 
 
 @internal
@@ -126,7 +126,7 @@ def _psuedo_mint(_gauge: address, _user: address):
             assert convert(response, bool)
         self.minted[_user][_gauge] = total_mint
 
-        log Minted(_user, _gauge, total_mint)
+        log Minted(_user=_user, _gauge=_gauge, _new_total=total_mint)
 
 
 @external
@@ -173,7 +173,7 @@ def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address = msg.sen
 
     if msg.sender == self.call_proxy:
         gauge_data += 2  # set mirrored = True
-        log UpdateMirrored(gauge, True)
+        log UpdateMirrored(_gauge=gauge, _mirrored=True)
         # issue a call to the root chain to deploy a root gauge
         extcall CallProxy(self.call_proxy).anyCall(
             self,
@@ -204,7 +204,7 @@ def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address = msg.sen
     # on the gauge contract itself via set_root_gauge method
     extcall ChildGauge(gauge).initialize(_lp_token, root, _manager)
 
-    log DeployedGauge(implementation, _lp_token, msg.sender, _salt, gauge)
+    log DeployedGauge(_implementation=implementation, _lp_token=_lp_token, _deployer=msg.sender, _salt=_salt, _gauge=gauge)
     return gauge
 
 
@@ -231,7 +231,7 @@ def set_voting_escrow(_voting_escrow: address):
     """
     assert msg.sender == self.owner  # dev: only owner
 
-    log UpdateVotingEscrow(self.voting_escrow, _voting_escrow)
+    log UpdateVotingEscrow(_old_voting_escrow=self.voting_escrow, _new_voting_escrow=_voting_escrow)
     self.voting_escrow = _voting_escrow
 
 
@@ -243,7 +243,7 @@ def set_implementation(_implementation: address):
     """
     assert msg.sender == self.owner  # dev: only owner
 
-    log UpdateImplementation(self.get_implementation, _implementation)
+    log UpdateImplementation(_old_implementation=self.get_implementation, _new_implementation=_implementation)
     self.get_implementation = _implementation
 
 
@@ -258,12 +258,12 @@ def set_mirrored(_gauge: address, _mirrored: bool):
     assert gauge_data != 0  # dev: invalid gauge
     assert msg.sender == self.owner  # dev: only owner
 
-    gauge_data = shift(shift(gauge_data, -2), 2) + 1  # set is_valid_gauge = True
+    gauge_data = ((gauge_data >> 2) << 2) + 1  # set is_valid_gauge = True
     if _mirrored:
         gauge_data += 2  # set is_mirrored = True
 
     self.gauge_data[_gauge] = gauge_data
-    log UpdateMirrored(_gauge, _mirrored)
+    log UpdateMirrored(_gauge=_gauge, _mirrored=_mirrored)
 
 
 @external
@@ -275,7 +275,7 @@ def set_call_proxy(_new_call_proxy: address):
     """
     assert msg.sender == self.owner
 
-    log UpdateCallProxy(self.call_proxy, _new_call_proxy)
+    log UpdateCallProxy(_old_call_proxy=self.call_proxy, _new_call_proxy=_new_call_proxy)
     self.call_proxy = _new_call_proxy
 
 
@@ -298,7 +298,7 @@ def accept_transfer_ownership():
     """
     assert msg.sender == self.future_owner  # dev: only future owner
 
-    log TransferOwnership(self.owner, msg.sender)
+    log TransferOwnership(_old_owner=self.owner, _new_owner=msg.sender)
     self.owner = msg.sender
 
 
@@ -329,4 +329,4 @@ def last_request(_gauge: address) -> uint256:
     @notice Query the timestamp of the last cross chain request for emissions
     @param _gauge The address of the gauge of interest
     """
-    return shift(self.gauge_data[_gauge], -2)
+    return self.gauge_data[_gauge] >> 2

@@ -31,7 +31,6 @@ UNINTERESTING_OPCODES = frozenset(
         "basefee",
         "blobbasefee",
         "pc",
-        "msize",
     ]
 )
 # instruction that are not useful to be # substituted

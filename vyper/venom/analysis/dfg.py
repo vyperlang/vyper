@@ -1,3 +1,4 @@
+from collections import deque
 from typing import Optional
 
 from vyper.utils import OrderedSet
@@ -20,11 +21,30 @@ class DFGAnalysis(IRAnalysis):
     def get_uses(self, op: IRVariable) -> OrderedSet[IRInstruction]:
         return self._dfg_inputs.get(op, OrderedSet())
 
+    def is_single_use(self, output: IRVariable) -> bool:
+        return len(self.get_uses(output)) == 1
+
     def get_uses_in_bb(self, op: IRVariable, bb: IRBasicBlock):
         """
         Get uses of a given variable in a specific basic block.
         """
         return [inst for inst in self.get_uses(op) if inst.parent == bb]
+
+    def get_transitive_uses(self, inst: IRInstruction) -> OrderedSet[IRInstruction]:
+        """
+        Get all instructions that transitively depend on this instruction,
+        including the instruction itself.
+        """
+        result: OrderedSet[IRInstruction] = OrderedSet()
+        worklist: deque[IRInstruction] = deque([inst])
+        while len(worklist) > 0:
+            curr = worklist.popleft()
+            if curr in result:
+                continue
+            result.add(curr)
+            if curr.has_outputs:
+                worklist.extend(self.get_uses(curr.output))
+        return result
 
     # the instruction which produces this variable.
     def get_producing_instruction(self, op: IROperand) -> Optional[IRInstruction]:

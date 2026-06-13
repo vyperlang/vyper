@@ -1,10 +1,17 @@
 import json
+import re
 from typing import Type
 
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import NamespaceCollision, StructureException, VyperException
+from vyper.exceptions import (
+    CodegenPanic,
+    NamespaceCollision,
+    StructureException,
+    TypeMismatch,
+    VyperException,
+)
 
 # For reproducibility, use precompiled data of `hello: public(uint256)` using vyper 0.3.1
 PRECOMPILED_ABI = """[{"stateMutability": "view", "type": "function", "name": "hello", "inputs": [], "outputs": [{"name": "", "type": "uint256"}], "gas": 2460}]"""  # noqa: E501, FS003
@@ -63,17 +70,6 @@ def code_slice(x: address) -> Bytes[4]:
     ("bad_code", "error_type", "error_message"),
     [
         (
-            # `(address).code` without `slice`
-            """
-@external
-def code_slice(x: address) -> uint256:
-    y: uint256 = convert(x.code, uint256)
-    return y
-""",
-            StructureException,
-            "(address).code is only allowed inside of a slice function with a constant length",
-        ),
-        (
             """
 a: HashMap[Bytes[4], uint256]
 
@@ -81,19 +77,8 @@ a: HashMap[Bytes[4], uint256]
 def foo(x: address):
     self.a[x.code] += 1
 """,
-            StructureException,
-            "(address).code is only allowed inside of a slice function with a constant length",
-        ),
-        (
-            # `len` not supported
-            """
-@external
-def code_slice(x: address) -> uint256:
-    y: uint256 = len(x.code)
-    return y
-""",
-            StructureException,
-            "(address).code is only allowed inside of a slice function with a constant length",
+            TypeMismatch,
+            "Given reference has type Bytes[INF], expected Bytes[4]",
         ),
         (
             # `slice` with non static length
@@ -103,8 +88,8 @@ def code_slice(x: address, y: uint256) -> Bytes[4]:
     z: Bytes[4] = slice(x.code, 0, y)
     return z
 """,
-            StructureException,
-            "(address).code is only allowed inside of a slice function with a constant length",
+            TypeMismatch,
+            "Given reference has type Bytes[INF], expected Bytes[4]",
         ),
         (
             # `self.code` is already defined since `self` is address
@@ -196,3 +181,101 @@ def code_runtime() -> Bytes[1000000]:
     contract = get_contract(code)
     with tx_failed():
         contract.code_runtime()
+
+
+def test_code_attribute_regression(get_contract, env):
+    """
+    Regression test for .code attribute handling in slice() context.
+    Tests self.code and addr.code work correctly with related address properties.
+    """
+    code = """
+@external
+def test_self_code() -> Bytes[50]:
+    return slice(self.code, 0, 50)
+
+@external
+def test_addr_code(addr: address) -> Bytes[50]:
+    return slice(addr.code, 0, 50)
+
+@external
+def test_code_properties(addr: address) -> (uint256, uint256, bytes32, bool):
+    return (
+        addr.codesize,
+        addr.balance,
+        addr.codehash,
+        addr.is_contract
+    )
+    """
+    c = get_contract(code)
+
+    # Test self.code returns bytecode
+    self_code = c.test_self_code()
+    assert len(self_code) == 50
+
+    # Test addr.code returns bytecode
+    addr_code = c.test_addr_code(c.address)
+    assert len(addr_code) == 50
+    assert self_code == addr_code  # self.code == self.address.code
+
+    # Test related code properties
+    codesize, balance, codehash, is_contract = c.test_code_properties(c.address)
+    assert codesize > 0
+    assert balance == 0
+    assert codehash != b"\x00" * 32
+    assert is_contract is True
+
+
+@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
+def test_address_code_convert():
+    code = """
+@external
+def code_slice(x: address) -> uint256:
+    y: uint256 = convert(x.code, uint256)
+    return y
+"""
+    compiler.compile_code(code)
+
+
+@pytest.mark.parametrize(
+    ("code", "error_message"),
+    [
+        # plain address variable
+        (
+            """
+@external
+def foo(x: address) -> uint256:
+    y: uint256 = len(x.code)
+    return y
+""",
+            "`len(x.code)` is inefficient: use `x.codesize` instead",
+        ),
+        # self address
+        (
+            """
+@external
+def foo() -> uint256:
+    y: uint256 = len(self.code)
+    return y
+""",
+            "`len(self.code)` is inefficient: use `self.codesize` instead",
+        ),
+        # environment variable
+        (
+            """
+@external
+def foo() -> uint256:
+    y: uint256 = len(msg.sender.code)
+    return y
+""",
+            "`len(msg.sender.code)` is inefficient: use `msg.sender.codesize` instead",
+        ),
+    ],
+)
+def test_address_code_len(code, error_message):
+    with pytest.raises(StructureException) as excinfo:
+        compiler.compile_code(code)
+    assert excinfo.value.message == error_message
+
+    # verify the recommendation compiles
+    fixed = re.sub(r"len\((\S+)\.code\)", r"\1.codesize", code)
+    compiler.compile_code(fixed)

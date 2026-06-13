@@ -18,7 +18,7 @@ interface AddressProvider:
 # registry handlers are just wrapper contracts that simplify//fix underlying registries
 # for integrating it into the Metaregistry.
 interface RegistryHandler:
-    def find_pool_for_coins(_from: address, _to: address, i: uint256 = 0) -> address: view
+    def find_pool_for_coins(_from: address, _to: address, i: uint256 = ...) -> address: view
     def get_admin_balances(_pool: address) -> uint256[MAX_COINS]: view
     def get_balances(_pool: address) -> uint256[MAX_COINS]: view
     def get_base_pool(_pool: address) -> address: view

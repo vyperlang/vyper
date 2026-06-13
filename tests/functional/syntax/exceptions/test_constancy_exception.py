@@ -80,6 +80,18 @@ def a (x:int128):
 @external
 def b():
     self.a(10)""",
+        # view cannot call payable internal
+        """
+@payable
+@internal
+def _foo() -> uint256:
+    return msg.value
+
+@view
+@external
+def bar() -> uint256:
+    return self._foo()
+""",
         """
 interface A:
     def bar() -> uint16: view

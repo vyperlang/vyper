@@ -20,7 +20,7 @@ def test_basic_grammar():
     code_func = """
     @external
     def one_two_three() -> uint256:
-        return 123123123
+        return 123_123_123
     """
 
     assert parse_vyper_source(code, dedent=True)

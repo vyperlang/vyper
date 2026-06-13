@@ -31,7 +31,7 @@ Vyper supports structured documentation for contracts and external functions usi
 
     @external
     @payable
-    def doesEat(food: string[30], qty: uint256) -> bool:
+    def doesEat(food: String[30], qty: uint256) -> bool:
         """
         @notice Determine if Bugs will accept `qty` of `food` to eat
         @dev Compares the entire string and does not rely on a hash

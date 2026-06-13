@@ -135,3 +135,30 @@ invalid syntax. Perhaps you forgot a comma? (<unknown>, line 5)
   (hint: did you mean `staticcall`?)
     """  # noqa
     assert str(e.value) == expected_error.strip()
+
+
+@pytest.mark.parametrize(
+    "bad_literal",
+    [
+        # Trailing underscores
+        "123_",
+        "0x123_",
+        "0b10101010_",
+        "0o123_",
+        "123.45_",
+        # Double underscores
+        "10__0",
+        "0x12__34",
+        "0b10101010__10101010",
+        "0o12__34",
+        "12.34__56",
+    ],
+)
+def test_invalid_numeric_literal_underscores(bad_literal):
+    code = f"""
+@external
+def foo():
+    x = {bad_literal}
+    """
+    with pytest.raises(SyntaxException):
+        compile_code(code)

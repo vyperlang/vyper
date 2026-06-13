@@ -15,6 +15,14 @@ def cat(i1: Bytes[10], i2: Bytes[30]) -> Bytes[40]:
     (
         """
 @external
+def cat() -> Bytes[40]:
+    return concat(msg.data, b"hello")
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
+@external
 def cat(i1: Bytes[10], i2: Bytes[30]) -> Bytes[40]:
     return concat(i1, 5)
     """,
@@ -84,6 +92,22 @@ def large_output(a: String[33], b: String[33], reverse=True) -> String[64]:
     return c
     """,
         ArgumentException,
+    ),
+    (
+        """
+@external
+def foo(a: address) -> Bytes[100]:
+    return concat(a.code, b"suffix")
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
+@external
+def foo() -> Bytes[50]:
+    return concat(b"prefix", msg.data, b"suffix")
+    """,
+        TypeMismatch,
     ),
 ]
 

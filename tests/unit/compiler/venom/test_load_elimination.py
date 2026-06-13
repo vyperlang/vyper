@@ -31,7 +31,7 @@ ADDRESS_SPACES = (MEMORY, STORAGE, TRANSIENT, CALLDATA, DATA)
 RW_ADDRESS_SPACES = (MEMORY, STORAGE, TRANSIENT)
 
 
-@pytest.mark.parametrize("position", [11, "{@2,32}"])  # noqa: FS003
+@pytest.mark.parametrize("position", [11, "alloca 32"])
 @pytest.mark.parametrize("addrspace", ADDRESS_SPACES)
 def test_simple_load_elimination(addrspace, position):
     if addrspace != MEMORY and not isinstance(position, int):
@@ -57,7 +57,7 @@ def test_simple_load_elimination(addrspace, position):
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("position", [11, "{@2,32}"])  # noqa: FS003
+@pytest.mark.parametrize("position", [11, "alloca 32"])
 @pytest.mark.parametrize("addrspace", ADDRESS_SPACES)
 def test_equivalent_var_elimination(addrspace, position):
     """
@@ -100,14 +100,14 @@ def test_elimination_barrier():
         %2 = mload %1
         %3 = %100
         # fence - writes to memory
-        staticcall %3, %3, %3, %3
+        staticcall %3, %3, %3, %3, %3, %3
         %4 = mload %1
         stop
     """
     _check_no_change(pre)
 
 
-@pytest.mark.parametrize("position", [[55, 11], [55, "{@2,32}"]])  # noqa: FS003
+@pytest.mark.parametrize("position", [[55, 11], [55, "alloca 32"]])
 @pytest.mark.parametrize("addrspace", RW_ADDRESS_SPACES)
 def test_store_load_elimination(addrspace, position: list):
     """
@@ -158,7 +158,7 @@ def test_store_load_barrier():
         mstore %ptr, %val
         %3 = %100  ; arbitrary
         # fence
-        staticcall %3, %3, %3, %3
+        staticcall %3, %3, %3, %3, %3, %3
         %4 = mload %ptr
         stop
     """
@@ -197,8 +197,8 @@ def test_store_load_pair_memloc():
 
     pre = """
     main:
-        %ptr_mload = {@1,32}
-        %ptr_mstore = {@2,32}
+        %ptr_mload = alloca 32
+        %ptr_mstore = alloca 32
         %tmp01 = mload %ptr_mload
 
         # barrier created with overlap
@@ -208,14 +208,14 @@ def test_store_load_pair_memloc():
     """
     post = """
     main:
-        %ptr_mload = {@1,32}
-        %ptr_mstore = {@2,32}
+        %ptr_mload = alloca 32
+        %ptr_mstore = alloca 32
         %tmp01 = mload %ptr_mload
 
         # barrier created with overlap
         mstore %ptr_mstore, 11
         return %tmp01, %tmp01
-    """  # noqa: FS003
+    """
 
     _check_pre_post(pre, post)
 
@@ -281,7 +281,7 @@ def test_store_load_no_overlap_different_store():
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("position", [(10, 42), ("{@2,32}", "{@3,32}")])  # noqa: FS003
+@pytest.mark.parametrize("position", [(10, 42), ("alloca 32", "alloca 32")])
 @pytest.mark.parametrize("addrspace", RW_ADDRESS_SPACES)
 def test_store_store_no_overlap(addrspace, position: tuple):
     """
@@ -330,7 +330,7 @@ def test_store_store_no_overlap(addrspace, position: tuple):
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("position", [10, "{@2,32}"])  # noqa: FS003
+@pytest.mark.parametrize("position", [10, "alloca 32"])
 def test_store_store_unknown_ptr_barrier(position: list):
     """
     Check for barrier between store/load done
@@ -353,12 +353,13 @@ def test_store_store_unknown_ptr_barrier(position: list):
     _check_no_change(pre)
 
 
-@pytest.mark.parametrize("position", [5, "{@2,32}"])  # noqa: FS003
+@pytest.mark.parametrize("position", [5, "alloca 32"])
 def test_simple_load_elimination_inter(position):
     pre = f"""
     main:
         %par = param
-        %1 = mload {position}
+        %ptr = {position}
+        %1 = mload %ptr
         %cond = iszero %par
         jnz %cond, @then, @else
     then:
@@ -366,14 +367,15 @@ def test_simple_load_elimination_inter(position):
     else:
         jmp @join
     join:
-        %3 = mload {position}
+        %3 = mload %ptr
         sink %3
     """
 
     post = f"""
     main:
         %par = param
-        %1 = mload {position}
+        %ptr = {position}
+        %1 = mload %ptr
         %cond = iszero %par
         jnz %cond, @then, @else
     then:
@@ -388,34 +390,36 @@ def test_simple_load_elimination_inter(position):
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize("position", [5, "{@2,32}"])  # noqa: FS003
+@pytest.mark.parametrize("position", [5, "alloca 32"])
 def test_simple_load_elimination_inter_join(position):
     pre = f"""
     main:
         %par = param
+        %ptr = {position}
         %cond = iszero %par
         jnz %cond, @then, @else
     then:
-        %1 = mload {position}
+        %1 = mload %ptr
         jmp @join
     else:
-        %2 = mload {position}
+        %2 = mload %ptr
         jmp @join
     join:
-        %3 = mload {position}
+        %3 = mload %ptr
         sink %3
     """
 
     post = f"""
     main:
         %par = param
+        %ptr = {position}
         %cond = iszero %par
         jnz %cond, @then, @else
     then:
-        %1 = mload {position}
+        %1 = mload %ptr
         jmp @join
     else:
-        %2 = mload {position}
+        %2 = mload %ptr
         jmp @join
     join:
         %4 = phi @then, %1, @else, %2
@@ -426,57 +430,269 @@ def test_simple_load_elimination_inter_join(position):
     _check_pre_post(pre, post)
 
 
-@pytest.mark.parametrize(
-    "position", [(5, 1000, 50), ("{@2,32}", "{@3,32}", "{@4,32}")]  # noqa: FS003
-)
+@pytest.mark.parametrize("position", [(5, 1000, 50), ("alloca 32", "alloca 32", "alloca 32")])
 def test_load_elimination_inter_distant_bb(position):
     a, b, c = position
 
     pre = f"""
     main:
         %par = param
+        %ptr_a = {a}
+        %ptr_b = {b}
+        %ptr_c = {c}
         %cond = iszero %par
         jnz %cond, @then, @else
     then:
-        %1 = mload {a}
+        %1 = mload %ptr_a
         jmp @join
     else:
-        %2 = mload {a}
+        %2 = mload %ptr_a
         jmp @join
     join:
-        %3 = mload {b}
+        %3 = mload %ptr_b
         %cond_end = iszero %3
         jnz %cond_end, @end_a, @end_b
     end_a:
-        %4 = mload {a}
+        %4 = mload %ptr_a
         sink %4
     end_b:
-        %5 = mload {c}
+        %5 = mload %ptr_c
         sink %5
     """
 
     post = f"""
     main:
         %par = param
+        %ptr_a = {a}
+        %ptr_b = {b}
+        %ptr_c = {c}
         %cond = iszero %par
         jnz %cond, @then, @else
     then:
-        %1 = mload {a}
+        %1 = mload %ptr_a
         jmp @join
     else:
-        %2 = mload {a}
+        %2 = mload %ptr_a
         jmp @join
     join:
         %6 = phi @then, %1, @else, %2
-        %3 = mload {b}
+        %3 = mload %ptr_b
         %cond_end = iszero %3
         jnz %cond_end, @end_a, @end_b
     end_a:
         %4 = %6
         sink %4
     end_b:
-        %5 = mload {c}
+        %5 = mload %ptr_c
         sink %5
     """
 
+    _check_pre_post(pre, post)
+
+
+def test_nested_diamond_no_restore():
+    r"""
+    Test nested diamond CFG where values diverge at inner join.
+    The outer join predecessors each have len > 1, so we should bail out
+    (no phi insertion, load remains).
+
+    CFG:
+        A (store v1)    B (store v2)
+             \              /
+              \            /
+               C  <- inner join, lattice = {v1, v2}
+              / \
+             D   E   <- no stores, inherit {v1, v2}
+              \ /
+               F  <- outer join, lattice = {v1, v2}
+               |
+               G (load)
+    """
+    pre = """
+    main:
+        %cond1 = param
+        %cond2 = param
+        %ptr = 100
+        jnz %cond1, @A, @B
+    A:
+        mstore %ptr, 1
+        jmp @C
+    B:
+        mstore %ptr, 2
+        jmp @C
+    C:
+        ; inner join - lattice has {1, 2}
+        jnz %cond2, @D, @E
+    D:
+        ; no store, inherits {1, 2}
+        jmp @F
+    E:
+        ; no store, inherits {1, 2}
+        jmp @F
+    F:
+        ; outer join - predecessors D and E both have {1, 2}
+        ; algorithm should bail out (no phi)
+        %val = mload %ptr
+        sink %val
+    """
+    # No change expected - can't create phi when predecessors have multiple values
+    _check_pre_post(pre, pre)
+
+
+def test_nested_diamond_with_restore():
+    r"""
+    Test nested diamond CFG where both paths at outer level re-store.
+    Each predecessor of outer join has exactly 1 value, so phi can be created.
+
+    CFG:
+        A (store v1)    B (store v2)
+             \              /
+              \            /
+               C  <- inner join
+              / \
+             D   E   <- both store new values (using variables)
+              \ /
+               F  <- outer join
+               |
+               G (load)
+    """
+    pre = """
+    main:
+        %cond1 = param
+        %cond2 = param
+        %ptr = 100
+        jnz %cond1, @A, @B
+    A:
+        mstore %ptr, 1
+        jmp @C
+    B:
+        mstore %ptr, 2
+        jmp @C
+    C:
+        ; inner join
+        jnz %cond2, @D, @E
+    D:
+        ; define a new variable here (source = symbolic)
+        %v3 = source
+        mstore %ptr, %v3
+        jmp @F
+    E:
+        ; define a new variable here
+        %v4 = source
+        mstore %ptr, %v4
+        jmp @F
+    F:
+        ; outer join - D has {%v3}, E has {%v4}
+        %val = mload %ptr
+        sink %val
+    """
+    post = """
+    main:
+        %cond1 = param
+        %cond2 = param
+        %ptr = 100
+        jnz %cond1, @A, @B
+    A:
+        mstore %ptr, 1
+        jmp @C
+    B:
+        mstore %ptr, 2
+        jmp @C
+    C:
+        jnz %cond2, @D, @E
+    D:
+        %v3 = source
+        mstore %ptr, %v3
+        jmp @F
+    E:
+        %v4 = source
+        mstore %ptr, %v4
+        jmp @F
+    F:
+        %1 = phi @D, %v3, @E, %v4
+        sink %1
+    """
+    _check_pre_post(pre, post)
+
+
+def test_load_elimination_phi_duplicate_pred_values():
+    r"""
+    Test a join with three predecessors where two store the same value.
+    The phi should include duplicate operands and the load is eliminated.
+    """
+    pre = """
+    main:
+        %cond1 = param
+        %cond2 = param
+        %ptr = 100
+        %v_shared = source
+        %v_other = source
+        jnz %cond1, @A, @B
+    A:
+        mstore %ptr, %v_shared
+        jmp @J
+    B:
+        jnz %cond2, @C, @D
+    C:
+        mstore %ptr, %v_shared
+        jmp @J
+    D:
+        mstore %ptr, %v_other
+        jmp @J
+    J:
+        %val = mload %ptr
+        sink %val
+    """
+    post = """
+    main:
+        %cond1 = param
+        %cond2 = param
+        %ptr = 100
+        %v_shared = source
+        %v_other = source
+        jnz %cond1, @A, @B
+    A:
+        mstore %ptr, %v_shared
+        jmp @J
+    B:
+        jnz %cond2, @C, @D
+    C:
+        mstore %ptr, %v_shared
+        jmp @J
+    D:
+        mstore %ptr, %v_other
+        jmp @J
+    J:
+        %1 = phi @A, %v_shared, @C, %v_shared, @D, %v_other
+        %val = %1
+        sink %val
+    """
+    _check_pre_post(pre, post)
+
+
+def test_aliased_pointer_store_load():
+    """
+    Test that aliased pointers are recognized as the same location.
+
+    Note: AssignElimination runs before LoadElimination and removes the alias,
+    so this mostly documents expected behavior rather than testing normalization
+    in isolation.
+    """
+    pre = """
+    main:
+        %ptr = param
+        %val = param
+        %alias = %ptr
+        mstore %alias, %val
+        %loaded = mload %ptr
+        sink %loaded
+    """
+    post = """
+    main:
+        %ptr = param
+        %val = param
+        %alias = %ptr
+        mstore %alias, %val
+        sink %val
+    """
     _check_pre_post(pre, post)

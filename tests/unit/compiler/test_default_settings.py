@@ -16,7 +16,7 @@ def test_default_opt_level():
 
 
 def test_codegen_opt_level(optimize):
-    assert core._opt_gas() == (optimize == OptimizationLevel.GAS)
+    assert core._opt_gas() == (optimize in (OptimizationLevel.GAS, OptimizationLevel.O3))
     assert core._opt_none() == (optimize == OptimizationLevel.NONE)
     assert core._opt_codesize() == (optimize == OptimizationLevel.CODESIZE)
 

@@ -23,8 +23,6 @@ OUTPUT_FORMATS = {
     # requires ir_node
     "external_interface": output.build_external_interface_output,
     "interface": output.build_interface_output,
-    "bb": output.build_bb_output,
-    "bb_runtime": output.build_bb_runtime_output,
     "cfg": output.build_cfg_output,
     "cfg_runtime": output.build_cfg_runtime_output,
     "ir": output.build_ir_output,
