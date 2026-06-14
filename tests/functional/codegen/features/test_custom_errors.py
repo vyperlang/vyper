@@ -60,18 +60,20 @@ def fail(x: uint256):
 
 
 @pytest.mark.parametrize("use_experimental_codegen", [False, True])
-def test_custom_error_assert_does_not_revert_on_success(get_contract, use_experimental_codegen):
+def test_custom_error_assert_does_not_evaluate_error_args_on_success(
+    get_contract, use_experimental_codegen
+):
     code = """
-error Unauthorized:
-    caller: address
+error ShouldNotEvaluate:
+    value: uint256
 
 @external
 def fail(x: uint256):
-    assert x > 0, Unauthorized(caller=msg.sender)
+    assert x == 0, ShouldNotEvaluate(1 // x)
     """
 
     contract = _deploy(get_contract, code, use_experimental_codegen)
-    contract.fail(1)
+    contract.fail(0)
 
 
 @pytest.mark.parametrize("use_experimental_codegen", [False, True])
@@ -91,6 +93,30 @@ def fail():
         contract.fail()
 
     assert _revert_data(excinfo) == method_id("Simple()")
+
+
+@pytest.mark.parametrize("use_experimental_codegen", [False, True])
+def test_custom_error_positional_encoding_uses_declaration_order(
+    get_contract, use_experimental_codegen
+):
+    code = """
+error Ordered:
+    a: uint256
+    b: uint256
+
+@external
+def boom():
+    raise Ordered(1, 2)
+    """
+
+    contract = _deploy(get_contract, code, use_experimental_codegen)
+
+    with pytest.raises(ExecutionReverted) as excinfo:
+        contract.boom()
+
+    data = _revert_data(excinfo)
+    assert data[:4] == method_id("Ordered(uint256,uint256)")
+    assert abi_decode("(uint256,uint256)", data[4:]) == (1, 2)
 
 
 @pytest.mark.parametrize("use_experimental_codegen", [False, True])
