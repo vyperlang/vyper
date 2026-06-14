@@ -51,6 +51,49 @@ class _UserType(VyperType):
         return hash(id(self))
 
 
+def _has_empty_user_type_body(base_node: vy_ast.VyperNode) -> bool:
+    return len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass)
+
+
+def _parse_user_type_members(base_node, type_label: str, parse_annotation) -> dict[str, VyperType]:
+    members: dict[str, VyperType] = {}
+
+    if _has_empty_user_type_body(base_node):
+        return members
+
+    for node in base_node.body:
+        _validate_user_type_member_node(node, type_label)
+        member_name = _get_user_type_member_name(node, members, type_label)
+        member_type = parse_annotation(node.annotation)
+        members[member_name] = member_type
+        node.target._metadata["type"] = member_type
+
+    return members
+
+
+def _validate_user_type_member_node(node: vy_ast.VyperNode, type_label: str) -> None:
+    type_name = type_label.lower()
+    if not isinstance(node, vy_ast.AnnAssign):
+        raise StructureException(f"{type_label}s can only contain variable definitions", node)
+    if node.value is not None:
+        raise StructureException(
+            f"Cannot assign a value during {type_name} declaration", node.value
+        )
+    if not isinstance(node.target, vy_ast.Name):
+        raise StructureException(f"Invalid syntax for {type_name} member name", node.target)
+
+
+def _get_user_type_member_name(
+    node: vy_ast.AnnAssign, members: dict[str, VyperType], type_label: str
+) -> str:
+    member_name = node.target.id
+    if member_name in members:
+        raise NamespaceCollision(
+            f"{type_label} member '{member_name}' has already been declared", node.target
+        )
+    return member_name
+
+
 # note: flag behaves a lot like uint256, or uints in general.
 class FlagT(_UserType):
     typeclass = "flag"
@@ -250,31 +293,9 @@ class EventT(_UserType):
         -------
         Event
         """
-        members: dict = {}
         indexed: list = []
 
-        if len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass):
-            return cls(base_node.name, members, indexed, base_node)
-
-        for node in base_node.body:
-            # TODO: these syntax checks should be in EventDef.validate()
-            if not isinstance(node, vy_ast.AnnAssign):
-                raise StructureException("Events can only contain variable definitions", node)
-            if node.value is not None:
-                raise StructureException(
-                    "Cannot assign a value during event declaration", node.value
-                )
-            if not isinstance(node.target, vy_ast.Name):
-                raise StructureException("Invalid syntax for event member name", node.target)
-
-            member_name = node.target.id
-            if member_name in members:
-                # TODO: add prev_decl
-                raise NamespaceCollision(
-                    f"Event member '{member_name}' has already been declared", node.target
-                )
-
-            annotation = node.annotation
+        def parse_event_annotation(annotation):
             if isinstance(annotation, vy_ast.Call) and annotation.get("func.id") == "indexed":
                 validate_call_args(annotation, 1)
                 if indexed.count(True) == 3:
@@ -286,10 +307,9 @@ class EventT(_UserType):
             else:
                 indexed.append(False)
 
-            member_type = type_from_annotation(annotation)
-            members[member_name] = member_type
-            node.target._metadata["type"] = member_type
+            return type_from_annotation(annotation)
 
+        members = _parse_user_type_members(base_node, "Event", parse_event_annotation)
         return cls(base_node.name, members, indexed, base_node)
 
     def _ctor_call_return(self, node: vy_ast.Call) -> None:
@@ -370,27 +390,7 @@ class ErrorT(_UserType):
 
     @classmethod
     def from_ErrorDef(cls, base_node: vy_ast.ErrorDef) -> "ErrorT":
-        members: dict[str, VyperType] = {}
-
-        if len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass):
-            return cls(base_node.name, members, base_node)
-
-        for node in base_node.body:
-            if not isinstance(node, vy_ast.AnnAssign):
-                raise StructureException("Errors can only contain variable definitions", node)
-            if node.value is not None:
-                raise StructureException("Cannot assign a value during error declaration", node)
-            if not isinstance(node.target, vy_ast.Name):
-                raise StructureException("Invalid syntax for error member name", node.target)
-
-            member_name = node.target.id
-            if member_name in members:
-                raise NamespaceCollision(
-                    f"Error member '{member_name}' has already been declared", node.target
-                )
-
-            members[member_name] = type_from_annotation(node.annotation)
-
+        members = _parse_user_type_members(base_node, "Error", type_from_annotation)
         return cls(base_node.name, members, base_node)
 
     def _ctor_call_return(self, node: vy_ast.Call) -> "ErrorT":
