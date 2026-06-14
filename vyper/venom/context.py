@@ -48,8 +48,9 @@ class IRContext:
     last_variable: int
     mem_allocator: MemoryAllocator
     global_analyses_cache: Optional["IRGlobalAnalysesCache"]
+    prefix: str
 
-    def __init__(self) -> None:
+    def __init__(self, prefix: str = "") -> None:
         self.functions = {}
         self.entry_function = None
         self.data_segment = []
@@ -59,22 +60,32 @@ class IRContext:
 
         self.mem_allocator = MemoryAllocator()
         self.global_analyses_cache = None
+        self.prefix = prefix
 
     def get_basic_blocks(self) -> Iterator[IRBasicBlock]:
         for fn in self.functions.values():
             for bb in fn.get_basic_blocks():
                 yield bb
 
+    def _prefixed_value(self, value: str) -> str:
+        return f"{self.prefix}_{value}" if self.prefix else value
+
     def add_function(self, fn: IRFunction) -> None:
+        assert fn.name not in self.functions, f"duplicate function {fn.name}"
         fn.ctx = self
         self.functions[fn.name] = fn
 
     def remove_function(self, fn: IRFunction) -> None:
         del self.functions[fn.name]
 
+    def prefixed_label(self, name: str, is_symbol: bool = True) -> IRLabel:
+        """Return ``IRLabel(f"{prefix}_{name}")`` (or ``IRLabel(name)`` if
+        prefix is empty).  Use for labels that must survive a :meth:`merge`.
+        """
+        return IRLabel(self._prefixed_value(name), is_symbol=is_symbol)
+
     def create_function(self, name: str) -> IRFunction:
-        label = IRLabel(name, True)
-        assert label not in self.functions, f"duplicate function {label}"
+        label = self.prefixed_label(name, is_symbol=True)
         fn = IRFunction(label, self)
         self.add_function(fn)
         return fn
@@ -88,10 +99,9 @@ class IRContext:
         return iter(self.functions.values())
 
     def get_next_label(self, suffix: str = "") -> IRLabel:
-        if suffix != "":
-            suffix = f"_{suffix}"
+        suffix = f"_{suffix}" if suffix else ""
         self.last_label += 1
-        return IRLabel(f"{self.last_label}{suffix}")
+        return IRLabel(self._prefixed_value(f"{self.last_label}{suffix}"))
 
     def get_next_variable(self) -> IRVariable:
         self.last_variable += 1
@@ -100,13 +110,62 @@ class IRContext:
     def get_last_variable(self) -> str:
         return f"%{self.last_variable}"
 
-    def append_data_section(self, name: IRLabel) -> None:
+    def append_data_section(self, name: IRLabel | str) -> None:
+        """``str`` → auto-namespaced via :meth:`prefixed_label`; ``IRLabel`` → used as-is."""
+        if isinstance(name, str):
+            name = self.prefixed_label(name)
         self.data_segment.append(DataSection(name))
 
-    def append_data_item(self, data: IRLabel | bytes) -> None:
+    def merge(self, *sources: "IRContext") -> "IRContext":
+        """Splice each source's functions / data sections into ``self``; clears
+        the sources.  Raises :class:`ValueError` on label clash before mutating.
+        """
+        function_labels = set(self.functions)
+        data_labels = {section.label for section in self.data_segment}
+        bb_labels = {bb.label for bb in self.get_basic_blocks()}
+
+        for src in sources:
+            for fn in src.functions.values():
+                if fn.name in function_labels:
+                    raise ValueError(
+                        f"merge: duplicate function label {fn.name}; "
+                        "two sources share a prefix or collide with the target"
+                    )
+                function_labels.add(fn.name)
+
+                for bb in fn.get_basic_blocks():
+                    if bb.label in bb_labels:
+                        raise ValueError(
+                            f"merge: duplicate basic block label {bb.label}; "
+                            "two sources share a prefix or collide with the target"
+                        )
+                    bb_labels.add(bb.label)
+
+            for section in src.data_segment:
+                if section.label in data_labels:
+                    raise ValueError(
+                        f"merge: duplicate data section label {section.label}; "
+                        "two sources share a prefix or collide with the target"
+                    )
+                data_labels.add(section.label)
+
+        for src in sources:
+            for fn in list(src.functions.values()):
+                self.add_function(fn)
+            self.data_segment.extend(src.data_segment)
+            self.last_label = max(self.last_label, src.last_label)
+            self.last_variable = max(self.last_variable, src.last_variable)
+            src.functions.clear()
+            src.data_segment.clear()
+            src.entry_function = None
+        return self
+
+    def append_data_item(self, data: IRLabel | bytes | str) -> None:
         """
         Append data to current data section
         """
+        if isinstance(data, str):
+            data = self.prefixed_label(data)
         assert len(self.data_segment) > 0
         data_section = self.data_segment[-1]
         data_section.data_items.append(DataItem(data))
