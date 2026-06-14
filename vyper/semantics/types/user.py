@@ -1,5 +1,5 @@
 from functools import cached_property
-from typing import Callable, Optional
+from typing import Iterator, Optional
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_GIntM, ABI_Tuple, ABIType
@@ -55,24 +55,26 @@ def _has_empty_user_type_body(base_node: vy_ast.EventDef | vy_ast.ErrorDef) -> b
     return len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass)
 
 
-def _parse_user_type_members(
-    base_node: vy_ast.EventDef | vy_ast.ErrorDef,
-    type_label: str,
-    parse_annotation: Callable[[vy_ast.VyperNode], VyperType],
-) -> dict[str, VyperType]:
-    members: dict[str, VyperType] = {}
+def _iter_user_type_members(
+    base_node: vy_ast.EventDef | vy_ast.ErrorDef, type_label: str
+) -> Iterator[tuple[str, vy_ast.AnnAssign]]:
+    seen: set[str] = set()
 
     if _has_empty_user_type_body(base_node):
-        return members
+        return
 
     for node in base_node.body:
         _validate_user_type_member_node(node, type_label)
-        member_name = _get_user_type_member_name(node, members, type_label)
-        member_type = parse_annotation(node.annotation)
-        members[member_name] = member_type
-        node.target._metadata["type"] = member_type
+        member_name = _get_user_type_member_name(node, seen, type_label)
+        seen.add(member_name)
+        yield member_name, node
 
-    return members
+
+def _add_user_type_member(
+    members: dict[str, VyperType], name: str, node: vy_ast.AnnAssign, typ: VyperType
+) -> None:
+    members[name] = typ
+    node.target._metadata["type"] = typ
 
 
 def _validate_user_type_member_node(node: vy_ast.VyperNode, type_label: str) -> None:
@@ -87,11 +89,9 @@ def _validate_user_type_member_node(node: vy_ast.VyperNode, type_label: str) -> 
         raise StructureException(f"Invalid syntax for {type_name} member name", node.target)
 
 
-def _get_user_type_member_name(
-    node: vy_ast.AnnAssign, members: dict[str, VyperType], type_label: str
-) -> str:
+def _get_user_type_member_name(node: vy_ast.AnnAssign, seen: set[str], type_label: str) -> str:
     member_name = node.target.id
-    if member_name in members:
+    if member_name in seen:
         raise NamespaceCollision(
             f"{type_label} member '{member_name}' has already been declared", node.target
         )
@@ -297,9 +297,11 @@ class EventT(_UserType):
         -------
         Event
         """
+        members: dict[str, VyperType] = {}
         indexed: list = []
 
-        def parse_event_annotation(annotation):
+        for member_name, node in _iter_user_type_members(base_node, "Event"):
+            annotation = node.annotation
             if isinstance(annotation, vy_ast.Call) and annotation.get("func.id") == "indexed":
                 validate_call_args(annotation, 1)
                 if indexed.count(True) == 3:
@@ -311,9 +313,9 @@ class EventT(_UserType):
             else:
                 indexed.append(False)
 
-            return type_from_annotation(annotation)
+            member_type = type_from_annotation(annotation)
+            _add_user_type_member(members, member_name, node, member_type)
 
-        members = _parse_user_type_members(base_node, "Event", parse_event_annotation)
         return cls(base_node.name, members, indexed, base_node)
 
     def _ctor_call_return(self, node: vy_ast.Call) -> None:
@@ -394,7 +396,12 @@ class ErrorT(_UserType):
 
     @classmethod
     def from_ErrorDef(cls, base_node: vy_ast.ErrorDef) -> "ErrorT":
-        members = _parse_user_type_members(base_node, "Error", type_from_annotation)
+        members: dict[str, VyperType] = {}
+
+        for member_name, node in _iter_user_type_members(base_node, "Error"):
+            member_type = type_from_annotation(node.annotation)
+            _add_user_type_member(members, member_name, node, member_type)
+
         return cls(base_node.name, members, base_node)
 
     def _ctor_call_return(self, node: vy_ast.Call) -> "ErrorT":
