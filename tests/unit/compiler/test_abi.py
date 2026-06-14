@@ -118,6 +118,32 @@ def fail():
     assert simple["inputs"] == []
 
 
+def test_exported_module_custom_error_abi(make_input_bundle):
+    lib = """
+error LibError:
+    code: uint256
+
+@external
+def fail():
+    raise LibError(1)
+    """
+    main = """
+import lib
+exports: lib.fail
+    """
+
+    input_bundle = make_input_bundle({"lib.vy": lib})
+    out = compile_code(main, input_bundle=input_bundle, output_formats=["abi", "interface"])
+
+    error_abi = next(
+        item
+        for item in out["abi"]
+        if item.get("type") == "error" and item.get("name") == "LibError"
+    )
+    assert error_abi["inputs"] == [{"name": "code", "type": "uint256"}]
+    assert "error LibError:\n    code: uint256" in out["interface"]
+
+
 def test_struct_abi():
     code = """
 struct MyStruct:

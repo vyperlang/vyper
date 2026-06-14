@@ -1,5 +1,5 @@
 from functools import cached_property
-from typing import Optional
+from typing import Callable, Optional
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_GIntM, ABI_Tuple, ABIType
@@ -51,11 +51,15 @@ class _UserType(VyperType):
         return hash(id(self))
 
 
-def _has_empty_user_type_body(base_node: vy_ast.VyperNode) -> bool:
+def _has_empty_user_type_body(base_node: vy_ast.EventDef | vy_ast.ErrorDef) -> bool:
     return len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass)
 
 
-def _parse_user_type_members(base_node, type_label: str, parse_annotation) -> dict[str, VyperType]:
+def _parse_user_type_members(
+    base_node: vy_ast.EventDef | vy_ast.ErrorDef,
+    type_label: str,
+    parse_annotation: Callable[[vy_ast.VyperNode], VyperType],
+) -> dict[str, VyperType]:
     members: dict[str, VyperType] = {}
 
     if _has_empty_user_type_body(base_node):

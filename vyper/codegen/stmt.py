@@ -143,6 +143,7 @@ class Stmt:
 
     def _string_reason_revert_sequence(self, msg_ir: IRnode):
         msg_ir = wrap_value_for_external_return(msg_ir)
+        assert msg_ir.typ is not None
         bufsz = 64 + msg_ir.typ.memory_bytes_required
         buf = self.context.new_internal_variable(get_type_for_exact_size(bufsz))
 
