@@ -98,6 +98,19 @@ def _get_user_type_member_name(node: vy_ast.AnnAssign, seen: set[str], type_labe
     return member_name
 
 
+def _abi_input_name(item: dict, index: int, members: dict[str, VyperType]) -> str:
+    name = item.get("name") or f"_arg{index}"
+    if name not in members:
+        return name
+
+    name = f"_arg{index}"
+    suffix = 1
+    while name in members:
+        name = f"_arg{index}_{suffix}"
+        suffix += 1
+    return name
+
+
 # note: flag behaves a lot like uint256, or uints in general.
 class FlagT(_UserType):
     typeclass = "flag"
@@ -391,7 +404,10 @@ class ErrorT(_UserType):
 
     @classmethod
     def from_abi(cls, abi: dict) -> "ErrorT":
-        members = {item["name"]: type_from_abi(item) for item in abi["inputs"]}
+        members: dict[str, VyperType] = {}
+        for i, item in enumerate(abi["inputs"]):
+            name = _abi_input_name(item, i, members)
+            members[name] = type_from_abi(item)
         return cls(abi["name"], members)
 
     @classmethod
