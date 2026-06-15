@@ -18,7 +18,7 @@ from vyper.exceptions import CompilerPanic, UnfoldableNode
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import TupleT
-from vyper.utils import bytes_to_int
+from vyper.utils import EIP_3860_LIMIT, bytes_to_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
@@ -199,10 +199,17 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     bytecode_vv = Expr(bytecode_node, ctx).lower()
     bytecode_typ = bytecode_node._metadata["type"]
 
+    bytecode_is_unbounded = ctx.is_unbounded_bytestring_type(bytecode_typ)
+
     # Ensure bytecode is in memory. Storage/transient data needs to be copied first.
     # This is critical when ctor args might modify the storage location that holds
     # the bytecode (cf. test_raw_create_change_initcode_size).
-    if bytecode_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
+    if bytecode_is_unbounded:
+        bytecode_copy = ctx.copy_bytestring_to_scratch(
+            bytecode_vv, bytecode_typ, annotation="raw_create_initcode"
+        )
+        bytecode = bytecode_copy.operand
+    elif bytecode_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
         assert bytecode_vv.location is not None
         # Allocate memory buffer and copy from storage/transient
         mem_buf = ctx.new_temporary_value(bytecode_typ)
@@ -239,6 +246,8 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     # Get bytecode length and data pointer
     assert isinstance(bytecode, IRVariable)
     bytecode_len = b.mload(bytecode)
+    if bytecode_is_unbounded:
+        b.assert_(b.iszero(b.gt(bytecode_len, IRLiteral(EIP_3860_LIMIT))))
     bytecode_ptr = b.add(bytecode, IRLiteral(32))
 
     # If no constructor args, just create with bytecode
@@ -256,12 +265,17 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     ctor_tuple_typ = TupleT(tuple(ctor_arg_types))
     ctor_abi_size = ctor_tuple_typ.abi_type.size_bound()
 
-    # Calculate buffer size: max bytecode len + ctor args size
-    buf_size = bytecode_typ.maxlen + ctor_abi_size
-    buf = ctx.allocate_buffer(buf_size, annotation="raw_create_buf")
+    # Calculate buffer size: max bytecode len + ctor args size for bounded
+    # bytecode, or exact runtime bytecode length + ctor args size for INF.
+    if bytecode_is_unbounded:
+        buf_ptr = ctx.allocate_scratch(b.add(bytecode_len, IRLiteral(ctor_abi_size)))
+    else:
+        buf_size = bytecode_typ.maxlen + ctor_abi_size
+        buf = ctx.allocate_buffer(buf_size, annotation="raw_create_buf")
+        buf_ptr = buf._ptr
 
     # Copy bytecode to buffer
-    ctx.copy_memory_dynamic(buf._ptr, bytecode_ptr, bytecode_len)
+    ctx.copy_memory_dynamic(buf_ptr, bytecode_ptr, bytecode_len)
 
     # Encode ctor args after bytecode
     # First, store ctor args to a temp buffer
@@ -275,7 +289,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         offset += arg_t.memory_bytes_required
 
     # Now ABI encode from ctor_args_val to args_start
-    args_start = b.add(buf._ptr, bytecode_len)
+    args_start = b.add(buf_ptr, bytecode_len)
     args_len = abi_encode_to_buf(ctx, args_start, ctor_args_val.operand, ctor_tuple_typ)
 
     # Total length = bytecode_len + args_len
@@ -284,9 +298,9 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     # Create contract
     if salt_node is not None:
         salt = Expr(salt_node, ctx).lower_value()
-        addr = b.create2(value, buf._ptr, total_len, salt)
+        addr = b.create2(value, buf_ptr, total_len, salt)
     else:
-        addr = b.create(value, buf._ptr, total_len)
+        addr = b.create(value, buf_ptr, total_len)
 
     return _check_create_result(ctx, b, addr, revert_on_failure)
 

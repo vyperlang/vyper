@@ -758,6 +758,53 @@ def echo(x: Bytes[INF]) -> (bool, Bytes[INF]):
     assert abi_decode("(bool,bytes)", ret) == (True, payload)
 
 
+def test_inf_bytes_raw_create_bytecode_param(env):
+    to_deploy_code = """
+foo: public(uint256)
+    """
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    deployer_code = """
+@external
+def deploy(s: Bytes[INF]) -> address:
+    return raw_create(s)
+    """
+
+    deployer = _deploy_venom(env, deployer_code)
+    ret = _call(env, deployer, "deploy(bytes)", "(bytes)", (initcode,))
+    addr = abi_decode("(address)", ret)[0]
+    assert env.get_code(addr) == runtime
+
+
+def test_inf_bytes_raw_create_bytecode_local_with_ctor_arg(env):
+    to_deploy_code = """
+foo: public(uint256)
+
+@deploy
+def __init__(x: uint256):
+    self.foo = x
+    """
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    deployer_code = """
+@external
+def deploy(s: Bytes[INF], x: uint256) -> address:
+    bytecode: Bytes[INF] = s
+    return raw_create(bytecode, x)
+    """
+
+    deployer = _deploy_venom(env, deployer_code)
+    ret = _call(env, deployer, "deploy(bytes,uint256)", "(bytes,uint256)", (initcode, 42))
+    addr = abi_decode("(address)", ret)[0]
+    assert env.get_code(addr) == runtime
+    ret = env.message_call(addr, data=method_id("foo()"))
+    assert abi_decode("(uint256)", ret) == (42,)
+
+
 def test_inf_bytes_constructor_arg(env):
     payload = bytes((i * 7) % 256 for i in range(2001))
     code = """

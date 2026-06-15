@@ -1598,11 +1598,19 @@ class _CreateBase(BuiltinFunctionT):
 
 class RawCreate(_CreateBase):
     _id = "raw_create"
-    _inputs = [("bytecode", BytesT(EIP_3860_LIMIT))]
+    _inputs = [("bytecode", BytesT.any())]
     _has_varargs = True
 
     def _add_gas_estimate(self, args, should_use_create2):
         return _create_addl_gas_estimate(EIP_170_LIMIT, should_use_create2)
+
+    def infer_arg_types(self, node, expected_return_typ=None):
+        self._validate_arg_types(node)
+        bytecode_type = get_possible_types_from_node(node.args[0]).pop()
+        if is_bounded_length(bytecode_type.length) and bytecode_type.length > EIP_3860_LIMIT:
+            raise TypeMismatch(f"initcode length cannot exceed {EIP_3860_LIMIT}", node.args[0])
+        ctor_arg_types = [get_exact_type_from_node(arg) for arg in node.args[1:]]
+        return [bytecode_type, *ctor_arg_types]
 
     def _build_create_IR(self, expr, args, context, value, salt, revert_on_failure):
         args = [ensure_in_memory(arg, context) for arg in args]
