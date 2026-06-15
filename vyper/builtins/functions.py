@@ -82,6 +82,7 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT8_T, UINT256_T
+from vyper.semantics.types.user import FlagT
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import (
     DECIMAL_DIVISOR,
@@ -100,7 +101,6 @@ from vyper.utils import (
 from vyper.warnings import vyper_warn
 
 from ._convert import convert
-from ._convert_rules import validate_convertibility
 from ._signatures import BuiltinFunctionT, process_inputs
 
 SHA256_ADDRESS = 2
@@ -194,6 +194,68 @@ class Ceil(BuiltinFunctionT):
 
 class Convert(BuiltinFunctionT):
     _id = "convert"
+    _allowed_inputs: dict[type, tuple[type, ...]] = {
+        BoolT: (IntegerT, DecimalT, BytesM_T, AddressT, BoolT, BytesT, StringT),
+        AddressT: (BytesM_T, IntegerT, BytesT),
+        IntegerT: (IntegerT, DecimalT, BytesM_T, AddressT, BoolT, FlagT, BytesT),
+        DecimalT: (IntegerT, BoolT, BytesM_T, BytesT),
+        BytesM_T: (IntegerT, DecimalT, BytesM_T, AddressT, BytesT, BoolT),
+        BytesT: (StringT, BytesT),
+        StringT: (BytesT, StringT),
+        FlagT: (IntegerT,),
+    }
+
+    @staticmethod
+    def _convert_fail(value_type, target_type, node):
+        raise TypeMismatch(f"Can't convert {value_type} to {target_type}", node)
+
+    @classmethod
+    def _validate_type_pair(cls, value_type, target_type, node):
+        allowed = cls._allowed_inputs.get(type(target_type))
+        if allowed is None:
+            raise StructureException(f"Conversion to {target_type} is invalid.", node)
+
+        if not isinstance(value_type, allowed):
+            cls._convert_fail(value_type, target_type, node)
+
+        if isinstance(value_type, _BytestringT) and not isinstance(target_type, _BytestringT):
+            # bytestring inputs must fit in the output word
+            max_bytes = target_type.m if isinstance(target_type, BytesM_T) else 32
+            if value_type.maxlen > max_bytes:
+                cls._convert_fail(value_type, target_type, node)
+
+        if isinstance(target_type, _BytestringT):
+            # widening a bytestring within the same class is not a real
+            # conversion -- the assignment is already legal without convert()
+            if isinstance(value_type, type(target_type)) and value_type.maxlen <= target_type.maxlen:
+                cls._convert_fail(value_type, target_type, node)
+
+        # flags only convert to and from uint256
+        if isinstance(value_type, FlagT) and target_type != UINT256_T:
+            cls._convert_fail(value_type, target_type, node)
+        if isinstance(target_type, FlagT) and value_type != UINT256_T:
+            cls._convert_fail(value_type, target_type, node)
+
+        # addresses are unsigned
+        if (
+            isinstance(value_type, AddressT)
+            and isinstance(target_type, IntegerT)
+            and target_type.is_signed
+        ):
+            cls._convert_fail(value_type, target_type, node)
+        if (
+            isinstance(value_type, IntegerT)
+            and value_type.is_signed
+            and isinstance(target_type, AddressT)
+        ):
+            cls._convert_fail(value_type, target_type, node)
+
+        # narrowing conversions to bytesM are blocked (no runtime clamp)
+        if isinstance(target_type, BytesM_T):
+            if isinstance(value_type, (IntegerT, DecimalT)) and target_type.m_bits < value_type.bits:
+                cls._convert_fail(value_type, target_type, node)
+            if isinstance(value_type, AddressT) and target_type.m_bits < 160:
+                cls._convert_fail(value_type, target_type, node)
 
     def fetch_call_return(self, node):
         _, target_typedef = self.infer_arg_types(node)
@@ -234,9 +296,7 @@ class Convert(BuiltinFunctionT):
         if isinstance(value_type, DArrayT) and not is_bounded_length(value_type.count):
             raise CodegenPanic("convert not yet implemented for unbounded sequence type")
 
-        # reject illegal conversion pairs at typechecking time, for all
-        # backends. codegen re-validates as defense-in-depth.
-        validate_convertibility(value_type, target_type, node)
+        self._validate_type_pair(value_type, target_type, node)
 
         return [value_type, TYPE_T(target_type)]
 

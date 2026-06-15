@@ -1,11 +1,7 @@
-import itertools
-
 import pytest
 
 from vyper import compile_code
-from vyper.builtins._convert_rules import validate_convertibility
 from vyper.exceptions import InvalidType, StructureException, TypeMismatch
-from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 
 # conversion legality is checked at typechecking time, for all backends.
 # compiling to an analysis-only output format proves the error comes from
@@ -111,8 +107,16 @@ def foo(x: bool) -> String[32]:
 @external
 def foo(x: uint256) -> uint256[2]:
     return convert(x, uint256[2])
-    """,
+        """,
         StructureException,
+    ),
+    (  # exact same type
+        """
+@external
+def foo(x: uint256) -> uint256:
+    return convert(x, uint256)
+    """,
+        InvalidType,
     ),
 ]
 
@@ -164,37 +168,3 @@ def foo(x: Bytes[64]) -> Bytes[32]:
 @pytest.mark.parametrize("code", valid_list)
 def test_convert_pass(code):
     assert compile_code(code) is not None
-
-
-def _type_instances():
-    types = [BoolT(), AddressT(), DecimalT()]
-    types += [IntegerT(is_signed, bits) for is_signed in (True, False) for bits in (8, 128, 256)]
-    types += [BytesM_T(m) for m in (1, 20, 32)]
-    types += [BytesT(32), BytesT(33), StringT(32), StringT(33)]
-    return types
-
-
-@pytest.mark.parametrize("in_typ,out_typ", itertools.product(_type_instances(), repeat=2))
-def test_frontend_matches_shared_rules(in_typ, out_typ):
-    # the frontend must reject exactly the pairs the shared conversion
-    # matrix rejects (modulo the same-type check, which raises earlier)
-    if in_typ.is_subtype_of(out_typ):
-        return  # same-type conversions are blocked before the matrix check
-
-    code = f"""
-@external
-def foo(x: {in_typ}) -> {out_typ}:
-    return convert(x, {out_typ})
-    """
-
-    try:
-        validate_convertibility(in_typ, out_typ)
-        legal = True
-    except (TypeMismatch, StructureException):
-        legal = False
-
-    if legal:
-        assert compile_code(code, output_formats=ANALYSIS_ONLY) is not None
-    else:
-        with pytest.raises((TypeMismatch, StructureException)):
-            compile_code(code, output_formats=ANALYSIS_ONLY)

@@ -16,10 +16,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
-from vyper.builtins._convert_rules import (
+from vyper.builtins._convert_bounds import (
     fixed_to_int_clamp_bounds,
     int_to_fixed_clamp_bounds,
-    validate_convertibility,
 )
 from vyper.exceptions import CompilerPanic, InvalidLiteral, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
@@ -43,11 +42,6 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     arg_node = node.args[0]
     in_t = arg_node._metadata["type"]
     out_t = node.args[1]._metadata["type"].typedef
-
-    # validate against the conversion matrix shared with the legacy
-    # pipeline. downstream lowering helpers rely on this and only handle
-    # legal input types.
-    validate_convertibility(in_t, out_t, arg_node)
 
     # For bytestrings we need pointer, for primitives we need value
     if isinstance(in_t, _BytestringT):
@@ -328,7 +322,7 @@ def _to_bytes_m(
         return val
 
     # From integer/address/decimal/bool: left-shift to align. Narrowing
-    # conversions are rejected by the conversion matrix.
+    # conversions are rejected during typechecking.
     shift_bits = (32 - out_t.m) * 8
     return b.shl(IRLiteral(shift_bits), val)
 

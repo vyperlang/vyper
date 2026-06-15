@@ -858,8 +858,9 @@ def foo(x: {i_typ}) -> {o_typ}:
     settings = Settings(experimental_codegen=use_venom, enable_decimals=True)
     # compile bytecode only: other output formats run the legacy pipeline
     # even when experimental_codegen is set, masking venom-only bugs
-    with pytest.raises(TypeMismatch):
+    with pytest.raises(TypeMismatch) as exc_info:
         compile_code(code, output_formats=("bytecode",), settings=settings)
+    assert exc_info.value.message == f"Can't convert {i_typ} to {o_typ}"
 
 
 def test_int_to_decimal_clamp_bounds(get_contract, tx_failed):

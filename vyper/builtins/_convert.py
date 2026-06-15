@@ -3,10 +3,9 @@ import functools
 import math
 
 from vyper import ast as vy_ast
-from vyper.builtins._convert_rules import (
+from vyper.builtins._convert_bounds import (
     fixed_to_int_clamp_bounds,
     int_to_fixed_clamp_bounds,
-    validate_convertibility,
 )
 from vyper.codegen.core import (
     LOAD,
@@ -50,7 +49,6 @@ def _FAIL(ityp, otyp, source_expr=None):
 
 
 def _validate_inputs(f):
-    # validate convert(arg, out_typ) against the shared conversion matrix.
     # (expr is the AST corresponding to `arg`)
     @functools.wraps(f)
     def check_input_type(expr, arg, out_typ):
@@ -61,8 +59,6 @@ def _validate_inputs(f):
         # keep raising InvalidType rather than TypeMismatch.)
         if arg.typ == out_typ and arg.typ not in (UINT256_T, INT256_T):
             raise InvalidType(f"value and target are both {out_typ}", expr)
-
-        validate_convertibility(arg.typ, out_typ, expr)
 
         return f(expr, arg, out_typ)
 
