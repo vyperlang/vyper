@@ -326,16 +326,16 @@ def test_unknown_storage_layout_overrides(input_json):
 @pytest.mark.parametrize(
     "bad_override",
     [
-        # more than one override file for a single target
-        {
-            "foo_overrides.json": FOO_STORAGE_LAYOUT_OVERRIDES,
-            "bar_overrides.json": BAR_STORAGE_LAYOUT_OVERRIDES,
-        },
-        # not a dict
-        [FOO_STORAGE_LAYOUT_OVERRIDES],
-        "foo_overrides.json",
-        # empty dict
-        {},
+        pytest.param(
+            {
+                "foo_overrides.json": FOO_STORAGE_LAYOUT_OVERRIDES,
+                "bar_overrides.json": BAR_STORAGE_LAYOUT_OVERRIDES,
+            },
+            id="multiple-override-paths",
+        ),
+        pytest.param([FOO_STORAGE_LAYOUT_OVERRIDES], id="not-a-dict-list"),
+        pytest.param("foo_overrides.json", id="not-a-dict-string"),
+        pytest.param({}, id="empty-dict"),
     ],
 )
 def test_invalid_storage_layout_overrides(input_json, bad_override):
