@@ -1,7 +1,14 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import CodegenPanic, InvalidType, TypeMismatch, UndeclaredDefinition
+from vyper.compiler.settings import Settings
+from vyper.exceptions import (
+    CodegenPanic,
+    InvalidType,
+    StructureException,
+    TypeMismatch,
+    UndeclaredDefinition,
+)
 from vyper.semantics.types import INF, BytesT, DArrayT, StringT
 from vyper.semantics.types.infinity import WILDCARD, Inf, Wildcard
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -285,6 +292,31 @@ x: Bytes[...]
     """,
         InvalidType,
     ),
+    # Unbounded sequence types are not supported inside structs
+    (
+        """
+struct S:
+    x: Bytes[INF]
+    """,
+        StructureException,
+    ),
+    # Unbounded sequence types are not supported inside custom errors
+    (
+        """
+error E:
+    x: Bytes[INF]
+    """,
+        StructureException,
+    ),
+    # Unbounded sequence types are not supported inside static arrays
+    (
+        """
+@external
+def foo(x: DynArray[uint256, INF][2]):
+    pass
+    """,
+        StructureException,
+    ),
 ]
 
 
@@ -294,7 +326,6 @@ def test_inf_fail(bad_code, exc):
         compiler.compile_code(bad_code)
 
 
-@pytest.mark.xfail(raises=CodegenPanic)
 def test_dynarray_inf():
     code = """
 a: DynArray[uint256, INF]
@@ -303,7 +334,33 @@ a: DynArray[uint256, INF]
 def foo() -> DynArray[uint256, INF]:
     return self.a
     """
-    compiler.compile_code(code)
+    with pytest.raises(StructureException):
+        compiler.compile_code(code)
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        """
+@external
+def foo(x: Bytes[INF]) -> Bytes[INF]:
+    return abi_encode(x)
+        """,
+        """
+@external
+def foo(code: Bytes[INF]) -> address:
+    return raw_create(code)
+        """,
+        """
+@external
+def foo(target: address, x: Bytes[INF]) -> address:
+    return create_from_blueprint(target, x)
+        """,
+    ],
+)
+def test_inf_legacy_builtin_gates(code):
+    with pytest.raises(StructureException):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=False))
 
 
 def _compile_inf_bytestring_code(code, experimental_codegen):

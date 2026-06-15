@@ -2158,6 +2158,7 @@ class Expr:
 
         length = b.mload(src)
         if self.ctx.is_unbounded_bytestring_type(return_t):
+            self.ctx.assert_abi_bytes_payload_in_bounds(src, length, hi)
             size = self.ctx.bytestring_runtime_size_from_length(length)
         else:
             assert isinstance(return_t, DArrayT)
@@ -2165,6 +2166,8 @@ class Expr:
                 raise CodegenPanic(
                     "DynArray[*, INF] external returns need ABI-static element types"
                 )
+            elem_static_size = return_t.value_type.abi_type.embedded_static_size()
+            self.ctx.assert_abi_dynarray_payload_in_bounds(src, length, elem_static_size, hi)
             size = self.ctx.dynarray_runtime_size_from_length(length, return_t)
 
         src_end = b.add(src, size)

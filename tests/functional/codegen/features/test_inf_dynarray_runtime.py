@@ -26,6 +26,16 @@ def _deploy_venom_with_ctor_data(env, code, ctor_data, *, settings=None):
     return env.deploy([], initcode)
 
 
+def _deploy_raw_returner(env, payload):
+    assert len(payload) < 256
+    runtime = bytes(
+        [0x60, len(payload), 0x60, 12, 0x60, 0, 0x39, 0x60, len(payload), 0x60, 0, 0xF3]
+    )
+    runtime += payload
+    initcode = bytes.fromhex(f"61{len(runtime):04x}3d81600a3d39f3") + runtime
+    return env.deploy([], initcode)
+
+
 def _call(env, contract, signature, args_schema=None, args=None):
     calldata = method_id(signature)
     if args_schema is not None:
@@ -230,6 +240,20 @@ def get() -> (uint256, uint256):
     assert abi_decode("(uint256,uint256)", _call(env, c, "get()")) == (5, 44)
 
 
+def test_inf_dynarray_constructor_param_rejects_truncated_data(env, tx_failed):
+    code = """
+@deploy
+def __init__(x: DynArray[uint256, INF]):
+    pass
+    """
+
+    def word(value):
+        return value.to_bytes(32, "big")
+
+    with tx_failed():
+        _deploy_venom_with_ctor_data(env, code, word(32) + word(2) + word(1))
+
+
 def test_inf_dynarray_staticcall_return_roundtrip(env):
     target_code = """
 @external
@@ -251,6 +275,26 @@ def get(addr: address) -> DynArray[uint256, INF]:
     caller = _deploy_venom(env, caller_code)
     ret = _call(env, caller, "get(address)", "address", target.address)
     assert abi_decode("(uint256[])", ret) == ([10, 20, 30],)
+
+
+def test_inf_dynarray_staticcall_return_rejects_wrapped_length(env, tx_failed):
+    caller_code = """
+interface Source:
+    def data() -> DynArray[uint256, INF]: view
+
+@external
+def get(addr: address) -> DynArray[uint256, INF]:
+    return staticcall Source(addr).data()
+    """
+
+    caller = _deploy_venom(env, caller_code)
+
+    def word(value):
+        return value.to_bytes(32, "big")
+
+    target = _deploy_raw_returner(env, word(32) + word(2**251))
+    with tx_failed():
+        _call(env, caller, "get(address)", "address", target.address)
 
 
 def test_large_inf_dynarray_staticcall_inf_arg_roundtrip(env):

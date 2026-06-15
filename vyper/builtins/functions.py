@@ -40,6 +40,7 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import Encoding, scope_multi
 from vyper.codegen.keccak256_helper import keccak256_helper
+from vyper.compiler.settings import get_global_settings
 from vyper.evm.address_space import MEMORY
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
@@ -81,6 +82,7 @@ from vyper.semantics.types import (
     is_bounded_length,
 )
 from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types.infinity import type_contains_unbounded_sequence
 from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT8_T, UINT256_T
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import (
@@ -1461,6 +1463,18 @@ class Abs(BuiltinFunctionT):
 CREATE2_SENTINEL = dummy_node_for_type(BYTES32_T)
 
 
+def _experimental_codegen_enabled() -> bool:
+    settings = get_global_settings()
+    return settings is not None and settings.experimental_codegen is True
+
+
+def _reject_legacy_unbounded_sequence_builtin(node: vy_ast.Call) -> None:
+    if not _experimental_codegen_enabled():
+        raise StructureException(
+            "unbounded sequence types require --experimental-codegen for this builtin", node
+        )
+
+
 # create helper functions
 # generates CREATE op sequence + zero check for result
 def _create_ir(value, buf, length, salt, revert_on_failure=True):
@@ -1610,6 +1624,10 @@ class RawCreate(_CreateBase):
         if is_bounded_length(bytecode_type.length) and bytecode_type.length > EIP_3860_LIMIT:
             raise TypeMismatch(f"initcode length cannot exceed {EIP_3860_LIMIT}", node.args[0])
         ctor_arg_types = [get_exact_type_from_node(arg) for arg in node.args[1:]]
+        if type_contains_unbounded_sequence(bytecode_type) or any(
+            type_contains_unbounded_sequence(t) for t in ctor_arg_types
+        ):
+            _reject_legacy_unbounded_sequence_builtin(node)
         return [bytecode_type, *ctor_arg_types]
 
     def _build_create_IR(self, expr, args, context, value, salt, revert_on_failure):
@@ -1767,6 +1785,14 @@ class CreateFromBlueprint(_CreateBase):
         "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
     }
     _has_varargs = True
+
+    def infer_arg_types(self, node, expected_return_typ=None):
+        self._validate_arg_types(node)
+        arg_types = [AddressT()]
+        arg_types.extend(get_exact_type_from_node(arg) for arg in node.args[1:])
+        if any(type_contains_unbounded_sequence(t) for t in arg_types[1:]):
+            _reject_legacy_unbounded_sequence_builtin(node)
+        return arg_types
 
     def _add_gas_estimate(self, args, should_use_create2):
         ctor_args = ir_tuple_from_args(args[1:])
@@ -2216,14 +2242,6 @@ class Print(BuiltinFunctionT):
         return IRnode.from_list(ret, annotation="print:" + sig)
 
 
-def _type_contains_unbounded_sequence(typ):
-    if isinstance(typ, (_BytestringT, DArrayT)):
-        return typ.length is INF
-    if isinstance(typ, TupleT):
-        return any(_type_contains_unbounded_sequence(t) for t in typ.member_types)
-    return False
-
-
 class ABIEncode(BuiltinFunctionT):
     _id = "abi_encode"
     # signature: *, ensure_tuple=<literal_bool> -> Bytes[<calculated len>]
@@ -2278,7 +2296,8 @@ class ABIEncode(BuiltinFunctionT):
         else:
             arg_abi_t = ABI_Tuple(arg_abi_types)
 
-        if any(_type_contains_unbounded_sequence(t) for t in arg_types):
+        if any(type_contains_unbounded_sequence(t) for t in arg_types):
+            _reject_legacy_unbounded_sequence_builtin(node)
             return BytesT(INF)
 
         maxlen = arg_abi_t.size_bound()

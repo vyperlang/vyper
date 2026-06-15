@@ -19,7 +19,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import BytesT, TupleT, VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.infinity import INF
+from vyper.semantics.types.infinity import type_contains_unbounded_sequence
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import DArrayT
 from vyper.utils import fourbytes_to_int
@@ -111,11 +111,7 @@ def _create_tuple_in_memory(
 
 
 def _type_contains_unbounded_sequence(typ: VyperType) -> bool:
-    if isinstance(typ, (_BytestringT, DArrayT)):
-        return typ.length is INF
-    if isinstance(typ, TupleT):
-        return any(_type_contains_unbounded_sequence(t) for t in typ.member_types)
-    return False
+    return type_contains_unbounded_sequence(typ)
 
 
 def _runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> IROperand:
@@ -186,22 +182,14 @@ def _decode_unbounded_bytestring_from_abi(
     b = ctx.builder
     assert ctx.is_unbounded_bytestring_type(typ)
 
-    data_start = b.add(src, IRLiteral(32))
-    no_start_overflow = b.iszero(b.lt(data_start, src))
-    has_length_word = b.iszero(b.gt(data_start, hi))
-    b.assert_(b.and_(no_start_overflow, has_length_word))
-
     length = b.mload(src)
-    data_end = b.add(data_start, length)
-
-    no_end_overflow = b.iszero(b.lt(data_end, data_start))
-    in_bounds = b.iszero(b.gt(data_end, hi))
-    b.assert_(b.and_(no_end_overflow, in_bounds))
+    ctx.assert_abi_bytes_payload_in_bounds(src, length, hi)
 
     size = ctx.bytestring_runtime_size_from_length(length)
     dst = ctx.allocate_scratch(size)
     b.mstore(dst, length)
     ctx.zero_bytestring_padding(dst, length)
+    data_start = b.add(src, IRLiteral(32))
     data_dst = b.add(dst, IRLiteral(32))
     ctx.copy_memory_dynamic(data_dst, data_start, length)
     return ctx.dynamic_memory_value(dst, typ, annotation="abi_decode")

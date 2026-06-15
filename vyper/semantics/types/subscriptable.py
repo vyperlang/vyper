@@ -11,6 +11,7 @@ from vyper.semantics.types.infinity import (
     LengthUpperBound,
     is_bounded_length,
     length_to_json,
+    type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.primitives import IntegerT
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -233,6 +234,11 @@ class SArrayT(_SequenceT):
         if not value_type.is_valid_element_type:
             raise StructureException(f"arrays of {value_type} are not allowed!")
 
+        if type_contains_unbounded_sequence(value_type):
+            raise StructureException(
+                "Static arrays of unbounded sequence types are not supported", node
+            )
+
         # note: validates index
         length = get_index_value(node.slice)
 
@@ -356,7 +362,7 @@ class DArrayT(_SequenceT):
         if not value_type._as_darray:
             raise StructureException(f"Arrays of {value_type} are not allowed", value_node)
 
-        if _contains_unbounded_sequence(value_type):
+        if type_contains_unbounded_sequence(value_type):
             raise StructureException(
                 "Nested unbounded sequence types are not supported", value_node
             )
@@ -367,19 +373,6 @@ class DArrayT(_SequenceT):
             )
 
         return cls(value_type, length)
-
-
-def _contains_unbounded_sequence(typ: VyperType) -> bool:
-    if getattr(typ, "_is_bytestring", False):
-        return getattr(typ, "length", None) is INF
-
-    if isinstance(typ, DArrayT):
-        return typ.length is INF or _contains_unbounded_sequence(typ.value_type)
-
-    if isinstance(typ, SArrayT):
-        return _contains_unbounded_sequence(typ.value_type)
-
-    return False
 
 
 class TupleT(VyperType):

@@ -1030,6 +1030,19 @@ def _register_positional_args(ctx: VenomCodegenContext, func_t: ContractFunction
         _register_abi_arg_from_src(ctx, arg, elem_src)
 
 
+def _abi_arg_hi(ctx: VenomCodegenContext, location: DataLocation):
+    if location == DataLocation.CALLDATA:
+        return ctx.builder.calldatasize()
+
+    if location == DataLocation.CODE:
+        code_end = ctx.builder.offset(IRLiteral(0), IRLabel("code_end"))
+        codesize = ctx.builder.codesize()
+        ctx.builder.assert_(ctx.builder.iszero(ctx.builder.lt(codesize, code_end)))
+        return ctx.builder.sub(codesize, code_end)
+
+    return None
+
+
 def _materialize_unbounded_bytestring_abi_arg(
     ctx: VenomCodegenContext, name: str, typ: VyperType, src: VyperValue
 ) -> VyperValue:
@@ -1038,12 +1051,16 @@ def _materialize_unbounded_bytestring_abi_arg(
 
     length = ctx.builder.load(src.operand, src.location)
     data_offset = ctx.builder.add(src.operand, IRLiteral(32))
+    hi = _abi_arg_hi(ctx, src.location)
 
     if src.location == DataLocation.CALLDATA:
-        ctx.assert_abi_bytes_payload_in_bounds(src.operand, length, ctx.builder.calldatasize())
+        assert hi is not None
+        ctx.assert_abi_bytes_payload_in_bounds(src.operand, length, hi)
         return ctx.materialize_calldata_bytes(data_offset, length, typ, annotation=name)
 
     if src.location == DataLocation.CODE:
+        assert hi is not None
+        ctx.assert_abi_bytes_payload_in_bounds(src.operand, length, hi)
         return ctx.materialize_bytes_from_location(
             data_offset, length, typ, src.location, annotation=name
         )
@@ -1061,9 +1078,8 @@ def _materialize_unbounded_dynarray_abi_arg(
         raise CodegenPanic("DynArray[*, INF] ABI args need ABI-static element types")
 
     length = ctx.builder.load(src.operand, src.location)
-    hi = None
-    if src.location == DataLocation.CALLDATA:
-        hi = ctx.builder.calldatasize()
+    hi = _abi_arg_hi(ctx, src.location)
+    if hi is not None:
         elem_static_size = typ.value_type.abi_type.embedded_static_size()
         ctx.assert_abi_dynarray_payload_in_bounds(src.operand, length, elem_static_size, hi)
 
@@ -1096,7 +1112,8 @@ def _register_abi_arg_from_src(ctx: VenomCodegenContext, arg, elem_src: VyperVal
     var = ctx.new_variable(arg.name, arg.typ, mutable=False)
     assert isinstance(var.value.operand, IRVariable)
 
-    hi = ctx.builder.calldatasize() if elem_src.location == DataLocation.CALLDATA else None
+    assert elem_src.location is not None
+    hi = _abi_arg_hi(ctx, elem_src.location)
     abi_decode_to_buf(ctx, var.value.operand, elem_src, hi=hi)
 
 
@@ -1108,7 +1125,8 @@ def _store_abi_arg_to_existing_ptr(
         ctx.builder.mstore(dst, val.operand)
         return
 
-    hi = ctx.builder.calldatasize() if elem_src.location == DataLocation.CALLDATA else None
+    assert elem_src.location is not None
+    hi = _abi_arg_hi(ctx, elem_src.location)
     abi_decode_to_buf(ctx, dst, elem_src, hi=hi)
 
 

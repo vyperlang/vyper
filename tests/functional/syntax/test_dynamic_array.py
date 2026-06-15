@@ -161,7 +161,6 @@ def foo(x: DynArray[uint256, INF]):
     _compile_inf_dynarray_code(code, experimental_codegen)
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
 def test_dynarray_inf_state_var():
     code = """
 a: DynArray[uint256, INF]
@@ -170,7 +169,8 @@ a: DynArray[uint256, INF]
 def foo() -> DynArray[uint256, INF]:
     return self.a
     """
-    compile_code(code)
+    with pytest.raises(StructureException):
+        compile_code(code)
 
 
 def test_dynarray_inf_local_var(experimental_codegen):

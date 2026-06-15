@@ -520,6 +520,22 @@ def get(addr: address) -> Bytes[INF]:
             _call(env, caller, "get(address)", "address", target.address)
 
 
+def test_inf_bytes_abi_decode_rejects_truncated_padding(env, tx_failed):
+    code = """
+@external
+def dec(x: Bytes[INF]) -> Bytes[INF]:
+    return abi_decode(x, Bytes[INF], unwrap_tuple=False)
+    """
+
+    c = _deploy_venom(env, code)
+
+    def word(value):
+        return value.to_bytes(32, "big")
+
+    with tx_failed():
+        _call(env, c, "dec(bytes)", "(bytes)", (word(31) + b"\x01" * 31,))
+
+
 def test_inf_bytes_extcall_return_roundtrip(env):
     target_code = """
 @external
@@ -742,6 +758,19 @@ def roundtrip(x: Bytes[INF]) -> Bytes[INF]:
     assert abi_decode("(bytes)", ret) == (payload,)
 
 
+def test_inf_bytes_concat_runtime_length(env):
+    payload = bytes((i * 79) % 256 for i in range(2001))
+    code = """
+@external
+def join(x: Bytes[INF]) -> Bytes[INF]:
+    return concat(b"pre:", x, b":post")
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "join(bytes)", "(bytes)", (payload,))
+    assert abi_decode("(bytes)", ret) == (b"pre:" + payload + b":post",)
+
+
 def test_inf_bytes_raw_call_direct_return(env):
     payload = bytes((i * 47) % 256 for i in range(2001))
     code = """
@@ -838,6 +867,45 @@ def deploy(s: Bytes[INF], x: uint256) -> address:
     assert abi_decode("(uint256)", ret) == (42,)
 
 
+def test_inf_bytes_raw_create_unbounded_ctor_arg(env):
+    payload = bytes((i * 73) % 256 for i in range(2001))
+    to_deploy_code = """
+stored: Bytes[2001]
+
+@deploy
+def __init__(x: Bytes[INF]):
+    self.stored = slice(x, 0, 2001)
+
+@external
+def get() -> Bytes[2001]:
+    return self.stored
+    """
+    out = _compile_venom(to_deploy_code, ["bytecode"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+
+    deployer_code = """
+@external
+def deploy(s: Bytes[INF], x: Bytes[INF]) -> address:
+    return raw_create(s, x)
+    """
+
+    deployer = _deploy_venom(env, deployer_code)
+    ret = _call(env, deployer, "deploy(bytes,bytes)", "(bytes,bytes)", (initcode, payload))
+    addr = abi_decode("(address)", ret)[0]
+    ret = env.message_call(addr, data=method_id("get()"))
+    assert abi_decode("(bytes)", ret) == (payload,)
+
+
+def test_inf_bytes_create_from_blueprint_unbounded_ctor_arg_compiles():
+    code = """
+@external
+def deploy(target: address, x: Bytes[INF]) -> address:
+    return create_from_blueprint(target, x)
+    """
+
+    _compile_venom(code, ["bytecode"])
+
+
 def test_inf_bytes_raw_log_data(env):
     payload = bytes((i * 61) % 256 for i in range(2001))
     code = """
@@ -923,6 +991,20 @@ def get() -> Bytes[2001]:
     assert abi_decode("(bytes)", _call(env, c, "get()")) == (payload,)
 
 
+def test_inf_bytes_constructor_arg_rejects_truncated_data(env, tx_failed):
+    code = """
+@deploy
+def __init__(a: Bytes[INF]):
+    pass
+    """
+
+    def word(value):
+        return value.to_bytes(32, "big")
+
+    with tx_failed():
+        _deploy_venom_with_ctor_data(env, code, word(32) + word(2001))
+
+
 def test_inf_bytes_external_param_rejects_truncated_calldata(env, tx_failed):
     code = """
 @external
@@ -936,6 +1018,10 @@ def length(x: Bytes[INF]) -> uint256:
         return value.to_bytes(32, "big")
 
     calldata = method_id("length(bytes)") + word(32) + word(2001)
+    with tx_failed():
+        env.message_call(c.address, data=calldata)
+
+    calldata = method_id("length(bytes)") + word(0)
     with tx_failed():
         env.message_call(c.address, data=calldata)
 

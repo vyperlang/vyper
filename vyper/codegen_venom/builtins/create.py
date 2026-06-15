@@ -14,6 +14,11 @@ from typing import TYPE_CHECKING, Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.abi import abi_encode_to_buf
+from vyper.codegen_venom.builtins.abi import (
+    _abi_encode_values_to_buf,
+    _runtime_abi_size_for_encode,
+    _type_contains_unbounded_sequence,
+)
 from vyper.exceptions import CompilerPanic, UnfoldableNode
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.semantics.data_locations import DataLocation
@@ -94,6 +99,10 @@ def _check_create_result(
         # Success path
         b.set_block(exit_bb)
     return addr
+
+
+def _ctor_args_need_runtime_encoding(ctor_arg_types) -> bool:
+    return any(_type_contains_unbounded_sequence(t) for t in ctor_arg_types)
 
 
 # EIP-1167 bytecode components
@@ -263,14 +272,21 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     # Create tuple type for encoding
     ctor_arg_types = [arg._metadata["type"] for arg in ctor_arg_nodes]
     ctor_tuple_typ = TupleT(tuple(ctor_arg_types))
-    ctor_abi_size = ctor_tuple_typ.abi_type.size_bound()
+    ctor_arg_vvs = [Expr(arg, ctx).lower() for arg in ctor_arg_nodes]
+    runtime_ctor_args = _ctor_args_need_runtime_encoding(ctor_arg_types)
+
+    if runtime_ctor_args:
+        ctor_abi_size = _runtime_abi_size_for_encode(ctx, ctor_arg_vvs, ctor_tuple_typ)
+    else:
+        ctor_abi_size = IRLiteral(ctor_tuple_typ.abi_type.size_bound())
 
     # Calculate buffer size: max bytecode len + ctor args size for bounded
     # bytecode, or exact runtime bytecode length + ctor args size for INF.
-    if bytecode_is_unbounded:
-        buf_ptr = ctx.allocate_scratch(b.add(bytecode_len, IRLiteral(ctor_abi_size)))
+    if bytecode_is_unbounded or runtime_ctor_args:
+        buf_ptr = ctx.allocate_scratch(b.add(bytecode_len, ctor_abi_size))
     else:
-        buf_size = bytecode_typ.maxlen + ctor_abi_size
+        assert isinstance(ctor_abi_size, IRLiteral)
+        buf_size = bytecode_typ.maxlen + ctor_abi_size.value
         buf = ctx.allocate_buffer(buf_size, annotation="raw_create_buf")
         buf_ptr = buf._ptr
 
@@ -278,19 +294,21 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     ctx.copy_memory_dynamic(buf_ptr, bytecode_ptr, bytecode_len)
 
     # Encode ctor args after bytecode
-    # First, store ctor args to a temp buffer
-    ctor_arg_vvs = [Expr(arg, ctx).lower() for arg in ctor_arg_nodes]
-    ctor_args_val = ctx.new_temporary_value(ctor_tuple_typ)
-    offset = 0
-    for vv, arg_t in zip(ctor_arg_vvs, ctor_arg_types):
-        dst = b.add(ctor_args_val.operand, IRLiteral(offset))
-        assert isinstance(dst, IRVariable)
-        ctx.store_vyper_value(vv, dst, arg_t)
-        offset += arg_t.memory_bytes_required
-
-    # Now ABI encode from ctor_args_val to args_start
     args_start = b.add(buf_ptr, bytecode_len)
-    args_len = abi_encode_to_buf(ctx, args_start, ctor_args_val.operand, ctor_tuple_typ)
+    if runtime_ctor_args:
+        args_len = _abi_encode_values_to_buf(ctx, args_start, ctor_arg_vvs, ctor_tuple_typ)
+    else:
+        # First, store ctor args to a temp buffer
+        ctor_args_val = ctx.new_temporary_value(ctor_tuple_typ)
+        offset = 0
+        for vv, arg_t in zip(ctor_arg_vvs, ctor_arg_types):
+            dst = b.add(ctor_args_val.operand, IRLiteral(offset))
+            assert isinstance(dst, IRVariable)
+            ctx.store_vyper_value(vv, dst, arg_t)
+            offset += arg_t.memory_bytes_required
+
+        # Now ABI encode from ctor_args_val to args_start
+        args_len = abi_encode_to_buf(ctx, args_start, ctor_args_val.operand, ctor_tuple_typ)
 
     # Total length = bytecode_len + args_len
     total_len = b.add(bytecode_len, args_len)
@@ -531,24 +549,31 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     elif len(ctor_arg_nodes) > 0:
         ctor_arg_types = [arg._metadata["type"] for arg in ctor_arg_nodes]
         ctor_tuple_typ = TupleT(tuple(ctor_arg_types))
-        ctor_abi_size = ctor_tuple_typ.abi_type.size_bound()
-
-        # Allocate buffer for encoded args
-        args_buf = ctx.allocate_buffer(ctor_abi_size, annotation="ctor_args_buf")
-
-        # Evaluate and store ctor args to temp buffer
         ctor_arg_vvs = [Expr(arg, ctx).lower() for arg in ctor_arg_nodes]
-        ctor_args_src = ctx.new_temporary_value(ctor_tuple_typ)
-        offset = 0
-        for vv, arg_t in zip(ctor_arg_vvs, ctor_arg_types):
-            dst = b.add(ctor_args_src.operand, IRLiteral(offset))
+        runtime_ctor_args = _ctor_args_need_runtime_encoding(ctor_arg_types)
 
-            assert isinstance(dst, IRVariable)
-            ctx.store_vyper_value(vv, dst, arg_t)
-            offset += arg_t.memory_bytes_required
+        if runtime_ctor_args:
+            ctor_abi_size = _runtime_abi_size_for_encode(ctx, ctor_arg_vvs, ctor_tuple_typ)
+            args_ptr = ctx.allocate_scratch(ctor_abi_size)
+            args_len = _abi_encode_values_to_buf(ctx, args_ptr, ctor_arg_vvs, ctor_tuple_typ)
+        else:
+            ctor_abi_size = ctor_tuple_typ.abi_type.size_bound()
 
-        args_len = abi_encode_to_buf(ctx, args_buf._ptr, ctor_args_src.operand, ctor_tuple_typ)
-        args_ptr = args_buf._ptr
+            # Allocate buffer for encoded args
+            args_buf = ctx.allocate_buffer(ctor_abi_size, annotation="ctor_args_buf")
+
+            # Store ctor args to temp buffer
+            ctor_args_src = ctx.new_temporary_value(ctor_tuple_typ)
+            offset = 0
+            for vv, arg_t in zip(ctor_arg_vvs, ctor_arg_types):
+                dst = b.add(ctor_args_src.operand, IRLiteral(offset))
+
+                assert isinstance(dst, IRVariable)
+                ctx.store_vyper_value(vv, dst, arg_t)
+                offset += arg_t.memory_bytes_required
+
+            args_len = abi_encode_to_buf(ctx, args_buf._ptr, ctor_args_src.operand, ctor_tuple_typ)
+            args_ptr = args_buf._ptr
     else:
         # No constructor arguments
         args_len = IRLiteral(0)
