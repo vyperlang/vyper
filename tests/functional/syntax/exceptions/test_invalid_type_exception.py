@@ -1,7 +1,7 @@
 import pytest
 
-from vyper.compiler import compile_code
 from vyper.builtins.functions import BUILTIN_FUNCTIONS
+from vyper.compiler import compile_code
 from vyper.exceptions import InvalidType, UnknownType
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS
 
