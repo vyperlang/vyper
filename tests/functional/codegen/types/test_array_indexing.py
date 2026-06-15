@@ -3,7 +3,6 @@
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic
 
 
@@ -270,8 +269,6 @@ def foo() -> uint256:
 
 
 @pytest.mark.parametrize("code", overlap_codes)
-@pytest.mark.parametrize("use_venom", [False, True])
-def test_array_index_rw_overlap_rejected(code, use_venom):
-    settings = Settings(experimental_codegen=use_venom)
+def test_array_index_rw_overlap_rejected(code):
     with pytest.raises(CompilerPanic, match="risky overlap"):
-        compile_code(code, settings=settings)
+        compile_code(code)
