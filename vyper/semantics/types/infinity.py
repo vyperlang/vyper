@@ -68,12 +68,3 @@ def type_contains_unbounded_sequence(typ) -> bool:
         return any(type_contains_unbounded_sequence(t) for t in typ.members.values())
 
     return False
-
-
-def is_unbounded_sequence_root(typ) -> bool:
-    if getattr(typ, "_is_bytestring", False):
-        return getattr(typ, "length", None) is INF
-
-    return (
-        getattr(typ, "typeclass", None) == "dynamic_array" and getattr(typ, "length", None) is INF
-    )

@@ -1661,11 +1661,9 @@ class Expr:
         length = self.builder.mload(old_ptr)
         elem_size = elem_typ.memory_bytes_required
 
-        data_size = self.builder.mul(length, IRLiteral(elem_size))
-        old_size = self.builder.add(IRLiteral(32), data_size)
-        new_size = self.builder.add(old_size, IRLiteral(elem_size))
-        no_size_wrap = self.builder.iszero(self.builder.lt(new_size, old_size))
-        self.builder.assert_(no_size_wrap)
+        old_size = self.ctx.dynarray_runtime_size_from_length(length, darray_typ)
+        data_size = self.builder.sub(old_size, IRLiteral(32))
+        new_size = self.ctx.checked_add(old_size, IRLiteral(elem_size))
 
         new_ptr = self.ctx.allocate_scratch(new_size)
         self.ctx.copy_memory_dynamic(new_ptr, old_ptr, old_size)
@@ -1814,7 +1812,6 @@ class Expr:
         self, arg_vals: list[VyperValue], args_tuple_t: TupleT
     ) -> IROperand:
         """Return an allocation size for ABI-encoded external call args."""
-        b = self.builder
         size: IROperand = IRLiteral(args_tuple_t.abi_type.static_size())
 
         for arg_vv in arg_vals:
@@ -1833,7 +1830,7 @@ class Expr:
             else:
                 child_size = IRLiteral(arg_typ.abi_type.size_bound())
 
-            size = b.add(size, child_size)
+            size = self.ctx.checked_add(size, child_size)
 
         return size
 
@@ -1857,7 +1854,7 @@ class Expr:
                 assert isinstance(child_src, IRVariable)
                 child_len = abi_encode_to_buf(self.ctx, child_dst, child_src, arg_typ)
                 b.mstore(static_loc, dyn_ofst)
-                self.ctx.ptr_store(dyn_ofst_val.ptr(), b.add(dyn_ofst, child_len))
+                self.ctx.ptr_store(dyn_ofst_val.ptr(), self.ctx.checked_add(dyn_ofst, child_len))
             else:
                 self.ctx.store_vyper_value(arg_vv, static_loc, arg_typ)
 
@@ -1933,7 +1930,9 @@ class Expr:
                     IRLiteral(return_abi_size),
                     args_alloc_size,
                 )
-            buf_ptr = self.ctx.allocate_scratch(b.add(buf_payload_size, IRLiteral(32)))
+            buf_ptr = self.ctx.allocate_scratch(
+                self.ctx.checked_add(buf_payload_size, IRLiteral(32))
+            )
         else:
             buf_size = max(args_abi_size, return_abi_size) + 32
             buf = self.ctx.allocate_buffer(buf_size, annotation="external_call_buf")
@@ -1974,7 +1973,7 @@ class Expr:
 
         # Call starts at buf+28, length = 4-byte selector + ABI args payload.
         args_ofst = b.add(buf_ptr, IRLiteral(28))
-        args_len = b.add(args_abi_len, IRLiteral(4))
+        args_len = self.ctx.checked_add(args_abi_len, IRLiteral(4))
 
         # === Contract Existence Check ===
         # If function returns nothing and skip_contract_check is False,

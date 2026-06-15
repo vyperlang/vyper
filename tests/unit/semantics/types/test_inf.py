@@ -317,6 +317,14 @@ def foo(x: DynArray[uint256, INF][2]):
     """,
         StructureException,
     ),
+    # Indexed event arguments only support value types and bytestrings
+    (
+        """
+event E:
+    x: indexed(DynArray[uint256, INF])
+    """,
+        TypeMismatch,
+    ),
 ]
 
 

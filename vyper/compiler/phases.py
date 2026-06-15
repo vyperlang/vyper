@@ -248,7 +248,10 @@ class CompilerData:
     def function_signatures(self) -> dict[str, ContractFunctionT]:
         # some metadata gets calculated during codegen, so
         # ensure codegen is run:
-        _ = self._ir_output
+        if self.settings.experimental_codegen:
+            _ = self.venom_runtime
+        else:
+            _ = self._ir_output
 
         fs = self.annotated_vyper_module.get_children(vy_ast.FunctionDef)
         return {f.name: f._metadata["func_type"] for f in fs}

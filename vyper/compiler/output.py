@@ -314,7 +314,10 @@ def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
 def build_abi_output(compiler_data: CompilerData) -> list:
     module_t = compiler_data.annotated_vyper_module._metadata["type"]
     if not compiler_data.annotated_vyper_module.is_interface:
-        _ = compiler_data.ir_runtime  # ensure _ir_info is generated
+        if compiler_data.settings.experimental_codegen:
+            _ = compiler_data.venom_runtime  # ensure _ir_info is generated
+        else:
+            _ = compiler_data.ir_runtime  # ensure _ir_info is generated
 
     abi = module_t.to_toplevel_abi_dict()
     if module_t.init_function:

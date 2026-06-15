@@ -235,15 +235,29 @@ class VenomCodegenContext:
         mask = self.builder.not_(IRLiteral(31))
         return self.builder.and_(self.builder.add(size, IRLiteral(31)), mask)
 
+    def checked_add(self, left: IROperand, right: IROperand) -> IROperand:
+        """Add two uint256 operands and assert the result did not wrap."""
+        ret = self.builder.add(left, right)
+        self.builder.assert_(self.builder.iszero(self.builder.lt(ret, left)))
+        return ret
+
+    def checked_mul(self, left: IROperand, right: IROperand) -> IROperand:
+        """Multiply two uint256 operands and assert the result did not wrap."""
+        ret = self.builder.mul(left, right)
+        if isinstance(right, IRLiteral) and right.value == 0:
+            return ret
+        no_overflow = self.builder.or_(
+            self.builder.iszero(right), self.builder.eq(self.builder.div(ret, right), left)
+        )
+        self.builder.assert_(no_overflow)
+        return ret
+
     def bytestring_runtime_size_from_length(self, length: IROperand) -> IROperand:
         """Return runtime memory size for a bytestring with `length` bytes."""
         padded_length = self.ceil32(length)
         no_padding_overflow = self.builder.iszero(self.builder.lt(padded_length, length))
         self.builder.assert_(no_padding_overflow)
-        size = self.builder.add(padded_length, IRLiteral(32))
-        no_size_overflow = self.builder.iszero(self.builder.lt(size, padded_length))
-        self.builder.assert_(no_size_overflow)
-        return size
+        return self.checked_add(padded_length, IRLiteral(32))
 
     def assert_abi_bytes_payload_in_bounds(
         self, src: IROperand, length: IROperand, hi: IROperand
@@ -286,13 +300,8 @@ class VenomCodegenContext:
     def dynarray_runtime_size_from_length(self, length: IROperand, typ: DArrayT) -> IROperand:
         """Return runtime memory size for a DynArray with `length` elements."""
         elem_size = typ.value_type.memory_bytes_required
-        data_size = self.builder.mul(length, IRLiteral(elem_size))
-        no_mul_overflow = self.builder.eq(self.builder.div(data_size, IRLiteral(elem_size)), length)
-        self.builder.assert_(no_mul_overflow)
-        size = self.builder.add(IRLiteral(32), data_size)
-        no_size_overflow = self.builder.iszero(self.builder.lt(size, data_size))
-        self.builder.assert_(no_size_overflow)
-        return size
+        data_size = self.checked_mul(length, IRLiteral(elem_size))
+        return self.checked_add(IRLiteral(32), data_size)
 
     def dynarray_runtime_size(self, ptr: IRVariable, typ: DArrayT) -> IROperand:
         """Return runtime memory size for a DynArray: 32 + len * elem_size."""
@@ -305,13 +314,8 @@ class VenomCodegenContext:
             raise CodegenPanic("DynArray[*, INF] ABI encoding needs ABI-static element types")
         length = self.builder.mload(ptr)
         elem_size = typ.value_type.abi_type.embedded_static_size()
-        data_size = self.builder.mul(length, IRLiteral(elem_size))
-        no_mul_overflow = self.builder.eq(self.builder.div(data_size, IRLiteral(elem_size)), length)
-        self.builder.assert_(no_mul_overflow)
-        size = self.builder.add(IRLiteral(32), data_size)
-        no_size_overflow = self.builder.iszero(self.builder.lt(size, data_size))
-        self.builder.assert_(no_size_overflow)
-        return size
+        data_size = self.checked_mul(length, IRLiteral(elem_size))
+        return self.checked_add(IRLiteral(32), data_size)
 
     def sequence_runtime_size(self, ptr: IRVariable, typ: VyperType) -> IROperand:
         """Return runtime memory size for an unbounded sequence."""

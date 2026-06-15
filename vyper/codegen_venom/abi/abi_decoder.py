@@ -267,13 +267,19 @@ def _decode_bytestring(
     ABI and Vyper layouts are the same: [length word][data...]
     So we just validate and copy.
     """
+    assert src.location is not None, "src must have a location for bytestring decoding"
+    length = ctx.builder.load(src.operand, src.location)
+
     # Validate length and bounds
     clamp_bytestring(ctx, src, typ, hi)
 
-    # Copy: length word + data (up to maxlen + 32 bytes)
-    size = typ.memory_bytes_required
-    assert src.location is not None, "src must have a location for bytestring decoding"
-    ctx.builder.copy_to_memory(dst, src.operand, IRLiteral(size), src.location)
+    # Copy only the present ABI payload. The destination may have a larger
+    # bounded capacity, but `hi` proves only the runtime payload is readable.
+    assert isinstance(dst, IRVariable)
+    ctx.zero_bytestring_padding(dst, length)
+    copy_size = ctx.builder.add(IRLiteral(32), length)
+    ctx.builder.assert_(ctx.builder.iszero(ctx.builder.lt(copy_size, length)))
+    ctx.builder.copy_to_memory(dst, src.operand, copy_size, src.location)
 
 
 def _decode_dyn_array(

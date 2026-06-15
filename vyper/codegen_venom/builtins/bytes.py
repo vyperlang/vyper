@@ -74,9 +74,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             arg_len = IRLiteral(arg_t.m)
             lowered_args.append((arg_t, arg_val, arg_len))
 
-        new_total_len = b.add(total_len, arg_len)
-        b.assert_(b.iszero(b.lt(new_total_len, total_len)))
-        total_len = new_total_len
+        total_len = ctx.checked_add(total_len, arg_len)
 
     # Allocate output buffer (length word + data)
     out_ptr: IROperand
@@ -104,7 +102,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             offset = ctx.ptr_load(offset_local.ptr())
             dst = b.add(data_ptr, offset)
             ctx.copy_memory_dynamic(dst, arg_data, arg_len)
-            new_offset = b.add(offset, arg_len)
+            new_offset = ctx.checked_add(offset, arg_len)
             ctx.ptr_store(offset_local.ptr(), new_offset)
         else:
             # Fixed bytesM: the value is already left-aligned in 32 bytes
@@ -112,7 +110,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             offset = ctx.ptr_load(offset_local.ptr())
             dst = b.add(data_ptr, offset)
             b.mstore(dst, arg_val)
-            new_offset = b.add(offset, arg_len)
+            new_offset = ctx.checked_add(offset, arg_len)
             ctx.ptr_store(offset_local.ptr(), new_offset)
 
     # Store final length at output buffer

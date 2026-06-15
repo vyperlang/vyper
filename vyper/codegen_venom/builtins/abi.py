@@ -110,10 +110,6 @@ def _create_tuple_in_memory(
     return val.operand, tuple_t
 
 
-def _type_contains_unbounded_sequence(typ: VyperType) -> bool:
-    return type_contains_unbounded_sequence(typ)
-
-
 def _runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> IROperand:
     typ = arg_vv.typ
     if isinstance(typ, _BytestringT):
@@ -130,13 +126,11 @@ def _runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> I
 def _runtime_abi_size_for_encode(
     ctx: VenomCodegenContext, arg_vals: list[VyperValue], encode_type: VyperType
 ) -> IROperand:
-    b = ctx.builder
-
     if isinstance(encode_type, TupleT):
         size: IROperand = IRLiteral(encode_type.abi_type.static_size())
         for arg_vv in arg_vals:
             if arg_vv.typ.abi_type.is_dynamic():
-                size = b.add(size, _runtime_abi_size_for_arg(ctx, arg_vv))
+                size = ctx.checked_add(size, _runtime_abi_size_for_arg(ctx, arg_vv))
         return size
 
     return _runtime_abi_size_for_arg(ctx, arg_vals[0])
@@ -167,7 +161,7 @@ def _abi_encode_values_to_buf(
             assert isinstance(child_src, IRVariable)
             child_len = abi_encode_to_buf(ctx, child_dst, child_src, typ)
             b.mstore(static_loc, dyn_ofst)
-            ctx.ptr_store(dyn_ofst_val.ptr(), b.add(dyn_ofst, child_len))
+            ctx.ptr_store(dyn_ofst_val.ptr(), ctx.checked_add(dyn_ofst, child_len))
         else:
             ctx.store_vyper_value(arg_vv, static_loc, typ)
 
@@ -256,7 +250,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     method_id = _parse_method_id(method_id_node)
 
     arg_types = [arg._metadata["type"] for arg in node.args]
-    if any(_type_contains_unbounded_sequence(t) for t in arg_types):
+    if any(type_contains_unbounded_sequence(t) for t in arg_types):
         arg_vals = [Expr(arg, ctx).lower() for arg in node.args]
         if len(arg_vals) == 1 and not ensure_tuple:
             encode_type: VyperType = arg_types[0]
@@ -266,9 +260,9 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         encoded_size = _runtime_abi_size_for_encode(ctx, arg_vals, encode_type)
         alloc_size = encoded_size
         if method_id is not None:
-            alloc_size = b.add(alloc_size, IRLiteral(4))
+            alloc_size = ctx.checked_add(alloc_size, IRLiteral(4))
 
-        buf_ptr = ctx.allocate_scratch(b.add(alloc_size, IRLiteral(32)))
+        buf_ptr = ctx.allocate_scratch(ctx.checked_add(alloc_size, IRLiteral(32)))
         # Safe margin: buf is exactly `[length word] + alloc_size`, and the
         # padding zero write lands at `buf_ptr + ceil32(alloc_size)`.
         ctx.zero_bytestring_padding(buf_ptr, alloc_size)
@@ -278,7 +272,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             b.mstore(b.add(buf_ptr, IRLiteral(32)), IRLiteral(method_id_word))
             data_dst = b.add(buf_ptr, IRLiteral(36))
             encoded_len = _abi_encode_values_to_buf(ctx, data_dst, arg_vals, encode_type)
-            total_len = b.add(encoded_len, IRLiteral(4))
+            total_len = ctx.checked_add(encoded_len, IRLiteral(4))
             b.mstore(buf_ptr, total_len)
         else:
             data_dst = b.add(buf_ptr, IRLiteral(32))

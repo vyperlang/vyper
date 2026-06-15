@@ -1,6 +1,8 @@
 from vyper.codegen_venom.module import generate_runtime_venom
+from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
+from vyper.venom.basicblock import IRLiteral
 
 
 def _compile_frontend_ir(source):
@@ -87,6 +89,29 @@ def foo() -> Bytes[INF]:
     opcodes = _opcodes(_compile_frontend_ir(code))
     assert "dalloca" in opcodes
     assert "calldatacopy" in opcodes
+
+
+def test_bounded_bytes_abi_decode_copies_runtime_payload_only():
+    code = """
+@external
+def dec(x: Bytes[INF]) -> Bytes[100]:
+    return abi_decode(x, Bytes[100], unwrap_tuple=False)
+    """
+
+    ctx = compile_code(
+        code, output_formats=["ir_runtime"], settings=Settings(experimental_codegen=True)
+    )["ir_runtime"]
+    mcopy_lengths = [
+        inst.operands[0]
+        for fn in ctx.functions.values()
+        for bb in fn.get_basic_blocks()
+        for inst in bb.instructions
+        if inst.opcode == "mcopy"
+    ]
+
+    assert not any(
+        isinstance(length, IRLiteral) and length.value == 160 for length in mcopy_lengths
+    )
 
 
 def test_inf_bytes_internal_return_emits_dret():

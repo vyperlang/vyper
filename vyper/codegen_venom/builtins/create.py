@@ -14,15 +14,12 @@ from typing import TYPE_CHECKING, Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.abi import abi_encode_to_buf
-from vyper.codegen_venom.builtins.abi import (
-    _abi_encode_values_to_buf,
-    _runtime_abi_size_for_encode,
-    _type_contains_unbounded_sequence,
-)
+from vyper.codegen_venom.builtins.abi import _abi_encode_values_to_buf, _runtime_abi_size_for_encode
 from vyper.exceptions import CompilerPanic, UnfoldableNode
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import TupleT
+from vyper.semantics.types.infinity import type_contains_unbounded_sequence
 from vyper.utils import EIP_3860_LIMIT, bytes_to_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -102,7 +99,7 @@ def _check_create_result(
 
 
 def _ctor_args_need_runtime_encoding(ctor_arg_types) -> bool:
-    return any(_type_contains_unbounded_sequence(t) for t in ctor_arg_types)
+    return any(type_contains_unbounded_sequence(t) for t in ctor_arg_types)
 
 
 # EIP-1167 bytecode components
@@ -283,7 +280,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     # Calculate buffer size: max bytecode len + ctor args size for bounded
     # bytecode, or exact runtime bytecode length + ctor args size for INF.
     if bytecode_is_unbounded or runtime_ctor_args:
-        buf_ptr = ctx.allocate_scratch(b.add(bytecode_len, ctor_abi_size))
+        buf_ptr = ctx.allocate_scratch(ctx.checked_add(bytecode_len, ctor_abi_size))
     else:
         assert isinstance(ctor_abi_size, IRLiteral)
         buf_size = bytecode_typ.maxlen + ctor_abi_size.value
@@ -311,7 +308,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         args_len = abi_encode_to_buf(ctx, args_start, ctor_args_val.operand, ctor_tuple_typ)
 
     # Total length = bytecode_len + args_len
-    total_len = b.add(bytecode_len, args_len)
+    total_len = ctx.checked_add(bytecode_len, args_len)
 
     # Create contract
     if salt_node is not None:
@@ -581,7 +578,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
 
     # Total length = codesize + args_len. When args_len is literal 0,
     # algebraic optimization folds `add(codesize, 0) -> codesize`.
-    total_len = b.add(codesize, args_len)
+    total_len = ctx.checked_add(codesize, args_len)
     mem_ofst = ctx.allocate_scratch(total_len)
 
     # Copy blueprint code (skipping preamble) to memory

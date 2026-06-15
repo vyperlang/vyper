@@ -10,6 +10,7 @@ from vyper.exceptions import (
     InstantiationException,
     NamespaceCollision,
     StructureException,
+    TypeMismatch,
     UnfoldableNode,
     VariableDeclarationException,
 )
@@ -328,6 +329,10 @@ class EventT(_UserType):
                 indexed.append(False)
 
             member_type = type_from_annotation(annotation)
+            if indexed[-1] and not (
+                member_type._is_prim_word or getattr(member_type, "_is_bytestring", False)
+            ):
+                raise TypeMismatch("Indexed event arguments must be value types", annotation)
             _add_user_type_member(members, member_name, node, member_type)
 
         return cls(base_node.name, members, indexed, base_node)

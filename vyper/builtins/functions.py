@@ -1790,6 +1790,17 @@ class CreateFromBlueprint(_CreateBase):
         self._validate_arg_types(node)
         arg_types = [AddressT()]
         arg_types.extend(get_exact_type_from_node(arg) for arg in node.args[1:])
+
+        raw_args = False
+        raw_args_kwarg = next(
+            (kw.value.reduced() for kw in node.keywords if kw.arg == "raw_args"), None
+        )
+        if isinstance(raw_args_kwarg, vy_ast.NameConstant):
+            raw_args = raw_args_kwarg.value
+
+        if raw_args and (len(arg_types) != 2 or not isinstance(arg_types[1], BytesT)):
+            raise StructureException("raw_args must be used with exactly 1 bytes argument", node)
+
         if any(type_contains_unbounded_sequence(t) for t in arg_types[1:]):
             _reject_legacy_unbounded_sequence_builtin(node)
         return arg_types

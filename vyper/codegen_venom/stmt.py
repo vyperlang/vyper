@@ -14,17 +14,13 @@ from vyper import ast as vy_ast
 from vyper.codegen.core import calculate_type_for_external_return
 from vyper.codegen_venom.abi import abi_encode_to_buf
 from vyper.codegen_venom.arithmetic import apply_binop
-from vyper.codegen_venom.builtins.abi import (
-    _abi_encode_values_to_buf,
-    _runtime_abi_size_for_encode,
-    _type_contains_unbounded_sequence,
-)
+from vyper.codegen_venom.builtins.abi import _abi_encode_values_to_buf, _runtime_abi_size_for_encode
 from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, tag_exceptions
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT
-from vyper.semantics.types.infinity import is_bounded_length
+from vyper.semantics.types.infinity import is_bounded_length, type_contains_unbounded_sequence
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.semantics.types.user import ErrorT, EventT, StructT
 from vyper.utils import method_id_int
@@ -1085,7 +1081,7 @@ class Stmt:
             assert isinstance(ret_val, IRVariable)
             length = self.builder.mload(ret_val)
             tail_len = self.ctx.bytestring_runtime_size_from_length(length)
-            encoded_size = self.builder.add(IRLiteral(32), tail_len)
+            encoded_size = self.ctx.checked_add(IRLiteral(32), tail_len)
             buf_ptr = self.ctx.allocate_scratch(encoded_size)
             encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, external_return_type)
             self.builder.return_(buf_ptr, encoded_len)
@@ -1095,7 +1091,7 @@ class Stmt:
             assert isinstance(ret_typ, DArrayT)
             assert isinstance(ret_val, IRVariable)
             tail_len = self.ctx.dynarray_runtime_abi_size(ret_val, ret_typ)
-            encoded_size = self.builder.add(IRLiteral(32), tail_len)
+            encoded_size = self.ctx.checked_add(IRLiteral(32), tail_len)
             buf_ptr = self.ctx.allocate_scratch(encoded_size)
             encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, external_return_type)
             self.builder.return_(buf_ptr, encoded_len)
@@ -1169,7 +1165,7 @@ class Stmt:
         if data_vals:
             # Create a tuple type from the data types
             tuple_typ = TupleT(tuple(data_typs))
-            if any(_type_contains_unbounded_sequence(typ) for typ in data_typs):
+            if any(type_contains_unbounded_sequence(typ) for typ in data_typs):
                 data_vvs = [arg_vv for arg_vv, _val, _src_typ in data_vals]
                 encoded_size = _runtime_abi_size_for_encode(self.ctx, data_vvs, tuple_typ)
                 abi_buf_ptr = self.ctx.allocate_scratch(encoded_size)
