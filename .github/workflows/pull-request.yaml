@@ -47,6 +47,7 @@ jobs:
             test
             lang
             stdlib
+            builtins
             ux
             parser
             tool
