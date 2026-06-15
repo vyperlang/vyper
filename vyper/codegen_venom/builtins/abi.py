@@ -21,6 +21,7 @@ from vyper.semantics.types import BytesT, TupleT, VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.infinity import INF
 from vyper.semantics.types.shortcuts import UINT256_T
+from vyper.semantics.types.subscriptable import DArrayT
 from vyper.utils import fourbytes_to_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -109,11 +110,11 @@ def _create_tuple_in_memory(
     return val.operand, tuple_t
 
 
-def _type_contains_unbounded_bytestring(typ: VyperType) -> bool:
-    if isinstance(typ, _BytestringT):
+def _type_contains_unbounded_sequence(typ: VyperType) -> bool:
+    if isinstance(typ, (_BytestringT, DArrayT)):
         return typ.length is INF
     if isinstance(typ, TupleT):
-        return any(_type_contains_unbounded_bytestring(t) for t in typ.member_types)
+        return any(_type_contains_unbounded_sequence(t) for t in typ.member_types)
     return False
 
 
@@ -123,6 +124,10 @@ def _runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> I
         ptr = ctx.unwrap(arg_vv)
         assert isinstance(ptr, IRVariable)
         return ctx.bytestring_runtime_size(ptr)
+    if isinstance(typ, DArrayT) and ctx.is_unbounded_dynarray_type(typ):
+        ptr = ctx.unwrap(arg_vv)
+        assert isinstance(ptr, IRVariable)
+        return ctx.dynarray_runtime_abi_size(ptr, typ)
     return IRLiteral(typ.abi_type.size_bound())
 
 
@@ -202,6 +207,48 @@ def _decode_unbounded_bytestring_from_abi(
     return ctx.dynamic_memory_value(dst, typ, annotation="abi_decode")
 
 
+def _decode_unbounded_dynarray_from_abi(
+    ctx: VenomCodegenContext, src: IRVariable, hi: IROperand, typ: DArrayT
+) -> VyperValue:
+    if typ.value_type.abi_type.is_dynamic():
+        raise CompilerPanic("DynArray[*, INF] ABI decode needs ABI-static element types")
+
+    b = ctx.builder
+    data_start = b.add(src, IRLiteral(32))
+    no_start_overflow = b.iszero(b.lt(data_start, src))
+    has_length_word = b.iszero(b.gt(data_start, hi))
+    b.assert_(b.and_(no_start_overflow, has_length_word))
+
+    length = b.mload(src)
+
+    elem_static_size = typ.value_type.abi_type.embedded_static_size()
+    available_payload = b.sub(hi, data_start)
+    max_count = b.div(available_payload, IRLiteral(elem_static_size))
+    count_in_bounds = b.iszero(b.gt(length, max_count))
+    b.assert_(count_in_bounds)
+
+    size = ctx.dynarray_runtime_size_from_length(length, typ)
+    dst = ctx.allocate_scratch(size)
+
+    buf = Buffer(_ptr=src, size=None, annotation="abi_decode_src")
+    ptr = Ptr(operand=src, location=DataLocation.MEMORY, buf=buf)
+    src_vv = VyperValue.from_ptr(ptr, typ)
+    abi_decode_to_buf(ctx, dst, src_vv, hi=hi)
+    return ctx.dynamic_memory_value(dst, typ, annotation="abi_decode")
+
+
+def _decode_unbounded_sequence_from_abi(
+    ctx: VenomCodegenContext, src: IRVariable, hi: IROperand, typ: VyperType
+) -> VyperValue:
+    if ctx.is_unbounded_bytestring_type(typ):
+        return _decode_unbounded_bytestring_from_abi(ctx, src, hi, typ)
+
+    if isinstance(typ, DArrayT) and ctx.is_unbounded_dynarray_type(typ):
+        return _decode_unbounded_dynarray_from_abi(ctx, src, hi, typ)
+
+    raise CompilerPanic(f"expected unbounded sequence type, got {typ}")  # pragma: nocover
+
+
 def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     """
     abi_encode(*args, ensure_tuple=True, method_id=None) -> Bytes[N]
@@ -221,7 +268,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     method_id = _parse_method_id(method_id_node)
 
     arg_types = [arg._metadata["type"] for arg in node.args]
-    if any(_type_contains_unbounded_bytestring(t) for t in arg_types):
+    if any(_type_contains_unbounded_sequence(t) for t in arg_types):
         arg_vals = [Expr(arg, ctx).lower() for arg in node.args]
         if len(arg_vals) == 1 and not ensure_tuple:
             encode_type: VyperType = arg_types[0]
@@ -346,7 +393,7 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     no_hi_wrap = b.iszero(b.lt(hi, data_ptr))
     b.assert_(no_hi_wrap)
 
-    if ctx.is_unbounded_bytestring_type(output_typ):
+    if ctx.is_unbounded_sequence_type(output_typ):
         if unwrap_tuple:
             abi_min_size = wrapped_typ.abi_type.static_size()
             ge_min = b.iszero(b.lt(data_len, IRLiteral(abi_min_size)))
@@ -357,11 +404,11 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             src = b.add(data_ptr, offset)
             no_src_wrap = b.iszero(b.lt(src, data_ptr))
             b.assert_(b.and_(offset_after_head, no_src_wrap))
-            return _decode_unbounded_bytestring_from_abi(ctx, src, hi, output_typ)
+            return _decode_unbounded_sequence_from_abi(ctx, src, hi, output_typ)
 
         ge_length_word = b.iszero(b.lt(data_len, IRLiteral(32)))
         b.assert_(ge_length_word)
-        return _decode_unbounded_bytestring_from_abi(ctx, data_ptr, hi, output_typ)
+        return _decode_unbounded_sequence_from_abi(ctx, data_ptr, hi, output_typ)
 
     # Validate size
     abi_min_size = wrapped_typ.abi_type.static_size()

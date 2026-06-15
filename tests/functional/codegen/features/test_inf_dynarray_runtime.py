@@ -271,3 +271,112 @@ def get(addr: address, x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
         env, caller, "get(address,uint256[])", "(address,uint256[])", (target.address, [9, 8, 7])
     )
     assert abi_decode("(uint256[])", ret) == ([9, 8, 7],)
+
+
+def test_inf_dynarray_abi_encode_default_tuple(env):
+    payload = [i * 31 for i in range(2001)]
+    code = """
+@external
+def enc(x: DynArray[uint256, INF]) -> Bytes[INF]:
+    return abi_encode(x)
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "enc(uint256[])", "(uint256[])", (payload,))
+    assert abi_decode("(bytes)", ret) == (abi_encode("(uint256[])", (payload,)),)
+
+
+def test_inf_dynarray_abi_encode_no_tuple(env):
+    payload = [i * 37 for i in range(2001)]
+    code = """
+@external
+def enc(x: DynArray[uint256, INF]) -> Bytes[INF]:
+    return abi_encode(x, ensure_tuple=False)
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "enc(uint256[])", "(uint256[])", (payload,))
+    assert abi_decode("(bytes)", ret) == (abi_encode("uint256[]", payload),)
+
+
+def test_inf_dynarray_abi_encode_method_id_and_static_args(env):
+    payload = [5, 8, 13, 21]
+    code = """
+@external
+def enc(a: uint256, x: DynArray[uint256, INF], b: uint256) -> Bytes[INF]:
+    return abi_encode(a, x, b, method_id=method_id("foo(uint256,uint256[],uint256)"))
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(
+        env, c, "enc(uint256,uint256[],uint256)", "(uint256,uint256[],uint256)", (11, payload, 22)
+    )
+    expected = method_id("foo(uint256,uint256[],uint256)")
+    expected += abi_encode("(uint256,uint256[],uint256)", (11, payload, 22))
+    assert abi_decode("(bytes)", ret) == (expected,)
+
+
+def test_inf_dynarray_abi_decode_default_tuple(env):
+    payload = [i * 41 for i in range(2001)]
+    code = """
+@external
+def dec(x: Bytes[INF]) -> DynArray[uint256, INF]:
+    return abi_decode(x, DynArray[uint256, INF])
+    """
+
+    c = _deploy_venom(env, code)
+    encoded = abi_encode("(uint256[])", (payload,))
+    ret = _call(env, c, "dec(bytes)", "(bytes)", (encoded,))
+    assert abi_decode("(uint256[])", ret) == (payload,)
+
+
+def test_inf_dynarray_abi_decode_no_tuple(env):
+    payload = [i * 43 for i in range(2001)]
+    code = """
+@external
+def dec(x: Bytes[INF]) -> DynArray[uint256, INF]:
+    return abi_decode(x, DynArray[uint256, INF], unwrap_tuple=False)
+    """
+
+    c = _deploy_venom(env, code)
+    encoded = abi_encode("uint256[]", payload)
+    ret = _call(env, c, "dec(bytes)", "(bytes)", (encoded,))
+    assert abi_decode("(uint256[])", ret) == (payload,)
+
+
+def test_inf_dynarray_abi_decode_rejects_malformed_payload(env, tx_failed):
+    code = """
+@external
+def dec(x: Bytes[INF]) -> DynArray[uint256, INF]:
+    return abi_decode(x, DynArray[uint256, INF])
+
+@external
+def dec_no_tuple(x: Bytes[INF]) -> DynArray[uint256, INF]:
+    return abi_decode(x, DynArray[uint256, INF], unwrap_tuple=False)
+    """
+
+    c = _deploy_venom(env, code)
+
+    def word(value):
+        return value.to_bytes(32, "big")
+
+    for payload in [word(0), word(32), word(32) + word(2) + word(1)]:
+        with tx_failed():
+            _call(env, c, "dec(bytes)", "(bytes)", (payload,))
+
+    with tx_failed():
+        _call(env, c, "dec_no_tuple(bytes)", "(bytes)", (word(2) + word(1),))
+
+
+def test_inf_dynarray_abi_encode_decode_local_roundtrip(env):
+    payload = [i * 47 for i in range(2001)]
+    code = """
+@external
+def roundtrip(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
+    encoded: Bytes[INF] = abi_encode(x)
+    return abi_decode(encoded, DynArray[uint256, INF])
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "roundtrip(uint256[])", "(uint256[])", (payload,))
+    assert abi_decode("(uint256[])", ret) == (payload,)

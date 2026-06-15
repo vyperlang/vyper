@@ -17,7 +17,7 @@ from vyper.codegen_venom.arithmetic import apply_binop
 from vyper.codegen_venom.builtins.abi import (
     _abi_encode_values_to_buf,
     _runtime_abi_size_for_encode,
-    _type_contains_unbounded_bytestring,
+    _type_contains_unbounded_sequence,
 )
 from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, tag_exceptions
 from vyper.semantics.data_locations import DataLocation
@@ -1168,7 +1168,7 @@ class Stmt:
         if data_vals:
             # Create a tuple type from the data types
             tuple_typ = TupleT(tuple(data_typs))
-            if any(_type_contains_unbounded_bytestring(typ) for typ in data_typs):
+            if any(_type_contains_unbounded_sequence(typ) for typ in data_typs):
                 data_vvs = [arg_vv for arg_vv, _val, _src_typ in data_vals]
                 encoded_size = _runtime_abi_size_for_encode(self.ctx, data_vvs, tuple_typ)
                 abi_buf_ptr = self.ctx.allocate_scratch(encoded_size)
