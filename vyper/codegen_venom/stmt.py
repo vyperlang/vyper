@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.codegen.core import calculate_type_for_external_return
+from vyper.codegen.core import calculate_type_for_external_return, has_length_word
 from vyper.codegen_venom.abi import abi_encode_to_buf
 from vyper.codegen_venom.arithmetic import apply_binop
 from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, tag_exceptions
@@ -97,7 +97,7 @@ class Stmt:
 
         # Special case: empty Bytestring/DynArray assignment — just zero the
         # length word.
-        if isinstance(target_typ, (_BytestringT, DArrayT)) and self._is_empty_value(node.value):
+        if has_length_word(target_typ) and self._is_empty_value(node.value):
             dst_ptr = self._get_target_ptr(target)
             self.ctx.ptr_store(dst_ptr, IRLiteral(0))
             return
@@ -118,7 +118,7 @@ class Stmt:
         (with overlap-safe copying when source and dest are in the same
         address space).
         """
-        if isinstance(typ, (_BytestringT, DArrayT)) and self._is_empty_value(src_node):
+        if has_length_word(typ) and self._is_empty_value(src_node):
             # Empty bytes/string/dynarray assignment only needs a zero length word.
             self.ctx.ptr_store(dst_ptr, IRLiteral(0))
             return
