@@ -48,7 +48,16 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
-from vyper.semantics.types import TYPE_T, EventT, FlagT, InterfaceT, StructT, VyperType, is_type_t
+from vyper.semantics.types import (
+    TYPE_T,
+    ErrorT,
+    EventT,
+    FlagT,
+    InterfaceT,
+    StructT,
+    VyperType,
+    is_type_t,
+)
 from vyper.semantics.types.function import ContractFunctionT, KeywordArg, _FunctionArg
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
@@ -91,10 +100,12 @@ def analyze_modules(imports: ImportAnalyzer) -> ModuleT:
     for module_ast in modules:
         _analyze_module_bodies(module_ast)
 
-    # check for event name collisions between defined and used events
+    # check for event/error name collisions between defined and used events/errors
     # (needs to be after reachable set with overrides computation since used_events depends on it)
     for module_ast in modules:
-        module_ast._metadata["type"].validate_used_events()
+        module_t = module_ast._metadata["type"]
+        module_t.validate_used_events()
+        module_t.validate_used_errors()
 
     return ret
 
@@ -426,6 +437,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._all_implements: dict[VyperType, vy_ast.VyperNode] = {}
 
         self._events: list[EventT] = []
+        self._errors: list[ErrorT] = []
 
         self.module_t: Optional[ModuleT] = None
 
@@ -448,7 +460,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         # handle some node types using a dependency resolution routine
         # which loops, swallowing exceptions until all nodes are processed
-        type_decls = (vy_ast.FlagDef, vy_ast.StructDef, vy_ast.InterfaceDef, vy_ast.EventDef)
+        type_decls = (
+            vy_ast.FlagDef,
+            vy_ast.StructDef,
+            vy_ast.InterfaceDef,
+            vy_ast.ErrorDef,
+            vy_ast.EventDef,
+        )
         self._visit_nodes_looping(type_decls)
 
         # handle functions
@@ -849,6 +867,12 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         obj = FlagT.from_FlagDef(node)
         node._metadata["flag_type"] = obj
         self.namespace[node.name] = obj
+
+    def visit_ErrorDef(self, node):
+        obj = ErrorT.from_ErrorDef(node)
+        node._metadata["error_type"] = obj
+        self.namespace[node.name] = obj
+        self._errors.append(obj)
 
     def visit_EventDef(self, node):
         obj = EventT.from_EventDef(node)
