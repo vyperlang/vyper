@@ -44,6 +44,7 @@ from vyper.semantics.types import (
 from vyper.semantics.types.base import VOID_TYPE
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
+from vyper.semantics.types.infinity import is_bounded_length
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT
 from vyper.semantics.types.user import FlagT, StructT
@@ -1538,6 +1539,9 @@ class Expr:
         darray_typ = darray_node._metadata["type"]
         elem_typ = darray_typ.value_type
 
+        if self.ctx.is_unbounded_dynarray_type(darray_typ):
+            return self._lower_unbounded_dynarray_append()
+
         # Get the array VyperValue
         darray_vv = Expr(darray_node, self.ctx).lower()
         darray_ptr = darray_vv.operand
@@ -1589,8 +1593,9 @@ class Expr:
         length = self.builder.load(darray_ptr, data_loc)
 
         # 2. Assert length < capacity
-        valid = self.builder.lt(length, IRLiteral(capacity))
-        self.builder.assert_(valid)
+        if is_bounded_length(capacity):
+            valid = self.builder.lt(length, IRLiteral(capacity))
+            self.builder.assert_(valid)
 
         # 3. Compute element pointer: data_ptr + length * elem_size
         overhead = word_scale * DYNAMIC_ARRAY_OVERHEAD
@@ -1617,6 +1622,66 @@ class Expr:
         self.builder.store(darray_ptr, new_length, data_loc)
 
         # append() returns nothing
+        return VyperValue.from_stack_op(IRLiteral(0), VOID_TYPE)
+
+    def _lower_unbounded_dynarray_append(self) -> VyperValue:
+        """Lower append on exact-sized DynArray[..., INF] pointer-cell locals."""
+        node = self.node
+        assert isinstance(node, vy_ast.Call)
+        assert isinstance(node.func, vy_ast.Attribute)
+        assert len(node.args) == 1
+
+        darray_node = node.func.value
+        darray_typ = darray_node._metadata["type"]
+        assert isinstance(darray_typ, DArrayT)
+        elem_typ = darray_typ.value_type
+
+        if not isinstance(darray_node, vy_ast.Name):
+            raise CompilerPanic("append on unbounded DynArray requires a local variable")
+
+        var = self.ctx.lookup(darray_node.id)
+        if not var.is_pointer_cell:
+            raise CompilerPanic("append on unbounded DynArray requires pointer-cell storage")
+
+        arg_vv = Expr(node.args[0], self.ctx).lower()
+        arg_val = self.ctx.unwrap(arg_vv)
+        elem_src_typ = arg_vv.typ
+
+        if not elem_typ._is_prim_word:
+            temp_buf = self.ctx.new_temporary_value(elem_typ)
+            assert isinstance(temp_buf.operand, IRVariable)
+            self.ctx.store_vyper_value(arg_vv, temp_buf.operand, elem_typ)
+            elem_val: IROperand = temp_buf.operand
+            elem_src_typ = elem_typ
+        else:
+            elem_val = arg_val
+
+        old_ptr = self.ctx.ptr_load(var.value.ptr())
+        assert isinstance(old_ptr, IRVariable)
+        length = self.builder.mload(old_ptr)
+        elem_size = elem_typ.memory_bytes_required
+
+        data_size = self.builder.mul(length, IRLiteral(elem_size))
+        old_size = self.builder.add(IRLiteral(32), data_size)
+        new_size = self.builder.add(old_size, IRLiteral(elem_size))
+        no_size_wrap = self.builder.iszero(self.builder.lt(new_size, old_size))
+        self.builder.assert_(no_size_wrap)
+
+        new_ptr = self.ctx.allocate_scratch(new_size)
+        self.ctx.copy_memory_dynamic(new_ptr, old_ptr, old_size)
+
+        data_ptr = self.builder.add(new_ptr, IRLiteral(32))
+        elem_ptr = self.builder.add(data_ptr, data_size)
+        if elem_typ._is_prim_word:
+            self.builder.mstore(elem_ptr, elem_val)
+        else:
+            self.ctx.store_memory(elem_val, elem_ptr, elem_typ, src_typ=elem_src_typ)
+
+        new_length = self.builder.add(length, IRLiteral(1))
+        no_length_wrap = self.builder.gt(new_length, length)
+        self.builder.assert_(no_length_wrap)
+        self.builder.mstore(new_ptr, new_length)
+        self.ctx.ptr_store(var.value.ptr(), new_ptr)
         return VyperValue.from_stack_op(IRLiteral(0), VOID_TYPE)
 
     def _lower_dynarray_pop(self) -> VyperValue:

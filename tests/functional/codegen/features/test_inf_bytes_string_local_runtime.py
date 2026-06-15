@@ -3,7 +3,7 @@ import json
 from tests.evm_backends.abi import abi_decode, abi_encode
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings, VenomOptimizationFlags
-from vyper.utils import method_id
+from vyper.utils import keccak256, method_id
 
 
 def _venom_settings(*, disable_inlining=False):
@@ -867,6 +867,24 @@ def emit_event(x: Bytes[INF]):
     assert env.get_logs(c, raw=True)[0][1] == abi_encode("(bytes)", (payload,))
 
 
+def test_indexed_inf_bytes_event_topic(env):
+    payload = bytes((i * 71) % 256 for i in range(2001))
+    code = """
+event E:
+    x: indexed(Bytes[INF])
+
+@external
+def emit_event(x: Bytes[INF]):
+    log E(x=x)
+    """
+
+    c = _deploy_venom(env, code)
+    _call(env, c, "emit_event(bytes)", "(bytes)", (payload,))
+    topics, data = env.get_logs(c, raw=True)[0]
+    assert topics[1] == keccak256(payload)
+    assert data == b""
+
+
 def test_inf_string_event_data_with_static_args(env):
     payload = "event string " * 170 + "tail"
     code = """
@@ -903,6 +921,23 @@ def get() -> Bytes[2001]:
 
     c = _deploy_venom_with_ctor_data(env, code, abi_encode("(bytes)", (payload,)))
     assert abi_decode("(bytes)", _call(env, c, "get()")) == (payload,)
+
+
+def test_inf_bytes_external_param_rejects_truncated_calldata(env, tx_failed):
+    code = """
+@external
+def length(x: Bytes[INF]) -> uint256:
+    return len(x)
+    """
+
+    c = _deploy_venom(env, code)
+
+    def word(value):
+        return value.to_bytes(32, "big")
+
+    calldata = method_id("length(bytes)") + word(32) + word(2001)
+    with tx_failed():
+        env.message_call(c.address, data=calldata)
 
 
 def test_inf_bytes_internal_arg_roundtrip(env):

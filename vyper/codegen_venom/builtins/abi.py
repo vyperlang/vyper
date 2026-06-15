@@ -281,6 +281,8 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             alloc_size = b.add(alloc_size, IRLiteral(4))
 
         buf_ptr = ctx.allocate_scratch(b.add(alloc_size, IRLiteral(32)))
+        # Safe margin: buf is exactly `[length word] + alloc_size`, and the
+        # padding zero write lands at `buf_ptr + ceil32(alloc_size)`.
         ctx.zero_bytestring_padding(buf_ptr, alloc_size)
 
         if method_id is not None:

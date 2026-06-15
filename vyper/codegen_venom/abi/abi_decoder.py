@@ -165,11 +165,7 @@ def clamp_bytestring(
     b.assert_(b.iszero(b.gt(length, IRLiteral(typ.maxlen))))
 
     if hi is not None:
-        # Check item_end <= hi
-        # item_end = src + 32 + length
-        item_end = b.add(src.operand, IRLiteral(32))
-        item_end = b.add(item_end, length)
-        b.assert_(b.iszero(b.gt(item_end, hi)))
+        ctx.assert_abi_bytes_payload_in_bounds(src.operand, length, hi)
 
 
 def clamp_dyn_array(
@@ -193,13 +189,8 @@ def clamp_dyn_array(
         b.assert_(b.iszero(b.gt(count, IRLiteral(typ.count))))
 
     if hi is not None:
-        # Check payload_end <= hi
-        # payload_end = src + 32 + count * elem_static_size
         elem_static_size = typ.value_type.abi_type.embedded_static_size()
-        payload_size = b.mul(count, IRLiteral(elem_static_size))
-        payload_size = b.add(payload_size, IRLiteral(32))
-        item_end = b.add(src.operand, payload_size)
-        b.assert_(b.iszero(b.gt(item_end, hi)))
+        ctx.assert_abi_dynarray_payload_in_bounds(src.operand, count, elem_static_size, hi)
 
 
 def _getelemptr_abi(

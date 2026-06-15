@@ -64,6 +64,30 @@ def foo(x: DynArray[uint256, INF]) -> DynArray[uint256, 5]:
     """,
         TypeMismatch,
     ),
+    (
+        """
+@external
+def foo(x: DynArray[Bytes[5], INF]):
+    pass
+    """,
+        StructureException,
+    ),
+    (
+        """
+@external
+def foo(x: DynArray[Bytes[INF], 5]):
+    pass
+    """,
+        StructureException,
+    ),
+    (
+        """
+@external
+def foo(x: DynArray[DynArray[uint256, 5], INF]):
+    pass
+    """,
+        StructureException,
+    ),
 ]
 
 
@@ -159,32 +183,27 @@ def foo():
     _compile_inf_dynarray_code(code, experimental_codegen)
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
 def test_dynarray_inf_nested():
-    code = """
+    for code in (
+        """
 a: DynArray[DynArray[uint256, 5], INF]
+        """,
+        """
 b: DynArray[DynArray[uint256, INF], 5]
-
-@external
-def foo(other_a: DynArray[DynArray[uint256, 5], INF]) -> DynArray[DynArray[uint256, 5], INF]:
-    return self.a
-
-@external
-def bar(other_b: DynArray[DynArray[uint256, INF], 5]) -> DynArray[DynArray[uint256, INF], 5]:
-    return self.b
-    """
-    compile_code(code)
+        """,
+    ):
+        with pytest.raises(StructureException):
+            compile_code(code)
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
-def test_dynarray_inf_append():
+def test_dynarray_inf_append(experimental_codegen):
     code = """
 @external
 def foo():
     a: DynArray[uint256, INF] = []
     a.append(1)
     """
-    compile_code(code)
+    _compile_inf_dynarray_code(code, experimental_codegen)
 
 
 def test_dynarray_inf_assign_bounded_to_unbounded(experimental_codegen):

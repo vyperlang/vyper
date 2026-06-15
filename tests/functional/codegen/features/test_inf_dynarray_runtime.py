@@ -134,6 +134,36 @@ def pick(flag: bool) -> DynArray[uint256, INF]:
     assert abi_decode("(uint256[])", ret) == ([7],)
 
 
+def test_inf_dynarray_append_reallocates(env):
+    code = """
+@external
+def grow(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
+    y: DynArray[uint256, INF] = x
+    y.append(99)
+    y.append(123)
+    return y
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "grow(uint256[])", "(uint256[])", ([1, 2, 3],))
+    assert abi_decode("(uint256[])", ret) == ([1, 2, 3, 99, 123],)
+
+
+def test_inf_dynarray_for_loop(env):
+    code = """
+@external
+def total(x: DynArray[uint256, INF]) -> uint256:
+    ret: uint256 = 0
+    for item: uint256 in x:
+        ret += item
+    return ret
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "total(uint256[])", "(uint256[])", ([5, 8, 13, 21],))
+    assert abi_decode("(uint256)", ret) == (47,)
+
+
 def test_inf_dynarray_internal_arg_return_roundtrip(env):
     code = """
 @internal
@@ -380,3 +410,20 @@ def roundtrip(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     c = _deploy_venom(env, code)
     ret = _call(env, c, "roundtrip(uint256[])", "(uint256[])", (payload,))
     assert abi_decode("(uint256[])", ret) == (payload,)
+
+
+def test_inf_dynarray_external_param_rejects_truncated_calldata(env, tx_failed):
+    code = """
+@external
+def length(x: DynArray[uint256, INF]) -> uint256:
+    return len(x)
+    """
+
+    c = _deploy_venom(env, code)
+
+    def word(value):
+        return value.to_bytes(32, "big")
+
+    calldata = method_id("length(uint256[])") + word(32) + word(2) + word(1)
+    with tx_failed():
+        env.message_call(c.address, data=calldata)

@@ -24,6 +24,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types.infinity import is_bounded_length
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.semantics.types.user import ErrorT, EventT, StructT
 from vyper.utils import method_id_int
@@ -822,7 +823,7 @@ class Stmt:
         index_var = self.builder.assign(IRLiteral(0))
 
         # Bound check for dynamic arrays: assert length <= bound
-        if isinstance(array_typ, DArrayT):
+        if isinstance(array_typ, DArrayT) and is_bounded_length(bound):
             invalid = self.builder.gt(length, IRLiteral(bound))
             valid = self.builder.iszero(invalid)
             self.builder.assert_(valid)

@@ -1040,6 +1040,7 @@ def _materialize_unbounded_bytestring_abi_arg(
     data_offset = ctx.builder.add(src.operand, IRLiteral(32))
 
     if src.location == DataLocation.CALLDATA:
+        ctx.assert_abi_bytes_payload_in_bounds(src.operand, length, ctx.builder.calldatasize())
         return ctx.materialize_calldata_bytes(data_offset, length, typ, annotation=name)
 
     if src.location == DataLocation.CODE:
@@ -1060,9 +1061,15 @@ def _materialize_unbounded_dynarray_abi_arg(
         raise CodegenPanic("DynArray[*, INF] ABI args need ABI-static element types")
 
     length = ctx.builder.load(src.operand, src.location)
+    hi = None
+    if src.location == DataLocation.CALLDATA:
+        hi = ctx.builder.calldatasize()
+        elem_static_size = typ.value_type.abi_type.embedded_static_size()
+        ctx.assert_abi_dynarray_payload_in_bounds(src.operand, length, elem_static_size, hi)
+
     size = ctx.dynarray_runtime_size_from_length(length, typ)
     ptr = ctx.allocate_scratch(size)
-    abi_decode_to_buf(ctx, ptr, src)
+    abi_decode_to_buf(ctx, ptr, src, hi=hi)
     return ctx.dynamic_memory_value(ptr, typ, annotation=name)
 
 
@@ -1089,10 +1096,8 @@ def _register_abi_arg_from_src(ctx: VenomCodegenContext, arg, elem_src: VyperVal
     var = ctx.new_variable(arg.name, arg.typ, mutable=False)
     assert isinstance(var.value.operand, IRVariable)
 
-    # Decode from ABI data to memory.
-    # Note: No hi bound needed - calldata size is already validated in dispatcher,
-    # and constructor args come from trusted bytecode.
-    abi_decode_to_buf(ctx, var.value.operand, elem_src)
+    hi = ctx.builder.calldatasize() if elem_src.location == DataLocation.CALLDATA else None
+    abi_decode_to_buf(ctx, var.value.operand, elem_src, hi=hi)
 
 
 def _store_abi_arg_to_existing_ptr(
@@ -1103,7 +1108,8 @@ def _store_abi_arg_to_existing_ptr(
         ctx.builder.mstore(dst, val.operand)
         return
 
-    abi_decode_to_buf(ctx, dst, elem_src)
+    hi = ctx.builder.calldatasize() if elem_src.location == DataLocation.CALLDATA else None
+    abi_decode_to_buf(ctx, dst, elem_src, hi=hi)
 
 
 def _register_default_arg(ctx: VenomCodegenContext, arg, default_node: vy_ast.VyperNode) -> None:

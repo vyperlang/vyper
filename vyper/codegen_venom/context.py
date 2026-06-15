@@ -239,6 +239,39 @@ class VenomCodegenContext:
         """Return runtime memory size for a bytestring with `length` bytes."""
         return self.builder.add(self.ceil32(length), IRLiteral(32))
 
+    def assert_abi_bytes_payload_in_bounds(
+        self, src: IROperand, length: IROperand, hi: IROperand
+    ) -> None:
+        """Assert ABI bytes payload `[src + 32, src + 32 + ceil32(length))` is in bounds."""
+        b = self.builder
+        data_start = b.add(src, IRLiteral(32))
+        no_start_overflow = b.iszero(b.lt(data_start, src))
+        has_length_word = b.iszero(b.gt(data_start, hi))
+        b.assert_(b.and_(no_start_overflow, has_length_word))
+
+        padded_length = self.ceil32(length)
+        no_padding_overflow = b.iszero(b.lt(padded_length, length))
+        b.assert_(no_padding_overflow)
+
+        data_end = b.add(data_start, padded_length)
+        no_end_overflow = b.iszero(b.lt(data_end, data_start))
+        in_bounds = b.iszero(b.gt(data_end, hi))
+        b.assert_(b.and_(no_end_overflow, in_bounds))
+
+    def assert_abi_dynarray_payload_in_bounds(
+        self, src: IROperand, count: IROperand, elem_static_size: int, hi: IROperand
+    ) -> None:
+        """Assert ABI DynArray payload fits in `[src, hi]` before runtime allocation."""
+        b = self.builder
+        data_start = b.add(src, IRLiteral(32))
+        no_start_overflow = b.iszero(b.lt(data_start, src))
+        has_length_word = b.iszero(b.gt(data_start, hi))
+        b.assert_(b.and_(no_start_overflow, has_length_word))
+
+        available_payload = b.sub(hi, data_start)
+        max_count = b.div(available_payload, IRLiteral(elem_static_size))
+        b.assert_(b.iszero(b.gt(count, max_count)))
+
     def bytestring_runtime_size(self, ptr: IRVariable) -> IROperand:
         """Return runtime memory size for a bytestring: 32 + ceil32(length)."""
         length = self.builder.mload(ptr)

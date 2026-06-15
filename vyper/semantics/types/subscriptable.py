@@ -356,7 +356,30 @@ class DArrayT(_SequenceT):
         if not value_type._as_darray:
             raise StructureException(f"Arrays of {value_type} are not allowed", value_node)
 
+        if _contains_unbounded_sequence(value_type):
+            raise StructureException(
+                "Nested unbounded sequence types are not supported", value_node
+            )
+
+        if not is_bounded_length(length) and value_type.abi_type.is_dynamic():
+            raise StructureException(
+                "DynArray[..., INF] is only supported with ABI-static element types", value_node
+            )
+
         return cls(value_type, length)
+
+
+def _contains_unbounded_sequence(typ: VyperType) -> bool:
+    if getattr(typ, "_is_bytestring", False):
+        return getattr(typ, "length", None) is INF
+
+    if isinstance(typ, DArrayT):
+        return typ.length is INF or _contains_unbounded_sequence(typ.value_type)
+
+    if isinstance(typ, SArrayT):
+        return _contains_unbounded_sequence(typ.value_type)
+
+    return False
 
 
 class TupleT(VyperType):
