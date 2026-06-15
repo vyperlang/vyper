@@ -267,6 +267,121 @@ def echo(x: Bytes[INF] = b"default") -> Bytes[INF]:
     assert abi_decode("(bytes)", ret) == (b"provided",)
 
 
+def test_inf_bytes_staticcall_return_roundtrip(env):
+    target_code = """
+@external
+@view
+def data() -> Bytes[INF]:
+    return b"external bytes"
+    """
+
+    caller_code = """
+interface Source:
+    def data() -> Bytes[INF]: view
+
+@external
+def get(addr: address) -> Bytes[INF]:
+    return staticcall Source(addr).data()
+    """
+
+    target = _deploy_venom(env, target_code)
+    caller = _deploy_venom(env, caller_code)
+    ret = _call(env, caller, "get(address)", "address", target.address)
+    assert abi_decode("(bytes)", ret) == (b"external bytes",)
+
+
+def test_inf_string_staticcall_return_roundtrip(env):
+    target_code = """
+@external
+@view
+def data() -> String[INF]:
+    return "external string"
+    """
+
+    caller_code = """
+interface Source:
+    def data() -> String[INF]: view
+
+@external
+def get(addr: address) -> String[INF]:
+    return staticcall Source(addr).data()
+    """
+
+    target = _deploy_venom(env, target_code)
+    caller = _deploy_venom(env, caller_code)
+    ret = _call(env, caller, "get(address)", "address", target.address)
+    assert abi_decode("(string)", ret) == ("external string",)
+
+
+def test_inf_bytes_staticcall_return_bounded_slice(env):
+    target_code = """
+@external
+@view
+def data() -> Bytes[INF]:
+    return b"external bytes"
+    """
+
+    caller_code = """
+interface Source:
+    def data() -> Bytes[INF]: view
+
+@external
+def get(addr: address) -> Bytes[8]:
+    x: Bytes[INF] = staticcall Source(addr).data()
+    return slice(x, 0, 8)
+    """
+
+    target = _deploy_venom(env, target_code)
+    caller = _deploy_venom(env, caller_code)
+    ret = _call(env, caller, "get(address)", "address", target.address)
+    assert abi_decode("(bytes)", ret) == (b"external",)
+
+
+def test_empty_inf_bytes_staticcall_return(env):
+    target_code = """
+@external
+@view
+def data() -> Bytes[INF]:
+    return b""
+    """
+
+    caller_code = """
+interface Source:
+    def data() -> Bytes[INF]: view
+
+@external
+def get(addr: address) -> Bytes[INF]:
+    return staticcall Source(addr).data()
+    """
+
+    target = _deploy_venom(env, target_code)
+    caller = _deploy_venom(env, caller_code)
+    ret = _call(env, caller, "get(address)", "address", target.address)
+    assert abi_decode("(bytes)", ret) == (b"",)
+
+
+def test_inf_bytes_extcall_return_roundtrip(env):
+    target_code = """
+@external
+def data() -> Bytes[INF]:
+    return b"mutable bytes"
+    """
+
+    caller_code = """
+interface Source:
+    def data() -> Bytes[INF]: nonpayable
+
+@external
+def get(addr: address) -> Bytes[INF]:
+    return extcall Source(addr).data()
+    """
+
+    target = _deploy_venom(env, target_code)
+    caller = _deploy_venom(env, caller_code)
+    ret = _call(env, caller, "get(address)", "address", target.address)
+    assert abi_decode("(bytes)", ret) == (b"mutable bytes",)
+
+
 def test_empty_inf_bytes_and_string_locals(env):
     code = """
 @external

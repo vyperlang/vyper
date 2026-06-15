@@ -92,3 +92,18 @@ def echo(x: Bytes[INF]) -> Bytes[INF]:
     opcodes = _opcodes(_compile_frontend_ir(code))
     assert "dalloca" in opcodes
     assert "calldatacopy" in opcodes
+
+
+def test_inf_bytes_staticcall_return_emits_dalloca_and_returndatacopy():
+    code = """
+interface Source:
+    def data() -> Bytes[INF]: view
+
+@external
+def get(addr: address) -> Bytes[INF]:
+    return staticcall Source(addr).data()
+    """
+
+    opcodes = _opcodes(_compile_frontend_ir(code))
+    assert "dalloca" in opcodes
+    assert "returndatacopy" in opcodes

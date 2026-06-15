@@ -38,6 +38,7 @@ from vyper.semantics.types import (
     InterfaceT,
     StringT,
     TupleT,
+    VyperType,
     is_type_t,
 )
 from vyper.semantics.types.base import VOID_TYPE
@@ -1751,6 +1752,7 @@ class Expr:
 
         # get un-wildcard-ed return type
         return_t = call_node._metadata["call_return_type"]
+        has_unbounded_return = self.ctx.is_unbounded_bytestring_type(return_t)
 
         # Evaluate contract address (the interface value)
         contract_address = Expr(call_node.func.value, self.ctx).lower_value()
@@ -1771,8 +1773,11 @@ class Expr:
         args_abi_size = args_abi_t.size_bound()
 
         if return_t is not None:
-            return_abi_t = calculate_type_for_external_return(return_t).abi_type
-            return_abi_size = return_abi_t.size_bound()
+            if has_unbounded_return:
+                return_abi_size = 0
+            else:
+                return_abi_t = calculate_type_for_external_return(return_t).abi_type
+                return_abi_size = return_abi_t.size_bound()
         else:
             return_abi_size = 0
 
@@ -1862,6 +1867,11 @@ class Expr:
         # === Unpack Return Value ===
         if return_t is None:
             return VyperValue.from_stack_op(IRLiteral(0), VOID_TYPE)
+
+        if has_unbounded_return:
+            return self._unpack_unbounded_external_call_return(
+                call_kwargs, contract_address, return_t
+            )
 
         wrapped_return_t = calculate_type_for_external_return(return_t)
         min_return_size = wrapped_return_t.abi_type.static_size()
@@ -1953,3 +1963,94 @@ class Expr:
         if needs_external_call_wrap(return_t):
             return VyperValue.from_ptr(result_val.ptr(), return_t)
         return result_val
+
+    def _copy_and_decode_unbounded_external_call_return(
+        self, return_t: VyperType, returndata_size: IROperand
+    ) -> VyperValue:
+        assert self.ctx.is_unbounded_bytestring_type(return_t)
+        b = self.builder
+
+        ok = b.iszero(b.lt(returndata_size, IRLiteral(32)))
+        b.assert_(ok)
+
+        returndata_ptr = self.ctx.allocate_scratch(returndata_size)
+        b.returndatacopy(returndata_ptr, IRLiteral(0), returndata_size)
+
+        hi = b.add(returndata_ptr, returndata_size)
+        no_hi_wrap = b.iszero(b.lt(hi, returndata_ptr))
+        b.assert_(no_hi_wrap)
+
+        # ABI external returns are always encoded as a tuple. A single dynamic
+        # bytes/string return is therefore `[offset][length][data...]`.
+        offset = b.mload(returndata_ptr)
+        offset_after_tuple_head = b.iszero(b.lt(offset, IRLiteral(32)))
+        b.assert_(offset_after_tuple_head)
+
+        src = b.add(returndata_ptr, offset)
+        no_src_wrap = b.iszero(b.lt(src, returndata_ptr))
+        b.assert_(no_src_wrap)
+
+        length_word_end = b.add(src, IRLiteral(32))
+        no_length_end_wrap = b.iszero(b.lt(length_word_end, src))
+        b.assert_(no_length_end_wrap)
+        length_word_in_bounds = b.iszero(b.gt(length_word_end, hi))
+        b.assert_(length_word_in_bounds)
+
+        length = b.mload(src)
+        size = self.ctx.bytestring_runtime_size_from_length(length)
+
+        src_end = b.add(src, size)
+        no_src_end_wrap = b.iszero(b.lt(src_end, src))
+        b.assert_(no_src_end_wrap)
+        src_in_bounds = b.iszero(b.gt(src_end, hi))
+        b.assert_(src_in_bounds)
+
+        dst = self.ctx.allocate_scratch(size)
+        self.ctx.copy_memory_dynamic(dst, src, size)
+        return self.ctx.dynamic_memory_value(dst, return_t, annotation="external call return")
+
+    def _unpack_unbounded_external_call_return(
+        self, call_kwargs: _CallKwargs, contract_address: IROperand, return_t: VyperType
+    ) -> VyperValue:
+        b = self.builder
+        rds = b.returndatasize()
+
+        if call_kwargs.default_return_value is None:
+            return self._copy_and_decode_unbounded_external_call_return(return_t, rds)
+
+        ret_cell = self.ctx.allocate_buffer(32, annotation="external call dynamic return ptr")
+        default_bb = b.create_block("extcall_default")
+        decode_bb = b.create_block("extcall_decode")
+        exit_bb = b.create_block("extcall_exit")
+
+        b.jnz(b.iszero(rds), default_bb.label, decode_bb.label)
+
+        b.append_block(default_bb)
+        b.set_block(default_bb)
+
+        default_vv = call_kwargs.default_return_value
+        assert default_vv is not None
+        default_value = self.ctx.copy_bytestring_to_scratch(
+            default_vv, return_t, annotation="external call default_return_value"
+        )
+        b.mstore(ret_cell._ptr, default_value.operand)
+
+        if not call_kwargs.skip_contract_check:
+            codesize = b.extcodesize(contract_address)
+            b.assert_(codesize)
+
+        b.jmp(exit_bb.label)
+
+        b.append_block(decode_bb)
+        b.set_block(decode_bb)
+
+        decoded_value = self._copy_and_decode_unbounded_external_call_return(return_t, rds)
+        b.mstore(ret_cell._ptr, decoded_value.operand)
+        b.jmp(exit_bb.label)
+
+        b.append_block(exit_bb)
+        b.set_block(exit_bb)
+
+        ret_ptr = b.mload(ret_cell._ptr)
+        assert isinstance(ret_ptr, IRVariable)
+        return self.ctx.dynamic_memory_value(ret_ptr, return_t, annotation="external call return")
