@@ -1042,7 +1042,9 @@ def _materialize_unbounded_bytestring_abi_arg(
         return ctx.materialize_calldata_bytes(data_offset, length, typ, annotation=name)
 
     if src.location == DataLocation.CODE:
-        return ctx.materialize_code_bytes(data_offset, length, typ, annotation=name)
+        return ctx.materialize_bytes_from_location(
+            data_offset, length, typ, src.location, annotation=name
+        )
 
     raise CompilerPanic(f"Cannot materialize unbounded ABI arg from {src.location}")
 
@@ -1373,7 +1375,11 @@ def _generate_internal_function(
         else:
             # Memory-passed: receive pointer, register directly (no allocation)
             ptr = builder.param()
-            codegen_ctx.register_variable(arg.name, arg.typ, ptr, mutable=True)
+            if codegen_ctx.is_unbounded_bytestring_type(arg.typ):
+                var = codegen_ctx.new_pointer_cell_variable(arg.name, arg.typ, mutable=True)
+                codegen_ctx.ptr_store(var.value.ptr(), ptr)
+            else:
+                codegen_ctx.register_variable(arg.name, arg.typ, ptr, mutable=True)
 
     # Return PC is the last param, named by its dedicated opcode so the
     # raw IR is self-describing even for functions with no `ret` to anchor it

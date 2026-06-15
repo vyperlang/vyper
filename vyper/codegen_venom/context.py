@@ -28,13 +28,15 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import TupleT, VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
-from vyper.semantics.types.infinity import INF, is_bounded_length
+from vyper.semantics.types.infinity import is_bounded_length
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.semantics.types.user import StructT
 from vyper.utils import IDENTITY_PRECOMPILE
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
+
+from .calling_convention import is_unbounded_bytestring_type as _is_unbounded_bytestring_type
 
 
 class Constancy(Enum):
@@ -99,7 +101,7 @@ class VenomCodegenContext:
 
     @staticmethod
     def is_unbounded_bytestring_type(typ: VyperType) -> bool:
-        return isinstance(typ, _BytestringT) and typ.length is INF
+        return _is_unbounded_bytestring_type(typ)
 
     def new_variable(self, name: str, typ: VyperType, mutable: bool = True) -> LocalVariable:
         """Allocate memory for a named variable, register it, return the variable."""
@@ -268,6 +270,23 @@ class VenomCodegenContext:
             self.builder.codecopy(data_ptr, offset, length)
         else:
             self.builder.extcodecopy(address, data_ptr, offset, length)
+        return self.dynamic_memory_value(ptr, typ, annotation=annotation)
+
+    def materialize_bytes_from_location(
+        self,
+        offset: IROperand,
+        length: IROperand,
+        typ: VyperType,
+        location: DataLocation,
+        annotation: Optional[str] = None,
+    ) -> VyperValue:
+        """Copy byte-addressed data into a runtime-sized bytestring memory value."""
+        size = self.bytestring_runtime_size_from_length(length)
+        ptr = self.allocate_scratch(size)
+        self.builder.mstore(ptr, length)
+        self.zero_bytestring_padding(ptr, length)
+        data_ptr = self.builder.add(ptr, IRLiteral(32))
+        self.builder.copy_to_memory(data_ptr, offset, length, location)
         return self.dynamic_memory_value(ptr, typ, annotation=annotation)
 
     def copy_bytestring_to_scratch(

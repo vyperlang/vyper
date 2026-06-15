@@ -1392,9 +1392,14 @@ class Expr:
             else:
                 # Memory-passed arg: allocate buffer, copy value, pass pointer.
                 # Backend passes can forward safe readonly arguments.
-                buf_val = self.ctx.new_temporary_value(arg_t.typ)
-                assert isinstance(buf_val.operand, IRVariable)
-                self.ctx.store_vyper_value(arg_val, buf_val.operand, arg_t.typ)
+                if self.ctx.is_unbounded_bytestring_type(arg_t.typ):
+                    buf_val = self.ctx.copy_bytestring_to_scratch(
+                        arg_val, arg_t.typ, annotation=arg_t.name
+                    )
+                else:
+                    buf_val = self.ctx.new_temporary_value(arg_t.typ)
+                    assert isinstance(buf_val.operand, IRVariable)
+                    self.ctx.store_vyper_value(arg_val, buf_val.operand, arg_t.typ)
                 invoke_args.append(buf_val.operand)
 
         # Emit invoke instruction
@@ -1407,6 +1412,7 @@ class Expr:
                 assert returns_count == 0
                 assert func_t.return_type is not None
                 assert len(outs) == 1
+                # Dynamic internal returns publish a runtime memory pointer directly.
                 return self.ctx.dynamic_memory_value(
                     outs[0], func_t.return_type, annotation=func_name
                 )

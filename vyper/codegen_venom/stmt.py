@@ -16,6 +16,7 @@ from vyper.codegen_venom.abi import abi_encode_to_buf
 from vyper.codegen_venom.arithmetic import apply_binop
 from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, tag_exceptions
 from vyper.semantics.data_locations import DataLocation
+from vyper.semantics.types import VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
@@ -25,7 +26,7 @@ from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 from .buffer import Ptr
 from .calling_convention import returns_dynamic_count, returns_stack_count
-from .context import Constancy, VenomCodegenContext
+from .context import Constancy, LocalVariable, VenomCodegenContext
 from .expr import Expr
 from .value import VyperValue
 
@@ -121,7 +122,9 @@ class Stmt:
         dst_ptr = self._get_target_ptr(target)
         self._assign_value(dst_ptr, src, target_typ, src_node=node.value)
 
-    def _assign_unbounded_bytestring_local(self, var, src: VyperValue, typ) -> None:
+    def _assign_unbounded_bytestring_local(
+        self, var: LocalVariable, src: VyperValue, typ: VyperType
+    ) -> None:
         assert var.is_pointer_cell
         assert self.ctx.is_unbounded_bytestring_type(typ)
         value = self.ctx.copy_bytestring_to_scratch(src, typ, annotation=var.name)

@@ -23,13 +23,14 @@ def _compile_venom(code, output_formats, *, settings=None, input_bundle=None):
 
 
 def _deploy_venom(env, code, *, settings=None, input_bundle=None):
-    out = _compile_venom(
-        code,
-        ["bytecode"],
-        settings=settings,
-        input_bundle=input_bundle,
-    )
+    out = _compile_venom(code, ["bytecode"], settings=settings, input_bundle=input_bundle)
     return env.deploy([], bytes.fromhex(out["bytecode"].removeprefix("0x")))
+
+
+def _deploy_venom_with_ctor_data(env, code, ctor_data, *, settings=None, input_bundle=None):
+    out = _compile_venom(code, ["bytecode"], settings=settings, input_bundle=input_bundle)
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x")) + ctor_data
+    return env.deploy([], initcode)
 
 
 def _call(env, contract, signature, args_schema=None, args=None):
@@ -233,6 +234,19 @@ def echo(x: Bytes[INF]) -> Bytes[INF]:
     assert abi_decode("(bytes)", ret) == (b"unbounded input",)
 
 
+def test_large_inf_bytes_external_param_roundtrip(env):
+    payload = bytes((i * 17) % 256 for i in range(2001))
+    code = """
+@external
+def echo(x: Bytes[INF]) -> Bytes[INF]:
+    return x
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "echo(bytes)", "(bytes)", (payload,))
+    assert abi_decode("(bytes)", ret) == (payload,)
+
+
 def test_inf_string_external_param_roundtrip(env):
     code = """
 @external
@@ -304,6 +318,30 @@ def get(addr: address) -> Bytes[INF]:
     caller = _deploy_venom(env, caller_code)
     ret = _call(env, caller, "get(address)", "address", target.address)
     assert abi_decode("(bytes)", ret) == (b"external bytes",)
+
+
+def test_large_inf_bytes_staticcall_return(env):
+    payload = bytes((i * 31) % 256 for i in range(2001))
+    target_code = """
+@external
+@view
+def data(x: Bytes[2001]) -> Bytes[INF]:
+    return x
+    """
+
+    caller_code = """
+interface Source:
+    def data(x: Bytes[2001]) -> Bytes[INF]: view
+
+@external
+def get(addr: address, x: Bytes[2001]) -> Bytes[INF]:
+    return staticcall Source(addr).data(x)
+    """
+
+    target = _deploy_venom(env, target_code)
+    caller = _deploy_venom(env, caller_code)
+    ret = _call(env, caller, "get(address,bytes)", "(address,bytes)", (target.address, payload))
+    assert abi_decode("(bytes)", ret) == (payload,)
 
 
 def test_inf_string_staticcall_return_roundtrip(env):
@@ -462,6 +500,77 @@ def get(addr: address) -> String[INF]:
     caller = _deploy_venom(env, caller_code, input_bundle=input_bundle)
     ret = _call(env, caller, "get(address)", "address", target.address)
     assert abi_decode("(string)", ret) == ("json abi string",)
+
+
+def test_inf_bytes_constructor_arg(env):
+    payload = bytes((i * 7) % 256 for i in range(2001))
+    code = """
+saved: Bytes[2001]
+
+@deploy
+def __init__(a: Bytes[INF]):
+    self.saved = slice(a, 0, 2001)
+
+@external
+def get() -> Bytes[2001]:
+    return self.saved
+    """
+
+    c = _deploy_venom_with_ctor_data(env, code, abi_encode("(bytes)", (payload,)))
+    assert abi_decode("(bytes)", _call(env, c, "get()")) == (payload,)
+
+
+def test_inf_bytes_internal_arg_roundtrip(env):
+    payload = bytes((i * 13) % 256 for i in range(2001))
+    code = """
+@internal
+def _echo(x: Bytes[INF]) -> Bytes[INF]:
+    return x
+
+@external
+def echo(x: Bytes[INF]) -> Bytes[INF]:
+    return self._echo(x)
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "echo(bytes)", "(bytes)", (payload,))
+    assert abi_decode("(bytes)", ret) == (payload,)
+
+
+def test_inf_bytes_internal_arg_is_copied(env):
+    code = """
+@internal
+def _copy(x: Bytes[INF]) -> Bytes[INF]:
+    return x
+
+@external
+def check() -> Bytes[3]:
+    x: Bytes[INF] = b"abc"
+    y: Bytes[INF] = self._copy(x)
+    x = b"def"
+    return slice(y, 0, 3)
+    """
+
+    c = _deploy_venom(env, code)
+    assert abi_decode("(bytes)", _call(env, c, "check()")) == (b"abc",)
+
+
+def test_inf_bytes_internal_arg_reassignment_does_not_mutate_caller(env):
+    code = """
+@internal
+def _replace(x: Bytes[INF]) -> Bytes[3]:
+    x = b"def"
+    return slice(x, 0, 3)
+
+@external
+def check() -> (Bytes[3], Bytes[3]):
+    x: Bytes[INF] = b"abc"
+    y: Bytes[3] = self._replace(x)
+    return y, slice(x, 0, 3)
+    """
+
+    c = _deploy_venom(env, code)
+    assert abi_decode("(bytes,bytes)", _call(env, c, "check()")) == (b"def", b"abc")
 
 
 def test_empty_inf_bytes_and_string_locals(env):

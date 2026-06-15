@@ -306,41 +306,45 @@ def foo() -> DynArray[uint256, INF]:
     compiler.compile_code(code)
 
 
-@pytest.mark.xfail(raises=CodegenPanic)
-def test_inf_pure_param():
+def _compile_inf_bytestring_code(code, experimental_codegen):
+    if experimental_codegen:
+        compiler.compile_code(code)
+    else:
+        with pytest.raises(CodegenPanic):
+            compiler.compile_code(code)
+
+
+def test_inf_pure_param(experimental_codegen):
     code = """
 @pure
 @external
 def foo(x: Bytes[INF]) -> Bytes[INF]:
     return x
     """
-    compiler.compile_code(code)
+    _compile_inf_bytestring_code(code, experimental_codegen)
 
 
-@pytest.mark.xfail(raises=CodegenPanic)
-def test_inf_pure_param_string():
+def test_inf_pure_param_string(experimental_codegen):
     code = """
 @pure
 @external
 def foo(x: String[INF]) -> String[INF]:
     return x
     """
-    compiler.compile_code(code)
+    _compile_inf_bytestring_code(code, experimental_codegen)
 
 
-@pytest.mark.xfail(raises=CodegenPanic)
-def test_inf_pure_return():
+def test_inf_pure_return(experimental_codegen):
     code = """
 @pure
 @external
 def foo() -> Bytes[INF]:
     return b""
     """
-    compiler.compile_code(code)
+    _compile_inf_bytestring_code(code, experimental_codegen)
 
 
-@pytest.mark.xfail(raises=CodegenPanic)
-def test_inf_pure_local_var():
+def test_inf_pure_local_var(experimental_codegen):
     code = """
 @pure
 @external
@@ -348,11 +352,10 @@ def foo() -> Bytes[INF]:
     x: Bytes[INF] = b""
     return x
     """
-    compiler.compile_code(code)
+    _compile_inf_bytestring_code(code, experimental_codegen)
 
 
-@pytest.mark.xfail(raises=CodegenPanic)
-def test_inf_pure_internal():
+def test_inf_pure_internal(experimental_codegen):
     code = """
 @pure
 @internal
@@ -364,7 +367,7 @@ def _bar(x: Bytes[INF]) -> Bytes[INF]:
 def foo(x: Bytes[INF]) -> Bytes[INF]:
     return self._bar(x)
     """
-    compiler.compile_code(code)
+    _compile_inf_bytestring_code(code, experimental_codegen)
 
 
 @pytest.mark.xfail(raises=CodegenPanic)
