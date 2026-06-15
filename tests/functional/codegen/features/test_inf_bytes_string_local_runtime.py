@@ -597,6 +597,118 @@ def get(addr: address) -> String[INF]:
     assert abi_decode("(string)", ret) == ("json abi string",)
 
 
+def test_inf_bytes_abi_encode_default_tuple(env):
+    payload = bytes((i * 19) % 256 for i in range(2001))
+    code = """
+@external
+def enc(x: Bytes[INF]) -> Bytes[INF]:
+    return abi_encode(x)
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "enc(bytes)", "(bytes)", (payload,))
+    assert abi_decode("(bytes)", ret) == (abi_encode("(bytes)", (payload,)),)
+
+
+def test_inf_bytes_abi_encode_no_tuple(env):
+    payload = bytes((i * 23) % 256 for i in range(2001))
+    code = """
+@external
+def enc(x: Bytes[INF]) -> Bytes[INF]:
+    return abi_encode(x, ensure_tuple=False)
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "enc(bytes)", "(bytes)", (payload,))
+    assert abi_decode("(bytes)", ret) == (abi_encode("bytes", payload),)
+
+
+def test_inf_bytes_abi_encode_method_id_and_static_args(env):
+    payload = b"abcdef"
+    code = """
+@external
+def enc(x: Bytes[INF]) -> Bytes[INF]:
+    a: uint256 = 11
+    b: uint256 = 22
+    return abi_encode(a, x, b, method_id=method_id("foo(uint256,bytes,uint256)"))
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "enc(bytes)", "(bytes)", (payload,))
+    expected = method_id("foo(uint256,bytes,uint256)")
+    expected += abi_encode("(uint256,bytes,uint256)", (11, payload, 22))
+    assert abi_decode("(bytes)", ret) == (expected,)
+
+
+def test_inf_string_abi_encode_default_tuple(env):
+    payload = "abi string " * 170 + "tail"
+    code = """
+@external
+def enc(x: String[INF]) -> Bytes[INF]:
+    return abi_encode(x)
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "enc(string)", "(string)", (payload,))
+    assert abi_decode("(bytes)", ret) == (abi_encode("(string)", (payload,)),)
+
+
+def test_inf_bytes_abi_decode_default_tuple(env):
+    payload = bytes((i * 37) % 256 for i in range(2001))
+    code = """
+@external
+def dec(x: Bytes[INF]) -> Bytes[INF]:
+    return abi_decode(x, Bytes[INF])
+    """
+
+    c = _deploy_venom(env, code)
+    encoded = abi_encode("(bytes)", (payload,))
+    ret = _call(env, c, "dec(bytes)", "(bytes)", (encoded,))
+    assert abi_decode("(bytes)", ret) == (payload,)
+
+
+def test_inf_bytes_abi_decode_no_tuple(env):
+    payload = bytes((i * 41) % 256 for i in range(2001))
+    code = """
+@external
+def dec(x: Bytes[INF]) -> Bytes[INF]:
+    return abi_decode(x, Bytes[INF], unwrap_tuple=False)
+    """
+
+    c = _deploy_venom(env, code)
+    encoded = abi_encode("bytes", payload)
+    ret = _call(env, c, "dec(bytes)", "(bytes)", (encoded,))
+    assert abi_decode("(bytes)", ret) == (payload,)
+
+
+def test_inf_string_abi_decode_default_tuple(env):
+    payload = "decoded string " * 150 + "tail"
+    code = """
+@external
+def dec(x: Bytes[INF]) -> String[INF]:
+    return abi_decode(x, String[INF])
+    """
+
+    c = _deploy_venom(env, code)
+    encoded = abi_encode("(string)", (payload,))
+    ret = _call(env, c, "dec(bytes)", "(bytes)", (encoded,))
+    assert abi_decode("(string)", ret) == (payload,)
+
+
+def test_inf_bytes_abi_encode_decode_local_roundtrip(env):
+    payload = bytes((i * 43) % 256 for i in range(2001))
+    code = """
+@external
+def roundtrip(x: Bytes[INF]) -> Bytes[INF]:
+    encoded: Bytes[INF] = abi_encode(x)
+    return abi_decode(encoded, Bytes[INF])
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "roundtrip(bytes)", "(bytes)", (payload,))
+    assert abi_decode("(bytes)", ret) == (payload,)
+
+
 def test_inf_bytes_constructor_arg(env):
     payload = bytes((i * 7) % 256 for i in range(2001))
     code = """

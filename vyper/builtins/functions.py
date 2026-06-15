@@ -2208,6 +2208,14 @@ class Print(BuiltinFunctionT):
         return IRnode.from_list(ret, annotation="print:" + sig)
 
 
+def _type_contains_unbounded_bytestring(typ):
+    if isinstance(typ, _BytestringT):
+        return typ.length is INF
+    if isinstance(typ, TupleT):
+        return any(_type_contains_unbounded_bytestring(t) for t in typ.member_types)
+    return False
+
+
 class ABIEncode(BuiltinFunctionT):
     _id = "abi_encode"
     # signature: *, ensure_tuple=<literal_bool> -> Bytes[<calculated len>]
@@ -2261,6 +2269,9 @@ class ABIEncode(BuiltinFunctionT):
             arg_abi_t = arg_abi_types[0]
         else:
             arg_abi_t = ABI_Tuple(arg_abi_types)
+
+        if any(_type_contains_unbounded_bytestring(t) for t in arg_types):
+            return BytesT(INF)
 
         maxlen = arg_abi_t.size_bound()
 
