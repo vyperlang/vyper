@@ -12,11 +12,7 @@ def _venom_settings(*, disable_inlining=False):
 
 
 def _deploy_venom(env, code, *, settings=None):
-    out = compile_code(
-        code,
-        output_formats=["bytecode"],
-        settings=settings or _venom_settings(),
-    )
+    out = compile_code(code, output_formats=["bytecode"], settings=settings or _venom_settings())
     return env.deploy([], bytes.fromhex(out["bytecode"].removeprefix("0x")))
 
 
@@ -207,6 +203,68 @@ def foo() -> Bytes[INF]:
 
     c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
     assert abi_decode("(bytes)", _call(env, c, "foo()")) == (b"hello",)
+
+
+def test_inf_bytes_external_param_roundtrip(env):
+    code = """
+@external
+def echo(x: Bytes[INF]) -> Bytes[INF]:
+    return x
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "echo(bytes)", "(bytes)", (b"unbounded input",))
+    assert abi_decode("(bytes)", ret) == (b"unbounded input",)
+
+
+def test_inf_string_external_param_roundtrip(env):
+    code = """
+@external
+def echo(x: String[INF]) -> String[INF]:
+    return x
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "echo(string)", "(string)", ("unbounded input",))
+    assert abi_decode("(string)", ret) == ("unbounded input",)
+
+
+def test_empty_inf_external_params(env):
+    code = """
+@external
+def sizes(x: Bytes[INF], y: String[INF]) -> (uint256, uint256):
+    return len(x), len(y)
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "sizes(bytes,string)", "(bytes,string)", (b"", ""))
+    assert abi_decode("(uint256,uint256)", ret) == (0, 0)
+
+
+def test_inf_bytes_external_param_bounded_slice(env):
+    code = """
+@external
+def first_three(x: Bytes[INF]) -> Bytes[3]:
+    return slice(x, 0, 3)
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "first_three(bytes)", "(bytes)", (b"abcdef",))
+    assert abi_decode("(bytes)", ret) == (b"abc",)
+
+
+def test_inf_bytes_external_kwarg_default_and_provided(env):
+    code = """
+@external
+def echo(x: Bytes[INF] = b"default") -> Bytes[INF]:
+    return x
+    """
+
+    c = _deploy_venom(env, code)
+    assert abi_decode("(bytes)", _call(env, c, "echo()")) == (b"default",)
+
+    ret = _call(env, c, "echo(bytes)", "(bytes)", (b"provided",))
+    assert abi_decode("(bytes)", ret) == (b"provided",)
 
 
 def test_empty_inf_bytes_and_string_locals(env):

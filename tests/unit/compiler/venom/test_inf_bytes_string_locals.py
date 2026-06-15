@@ -80,3 +80,15 @@ def foo() -> Bytes[INF]:
     opcodes = _opcodes(_compile_frontend_ir(code))
     assert "dret" in opcodes
     assert "invoke" in opcodes
+
+
+def test_inf_bytes_external_param_emits_dalloca_and_calldatacopy():
+    code = """
+@external
+def echo(x: Bytes[INF]) -> Bytes[INF]:
+    return x
+    """
+
+    opcodes = _opcodes(_compile_frontend_ir(code))
+    assert "dalloca" in opcodes
+    assert "calldatacopy" in opcodes

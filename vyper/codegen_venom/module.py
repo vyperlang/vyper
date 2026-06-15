@@ -1023,16 +1023,92 @@ def _register_positional_args(ctx: VenomCodegenContext, func_t: ContractFunction
             func_t.positional_args[j].typ.abi_type.embedded_static_size() for j in range(i)
         )
 
-        # Allocate memory for the arg
-        var = ctx.new_variable(arg.name, arg.typ, mutable=False)
-        assert isinstance(var.value.operand, IRVariable)
-
         # Get the element location in calldata (handles ABI offset indirection for dynamic types)
         elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
 
-        # Decode from calldata to memory
-        # Note: No hi bound needed - calldata size already validated in dispatcher
-        abi_decode_to_buf(ctx, var.value.operand, elem_src)
+        _register_abi_arg_from_src(ctx, arg, elem_src)
+
+
+def _materialize_unbounded_bytestring_abi_arg(
+    ctx: VenomCodegenContext, name: str, typ: VyperType, src: VyperValue
+) -> VyperValue:
+    assert ctx.is_unbounded_bytestring_type(typ)
+    assert src.location is not None, "src must have a location for ABI decoding"
+
+    length = ctx.builder.load(src.operand, src.location)
+    data_offset = ctx.builder.add(src.operand, IRLiteral(32))
+
+    if src.location == DataLocation.CALLDATA:
+        return ctx.materialize_calldata_bytes(data_offset, length, typ, annotation=name)
+
+    if src.location == DataLocation.CODE:
+        return ctx.materialize_code_bytes(data_offset, length, typ, annotation=name)
+
+    raise CompilerPanic(f"Cannot materialize unbounded ABI arg from {src.location}")
+
+
+def _register_abi_arg_from_src(ctx: VenomCodegenContext, arg, elem_src: VyperValue) -> None:
+    if ctx.is_unbounded_bytestring_type(arg.typ):
+        val = _materialize_unbounded_bytestring_abi_arg(ctx, arg.name, arg.typ, elem_src)
+        assert isinstance(val.operand, IRVariable)
+        ctx.register_dynamic_variable(arg.name, arg.typ, val.operand, mutable=False)
+        return
+
+    # Allocate memory for the arg
+    var = ctx.new_variable(arg.name, arg.typ, mutable=False)
+    assert isinstance(var.value.operand, IRVariable)
+
+    # Decode from ABI data to memory.
+    # Note: No hi bound needed - calldata size is already validated in dispatcher,
+    # and constructor args come from trusted bytecode.
+    abi_decode_to_buf(ctx, var.value.operand, elem_src)
+
+
+def _store_abi_arg_to_existing_ptr(
+    ctx: VenomCodegenContext, dst: IRVariable, arg, elem_src: VyperValue
+) -> None:
+    if ctx.is_unbounded_bytestring_type(arg.typ):
+        val = _materialize_unbounded_bytestring_abi_arg(ctx, arg.name, arg.typ, elem_src)
+        ctx.builder.mstore(dst, val.operand)
+        return
+
+    abi_decode_to_buf(ctx, dst, elem_src)
+
+
+def _register_default_arg(ctx: VenomCodegenContext, arg, default_node: vy_ast.VyperNode) -> None:
+    if ctx.is_unbounded_bytestring_type(arg.typ):
+        default_vv = Expr(default_node, ctx).lower()
+        val = ctx.copy_bytestring_to_scratch(default_vv, arg.typ, annotation=arg.name)
+        assert isinstance(val.operand, IRVariable)
+        ctx.register_dynamic_variable(arg.name, arg.typ, val.operand, mutable=False)
+        return
+
+    var = ctx.new_variable(arg.name, arg.typ, mutable=False)
+    assert isinstance(var.value.operand, IRVariable)
+
+    if arg.typ._is_prim_word:
+        default_val = Expr(default_node, ctx).lower_value()
+        ctx.ptr_store(var.value.ptr(), default_val)
+    else:
+        default_vv = Expr(default_node, ctx).lower()
+        ctx.store_vyper_value(default_vv, var.value.operand, arg.typ)
+
+
+def _store_default_arg_to_existing_ptr(
+    ctx: VenomCodegenContext, dst: IRVariable, arg, default_node: vy_ast.VyperNode
+) -> None:
+    if ctx.is_unbounded_bytestring_type(arg.typ):
+        default_vv = Expr(default_node, ctx).lower()
+        val = ctx.copy_bytestring_to_scratch(default_vv, arg.typ, annotation=arg.name)
+        ctx.builder.mstore(dst, val.operand)
+        return
+
+    if arg.typ._is_prim_word:
+        default_val = Expr(default_node, ctx).lower_value()
+        ctx.builder.mstore(dst, default_val)
+    else:
+        default_vv = Expr(default_node, ctx).lower()
+        ctx.store_vyper_value(default_vv, dst, arg.typ)
 
 
 def _handle_kwargs(
@@ -1071,9 +1147,6 @@ def _handle_kwargs(
         calldata_tuple = VyperValue.from_ptr(ptr, calldata_tuple_t)
 
     for i, arg in enumerate(func_t.keyword_args):
-        var = ctx.new_variable(arg.name, arg.typ, mutable=False)
-        assert isinstance(var.value.operand, IRVariable)
-
         if i < kwargs_from_calldata:
             # Copy from calldata using ABI decoder
             # This kwarg's index in the full calldata tuple
@@ -1082,16 +1155,11 @@ def _handle_kwargs(
                 calldata_arg_types[j].abi_type.embedded_static_size() for j in range(tuple_index)
             )
             elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
-            abi_decode_to_buf(ctx, var.value.operand, elem_src)
+            _register_abi_arg_from_src(ctx, arg, elem_src)
         else:
             # Use default value
             default_node = func_t.default_values[arg.name]
-            if arg.typ._is_prim_word:
-                default_val = Expr(default_node, ctx).lower_value()
-                ctx.ptr_store(var.value.ptr(), default_val)
-            else:
-                default_vv = Expr(default_node, ctx).lower()
-                ctx.store_vyper_value(default_vv, var.value.operand, arg.typ)
+            _register_default_arg(ctx, arg, default_node)
 
 
 def _create_kwarg_allocas(
@@ -1110,7 +1178,10 @@ def _create_kwarg_allocas(
 
     kwarg_vars: dict[str, IRVariable] = {}
     for arg in func_t.keyword_args:
-        size = arg.typ.memory_bytes_required
+        if VenomCodegenContext.is_unbounded_bytestring_type(arg.typ):
+            size = 32
+        else:
+            size = arg.typ.memory_bytes_required
         ptr = builder.alloca(size)
         kwarg_vars[arg.name] = ptr
 
@@ -1166,16 +1237,11 @@ def _init_kwargs_in_entry_point(
                 calldata_arg_types[j].abi_type.embedded_static_size() for j in range(tuple_index)
             )
             elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
-            abi_decode_to_buf(ctx, alloca_ptr, elem_src)
+            _store_abi_arg_to_existing_ptr(ctx, alloca_ptr, arg, elem_src)
         else:
             # Use default value
             default_node = func_t.default_values[arg.name]
-            if arg.typ._is_prim_word:
-                default_val = Expr(default_node, ctx).lower_value()
-                ctx.builder.mstore(alloca_ptr, default_val)
-            else:
-                default_vv = Expr(default_node, ctx).lower()
-                ctx.store_vyper_value(default_vv, alloca_ptr, arg.typ)
+            _store_default_arg_to_existing_ptr(ctx, alloca_ptr, arg, default_node)
 
 
 def _register_kwarg_variables(ctx: VenomCodegenContext, func_t: ContractFunctionT) -> None:
@@ -1196,7 +1262,10 @@ def _register_kwarg_variables(ctx: VenomCodegenContext, func_t: ContractFunction
         alloca_ptr = kwarg_vars[arg.name]
 
         # Register as a variable pointing to the existing alloca (no new allocation)
-        ctx.register_variable(arg.name, arg.typ, alloca_ptr, mutable=False)
+        if ctx.is_unbounded_bytestring_type(arg.typ):
+            ctx.register_pointer_cell_variable(arg.name, arg.typ, alloca_ptr, mutable=False)
+        else:
+            ctx.register_variable(arg.name, arg.typ, alloca_ptr, mutable=False)
 
 
 def _generate_fallback_body(
@@ -1423,16 +1492,10 @@ def _register_constructor_args(ctx: VenomCodegenContext, func_t: ContractFunctio
             func_t.positional_args[j].typ.abi_type.embedded_static_size() for j in range(i)
         )
 
-        # Allocate memory for the arg
-        var = ctx.new_variable(arg.name, arg.typ, mutable=False)
-        assert isinstance(var.value.operand, IRVariable)
-
         # Get element location in data section (handles ABI offset for dynamic types)
         elem_src = _getelemptr_abi(ctx, data_tuple, arg.typ, static_offset)
 
-        # Decode from data section to memory
-        # Note: No hi bound needed for constructor args from trusted bytecode
-        abi_decode_to_buf(ctx, var.value.operand, elem_src)
+        _register_abi_arg_from_src(ctx, arg, elem_src)
 
 
 def _generate_simple_deploy(

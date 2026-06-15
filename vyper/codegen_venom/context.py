@@ -125,6 +125,29 @@ class VenomCodegenContext:
         self.variables[name] = var
         return var
 
+    def register_dynamic_variable(
+        self, name: str, typ: VyperType, ptr: IRVariable, mutable: bool = True
+    ) -> None:
+        """Register a local backed directly by runtime-sized memory."""
+        value = self.dynamic_memory_value(ptr, typ, annotation=name)
+        var = LocalVariable(name=name, value=value, mutable=mutable, scopes=self._scopes.copy())
+        self.variables[name] = var
+
+    def register_pointer_cell_variable(
+        self, name: str, typ: VyperType, ptr: IRVariable, mutable: bool = True
+    ) -> None:
+        """Register an existing memory cell that stores the local's current pointer."""
+        buf = Buffer(_ptr=ptr, size=32, annotation=f"{name}_ptr")
+        value = VyperValue.from_ptr(buf.base_ptr(), typ)
+        var = LocalVariable(
+            name=name,
+            value=value,
+            mutable=mutable,
+            scopes=self._scopes.copy(),
+            is_pointer_cell=True,
+        )
+        self.variables[name] = var
+
     def register_variable(
         self, name: str, typ: VyperType, ptr: IRVariable, mutable: bool = True
     ) -> None:
@@ -215,11 +238,7 @@ class VenomCodegenContext:
         self.builder.mstore(last_word, IRLiteral(0))
 
     def materialize_calldata_bytes(
-        self,
-        offset: IROperand,
-        length: IROperand,
-        typ: VyperType,
-        annotation: Optional[str] = None,
+        self, offset: IROperand, length: IROperand, typ: VyperType, annotation: Optional[str] = None
     ) -> VyperValue:
         """Copy calldata bytes into a runtime-sized bytestring memory value."""
         size = self.bytestring_runtime_size_from_length(length)
