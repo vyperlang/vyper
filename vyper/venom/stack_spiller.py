@@ -22,12 +22,25 @@ class StackSpiller:
         self._spill_free_slots: list[int] = []
         self._next_spill_offset: Optional[int] = None
         self._current_function: Optional[IRFunction] = None
+        self.peak_spill_end = 0
+
+    def reset_peak_spill_end(self) -> None:
+        self.peak_spill_end = 0
 
     def set_current_function(self, fn: Optional[IRFunction]) -> None:
         """Set the current function being processed."""
         self._current_function = fn
         if fn is not None and fn in self.ctx.mem_allocator.fn_eom:
             self._next_spill_offset = self.ctx.mem_allocator.fn_eom[fn]
+        else:
+            # reset on function exit / unknown fn: a stale offset from the
+            # previous function would let a spill land in that function's
+            # frame. Previously latent (the allocator populates fn_eom for
+            # every function in practice), but peak_spill_end feeds the
+            # initial-FMP constant, so a stale cursor must fail loudly
+            # (CompilerPanic in _get_spill_slot) rather than silently reuse
+            # the previous function's region.
+            self._next_spill_offset = None
 
     def reset_spill_slots(self) -> None:
         self._spill_free_slots = []
@@ -204,4 +217,6 @@ class StackSpiller:
         offset = self._next_spill_offset
         if not dry_run:
             self._next_spill_offset += 32
+            if self._next_spill_offset > self.peak_spill_end:
+                self.peak_spill_end = self._next_spill_offset
         return offset
