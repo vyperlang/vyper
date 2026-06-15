@@ -478,6 +478,14 @@ def foo(x: Bytes[32]):
     (
         """
 @external
+def foo(data: Bytes[4]) -> (uint256, uint256):
+    return abi_decode(data, (uint256, uint256))
+    """,
+        StructureException,  # Size of input data is smaller than expected output
+    ),
+    (
+        """
+@external
 def foo(x: Bytes[32]):
     _abi_decode(x)
     """,
@@ -489,18 +497,6 @@ def foo(x: Bytes[32]):
 @pytest.mark.parametrize("bad_code,exception", FAIL_LIST)
 def test_abi_decode_length_mismatch(get_contract, assert_compile_failed, bad_code, exception):
     assert_compile_failed(lambda: get_contract(bad_code), exception)
-
-
-def test_abi_decode_undersized_buffer_venom():
-    # GH issue 5055: the venom pipeline must reject statically
-    # undersized input buffers at compile time, like the legacy pipeline
-    code = """
-@external
-def f(data: Bytes[4]) -> (uint256, uint256):
-    return abi_decode(data, (uint256, uint256))
-    """
-    with pytest.raises(StructureException, match="Mismatch between size of input"):
-        compile_code(code)
 
 
 def _abi_payload_from_tuple(payload: tuple[int | bytes, ...], max_sz: int) -> bytes:
