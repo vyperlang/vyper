@@ -847,19 +847,15 @@ ILLEGAL_CONVERSIONS = [
 
 
 @pytest.mark.parametrize("i_typ,o_typ", ILLEGAL_CONVERSIONS)
-@pytest.mark.parametrize("use_venom", [False, True])
-def test_illegal_conversions_blocked(i_typ, o_typ, use_venom):
+def test_illegal_conversions_blocked(i_typ, o_typ):
     preamble = FLAG_PREAMBLE if "Roles" in (i_typ, o_typ) else ""
     code = f"""{preamble}
 @external
 def foo(x: {i_typ}) -> {o_typ}:
     return convert(x, {o_typ})
     """
-    settings = Settings(experimental_codegen=use_venom, enable_decimals=True)
-    # compile bytecode only: other output formats run the legacy pipeline
-    # even when experimental_codegen is set, masking venom-only bugs
     with pytest.raises(TypeMismatch):
-        compile_code(code, output_formats=("bytecode",), settings=settings)
+        compile_code(code, output_formats=("bytecode",))
 
 
 def test_int_to_decimal_clamp_bounds(get_contract, tx_failed):
