@@ -805,6 +805,55 @@ def deploy(s: Bytes[INF], x: uint256) -> address:
     assert abi_decode("(uint256)", ret) == (42,)
 
 
+def test_inf_bytes_raw_log_data(env):
+    payload = bytes((i * 61) % 256 for i in range(2001))
+    code = """
+@external
+def emit_raw(x: Bytes[INF]):
+    raw_log([], x)
+    """
+
+    c = _deploy_venom(env, code)
+    _call(env, c, "emit_raw(bytes)", "(bytes)", (payload,))
+    assert env.get_logs(c, raw=True)[0][1] == payload
+
+
+def test_inf_bytes_event_data(env):
+    payload = bytes((i * 67) % 256 for i in range(2001))
+    code = """
+event E:
+    x: Bytes[INF]
+
+@external
+def emit_event(x: Bytes[INF]):
+    log E(x=x)
+    """
+
+    c = _deploy_venom(env, code)
+    _call(env, c, "emit_event(bytes)", "(bytes)", (payload,))
+    assert env.get_logs(c, raw=True)[0][1] == abi_encode("(bytes)", (payload,))
+
+
+def test_inf_string_event_data_with_static_args(env):
+    payload = "event string " * 170 + "tail"
+    code = """
+event E:
+    a: uint256
+    x: String[INF]
+    b: uint256
+
+@external
+def emit_event(x: String[INF]):
+    log E(a=11, x=x, b=22)
+    """
+
+    c = _deploy_venom(env, code)
+    _call(env, c, "emit_event(string)", "(string)", (payload,))
+    assert env.get_logs(c, raw=True)[0][1] == abi_encode(
+        "(uint256,string,uint256)", (11, payload, 22)
+    )
+
+
 def test_inf_bytes_constructor_arg(env):
     payload = bytes((i * 7) % 256 for i in range(2001))
     code = """

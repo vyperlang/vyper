@@ -14,6 +14,11 @@ from vyper import ast as vy_ast
 from vyper.codegen.core import calculate_type_for_external_return
 from vyper.codegen_venom.abi import abi_encode_to_buf
 from vyper.codegen_venom.arithmetic import apply_binop
+from vyper.codegen_venom.builtins.abi import (
+    _abi_encode_values_to_buf,
+    _runtime_abi_size_for_encode,
+    _type_contains_unbounded_bytestring,
+)
 from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, tag_exceptions
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import VyperType
@@ -1125,18 +1130,18 @@ class Stmt:
             arg_typ = arg._metadata["type"]
             arg_vv = Expr(arg, self.ctx).lower()
             arg_val = self.ctx.unwrap(arg_vv)
-            args.append((arg_val, arg_typ, arg_vv.typ))
+            args.append((arg_vv, arg_val, arg_typ, arg_vv.typ))
 
         # Split into indexed (topics) and non-indexed (data)
         topic_vals = []
         data_vals = []
         data_typs = []
 
-        for (arg_val, arg_typ, src_typ), is_indexed in zip(args, event.indexed):
+        for (arg_vv, arg_val, arg_typ, src_typ), is_indexed in zip(args, event.indexed):
             if is_indexed:
                 topic_vals.append((arg_val, arg_typ))
             else:
-                data_vals.append((arg_val, src_typ))
+                data_vals.append((arg_vv, arg_val, src_typ))
                 data_typs.append(arg_typ)
 
         # Build topics list - starts with event signature hash
@@ -1152,24 +1157,30 @@ class Stmt:
         if data_vals:
             # Create a tuple type from the data types
             tuple_typ = TupleT(tuple(data_typs))
-            bufsz = tuple_typ.abi_type.size_bound()
+            if any(_type_contains_unbounded_bytestring(typ) for typ in data_typs):
+                data_vvs = [arg_vv for arg_vv, _val, _src_typ in data_vals]
+                encoded_size = _runtime_abi_size_for_encode(self.ctx, data_vvs, tuple_typ)
+                abi_buf_ptr = self.ctx.allocate_scratch(encoded_size)
+                encoded_len = _abi_encode_values_to_buf(self.ctx, abi_buf_ptr, data_vvs, tuple_typ)
+            else:
+                bufsz = tuple_typ.abi_type.size_bound()
 
-            # Allocate buffer for tuple data in memory
-            data_buf = self.ctx.allocate_buffer(tuple_typ.memory_bytes_required)
+                # Allocate buffer for tuple data in memory
+                data_buf = self.ctx.allocate_buffer(tuple_typ.memory_bytes_required)
 
-            # Store each data value into the tuple buffer
-            offset = 0
-            for (val, src_typ), typ in zip(data_vals, data_typs):
-                dst = self.builder.add(data_buf._ptr, IRLiteral(offset))
-                self.ctx.store_memory(val, dst, typ, src_typ=src_typ)
-                offset += typ.memory_bytes_required
+                # Store each data value into the tuple buffer
+                offset = 0
+                for (_arg_vv, val, src_typ), typ in zip(data_vals, data_typs):
+                    dst = self.builder.add(data_buf._ptr, IRLiteral(offset))
+                    self.ctx.store_memory(val, dst, typ, src_typ=src_typ)
+                    offset += typ.memory_bytes_required
 
-            # Allocate ABI encoding output buffer
-            abi_buf = self.ctx.allocate_buffer(bufsz)
-            abi_buf_ptr = abi_buf._ptr
+                # Allocate ABI encoding output buffer
+                abi_buf = self.ctx.allocate_buffer(bufsz)
+                abi_buf_ptr = abi_buf._ptr
 
-            # ABI encode the tuple
-            encoded_len = abi_encode_to_buf(self.ctx, abi_buf_ptr, data_buf._ptr, tuple_typ)
+                # ABI encode the tuple
+                encoded_len = abi_encode_to_buf(self.ctx, abi_buf_ptr, data_buf._ptr, tuple_typ)
         else:
             # No data - use zero size
             log_buf = self.ctx.allocate_buffer(0, annotation="log empty buffer")
