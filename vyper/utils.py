@@ -223,11 +223,10 @@ class DecimalContextOverride(decimal.Context):
 decimal.setcontext(DecimalContextOverride(prec=78))
 
 # contexts are thread-local; a thread which has not called setcontext()
-# gets a context copied from the `DefaultContext` template on first use.
-# mutate the template so that threads spawned later (e.g. compiling in a
-# thread pool) also get 78 digits of precision instead of the stdlib
-# default of 28, which silently rounds decimal constants wider than 28
-# significant digits.
+# gets a context copied from the original `DefaultContext` template on
+# first use. Mutate that template in place instead of rebinding
+# `decimal.DefaultContext`, which the C decimal module does not use for
+# seeding new thread contexts.
 decimal.DefaultContext.prec = 78
 
 
