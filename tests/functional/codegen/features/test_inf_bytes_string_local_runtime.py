@@ -1,3 +1,5 @@
+import json
+
 from tests.evm_backends.abi import abi_decode, abi_encode
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings, VenomOptimizationFlags
@@ -11,8 +13,22 @@ def _venom_settings(*, disable_inlining=False):
     return settings
 
 
-def _deploy_venom(env, code, *, settings=None):
-    out = compile_code(code, output_formats=["bytecode"], settings=settings or _venom_settings())
+def _compile_venom(code, output_formats, *, settings=None, input_bundle=None):
+    return compile_code(
+        code,
+        output_formats=output_formats,
+        settings=settings or _venom_settings(),
+        input_bundle=input_bundle,
+    )
+
+
+def _deploy_venom(env, code, *, settings=None, input_bundle=None):
+    out = _compile_venom(
+        code,
+        ["bytecode"],
+        settings=settings,
+        input_bundle=input_bundle,
+    )
     return env.deploy([], bytes.fromhex(out["bytecode"].removeprefix("0x")))
 
 
@@ -380,6 +396,72 @@ def get(addr: address) -> Bytes[INF]:
     caller = _deploy_venom(env, caller_code)
     ret = _call(env, caller, "get(address)", "address", target.address)
     assert abi_decode("(bytes)", ret) == (b"mutable bytes",)
+
+
+def test_inf_bytes_json_abi_staticcall_return(env, make_input_bundle):
+    target_code = """
+@external
+@view
+def data() -> Bytes[INF]:
+    return b"json abi bytes"
+    """
+
+    target = _deploy_venom(env, target_code)
+
+    caller_code = """
+import source as Source
+
+@external
+def get(addr: address) -> Bytes[INF]:
+    return staticcall Source(addr).data()
+    """
+
+    source_abi = [
+        {
+            "type": "function",
+            "name": "data",
+            "stateMutability": "view",
+            "inputs": [],
+            "outputs": [{"name": "", "type": "bytes"}],
+        }
+    ]
+    input_bundle = make_input_bundle({"source.json": json.dumps(source_abi)})
+    caller = _deploy_venom(env, caller_code, input_bundle=input_bundle)
+    ret = _call(env, caller, "get(address)", "address", target.address)
+    assert abi_decode("(bytes)", ret) == (b"json abi bytes",)
+
+
+def test_inf_string_json_abi_staticcall_return(env, make_input_bundle):
+    target_code = """
+@external
+@view
+def data() -> String[INF]:
+    return "json abi string"
+    """
+
+    target = _deploy_venom(env, target_code)
+
+    caller_code = """
+import source as Source
+
+@external
+def get(addr: address) -> String[INF]:
+    return staticcall Source(addr).data()
+    """
+
+    source_abi = [
+        {
+            "type": "function",
+            "name": "data",
+            "stateMutability": "view",
+            "inputs": [],
+            "outputs": [{"name": "", "type": "string"}],
+        }
+    ]
+    input_bundle = make_input_bundle({"source.json": json.dumps(source_abi)})
+    caller = _deploy_venom(env, caller_code, input_bundle=input_bundle)
+    ret = _call(env, caller, "get(address)", "address", target.address)
+    assert abi_decode("(string)", ret) == ("json abi string",)
 
 
 def test_empty_inf_bytes_and_string_locals(env):
