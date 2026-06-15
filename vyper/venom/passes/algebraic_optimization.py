@@ -20,6 +20,10 @@ def lit_eq(op: IROperand, val: int) -> bool:
     return isinstance(op, IRLiteral) and wrap256(op.value) == wrap256(val)
 
 
+def lit_word_value(op: IROperand) -> int | None:
+    return wrap256(op.value) if isinstance(op, IRLiteral) else None
+
+
 class AlgebraicOptimizationPass(IRPass):
     """
     This pass reduces algebraic evaluatable expressions.
@@ -136,13 +140,13 @@ class AlgebraicOptimizationPass(IRPass):
 
         # signextend(n, signextend(m, x)) where n >= m -> signextend(m, x)
         if inst.opcode == "signextend":
-            n_op = operands[-1]
+            n = lit_word_value(operands[-1])
             x_op = operands[-2]
-            if isinstance(x_op, IRVariable) and self._is_lit(n_op):
+            if isinstance(x_op, IRVariable) and n is not None:
                 producer = self.dfg.get_producing_instruction(x_op)
                 if producer is not None and producer.opcode == "signextend":
-                    inner_n = producer.operands[-1]
-                    if self._is_lit(inner_n) and n_op.value >= inner_n.value:
+                    inner_n = lit_word_value(producer.operands[-1])
+                    if inner_n is not None and n >= inner_n:
                         self.updater.mk_assign(inst, x_op)
                         return True
 
@@ -185,21 +189,18 @@ class AlgebraicOptimizationPass(IRPass):
             self.updater.mk_assign(inst, inst.operands[0])
 
     def _rule_signextend(self, inst: IRInstruction):
-        n_op = inst.operands[-1]  # byte count
+        n = lit_word_value(inst.operands[-1])  # byte count
         x_op = inst.operands[-2]  # value
+        if n is None:
+            return
 
         # signextend(n, x) where n >= 31 is always a no-op
-        if self._is_lit(n_op) and n_op.value >= 31:
+        if n >= 31:
             self.updater.mk_assign(inst, x_op)
             return
 
         # range-based: if x is in the valid signed range for (n+1) bytes,
         # signextend is a no-op
-        if not self._is_lit(n_op):
-            return
-        n = n_op.value
-        if not (0 <= n < 31):
-            return
         x_range = self.range_analysis.get_range(x_op, inst)
         if x_range.is_top:
             return
