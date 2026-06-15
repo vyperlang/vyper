@@ -27,6 +27,16 @@ def _deploy_venom(env, code, *, settings=None, input_bundle=None):
     return env.deploy([], bytes.fromhex(out["bytecode"].removeprefix("0x")))
 
 
+def _deploy_raw_returner(env, payload):
+    assert len(payload) < 256
+    runtime = bytes(
+        [0x60, len(payload), 0x60, 12, 0x60, 0, 0x39, 0x60, len(payload), 0x60, 0, 0xF3]
+    )
+    runtime += payload
+    initcode = bytes.fromhex(f"61{len(runtime):04x}3d81600a3d39f3") + runtime
+    return env.deploy([], initcode)
+
+
 def _deploy_venom_with_ctor_data(env, code, ctor_data, *, settings=None, input_bundle=None):
     out = _compile_venom(code, ["bytecode"], settings=settings, input_bundle=input_bundle)
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x")) + ctor_data
@@ -485,6 +495,29 @@ def get(addr: address) -> Bytes[INF]:
     caller = _deploy_venom(env, caller_code)
     ret = _call(env, caller, "get(address)", "address", target.address)
     assert abi_decode("(bytes)", ret) == (b"",)
+
+
+def test_inf_bytes_staticcall_return_rejects_malformed_abi(env, tx_failed):
+    caller_code = """
+interface Source:
+    def data() -> Bytes[INF]: view
+
+@external
+def get(addr: address) -> Bytes[INF]:
+    return staticcall Source(addr).data()
+    """
+
+    caller = _deploy_venom(env, caller_code)
+
+    def word(value):
+        return value.to_bytes(32, "big")
+
+    malformed_payloads = [word(0), word(2**256 - 31), word(32), word(32) + word(33) + b"\x01" * 32]
+
+    for payload in malformed_payloads:
+        target = _deploy_raw_returner(env, payload)
+        with tx_failed():
+            _call(env, caller, "get(address)", "address", target.address)
 
 
 def test_inf_bytes_extcall_return_roundtrip(env):

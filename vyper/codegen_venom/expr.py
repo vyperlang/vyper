@@ -2110,7 +2110,11 @@ class Expr:
 
         dst = self.ctx.allocate_scratch(size)
         if self.ctx.is_unbounded_bytestring_type(return_t):
-            self.ctx.copy_memory_dynamic(dst, src, size)
+            b.mstore(dst, length)
+            self.ctx.zero_bytestring_padding(dst, length)
+            src_data = b.add(src, IRLiteral(32))
+            dst_data = b.add(dst, IRLiteral(32))
+            self.ctx.copy_memory_dynamic(dst_data, src_data, length)
         else:
             src_vv = self._make_ptr_value(src, DataLocation.MEMORY, return_t)
             abi_decode_to_buf(self.ctx, dst, src_vv, hi=hi)
