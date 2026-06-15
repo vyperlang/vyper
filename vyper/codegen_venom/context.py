@@ -195,14 +195,61 @@ class VenomCodegenContext:
         """Store a VyperValue into memory, preserving its source layout."""
         self.store_memory(self.unwrap(vv), ptr, typ, src_typ=vv.typ)
 
+    def ceil32(self, size: IROperand) -> IROperand:
+        """Round `size` up to the next multiple of 32."""
+        mask = self.builder.not_(IRLiteral(31))
+        return self.builder.and_(self.builder.add(size, IRLiteral(31)), mask)
+
+    def bytestring_runtime_size_from_length(self, length: IROperand) -> IROperand:
+        """Return runtime memory size for a bytestring with `length` bytes."""
+        return self.builder.add(self.ceil32(length), IRLiteral(32))
+
     def bytestring_runtime_size(self, ptr: IRVariable) -> IROperand:
         """Return runtime memory size for a bytestring: 32 + ceil32(length)."""
         length = self.builder.mload(ptr)
-        padded_len = self.builder.and_(
-            self.builder.add(length, IRLiteral(31)),
-            IRLiteral((1 << 256) - 32),
-        )
-        return self.builder.add(padded_len, IRLiteral(32))
+        return self.bytestring_runtime_size_from_length(length)
+
+    def zero_bytestring_padding(self, ptr: IRVariable, length: IROperand) -> None:
+        """Zero the last data word so bytestring padding is clean after a byte copy."""
+        last_word = self.builder.add(ptr, self.ceil32(length))
+        self.builder.mstore(last_word, IRLiteral(0))
+
+    def materialize_calldata_bytes(
+        self,
+        offset: IROperand,
+        length: IROperand,
+        typ: VyperType,
+        annotation: Optional[str] = None,
+    ) -> VyperValue:
+        """Copy calldata bytes into a runtime-sized bytestring memory value."""
+        size = self.bytestring_runtime_size_from_length(length)
+        ptr = self.allocate_scratch(size)
+        self.builder.mstore(ptr, length)
+        self.zero_bytestring_padding(ptr, length)
+        data_ptr = self.builder.add(ptr, IRLiteral(32))
+        self.builder.calldatacopy(data_ptr, offset, length)
+        return self.dynamic_memory_value(ptr, typ, annotation=annotation)
+
+    def materialize_code_bytes(
+        self,
+        offset: IROperand,
+        length: IROperand,
+        typ: VyperType,
+        *,
+        address: Optional[IROperand] = None,
+        annotation: Optional[str] = None,
+    ) -> VyperValue:
+        """Copy code bytes into a runtime-sized bytestring memory value."""
+        size = self.bytestring_runtime_size_from_length(length)
+        ptr = self.allocate_scratch(size)
+        self.builder.mstore(ptr, length)
+        self.zero_bytestring_padding(ptr, length)
+        data_ptr = self.builder.add(ptr, IRLiteral(32))
+        if address is None:
+            self.builder.codecopy(data_ptr, offset, length)
+        else:
+            self.builder.extcodecopy(address, data_ptr, offset, length)
+        return self.dynamic_memory_value(ptr, typ, annotation=annotation)
 
     def copy_bytestring_to_scratch(
         self, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None

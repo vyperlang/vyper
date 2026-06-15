@@ -40,3 +40,26 @@ def foo() -> Bytes[5]:
 
     opcodes = _opcodes(_compile_frontend_ir(code))
     assert "dalloca" not in opcodes
+
+
+def test_inf_bytes_external_return_emits_dalloca():
+    code = """
+@external
+def foo() -> Bytes[INF]:
+    return b"hello"
+    """
+
+    opcodes = _opcodes(_compile_frontend_ir(code))
+    assert "dalloca" in opcodes
+
+
+def test_msg_data_rvalue_emits_dalloca_and_calldatacopy():
+    code = """
+@external
+def foo() -> Bytes[INF]:
+    return msg.data
+    """
+
+    opcodes = _opcodes(_compile_frontend_ir(code))
+    assert "dalloca" in opcodes
+    assert "calldatacopy" in opcodes

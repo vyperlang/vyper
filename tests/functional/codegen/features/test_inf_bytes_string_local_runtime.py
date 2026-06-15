@@ -58,6 +58,82 @@ def foo(a: Bytes[5], b: String[5]) -> (Bytes[5], String[5]):
     assert abi_decode("(bytes,string)", ret) == (b"hello", "world")
 
 
+def test_inf_bytes_and_string_external_return_from_bounded(env):
+    code = """
+@external
+def foo() -> Bytes[INF]:
+    return b"hello"
+
+@external
+def bar() -> String[INF]:
+    return "world"
+    """
+
+    c = _deploy_venom(env, code)
+    assert abi_decode("(bytes)", _call(env, c, "foo()")) == (b"hello",)
+    assert abi_decode("(string)", _call(env, c, "bar()")) == ("world",)
+
+
+def test_inf_bytes_external_return_from_local(env):
+    code = """
+@external
+def foo() -> Bytes[INF]:
+    x: Bytes[INF] = b"hello"
+    x = b"dynamic"
+    return x
+    """
+
+    c = _deploy_venom(env, code)
+    assert abi_decode("(bytes)", _call(env, c, "foo()")) == (b"dynamic",)
+
+
+def test_msg_data_as_inf_bytes_rvalue(env):
+    code = """
+@external
+def foo() -> Bytes[INF]:
+    return msg.data
+    """
+
+    c = _deploy_venom(env, code)
+    assert abi_decode("(bytes)", _call(env, c, "foo()")) == (method_id("foo()"),)
+
+
+def test_runtime_length_slice_returns_inf_bytes(env):
+    code = """
+@external
+def from_local() -> Bytes[INF]:
+    x: Bytes[INF] = b"hello"
+    return slice(x, 0, len(x))
+
+@external
+def from_msg_data() -> Bytes[INF]:
+    return slice(msg.data, 0, len(msg.data))
+    """
+
+    c = _deploy_venom(env, code)
+    assert abi_decode("(bytes)", _call(env, c, "from_local()")) == (b"hello",)
+    expected = method_id("from_msg_data()")
+    assert abi_decode("(bytes)", _call(env, c, "from_msg_data()")) == (expected,)
+
+
+def test_code_as_inf_bytes_rvalue(env):
+    code = """
+@external
+def self_code() -> Bytes[INF]:
+    return self.code
+
+@external
+def addr_code(addr: address) -> Bytes[INF]:
+    return addr.code
+    """
+
+    c = _deploy_venom(env, code)
+    expected = env.get_code(c.address)
+    assert abi_decode("(bytes)", _call(env, c, "self_code()")) == (expected,)
+    ret = _call(env, c, "addr_code(address)", "address", c.address)
+    assert abi_decode("(bytes)", ret) == (expected,)
+
+
 def test_empty_inf_bytes_and_string_locals(env):
     code = """
 @external

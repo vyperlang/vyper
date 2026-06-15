@@ -321,9 +321,6 @@ def _abi_encode_to_buf(
     elif isinstance(src_typ, _BytestringT):
         # Bytes/String: pre-zero-pad then copy
         # Layout: [length(32)][data(length bytes)][zero-padding]
-        size = src_typ.memory_bytes_required
-        assert size > 0
-
         assert isinstance(src, IRVariable)
         length = b.mload(src)
         _pre_zero_pad(ctx, dst, length)
@@ -333,9 +330,7 @@ def _abi_encode_to_buf(
         ctx.copy_memory_dynamic(dst, src, copy_len)
 
         # Return total encoded size = ceil32(32 + length) = 32 + ceil32(length)
-        inv_31 = (~31) & (2**256 - 1)
-        padded_len = b.add(IRLiteral(32), b.and_(b.add(length, IRLiteral(31)), IRLiteral(inv_31)))
-        return padded_len
+        return ctx.bytestring_runtime_size_from_length(length)
 
     elif isinstance(src_typ, DArrayT):
         # Dynamic array: use helper

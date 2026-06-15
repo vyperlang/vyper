@@ -666,15 +666,27 @@ class Expr:
             sub = Expr(node.value, self.ctx).lower_value()
             return VyperValue.from_stack_op(self.builder.extcodehash(sub), BYTES32_T)
 
-        # .code on address is an adhoc node handled by slice() - should not be lowered directly
-        # But "code" can be a valid struct field name, so only check for address types
-        if attr == "code" and isinstance(
-            node.value._metadata.get("type"), AddressT
-        ):  # pragma: nocover
-            raise CompilerPanic(".code requires slice() context")
+        # .code on address materializes the full runtime code as Bytes[INF].
+        # Struct fields named "code" are handled above before this address check.
+        if attr == "code" and isinstance(node.value._metadata.get("type"), AddressT):
+            if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
+                length = self.builder.codesize()
+                return self.ctx.materialize_code_bytes(
+                    IRLiteral(0), length, typ, annotation="self.code"
+                )
+            address = Expr(node.value, self.ctx).lower_value()
+            length = self.builder.extcodesize(address)
+            return self.ctx.materialize_code_bytes(
+                IRLiteral(0), length, typ, address=address, annotation="addr.code"
+            )
 
         # Case 4: Environment variables (msg.*, block.*, tx.*, chain.*)
         if isinstance(node.value, vy_ast.Name) and node.value.id in ENVIRONMENT_VARIABLES:
+            if node.value.id == "msg" and attr == "data":
+                length = self.builder.calldatasize()
+                return self.ctx.materialize_calldata_bytes(
+                    IRLiteral(0), length, typ, annotation="msg.data"
+                )
             return VyperValue.from_stack_op(self._lower_environment_attr(), typ)
 
         # Case 5: State variables (self.x)

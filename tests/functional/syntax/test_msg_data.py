@@ -235,14 +235,15 @@ def foo(_value: uint256) -> uint256:
         contract.foo(42)
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
-def test_msg_data_assign_to_bytes_inf():
+def test_msg_data_assign_to_bytes_inf(experimental_codegen):
     code = """
 @external
 def foo() -> Bytes[100]:
     x: Bytes[INF] = msg.data
     return slice(x, 0, 100)
     """
+    if not experimental_codegen:
+        pytest.xfail("unbounded sequence types not yet fully supported in legacy codegen")
     compiler.compile_code(code)
 
 

@@ -33,6 +33,16 @@ def _assert_slice_bounds(
     b.assert_(b.iszero(oob))
 
 
+def _new_slice_output(ctx: VenomCodegenContext, out_t, length: IROperand) -> VyperValue:
+    if ctx.is_unbounded_bytestring_type(out_t):
+        size = ctx.bytestring_runtime_size_from_length(length)
+        ptr = ctx.allocate_scratch(size)
+        ctx.zero_bytestring_padding(ptr, length)
+        return ctx.dynamic_memory_value(ptr, out_t, annotation="slice")
+
+    return ctx.new_temporary_value(out_t)
+
+
 def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     """
     concat(a, b, ...) -> bytes | string
@@ -158,7 +168,7 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     _assert_slice_bounds(ctx, start, length, src_len)
 
     # Allocate output buffer
-    out_val = ctx.new_temporary_value(out_t)
+    out_val = _new_slice_output(ctx, out_t, length)
     out_data = ctx.add_offset(out_val.ptr(), IRLiteral(32))
 
     # Copy bytes from src_data + start to out_data
@@ -208,7 +218,7 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
     length = Expr(length_node, ctx).lower_value()
 
     out_t = node._metadata["type"]
-    out_val = ctx.new_temporary_value(out_t)
+    out_val = _new_slice_output(ctx, out_t, length)
     out_data = ctx.add_offset(out_val.ptr(), IRLiteral(32))
     assert isinstance(out_data.operand, IRVariable)
 

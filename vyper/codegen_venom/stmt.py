@@ -998,6 +998,17 @@ class Stmt:
         # For ABI conformance, single-element returns are wrapped in a tuple
         # This is what provides the offset pointer for dynamic types
         external_return_type = calculate_type_for_external_return(ret_typ)
+
+        if self.ctx.is_unbounded_bytestring_type(ret_typ):
+            assert isinstance(ret_val, IRVariable)
+            length = self.builder.mload(ret_val)
+            tail_len = self.ctx.bytestring_runtime_size_from_length(length)
+            encoded_size = self.builder.add(IRLiteral(32), tail_len)
+            buf_ptr = self.ctx.allocate_scratch(encoded_size)
+            encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, external_return_type)
+            self.builder.return_(buf_ptr, encoded_len)
+            return
+
         maxlen = external_return_type.abi_type.size_bound()
 
         # Allocate return buffer
