@@ -1,14 +1,21 @@
 from tests.evm_backends.abi import abi_decode, abi_encode
 from vyper.compiler import compile_code
-from vyper.compiler.settings import Settings
+from vyper.compiler.settings import Settings, VenomOptimizationFlags
 from vyper.utils import method_id
 
 
-def _deploy_venom(env, code):
+def _venom_settings(*, disable_inlining=False):
+    settings = Settings(experimental_codegen=True)
+    if disable_inlining:
+        settings.venom_flags = VenomOptimizationFlags(disable_inlining=True)
+    return settings
+
+
+def _deploy_venom(env, code, *, settings=None):
     out = compile_code(
         code,
         output_formats=["bytecode"],
-        settings=Settings(experimental_codegen=True),
+        settings=settings or _venom_settings(),
     )
     return env.deploy([], bytes.fromhex(out["bytecode"].removeprefix("0x")))
 
@@ -132,6 +139,74 @@ def addr_code(addr: address) -> Bytes[INF]:
     assert abi_decode("(bytes)", _call(env, c, "self_code()")) == (expected,)
     ret = _call(env, c, "addr_code(address)", "address", c.address)
     assert abi_decode("(bytes)", ret) == (expected,)
+
+
+def test_inf_bytes_internal_forwarding(env):
+    code = """
+@internal
+def _bar() -> Bytes[INF]:
+    x: Bytes[INF] = b"hello"
+    return x
+
+@external
+def foo() -> Bytes[INF]:
+    return self._bar()
+    """
+
+    c = _deploy_venom(env, code)
+    assert abi_decode("(bytes)", _call(env, c, "foo()")) == (b"hello",)
+
+
+def test_inf_string_internal_nested_forwarding(env):
+    code = """
+@internal
+def _baz() -> String[INF]:
+    x: String[INF] = "hello"
+    return x
+
+@internal
+def _bar() -> String[INF]:
+    return self._baz()
+
+@external
+def foo() -> String[INF]:
+    return self._bar()
+    """
+
+    c = _deploy_venom(env, code)
+    assert abi_decode("(string)", _call(env, c, "foo()")) == ("hello",)
+
+
+def test_empty_inf_bytes_internal_forwarding(env):
+    code = """
+@internal
+def _bar() -> Bytes[INF]:
+    x: Bytes[INF] = b""
+    return x
+
+@external
+def foo() -> Bytes[INF]:
+    return self._bar()
+    """
+
+    c = _deploy_venom(env, code)
+    assert abi_decode("(bytes)", _call(env, c, "foo()")) == (b"",)
+
+
+def test_inf_bytes_internal_forwarding_no_inline(env):
+    code = """
+@internal
+def _bar() -> Bytes[INF]:
+    x: Bytes[INF] = b"hello"
+    return x
+
+@external
+def foo() -> Bytes[INF]:
+    return self._bar()
+    """
+
+    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
+    assert abi_decode("(bytes)", _call(env, c, "foo()")) == (b"hello",)
 
 
 def test_empty_inf_bytes_and_string_locals(env):

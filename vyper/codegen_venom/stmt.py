@@ -24,7 +24,7 @@ from vyper.utils import method_id_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 from .buffer import Ptr
-from .calling_convention import returns_stack_count
+from .calling_convention import returns_dynamic_count, returns_stack_count
 from .context import Constancy, VenomCodegenContext
 from .expr import Expr
 from .value import VyperValue
@@ -909,10 +909,17 @@ class Stmt:
             return
 
         returns_count = returns_stack_count(func_t)
+        dynamic_returns_count = returns_dynamic_count(func_t)
         ret_typ = func_t.return_type
         assert ret_typ is not None
 
-        if returns_count > 0:
+        if dynamic_returns_count > 0:
+            assert returns_count == 0
+            assert isinstance(ret_val, IRVariable)
+            size = self.ctx.bytestring_runtime_size(ret_val)
+            self.builder.dret(IRLiteral(dynamic_returns_count), ret_val, size, return_pc)
+
+        elif returns_count > 0:
             # Stack return - load values and pass to ret
             ret_vals: list[IROperand] = []
 

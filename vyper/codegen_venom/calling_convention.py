@@ -11,12 +11,18 @@ from __future__ import annotations
 
 from vyper.codegen.core import is_tuple_like
 from vyper.semantics.types import VyperType
+from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types.infinity import INF
 
 # Maximum number of word-type arguments passed via the stack.
 MAX_STACK_ARGS = 6
 
 # Maximum number of word-type return values passed via the stack (for tuples).
 MAX_STACK_RETURNS = 2
+
+
+def is_unbounded_bytestring_type(typ: VyperType | None) -> bool:
+    return isinstance(typ, _BytestringT) and typ.length is INF
 
 
 def is_word_type(typ: VyperType) -> bool:
@@ -26,7 +32,15 @@ def is_word_type(typ: VyperType) -> bool:
     uint256[1] are 32 bytes but not primitive words - they must be passed
     via memory pointer, not by value on the stack.
     """
+    if is_unbounded_bytestring_type(typ):
+        return False
+
     return typ.memory_bytes_required == 32 and typ._is_prim_word
+
+
+def returns_dynamic_count(func_t) -> int:
+    """How many runtime-sized memory pointers are returned via `dret`."""
+    return 1 if is_unbounded_bytestring_type(func_t.return_type) else 0
 
 
 def returns_stack_count(func_t) -> int:
@@ -55,7 +69,7 @@ def pass_via_stack(func_t) -> dict[str, bool]:
     stack_items = 0
 
     # Reserve stack slots for return values
-    stack_items += returns_stack_count(func_t)
+    stack_items += returns_stack_count(func_t) + returns_dynamic_count(func_t)
 
     for arg in func_t.arguments:
         if not is_word_type(arg.typ) or stack_items >= MAX_STACK_ARGS:

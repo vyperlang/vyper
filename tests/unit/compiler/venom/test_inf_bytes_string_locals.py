@@ -63,3 +63,20 @@ def foo() -> Bytes[INF]:
     opcodes = _opcodes(_compile_frontend_ir(code))
     assert "dalloca" in opcodes
     assert "calldatacopy" in opcodes
+
+
+def test_inf_bytes_internal_return_emits_dret():
+    code = """
+@internal
+def _bar() -> Bytes[INF]:
+    x: Bytes[INF] = b"hello"
+    return x
+
+@external
+def foo() -> Bytes[INF]:
+    return self._bar()
+    """
+
+    opcodes = _opcodes(_compile_frontend_ir(code))
+    assert "dret" in opcodes
+    assert "invoke" in opcodes

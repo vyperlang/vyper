@@ -302,6 +302,10 @@ class VenomBuilder:
         """Return from internal function. Terminates block."""
         self._emit("ret", *values)
 
+    def dret(self, *values: Operand) -> None:
+        """Return dynamic memory from an internal function. Terminates block."""
+        self._emit("dret", *values)
+
     # === EVM Terminators ===
     def return_(self, offset: Operand, size: Operand) -> None:
         """Return from external call (EVM RETURN). Terminates block."""

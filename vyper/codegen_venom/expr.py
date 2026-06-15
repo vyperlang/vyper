@@ -51,7 +51,7 @@ from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 
 from .abi import abi_decode_to_buf, abi_encode_to_buf
 from .buffer import Buffer, Ptr
-from .calling_convention import pass_via_stack, returns_stack_count
+from .calling_convention import pass_via_stack, returns_dynamic_count, returns_stack_count
 from .context import VenomCodegenContext
 from .value import VyperValue
 
@@ -1331,6 +1331,7 @@ class Expr:
             )
 
         returns_count = returns_stack_count(func_t)
+        dynamic_returns_count = returns_dynamic_count(func_t)
         pass_via_stack_dict = pass_via_stack(func_t)
 
         # Generate function label
@@ -1345,7 +1346,7 @@ class Expr:
             if returns_count > 0:
                 # Multi-return: allocate scratch buffer
                 return_buf = self.builder.alloca(32 * returns_count)
-            else:
+            elif dynamic_returns_count == 0:
                 # Memory return: allocate buffer for full return type
                 return_buf = self.ctx.new_temporary_value(func_t.return_type).operand
 
@@ -1396,8 +1397,19 @@ class Expr:
                 invoke_args.append(buf_val.operand)
 
         # Emit invoke instruction
-        if returns_count > 0:
-            outs = self.builder.invoke(IRLabel(target_label), invoke_args, returns=returns_count)
+        invoke_returns_count = returns_count + dynamic_returns_count
+        if invoke_returns_count > 0:
+            outs = self.builder.invoke(
+                IRLabel(target_label), invoke_args, returns=invoke_returns_count
+            )
+            if dynamic_returns_count > 0:
+                assert returns_count == 0
+                assert func_t.return_type is not None
+                assert len(outs) == 1
+                return self.ctx.dynamic_memory_value(
+                    outs[0], func_t.return_type, annotation=func_name
+                )
+
             # Copy stack returns to buffer
             assert return_buf is not None
             assert isinstance(return_buf, IRVariable)

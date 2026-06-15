@@ -36,7 +36,7 @@ from vyper.venom.builder import VenomBuilder
 from vyper.venom.context import IRContext
 from vyper.venom.memory_location import Allocation
 
-from .calling_convention import pass_via_stack, returns_stack_count
+from .calling_convention import pass_via_stack, returns_dynamic_count, returns_stack_count
 from .context import Constancy, VenomCodegenContext
 from .expr import Expr
 from .stmt import Stmt
@@ -1277,14 +1277,17 @@ def _generate_internal_function(
     # Set up return handling
     pass_via_stack_dict = pass_via_stack(func_t)
     returns_count = returns_stack_count(func_t)
-    has_memory_return_buffer = func_t.return_type is not None and returns_count == 0
+    dynamic_returns_count = returns_dynamic_count(func_t)
+    has_memory_return_buffer = (
+        func_t.return_type is not None and returns_count == 0 and dynamic_returns_count == 0
+    )
 
     # Structured invoke metadata used by backend passes. _invoke_param_count
     # is gone: the user-arg count is now syntactic (FunctionCallLayout counts
     # plain `param` opcodes). _return_value_count feeds the post-lowering
     # invoke output-count check (find_post_lowering_errors).
     fn._has_memory_return_buffer_param = has_memory_return_buffer
-    fn._return_value_count = returns_count
+    fn._return_value_count = returns_count + dynamic_returns_count
 
     # Handle parameters
     # First: return buffer pointer if memory return
