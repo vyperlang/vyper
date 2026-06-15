@@ -596,6 +596,8 @@ class Expr:
         # Return pointer, caller will unwrap if needed
         if varname in self.ctx.variables:
             var = self.ctx.lookup(varname)
+            if var.is_pointer_cell:
+                return self.ctx.load_pointer_cell_value(var)
             return var.value
 
         # Case 3: Module constant - recursively lower the constant's value
@@ -1061,7 +1063,8 @@ class Expr:
         if location == DataLocation.MEMORY:
             # Buffer requires IRVariable; memory pointers from arithmetic ops are always IRVariables
             assert isinstance(operand, IRVariable)
-            buf = Buffer(_ptr=operand, size=typ.memory_bytes_required, annotation="computed_ptr")
+            size = None if self.ctx.is_unbounded_bytestring_type(typ) else typ.memory_bytes_required
+            buf = Buffer(_ptr=operand, size=size, annotation="computed_ptr")
             ptr = Ptr(operand=operand, location=location, buf=buf)
         else:
             ptr = Ptr(operand=operand, location=location)

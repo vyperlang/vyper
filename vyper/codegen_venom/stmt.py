@@ -64,6 +64,12 @@ class Stmt:
         # AnnAssign always has a value in Vyper (semantic analysis ensures this)
         assert node.value is not None
 
+        if self.ctx.is_unbounded_bytestring_type(ltyp):
+            rhs = Expr(node.value, self.ctx).lower()
+            var = self.ctx.new_pointer_cell_variable(varname, ltyp)
+            self._assign_unbounded_bytestring_local(var, rhs, ltyp)
+            return
+
         # Allocate memory for the new variable
         var = self.ctx.new_variable(varname, ltyp)
 
@@ -95,6 +101,13 @@ class Stmt:
         if isinstance(target, vy_ast.Tuple):
             return self._lower_tuple_unpack()
 
+        if isinstance(target, vy_ast.Name) and target.id in self.ctx.variables:
+            var = self.ctx.lookup(target.id)
+            if var.is_pointer_cell:
+                src = Expr(node.value, self.ctx).lower()
+                self._assign_unbounded_bytestring_local(var, src, target_typ)
+                return
+
         # Special case: empty Bytestring assignment — just zero the length word.
         if isinstance(target_typ, _BytestringT) and self._is_empty_value(node.value):
             dst_ptr = self._get_target_ptr(target)
@@ -107,6 +120,12 @@ class Stmt:
         src = Expr(node.value, self.ctx).lower()
         dst_ptr = self._get_target_ptr(target)
         self._assign_value(dst_ptr, src, target_typ, src_node=node.value)
+
+    def _assign_unbounded_bytestring_local(self, var, src: VyperValue, typ) -> None:
+        assert var.is_pointer_cell
+        assert self.ctx.is_unbounded_bytestring_type(typ)
+        value = self.ctx.copy_bytestring_to_scratch(src, typ, annotation=var.name)
+        self.ctx.ptr_store(var.value.ptr(), value.operand)
 
     def _assign_value(
         self, dst_ptr: Ptr, src: VyperValue, typ, *, src_node: vy_ast.VyperNode
@@ -437,7 +456,10 @@ class Stmt:
 
             # Check if it's a local variable
             if varname in self.ctx.variables:
-                return self.ctx.variables[varname].value.ptr()
+                var = self.ctx.variables[varname]
+                if var.is_pointer_cell:  # pragma: nocover
+                    raise CompilerPanic("pointer-cell local has no direct assignment pointer")
+                return var.value.ptr()
 
             # Check if it's an immutable assignment in constructor
             varinfo = target._expr_info.var_info

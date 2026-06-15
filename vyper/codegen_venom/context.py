@@ -28,7 +28,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import TupleT, VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
-from vyper.semantics.types.infinity import is_bounded_length
+from vyper.semantics.types.infinity import INF, is_bounded_length
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.semantics.types.user import StructT
@@ -50,6 +50,7 @@ class LocalVariable:
     value: VyperValue  # must be located in MEMORY
     mutable: bool = True
     scopes: set = field(default_factory=set)
+    is_pointer_cell: bool = False
 
     def __post_init__(self):
         if self.value.is_stack_value:  # pragma: nocover
@@ -96,11 +97,31 @@ class VenomCodegenContext:
     # used by deploy epilogue to copy staging area into bytecode.
     immutables_alloca: Optional[IRVariable] = None
 
+    @staticmethod
+    def is_unbounded_bytestring_type(typ: VyperType) -> bool:
+        return isinstance(typ, _BytestringT) and typ.length is INF
+
     def new_variable(self, name: str, typ: VyperType, mutable: bool = True) -> LocalVariable:
         """Allocate memory for a named variable, register it, return the variable."""
         buf = self.allocate_buffer(typ.memory_bytes_required, annotation=name)
         value = VyperValue.from_ptr(buf.base_ptr(), typ)
         var = LocalVariable(name=name, value=value, mutable=mutable, scopes=self._scopes.copy())
+        self.variables[name] = var
+        return var
+
+    def new_pointer_cell_variable(
+        self, name: str, typ: VyperType, mutable: bool = True
+    ) -> LocalVariable:
+        """Register a local whose stable memory cell stores its current memory pointer."""
+        buf = self.allocate_buffer(32, annotation=f"{name}_ptr")
+        value = VyperValue.from_ptr(buf.base_ptr(), typ)
+        var = LocalVariable(
+            name=name,
+            value=value,
+            mutable=mutable,
+            scopes=self._scopes.copy(),
+            is_pointer_cell=True,
+        )
         self.variables[name] = var
         return var
 
@@ -128,6 +149,19 @@ class VenomCodegenContext:
         """
         buf = self.allocate_buffer(typ.memory_bytes_required, annotation)
         return VyperValue.from_ptr(buf.base_ptr(), typ)
+
+    def dynamic_memory_value(
+        self, ptr: IRVariable, typ: VyperType, annotation: Optional[str] = None
+    ) -> VyperValue:
+        """Wrap a runtime-sized memory pointer as a located Vyper value."""
+        buf = Buffer(_ptr=ptr, size=None, annotation=annotation)
+        return VyperValue.from_ptr(buf.base_ptr(), typ)
+
+    def load_pointer_cell_value(self, var: LocalVariable) -> VyperValue:
+        """Load the current dynamic memory pointer from a pointer-cell local."""
+        ptr = self.ptr_load(var.value.ptr())
+        assert isinstance(ptr, IRVariable)
+        return self.dynamic_memory_value(ptr, var.value.typ, annotation=var.name)
 
     def lookup(self, name: str) -> LocalVariable:
         """Get variable by name."""
@@ -160,6 +194,26 @@ class VenomCodegenContext:
     def store_vyper_value(self, vv: VyperValue, ptr: IRVariable, typ: VyperType) -> None:
         """Store a VyperValue into memory, preserving its source layout."""
         self.store_memory(self.unwrap(vv), ptr, typ, src_typ=vv.typ)
+
+    def bytestring_runtime_size(self, ptr: IRVariable) -> IROperand:
+        """Return runtime memory size for a bytestring: 32 + ceil32(length)."""
+        length = self.builder.mload(ptr)
+        padded_len = self.builder.and_(
+            self.builder.add(length, IRLiteral(31)),
+            IRLiteral((1 << 256) - 32),
+        )
+        return self.builder.add(padded_len, IRLiteral(32))
+
+    def copy_bytestring_to_scratch(
+        self, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None
+    ) -> VyperValue:
+        """Copy a bytestring value into exact-sized runtime scratch memory."""
+        src = self.unwrap(vv)
+        assert isinstance(src, IRVariable)
+        size = self.bytestring_runtime_size(src)
+        dst = self.allocate_scratch(size)
+        self.copy_memory_dynamic(dst, src, size)
+        return self.dynamic_memory_value(dst, typ, annotation=annotation)
 
     def materialize_value(
         self, vv: VyperValue, typ: Optional[VyperType] = None, annotation: Optional[str] = None
