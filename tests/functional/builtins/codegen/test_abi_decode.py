@@ -4,7 +4,6 @@ from eth.codecs import abi
 from tests.evm_backends.base_env import EvmError, ExecutionReverted
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
-from vyper.compiler.settings import Settings
 from vyper.exceptions import ArgumentException, StructureException
 from vyper.utils import method_id
 
@@ -500,9 +499,8 @@ def test_abi_decode_undersized_buffer_venom():
 def f(data: Bytes[4]) -> (uint256, uint256):
     return abi_decode(data, (uint256, uint256))
     """
-    settings = Settings(experimental_codegen=True)
     with pytest.raises(StructureException, match="Mismatch between size of input"):
-        compile_code(code, settings=settings)
+        compile_code(code)
 
 
 def _abi_payload_from_tuple(payload: tuple[int | bytes, ...], max_sz: int) -> bytes:
