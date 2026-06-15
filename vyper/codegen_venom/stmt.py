@@ -19,7 +19,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
-from vyper.semantics.types.user import EventT, StructT
+from vyper.semantics.types.user import ErrorT, EventT, StructT
 from vyper.utils import method_id_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -871,11 +871,16 @@ class Stmt:
         """Lower internal function return.
 
         For internal functions:
+        - Nonreentrant unlock (if applicable)
         - Load return values and pass on stack
         - ret to return_pc
         """
         return_pc = self.ctx.return_pc
         assert return_pc is not None  # Caller ensures this
+
+        # Nonreentrant unlock. The return expression has already been
+        # evaluated by the caller, so this runs at function exit.
+        self.ctx.emit_nonreentrant_unlock(func_t)
 
         if ret_val is None:
             self.builder.ret(return_pc)
@@ -1153,8 +1158,12 @@ class Stmt:
             with self.builder.error_context("raise unreachable"):
                 self.builder.invalid()
         else:
-            # Raise with reason string
-            self._revert_with_reason(node.exc)
+            msg_type = node.exc._metadata.get("type")
+            if isinstance(msg_type, ErrorT):
+                self._revert_with_custom_error(node.exc, msg_type)
+            else:
+                # Raise with reason string
+                self._revert_with_reason(node.exc)
 
     def _assert_with_reason(self, cond: IROperand, msg: vy_ast.VyperNode) -> None:
         """Handle assert with reason (including UNREACHABLE).
@@ -1177,21 +1186,79 @@ class Stmt:
             # Ok block: continue
             self.builder.append_block(ok_block)
             self.builder.set_block(ok_block)
+            return
+
+        ok_block = self.builder.create_block("assert_ok")
+        fail_block = self.builder.create_block("assert_fail")
+
+        self.builder.jnz(cond, ok_block.label, fail_block.label)
+
+        # Fail block: revert with reason
+        self.builder.append_block(fail_block)
+        self.builder.set_block(fail_block)
+        msg_type = msg._metadata.get("type")
+        if isinstance(msg_type, ErrorT):
+            self._revert_with_custom_error(msg, msg_type)
         else:
-            # Assert with reason string - revert with Error(string) on failure
-            ok_block = self.builder.create_block("assert_ok")
-            fail_block = self.builder.create_block("assert_fail")
-
-            self.builder.jnz(cond, ok_block.label, fail_block.label)
-
-            # Fail block: revert with reason
-            self.builder.append_block(fail_block)
-            self.builder.set_block(fail_block)
             self._revert_with_reason(msg)
 
-            # Ok block: continue
-            self.builder.append_block(ok_block)
-            self.builder.set_block(ok_block)
+        # Ok block: continue
+        self.builder.append_block(ok_block)
+        self.builder.set_block(ok_block)
+
+    def _custom_error_arg_nodes(self, call: vy_ast.Call, error_t: ErrorT) -> list[vy_ast.VyperNode]:
+        if len(call.keywords) > 0:
+            kwarg_lookup = {kw.arg: kw.value for kw in call.keywords}
+            return [kwarg_lookup[name] for name in error_t.arguments.keys()]
+
+        return call.args
+
+    def _revert_with_custom_error(self, msg: vy_ast.VyperNode, error_t: ErrorT) -> None:
+        """Emit revert with custom error selector and ABI-encoded arguments."""
+        assert isinstance(msg, vy_ast.Call)
+
+        arg_nodes = self._custom_error_arg_nodes(msg, error_t)
+        arg_types = tuple(error_t.arguments.values())
+        args_tuple_t = TupleT(arg_types)
+
+        args_tuple_buf = self.ctx.allocate_buffer(
+            args_tuple_t.memory_bytes_required, annotation="custom error args"
+        )
+        self._store_custom_error_args(args_tuple_buf._ptr, arg_nodes, arg_types)
+
+        bufsz = args_tuple_t.abi_type.size_bound() + 32
+        buf = self.ctx.allocate_buffer(bufsz, annotation="custom error revert buffer")
+        self.builder.mstore(buf._ptr, IRLiteral(error_t.selector))
+
+        if len(arg_nodes) == 0:
+            revert_offset = self.builder.add(buf._ptr, IRLiteral(28))
+            with self.builder.error_context("user revert with custom error"):
+                self.builder.revert(revert_offset, IRLiteral(4))
+            return
+
+        payload_buf = self.builder.add(buf._ptr, IRLiteral(32))
+        encoded_len = abi_encode_to_buf(self.ctx, payload_buf, args_tuple_buf._ptr, args_tuple_t)
+
+        revert_offset = self.builder.add(buf._ptr, IRLiteral(28))
+        revert_len = self.builder.add(IRLiteral(4), encoded_len)
+        with self.builder.error_context("user revert with custom error"):
+            self.builder.revert(revert_offset, revert_len)
+
+    def _store_custom_error_args(
+        self, dst: IRVariable, arg_nodes: list[vy_ast.VyperNode], arg_types: tuple
+    ) -> None:
+        old_constancy = self.ctx.constancy
+        try:
+            self.ctx.constancy = Constancy.Constant
+            offset = 0
+            for arg_node, arg_type in zip(arg_nodes, arg_types):
+                arg_vv = Expr(arg_node, self.ctx).lower()
+                arg_ptr = dst if offset == 0 else self.builder.add(dst, IRLiteral(offset))
+                assert isinstance(arg_ptr, IRVariable)
+                self.ctx.store_vyper_value(arg_vv, arg_ptr, arg_type)
+                offset += arg_type.memory_bytes_required
+        finally:
+            self.ctx.constancy = old_constancy
 
     def _revert_with_reason(self, msg: vy_ast.VyperNode) -> None:
         """Emit revert with Error(string) encoding.

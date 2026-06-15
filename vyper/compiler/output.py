@@ -15,7 +15,7 @@ from vyper.evm.assembler.symbols import resolve_symbols
 from vyper.exceptions import VyperException
 from vyper.ir import compile_ir
 from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
-from vyper.semantics.types.user import EventT
+from vyper.semantics.types.user import ErrorT, EventT
 from vyper.typing import StorageLayout
 from vyper.utils import OrderedSet, safe_relpath
 from vyper.warnings import ContractSizeLimit, vyper_warn
@@ -154,6 +154,15 @@ def build_interface_output(compiler_data: CompilerData) -> str:
         for event in events:
             encoded_args = "\n    ".join(f"{name}: {typ}" for name, typ in event.arguments.items())
             out += f"event {event.name}:\n    {encoded_args if event.arguments else 'pass'}\n\n\n"
+
+    errors: OrderedSet[ErrorT] = OrderedSet(interface.errors.values())
+    errors.update(module_t.used_errors)
+
+    if len(errors) > 0:
+        out += "# Errors\n\n"
+        for error in errors:
+            encoded_args = "\n    ".join(f"{name}: {typ}" for name, typ in error.arguments.items())
+            out += f"error {error.name}:\n    {encoded_args if error.arguments else 'pass'}\n\n\n"
 
     if len(interface.functions) > 0:
         out += "# Functions\n\n"
