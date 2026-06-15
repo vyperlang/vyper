@@ -1,7 +1,6 @@
 import pytest
 
 from vyper import compile_code
-from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CodegenPanic, ImmutableViolation, InvalidType, TypeMismatch
 
@@ -195,7 +194,7 @@ def test_augassign_oob_venom(source):
     # the venom pipeline must reject the same programs as legacy
     # (GH issue #5051)
     with pytest.raises(CodegenPanic):
-        compile_code(source, settings=Settings(experimental_codegen=True))
+        compile_code(source)
 
 
 @pytest.mark.parametrize("source", AUGASSIGN_OVERLAP_OK_SOURCES)
@@ -208,7 +207,7 @@ def test_augassign_rhs_references_lhs2(get_contract, source):
 def test_augassign_rhs_references_lhs_venom(source):
     # the venom port of the augassign overlap guard must not reject
     # programs which legacy accepts (GH issue #5051)
-    assert compile_code(source, settings=Settings(experimental_codegen=True)) is not None
+    assert compile_code(source) is not None
 
 
 @pytest.mark.requires_evm_version("cancun")
@@ -281,7 +280,7 @@ def test_augassign_oob_transient_venom(source):
     # (GH issue #5051). note: the default evm version supports transient
     # storage, no need for a version check here.
     with pytest.raises(CodegenPanic):
-        compile_code(source, settings=Settings(experimental_codegen=True))
+        compile_code(source)
 
 
 @pytest.mark.parametrize(
