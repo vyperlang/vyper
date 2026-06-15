@@ -100,7 +100,6 @@ class VenomCodegenContext:
     # Explicit `return` in __init__ must jump here instead of halting,
     # otherwise the runtime code would never be returned.
     ctor_exit_block: Optional[IRBasicBlock] = None
-    ctor_exit_used: bool = False
 
     def new_variable(self, name: str, typ: VyperType, mutable: bool = True) -> LocalVariable:
         """Allocate memory for a named variable, register it, return the variable."""

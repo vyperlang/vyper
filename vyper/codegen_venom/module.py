@@ -1392,17 +1392,14 @@ def _generate_constructor(
     if fallthrough:
         builder.jmp(exit_bb.label)
 
-    if fallthrough or codegen_ctx.ctor_exit_used:
-        builder.append_block(exit_bb)
-        builder.set_block(exit_bb)
+    builder.append_block(exit_bb)
+    builder.set_block(exit_bb)
 
-        # Unlock
-        codegen_ctx.emit_nonreentrant_unlock(func_t)
+    # Unlock
+    codegen_ctx.emit_nonreentrant_unlock(func_t)
 
-        # Deploy epilogue: copy runtime code to memory and return
-        _emit_deploy_epilogue(
-            builder, runtime_codesize, immutables_len, codegen_ctx.immutables_alloca
-        )
+    # Deploy epilogue: copy runtime code to memory and return
+    _emit_deploy_epilogue(builder, runtime_codesize, immutables_len, codegen_ctx.immutables_alloca)
 
 
 def _register_constructor_args(ctx: VenomCodegenContext, func_t: ContractFunctionT) -> None:

@@ -931,7 +931,6 @@ class Stmt:
             assert ret_val is None  # __init__ has no return value
             exit_bb = self.ctx.ctor_exit_block
             assert exit_bb is not None
-            self.ctx.ctor_exit_used = True
             self.builder.jmp(exit_bb.label)
             return
 
