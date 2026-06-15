@@ -709,6 +709,55 @@ def roundtrip(x: Bytes[INF]) -> Bytes[INF]:
     assert abi_decode("(bytes)", ret) == (payload,)
 
 
+def test_inf_bytes_raw_call_direct_return(env):
+    payload = bytes((i * 47) % 256 for i in range(2001))
+    code = """
+IDENTITY: constant(address) = 0x0000000000000000000000000000000000000004
+
+@external
+def echo(x: Bytes[INF]) -> Bytes[INF]:
+    return raw_call(IDENTITY, x, max_outsize=4096)
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "echo(bytes)", "(bytes)", (payload,))
+    assert abi_decode("(bytes)", ret) == (payload,)
+
+
+def test_inf_bytes_raw_call_checkable_tuple_unpack(env):
+    payload = bytes((i * 53) % 256 for i in range(2001))
+    code = """
+IDENTITY: constant(address) = 0x0000000000000000000000000000000000000004
+
+@external
+def echo(x: Bytes[INF]) -> Bytes[INF]:
+    ok: bool = False
+    y: Bytes[INF] = b""
+    ok, y = raw_call(IDENTITY, x, max_outsize=4096, revert_on_failure=False)
+    assert ok
+    return y
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "echo(bytes)", "(bytes)", (payload,))
+    assert abi_decode("(bytes)", ret) == (payload,)
+
+
+def test_inf_bytes_raw_call_checkable_direct_tuple_return(env):
+    payload = bytes((i * 59) % 256 for i in range(2001))
+    code = """
+IDENTITY: constant(address) = 0x0000000000000000000000000000000000000004
+
+@external
+def echo(x: Bytes[INF]) -> (bool, Bytes[INF]):
+    return raw_call(IDENTITY, x, max_outsize=4096, revert_on_failure=False)
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "echo(bytes)", "(bytes)", (payload,))
+    assert abi_decode("(bool,bytes)", ret) == (True, payload)
+
+
 def test_inf_bytes_constructor_arg(env):
     payload = bytes((i * 7) % 256 for i in range(2001))
     code = """

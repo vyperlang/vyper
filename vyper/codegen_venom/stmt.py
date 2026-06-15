@@ -282,6 +282,17 @@ class Stmt:
 
         # Second pass: assign each loaded value to its target
         for (val, src_elem_typ, dst_elem_typ), target_node in zip(temp_vals, targets):
+            if isinstance(target_node, vy_ast.Name) and target_node.id in self.ctx.variables:
+                var = self.ctx.lookup(target_node.id)
+                if var.is_pointer_cell:
+                    assert self.ctx.is_unbounded_bytestring_type(dst_elem_typ)
+                    assert isinstance(val, IRVariable)
+                    src_vv = self.ctx.dynamic_memory_value(
+                        val, src_elem_typ, annotation=target_node.id
+                    )
+                    self._assign_unbounded_bytestring_local(var, src_vv, dst_elem_typ)
+                    continue
+
             target_ptr = self._get_target_ptr(target_node)
 
             if dst_elem_typ._is_prim_word:
@@ -503,6 +514,49 @@ class Stmt:
             return Expr(target, self.ctx).lower().ptr()
 
         raise CompilerPanic(f"Unsupported assignment target: {type(target)}")  # pragma: nocover
+
+    def _can_encode_from_source_return_layout(self, dst_typ: VyperType, src_typ: VyperType) -> bool:
+        """
+        True when `src_typ` has a concrete memory layout and can be ABI-encoded
+        directly for a declared return type `dst_typ`.
+
+        This covers bounded bytes/string values returned through INF supertypes,
+        including tuple members such as raw_call's `(bool, Bytes[N])` checkable
+        result returned as `(bool, Bytes[INF])`.
+        """
+        if dst_typ == src_typ:
+            return True
+
+        if isinstance(dst_typ, _BytestringT) and isinstance(src_typ, _BytestringT):
+            return dst_typ.compare_type(src_typ)
+
+        if isinstance(dst_typ, TupleT) and isinstance(src_typ, TupleT):
+            dst_member_types = dst_typ.member_types
+            src_member_types = src_typ.member_types
+            if isinstance(dst_member_types, dict):
+                dst_member_types = tuple(dst_member_types.values())
+            if isinstance(src_member_types, dict):
+                src_member_types = tuple(src_member_types.values())
+            if len(dst_member_types) != len(src_member_types):
+                return False
+            return all(
+                self._can_encode_from_source_return_layout(dst_member_t, src_member_t)
+                for dst_member_t, src_member_t in zip(dst_member_types, src_member_types)
+            )
+
+        return False
+
+    def _type_has_unbounded_bytestring(self, typ: VyperType) -> bool:
+        if self.ctx.is_unbounded_bytestring_type(typ):
+            return True
+
+        if isinstance(typ, TupleT):
+            member_types = typ.member_types
+            if isinstance(member_types, dict):
+                member_types = tuple(member_types.values())
+            return any(self._type_has_unbounded_bytestring(member_t) for member_t in member_types)
+
+        return False
 
     # === Control Flow Statements ===
 
@@ -967,11 +1021,18 @@ class Stmt:
         ret_typ = func_t.return_type
         assert ret_typ is not None
 
+        can_encode_from_src = (
+            ret_src_typ is not None
+            and not self._type_has_unbounded_bytestring(ret_src_typ)
+            and self._can_encode_from_source_return_layout(ret_typ, ret_src_typ)
+        )
+
         if (
             ret_src_typ is not None
             and not ret_typ._is_prim_word
             and not (isinstance(ret_typ, _BytestringT) and isinstance(ret_src_typ, _BytestringT))
             and ret_src_typ != ret_typ
+            and not can_encode_from_src
             and ret_val is not None
         ):
             normalized = self.ctx.new_temporary_value(ret_typ)
@@ -1008,6 +1069,10 @@ class Stmt:
         # For ABI conformance, single-element returns are wrapped in a tuple
         # This is what provides the offset pointer for dynamic types
         external_return_type = calculate_type_for_external_return(ret_typ)
+        encode_typ = external_return_type
+        if can_encode_from_src:
+            assert ret_src_typ is not None
+            encode_typ = calculate_type_for_external_return(ret_src_typ)
 
         if self.ctx.is_unbounded_bytestring_type(ret_typ):
             assert isinstance(ret_val, IRVariable)
@@ -1019,14 +1084,14 @@ class Stmt:
             self.builder.return_(buf_ptr, encoded_len)
             return
 
-        maxlen = external_return_type.abi_type.size_bound()
+        maxlen = encode_typ.abi_type.size_bound()
 
         # Allocate return buffer
         buf = self.ctx.allocate_buffer(maxlen)
 
-        # ABI encode to buffer
-        # Use external_return_type (wrapped in tuple) for proper ABI encoding
-        encoded_len = abi_encode_to_buf(self.ctx, buf._ptr, ret_val, external_return_type)
+        # ABI encode using the declared return ABI shape, or a compatible
+        # bounded source layout when returning through an INF supertype.
+        encoded_len = abi_encode_to_buf(self.ctx, buf._ptr, ret_val, encode_typ)
 
         # Return encoded data
         self.builder.return_(buf._ptr, encoded_len)

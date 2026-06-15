@@ -14,8 +14,8 @@ from typing import TYPE_CHECKING, Optional, Union
 from vyper import ast as vy_ast
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import ArgumentException, CompilerPanic, StateAccessViolation
-from vyper.semantics.types import BytesT, TupleT
-from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
+from vyper.semantics.types import BoolT, BytesT, TupleT
+from vyper.semantics.types.shortcuts import BYTES32_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
@@ -211,7 +211,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
             # Return (success, data) tuple with inline bytes
             # Layout: [bool (32)][bytes_len (32)][bytes_data (ceil32(max_outsize))]
             bytes_t = BytesT(max_outsize)
-            tuple_t = TupleT((UINT256_T, bytes_t))
+            tuple_t = TupleT((BoolT(), bytes_t))
             tuple_local = ctx.new_temporary_value(tuple_t)
 
             # Store success at offset 0
