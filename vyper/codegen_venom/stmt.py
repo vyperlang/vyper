@@ -70,10 +70,10 @@ class Stmt:
         # AnnAssign always has a value in Vyper (semantic analysis ensures this)
         assert node.value is not None
 
-        if self.ctx.is_unbounded_bytestring_type(ltyp):
+        if self.ctx.is_unbounded_sequence_type(ltyp):
             rhs = Expr(node.value, self.ctx).lower()
             var = self.ctx.new_pointer_cell_variable(varname, ltyp)
-            self._assign_unbounded_bytestring_local(var, rhs, ltyp)
+            self._assign_unbounded_sequence_local(var, rhs, ltyp)
             return
 
         # Allocate memory for the new variable
@@ -111,7 +111,7 @@ class Stmt:
             var = self.ctx.lookup(target.id)
             if var.is_pointer_cell:
                 src = Expr(node.value, self.ctx).lower()
-                self._assign_unbounded_bytestring_local(var, src, target_typ)
+                self._assign_unbounded_sequence_local(var, src, target_typ)
                 return
 
         # Special case: empty Bytestring assignment — just zero the length word.
@@ -127,12 +127,10 @@ class Stmt:
         dst_ptr = self._get_target_ptr(target)
         self._assign_value(dst_ptr, src, target_typ, src_node=node.value)
 
-    def _assign_unbounded_bytestring_local(
-        self, var: LocalVariable, src: VyperValue, typ: VyperType
-    ) -> None:
+    def _assign_unbounded_sequence_local(self, var: LocalVariable, src: VyperValue, typ: VyperType):
         assert var.is_pointer_cell
-        assert self.ctx.is_unbounded_bytestring_type(typ)
-        value = self.ctx.copy_bytestring_to_scratch(src, typ, annotation=var.name)
+        assert self.ctx.is_unbounded_sequence_type(typ)
+        value = self.ctx.copy_sequence_to_scratch(src, typ, annotation=var.name)
         self.ctx.ptr_store(var.value.ptr(), value.operand)
 
     def _assign_value(
@@ -290,12 +288,12 @@ class Stmt:
             if isinstance(target_node, vy_ast.Name) and target_node.id in self.ctx.variables:
                 var = self.ctx.lookup(target_node.id)
                 if var.is_pointer_cell:
-                    assert self.ctx.is_unbounded_bytestring_type(dst_elem_typ)
+                    assert self.ctx.is_unbounded_sequence_type(dst_elem_typ)
                     assert isinstance(val, IRVariable)
                     src_vv = self.ctx.dynamic_memory_value(
                         val, src_elem_typ, annotation=target_node.id
                     )
-                    self._assign_unbounded_bytestring_local(var, src_vv, dst_elem_typ)
+                    self._assign_unbounded_sequence_local(var, src_vv, dst_elem_typ)
                     continue
 
             target_ptr = self._get_target_ptr(target_node)
@@ -535,6 +533,9 @@ class Stmt:
         if isinstance(dst_typ, _BytestringT) and isinstance(src_typ, _BytestringT):
             return dst_typ.compare_type(src_typ)
 
+        if isinstance(dst_typ, DArrayT) and isinstance(src_typ, DArrayT):
+            return dst_typ.compare_type(src_typ)
+
         if isinstance(dst_typ, TupleT) and isinstance(src_typ, TupleT):
             dst_member_types = dst_typ.member_types
             src_member_types = src_typ.member_types
@@ -551,15 +552,15 @@ class Stmt:
 
         return False
 
-    def _type_has_unbounded_bytestring(self, typ: VyperType) -> bool:
-        if self.ctx.is_unbounded_bytestring_type(typ):
+    def _type_has_unbounded_sequence(self, typ: VyperType) -> bool:
+        if self.ctx.is_unbounded_sequence_type(typ):
             return True
 
         if isinstance(typ, TupleT):
             member_types = typ.member_types
             if isinstance(member_types, dict):
                 member_types = tuple(member_types.values())
-            return any(self._type_has_unbounded_bytestring(member_t) for member_t in member_types)
+            return any(self._type_has_unbounded_sequence(member_t) for member_t in member_types)
 
         return False
 
@@ -978,7 +979,7 @@ class Stmt:
         if dynamic_returns_count > 0:
             assert returns_count == 0
             assert isinstance(ret_val, IRVariable)
-            size = self.ctx.bytestring_runtime_size(ret_val)
+            size = self.ctx.sequence_runtime_size(ret_val, ret_typ)
             self.builder.dret(IRLiteral(dynamic_returns_count), ret_val, size, return_pc)
 
         elif returns_count > 0:
@@ -1028,7 +1029,7 @@ class Stmt:
 
         can_encode_from_src = (
             ret_src_typ is not None
-            and not self._type_has_unbounded_bytestring(ret_src_typ)
+            and not self._type_has_unbounded_sequence(ret_src_typ)
             and self._can_encode_from_source_return_layout(ret_typ, ret_src_typ)
         )
 
@@ -1083,6 +1084,16 @@ class Stmt:
             assert isinstance(ret_val, IRVariable)
             length = self.builder.mload(ret_val)
             tail_len = self.ctx.bytestring_runtime_size_from_length(length)
+            encoded_size = self.builder.add(IRLiteral(32), tail_len)
+            buf_ptr = self.ctx.allocate_scratch(encoded_size)
+            encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, external_return_type)
+            self.builder.return_(buf_ptr, encoded_len)
+            return
+
+        if self.ctx.is_unbounded_dynarray_type(ret_typ):
+            assert isinstance(ret_typ, DArrayT)
+            assert isinstance(ret_val, IRVariable)
+            tail_len = self.ctx.dynarray_runtime_abi_size(ret_val, ret_typ)
             encoded_size = self.builder.add(IRLiteral(32), tail_len)
             buf_ptr = self.ctx.allocate_scratch(encoded_size)
             encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, external_return_type)

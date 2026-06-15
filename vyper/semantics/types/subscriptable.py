@@ -142,7 +142,7 @@ class _SequenceT(_SubscriptableT):
         if isinstance(node, vy_ast.Int):
             if node.value < 0:
                 raise ArrayIndexException("Vyper does not support negative indexing", node)
-            if node.value >= self.length:
+            if is_bounded_length(self.length) and node.value >= self.length:
                 raise ArrayIndexException("Index out of range", node)
 
         validate_expected_type(node, IntegerT.any())

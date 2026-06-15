@@ -370,12 +370,19 @@ def foo(x: Bytes[INF]) -> Bytes[INF]:
     _compile_inf_bytestring_code(code, experimental_codegen)
 
 
-@pytest.mark.xfail(raises=CodegenPanic)
-def test_dynarray_inf_pure():
+def _compile_inf_dynarray_code(code, experimental_codegen):
+    if experimental_codegen:
+        compiler.compile_code(code)
+    else:
+        with pytest.raises(CodegenPanic):
+            compiler.compile_code(code)
+
+
+def test_dynarray_inf_pure(experimental_codegen):
     code = """
 @pure
 @external
 def foo(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     return x
     """
-    compiler.compile_code(code)
+    _compile_inf_dynarray_code(code, experimental_codegen)

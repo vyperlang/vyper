@@ -225,7 +225,12 @@ class Expr:
         num_elements = len(node.elements)
 
         # Allocate memory for the array
-        val = self.ctx.new_temporary_value(typ)
+        if isinstance(typ, DArrayT) and self.ctx.is_unbounded_dynarray_type(typ):
+            size = IRLiteral(32 + num_elements * elem_size)
+            ptr = self.ctx.allocate_scratch(size)
+            val = self.ctx.dynamic_memory_value(ptr, typ, annotation="list")
+        else:
+            val = self.ctx.new_temporary_value(typ)
         assert isinstance(val.operand, IRVariable)
 
         # DArrayT has a length word at offset 0
@@ -1076,7 +1081,7 @@ class Expr:
         if location == DataLocation.MEMORY:
             # Buffer requires IRVariable; memory pointers from arithmetic ops are always IRVariables
             assert isinstance(operand, IRVariable)
-            size = None if self.ctx.is_unbounded_bytestring_type(typ) else typ.memory_bytes_required
+            size = None if self.ctx.is_unbounded_sequence_type(typ) else typ.memory_bytes_required
             buf = Buffer(_ptr=operand, size=size, annotation="computed_ptr")
             ptr = Ptr(operand=operand, location=location, buf=buf)
         else:
@@ -1392,8 +1397,8 @@ class Expr:
             else:
                 # Memory-passed arg: allocate buffer, copy value, pass pointer.
                 # Backend passes can forward safe readonly arguments.
-                if self.ctx.is_unbounded_bytestring_type(arg_t.typ):
-                    buf_val = self.ctx.copy_bytestring_to_scratch(
+                if self.ctx.is_unbounded_sequence_type(arg_t.typ):
+                    buf_val = self.ctx.copy_sequence_to_scratch(
                         arg_val, arg_t.typ, annotation=arg_t.name
                     )
                 else:
@@ -1716,6 +1721,10 @@ class Expr:
                     default_return_value = VyperValue.from_stack_op(
                         self.ctx.unwrap(default_vv), default_vv.typ
                     )
+                elif self.ctx.is_unbounded_sequence_type(default_vv.typ):
+                    default_return_value = self.ctx.copy_sequence_to_scratch(
+                        default_vv, default_vv.typ, annotation="external call default_return_value"
+                    )
                 else:
                     default_return_value = self.ctx.materialize_value(
                         default_vv, annotation="external call default_return_value"
@@ -1734,7 +1743,7 @@ class Expr:
         )
 
     def _external_call_args_need_runtime_encoding(self, arg_vals: list[VyperValue]) -> bool:
-        return any(self.ctx.is_unbounded_bytestring_type(arg_vv.typ) for arg_vv in arg_vals)
+        return any(self.ctx.is_unbounded_sequence_type(arg_vv.typ) for arg_vv in arg_vals)
 
     def _external_call_args_alloc_size(
         self, arg_vals: list[VyperValue], args_tuple_t: TupleT
@@ -1752,6 +1761,10 @@ class Expr:
                 arg_ptr = self.ctx.unwrap(arg_vv)
                 assert isinstance(arg_ptr, IRVariable)
                 child_size = self.ctx.bytestring_runtime_size(arg_ptr)
+            elif isinstance(arg_typ, DArrayT) and self.ctx.is_unbounded_dynarray_type(arg_typ):
+                arg_ptr = self.ctx.unwrap(arg_vv)
+                assert isinstance(arg_ptr, IRVariable)
+                child_size = self.ctx.dynarray_runtime_abi_size(arg_ptr, arg_typ)
             else:
                 child_size = IRLiteral(arg_typ.abi_type.size_bound())
 
@@ -1812,7 +1825,7 @@ class Expr:
 
         # get un-wildcard-ed return type
         return_t = call_node._metadata["call_return_type"]
-        has_unbounded_return = self.ctx.is_unbounded_bytestring_type(return_t)
+        has_unbounded_return = self.ctx.is_unbounded_sequence_type(return_t)
 
         # Evaluate contract address (the interface value)
         contract_address = Expr(call_node.func.value, self.ctx).lower_value()
@@ -2049,7 +2062,7 @@ class Expr:
     def _copy_and_decode_unbounded_external_call_return(
         self, return_t: VyperType, returndata_size: IROperand
     ) -> VyperValue:
-        assert self.ctx.is_unbounded_bytestring_type(return_t)
+        assert self.ctx.is_unbounded_sequence_type(return_t)
         b = self.builder
 
         ok = b.iszero(b.lt(returndata_size, IRLiteral(32)))
@@ -2079,7 +2092,15 @@ class Expr:
         b.assert_(length_word_in_bounds)
 
         length = b.mload(src)
-        size = self.ctx.bytestring_runtime_size_from_length(length)
+        if self.ctx.is_unbounded_bytestring_type(return_t):
+            size = self.ctx.bytestring_runtime_size_from_length(length)
+        else:
+            assert isinstance(return_t, DArrayT)
+            if return_t.value_type.abi_type.is_dynamic():
+                raise CodegenPanic(
+                    "DynArray[*, INF] external returns need ABI-static element types"
+                )
+            size = self.ctx.dynarray_runtime_size_from_length(length, return_t)
 
         src_end = b.add(src, size)
         no_src_end_wrap = b.iszero(b.lt(src_end, src))
@@ -2088,7 +2109,11 @@ class Expr:
         b.assert_(src_in_bounds)
 
         dst = self.ctx.allocate_scratch(size)
-        self.ctx.copy_memory_dynamic(dst, src, size)
+        if self.ctx.is_unbounded_bytestring_type(return_t):
+            self.ctx.copy_memory_dynamic(dst, src, size)
+        else:
+            src_vv = self._make_ptr_value(src, DataLocation.MEMORY, return_t)
+            abi_decode_to_buf(self.ctx, dst, src_vv, hi=hi)
         return self.ctx.dynamic_memory_value(dst, return_t, annotation="external call return")
 
     def _unpack_unbounded_external_call_return(
@@ -2112,7 +2137,7 @@ class Expr:
 
         default_vv = call_kwargs.default_return_value
         assert default_vv is not None
-        default_value = self.ctx.copy_bytestring_to_scratch(
+        default_value = self.ctx.copy_sequence_to_scratch(
             default_vv, return_t, annotation="external call default_return_value"
         )
         b.mstore(ret_cell._ptr, default_value.operand)

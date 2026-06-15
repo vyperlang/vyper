@@ -42,6 +42,30 @@ def foo() -> Bytes[5]:
     assert "dalloca" not in opcodes
 
 
+def test_inf_dynarray_local_emits_dalloca():
+    code = """
+@external
+def foo() -> DynArray[uint256, INF]:
+    x: DynArray[uint256, INF] = [1, 2, 3]
+    return x
+    """
+
+    opcodes = _opcodes(_compile_frontend_ir(code))
+    assert "dalloca" in opcodes
+
+
+def test_bounded_dynarray_local_stays_static_alloca():
+    code = """
+@external
+def foo() -> DynArray[uint256, 3]:
+    x: DynArray[uint256, 3] = [1, 2, 3]
+    return x
+    """
+
+    opcodes = _opcodes(_compile_frontend_ir(code))
+    assert "dalloca" not in opcodes
+
+
 def test_inf_bytes_external_return_emits_dalloca():
     code = """
 @external
@@ -74,6 +98,23 @@ def _bar() -> Bytes[INF]:
 
 @external
 def foo() -> Bytes[INF]:
+    return self._bar()
+    """
+
+    opcodes = _opcodes(_compile_frontend_ir(code))
+    assert "dret" in opcodes
+    assert "invoke" in opcodes
+
+
+def test_inf_dynarray_internal_return_emits_dret():
+    code = """
+@internal
+def _bar() -> DynArray[uint256, INF]:
+    x: DynArray[uint256, INF] = [1, 2, 3]
+    return x
+
+@external
+def foo() -> DynArray[uint256, INF]:
     return self._bar()
     """
 

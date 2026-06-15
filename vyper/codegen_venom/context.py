@@ -37,6 +37,8 @@ from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 
 from .calling_convention import is_unbounded_bytestring_type as _is_unbounded_bytestring_type
+from .calling_convention import is_unbounded_dynarray_type as _is_unbounded_dynarray_type
+from .calling_convention import is_unbounded_sequence_type as _is_unbounded_sequence_type
 
 
 class Constancy(Enum):
@@ -102,6 +104,14 @@ class VenomCodegenContext:
     @staticmethod
     def is_unbounded_bytestring_type(typ: VyperType) -> bool:
         return _is_unbounded_bytestring_type(typ)
+
+    @staticmethod
+    def is_unbounded_dynarray_type(typ: VyperType) -> bool:
+        return _is_unbounded_dynarray_type(typ)
+
+    @staticmethod
+    def is_unbounded_sequence_type(typ: VyperType) -> bool:
+        return _is_unbounded_sequence_type(typ)
 
     def new_variable(self, name: str, typ: VyperType, mutable: bool = True) -> LocalVariable:
         """Allocate memory for a named variable, register it, return the variable."""
@@ -234,6 +244,33 @@ class VenomCodegenContext:
         length = self.builder.mload(ptr)
         return self.bytestring_runtime_size_from_length(length)
 
+    def dynarray_runtime_size_from_length(self, length: IROperand, typ: DArrayT) -> IROperand:
+        """Return runtime memory size for a DynArray with `length` elements."""
+        elem_size = typ.value_type.memory_bytes_required
+        data_size = self.builder.mul(length, IRLiteral(elem_size))
+        return self.builder.add(IRLiteral(32), data_size)
+
+    def dynarray_runtime_size(self, ptr: IRVariable, typ: DArrayT) -> IROperand:
+        """Return runtime memory size for a DynArray: 32 + len * elem_size."""
+        length = self.builder.mload(ptr)
+        return self.dynarray_runtime_size_from_length(length, typ)
+
+    def dynarray_runtime_abi_size(self, ptr: IRVariable, typ: DArrayT) -> IROperand:
+        """Return runtime ABI size for an unbounded DynArray with static ABI elements."""
+        if typ.value_type.abi_type.is_dynamic():
+            raise CodegenPanic("DynArray[*, INF] ABI encoding needs ABI-static element types")
+        length = self.builder.mload(ptr)
+        elem_size = typ.value_type.abi_type.embedded_static_size()
+        return self.builder.add(IRLiteral(32), self.builder.mul(length, IRLiteral(elem_size)))
+
+    def sequence_runtime_size(self, ptr: IRVariable, typ: VyperType) -> IROperand:
+        """Return runtime memory size for an unbounded sequence."""
+        if self.is_unbounded_bytestring_type(typ):
+            return self.bytestring_runtime_size(ptr)
+        if isinstance(typ, DArrayT) and self.is_unbounded_dynarray_type(typ):
+            return self.dynarray_runtime_size(ptr, typ)
+        raise CompilerPanic(f"expected unbounded sequence type, got {typ}")  # pragma: nocover
+
     def zero_bytestring_padding(self, ptr: IRVariable, length: IROperand) -> None:
         """Zero the last data word so bytestring padding is clean after a byte copy."""
         last_word = self.builder.add(ptr, self.ceil32(length))
@@ -299,6 +336,27 @@ class VenomCodegenContext:
         dst = self.allocate_scratch(size)
         self.copy_memory_dynamic(dst, src, size)
         return self.dynamic_memory_value(dst, typ, annotation=annotation)
+
+    def copy_dynarray_to_scratch(
+        self, vv: VyperValue, typ: DArrayT, annotation: Optional[str] = None
+    ) -> VyperValue:
+        """Copy a DynArray value into exact-sized runtime scratch memory."""
+        src = self.unwrap(vv)
+        assert isinstance(src, IRVariable)
+        size = self.dynarray_runtime_size(src, typ)
+        dst = self.allocate_scratch(size)
+        self.copy_memory_dynamic(dst, src, size)
+        return self.dynamic_memory_value(dst, typ, annotation=annotation)
+
+    def copy_sequence_to_scratch(
+        self, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None
+    ) -> VyperValue:
+        """Copy an unbounded sequence value into exact-sized runtime scratch memory."""
+        if self.is_unbounded_bytestring_type(typ):
+            return self.copy_bytestring_to_scratch(vv, typ, annotation=annotation)
+        if isinstance(typ, DArrayT) and self.is_unbounded_dynarray_type(typ):
+            return self.copy_dynarray_to_scratch(vv, typ, annotation=annotation)
+        raise CompilerPanic(f"expected unbounded sequence type, got {typ}")  # pragma: nocover
 
     def materialize_value(
         self, vv: VyperValue, typ: Optional[VyperType] = None, annotation: Optional[str] = None

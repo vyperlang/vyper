@@ -120,14 +120,21 @@ def test_dynarray_pass(good_code):
     assert compile_code(good_code) is not None
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
-def test_dynarray_inf_param():
+def _compile_inf_dynarray_code(code, experimental_codegen):
+    if experimental_codegen:
+        compile_code(code)
+    else:
+        with pytest.raises(CodegenPanic):
+            compile_code(code)
+
+
+def test_dynarray_inf_param(experimental_codegen):
     code = """
 @external
 def foo(x: DynArray[uint256, INF]):
     pass
     """
-    compile_code(code)
+    _compile_inf_dynarray_code(code, experimental_codegen)
 
 
 @pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
@@ -142,15 +149,14 @@ def foo() -> DynArray[uint256, INF]:
     compile_code(code)
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
-def test_dynarray_inf_local_var():
+def test_dynarray_inf_local_var(experimental_codegen):
     code = """
 @external
 def foo():
     a: DynArray[uint256, INF] = []
     b: DynArray[uint256, INF] = [1, 2, 3, 4, 5, max_value(uint256)]
     """
-    compile_code(code)
+    _compile_inf_dynarray_code(code, experimental_codegen)
 
 
 @pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
@@ -181,12 +187,11 @@ def foo():
     compile_code(code)
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
-def test_dynarray_inf_assign_bounded_to_unbounded():
+def test_dynarray_inf_assign_bounded_to_unbounded(experimental_codegen):
     code = """
 @external
 def foo():
     a: DynArray[uint256, 5] = [1, 2, 3]
     b: DynArray[uint256, INF] = a
     """
-    compile_code(code)
+    _compile_inf_dynarray_code(code, experimental_codegen)

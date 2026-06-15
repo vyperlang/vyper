@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 
 from vyper.codegen.core import is_tuple_like
 from vyper.codegen_venom.buffer import Buffer, Ptr
+from vyper.codegen_venom.calling_convention import is_unbounded_sequence_type
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.data_locations import DataLocation
@@ -35,6 +36,7 @@ from vyper.semantics.types import (
     VyperType,
     _BytestringT,
 )
+from vyper.semantics.types.infinity import is_bounded_length
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -187,7 +189,8 @@ def clamp_dyn_array(
     count = b.load(src.operand, src.location)  # Count word at start
 
     # Check count <= max_count
-    b.assert_(b.iszero(b.gt(count, IRLiteral(typ.count))))
+    if is_bounded_length(typ.count):
+        b.assert_(b.iszero(b.gt(count, IRLiteral(typ.count))))
 
     if hi is not None:
         # Check payload_end <= hi
@@ -236,7 +239,8 @@ def _getelemptr_abi(
 def _make_ptr_value(operand, location: DataLocation, typ) -> VyperValue:
     """Create a VyperValue with Ptr for a computed pointer."""
     if location == DataLocation.MEMORY:
-        buf = Buffer(_ptr=operand, size=typ.memory_bytes_required, annotation="abi_decoder")
+        size = None if is_unbounded_sequence_type(typ) else typ.memory_bytes_required
+        buf = Buffer(_ptr=operand, size=size, annotation="abi_decoder")
         ptr = Ptr(operand=operand, location=location, buf=buf)
     else:
         ptr = Ptr(operand=operand, location=location)
