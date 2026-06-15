@@ -152,3 +152,21 @@ def foo(a: bytes4, b: bytes4[{len(right)}]) -> bool:
     new_node = old_node.get_folded_value()
 
     assert contract.foo(left, right) == new_node.value
+
+
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        ("[0xA1AAB33F] in [[0xa1aab33f]]", True),
+        ("[[0xA1AAB33F]] in [[[0xa1aab33f]]]", True),
+        ("[0xA1AAB33F] not in [[0x12345678]]", True),
+        ("[0xA1AAB33F] == [0xa1aab33f]", True),
+        ("[[0xA1AAB33F]] != [[0xa1aab33f]]", False),
+    ],
+)
+def test_compare_recursive_bytes_case(source, expected):
+    vyper_ast = parse_and_fold(source)
+    old_node = vyper_ast.body[0].value
+    new_node = old_node.get_folded_value()
+
+    assert new_node.value is expected
