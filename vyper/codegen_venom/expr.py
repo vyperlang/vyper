@@ -1733,6 +1733,60 @@ class Expr:
             default_return_value=default_return_value,
         )
 
+    def _external_call_args_need_runtime_encoding(self, arg_vals: list[VyperValue]) -> bool:
+        return any(self.ctx.is_unbounded_bytestring_type(arg_vv.typ) for arg_vv in arg_vals)
+
+    def _external_call_args_alloc_size(
+        self, arg_vals: list[VyperValue], args_tuple_t: TupleT
+    ) -> IROperand:
+        """Return an allocation size for ABI-encoded external call args."""
+        b = self.builder
+        size: IROperand = IRLiteral(args_tuple_t.abi_type.static_size())
+
+        for arg_vv in arg_vals:
+            arg_typ = arg_vv.typ
+            if not arg_typ.abi_type.is_dynamic():
+                continue
+
+            if self.ctx.is_unbounded_bytestring_type(arg_typ):
+                arg_ptr = self.ctx.unwrap(arg_vv)
+                assert isinstance(arg_ptr, IRVariable)
+                child_size = self.ctx.bytestring_runtime_size(arg_ptr)
+            else:
+                child_size = IRLiteral(arg_typ.abi_type.size_bound())
+
+            size = b.add(size, child_size)
+
+        return size
+
+    def _abi_encode_external_call_args(
+        self, dst: IRVariable, arg_vals: list[VyperValue], args_tuple_t: TupleT
+    ) -> IROperand:
+        """ABI-encode external call args directly from lowered values."""
+        b = self.builder
+        dyn_ofst_val = self.ctx.new_temporary_value(UINT256_T)
+        self.ctx.ptr_store(dyn_ofst_val.ptr(), IRLiteral(args_tuple_t.abi_type.static_size()))
+
+        static_ofst = 0
+        for arg_vv in arg_vals:
+            arg_typ = arg_vv.typ
+            static_loc = b.add(dst, IRLiteral(static_ofst))
+
+            if arg_typ.abi_type.is_dynamic():
+                dyn_ofst = self.ctx.ptr_load(dyn_ofst_val.ptr())
+                child_dst = b.add(dst, dyn_ofst)
+                child_src = self.ctx.unwrap(arg_vv)
+                assert isinstance(child_src, IRVariable)
+                child_len = abi_encode_to_buf(self.ctx, child_dst, child_src, arg_typ)
+                b.mstore(static_loc, dyn_ofst)
+                self.ctx.ptr_store(dyn_ofst_val.ptr(), b.add(dyn_ofst, child_len))
+            else:
+                self.ctx.store_vyper_value(arg_vv, static_loc, arg_typ)
+
+            static_ofst += arg_typ.abi_type.embedded_static_size()
+
+        return self.ctx.ptr_load(dyn_ofst_val.ptr())
+
     def _lower_external_call(self) -> VyperValue:
         """Lower external call (extcall/staticcall).
 
@@ -1775,8 +1829,13 @@ class Expr:
         # Use concrete types from the lowered argument values, not the interface's
         # declared parameter types (which may be WILDCARD for JSON ABI interfaces).
         args_tuple_t = TupleT(tuple(v.typ for v in arg_vals))
-        args_abi_t = args_tuple_t.abi_type
-        args_abi_size = args_abi_t.size_bound()
+        dynamic_args = self._external_call_args_need_runtime_encoding(arg_vals)
+        if dynamic_args:
+            args_alloc_size = self._external_call_args_alloc_size(arg_vals, args_tuple_t)
+        else:
+            args_abi_t = args_tuple_t.abi_type
+            args_abi_size = args_abi_t.size_bound()
+            args_alloc_size = IRLiteral(args_abi_size)
 
         if return_t is not None:
             if has_unbounded_return:
@@ -1788,39 +1847,56 @@ class Expr:
             return_abi_size = 0
 
         # Buffer size: max(args, return) + 32 for method ID padding
-        buf_size = max(args_abi_size, return_abi_size) + 32
-
-        # Allocate buffer
-        buf = self.ctx.allocate_buffer(buf_size, annotation="external_call_buf")
+        if dynamic_args:
+            buf_payload_size = args_alloc_size
+            if return_abi_size > 0:
+                buf_payload_size = b.select(
+                    b.lt(args_alloc_size, IRLiteral(return_abi_size)),
+                    IRLiteral(return_abi_size),
+                    args_alloc_size,
+                )
+            buf_ptr = self.ctx.allocate_scratch(b.add(buf_payload_size, IRLiteral(32)))
+        else:
+            buf_size = max(args_abi_size, return_abi_size) + 32
+            buf = self.ctx.allocate_buffer(buf_size, annotation="external_call_buf")
+            buf_ptr = buf._ptr
 
         # === Pack Arguments ===
         # Store method ID at buf (right-aligned in 32-byte word, so selector at buf+28)
         # Method ID = first 4 bytes of keccak256(signature)
         abi_signature = fn_type.name + args_tuple_t.abi_type.selector_name()
         method_id = util.method_id_int(abi_signature)
-        self.ctx.ptr_store(buf.base_ptr(), IRLiteral(method_id))
+        b.mstore(buf_ptr, IRLiteral(method_id))
 
         # ABI-encode arguments starting at buf+32
         if len(arg_vals) > 0:
-            # Create temp buffer for args in memory
-            args_val = self.ctx.new_temporary_value(args_tuple_t)
-            assert isinstance(args_val.operand, IRVariable)
+            encode_dst = b.add(buf_ptr, IRLiteral(32))
+            if dynamic_args:
+                args_abi_len = self._abi_encode_external_call_args(
+                    encode_dst, arg_vals, args_tuple_t
+                )
+            else:
+                # Create temp buffer for args in memory
+                args_val = self.ctx.new_temporary_value(args_tuple_t)
+                assert isinstance(args_val.operand, IRVariable)
 
-            # Store each arg at its position in args_buf
-            offset = 0
-            for arg_vv in arg_vals:
-                arg_typ = arg_vv.typ
-                dst = b.add(args_val.operand, IRLiteral(offset))
-                self.ctx.store_vyper_value(arg_vv, dst, arg_typ)
-                offset += arg_typ.memory_bytes_required
+                # Store each arg at its position in args_buf
+                offset = 0
+                for arg_vv in arg_vals:
+                    arg_typ = arg_vv.typ
+                    dst = b.add(args_val.operand, IRLiteral(offset))
+                    self.ctx.store_vyper_value(arg_vv, dst, arg_typ)
+                    offset += arg_typ.memory_bytes_required
 
-            # ABI-encode from args_buf to buf+32
-            encode_dst = b.add(buf._ptr, IRLiteral(32))
-            abi_encode_to_buf(self.ctx, encode_dst, args_val.operand, args_tuple_t)
+                # ABI-encode from args_buf to buf+32
+                abi_encode_to_buf(self.ctx, encode_dst, args_val.operand, args_tuple_t)
+                args_abi_len = IRLiteral(args_abi_size)
+        else:
+            args_abi_len = IRLiteral(0)
 
-        # Call starts at buf+28, length = 4 + args_abi_size
-        args_ofst = b.add(buf._ptr, IRLiteral(28))
-        args_len = IRLiteral(4 + args_abi_size)
+        # Call starts at buf+28, length = 4-byte selector + ABI args payload.
+        args_ofst = b.add(buf_ptr, IRLiteral(28))
+        args_len = b.add(args_abi_len, IRLiteral(4))
 
         # === Contract Existence Check ===
         # If function returns nothing and skip_contract_check is False,
@@ -1833,7 +1909,7 @@ class Expr:
         use_staticcall = fn_type.mutability in (StateMutability.VIEW, StateMutability.PURE)
 
         # Return buffer location and size
-        ret_ofst = buf._ptr
+        ret_ofst = buf_ptr
         ret_len = IRLiteral(return_abi_size) if return_abi_size > 0 else IRLiteral(0)
 
         if use_staticcall:
@@ -1924,7 +2000,7 @@ class Expr:
             b.assert_(ok)
 
             # No returndatacopy needed: staticcall/call already wrote
-            # min(returndatasize, ret_len) bytes to buf._ptr, and
+            # min(returndatasize, ret_len) bytes to buf_ptr, and
             # payload_bound caps reads at ret_len (== size_bound()).
 
             # Compute hi bound for decode (prevents overread)
@@ -1933,8 +2009,8 @@ class Expr:
             payload_bound = b.select(
                 b.lt(rds, IRLiteral(max_return_size)), rds, IRLiteral(max_return_size)
             )
-            hi = b.add(buf._ptr, payload_bound)
-            src = self._make_ptr_value(buf._ptr, DataLocation.MEMORY, wrapped_return_t)
+            hi = b.add(buf_ptr, payload_bound)
+            src = self._make_ptr_value(buf_ptr, DataLocation.MEMORY, wrapped_return_t)
             abi_decode_to_buf(self.ctx, result_val.operand, src, hi=hi)
 
             b.jmp(exit_bb.label)
@@ -1951,7 +2027,7 @@ class Expr:
             b.assert_(ok)
 
             # No returndatacopy needed: staticcall/call already wrote
-            # min(returndatasize, ret_len) bytes to buf._ptr, and
+            # min(returndatasize, ret_len) bytes to buf_ptr, and
             # payload_bound caps reads at ret_len (== size_bound()).
 
             # Compute hi bound for decode (prevents overread)
@@ -1960,8 +2036,8 @@ class Expr:
             payload_bound = b.select(
                 b.lt(rds, IRLiteral(max_return_size)), rds, IRLiteral(max_return_size)
             )
-            hi = b.add(buf._ptr, payload_bound)
-            src = self._make_ptr_value(buf._ptr, DataLocation.MEMORY, wrapped_return_t)
+            hi = b.add(buf_ptr, payload_bound)
+            src = self._make_ptr_value(buf_ptr, DataLocation.MEMORY, wrapped_return_t)
             abi_decode_to_buf(self.ctx, result_val.operand, src, hi=hi)
 
         # Return as location in memory with unwrapped type
