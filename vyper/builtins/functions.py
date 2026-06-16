@@ -1332,15 +1332,15 @@ class Shift(BuiltinFunctionT):
             # have been validated anyway
             raise InvalidLiteral("Shift must be between -256 and 256", node.args[1])
 
+        is_signed_shift = value < 0
         if shift < 0:
             value = value >> -shift
         else:
-            if value < 0:
-                # the unsigned wrap below would produce a constant which is
-                # out of bounds for the (signed) input type. defer to runtime
-                # evaluation, which handles signed values correctly.
-                raise UnfoldableNode("not foldable for negative values", node.args[0])
             value = (value << shift) % (2**256)
+            if is_signed_shift and value > SizeLimits.MAX_INT256:
+                # Runtime SHL works on the 256-bit word and the signed return
+                # type interprets that word as two's complement.
+                value -= 2**256
         return vy_ast.Int.from_node(node, value=value)
 
     def fetch_call_return(self, node):
