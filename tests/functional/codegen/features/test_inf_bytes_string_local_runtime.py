@@ -1065,6 +1065,31 @@ def echo(x: Bytes[INF]) -> (bool, Bytes[INF]):
     assert abi_decode("(bool,bytes)", ret) == (True, payload)
 
 
+def test_inf_bytes_raw_return(env):
+    payload = bytes((i * 61) % 256 for i in range(2001))
+    code = """
+@external
+@raw_return
+def echo(x: Bytes[INF]) -> Bytes[INF]:
+    return x
+
+@external
+@raw_return
+def literal() -> Bytes[INF]:
+    return b"literal"
+
+@external
+@raw_return
+def empty() -> Bytes[INF]:
+    return b""
+    """
+
+    c = _deploy_venom(env, code)
+    assert _call(env, c, "echo(bytes)", "(bytes)", (payload,)) == payload
+    assert _call(env, c, "literal()") == b"literal"
+    assert _call(env, c, "empty()") == b""
+
+
 def test_inf_bytes_tuple_literal_return(env):
     payload = bytes((i * 73) % 256 for i in range(2001))
     code = """

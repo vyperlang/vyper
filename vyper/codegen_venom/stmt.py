@@ -1213,6 +1213,13 @@ class Stmt:
         # Raw return: return bytes directly without ABI encoding
         # The @raw_return decorator bypasses ABI encoding for proxy patterns
         if func_t.do_raw_return:
+            if self.ctx.is_unbounded_bytestring_type(ret_typ):
+                assert isinstance(ret_val, IRVariable)
+                return_len = self.builder.mload(ret_val)
+                return_offset = self.builder.add(ret_val, IRLiteral(32))
+                self.builder.return_(return_offset, return_len)
+                return
+
             # ret_val is a pointer to [length (32 bytes)][data...]
             # Copy to a fresh buffer to ensure it's in memory
             buf_val = self.ctx.new_temporary_value(ret_typ)
