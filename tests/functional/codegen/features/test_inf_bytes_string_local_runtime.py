@@ -3,7 +3,7 @@ import json
 from tests.evm_backends.abi import abi_decode, abi_encode
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings, VenomOptimizationFlags
-from vyper.utils import method_id
+from vyper.utils import EIP_3860_LIMIT, method_id
 
 
 def _venom_settings(*, disable_inlining=False):
@@ -701,7 +701,7 @@ def get(addr: address) -> Bytes[INF]:
             _call(env, caller, "get(address)", "address", target.address)
 
 
-def test_inf_bytes_abi_decode_rejects_truncated_padding(env, tx_failed):
+def test_inf_bytes_abi_decode_allows_missing_padding(env, tx_failed):
     code = """
 @external
 def dec(x: Bytes[INF]) -> Bytes[INF]:
@@ -713,8 +713,11 @@ def dec(x: Bytes[INF]) -> Bytes[INF]:
     def word(value):
         return value.to_bytes(32, "big")
 
+    ret = _call(env, c, "dec(bytes)", "(bytes)", (word(31) + b"\x01" * 31,))
+    assert abi_decode("(bytes)", ret) == (b"\x01" * 31,)
+
     with tx_failed():
-        _call(env, c, "dec(bytes)", "(bytes)", (word(31) + b"\x01" * 31,))
+        _call(env, c, "dec(bytes)", "(bytes)", (word(31) + b"\x01" * 30,))
 
 
 def test_inf_bytes_extcall_return_roundtrip(env):
@@ -1265,6 +1268,19 @@ def deploy(s: Bytes[INF]) -> address:
     assert env.get_code(addr) == runtime
 
 
+def test_inf_bytes_raw_create_oversized_initcode_no_revert(env):
+    deployer_code = """
+@external
+def deploy(s: Bytes[INF]) -> address:
+    return raw_create(s, revert_on_failure=False)
+    """
+
+    deployer = _deploy_venom(env, deployer_code)
+    initcode = b"\x00" * (EIP_3860_LIMIT + 1)
+    ret = _call(env, deployer, "deploy(bytes)", "(bytes)", (initcode,))
+    assert abi_decode("(address)", ret) == ("0x0000000000000000000000000000000000000000",)
+
+
 def test_inf_bytes_raw_create_bytecode_local_with_ctor_arg(env):
     to_deploy_code = """
 foo: public(uint256)
@@ -1419,6 +1435,22 @@ def length(x: Bytes[INF]) -> uint256:
 
     calldata = method_id("length(bytes)") + word(0)
     assert abi_decode("(uint256)", env.message_call(c.address, data=calldata)) == (0,)
+
+
+def test_inf_bytes_external_param_allows_missing_padding(env):
+    code = """
+@external
+def length(x: Bytes[INF]) -> uint256:
+    return len(x)
+    """
+
+    c = _deploy_venom(env, code)
+
+    def word(value):
+        return value.to_bytes(32, "big")
+
+    calldata = method_id("length(bytes)") + word(32) + word(3) + b"cat"
+    assert abi_decode("(uint256)", env.message_call(c.address, data=calldata)) == (3,)
 
 
 def test_inf_bytes_internal_arg_roundtrip(env):

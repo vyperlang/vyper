@@ -2198,12 +2198,11 @@ class Expr:
             elem_static_size = return_t.value_type.abi_type.embedded_static_size()
             self.ctx.assert_abi_dynarray_payload_in_bounds(src, length, elem_static_size, hi)
             size = self.ctx.dynarray_runtime_size_from_length(length, return_t)
-
-        src_end = b.add(src, size)
-        no_src_end_wrap = b.iszero(b.lt(src_end, src))
-        b.assert_(no_src_end_wrap)
-        src_in_bounds = b.iszero(b.gt(src_end, hi))
-        b.assert_(src_in_bounds)
+            src_end = b.add(src, size)
+            no_src_end_wrap = b.iszero(b.lt(src_end, src))
+            b.assert_(no_src_end_wrap)
+            src_in_bounds = b.iszero(b.gt(src_end, hi))
+            b.assert_(src_in_bounds)
 
         dst = self.ctx.allocate_scratch(size)
         if self.ctx.is_unbounded_bytestring_type(return_t):

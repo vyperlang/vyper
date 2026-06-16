@@ -98,6 +98,52 @@ def _check_create_result(
     return addr
 
 
+def _emit_create(
+    ctx: VenomCodegenContext,
+    b,
+    value: IROperand,
+    initcode: IROperand,
+    initcode_len: IROperand,
+    salt: Optional[IROperand],
+    revert_on_failure: bool,
+) -> IROperand:
+    """Emit CREATE/CREATE2 while preserving raw_create's no-revert failure mode."""
+    in_eip_3860_limit = b.iszero(b.gt(initcode_len, IRLiteral(EIP_3860_LIMIT)))
+
+    if revert_on_failure:
+        b.assert_(in_eip_3860_limit)
+        if salt is not None:
+            addr = b.create2(value, initcode, initcode_len, salt)
+        else:
+            addr = b.create(value, initcode, initcode_len)
+        return _check_create_result(ctx, b, addr, revert_on_failure)
+
+    ret_cell = ctx.allocate_buffer(32, annotation="raw_create_result")
+    create_bb = b.create_block("raw_create")
+    oversize_bb = b.create_block("raw_create_oversize")
+    exit_bb = b.create_block("raw_create_exit")
+
+    b.jnz(in_eip_3860_limit, create_bb.label, oversize_bb.label)
+
+    b.append_block(create_bb)
+    b.set_block(create_bb)
+    if salt is not None:
+        addr = b.create2(value, initcode, initcode_len, salt)
+    else:
+        addr = b.create(value, initcode, initcode_len)
+    b.mstore(ret_cell._ptr, addr)
+    b.jmp(exit_bb.label)
+
+    b.append_block(oversize_bb)
+    b.set_block(oversize_bb)
+    b.mstore(ret_cell._ptr, IRLiteral(0))
+    b.jmp(exit_bb.label)
+
+    b.append_block(exit_bb)
+    b.set_block(exit_bb)
+    return b.mload(ret_cell._ptr)
+
+
 def _ctor_args_need_runtime_encoding(ctor_arg_types) -> bool:
     return any(type_contains_unbounded_sequence(t) for t in ctor_arg_types)
 
@@ -252,18 +298,16 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     # Get bytecode length and data pointer
     assert isinstance(bytecode, IRVariable)
     bytecode_len = b.mload(bytecode)
-    if bytecode_is_unbounded:
-        b.assert_(b.iszero(b.gt(bytecode_len, IRLiteral(EIP_3860_LIMIT))))
     bytecode_ptr = b.add(bytecode, IRLiteral(32))
 
     # If no constructor args, just create with bytecode
     if len(ctor_arg_nodes) == 0:
+        raw_salt_op: Optional[IROperand] = None
         if salt_node is not None:
-            salt = Expr(salt_node, ctx).lower_value()
-            addr = b.create2(value, bytecode_ptr, bytecode_len, salt)
-        else:
-            addr = b.create(value, bytecode_ptr, bytecode_len)
-        return _check_create_result(ctx, b, addr, revert_on_failure)
+            raw_salt_op = Expr(salt_node, ctx).lower_value()
+        return _emit_create(
+            ctx, b, value, bytecode_ptr, bytecode_len, raw_salt_op, revert_on_failure
+        )
 
     # With ctor args: need to ABI-encode and append to bytecode
     # Create tuple type for encoding
@@ -311,13 +355,10 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     total_len = ctx.checked_add(bytecode_len, args_len)
 
     # Create contract
+    ctor_salt_op: Optional[IROperand] = None
     if salt_node is not None:
-        salt = Expr(salt_node, ctx).lower_value()
-        addr = b.create2(value, buf_ptr, total_len, salt)
-    else:
-        addr = b.create(value, buf_ptr, total_len)
-
-    return _check_create_result(ctx, b, addr, revert_on_failure)
+        ctor_salt_op = Expr(salt_node, ctx).lower_value()
+    return _emit_create(ctx, b, value, buf_ptr, total_len, ctor_salt_op, revert_on_failure)
 
 
 def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:

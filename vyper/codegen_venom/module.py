@@ -1051,7 +1051,10 @@ def _get_abi_arg_ptr(
     if member_typ.abi_type.is_dynamic():
         offset_val = b.load(static_loc, loc)
         actual_ptr = b.add(parent.operand, offset_val)
-        b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
+        # Calldata is caller-controlled. Constructor CODE args intentionally
+        # keep legacy's lenient decode behavior.
+        if loc == DataLocation.CALLDATA:
+            b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
         return VyperValue.from_ptr(Ptr(operand=actual_ptr, location=loc), member_typ)
 
     return VyperValue.from_ptr(Ptr(operand=static_loc, location=loc), member_typ)
