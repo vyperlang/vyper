@@ -28,7 +28,11 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import TupleT, VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
-from vyper.semantics.types.infinity import is_bounded_length, type_contains_unbounded_sequence
+from vyper.semantics.types.infinity import (
+    is_bounded_length,
+    is_supported_unbounded_tuple_type,
+    type_contains_unbounded_sequence,
+)
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.semantics.types.user import StructT
@@ -118,7 +122,11 @@ class VenomCodegenContext:
 
     @staticmethod
     def is_dynamic_tuple_frame_type(typ: VyperType) -> bool:
-        return isinstance(typ, TupleT) and type_contains_unbounded_sequence(typ)
+        return (
+            isinstance(typ, TupleT)
+            and type_contains_unbounded_sequence(typ)
+            and is_supported_unbounded_tuple_type(typ)
+        )
 
     @staticmethod
     def dynamic_tuple_frame_size(typ: TupleT) -> int:
@@ -213,7 +221,8 @@ class VenomCodegenContext:
         primitive word value or a pointer to a runtime-sized sequence member.
         """
         assert self.is_dynamic_tuple_frame_type(typ)
-        return self.dynamic_memory_value(ptr, typ, annotation=annotation)
+        buf = Buffer(_ptr=ptr, size=self.dynamic_tuple_frame_size(typ), annotation=annotation)
+        return VyperValue.from_ptr(buf.base_ptr(), typ)
 
     def dynamic_tuple_frame_values(
         self, ptr: IRVariable, typ: TupleT, annotation: Optional[str] = None
