@@ -581,6 +581,37 @@ def get(addr: address, x: Bytes[INF]) -> Bytes[3]:
     assert abi_decode("(bytes)", ret) == (b"abc",)
 
 
+def test_inf_bytes_staticcall_inf_arg_with_bounded_dynamic_args(env):
+    code = """
+@external
+@view
+def data(prefix: Bytes[7], x: Bytes[INF], suffix: Bytes[9]) -> Bytes[INF]:
+    assert prefix == b"prelude"
+    assert suffix == b"tail"
+    return x
+    """
+
+    caller_code = """
+interface Source:
+    def data(prefix: Bytes[7], x: Bytes[INF], suffix: Bytes[9]) -> Bytes[INF]: view
+
+@external
+def get(addr: address, prefix: Bytes[7], x: Bytes[INF], suffix: Bytes[9]) -> Bytes[INF]:
+    return staticcall Source(addr).data(prefix, x, suffix)
+    """
+
+    target = _deploy_venom(env, code)
+    caller = _deploy_venom(env, caller_code)
+    ret = _call(
+        env,
+        caller,
+        "get(address,bytes,bytes,bytes)",
+        "(address,bytes,bytes,bytes)",
+        (target.address, b"prelude", b"kitten", b"tail"),
+    )
+    assert abi_decode("(bytes)", ret) == (b"kitten",)
+
+
 def test_inf_string_staticcall_return_roundtrip(env):
     target_code = """
 @external

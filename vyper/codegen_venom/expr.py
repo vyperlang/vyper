@@ -53,6 +53,7 @@ from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 
 from .abi import abi_decode_to_buf, abi_encode_to_buf
 from .buffer import Buffer, Ptr
+from .builtins.abi import _abi_encode_values_to_buf, _runtime_abi_size_for_encode
 from .calling_convention import pass_via_stack, returns_dynamic_count, returns_stack_count
 from .context import VenomCodegenContext
 from .value import VyperValue
@@ -1850,60 +1851,6 @@ class Expr:
     def _external_call_args_need_runtime_encoding(self, arg_vals: list[VyperValue]) -> bool:
         return any(self.ctx.is_unbounded_sequence_type(arg_vv.typ) for arg_vv in arg_vals)
 
-    def _external_call_args_alloc_size(
-        self, arg_vals: list[VyperValue], args_tuple_t: TupleT
-    ) -> IROperand:
-        """Return an allocation size for ABI-encoded external call args."""
-        size: IROperand = IRLiteral(args_tuple_t.abi_type.static_size())
-
-        for arg_vv in arg_vals:
-            arg_typ = arg_vv.typ
-            if not arg_typ.abi_type.is_dynamic():
-                continue
-
-            if self.ctx.is_unbounded_bytestring_type(arg_typ):
-                arg_ptr = self.ctx.unwrap(arg_vv)
-                assert isinstance(arg_ptr, IRVariable)
-                child_size = self.ctx.bytestring_runtime_size(arg_ptr)
-            elif isinstance(arg_typ, DArrayT) and self.ctx.is_unbounded_dynarray_type(arg_typ):
-                arg_ptr = self.ctx.unwrap(arg_vv)
-                assert isinstance(arg_ptr, IRVariable)
-                child_size = self.ctx.dynarray_runtime_abi_size(arg_ptr, arg_typ)
-            else:
-                child_size = IRLiteral(arg_typ.abi_type.size_bound())
-
-            size = self.ctx.checked_add(size, child_size)
-
-        return size
-
-    def _abi_encode_external_call_args(
-        self, dst: IRVariable, arg_vals: list[VyperValue], args_tuple_t: TupleT
-    ) -> IROperand:
-        """ABI-encode external call args directly from lowered values."""
-        b = self.builder
-        dyn_ofst_val = self.ctx.new_temporary_value(UINT256_T)
-        self.ctx.ptr_store(dyn_ofst_val.ptr(), IRLiteral(args_tuple_t.abi_type.static_size()))
-
-        static_ofst = 0
-        for arg_vv in arg_vals:
-            arg_typ = arg_vv.typ
-            static_loc = b.add(dst, IRLiteral(static_ofst))
-
-            if arg_typ.abi_type.is_dynamic():
-                dyn_ofst = self.ctx.ptr_load(dyn_ofst_val.ptr())
-                child_dst = b.add(dst, dyn_ofst)
-                child_src = self.ctx.unwrap(arg_vv)
-                assert isinstance(child_src, IRVariable)
-                child_len = abi_encode_to_buf(self.ctx, child_dst, child_src, arg_typ)
-                b.mstore(static_loc, dyn_ofst)
-                self.ctx.ptr_store(dyn_ofst_val.ptr(), self.ctx.checked_add(dyn_ofst, child_len))
-            else:
-                self.ctx.store_vyper_value(arg_vv, static_loc, arg_typ)
-
-            static_ofst += arg_typ.abi_type.embedded_static_size()
-
-        return self.ctx.ptr_load(dyn_ofst_val.ptr())
-
     def _lower_external_call(self) -> VyperValue:
         """Lower external call (extcall/staticcall).
 
@@ -1951,7 +1898,7 @@ class Expr:
         args_tuple_t = TupleT(tuple(v.typ for v in arg_vals))
         dynamic_args = self._external_call_args_need_runtime_encoding(arg_vals)
         if dynamic_args:
-            args_alloc_size = self._external_call_args_alloc_size(arg_vals, args_tuple_t)
+            args_alloc_size = _runtime_abi_size_for_encode(self.ctx, arg_vals, args_tuple_t)
         else:
             args_abi_t = args_tuple_t.abi_type
             args_abi_size = args_abi_t.size_bound()
@@ -1994,8 +1941,8 @@ class Expr:
         if len(arg_vals) > 0:
             encode_dst = b.add(buf_ptr, IRLiteral(32))
             if dynamic_args:
-                args_abi_len = self._abi_encode_external_call_args(
-                    encode_dst, arg_vals, args_tuple_t
+                args_abi_len = _abi_encode_values_to_buf(
+                    self.ctx, encode_dst, arg_vals, args_tuple_t
                 )
             else:
                 # Create temp buffer for args in memory
