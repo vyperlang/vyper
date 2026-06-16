@@ -501,6 +501,29 @@ def get(addr: address) -> (uint256, Bytes[INF]):
     assert abi_decode("(uint256,bytes)", ret) == (9, b"live")
 
 
+def test_inf_bytes_extcall_tuple_return_roundtrip(env):
+    payload = bytes((i * 47) % 256 for i in range(2001))
+    target_code = """
+@external
+def pair(x: Bytes[INF]) -> (uint256, Bytes[INF]):
+    return 43, x
+    """
+
+    caller_code = """
+interface Source:
+    def pair(x: Bytes[INF]) -> (uint256, Bytes[INF]): nonpayable
+
+@external
+def get(addr: address, x: Bytes[INF]) -> (uint256, Bytes[INF]):
+    return extcall Source(addr).pair(x)
+    """
+
+    target = _deploy_venom(env, target_code)
+    caller = _deploy_venom(env, caller_code)
+    ret = _call(env, caller, "get(address,bytes)", "(address,bytes)", (target.address, payload))
+    assert abi_decode("(uint256,bytes)", ret) == (43, payload)
+
+
 def test_inf_bytes_staticcall_inf_arg_with_static_args(env):
     code = """
 @external
