@@ -1124,9 +1124,10 @@ def _register_abi_arg_from_src(ctx: VenomCodegenContext, arg, elem_src: VyperVal
     var = ctx.new_variable(arg.name, arg.typ, mutable=False)
     assert isinstance(var.value.operand, IRVariable)
 
-    assert elem_src.location is not None
-    hi = _abi_arg_hi(ctx, elem_src.location)
-    abi_decode_to_buf(ctx, var.value.operand, elem_src, hi=hi)
+    # Bounded args are capped by the length<=maxlen / count<=max clamp, and
+    # calldata/code overreads zero-fill, so (like legacy) no hi bound is needed.
+    # Unbounded (INF) args get their payload bound in the early-return path above.
+    abi_decode_to_buf(ctx, var.value.operand, elem_src, hi=None)
 
 
 def _store_abi_arg_to_existing_ptr(
@@ -1137,9 +1138,8 @@ def _store_abi_arg_to_existing_ptr(
         ctx.builder.mstore(dst, val.operand)
         return
 
-    assert elem_src.location is not None
-    hi = _abi_arg_hi(ctx, elem_src.location)
-    abi_decode_to_buf(ctx, dst, elem_src, hi=hi)
+    # Bounded args are capped by the type clamp; no hi bound needed (see above).
+    abi_decode_to_buf(ctx, dst, elem_src, hi=None)
 
 
 def _register_default_arg(ctx: VenomCodegenContext, arg, default_node: vy_ast.VyperNode) -> None:
