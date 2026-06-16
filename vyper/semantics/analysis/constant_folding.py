@@ -9,25 +9,6 @@ def constant_fold(module_ast: vy_ast.Module):
     ConstantFolder(module_ast).run()
 
 
-def _is_literal_compare_node(node):
-    return isinstance(node, (vy_ast.Constant, vy_ast.List, vy_ast.Tuple))
-
-
-def _literal_eq(left, right):
-    if not _is_literal_compare_node(left) or not _is_literal_compare_node(right):
-        raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-
-    if type(left) is not type(right):
-        return False
-
-    if isinstance(left, vy_ast.Constant):
-        return left.value == right.value
-
-    return len(left.elements) == len(right.elements) and all(
-        _literal_eq(l, r) for l, r in zip(left.elements, right.elements)
-    )
-
-
 class ConstantFolder(VyperNodeVisitorBase):
     def __init__(self, module_ast):
         self._constants = {}
@@ -176,7 +157,7 @@ class ConstantFolder(VyperNodeVisitorBase):
 
     def visit_Compare(self, node):
         left, right = [i.get_folded_value() for i in (node.left, node.right)]
-        if not _is_literal_compare_node(left):
+        if not isinstance(left, vy_ast.Constant):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
         # CMC 2022-08-04 we could probably remove these evaluation rules as they
@@ -184,13 +165,11 @@ class ConstantFolder(VyperNodeVisitorBase):
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             if not isinstance(right, vy_ast.List):
                 raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-            if any(not _is_literal_compare_node(i) for i in right.elements):
+            if next((i for i in right.elements if not isinstance(i, vy_ast.Constant)), None):
                 raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-            if len({type(i) for i in right.elements}) > 1:
+            if len(set([type(i) for i in right.elements])) > 1:
                 raise UnfoldableNode("List contains multiple literal types")
-            value = any(_literal_eq(left, i) for i in right.elements)
-            if isinstance(node.op, vy_ast.NotIn):
-                value = not value
+            value = node.op._op(left.value, [i.value for i in right.elements])
             return vy_ast.NameConstant.from_node(node, value=value)
 
         if not isinstance(left, type(right)):
@@ -201,15 +180,9 @@ class ConstantFolder(VyperNodeVisitorBase):
             raise UnfoldableNode(
                 f"Invalid literal types for {node.op.description} comparison", node
             )
-        if isinstance(node.op, (vy_ast.Eq, vy_ast.NotEq)):
-            value = _literal_eq(left, right)
-            if isinstance(node.op, vy_ast.NotEq):
-                value = not value
-            return vy_ast.NameConstant.from_node(node, value=value)
-        else:
-            lvalue, rvalue = left.value, right.value
-            value = node.op._op(lvalue, rvalue)
-            return vy_ast.NameConstant.from_node(node, value=value)
+        lvalue, rvalue = left.value, right.value
+        value = node.op._op(lvalue, rvalue)
+        return vy_ast.NameConstant.from_node(node, value=value)
 
     def visit_List(self, node) -> vy_ast.ExprNode:
         elements = [e.get_folded_value() for e in node.elements]

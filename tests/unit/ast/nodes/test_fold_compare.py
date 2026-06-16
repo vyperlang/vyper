@@ -163,19 +163,10 @@ def test_hex_literal_value_normalized_after_preserving_original():
     assert old_node.get_folded_value().value is True
 
 
-@pytest.mark.parametrize(
-    "source,expected",
-    [
-        ("[0xA1AAB33F] in [[0xa1aab33f]]", True),
-        ("[[0xA1AAB33F]] in [[[0xa1aab33f]]]", True),
-        ("[0xA1AAB33F] not in [[0x12345678]]", True),
-        ("[0xA1AAB33F] == [0xa1aab33f]", True),
-        ("[[0xA1AAB33F]] != [[0xa1aab33f]]", False),
-    ],
-)
-def test_compare_recursive_bytes_case(source, expected):
-    vyper_ast = parse_and_fold(source)
+@pytest.mark.parametrize("op", ["<", "<=", ">=", ">"])
+def test_compare_ordered_hex_unfoldable(op):
+    vyper_ast = parse_and_fold(f"0x0A {op} 0x0a")
     old_node = vyper_ast.body[0].value
-    new_node = old_node.get_folded_value()
 
-    assert new_node.value is expected
+    with pytest.raises(UnfoldableNode):
+        old_node.get_folded_value()

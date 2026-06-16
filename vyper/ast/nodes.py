@@ -862,6 +862,8 @@ class Hex(Constant):
     Attributes
     ----------
     value : str
+        Value of the node, represented as a normalized lowercase string.
+    original_value : str
         Value of the node, represented as a string taken directly from the contract source.
     """
 
@@ -869,6 +871,8 @@ class Hex(Constant):
 
     def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
         super().__init__(parent, **kwargs)
+        # AST copies and folded-value snapshots can rebuild Hex from existing fields.
+        # Preserve the source spelling when it is already available.
         self.original_value = getattr(self, "original_value", self.value)
         self.value = self.value.lower()
 
