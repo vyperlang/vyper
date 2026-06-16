@@ -955,6 +955,26 @@ def join(x: Bytes[INF]) -> Bytes[INF]:
     assert abi_decode("(bytes)", ret) == (b"pre:" + payload + b":post",)
 
 
+def test_inf_bytes_string_keccak256_runtime_length(env, keccak):
+    payload = bytes((i * 81) % 256 for i in range(2001))
+    text = "hash string " * 170 + "tail"
+    code = """
+@external
+def hash_bytes(x: Bytes[INF]) -> bytes32:
+    return keccak256(x)
+
+@external
+def hash_string(x: String[INF]) -> bytes32:
+    return keccak256(x)
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "hash_bytes(bytes)", "(bytes)", (payload,))
+    assert abi_decode("(bytes32)", ret) == (keccak(payload),)
+    ret = _call(env, c, "hash_string(string)", "(string)", (text,))
+    assert abi_decode("(bytes32)", ret) == (keccak(text.encode()),)
+
+
 def test_inf_bytes_raw_call_direct_return(env):
     payload = bytes((i * 47) % 256 for i in range(2001))
     code = """
