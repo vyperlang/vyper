@@ -16,9 +16,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.buffer import Buffer
+from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic, InvalidLiteral, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types.infinity import is_bounded_length
 from vyper.semantics.types.shortcuts import UINT160_T, UINT256_T
 from vyper.semantics.types.user import FlagT
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
@@ -27,7 +30,7 @@ if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
-def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand | VyperValue:
     """
     convert(value, type) - type conversion.
 
@@ -58,13 +61,25 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     elif isinstance(out_t, BytesM_T):
         return _to_bytes_m(arg, in_t, out_t, arg_node, ctx)
     elif isinstance(out_t, BytesT):
-        return _to_bytes(arg, in_t, out_t, arg_node, ctx)
+        ret = _to_bytes(arg, in_t, out_t, arg_node, ctx)
+        return _bytestring_convert_value(ret, out_t, ctx)
     elif isinstance(out_t, StringT):
-        return _to_string(arg, in_t, out_t, arg_node, ctx)
+        ret = _to_string(arg, in_t, out_t, arg_node, ctx)
+        return _bytestring_convert_value(ret, out_t, ctx)
     elif isinstance(out_t, FlagT):
         return _to_flag(arg, in_t, out_t, ctx)
     else:  # pragma: nocover
         raise CompilerPanic(f"Unsupported conversion target: {out_t}")
+
+
+def _bytestring_convert_value(
+    ptr: IROperand, out_t: _BytestringT, ctx: VenomCodegenContext
+) -> VyperValue:
+    assert isinstance(ptr, IRVariable)
+    if ctx.is_unbounded_bytestring_type(out_t):
+        return ctx.dynamic_memory_value(ptr, out_t, annotation="convert")
+    buf = Buffer(_ptr=ptr, size=out_t.memory_bytes_required, annotation="convert")
+    return VyperValue.from_ptr(buf.base_ptr(), out_t)
 
 
 def _get_folded_value(node: vy_ast.VyperNode):
@@ -363,20 +378,34 @@ def _to_bytes(
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     # Ban converting same type (e.g. Bytes[20] to Bytes[21] upcast is not a real conversion)
-    if isinstance(in_t, BytesT) and in_t.maxlen <= out_t.maxlen:  # pragma: nocover
+    if (
+        isinstance(in_t, BytesT)
+        and is_bounded_length(in_t.maxlen)
+        and is_bounded_length(out_t.maxlen)
+        and in_t.maxlen <= out_t.maxlen
+    ):  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     # Can't downcast literals with known length (e.g. b"abc" to Bytes[2])
     # Use reduced() to handle constant variables like `BAR: constant(Bytes[5])`
     reduced = arg_node.reduced() if arg_node.has_folded_value else arg_node
-    if isinstance(reduced, vy_ast.Constant) and in_t.maxlen > out_t.maxlen:  # pragma: nocover
+    if (
+        isinstance(reduced, vy_ast.Constant)
+        and is_bounded_length(in_t.maxlen)
+        and is_bounded_length(out_t.maxlen)
+        and in_t.maxlen > out_t.maxlen
+    ):  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     b = ctx.builder
 
     # Both string->bytes and bytes->bytes are pointer casts
     # Just check length bounds
-    if out_t.maxlen < in_t.maxlen:
+    if (
+        is_bounded_length(in_t.maxlen)
+        and is_bounded_length(out_t.maxlen)
+        and out_t.maxlen < in_t.maxlen
+    ):
         # Downcast: check actual length <= max
         assert isinstance(val, IRVariable)
         length = b.mload(val)
@@ -400,19 +429,33 @@ def _to_string(
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     # Ban converting same type (e.g. String[20] to String[21] upcast is not a real conversion)
-    if isinstance(in_t, StringT) and in_t.maxlen <= out_t.maxlen:  # pragma: nocover
+    if (
+        isinstance(in_t, StringT)
+        and is_bounded_length(in_t.maxlen)
+        and is_bounded_length(out_t.maxlen)
+        and in_t.maxlen <= out_t.maxlen
+    ):  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     # Can't downcast literals with known length (e.g. "abc" to String[2])
     # Use reduced() to handle constant variables like `BAR: constant(String[5])`
     reduced = arg_node.reduced() if arg_node.has_folded_value else arg_node
-    if isinstance(reduced, vy_ast.Constant) and in_t.maxlen > out_t.maxlen:  # pragma: nocover
+    if (
+        isinstance(reduced, vy_ast.Constant)
+        and is_bounded_length(in_t.maxlen)
+        and is_bounded_length(out_t.maxlen)
+        and in_t.maxlen > out_t.maxlen
+    ):  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     b = ctx.builder
 
     # bytes->string and string->string are pointer casts
-    if out_t.maxlen < in_t.maxlen:
+    if (
+        is_bounded_length(in_t.maxlen)
+        and is_bounded_length(out_t.maxlen)
+        and out_t.maxlen < in_t.maxlen
+    ):
         # Downcast: check actual length <= max
         assert isinstance(val, IRVariable)
         length = b.mload(val)

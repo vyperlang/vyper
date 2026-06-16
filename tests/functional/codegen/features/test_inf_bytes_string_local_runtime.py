@@ -997,6 +997,25 @@ def local(x: uint256) -> String[INF]:
     assert abi_decode("(string)", ret) == ("0",)
 
 
+def test_inf_bytes_string_cross_convert(env):
+    code = """
+@external
+def to_bytes(x: String[10]) -> Bytes[INF]:
+    return convert(x, Bytes[INF])
+
+@external
+def to_string(x: Bytes[10]) -> String[INF]:
+    y: String[INF] = convert(x, String[INF])
+    return y
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "to_bytes(string)", "(string)", ("hello",))
+    assert abi_decode("(bytes)", ret) == (b"hello",)
+    ret = _call(env, c, "to_string(bytes)", "(bytes)", (b"world",))
+    assert abi_decode("(string)", ret) == ("world",)
+
+
 def test_inf_bytes_raw_call_direct_return(env):
     payload = bytes((i * 47) % 256 for i in range(2001))
     code = """
