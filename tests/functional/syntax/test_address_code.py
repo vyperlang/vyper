@@ -5,13 +5,7 @@ from typing import Type
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import (
-    CodegenPanic,
-    NamespaceCollision,
-    StructureException,
-    TypeMismatch,
-    VyperException,
-)
+from vyper.exceptions import NamespaceCollision, StructureException, TypeMismatch, VyperException
 
 # For reproducibility, use precompiled data of `hello: public(uint256)` using vyper 0.3.1
 PRECOMPILED_ABI = """[{"stateMutability": "view", "type": "function", "name": "hello", "inputs": [], "outputs": [{"name": "", "type": "uint256"}], "gas": 2460}]"""  # noqa: E501, FS003
@@ -225,14 +219,15 @@ def test_code_properties(addr: address) -> (uint256, uint256, bytes32, bool):
     assert is_contract is True
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
-def test_address_code_convert():
+def test_address_code_convert(experimental_codegen):
     code = """
 @external
 def code_slice(x: address) -> uint256:
     y: uint256 = convert(x.code, uint256)
     return y
 """
+    if not experimental_codegen:
+        pytest.xfail("unbounded sequence types not yet fully supported in legacy codegen")
     compiler.compile_code(code)
 
 

@@ -2,7 +2,7 @@ import pytest
 from eth_utils import to_bytes
 
 from vyper import compiler
-from vyper.exceptions import CodegenPanic, TypeMismatch, VyperException
+from vyper.exceptions import TypeMismatch, VyperException
 from vyper.utils import method_id
 
 
@@ -247,12 +247,13 @@ def foo() -> Bytes[100]:
     compiler.compile_code(code)
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
-def test_msg_data_convert():
+def test_msg_data_convert(experimental_codegen):
     code = """
 @external
 def foo() -> uint256:
     bar: uint256 = convert(msg.data, uint256)
     return bar
     """
+    if not experimental_codegen:
+        pytest.xfail("unbounded sequence types not yet fully supported in legacy codegen")
     compiler.compile_code(code)

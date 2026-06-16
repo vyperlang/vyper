@@ -580,7 +580,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             raise ImmutableViolation("Constant value cannot be written to.")
 
         var_access = _get_variable_access(target)
-        assert var_access is not None
+        if var_access is None:
+            raise ImmutableViolation("Cannot modify temporary value", target)
 
         info._writes.add(var_access)
 

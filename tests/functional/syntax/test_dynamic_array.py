@@ -1,7 +1,13 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import CodegenPanic, StructureException, TypeMismatch, UndeclaredDefinition
+from vyper.exceptions import (
+    CodegenPanic,
+    ImmutableViolation,
+    StructureException,
+    TypeMismatch,
+    UndeclaredDefinition,
+)
 
 fail_list = [
     (
@@ -208,6 +214,32 @@ def foo():
     a.append(1)
     """
     _compile_inf_dynarray_code(code, experimental_codegen)
+
+
+def test_dynarray_mutating_temporary_rejected():
+    for code in (
+        """
+@external
+def foo():
+    empty(DynArray[uint256, 5]).append(1)
+        """,
+        """
+@internal
+def _xs() -> DynArray[uint256, INF]:
+    return [1, 2]
+
+@external
+def foo():
+    self._xs().append(3)
+        """,
+        """
+@external
+def foo() -> uint256:
+    return empty(DynArray[uint256, INF]).pop()
+        """,
+    ):
+        with pytest.raises(ImmutableViolation):
+            compile_code(code)
 
 
 def test_dynarray_inf_assign_bounded_to_unbounded(experimental_codegen):

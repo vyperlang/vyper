@@ -206,6 +206,67 @@ def grow(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     assert abi_decode("(uint256[])", ret) == ([1, 2, 3, 99, 123],)
 
 
+def test_inf_dynarray_pop_runtime(env, tx_failed):
+    code = """
+struct S:
+    a: uint256
+    b: bytes32
+
+@external
+def pop_primitive() -> (uint256, DynArray[uint256, INF]):
+    x: DynArray[uint256, INF] = [1, 2, 3]
+    y: uint256 = x.pop()
+    return y, x
+
+@external
+def pop_then_append() -> DynArray[uint256, INF]:
+    x: DynArray[uint256, INF] = [1, 2, 3]
+    y: uint256 = x.pop()
+    x.append(y + 6)
+    return x
+
+@external
+def pop_array() -> (uint256[2], DynArray[uint256[2], INF]):
+    x: DynArray[uint256[2], INF] = [[1, 2], [3, 4]]
+    y: uint256[2] = x.pop()
+    return y, x
+
+@external
+def pop_struct() -> (S, DynArray[S, INF]):
+    x: DynArray[S, INF] = [
+        S(a=1, b=0x0101010101010101010101010101010101010101010101010101010101010101),
+        S(a=2, b=0x0202020202020202020202020202020202020202020202020202020202020202),
+    ]
+    y: S = x.pop()
+    return y, x
+
+@external
+def pop_maybe(flag: bool) -> uint256:
+    x: DynArray[uint256, INF] = []
+    if flag:
+        x.append(1)
+    return x.pop()
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "pop_primitive()")
+    assert abi_decode("(uint256,uint256[])", ret) == (3, [1, 2])
+    ret = _call(env, c, "pop_then_append()")
+    assert abi_decode("(uint256[])", ret) == ([1, 2, 9],)
+    ret = _call(env, c, "pop_array()")
+    assert abi_decode("(uint256[2],uint256[2][])", ret) == ([3, 4], [[1, 2]])
+
+    first = (1, bytes.fromhex("01" * 32))
+    second = (2, bytes.fromhex("02" * 32))
+    ret = _call(env, c, "pop_struct()")
+    assert abi_decode("((uint256,bytes32),(uint256,bytes32)[])", ret) == (second, [first])
+
+    ret = _call(env, c, "pop_maybe(bool)", "bool", True)
+    assert abi_decode("(uint256)", ret) == (1,)
+    with tx_failed():
+        _call(env, c, "pop_maybe(bool)", "bool", False)
+
+
 def test_inf_dynarray_for_loop(env):
     code = """
 @external

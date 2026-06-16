@@ -1058,6 +1058,43 @@ def string_to_bytes_bounded(x: String[INF]) -> Bytes[5]:
         _call(env, c, "string_to_bounded(string)", "(string)", ("abcdef",))
 
 
+def test_inf_bytes_to_primitive_convert(env, tx_failed):
+    code = """
+@external
+def to_uint256(x: Bytes[INF]) -> uint256:
+    return convert(x, uint256)
+
+@external
+def to_uint8(x: Bytes[INF]) -> uint8:
+    return convert(x, uint8)
+
+@external
+def to_bytes4(x: Bytes[INF]) -> bytes4:
+    return convert(x, bytes4)
+
+@external
+def to_bool(x: Bytes[INF]) -> bool:
+    return convert(x, bool)
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "to_uint256(bytes)", "(bytes)", ((123).to_bytes(32, "big"),))
+    assert abi_decode("(uint256)", ret) == (123,)
+    ret = _call(env, c, "to_uint8(bytes)", "(bytes)", (b"\x7b",))
+    assert abi_decode("(uint8)", ret) == (123,)
+    ret = _call(env, c, "to_bytes4(bytes)", "(bytes)", (b"abcd",))
+    assert abi_decode("(bytes4)", ret) == (b"abcd",)
+    ret = _call(env, c, "to_bool(bytes)", "(bytes)", (b"\x00\x01",))
+    assert abi_decode("(bool)", ret) == (True,)
+
+    with tx_failed():
+        _call(env, c, "to_uint256(bytes)", "(bytes)", (b"\x01" * 33,))
+    with tx_failed():
+        _call(env, c, "to_uint8(bytes)", "(bytes)", (b"\x01\x00",))
+    with tx_failed():
+        _call(env, c, "to_bytes4(bytes)", "(bytes)", (b"abcde",))
+
+
 def test_inf_bytes_string_print(env):
     payload = bytes((i * 63) % 256 for i in range(2001))
     text = "print string " * 170 + "tail"
@@ -1543,6 +1580,38 @@ def deploy(target: address, x: Bytes[INF]) -> address:
     deployer = _deploy_venom(env, code)
     ret = _call(
         env, deployer, "deploy(address,bytes)", "(address,bytes)", (blueprint.address, payload)
+    )
+    addr = abi_decode("(address)", ret)[0]
+    ret = env.message_call(addr, data=method_id("get()"))
+    assert abi_decode("(bytes)", ret) == (payload,)
+
+
+def test_inf_bytes_create_from_blueprint_raw_args_unbounded(env):
+    payload = bytes((i * 83) % 256 for i in range(2001))
+    to_deploy_code = """
+stored: Bytes[2001]
+
+@deploy
+def __init__(x: Bytes[INF]):
+    self.stored = slice(x, 0, 2001)
+
+@external
+def get() -> Bytes[2001]:
+    return self.stored
+    """
+    out = _compile_venom(to_deploy_code, ["blueprint_bytecode"])
+    blueprint = env.deploy([], bytes.fromhex(out["blueprint_bytecode"].removeprefix("0x")))
+    raw_args = abi_encode("(bytes)", (payload,))
+
+    code = """
+@external
+def deploy(target: address, args: Bytes[INF]) -> address:
+    return create_from_blueprint(target, args, raw_args=True)
+    """
+
+    deployer = _deploy_venom(env, code)
+    ret = _call(
+        env, deployer, "deploy(address,bytes)", "(address,bytes)", (blueprint.address, raw_args)
     )
     addr = abi_decode("(address)", ret)[0]
     ret = env.message_call(addr, data=method_id("get()"))

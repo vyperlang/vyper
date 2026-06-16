@@ -135,6 +135,7 @@ def _to_bool(
         # Load the actual data, not just length
         assert isinstance(val, IRVariable)
         length = b.mload(val)
+        _runtime_check_bytes_len(in_t, length, 32, ctx)
         data_ptr = b.add(val, IRLiteral(32))
         data = b.mload(data_ptr)
 
@@ -195,6 +196,7 @@ def _to_int(
         # Length at val, data at val+32
         assert isinstance(val, IRVariable)
         length = b.mload(val)
+        _runtime_check_bytes_len(in_t, length, 32, ctx)
         data_ptr = b.add(val, IRLiteral(32))
         data = b.mload(data_ptr)
         # Right-shift to convert left-aligned bytes to right-aligned int
@@ -205,7 +207,7 @@ def _to_int(
         else:
             val = b.shr(num_zero_bits, data)
         # Clamp if bytes could exceed output range
-        if in_t.maxlen * 8 > out_t.bits:
+        if not is_bounded_length(in_t.maxlen) or in_t.maxlen * 8 > out_t.bits:
             val = _int_clamp(val, out_t, ctx)
         return val
 
@@ -277,12 +279,13 @@ def _to_decimal(
     if isinstance(in_t, _BytestringT):
         assert isinstance(val, IRVariable)
         length = b.mload(val)
+        _runtime_check_bytes_len(in_t, length, 32, ctx)
         data_ptr = b.add(val, IRLiteral(32))
         data = b.mload(data_ptr)
         num_zero_bits = b.mul(b.sub(IRLiteral(32), length), IRLiteral(8))
         val = b.sar(num_zero_bits, data)
         # Clamp to decimal bounds if needed
-        if in_t.maxlen * 8 > 168:  # decimal is 168 bits
+        if not is_bounded_length(in_t.maxlen) or in_t.maxlen * 8 > 168:  # decimal is 168 bits
             val = _clamp_basetype(val, out_t, ctx)
         return val
 
@@ -330,6 +333,7 @@ def _to_bytes_m(
     if isinstance(in_t, _BytestringT):
         assert isinstance(val, IRVariable)
         length = b.mload(val)
+        _runtime_check_bytes_len(in_t, length, out_t.m, ctx)
         data_ptr = b.add(val, IRLiteral(32))
         data = b.mload(data_ptr)
         # Zero out any dirty high bits based on actual length
@@ -488,8 +492,21 @@ def _check_bytes(in_t, out_t, max_bytes_allowed: int, source_expr: vy_ast.VyperN
 
     Raises TypeMismatch if in_t is a bytestring with maxlen > max_bytes_allowed.
     """
-    if isinstance(in_t, _BytestringT) and in_t.maxlen > max_bytes_allowed:  # pragma: nocover
+    if (
+        isinstance(in_t, _BytestringT)
+        and is_bounded_length(in_t.maxlen)
+        and in_t.maxlen > max_bytes_allowed
+    ):  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", source_expr)
+
+
+def _runtime_check_bytes_len(
+    in_t: _BytestringT, length: IROperand, max_bytes_allowed: int, ctx: VenomCodegenContext
+) -> None:
+    if is_bounded_length(in_t.maxlen):
+        return
+    b = ctx.builder
+    b.assert_(b.iszero(b.gt(length, IRLiteral(max_bytes_allowed))))
 
 
 def _int_clamp(val: IROperand, out_t: IntegerT, ctx: VenomCodegenContext) -> IROperand:
