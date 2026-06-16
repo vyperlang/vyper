@@ -3,7 +3,7 @@ import json
 from tests.evm_backends.abi import abi_decode, abi_encode
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings, VenomOptimizationFlags
-from vyper.utils import keccak256, method_id
+from vyper.utils import method_id
 
 
 def _venom_settings(*, disable_inlining=False):
@@ -895,6 +895,159 @@ def empty() -> (Bytes[INF],):
     assert _call(env, c, "empty()") == encode_singleton_bytes_tuple(b"")
 
 
+def test_inf_bytes_internal_tuple_return(env):
+    payload = bytes((i * 89) % 256 for i in range(2001))
+    code = """
+@internal
+def _pair(x: Bytes[INF]) -> (uint256, Bytes[INF]):
+    return 11, x
+
+@external
+def pair(x: Bytes[INF]) -> (uint256, Bytes[INF]):
+    return self._pair(x)
+    """
+
+    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
+    ret = _call(env, c, "pair(bytes)", "(bytes)", (payload,))
+    assert abi_decode("(uint256,bytes)", ret) == (11, payload)
+
+
+def test_inf_bytes_internal_tuple_return_with_bounded_complex_member(env):
+    payload = bytes((i * 90) % 256 for i in range(2001))
+    code = """
+@internal
+def _pair(x: Bytes[INF]) -> (Bytes[5], Bytes[INF]):
+    return b"small", x
+
+@external
+def pair(x: Bytes[INF]) -> (Bytes[5], Bytes[INF]):
+    return self._pair(x)
+    """
+
+    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
+    ret = _call(env, c, "pair(bytes)", "(bytes)", (payload,))
+    assert abi_decode("(bytes,bytes)", ret) == (b"small", payload)
+
+
+def test_inf_bytes_internal_tuple_return_subscript(env):
+    code = """
+@internal
+def _pair(x: Bytes[INF]) -> (uint256, Bytes[INF]):
+    return 17, x
+
+@external
+def second(x: Bytes[INF]) -> Bytes[3]:
+    return slice(self._pair(x)[1], 0, 3)
+    """
+
+    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
+    ret = _call(env, c, "second(bytes)", "(bytes)", (b"cat",))
+    assert abi_decode("(bytes)", ret) == (b"cat",)
+
+
+def test_inf_bytes_string_internal_tuple_return_mixed_ordering(env):
+    payload = bytes((i * 91) % 256 for i in range(2001))
+    text = "mixed ordering " * 150 + "tail"
+    code = """
+@internal
+def _mix(x: Bytes[INF], y: String[INF]) -> (Bytes[INF], uint256, String[INF]):
+    return x, 23, y
+
+@external
+def mix(x: Bytes[INF], y: String[INF]) -> (Bytes[INF], uint256, String[INF]):
+    return self._mix(x, y)
+    """
+
+    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
+    ret = _call(env, c, "mix(bytes,string)", "(bytes,string)", (payload, text))
+    assert abi_decode("(bytes,uint256,string)", ret) == (payload, 23, text)
+
+
+def test_inf_bytes_internal_singleton_tuple_return(env):
+    payload = bytes((i * 92) % 256 for i in range(2001))
+
+    def encode_singleton_bytes_tuple(value):
+        padding = b"\x00" * (-len(value) % 32)
+        return (
+            (32).to_bytes(32, "big")
+            + (32).to_bytes(32, "big")
+            + len(value).to_bytes(32, "big")
+            + value
+            + padding
+        )
+
+    code = """
+@internal
+def _one(x: Bytes[INF]) -> (Bytes[INF],):
+    return (x,)
+
+@external
+def one(x: Bytes[INF]) -> (Bytes[INF],):
+    return self._one(x)
+    """
+
+    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
+    ret = _call(env, c, "one(bytes)", "(bytes)", (payload,))
+    assert ret == encode_singleton_bytes_tuple(payload)
+
+
+def test_inf_bytes_internal_tuple_return_forwarding(env):
+    payload = bytes((i * 93) % 256 for i in range(2001))
+    code = """
+@internal
+def _pair(x: Bytes[INF]) -> (uint256, Bytes[INF]):
+    return 19, x
+
+@internal
+def _forward(x: Bytes[INF]) -> (uint256, Bytes[INF]):
+    return self._pair(x)
+
+@external
+def pair(x: Bytes[INF]) -> (uint256, Bytes[INF]):
+    return self._forward(x)
+    """
+
+    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
+    ret = _call(env, c, "pair(bytes)", "(bytes)", (payload,))
+    assert abi_decode("(uint256,bytes)", ret) == (19, payload)
+
+
+def test_inf_bytes_internal_tuple_unpack(env):
+    code = """
+@internal
+def _pair() -> (uint256, Bytes[INF]):
+    return 13, b"kitten"
+
+@external
+def unpack() -> (uint256, Bytes[6]):
+    a: uint256 = 0
+    b: Bytes[INF] = b""
+    a, b = self._pair()
+    return a, slice(b, 0, 6)
+    """
+
+    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
+    assert abi_decode("(uint256,bytes)", _call(env, c, "unpack()")) == (13, b"kitten")
+
+
+def test_inf_bytes_string_internal_tuple_multi_dynamic_return(env):
+    payload = bytes((i * 97) % 256 for i in range(2001))
+    text = "venom tuple " * 180 + "tail"
+    code = """
+@internal
+def _pair(x: Bytes[INF], y: String[INF]) -> (Bytes[INF], String[INF]):
+    return x, y
+
+@external
+def pair(x: Bytes[INF], y: String[INF]) -> (Bytes[INF], String[INF]):
+    return self._pair(x, y)
+    """
+
+    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
+    ret = _call(env, c, "pair(bytes,string)", "(bytes,string)", (payload, text))
+    assert abi_decode("(bytes,string)", ret) == (payload, text)
+
+
 def test_inf_bytes_raw_create_bytecode_param(env):
     to_deploy_code = """
 foo: public(uint256)
@@ -1013,78 +1166,6 @@ def emit_raw(x: Bytes[INF]):
     c = _deploy_venom(env, code)
     _call(env, c, "emit_raw(bytes)", "(bytes)", (payload,))
     assert env.get_logs(c, raw=True)[0][1] == payload
-
-
-def test_inf_bytes_event_data(env):
-    payload = bytes((i * 67) % 256 for i in range(2001))
-    code = """
-event E:
-    x: Bytes[INF]
-
-@external
-def emit_event(x: Bytes[INF]):
-    log E(x=x)
-    """
-
-    c = _deploy_venom(env, code)
-    _call(env, c, "emit_event(bytes)", "(bytes)", (payload,))
-    assert env.get_logs(c, raw=True)[0][1] == abi_encode("(bytes)", (payload,))
-
-
-def test_indexed_inf_bytes_event_topic(env):
-    payload = bytes((i * 71) % 256 for i in range(2001))
-    code = """
-event E:
-    x: indexed(Bytes[INF])
-
-@external
-def emit_event(x: Bytes[INF]):
-    log E(x=x)
-    """
-
-    c = _deploy_venom(env, code)
-    _call(env, c, "emit_event(bytes)", "(bytes)", (payload,))
-    topics, data = env.get_logs(c, raw=True)[0]
-    assert topics[1] == keccak256(payload)
-    assert data == b""
-
-
-def test_indexed_inf_string_event_topic(env):
-    payload = "indexed string " * 170 + "tail"
-    code = """
-event E:
-    x: indexed(String[INF])
-
-@external
-def emit_event(x: String[INF]):
-    log E(x=x)
-    """
-
-    c = _deploy_venom(env, code)
-    _call(env, c, "emit_event(string)", "(string)", (payload,))
-    topics, data = env.get_logs(c, raw=True)[0]
-    assert topics[1] == keccak256(payload.encode())
-    assert data == b""
-
-
-def test_inf_string_event_data_with_static_args(env):
-    payload = "event string " * 170 + "tail"
-    code = """
-event E:
-    a: uint256
-    x: String[INF]
-    b: uint256
-
-@external
-def emit_event(x: String[INF]):
-    log E(a=11, x=x, b=22)
-    """
-
-    c = _deploy_venom(env, code)
-    _call(env, c, "emit_event(string)", "(string)", (payload,))
-    assert env.get_logs(c, raw=True)[0][1] == abi_encode(
-        "(uint256,string,uint256)", (11, payload, 22)
-    )
 
 
 def test_inf_bytes_constructor_arg(env):

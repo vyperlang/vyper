@@ -329,6 +329,10 @@ class EventT(_UserType):
                 indexed.append(False)
 
             member_type = type_from_annotation(annotation)
+            if type_contains_unbounded_sequence(member_type):
+                raise StructureException(
+                    "Events cannot contain unbounded sequence types", annotation
+                )
             if indexed[-1] and not (
                 member_type._is_prim_word or getattr(member_type, "_is_bytestring", False)
             ):

@@ -10,10 +10,11 @@ This module is the single source of truth for these decisions.
 from __future__ import annotations
 
 from vyper.codegen.core import is_tuple_like
+from vyper.exceptions import CodegenPanic
 from vyper.semantics.types import VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.infinity import INF
-from vyper.semantics.types.subscriptable import DArrayT
+from vyper.semantics.types.infinity import INF, type_contains_unbounded_sequence
+from vyper.semantics.types.subscriptable import DArrayT, TupleT
 
 # Maximum number of word-type arguments passed via the stack.
 MAX_STACK_ARGS = 6
@@ -34,6 +35,26 @@ def is_unbounded_sequence_type(typ: VyperType | None) -> bool:
     return is_unbounded_bytestring_type(typ) or is_unbounded_dynarray_type(typ)
 
 
+def is_dynamic_tuple_return_type(typ: VyperType | None) -> bool:
+    return isinstance(typ, TupleT) and type_contains_unbounded_sequence(typ)
+
+
+def is_dynamic_tuple_dynamic_member_type(typ: VyperType) -> bool:
+    return is_unbounded_sequence_type(typ)
+
+
+def validate_dynamic_tuple_return_type(typ: VyperType | None) -> None:
+    if not is_dynamic_tuple_return_type(typ):
+        return
+
+    assert isinstance(typ, TupleT)
+    for member_t in typ.member_types:
+        if type_contains_unbounded_sequence(member_t) and not is_dynamic_tuple_dynamic_member_type(
+            member_t
+        ):
+            raise CodegenPanic("nested INF tuple returns are not implemented")
+
+
 def is_word_type(typ: VyperType) -> bool:
     """Check if type is a primitive word type that fits in one stack slot.
 
@@ -49,7 +70,15 @@ def is_word_type(typ: VyperType) -> bool:
 
 def returns_dynamic_count(func_t) -> int:
     """How many runtime-sized memory pointers are returned via `dret`."""
-    return 1 if is_unbounded_sequence_type(func_t.return_type) else 0
+    ret_t = func_t.return_type
+    if is_unbounded_sequence_type(ret_t):
+        return 1
+    if is_dynamic_tuple_return_type(ret_t):
+        validate_dynamic_tuple_return_type(ret_t)
+        return sum(
+            1 for member_t in ret_t.member_types if is_dynamic_tuple_dynamic_member_type(member_t)
+        )
+    return 0
 
 
 def returns_stack_count(func_t) -> int:
@@ -57,6 +86,14 @@ def returns_stack_count(func_t) -> int:
     ret_t = func_t.return_type
     if ret_t is None:
         return 0
+
+    if is_dynamic_tuple_return_type(ret_t):
+        validate_dynamic_tuple_return_type(ret_t)
+        return sum(
+            1
+            for member_t in ret_t.member_types
+            if not is_dynamic_tuple_dynamic_member_type(member_t)
+        )
 
     if is_tuple_like(ret_t):
         members = ret_t.tuple_items()

@@ -44,7 +44,7 @@ from vyper.semantics.types import (
 from vyper.semantics.types.base import VOID_TYPE
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
-from vyper.semantics.types.infinity import is_bounded_length
+from vyper.semantics.types.infinity import is_bounded_length, type_contains_unbounded_sequence
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT
 from vyper.semantics.types.user import FlagT, StructT
@@ -190,6 +190,32 @@ class Expr:
         node = self.node
         assert isinstance(node, vy_ast.Tuple)
         typ = node._metadata["type"]
+
+        if self.ctx.is_dynamic_tuple_frame_type(typ):
+            member_values: list[IROperand] = []
+            for i, elem_node in enumerate(node.elements):
+                elem_typ = typ.member_types[i]
+                elem_vv = Expr(elem_node, self.ctx).lower()
+                if elem_typ._is_prim_word:
+                    member_values.append(self.ctx.unwrap(elem_vv))
+                else:
+                    if self.ctx.is_unbounded_sequence_type(elem_typ):
+                        elem_vv = self.ctx.copy_sequence_to_scratch(
+                            elem_vv, elem_typ, annotation="tuple"
+                        )
+                    elif type_contains_unbounded_sequence(elem_typ):
+                        raise CodegenPanic("nested INF tuple literals are not implemented")
+                    else:
+                        elem_vv = self.ctx.materialize_value(elem_vv, elem_typ, annotation="tuple")
+                    member_ptr = self.ctx.unwrap(elem_vv)
+                    member_values.append(member_ptr)
+
+            frame = self.ctx.allocate_scratch(IRLiteral(self.ctx.dynamic_tuple_frame_size(typ)))
+            for i, value in enumerate(member_values):
+                cell = self.builder.add(frame, IRLiteral(i * 32))
+                self.builder.mstore(cell, value)
+
+            return self.ctx.dynamic_tuple_frame_value(frame, typ, annotation="tuple")
 
         # Allocate memory for the tuple
         val = self.ctx.new_temporary_value(typ)
@@ -1025,6 +1051,12 @@ class Expr:
         assert isinstance(reduced_slice, vy_ast.Int)
         index = reduced_slice.value
 
+        if self.ctx.is_dynamic_tuple_frame_type(base_typ):
+            assert isinstance(base, IRVariable)
+            return self.ctx.dynamic_tuple_frame_values(base, base_typ, annotation="subscript")[
+                index
+            ]
+
         # Propagate location from base
         data_loc = base_vv.location
         assert data_loc is not None
@@ -1350,7 +1382,9 @@ class Expr:
         # Allocate return buffer
         return_buf: Optional[IROperand] = None
         if func_t.return_type is not None:
-            if returns_count > 0:
+            if self.ctx.is_dynamic_tuple_frame_type(func_t.return_type):
+                pass
+            elif returns_count > 0:
                 # Multi-return: allocate scratch buffer
                 return_buf = self.builder.alloca(32 * returns_count)
             elif dynamic_returns_count == 0:
@@ -1415,8 +1449,14 @@ class Expr:
                 IRLabel(target_label), invoke_args, returns=invoke_returns_count
             )
             if dynamic_returns_count > 0:
-                assert returns_count == 0
                 assert func_t.return_type is not None
+                if self.ctx.is_dynamic_tuple_frame_type(func_t.return_type):
+                    assert isinstance(func_t.return_type, TupleT)
+                    return self.ctx.dynamic_tuple_frame_from_outputs(
+                        outs, func_t.return_type, annotation=func_name
+                    )
+
+                assert returns_count == 0
                 assert len(outs) == 1
                 # Dynamic internal returns publish a runtime memory pointer directly.
                 return self.ctx.dynamic_memory_value(

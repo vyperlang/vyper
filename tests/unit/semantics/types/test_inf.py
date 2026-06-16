@@ -308,6 +308,49 @@ error E:
     """,
         StructureException,
     ),
+    # Unbounded sequence types are not supported inside events
+    (
+        """
+event E:
+    x: Bytes[INF]
+    """,
+        StructureException,
+    ),
+    (
+        """
+event E:
+    x: String[INF]
+    """,
+        StructureException,
+    ),
+    (
+        """
+event E:
+    x: indexed(Bytes[INF])
+    """,
+        StructureException,
+    ),
+    (
+        """
+event E:
+    x: indexed(String[INF])
+    """,
+        StructureException,
+    ),
+    (
+        """
+event E:
+    x: DynArray[uint256, INF]
+    """,
+        StructureException,
+    ),
+    (
+        """
+event E:
+    x: indexed(DynArray[uint256, INF])
+    """,
+        StructureException,
+    ),
     # Unbounded sequence types are not supported inside static arrays
     (
         """
@@ -335,14 +378,6 @@ a: HashMap[String[INF], uint256]
 a: HashMap[uint256, HashMap[Bytes[INF], uint256]]
     """,
         StructureException,
-    ),
-    # Indexed event arguments only support value types and bytestrings
-    (
-        """
-event E:
-    x: indexed(DynArray[uint256, INF])
-    """,
-        TypeMismatch,
     ),
 ]
 

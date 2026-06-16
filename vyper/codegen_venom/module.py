@@ -1452,7 +1452,7 @@ def _generate_internal_function(
 
     # Allocate return buffer if needed
     if func_t.return_type is not None:
-        if returns_count > 0:
+        if returns_count > 0 and dynamic_returns_count == 0:
             ret_buf = codegen_ctx.new_temporary_value(func_t.return_type).operand
             assert isinstance(ret_buf, IRVariable)
             codegen_ctx.return_buffer = ret_buf

@@ -13,7 +13,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
+from typing import Optional, Sequence
 
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.value import VyperValue
@@ -28,7 +28,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import TupleT, VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
-from vyper.semantics.types.infinity import is_bounded_length
+from vyper.semantics.types.infinity import is_bounded_length, type_contains_unbounded_sequence
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.semantics.types.user import StructT
@@ -36,6 +36,9 @@ from vyper.utils import IDENTITY_PRECOMPILE
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 
+from .calling_convention import (
+    is_dynamic_tuple_dynamic_member_type as _is_dynamic_tuple_dynamic_member_type,
+)
 from .calling_convention import is_unbounded_bytestring_type as _is_unbounded_bytestring_type
 from .calling_convention import is_unbounded_dynarray_type as _is_unbounded_dynarray_type
 from .calling_convention import is_unbounded_sequence_type as _is_unbounded_sequence_type
@@ -112,6 +115,15 @@ class VenomCodegenContext:
     @staticmethod
     def is_unbounded_sequence_type(typ: VyperType) -> bool:
         return _is_unbounded_sequence_type(typ)
+
+    @staticmethod
+    def is_dynamic_tuple_frame_type(typ: VyperType) -> bool:
+        return isinstance(typ, TupleT) and type_contains_unbounded_sequence(typ)
+
+    @staticmethod
+    def dynamic_tuple_frame_size(typ: TupleT) -> int:
+        """Return the Venom-only frame size for a tuple containing INF members."""
+        return 32 * len(typ.member_types)
 
     def new_variable(self, name: str, typ: VyperType, mutable: bool = True) -> LocalVariable:
         """Allocate memory for a named variable, register it, return the variable."""
@@ -191,6 +203,70 @@ class VenomCodegenContext:
         """Wrap a runtime-sized memory pointer as a located Vyper value."""
         buf = Buffer(_ptr=ptr, size=None, annotation=annotation)
         return VyperValue.from_ptr(buf.base_ptr(), typ)
+
+    def dynamic_tuple_frame_value(
+        self, ptr: IRVariable, typ: TupleT, annotation: Optional[str] = None
+    ) -> VyperValue:
+        """Wrap a Venom-only dynamic tuple return frame as a memory value."""
+        assert self.is_dynamic_tuple_frame_type(typ)
+        return self.dynamic_memory_value(ptr, typ, annotation=annotation)
+
+    def dynamic_tuple_frame_values(
+        self, ptr: IRVariable, typ: TupleT, annotation: Optional[str] = None
+    ) -> list[VyperValue]:
+        """Read top-level members from a dynamic tuple return frame."""
+        assert self.is_dynamic_tuple_frame_type(typ)
+
+        ret: list[VyperValue] = []
+        for i, member_t in enumerate(typ.member_types):
+            cell = self.builder.add(ptr, IRLiteral(i * 32))
+            cell_value = self.builder.mload(cell)
+            if member_t._is_prim_word:
+                ret.append(VyperValue.from_stack_op(cell_value, member_t))
+            else:
+                assert isinstance(cell_value, IRVariable)
+                ret.append(
+                    self.dynamic_memory_value(
+                        cell_value, member_t, annotation=f"{annotation}.{i}" if annotation else None
+                    )
+                )
+
+        return ret
+
+    def dynamic_tuple_frame_from_outputs(
+        self, outputs: Sequence[IROperand], typ: TupleT, annotation: Optional[str] = None
+    ) -> VyperValue:
+        """Materialize mixed ordinary/dynamic `dret` outputs into a tuple frame."""
+        assert self.is_dynamic_tuple_frame_type(typ)
+
+        member_types = tuple(typ.member_types)
+        ordinary_count = sum(
+            1 for member_t in member_types if not _is_dynamic_tuple_dynamic_member_type(member_t)
+        )
+        dynamic_count = len(member_types) - ordinary_count
+        assert len(outputs) == ordinary_count + dynamic_count
+
+        frame = self.allocate_scratch(IRLiteral(self.dynamic_tuple_frame_size(typ)))
+        ordinary_i = 0
+        dynamic_i = 0
+        for i, member_t in enumerate(member_types):
+            cell = self.builder.add(frame, IRLiteral(i * 32))
+            if _is_dynamic_tuple_dynamic_member_type(member_t):
+                value = outputs[ordinary_count + dynamic_i]
+                dynamic_i += 1
+            elif member_t._is_prim_word:
+                value = outputs[ordinary_i]
+                ordinary_i += 1
+            else:
+                ptr = outputs[ordinary_i]
+                ordinary_i += 1
+                assert isinstance(ptr, IRVariable)
+                vv = self.dynamic_memory_value(ptr, member_t, annotation=annotation)
+                vv = self.materialize_value(vv, member_t, annotation=annotation)
+                value = self.unwrap(vv)
+            self.builder.mstore(cell, value)
+
+        return self.dynamic_tuple_frame_value(frame, typ, annotation=annotation)
 
     def load_pointer_cell_value(self, var: LocalVariable) -> VyperValue:
         """Load the current dynamic memory pointer from a pointer-cell local."""

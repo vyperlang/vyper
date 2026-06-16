@@ -1,7 +1,10 @@
+import pytest
+
 from vyper.codegen_venom.module import generate_runtime_venom
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
+from vyper.exceptions import CodegenPanic
 from vyper.venom.basicblock import IRLiteral
 
 
@@ -146,6 +149,21 @@ def foo() -> DynArray[uint256, INF]:
     opcodes = _opcodes(_compile_frontend_ir(code))
     assert "dret" in opcodes
     assert "invoke" in opcodes
+
+
+def test_nested_inf_tuple_internal_return_is_gated():
+    code = """
+@internal
+def _bar(x: Bytes[INF]) -> ((Bytes[INF],), uint256):
+    return (x,), 11
+
+@external
+def foo(x: Bytes[INF]) -> ((Bytes[INF],), uint256):
+    return self._bar(x)
+    """
+
+    with pytest.raises(CodegenPanic, match="nested INF tuple returns"):
+        _compile_frontend_ir(code)
 
 
 def test_inf_bytes_external_param_emits_dalloca_and_calldatacopy():

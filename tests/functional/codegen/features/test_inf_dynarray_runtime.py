@@ -206,6 +206,41 @@ def echo(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     assert abi_decode("(uint256[])", ret) == ([8, 6, 7, 5, 3, 0, 9],)
 
 
+def test_inf_dynarray_internal_tuple_return_no_inline(env):
+    payload = [i * 19 for i in range(2001)]
+    code = """
+@internal
+def _pair(x: DynArray[uint256, INF]) -> (uint256, DynArray[uint256, INF]):
+    return 17, x
+
+@external
+def pair(x: DynArray[uint256, INF]) -> (uint256, DynArray[uint256, INF]):
+    return self._pair(x)
+    """
+
+    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
+    ret = _call(env, c, "pair(uint256[])", "(uint256[])", (payload,))
+    assert abi_decode("(uint256,uint256[])", ret) == (17, payload)
+
+
+def test_inf_dynarray_internal_tuple_unpack_no_inline(env):
+    code = """
+@internal
+def _pair() -> (uint256, DynArray[uint256, INF]):
+    return 23, [4, 5, 6]
+
+@external
+def unpack() -> (uint256, uint256, uint256):
+    a: uint256 = 0
+    b: DynArray[uint256, INF] = []
+    a, b = self._pair()
+    return a, len(b), b[2]
+    """
+
+    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
+    assert abi_decode("(uint256,uint256,uint256)", _call(env, c, "unpack()")) == (23, 3, 6)
+
+
 def test_inf_dynarray_external_kwarg_default_and_provided(env):
     code = """
 @external
@@ -461,6 +496,24 @@ def roundtrip(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     c = _deploy_venom(env, code)
     ret = _call(env, c, "roundtrip(uint256[])", "(uint256[])", (payload,))
     assert abi_decode("(uint256[])", ret) == (payload,)
+
+
+def test_inf_dynarray_internal_tuple_return_coerces_bounded_complex_member(env):
+    payload = bytes((i * 49) % 256 for i in range(2001))
+    code = """
+@internal
+def _pair(x: Bytes[INF]) -> (DynArray[Bytes[65], 3], Bytes[INF]):
+    y: DynArray[Bytes[33], 3] = [b"cat", b"kitten"]
+    return y, x
+
+@external
+def pair(x: Bytes[INF]) -> (DynArray[Bytes[65], 3], Bytes[INF]):
+    return self._pair(x)
+    """
+
+    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
+    ret = _call(env, c, "pair(bytes)", "(bytes)", (payload,))
+    assert abi_decode("(bytes[],bytes)", ret) == ([b"cat", b"kitten"], payload)
 
 
 def test_inf_dynarray_external_param_rejects_truncated_calldata(env, tx_failed):
