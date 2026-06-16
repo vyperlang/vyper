@@ -1333,10 +1333,10 @@ class Shift(BuiltinFunctionT):
             # have been validated anyway
             raise InvalidLiteral("Shift must be between -256 and 256", node.args[1])
 
-        is_signed_shift = value < 0
         if shift < 0:
             value = value >> -shift
         else:
+            is_signed_shift = value < 0
             value = wrap256(value << shift, signed=is_signed_shift)
         return vy_ast.Int.from_node(node, value=value)
 
