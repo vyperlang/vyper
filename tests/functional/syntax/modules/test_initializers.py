@@ -2670,6 +2670,24 @@ def __init__(cond: bool):
     assert e.value._message == "not initialized!"
 
 
+def test_return_in_then_without_else_init_after(make_input_bundle):
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__():
+    if True:
+        return
+    lib1.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "not initialized!"
+
+
 def test_return_after_if_validates_total(make_input_bundle):
     main = """
 import lib1
