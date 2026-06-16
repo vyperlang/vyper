@@ -1010,6 +1010,14 @@ def to_string(x: Bytes[10]) -> String[INF]:
     return y
 
 @external
+def inf_string_to_inf_bytes(x: String[INF]) -> Bytes[INF]:
+    return convert(x, Bytes[INF])
+
+@external
+def inf_bytes_to_inf_string(x: Bytes[INF]) -> String[INF]:
+    return convert(x, String[INF])
+
+@external
 def bytes_to_bounded(x: Bytes[INF]) -> Bytes[5]:
     return convert(x, Bytes[5])
 
@@ -1030,6 +1038,10 @@ def string_to_bytes_bounded(x: String[INF]) -> Bytes[5]:
     ret = _call(env, c, "to_bytes(string)", "(string)", ("hello",))
     assert abi_decode("(bytes)", ret) == (b"hello",)
     ret = _call(env, c, "to_string(bytes)", "(bytes)", (b"world",))
+    assert abi_decode("(string)", ret) == ("world",)
+    ret = _call(env, c, "inf_string_to_inf_bytes(string)", "(string)", ("hello",))
+    assert abi_decode("(bytes)", ret) == (b"hello",)
+    ret = _call(env, c, "inf_bytes_to_inf_string(bytes)", "(bytes)", (b"world",))
     assert abi_decode("(string)", ret) == ("world",)
     ret = _call(env, c, "bytes_to_bounded(bytes)", "(bytes)", (b"abcde",))
     assert abi_decode("(bytes)", ret) == (b"abcde",)

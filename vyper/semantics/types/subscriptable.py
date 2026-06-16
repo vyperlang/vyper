@@ -367,7 +367,7 @@ class DArrayT(_SequenceT):
                 "Nested unbounded sequence types are not supported", value_node
             )
 
-        if not is_bounded_length(length) and value_type.abi_type.is_dynamic():
+        if length is INF and value_type.abi_type.is_dynamic():
             raise StructureException(
                 "DynArray[..., INF] is only supported with ABI-static element types", value_node
             )

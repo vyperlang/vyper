@@ -136,6 +136,10 @@ interface IFoo:
 interface IFoo:
     def bar() -> DynArray[uint256, ...]: nonpayable
     """,  # DynArray with wildcard in interface return type
+    """
+interface IFoo:
+    def bar() -> DynArray[Bytes[10], ...]: nonpayable
+    """,  # DynArray with wildcard in interface return type can have dynamic elements
 ]
 
 

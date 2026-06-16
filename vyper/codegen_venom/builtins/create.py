@@ -106,8 +106,16 @@ def _emit_create(
     initcode_len: IROperand,
     salt: Optional[IROperand],
     revert_on_failure: bool,
+    check_eip_3860_limit: bool = True,
 ) -> IROperand:
     """Emit CREATE/CREATE2 while preserving raw_create's no-revert failure mode."""
+    if not check_eip_3860_limit:
+        if salt is not None:
+            addr = b.create2(value, initcode, initcode_len, salt)
+        else:
+            addr = b.create(value, initcode, initcode_len)
+        return _check_create_result(ctx, b, addr, revert_on_failure)
+
     in_eip_3860_limit = b.iszero(b.gt(initcode_len, IRLiteral(EIP_3860_LIMIT)))
 
     if revert_on_failure:
@@ -305,8 +313,16 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         raw_salt_op: Optional[IROperand] = None
         if salt_node is not None:
             raw_salt_op = Expr(salt_node, ctx).lower_value()
+        check_eip_3860_limit = bytecode_is_unbounded
         return _emit_create(
-            ctx, b, value, bytecode_ptr, bytecode_len, raw_salt_op, revert_on_failure
+            ctx,
+            b,
+            value,
+            bytecode_ptr,
+            bytecode_len,
+            raw_salt_op,
+            revert_on_failure,
+            check_eip_3860_limit,
         )
 
     # With ctor args: need to ABI-encode and append to bytecode
@@ -352,13 +368,19 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         args_len = abi_encode_to_buf(ctx, args_start, ctor_args_val.operand, ctor_tuple_typ)
 
     # Total length = bytecode_len + args_len
-    total_len = ctx.checked_add(bytecode_len, args_len)
+    if bytecode_is_unbounded or runtime_ctor_args:
+        total_len = ctx.checked_add(bytecode_len, args_len)
+    else:
+        total_len = b.add(bytecode_len, args_len)
 
     # Create contract
     ctor_salt_op: Optional[IROperand] = None
     if salt_node is not None:
         ctor_salt_op = Expr(salt_node, ctx).lower_value()
-    return _emit_create(ctx, b, value, buf_ptr, total_len, ctor_salt_op, revert_on_failure)
+    check_eip_3860_limit = bytecode_is_unbounded or runtime_ctor_args
+    return _emit_create(
+        ctx, b, value, buf_ptr, total_len, ctor_salt_op, revert_on_failure, check_eip_3860_limit
+    )
 
 
 def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:

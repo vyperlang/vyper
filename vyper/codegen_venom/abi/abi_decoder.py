@@ -279,7 +279,6 @@ def _decode_bytestring(
     assert isinstance(dst, IRVariable)
     ctx.zero_bytestring_padding(dst, length)
     copy_size = ctx.builder.add(IRLiteral(32), length)
-    ctx.builder.assert_(ctx.builder.iszero(ctx.builder.lt(copy_size, length)))
     ctx.builder.copy_to_memory(dst, src.operand, copy_size, src.location)
 
 

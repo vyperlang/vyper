@@ -1130,6 +1130,9 @@ class Stmt:
                     member_ptr = self.builder.mload(cell)
                     assert isinstance(member_ptr, IRVariable)
             else:
+                assert not type_contains_unbounded_sequence(
+                    src_member_t
+                ), "non-frame dynamic tuple returns cannot contain INF members"
                 member_ptr = self.builder.add(ret_val, IRLiteral(src_offset))
                 assert isinstance(member_ptr, IRVariable)
                 if src_member_t._is_prim_word:
@@ -1338,18 +1341,18 @@ class Stmt:
             arg_typ = arg._metadata["type"]
             arg_vv = Expr(arg, self.ctx).lower()
             arg_val = self.ctx.unwrap(arg_vv)
-            args.append((arg_vv, arg_val, arg_typ, arg_vv.typ))
+            args.append((arg_val, arg_typ, arg_vv.typ))
 
         # Split into indexed (topics) and non-indexed (data)
         topic_vals = []
         data_vals = []
         data_typs = []
 
-        for (arg_vv, arg_val, arg_typ, src_typ), is_indexed in zip(args, event.indexed):
+        for (arg_val, arg_typ, src_typ), is_indexed in zip(args, event.indexed):
             if is_indexed:
                 topic_vals.append((arg_val, arg_typ))
             else:
-                data_vals.append((arg_vv, arg_val, src_typ))
+                data_vals.append((arg_val, src_typ))
                 data_typs.append(arg_typ)
 
         # Build topics list - starts with event signature hash
@@ -1372,7 +1375,7 @@ class Stmt:
 
             # Store each data value into the tuple buffer
             offset = 0
-            for (_arg_vv, val, src_typ), typ in zip(data_vals, data_typs):
+            for (val, src_typ), typ in zip(data_vals, data_typs):
                 dst = self.builder.add(data_buf._ptr, IRLiteral(offset))
                 self.ctx.store_memory(val, dst, typ, src_typ=src_typ)
                 offset += typ.memory_bytes_required
