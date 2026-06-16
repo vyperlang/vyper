@@ -240,18 +240,22 @@ def get() -> (uint256, uint256):
     assert abi_decode("(uint256,uint256)", _call(env, c, "get()")) == (5, 44)
 
 
-def test_inf_dynarray_constructor_param_rejects_truncated_data(env, tx_failed):
+def test_inf_dynarray_constructor_param_allows_truncated_data(env):
     code = """
 @deploy
 def __init__(x: DynArray[uint256, INF]):
     pass
+
+@external
+def ok() -> uint256:
+    return 1
     """
 
     def word(value):
         return value.to_bytes(32, "big")
 
-    with tx_failed():
-        _deploy_venom_with_ctor_data(env, code, word(32) + word(2) + word(1))
+    c = _deploy_venom_with_ctor_data(env, code, word(32) + word(2) + word(1))
+    assert abi_decode("(uint256)", _call(env, c, "ok()")) == (1,)
 
 
 def test_inf_dynarray_staticcall_return_roundtrip(env):
@@ -434,7 +438,10 @@ def dec_no_tuple(x: Bytes[INF]) -> DynArray[uint256, INF]:
     def word(value):
         return value.to_bytes(32, "big")
 
-    for payload in [word(0), word(32), word(32) + word(2) + word(1)]:
+    ret = _call(env, c, "dec(bytes)", "(bytes)", (word(0),))
+    assert abi_decode("(uint256[])", ret) == ([],)
+
+    for payload in [word(32), word(32) + word(2) + word(1)]:
         with tx_failed():
             _call(env, c, "dec(bytes)", "(bytes)", (payload,))
 
@@ -471,3 +478,6 @@ def length(x: DynArray[uint256, INF]) -> uint256:
     calldata = method_id("length(uint256[])") + word(32) + word(2) + word(1)
     with tx_failed():
         env.message_call(c.address, data=calldata)
+
+    calldata = method_id("length(uint256[])") + word(0)
+    assert abi_decode("(uint256)", env.message_call(c.address, data=calldata)) == (0,)

@@ -655,7 +655,7 @@ def run(x: Bytes[{buffer_size}]) -> {typ}:
     _test_ctor_decode(env, typ, data, expected)
 
 
-def test_abi_decode_nonstrict_head_oob(env, tx_failed, get_contract, experimental_codegen):
+def test_abi_decode_nonstrict_head_oob(env, tx_failed, get_contract):
     # data isn't strictly encoded and (non_strict_head + len(DynArray[..][2])) > parent_static_sz
     # thus decoding the data pointed to by the head would cause an OOB read
     # non_strict_head + length == parent + parent_static_sz + 1
@@ -704,9 +704,8 @@ def run(x: Bytes[{buffer_size}]):
     expected.append(_abi_payload_from_tuple(_replicate(0x01, 3), 96))
     expected.append(b"")
 
-    # Legacy ctor decoding is lenient here. Venom uses the same external ABI bounds
-    # for constructor-appended data, so the OOB payload must revert.
-    _test_ctor_decode(env, typ, data, expected, should_fail=experimental_codegen)
+    # Constructor decoding is lenient here, matching legacy.
+    _test_ctor_decode(env, typ, data, expected, should_fail=False)
 
 
 def test_abi_decode_nonstrict_head_oob2(tx_failed, get_contract):
@@ -965,10 +964,10 @@ def run(x: Bytes[{buffer_size}]) -> Bytes[{buffer_size}]:
     return data, expected
 
 
-def test_abi_decode_merge_head_and_length(env, get_contract, experimental_codegen):
+def test_abi_decode_merge_head_and_length(env, get_contract):
     data, expected = _run_abi_decode_merge_head_and_length(get_contract)
 
-    _test_ctor_decode(env, "Bytes[256]", data, expected, should_fail=experimental_codegen)
+    _test_ctor_decode(env, "Bytes[256]", data, expected)
 
 
 def test_abi_decode_merge_head_and_length_venom(get_contract, compiler_settings):
@@ -1164,7 +1163,7 @@ def run():
         c.run()
 
 
-def test_abi_decode_extcall_empty_array(env, get_contract, experimental_codegen):
+def test_abi_decode_extcall_empty_array(env, get_contract):
     typ = "DynArray[Bytes[32], 2]"
     code = f"""
 @external
@@ -1183,7 +1182,7 @@ def run() -> {typ}:
     res = c.run()
 
     assert res == []
-    _test_ctor_decode(env, typ, abi.encode("bytes[]", []), [], should_fail=experimental_codegen)
+    _test_ctor_decode(env, typ, abi.encode("bytes[]", []), [])
 
 
 def test_abi_decode_extcall_complex_empty_dynarray(env, get_contract):
@@ -1258,7 +1257,7 @@ def run():
         c.run()
 
 
-def test_abi_decode_extcall_zero_len_array2(env, get_contract, experimental_codegen):
+def test_abi_decode_extcall_zero_len_array2(env, get_contract):
     typ = "DynArray[Bytes[32], 2]"
     code = f"""
 @external
@@ -1278,9 +1277,7 @@ def run() -> {typ}:
     res = c.run()
     assert res == []
 
-    _test_ctor_decode(
-        env, typ, abi.encode("bytes[]", []), expected, should_fail=experimental_codegen
-    )
+    _test_ctor_decode(env, typ, abi.encode("bytes[]", []), expected)
 
 
 def test_abi_decode_top_level_head_oob(tx_failed, get_contract):
@@ -1472,9 +1469,7 @@ def run(x: Bytes[{buffer_size}]) -> {typ}:
     _test_ctor_decode(env, typ, data, expected)
 
 
-def test_abi_decode_invalid_toplevel_dynarray_head(
-    env, tx_failed, get_contract, experimental_codegen
-):
+def test_abi_decode_invalid_toplevel_dynarray_head(env, tx_failed, get_contract):
     # head points 1B over the bounds of the runtime buffer
     buffer_size = 2 * 32 + 3 * 32 + 3 * 32 * 4
     typ = "DynArray[DynArray[uint256, 3], 3]"
@@ -1494,9 +1489,8 @@ def run(x: Bytes[{buffer_size}]):
     with tx_failed():
         c.run(data)
 
-    # Legacy ctor decoding allows OOB reads here. Venom rejects malformed
-    # constructor-appended ABI payloads.
-    _test_ctor_decode(env, typ, data, [], should_fail=experimental_codegen)
+    # Constructor decoding is lenient here, matching legacy.
+    _test_ctor_decode(env, typ, data, [], should_fail=False)
 
 
 def test_nested_invalid_dynarray_head(get_contract, tx_failed):

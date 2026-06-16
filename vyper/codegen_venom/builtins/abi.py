@@ -384,10 +384,9 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             b.assert_(ge_min)
 
             offset = b.mload(data_ptr)
-            offset_after_head = b.iszero(b.lt(offset, IRLiteral(abi_min_size)))
             src = b.add(data_ptr, offset)
             no_src_wrap = b.iszero(b.lt(src, data_ptr))
-            b.assert_(b.and_(offset_after_head, no_src_wrap))
+            b.assert_(no_src_wrap)
             return _decode_unbounded_sequence_from_abi(ctx, src, hi, output_typ)
 
         ge_length_word = b.iszero(b.lt(data_len, IRLiteral(32)))

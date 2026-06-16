@@ -1034,12 +1034,6 @@ def _abi_arg_hi(ctx: VenomCodegenContext, location: DataLocation):
     if location == DataLocation.CALLDATA:
         return ctx.builder.calldatasize()
 
-    if location == DataLocation.CODE:
-        code_end = ctx.builder.offset(IRLiteral(0), IRLabel("code_end"))
-        codesize = ctx.builder.codesize()
-        ctx.builder.assert_(ctx.builder.iszero(ctx.builder.lt(codesize, code_end)))
-        return ctx.builder.sub(codesize, code_end)
-
     return None
 
 
@@ -1056,10 +1050,6 @@ def _get_abi_arg_ptr(
 
     if member_typ.abi_type.is_dynamic():
         offset_val = b.load(static_loc, loc)
-        head_size = parent.typ.abi_type.static_size()
-        # Entry points accept non-strict ABI, but dynamic arg offsets must not
-        # point back into the tuple head.
-        b.assert_(b.iszero(b.lt(offset_val, IRLiteral(head_size))))
         actual_ptr = b.add(parent.operand, offset_val)
         b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
         return VyperValue.from_ptr(Ptr(operand=actual_ptr, location=loc), member_typ)
@@ -1083,8 +1073,6 @@ def _materialize_unbounded_bytestring_abi_arg(
         return ctx.materialize_calldata_bytes(data_offset, length, typ, annotation=name)
 
     if src.location == DataLocation.CODE:
-        assert hi is not None
-        ctx.assert_abi_bytes_payload_in_bounds(src.operand, length, hi)
         return ctx.materialize_bytes_from_location(
             data_offset, length, typ, src.location, annotation=name
         )

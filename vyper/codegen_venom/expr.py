@@ -2142,8 +2142,6 @@ class Expr:
         # ABI external returns are always encoded as a tuple. A single dynamic
         # bytes/string return is therefore `[offset][length][data...]`.
         offset = b.mload(returndata_ptr)
-        offset_after_tuple_head = b.iszero(b.lt(offset, IRLiteral(32)))
-        b.assert_(offset_after_tuple_head)
 
         src = b.add(returndata_ptr, offset)
         no_src_wrap = b.iszero(b.lt(src, returndata_ptr))

@@ -512,7 +512,11 @@ def get(addr: address) -> Bytes[INF]:
     def word(value):
         return value.to_bytes(32, "big")
 
-    malformed_payloads = [word(0), word(2**256 - 31), word(32), word(32) + word(33) + b"\x01" * 32]
+    target = _deploy_raw_returner(env, word(0))
+    ret = _call(env, caller, "get(address)", "address", target.address)
+    assert abi_decode("(bytes)", ret) == (b"",)
+
+    malformed_payloads = [word(2**256 - 31), word(32), word(32) + word(33) + b"\x01" * 32]
 
     for payload in malformed_payloads:
         target = _deploy_raw_returner(env, payload)
@@ -714,6 +718,9 @@ def dec(x: Bytes[INF]) -> Bytes[INF]:
     encoded = abi_encode("(bytes)", (payload,))
     ret = _call(env, c, "dec(bytes)", "(bytes)", (encoded,))
     assert abi_decode("(bytes)", ret) == (payload,)
+
+    ret = _call(env, c, "dec(bytes)", "(bytes)", ((0).to_bytes(32, "big"),))
+    assert abi_decode("(bytes)", ret) == (b"",)
 
 
 def test_inf_bytes_abi_decode_no_tuple(env):
@@ -1098,18 +1105,22 @@ def get() -> Bytes[2001]:
     assert abi_decode("(bytes)", _call(env, c, "get()")) == (payload,)
 
 
-def test_inf_bytes_constructor_arg_rejects_truncated_data(env, tx_failed):
+def test_inf_bytes_constructor_arg_allows_truncated_data(env):
     code = """
 @deploy
 def __init__(a: Bytes[INF]):
     pass
+
+@external
+def ok() -> uint256:
+    return 1
     """
 
     def word(value):
         return value.to_bytes(32, "big")
 
-    with tx_failed():
-        _deploy_venom_with_ctor_data(env, code, word(32) + word(2001))
+    c = _deploy_venom_with_ctor_data(env, code, word(32) + word(2001))
+    assert abi_decode("(uint256)", _call(env, c, "ok()")) == (1,)
 
 
 def test_inf_bytes_external_param_rejects_truncated_calldata(env, tx_failed):
@@ -1129,8 +1140,7 @@ def length(x: Bytes[INF]) -> uint256:
         env.message_call(c.address, data=calldata)
 
     calldata = method_id("length(bytes)") + word(0)
-    with tx_failed():
-        env.message_call(c.address, data=calldata)
+    assert abi_decode("(uint256)", env.message_call(c.address, data=calldata)) == (0,)
 
 
 def test_inf_bytes_internal_arg_roundtrip(env):
