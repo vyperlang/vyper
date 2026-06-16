@@ -44,7 +44,7 @@ class VolatilePrePostChecker(PrePostChecker):
                 volatile_loc = MemoryLocation(offset=address, size=size, _is_volatile=True)
                 mem_ssa.mark_location_volatile(volatile_loc)
 
-            for p in self.passes:
+            for p, _ in self.passes:
                 obj = p(ac, fn)
                 self.pass_objects.append(obj)
                 obj.run_pass(self.addr_space)
@@ -1187,6 +1187,20 @@ def test_storage_basic_dead_store(addr_space):
             stop
     """
     _check_pre_post_generic(pre, post, addr_space)
+
+
+def test_storage_store_before_selfdestruct():
+    pre = """
+        _global:
+            sstore 0, 1
+            selfdestruct 0
+    """
+    post = """
+        _global:
+            sstore 0, 1
+            selfdestruct 0
+    """
+    _check_pre_post_generic(pre, post, STORAGE)
 
 
 @pytest.mark.parametrize("addr_space", _persistent_address_spaces)

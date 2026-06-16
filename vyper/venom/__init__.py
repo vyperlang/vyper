@@ -8,7 +8,7 @@ from vyper.ir.compile_ir import AssemblyInstruction
 from vyper.venom.analysis import IRGlobalAnalysesCache, ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.fcg import FCGGlobalAnalysis
-from vyper.venom.check_venom import check_calling_convention
+from vyper.venom.check_venom import check_calling_convention, check_mem_ops, check_post_lowering
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.optimization_levels.O2 import PASSES_O2
@@ -24,6 +24,7 @@ from vyper.venom.passes import (
     AssertEliminationPass,
     BranchOptimizationPass,
     DeadStoreElimination,
+    DretDesugarPass,
     FunctionInlinerPass,
     InternalReturnCopyForwardingPass,
     LoadElimination,
@@ -129,13 +130,31 @@ def _run_global_passes(
     for fn in ctx.get_functions():
         InternalReturnCopyForwardingPass(ir_analyses[fn], fn).run_pass()
         ReadonlyInvokeArgCopyForwardingPass(ir_analyses[fn], fn).run_pass()
+
+    _run_pre_inline_dret_desugar(ctx, ir_analyses)
+    # the desugar rewrites callee bodies, so the readonly facts must be
+    # recomputed before the inliner reads them
+    ctx.global_analyses_cache.invalidate_analysis(ReadonlyMemoryArgsGlobalAnalysis)
+
     if not flags.disable_inlining:
         FunctionInlinerPass(ir_analyses, ctx, flags).run_pass()
 
 
-def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags) -> None:
+def _run_pre_inline_dret_desugar(
+    ctx: IRContext, ir_analyses: dict[IRFunction, IRAnalysesCache]
+) -> None:
+    # DretDesugarPass is purely local (it touches no params and no invokes),
+    # so no call-graph order is required: a plain loop over functions.
+    for fn in ctx.get_functions():
+        DretDesugarPass(ir_analyses[fn], fn).run_pass()
+
+
+def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags, disable_mem_checks=False) -> None:
     ir_analyses: dict[IRFunction, IRAnalysesCache] = {}
-    # Validate calling convention invariants before running passes
+    # Pre-SSA frontend IR can contain loop-carried values which are repaired by
+    # MakeSSA. Only validate invariants that must already hold before passes.
+    if not disable_mem_checks:
+        check_mem_ops(ctx)
     check_calling_convention(ctx)
     for fn in ctx.functions.values():
         ir_analyses[fn] = IRAnalysesCache(fn)
@@ -161,6 +180,10 @@ def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags) -> None:
     pass_pipeline = _build_fn_pass_pipeline(flags)
     _run_fn_passes(ctx, fcg, ctx.entry_function, pass_pipeline, ir_analyses)
     ctx.global_analyses_cache = None
+
+    # validate the frozen FMP calling convention (not debug-gated: this is
+    # the staleness defense for the convention registry)
+    check_post_lowering(ctx)
 
 
 def _run_fn_passes(

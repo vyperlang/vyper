@@ -5,15 +5,17 @@ Byte manipulation built-in functions.
 - slice(b, start, length) - extract substring
 - extract32(b, start) - extract bytes32 from bytearray
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.arithmetic import clamp_basetype
 from vyper.codegen_venom.value import VyperValue
-from vyper.semantics.types import AddressT, BytesM_T, BytesT, IntegerT, StringT
+from vyper.semantics.types import AddressT, BytesM_T, BytesT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -76,6 +78,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             # Variable-length bytes/string: copy data, advance by actual length
             # lower_value() handles storage -> memory copy if needed
             arg_ptr = Expr(arg_node, ctx).lower_value()
+            assert isinstance(arg_ptr, IRVariable)
             arg_len = b.mload(arg_ptr)
             arg_data = b.add(arg_ptr, IRLiteral(32))
             offset = ctx.ptr_load(offset_local.ptr())
@@ -129,6 +132,7 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     if isinstance(src_t, _BytestringT):
         # lower_value() handles storage -> memory copy if needed
         src_ptr = Expr(src_node, ctx).lower_value()
+        assert isinstance(src_ptr, IRVariable)
         src_len = b.mload(src_ptr)
         src_data = b.add(src_ptr, IRLiteral(32))
     elif isinstance(src_t, BytesM_T):
@@ -159,6 +163,7 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     # Copy bytes from src_data + start to out_data
     copy_src = b.add(src_data, start)
+    assert isinstance(out_data.operand, IRVariable)
     ctx.copy_memory_dynamic(out_data.operand, copy_src, length)
 
     # Store length
@@ -179,7 +184,7 @@ def _is_adhoc_slice(node: vy_ast.VyperNode) -> bool:
             return True
 
     # <addr>.code
-    if node.attr == "code":
+    if node.attr == "code" and isinstance(node.value._metadata["type"], AddressT):
         return True
 
     return False
@@ -205,6 +210,7 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
     out_t = node._metadata["type"]
     out_val = ctx.new_temporary_value(out_t)
     out_data = ctx.add_offset(out_val.ptr(), IRLiteral(32))
+    assert isinstance(out_data.operand, IRVariable)
 
     # Determine which opcode to use
     if isinstance(src_node.value, vy_ast.Name):
@@ -258,6 +264,7 @@ def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     if isinstance(src_t, _BytestringT):
         # lower_value() handles storage -> memory copy if needed
         src_ptr = Expr(src_node, ctx).lower_value()
+        assert isinstance(src_ptr, IRVariable)
         src_len = b.mload(src_ptr)
         src_data = b.add(src_ptr, IRLiteral(32))
     else:
@@ -272,9 +279,7 @@ def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     start = Expr(start_node, ctx).lower_value()
 
     # Bounds check: start + 32 <= length
-    end = b.add(start, IRLiteral(32))
-    oob = b.gt(end, src_len)
-    b.assert_(b.iszero(oob))
+    _assert_slice_bounds(ctx, start, IRLiteral(32), src_len)
 
     # Load 32 bytes at offset
     load_ptr = b.add(src_data, start)
@@ -282,35 +287,7 @@ def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Apply type-specific clamping if needed
     out_t = node._metadata["type"]
-    return _clamp_extract32_result(result, out_t, ctx)
-
-
-def _clamp_extract32_result(val: IROperand, out_t, ctx: VenomCodegenContext) -> IROperand:
-    """Apply bounds check for extract32 output type."""
-    b = ctx.builder
-
-    if isinstance(out_t, IntegerT):
-        # Need to clamp to type bounds for signed/unsigned integers
-        if out_t.bits < 256:
-            if out_t.is_signed:
-                # For signed types, check signextend(val) == val
-                # This ensures the value's high bits match the sign bit
-                bytes_minus_1 = out_t.bits // 8 - 1
-                canonical = b.signextend(IRLiteral(bytes_minus_1), val)
-                b.assert_(b.eq(val, canonical))
-            else:
-                # For unsigned types, check value fits in type range
-                mask = (1 << out_t.bits) - 1
-                too_big = b.gt(val, IRLiteral(mask))
-                b.assert_(b.iszero(too_big))
-    elif isinstance(out_t, AddressT):
-        # Address is 160 bits, ensure high 96 bits are zero
-        mask = (1 << 160) - 1
-        too_big = b.gt(val, IRLiteral(mask))
-        b.assert_(b.iszero(too_big))
-
-    # bytes32 and bytesM need no clamping
-    return val
+    return clamp_basetype(b, result, out_t)
 
 
 # Export handlers

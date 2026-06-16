@@ -10,6 +10,7 @@
 """
 
 from ethereum.ercs import IERC20
+import math
 implements: IERC20  # <--------------------- AMM contract is also the LP token.
 
 # ------------------------------- Version ------------------------------------
@@ -910,7 +911,7 @@ def tweak_price(
 
     if old_virtual_price > 0:
 
-        xcp: uint256 = isqrt(xp[0] * xp[1])
+        xcp: uint256 = math.isqrt(xp[0] * xp[1])
         virtual_price = 10**18 * xcp // total_supply
 
         xcp_profit = unsafe_div(
@@ -979,7 +980,7 @@ def tweak_price(
             # ---------- Calculate new virtual_price using new xp and D. Reuse
             #              `old_virtual_price` (but it has new virtual_price).
             old_virtual_price = unsafe_div(
-                10**18 * isqrt(xp[0] * xp[1]), total_supply
+                10**18 * math.isqrt(xp[0] * xp[1]), total_supply
             )  # <----- unsafe_div because we did safediv before (if vp>1e18)
 
             # ---------------------------- Proceed if we've got enough profit.
@@ -1189,7 +1190,7 @@ def get_xcp(D: uint256, price_scale: uint256) -> uint256:
         D * PRECISION // (price_scale * N_COINS)
     ]
 
-    return isqrt(x[0] * x[1])  # <------------------- Geometric Mean.
+    return math.isqrt(x[0] * x[1])  # <------------------- Geometric Mean.
 
 
 @view
@@ -1568,7 +1569,7 @@ def lp_price() -> uint256:
             0th index
     @return uint256 LP price.
     """
-    return 2 * self.virtual_price * isqrt(self.internal_price_oracle() * 10**18) // 10**18
+    return 2 * self.virtual_price * math.isqrt(self.internal_price_oracle() * 10**18) // 10**18
 
 
 @external

@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.ir.compile_ir import Label
-from vyper.venom.basicblock import IRLiteral, IRVariable
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.parser import parse_venom
 from vyper.venom.stack_model import StackModel
@@ -26,6 +26,33 @@ def _dummy_dfg():
             return False
 
     return _DummyDFG()
+
+
+def test_set_current_function_clears_missing_fn_eom() -> None:
+    ctx = parse_venom("""
+        function first {
+            main:
+                stop
+        }
+
+        function second {
+            main:
+                stop
+        }
+        """)
+    compiler = VenomCompiler(ctx)
+    first, second = list(ctx.functions.values())
+
+    ctx.mem_allocator.fn_eom[first] = 64
+    compiler.spiller.set_current_function(first)
+    assert compiler.spiller._next_spill_offset == 64
+
+    compiler.spiller.set_current_function(second)
+    assert compiler.spiller._next_spill_offset is None
+
+    compiler.spiller._next_spill_offset = 96
+    compiler.spiller.set_current_function(None)
+    assert compiler.spiller._next_spill_offset is None
 
 
 def test_swap_spills_deep_stack() -> None:
@@ -175,7 +202,14 @@ def test_branch_spill_integration() -> None:
 
     ctx = parse_venom(venom_src)
     compiler = VenomCompiler(ctx)
-    compiler.spiller._next_spill_offset = 0x10000
+    fn = next(iter(ctx.functions.values()))
+    # generate_evm_assembly seeds the spill cursor per function via
+    # set_current_function, which clears _next_spill_offset when fn is absent
+    # from fn_eom -- presetting the private field directly would be
+    # overwritten, so seed fn_eom instead. (test_swap_spills_deep_stack above
+    # can still preset the field because it never goes through
+    # generate_evm_assembly.)
+    ctx.mem_allocator.fn_eom[fn] = 0x10000
     asm = compiler.generate_evm_assembly()
     opcodes = [op for op in asm if isinstance(op, str)]
 
@@ -255,3 +289,36 @@ def test_stack_reorder_operand_not_in_stack_but_spilled() -> None:
     assert spilled_var not in spilled  # Should have been removed from spilled dict
     # Assembly should contain PUSH and MLOAD to restore
     assert "MLOAD" in assembly
+
+
+def test_stack_spill_stack_invalidation_error():
+    dummy_function = """
+    function spill_demo {
+    main:
+        ret 0
+    }
+    """
+
+    ctx = parse_venom(dummy_function)
+    compiler = VenomCompiler(ctx)
+    compiler.dfg = _dummy_dfg()
+    compiler.spiller._current_function = next(ctx.get_functions())
+    compiler.spiller._next_spill_offset = 0x1000
+
+    stack = StackModel()
+    a = IRVariable("%a")
+    b = IRVariable("%b")
+
+    expected_stack: list[IROperand] = [a, b]
+
+    stack.push(b)
+    for i in range(20):
+        stack.push(IRVariable(f"%{i}"))
+    stack.push(a)
+
+    spilled: dict = {}
+
+    assembly: list = []
+
+    # Try to reorder with spilled_var as target (should restore it from memory)
+    compiler._stack_reorder(assembly, stack, expected_stack, spilled, dry_run=False)

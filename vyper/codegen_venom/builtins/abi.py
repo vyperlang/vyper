@@ -5,6 +5,7 @@ ABI encoding/decoding built-in functions.
 - abi_decode(data, output_type, unwrap_tuple=True) -> output_type
 - _abi_encode, _abi_decode: deprecated aliases
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
@@ -14,10 +15,11 @@ from vyper.codegen.core import calculate_type_for_external_return
 from vyper.codegen_venom.abi import abi_decode_to_buf, abi_encode_to_buf
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.value import VyperValue
+from vyper.exceptions import CompilerPanic, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import BytesT, TupleT
 from vyper.utils import fourbytes_to_int
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -36,13 +38,14 @@ def _get_bool_kwarg(node: vy_ast.Call, kwarg_name: str, default: bool) -> bool:
     kw_node = _get_kwarg_value(node, kwarg_name)
     if kw_node is None:
         return default
+    kw_node = kw_node.reduced()
     # The value should be a NameConstant (True/False)
     if isinstance(kw_node, vy_ast.NameConstant):
         return kw_node.value
     # Could also be an Int with constant value
     if isinstance(kw_node, vy_ast.Int):
         return bool(kw_node.value)
-    return default
+    raise CompilerPanic(f"unfoldable boolean kwarg: {kwarg_name}", kw_node)
 
 
 def _parse_method_id(method_id_node: vy_ast.VyperNode) -> Optional[int]:
@@ -87,13 +90,11 @@ def _create_tuple_in_memory(
     b = ctx.builder
     tuple_t = TupleT(tuple(types))
     val = ctx.new_temporary_value(tuple_t)
+    assert isinstance(val.operand, IRVariable)
 
     offset = 0
     for arg, typ in zip(args, types):
-        if offset == 0:
-            dst = val.operand
-        else:
-            dst = b.add(val.operand, IRLiteral(offset))
+        dst = b.add(val.operand, IRLiteral(offset))
 
         if typ._is_prim_word:
             b.mstore(dst, arg)
@@ -115,6 +116,9 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     - method_id: Optional 4-byte prefix (function selector)
     """
     from vyper.codegen_venom.expr import Expr
+
+    if len(node.args) < 1:
+        raise StructureException("abi_encode expects at least one argument", node)
 
     b = ctx.builder
 
@@ -141,8 +145,9 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             # abi_encode_to_buf expects a memory pointer, not a value.
             # Store the value to a temporary memory location.
             tmp = ctx.new_temporary_value(arg_types[0])
+            assert isinstance(tmp.operand, IRVariable)
             b.mstore(tmp.operand, args[0])
-            encode_input = tmp.operand
+            encode_input: IROperand = tmp.operand
         else:
             encode_input = args[0]
         encode_type = arg_types[0]
@@ -158,6 +163,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     # Allocate output buffer: [32-byte length] | [optional 4-byte method_id] | [data]
     buf_t = BytesT(maxlen)
     buf_val = ctx.new_temporary_value(buf_t)
+    assert isinstance(buf_val.operand, IRVariable)
 
     if method_id is not None:
         # Write method_id at offset 32 (start of data area, after 32-byte length field)
@@ -211,6 +217,7 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     # Get data pointer and length
     data_vv = Expr(data_node, ctx).lower()
     data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
+    assert isinstance(data, IRVariable)
     data_len = b.mload(data)  # Length word at start of Bytes
     data_ptr = b.add(data, IRLiteral(32))  # Data starts after length word
 
@@ -231,6 +238,7 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     # Allocate output buffer
     output_val = ctx.new_temporary_value(wrapped_typ)
+    assert isinstance(output_val.operand, IRVariable)
 
     # Decode with bounds checking
     hi = b.add(data_ptr, data_len)

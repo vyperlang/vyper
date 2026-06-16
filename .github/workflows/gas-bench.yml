@@ -1,0 +1,86 @@
+name: Gas Benchmark Report
+
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  gas-bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout merge commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          path: head
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Checkout base
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ github.base_ref }}
+          path: base
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Copy scripts to base
+        run: cp -r head/.github/scripts base/.github/
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@c7450ba673e133f5ee30098b3b54f444d3a2ca2d # v1
+        with:
+          version: nightly-407994620c0e7a6a66d2b7b03c53e2c8bf873fca
+
+      - name: Checkout snekmate
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          repository: pcaversaccio/snekmate
+          ref: 400f6b4f2288635aff5861aa95f5e99c5f451d54
+          submodules: recursive
+          path: snekmate
+          persist-credentials: false
+
+      - name: Install vyper (base)
+        working-directory: base
+        run: pip install .
+
+      - name: Measure base gas
+        working-directory: base
+        run: python .github/scripts/measure_gas.py --snekmate-dir ../snekmate > ../base-gas.json
+
+      - name: Install vyper (merge)
+        working-directory: head
+        run: pip install .
+
+      - name: Measure merge gas
+        working-directory: head
+        run: python .github/scripts/measure_gas.py --snekmate-dir ../snekmate > ../head-gas.json
+
+      - name: Generate report
+        run: |
+          python3 head/.github/scripts/compare_gas.py base-gas.json head-gas.json > report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload gas data
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gas-bench-report
+          path: |
+            base-gas.json
+            head-gas.json
+            report.md

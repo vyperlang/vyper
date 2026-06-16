@@ -10,6 +10,7 @@ convert(value, type) handles all type conversions in Vyper:
 - to_bytes/to_string: Bytestring casts
 - to_flag: Integer -> Flag type
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -20,7 +21,7 @@ from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, I
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import UINT160_T, UINT256_T
 from vyper.semantics.types.user import FlagT
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -62,7 +63,7 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         return _to_string(arg, in_t, out_t, arg_node, ctx)
     elif isinstance(out_t, FlagT):
         return _to_flag(arg, in_t, out_t, ctx)
-    else:
+    else:  # pragma: nocover
         raise CompilerPanic(f"Unsupported conversion target: {out_t}")
 
 
@@ -117,6 +118,7 @@ def _to_bool(
     if isinstance(in_t, _BytestringT):
         # Check if any byte is nonzero (matches legacy behavior)
         # Load the actual data, not just length
+        assert isinstance(val, IRVariable)
         length = b.mload(val)
         data_ptr = b.add(val, IRLiteral(32))
         data = b.mload(data_ptr)
@@ -145,6 +147,9 @@ def _to_address(
     From signed integers: disallowed (type checker handles this)
     From bytes: right-shift if needed, clamp to 160 bits
     """
+    if isinstance(in_t, IntegerT) and in_t.is_signed:
+        raise TypeMismatch(f"Can't convert {in_t} to address", arg_node)
+
     # Use _to_int to get uint160, which handles clamping
     result = _to_int(val, in_t, UINT160_T, arg_node, ctx)
     return result
@@ -173,6 +178,7 @@ def _to_int(
     # From bytes/string: load data, shift right
     if isinstance(in_t, _BytestringT):
         # Length at val, data at val+32
+        assert isinstance(val, IRVariable)
         length = b.mload(val)
         data_ptr = b.add(val, IRLiteral(32))
         data = b.mload(data_ptr)
@@ -223,6 +229,8 @@ def _to_int(
 
     # From address: treat as uint160
     if in_t == AddressT():
+        if out_t.is_signed:
+            raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
         # Can only go to unsigned types >= 160 bits
         if out_t.bits < 160:
             val = _int_clamp(val, out_t, ctx)
@@ -252,6 +260,7 @@ def _to_decimal(
 
     # From bytes/string
     if isinstance(in_t, _BytestringT):
+        assert isinstance(val, IRVariable)
         length = b.mload(val)
         data_ptr = b.add(val, IRLiteral(32))
         data = b.mload(data_ptr)
@@ -304,6 +313,7 @@ def _to_bytes_m(
 
     # From bytes/string: load data, mask/shift as needed
     if isinstance(in_t, _BytestringT):
+        assert isinstance(val, IRVariable)
         length = b.mload(val)
         data_ptr = b.add(val, IRLiteral(32))
         data = b.mload(data_ptr)
@@ -325,6 +335,16 @@ def _to_bytes_m(
         # Widening is no-op (already left-aligned)
         return val
 
+    if isinstance(in_t, IntegerT):
+        if out_t.m_bits < in_t.bits:
+            raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
+    elif in_t == AddressT():
+        if out_t.m_bits < 160:
+            raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
+    elif isinstance(in_t, DecimalT):
+        if out_t.m_bits < in_t.bits:
+            raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
+
     # From integer/address/decimal: left-shift to align
     shift_bits = (32 - out_t.m) * 8
     return b.shl(IRLiteral(shift_bits), val)
@@ -339,17 +359,17 @@ def _to_bytes(
     From string: just reinterpret (check length)
     """
     # Only bytestring types can be converted to Bytes
-    if not isinstance(in_t, _BytestringT):
+    if not isinstance(in_t, _BytestringT):  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     # Ban converting same type (e.g. Bytes[20] to Bytes[21] upcast is not a real conversion)
-    if isinstance(in_t, BytesT) and in_t.maxlen <= out_t.maxlen:
+    if isinstance(in_t, BytesT) and in_t.maxlen <= out_t.maxlen:  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     # Can't downcast literals with known length (e.g. b"abc" to Bytes[2])
     # Use reduced() to handle constant variables like `BAR: constant(Bytes[5])`
     reduced = arg_node.reduced() if arg_node.has_folded_value else arg_node
-    if isinstance(reduced, vy_ast.Constant) and in_t.maxlen > out_t.maxlen:
+    if isinstance(reduced, vy_ast.Constant) and in_t.maxlen > out_t.maxlen:  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     b = ctx.builder
@@ -358,6 +378,7 @@ def _to_bytes(
     # Just check length bounds
     if out_t.maxlen < in_t.maxlen:
         # Downcast: check actual length <= max
+        assert isinstance(val, IRVariable)
         length = b.mload(val)
         oob = b.gt(length, IRLiteral(out_t.maxlen))
         b.assert_(b.iszero(oob))
@@ -375,17 +396,17 @@ def _to_string(
     From bytes: just reinterpret (check length)
     """
     # Only bytestring types can be converted to String
-    if not isinstance(in_t, _BytestringT):
+    if not isinstance(in_t, _BytestringT):  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     # Ban converting same type (e.g. String[20] to String[21] upcast is not a real conversion)
-    if isinstance(in_t, StringT) and in_t.maxlen <= out_t.maxlen:
+    if isinstance(in_t, StringT) and in_t.maxlen <= out_t.maxlen:  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     # Can't downcast literals with known length (e.g. "abc" to String[2])
     # Use reduced() to handle constant variables like `BAR: constant(String[5])`
     reduced = arg_node.reduced() if arg_node.has_folded_value else arg_node
-    if isinstance(reduced, vy_ast.Constant) and in_t.maxlen > out_t.maxlen:
+    if isinstance(reduced, vy_ast.Constant) and in_t.maxlen > out_t.maxlen:  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     b = ctx.builder
@@ -393,6 +414,7 @@ def _to_string(
     # bytes->string and string->string are pointer casts
     if out_t.maxlen < in_t.maxlen:
         # Downcast: check actual length <= max
+        assert isinstance(val, IRVariable)
         length = b.mload(val)
         oob = b.gt(length, IRLiteral(out_t.maxlen))
         b.assert_(b.iszero(oob))
@@ -427,9 +449,8 @@ def _check_bytes(in_t, out_t, max_bytes_allowed: int, source_expr: vy_ast.VyperN
 
     Raises TypeMismatch if in_t is a bytestring with maxlen > max_bytes_allowed.
     """
-    if isinstance(in_t, _BytestringT):
-        if in_t.maxlen > max_bytes_allowed:
-            raise TypeMismatch(f"Can't convert {in_t} to {out_t}", source_expr)
+    if isinstance(in_t, _BytestringT) and in_t.maxlen > max_bytes_allowed:  # pragma: nocover
+        raise TypeMismatch(f"Can't convert {in_t} to {out_t}", source_expr)
 
 
 def _int_clamp(val: IROperand, out_t: IntegerT, ctx: VenomCodegenContext) -> IROperand:

@@ -17,6 +17,7 @@ from vyper.venom.memory_location import (
     update_write_location,
 )
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.copy_forwarding import CopyForwardingPolicy
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
 _NONMEM_COPY_OPCODES = ("calldatacopy", "codecopy", "dloadbytes", "returndatacopy")
@@ -48,6 +49,7 @@ class MemoryCopyElisionPass(IRPass):
     # For cross-BB analysis: maps BB -> copy state at end of BB
     bb_copies: dict[IRBasicBlock, CopyMap]
     bb_translates: dict[IRBasicBlock, TranslateMap]
+    copy_forwarding: CopyForwardingPolicy
 
     def run_pass(self):
         self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
@@ -55,6 +57,9 @@ class MemoryCopyElisionPass(IRPass):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.updater = InstUpdater(self.dfg)
+        self.copy_forwarding = CopyForwardingPolicy(
+            self.function, self.dfg, self.base_ptr, self.mem_alias
+        )
         self.loads = {Effects.MEMORY: dict(), Effects.STORAGE: dict(), Effects.TRANSIENT: dict()}
         self.bb_copies = {}
         self.total_translation = dict()
@@ -109,34 +114,7 @@ class MemoryCopyElisionPass(IRPass):
 
     def _copies_equivalent(self, inst1: IRInstruction, inst2: IRInstruction) -> bool:
         """Check if two copy instructions are semantically equivalent."""
-
-        # we can assume that the write location since the copies are
-        # compared if they are in the same key in the copies map
-        # so this is a sanity check for that
-        write_loc1 = self.base_ptr.get_write_location(inst1, addr_space.MEMORY)
-        write_loc2 = self.base_ptr.get_write_location(inst2, addr_space.MEMORY)
-        assert write_loc1 == write_loc2
-
-        if inst1 is inst2:
-            return True
-
-        if inst1.opcode != inst2.opcode:
-            return False
-
-        # Verify the source OPERANDS are equivalent (not just locations).
-        # This ensures we can safely use either instruction's operands after merge.
-        # are_equivalent handles assign chains (e.g., %x = 0; %y = %x -> %x == %y)
-        #
-        # Operand layout: [size, src, dst]
-        size1, src_op1, _ = inst1.operands
-        size2, src_op2, _ = inst2.operands
-
-        if not self.dfg.are_equivalent(src_op1, src_op2):
-            return False
-        if not self.dfg.are_equivalent(size1, size2):
-            return False
-
-        return True
+        return self.copy_forwarding.copies_equivalent(inst1, inst2)
 
     def _merge_translates(self, bb: IRBasicBlock) -> TranslateMap:
         preds = list(self.cfg.cfg_in(bb))
@@ -213,8 +191,13 @@ class MemoryCopyElisionPass(IRPass):
                 self._try_elide_copy(inst)
 
                 write_loc = self.base_ptr.get_write_location(inst, addr_space.MEMORY)
+                read_loc = self.base_ptr.get_read_location(inst, addr_space.MEMORY)
                 self._invalidate(write_loc, Effects.MEMORY)
-                if write_loc.is_fixed:
+                # mcopy has memmove semantics: a self-overlapping copy can
+                # clobber its own source bytes, so it is not idempotent and
+                # cannot be recorded as a reusable copy fact. (unknown
+                # offsets conservatively count as overlapping.)
+                if write_loc.is_fixed and not MemoryLocation.may_overlap(read_loc, write_loc):
                     self.copies[write_loc] = inst
 
                 # it was not elided to some different
@@ -226,6 +209,16 @@ class MemoryCopyElisionPass(IRPass):
                 self._invalidate(
                     self.base_ptr.get_write_location(inst, addr_space.MEMORY), Effects.MEMORY
                 )
+            else:
+                if Effects.RETURNDATA in inst.get_write_effects():
+                    self._invalidate_returndata_copies()
+                if Effects.MEMORY in inst.get_write_effects():
+                    self.copies.clear()
+                    self.loads[Effects.MEMORY].clear()
+                if Effects.STORAGE in inst.get_write_effects():
+                    self.loads[Effects.STORAGE].clear()
+                if Effects.TRANSIENT in inst.get_write_effects():
+                    self.loads[Effects.TRANSIENT].clear()
 
         # Check if state changed
         change = False
@@ -240,6 +233,15 @@ class MemoryCopyElisionPass(IRPass):
             change = True
 
         return change
+
+    def _invalidate_returndata_copies(self):
+        to_remove = [
+            mem_loc
+            for mem_loc, copy_inst in self.copies.items()
+            if Effects.RETURNDATA in copy_inst.get_read_effects()
+        ]
+        for mem_loc in to_remove:
+            del self.copies[mem_loc]
 
     def _invalidate(self, write_loc: MemoryLocation, eff: Effects):
         if not write_loc.is_fixed and Effects.MEMORY in eff:
@@ -302,21 +304,7 @@ class MemoryCopyElisionPass(IRPass):
         # MemoryLocation includes size as part of its identity, and only
         # fixed-size copies (where size is a literal) are tracked in self.copies.
         # Variable-size copies have is_fixed=False and aren't tracked.
-        _, src, _ = previous.operands
-
-        # Traverse assign chain to get the canonical operand. This handles
-        # the case where equivalent copies on different paths use different
-        # variable names (e.g., %x = 0 vs %y = 0). Using the root (literal 0)
-        # avoids SSA violations when the original variable isn't defined on
-        # all paths to the current block.
-        #
-        # Safety: _traverse_assign_chain returns a value that dominates the
-        # use site because _copies_equivalent only returns True when operands
-        # share a common assign-chain root (via are_equivalent), and that root
-        # must dominate all paths that use it.
-        if isinstance(src, IRVariable):
-            src = self.dfg._traverse_assign_chain(src)
-
+        src = self.copy_forwarding.copy_source(previous)
         inst.opcode = previous.opcode
         inst.operands[1] = src
 
@@ -359,9 +347,9 @@ class MemoryCopyElisionPass(IRPass):
         uses = self.dfg.get_uses(load_inst.output)
         if len(uses) > 1:
             return
-        # Only nop the store here. The load may still be needed for MSIZE
-        # side effects. Let RemoveUnusedVariablesPass decide if the load
-        # can be removed (it has proper msize fence handling).
+        # Only nop the store here. The load may still be needed by other
+        # users. Let RemoveUnusedVariablesPass decide if the load can be
+        # removed.
         self.updater.nop(inst)
 
     def _try_create_translate(self, inst: IRInstruction):

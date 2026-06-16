@@ -2,7 +2,9 @@ from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
+from vyper.venom.optimization_levels.types import PassConfig
 from vyper.venom.parser import parse_venom
+from vyper.venom.passes import MakeSSA, PhiEliminationPass
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -12,6 +14,21 @@ def parse_from_basic_block(source: str, funcname="_global"):
     """
     source = f"function {funcname} {{\n{source}\n}}"
     return parse_venom(source)
+
+
+def find_inst(fn: IRFunction, opcode: str) -> IRInstruction:
+    """
+    Return the first instruction in `fn` with the given opcode.
+    """
+    return next(
+        inst for bb in fn.get_basic_blocks() for inst in bb.instructions if inst.opcode == opcode
+    )
+
+
+def run_ssa(fn: IRFunction) -> None:
+    ac = IRAnalysesCache(fn)
+    MakeSSA(ac, fn).run_pass()
+    PhiEliminationPass(ac, fn).run_pass()
 
 
 def instructions_eq(i1: IRInstruction, i2: IRInstruction) -> bool:
@@ -34,6 +51,7 @@ def assert_bb_eq(bb1: IRBasicBlock, bb2: IRBasicBlock):
 
 def assert_fn_eq(fn1: IRFunction, fn2: IRFunction):
     assert fn1.name.value == fn2.name.value
+    assert fn1._fmp_signature == fn2._fmp_signature
     assert len(fn1._basic_block_dict) == len(fn2._basic_block_dict)
 
     for name1, bb1 in fn1._basic_block_dict.items():
@@ -55,18 +73,32 @@ def assert_ctx_eq(ctx1: IRContext, ctx2: IRContext):
     assert ctx1.data_segment == ctx2.data_segment, ctx2.data_segment
 
 
+NormalizedPassConfig = tuple[type, dict]
+
+
+def normalize_passes(passes: list[PassConfig]) -> list[NormalizedPassConfig]:
+    res = []
+    for p in passes:
+        if not isinstance(p, tuple):
+            res.append((p, dict()))
+        else:
+            res.append(p)
+    return res
+
+
 class PrePostChecker:
-    passes: list[type]
-    post_passes: list[type]
+    passes: list[NormalizedPassConfig]
+    post_passes: list[NormalizedPassConfig]
     pass_objects: list[IRPass]
     default_hevm: bool
 
-    def __init__(self, passes: list[type], post: list[type] = None, default_hevm: bool = True):
-        self.passes = passes
-        if post is None:
-            self.post_passes = []
-        else:
-            self.post_passes = post
+    def __init__(
+        self, passes: list[PassConfig], post: list[PassConfig] = None, default_hevm: bool = True
+    ):
+        self.passes = normalize_passes(passes)
+        self.post_passes = []
+        if post is not None:
+            self.post_passes = normalize_passes(post)
         self.default_hevm = default_hevm
         self.pass_objects = list()
 
@@ -75,18 +107,18 @@ class PrePostChecker:
         pre_ctx = parse_from_basic_block(pre)
         for fn in pre_ctx.functions.values():
             ac = IRAnalysesCache(fn)
-            for p in self.passes:
+            for p, kwargs in self.passes:
                 obj = p(ac, fn)
                 self.pass_objects.append(obj)
-                obj.run_pass()
+                obj.run_pass(**kwargs)
 
         post_ctx = parse_from_basic_block(post)
         for fn in post_ctx.functions.values():
             ac = IRAnalysesCache(fn)
-            for p in self.post_passes:
+            for p, kwargs in self.post_passes:
                 obj = p(ac, fn)
                 self.pass_objects.append(obj)
-                obj.run_pass()
+                obj.run_pass(**kwargs)
 
         return pre_ctx, post_ctx
 

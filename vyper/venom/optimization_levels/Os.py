@@ -18,7 +18,8 @@ from vyper.venom.passes import (
     ConcretizeMemLocPass,
     DeadStoreElimination,
     DFTPass,
-    FixMemLocationsPass,
+    FmpLoweringPass,
+    FmpPrunePass,
     InternalReturnCopyForwardingPass,
     LoadElimination,
     LowerDloadPass,
@@ -37,7 +38,6 @@ from vyper.venom.passes import (
 
 # Optimize for size
 PASSES_Os: List[PassConfig] = [
-    FixMemLocationsPass,
     SimplifyCFGPass,
     MakeSSA,
     PhiEliminationPass,
@@ -65,7 +65,7 @@ PASSES_Os: List[PassConfig] = [
     InternalReturnCopyForwardingPass,
     ReadonlyInvokeArgCopyForwardingPass,
     # run memmerge before LowerDload
-    MemMergePass,
+    (MemMergePass, {"memory_abstract": True}),
     MemoryCopyElisionPass,
     LoadElimination,
     LowerDloadPass,
@@ -76,9 +76,15 @@ PASSES_Os: List[PassConfig] = [
     AssignElimination,
     RemoveUnusedVariablesPass,
     ConcretizeMemLocPass,
+    FmpLoweringPass,
+    # repairs the multiply-assigned FMP runner emitted by the lowering;
+    # PhiEliminationPass then folds the trivial phis MakeSSA inserts for
+    # the runner before SCCP sees them
+    MakeSSA,
+    PhiEliminationPass,
     SCCP,
     SimplifyCFGPass,
-    MemMergePass,
+    (MemMergePass, {"memory_abstract": False}),
     LoadElimination,
     RemoveUnusedVariablesPass,
     BranchOptimizationPass,
@@ -91,6 +97,12 @@ PASSES_Os: List[PassConfig] = [
     AssignElimination,
     CSE,
     AssignElimination,
+    RemoveUnusedVariablesPass,
+    # deletion-only (removes a dead fmp_param plus its self-contained
+    # assign/phi chain), so SSA form is preserved and no re-SSA is needed;
+    # the trailing RemoveUnusedVariablesPass sweeps values that become dead
+    # only once the fmp_param chain is deleted
+    FmpPrunePass,
     RemoveUnusedVariablesPass,
     SingleUseExpansion,
     ReduceLiteralsCodesize,

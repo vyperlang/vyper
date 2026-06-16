@@ -6,10 +6,10 @@ Miscellaneous built-in functions.
 - floor, ceil: Decimal truncation
 - as_wei_value: Wei denomination conversion
 - min_value, max_value, epsilon: Compile-time constants
-- isqrt: Integer square root
 - breakpoint: Debug interrupt
 - print: Debug logging to console.log address
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -19,10 +19,10 @@ from vyper.builtins.functions import AsWeiValue
 from vyper.codegen_venom.abi.abi_encoder import abi_encode_to_buf
 from vyper.codegen_venom.constants import BLOCKHASH_LOOKBACK_LIMIT, ECRECOVER_PRECOMPILE
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import EvmVersionException
-from vyper.semantics.types import BytesT, DecimalT, StringT, TupleT
+from vyper.exceptions import CompilerPanic, EvmVersionException
+from vyper.semantics.types import BytesT, DecimalT, IntegerT, StringT, TupleT
 from vyper.utils import DECIMAL_DIVISOR, method_id_int
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -304,8 +304,10 @@ def lower_as_wei_value(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand
             is_non_negative = b.iszero(b.slt(value, IRLiteral(0)))
             b.assert_(is_non_negative)
             return b.div(value, IRLiteral(DECIMAL_DIVISOR))
-        else:
-            return value
+        if isinstance(typ, IntegerT) and typ.is_signed:
+            is_non_negative = b.iszero(b.slt(value, IRLiteral(0)))
+            b.assert_(is_non_negative)
+        return value
 
     if isinstance(typ, DecimalT):
         # Decimal: check non-negative, multiply, then divide by DECIMAL_DIVISOR
@@ -372,79 +374,6 @@ def lower_epsilon(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
 
 # =============================================================================
-# Integer Square Root
-# =============================================================================
-
-
-def lower_isqrt(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
-    """
-    isqrt(x) -> uint256
-
-    Integer square root using Babylonian method.
-    Returns floor(sqrt(x)).
-
-    Port of legacy IRnode implementation line-by-line.
-    """
-    from vyper.codegen_venom.expr import Expr
-
-    b = ctx.builder
-
-    x = Expr(node.args[0], ctx).lower_value()
-
-    # Create mutable variables y and z
-    # Legacy: ["with", y, x, ["with", z, 181, ...]]
-    y = b.new_variable()
-    z = b.new_variable()
-    b.assign_to(x, y)
-    b.assign_to(IRLiteral(181), z)
-
-    # Scale based on magnitude - series of conditional adjustments
-    # These use "ge" comparisons and conditionally update y and z
-
-    # if y >= 2^136: y >>= 128, z <<= 64
-    cond1 = b.iszero(b.lt(y, IRLiteral(2 ** (128 + 8))))  # ge = not lt
-    new_y1 = b.shr(IRLiteral(128), y)
-    new_z1 = b.shl(IRLiteral(64), z)
-    b.assign_to(b.select(cond1, new_y1, y), y)
-    b.assign_to(b.select(cond1, new_z1, z), z)
-
-    # if y >= 2^72: y >>= 64, z <<= 32
-    cond2 = b.iszero(b.lt(y, IRLiteral(2 ** (64 + 8))))
-    new_y2 = b.shr(IRLiteral(64), y)
-    new_z2 = b.shl(IRLiteral(32), z)
-    b.assign_to(b.select(cond2, new_y2, y), y)
-    b.assign_to(b.select(cond2, new_z2, z), z)
-
-    # if y >= 2^40: y >>= 32, z <<= 16
-    cond3 = b.iszero(b.lt(y, IRLiteral(2 ** (32 + 8))))
-    new_y3 = b.shr(IRLiteral(32), y)
-    new_z3 = b.shl(IRLiteral(16), z)
-    b.assign_to(b.select(cond3, new_y3, y), y)
-    b.assign_to(b.select(cond3, new_z3, z), z)
-
-    # if y >= 2^24: y >>= 16, z <<= 8
-    cond4 = b.iszero(b.lt(y, IRLiteral(2 ** (16 + 8))))
-    new_y4 = b.shr(IRLiteral(16), y)
-    new_z4 = b.shl(IRLiteral(8), z)
-    b.assign_to(b.select(cond4, new_y4, y), y)
-    b.assign_to(b.select(cond4, new_z4, z), z)
-
-    # z = z * (y + 2^16) / 2^18
-    scaled_z = b.div(b.mul(z, b.add(y, IRLiteral(2**16))), IRLiteral(2**18))
-    b.assign_to(scaled_z, z)
-
-    # 7 iterations of Babylonian refinement: z = (z + x/z) / 2
-    for _ in range(7):
-        next_z = b.div(b.add(b.div(x, z), z), IRLiteral(2))
-        b.assign_to(next_z, z)
-
-    # Final check: if x/z < z, return x/z (handles oscillation at perfect squares)
-    # Legacy: ["with", "t", ["div", x, z], ["select", ["lt", z, "t"], z, "t"]]
-    t = b.div(x, z)
-    return b.select(b.lt(z, t), z, t)
-
-
-# =============================================================================
 # Debug
 # =============================================================================
 
@@ -462,11 +391,12 @@ def _get_bool_kwarg(node: vy_ast.Call, kwarg_name: str, default: bool) -> bool:
     kw_node = _get_kwarg_value(node, kwarg_name)
     if kw_node is None:
         return default
+    kw_node = kw_node.reduced()
     if isinstance(kw_node, vy_ast.NameConstant):
         return kw_node.value
     if isinstance(kw_node, vy_ast.Int):
         return bool(kw_node.value)
-    return default
+    raise CompilerPanic(f"unfoldable boolean kwarg: {kwarg_name}", kw_node)
 
 
 def _create_tuple_in_memory(
@@ -476,13 +406,11 @@ def _create_tuple_in_memory(
     b = ctx.builder
     tuple_t = TupleT(tuple(types))
     val = ctx.new_temporary_value(tuple_t)
+    assert isinstance(val.operand, IRVariable)
 
     offset = 0
     for arg, typ in zip(args, types):
-        if offset == 0:
-            dst = val.operand
-        else:
-            dst = b.add(val.operand, IRLiteral(offset))
+        dst = b.add(val.operand, IRLiteral(offset))
 
         if typ._is_prim_word:
             b.mstore(dst, arg)
@@ -543,9 +471,8 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         # Allocate buffer: [32 bytes padding for method_id alignment] | [data]
         buf = ctx.allocate_buffer(buflen)
 
-        # Store method_id at buf (shifted left to align in word)
-        method_id_word = mid << 224
-        b.mstore(buf._ptr, IRLiteral(method_id_word))
+        # Store method_id so buf+28 starts at the 4-byte selector.
+        b.mstore(buf._ptr, IRLiteral(mid))
 
         # Create tuple in memory and encode starting at buf + 32
         if len(args) > 0:
@@ -596,10 +523,7 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
             # Pad chunk to 32 bytes (left-aligned in word)
             chunk_padded = chunk.ljust(32, b"\x00")
             chunk_int = int.from_bytes(chunk_padded, "big")
-            if i == 0:
-                b.mstore(schema_data_ptr, IRLiteral(chunk_int))
-            else:
-                b.mstore(b.add(schema_data_ptr, IRLiteral(i)), IRLiteral(chunk_int))
+            b.mstore(b.add(schema_data_ptr, IRLiteral(i)), IRLiteral(chunk_int))
 
         # Now encode (schema_string, payload_bytes) as a tuple
         schema_t = StringT(schema_len)
@@ -608,6 +532,7 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
 
         # Create tuple in memory with pointers to schema and payload buffers
         outer_val = ctx.new_temporary_value(outer_tuple_t)
+        assert isinstance(outer_val.operand, IRVariable)
         ctx.copy_memory(outer_val.operand, schema_buf._ptr, schema_t.memory_bytes_required)
         dst_payload = b.add(outer_val.operand, IRLiteral(schema_t.memory_bytes_required))
         ctx.copy_memory(dst_payload, payload_buf._ptr, payload_t.memory_bytes_required)
@@ -617,9 +542,8 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         final_buflen = 32 + outer_abi_size
         buf = ctx.allocate_buffer(final_buflen)
 
-        # Store method_id
-        method_id_word = mid << 224
-        b.mstore(buf._ptr, IRLiteral(method_id_word))
+        # Store method_id so buf+28 starts at the 4-byte selector.
+        b.mstore(buf._ptr, IRLiteral(mid))
 
         # Encode outer tuple
         data_dst = b.add(buf._ptr, IRLiteral(32))
@@ -629,8 +553,9 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         call_len = b.add(IRLiteral(4), encoded_len)
 
     # Make the staticcall to console.log
+    retptr = ctx.allocate_buffer(0)
     b.staticcall(
-        b.gas(), IRLiteral(CONSOLE_ADDRESS), call_start, call_len, IRLiteral(0), IRLiteral(0)
+        b.gas(), IRLiteral(CONSOLE_ADDRESS), call_start, call_len, retptr._ptr, IRLiteral(0)
     )
 
     return IRLiteral(0)
@@ -659,7 +584,6 @@ HANDLERS = {
     "min_value": lower_min_value,
     "max_value": lower_max_value,
     "epsilon": lower_epsilon,
-    "isqrt": lower_isqrt,
     "breakpoint": lower_breakpoint,
     "print": lower_print,
 }

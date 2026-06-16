@@ -24,8 +24,7 @@ def _check_pre_post_with_unused_var_removal(pre, post, hevm: bool = True):
     """Like _check_pre_post but also runs RemoveUnusedVariablesPass.
 
     This is needed for tests involving load-store elision where the load
-    becomes unused after the store is nop'd. RemoveUnusedVariablesPass
-    has proper MSIZE fence handling to preserve loads that affect msize.
+    becomes unused after the store is nop'd.
     """
     pre_ctx, post_ctx = _checker.run_passes(pre, post)
     for fn in pre_ctx.functions.values():
@@ -61,7 +60,7 @@ def test_redundant_copy_elimination():
     Test that copying to the same location is eliminated entirely.
 
     MemoryCopyElisionPass only nops the store. The load is removed by
-    RemoveUnusedVariablesPass (which has proper MSIZE fence handling).
+    RemoveUnusedVariablesPass.
     """
     pre = """
     _global:
@@ -71,7 +70,7 @@ def test_redundant_copy_elimination():
     """
 
     # After MemoryCopyElisionPass: store is nop'd, load remains
-    # After RemoveUnusedVariablesPass: load is also removed (no msize downstream), nops cleared
+    # After RemoveUnusedVariablesPass: load is also removed, nops cleared
     post = """
     _global:
         stop
@@ -152,6 +151,29 @@ def test_repeated_mcopy_elision_with_intermediate_reads():
     _check_pre_post(pre, post)
 
 
+def test_no_repeated_self_overlapping_mcopy_elision():
+    """
+    mcopy has memmove semantics: when source and destination overlap, the
+    copy clobbers some of its own source bytes, so repeating it is NOT
+    idempotent. The second mcopy must NOT be elided.
+
+    The reads of %1 and %2 make both mcopies observable.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 132, 100, 64
+        %1 = mload 132
+        mcopy 132, 100, 64
+        %2 = mload 132
+        %3 = add %1, %2
+        sink %3
+    """
+    _check_no_change(pre)
+
+
 def test_no_repeated_mcopy_elision_when_source_modified():
     """
     When the source buffer is modified between two identical mcopy operations,
@@ -199,6 +221,21 @@ def test_no_repeated_mcopy_elision_when_dest_modified():
         %4 = add %1, %2
         %5 = add %4, %3
         sink %5
+    """
+    _check_no_change(pre)
+
+
+def test_returndatacopy_not_forwarded_across_create():
+    pre = """
+    _global:
+        %src = alloca 32
+        %dst = alloca 32
+        %code = alloca 1
+        returndatacopy %src, 0, 32
+        %addr = create 0, %code, 1
+        mcopy %dst, %src, 32
+        %1 = mload %dst
+        sink %1
     """
     _check_no_change(pre)
 
@@ -790,36 +827,6 @@ def test_mem_elision_load_needed_not_precise():
     _check_pre_post(pre, post)
 
 
-def test_mem_elision_msize():
-    """
-    Test that mload is preserved when msize is read downstream.
-
-    MemoryCopyElisionPass only nops the store. RemoveUnusedVariablesPass
-    would normally remove the unused load, but it correctly preserves it
-    because there's an msize instruction downstream (msize fence).
-    """
-    pre = """
-    main:
-        ; you cannot nop both of
-        ; them since you need correct
-        ; msize (currently it does that)
-        %1 = mload 100
-        mstore 100, %1
-        %2 = msize
-        sink %2
-    """
-
-    # After MemoryCopyElisionPass: store is nop'd
-    # After RemoveUnusedVariablesPass: load is KEPT (msize fence), nops cleared
-    post = """
-    main:
-        %1 = mload 100
-        %2 = msize
-        sink %2
-    """
-    _check_pre_post_with_unused_var_removal(pre, post)
-
-
 def test_remove_unused_writes():
     pre = """
     main:
@@ -1082,6 +1089,29 @@ def test_no_repeated_alloca_mcopy_elision_when_source_modified():
     """
 
     _check_pre_post(pre, post)
+
+
+def test_no_repeated_self_overlapping_alloca_mcopy_elision():
+    """
+    Self-overlapping mcopy within a single alloca is not idempotent
+    (memmove semantics), so the repeated copy must NOT be elided.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %buf = alloca 256
+        %src = add %buf, 0
+        %dst = add %buf, 32
+        mcopy %dst, %src, 64
+        %1 = mload %dst
+        mcopy %dst, %src, 64
+        %2 = mload %dst
+        %3 = add %1, %2
+        sink %3
+    """
+    _check_no_change(pre)
 
 
 def test_calldatacopy_mcopy_chain_with_alloca():
